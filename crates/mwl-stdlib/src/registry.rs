@@ -179,17 +179,21 @@ pub enum CoreTy {
     /// value, read back as `mwl_ir::ty::Ty::Tagged` — that variant's own doc
     /// comment owns the representation and what it spends.
     ///
-    /// **An option's type only where every member is a literal**, which is
-    /// the one restriction left. `CoreTy::Options` flattens a bag into one ABI
-    /// argument per option and an omitted option passes a [`Const`], which has
-    /// no union-shaped spelling — so a `{a?: int|string}` would have no
-    /// default it could state. A union of [`Self::IntLiteral`]s does: every
-    /// value the position admits is a compile-time constant of one
-    /// representation, and "not given" is [`Const::Null`], exactly as it
-    /// already is for the `{by?: callable}` an option cannot otherwise spell.
-    /// `Core\Validate::isIp`'s `{version?: 4|6}` is the row that wanted this
-    /// and [`crate::validate`]'s docs say why the alternative was worse.
-    /// `a_union_option_is_a_closed_set_of_literals` holds it.
+    /// **An option's type only where `null` is not one of the values it
+    /// admits**, which is the one restriction left. `CoreTy::Options` flattens
+    /// a bag into one ABI argument per option and an omitted option passes a
+    /// [`Const`], which has no union-shaped spelling — so what a union option
+    /// defaults to is [`Const::Null`], read back by the helper as "not given"
+    /// exactly as it already is for the `{by?: callable}` an option cannot
+    /// otherwise spell. That works for as long as no *written* value can
+    /// arrive as a `Tag::Null` too, which is why a [`Self::Nullable`] member
+    /// (or a bare nullable option) is refused: there, "omitted" and
+    /// `{a: null}` would be one argument.
+    /// `Core\Validate::isIp`'s `{version?: 4|6}` was the row that wanted a
+    /// union here first — [`crate::validate`]'s docs say why the alternative
+    /// was worse — and `Core\Arr::column`'s `{indexBy?: int|string}` is the
+    /// one that showed the restriction was about `null` rather than about
+    /// literals. `a_union_option_excludes_null` holds it.
     Union(&'static [CoreTy]),
     /// **One `int` literal** — [ADR 0047](../../../../docs/adr/0047-literal-and-enum-case-types.md)
     /// § 1's integer atom, whose only use is inside a [`Self::Union`] that
@@ -1106,14 +1110,16 @@ mod tests {
     }
 
     /// A union is legal in either direction, and as an **option's** type only
-    /// where every member is a literal — see [`CoreTy::Union`], which owns
-    /// why: a bag flattens to one ABI argument per option, and the [`Const`]
-    /// an omitted one passes has no union-shaped spelling, so the members have
-    /// to be constants and the default has to be [`Const::Null`].
-    /// [`CoreTy::Nullable`] interns as a union of something that is not a
-    /// literal, so it is refused here outright.
+    /// where `null` is none of the values it admits — see [`CoreTy::Union`],
+    /// which owns why: a bag flattens to one ABI argument per option, the
+    /// [`Const`] an omitted one passes has no union-shaped spelling, so the
+    /// default is [`Const::Null`] and the helper reads `Tag::Null` for "not
+    /// given". A member that could itself be `null` would collide with that
+    /// sentinel, so [`CoreTy::Nullable`] is refused both as a whole option
+    /// type and inside one — and so is [`CoreTy::Mixed`], which admits `null`
+    /// without spelling it.
     #[test]
-    fn a_union_option_is_a_closed_set_of_literals() {
+    fn a_union_option_excludes_null() {
         for class in CLASSES {
             for method in class.members() {
                 for member in method.options().unwrap_or(&[]) {
@@ -1122,16 +1128,16 @@ mod tests {
                         CoreTy::Union(members) => {
                             members
                                 .iter()
-                                .all(|one| matches!(one, CoreTy::IntLiteral(_)))
+                                .all(|one| !matches!(one, CoreTy::Nullable(_) | CoreTy::Mixed))
                                 && matches!(member.default, Const::Null)
                         }
                         _ => true,
                     };
                     assert!(
                         closed,
-                        "{}::{}'s option `{}` is a union that is not a closed set of \
-                         literals defaulting to `null`, which no option-bag flattening \
-                         rule covers",
+                        "{}::{}'s option `{}` is a union that either admits `null` or does \
+                         not default to it, so an omitted option and a written one would \
+                         reach the helper as the same argument",
                         class.name, method.name, member.name
                     );
                 }

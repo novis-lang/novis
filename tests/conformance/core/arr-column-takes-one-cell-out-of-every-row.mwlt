@@ -1,0 +1,65 @@
+--TEST--
+Core\Arr::column takes one named cell out of every row, skips a row that lacks it, and appends a row that lacks the indexBy key, per spec § 2
+--FILE--
+<?mwl
+// Spec § 2: `column(array<array<T>> $a, int|string $column, {indexBy?: int|string}): array<T>`
+// — `flatten`'s nested parameter, so the answer keeps the rows' element type.
+array<array<string>> $rows = [
+    ["id" => "alpha", "name" => "Ada"],
+    ["id" => "beta", "name" => "Bo"],
+];
+echo Core\Json::encode(Core\Arr::column($rows, "name")), "\n";
+echo Core\Json::encode(Core\Arr::column($rows, "name", {indexBy: "id"})), "\n";
+
+// A row that does not have the named column is skipped — not a fault, and not
+// a hole in the answer, which is what makes the member usable over the ragged
+// result rows `array_column` is written for.
+array<array<string>> $ragged = [
+    ["id" => "alpha", "name" => "Ada"],
+    ["id" => "beta"],
+    ["id" => "gamma", "name" => "Cy"],
+];
+echo Core\Json::encode(Core\Arr::column($ragged, "name")), "\n";
+
+// A row missing the `indexBy` key still contributes its value, under the next
+// integer key: the answer has one entry per matching row either way.
+array<array<string>> $partly = [
+    ["id" => "alpha", "name" => "Ada"],
+    ["name" => "Bo"],
+];
+echo Core\Json::encode(Core\Arr::column($partly, "name", {indexBy: "id"})), "\n";
+
+// Both key arguments normalize the way `$row[0]` and `$row["0"]` already do,
+// so an `int` column and its written-out string name the same cell.
+array<array<string>> $lists = [["a", "b"], ["c", "d"]];
+echo Core\Json::encode(Core\Arr::column($lists, 0)), "\n";
+echo Core\Json::encode(Core\Arr::column($lists, "0")), "\n";
+echo Core\Json::encode(Core\Arr::column($lists, 1, {indexBy: 0})), "\n";
+
+// `{indexBy}` collapses duplicates, the last row winning — `flip`'s rule, and
+// the one every keyed write in the language already has.
+array<array<string>> $dupes = [
+    ["id" => "alpha", "name" => "Ada"],
+    ["id" => "alpha", "name" => "Bo"],
+];
+echo Core\Json::encode(Core\Arr::column($dupes, "name", {indexBy: "id"})), "\n";
+
+// Nothing in, nothing out; a column no row has answers the same.
+array<array<string>> $none = [];
+echo Core\Json::encode(Core\Arr::column($none, "name")), "\n";
+echo Core\Json::encode(Core\Arr::column($rows, "missing")), "\n";
+
+// ADR 0063 R3: the member is pure, so the subject is untouched.
+echo Core\Json::encode($rows), "\n";
+--EXPECT--
+["Ada","Bo"]
+{"alpha":"Ada","beta":"Bo"}
+["Ada","Cy"]
+{"alpha":"Ada","0":"Bo"}
+["a","c"]
+["a","c"]
+{"a":"b","c":"d"}
+{"alpha":"Bo"}
+[]
+[]
+[{"id":"alpha","name":"Ada"},{"id":"beta","name":"Bo"}]

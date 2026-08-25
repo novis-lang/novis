@@ -304,6 +304,17 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_flatten_deep",
         },
         CoreMethod {
+            name: "column",
+            params: &[
+                CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
+                CoreTy::Union(ARRAY_KEY),
+                CoreTy::Options(COLUMN_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_column",
+        },
+        CoreMethod {
             name: "sort",
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -587,6 +598,22 @@ const SET_OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `{indexBy?: int|string}` — [`mwl_core_arr_column`]'s only option, and the
+/// first union option whose members are not literals.
+///
+/// [`CoreTy::Union`]'s docs own the rule this widened: what an option's
+/// default has to be is a value **outside** the declared type, so that "not
+/// given" cannot be confused with something a call site wrote. `int|string`
+/// admits no `null`, so [`Const::Null`] is that sentinel here exactly as it
+/// already is for `{by?: callable}` — the closed-set-of-literals shape
+/// `Core\Validate::isIp`'s `{version?: 4|6}` needed was one instance of that
+/// rule rather than the rule itself.
+const COLUMN_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "indexBy",
+    ty: CoreTy::Union(ARRAY_KEY),
+    default: Const::Null,
+}];
+
 const SORT_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "by",
@@ -633,6 +660,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_replace_range" => (mwl_core_arr_replace_range as *const ()).cast(),
         "mwl_core_arr_flatten" => (mwl_core_arr_flatten as *const ()).cast(),
         "mwl_core_arr_flatten_deep" => (mwl_core_arr_flatten_deep as *const ()).cast(),
+        "mwl_core_arr_column" => (mwl_core_arr_column as *const ()).cast(),
         "mwl_core_arr_chunk" => (mwl_core_arr_chunk as *const ()).cast(),
         "mwl_core_arr_append" => (mwl_core_arr_append as *const ()).cast(),
         "mwl_core_arr_prepend" => (mwl_core_arr_prepend as *const ()).cast(),
@@ -1811,6 +1839,81 @@ mwl_runtime::mwl_helper! {
             match value.array_ptr() {
                 Some(nested) => stack.push((borrowed(nested), 0)),
                 None => append_borrowed(&mut out, value),
+            }
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::column(array<array<T>> $a, int|string $column, {indexBy?: int|string}): array<T>`
+    /// — one named cell out of every row, replacing PHP's `array_column`.
+    ///
+    /// The parameter is [`mwl_core_arr_flatten`]'s `array<array<T>>`, for that
+    /// member's reason: unwrapping exactly one level is what a nested element
+    /// type can state, so a column's values keep `T` all the way to the
+    /// answer. Both key arguments go through [`key_bytes`], since either may
+    /// be an `int` — `column($rows, 0)` and `column($rows, "0")` name one
+    /// column, exactly as `$row[0]` and `$row["0"]` do.
+    ///
+    /// **Three questions the spec's row does not answer**, the first two
+    /// settled PHP's way because a program porting `array_column` meets them
+    /// on its first call and a different answer would be a silent behaviour
+    /// change rather than a diagnosed one:
+    ///
+    /// - A row that **does not have** the named column is skipped — not a
+    ///   fault, and not a hole in the answer. `array_column`'s subject is a
+    ///   list of result rows, where a missing column means that row is not
+    ///   one of the rows asked about; a fault would make the member unusable
+    ///   over a ragged list, and a `null` filler would force a `?T` return
+    ///   that every non-ragged call — which is nearly all of them — would
+    ///   then have to unwrap.
+    /// - A row **missing the `indexBy` key** while having the column still
+    ///   contributes its value, under the next integer key. So the answer has
+    ///   one entry per matching row either way, and a partially keyed subject
+    ///   loses nothing.
+    /// - An `indexBy` cell that is **not an `int|string`** is a fault, which
+    ///   is where PHP renumbers instead. The bullet above already spends the
+    ///   "append it" answer on an *absent* key, so reusing it here would make
+    ///   a mistyped `indexBy` indistinguishable from a ragged subject — and
+    ///   the declared option type says the caller means a key.
+    ///
+    /// `{indexBy}` collapses duplicates, the last row winning: that is
+    /// `MwlArray::set`'s rule and `flip`'s, not this member's opinion.
+    fn mwl_core_arr_column(_ctx, args: [3]) {
+        let base = subject(args, "column")?;
+        let column = key_bytes(&args[1], "column")?;
+        let index_by = match args[2].tag() {
+            Some(Tag::Null) => None,
+            _ => Some(key_bytes(&args[2], "column")?),
+        };
+
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = base.next_slot(from) {
+            from = slot + 1;
+            let value = base
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            let row = array_at(&value, "column", "every row")?;
+            let Some(cell) = row.get(&column) else {
+                continue;
+            };
+            match index_by.as_ref().and_then(|key| row.get(key)) {
+                Some(key) => {
+                    let key = MwlStr::new(&key_bytes(&key, "column")?);
+                    #[expect(
+                        unsafe_code,
+                        reason = "the cell is owned by the subject's row, which \
+                                  outlives this call, so the copy stored here \
+                                  needs a reference of its own"
+                    )]
+                    unsafe {
+                        cell.retain();
+                    }
+                    out.set(key, cell);
+                }
+                None => append_borrowed(&mut out, cell),
             }
         }
         Ok(Value::array(out))
