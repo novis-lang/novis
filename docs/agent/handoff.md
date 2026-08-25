@@ -2,7 +2,7 @@
 
 Where the work stands right now. This file is **state**, overwritten every session and never appended to.
 The traps and recipes that outlive a session are in [playbook.md](playbook.md); the rules that bind every
-agent are in [AGENTS.md](../../AGENTS.md); `python tools/brief.py` is the rest of the orientation.
+agent are in [AGENTS.md](../../AGENTS.md); `python tools/orient.py` is the rest of the orientation.
 
 ## State
 
@@ -27,6 +27,14 @@ Four `.mwlt` cases were renamed from `identity-*` to `equality-*`, and
 PHP oracle available. `examples/errors.mwl`, the one Stage 1 floor fixture the rewrite touched, still
 prints its frozen output exactly.
 
+**Orientation changed, and it is now one call: `python tools/orient.py`.** It slices your whole step 1 out
+of the `[context]` manifest in `loop-goal.toml` — your item in full, the standing decisions, the ADR
+*sections* the goal names, the map lines for its files, the shapes and traps that apply. `brief.py` is
+still the unscoped version; if you need something the pack did not print, fetch that one thing and name the
+missing `[context]` field here. `AGENTS.md` shrank to 9k accordingly: the ground rules are now
+[docs/adr/ground-rules.md](../adr/ground-rules.md), the commands
+[docs/agent/commands.md](commands.md), the doc rules [docs/agent/doc-style.md](doc-style.md).
+
 ## Next group — the equality pass (Stage 0 items 2, 8, 3)
 
 **Shared file set:** `crates/mwl-types/src/expr/operators.rs` (items 2 and 8 are two arms of it) and
@@ -42,8 +50,9 @@ ceiling, being one arm over in the same file. **Item 3 is almost certainly its o
       [that ADR](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 2's table:
       `string` against `int`, `string` against `bytes`, an enum against its underlying integer, two
       unrelated classes, and a non-nullable type against `null`. Its § 6 makes a `switch` label and a
-      `match` arm the same check against the subject. The site is the equality arm, which returns `bool`
-      for every operand pair today. Tests: `a_disjoint_equality_does_not_compile`, plus
+      `match` arm the same check against the subject. The site is
+      [operators.rs:104](../../crates/mwl-types/src/expr/operators.rs#L104) — the `Eq | NotEq` arm, which
+      returns `bool` for every operand pair today. Tests: `a_disjoint_equality_does_not_compile`, plus
       `an_equality_null_test_narrows` — the behaviour that one pins already exists, only the test is owed.
 - [ ] **Item 8 — ADR 0069: `array + array` does not compile** (M4's *Verify* list). `arithmetic_result`
       at [operators.rs:191](../../crates/mwl-types/src/expr/operators.rs#L191) falls through to `mixed`
@@ -51,7 +60,8 @@ ceiling, being one arm over in the same file. **Item 3 is almost certainly its o
       over. Test: `two_arrays_do_not_combine_with_plus`.
 - [ ] **Item 3 — ADR 0090 § 3's three non-scalar rows** (M3/M4). The narrowing half landed with item 1;
       what is left is one runtime helper each for strings (text, never numeric), arrays (ordered,
-      element-wise, recursive) and objects — `mwl_runtime::identity::value_identical` already is the
+      element-wise, recursive) and objects —
+      [identity.rs:108](../../crates/mwl-runtime/src/identity.rs#L108) `value_identical` already is the
       object comparison — with § 5's `mixed` pairing answering `false` and never throwing, plus the IR
       lowering that reaches them. Tests: `equal_strings_compare_as_text_and_never_as_numbers`,
       `equal_arrays_compare_ordered_and_element_wise`, `equal_objects_compare_by_identity`.

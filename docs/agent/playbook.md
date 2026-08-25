@@ -17,6 +17,15 @@ is why" — is this file.
 
 ## Tooling
 
+- **`orient.py` prints less than `brief.py` on purpose, and the gap is a bug in the goal, not in the
+  tool.** If it did not print a module, an ADR section, a convention shape or a playbook section you turned
+  out to need, do not conclude the orientation is broken and re-run `brief.py` for everything — fetch the
+  one thing, and say in the handoff which `[context]` field in `loop-goal.toml` was missing its selector.
+  A manifest that nobody corrects becomes a manifest every session works around, which costs more than the
+  wide orientation it replaced.
+- **A whole ADR is about 7,000 tokens; one of its `###` sections is about 1,000.** `sed -n` between the
+  heading and the next one, not `cat`. The same goes for a 1,100-line module: `grep -n` for the anchor
+  first. This is the largest single line item in `loop-stats.py --attribute` every time it is measured.
 - **Another session may be writing this tree right now, and `ls` will not tell you.** Two sessions once
   reached for the same ADR number on the same day: an ADR referenced `0084` and `0085` by name before those
   files existed, and the second author only noticed because `git status` showed them untracked. **Claim a

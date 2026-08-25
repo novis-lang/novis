@@ -167,7 +167,7 @@ Every one of these was settled with the user before the loop started. Implement 
   bakes in one platform's separator passes one leg and fails the other.
 - **Backlog items are off-path unless the goal needs them.** If a slice is not on the path to the
   acceptance list, put it in `## Backlog` in the handoff and move on.
-- **Doc trimming is not loop work, ever.** Nothing measures doc size (AGENTS.md § *Length targets*), and
+- **Doc trimming is not loop work, ever.** Nothing measures doc size (doc-style.md § *Length targets*), and
   [doc-cleanup.md](doc-cleanup.md)'s pass is never run from inside the loop.
 
 ## The gaps that actually sit on the path

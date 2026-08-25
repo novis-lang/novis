@@ -46,7 +46,45 @@ same week, opposite instruction. So:
 Whatever you pick, **say in the commit which cap it is and why.** AGENTS.md § *Session workflow* step 2 is
 the one place it lives.
 
-## 2. A goal is a stop condition, or it is not a goal
+## 2. Scope the context — decide what a session may read, before deciding what it does
+
+A goal is a **finite contained group of work**. It never needs the whole repository, and every byte a
+session reads that the goal does not need is charged to the 200k ceiling exactly like a byte it did.
+Before the run, write the `[context]` block in `loop-goal.toml`. That block is what `python
+tools/orient.py` slices the session's entire step 1 out of; without it there is no orientation but the
+unscoped one, which is about 30k of context before a session has read a line of the code it came to change.
+
+| Field | Selects | Get it wrong by |
+|---|---|---|
+| `modules` | globs under `crates/`; the map line for each | naming a crate when you meant a module, so the whole crate's map prints |
+| `rules` | ADR numbers; their one-sentence bullet from [ground-rules.md](../adr/ground-rules.md) | listing every ADR the topic touches rather than the ones that *bind the work* |
+| `adrs` | `"NNNN"` for the *In short* block, `"NNNN §N"` for one section | naming a whole ADR — that is 7k of context where a section is 1k |
+| `shapes` | headings of [conventions.md](conventions.md) the goal will write | listing all of them; a goal writing no `Core` member does not need that shape |
+| `playbook` | headings of [playbook.md](playbook.md) whose traps apply to this file set | the same |
+| `plan` | status-block fields worth printing | more than `Open now` and `Blocking`, which is usually the answer |
+
+Three rules make it work:
+
+- **Every entry is a selector, never a copy.** `orient.py` slices the live file at session start, so a
+  manifest cannot silently go stale the way a frozen context pack would. It can only go *wrong*, by naming
+  something that no longer exists, and that prints as a loud warning.
+- **An absent field selects nothing, not everything.** A goal that forgets to name its modules gets a short
+  pack and a warning, rather than the whole map. Failing closed is what keeps the block honest.
+- **`python tools/orient.py --audit` prints what the pack costs**, section by section. Look at it once,
+  here, while writing the goal. It is a number, not a check — nothing exits non-zero over a size, and
+  trimming prose against a tripwire is a cost this repository has already paid once
+  ([doc-style.md](doc-style.md)).
+
+**Write it from measurement, not from taste.** `python tools/loop-stats.py --attribute` charges the last
+run's context to whatever fetched it, and each bucket argues for a specific fix: a large `adr` share means
+whole ADRs are being read where a `§` slice would do; a large `discovery` share means the checklist items
+are missing their `file.rs:NN` anchors; a large `orientation` share means the manifest itself is too wide.
+
+**Then leave it maintained by the sessions.** A session that needed something the pack did not print says
+so in the handoff, naming the field; the next session that touches the goal adds the selector. A manifest
+nobody may edit becomes a manifest everybody works around.
+
+## 3. A goal is a stop condition, or it is not a goal
 
 The driver stops on an exit code, never on a session's opinion. So a goal must be expressible as commands
 that exit 0 and output that matches exactly. **If it cannot be, do not run it unattended** — no reliable
@@ -63,17 +101,22 @@ Two failure modes worth naming, both of which have happened here:
   it is why most of the tests a goal names do not exist when it is written: writing one is how an item
   finishes.
 
-## 3. The two halves, and what belongs in each
+## 4. The two halves, and what belongs in each
 
 | File | Holds | Never holds |
 |---|---|---|
 | `loop-goal.md` | The target, why it matters, the standing decisions, and the known gaps that sit on the path | The checks. Not one of them, not even summarised. |
-| `loop-goal.toml` | Every check as data: fixtures, exact expected output, suites, named guard tests | Reasoning. A comment says what a check guards, not why the goal exists. |
+| `loop-goal.toml` | Every check as data: fixtures, exact expected output, suites, named guard tests — **and the `[context]` block of § 2**, which is what a session may read | Reasoning. A comment says what a check guards, not why the goal exists. |
 
 The driver reads the TOML directly, so nothing in it can drift from what actually runs. `python
-tools/loop.py --list` prints it as a summary; `--goal-only` runs it once without a session.
+tools/loop.py --list` prints it as a summary; `--goal-only` runs it once without a session; `python
+tools/orient.py --audit` prints what its `[context]` block costs a session.
 
-## 4. Pre-authorize every tradeoff, before the run
+The `[context]` block lives with the checks rather than with the prose for the same reason the checks do:
+it is read by a program, and a selector that names a section is either right or a loud warning. Prose about
+*why* those are the files this goal touches belongs in `loop-goal.md`.
+
+## 5. Pre-authorize every tradeoff, before the run
 
 **Anything a session could reasonably stop and ask about will eventually halt the run on `BLOCKED`.** So
 walk the path first and settle it with the user, then write each decision into `loop-goal.md`
@@ -88,7 +131,7 @@ settles it under AGENTS.md's priority ordering and records it in the home AGENTS
 Two things every standing decision should carry: the safe fallback if the implementation forces the
 opposite conclusion, and where the answer gets written down. A decision with no home gets re-derived.
 
-## 5. The stages that have always worked
+## 6. The stages that have always worked
 
 Stages run in order and short-circuit, so the ledger line names exactly how far the loop got. The shape
 that keeps earning its place:
@@ -102,7 +145,7 @@ that keeps earning its place:
 3. **The keystone**, if the goal has one — the single representation or mechanism everything else needs.
    If a fixture exists that cannot run until it lands, that fixture is the check.
 4. **The breadth** — one fixture per domain, each reaching things no unit test proves reachable.
-5. **The suites and the coverage gate** — see § 2 on why a count is not enough.
+5. **The suites and the coverage gate** — see § 3 on why a count is not enough.
 6. **The named guard tests**, then the leak sweep.
 
 **Frozen output, unfrozen source.** A fixture's *expected output* may never be edited to make a check pass;
@@ -110,7 +153,7 @@ its *source* may be corrected freely, because whoever wrote it against the spec 
 in the commit message why a fixture was corrected. That distinction is what stops "make it pass" from
 quietly becoming the goal.
 
-## 6. Write the item list already grouped
+## 7. Write the item list already grouped
 
 The handoff names a **group** of slices sharing a file set, and a session takes as much of it as the
 context ceiling allows — today that is one, sometimes two. Order the goal's items so those groups fall out
@@ -124,21 +167,29 @@ it is what makes the second and third slice cost a fraction of the first. Where 
 share files, say so in the list — an item that gets its own session is a fine outcome, and pretending
 otherwise costs a session a second orientation.
 
-## 7. What never goes in a loop
+**Every item carries its anchors.** The ADR section that specifies it, and the `file.rs:NN` of the site it
+changes. You are resolving them from context you already hold; a session without them spends ten `grep`s
+rediscovering what you knew for free, and `loop-stats.py --attribute` charges that to the `discovery`
+bucket where it shows up as a large share and an obvious fix. This is also how the `[context]` block gets
+written: the union of the anchors is the `modules` list.
 
-- **Doc trimming.** Nothing measures doc size (AGENTS.md § *Length targets*), and
+## 8. What never goes in a loop
+
+- **Doc trimming.** Nothing measures doc size ([doc-style.md](doc-style.md) § *Length targets*), and
   [doc-cleanup.md](doc-cleanup.md)'s pass is fired by the user, never from inside a run.
 - **Dependency sweeps.** Also the user's to fire ([dependency-update.md](dependency-update.md)).
 - **Backlog work.** If a slice is not on the path to the acceptance list, it goes in the handoff's
   `## Backlog` and the session moves on.
-- **Re-opening a standing decision.** That is what § 4 exists to prevent.
+- **Re-opening a standing decision.** That is what § 5 exists to prevent.
 - **Anything needing judgement about whether the goal is met.** The machine outranks the claim: the driver
   runs the acceptance test itself and a session reporting `DONE` against a failing check stops the run.
 
-## 8. When the run ends
+## 9. When the run ends
 
-Run `python tools/loop-stats.py` again. If the constants moved enough to change the cap or the strategy,
-change them **and say so in the commit** — that is how the next goal starts from measurement rather than
+Run `python tools/loop-stats.py` again, and `python tools/loop-stats.py --attribute` beside it: the first
+says where the sessions landed, the second says which *reads* put them there, and only the second tells you
+what to change in the next goal's `[context]` block. If the constants moved enough to change the cap or the
+strategy, change them **and say so in the commit** — that is how the next goal starts from measurement rather than
 from whatever this file happened to say. Fold anything durable the run taught you into the file that owns
 it: a trap into [playbook.md](playbook.md), a shape into [conventions.md](conventions.md), a decision into
 its ADR. `loop-goal.md` and `loop-goal.toml` are then rewritten from scratch for the next target, not

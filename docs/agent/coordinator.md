@@ -39,10 +39,11 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | File | Role |
 |---|---|
 | `docs/agent/session-prompt.md` | The fixed prompt handed to every session. Also holds the `docs/agent/handoff.md` handoff contract. |
-| `docs/agent/loop-authoring.md` | How a *new* goal is written: measure first, what makes one drivable, what to pre-authorize, the stage order. Read before rewriting either half below. |
-| `tools/loop-stats.py` | What the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. |
+| `docs/agent/loop-authoring.md` | How a *new* goal is written: measure first, **scope the context**, what makes one drivable, what to pre-authorize, the stage order. Read before rewriting either half below. |
+| `tools/orient.py` | The whole of a session's step 1, in one call, narrowed by the goal's `[context]` manifest. Slices the live files; holds no copy. `--audit` says what the pack cost. |
+| `tools/loop-stats.py` | What the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. `--attribute` charges the context to whatever fetched it. |
 | `docs/agent/loop-goal.md` | The loop's target and the decisions pre-authorized on the way there — the prose. |
-| `docs/agent/loop-goal.toml` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests. The driver reads this; neither file restates the other. |
+| `docs/agent/loop-goal.toml` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests — plus the `[context]` manifest that decides what a session reads. The driver reads this; neither file restates the other. |
 | `tools/loop.py` | The driver. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. |
 | `docs/agent/handoff.md` | Live state, rewritten by each session. |
 | `docs/agent/playbook.md` | The traps a session paid for once. Append-mostly, and outlives every session. |
@@ -50,8 +51,9 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/status.txt` | One line written by each session: `CONTINUE …`, `DONE …`, or `BLOCKED …`. |
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
 | `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. |
+| `.loop/logs/<run>-NNNN.subagents/` | Every subagent that session spawned, copied out of the harness's own transcript directory. A subagent's turns never appear in the parent's stream — only the call and the report it returned do — so without this a delegated read is a session that did a great deal with very few calls. Absent when nothing was delegated. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. |
-| `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` prints it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
+| `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
 
 `.loop/` is gitignored in full — everything the driver writes at run time lives under it.
 
@@ -65,6 +67,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
          (each NDJSON event is appended to .loop/logs/<run>-NNNN.log and rendered live to the console --
           text, thinking, tool calls with their full input, tool results, and the turn/cost summary)
     if the CLI exited non-zero             -> exponential backoff, retry; give up after --max-retries
+    copy this session's subagent transcripts into .loop/logs/<run>-NNNN.subagents/
     read .loop/status.txt, diff HEAD, append one ledger line
     run the acceptance test from docs/agent/loop-goal.toml
       -> passes                            -> stop, GOAL REACHED
@@ -151,10 +154,16 @@ solved one.
 
 **Neither is the lever right now, and that is a measured claim rather than an opinion.** Over half of a
 session's clock is fixed cost — orientation before the first edit, then verify, docs and commit after the
-last one — which argues for putting several related slices in one session. But sessions are already
-finishing *over* the 200k context ceiling doing **one** slice each, and past that line an agent starts
-missing what it has already read. So the available saving is reading less per session, not doing more, and
-step 2's cap is one slice with a conditional second.
+last one — which argues for putting several related slices in one session. But sessions were finishing
+*over* the 200k context ceiling doing **one** slice each, and past that line an agent starts missing what
+it has already read. So the available saving is reading less per session, not doing more, and step 2's cap
+is one slice with a conditional second.
+
+**Reading less is now a mechanism rather than an instruction.** `tools/orient.py` prints a session's whole
+step 1 out of the goal's own `[context]` manifest, so the unscoped orientation — the full map, every guard
+test, four whole agent docs — is no longer what a session pays to start. What a goal narrows to is decided
+once, when the goal is written ([loop-authoring.md](loop-authoring.md) § 2), from the previous run's
+`loop-stats.py --attribute` rather than from taste. Re-measure before believing any ratio in this file.
 
 **Do not read a ratio out of this paragraph; run `python tools/loop-stats.py`.** It re-derives the curve
 from `.loop/logs/` and prints where the sessions actually landed against the ceiling. The cap it implies
