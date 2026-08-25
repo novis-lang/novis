@@ -2,53 +2,53 @@
 
 ## State
 
-**Spec § 5 owes only `replaceWith`.** `Core\Regex\Pattern` is registered — two slots, the pattern as
-written and a flag bitmask — `Core\Regex::compile` builds one, and the five matching rows now take the
-`Pattern|string` the spec writes, so a handle's flags reach the engine. The flags are spliced as one
-inline group rather than through either builder (`fancy-regex` has no `swap_greed` setting), and the
-per-core cache is keyed on (text, flags); `crates/mwl-stdlib/src/regex.rs`'s module doc owns both, and
-its gap 1 is now `replaceWith` alone. `Pattern` is the registry's first **handle** — slots read by
-another class's members, no member of its own — which `registry.rs`'s
-`a_class_with_slots_has_instance_members_and_the_reverse` names as a carve-out.
+**Spec § 5 is whole.** `Core\Regex::replaceWith` landed: the callback is handed one `Core\Regex\Match`
+rather than PHP's positional array — the spec's own `callable(Match): string`, stated at
+`docs/spec/01-core-library.md:562` — and what it answers is inserted **literally**, so a `$1` in it is two
+characters unlike `replace`'s template. Every match is collected before the first call rather than stepping
+an engine's iterator across user code; `crates/mwl-stdlib/src/regex.rs`'s helper doc owns that reasoning
+and what it spends. That module's gap list is now three, renumbered: the ADR 0056 § 4 sink, the budget
+constant, and `matchAll`'s per-match offset conversion.
 
-The ratchet (`crates/mwl-stdlib/tests/spec-members-outstanding.txt`) is down to **5 keys**: `§2 from`,
-`§5 replaceWith`, `§11 Hash::stream`, `§11 Random::bytes`, `§12 Out::capture`. Conformance is 413 of 600
-and differential 89 of 150. `examples/collect.mwl`'s frontier is still `Core\Out::capture` at
-`collect.mwl:47`, which lands with M4S.
+The ratchet (`crates/mwl-stdlib/tests/spec-members-outstanding.txt`) is down to **4 keys**: `§2 from`,
+`§11 Hash::stream`, `§11 Random::bytes`, `§12 Out::capture`. Conformance is 414 of 600 and differential
+89 of 150. `examples/collect.mwl`'s frontier is still `Core\Out::capture` at `collect.mwl:47`, which lands
+with M4S; `§2 from` waits on an `Iterable`/`Iterator` argument. So the two keys that are registerable
+*today* are both § 11's, and they are the next group.
 
 Two open temporary-lifetime gaps of one family are named where they live: `mwl_ir::lower::Lowering`'s
 `owned_temporaries` field doc holds the transferred-argument case, and `landing_block`'s *Known gap* holds
 the producers that still release inline. `mwl-ir`'s crate doc gap 2 is the index of both.
 
-## Next group — the ratchet's three registerable rows
+## Next group — § 11's two `bytes`-valued rows
 
-**These do not share a file**, which is the honest statement: each remaining key is its own module plus a
-`.mwlt` case, and a session taking a second slice pays for a second file's context. [2] and [3] are the
-pair worth combining — both are § 11 and both are `bytes`-valued. Take [1] alone if you take it first.
+**Shared file set:** `crates/mwl-stdlib/src/hash.rs` and `crates/mwl-stdlib/src/random.rs`, plus one
+`.mwlt` case each under `tests/conformance/core/`. [1] and [2] are the pair worth taking together — both
+are § 11, both answer in `bytes`, and both assert through `Core\Encoding::toHex`. [3] is a separate
+sitting and shares no file with them.
 
-- [ ] **`Core\Regex::replaceWith`** — spec row at `docs/spec/01-core-library.md:545`,
-      `replaceWith(string $subject, Pattern|string $pattern, callable $fn, {limit?: uint}): string`.
-      All in `crates/mwl-stdlib/src/regex.rs`: the row goes beside `replace` (`regex.rs:144`),
-      the helper beside `mwl_core_regex_replace`, the `address()` arm at `regex.rs:402`. It is `replace`
-      with a closure where the template is — `pattern_of` (`regex.rs:611`) already decodes the pattern,
-      and `mwl_runtime::call_closure` carries the `Match` built by `built_match`. Strike `§5 replaceWith`
-      in the same commit; § 5 is then whole.
 - [ ] **`Core\Random::bytes`** — spec row at `docs/spec/01-core-library.md:739`,
-      `bytes(uint $count): bytes`. `crates/mwl-stdlib/src/random.rs`: row in `CLASS` (`random.rs:81`),
-      `address()` arm at `random.rs:141`, helper beside the others from `random.rs:251`. `Tag::Bytes`
-      exists, so this is a `MwlStr` of raw octets — `Core\Encoding::toHex` is how the case asserts it,
-      and the case must not assert a *value*, only a length and that two calls differ.
+      `bytes(uint $count): bytes`. All in `random.rs`: the row goes beside `token` (`random.rs:99`, which
+      already draws the same entropy and hex-renders it), `CLASS` is at `random.rs:81`, the `address()`
+      arm at `random.rs:141`. `mwl_runtime::Tag::Bytes` exists now, so this is `token`'s body without the
+      hex step. A case cannot assert the value — assert `Core\Bytes::length` of it, and that two calls
+      differ.
 - [ ] **`Core\Hash::stream`** — spec row at `docs/spec/01-core-library.md:760`,
-      `stream(Digest $digest): Hash\Stream`, and the rows the spec writes on `Hash\Stream` just below it.
-      `crates/mwl-stdlib/src/hash.rs`: `CLASS` at `hash.rs:167`, `address()` at `hash.rs:199`,
-      `DIGEST` enum at `hash.rs:119`. A **mutable** `Core` instance, so `crate::instance::set_slot` is
-      the write half; `objmap.rs` is the shape to copy, and its slot must be a value MWL can hold.
+      `stream(Digest $digest): Hash\Stream`. This one **registers a second class**: `Hash\Stream` is a
+      *mutable* handle (`update(bytes|string): void`, `finish(): bytes` — read the spec's own paragraph
+      under that table before fixing the roster), where `Core\Regex\Pattern` was an immutable one. Copy
+      `Pattern`'s shape from `regex.rs:181`-onwards; `hash.rs:167` is `CLASS`, `hash.rs:119` is the
+      `DIGEST` enum the argument takes, `hash.rs:199` is `address()`. Strike both keys as they land.
+- [ ] **Stage 4's counts are their own work** — conformance 414 of 600, differential 89 of 150. Neither
+      grows as a side effect of member slices any more; `docs/implementation-plan.md`'s *Open now* says so.
 
 ## Backlog
 
-- ADR 0056 § 4's sink is unenforced — no registry row can state a qualifier at all (`regex.rs` gap 2).
-- `§2 from` waits on an `Iterable`/`Iterator` argument (`docs/implementation-plan.md` *Open now*).
-- `§12 Out::capture` is the last ratchet key and `collect.mwl`'s frontier (plan *Open now*).
-- `matchAll` reports offsets in O(n·k); the fix is a cursor across cluster boundaries (`regex.rs` gap 4).
-- `do`/`while` is the one M4 control-flow statement that does not lower (`mwl-ir` crate doc).
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- `§2 Core\Arr::from` — needs an `Iterable`/`Iterator` argument shape (`docs/spec/01-core-library.md` § 2).
+- `§12 Core\Out::capture` — lands with M4S's sink work, ADR 0092 (`docs/implementation-plan.md` *Open now*).
+- `§6 Core\Json::decodeAs<T>` — `crates/mwl-stdlib/src/json.rs` gap 2; a written call-site type argument
+  works now.
+- `§9 Core\Heap` and the `Iterable` its three rows declare — same blocker as `Arr::from`.
+- ADR 0088's registry-wide qualifier classification — no `Core` member row can say `tainted`/`secret` yet;
+  `regex.rs` gap 1 is the sharpest instance.
+- `do`/`while` does not lower — `mwl-ir`'s crate doc.
