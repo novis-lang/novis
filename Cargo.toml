@@ -327,6 +327,16 @@ panic = "unwind"
 lto = "thin"
 codegen-units = 1
 debug = "line-tables-only" # keep backtraces useful in production builds
+# Integer overflow is checked in release too, workspace-wide. Measured on this tree with a per-package
+# override: `decimal` add+mul+sub 27.8 -> 28.1 ns, array append 170.5 -> 169.9, `MwlStr::new` 30.4 -> 29.9,
+# scalar `Value` arithmetic 1.19 -> 1.11 -- every delta inside the +/-1.8% seen between two *baseline*
+# runs, so there is no cost to weigh against it. What it buys is the class behind php-src's CVSS-9.8 bugs
+# (`ldap_escape` CVE-2024-8932, the `pdo_firebird` quoter CVE-2024-11236): a size computation that wraps
+# silently becomes a panic, which `catch_unwind` contains to one request per ADR 0002, instead of a wrong
+# length nothing reports. Intentional wraparound is spelled `wrapping_*`. The cast half of the same
+# discipline is already enforced -- `[workspace.lints.clippy]` below carries `cast_possible_truncation`,
+# `cast_possible_wrap` and `cast_sign_loss`, and `tools/verify.py` runs clippy with `-D warnings`.
+overflow-checks = true
 
 # Compiling MWL's own dependencies with optimisation makes debug builds of the
 # compiler usable; Cranelift is unbearably slow otherwise.
