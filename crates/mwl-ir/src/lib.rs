@@ -303,9 +303,9 @@
 //!     equality that widening *is* the semantics rather than an approximation
 //!     of it, so it belongs in [`lower::Lowering::convert`]'s existing rows.
 //!
-//! 20. **ADR 0047 § 5 and ADR 0010 § 5 both run whole; what is left is a
-//!     `mixed` operand, which is ADR 0007 § 2's row rather than either of
-//!     theirs.** A union whose members all erase to one representation
+//! 20. **ADR 0047 § 5, ADR 0010 § 5 and ADR 0007 § 2's scalar rows all run
+//!     whole, a `mixed` source included; what is left is § 2's two
+//!     *non-scalar* rows.** A union whose members all erase to one representation
 //!     is that representation ([`lower::lower_checked_ty`]), so `"a"|"b"` is a
 //!     `Ty::Str`, `1|2` a `Ty::Int` and `Mode::Read|Mode::Write` the enum's
 //!     own tag rather than the `Ty::Tagged` every union used to be, and § 4's
@@ -337,19 +337,20 @@
 //!     representation is skipped entirely: `mwl_types` refuses a conversion
 //!     between two *different* enums, so it names a case by construction.
 //!
-//!     What is missing is no longer anything about enums: it is the checked
-//!     `Ty::Tagged` source, which belongs to
-//!     [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2. A
-//!     `mixed` converts to `string` ([`ir::Helper::TaggedToString`]) and to
-//!     `decimal` ([`ir::Helper::ToDecimal`]) and to nothing else, because
-//!     `mixed as int` needs a helper that *throws* where
-//!     [`ir::Helper::ToIntOrNull`] — ADR 0066's non-throwing form, which does
-//!     exist — answers `null`. So `$any as int`, `$any as Mode` and
-//!     `$any as Mode::Read|Mode::Write` all panic in
-//!     [`lower::Lowering::convert`] naming themselves, the last of them only
-//!     after running its membership test correctly. The slice is three
-//!     runtime helpers beside `mwl_str_to_int`'s trio and their `mwl-codegen`
-//!     symbol rows; nothing in this crate needs a new shape for it.
+//!     A [`ty::Ty::Tagged`] source is no longer the hole it was: it is one
+//!     helper per *target*, chosen by the operand's runtime tag because
+//!     nothing static names a row — [`ir::Helper::TaggedToString`],
+//!     [`ir::Helper::ToDecimal`], and [`ir::Helper::TaggedToInt`] with its
+//!     unsigned and `float` twins, each throwing exactly where ADR 0066's
+//!     [`ir::Helper::ToIntOrNull`] answers `null` over the same rows in
+//!     `mwl_runtime`. So `$any as int` runs, and `$any as Mode` and
+//!     `$any as Mode::Read|Mode::Write` run through it: the recursion above
+//!     converts the operand to the enum's backing scalar first, and the
+//!     membership chain is unchanged.
+//!
+//!     What panics is ADR 0009 § 3's `string` ↔ `bytes` pair and
+//!     ADR 0007 § 2's `array<T> as array<U>`, whose O(n) element walk is the
+//!     one row in that table that is not a single helper call.
 //!
 //!     A statically settled operand needs no check and already worked, since
 //!     `mwl_types` refuses `E0470` before lowering ever sees it. `as ?"a"`

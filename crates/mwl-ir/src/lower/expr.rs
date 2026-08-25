@@ -660,8 +660,9 @@ impl<'a> Lowering<'a> {
             // `float → int` and then this, which is the same two steps the
             // author wrote and keeps every one of those rows' throw messages
             // naming the conversion that actually failed. A `Ty::Tagged`
-            // operand still panics inside that recursion — `mixed` into an
-            // integer has no checked helper at all (the crate docs' gap 20).
+            // operand is one of those sources — `$any as Mode` is
+            // `Helper::TaggedToInt` and then this — so `mixed` reaches an enum
+            // through the same two steps every other source does.
             //
             // The value is not tested against the declaration's cases here;
             // see this function's own doc comment for where that happens and
@@ -751,7 +752,14 @@ impl<'a> Lowering<'a> {
             // already follows; the three out of `decimal` are per-target, like
             // every other row here.
             | (Ty::Int | Ty::Uint | Ty::Float | Ty::Str | Ty::Tagged, Ty::Decimal)
-            | (Ty::Decimal, Ty::Int | Ty::Uint | Ty::Float) => {
+            | (Ty::Decimal, Ty::Int | Ty::Uint | Ty::Float)
+            // ADR 0007 § 6's `mixed`: the three numeric targets, each one
+            // helper for every source because only the operand's runtime tag
+            // names a row — the same arrangement `Ty::Tagged`'s `string` and
+            // `decimal` targets above already use. Each throws where
+            // `Helper::ToIntOrNull` answers `null`, over one shared row set in
+            // `mwl_runtime`.
+            | (Ty::Tagged, Ty::Int | Ty::Uint | Ty::Float) => {
                 let helper = match (from, to) {
                     (_, Ty::Decimal) => Helper::ToDecimal,
                     (Ty::Decimal, Ty::Int) => Helper::DecimalToInt,
@@ -763,6 +771,9 @@ impl<'a> Lowering<'a> {
                     (Ty::Uint, _) => Helper::UintToFloat,
                     (Ty::Float, Ty::Int) => Helper::FloatToInt,
                     (Ty::Float, _) => Helper::FloatToUint,
+                    (Ty::Tagged, Ty::Int) => Helper::TaggedToInt,
+                    (Ty::Tagged, Ty::Uint) => Helper::TaggedToUint,
+                    (Ty::Tagged, _) => Helper::TaggedToFloat,
                     (_, Ty::Int) => Helper::StrToInt,
                     (_, Ty::Uint) => Helper::StrToUint,
                     _ => Helper::StrToFloat,
@@ -782,11 +793,11 @@ impl<'a> Lowering<'a> {
                 out
             }
             _ => panic!(
-                "mwl-ir lowers ADR 0007 § 2's scalar conversion rows and both of ADR 0010 § 5's \
-                 enum ones — got `{from:?} as {to:?}`. A `Ty::Tagged` operand into anything but \
-                 `string` or `decimal` is the shape still missing: a checked `mixed as int` \
-                 needs a helper that throws where `Helper::ToIntOrNull` answers `null`, and \
-                 there is none. See the crate docs' known gaps"
+                "mwl-ir lowers ADR 0007 § 2's scalar conversion rows, both of ADR 0010 § 5's \
+                 enum ones, and a `Ty::Tagged` operand into every target among them — got \
+                 `{from:?} as {to:?}`. ADR 0009 § 3's `string` ↔ `bytes` rows and ADR 0007 § 2's \
+                 `array<T> as array<U>` are the shapes still missing. See the crate docs' known \
+                 gaps"
             ),
         }
     }
@@ -3014,18 +3025,31 @@ impl<'a> Lowering<'a> {
                 };
                 // ADR 0047 § 5's membership test, on whichever side of
                 // the base conversion still holds the value the author
-                // wrote. A `Ty::Tagged` operand is tested **first**,
-                // against its own runtime tag: converting one to the
-                // base would run `Helper::TaggedToString`, which turns
-                // a `mixed` holding `1` into `"1"` and would let it
-                // satisfy a set naming `"1"` — exactly the coercion
-                // § 4's "throws unless the value equals one of the
-                // named literals" refuses. Every other operand is
-                // converted first instead, so the comparison is over
-                // one representation and stays a `BinOp::Eq` machine
-                // compare rather than `mwl-codegen`'s refusal of a
-                // mismatched pair.
-                if from == Ty::Tagged {
+                // wrote. A `Ty::Tagged` operand into a **literal** set is
+                // tested **first**, against its own runtime tag:
+                // converting one to the base would run
+                // `Helper::TaggedToString`, which turns a `mixed` holding
+                // `1` into `"1"` and would let it satisfy a set naming
+                // `"1"` — exactly the coercion § 4's "throws unless the
+                // value equals one of the named literals" refuses. Every
+                // other operand is converted first instead, so the
+                // comparison is over one representation and stays a
+                // `BinOp::Eq` machine compare rather than
+                // `mwl-codegen`'s refusal of a mismatched pair.
+                //
+                // An **enum** target is deliberately not in that first
+                // case, whether the set is § 3's named subset or the whole
+                // declaration. ADR 0010 § 5 words the `mixed → EnumName`
+                // row as "exactly the shape `as uint` already has for
+                // untrusted input", and its own example converts
+                // `Core\Request::query('status')` — a string at run time —
+                // into a case whose value is an integer. So the base
+                // conversion runs first there, which is ADR 0007 § 2's
+                // whole-string numeric row and not a coercion of its own,
+                // and the chain then compares two integers. The `"1"`
+                // hazard above cannot arise: an enum's base is never
+                // `string`.
+                if from == Ty::Tagged && !matches!(to, Ty::Enum(_)) {
                     self.lower_literal_membership(v, from, &accepted, ty.span, env, cur);
                     return self.convert(v, from, to, inner, env, *cur);
                 }
