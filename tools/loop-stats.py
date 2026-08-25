@@ -71,7 +71,7 @@ BUCKETS = (
     ("orientation", ("orient.py", "brief.py", "docs/agent/", "loop-goal", "handoff", "playbook",
                      "conventions", "AGENTS.md", "CLAUDE.md")),
     ("adr", ("docs/adr/",)),
-    ("plan + spec", ("implementation-plan", "docs/spec/", "plan.py")),
+    ("plan + spec", ("implementation-plan", "docs/plan/", "docs/spec/", "plan.py")),
     ("build + test", ("verify.py", "cargo ", "mwl test", "mwl run", "loop.py")),
     ("git", ("git ",)),
     ("discovery", ("grep", "rg ", "find ", " ls ", "glob", "Glob", "Grep")),

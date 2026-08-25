@@ -44,6 +44,9 @@ import sys
 import textwrap
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import plan as planmod  # noqa: E402  -- the plan's one API; never reimplemented here
+
 ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "implementation-plan.md"
 ADR_README = ROOT / "docs" / "adr" / "README.md"
@@ -215,45 +218,19 @@ def run_status(fields):
 # ------------------------------------------------------- milestone map + leads
 
 
-HEADING_RE = re.compile(r"^### (M\d+[A-Z]?)\s*[—-]\s*(.*)$")
-
-
-def parse_milestones(plan_text):
-    lines = plan_text.split("\n")
+def parse_milestones(_plan_text=None):
+    """Every milestone, from the index table -- `plan.py` owns how one is found on disk."""
     found = []
-    for lineno, line in enumerate(lines, start=1):
-        m = HEADING_RE.match(line)
-        if m:
-            title = strip_links(m.group(2)).replace("**", "").strip()
-            found.append({"id": m.group(1), "title": title, "line": lineno})
+    for m in planmod.milestones():
+        found.append(
+            {
+                "id": m["id"],
+                "title": strip_links(m["title"]).replace("**", "").strip(),
+                "line": m["line"],
+                "entry": m,
+            }
+        )
     return found
-
-
-def paragraph_after(lines, idx):
-    """First non-empty paragraph after 0-based line index `idx`."""
-    i = idx + 1
-    while i < len(lines) and not lines[i].strip():
-        i += 1
-    buf = []
-    while i < len(lines) and lines[i].strip() and not lines[i].startswith("### "):
-        buf.append(lines[i].strip())
-        i += 1
-    return strip_links(" ".join(buf))
-
-
-def verify_paragraph(lines, start, end):
-    """The `**Verify:**` paragraph inside a milestone's span, if it has one."""
-    i = start
-    while i < end:
-        if lines[i].startswith("**Verify:**"):
-            buf = []
-            while i < end and lines[i].strip():
-                buf.append(lines[i].strip())
-                i += 1
-            # the "-- Mn acceptance" label already says what this is
-            return strip_links(" ".join(buf))[len("**Verify:**") :].strip()
-        i += 1
-    return ""
 
 
 def pick_current_next(status_text, milestones):
@@ -265,6 +242,14 @@ def pick_current_next(status_text, milestones):
     else:
         mentioned = re.findall(r"\*\*(M\d+[A-Z]?)\*\*", status_text or "")
         if not mentioned:
+            # Silence here means the map prints with no `<- current` marker and no lead at all,
+            # which reads as "the plan has no current milestone" rather than as a defect. It went
+            # unnoticed for as long as the Status field happened not to bold a bare `**Mn**`.
+            warn(
+                "the Status field says neither `Current: **Mn**` nor any bare `**Mn**`, so no "
+                "milestone is marked current and no lead is printed below. Spell it out: the "
+                "field is the one home for which milestone the work is inside."
+            )
             return None, None
         current = mentioned[-1]
         warn(
@@ -290,49 +275,44 @@ def run_milestones(status_text, plan_text):
     current, nxt = pick_current_next(status_text, milestones)
     section(
         "MILESTONE MAP, AND THE LEAD OF THE CURRENT ONE",
-        f"{rel(PLAN)} (## Milestones) -- open it at the line number for a milestone's full text",
+        f"{rel(PLAN)} (the milestone table) -- one file each, under docs/plan/",
     )
-    emit("Every milestone, one line each. Only the current and next milestones' opening")
-    emit("paragraphs are printed; a milestone's full text is deliberately not in this digest.")
+    emit("Every milestone, one line each, with the file that holds it. Only the current and next")
+    emit("milestones' opening paragraphs are printed; a milestone's full text is deliberately not")
+    emit("in this digest -- `python tools/plan.py --show M8` prints one, `--show M8:verify` its")
+    emit("acceptance paragraph alone.")
     emit()
 
     for m in milestones:
-        line = f"{m['id']} -- {m['title']}"
+        line = f"{m['id']:<4} {m['title']}"
         marker = "  <- current" if m["id"] == current else ("  <- next" if m["id"] == nxt else "")
-        emit(f"  {rel(PLAN)}:{m['line']}  {line}{marker}")
+        emit(f"  {m['entry']['rel']:<20} {line}{marker}")
 
-    lines = plan_text.split("\n")
     by_id = {m["id"]: m for m in milestones}
 
     def lead_of(mid, limit):
         m = by_id.get(mid)
-        if not m:
+        if not m or not m["entry"]["path"].exists():
             return
-        idx = m["line"] - 1
-        para = paragraph_after(lines, idx)
+        para = strip_links(planmod.lead_paragraph(m["entry"]))
         if not para:
             warn(f"milestone {mid} has no opening paragraph to slice")
             return
         emit()
-        emit(f"-- {mid} lead ({rel(PLAN)}:{m['line']})")
-        emit(textwrap.fill(excerpt(para, limit, f"{rel(PLAN)}:{m['line']}"), width=100))
+        emit(f"-- {mid} lead ({m['entry']['rel']})")
+        emit(textwrap.fill(excerpt(para, limit, m["entry"]["rel"]), width=100))
 
     lead_of(current, LEAD_EXCERPT)
 
     m = by_id.get(current)
-    if m:
-        start = m["line"] - 1
-        later = [x["line"] - 1 for x in milestones if x["line"] - 1 > start]
-        end = later[0] if later else len(lines)
-        ver = verify_paragraph(lines, start, end)
+    if m and m["entry"]["path"].exists():
+        ver = planmod.verify_paragraph(m["entry"])
         if ver:
+            # the "-- Mn acceptance" label already says what this is
+            ver = re.sub(r"^\*\*Verif(y|ied):\*\*\s*", "", strip_links(ver))
             emit()
-            emit(f"-- {current} acceptance ({rel(PLAN)}:{m['line']})")
-            emit(
-                textwrap.fill(
-                    excerpt(ver, VERIFY_EXCERPT, f"{rel(PLAN)}:{m['line']}"), width=100
-                )
-            )
+            emit(f"-- {current} acceptance ({m['entry']['rel']})")
+            emit(textwrap.fill(excerpt(ver, VERIFY_EXCERPT, m["entry"]["rel"]), width=100))
 
     if nxt:
         lead_of(nxt, NEXT_LEAD_EXCERPT)

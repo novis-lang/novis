@@ -18,6 +18,7 @@ So this script prints the same kinds of thing, selected by the goal's own `[cont
     the map lines for the named modules             [context] modules
     the convention shapes the goal will write       [context] shapes
     the playbook sections that apply here           [context] playbook
+    the milestone this goal builds inside           [context] milestones
 
 Every one of those is sliced out of the live file at run time. **Nothing here is a copy**, so a
 manifest cannot go stale in the way a frozen context pack would -- it can only go *wrong*, by
@@ -253,7 +254,7 @@ class Manifest:
     rather than everything, because a goal that forgot to name its modules should print a short
     pack and a loud warning, not the whole repository."""
 
-    FIELDS = ("modules", "rules", "adrs", "shapes", "playbook", "plan")
+    FIELDS = ("modules", "rules", "adrs", "shapes", "playbook", "plan", "milestones")
 
     def __init__(self, spec: dict):
         ctx = spec.get("context") or {}
@@ -264,6 +265,7 @@ class Manifest:
         self.shapes = list(ctx.get("shapes", []))
         self.playbook = list(ctx.get("playbook", []))
         self.plan = list(ctx.get("plan", ["Open now", "Blocking"]))
+        self.milestones = [str(x) for x in ctx.get("milestones", [])]
         self.unknown = [k for k in ctx if k not in self.FIELDS]
 
 
@@ -561,6 +563,46 @@ def run_plan(m: Manifest) -> None:
     emit("These fields are rewritten by `session.py --wrap`, never edited by hand.")
 
 
+def run_milestones(m: Manifest) -> None:
+    """The milestones this goal builds inside, sliced out of their own files.
+
+    A milestone is 2-11 KB, which is why the whole plan was carved up in the first place: name
+    the one this goal is inside and it costs its own size, not the roadmap's. Naming none prints
+    nothing -- the index in `brief.py` and `plan.py --show Mn` are both one call away."""
+    if not m.milestones:
+        return
+    import plan as planmod  # noqa: PLC0415 -- same directory, the plan's one API
+
+    index = planmod.milestones()
+    section(
+        "THE MILESTONES THIS GOAL IS INSIDE",
+        f"docs/plan/, filtered to [context] milestones = {m.milestones}",
+    )
+    for wanted in m.milestones:
+        spec, _, part = wanted.partition(":")
+        entry = planmod.resolve(spec, index)
+        if entry is None:
+            warn(f"[context] milestones names {spec!r}, which the plan's table does not list")
+            continue
+        if not entry["path"].exists():
+            warn(f"[context] milestones names {spec!r}, whose file {entry['rel']} is missing")
+            continue
+        emit()
+        if part == "verify":
+            emit(f"-- {entry['id']} acceptance ({entry['rel']})")
+            emit(brief.strip_links(planmod.verify_paragraph(entry)))
+        elif part == "lead":
+            emit(f"-- {entry['id']} lead ({entry['rel']})")
+            emit(brief.strip_links(planmod.lead_paragraph(entry)))
+        else:
+            emit(f"-- {entry['id']} ({entry['rel']})")
+            emit(planmod.body_of(entry))
+    emit()
+    emit("`Mn` is the whole milestone; `Mn:lead` and `Mn:verify` are the two paragraphs that")
+    emit("usually answer the question. `python tools/plan.py --amend Mn --from <file>` rewrites")
+    emit("one, and `session.py --wrap` takes a `## milestone: Mn` section for the same thing.")
+
+
 def run_closing() -> None:
     section("WHEN YOU ARE DONE", "AGENTS.md § Session workflow, steps 3-5")
     emit("  python tools/verify.py            build + test + clippy + fmt, once, at the end")
@@ -687,6 +729,7 @@ def main() -> int:
     )
     run_playbook(m.playbook)
     run_plan(m)
+    run_milestones(m)
     run_numbers()
     run_closing()
     close_ledger()

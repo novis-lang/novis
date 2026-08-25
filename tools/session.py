@@ -28,6 +28,11 @@ docs are on disk before anything is staged.
     ## plan: On disk
     Same, for another field. Name as many `## plan:` sections as you changed, no more.
 
+    ## milestone: M4S
+    The whole body of docs/plan/m4s.md below its heading, replacing what is there. For the
+    session that finishes a milestone, or the ADR slice that reopens one. It will not create
+    a milestone the plan's table does not already list.
+
     ## playbook: Tooling
     - **A new trap, as a bullet.** Appended under that heading, never rewriting what is there.
 
@@ -47,8 +52,9 @@ docs are on disk before anything is staged.
     CONTINUE one line saying what landed
 
 Applied in this order, and **nothing is applied until every section validates**: plan fields,
-playbook, handoff, commits in the order written, then `status.txt`. A `## commit:` whose paths
-match nothing staged is an error before the first field is touched, not a half-finished tail.
+milestones, playbook, handoff, commits in the order written, then `status.txt`. A `## commit:`
+whose paths match nothing staged is an error before the first field is touched, not a
+half-finished tail.
 
 ## The rest
 
@@ -130,7 +136,7 @@ def parse_wrap(text: str) -> tuple[list[Section], list[str]]:
     The handoff body is markdown containing its own `## ` headings, so the parser has to stop
     treating `## ` as a directive once it is inside `## handoff` -- otherwise the handoff's own
     `## State` would read as an unknown instruction. It resumes at the next *known* directive."""
-    known = ("plan", "playbook", "handoff", "commit", "status")
+    known = ("plan", "milestone", "playbook", "handoff", "commit", "status")
     lines = text.split("\n")
     sections: list[Section] = []
     errors: list[str] = []
@@ -163,7 +169,7 @@ def parse_wrap(text: str) -> tuple[list[Section], list[str]]:
     flush()
 
     for s in sections:
-        if s.kind in ("plan", "playbook", "commit") and not s.arg:
+        if s.kind in ("plan", "milestone", "playbook", "commit") and not s.arg:
             errors.append(f"line {s.line}: `## {s.kind}:` needs an argument")
         if s.kind in ("handoff", "status") and s.arg:
             errors.append(f"line {s.line}: `## {s.kind}` takes no argument, got {s.arg!r}")
@@ -191,6 +197,15 @@ def validate(sections: list[Section]) -> list[str]:
                 errors.append(
                     f"`## plan: {s.arg}` -- no such field, and this tool does not add one. "
                     f"The block has: {', '.join(names.values())}")
+        elif s.kind == "milestone":
+            entry = planmod.resolve(s.arg)
+            if entry is None:
+                ids = ", ".join(m["id"] for m in planmod.milestones())
+                errors.append(
+                    f"`## milestone: {s.arg}` -- the plan's table lists no such milestone, and "
+                    f"this tool does not add one. It has: {ids}")
+            elif not entry["path"].exists():
+                errors.append(f"`## milestone: {s.arg}` -- {entry['rel']} does not exist")
         elif s.kind == "playbook":
             text = PLAYBOOK.read_text(encoding="utf-8")
             if not heading_index(text, s.arg):
@@ -274,6 +289,20 @@ def apply_plan(s: Section, dry: bool) -> str:
     rewritten = lines[:start] + ["> " + ln for ln in planmod.render(name, new)] + lines[end:]
     PLAN.write_text("\n".join(rewritten), encoding="utf-8", newline="")
     return f"plan: {name}  {len(old)} -> {len(new)} bytes"
+
+
+def apply_milestone(s: Section, dry: bool) -> str:
+    entry = planmod.resolve(s.arg)
+    assert entry is not None  # validate() proved it
+    old = len(planmod.body_of(entry).encode("utf-8"))
+    new = len(s.body.strip("\n").encode("utf-8"))
+    note = f"milestone: {entry['id']} in {entry['rel']}, {old} -> {new} bytes"
+    if dry:
+        return note
+    planmod.write_body(entry, s.body)
+    if not planmod.verify_paragraph(entry):
+        note += "  !! no `**Verify:**` paragraph -- nothing can call this milestone done"
+    return note
 
 
 def apply_playbook(s: Section, dry: bool) -> str:
@@ -387,9 +416,9 @@ def apply_status(s: Section, dry: bool) -> str:
     return f"status: {line[:80]}"
 
 
-APPLY = {"plan": apply_plan, "playbook": apply_playbook, "handoff": apply_handoff,
-         "commit": apply_commit, "status": apply_status}
-ORDER = ["plan", "playbook", "handoff", "commit", "status"]
+APPLY = {"plan": apply_plan, "milestone": apply_milestone, "playbook": apply_playbook,
+         "handoff": apply_handoff, "commit": apply_commit, "status": apply_status}
+ORDER = ["plan", "milestone", "playbook", "handoff", "commit", "status"]
 
 
 def wrap(path: Path, dry: bool) -> int:
@@ -446,8 +475,10 @@ def check() -> int:
         f"next free {c['highest_adr'] + 1:04d}")
 
     say()
-    say("== PLAN  (fields, and any that name a stale count)")
+    aim = planmod.field_aim()
+    say(f"== PLAN  (fields, any that name a stale count, and what each costs; aim ~{aim} B)")
     stale = 0
+    total = 0
     for name, _a, _b, body in plan_fields():
         flag = ""
         for label, value in (("conformance", c["conformance"]), ("differential", c["differential"])):
@@ -455,7 +486,14 @@ def check() -> int:
                 if int(found) != value:
                     flag = f"   <- says {label} {found}, tree has {value}"
                     stale += 1
-        say(f"  {name:<18} {len(body):>5} B{flag}")
+        n = len(body.encode("utf-8"))
+        total += n
+        if not flag and n > aim * 1.5:
+            flag = f"   {n / aim:.0f}x the aim"
+        say(f"  {name:<18} {n:>5} B{flag}")
+    say(f"  {'':<18} {total:>5} B  shipped into every session. Nothing refuses an oversized")
+    say("                          field -- `python tools/plan.py --check` is the same number,")
+    say("                          beside the milestone table's own state.")
 
     say()
     say("== HANDOFF")
