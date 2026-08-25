@@ -45,17 +45,18 @@ one is how an item finishes.
    and an `enum` body still reports only `E0220`. The corpus rewrite landed in the same slice; it was far
    smaller than estimated, because a `mwl-types` or parser fixture never reaches that walk. It is the
    *declaration* half of visibility; item 6 is the *access* half, and neither waits on the other.
-4. **ADR 0090 §§ 2 and 3 run; § 5's numeric row is the last of it** (M3/M4; `mwl-ir`'s gap 19 owns the
-   rest). Every row of § 3's table runs: a string pair calls `mwl_str_eq`, an array pair the new
+4. ~~**ADR 0090 §§ 2, 3 and 5 run**~~ (M3/M4; `mwl-ir`'s gap 19 owns the rest). **Done.** Every row of
+   § 3's table runs: a string pair calls `mwl_str_eq`, an array pair the new
    `mwl_runtime::mwl_array_eq`, an object pair an inline pointer comparison, a `mixed` or union operand
    § 5's `Helper::Identical` over `value_identical`, and § 2's numeric domain a `Helper::NumericEq` over
    the new `mwl_runtime::numeric_identical` — settled in `mwl-ir`'s `lower_binary` beside the `decimal`
    and `Tagged` arms, so `mwl-codegen` keeps its "a `BinOp` has one representation" invariant. The null
-   test moved with item 1, and the conformance rows dropped for the numeric domain are back. What is left
-   is **§ 5's numeric row**: a `mixed` operand still reaches `value_identical`, whose numeric rows answer
-   PHP's `1 === 1.0` rather than § 3's table, so one comparison has two answers depending on whether an
-   operand was declared. `mwl_runtime::identity`'s own *Known gap* states it, and what closing it costs
-   `value_hash` and the seven `Core\Arr` members that share the comparison.
+   test moved with item 1, and the conformance rows dropped for the numeric domain are back. § 5's
+   numeric row closed last: `value_identical`'s four numeric representations delegate to
+   `numeric_identical`, so the row has one answer however it is reached, and `value_hash` canonicalizes a
+   numeric to the `f64` it coincides with so the set index agrees with the comparison. That decides
+   `Core\Arr` too — `contains([1.0], 1)` is `true` — under the strict-identity standing decision below,
+   and `mwl_runtime::identity`'s own module doc owns every row of it.
 5. **ADR 0047 § 4 — the literal and enum-case type atoms are checked** (M2). They have parsed since M1 and
    `mwl_types::lower` refuses all three by name; that ADR's *Verification* names the step its own table
    understates.
