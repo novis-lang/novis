@@ -1784,7 +1784,10 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
         // Both admit more than one runtime shape, so both are tagged — see
         // `Ty::Tagged`. Reached only for an annotation the checker never
         // visited; everything it did visit takes the `declared_ty` shortcut
-        // above and goes through `lower_checked_ty`, which says the same.
+        // above and goes through `lower_checked_ty`, which is the *narrower*
+        // answer since ADR 0047 § 5's fold landed there: it folds `"a"|"b"`
+        // back to the one representation its members share, which needs the
+        // resolved members and so cannot be answered from the AST alone.
         TypeKind::Nullable(_) | TypeKind::Union(_) => Ty::Tagged,
         other => panic!(
             "mwl-ir only lowers bool/int/uint/float/void/string/bytes/array/`?T`/a union/a plain \
@@ -1819,11 +1822,15 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
 ///
 /// Panics naming the unsupported shape for anything outside this slice's
 /// scope: either qualified (`tainted`/`secret`) string or bytes variant,
-/// `object`, a shape, a union/intersection, or any of
-/// `never`/`true`/`false`/`iterable`/`callable`/`null` — none of these
+/// `object`, a shape, an intersection, or any of
+/// `never`/`true`/`false`/`iterable` — none of these
 /// have an IR representation yet (see the crate docs' known gaps). `mixed`
 /// erases to [`Ty::Tagged`] — see that variant's own doc comment for exactly
-/// how much this boundary does and doesn't do with one yet.
+/// how much this boundary does and doesn't do with one yet. A **union** never
+/// panics: it is [`Ty::Tagged`] unless every member erases to one and the same
+/// representation, in which case it is that one — ADR 0047 § 5's "zero
+/// additional runtime representation", which is why a member outside this
+/// scope is asked through [`erase_checked_ty`] rather than asserted.
 /// The per-option defaults recorded for the options-bag parameter at `index` —
 /// `mwl_types::core_lib` synthesizes exactly one `ConstArg::Options` entry per
 /// bag, so a bag parameter always has one.
@@ -1847,7 +1854,26 @@ fn options_defaults(
 }
 
 fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
-    match checked_types.get(id) {
+    erase_checked_ty(id, checked_types).unwrap_or_else(|| {
+        panic!(
+            "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
+             class/enum/mixed/null/union parameter or return type — got {:?}; see the \
+             crate docs' known gaps",
+            checked_types.get(id)
+        )
+    })
+}
+
+/// [`lower_checked_ty`], as a question rather than an assertion: `None` where
+/// the checker's type has no representation in this crate yet.
+///
+/// Split out for the [`CheckedTy::Union`] arm alone. Folding a union to the
+/// one representation its members share means asking each member for its own,
+/// and a member outside this slice's scope must answer that question rather
+/// than panic — a `object|A` union is still [`Ty::Tagged`], the same answer it
+/// gave before the fold existed, not a new internal error.
+fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
+    Some(match checked_types.get(id) {
         CheckedTy::Bool => Ty::Bool,
         CheckedTy::Int => Ty::Int,
         CheckedTy::Uint => Ty::Uint,
@@ -1880,13 +1906,27 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // `Union([Null, T])` — the checker has no separate nullable type — so
         // the two arms below are the whole of ADR 0066's representation.
         CheckedTy::Null => Ty::Null,
-        CheckedTy::Union(_) => Ty::Tagged,
-        other => panic!(
-            "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
-             class/enum/mixed/null/union parameter or return type — got {other:?}; see the \
-             crate docs' known gaps"
-        ),
-    }
+        // ADR 0047 § 5 again, and the whole of what it means: there is no
+        // second representation, so a union whose members all erase to one
+        // `Ty` **is** that `Ty`. `"a"|"b"` is a `Ty::Str`, `1|2` a `Ty::Int`
+        // and `Mode::Read|Mode::Write` the enum's own tag — the erasure the
+        // three atom arms above already perform, applied once more to the
+        // union that collects them. Everything else still admits more than
+        // one runtime shape and is tagged, `?T` (`Union([Null, T])`) included:
+        // `Ty::Null` and `Ty::Str` are two representations, not one.
+        CheckedTy::Union(members) => {
+            let mut shared: Option<Ty> = None;
+            for member in members {
+                match (erase_checked_ty(*member, checked_types), shared) {
+                    (Some(ty), None) => shared = Some(ty),
+                    (Some(ty), Some(seen)) if ty == seen => {}
+                    _ => return Some(Ty::Tagged),
+                }
+            }
+            shared.unwrap_or(Ty::Tagged)
+        }
+        _ => return None,
+    })
 }
 
 fn is_aliasing_read(kind: &ExprKind) -> bool {
