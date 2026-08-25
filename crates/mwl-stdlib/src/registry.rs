@@ -679,6 +679,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::time::TIME,
     crate::time::INSTANT,
     crate::time::DATETIME,
+    crate::time::DATE,
+    crate::time::TIME_OF_DAY,
     crate::time::DURATION,
     crate::time::ZONE,
     crate::objmap::CLASS,

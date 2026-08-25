@@ -1,0 +1,86 @@
+--TEST--
+Spec § 4: `Core\Time\Date` is the zone-free calendar half, and `$d->date()` is the component view
+--FILE--
+<?mwl
+// `Date::at` is the constructor, and a date that does not exist throws where
+// it is built — which is § 4's stated reason there is no `checkdate`.
+var $leap = Core\Time\Date::at(2024, 2, 29);
+echo $leap->format("yyyy-MM-dd"), "|\n";
+echo $leap->format("EEEE, d MMMM yyyy"), "|", $leap->format("D"), "|\n";
+
+// The calendar step is `DateTime`'s, clamped the same way: the last day of
+// January plus a month is the last day of February.
+echo Core\Time\Date::at(2024, 1, 31)->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "|\n";
+echo $leap->plus(1, Core\Unit::Year)->format("yyyy-MM-dd"), "|\n";
+echo $leap->plus(1, Core\Unit::Quarter)->format("yyyy-MM-dd"), "|\n";
+echo $leap->minus(1, Core\Unit::Week)->format("yyyy-MM-dd"), "|\n";
+
+// A `Date` has no time of day, so a unit smaller than a day has nothing to
+// move and is refused rather than truncated to zero.
+try {
+    $leap->plus(23, Core\Unit::Hour);
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "does not move a date") as string, "|\n";
+}
+
+// `with` replaces the fields it names and leaves the rest; a combination that
+// is not a date throws, because clamping it would be a guess.
+echo $leap->with({year: 2028})->format("yyyy-MM-dd"), "|\n";
+echo $leap->with({month: 12, day: 1})->format("yyyy-MM-dd"), "|\n";
+try {
+    $leap->with({year: 2023});
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "Core\\Time\\Date::with") as string, "|\n";
+}
+
+// `compareTo` is `Comparable`'s member over the one order a date has.
+echo $leap->compareTo(Core\Time\Date::at(2024, 3, 1)) as string, "|\n";
+echo $leap->compareTo(Core\Time\Date::at(2024, 2, 29)) as string, "|\n";
+echo Core\Time\Date::at(2024, 3, 1)->compareTo($leap) as string, "|\n";
+
+// A pattern is refused rather than filled in when it names something a
+// zone-free date does not carry.
+try {
+    $leap->format("yyyy-MM-dd HH:mm");
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "names no time of day") as string, "|\n";
+}
+try {
+    $leap->format("yyyy-MM-dd VV");
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "names no zone") as string, "|\n";
+}
+
+// `$d->date()` is the component view: the civil date this value reads as
+// **where it is**, so the same instant in another zone can be another day.
+var $utc = Core\Time\Zone::UTC;
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $late = Core\Time::at(2024, 12, 31, $utc, {hour: 23, minute: 30});
+echo $late->date()->format("yyyy-MM-dd"), "|\n";
+echo $late->toInstant()->in($berlin)->date()->format("yyyy-MM-dd"), "|\n";
+echo $late->date()->compareTo($late->toInstant()->in($berlin)->date()) as string, "|\n";
+try {
+    Core\Time\Date::at(2023, 2, 29);
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "Core\\Time\\Date::at") as string, "|\n";
+}
+--EXPECT--
+2024-02-29|
+Thursday, 29 February 2024|60|
+2024-02-29|
+2025-02-28|
+2024-05-29|
+2024-02-22|
+1|
+2028-02-29|
+2024-12-01|
+1|
+-1|
+0|
+1|
+1|
+1|
+2024-12-31|
+2025-01-01|
+-1|
+1|

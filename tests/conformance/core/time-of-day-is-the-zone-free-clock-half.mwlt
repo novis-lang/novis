@@ -1,0 +1,72 @@
+--TEST--
+Spec § 4: `Core\Time\TimeOfDay` is the zone-free clock half, and `$d->timeOfDay()` is the component view
+--FILE--
+<?mwl
+// `TimeOfDay::at` takes the two fields a wall clock always writes and
+// defaults the two it usually leaves off.
+var $t = Core\Time\TimeOfDay::at(9, 5);
+echo $t->format("HH:mm:ss"), "|", $t->format("h:mm a"), "|\n";
+echo Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999000000})->format("HH:mm:ss.SSS"), "|\n";
+
+// The clock step wraps within the day: a time of day has no date under it for
+// a carry to go into, so `plus` is total rather than a throw at midnight.
+echo $t->plus(3, Core\Unit::Hour)->format("HH:mm"), "|\n";
+echo Core\Time\TimeOfDay::at(23, 30)->plus(1, Core\Unit::Hour)->format("HH:mm"), "|\n";
+echo Core\Time\TimeOfDay::at(0, 30)->minus(1, Core\Unit::Hour)->format("HH:mm"), "|\n";
+echo $t->plus(90, Core\Unit::Second)->format("HH:mm:ss"), "|\n";
+
+// A unit of a day or larger has nothing here to move — the mirror of a `Date`
+// refusing a unit smaller than a day.
+try {
+    $t->plus(1, Core\Unit::Day);
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "does not move a time of day") as string, "|\n";
+}
+
+// `with` replaces the fields it names; `compareTo` is `Comparable`'s member.
+echo $t->with({minute: 45, second: 30})->format("HH:mm:ss"), "|\n";
+echo $t->compareTo(Core\Time\TimeOfDay::at(9, 6)) as string, "|\n";
+echo $t->compareTo(Core\Time\TimeOfDay::at(9, 5)) as string, "|\n";
+
+// A pattern naming a calendar field or a zone is refused rather than filled in.
+try {
+    $t->format("yyyy-MM-dd HH:mm");
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "names no calendar field") as string, "|\n";
+}
+try {
+    $t->format("HH:mm VV");
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "names no zone") as string, "|\n";
+}
+try {
+    Core\Time\TimeOfDay::at(24, 0);
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "is not a time of day") as string, "|\n";
+}
+
+// `$d->timeOfDay()` is the wall clock reading, which is why two zones can hold
+// the same one at different instants — and the same instant reads two.
+var $utc = Core\Time\Zone::UTC;
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $late = Core\Time::at(2024, 12, 31, $utc, {hour: 23, minute: 30});
+echo $late->timeOfDay()->format("HH:mm"), "|\n";
+echo $late->toInstant()->in($berlin)->timeOfDay()->format("HH:mm"), "|\n";
+echo $late->date()->format("yyyy-MM-dd"), "|", $late->timeOfDay()->format("HH:mm:ss"), "|\n";
+--EXPECT--
+09:05:00|9:05 AM|
+23:59:59.999|
+12:05|
+00:30|
+23:30|
+09:06:30|
+1|
+09:45:30|
+-1|
+0|
+1|
+1|
+1|
+23:30|
+00:30|
+2024-12-31|23:30:00|

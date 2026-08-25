@@ -139,6 +139,32 @@ impl Field {
     fn is_zonal(self) -> bool {
         matches!(self, Self::OffsetZ | Self::Offset | Self::ZoneId)
     }
+
+    /// Whether this field says something about the **time of day** — the half
+    /// of a civil datetime a zone-free `Core\Time\Date` does not carry, and so
+    /// the half [`date_fields_only`] refuses.
+    fn is_time_of_day(self) -> bool {
+        matches!(
+            self,
+            Self::AmPm
+                | Self::Hour12
+                | Self::Hour23
+                | Self::Hour11
+                | Self::Hour24
+                | Self::Minute
+                | Self::Second
+                | Self::Fraction
+        )
+    }
+
+    /// Whether this field says something about the **calendar** — the other
+    /// half of the same split, and the one [`time_fields_only`] refuses.
+    fn is_calendar(self) -> bool {
+        matches!(
+            self,
+            Self::Year | Self::Month | Self::Day | Self::DayOfYear | Self::Weekday
+        )
+    }
 }
 
 /// One compiled piece of a pattern: text to emit verbatim, or a field to
@@ -264,6 +290,74 @@ fn push_literal(pieces: &mut Vec<Piece>, text: &str) {
         Some(Piece::Literal(held)) => held.push_str(text),
         _ => pieces.push(Piece::Literal(text.to_owned())),
     }
+}
+
+/// Refuses a pattern that names anything a civil **date** does not carry: a
+/// time of day, or a zone.
+///
+/// `Core\Time\Date::format` is the one caller, and it refuses rather than
+/// substitutes for [`read`]'s reason in the other direction. Rendering a date
+/// through a pattern with an `HH` in it would have to invent a time of day,
+/// and every value it could invent — midnight, the system's own clock — is a
+/// wrong answer stated confidently. A `Date` that wants one names the time it
+/// means, which is what `DateTime` is.
+///
+/// # Errors
+///
+/// A one-sentence reason, in [`compile`]'s shape.
+pub(crate) fn date_fields_only(pieces: &[Piece]) -> Result<(), String> {
+    for piece in pieces {
+        let Piece::Field(field, _) = piece else {
+            continue;
+        };
+        if field.is_time_of_day() {
+            return Err(
+                "a pattern rendering a date names no time of day — a `Core\\Time\\Date` carries \
+                 none"
+                    .to_owned(),
+            );
+        }
+        if field.is_zonal() {
+            return Err(
+                "a pattern rendering a date names no zone — a `Core\\Time\\Date` is zone-free"
+                    .to_owned(),
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Refuses a pattern that names anything a `Core\Time\TimeOfDay` does not
+/// carry: a calendar field, or a zone.
+///
+/// [`date_fields_only`]'s other half, and it exists for the same reason —
+/// a `yyyy` rendered from a time of day would have to invent a year, and an
+/// invented one is a wrong answer stated confidently.
+///
+/// # Errors
+///
+/// A one-sentence reason, in [`compile`]'s shape.
+pub(crate) fn time_fields_only(pieces: &[Piece]) -> Result<(), String> {
+    for piece in pieces {
+        let Piece::Field(field, _) = piece else {
+            continue;
+        };
+        if field.is_calendar() {
+            return Err(
+                "a pattern rendering a time of day names no calendar field — a \
+                 `Core\\Time\\TimeOfDay` carries none"
+                    .to_owned(),
+            );
+        }
+        if field.is_zonal() {
+            return Err(
+                "a pattern rendering a time of day names no zone — a `Core\\Time\\TimeOfDay` is \
+                 zone-free"
+                    .to_owned(),
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Renders `at` through `pieces`.

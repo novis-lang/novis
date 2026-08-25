@@ -60,15 +60,15 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`Core\Time\Date` and `Core\Time\TimeOfDay` are not registered**,
-//!    and with them the three [`DATETIME`] members that produce or take one:
-//!    `date()`, `timeOfDay()` and `withTime()`. They are § 4's zone-free
-//!    component types, with the same `plus`/`minus`/`with`/`compareTo`/`format`
-//!    shape over [`jiff::civil::Date`]/[`jiff::civil::Time`] and the
-//!    constructors `Date::at` and `TimeOfDay::at` — a second and third class
-//!    over machinery that now exists, rather than anything new. § 4's
-//!    `Core\Month` enum waits with them: nothing takes or answers with one
-//!    until `Date` does, and [`crate::registry::ENUMS`] states that rule.
+//! 1. **`$d->withTime(TimeOfDay $t)` is not registered.** It is the one § 4
+//!    row left here, and the only one that *takes* a component view rather
+//!    than answering with one: [`DATE`] and [`TIME_OF_DAY`] both exist, so
+//!    what it owes is a [`DATETIME`] row and a helper that rebuilds the
+//!    receiver's date in the receiver's zone at `$t`. There is **no
+//!    `Core\Month`**: § 4 writes no member that takes or answers with one,
+//!    `Core\Weekday` existing only because `$d->weekday()` does, and an enum
+//!    nothing names is surface with no spec home. Two earlier notes here said
+//!    otherwise; they were describing a member the spec never had.
 //! 2. **`$d->format` and `Core\Time::parse` compile their pattern per call.**
 //!    ADR 0057 makes both intrinsics whose literal pattern is prepared while
 //!    compiling; [`crate::cldr`]'s own gap 1 owns what that changes and what
@@ -274,13 +274,15 @@ const NANOS_SLOT: usize = 0;
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 ///
-/// One arm per class rather than one match over all four: § 4 is one domain
-/// but four classes, and a class's symbols stay beside the class.
+/// One arm per class rather than one match over all of them: § 4 is one
+/// domain but several classes, and a class's symbols stay beside the class.
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     duration_address(symbol)
         .or_else(|| time_address(symbol))
         .or_else(|| instant_address(symbol))
         .or_else(|| datetime_address(symbol))
+        .or_else(|| date_address(symbol))
+        .or_else(|| time_of_day_address(symbol))
         .or_else(|| zone_address(symbol))
 }
 
@@ -973,6 +975,20 @@ pub const DATETIME: CoreClass = CoreClass {
             symbol: "mwl_core_time_datetime_to_instant",
         },
         CoreMethod {
+            name: "date",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            symbol: "mwl_core_time_datetime_date",
+        },
+        CoreMethod {
+            name: "timeOfDay",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
+            symbol: "mwl_core_time_datetime_time_of_day",
+        },
+        CoreMethod {
             name: "zone",
             params: &[],
             defaults: &[],
@@ -1030,6 +1046,10 @@ fn datetime_address(symbol: &str) -> Option<*const u8> {
         "mwl_core_time_datetime_to_instant" => {
             (mwl_core_time_datetime_to_instant as *const ()).cast()
         }
+        "mwl_core_time_datetime_date" => (mwl_core_time_datetime_date as *const ()).cast(),
+        "mwl_core_time_datetime_time_of_day" => {
+            (mwl_core_time_datetime_time_of_day as *const ()).cast()
+        }
         "mwl_core_time_datetime_zone" => (mwl_core_time_datetime_zone as *const ()).cast(),
         "mwl_core_time_datetime_weekday" => (mwl_core_time_datetime_weekday as *const ()).cast(),
         "mwl_core_time_datetime_day_of_year" => {
@@ -1051,10 +1071,7 @@ fn datetime_address(symbol: &str) -> Option<*const u8> {
 pub const TIME_NAME: &str = r"Core\Time";
 
 /// Spec § 4's entry points — the namespace class that produces the values the
-/// three classes above are members of.
-///
-/// `parse` and `at` are deliberately absent: both answer with a `DateTime`,
-/// which is gap 1 above.
+/// classes above are members of.
 pub const TIME: CoreClass = CoreClass {
     name: TIME_NAME,
     methods: &[
@@ -1157,6 +1174,262 @@ fn time_address(symbol: &str) -> Option<*const u8> {
         "mwl_core_time_from_iso" => (mwl_core_time_from_iso as *const ()).cast(),
         "mwl_core_time_parse" => (mwl_core_time_parse as *const ()).cast(),
         "mwl_core_time_at" => (mwl_core_time_at as *const ()).cast(),
+        _ => return None,
+    })
+}
+
+// ============================================================================
+// `Core\Time\Date` — registration
+// ============================================================================
+
+/// `Core\Time\Date`'s fully-qualified name, written once, for
+/// [`DURATION_NAME`]'s reason.
+pub const DATE_NAME: &str = r"Core\Time\Date";
+
+/// The `{year?, month?, day?}` bag `$d->with(…)` takes — [`WITH_OPTIONS`]
+/// without the four fields a zone-free date does not carry.
+///
+/// A separate roster rather than a subslice of that one because the two are
+/// the same *shape* by coincidence rather than by rule: § 4 gives `DateTime`
+/// seven fields and `Date` three, and a `Date` that grew an `hour` option
+/// would be a `DateTime`.
+const DATE_WITH_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "year",
+        ty: CoreTy::Int,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "month",
+        ty: CoreTy::Uint,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "day",
+        ty: CoreTy::Uint,
+        default: Const::Null,
+    },
+];
+
+/// Spec § 4's `Core\Time\Date` — the zone-free calendar half of a
+/// [`DATETIME`], with the same `plus`/`minus`/`with`/`compareTo`/`format`
+/// shape and the constructor `Date::at`.
+///
+/// Three slots, one per civil field, which is the opposite of the choice
+/// [`DATETIME`] documents — and for the reason that made that one necessary.
+/// A `DateTime` stores its instant because a civil triple could hold 02:30 on
+/// a spring-forward morning, a time that does not exist and that every member
+/// would then have to have an opinion about. A `Date` has no zone, so it has
+/// no such value: the only triples that are not a real date are ones
+/// [`jiff::civil::Date::new`] already rejects where the value is built, and
+/// nothing but a constructor ever writes these slots.
+///
+/// **What it spends:** 48 bytes of slots per value, charged to the request
+/// that produced it, against the 16 a single day-count slot would take. The
+/// three fields are what every member reads, so a count would be a conversion
+/// on each side of every call to save two words — [AGENTS.md](../../../../AGENTS.md)'s
+/// priority ordering spends memory on simplicity, not the reverse.
+pub const DATE: CoreClass = CoreClass {
+    name: DATE_NAME,
+    methods: &[CoreMethod {
+        name: "at",
+        params: &[CoreTy::Int, CoreTy::Uint, CoreTy::Uint],
+        defaults: &[],
+        return_ty: CoreTy::Instance(DATE_NAME),
+        symbol: "mwl_core_time_date_at",
+    }],
+    instance: &[
+        CoreMethod {
+            name: "format",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_time_date_format",
+        },
+        CoreMethod {
+            name: "plus",
+            params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            symbol: "mwl_core_time_date_plus",
+        },
+        CoreMethod {
+            name: "minus",
+            params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            symbol: "mwl_core_time_date_minus",
+        },
+        CoreMethod {
+            name: "with",
+            params: &[CoreTy::Options(DATE_WITH_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            symbol: "mwl_core_time_date_with",
+        },
+        CoreMethod {
+            name: "compareTo",
+            params: &[CoreTy::Instance(DATE_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "mwl_core_time_date_compare_to",
+        },
+    ],
+    slots: &["year", "month", "day"],
+    constants: &[],
+};
+
+/// [`DATE`]'s slots, by index.
+const DATE_YEAR_SLOT: usize = 0;
+/// See [`DATE_YEAR_SLOT`].
+const DATE_MONTH_SLOT: usize = 1;
+/// See [`DATE_YEAR_SLOT`].
+const DATE_DAY_SLOT: usize = 2;
+
+/// [`DATE`]'s symbols.
+fn date_address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "mwl_core_time_date_at" => (mwl_core_time_date_at as *const ()).cast(),
+        "mwl_core_time_date_format" => (mwl_core_time_date_format as *const ()).cast(),
+        "mwl_core_time_date_plus" => (mwl_core_time_date_plus as *const ()).cast(),
+        "mwl_core_time_date_minus" => (mwl_core_time_date_minus as *const ()).cast(),
+        "mwl_core_time_date_with" => (mwl_core_time_date_with as *const ()).cast(),
+        "mwl_core_time_date_compare_to" => (mwl_core_time_date_compare_to as *const ()).cast(),
+        _ => return None,
+    })
+}
+
+// ============================================================================
+// `Core\Time\TimeOfDay` — registration
+// ============================================================================
+
+/// `Core\Time\TimeOfDay`'s fully-qualified name, written once, for
+/// [`DURATION_NAME`]'s reason.
+pub const TIME_OF_DAY_NAME: &str = r"Core\Time\TimeOfDay";
+
+/// The `{second?: uint, nanos?: uint}` bag `TimeOfDay::at` takes — the two
+/// fields a wall clock usually leaves off, defaulting to zero.
+///
+/// [`Const::Uint`] rather than [`Const::Null`] here, unlike
+/// [`TIME_OF_DAY_WITH_OPTIONS`], because a *constructor* has a right answer
+/// for an omitted field and `with` does not: `10:30` means second zero, while
+/// `$t->with({})` means leave every field alone.
+const AT_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "second",
+        ty: CoreTy::Uint,
+        default: Const::Uint(0),
+    },
+    CoreOption {
+        name: "nanos",
+        ty: CoreTy::Uint,
+        default: Const::Uint(0),
+    },
+];
+
+/// The `{hour?, minute?, second?, nanos?}` bag `$t->with(…)` takes —
+/// [`WITH_OPTIONS`] without the three calendar fields.
+const TIME_OF_DAY_WITH_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "hour",
+        ty: CoreTy::Uint,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "minute",
+        ty: CoreTy::Uint,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "second",
+        ty: CoreTy::Uint,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "nanos",
+        ty: CoreTy::Uint,
+        default: Const::Null,
+    },
+];
+
+/// Spec § 4's `Core\Time\TimeOfDay` — the zone-free clock half of a
+/// [`DATETIME`], and [`DATE`]'s opposite number in every way including its
+/// shape.
+///
+/// Four slots, one per civil field, for [`DATE`]'s reason: nothing but a
+/// constructor writes them, and [`jiff::civil::Time::new`] has already refused
+/// every combination that is not a time.
+///
+/// **What it spends:** 64 bytes of slots per value, charged to the request
+/// that produced it.
+pub const TIME_OF_DAY: CoreClass = CoreClass {
+    name: TIME_OF_DAY_NAME,
+    methods: &[CoreMethod {
+        name: "at",
+        params: &[CoreTy::Uint, CoreTy::Uint, CoreTy::Options(AT_OPTIONS)],
+        defaults: &[],
+        return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
+        symbol: "mwl_core_time_of_day_at",
+    }],
+    instance: &[
+        CoreMethod {
+            name: "format",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_time_of_day_format",
+        },
+        CoreMethod {
+            name: "plus",
+            params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
+            symbol: "mwl_core_time_of_day_plus",
+        },
+        CoreMethod {
+            name: "minus",
+            params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
+            symbol: "mwl_core_time_of_day_minus",
+        },
+        CoreMethod {
+            name: "with",
+            params: &[CoreTy::Options(TIME_OF_DAY_WITH_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
+            symbol: "mwl_core_time_of_day_with",
+        },
+        CoreMethod {
+            name: "compareTo",
+            params: &[CoreTy::Instance(TIME_OF_DAY_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "mwl_core_time_of_day_compare_to",
+        },
+    ],
+    slots: &["hour", "minute", "second", "nanos"],
+    constants: &[],
+};
+
+/// [`TIME_OF_DAY`]'s slots, by index.
+const CLOCK_HOUR_SLOT: usize = 0;
+/// See [`CLOCK_HOUR_SLOT`].
+const CLOCK_MINUTE_SLOT: usize = 1;
+/// See [`CLOCK_HOUR_SLOT`].
+const CLOCK_SECOND_SLOT: usize = 2;
+/// See [`CLOCK_HOUR_SLOT`].
+const CLOCK_NANOS_SLOT: usize = 3;
+
+/// [`TIME_OF_DAY`]'s symbols.
+fn time_of_day_address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "mwl_core_time_of_day_at" => (mwl_core_time_of_day_at as *const ()).cast(),
+        "mwl_core_time_of_day_format" => (mwl_core_time_of_day_format as *const ()).cast(),
+        "mwl_core_time_of_day_plus" => (mwl_core_time_of_day_plus as *const ()).cast(),
+        "mwl_core_time_of_day_minus" => (mwl_core_time_of_day_minus as *const ()).cast(),
+        "mwl_core_time_of_day_with" => (mwl_core_time_of_day_with as *const ()).cast(),
+        "mwl_core_time_of_day_compare_to" => (mwl_core_time_of_day_compare_to as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1932,7 +2205,7 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_time_datetime_with(_ctx, args: [8]) {
         let at = zoned_of(args, 0, "with")?;
         let mut building = at.with();
-        if let Some(year) = optional(args, 1, "with", "year")? {
+        if let Some(year) = optional(args, 1, r"Core\Time\DateTime::with", "year")? {
             building = building.year(
                 i16::try_from(year).map_err(|_| {
                     out_of_range(r"Core\Time\DateTime::with", "`year` is outside -9999..=9999")
@@ -1940,7 +2213,7 @@ mwl_runtime::mwl_helper! {
             );
         }
         for (index, name) in [(2, "month"), (3, "day"), (4, "hour"), (5, "minute"), (6, "second")] {
-            let Some(value) = optional(args, index, "with", name)? else {
+            let Some(value) = optional(args, index, r"Core\Time\DateTime::with", name)? else {
                 continue;
             };
             let value = i8::try_from(value).map_err(|_| {
@@ -1957,7 +2230,7 @@ mwl_runtime::mwl_helper! {
                 _ => building.second(value),
             };
         }
-        if let Some(nanos) = optional(args, 7, "with", "nanos")? {
+        if let Some(nanos) = optional(args, 7, r"Core\Time\DateTime::with", "nanos")? {
             building = building.subsec_nanosecond(
                 i32::try_from(nanos).map_err(|_| {
                     out_of_range(r"Core\Time\DateTime::with", "`nanos` is a subsecond count")
@@ -2045,6 +2318,26 @@ mwl_runtime::mwl_helper! {
 }
 
 mwl_runtime::mwl_helper! {
+    /// `$d->date(): Date` — § 4's first component view, and the one that
+    /// drops the zone as well as the time: the civil date this value reads as
+    /// **where it is**, which is why a zone conversion first
+    /// (`$d->toInstant()->in($z)->date()`) can answer a different day.
+    fn mwl_core_time_datetime_date(_ctx, args: [1]) {
+        Ok(date_built(zoned_of(args, 0, "date")?.datetime().date()))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$d->timeOfDay(): TimeOfDay` — the other component view, and the one
+    /// that is a wall clock reading rather than a point on any timeline: two
+    /// zones can read `09:00` at once, which is exactly why it carries
+    /// neither the date nor the zone.
+    fn mwl_core_time_datetime_time_of_day(_ctx, args: [1]) {
+        Ok(clock_built(zoned_of(args, 0, "timeOfDay")?.datetime().time()))
+    }
+}
+
+mwl_runtime::mwl_helper! {
     /// `$d->zone(): Zone` — the zone this civil time is in, which is never
     /// ambient and so is always one the program named.
     fn mwl_core_time_datetime_zone(_ctx, args: [1]) {
@@ -2092,7 +2385,8 @@ mwl_runtime::mwl_helper! {
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member and the option, for the reason
-/// [`count`] gives.
+/// [`count`] gives. `member` is the whole `Core\…::name` label, since both
+/// `with` members reach here.
 fn optional(args: &[Value], at: usize, member: &str, option: &str) -> Result<Option<i64>, Fault> {
     if args[at].tag() == Some(mwl_runtime::Tag::Null) {
         return Ok(None);
@@ -2103,7 +2397,7 @@ fn optional(args: &[Value], at: usize, member: &str, option: &str) -> Result<Opt
         .map(Some)
         .ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Time\\DateTime::{member} expected a number for `{option}`, got tag {}",
+                "{member} expected a number for `{option}`, got tag {}",
                 args[at].tag_byte()
             ))
         })
@@ -2193,6 +2487,437 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+// ============================================================================
+// `Core\Time\Date` — reading, building and the calendar step
+// ============================================================================
+
+/// A fresh `Date` at `at`.
+fn date_built(at: civil::Date) -> Value {
+    crate::instance::build(
+        &DATE,
+        [
+            Value::int(i64::from(at.year())),
+            Value::int(i64::from(at.month())),
+            Value::int(i64::from(at.day())),
+        ],
+    )
+}
+
+/// The [`civil::Date`] the `Date` in argument slot `at` holds — slot 0 for a
+/// receiver, slot 1 for `compareTo`'s parameter.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for the reason [`count`] gives: the
+/// three slots are written by a constructor that already went through
+/// [`civil::Date::new`], so a triple that does not read back is compiled code
+/// disagreeing with [`DATE`]'s layout.
+fn date_of(args: &[Value], at: usize, member: &str) -> Result<civil::Date, Fault> {
+    let object = crate::instance::receiver(args[at], &DATE, member)?;
+    let read = |index: usize, what: &str| {
+        crate::instance::slot(object, index)
+            .as_int()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Time\\Date::{member} found a non-`int` `{what}` slot"
+                ))
+            })
+    };
+    let year = read(DATE_YEAR_SLOT, "year")?;
+    let month = read(DATE_MONTH_SLOT, "month")?;
+    let day = read(DATE_DAY_SLOT, "day")?;
+    parts(year, month, day)
+        .and_then(|(year, month, day)| civil::Date::new(year, month, day).ok())
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Time\\Date::{member} found `{year}-{month}-{day}`, which is not a date"
+            ))
+        })
+}
+
+/// The three civil fields narrowed to the widths [`civil::Date::new`] takes,
+/// or `None` for a number no calendar field can hold.
+fn parts(year: i64, month: i64, day: i64) -> Option<(i16, i8, i8)> {
+    Some((
+        i16::try_from(year).ok()?,
+        i8::try_from(month).ok()?,
+        i8::try_from(day).ok()?,
+    ))
+}
+
+/// The date `year-month-day`, or the throw ADR 0063 R4 owes for a triple that
+/// is not one — which is the whole of why § 4 has no `checkdate`.
+fn date_from_parts(year: i64, month: i64, day: i64, member: &str) -> Result<Value, Fault> {
+    let Some((year, month, day)) = parts(year, month, day) else {
+        return Err(out_of_range(
+            member,
+            "a year is within -9999..=9999, and a month and a day are numbers a calendar writes",
+        ));
+    };
+    civil::Date::new(year, month, day)
+        .map(date_built)
+        .map_err(|err| out_of_range(member, &err.to_string()))
+}
+
+/// The `uint` in argument slot `at`, as the `i64` [`parts`] narrows.
+///
+/// A count past `i64` is handed on as `i64::MAX` rather than reported here, so
+/// that "too large for a month" is one message from the calendar rather than
+/// two from two range checks.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for the reason [`count`] gives.
+fn field_at(args: &[Value], at: usize, member: &str, what: &str) -> Result<i64, Fault> {
+    args[at]
+        .as_uint()
+        .map(|held| i64::try_from(held).unwrap_or(i64::MAX))
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{member} expected a `uint` for `{what}`, got tag {}",
+                args[at].tag_byte()
+            ))
+        })
+}
+
+/// `count` steps of the unit in argument slot 2, added to the receiver —
+/// [`stepped`] one level down, where there is no time of day and no zone.
+fn date_stepped(args: &[Value], member: &str, sign: i64) -> Result<Value, Fault> {
+    let label = format!(r"Core\Time\Date::{member}");
+    let at = date_of(args, 0, member)?;
+    let (unit, scale) = unit_of(args, 2, &label)?;
+    // § 4's two arithmetics, one level down: a date has no time of day, so a
+    // step smaller than a day has nothing here to move. Refusing is the only
+    // honest answer — truncating it to zero would make
+    // `$d->plus(23, Unit::Hour)` silently the same date, and rounding it to a
+    // day would make `plus(1, Unit::Hour)` a day's move.
+    if !matches!(
+        unit,
+        jiff::Unit::Year | jiff::Unit::Month | jiff::Unit::Week | jiff::Unit::Day
+    ) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{label}(): a unit smaller than `Unit::Day` does not move a date"),
+        ));
+    }
+    let steps = args[1]
+        .as_int()
+        .ok_or_else(|| Fault::fatal(format!("{label} expected an `int` count")))?
+        .checked_mul(scale)
+        .and_then(|steps| steps.checked_mul(sign))
+        .ok_or_else(|| {
+            out_of_range(
+                &label,
+                "that many units is past what a calendar span can hold",
+            )
+        })?;
+    let span = span_of(unit, steps).map_err(|err| out_of_range(&label, &err.to_string()))?;
+    at.checked_add(span)
+        .map(date_built)
+        .map_err(|err| out_of_range(&label, &err.to_string()))
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Date::at(int $year, uint $month, uint $day): Date` — § 4's zone-free
+    /// constructor, and the one place a date that does not exist throws.
+    fn mwl_core_time_date_at(_ctx, args: [3]) {
+        let label = r"Core\Time\Date::at";
+        let year = args[0].as_int().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{label} expected an `int` for `year`, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        let month = field_at(args, 1, label, "month")?;
+        let day = field_at(args, 2, label, "day")?;
+        date_from_parts(year, month, day, label)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$d->format(string $pattern): string` — [`crate::cldr`]'s patterns
+    /// again, narrowed to the letters a date carries.
+    ///
+    /// A pattern naming an hour or a zone is refused rather than filled in;
+    /// [`crate::cldr::date_fields_only`] owns why. What that leaves is a
+    /// rendering that cannot depend on the zone the value is placed in, which
+    /// is what makes UTC below an implementation detail rather than a default.
+    fn mwl_core_time_date_format(_ctx, args: [2]) {
+        let at = date_of(args, 0, "format")?;
+        let pattern = text_of(args, 1, r"Core\Time\Date::format")?;
+        let pieces = crate::cldr::compile(pattern)
+            .and_then(|pieces| crate::cldr::date_fields_only(&pieces).map(|()| pieces))
+            .map_err(|why| Fault::thrown(format!("Core\\Time\\Date::format(): {why}")))?;
+        // UTC has no transition, so midnight there exists on every date.
+        let placed = at.to_zoned(TimeZone::UTC).map_err(|err| {
+            Fault::fatal(format!("Core\\Time\\Date::format could not place `{at}`: {err}"))
+        })?;
+        Ok(Value::str(MwlStr::new(
+            crate::cldr::render(&pieces, &placed).as_bytes(),
+        )))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$d->plus(int $count, Unit $unit): Date` — the same clamping calendar
+    /// step [`mwl_core_time_datetime_plus`] takes, so the last day of January
+    /// plus a month is the last day of February.
+    fn mwl_core_time_date_plus(_ctx, args: [3]) {
+        date_stepped(args, "plus", 1)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$d->minus(int $count, Unit $unit): Date`.
+    fn mwl_core_time_date_minus(_ctx, args: [3]) {
+        date_stepped(args, "minus", -1)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$d->with({year?, month?, day?}): Date` — an omitted option leaves its
+    /// field, for [`WITH_OPTIONS`]'s reason.
+    ///
+    /// A combination that is not a date throws, exactly as the constructor
+    /// does: `2024-02-29` with `{year: 2023}` has no answer to clamp to that
+    /// is not a guess.
+    fn mwl_core_time_date_with(_ctx, args: [4]) {
+        let label = r"Core\Time\Date::with";
+        let mut building = date_of(args, 0, "with")?.with();
+        if let Some(year) = optional(args, 1, label, "year")? {
+            building = building.year(i16::try_from(year).map_err(|_| {
+                out_of_range(label, "`year` is outside -9999..=9999")
+            })?);
+        }
+        for (index, name) in [(2, "month"), (3, "day")] {
+            let Some(value) = optional(args, index, label, name)? else {
+                continue;
+            };
+            let value = i8::try_from(value).map_err(|_| {
+                out_of_range(label, &format!("`{name}` is outside what that field can hold"))
+            })?;
+            building = if name == "month" {
+                building.month(value)
+            } else {
+                building.day(value)
+            };
+        }
+        building
+            .build()
+            .map(date_built)
+            .map_err(|err| out_of_range(label, &err.to_string()))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$d->compareTo(Date $other): int` — `Comparable`'s member, over the
+    /// one order a civil date has.
+    fn mwl_core_time_date_compare_to(_ctx, args: [2]) {
+        let left = date_of(args, 0, "compareTo")?;
+        let right = date_of(args, 1, "compareTo")?;
+        Ok(Value::int(match left.cmp(&right) {
+            std::cmp::Ordering::Less => -1,
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Greater => 1,
+        }))
+    }
+}
+
+// ============================================================================
+// `Core\Time\TimeOfDay` — reading, building and the clock step
+// ============================================================================
+
+/// A fresh `TimeOfDay` at `at`.
+fn clock_built(at: civil::Time) -> Value {
+    crate::instance::build(
+        &TIME_OF_DAY,
+        [
+            Value::int(i64::from(at.hour())),
+            Value::int(i64::from(at.minute())),
+            Value::int(i64::from(at.second())),
+            Value::int(i64::from(at.subsec_nanosecond())),
+        ],
+    )
+}
+
+/// The [`civil::Time`] the `TimeOfDay` in argument slot `at` holds.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for [`date_of`]'s reason.
+fn clock_of(args: &[Value], at: usize, member: &str) -> Result<civil::Time, Fault> {
+    let object = crate::instance::receiver(args[at], &TIME_OF_DAY, member)?;
+    let read = |index: usize, what: &str| {
+        crate::instance::slot(object, index)
+            .as_int()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Time\\TimeOfDay::{member} found a non-`int` `{what}` slot"
+                ))
+            })
+    };
+    let hour = read(CLOCK_HOUR_SLOT, "hour")?;
+    let minute = read(CLOCK_MINUTE_SLOT, "minute")?;
+    let second = read(CLOCK_SECOND_SLOT, "second")?;
+    let nanos = read(CLOCK_NANOS_SLOT, "nanos")?;
+    clock_from_parts(hour, minute, second, nanos).ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Time\\TimeOfDay::{member} found `{hour}:{minute}:{second}.{nanos}`, which \
+                 is not a time"
+        ))
+    })
+}
+
+/// The four fields as a [`civil::Time`], or `None` for a combination that is
+/// not one — including a number no clock field can hold.
+fn clock_from_parts(hour: i64, minute: i64, second: i64, nanos: i64) -> Option<civil::Time> {
+    let hour = i8::try_from(hour).ok()?;
+    let minute = i8::try_from(minute).ok()?;
+    let second = i8::try_from(second).ok()?;
+    let nanos = i32::try_from(nanos).ok()?;
+    civil::Time::new(hour, minute, second, nanos).ok()
+}
+
+/// `count` steps of the unit in argument slot 2, added to the receiver —
+/// [`date_stepped`]'s opposite number, and the other half of the same split.
+///
+/// **The step wraps within the day**, so `23:30` plus an hour is `00:30`. A
+/// time of day is a position in the 24-hour cycle with no date under it, so
+/// there is nowhere for a carry to go; throwing at midnight instead would make
+/// `plus` a member whose safety depends on the value it is called on, which is
+/// the landmine a total operation avoids. `$d->plus(…)` on a `DateTime` is
+/// where a step that carries a day belongs.
+fn clock_stepped(args: &[Value], member: &str, sign: i64) -> Result<Value, Fault> {
+    let label = format!(r"Core\Time\TimeOfDay::{member}");
+    let at = clock_of(args, 0, member)?;
+    let (unit, scale) = unit_of(args, 2, &label)?;
+    // A unit of a day or larger has nothing here to move, exactly as a unit
+    // smaller than a day has nothing in a `Date` to move.
+    if matches!(
+        unit,
+        jiff::Unit::Year | jiff::Unit::Month | jiff::Unit::Week | jiff::Unit::Day
+    ) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{label}(): a unit of `Unit::Day` or larger does not move a time of day"),
+        ));
+    }
+    let steps = args[1]
+        .as_int()
+        .ok_or_else(|| Fault::fatal(format!("{label} expected an `int` count")))?
+        .checked_mul(scale)
+        .and_then(|steps| steps.checked_mul(sign))
+        .ok_or_else(|| out_of_range(&label, "that many units is past what a span can hold"))?;
+    let span = span_of(unit, steps).map_err(|err| out_of_range(&label, &err.to_string()))?;
+    Ok(clock_built(at.wrapping_add(span)))
+}
+
+mwl_runtime::mwl_helper! {
+    /// `TimeOfDay::at(uint $hour, uint $minute, {second?, nanos?}):
+    /// TimeOfDay` — the zone-free constructor, with the two fields a wall
+    /// clock usually leaves off defaulting to zero ([`AT_OPTIONS`]).
+    fn mwl_core_time_of_day_at(_ctx, args: [4]) {
+        let label = r"Core\Time\TimeOfDay::at";
+        let hour = field_at(args, 0, label, "hour")?;
+        let minute = field_at(args, 1, label, "minute")?;
+        let second = field_at(args, 2, label, "second")?;
+        let nanos = field_at(args, 3, label, "nanos")?;
+        clock_from_parts(hour, minute, second, nanos)
+            .map(clock_built)
+            .ok_or_else(|| {
+                out_of_range(
+                    label,
+                    &format!("`{hour}:{minute}:{second}.{nanos}` is not a time of day"),
+                )
+            })
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$t->format(string $pattern): string` — [`crate::cldr`]'s patterns
+    /// narrowed the other way, to the letters a clock carries
+    /// ([`crate::cldr::time_fields_only`]).
+    fn mwl_core_time_of_day_format(_ctx, args: [2]) {
+        let at = clock_of(args, 0, "format")?;
+        let pattern = text_of(args, 1, r"Core\Time\TimeOfDay::format")?;
+        let pieces = crate::cldr::compile(pattern)
+            .and_then(|pieces| crate::cldr::time_fields_only(&pieces).map(|()| pieces))
+            .map_err(|why| Fault::thrown(format!("Core\\Time\\TimeOfDay::format(): {why}")))?;
+        // The date below is arbitrary and unobservable: no piece that survived
+        // `time_fields_only` can read a calendar field or a zone, and UTC has
+        // no transition that could move the clock reading.
+        let placed = civil::Date::constant(1970, 1, 1)
+            .to_datetime(at)
+            .to_zoned(TimeZone::UTC)
+            .map_err(|err| {
+                Fault::fatal(format!("Core\\Time\\TimeOfDay::format could not place `{at}`: {err}"))
+            })?;
+        Ok(Value::str(MwlStr::new(
+            crate::cldr::render(&pieces, &placed).as_bytes(),
+        )))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$t->plus(int $count, Unit $unit): TimeOfDay` — see [`clock_stepped`]
+    /// for what happens at midnight.
+    fn mwl_core_time_of_day_plus(_ctx, args: [3]) {
+        clock_stepped(args, "plus", 1)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$t->minus(int $count, Unit $unit): TimeOfDay`.
+    fn mwl_core_time_of_day_minus(_ctx, args: [3]) {
+        clock_stepped(args, "minus", -1)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$t->with({hour?, minute?, second?, nanos?}): TimeOfDay` — an omitted
+    /// option leaves its field, for [`WITH_OPTIONS`]'s reason.
+    fn mwl_core_time_of_day_with(_ctx, args: [5]) {
+        let label = r"Core\Time\TimeOfDay::with";
+        let mut building = clock_of(args, 0, "with")?.with();
+        for (index, name) in [(1, "hour"), (2, "minute"), (3, "second")] {
+            let Some(value) = optional(args, index, label, name)? else {
+                continue;
+            };
+            let value = i8::try_from(value).map_err(|_| {
+                out_of_range(label, &format!("`{name}` is outside what that field can hold"))
+            })?;
+            building = match name {
+                "hour" => building.hour(value),
+                "minute" => building.minute(value),
+                _ => building.second(value),
+            };
+        }
+        if let Some(nanos) = optional(args, 4, label, "nanos")? {
+            building = building.subsec_nanosecond(i32::try_from(nanos).map_err(|_| {
+                out_of_range(label, "`nanos` is a subsecond count")
+            })?);
+        }
+        building
+            .build()
+            .map(clock_built)
+            .map_err(|err| out_of_range(label, &err.to_string()))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$t->compareTo(TimeOfDay $other): int` — `Comparable`'s member, over
+    /// the one order a clock reading has.
+    fn mwl_core_time_of_day_compare_to(_ctx, args: [2]) {
+        let left = clock_of(args, 0, "compareTo")?;
+        let right = clock_of(args, 1, "compareTo")?;
+        Ok(Value::int(match left.cmp(&right) {
+            std::cmp::Ordering::Less => -1,
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Greater => 1,
+        }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2208,14 +2933,35 @@ mod tests {
         assert_eq!(INSTANT.slots.len(), 2);
         assert_eq!(ZONE_ID_SLOT, ZONE.slot("id"));
         assert_eq!(ZONE.slots.len(), 1);
+        assert_eq!(DATETIME_SECONDS_SLOT, DATETIME.slot("seconds"));
+        assert_eq!(DATETIME_NANOS_SLOT, DATETIME.slot("nanos"));
+        assert_eq!(DATETIME_ZONE_SLOT, DATETIME.slot("zone"));
+        assert_eq!(DATETIME.slots.len(), 3);
+        assert_eq!(DATE_YEAR_SLOT, DATE.slot("year"));
+        assert_eq!(DATE_MONTH_SLOT, DATE.slot("month"));
+        assert_eq!(DATE_DAY_SLOT, DATE.slot("day"));
+        assert_eq!(DATE.slots.len(), 3);
+        assert_eq!(CLOCK_HOUR_SLOT, TIME_OF_DAY.slot("hour"));
+        assert_eq!(CLOCK_MINUTE_SLOT, TIME_OF_DAY.slot("minute"));
+        assert_eq!(CLOCK_SECOND_SLOT, TIME_OF_DAY.slot("second"));
+        assert_eq!(CLOCK_NANOS_SLOT, TIME_OF_DAY.slot("nanos"));
+        assert_eq!(TIME_OF_DAY.slots.len(), 4);
     }
 
-    /// Every symbol this module's four classes register resolves in its own
+    /// Every symbol this module's classes register resolves in its own
     /// `address` — the miss that is a *runtime* panic rather than a link
     /// error, so it is worth a test of its own.
     #[test]
     fn every_registered_symbol_has_an_address_here() {
-        for class in [&TIME, &INSTANT, &DURATION, &ZONE] {
+        for class in [
+            &TIME,
+            &INSTANT,
+            &DATETIME,
+            &DATE,
+            &TIME_OF_DAY,
+            &DURATION,
+            &ZONE,
+        ] {
             for method in class.members() {
                 assert!(
                     address(method.symbol).is_some(),
