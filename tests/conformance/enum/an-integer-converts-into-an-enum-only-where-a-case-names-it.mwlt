@@ -1,0 +1,44 @@
+--TEST--
+An `int` converts into an enum only where a case names that value, and throws naming every case otherwise — ADR 0010 § 5
+--FILE--
+<?mwl
+enum Mode {
+    Read,
+    Write,
+    Exec = 4,
+}
+
+class Gate {
+    // ADR 0010 § 5's second row. The conversion itself is free — an enum is
+    // a tag over its backing integer — so what the row costs is the check in
+    // front of it, and that check is against every case of the *declaration*
+    // rather than a subset named at the site. That is what keeps the enum a
+    // closed set once a plain integer can reach it.
+    public static function of(int $n): string {
+        try {
+            Mode $m = $n as Mode;
+            return "case " . (($m as int) as string);
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+}
+
+echo Gate::of(0), "\n";
+echo Gate::of(1), "\n";
+echo Gate::of(4), "\n";
+echo Gate::of(2), "\n";
+echo Gate::of(-1), "\n";
+
+// An operand already at the enum's own representation names a case by
+// construction — two different enums are never interconvertible, so this is
+// the same enum — and pays no comparison at all.
+Mode $held = Mode::Write;
+echo ($held as Mode) as int, "\n";
+--EXPECT--
+case 0
+case 1
+case 4
+threw: `2` is not one of `Mode::Read`, `Mode::Write`, `Mode::Exec`
+threw: `-1` is not one of `Mode::Read`, `Mode::Write`, `Mode::Exec`
+1

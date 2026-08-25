@@ -1,0 +1,42 @@
+--TEST--
+A conversion into a `uint`-backed enum runs on that backing type whatever the operand started as — ADR 0010 § 5, ADR 0007 § 2
+--FILE--
+<?mwl
+enum Signal: uint {
+    Stop = 10,
+    Go = 20,
+}
+
+class Wire {
+    // ADR 0010 § 5's row is written on the enum's *backing* type, so an
+    // operand that is not already one goes through ADR 0007 § 2's own
+    // checked row first and takes the enum's tag afterwards. Two steps, and
+    // whichever one fails names the conversion that actually failed.
+    public static function decode(string $text): string {
+        try {
+            Signal $s = $text as Signal;
+            return "signal " . (($s as uint) as string);
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+}
+
+// A literal written under the conversion is placed at the backing type, so a
+// `uint`-backed enum takes one with no checked `int` → `uint` in between.
+echo (10 as Signal) as uint, "\n";
+
+uint $u = 20;
+echo ($u as Signal) as uint, "\n";
+
+float $f = 10.0;
+echo ($f as Signal) as uint, "\n";
+
+echo Wire::decode("20"), "\n";
+echo Wire::decode("11"), "\n";
+--EXPECT--
+10
+20
+10
+signal 20
+threw: `11` is not one of `Signal::Stop`, `Signal::Go`
