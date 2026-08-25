@@ -121,6 +121,8 @@ def main():
             print(f"  {name:<20} {len(body.encode('utf-8')):>6} bytes   (line {a + 1})")
         print("\n--get <field> for one field's text; "
               "--set <field> --from <file> to replace it.")
+        print("Changing several fields at the end of a session? `python tools/session.py --wrap`")
+        print("takes them all in one file, with the handoff and the commits, in one call.")
         return 0
 
     if not opts.source:
