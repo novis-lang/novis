@@ -2,61 +2,64 @@
 
 ## State
 
-**§ 12's query pair is whole.** `Core\Uri::parseQuery` and `Core\Uri::buildQuery` are registered,
-implemented and pinned by a conformance case each; both live in `crates/mwl-stdlib/src/uri.rs`
-beside the four percent-encoding members they are built out of, and that module's own doc owns the
-bracket convention, the two places it diverges from `parse_str` (no key is ever rewritten, and a
-malformed name stays one literal key) and the one place `buildQuery` differs from `as string`
-(`false` writes `0`). The spec table already said `array<mixed>` and already named
-`Core\Request::query` at M8 — no spec edit was owed after all.
+**§ 12's `Core\Csv` is whole.** `parse` and `format` are registered, implemented and pinned by one
+round-trip conformance case; both live in `crates/mwl-stdlib/src/csv.rs`, whose own module doc owns
+the dependency pick, the dialect defaults, the ragged-record rule and the writer's one quoting rule.
+The reader binds **`csv-core`** — pure Rust, so ADR 0051 § 4's second question does not arise — and
+the writer binds nothing; that asymmetry and its reasoning are the module doc's first section. The
+dependency's three obligations are done: the `[workspace.dependencies]` comment, `cargo deny check`
+(green) and `python tools/gen-attribution.py`.
 
-**Both members walk with an explicit stack, not recursion**, because the depth is caller text; each
-descent *borrows* the child array the parent already owns rather than retaining it, so nothing is
-copied. That is a new refcount edge and it is valgrind-clean
-(`tools/leak-check.sh .agent-tmp/uri-query-leak.mwl`, 0 failures).
+**`spec_registry_coverage.rs` resolved a Member cell too loosely and now does not.** Its § 12 heading
+names four classes, two of which write a `parse` row, so registering `Core\Csv::parse` silently made
+`§12 Uri::parse`'s ratchet line "stale". A cell that writes its own qualifier is now resolved against
+that class alone (`scoped`, `tests/spec_registry_coverage.rs:113`); a bare name keeps the old
+section-wide reading. `Uri::parse` is back on the list, where it belongs.
 
-**The ratchet in `crates/mwl-stdlib/tests/spec-members-outstanding.txt` is at 33 keys** for §§ 2-12;
-when it is empty, Part I is registered whole. Conformance is **396** of 600; differential is 86 of
-150 and has not moved.
+**The ratchet is at 31 keys** for §§ 2-12. Conformance is **397** of 600; differential is 86 of 150 and
+has not moved. Valgrind is clean over the new nested-array edges
+(`tools/leak-check.sh .agent-tmp/csv-leak.mwl`, 0 failures).
 
-**`examples/collect.mwl`'s frontier has moved to `Core\Csv::parse` at `collect.mwl:39`**, then
-`Core\Validate::isEmail` (`:46`) and `Core\Out::capture` (`:47`). That last line also needs a fixture
-fix of its own: `fn () => { echo "inner"; }` is a block-bodied closure with no declared return type
-(`E0450`), so it must become `fn (): void => { … }` when `Out::capture` lands.
+**`examples/collect.mwl`'s frontier is now `Core\Validate::isEmail` at `collect.mwl:46`**, then
+`Core\Out::capture` (`:47`). Two things are known to be waiting behind them, neither reported yet
+because resolution errors are printed before lowering runs:
 
-## Next group — `Core\Csv`, both halves
+- `collect.mwl:43`'s `$head["name"]` **panics `mwl-ir`** — a `?array<string>` from `Core\Arr::first`
+  cannot be indexed even inside a `!= null` guard. New playbook bullet under *Writing a test case*
+  has the anchor and the three spellings that do lower.
+- `collect.mwl:47`'s `fn () => { echo "inner"; }` is a block-bodied closure with no declared return
+  type (`E0450`) and must become `fn (): void => { … }` when `Out::capture` lands.
 
-**Shared file set for `[1]`/`[2]`:** a new `crates/mwl-stdlib/src/csv.rs`,
-`crates/mwl-stdlib/src/lib.rs` (`:210` the `mod` list, `:244` `symbols()`, `:277` the `address`
-chain), `crates/mwl-stdlib/src/registry.rs:625` `CLASSES`,
-`crates/mwl-stdlib/tests/spec-members-outstanding.txt`, `tests/conformance/core/`, and
-`examples/collect.mwl:39`. Take both — one module, one dependency pick, and the round trip is the
-case that pins either honestly. `[3]` is a different file; leave it.
+## Next group — `Core\Validate`, then the `?array<T>` hole under the fixture
 
-- [ ] **`Core\Csv::parse`** (§ 12; spec row
-      `parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>`).
-      Pick the crate under [ADR 0051](../adr/0051-standard-library-tiers.md) § 4's two questions —
-      CSV *is* attacker-reachable, so a C dependency needs question 2's record and almost certainly
-      fails it; record the pick and its reasoning in the module's own doc comment, per the goal's
-      standing decisions. The three things a new dependency owes are in `playbook.md` § *Adding a
-      `Core` member*. `{header: true}` consumes the first row as column names and keys every returned
-      row by them, and is not itself returned — the return type is unchanged because every MWL array
-      key is a `string` already.
-- [ ] **`Core\Csv::format`** (§ 12) — the inverse, same file, same crate;
-      `{header: [...]}` writes those names as the first row.
-- [ ] **`Core\Validate`'s six members** (§ 12) — `isEmail`, `isIp(…, {version?: 4|6})`, `isMac`,
-      `isDomain`, `isAscii`, `isPrintable`, all `(subject, …): bool`. A different file
-      (`crates/mwl-stdlib/src/validate.rs`), so a different group. **No `Validate` member launders
-      anything** (ADR 0024), and `isUrl`/`oneOf`/`isIpV4`/`isIpV6` are deliberately absent.
+**Shared file set for `[1]`/`[2]`:** a new `crates/mwl-stdlib/src/validate.rs`,
+`crates/mwl-stdlib/src/lib.rs` (`:192` the `mod` list, `:268` the `address` chain, and `symbols()`
+just above it), `crates/mwl-stdlib/src/registry.rs:646` `CLASSES`, `tests/conformance/core/`, and
+`examples/collect.mwl:46`. `csv.rs` is the freshest model for a new domain module: `mod` not
+`pub mod`, `pub(crate) const NAME`/`CLASS`, one `address` arm per symbol.
+
+- [ ] **`Core\Validate`'s format half** — `isEmail`, `isDomain`, `isIp(string $s, {version?: 4|6})`,
+      `isMac`. Spec § 12 states all six as **prose**, at
+      `docs/spec/01-core-library.md:793`, not as a table row — so **none of them is on
+      `tests/spec-members-outstanding.txt`** and `spec_registry_coverage.rs` will not ask for them;
+      the gate that does is `collect.mwl:46` and `conformance_coverage.rs`. `{version: 4|6}` is
+      ADR 0047's literal-union option type (`CoreTy::Union` of two `IntLiteral`s — check what
+      `registry::CoreTy` can actually state before writing the row). Pick the dependency, or argue
+      none, in the module doc as `csv.rs` does: `isIp` is `std::net::IpAddr::from_str`, and `isEmail`
+      is the one that needs a decision rather than a regex nobody can review.
+- [ ] **`Core\Validate`'s byte half** — `isAscii`, `isPrintable`, same file, same case.
+      `docs/spec/01-core-library.md:193` ties both to ADR 0009 and says they do **not** launder:
+      no `Validate` member returns anything but `bool`.
+- [ ] **The `?array<T>` index hole** (different file set — `crates/mwl-ir/src/lower/expr.rs:2952` and
+      whatever records the narrowed type in `mwl-types`). It blocks `collect.mwl:43` and therefore
+      the gate, whichever § 12 member lands next. Take it only as a slice of its own.
 
 ## Backlog
 
-- `Uri::parse`/`isValid` and the `Uri` instance need the RFC 3986 crate pick — `uri.rs` gap 1.
-- `uri.rs` gap 2 is now a *spec* question, not a runtime one: `Tag::Bytes` exists, so the two
-  decoders could answer `bytes`, but § 12's table writes `string`.
-- `Core\Out::capture` needs ADR 0088's sink carrier, not a `string` — `docs/spec/01-core-library.md`
-  § 12.
-- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s module doc.
-- ADR 0007 § 2's `array<T> as array<U>` row does not lower at all — `mwl-ir` gap; it is what stops a
-  case indexing into an `array<mixed>` (`playbook.md` § *Writing a test case*).
+- `Core\Out::capture` needs ADR 0088's sink carrier, not a `string` — spec § 12, `01-core-library.md:817`.
+- `Uri::parse`/`isValid` and the `Uri` instance owe an RFC 3986 dependency — the last § 12 pick.
+- § 2 owes `Arr::diff`/`intersect` and ADR 0069's combination members — 19 of the ratchet's 31 keys.
+- Differential is 86 of 150 and has not moved in several runs — `docs/agent/loop-goal.md` § *Stage 4*.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- `orient.py`'s `[context] modules` prints no map line for `mwl-stdlib/src/uri.rs` or `path.rs`, which
+  are the two modules a new `Core` domain is copied from; add them to the goal's manifest.

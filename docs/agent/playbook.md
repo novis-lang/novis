@@ -177,6 +177,13 @@ is why" — is this file.
   line and it is byte-identical to PHP's `json_encode` over `parse_str`'s array, which makes it the
   strongest assertion available as well as the only one. `$q["a"] as string` on a top-level scalar does
   lower.
+- **A `?array<T>` cannot be indexed even after a `!= null` guard** — `mwl-ir` panics outright at
+  `crates/mwl-ir/src/lower/expr.rs:2952`, *"has no resolved element type recorded … its base erased to
+  `mixed`"*. The narrowing itself works for a `?string`, so the hole is specifically that a narrowed
+  nullable **array** loses its element type, and `Core\Arr::first`/`last` over an `array<array<string>>`
+  is where a case meets it. Three spellings do lower and are the way round it: `$rows["0"]["name"]`
+  (nested indexing, no nullable in the path), `foreach ($rows as array<string> $row)` — the binding's
+  declared type is what re-supplies the element type — and binding `var $row = $rows["0"];` first.
 - **Registering a `Core` member and writing its conformance case are one slice, not two.**
   `mwl-stdlib`'s `tests/conformance_coverage.rs` fails the moment a registry row has no `.mwlt` case
   calling it, so a plan that lands the rows in one session and the cases in another leaves the tree red
