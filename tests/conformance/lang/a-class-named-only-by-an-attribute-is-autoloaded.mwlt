@@ -1,0 +1,56 @@
+--TEST--
+an attribute's name is placed by its prefix like any other class reference — ADR 0061 §§ 1, 2
+--FILE--
+<?mwl
+// `App\Audit` is written in exactly one place in this program: the `#[...]`
+// group on `App\Handler`. It reaches no type position, no `extends`, no
+// `implements` and no expression, so the prefix lookup can only find
+// `src/Audit.mwl` if the name harvest reads an attribute.
+//
+// That the file is *loaded* is what § 2's one-declaration rule then reports
+// on: `src/Audit.mwl` carries a second top-level class, and the E0317 below
+// can be reached from nowhere else. A class nothing loads is not checked.
+require './src/Bootstrap.mwl';
+echo App\Handler::run(), "\n";
+--FILE src/Bootstrap.mwl--
+<?mwl
+autoload 'App' from './';
+--FILE src/Handler.mwl--
+<?mwl
+namespace App;
+
+// Harvested from an autoloaded file, not the entry point, so this also pins
+// that the map keeps being consulted as the worklist drains.
+#[Audit]
+class Handler
+{
+    public static function run(): string
+    {
+        return "handler";
+    }
+}
+--FILE src/Audit.mwl--
+<?mwl
+namespace App;
+
+class Audit
+{
+    public static function of(): string
+    {
+        return "audit";
+    }
+}
+
+class Smuggled
+{
+    public static function of(): string
+    {
+        return "smuggled";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0317]: an autoloaded file declares exactly one thing, named `Audit`
+%A
+error: aborting due to 1 error

@@ -87,11 +87,12 @@
 //!   `require` path containing one, vanishingly rare in practice. The real
 //!   string-literal cooker belongs to a later milestone once something
 //!   besides this module needs it.
-//! - The name harvest is an over-approximation on purpose, and it is not yet
-//!   the *whole* AST: an attribute's name and a `Name` inside a
-//!   still-unwalked corner reach nobody. A missed name costs a class that
-//!   fails to autoload, so the direction to widen in is always "harvest
-//!   more", never "filter harder".
+//! - The name harvest is an over-approximation on purpose, and it reaches
+//!   every declaration site's `#[...]` groups as well as its types and its
+//!   bodies ([`walk_attributes`]) — but a `Name` in a still-unwalked corner
+//!   of the AST would reach nobody. A missed name costs a class that fails
+//!   to autoload, so the direction to widen in is always "harvest more",
+//!   never "filter harder".
 //! - ADR 0061 § 5's probe trace is produced ([`crate::autoload::Probe`]) and
 //!   then dropped. Folding it into the artifact cache's key needs
 //!   [ADR 0042](../../../docs/adr/0042-on-disk-artifact-cache-format.md)'s
@@ -102,10 +103,10 @@ use std::path::{Path, PathBuf};
 
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, SourceMap, Span, code};
 use mwl_syntax::ast::{
-    Arg, ArrayItem, AutoloadDecl, AutoloadKind, Block, CallArgs, ClassMember, ClassMemberKind,
-    DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, ImplementsClause, MemberName,
-    Name, NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind,
-    StringPart, Type, TypeAtom, TypeKind,
+    Arg, ArrayItem, AttributeGroup, AutoloadDecl, AutoloadKind, Block, CallArgs, ClassMember,
+    ClassMemberKind, DestructureElement, DestructureTarget, Expr, ExprKind, FnBody,
+    ImplementsClause, MemberName, Name, NamespaceDecl, NewTarget, Param, PropertyHook,
+    PropertyHookBody, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind,
 };
 use mwl_syntax::{check_declarations, parse_file};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -649,6 +650,7 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
             }
         }
         StmtKind::ClassDecl(decl) => {
+            walk_attributes(&decl.attributes, src, out);
             if let Some(extends) = &decl.extends {
                 record_name(extends, src, out);
             }
@@ -656,12 +658,15 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
             walk_class_members(&decl.members, src, out);
         }
         StmtKind::InterfaceDecl(decl) => {
+            walk_attributes(&decl.attributes, src, out);
             record_names(&decl.extends, src, out);
             walk_class_members(&decl.members, src, out);
         }
         StmtKind::EnumDecl(decl) => {
+            walk_attributes(&decl.attributes, src, out);
             record_names(&decl.implements, src, out);
             for case in &decl.cases {
+                walk_attributes(&case.attributes, src, out);
                 if let Some(value) = &case.value {
                     e!(value);
                 }
@@ -737,6 +742,7 @@ fn walk_class_members(members: &[ClassMember], src: &SourceFile, out: &mut Harve
     for member in members {
         match &member.kind {
             ClassMemberKind::Method(m) => {
+                walk_attributes(&m.attributes, src, out);
                 walk_params(&m.params, src, out);
                 if let Some(ty) = &m.return_type {
                     walk_type(ty, src, out);
@@ -746,12 +752,14 @@ fn walk_class_members(members: &[ClassMember], src: &SourceFile, out: &mut Harve
                 }
             }
             ClassMemberKind::Const(c) => {
+                walk_attributes(&c.attributes, src, out);
                 if let Some(ty) = &c.ty {
                     walk_type(ty, src, out);
                 }
                 walk_expr(&c.value, src, out);
             }
             ClassMemberKind::Property(p) => {
+                walk_attributes(&p.attributes, src, out);
                 walk_type(&p.ty, src, out);
                 if let Some(default) = &p.default {
                     walk_expr(default, src, out);
@@ -772,6 +780,7 @@ fn walk_block(block: &Block, src: &SourceFile, out: &mut Harvest) {
 
 fn walk_params(params: &[Param], src: &SourceFile, out: &mut Harvest) {
     for param in params {
+        walk_attributes(&param.attributes, src, out);
         if let Some(ty) = &param.ty {
             walk_type(ty, src, out);
         }
@@ -782,6 +791,7 @@ fn walk_params(params: &[Param], src: &SourceFile, out: &mut Harvest) {
 }
 
 fn walk_property_hook(hook: &PropertyHook, src: &SourceFile, out: &mut Harvest) {
+    walk_attributes(&hook.attributes, src, out);
     if let Some(param) = &hook.param {
         walk_params(std::slice::from_ref(param), src, out);
     }
@@ -810,6 +820,26 @@ fn walk_destructure_target(target: &DestructureTarget, src: &SourceFile, out: &m
 fn walk_member_name(member: &MemberName, src: &SourceFile, out: &mut Harvest) {
     if let MemberName::Variable(e) | MemberName::Expr(e) = member {
         walk_expr(e, src, out);
+    }
+}
+
+/// Records every name an `#[...]` group mentions: the attribute class itself,
+/// and whatever its argument expressions name.
+///
+/// An attribute is a class reference like any other — ADR 0061 § 1 places it
+/// by prefix the same way — but it is the one such reference that reaches no
+/// type position and no expression, so without this the file declaring
+/// `#[Route(...)]`'s `Route` is never pulled in. Every declaration site that
+/// carries a `Vec<AttributeGroup>` is fed through here by the walk that
+/// already visits it.
+fn walk_attributes(groups: &[AttributeGroup], src: &SourceFile, out: &mut Harvest) {
+    for group in groups {
+        for attr in &group.attributes {
+            record_name(&attr.name, src, out);
+            if let Some(args) = &attr.args {
+                walk_args(args, src, out);
+            }
+        }
     }
 }
 
