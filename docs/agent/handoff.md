@@ -2,60 +2,63 @@
 
 ## State
 
-**The loop's own gate exists.** `crates/mwl-stdlib/tests/spec_registry_coverage.rs` parses the
-`| Member | Signature | … |` rows out of `docs/spec/01-core-library.md` §§ 1-12 and checks each
-against `registry::CLASSES`. It is a **ratchet**, not a permanently red assertion: the members still
-owed live in `crates/mwl-stdlib/tests/spec-members-outstanding.txt` and the test fails both on an
-unregistered member the file does not list *and* on a line whose member is registered now. That
-file's **44 keys are the machine-readable work list for §§ 1-12**; when it is empty, Part I is
-registered whole. Why a ratchet rather than a red test — `verify.py` stops at the first failing step,
-so a red `cargo test` would cost every later session its clippy and fmt signal — is in that test's own
-module doc, along with what the parser deliberately does not reach (`Core\Bytes`'s prose list, § 9's
-`| Type | Members |` table, and members a Notes cell mentions in passing).
+**Spec § 1 is four rows shorter.** `Core\Str::graphemes`, `codePoints`, `fromCodePoint` and
+`fromCodePoints` are registered, implemented and pinned by two conformance cases. `graphemes` and
+`codePoints` are `granularity::Unit::{Grapheme, CodePoint}.pieces()` written out as members, so the
+class's own unit and the scalar-value unit are each reachable on purpose rather than by accident;
+`fromCodePoints` is `codePoints`'s inverse and the pair round-trips. The refusal both `from*` members
+share — above U+10FFFF, and the surrogate range — is `str.rs`'s `scalar_value`, which throws rather
+than substituting, per ADR 0009 § 1.
 
-**It measures registration, not depth.** `Core\Json::decodeAs` has a row, so the gate is satisfied by
-it while `json` gap 2 is still open. Behaviour is `conformance_coverage.rs`'s half of the pair.
+**The loop's gate is the ratchet in `crates/mwl-stdlib/tests/spec-members-outstanding.txt`**, now at
+**40 keys** for §§ 1-12; when it is empty, Part I is registered whole. That test's own module doc says
+why it is a ratchet rather than a red assertion, and what its parser deliberately does not reach.
+Conformance is **389** of 600; differential is 86 of 150 and has not moved.
 
-**`Core\Str::chunk` and `Core\Str::lines` landed**, with `line_pieces` (`str.rs:782`) owning the
-three-terminator rule and the no-trailing-empty-line decision. Conformance is **387** of 600;
-differential is 86 of 150 and has not moved. `examples/collect.mwl`'s frontier is unchanged —
-`Core\Uri::parseQuery` at `collect.mwl:36`, then `Core\Csv::parse`, `Core\Validate::isEmail`,
-`Core\Out::capture`.
+**`examples/collect.mwl`'s frontier is unchanged** — `Core\Uri::parseQuery` at `collect.mwl:36`, then
+`Core\Csv::parse`, `Core\Validate::isEmail`, `Core\Out::capture`.
+
+**§ 1 now owes five rows**: `compare`, `replaceAll`, `replaceRange`, and the `fold`/`normalize` pair,
+which needs a Unicode-normalization dependency picked under ADR 0051 § 4 and is therefore its own
+group.
 
 ## Next group — the rest of § 1 that needs no new dependency
 
-Three slices, all in one file, each striking two lines from the outstanding list. `fold` and
-`normalize` are deliberately **not** here: they need a Unicode-normalization dependency picked under
-ADR 0051 § 4, which is its own group.
+Three slices, all in one file, each striking its own line from the outstanding list. `fold` and
+`normalize` are deliberately not here: pick their dependency in a group of its own.
 
-**Shared file set:** `crates/mwl-stdlib/src/str.rs` (`:49` `CLASS`'s rows — append after `:162`
-`lines`, before `:169` `replace`; `:388` `address()`; `:1486` the test module),
-`crates/mwl-stdlib/src/granularity.rs` (`:60` `Unit::CodePoint`, `:116` `pieces`),
+**Shared file set:** `crates/mwl-stdlib/src/str.rs` (`:49` `CLASS`'s rows — `:183` `replace` is the
+neighbour all three belong beside; `:416` `address()`; `:1685` the test module),
 `crates/mwl-stdlib/tests/spec-members-outstanding.txt`, and `tests/conformance/core/`.
 
-- [ ] **`Core\Str::graphemes` and `codePoints`** (`01-core-library.md` § 1 *Extraction*, `:132`-`:133`).
-      `graphemes(string $s): array<string>` and `codePoints(string $s): array<uint>` are
-      `Unit::Grapheme.pieces()` and `Unit::CodePoint.pieces()` written out — `granularity.rs` already
-      holds both, so this is two registry rows, two helper bodies and one case. Strike `§1 graphemes`
-      and `§1 codePoints`.
-- [ ] **`Core\Str::fromCodePoint` and `fromCodePoints`** (§ 1 *Transformation*, `:167`-`:168`). The
-      inverse of `codePoints`, so write it in the same session while its case is open: a scalar value
-      outside Unicode or in the surrogate range **throws** (R4), which is where it parts company with
-      PHP's `chr`. Strike `§1 fromCodePoint` and `§1 fromCodePoints`.
-- [ ] **`Core\Str::replaceAll` and `replaceRange`** (§ 1 *Transformation*, `:151`-`:152`).
-      `replaceAll(string, array<string> $pairs, {caseInsensitive?})` is `strtr`'s longest-match-first
-      single pass, **not** repeated `replace` — say so in the doc comment, because the difference is
-      observable. `replaceRange` is `substr_replace` over `granularity::DEFAULT`, sharing
-      `mwl_core_str_slice`'s offset/length rules at `str.rs:169`'s neighbours.
+- [ ] **`Core\Str::replaceAll`** (`01-core-library.md` § 1 *Transformation*, `:151`).
+      `replaceAll(string $s, array<string> $pairs, {caseInsensitive?: bool}): string` replaces
+      `str_replace`-with-arrays and `strtr` at once. The `$pairs` array is keyed *needle → replacement*,
+      so the helper iterates keys as well as values — `mwl_array_next_slot` gives the slot and
+      `mwl_runtime`'s key read gives the needle; `mwl_core_str_join` at `:634` is the value-only
+      shape to extend. Decide and state in the doc comment whether a replacement can itself be
+      re-matched (`strtr` says no, longest-needle-first; `str_replace` says yes, in order) — `strtr`'s
+      reading is the one that does not depend on argument order. Strike `§1 replaceAll`.
+- [ ] **`Core\Str::replaceRange`** (§ 1 *Transformation*, `:152`). `replaceRange(string $s, int
+      $offset, ?int $length, string $replacement): string` — `substr_replace`. `CoreTy::Nullable`
+      exists (`registry.rs:202`) and this is its first use in `Core\Str`, so check what a written
+      `null` argument arrives tagged as before writing the case. The offset is ADR 0063 R8's
+      negative-from-the-end rule, and the unit is `granularity::DEFAULT` like every other range here;
+      `mwl_core_str_slice` already resolves an R8 range and is the body to reuse. Strike
+      `§1 replaceRange`.
+- [ ] **`Core\Str::compare`** (§ 1 *Comparison*, `:110`). `compare(string $a, string $b,
+      {caseInsensitive?: bool, natural?: bool}): int` replaces `strcmp`, `strcasecmp`, `strnatcmp`,
+      `strnatcasecmp` and the comparator behind `natsort`. Answer `-1`/`0`/`1` rather than a byte
+      difference, and say so in the doc comment: PHP 8 already normalized this and a program that
+      subtracted the old magnitude was always wrong. `natural` is a digit-run comparison written here,
+      not a dependency. Strike `§1 compare`.
 
 ## Backlog
 
-- § 1's `fold`, `normalize` and `compare` — a normalization dependency and a natural-order comparator,
-  each picked under [ADR 0051](../adr/0051-standard-library-tiers.md) § 4 (`spec-members-outstanding.txt`).
-- § 2 `Core\Arr` is 19 of the 44 outstanding keys, and ADR 0069's combination members are most of them.
-- `mixed as bytes` has no lowering row and panics in `Lowering::convert`
-  (`crates/mwl-ir/src/lower/expr.rs:842`); it needs a `Helper::TaggedToBytes`, and `unpack`'s `a`/`A`/`Z`
-  fields stay pinned in `mwl-stdlib`'s unit tests until it exists.
-- § 12's `Uri::parse`/`isValid` still owe the RFC 3986 dependency; `Csv` owes one too (plan, `Open now`).
-- `do`/`while` is the one M4 control-flow statement that does not lower (plan, `Open now`).
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- `fold`/`normalize` need a Unicode-normalization crate picked under ADR 0051 § 4 — `docs/adr/0051`.
+- `Core\Uri::parseQuery` is `collect.mwl`'s first stop; its return type is settled in
+  `docs/agent/loop-goal.md` § *Standing decisions*.
+- § 2 owes `Arr::diff`/`intersect` and ADR 0069's combination members — `docs/adr/0069`.
+- § 9 owes `Core\Heap` and the `Iterable` its rows declare — `docs/spec/01-core-library.md` § 9.
+- § 11 owes `Random::bytes` and `Hash::stream`; the runtime `bytes` tag they needed exists now.
+- ADR 0088's qualifier classification is registry-wide and unstarted — `docs/implementation-plan.md`.

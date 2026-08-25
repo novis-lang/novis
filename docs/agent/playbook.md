@@ -143,6 +143,12 @@ is why" — is this file.
   count — so a constructor symbol from `registry::CONSTRUCTORS`, or anything else chained in beside the
   members, has to be added to the sum on the test's right-hand side in the same edit. The failure is a
   bare `left: 213, right: 211` in `-p mwl-stdlib --lib`, with nothing naming the symbol.
+- **A `CoreTy::Array(&CoreTy::Uint)` parameter receives `Tag::Int` elements**, so a helper that reads
+  each one through `as_uint` alone answers the member's most obvious call site with a fatal. A written
+  `[97, 98]` type-checks against `array<uint>` and stays int-tagged all the way into the helper — a
+  scalar `uint` parameter does not have this problem, because the call site materializes the literal at
+  the declared type. Read both tags (`str.rs`'s `code_point`), and probe the literal spelling in a
+  scratch `.mwl` before writing the case.
 - **A registry row's arity and its helper's `args: [N]` are two numbers that must agree**, and an
   options bag flattens to one argument per option — so `round(float, {precision, mode})` is
   `args: [3]`. A **variadic tail is one argument**, whatever the call writes. **An instance member's
