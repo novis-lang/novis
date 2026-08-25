@@ -219,14 +219,16 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "0 catch-up"
-name = "mwl-types (parse-roster conversion)"
+name = "mwl-types (a class is never a conversion target)"
 args = ["test", "-p", "mwl-types"]
 tests = [
-  # Item 12 -- ADR 0066's roster amendment. `$s as ?Uri` and `$s as ?Uuid` compile and yield `null`
-  # on bad input; `$obj as ?SomeClass` stays the compile error § 3 already makes it; no `as T` form
-  # is implied for the roster.
-  "a_parse_roster_type_converts_nullably",
+  # Item 12 -- ADR 0066 § 3's class row, absolute: EVERY class or interface target is E0473,
+  # `Core\Uri` and `Core\Uuid` included. An earlier revision of that ADR admitted those two as a
+  # `as ?T` "parse roster"; it is withdrawn, and the first test names them so the exception cannot
+  # grow back unnoticed. § 3a's `Core\Uri::tryParse` is the member that answers instead, and it
+  # answers `?T` rather than `T` -- which is the half a `try...` name alone could not promise.
   "a_class_type_still_refuses_the_nullable_conversion",
+  "a_try_parse_answers_the_nullable_of_its_class",
 ]
 
 [[check]]
@@ -235,9 +237,13 @@ stage = "0 catch-up"
 name = "mwl-stdlib (uri)"
 args = ["test", "-p", "mwl-stdlib"]
 tests = [
-  # Item 12 -- with the conversion above, `Core\Uri::isValid` is the second spelling R17 forbids.
-  # It is not written yet, which is the whole reason this is item 12 and not M8 work.
+  # Item 12 -- with `tryParse` above, `Core\Uri::isValid` is the second spelling R17 forbids. Both
+  # `isValid` members existed and are deleted (an earlier comment here said `Uri`'s was not written
+  # yet; it was). The second test holds ADR 0066 3a's conditions on `tryParse` itself, and the
+  # third holds that R5's `try.../...OrNull/...Safe/...Ex` ban is otherwise total.
   "core_uri_declares_no_is_valid_member",
+  "a_try_parse_is_its_own_class_parse_made_nullable",
+  "no_member_spells_a_banned_non_throwing_variant",
   # Item 13 -- `$uri->compareTo($other)` normalizes per RFC 3986 § 6.2.2 and then compares
   # components. NOT `==`, which ADR 0090 § 4 fixes as object identity for every class and which
   # names `compareTo(...) == 0` as the spelling for content equality; this comment used to say

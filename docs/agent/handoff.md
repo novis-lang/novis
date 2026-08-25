@@ -7,37 +7,48 @@ holds items 1 to 17; **1 to 14, 16 and 17 are done**, so what is open is **item 
 named tests at `stage = "0 catch-up"` in [loop-goal.toml](loop-goal.toml). `loop.py` short-circuits
 at stage 0, so **Stage 3 is shut until it clears**.
 
-**Item 14 landed.** ADR 0020 § 1's call-stack limit is a third hot word in `Ctx`
-(`STACK_LIMIT_OFFSET` is 16) with a `stack_floor` beside it; `mwl-codegen` emits one load, one
-`get_stack_pointer` compare and a predicted-not-taken branch at the **first** safepoint of a
-non-leaf function, which is the function-entry one, and `mwl_stack_check` decides which of the two
-tiers a crossing is. The soft tier throws `RecursionError`, new in spec § 10's tree under
-`RuntimeError`; the hard tier is the `FATAL` that section already said no `catch` sees.
-`crates/mwl-runtime/src/ctx.rs`'s module doc § *The call-stack limit* owns the design and the one
-known gap — the 8 MiB ceiling is **asserted** from the stack pointer at `Ctx::new`, not discovered,
-because reading a thread's real bounds needs a platform call this crate has no dependency for. It is
-permissive rather than wrong on a shallower stack, and `Ctx::arm_stack_limit` is the seam until M6
-gives a request its own stack.
+**Item 12 landed a second time, as a reversal the user asked for.** ADR 0066 § 3's two-class
+**parse roster** — `$s as ?Core\Uri`, `$s as ?Core\Uuid` — is **withdrawn**. `as` now targets no
+class at all: every class or interface target is `E0473`, with no roster to consult. The
+non-throwing parse is `Core\Uri::tryParse(string): ?Uri` and `Core\Uuid::tryParse(string): ?Uuid`,
+ordinary member rows over each class's own `parse`, and ADR 0063 R5's `try…` ban gained its one
+exception (new § 3a, with three conditions) to admit exactly that spelling.
 
-Verify is green (1554 tests, 74 suites, clippy and fmt clean). Conformance **435**, differential
-**90** — unchanged, this slice added no `.mwlt`. `mwl test tests/` reports 519 passed / 6 failed;
-those six fail identically on `HEAD~1` and are the pre-existing PHP-on-Windows oracle set, not a
-regression. Expect a one-time step in `benches/abi-probe`'s `frame_depth`.
+Why, in one line, because the ADR argues it in full: `as?` spells a *downcast* in every language a
+reader arrives from, so spelling a **parse** that way inverted the syntax's one intuition — and it
+did so for exactly two class names a reader had to have memorized. R17 was said to forbid a second
+spelling of `parse`, but `Core\Uri::parse($s)` and `$s as ?Uri` both existed: the roster never
+removed a spelling, it relocated one from a member name to an operator, and to the harder of the
+two to read.
 
-`examples/collect.mwl` still exits 1 at `Core\Out::capture`, genuinely blocked behind ADR 0088's
-sink carriers; it is M4S work.
+**Both `isValid` deletions stand** — that half of item 12 was right, and CVE-2024-5458 is still the
+argument. `Uri::isValid`'s extra condition is now `Core\Uri::tryParse($s)?->scheme() != null`.
 
-**`orient.py` did not print ADR 0020 § 1** even though the item's own text names it as the owner —
-one `peek.py` recovered it, but `[context] adrs` in `loop-goal.toml` should carry
-`0020-error-escalation-ladder.md` § 1 for as long as item 14 is the current item.
+Deleted with the roster: `registry::PARSE_ROSTER`, `parse_roster_symbol`,
+`ExprInfo::ParseRosterConversion`, its `mwl-ir` lowering arm and `Lowering::parse_roster_symbol`,
+and the `symbols()` chain that carried two non-member symbols. `lower_conversion` lost its `span`
+parameter with them. `E0473` **stayed and got simpler** — it fires unconditionally now, and names
+`tryParse` in the help for a class in the new `registry::TRY_PARSE_CLASSES`, which drives nothing at
+run time and exists only so the registry tests can hold § 3a's conditions.
+
+Verify is green (1555 tests, 74 suites, clippy and fmt clean). Conformance **435**, differential
+**90** — unchanged; the two `.mwlt` cases were rewritten to the surviving spelling rather than
+added to. `mwl test tests/` reports 519 passed / 6 failed, the same six PHP-on-Windows oracle
+failures as before.
+
+**One inconsistency found and deliberately not fixed.** [spec § 13](../spec/01-core-library.md)
+says `isBoolean`'s replacement is `$s as ?bool != null`, but ADR 0035 makes `as bool` **total**, so
+`as ?bool` is a § 3 "conversion cannot fail" compile error. `isInteger`/`isFloat` are fine. Deciding
+what `isBoolean` actually becomes is a design call, not a typo fix, so it is left for the user —
+neither spelling is built yet, so nothing on disk is wrong today.
 
 ## Next group — item 15, three slices over one file
 
-They share **`crates/mwl-runtime/src/array.rs`** and its own `#[cfg(test)]` module; nothing else is
-touched until the last one. [loop-goal.md](loop-goal.md) item 15 is the specification, and that
-file's module doc owns the decision, the PHP comparison and what the ABI addition costs if it waits.
-[ADR 0007 § 5](../adr/0007-explicit-type-system.md) is **unchanged** — this is representation, not
-semantics.
+Unchanged by this session. They share **`crates/mwl-runtime/src/array.rs`** and its own
+`#[cfg(test)]` module; nothing else is touched until the last one. [loop-goal.md](loop-goal.md)
+item 15 is the specification, and that file's module doc owns the decision, the PHP comparison and
+what the ABI addition costs if it waits. [ADR 0007 § 5](../adr/0007-explicit-type-system.md) is
+**unchanged** — this is representation, not semantics.
 
 - [ ] **The packed representation itself** — a list-shaped array holds no index map and no key
       strings. Test `a_list_shaped_array_holds_no_index_map`, `-p mwl-runtime`. Anchors:
@@ -58,9 +69,4 @@ semantics.
 ## Backlog
 
 - `Core\Fatal::onLimit` and the `[limits] fatal_reserve_*` directives — ADR 0020 § 1, M4S/M7.
-- The stack ceiling is asserted, not discovered — `mwl_runtime::ctx`'s module doc; closes at M6.
-- `Core\Out::capture`, and with it `examples/collect.mwl` — ADR 0088's sink carriers.
-- `Core\Json::decodeAs<T>` — `mwl_stdlib::json` gap 2; the written call-site type argument it waited
-  on exists now.
-- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s own gap list.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- Spec § 13's `isBoolean` replacement, above — `$s as ?bool` does not exist.

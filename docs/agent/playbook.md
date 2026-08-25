@@ -246,6 +246,13 @@ is why" — is this file.
   and answers `false` for these shapes. So a consumer must not retain such a read a second time —
   every retain decision in `mwl-ir` already goes through `aliasing_read`, and a new one that reaches
   for the syntactic `is_aliasing_read` instead is how the double-retain gets back in.
+- **`verify.py` never executes a `.mwlt` case**, so editing one is invisible to it. `cargo test`'s
+  `conformance_coverage.rs` asserts only that a case *exists* naming each registry member — nothing
+  in the cargo suite runs the case body, so a rewritten case can leave all four verify steps green
+  and fail at `loop.py` one stage later. Any session that touches a `.mwlt` owes a
+  `cargo run -p mwl-cli -- test <the cases>` of its own beside `verify.py`, and
+  `mwl test tests/` to confirm the suite's pass/fail split has not moved. On Windows the baseline
+  is **519 passed / 6 failed**, those six being the PHP-on-Windows oracle set.
 
 ## Adding a `Core` member
 

@@ -7,9 +7,11 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-26. **M3 is done and Stage 0's catch-up list is three items from finished.**
-> Items 1 to 12, 16 and 17 of [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* are done —
-> 12, ADR 0066 §§ 1, 3's parse roster, landed today — and `loop-goal.toml`'s
+> **Status:** 2026-08-26. **M3 is done and Stage 0's catch-up list is one item from finished.**
+> Items 1 to 14, 16 and 17 of [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* are done —
+> 12 landed **twice**, its `$s as ?Uri` parse roster withdrawn by ADR 0066 § 3 in favour of
+> `Core\Uri::tryParse`/`Core\Uuid::tryParse`, so `as` now targets no class at all — and
+> `loop-goal.toml`'s
 > `stage = "0 catch-up"` block still names seven tests that exist in no crate, so
 > `python tools/loop.py --goal-only` short-circuits at Stage 0 rather than running the stages below
 > it. Behind that gate is Stage 3's last fixture, `examples/collect.mwl`, itself past its parser
@@ -95,8 +97,10 @@
 > it), **0053 and 0009 in full**, **0054 §§ 1–4 in full** (`Core\Decimal`'s own roster is M8's, and
 > that ADR's *Verification* says so), and **0066 §§ 1–3 for the checked numeric targets** — a
 > nullable binding, parameter, property and return, `null` itself, `??` and now `as
-> ?int`/`?uint`/`?float`/`?decimal` all run, leaving that ADR's enum target and every § 3 *refusal*
-> owed, and **0056 §§ 1, 2 and 5** — both engines are bound, the tier is chosen by the pattern and
+> ?int`/`?uint`/`?float`/`?decimal` all run, leaving that ADR's enum target and its
+> cannot-fail/no-conversion *refusals* owed; its **class** refusal is built and is now absolute
+> (`E0473` for every class target, the withdrawn parse roster included), with § 3a's `tryParse` the
+> member that answers a parse instead, and **0056 §§ 1, 2 and 5** — both engines are bound, the tier is chosen by the pattern and
 > the backtracking budget throws, leaving § 3's compile-time tiering (which waits on ADR 0057) and §
 > 4's pattern sink (which waits on a qualifier the registry can state), and **0070 in full but its §
 > 3 constant** — `30s` lexes as one token, types as `Core\Time\Duration` and runs, over the one

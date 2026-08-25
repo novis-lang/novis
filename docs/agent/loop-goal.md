@@ -119,15 +119,23 @@ one is how an item finishes.
     `secret string` did not lower at all — that was `mwl-ir` gap 11, and all six now erase to the
     `string`/`bytes` they share an allocation with. What the arm declines is a `secret`-against-`mixed`
     pair, which has no buffer to read and stays gap 11's remainder.
-12. **`$s as ?Uri` and `$s as ?Uuid` compile, and `isValid` is deleted from both**
-    ([ADR 0066 §§ 1, 3](../adr/0066-nullable-conversion-operator.md) owns the roster and why `Duration` is
-    not on it; `uri.rs`'s module doc owns the call-site consequence). Both `isValid` members **were**
-    written and are gone, against an earlier note here saying `Uri::isValid` was not: `Core\Uuid::isValid`
-    was exactly `parse` asked without the throw, while `Core\Uri::isValid` asked one condition more — "is
-    this an *absolute* URI" — which now reads `($s as ?Uri)?->scheme() != null`, and ADR 0066 § 3 carries
-    that amendment. The conversion lowers as well as type-checks: `mwl_stdlib::registry::PARSE_ROSTER`
-    names one non-member symbol per roster class and `mwl_types::expr_table::ExprInfo::ParseRosterConversion`
-    carries it to `mwl-ir`, since every `?T` erases to one representation.
+12. **`Core\Uri::tryParse` and `Core\Uuid::tryParse` are the non-throwing parse, `isValid` is deleted from
+    both, and `as` targets no class at all**
+    ([ADR 0066 § 3a](../adr/0066-nullable-conversion-operator.md) owns the member and why `Duration` does
+    not get one; [ADR 0063](../adr/0063-core-api-conventions.md) R5 owns the name; `uri.rs`'s module doc
+    owns the call-site consequence). Both `isValid` members **were** written and are gone, against an
+    earlier note here saying `Uri::isValid` was not: `Core\Uuid::isValid` was exactly `parse` asked without
+    the throw, while `Core\Uri::isValid` asked one condition more — "is this an *absolute* URI" — which now
+    reads `Core\Uri::tryParse($s)?->scheme() != null`.
+
+    **This item landed twice.** The first version admitted a two-class *parse roster* where `$s as ?Uri`
+    and `$s as ?Uuid` compiled, lowering through `registry::PARSE_ROSTER` and
+    `ExprInfo::ParseRosterConversion`. ADR 0066 § 3 withdrew it — `as?` spells a downcast in every language
+    a reader arrives from, so spelling a *parse* that way inverted the syntax's one intuition for exactly
+    two memorized class names, and it never removed the second spelling it was justified by removing, since
+    `Core\Uri::parse` and `$s as ?Uri` both existed. R5's `try…` ban gained the one exception instead, and
+    every class target is now `E0473` with no roster to consult. Both symbols survive the reversal as
+    ordinary member rows; the roster machinery is deleted.
 13. **`Core\Uri` compares by normalized components, with two guards.**
     `crates/mwl-stdlib/src/uri.rs`'s module doc owns the rule, why it does not contradict
     that module's own "`parse` reports, it does not normalize", and the two guards it requires — a
