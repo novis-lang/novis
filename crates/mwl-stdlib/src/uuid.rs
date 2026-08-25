@@ -465,13 +465,15 @@ mod tests {
             "`{first}` is not an RFC 9562 variant"
         );
 
-        // The leading 12 hex digits are the millisecond timestamp, so a draw
-        // taken later never sorts before one taken earlier. Equal is the
-        // common case — gap 3 — and only a decrease is a failure.
+        // The millisecond timestamp is the leading 12 hex digits, which the
+        // canonical form's first hyphen splits 8 and 4 — so the slice that
+        // holds all of it is `[..13]`, not `[..12]`. The hyphen sits at a
+        // fixed position in both, so comparing the slices as text orders them
+        // the way comparing the timestamps would.
         std::thread::sleep(std::time::Duration::from_millis(4));
         let second = rendered(run(super::mwl_core_uuid_v7, &[]).expect("`v7` never fails"));
         assert!(
-            second[..12] > first[..12],
+            second[..13] > first[..13],
             "`{second}` does not sort after `{first}`"
         );
     }
