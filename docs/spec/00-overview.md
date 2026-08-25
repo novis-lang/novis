@@ -85,7 +85,7 @@ why there is no manifest file and no runtime loader), this owns the grammar.
 autoload-decl := "autoload" prefix "from" path-list ";"
                | "autoload" "discover" glob ";"
 
-prefix        := string-literal   // a namespace prefix, backslash-terminated: 'App'
+prefix        := string-literal   // a namespace prefix, no trailing separator: 'Acme\Legacy'
 path-list     := string-literal ("," string-literal)*
 glob          := string-literal   // exactly one "*", occupying a whole path segment
 ```
@@ -100,6 +100,9 @@ Every path is a plain string literal — no interpolation, no concatenation, the
 static resolution carries — and resolves **relative to the directory of the file the declaration appears
 in**, never relative to the entry point. The statement is valid only at a file's top level, and only in a
 file reachable by `require` from the entry point; the effective map is the union of every such declaration.
+
+`autoload` is a reserved word. `discover` is **contextual** — it means the second form only directly after
+`autoload`, and is an ordinary identifier (a method name, a class name) everywhere else.
 
 ### `spawn script` grammar
 

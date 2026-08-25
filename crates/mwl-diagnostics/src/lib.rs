@@ -167,6 +167,14 @@ pub mod code {
     /// A class body's PHP `var $x;` reports this too, rather than a message
     /// about the statement grammar it would otherwise fall into (§ 4).
     pub const E_MISSING_VISIBILITY: Code = Code::new("E0122");
+    /// An `autoload` prefix, root or glob written as anything but a plain
+    /// string literal — an interpolated `"$dir"`, a concatenation, a
+    /// variable. Every path resolves at compile time, relative to the file
+    /// the declaration appears in, so there is nothing to interpolate from;
+    /// see [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// § 1, which carries `require`'s literal-only restriction for the same
+    /// reason.
+    pub const E_AUTOLOAD_PATH_NOT_LITERAL: Code = Code::new("E0123");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // MWL accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs

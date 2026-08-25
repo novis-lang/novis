@@ -1147,6 +1147,8 @@ pub enum StmtKind {
     NamespaceDecl(NamespaceDecl),
     /// A `use Path\To\Name;` import.
     UseDecl(UseDecl),
+    /// An `autoload` declaration, either form (ADR 0061 § 1).
+    AutoloadDecl(AutoloadDecl),
     /// `type Name = TypeExpr;` (ADR 0007 § 3.5 / ADR 0015 § 5), at
     /// file/namespace scope.
     TypeAliasDecl(TypeAliasDecl),
@@ -1431,6 +1433,49 @@ pub struct UseDecl {
     /// `as Alias`, if written — always rejected (ADR 0015 § 2): an import
     /// cannot be renamed. Parsed anyway, for a precise diagnostic.
     pub alias: Option<Span>,
+}
+
+/// `autoload 'Prefix' from 'a', 'b';` or `autoload discover 'glob';` — the
+/// two forms of [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// § 1, whose grammar [`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)
+/// owns.
+///
+/// Every string here is a *span*, not a cooked value, exactly as
+/// [`ExprKind::Str`]'s is: the parser records what was written and
+/// `mwl_hir` decodes it when it builds the map, so one decoder
+/// (`mwl_hir::requires`'s) serves this and `require` alike.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AutoloadDecl {
+    /// The whole declaration, `autoload` through the `;`.
+    pub span: Span,
+    /// Which of the two forms was written.
+    pub kind: AutoloadKind,
+}
+
+/// The two shapes an [`AutoloadDecl`] takes.
+#[derive(Clone, Debug, PartialEq)]
+pub enum AutoloadKind {
+    /// `autoload 'Prefix' from 'root', 'root2';` — one namespace prefix and
+    /// one or more roots, probed in the order written (ADR 0061 § 1's
+    /// Composer rule).
+    Prefix {
+        /// The namespace prefix's literal, quotes included.
+        prefix: Span,
+        /// The root paths' literals, quotes included, in declaration order.
+        /// Never empty in a well-formed declaration; a malformed one that
+        /// reported [`code::E_AUTOLOAD_PATH_NOT_LITERAL`](mwl_diagnostics::code::E_AUTOLOAD_PATH_NOT_LITERAL)
+        /// still records what it could read.
+        roots: Vec<Span>,
+    },
+    /// `autoload discover '../../*/src';` — each directory the glob matches
+    /// becomes a root whose matched segment is its own prefix. `discover` is
+    /// contextual, not a reserved word: it means this only after `autoload`.
+    Discover {
+        /// The glob's literal, quotes included. Whether it holds exactly one
+        /// `*` occupying a whole segment is `mwl_hir`'s check, not the
+        /// parser's — the answer needs the cooked string.
+        glob: Span,
+    },
 }
 
 /// `type Name = TypeExpr;` (ADR 0007 § 3.5 / ADR 0015 § 5), at

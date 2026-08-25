@@ -6,8 +6,8 @@
 //! ([`Parser::parse_interface_decl`]) and enums
 //! ([`Parser::parse_enum_decl`]); their members — properties with PHP 8.4's
 //! hooks, consts, methods; `#[...]` attribute groups
-//! ([`Parser::parse_attribute_groups`], ADR 0046); and `namespace`, `use` and
-//! the `type`-alias declaration (ADR 0015).
+//! ([`Parser::parse_attribute_groups`], ADR 0046); and `namespace`, `use`,
+//! `autoload` (ADR 0061 § 1) and the `type`-alias declaration (ADR 0015).
 //!
 //! `trait`, class-body `use TraitName, ...;` and `insteadof` are all
 //! parse-time rejected (`E_TRAIT_NOT_SUPPORTED`,
@@ -185,7 +185,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ========================================================================
-    // `namespace`, `use`, `type` alias — file-scope declarations
+    // `namespace`, `use`, `autoload`, `type` alias — file-scope declarations
     // ========================================================================
 
     pub(super) fn parse_namespace_decl(&mut self, start: Span) -> Stmt {
@@ -237,6 +237,134 @@ impl<'src, 'd> Parser<'src, 'd> {
         Stmt {
             span,
             kind: StmtKind::UseDecl(UseDecl { span, path, alias }),
+        }
+    }
+
+    /// `autoload 'Prefix' from 'a', 'b';` and `autoload discover 'glob';` —
+    /// ADR 0061 § 1's two forms, spelled the way
+    /// [`docs/spec/00-overview.md` § 2](../../../../docs/spec/00-overview.md)
+    /// writes them.
+    ///
+    /// A file-scope form that is not a statement, exactly like
+    /// [`Self::parse_use_decl`] beside it: it declares a rule the whole
+    /// compilation reads, and reaches `parse_statement` only because that is
+    /// where the token stream arrives. Whether it sits at a file's top level,
+    /// and whether that file is reachable by `require` from the entry point,
+    /// are `mwl_hir`'s checks — the parser can see neither.
+    ///
+    /// `discover` is **contextual**: an ordinary identifier everywhere else,
+    /// meaning the second form only in this one position, so no existing
+    /// member or class named `discover` stops compiling.
+    pub(super) fn parse_autoload_decl(&mut self, start: Span) -> Stmt {
+        self.bump(); // 'autoload'
+        let kind = if self.at_contextual("discover") {
+            self.bump();
+            match self.parse_autoload_literal("a quoted glob") {
+                Some(glob) => AutoloadKind::Discover { glob },
+                None => return self.recover_autoload_decl(start),
+            }
+        } else {
+            let Some(prefix) = self.parse_autoload_literal("a quoted namespace prefix") else {
+                return self.recover_autoload_decl(start);
+            };
+            if self.at_contextual("from") {
+                self.bump();
+            } else {
+                self.error_expected("`from`");
+                return self.recover_autoload_decl(start);
+            }
+            let mut roots = Vec::new();
+            loop {
+                let Some(root) = self.parse_autoload_literal("a quoted root path") else {
+                    return self.recover_autoload_decl(start);
+                };
+                roots.push(root);
+                if self.eat(TokenKind::Comma).is_none() {
+                    break;
+                }
+            }
+            AutoloadKind::Prefix { prefix, roots }
+        };
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::AutoloadDecl(AutoloadDecl { span, kind }),
+        }
+    }
+
+    /// One quoted string inside an `autoload` declaration — its prefix, one
+    /// of its roots, or its glob.
+    ///
+    /// Only a literal is accepted, the restriction `require`'s static
+    /// resolution already carries ([ADR 0021](../../../../docs/adr/0021-single-file-inclusion-construct.md),
+    /// ADR 0061 § 1) and for the same reason: the map is built at compile
+    /// time, so a path assembled at run time could not contribute to it. A
+    /// double-quoted spelling is read for its escapes and refused if it
+    /// interpolates — the parser is the only place that is visible.
+    ///
+    /// The span returned covers the whole literal, quotes included, so
+    /// `mwl_hir` decodes it with the same `cook_quoted` a `require` path goes
+    /// through.
+    fn parse_autoload_literal(&mut self, what: &str) -> Option<Span> {
+        let span = match self.peek().kind {
+            TokenKind::SingleQuotedString => self.bump().span,
+            TokenKind::DoubleQuoteOpen => {
+                let open = self.bump().span;
+                let (parts, close) = self.parse_string_body(TokenKind::DoubleQuoteClose);
+                let span = open.to(close);
+                if !parts.iter().all(|p| matches!(p, StringPart::Text(_))) {
+                    self.report_autoload_not_literal(span, format!("expected {what}"));
+                    return None;
+                }
+                span
+            }
+            _ => {
+                let span = self.peek().span;
+                self.report_autoload_not_literal(span, format!("expected {what}"));
+                return None;
+            }
+        };
+        // The other way a path stops being a literal, and the one a reader
+        // would otherwise see reported as a missing `;`: a concatenation
+        // whose first operand happens to be one.
+        if self.at(TokenKind::Dot) {
+            let dot = self.peek().span;
+            self.report_autoload_not_literal(dot, "a path cannot be built by concatenation");
+            return None;
+        }
+        Some(span)
+    }
+
+    fn report_autoload_not_literal(&mut self, span: Span, label: impl Into<String>) {
+        self.diags.report(
+            Diagnostic::error(
+                code::E_AUTOLOAD_PATH_NOT_LITERAL,
+                "an `autoload` declaration takes literal strings only",
+            )
+            .with_primary(span, label)
+            .with_help(
+                "write the path out — the map is built at compile time, relative to this file, \
+                 so there is nothing to interpolate from (ADR 0061 § 1)",
+            ),
+        );
+    }
+
+    /// Swallows the rest of a malformed `autoload` declaration through its
+    /// `;`, so one unwritable path reports one diagnostic rather than also an
+    /// "expected `;`" from whatever token the parser stopped on.
+    fn recover_autoload_decl(&mut self, start: Span) -> Stmt {
+        while !matches!(
+            self.peek().kind,
+            TokenKind::Semicolon | TokenKind::Eof | TokenKind::CloseTag
+        ) {
+            self.bump();
+        }
+        self.eat(TokenKind::Semicolon);
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::Error,
         }
     }
 

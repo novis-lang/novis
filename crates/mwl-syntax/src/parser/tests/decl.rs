@@ -556,3 +556,103 @@ fn short_echo_tag_semicolon_before_close_tag_is_optional_but_allowed() {
     parse_file_ok("<?= $name ?>");
     parse_file_ok("<?= $name; ?>");
 }
+
+// ========================================================================
+// `autoload` — ADR 0061 § 1, spec `00-overview.md` § 2
+// ========================================================================
+
+/// Both file-scope forms, spelled exactly as the spec's grammar block
+/// writes them, plus the one thing adding a second word to the grammar could
+/// have broken: `discover` stays an ordinary identifier everywhere else.
+#[test]
+fn an_autoload_declaration_parses() {
+    let mut map = SourceMap::new();
+    let id = map.add(
+        "t.mwl",
+        r"<?mwl
+autoload 'Framework' from './';
+autoload 'Acme\Legacy' from '../vendor/acme/lib', '../vendor/acme/compat';
+autoload discover '../../*/src';
+$registry->discover();
+",
+    );
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(id), &mut diags);
+    assert!(!diags.has_errors(), "unexpected diagnostics: {diags:?}");
+    assert_eq!(stmts.len(), 4);
+
+    let StmtKind::AutoloadDecl(one) = &stmts[0].kind else {
+        panic!("expected an autoload decl: {:?}", stmts[0]);
+    };
+    let AutoloadKind::Prefix { prefix, roots } = &one.kind else {
+        panic!("expected the prefix form: {one:?}");
+    };
+    assert_eq!(text(&map, id, *prefix), "'Framework'");
+    assert_eq!(roots.len(), 1);
+    assert_eq!(text(&map, id, roots[0]), "'./'");
+
+    let StmtKind::AutoloadDecl(two) = &stmts[1].kind else {
+        panic!("expected an autoload decl: {:?}", stmts[1]);
+    };
+    let AutoloadKind::Prefix { prefix, roots } = &two.kind else {
+        panic!("expected the prefix form: {two:?}");
+    };
+    assert_eq!(text(&map, id, *prefix), r"'Acme\Legacy'");
+    assert_eq!(roots.len(), 2);
+    assert_eq!(text(&map, id, roots[1]), "'../vendor/acme/compat'");
+
+    let StmtKind::AutoloadDecl(three) = &stmts[2].kind else {
+        panic!("expected an autoload decl: {:?}", stmts[2]);
+    };
+    let AutoloadKind::Discover { glob } = &three.kind else {
+        panic!("expected the discover form: {three:?}");
+    };
+    assert_eq!(text(&map, id, *glob), "'../../*/src'");
+
+    // `discover` is contextual: it means the second form only straight after
+    // `autoload`, and is an ordinary member name anywhere else.
+    assert!(matches!(stmts[3].kind, StmtKind::Expr(_)));
+}
+
+/// ADR 0061 § 1's literal-only restriction, which is `require`'s
+/// (ADR 0021): a path assembled at run time could not contribute to a map
+/// built at compile time. Each spelling reports once — a malformed
+/// declaration is swallowed through its `;` rather than also failing on the
+/// token the parser stopped at.
+#[test]
+fn an_autoload_path_that_is_not_a_literal_is_a_compile_error() {
+    for src in [
+        "autoload 'App' from $dir;",
+        "autoload 'App' from './' . $sub;",
+        "autoload discover \"$root/*/src\";",
+        "autoload \"App{$n}\" from './';",
+    ] {
+        let (stmt, diags) = parse_stmt_with_diags(src);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_AUTOLOAD_PATH_NOT_LITERAL)),
+            "expected E_AUTOLOAD_PATH_NOT_LITERAL for {src:?}: {diags:?}"
+        );
+        assert_eq!(diags.iter().count(), 1, "for {src:?}: {diags:?}");
+        assert!(
+            matches!(stmt.kind, StmtKind::Error),
+            "expected error recovery for {src:?}: {stmt:?}"
+        );
+    }
+}
+
+/// The prefix form owes a `from` and at least one root; both misses are
+/// ordinary "expected" parse errors rather than a silently accepted
+/// half-declaration.
+#[test]
+fn an_autoload_declaration_owes_a_from_and_a_root() {
+    for src in ["autoload 'App';", "autoload 'App' from;"] {
+        let (stmt, diags) = parse_stmt_with_diags(src);
+        assert!(diags.has_errors(), "expected an error for {src:?}");
+        assert!(
+            matches!(stmt.kind, StmtKind::Error),
+            "expected error recovery for {src:?}: {stmt:?}"
+        );
+    }
+}

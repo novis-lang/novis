@@ -6,7 +6,7 @@
 //! | [`ty`] | the type grammar (ADR 0007 § 3), and a qualified name |
 //! | [`expr`] | every operator at its PHP precedence, down to a primary |
 //! | [`stmt`] | control flow, `echo`, `unset`, a typed local, destructuring |
-//! | [`decl`] | classes, interfaces, enums, attributes, `namespace`/`use`/`type` |
+//! | [`decl`] | classes, interfaces, enums, attributes, `namespace`/`use`/`autoload`/`type` |
 //!
 //! One `impl Parser` split across those four, which Rust allows for an
 //! inherent impl inside one crate; this file holds the state, the token
@@ -55,14 +55,14 @@ use std::collections::VecDeque;
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
-    AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, BinaryOp, Block, CallArgs,
-    CatchClause, ClassDecl, ClassMember, ClassMemberKind, ConstMember, DestructureElement,
-    DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
-    ImplementsClause, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name,
-    NamespaceDecl, NewTarget, ObjectLiteralField, Param, PropertyHook, PropertyHookBody,
-    PropertyHookKind, PropertyMember, ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt,
-    StmtKind, StringPart, SwitchCase, Type, TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl,
-    Visibility,
+    AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, AutoloadDecl, AutoloadKind,
+    BinaryOp, Block, CallArgs, CatchClause, ClassDecl, ClassMember, ClassMemberKind, ConstMember,
+    DestructureElement, DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr,
+    ForeachBinding, ImplementsClause, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember,
+    Modifier, Name, NamespaceDecl, NewTarget, ObjectLiteralField, Param, PropertyHook,
+    PropertyHookBody, PropertyHookKind, PropertyMember, ShapeField, SpawnOption, SpawnOptionKey,
+    StaticVar, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAliasDecl, TypeAtom, TypeKind,
+    UnaryOp, UseDecl, Visibility,
 };
 use crate::lexer::Lexer;
 use crate::token::{Keyword, Token, TokenKind};

@@ -197,6 +197,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Enum) => self.parse_enum_decl(start),
             TokenKind::Keyword(Keyword::Namespace) => self.parse_namespace_decl(start),
             TokenKind::Keyword(Keyword::Use) => self.parse_use_decl(start),
+            TokenKind::Keyword(Keyword::Autoload) => self.parse_autoload_decl(start),
             TokenKind::Keyword(Keyword::Const) => {
                 self.parse_toplevel_const_reject(start, Vec::new())
             }

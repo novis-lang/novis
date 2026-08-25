@@ -62,9 +62,9 @@
 <?mwl
 // ./Framework/src/Bootstrap.mwl — paths are relative to THIS file, never to the entry point
 
-autoload 'Framework\' from './';                       // one prefix, one root
-autoload 'Acme\Legacy\' from '../vendor/acme/lib',
-                             '../vendor/acme/compat';  // one prefix, several roots, probed in order
+autoload 'Framework' from './';                        // one prefix, one root
+autoload 'Acme\Legacy' from '../vendor/acme/lib',
+                            '../vendor/acme/compat';   // one prefix, several roots, probed in order
 autoload discover '../../*/src';                       // each matching directory names its own prefix
 ```
 
@@ -79,7 +79,12 @@ $app->run();
 ```
 
 - **Both forms take literal strings only** — the same restriction `require`'s static resolution already
-  carries ([ADR 0021](0021-single-file-inclusion-construct.md)), for the same reason.
+  carries ([ADR 0021](0021-single-file-inclusion-construct.md)), for the same reason. A concatenation and
+  an interpolated `"$dir"` are both `E_AUTOLOAD_PATH_NOT_LITERAL`, reported by the parser, which is the
+  only place the difference is still visible.
+- **A prefix is written without a trailing separator** — `'Acme\Legacy'`, never `'Acme\Legacy\'`, which a
+  single-quoted string cannot spell at all: its `\'` escapes the quote and swallows the rest of the line.
+  Matching appends the separator itself, so the two spellings would have meant the same thing anyway.
 - **`discover '<glob>'`** takes a glob containing exactly one `*`, occupying a whole path segment. Every
   directory it matches becomes a root, and the segment `*` matched becomes that root's prefix — so
   `'../../*/src'` yields `ADB\ → ../../ADB/src`, `FOO\ → ../../FOO/src`, `Framework\ → ../../Framework/src`.
