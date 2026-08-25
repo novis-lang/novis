@@ -326,10 +326,17 @@ TRAILER_RE = re.compile(
 #: emoji or a markdown link right there, because "generated with" is an ordinary English phrase
 #: a commit body about a code generator has every right to use.
 BOILERPLATE_RE = re.compile(
-    # `[^\w\n]*` -- any decoration in front of the phrase (an emoji, a bullet) but never a real
-    # word, so "the table is generated with a build script" keeps its place. `\n` is excluded
-    # explicitly because `\w`'s negation would otherwise let the match walk back over line ends.
-    r"^[^\w\n]*(?:generated|created|made)\s+(?:with|by)\s+\[.*$",
+    # Decoration in front of the phrase (an emoji, a bullet) but never a real word, so "the table
+    # is generated with a build script" keeps its place. Spelled with an explicit ASCII range
+    # rather than `[^\w\n]` so it asks exactly the question the commit-msg hook asks -- the two
+    # gates have to agree, and `\w` is Unicode-aware here while the hook's test is not.
+    #
+    # A backtick before the phrase means the line is QUOTING the banned form, not carrying it, and
+    # the commit that introduced this check was itself the first casualty: a body opening a line
+    # with "`🤖 Generated with [tool](url)` is the commonest spelling" had that whole line deleted
+    # out of it, silently, leaving the sentence after it dangling. Generated boilerplate does not
+    # use backticks; prose about generated boilerplate does.
+    r"^[^A-Za-z\n`]*(?:generated|created|made)\s+(?:with|by)\s+\[.*$",
     re.I | re.M,
 )
 

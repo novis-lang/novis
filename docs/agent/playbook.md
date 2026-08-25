@@ -158,6 +158,23 @@ is why" — is this file.
   prints that bullet; `"Tooling"` still prints all 11 KB of the section. The playbook grew 61% during one
   run and its four selected sections were 35% of the entire orientation pack, so a goal that needs three
   traps should name three traps. `python tools/orient.py --audit` prices the difference.
+- **A commit message carries no attribution trailer, and two gates enforce it.**
+  `tools/session.py` strips `Co-Authored-By`, `Signed-off-by`, `Generated-with` and the prose
+  `🤖 Generated with [tool](url)` out of any message it commits; `tools/git-hooks/commit-msg` rejects one
+  arriving by `-m`, `-F`, an editor or a merge. Enable the hook once per clone with
+  `git config core.hooksPath tools/git-hooks` — `verify.py` says so when it is not set. The rule and its
+  reasoning are conventions.md § *A commit message*.
+- **Git runs a hook with `LC_CTYPE=C.UTF-8`, and gawk's `[^a-z]` does not match an emoji under it.** A
+  pattern anchored as `^[^a-z]*(generated|created)…` therefore passed every test run from the Bash tool —
+  which has no locale set — and silently failed to match `🤖 Generated with [...]` when git itself ran it.
+  Two lessons, both expensive: run a hook's test the way *git* invokes it, and prefer locating a phrase
+  with `match()` and asking a pure-ASCII question about the text before it over any character class that
+  has to step across multibyte input.
+- **An awk fatal inside `$(…)` leaves the variable empty, and a hook that only checks the variable then
+  fails OPEN.** `\[` in a *dynamic* awk regex (one built from a string) is consumed by the string literal
+  first, so awk sees a bare `[`, dies with `invalid regexp`, and the surrounding `[ -z "$offenders" ] &&
+  exit 0` cheerfully allows the commit. Write it `[[]`, and always capture `$?` from the awk itself and
+  refuse on a non-zero status — a gate must fail closed.
 
 ## Running things
 

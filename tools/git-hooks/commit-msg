@@ -35,17 +35,26 @@ keys='co-authored-by|signed-off-by|generated-by|generated-with|assisted-by|autho
 # backslash is consumed by the string literal first and awk then sees a bare `[` opening a
 # bracket expression that never closes. That spelling failed fatally and, before the exit-status
 # check below existed, the hook then let the commit through -- a gate that fails open.
-# `^[^a-z]*` and not `^[ \t]*` so an emoji, a bullet or any other decoration in front of the
-# phrase is still caught without this file having to carry the emoji's bytes -- which is the one
-# thing that would make it encoding-fragile across the shells git runs it under. A line with real
-# words before the phrase ("the table is generated with ...") has letters there and is left alone.
-prose='^[^a-z]*(generated|created|made)[ \t]+(with|by)[ \t]+[[]'
+# The phrase is found by POSITION, not by an anchored pattern, and that is the whole reason the
+# awk below is shaped as it is. `^[^a-z]*(generated...` reads as though it steps over any
+# decoration in front of the phrase -- an emoji, a bullet -- and it does, until git runs the hook.
+# Git sets `LC_CTYPE=C.UTF-8`, and under that locale gawk 5 does not match an emoji with `[^a-z]`.
+# So that spelling silently stopped catching `🤖 Generated with [...]`, the single most common
+# real form of this line, while still passing every test run from a shell with no locale set.
+# Locating the phrase and then asserting that nothing before it is an ASCII letter is a pure-ASCII
+# question either way, and cannot drift with the locale.
+prose='(generated|created|made)[ \t]+(with|by)[ \t]+[[]'
 
 offenders=$(awk -v keys="$keys" -v prose="$prose" '
     /^[ \t]*#/ { next }                     # git own commentary, stripped before the message is stored
-    { lower = tolower($0) }
-    lower ~ "^[ \t]*(" keys ")[ \t]*:" || lower ~ prose {
-        printf "  line %d: %s\n", NR, substr($0, 1, 100)
+    {
+        lower = tolower($0)
+        bad = (lower ~ "^[ \t]*(" keys ")[ \t]*:")
+        # Decoration before the phrase is boilerplate; a word or a backtick before it is prose
+        # ABOUT the boilerplate, which this file and conventions.md both have to be able to write.
+        if (!bad && match(lower, prose))
+            bad = (substr(lower, 1, RSTART - 1) !~ /[a-z`]/)
+        if (bad) printf "  line %d: %s\n", NR, substr($0, 1, 100)
     }
 ' "$msg")
 status=$?
