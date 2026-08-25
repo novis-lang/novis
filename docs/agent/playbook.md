@@ -178,6 +178,13 @@ is why" — is this file.
   license identifier new to the tree must be added to **both** `deny.toml`'s allow list and
   `tools/gen-attribution.py`'s `PREFERENCE`, in the same commit: that script fails if the two disagree.
   The dependency *sweep* is a pass the user fires by hand (ADR 0068); never start it as a side effect.
+- **A registry rule quoted by test name may not be that rule, or may not exist.** A handoff opened
+  ADR 0069's slice with "`registry`'s own `a_union_is_only_ever_a_parameter` says a union cannot be a
+  return type", which would have forced `array<mixed>` on four members. There is no test by that name —
+  the real one is `a_union_option_is_a_closed_set_of_literals`, which restricts an **option's** type and
+  nothing else, and `CoreTy::Union`'s doc says "legal in **either** direction" outright. One
+  `grep -n 'fn [a-z_]*(' registry.rs` over the test names costs one call and settles it; designing around
+  a constraint that is not there costs a member's whole surface.
 
 ## Writing a test case
 
