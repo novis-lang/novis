@@ -50,10 +50,12 @@
 //!   the value bound to a local and narrowed with `!= null` first (ADR 0066).
 //!   A property access straight off `$e->previous` is the tagged-receiver
 //!   case `mwl_ir::Ty::Tagged`'s own known gap names.
-//! * **An `issues` entry cannot be *read* yet.** The list is built, counted
-//!   and iterated like any array, but `$issue->path` is a property access on
-//!   an ADR 0036 § 4 shape receiver, which `mwl-ir` does not lower — its own
-//!   gap, and the reason this crate records no `ExprInfo::Property` for one.
+//!
+//! An `issues` entry is read like any other value now: `$issue->path` is a
+//! property access on an ADR 0036 § 4 shape receiver, which
+//! [`crate::expr_table::ExprInfo::ShapeProperty`] resolves to the field's slot
+//! and `mwl-ir` reads by index — there is no class to name, so there is no
+//! class to record.
 //!
 //! A user subclass that declares its own constructor and does not chain to
 //! `parent::constructor(…)` is already refused, by the same check every other

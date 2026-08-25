@@ -171,9 +171,14 @@
 //!    `&&`/`||`/`!`/ternary/`??` compose inside a call argument, an array
 //!    element, a `.` operand or an `echo` operand alike.
 //! 6. **Property and array access are compile-time-known-target-only.** A
-//!    receiver that erased to a shape or plain `object` (ADR 0036 § 4) has no
-//!    `ExprInfo` entry, so lowering panics; the checker defers that runtime
-//!    check to M4. Nullsafe `?->` *reads* — a call and a property alike, over
+//!    receiver that erased to a plain `object`, or a shape asked for a field
+//!    it does not name (ADR 0036 § 4), has no `ExprInfo` entry, so lowering
+//!    panics; the checker defers that runtime check to M4. A shape receiver
+//!    naming one of its own fields does lower — one
+//!    [`ir::InstKind::SlotGet`] at the index the checker resolved — but only
+//!    as a **read**: writing a shape's field still panics, and so does an
+//!    anonymous `{a: 1}` literal, so every shape value a program can hold
+//!    today is one a `Core` member built. Nullsafe `?->` *reads* — a call and a property alike, over
 //!    the one guard [`lower::Lowering::open_nullsafe`] opens — but a nullsafe
 //!    assignment target (`$a?->b = v`) panics, which PHP refuses outright and
 //!    `mwl_types` does not diagnose yet. An

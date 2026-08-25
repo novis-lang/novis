@@ -20,7 +20,9 @@
 //! does not yet.
 //!
 //! [`check_property_access`]'s shape/`object` arms are the M2 half of ADR 0036
-//! § 4: a field a shape names types cleanly with no diagnostic either way; a
+//! § 4: a field a shape names types cleanly with no diagnostic either way, and
+//! records the slot `mwl-ir` reads it at
+//! ([`crate::expr_table::ExprInfo::ShapeProperty`]); a
 //! name it doesn't list, or a plain `object` receiver, is silently `mixed`
 //! rather than `E_UNKNOWN_MEMBER` — deferred to ADR 0014 § 5's runtime-checked
 //! fallback, which needs M4's IR/codegen to actually throw from and so has no
@@ -359,10 +361,26 @@ pub(super) fn check_property_member(
     // yet to throw from); see the crate docs' known gaps.
     match env.interner.get(object_ty).clone() {
         Ty::Shape(fields) => {
+            // A field the shape names is proven present *and* proven to be at
+            // one slot: the interner sorted this list by name, and every
+            // producer of a shape value lays its slots out in that same order.
+            // So the position resolved here is what `mwl-ir` reads, and
+            // `ExprInfo::ShapeProperty` carries it instead of the declaring
+            // class an anonymous methodless value does not have.
             return fields
                 .iter()
-                .find(|(n, _)| *n == name)
-                .map_or_else(|| env.interner.mixed(), |(_, ty)| *ty);
+                .position(|(n, _)| *n == name)
+                .and_then(|slot| Some((u32::try_from(slot).ok()?, fields[slot].1)))
+                .map_or_else(
+                    || env.interner.mixed(),
+                    |(slot, ty)| {
+                        env.exprs.record(
+                            object.span.to(*name_span),
+                            ExprInfo::ShapeProperty { slot, ty },
+                        );
+                        ty
+                    },
+                );
         }
         Ty::Object => return env.interner.mixed(),
         _ => {}

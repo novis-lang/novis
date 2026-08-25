@@ -511,6 +511,10 @@ impl Emitter<'_, '_> {
                 let value = self.emit_field_get(inst, *object, class, field)?;
                 self.define(inst, value)?;
             }
+            InstKind::SlotGet { object, slot } => {
+                let value = self.emit_slot_get(inst, *object, *slot)?;
+                self.define(inst, value)?;
+            }
             InstKind::FieldSet {
                 object,
                 class,
@@ -1443,6 +1447,31 @@ impl Emitter<'_, '_> {
         let ty = inst
             .ty
             .ok_or_else(|| internal("a property read with no representation"))?;
+        self.load_value(base, offset, ty)
+    }
+
+    /// `$issue->path`: the same single load, at a slot index the IR already
+    /// carries rather than one resolved through this unit's class table.
+    ///
+    /// An ADR 0036 § 4 shape value has no class label to look a layout up
+    /// under — `mwl_ir::ir::InstKind::SlotGet`'s own doc comment owns why the
+    /// index is settled at lowering instead. Everything after that is
+    /// [`Self::emit_field_get`]: the same [`mwl_runtime::field_offset`], the
+    /// same borrow, the same "the consumer inserts the retain if it keeps the
+    /// value".
+    fn emit_slot_get(
+        &mut self,
+        inst: &Inst,
+        object: ValueId,
+        slot: u32,
+    ) -> Result<Value, CodegenError> {
+        let slot = usize::try_from(slot).map_err(|_| internal("a slot index past `usize`"))?;
+        let offset = i32::try_from(mwl_runtime::field_offset(slot))
+            .map_err(|_| internal("an object field sitting past a 2 GiB offset"))?;
+        let (base, _) = self.value(object)?;
+        let ty = inst
+            .ty
+            .ok_or_else(|| internal("a shape-field read with no representation"))?;
         self.load_value(base, offset, ty)
     }
 

@@ -2813,12 +2813,15 @@ impl<'a> Lowering<'a> {
     }
 
     /// `$obj->prop` — the receiver's declaring class comes from
-    /// `self.exprs`, exactly like a call's resolved target; a shape or
-    /// plain-`object` receiver (ADR 0036 § 4) has no such entry at
-    /// all, so this panics naming that case rather than lowering it —
-    /// see the crate docs' known gaps for why (the checker itself
-    /// defers the runtime-checked fallback to M4, with no IR/codegen
-    /// yet to throw from).
+    /// `self.exprs`, exactly like a call's resolved target. A **shape**
+    /// receiver naming one of its own fields resolves to a slot index
+    /// instead and is handed to [`Self::lower_shape_property_access`];
+    /// what still has no entry at all is a plain-`object` receiver, and
+    /// a name the shape does not list (ADR 0036 § 4), so this panics
+    /// naming that case rather than lowering it — see the crate docs'
+    /// known gaps for why (the checker itself defers the
+    /// runtime-checked fallback to M4, with no IR/codegen yet to throw
+    /// from).
     fn lower_property_access(
         &mut self,
         object: &Expr,
@@ -2835,6 +2838,15 @@ impl<'a> Lowering<'a> {
         // always backed (`mwl_types::signatures::PropertyHooks` owns
         // that decision), so both shapes recover the same three
         // fields and only the `get` label decides between them.
+        // An ADR 0036 § 4 shape receiver naming one of its own fields is the
+        // one access with no class to resolve: the slot index is already in
+        // the table, so this reads it and is done. Everything below — the
+        // hook question, the declaring class, the label — is a class
+        // receiver's problem and none of it applies.
+        if let Some(ExprInfo::ShapeProperty { slot, ty }) = self.exprs.lookup(expr.span) {
+            let (slot, ty) = (*slot, *ty);
+            return self.lower_shape_property_access(object, slot, ty, nullsafe, env, cur);
+        }
         let (class, name, ty, get) = match self.exprs.lookup(expr.span) {
             Some(ExprInfo::Property { class, name, ty }) => (class, name, *ty, None),
             Some(ExprInfo::HookedProperty {
@@ -2847,9 +2859,9 @@ impl<'a> Lowering<'a> {
             _ => panic!(
                 "mwl-ir: a property access at {:?} has no resolved declaring class \
                  recorded in the typed-expression table — either it wasn't checked with \
-                 the same table, or its receiver erased to a shape/plain `object` (ADR \
-                 0036 § 4), which this crate does not yet lower (see the crate docs' \
-                 known gaps)",
+                 the same table, or its receiver erased to a plain `object` or to a \
+                 shape that does not name this field (ADR 0036 § 4), which this crate \
+                 does not yet lower (see the crate docs' known gaps)",
                 expr.span
             ),
         };
@@ -2911,6 +2923,49 @@ impl<'a> Lowering<'a> {
             // `Lowering::aliasing_read` reports a property read off a
             // temporary as non-aliasing: the consumer must not retain it a
             // second time.
+            if ty.is_refcounted() {
+                self.emit_retain(*cur, v);
+            }
+            self.release_temporaries_since(mark, *cur);
+        }
+        self.close_nullsafe(guard, v, ty, cur)
+    }
+
+    /// `$issue->path` — the shape half of [`Self::lower_property_access`],
+    /// which is a slot read at a compile-time-known index and nothing else
+    /// (ADR 0036 § 4). A shape value is anonymous and methodless, so there is
+    /// no declaring class, no hook question and no label: `mwl_types` already
+    /// resolved the field to its position in the shape's sorted field list.
+    ///
+    /// The refcounting is the class receiver's, minus the hook case.
+    /// `InstKind::SlotGet` borrows, so a base that is itself a fresh producer
+    /// — `$e->issues["0"]->path` — has to hand the value read out of it a
+    /// reference of its own before the base is released underneath it.
+    fn lower_shape_property_access(
+        &mut self,
+        object: &Expr,
+        slot: u32,
+        field: TypeId,
+        nullsafe: bool,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let field_ty = lower_checked_ty(field, self.checked_types);
+        let mark = self.temporaries_mark();
+        let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
+        let base_is_temporary = receiver_ty.is_refcounted() && !self.aliasing_read(object);
+        if base_is_temporary {
+            self.own_temporary(object_v);
+        }
+        let (v, ty) = self.emit(
+            *cur,
+            field_ty,
+            InstKind::SlotGet {
+                object: object_v,
+                slot,
+            },
+        );
+        if base_is_temporary {
             if ty.is_refcounted() {
                 self.emit_retain(*cur, v);
             }

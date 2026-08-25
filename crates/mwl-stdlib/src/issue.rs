@@ -27,13 +27,14 @@
 //! member actually calls [`list`]. A request that decodes successfully
 //! allocates none of it.
 //!
-//! # Known gap
+//! # Reading one back
 //!
-//! **An issue cannot be read back from MWL yet.** `Core\Arr::count($e->issues)`
-//! works, and so does anything else that treats the list as an array of opaque
-//! values, but `$issue->path` is a property access on an ADR 0036 § 4 shape
-//! receiver — which `mwl-ir` does not lower, and panics naming that ADR rather
-//! than miscompiling. Closing it is that crate's gap, not this module's.
+//! `$issue->path` is an ordinary field read: the checker resolves the name to
+//! its slot in the sorted list above and `mwl-ir` reads that slot by index, so
+//! the agreement [`FIELDS`] states is the only thing keeping the two sides
+//! together. Reorder it and a program reads the wrong field rather than
+//! failing to compile — which is why the order is stated here, in
+//! `mwl_types::error_lib::issue_shape`'s interned type, and nowhere else.
 
 use mwl_runtime::{MwlArray, MwlStr, Value};
 

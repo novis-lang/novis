@@ -2013,7 +2013,7 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
 ///
 /// Panics naming the unsupported shape for anything outside this slice's
 /// scope: either qualified (`tainted`/`secret`) string or bytes variant,
-/// `object`, a shape, an intersection, or any of
+/// `object`, an intersection, or any of
 /// `never`/`true`/`false`/`iterable` — none of these
 /// have an IR representation yet (see the crate docs' known gaps). `mixed`
 /// erases to [`Ty::Tagged`] — see that variant's own doc comment for exactly
@@ -2073,7 +2073,13 @@ fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
         CheckedTy::Void => Ty::Void,
         CheckedTy::String => Ty::Str,
         CheckedTy::Bytes => Ty::Bytes,
-        CheckedTy::Class(..) | CheckedTy::Callable => Ty::Object,
+        // A shape joins them: ADR 0036 § 2 makes a shape value an ordinary
+        // refcounted instance with no methods and no name of its own, so its
+        // representation is the object pointer a class already has. What the
+        // erasure drops is the field list, and nothing below this boundary
+        // wants it — a field read carries its own slot index, resolved where
+        // the type still existed (`InstKind::SlotGet`).
+        CheckedTy::Class(..) | CheckedTy::Callable | CheckedTy::Shape(_) => Ty::Object,
         // ADR 0047 § 5: a literal type and an enum-case type add **zero**
         // runtime representation. Each erases to the base it shares a tag and
         // payload with, so the singleton-ness stops at this boundary and
@@ -2868,6 +2874,19 @@ class T {
     fn a_nullsafe_property_access_on_a_nullable_receiver() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass Foo {\n  public int $count = 0;\n}\nclass T {\n  function m(?Foo $obj): ?int {\n    return $obj?->count;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$i->path` on an ADR 0036 § 4 shape receiver — no class, no label and
+    /// no layout table: one `slot.get` at the field's position in the shape's
+    /// sorted field list, which puts `path` after `message`. The receiver is
+    /// a parameter, so it is an aliasing read and the value read out of its
+    /// slot is retained by whoever keeps it, exactly as for a class field.
+    #[test]
+    fn a_shape_property_access_reads_its_slot_by_index() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m({path: string, message: string} $i): string {\n    return $i->path;\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

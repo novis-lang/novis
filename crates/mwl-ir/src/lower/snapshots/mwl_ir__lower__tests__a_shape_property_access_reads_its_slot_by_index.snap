@@ -1,0 +1,16 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, object) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; object
+    ; stmt s0 @4:5-4:21
+    v2 = slot.get v1, 1  ; string
+    retain v2
+    release v1
+    release v0
+    return v2
+}

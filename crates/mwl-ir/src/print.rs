@@ -200,6 +200,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             class,
             field,
         } => format!("field.get v{}, {class}::{field}", object.index()),
+        InstKind::SlotGet { object, slot } => format!("slot.get v{}, {slot}", object.index()),
         InstKind::InstanceOf { value, class } => {
             format!("instanceof v{}, {class}", value.index())
         }

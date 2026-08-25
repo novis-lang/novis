@@ -189,9 +189,10 @@ pub enum ExprInfo {
         ty: TypeId,
     },
     /// A resolved property access (`$obj->prop`) whose receiver statically
-    /// resolved to a known declaring class — never recorded for a shape or
-    /// plain-`object` receiver, since ADR 0036 § 4 erases either to `mixed`
-    /// with no declaring class to name at all (see
+    /// resolved to a known declaring class — a shape receiver records
+    /// [`ExprInfo::ShapeProperty`] instead, and a plain-`object` receiver
+    /// records nothing at all, since ADR 0036 § 4 erases it to `mixed` with
+    /// no declaring class to name (see
     /// [`crate::expr::members::check_property_access`]'s own docs for that erasure).
     /// A consumer with no entry for a `PropertyAccess` span must treat it the
     /// same way the checker did: nothing compile-time-known to read.
@@ -240,6 +241,29 @@ pub enum ExprInfo {
         /// declares no `set` hook with a body — in which case a write is an
         /// ordinary slot write.
         set: Option<String>,
+    },
+    /// A resolved property access whose receiver is an ADR 0036 § 4 **shape**
+    /// that names the field — recorded *instead of* [`ExprInfo::Property`],
+    /// because a shape value has no class at all: it is anonymous and
+    /// methodless, so there is no declaring name for a consumer to resolve a
+    /// layout through.
+    ///
+    /// What is carried instead is the field's **slot index**, which is its
+    /// position in the shape's own field list. That list is sorted by name
+    /// when the type is interned ([`crate::ty::TypeInterner::shape`]), and
+    /// every producer of a shape value lays its slots out in the same order
+    /// (`mwl_stdlib::instance::shape`'s roster is that side of the
+    /// agreement), so the index resolved here is the offset the read
+    /// actually needs — no layout table is consulted at all.
+    ///
+    /// A name the shape does *not* list, and a plain `object` receiver, still
+    /// record nothing: ADR 0036 § 4 erases both to `mixed` with nothing
+    /// compile-time-known to read.
+    ShapeProperty {
+        /// The field's position in the shape's sorted field list.
+        slot: u32,
+        /// The field's own declared type.
+        ty: TypeId,
     },
     /// A resolved array-element access (`$arr[$expr]`, read or write) whose
     /// base statically resolved to a known `Ty::Array` element type — never
@@ -858,6 +882,32 @@ mod tests {
             .filter(|e| matches!(e, ExprInfo::Property { name, .. } if name == "n"))
             .count();
         assert_eq!((hooked, plain), (0, 1));
+    }
+
+    /// A shape receiver has no declaring class either, but it does have a
+    /// layout: ADR 0036 § 4's field read resolves to the field's position in
+    /// the shape's *sorted* list, which is why `path` is slot 1 of
+    /// `{path, message}` rather than slot 0.
+    #[test]
+    fn a_property_access_through_a_shape_receiver_records_its_slot() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?mwl\nclass T {\n  function m({path: string, message: string} $i): string {\n    return $i->path;\n  }\n}\n",
+        );
+        assert!(matches!(
+            exprs.lookup(span),
+            Some(ExprInfo::ShapeProperty { slot: 1, .. })
+        ));
+    }
+
+    /// A name the shape does not list is erased exactly like a plain `object`
+    /// receiver: ADR 0036 § 4 answers `mixed` and records nothing, since
+    /// whether it is there at all is a runtime question.
+    #[test]
+    fn a_property_access_naming_a_field_the_shape_lacks_records_nothing() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?mwl\nclass T {\n  function m({path: string} $i): mixed {\n    return $i->nope;\n  }\n}\n",
+        );
+        assert!(exprs.lookup(span).is_none());
     }
 
     /// A plain `object`-typed receiver erases per ADR 0036 § 4 — there is no

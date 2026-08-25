@@ -425,9 +425,9 @@ impl<'a> Lowering<'a> {
                     _ => panic!(
                         "mwl-ir: a property assignment target at {:?} has no resolved declaring \
                          class recorded in the typed-expression table — either it wasn't checked \
-                         with the same table, or its receiver erased to a shape/plain `object` \
-                         (ADR 0036 § 4), which this crate does not yet lower (see the crate docs' \
-                         known gaps)",
+                         with the same table, or its receiver erased to a plain `object`, or it \
+                         is an ADR 0036 § 4 shape, whose field *read* lowers but whose write does \
+                         not (see the crate docs' known gaps)",
                         target.span
                     ),
                 };

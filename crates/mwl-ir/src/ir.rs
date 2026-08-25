@@ -495,6 +495,27 @@ pub enum InstKind {
         /// The new value, already lowered.
         value: ValueId,
     },
+    /// Reads a slot off an object **by index** — `$issue->path`, whose
+    /// receiver is an ADR 0036 § 4 shape rather than a named class.
+    ///
+    /// The difference from [`InstKind::FieldGet`] is only where the index
+    /// comes from. A shape is anonymous and methodless, so there is no class
+    /// label for codegen to resolve a layout through; what stands in for it is
+    /// the field's position in the shape's sorted field list, which
+    /// `mwl_types::expr_table::ExprInfo::ShapeProperty` already resolved and
+    /// which every producer of a shape value lays its slots out in. Codegen
+    /// therefore turns this straight into a load at the runtime's own
+    /// `field_offset`, with no table consulted at all.
+    ///
+    /// Borrows its receiver exactly as [`InstKind::FieldGet`] does: the slot
+    /// keeps owning what it holds, so a consumer that outlives the receiver
+    /// owes the read value a retain.
+    SlotGet {
+        /// The receiver, already lowered.
+        object: ValueId,
+        /// The field's position in the shape's sorted field list.
+        slot: u32,
+    },
     /// `$obj instanceof Class` — one linear scan of the receiver's flattened
     /// supertype set, defining a [`Ty::Bool`].
     ///
