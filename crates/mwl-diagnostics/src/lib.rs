@@ -738,14 +738,11 @@ pub mod code {
     /// § 1 deliberately leaves the `SomeClass|null` union spelling out of the
     /// form.
     ///
-    /// The one exception is that ADR's **parse roster** —
-    /// `mwl_stdlib::registry::PARSE_ROSTER`, today `Core\Uri` and `Core\Uuid`
-    /// — where `as ?T` is defined directly as "that type's `parse`, and
-    /// `null` where it throws". Turning text into a value is a different
-    /// question from class membership, which is why the roster does not
-    /// reopen the row. A roster target reached from an operand that is not
-    /// text takes this same code, with its own wording: there is no `parse`
-    /// to reach.
+    /// **There are no exceptions**, including `Core\Uri` and `Core\Uuid`.
+    /// An earlier revision of that ADR admitted those two as a *parse roster*
+    /// where `$s as ?Core\Uri` compiled; § 3 withdrew it, and § 3a's
+    /// `Core\Uri::tryParse` is the member that answers a parse instead — which
+    /// the help names for a class in `mwl_stdlib::registry::TRY_PARSE_CLASSES`.
     pub const E_CLASS_CONVERSION_TARGET: Code = Code::new("E0473");
 
     // --- E05xx IR and codegen ----------------------------------------------

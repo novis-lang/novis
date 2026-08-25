@@ -110,11 +110,10 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy};
 /// every [`CoreTy::Instance`] naming it cannot drift apart.
 pub const NAME: &str = r"Core\Uuid";
 
-/// `Core\Uuid`'s registry rows — § 11's second table's three static members,
+/// `Core\Uuid`'s registry rows — § 11's second table's four static members,
 /// plus the rendering member that section's table now writes. `isValid` was a
-/// fourth until ADR 0066 § 3 replaced it with `$s as ?Uuid`; the symbol that
-/// answers that conversion is [`crate::registry::PARSE_ROSTER`]'s, and is
-/// deliberately not a member row.
+/// fifth until ADR 0066 § 3b deleted it: `tryParse` is that question asked
+/// through `parse` itself, so the two were one predicate and R17 keeps one.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -138,6 +137,13 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "mwl_core_uuid_parse",
+        },
+        CoreMethod {
+            name: "tryParse",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
+            symbol: "mwl_core_uuid_try_parse",
         },
     ],
     instance: &[CoreMethod {
@@ -163,7 +169,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_uuid_v4" => (mwl_core_uuid_v4 as *const ()).cast(),
         "mwl_core_uuid_v7" => (mwl_core_uuid_v7 as *const ()).cast(),
         "mwl_core_uuid_parse" => (mwl_core_uuid_parse as *const ()).cast(),
-        "mwl_core_uuid_parse_or_null" => (mwl_core_uuid_parse_or_null as *const ()).cast(),
+        "mwl_core_uuid_try_parse" => (mwl_core_uuid_try_parse as *const ()).cast(),
         "mwl_core_uuid_to_string" => (mwl_core_uuid_to_string as *const ()).cast(),
         _ => return None,
     })
@@ -325,7 +331,7 @@ mwl_runtime::mwl_helper! {
     /// **Throws on anything else** (ADR 0063 R4), which is what makes the
     /// return type `Uuid` rather than `?Uuid`: a caller asking to *parse* has
     /// asserted that the text is one, and the non-throwing question is
-    /// `$s as ?Uuid` beside it. The message quotes the offending text,
+    /// [`mwl_core_uuid_try_parse`] beside it. The message quotes the text,
     /// bounded, so a log line cannot be flooded through it.
     fn mwl_core_uuid_parse(_ctx, args: [1]) {
         let text = text_of(args, "parse")?;
@@ -342,19 +348,21 @@ mwl_runtime::mwl_helper! {
 }
 
 mwl_runtime::mwl_helper! {
-    /// `$text as ?Core\Uuid` —
+    /// `Core\Uuid::tryParse(string $s): ?Uuid` —
     /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
-    /// §§ 1, 3's parse-roster entry point: [`mwl_core_uuid_parse`] exactly,
-    /// with `null` where it throws.
+    /// § 3a: [`mwl_core_uuid_parse`] exactly, with `null` where it throws.
     ///
-    /// **Not a member.** This replaces the `isValid` that used to sit here,
-    /// which was already [`read`] asked without the throw — so there is still
-    /// one definition of "is a UUID", now with one spelling instead of two.
-    /// It is listed in [`crate::registry::PARSE_ROSTER`] rather than in a
-    /// [`CoreClass`]'s member roster, and no `Core\Uuid::` call site can name
-    /// it.
-    fn mwl_core_uuid_parse_or_null(_ctx, args: [1]) {
-        let text = text_of(args, "parse")?;
+    /// This replaces the `isValid` that used to sit here, which was already
+    /// [`read`] asked without the throw — so there is still one definition of
+    /// "is a UUID", now with one spelling instead of two. Both go through
+    /// [`read`], which is condition 2 of § 3a and the only one a registry test
+    /// cannot check.
+    ///
+    /// `$text as ?Core\Uuid` does **not** compile: § 3 withdrew the two-class
+    /// parse roster that spelling belonged to, and `as` targets no class at
+    /// all now. [`crate::uri`]'s module doc argues that withdrawal in full.
+    fn mwl_core_uuid_try_parse(_ctx, args: [1]) {
+        let text = text_of(args, "tryParse")?;
 
         Ok(read(text).map_or_else(Value::null, built))
     }
@@ -503,13 +511,13 @@ mod tests {
         );
     }
 
-    /// Whether `$text as ?Core\Uuid` answers a UUID rather than `null` — the
-    /// spelling ADR 0066 § 3 left standing when the roster type lost its
+    /// Whether `Core\Uuid::tryParse($text)` answers a UUID rather than `null`
+    /// — the spelling ADR 0066 § 3a left standing when this class lost its
     /// `isValid`. Releases the string this test built and whatever came back.
     fn valid(text: &str) -> bool {
         let subject = Value::str(mwl_runtime::MwlStr::new(text.as_bytes()));
-        let answer = run(super::mwl_core_uuid_parse_or_null, &[subject])
-            .expect("the roster conversion answers rather than throwing");
+        let answer = run(super::mwl_core_uuid_try_parse, &[subject])
+            .expect("`tryParse` answers rather than throwing");
         let parsed = answer.tag() != Some(mwl_runtime::Tag::Null);
         #[expect(
             unsafe_code,

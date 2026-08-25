@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::parse` reports RFC 3986's components without normalizing one of them, and `$s as ?Uri` is the same parse with `null` where it throws — spec § 12, ADR 0066 §§ 1, 3
+`Core\Uri::parse` reports RFC 3986's components without normalizing one of them, and `Uri::tryParse` is the same parse with `null` where it throws — spec § 12, ADR 0066 § 3a
 --FILE--
 <?mwl
 // § 12: every component comes back exactly as written — still
@@ -43,18 +43,18 @@ var $six = Core\Uri::parse("http://[::1]:8080/x");
 echo $six->host() as string, "\n";
 echo $six->port() as int, "\n";
 
-// ADR 0066 §§ 1, 3: `Core\Uri` is on the parse roster, so `$s as ?Uri` is
-// `parse` with `null` where it throws — and it is the *only* spelling of
-// that question, `isValid` having been deleted so a validator can never
-// drift from the parser. "Is this an absolute URI", the narrower question
-// `isValid` used to ask, is that plus one reader call.
-?Core\Uri $absolute = "https://example.com/a" as ?Core\Uri;
+// ADR 0066 § 3a: `tryParse` is `parse` with `null` where it throws — and it
+// is the *only* spelling of that question, `isValid` having been deleted so
+// a validator can never drift from the parser. "Is this an absolute URI",
+// the narrower question `isValid` used to ask, is that plus one reader call.
+// `$s as ?Core\Uri` does not compile: § 3's class row has no exceptions.
+?Core\Uri $absolute = Core\Uri::tryParse("https://example.com/a");
 if ($absolute?->scheme() != null) { echo "absolute\n"; }
-?Core\Uri $relative = "/a/b" as ?Core\Uri;
+?Core\Uri $relative = Core\Uri::tryParse("/a/b");
 if ($relative != null) {
     if ($relative->scheme() == null) { echo "a reference is not a URL\n"; }
 }
-?Core\Uri $spaced = "http://example.com/a b" as ?Core\Uri;
+?Core\Uri $spaced = Core\Uri::tryParse("http://example.com/a b");
 if ($spaced == null) { echo "a space is not a URI byte\n"; }
 --EXPECT--
 https://alice@example.COM:8443/a/b%20c?x=1&y=2#top

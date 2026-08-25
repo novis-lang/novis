@@ -737,44 +737,23 @@ pub const CLASSES: &[CoreClass] = &[
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
-/// §§ 1, 3's **parse roster**: the closed set of `Core` classes `as ?T` is
-/// defined over, each with the symbol that answers it.
+/// The `Core` classes that declare a `tryParse` beside their `parse` —
+/// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 3a's
+/// closed exception to [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+/// R5's `try…` ban.
 ///
-/// The roster's conversion is defined *directly* — "that type's `parse`, and
-/// `null` where it throws" — rather than as the non-throwing twin of an
-/// `as T` row, because ADR 0007 § 2's conversion table has no row for a class
-/// type and adding one would make `$s as Core\Uri` a second spelling of
-/// `Core\Uri::parse($s)`. So there is no `as T` form for a roster type, and
-/// `mwl_types::expr` refuses `as ?T` into every class name that is *not*
-/// here — the class row at the foot of that ADR's § 3 table.
+/// A **list, not a roster**: unlike [`CONSTRUCTORS`] this drives nothing at
+/// run time, because `tryParse` is an ordinary member with an ordinary symbol
+/// that an ordinary `Core\Uri::tryParse($s)` call site resolves. It exists so
+/// `a_try_parse_is_its_own_class_parse_made_nullable` can hold § 3a's three
+/// conditions mechanically, and so a class added here has to be added
+/// deliberately rather than by writing a member with a suggestive name.
 ///
-/// Membership requires a `parse` taking **exactly one `string`** that can
-/// fail; `Core\Time::parse` and `Core\Csv::parse` take a format or an options
-/// bag and stay member calls. `parse_roster_symbol_shadows_no_member` and
-/// `a_parse_roster_class_declares_no_is_valid_member` hold both halves of
-/// what that costs: the symbol is reachable only through the conversion, and
-/// the `isValid` the roster type used to carry is gone, since it and
-/// `$s as ?T != null` are one predicate asked twice.
-///
-/// The symbols are **not members** and are therefore absent from
-/// [`CoreClass::methods`]: nothing a `Core\Uri::` call site writes can name
-/// one. [`crate::symbols`] chains them in beside [`CONSTRUCTORS`] for the
-/// same reason it chains those — the JIT still has to resolve the address.
-pub const PARSE_ROSTER: &[(&str, &str)] = &[
-    (crate::uri::NAME, "mwl_core_uri_parse_or_null"),
-    (crate::uuid::NAME, "mwl_core_uuid_parse_or_null"),
-];
-
-/// The symbol `$s as ?{class}` lowers to, or `None` for a class name that is
-/// not on [`PARSE_ROSTER`] — which is every class but two, and is what makes
-/// the conversion a compile error there.
-#[must_use]
-pub fn parse_roster_symbol(class: &str) -> Option<&'static str> {
-    PARSE_ROSTER
-        .iter()
-        .find(|(name, _)| *name == class)
-        .map(|(_, symbol)| *symbol)
-}
+/// This replaces the withdrawn `PARSE_ROSTER`, which carried one **non**-member
+/// symbol per class for `$s as ?Core\Uri` to lower to. ADR 0066 § 3 withdrew
+/// that form: `as` never targets a class now, with no exceptions, so nothing
+/// here is chained into [`crate::symbols`] and `mwl-ir` has no roster to read.
+pub const TRY_PARSE_CLASSES: &[&str] = &[crate::uri::NAME, crate::uuid::NAME];
 
 /// Every `Core` class a program may write `new` on, with the constructor that
 /// builds one — `docs/spec/01-core-library.md` § 9's collections and nothing
@@ -978,18 +957,18 @@ pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {
 mod tests {
     use super::*;
 
-    /// ADR 0066 § 3: "Each roster type therefore loses its `isValid` member",
-    /// because `Core\Uri::isValid($s)` and `$s as ?Core\Uri != null` are one
-    /// predicate and R17 keeps one spelling of it. Named for `Core\Uri`
-    /// because that is the one where the deletion cost something: its
-    /// `isValid` asked the *narrower* "is this an absolute URI", which is now
-    /// `->scheme() != null` on the parsed value — one reader call rather than
-    /// a second implementation of the grammar, which is the drift ADR 0066
-    /// cites CVE-2024-5458 for.
+    /// ADR 0066 § 3b: a class with a `tryParse` declares no `isValid`,
+    /// because `Core\Uri::isValid($s)` and `Core\Uri::tryParse($s) != null`
+    /// are one predicate and R17 keeps one spelling of it. Named for
+    /// `Core\Uri` because that is the one where the deletion cost something:
+    /// its `isValid` asked the *narrower* "is this an absolute URI", which is
+    /// now `->scheme() != null` on the parsed value — one reader call rather
+    /// than a second implementation of the grammar, which is the drift
+    /// ADR 0066 cites CVE-2024-5458 for.
     #[test]
     fn core_uri_declares_no_is_valid_member() {
-        for (name, _) in PARSE_ROSTER {
-            let class = class(name).expect("a roster class is registered");
+        for name in TRY_PARSE_CLASSES {
+            let class = class(name).expect("a `tryParse` class is registered");
             assert!(
                 class.members().all(|method| method.name != "isValid"),
                 "{name} still declares `isValid`"
@@ -997,35 +976,66 @@ mod tests {
         }
     }
 
-    /// The other half of the same rule: a roster type joins by having a
-    /// `parse` that takes exactly one `string` and can fail, and its
-    /// conversion symbol is **not** a member — no `Core\Uri::` call site may
-    /// name it.
+    /// ADR 0066 § 3a's three conditions, held mechanically: the class has a
+    /// `parse` taking exactly one `string` and answering with one of itself,
+    /// its `tryParse` takes the same one `string` and answers the **nullable**
+    /// of that, and the spelling is `tryParse` — the only `try…` R5 admits.
+    ///
+    /// What this cannot check is condition 2, that `tryParse` *is* `parse`
+    /// plus a caught throw rather than a second implementation. That one is
+    /// held by each helper being three lines over the other's own reader, and
+    /// by the conformance cases asserting the two agree on the same inputs.
     #[test]
-    fn a_parse_roster_class_parses_one_string_and_hides_its_symbol() {
-        let members: Vec<&str> = CLASSES
-            .iter()
-            .flat_map(CoreClass::members)
-            .map(|method| method.symbol)
-            .collect();
-        for (name, symbol) in PARSE_ROSTER {
-            let class = class(name).expect("a roster class is registered");
-            let parse = class
-                .members()
-                .find(|method| method.name == "parse")
-                .unwrap_or_else(|| panic!("{name} is on the parse roster without a `parse`"));
-            assert!(
-                matches!(parse.params, [CoreTy::Str]),
-                "{name}::parse takes something other than one `string`"
-            );
+    fn a_try_parse_is_its_own_class_parse_made_nullable() {
+        for name in TRY_PARSE_CLASSES {
+            let class = class(name).expect("a `tryParse` class is registered");
+            let member = |wanted: &str| {
+                class
+                    .members()
+                    .find(|method| method.name == wanted)
+                    .unwrap_or_else(|| panic!("{name} declares no `{wanted}`"))
+            };
+            let (parse, try_parse) = (member("parse"), member("tryParse"));
+            for (method, what) in [(parse, "parse"), (try_parse, "tryParse")] {
+                assert!(
+                    matches!(method.params, [CoreTy::Str]),
+                    "{name}::{what} takes something other than one `string`"
+                );
+            }
             assert!(
                 matches!(parse.return_ty, CoreTy::Instance(answered) if answered == *name),
                 "{name}::parse does not answer with one"
             );
             assert!(
-                !members.contains(symbol),
-                "{symbol} is reachable as a member, so `Core` has two spellings of one parse"
+                matches!(
+                    try_parse.return_ty,
+                    CoreTy::Nullable(CoreTy::Instance(answered)) if answered == name
+                ),
+                "{name}::tryParse does not answer `?{name}`"
             );
+        }
+    }
+
+    /// R5's ban is otherwise total: `tryParse` is the one `try…` in the whole
+    /// registry, and `…OrNull`, `…Safe` and `…Ex` have no members at all. A
+    /// name is worth this much because the ban is what stops the exception
+    /// growing back into PHP's `from`/`tryFrom` habit one member at a time.
+    #[test]
+    fn no_member_spells_a_banned_non_throwing_variant() {
+        for class in CLASSES {
+            for method in class.members() {
+                let name = method.name;
+                assert!(
+                    !(name.starts_with("try") && name != "tryParse"),
+                    "{}::{name} spells a `try…` ADR 0063 R5 bans",
+                    class.name
+                );
+                assert!(
+                    !name.ends_with("OrNull") && !name.ends_with("Safe") && !name.ends_with("Ex"),
+                    "{}::{name} spells a non-throwing variant ADR 0063 R5 bans",
+                    class.name
+                );
+            }
         }
     }
 

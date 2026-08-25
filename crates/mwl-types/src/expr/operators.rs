@@ -23,8 +23,8 @@
 //! [`reject_impossible_literal_conversion`] for a conversion whose operand
 //! already names a value the target's closed set does not contain), plus
 //! ADR 0066 § 3's target rule for `as ?T`
-//! ([`check_class_target_conversion`]: a class target is refused, and its
-//! parse roster is the exception it records for `mwl_ir` to lower); what a
+//! ([`check_class_target_conversion`]: every class target is refused, with no
+//! exceptions — § 3a's `tryParse` is the member that answers instead); what a
 //! conversion does to a qualifier is [`super::quals`], and what its target type
 //! may be spelled as is [`crate::lower`].
 //!
@@ -79,7 +79,7 @@ pub(super) fn infer_conversion(
     if matches!(env.interner.get(result), Ty::String) {
         require_stringable(inner_ty, inner.span, env);
     }
-    check_class_target_conversion(ty, inner_ty, result, expr.span, env);
+    check_class_target_conversion(ty, result, expr.span, env);
     reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
     reject_secret_markup_conversion(inner_ty, result, expr.span, env);
     reject_non_literal_markup_conversion(inner, result, expr.span, env);
@@ -644,13 +644,20 @@ pub(super) fn reject_arithmetic_on_object(op: UnaryOp, ty: TypeId, span: Span, e
 }
 
 /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 3's
-/// last table row and the **parse-roster** row above it, which are one
-/// decision read twice: `$obj as ?SomeClass` is a compile error because
-/// `instanceof` plus ADR 0007 § 6's narrowing already answers class
-/// membership, while `$s as ?Core\Uri` and `$s as ?Core\Uuid` are the closed
-/// roster that ADR defines directly as "that type's `parse`, and `null` where
-/// it throws". Turning text into a value is a different question from class
-/// membership, which is why the roster does not reopen the row.
+/// class row, which is **absolute**: `as` converts between the types ADR 0007
+/// § 2 tabulates and ADR 0047's literal and enum-case types, and none of those
+/// is a class. `$obj as ?SomeClass` asks class membership, which `instanceof`
+/// plus ADR 0007 § 6's narrowing already answers; `$s as ?Core\Uri` asks for a
+/// parse, which is that class's own `tryParse` (§ 3a).
+///
+/// That second half is a **reversal**. § 3 first admitted a closed two-class
+/// *parse roster* — `Core\Uri` and `Core\Uuid` — and this function recorded an
+/// `ExprInfo` for it that `mwl-ir` lowered to one non-member `CoreCall`. The
+/// ADR withdrew it: `as?` spells a downcast everywhere a reader has met it, so
+/// spelling a parse that way inverted the syntax's one intuition for exactly
+/// two memorized names, and it never removed the second spelling it was
+/// justified by removing. So there is no roster to consult here any more, and
+/// nothing to record — a class target is one diagnostic, always.
 ///
 /// Keyed on the **written `?T` sugar**, not on the interned target: § 1
 /// deliberately leaves the `Core\Uri|null` union spelling out of the form, so
@@ -658,50 +665,34 @@ pub(super) fn reject_arithmetic_on_object(op: UnaryOp, ty: TypeId, span: Span, e
 /// plain `as SomeClass` is left alone too — that is ADR 0007 § 2's table
 /// having no row for a class type, which is a separate refusal this slice
 /// does not add.
-///
-/// Recording [`ExprInfo::ParseRosterConversion`] is the other half of the
-/// job, and it is what `mwl_ir` lowers from: nothing survives into
-/// `mwl_ir::ty::Ty` that says which class was written, and the roster is
-/// `mwl_stdlib`'s to state, so the symbol travels through the table the way
-/// [`ExprInfo::SecretEquality`] travels.
-fn check_class_target_conversion(
-    ty: &Type,
-    from: TypeId,
-    to: TypeId,
-    span: Span,
-    env: &mut Env<'_>,
-) {
+fn check_class_target_conversion(ty: &Type, to: TypeId, span: Span, env: &mut Env<'_>) {
     if !is_written_nullable(ty) {
         return;
     }
     let Some(class) = nullable_class_target(to, env) else {
         return;
     };
-    let roster = mwl_stdlib::registry::parse_roster_symbol(&class);
-    if let Some(symbol) = roster
-        && operand_is_text(from, env.interner)
-    {
-        env.exprs
-            .record(span, ExprInfo::ParseRosterConversion { symbol });
-        return;
-    }
-    let (message, help) = if roster.is_some() {
-        let described = env.interner.describe(from);
-        (
-            format!("`{described}` is not text, so there is no `{class}` to parse out of it"),
-            "`as ?T` over a parse-roster type reads a `string` — convert the operand to one first",
+    // `Core\Uri` and `Core\Uuid` reach this arm like every other class, and
+    // the help names `tryParse` for them because that is the member ADR 0066
+    // § 3a leaves standing — the whole point of the withdrawal is that they
+    // are not special here.
+    let help = if mwl_stdlib::registry::TRY_PARSE_CLASSES.contains(&class.as_str()) {
+        format!(
+            "text becomes one through `{class}::tryParse($s)`, which answers `null` rather \
+             than throwing"
         )
     } else {
-        (
-            format!("`{class}` is a class, so `as ?{class}` is not a conversion"),
-            "ask `$x instanceof Name` and use the value the test narrows; text becomes a value \
-             through that class's own named constructor",
-        )
+        "ask `$x instanceof Name` and use the value the test narrows; text becomes a value \
+         through that class's own named constructor"
+            .to_owned()
     };
     env.diags.report(
-        Diagnostic::error(code::E_CLASS_CONVERSION_TARGET, message)
-            .with_primary(span, "converted here")
-            .with_help(help),
+        Diagnostic::error(
+            code::E_CLASS_CONVERSION_TARGET,
+            format!("`{class}` is a class, so `as ?{class}` is not a conversion"),
+        )
+        .with_primary(span, "converted here")
+        .with_help(help),
     );
 }
 
@@ -738,29 +729,6 @@ fn nullable_class_target(to: TypeId, env: &Env<'_>) -> Option<String> {
         Ty::Class(name, _) => Some(name.to_string()),
         _ => None,
     }
-}
-
-/// Whether an operand is text a roster type's `parse` can read — ADR 0066
-/// § 3's row says "a `string` operand", and its `mixed` row says every target
-/// has a checked path from there.
-///
-/// All four qualified spellings are text, and the qualifier is not this
-/// conversion's question: `as ?Core\Uri` *is* `Core\Uri::parse`, so whatever
-/// that member does with a `tainted` argument it does here too. Classifying
-/// a `Core` parameter's qualifier at all is
-/// [ADR 0088](../../../docs/adr/0088-taint-carriers-and-sinks.md)'s
-/// registry-wide item, still open, and closing it closes both spellings at
-/// once rather than one of them here.
-fn operand_is_text(from: TypeId, interner: &TypeInterner) -> bool {
-    matches!(
-        interner.get(from),
-        Ty::String
-            | Ty::TaintedString
-            | Ty::SecretString
-            | Ty::SecretTaintedString
-            | Ty::StringLiteral(_)
-            | Ty::Mixed
-    )
 }
 
 /// ADR 0010 § 5: "`EnumName` → a different `EnumName`, even with the same

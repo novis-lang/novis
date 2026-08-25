@@ -59,14 +59,22 @@
 //!
 //! Neither decoder is a *validator*. `decodeComponent` will happily decode text
 //! that could never have appeared in a URI; asking whether something is a URI
-//! is `$text as ?Uri`, which is `parse` with `null` where it throws
-//! ([ADR 0066 §§ 1, 3](../../../../docs/adr/0066-nullable-conversion-operator.md)).
-//! **There is no `Uri::isValid`** — it and `$text as ?Uri != null` are one
-//! predicate, and R17 keeps one of them. Which one is not arbitrary: a
+//! is `Uri::tryParse($text)`, which is `parse` with `null` where it throws
+//! ([ADR 0066 § 3a](../../../../docs/adr/0066-nullable-conversion-operator.md)).
+//! **There is no `Uri::isValid`** — it and `Uri::tryParse($text) != null` are
+//! one predicate, and R17 keeps one of them. Which one is not arbitrary: a
 //! validator that is a *separate implementation* from the parser is how
 //! PHP's `filter_var(FILTER_VALIDATE_URL)` came to accept user-info that
 //! `parse_url` read differently (CVE-2024-5458), so the surviving spelling is
 //! the one that cannot drift from `parse` because it *is* `parse`.
+//!
+//! **`$text as ?Uri` does not compile**, and an earlier revision of ADR 0066
+//! said it did. Its § 3 withdrew that closed two-class "parse roster": `as?`
+//! spells a *downcast* in every language a reader arrives from, so spelling a
+//! parse that way inverted the one intuition the syntax carried — and it never
+//! removed the second spelling it was justified by removing, since
+//! `Uri::parse` and `$s as ?Uri` both existed. `as` now targets no class at
+//! all, and `tryParse` is R5's one admitted `try…`.
 //!
 //! # Comparison normalizes; `parse` still reports
 //!
@@ -237,7 +245,7 @@
 //!
 //! **"Is this an absolute URI" is a second question, and it has no member.**
 //! It is `parse` succeeding *and* a scheme being present —
-//! `($s as ?Uri)?->scheme() != null` — which is what
+//! `Uri::tryParse($s)?->scheme() != null` — which is what
 //! `filter_var(…, FILTER_VALIDATE_URL)` is actually asked. The answer differs
 //! from PHP's in both directions and deliberately: PHP accepts a space in a
 //! path and this refuses it, PHP refuses a URI whose host is empty and this
@@ -341,6 +349,13 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "mwl_core_uri_parse",
+        },
+        CoreMethod {
+            name: "tryParse",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
+            symbol: "mwl_core_uri_try_parse",
         },
         CoreMethod {
             name: "encodeComponent",
@@ -525,7 +540,7 @@ const FRAGMENT_SLOT: usize = 7;
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "mwl_core_uri_parse" => (mwl_core_uri_parse as *const ()).cast(),
-        "mwl_core_uri_parse_or_null" => (mwl_core_uri_parse_or_null as *const ()).cast(),
+        "mwl_core_uri_try_parse" => (mwl_core_uri_try_parse as *const ()).cast(),
         "mwl_core_uri_scheme" => (mwl_core_uri_scheme as *const ()).cast(),
         "mwl_core_uri_user_info" => (mwl_core_uri_user_info as *const ()).cast(),
         "mwl_core_uri_host" => (mwl_core_uri_host as *const ()).cast(),
@@ -1407,27 +1422,30 @@ mwl_runtime::mwl_helper! {
 }
 
 mwl_runtime::mwl_helper! {
-    /// `$text as ?Core\Uri` —
+    /// `Core\Uri::tryParse(string $uri): ?Uri` —
     /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
-    /// §§ 1, 3's parse-roster entry point: [`mwl_core_uri_parse`] exactly,
-    /// with `null` where it throws.
+    /// § 3a: [`mwl_core_uri_parse`] exactly, with `null` where it throws.
     ///
-    /// **Not a member**, which is the whole point of the roster: R17 allows
-    /// the question "is this text a URI" one spelling, and the ADR keeps the
-    /// one that cannot drift from `parse` because it *is* `parse`. So this
-    /// symbol is reached only from `mwl_ir`'s conversion lowering, listed in
-    /// [`crate::registry::PARSE_ROSTER`] rather than in a [`CoreClass`]'s
-    /// member roster, and no `Core\Uri::` call site can name it.
+    /// It is `parse` and not a second reader, which is the whole reason R17
+    /// allows the question "is this text a URI" one spelling and this is it:
+    /// a validator written as separate code from the parser is how
+    /// `filter_var(FILTER_VALIDATE_URL)` came to accept user-info that
+    /// `parse_url` read differently (CVE-2024-5458). `Core\Uri` declares no
+    /// `isValid` for that reason, and the narrower question that one asked —
+    /// "is this an **absolute** URI" — is `tryParse($s)?->scheme() != null`.
+    ///
+    /// The name is the one `try…` [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
+    /// R5 admits, because R4's "failure throws, absence is `?T`" leaves a
+    /// class no other non-throwing spelling: `as ?T` never targets one.
     ///
     /// Only a *thrown* fault becomes `null`. A `Fault::Fatal` — a wrong
-    /// argument tag, an engine invariant — is not a failed conversion and
-    /// propagates unchanged, which is the same line ADR 0066 § 3 draws
-    /// between "a conversion that exists and failed" and everything else.
-    fn mwl_core_uri_parse_or_null(_ctx, args: [1]) {
-        let text = text_of(args, "parse")?;
+    /// argument tag, an engine invariant — is not a failed parse and
+    /// propagates unchanged.
+    fn mwl_core_uri_try_parse(_ctx, args: [1]) {
+        let text = text_of(args, "tryParse")?;
 
-        match read(text, "parse") {
-            Ok(reference) => built(&reference, "parse"),
+        match read(text, "tryParse") {
+            Ok(reference) => built(&reference, "tryParse"),
             Err(Fault::Thrown(..)) => Ok(Value::null()),
             Err(other) => Err(other),
         }

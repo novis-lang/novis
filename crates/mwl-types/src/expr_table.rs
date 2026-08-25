@@ -330,26 +330,6 @@ pub enum ExprInfo {
     /// reading: where exactly one is `secret`, § 2 has already poisoned the
     /// value that reached the other, so the pair is `secret`.
     SecretEquality,
-    /// `$s as ?Core\Uri` / `$s as ?Core\Uuid`, keyed by the whole
-    /// conversion's span —
-    /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)
-    /// §§ 1, 3's **parse roster**, which is defined directly as "that type's
-    /// `parse`, and `null` where it throws" rather than as the non-throwing
-    /// twin of a row in ADR 0007 § 2's table.
-    ///
-    /// Carries the symbol because `mwl-ir` cannot re-derive it: the target
-    /// erases to `mwl_ir::ty::Ty::Tagged`, which says a discriminant is
-    /// present and nothing about *which* class was written, and the roster
-    /// itself is `mwl_stdlib`'s to state. `mwl_types::expr` has already
-    /// refused every class target that is not on it, so the presence of this
-    /// entry is also the lowering's permission to emit the call at all —
-    /// the same relationship [`Self::SecretEquality`] has to its helper.
-    ParseRosterConversion {
-        /// `mwl_stdlib::registry::PARSE_ROSTER`'s symbol for the class
-        /// written after the `?` — an `mwl_ir::ir::InstKind::CoreCall`
-        /// target, taking the operand and answering the instance or `null`.
-        symbol: &'static str,
-    },
     /// `$x instanceof Name`, keyed by the *`instanceof` expression's* own
     /// span, whose right-hand side named a class or interface this program
     /// declares (or a reserved global one). Never recorded for the dynamic
