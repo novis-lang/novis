@@ -68,13 +68,29 @@
 //! index 0.34 ns. The assoc and iteration rows are healthy and this changes
 //! neither.
 //!
-//! **The ABI is the part that expires.** [`mwl_array_get`] and
-//! [`mwl_array_set`] take a `*const StrHeader`, so compiled code must build a
-//! key string before it calls, and a packed form would have to parse the
-//! decimal back out — pointless. `mwl_array_get_index`/`mwl_array_set_index`
-//! are a compatible addition while nothing depends on the current set, and a
-//! versioned break once [ADR 0042](../../../docs/adr/0042-on-disk-artifact-cache-format.md)
+//! **The ABI was the part that expired, and the addition has landed.**
+//! [`mwl_array_get`] and [`mwl_array_set`] take a `*const StrHeader`, so
+//! compiled code calling *those* must build a key string first and a packed
+//! form would have to parse the decimal back out — pointless. So
+//! [`mwl_array_get_index`] and [`mwl_array_set_index`] now sit beside them,
+//! taking the `i64` the subscript already was and answering from the packed
+//! form with nothing rendered and nothing allocated; they degrade to a
+//! synthesized key only where the shape is already `Hashed`, which is exactly
+//! the case that was building one anyway. They are a **compatible addition**
+//! — the key-taking pair is unchanged and still the only path for a `string`
+//! subscript — which is why this had to land while nothing depends on the
+//! current set, rather than as a versioned break once
+//! [ADR 0042](../../../docs/adr/0042-on-disk-artifact-cache-format.md)
 //! artifacts and M9's WIT signatures do.
+//!
+//! **What still calls the key-taking pair for an integer subscript is
+//! `mwl-codegen`.** `mwl_ir::lower::Lowering::lower_array_key` normalizes an
+//! `int`/`uint` subscript to its decimal string through `Helper::IntToString`
+//! before `InstKind::ArrayGet`/`ArraySet` ever reaches codegen, so the key's
+//! representation at the emit site is already `Ty::Str` and the allocation has
+//! already happened. Routing `$a[$i]` here is therefore an `mwl-ir` change —
+//! letting those two instructions carry a `Ty::Int`/`Ty::Uint` key and
+//! dispatching on it in `mwl_codegen::emit` — not a codegen-local one.
 //!
 //! What it spends, as [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)
 //! requires: **nothing — it saves.** A list drops two of its three allocations
@@ -242,12 +258,18 @@ impl Table {
     /// with it — PHP 8.3's rule, which counts a negative key too.
     fn note_key(&mut self, key: &[u8]) {
         if let Some(number) = integer_key(key) {
-            let after = number.saturating_add(1);
-            self.next_index = Some(match self.next_index {
-                None => after,
-                Some(current) => current.max(after),
-            });
+            self.note_index(number);
         }
+    }
+
+    /// The same, for a key that arrived as an integer and was never rendered —
+    /// [`Table::set_index`]'s half of [`Table::note_key`].
+    fn note_index(&mut self, number: i64) {
+        let after = number.saturating_add(1);
+        self.next_index = Some(match self.next_index {
+            None => after,
+            Some(current) => current.max(after),
+        });
     }
 
     /// How many entries the array holds — the array's `count()`.
@@ -314,6 +336,42 @@ impl Table {
             }
             return Some(std::mem::replace(&mut values[slot], value));
         }
+        self.hashed_mut().set(key, value)
+    }
+
+    /// [`Table::get`] reached by the integer the subscript already was, with
+    /// **no decimal rendered and nothing allocated** while the shape is packed
+    /// — `$a[$i]`'s whole point.
+    ///
+    /// A negative index answers `None` from the packed form directly, because
+    /// `"−1"` is a key the packed invariant forbids. Only the hash form has to
+    /// synthesize the string, and there it is what today's caller was building
+    /// anyway.
+    fn get_index(&self, index: i64) -> Option<Value> {
+        match &self.shape {
+            Shape::Packed(values) => values.get(usize::try_from(index).ok()?).copied(),
+            Shape::Hashed(hashed) => hashed.get(index.to_string().as_bytes()),
+        }
+    }
+
+    /// [`Table::set`] reached the same way, allocating no key while the shape
+    /// is packed and the write lands at an existing position or exactly the
+    /// next one. The counter is advanced from the integer itself, so a write
+    /// that *does* degrade still leaves `$a[]` appending where PHP's would.
+    fn set_index(&mut self, index: i64, value: Value) -> Option<Value> {
+        self.note_index(index);
+        if let Shape::Packed(values) = &mut self.shape
+            && let Some(slot) = usize::try_from(index)
+                .ok()
+                .filter(|slot| *slot <= values.len())
+        {
+            if slot == values.len() {
+                values.push(value);
+                return None;
+            }
+            return Some(std::mem::replace(&mut values[slot], value));
+        }
+        let key = MwlStr::new(index.to_string().as_bytes());
         self.hashed_mut().set(key, value)
     }
 
@@ -644,6 +702,32 @@ impl MwlArray {
             #[expect(
                 unsafe_code,
                 reason = "the table owned exactly one reference to the value                           this write displaced, and no longer holds it"
+            )]
+            unsafe {
+                crate::release::release_value(old);
+            }
+        }
+    }
+
+    /// The value stored at the integer key `index`, borrowed rather than
+    /// retained, and reached with no key string built at all while the array
+    /// is a list — [`mwl_array_get_index`].
+    #[must_use]
+    pub fn get_index(&self, index: i64) -> Option<Value> {
+        self.header().table.borrow().get_index(index)
+    }
+
+    /// Writes `value` at the integer key `index`, taking over its reference,
+    /// separating first if this handle is not the only owner, and building no
+    /// key string while the array is a list — [`mwl_array_set_index`].
+    pub fn set_index(&mut self, index: i64, value: Value) {
+        self.make_unique();
+        let displaced = self.header().table.borrow_mut().set_index(index, value);
+        if let Some(old) = displaced {
+            #[expect(
+                unsafe_code,
+                reason = "the table owned exactly one reference to the value \
+                          this write displaced, and no longer holds it"
             )]
             unsafe {
                 crate::release::release_value(old);
@@ -1020,6 +1104,36 @@ pub unsafe extern "C" fn mwl_array_get(
     }
 }
 
+/// Reads the entry at the integer key `index`, **without** retaining what it
+/// holds and **without rendering a key** — the `int`/`uint` half of
+/// `mwl_ir::InstKind::ArrayGet`.
+///
+/// Semantically identical to [`mwl_array_get`] called with `index`'s decimal
+/// form: `$a[8]` is `$a["8"]` (ADR 0007 § 5), and a negative index names the
+/// key `"-1"` exactly as it always did. What differs is that a list-shaped
+/// array answers straight out of its `Vec<Value>` — no decimal, no `MwlStr`,
+/// no hash — which is the saving this module's packed decision exists for.
+/// Neither the array nor the index is consumed, and the value written to `out`
+/// is *borrowed*.
+///
+/// # Safety
+///
+/// `array` must refer to a live MWL array allocation and `out` to a writable,
+/// aligned 16-byte slot.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes two raw pointers whose liveness the \
+              signature cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_array_get_index(array: *mut ArrayHeader, index: i64, out: *mut Value) {
+    #[expect(unsafe_code, reason = "the caller guarantees every pointee is live")]
+    unsafe {
+        let value = (*array).table.borrow().get_index(index).unwrap_or_default();
+        out.write(value);
+    }
+}
+
 /// Whether `key` is present — `Core\Arr::hasKey`'s entry point. Consumes
 /// nothing.
 ///
@@ -1071,6 +1185,43 @@ pub unsafe extern "C" fn mwl_array_set(
     unsafe {
         let mut handle = MwlArray::from_raw(array);
         handle.set(MwlStr::from_raw(key), value.read());
+        handle.into_raw()
+    }
+}
+
+/// Writes `value` at the integer key `index` — the `int`/`uint` half of
+/// `mwl_ir::InstKind::ArraySet`, building no key string while the array is a
+/// list.
+///
+/// Semantically identical to [`mwl_array_set`] called with `index`'s decimal
+/// form, the append counter included: a write at `8` still makes the next
+/// `$a[]` land at `9`. Consumes one reference to `array` and one to `value`,
+/// and returns the one reference to the array that now holds the entry — see
+/// [`mwl_array_set`]. The index owns nothing, so nothing about it is consumed.
+///
+/// # Safety
+///
+/// `array` must refer to a live MWL array allocation whose reference the
+/// caller owns, and `value` must own the reference it transfers.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes raw pointers whose ownership the signature \
+              cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_array_set_index(
+    array: *mut ArrayHeader,
+    index: i64,
+    value: *const Value,
+) -> *mut ArrayHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees it owns one reference to `array` and \
+                  that `value` points at a readable 16-byte slot"
+    )]
+    unsafe {
+        let mut handle = MwlArray::from_raw(array);
+        handle.set_index(index, value.read());
         handle.into_raw()
     }
 }
@@ -1255,7 +1406,7 @@ pub unsafe extern "C" fn mwl_array_value_at(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::counting_alloc::live_bytes;
+    use crate::counting_alloc::{allocated_bytes, live_bytes};
 
     fn key(text: &str) -> MwlStr {
         MwlStr::new(text.as_bytes())
@@ -1362,6 +1513,21 @@ mod tests {
                 "`{named}` presence, after {step}"
             );
         }
+        // The integer-subscript pair answers whatever the key-taking pair
+        // answers for the same key, in both shapes — the whole of its contract.
+        for index in [-1_i64, 0, 1, 2, 5, 6, 8] {
+            let rendered = index.to_string();
+            assert_eq!(
+                packed.get_index(index).and_then(Value::as_int),
+                packed.get(rendered.as_bytes()).and_then(Value::as_int),
+                "index {index} against key `{rendered}`, after {step}"
+            );
+            assert_eq!(
+                packed.get_index(index).and_then(Value::as_int),
+                hashed.get_index(index).and_then(Value::as_int),
+                "index {index}, after {step}"
+            );
+        }
     }
 
     #[test]
@@ -1418,6 +1584,83 @@ mod tests {
         assert!(list.get(b"08").is_none());
         assert!(list.get(b"x").is_none());
         assert!(!list.has_key(b"32"));
+    }
+
+    #[test]
+    fn an_integer_subscript_allocates_no_key() {
+        // The ABI claim, measured rather than asserted about. A `live_bytes`
+        // delta cannot see this one: `mwl_array_set` builds an `MwlStr` key,
+        // hands it to the packed arm, which has no use for it, and drops it
+        // again before the call returns — so the *live* delta of the key-taking
+        // path is zero too. Bytes ever allocated is the only reading that tells
+        // a transient allocation from none at all.
+        const RUN: i64 = 16;
+
+        let mut list = list_of(RUN);
+        assert!(list.is_packed(), "an appended-into array is a list");
+
+        let before = allocated_bytes();
+        for index in 0..RUN {
+            assert_eq!(
+                list.get_index(index).and_then(Value::as_int),
+                Some(index * 10)
+            );
+            list.set_index(index, Value::int(index * 10));
+        }
+        assert_eq!(
+            allocated_bytes() - before,
+            0,
+            "{RUN} integer subscripts over a list allocated something: only a \
+             key can be what it rendered"
+        );
+
+        // The same accesses spelled the way compiled code still spells them,
+        // for contrast — one key allocation per call, which is the cost the
+        // pair above exists to remove.
+        let before = allocated_bytes();
+        for index in 0..RUN {
+            let rendered = index.to_string();
+            assert_eq!(
+                list.get(rendered.as_bytes()).and_then(Value::as_int),
+                Some(index * 10)
+            );
+            list.set(key(&rendered), Value::int(index * 10));
+        }
+        assert!(
+            allocated_bytes() > before,
+            "the key-taking pair is supposed to build a key"
+        );
+
+        // Still a list, and still answering exactly what the hash form would.
+        assert!(list.is_packed(), "an in-range write keeps the packed form");
+        let mut hashed = list_of(RUN);
+        hashed.degrade();
+        agree(&list, &hashed, "a run of integer subscripts");
+
+        // A write one past the end extends the packed form; a write beyond
+        // that, or at a negative index, is a gap and degrades — the same
+        // invariant `Table::set` holds, reached without a key string.
+        let mut extended = list_of(3);
+        extended.set_index(3, Value::int(30));
+        assert!(extended.is_packed(), "the next position extends a list");
+        assert_eq!(extended.count(), 4);
+
+        let mut gapped = list_of(3);
+        gapped.set_index(5, Value::int(50));
+        assert!(!gapped.is_packed(), "a gap degrades");
+        assert_eq!(keys_of(&gapped), ["0", "1", "2", "5"]);
+        gapped.append(Value::int(60));
+        assert_eq!(
+            keys_of(&gapped),
+            ["0", "1", "2", "5", "6"],
+            "an integer-subscript write advances PHP's append counter"
+        );
+
+        let mut negative = list_of(2);
+        negative.set_index(-1, Value::int(-10));
+        assert!(!negative.is_packed(), "a negative key degrades");
+        assert_eq!(negative.get(b"-1").and_then(Value::as_int), Some(-10));
+        assert_eq!(negative.get_index(-1).and_then(Value::as_int), Some(-10));
     }
 
     #[test]
