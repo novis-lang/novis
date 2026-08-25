@@ -70,6 +70,11 @@ is why" — is this file.
 - **`/tmp` is not the same directory to Bash and to Python here.** A file written by `>` in the Bash tool is
   invisible to a `python -` heredoc in the same call, which resolves `/tmp` to `%TEMP%`. Stage a scratch
   file under `.agent-tmp/` — both halves agree on a repo-relative path.
+- **`mwl-ir` cannot name `mwl_hir::QName`** — `mwl-hir` is a *dev*-dependency there, on purpose, so a
+  lowering helper that wants one in its signature does not compile even though `mwl_types::Ty::Enum`
+  hands it a `&QName` to pattern-match. Destructure it at the call site and pass what the callee actually
+  needs (an `&EnumInfo`, or the name already rendered with `to_string`); `mwl_types` re-exports the enum
+  and layout tables but not `QName`, and adding the dependency to get one is the wrong direction.
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>`; a renamed
   test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe` takes over two minutes.
 

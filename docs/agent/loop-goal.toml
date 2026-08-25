@@ -63,13 +63,13 @@ rules = ["0090", "0094", "0069", "0047", "0007", "0035", "0010"]
 # ADR sections sliced live into the pack. `NNNN` alone is the In short block; `NNNN §N` is that
 # numbered section. Name only the sections the items actually need -- a whole ADR is 7k of context.
 adrs = [
-  "0061",
-  "0061 §1",
-  "0061 §2",
-  "0061 §4",
-  "0061 §5",
+  "0007 §2",
   "0007 §3",
   "0007 §6",
+  "0066 §1",
+  "0066 §2",
+  "0066 §3",
+  "0010 §5",
 ]
 
 # Headings of docs/agent/conventions.md naming shapes this goal will write.

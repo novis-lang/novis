@@ -149,25 +149,31 @@
 > `mwl_types::EnumTable`, which `check_program` hands back rather than dropping — rebuilding it
 > would report ADR 0010 § 1/§ 2's declaration errors twice — so `$m as Mode::Read|Mode::Write` emits
 > the same comparison chain a set of `int` literals gets, run one representation down on the enum's
-> backing integer because `mwl-codegen` has no `BinOp::Eq` row for `Ty::Enum`. What is left is the
-> *base* conversion underneath it: `Tagged`/`Int` **into** an enum has no `convert` arm, so ADR 0010
-> § 5's own row — throw on a value no case names, checked against every case of the declaration — is
-> still `mwl-ir` gap 20. **ADR 0094's levels are now enforced for a property** — `E0471` from
-> `mwl_types::expr::members::check_member_visibility`, keyed on the *accessing* class
-> (`Ctx::current_class`) and never on the receiver's type, so `$other->n` inside the declaring class
-> is legal and the same line at file scope is not; it reaches the static `Foo::$n` spelling and a
-> write through the same `PropertyAccess` span, and the one shape still outside it is a promoted
-> constructor parameter, which no table records as a property. **A method takes the same test now**
-> — `MethodSig::visibility` carries ADR 0094's level for every declaration, and
-> `mwl_types::expr::members::check_method_visibility` applies it at `$obj->m()`, `C::m()` and `new
-> C(...)` alike, so a `private` constructor is the singleton idiom it was written to be rather than
-> a keyword that means nothing; where ADR 0043 § 3's private-interface-method rule already fired,
-> that more specific diagnostic is the only one reported. **`Comparable`/`Stringable` now carry
-> their members** — `mwl_types::iter_lib` seeds all four compiler-declared interfaces rather than
-> only the two generic ones, so `Comparable` declares `compareTo(Comparable $other): int` (ADR 0013
-> § 1's `self`, at the declaration it is written on) and `Stringable` declares `toString(): string`;
-> a parameter at either type resolves its member instead of taking `E0405`, and
-> `mwl_types::conformance` now holds an implementer to a body for it, like an implementer of any
+> backing integer because `mwl-codegen` has no `BinOp::Eq` row for `Ty::Enum`. ADR 0010 § 5's other
+> direction runs too, so both sections are whole for a statically typed operand: `$n as Mode` is one
+> free `Reinterpret` — an enum is a tag over its backing integer — behind a membership chain built
+> from **every** case of the declaration rather than a subset named at the site, and an operand that
+> is not already that backing scalar is converted to it by ADR 0007 § 2's own rows first, by
+> recursion inside `convert`, so `$f as Rank` and `$s as Rank` each throw naming whichever of the
+> two steps failed. What is left is no longer about enums at all and is ADR 0007 § 2's row: a
+> `mixed` operand converts to `string` and to `decimal` and to nothing else, because `mixed as int`
+> needs a helper that *throws* where `Helper::ToIntOrNull` answers `null`, so `$any as int` and
+> `$any as Mode` alike panic naming themselves (`mwl-ir` gap 20). **ADR 0094's levels are now
+> enforced for a property** — `E0471` from `mwl_types::expr::members::check_member_visibility`,
+> keyed on the *accessing* class (`Ctx::current_class`) and never on the receiver's type, so
+> `$other->n` inside the declaring class is legal and the same line at file scope is not; it reaches
+> the static `Foo::$n` spelling and a write through the same `PropertyAccess` span, and the one
+> shape still outside it is a promoted constructor parameter, which no table records as a property.
+> **A method takes the same test now** — `MethodSig::visibility` carries ADR 0094's level for every
+> declaration, and `mwl_types::expr::members::check_method_visibility` applies it at `$obj->m()`,
+> `C::m()` and `new C(...)` alike, so a `private` constructor is the singleton idiom it was written
+> to be rather than a keyword that means nothing; where ADR 0043 § 3's private-interface-method rule
+> already fired, that more specific diagnostic is the only one reported. **`Comparable`/`Stringable`
+> now carry their members** — `mwl_types::iter_lib` seeds all four compiler-declared interfaces
+> rather than only the two generic ones, so `Comparable` declares `compareTo(Comparable $other):
+> int` (ADR 0013 § 1's `self`, at the declaration it is written on) and `Stringable` declares
+> `toString(): string`; a parameter at either type resolves its member instead of taking `E0405`,
+> and `mwl_types::conformance` now holds an implementer to a body for it, like an implementer of any
 > other interface. **`instanceof` against one of those four now runs**:
 > `mwl_types::layout::build_class_layouts` seeds a layout for every `mwl_hir::interfaces::RESERVED`
 > name the way it already seeds the exception tree, so a descriptor exists for `mwl-codegen` to bake

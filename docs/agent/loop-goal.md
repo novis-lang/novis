@@ -57,9 +57,16 @@ one is how an item finishes.
    numeric to the `f64` it coincides with so the set index agrees with the comparison. That decides
    `Core\Arr` too — `contains([1.0], 1)` is `true` — under the strict-identity standing decision below,
    and `mwl_runtime::identity`'s own module doc owns every row of it.
-5. **ADR 0047 § 4 — the literal and enum-case type atoms are checked** (M2). They have parsed since M1 and
-   `mwl_types::lower` refuses all three by name; that ADR's *Verification* names the step its own table
-   understates.
+5. ~~**ADR 0047 § 4 — the literal and enum-case type atoms are checked** (M2).~~ **Done.** All three
+   atoms intern (`Ty::StringLiteral`, `Ty::IntLiteral`, `Ty::EnumCase`), § 4's assignability widens each
+   to its base by one recursion, § 6 refuses a conversion the operand's own value disproves (`E0469`/
+   `E0470`), and § 5 costs nothing until a checked `as`: a union whose members share one representation
+   erases to it, and `lower_literal_membership` emits one comparison per member with the accepted set
+   named at the throw. ADR 0010 § 5 rides the same chain in both directions — an enum out to its backing
+   integer, and an integer back in, checked against every case of the declaration. What is left belongs
+   to **ADR 0007 § 2** rather than to either of them: a `mixed` operand converts to `string` and to
+   `decimal` and to nothing else, because `mixed as int` needs a helper that throws where
+   `Helper::ToIntOrNull` answers `null` (`mwl-ir` gap 20).
 6. ~~**`private`/`protected` are enforced** (M2).~~ **Done.** `E0471` from
    `mwl_types::expr::members::check_member_visibility`, keyed on the accessing class
    (`Ctx::current_class`) and never on the receiver's static type, so a second instance of the declaring
