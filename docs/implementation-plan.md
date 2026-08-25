@@ -155,10 +155,14 @@
 > from **every** case of the declaration rather than a subset named at the site, and an operand that
 > is not already that backing scalar is converted to it by ADR 0007 § 2's own rows first, by
 > recursion inside `convert`, so `$f as Rank` and `$s as Rank` each throw naming whichever of the
-> two steps failed. What is left is no longer about enums at all and is ADR 0007 § 2's row: a
-> `mixed` operand converts to `string` and to `decimal` and to nothing else, because `mixed as int`
-> needs a helper that *throws* where `Helper::ToIntOrNull` answers `null`, so `$any as int` and
-> `$any as Mode` alike panic naming themselves (`mwl-ir` gap 20). **ADR 0094's levels are now
+> two steps failed. **ADR 0007 § 2's `mixed` rows run too**: `Helper::TaggedToInt` and its unsigned
+> and `float` twins throw exactly where `Helper::ToIntOrNull` answers `null`, over one shared row
+> set in `mwl_runtime`, so `$any as int` runs — and `$any as Mode` runs through it, because an enum
+> target converts the operand to its backing scalar *before* the membership chain, which is what
+> makes ADR 0010 § 5's own `Core\Request::query('status') as Status` example turn a run-time string
+> into a case whose value is an integer. A set of plain literals keeps the opposite order, for the
+> reason `1 as "1"|"b"` needs it. What still panics is ADR 0009 § 3's `string` ↔ `bytes` pair and
+> `array<T> as array<U>` (`mwl-ir` gap 20). **ADR 0094's levels are now
 > enforced for a property** — `E0471` from `mwl_types::expr::members::check_member_visibility`,
 > keyed on the *accessing* class (`Ctx::current_class`) and never on the receiver's type, so
 > `$other->n` inside the declaring class is legal and the same line at file scope is not; it reaches

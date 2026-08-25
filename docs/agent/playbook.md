@@ -61,9 +61,13 @@ is why" — is this file.
 - **After touching either spec file, `python tools/check-migration.py`**; after moving or renaming any doc,
   `python tools/check-links.py` — broken *and* mis-cased relative links.
 - **A moved module takes its `insta` snapshots with it** — they resolve relative to the module's own file.
-- **A plan status field is *one line* on disk, however `orient.py` wrapped it.** `plan.py --get` hands back
-  that single line; an anchor copied out of the orientation's re-wrapped rendering will never match, and
-  `--set` then silently rewrites the field unchanged. Edit what `--get` produced, in place.
+- **A plan status field is *one* logical line, and three renderings of it disagree.** `plan.py --get`
+  hands back the unwrapped line, `orient.py` re-wraps it again, and on disk it is a `> `-prefixed
+  blockquote wrapped at ~100 columns. So an anchor copied out of either *rendering* never matches the
+  file: to change one sentence with the Edit tool, `grep -o` the phrase in `docs/implementation-plan.md`
+  and copy the `> `-prefixed lines around it. `plan.py --set FIELD --from <file>` rewrites the whole
+  field from a file written with the Write tool, which is the other way and the only one for a field-wide
+  change.
 - **Making a type `pub` owes it a `#[derive(Debug)]`.** The workspace denies `missing_debug_implementations`,
   so promoting a private struct to the public API compiles and then fails at clippy — step 3 of four, after
   the tests have already run. Add the derive in the same edit as the `pub`, not after `verify.py` says so.

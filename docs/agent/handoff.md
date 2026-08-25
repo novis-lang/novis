@@ -2,70 +2,57 @@
 
 ## State
 
-**ADR 0010 § 5 runs in both directions, so ADR 0047 § 5 and it are whole for a statically typed operand.**
-`$n as Mode` is one free `InstKind::Reinterpret` — an enum is a zero-byte tag over its backing integer —
-behind the same membership chain ADR 0047 § 3's named subset gets, built from **every** case of the
-declaration (`lower::whole_enum_set`, sorted by the case's constant because `EnumInfo::cases` is a hash
-map and an unsorted throw message could not be pinned). An operand that is not already the backing scalar
-is converted to it by ADR 0007 § 2's own rows first, by recursion inside `Lowering::convert` rather than a
-row per source, so `$f as Rank` and `$s as Rank` each throw naming whichever of the two steps failed. An
-operand already at the enum's own representation skips the chain: two *different* enums are never
-interconvertible, so it names a case by construction. `crates/mwl-ir/src/lib.rs:306` (gap 20) owns the
-design.
+**ADR 0007 § 2's conversion table now runs for every scalar source, `mixed` included, so `mwl-ir` gap 20
+is down to its two non-scalar rows.** `$any as int`/`as uint`/`as float` are `Helper::TaggedToInt` and its
+two twins — one helper per *target*, dispatching on the operand's runtime tag, throwing exactly where
+ADR 0066's `Helper::ToIntOrNull` answers `null` over the same row set in `mwl_runtime`
+(`helpers.rs:396`'s `to_int` is that set; `to_decimal`'s two-entry-point arrangement is what it now
+copies). What still panics in `Lowering::convert` is ADR 0009 § 3's `string` ↔ `bytes` pair and
+`array<T> as array<U>`.
 
-**What is left is not about enums.** A `Ty::Tagged` operand converts to `string` and to `decimal` and to
-nothing else, so `$any as int`, `$any as Mode` and `$any as Mode::Read|Mode::Write` all panic in
-`Lowering::convert` (the last only after running its membership test correctly). That is ADR 0007 § 2's
-row, and it is the next group.
+**One ordering rule changed with it, and it is the part to know.** A `Ty::Tagged` operand into a
+**literal** set is still tested against its own runtime tag *before* the base conversion, so
+`1 as "1"|"b"` throws rather than being rendered into the set. An **enum** target is now the opposite:
+the operand converts to the enum's backing scalar first and the membership chain compares two integers,
+because ADR 0010 § 5 words that row as "exactly the shape `as uint` already has for untrusted input" and
+its own example converts `Core\Request::query('status')` — a string at run time — into a case whose value
+is an integer. `lower/expr.rs:3052` is the branch; its comment owns why.
 
-`python tools/verify.py` green, 1393 tests; 359 conformance cases pass. Striking `loop-goal.md`
-§ *Stage 0* item 5 **empties Stage 0** — all nine are done, so the group after the one below is the first
-that comes from Stage 3 again (`examples/collect.mwl`, and `Core\Path` is its cheapest slice). The group
-below is still worth taking first: it is three files, it closes gap 20, and every consumer of untyped
-input needs it — `Core\Request::query`, `Core\Script::args` and `Core\Json::decode` all hand back `mixed`,
-and today nothing can convert one to an `int`.
+`python tools/verify.py` green, 1393 tests. Stage 0 is empty, so the group after the one below is the
+first to come from Stage 3 (`examples/collect.mwl`; `Core\Path` is its cheapest slice). **No conformance
+case covers any of the above yet** — that is the group below, and it is why it comes first.
 
-## Next group — ADR 0007 § 2's checked `mixed` → scalar rows (`mwl-ir` gap 20's remainder)
+## Next group — conformance cases for the `mixed` → scalar and `mixed` → enum rows
 
-**Shared file set:** `crates/mwl-runtime/src/helpers.rs` and `crates/mwl-ir/src/ir.rs` for the first,
-`crates/mwl-ir/src/lower/expr.rs` and `crates/mwl-codegen/src/emit.rs` for the second, then
-`tests/conformance/lang/` for the cases. ADR 0066's non-throwing twin already exists at every anchor
-below, so each edit is a sibling of a line already there.
+**Shared file set:** `tests/conformance/lang/` only. Both cases are new files, picked up with no
+registration. Read the throw messages off `crates/mwl-runtime/src/helpers.rs:432` (`"cannot convert this
+value to \`int\`"`) rather than guessing them, and copy the caught-throw shape from
+`tests/conformance/lang/a-lossy-conversion-throws.mwlt` — `catch` and `$e->message` do not lower at file
+scope (playbook).
 
-- [ ] **Three throwing helpers beside `Helper::ToIntOrNull`'s three.** `helpers.rs:389`'s `to_int` is the
-      row set (it answers `Value::null()` on a miss); the throwing form is the same dispatch with
-      `does_not_fit` at the far end, exactly as `mwl_str_to_int` (`helpers.rs:333`) does for a `string`.
-      Register each in the symbol table beside `mwl_to_int_or_null` (`helpers.rs:902`), and declare
-      `TaggedToInt`/`TaggedToUint`/`TaggedToFloat` beside `Helper::TaggedToString` (`ir.rs:1136`).
-- [ ] **Wire them into `convert` and codegen.** The checked-row `match` arm is `lower/expr.rs:743` and the
-      helper pick is the `match (from, to)` under it at `:760`; adding `Ty::Tagged` to the source set of
-      the `→ Int|Uint|Float` rows is the whole change, and the `_ => panic!` at `:784` then names only
-      genuinely unmodeled pairs. Symbol names go beside `Helper::TaggedToString` at `emit.rs:2154`.
-      Nothing releases the operand — a `Ty::Tagged` payload is refcounted, so it takes the same
-      `is_aliasing_read` release the `(Ty::Tagged, Ty::Str)` row at `:688` already writes.
-- [ ] **Conformance cases.** ADR 0007 § 6's own headline —
-      `uint $id = Core\Request::query('id') as uint;` — is the shape: a `mixed` holding `"abc"`, `-1` and
-      `""` each throws rather than becoming `0`. Put one beside
-      `tests/conformance/lang/a-lossy-conversion-throws.mwlt`, and one in `tests/conformance/enum/` for
-      `$any as Mode` and `$any as Mode::Read|Mode::Write`, which is what closes gap 20. Then rewrite
-      gap 20 as closed; nothing in `loop-goal.md` needs striking, since Stage 0 is already empty.
+- [ ] **`a-mixed-value-converts-to-a-scalar-on-request.mwlt`** — ADR 0007 § 6's headline shape without a
+      request: a `mixed` holding `"42"`, `2.5` and `7` into `int`/`float`/`uint`, each throw named, and
+      the `as ?int ?? -1` twin beside it so the pair reads as one operation. `.agent-tmp/tagged-scalar.mwl`
+      is that program already, and it runs; it needs the class-method wrapper and an `--EXPECT--` block.
+- [ ] **`a-mixed-value-converts-into-an-enum-case.mwlt`** — ADR 0010 § 5's row 2 from a `mixed`: a
+      `mixed` holding the *string* `"1"` reaching `Mode::Read` (this is the rule the ordering change above
+      exists for, and the case that pins it), a `mixed` holding `9` throwing
+      ``` `9` is not one of `Mode::Read`, `Mode::Write`, `Mode::Admin` ```, and the same two against
+      ADR 0047 § 3's named subset `Mode::Read|Mode::Write`. Enum syntax is one line —
+      `enum Mode: int { Read = 1, Write = 2 }`. Anchors: `lower/expr.rs:3052`,
+      `tests/conformance/lang/a-conversion-into-a-closed-set-of-enum-cases-is-checked-at-run-time.mwlt`.
+- [ ] **Delete `.agent-tmp/tagged-scalar.mwl` and `.agent-tmp/tagged-enum.mwl`** once both cases exist;
+      they are the same two programs and are untracked scratch.
 
 ## Backlog
 
-- ADR 0061 § 5's probe trace is produced and dropped; folding it into the cache key needs ADR 0042's
-  `PathEntry` table (`requires.rs:95`).
-- `mwl-ir` gap 22: a required file's own top-level statements, and `require` in value position.
-- `mwl-ir` gap 19: `$n + $f` and `$n < $f` still fail in codegen (ADR 0007 § 4's promotion table).
-- `examples/collect.mwl` is Stage 3's first failing fixture: `Core\Path` is the cheapest slice, then
-  `Encoding`/`Hash`/`Uuid`, then `ObjectSet`/`ObjectMap` (which need `new Core\X<T>()` to parse).
-- ADR 0088's registry-wide qualifier classification for `mwl-stdlib` member rows, with M4S.
-- `docs/spec/02-php-migration.md` is 31% classified; one pass per PHP domain remains
-  (`python tools/check-migration.py`).
+- `Core\Path`, then `Encoding`/`Hash`/`Uuid`, then `ObjectSet`/`ObjectMap` — Stage 3's
+  `examples/collect.mwl`, `docs/agent/loop-goal.md` § *Stage 3*.
+- ADR 0009 § 3's `string` ↔ `bytes` conversion rows — `mwl-ir` gap 20's remainder.
+- `array<T> as array<U>`'s O(n) element walk — ADR 0007 § 2 row 6, `mwl-ir` gap 20.
+- ADR 0007 § 4's promotion table: `$n + $f` and `$n < $f` still fail in codegen — `mwl-ir` gap 19.
+- The opaque `object` top has no representation arm — `mwl-ir` gap 21.
+- `mwl_types` does not yet refuse ADR 0066 § 3's "cannot fail" `as ?T`, so `convert_or_null` panics on it
+  — `mwl-ir` gap 20's neighbour, `lower/expr.rs`'s `convert_or_null` doc comment.
 
-## Orientation gaps
-
-Fixed this session: `[context] adrs` in `loop-goal.toml` still selected ADR 0061's sections two groups
-after that work landed, so this group paid for ADR 0010 § 5 not being printed and worked from gap 20's
-restatement instead. It now selects `0007 §2`, `0007 §3`, `0007 §6`, `0066 §§1-3` and `0010 §5`, which is
-the next group's set. **Swap it again when the group changes** — a stale `adrs` list is the one manifest
-field that silently costs every session the same slice.
+`orient.py` printed everything this group needed; no `[context]` field was missing a selector.
