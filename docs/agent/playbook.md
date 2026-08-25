@@ -303,6 +303,12 @@ is why" — is this file.
   never assert a wall-clock value.
 - **Clippy refuses a float literal that approximates π or e**, and refuses `assert!` over two constants —
   a compile-time invariant belongs in `const _: () = assert!(…);`, not a `#[test]`.
+- **A property's declared default never runs, and the symptom is a silently zero field.**
+  `public int $n = 4;` reads back `0` unless a constructor assigns it — no diagnostic, nothing on
+  stderr. A cursor class written for an iteration case (`private int $at = 4;`) therefore drains
+  *empty* instead of failing, which reads exactly like a broken helper and costs a bisect that never
+  reaches the class. Assign every field inside `constructor` until the plan's *Open now* entry for
+  this is closed.
 
 ## Splitting a file that got too big
 

@@ -120,9 +120,8 @@
 > field's contract in AGENTS.md § *Keep each slice small*. What follows is what is **not** built.
 > **Spec §§ 1-12, by section** — § 1 is **whole**, `normalize` having landed with `Core\NormalForm`
 > and a named binding to `unicode-normalization`; § 2
-> owes
-> only `from`, the last of its structure members and the one that waits on an
-> `Iterable`/`Iterator` argument — ADR 0069's four combination members, the `diff`/`intersect` set half
+> is
+> **whole**, `from` having landed over `registry::CoreTy::Iterated` — ADR 0069's four combination members, the `diff`/`intersect` set half
 > with `Core\SetOn`, the positional rows, the callback rows and both sorts are all registered, which the
 > ratchet below is the machine-readable statement of; §
 > 4 is **whole**, `withTime` having landed beside `Core\Time\Date`, `Core\Time\TimeOfDay` and the two
@@ -139,20 +138,20 @@
 > `$e->location`; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes
 > `Out::capture` alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
 > signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
-> `Union` and `Decimal`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
+> `Union`, `Decimal` and `Iterated`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
 > unwritten. **The runtime hole that sat under four of those is closed** — `mwl_runtime::Tag` has a
 > `Bytes` row of its own over the existing `MwlStr` allocation, so a fresh `bytes` value now
 > constructs, refcounts, releases and round-trips through codegen; `mwl-runtime`'s module doc
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Core\Hash\Stream` is the first *mutable* `Core` instance and the honest return type of `Uri`'s
 > two decoders is still unwritten rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 416 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 418 of the 600 that gate requires, differential is
 > 89 of 150, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
 > `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its
-> own module doc states, and that file's **2 remaining keys are the machine-readable work list for
-> §§ 1-12**: when it holds none, Part I is registered whole. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
+> own module doc states, and that file's **one remaining key — `§12 Out::capture` — is the whole
+> machine-readable work list for §§ 1-12**: when it holds none, Part I is registered whole. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
 > qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it,
 > and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
 > that refuses an unclassified member exists; it lands with M4S's remaining sections. **ADR 0071 is
@@ -164,7 +163,9 @@
 > the sink in force — `Core\Log`'s `Log\Level`, `Core\Debug::dump`, throwables, test results and
 > compiler diagnostics) and 0093 (`mwl service`). None invalidates built behaviour or a written
 > fixture; their work is M4, M6, M7, M8 and M10 and lands with those milestones. **Still open beside
-> the library** — `do`/`while` is the one M4 control-flow statement that does not lower; an
+> the library** — a property's **declared default is silently ignored**, so `public int $n = 4;`
+> reads back `0` unless a constructor assigns it, which is a wrong value rather than a missing
+> feature and is the next correctness item; `do`/`while` is the one M4 control-flow statement that does not lower; an
 > abandoned generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a PHP
 > divergence); ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31%
 > classified, one pass per PHP domain, reported by `python tools/check-migration.py`.
