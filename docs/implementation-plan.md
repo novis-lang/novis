@@ -138,11 +138,18 @@
 > way ADR 0054 § 2 already places a numeric one, so `"a" as "a"|"b"` is statically satisfied, and
 > `mwl_types::expr::operators::reject_impossible_literal_conversion` refuses a conversion the
 > operand's own value disproves: `E0469` for a closed set of literals, `E0470` for one of enum
-> cases, each naming the accepted set generated from the target type. What is left of that ADR is
-> the run-time half — a conversion whose operand is only known at run time still lowers no
-> membership test. Then, in order: **`private`/`protected`**, which nothing enforces;
-> **`Comparable`/`Stringable`**, which carry no member signatures, so `$s->toString()` is `E0405`
-> and `instanceof Stringable` panics `mwl-ir`; and **ADR 0061**'s `autoload` grammar and its
+> cases, each naming the accepted set generated from the target type. **§ 5's run-time half is built
+> for a set of literals** — `mwl_ir::lower::lower_checked_ty` folds a union whose members all erase
+> to one representation back to that representation, so `"a"|"b"` is a `Ty::Str` and `1|2` a
+> `Ty::Int` rather than the `Ty::Tagged` every union used to be, and `lower_literal_membership`
+> emits one comparison per member with `Helper::LiteralMismatch` throwing at the far end, naming the
+> accepted set exactly as `E0469` does. A `mixed` operand is tested on its own runtime tag before
+> the base conversion, so `1 as "1"|"b"` throws rather than being rendered into the set it names.
+> What is left is § 3's enum-case subset over an operand only known at run time, which needs each
+> case's backing value plumbed into `mwl-ir` and is the same missing check as ADR 0010 § 5's
+> `int`-into-an-enum row (`mwl-ir` gap 20). Then, in order: **`private`/`protected`**, which nothing
+> enforces; **`Comparable`/`Stringable`**, which carry no member signatures, so `$s->toString()` is
+> `E0405` and `instanceof Stringable` panics `mwl-ir`; and **ADR 0061**'s `autoload` grammar and its
 > name-to-file fixpoint. **ADR 0069's refusal is built** — `+`/`+=` with an array operand is `E0467`
 > naming `Core\Arr::underlay` — leaving that ADR's combination *members* to § 1's `Core` breadth
 > below. **ADR 0087 is built** — `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008`

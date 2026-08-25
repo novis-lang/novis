@@ -80,6 +80,12 @@ is why" — is this file.
   lowers**, and is worth doing before writing a batch of cases around it. A scratch file is top-level
   statements, like `examples/*.mwl` — there is no `Main::main` entry point, and a `for` header takes
   *expressions* only, so the loop variable is declared on the line above it.
+- **`mwl run` printing the right output and exiting **127** is a heap corruption at teardown**, not a
+  missing command: Windows reports a double release that way, with nothing on stderr. So check `$?` on a
+  scratch run rather than reading the output and moving on — a refcount bug is otherwise completely silent
+  until the WSL valgrind leg catches it. `catch (Core\Throwable $e)` and `$e->message` do not lower at
+  file scope, so a scratch file probing a throw needs the class-method shape
+  `tests/conformance/lang/a-lossy-conversion-throws.mwlt` uses.
 
 ## Adding a `Core` member
 
