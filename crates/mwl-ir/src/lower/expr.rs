@@ -181,9 +181,7 @@ impl<'a> Lowering<'a> {
             } if matches!(lhs.kind, ExprKind::Null) != matches!(rhs.kind, ExprKind::Null) => {
                 self.lower_null_identity(*op, lhs, rhs, env, cur)
             }
-            ExprKind::Binary { op, lhs, rhs } => {
-                self.lower_binary(*op, lhs, rhs, expected, env, cur)
-            }
+            ExprKind::Binary { .. } => self.lower_binary(expr, expected, env, cur),
             ExprKind::Fn(fn_expr) => self.lower_closure_literal(fn_expr, expr, env, cur),
             ExprKind::New { target, args, .. } => self.lower_new(target, args, expr, env, cur),
             ExprKind::MethodCall {
@@ -2176,13 +2174,20 @@ impl<'a> Lowering<'a> {
 
     fn lower_binary(
         &mut self,
-        op: BinaryOp,
-        lhs: &Expr,
-        rhs: &Expr,
+        whole: &Expr,
         expected: Option<Ty>,
         env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        // The whole expression, rather than its three parts: ADR 0033 § 5's
+        // arm below needs the *comparison's* own span to read back what the
+        // checker recorded there, and taking the span as a fourth parameter
+        // beside the parts it already implies is what pushed this signature
+        // past `clippy::too_many_arguments`.
+        let ExprKind::Binary { op, lhs, rhs } = &whole.kind else {
+            unreachable!("lower_binary is reached only from `lower_expr`'s `Binary` arm");
+        };
+        let op = *op;
         let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
         let (rv, rty) = self.lower_expr(rhs, Some(lty), env, cur);
         // ADR 0054 § 3's table is a set of runtime helpers rather than
@@ -2253,6 +2258,58 @@ impl<'a> Lowering<'a> {
             );
             // Nothing is released: every representation in this arm is a
             // scalar, so neither operand is `Ty::is_refcounted`.
+            if op == BinaryOp::Eq {
+                return (equal, Ty::Bool);
+            }
+            return self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::UnOp {
+                    op: UnOp::Not,
+                    operand: equal,
+                },
+            );
+        }
+        // ADR 0033 § 5: `==` over a pair at least one side of which is
+        // `secret` is a constant-time comparison, so that a program comparing
+        // its own session token or signature with the language's one equality
+        // operator is not a timing oracle. The qualifier is already gone by
+        // here — `erase_checked_ty` spends no representation on it, which is
+        // ADR 0033 § 1's promise — so the choice cannot be re-derived from
+        // `lty`/`rty`, and is read back from what the checker recorded at this
+        // comparison instead. See `Helper::SecretEq`.
+        //
+        // Guarded on the two representations as well as on the entry: a
+        // `secret` operand compared against a `mixed` one has already been
+        // taken by the `Tagged` arm above, where the row is a runtime tag
+        // rather than a buffer this helper could read. § 2's poisoning makes
+        // that pair rare, and closing it would mean teaching
+        // `mwl_runtime::value_identical` the property, which is wider than
+        // this section asks for.
+        if matches!(op, BinaryOp::Eq | BinaryOp::NotEq)
+            && matches!(lty, Ty::Str | Ty::Bytes)
+            && matches!(rty, Ty::Str | Ty::Bytes)
+            && matches!(
+                self.exprs.lookup(whole.span),
+                Some(ExprInfo::SecretEquality)
+            )
+        {
+            let (equal, _) = self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::HelperCall {
+                    helper: Helper::SecretEq,
+                    args: vec![lv, rv],
+                },
+            );
+            // Both operands are refcounted, and both are only *read* — the
+            // same rule the `BinOp` table below applies to its own, written
+            // per operand because the two may be a `string` and a `bytes`.
+            for (operand, value) in [(lhs, lv), (rhs, rv)] {
+                if !self.aliasing_read(operand) {
+                    self.emit_release(*cur, value);
+                }
+            }
             if op == BinaryOp::Eq {
                 return (equal, Ty::Bool);
             }

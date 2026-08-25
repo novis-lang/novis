@@ -2204,6 +2204,24 @@ fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
         CheckedTy::Void => Ty::Void,
         CheckedTy::String => Ty::Str,
         CheckedTy::Bytes => Ty::Bytes,
+        // ADR 0024 § 1 and ADR 0033 § 1: `tainted` and `secret` are two
+        // independent bits on the *checker's* type and add **zero** runtime
+        // representation, exactly as ADR 0047 § 5's literal types do above. So
+        // all six qualified atoms erase to the base they share a tag and an
+        // allocation with, and everything below this boundary sees a plain
+        // `string` or `bytes`.
+        //
+        // What that costs is one thing, and it is paid for: a lowering
+        // decision that genuinely depends on a qualifier cannot read it back
+        // here. ADR 0033 § 5's constant-time `==` is the only such decision,
+        // and the checker records it at the comparison instead
+        // (`mwl_types::expr_table::ExprInfo::SecretEquality`).
+        CheckedTy::TaintedString | CheckedTy::SecretString | CheckedTy::SecretTaintedString => {
+            Ty::Str
+        }
+        CheckedTy::TaintedBytes | CheckedTy::SecretBytes | CheckedTy::SecretTaintedBytes => {
+            Ty::Bytes
+        }
         // A shape joins them: ADR 0036 § 2 makes a shape value an ordinary
         // refcounted instance with no methods and no name of its own, so its
         // representation is the object pointer a class already has. What the
@@ -4978,5 +4996,55 @@ echo $msg;
 ",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// ADR 0033 § 5: `==` over two `secret` operands is the constant-time
+    /// helper, and an unqualified pair of the same representation is still
+    /// the ordinary `BinOp::Eq` that `mwl-codegen` turns into `mwl_str_eq`.
+    ///
+    /// Both halves are asserted in one fixture on purpose. The qualifier
+    /// spends no representation (`erase_checked_ty`), so the *only* thing
+    /// separating these two comparisons in the IR is which helper the arm
+    /// picked — a version of this test that pinned the `secret` pair alone
+    /// would still pass if the lowering had started sending every `string`
+    /// comparison through the constant-time row, which is a real regression:
+    /// it would spend § 5's ≈+8 ns on every string `==` in the language.
+    #[test]
+    fn a_secret_equality_lowers_to_the_constant_time_helper() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+secret string $token = \"a\";
+secret string $given = \"b\";
+bool $secretly = $token == $given;
+string $plain = \"a\";
+string $other = \"b\";
+bool $openly = $plain == $other;
+",
+        );
+        let text = print_function(&f, map.file(file));
+        assert_eq!(text.matches("helper.secret_eq").count(), 1, "{text}");
+        // `= eq `, not `eq `: `helper.secret_eq v0, v1` ends in the shorter
+        // one, so the loose spelling counts the constant-time call twice and
+        // the assertion below can never fail.
+        assert_eq!(text.matches("= eq ").count(), 1, "{text}");
+    }
+
+    /// The `bytes` base of the same rule, and `!=` — ADR 0033 § 1 puts the
+    /// qualifier on both bases, and `Helper::SecretEq` answers `!=` under a
+    /// `UnOp::Not` rather than through a second helper, the arrangement
+    /// `Helper::NumericEq` already uses. A `!=` that had grown its own
+    /// short-circuiting row would be the same timing oracle § 5 closes.
+    #[test]
+    fn a_secret_bytes_inequality_is_the_same_helper_under_a_not() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+secret bytes $mac = \"a\" as bytes;
+secret bytes $sent = \"b\" as bytes;
+bool $differ = $mac != $sent;
+",
+        );
+        let text = print_function(&f, map.file(file));
+        assert!(text.contains("helper.secret_eq"), "{text}");
+        assert!(text.contains("not "), "{text}");
     }
 }

@@ -27,6 +27,8 @@
 //!
 //! Every `mwl_ir::Helper` variant now has an entry point here.
 
+use subtle::ConstantTimeEq;
+
 use crate::abi::{Fault, HelperFn};
 use crate::decimal::Decimal;
 use crate::fmt::php_float_to_string;
@@ -159,6 +161,54 @@ crate::mwl_helper! {
     /// already uses.
     fn mwl_numeric_eq(_ctx, args: [2]) {
         Ok(Value::bool(crate::numeric_identical(args[0], args[1])))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::SecretEq` — `==` where the checker typed at least one
+    /// operand `secret`, which
+    /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// § 5 makes a **constant-time** comparison rather than the
+    /// short-circuiting one `mwl_str_eq` performs for every other
+    /// `string`/`bytes` pair.
+    ///
+    /// "Constant-time" means what it means in `Core\Hash::equals`: the
+    /// running time does not depend on *where* two equal-length operands
+    /// first differ, so an attacker holding one of them cannot recover the
+    /// other a byte at a time by timing the answer. It does not hide the
+    /// lengths — a length mismatch answers `false` at once, because
+    /// `subtle::ConstantTimeEq` is defined over equal-length slices and
+    /// because a token's length is not the secret.
+    ///
+    /// `subtle`, not a hand-written loop, for the reason `mwl-stdlib`'s
+    /// `hash` module states: a compiler is free to reintroduce the branch a
+    /// hand-written loop was written to avoid. This crate cannot call
+    /// `mwl-stdlib`, so the dependency is named here too rather than the
+    /// comparison being shared.
+    ///
+    /// Takes a `string` **or** a `bytes` on either side — the two tags share
+    /// one allocation, and ADR 0033 § 1 puts the qualifier on both bases. The
+    /// row is total, so this carries no error edge; `!=` is this helper under
+    /// an `mwl_ir::UnOp::Not`, the arrangement [`mwl_numeric_eq`] uses.
+    fn mwl_secret_eq(_ctx, args: [2]) {
+        let lhs = args[0]
+            .buffer_ptr()
+            .ok_or_else(|| wrong_tag("mwl_secret_eq", Tag::Str, args[0]))?;
+        let rhs = args[1]
+            .buffer_ptr()
+            .ok_or_else(|| wrong_tag("mwl_secret_eq", Tag::Str, args[1]))?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Str or Tag::Bytes argument owns a reference to a live \
+                      allocation, so both pointees are live for this read; both \
+                      borrows end with the comparison"
+        )]
+        let equal = unsafe {
+            let left = crate::string::MwlStr::bytes_of(lhs);
+            let right = crate::string::MwlStr::bytes_of(rhs);
+            left.len() == right.len() && bool::from(left.ct_eq(right))
+        };
+        Ok(Value::bool(equal))
     }
 }
 
@@ -993,6 +1043,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_array_truthy", address(mwl_array_truthy)),
         ("mwl_value_identical", address(mwl_value_identical)),
         ("mwl_numeric_eq", address(mwl_numeric_eq)),
+        ("mwl_secret_eq", address(mwl_secret_eq)),
         ("mwl_int_to_uint", address(mwl_int_to_uint)),
         ("mwl_uint_to_int", address(mwl_uint_to_int)),
         ("mwl_int_to_float", address(mwl_int_to_float)),

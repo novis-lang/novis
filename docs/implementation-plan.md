@@ -7,18 +7,19 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-25. **M3 is done, the catch-up stage is finished, and the acceptance gate now
-> runs to its real frontier.** Every `stage = "0 catch-up"` check in `loop-goal.toml` passes: the
-> last one open was a *name*, `an_autoload_declaration_resolves_a_name_to_its_file`, which the file
-> required and which existed nowhere, so sixteen sessions read the same phantom ledger line while
-> Stages 1-5 went unevaluated. With it written, `python tools/loop.py --goal-only` reaches Stage 3's
-> last fixture, `examples/collect.mwl`, which is now past its parser hole: `new
+> **Status:** 2026-08-25. **M3 is done and Stage 0's catch-up list is four items from finished.**
+> Items 1 to 11, 16 and 17 of [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* are done —
+> 11, ADR 0033 § 5's constant-time `secret == secret`, landed today — and `loop-goal.toml`'s
+> `stage = "0 catch-up"` block still names four tests that exist in no crate, so
+> `python tools/loop.py --goal-only` short-circuits at Stage 0 rather than running the stages below
+> it. Behind that gate is Stage 3's last fixture, `examples/collect.mwl`, itself past its parser
+> hole: `new
 > Core\ObjectSet<Tag>()` parses, because `ExprKind::New` carries a `type_args` list read by the same
 > checkpointed trial parse a call site's own `<...>` goes through, and both lists now *bind*:
 > `registry::GENERIC_CLASSES` is the roster of `Core`-owned generic classes, so lines 13 and 19
 > resolve and the fixture's first report is `Core\Encoding`/`Core\Hash` at line 25 — spec § 7 is the
 > frontier, with § 9's three collections owning no members yet. Stage 4's own counts (conformance
-> 433 of 600, differential 89 of 150) are the wall after that. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the
+> 434 of 600, differential 89 of 150) are the wall after that. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the
 > one predicate an unterminated directional control is rejected by, `E0008` at the lexer and, at
 > M7/M8, a substitution at both sinks. **ADR 0090 §§ 1 and 2 are built**: `==`/`!=` are the only
 > equality spellings, `===`/`!==` are `E0232` at the lexer (consumed whole, reported, then lexed as
@@ -75,7 +76,7 @@
 > conformance-coverage gate), `mwl-codegen`,
 > `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 433 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 434 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 89, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -116,10 +117,10 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 outranks everything below it, and five of its items are still open.**
+> **Open now:** **Stage 0 outranks everything below it, and four of its items are still open.**
 > `loop-goal.toml`'s `stage = "0 catch-up"` block names the test that closes each item in
-> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0*; items 1 to 10, 16 and 17 are done, and
-> the tests for items **11 to 15** do not exist yet, so `tools/loop.py` short-circuits there and no
+> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0*; items 1 to 11, 16 and 17 are done, and
+> the tests for items **12 to 15** do not exist yet, so `tools/loop.py` short-circuits there and no
 > Stage 3 `Core` slice opens ahead of them. Behind that gate the frontier is `examples/collect.mwl`,
 > and [docs/agent/handoff.md](agent/handoff.md) names the group it stops on. **What has already landed is not restated here** — `git log` holds the
 > session-by-session history and the crate's own module doc holds its per-file gaps, which is this
@@ -155,7 +156,7 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Core\Hash\Stream` is the first *mutable* `Core` instance and the honest return type of `Uri`'s
 > two decoders is still unwritten rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 433 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 434 of the 600 that gate requires, differential is
 > 89 of 150, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against

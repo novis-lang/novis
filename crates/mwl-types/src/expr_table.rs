@@ -311,6 +311,25 @@ pub enum ExprInfo {
         /// with the right operand's.
         result: TypeId,
     },
+    /// `$a == $b` — or `!=` — where at least one operand is statically
+    /// `secret`, keyed by the *comparison's* own span.
+    /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// § 5: that pair lowers to a constant-time comparison rather than the
+    /// short-circuiting one every other operand pair uses.
+    ///
+    /// Carries nothing, because there is nothing to carry: the question
+    /// `mwl-ir` asks is a single bit, and it cannot ask it for itself.
+    /// [`crate::ty::Ty`]'s qualifier lives in the checker's type and
+    /// `mwl_ir::ty::Ty` has no room for it — a `secret string` and a `string`
+    /// are one representation, which is exactly what ADR 0033 § 1 promises
+    /// and why the erasure is right. So the *presence of this entry* is the
+    /// whole message, the way [`Self::EnumCase`] carries a value the AST
+    /// alone does not hold.
+    ///
+    /// Recorded for a `secret` operand on **either** side, per § 5's own
+    /// reading: where exactly one is `secret`, § 2 has already poisoned the
+    /// value that reached the other, so the pair is `secret`.
+    SecretEquality,
     /// `$x instanceof Name`, keyed by the *`instanceof` expression's* own
     /// span, whose right-hand side named a class or interface this program
     /// declares (or a reserved global one). Never recorded for the dynamic

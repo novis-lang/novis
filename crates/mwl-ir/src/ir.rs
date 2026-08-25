@@ -1370,6 +1370,32 @@ pub enum Helper {
     /// [`crate::ty::Ty::Tagged`] one takes [`Self::Identical`]. Like both of
     /// those it is total, so it carries no error edge.
     NumericEq,
+    /// `a == b` over two operands at least one of which the checker typed
+    /// `secret` —
+    /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// § 5. The comparison is **constant-time in the contents**: it reads
+    /// every byte of two equal-length operands whatever they hold, so an
+    /// attacker holding one side cannot recover the other a byte at a time by
+    /// timing the answer. Lengths are not hidden — a mismatch answers `false`
+    /// at once, which is what `mwl_stdlib`'s `Core\Hash::equals` does for the
+    /// same reason.
+    ///
+    /// **`!=` is this helper under [`UnOp::Not`]**, the arrangement
+    /// [`Self::NumericEq`] and [`Self::DecimalEq`] already use, and it is
+    /// total, so it carries no error edge.
+    ///
+    /// The qualifier is invisible at this level by design: a `secret string`
+    /// erases to [`crate::ty::Ty::Str`] and a `secret bytes` to
+    /// [`crate::ty::Ty::Bytes`], because ADR 0033 § 1 spends no representation
+    /// on the bit. So the *lowering* cannot re-derive the choice of helper
+    /// from its operand types, and does not try: the checker records
+    /// `mwl_types::expr_table::ExprInfo::SecretEquality` at the comparison and
+    /// `lower_binary` reads it back.
+    ///
+    /// Costed in ADR 0033 § 5: ≈10 ns against ≈2 ns for the short-circuiting
+    /// row, so **≈+8 ns per comparison** — priority 1 bought with priority 3,
+    /// which is the ordering AGENTS.md states.
+    SecretEq,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single

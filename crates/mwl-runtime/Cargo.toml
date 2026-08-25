@@ -10,6 +10,12 @@ repository.workspace = true
 
 [dependencies]
 bitflags.workspace = true
+# ADR 0033 § 5's `secret == secret` is a constant-time comparison, and this
+# crate cannot call `mwl-stdlib`, where `Core\Hash::equals` already uses the
+# same crate for the same reason — the workspace manifest's own comment beside
+# `subtle` states it: an optimiser is free to turn the obvious loop back into
+# an early exit, and that barrier is the whole point of the dependency.
+subtle.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy. It owns the heap

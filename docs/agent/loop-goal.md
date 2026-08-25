@@ -108,10 +108,17 @@ one is how an item finishes.
     uses, reading the `[profile.release]` block with its comments stripped, because that block's own prose
     names the setting several times while explaining it. Nothing else: the cast half is already enforced
     by `[workspace.lints.clippy]` plus `verify.py`'s `-D warnings`.
-11. **`secret == secret` lowers to the constant-time helper**
-    ([ADR 0033 § 5](../adr/0033-secret-qualifier-for-confidential-values.md) owns the rule and its cost).
-    The arm goes in `mwl_ir`'s `lower_binary`, beside the equality work item 4 landed — which is why it is
-    dated now rather than scheduled.
+11. ~~**`secret == secret` lowers to the constant-time helper**
+    ([ADR 0033 § 5](../adr/0033-secret-qualifier-for-confidential-values.md) owns the rule and its cost).~~
+    **Done.** `mwl_ir::ir::Helper::SecretEq`, reached from `lower_binary`'s own arm and backed by
+    `mwl_runtime`'s `mwl_secret_eq` over `subtle::ConstantTimeEq`. Two things had to be settled first and
+    both are recorded where they belong: the qualifier does not survive `mwl_ir::ty::Ty` (ADR 0033 § 1
+    spends no representation on it), so the checker records
+    `mwl_types::expr_table::ExprInfo::SecretEquality` at the comparison and the lowering reads it back
+    rather than re-deriving it; and `erase_checked_ty` had no arm for any of the six qualified atoms, so
+    `secret string` did not lower at all — that was `mwl-ir` gap 11, and all six now erase to the
+    `string`/`bytes` they share an allocation with. What the arm declines is a `secret`-against-`mixed`
+    pair, which has no buffer to read and stays gap 11's remainder.
 12. **`$s as ?Uri` and `$s as ?Uuid` compile, and `isValid` is deleted from both**
     ([ADR 0066 §§ 1, 3](../adr/0066-nullable-conversion-operator.md) owns the roster and why `Duration` is
     not on it; `uri.rs`'s module doc owns the call-site consequence). `Uri::isValid` is not written yet, so

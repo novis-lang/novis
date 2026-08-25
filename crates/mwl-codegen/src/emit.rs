@@ -2273,6 +2273,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::LiteralMismatch => "mwl_literal_mismatch",
         Helper::Identical => "mwl_value_identical",
         Helper::NumericEq => "mwl_numeric_eq",
+        Helper::SecretEq => "mwl_secret_eq",
         Helper::ArrayTruthy => "mwl_array_truthy",
         Helper::IntToUint => "mwl_int_to_uint",
         Helper::UintToInt => "mwl_uint_to_int",

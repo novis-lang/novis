@@ -457,5 +457,6 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::LiteralMismatch => "literal_mismatch",
         Helper::Identical => "identical",
         Helper::NumericEq => "numeric_eq",
+        Helper::SecretEq => "secret_eq",
     }
 }

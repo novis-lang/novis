@@ -98,6 +98,11 @@
 //! - ADR 0024 (`tainted` propagation/laundering), ADR 0027 (`callable`
 //!   value-shape checking) and ADR 0033 §§ 2-4 (`secret`, the same shape on
 //!   an independent axis — its § 1 grammar landed in M1) are all now done —
+//!   as is § 5's constant-time `==`, whose share of the work is this crate's
+//!   alone to do: the qualifier does not survive `mwl_ir::ty::Ty`, so
+//!   [`expr::operators`] records
+//!   [`expr_table::ExprInfo::SecretEquality`] at a comparison with a `secret`
+//!   operand and `mwl-ir` picks the helper from that —
 //!   see [`expr`]'s own module docs for the first two, and for how the first
 //!   two's machinery is shared with `secret` rather than duplicated:
 //!   concatenation/interpolation poison their result on each axis

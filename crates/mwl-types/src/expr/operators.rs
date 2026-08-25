@@ -123,6 +123,17 @@ pub(super) fn binary_result(
         }
         BinaryOp::Eq | BinaryOp::NotEq => {
             reject_disjoint_equality(lhs, rhs, span, env);
+            // ADR 0033 § 5: two `secret` operands compare in constant time.
+            // Nothing about the *result* changes — it is a `bool` either way —
+            // so this records the fact for `mwl-ir` rather than returning a
+            // different type. It has to be recorded here because the qualifier
+            // does not survive `mwl_ir::ty::Ty`, which is § 1's promise that a
+            // `secret string` costs no representation; see
+            // `ExprInfo::SecretEquality`.
+            if is_secret(lhs, env.interner) || is_secret(rhs, env.interner) {
+                env.exprs
+                    .record(span, crate::expr_table::ExprInfo::SecretEquality);
+            }
             env.interner.bool_ty()
         }
         BinaryOp::And | BinaryOp::Or => env.interner.bool_ty(),

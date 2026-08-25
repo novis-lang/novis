@@ -230,10 +230,19 @@
 //!     because that is the nearest scope holding an `&mut Env` — so such a
 //!     call lowers only as a bare expression statement or an assignment's
 //!     right-hand side. [`lower::Lowering::pending_refs`] owns it.
-//! 11. **A `tainted`/`secret`-qualified type has no IR arm.**
-//!     [`lower::lower_checked_ty`] handles the plain `string`/`bytes` only;
-//!     ADR 0024/0033's qualifiers are compile-time-only and need no runtime
-//!     representation, but the erasure has to be written.
+//! 11. **A `secret` value compared against a `mixed` one is not compared in
+//!     constant time.** The qualifiers themselves are no longer a gap: all
+//!     six of ADR 0024/0033's atoms erase to the plain `string`/`bytes` they
+//!     share an allocation with ([`lower::lower_checked_ty`]), and ADR 0033
+//!     § 5's constant-time `==` reaches every pair whose two operands are
+//!     both that representation, through [`ir::Helper::SecretEq`] and the
+//!     `mwl_types::expr_table::ExprInfo::SecretEquality` the checker records
+//!     at the comparison. What that arm declines is the pair where one side
+//!     is [`ty::Ty::Tagged`]: it has no buffer to read, so the comparison
+//!     falls to [`ir::Helper::Identical`] and short-circuits. ADR 0033 § 2's
+//!     poisoning makes the shape rare, and closing it means teaching
+//!     `mwl_runtime::value_identical` the property rather than adding a
+//!     lowering arm.
 //! 12. **A `Stringable` operand stringifies; a `Core`-owned one does not.**
 //!     `.`, an interpolated piece, `echo`/`print` and `as string` all desugar
 //!     to the `toString()` `mwl_types::expr::operators::require_stringable`
