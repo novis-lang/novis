@@ -50,6 +50,7 @@ modules = [
   "crates/mwl-syntax/src/ast.rs",
   "crates/mwl-hir/src/requires.rs",
   "crates/mwl-hir/src/resolve.rs",
+  "crates/mwl-hir/src/autoload.rs",
   "crates/mwl-ir/src/lower/**",
   "crates/mwl-ir/src/ir.rs",
   "crates/mwl-cli/src/main.rs",

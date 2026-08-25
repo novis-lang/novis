@@ -78,10 +78,11 @@ one is how an item finishes.
    a fixpoint over the require-graph worklist: one AST walk per file harvests its requires, its `autoload`
    declarations and every name it uses where a class is meant — attributes included
    (`requires::walk_attributes`), so a class named only by `#[Route(...)]` autoloads. `E0315`–`E0318` are
-   its four diagnostics, and nine `tests/conformance/lang/` cases pin the lookup, the shadowing rule,
-   ordered probing, the exact on-disk spelling and each diagnostic. What is left is reporting, not
-   resolution: § 1's `mwl check --autoload-map` does not exist, and § 5's probe trace is dropped rather
-   than folded into ADR 0042's cache key.
+   its four diagnostics, and ten `tests/conformance/lang/` cases pin the lookup, the shadowing rule,
+   ordered probing, the exact on-disk spelling, the silent skip and each diagnostic. § 1's
+   `mwl check --autoload-map` prints the resolved map, what a glob passed over and what was shadowed.
+   One thing is left, and it is the cache's rather than this ADR's: § 5's probe trace is produced and
+   dropped rather than folded into ADR 0042's key.
 9. ~~**ADR 0069 — `array + array` does not compile** (M4's *Verify* list).~~ **Done.** `E0467` from
    `reject_array_combination`, naming `Core\Arr::underlay`; `+=` reaches it through `binary_result` and
    reports once, because the recovery type is the array operand rather than `mixed`.

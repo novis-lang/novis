@@ -188,46 +188,51 @@
 > prefix shadows a `discover` glob and any other duplicate is `E0315`; `E0316` refuses an `autoload`
 > anywhere in the autoloaded sub-graph, `E0317` is § 2's one-declaration-per-file rule and `E0318` a
 > malformed glob. § 5's probe trace is produced and dropped — folding it into the cache key is the
-> ADR 0042 slice's work — and the name harvest is a deliberate over-approximation that now reaches
-> every declaration site's `#[...]` groups too, so a class named only by `#[Route(...)]` autoloads
+> ADR 0042 slice's work — § 1's last sentence now runs as `mwl check --autoload-map`, which prints
+> the resolved prefix → roots map beside what a `discover` glob passed over in silence and what an
+> explicit prefix shadowed (`mwl_hir::AutoloadMap::render`, whose module doc owns the
+> three-counted-section shape; `resolve_program` hands the map back rather than dropping it), and
+> the name harvest is a deliberate over-approximation that now reaches every declaration site's
+> `#[...]` groups too, so a class named only by `#[Route(...)]` autoloads
 > (`mwl_hir::requires::walk_attributes`; that module's doc owns what is left). **That ADR is pinned
-> by nine conformance cases now** (`tests/conformance/lang/`, the eight named `*autoload*` plus
-> `a-malformed-discover-glob-is-a-compile-error.mwlt`): a class no `require` names is found by its
-> prefix and runs, an explicit prefix shadows a `discover` glob, a prefix's second root answers only
-> where the first misses, a name written only inside an `#[...]` group pulls its file in, a
-> mis-cased entry on disk is a miss rather than a diagnostic, and `E0315`, `E0316`, `E0317` and
-> `E0318` each fire from a `--EXPECTF-ERROR--` case. Two things make that observable at all: `.mwlt`
-> has an auxiliary-file section — a repeatable `--FILE <relative/path>--` writing another file into
-> the case's own working directory, documented in `crates/mwl-test`'s module doc — and `mwl-cli`'s
-> `front_end` is multi-file end to end. It calls `mwl_hir::resolve_program`, so the unit of work is
-> the whole require/autoload graph rather than one `SourceId`: `mwl_types::ProgramFile` is the `{
-> src, stmts }` pair every phase now takes a *slice* of, and `check_program`, `build_signatures`,
-> `build_enum_table`, `build_const_table` and `build_class_layouts` each build one table across the
-> whole set before any body is checked, since a class declared in a required file is named from the
-> file that required it. `Checked` carries the files entry-first, and `mwl_ir::lower::lower_program`
-> lowers every file's declarations while giving a script frame to the entry alone (`lower_file` is
-> now the one-file spelling of it); a `require` in statement position lowers to nothing, because the
-> graph is already resolved by the time lowering starts. So `require './src/Greeter.mwl';
-> App\Greeter::hello(…)` runs from `mwl run`, and so does a class reached only through an `autoload
-> 'App' from './src'` in a bootstrap file. Two things stay out and are `mwl-ir` gap 22: a required
-> file's own top-level statements are not run, and ADR 0021 § 3's value form (`$c = require '…';`)
-> has no lowering arm. **ADR 0069's refusal is built** — `+`/`+=` with an array operand is `E0467`
-> naming `Core\Arr::underlay` — leaving that ADR's combination *members* to § 1's `Core` breadth
-> below. **ADR 0087 is built** — `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008`
-> per line over comments, string literals and inline HTML, and seven `.mwlt` cases pin it; its
-> `Core\Html` and `Core\Cli` sink halves are M7's and M8's. **ADR 0088 opens one registry-wide
-> item**: `mwl-stdlib`'s member rows carry no qualifier classification, so `Core\Str::format`'s
-> template is not yet the sink that ADR makes it, and neither the fail-closed default for an
-> unclassified `string`/`bytes` parameter nor the test that refuses an unclassified member exists;
-> it lands with M4S's remaining sections. **Then `Core` breadth, where Stage 3 stopped.** Spec §§ 3
-> and 6 are whole, § 2's aggregations are written, § 5 is six of its eight members, and § 1 is
-> missing its eleven text-shaping rows, `Arr::diff`/`intersect` and ADR 0069's combination members.
-> Every signature shape the spec writes can now be stated: a variadic tail is
-> `registry::CoreTy::Variadic`, a `Core`-owned instance is `CoreClass`'s `instance` roster over
-> `mwl_stdlib::instance`, a class constant may be an instance through `registry::Const::Built`, and
-> a member may be handed the class its call site wrote through `registry::WRITTEN_CLASS_MEMBERS`. §
-> 4 runs whole but owes `Date`/`TimeOfDay`/`Core\Month` (that module's gap 1). **ADR 0071 is built
-> end to end for a scalar-fielded class**; its gaps are no
+> by ten conformance cases now** (`tests/conformance/lang/`, the eight named `*autoload*` plus the
+> two `*discover*`): a class no `require` names is found by its prefix and runs, an explicit prefix
+> shadows a `discover` glob, a prefix's second root answers only where the first misses, a name
+> written only inside an `#[...]` group pulls its file in, a mis-cased entry on disk is a miss
+> rather than a diagnostic, a glob sweeping `vendor/`, `node_modules/`, `_Private/` and `.git/`
+> discovers only the one directory that names a namespace and diagnoses none of the rest, and
+> `E0315`, `E0316`, `E0317` and `E0318` each fire from a `--EXPECTF-ERROR--` case. Two things make
+> that observable at all: `.mwlt` has an auxiliary-file section — a repeatable `--FILE
+> <relative/path>--` writing another file into the case's own working directory, documented in
+> `crates/mwl-test`'s module doc — and `mwl-cli`'s `front_end` is multi-file end to end. It calls
+> `mwl_hir::resolve_program`, so the unit of work is the whole require/autoload graph rather than
+> one `SourceId`: `mwl_types::ProgramFile` is the `{ src, stmts }` pair every phase now takes a
+> *slice* of, and `check_program`, `build_signatures`, `build_enum_table`, `build_const_table` and
+> `build_class_layouts` each build one table across the whole set before any body is checked, since
+> a class declared in a required file is named from the file that required it. `Checked` carries the
+> files entry-first, and `mwl_ir::lower::lower_program` lowers every file's declarations while
+> giving a script frame to the entry alone (`lower_file` is now the one-file spelling of it); a
+> `require` in statement position lowers to nothing, because the graph is already resolved by the
+> time lowering starts. So `require './src/Greeter.mwl'; App\Greeter::hello(…)` runs from `mwl run`,
+> and so does a class reached only through an `autoload 'App' from './src'` in a bootstrap file. Two
+> things stay out and are `mwl-ir` gap 22: a required file's own top-level statements are not run,
+> and ADR 0021 § 3's value form (`$c = require '…';`) has no lowering arm. **ADR 0069's refusal is
+> built** — `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay` — leaving that
+> ADR's combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** —
+> `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008` per line over comments, string
+> literals and inline HTML, and seven `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink
+> halves are M7's and M8's. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows
+> carry no qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR
+> makes it, and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
+> the test that refuses an unclassified member exists; it lands with M4S's remaining sections.
+> **Then `Core` breadth, where Stage 3 stopped.** Spec §§ 3 and 6 are whole, § 2's aggregations are
+> written, § 5 is six of its eight members, and § 1 is missing its eleven text-shaping rows,
+> `Arr::diff`/`intersect` and ADR 0069's combination members. Every signature shape the spec writes
+> can now be stated: a variadic tail is `registry::CoreTy::Variadic`, a `Core`-owned instance is
+> `CoreClass`'s `instance` roster over `mwl_stdlib::instance`, a class constant may be an instance
+> through `registry::Const::Built`, and a member may be handed the class its call site wrote through
+> `registry::WRITTEN_CLASS_MEMBERS`. § 4 runs whole but owes `Date`/`TimeOfDay`/`Core\Month` (that
+> module's gap 1). **ADR 0071 is built end to end for a scalar-fielded class**; its gaps are no
 > enum/`decimal`/`Instant`/`array`/nested-class field decode and no optional key from a parameter
 > default. **Next on the path is `examples/collect.mwl`**, which needs §§ 7-9 and 11-12 at once:
 > `Core\Path` is the cheapest slice, then `Encoding`/`Hash`/`Uuid`, then `ObjectSet`/`ObjectMap`,

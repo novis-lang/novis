@@ -2,46 +2,44 @@
 
 ## State
 
-**ADR 0061's resolution half is closed, and `loop-goal.md` § *Stage 0* item 8 is struck through.** The
-name harvest now reaches every declaration site's `#[...]` groups — `mwl_hir::requires::walk_attributes`,
-fed from `ClassDecl`/`InterfaceDecl`/`EnumDecl`, each `EnumCase`, every class member, every property hook
-and every parameter — so a class written only as `#[Route(...)]` is placed by its prefix and its file is
-loaded and checked. `requires.rs`'s own module doc owns what the harvest still cannot see.
+**ADR 0061 is closed end to end — resolution *and* reporting.** § 1's last sentence runs:
+`mwl check --autoload-map` prints the resolved prefix → roots map, what a `discover` glob passed over in
+silence, and what an explicit prefix shadowed. `mwl_hir::AutoloadMap` keeps the last two rather than
+dropping them where they happen, `mwl_hir::resolve_program` hands the map back as its third element, and
+`AutoloadMap::render` is the printer — its three-counted-section shape, and why paths are rendered relative
+and `/`-separated, are `autoload.rs`'s own module doc.
 
-**Nine conformance cases pin that ADR now** (`tests/conformance/lang/`, the eight `*autoload*` plus
-`a-malformed-discover-glob-is-a-compile-error.mwlt`). The two added this session are
-`a-class-named-only-by-an-attribute-is-autoloaded.mwlt` (the attribute-named file is loaded, so § 2's
-one-declaration rule reports `E0317` from a file nothing else names) and
-`an-autoload-probe-compares-the-on-disk-spelling-exactly.mwlt` (`src/mailer.mwl` is a *miss* for
-`App\Mailer`, reported as `E0303` at the naming site and never as a path diagnostic).
+**Ten conformance cases pin that ADR** (`tests/conformance/lang/`, the eight `*autoload*` plus the two
+`*discover*`). The one added this session is
+`a-discover-glob-skips-a-directory-that-is-not-a-namespace-segment.mwlt`: a glob sweeping `vendor/`,
+`node_modules/`, `_Private/` and `.git/` beside `Plugin/src/` discovers only the last and diagnoses none of
+the rest. `requires.rs`'s own tests pin the printer's whole rendering
+(`the_rendered_map_names_what_was_skipped_and_what_was_shadowed`), so the group's third item is done too.
 
-`python tools/verify.py` green, 1392 tests; `mwl test tests/conformance/` 355 passed.
+`python tools/verify.py` green, 1393 tests. `loop-goal.md` § *Stage 0* item 8 is struck through and now
+names only the cache half; **item 5 is the one item left unstruck there**, and its text is stale — the plan
+says ADR 0047 §§ 4 and 5 are built, so what item 5 actually still owes is `mwl-ir` gap 20 below.
 
-**What is left of ADR 0061 is reporting, not resolution:** § 1's `mwl check --autoload-map` does not exist,
-and § 5's probe trace is produced and dropped. Separately, `mwl-ir` gap 22 is unchanged — a required
-file's own top-level statements are not run, and ADR 0021 § 3's `$c = require '…';` has no lowering arm.
+## Next group — ADR 0047 § 3 / ADR 0010 § 5, the run-time enum-case check (`mwl-ir` gap 20)
 
-## Next group — ADR 0061's reporting half
+**Shared file set:** `crates/mwl-ir/src/lower/mod.rs` and `crates/mwl-ir/src/lower/expr.rs`, reading
+`crates/mwl-types/src/enums.rs`, with `tests/conformance/lang/` for the cases. The gap states the whole
+design already: `crates/mwl-ir/src/lib.rs:306`.
 
-**Shared file set:** `crates/mwl-hir/src/autoload.rs`, then `crates/mwl-cli/src/main.rs`, with
-`tests/conformance/lang/` for the one case. The rule is
-[ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md) § 1's last two bullets. `AutoloadMap`
-and its `Site`/`SiteKind`/`Probe` types are `autoload.rs`'s own module doc; the `.mwlt` multi-file format is
-`crates/mwl-test/src/lib.rs:46` § *More than one file*, and the nine cases above are the shape to copy.
-
-- [ ] **A case for a skipped `discover` directory.** § 1 skips a matched directory whose name is not a
-      legal `PascalCase` segment *in silence* — `is_namespace_segment` (`autoload.rs:333`), reached from
-      the glob expansion just above it. A glob over a tree holding `vendor/` and `Plugin/src/` discovers
-      only the second, with no diagnostic for the first; the run proves it by calling into `Plugin\…`.
-      Note `.mwlt` writes only files, so a directory is created by writing a file inside it.
-- [ ] **`mwl check --autoload-map`.** § 1's last sentence promises it and nothing implements it: no flag in
-      `mwl-cli`, no printer in `mwl-hir`. It has to print the resolved map *including what was skipped and
-      what was shadowed*, which means `AutoloadMap` has to keep both rather than dropping them at
-      construction — the same widening `Probe` already models for misses. Decide the output shape in
-      `autoload.rs`'s module doc, one line per prefix with its ordered roots.
-- [ ] **Pin the printer in `mwl-hir`'s own `tests/`**, not in `tests/conformance/` — a `.mwlt` case runs a
-      program and cannot invoke `mwl check`. An `insta` snapshot over a map built from a fixture tree is
-      the cheapest shape; a moved module takes its snapshots with it (playbook).
+- [ ] **Plumb `mwl_types::EnumTable` into lowering.** `lower_program` (`lower/mod.rs:298`) and
+      `lower_file` (`lower/mod.rs:480`) take the checked tables; the enum table
+      (`mwl-types/src/enums.rs:87`, with `EnumTable::case` at `:114` and `backing_of` at `:106`) is the one
+      they do not, which is why `ir::ExprInfo::EnumCase` carries a backing value only for a case written as
+      an expression. Both remaining rows need it, so this lands once.
+- [ ] **`$any as Mode::Read|Mode::Write` runs its membership test.** `lower_checked_ty`
+      (`lower/mod.rs:1901`) already folds a same-representation union to that representation;
+      `lower_literal_membership` (`lower/expr.rs:3109`, called from `:2984` and `:2988`) emits one
+      comparison per member with `Helper::LiteralMismatch` at the far end. The enum-case arm is the same
+      shape over each case's backing value. `as ?T` runs no test (ADR 0066) — the gap says why.
+- [ ] **ADR 0010 § 5's `int`-into-an-enum row is the same check**, reached from a conversion whose target
+      is the enum rather than a subset of its cases; close it in the same slice and say so in the gap.
+- [ ] **Two conformance cases**, and then strike `loop-goal.md` § *Stage 0* item 5 with what is built.
+      A row the checker accepts is not a row that runs — scratch it under `.agent-tmp/` first (playbook).
 
 ## Backlog
 
@@ -57,6 +55,7 @@ and its `Site`/`SiteKind`/`Probe` types are `autoload.rs`'s own module doc; the 
 
 ## Orientation gaps
 
-`orient.py` covered this session. The gap the last handoff named is still open and matters more for the
-group above: `crates/mwl-hir/src/autoload.rs` is missing from `[context] modules` in `loop-goal.toml`, and
-it owns every line the next three bullets touch. `crates/mwl-cli/src/main.rs` is already in the selector.
+None left open. The gap the last two handoffs named is closed in this session's commit:
+`crates/mwl-hir/src/autoload.rs` is now in `[context] modules` in `loop-goal.toml`. Everything the next
+group needs is already selected — `crates/mwl-ir/src/lower/**`, `crates/mwl-ir/src/ir.rs` and
+`crates/mwl-types/src/enums.rs` are all in that list.
