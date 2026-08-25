@@ -19,7 +19,7 @@
 > `registry::GENERIC_CLASSES` is the roster of `Core`-owned generic classes, so lines 13 and 19
 > resolve and the fixture's first report is `Core\Encoding`/`Core\Hash` at line 25 — spec § 7 is the
 > frontier, with § 9's three collections owning no members yet. Stage 4's own counts (conformance
-> 434 of 600, differential 89 of 150) are the wall after that. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the
+> 435 of 600, differential 90 of 150) are the wall after that. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the
 > one predicate an unterminated directional control is rejected by, `E0008` at the lexer and, at
 > M7/M8, a substitution at both sinks. **ADR 0090 §§ 1 and 2 are built**: `==`/`!=` are the only
 > equality spellings, `===`/`!==` are `E0232` at the lexer (consumed whole, reported, then lexed as
@@ -76,8 +76,8 @@
 > conformance-coverage gate), `mwl-codegen`,
 > `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 434 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
-> `reject`) and `tests/differential` × 89, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `tests/conformance` × 435 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -117,10 +117,10 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 outranks everything below it, and three of its items are still open.**
+> **Open now:** **Stage 0 outranks everything below it, and two of its items are still open.**
 > `loop-goal.toml`'s `stage = "0 catch-up"` block names the test that closes each item in
-> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0*; items 1 to 12, 16 and 17 are done, and
-> the tests for items **13 to 15** do not exist yet, so `tools/loop.py` short-circuits there and no
+> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0*; items 1 to 13, 16 and 17 are done, and
+> the tests for items **14 and 15** do not exist yet, so `tools/loop.py` short-circuits there and no
 > Stage 3 `Core` slice opens ahead of them. Behind that gate the frontier is `examples/collect.mwl`,
 > and [docs/agent/handoff.md](agent/handoff.md) names the group it stops on. **What has already landed is not restated here** — `git log` holds the
 > session-by-session history and the crate's own module doc holds its per-file gaps, which is this
@@ -156,8 +156,8 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Core\Hash\Stream` is the first *mutable* `Core` instance and the honest return type of `Uri`'s
 > two decoders is still unwritten rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 434 of the 600 that gate requires, differential is
-> 89 of 150, and `every_part_one_spec_member_is_registered` — the loop's
+> side effect of member slices** — conformance is 435 of the 600 that gate requires, differential is
+> 90 of 150, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
 > `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its

@@ -201,6 +201,14 @@ is why" — is this file.
   claimed the two spellings were one predicate. Two rules: **never `| head` a grep whose result you
   are about to assert is empty** (use `-c`, or `-l`, or no pipe at all), and treat "X is not written
   yet" in a handoff as a claim to re-check in one call before scoping around it.
+- **A `loop-goal.toml` check's *comment* is not the specification, and it can contradict a settled
+  ADR.** Item 13's comment read "`==` normalizes per RFC 3986 § 6.2.2 and then compares components",
+  which ADR 0090 § 4 forbids outright — `==` on two objects is identity, there is no `__equals`, no
+  `Equatable`, and that ADR names `$a->compareTo($b) == 0` as *the* spelling for content equality. The
+  toml wins over a **plan field** (the bullet above), because both are status; it does not win over an
+  ADR, because only one of those is a decision. One `peek.py <adr>:"## 4"` before writing the member
+  settles it, and the comment is the thing to fix. Implementing what the comment said would have put a
+  per-class equality hook in `mwl_runtime::identity` and re-opened an ADR from inside the loop.
 
 ## Running things
 
