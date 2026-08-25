@@ -116,6 +116,22 @@ serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
 # alone.
 rand = { version = "0.10", features = ["unbiased"] }
 
+# --- UUIDs (spec § 11's second table) ---
+# RFC 9562's version and variant nibbles are an external specification, and
+# `Uuid::parse` is a member attacker-controlled text reaches, so neither the
+# layout nor the reader is hand-written (docs/adr/ground-rules.md
+# § *Implementation invariants*). `uuid` is the crate the Rust ecosystem
+# already reads for both, it is pure Rust with no build script and no C, and it
+# adds no crate to this tree at all — it is already in Cargo.lock under
+# `debugid`, which `wasmtime` pulls.
+# `v4`/`v7` are deliberately **off**: those features exist to give `uuid` its
+# own `getrandom`-backed generator, and `Core` has one CSPRNG (`rand`, above)
+# and one clock (`jiff`). This crate is reached through `uuid::Builder`, which
+# takes bits and a timestamp from those two and lays out the nibbles.
+# `crates/mwl-stdlib/src/uuid.rs` owns why this crate and not a hand-written
+# layout.
+uuid = { version = "1", default-features = false, features = ["std"] }
+
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in mwl-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so

@@ -1,0 +1,52 @@
+--TEST--
+Core\Uuid::v4 and v7 each build a `Uuid` whose canonical rendering carries its own version and RFC 9562's variant, and a v7 opens with the clock — spec § 11
+--FILE--
+<?mwl
+// A drawn UUID cannot be asserted, so every line here pins an invariant of the
+// rendering rather than the draw itself. `$uuid->toString()` is written out
+// because a `Core`-owned class records no `Stringable` target yet, so `echo
+// $uuid` does not compile (`mwl-ir` gap 12).
+var $v4 = Core\Uuid::v4()->toString();
+var $v7 = Core\Uuid::v7()->toString();
+
+// Spec § 11: the canonical form is 8-4-4-4-12 lower-case hex, so it is 36
+// characters with four hyphens in fixed places.
+echo Core\Str::length($v4), "\n";
+echo Core\Regex::matches($v4, '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    ? "canonical"
+    : "not canonical", "\n";
+echo Core\Regex::matches($v7, '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    ? "canonical"
+    : "not canonical", "\n";
+
+// The version nibble opens the third group and the variant nibble opens the
+// fourth — the two positions RFC 9562 fixes, and the only characters of a
+// draw that are not random.
+echo Core\Str::slice($v4, 14, 1), "\n";
+echo Core\Str::slice($v7, 14, 1), "\n";
+echo Core\Regex::matches(Core\Str::slice($v4, 19, 1), '^[89ab]$') ? "variant" : "wrong variant", "\n";
+echo Core\Regex::matches(Core\Str::slice($v7, 19, 1), '^[89ab]$') ? "variant" : "wrong variant", "\n";
+
+// A v7 opens with a 48-bit millisecond clock, so its first twelve hex digits
+// are that count zero-padded — which reads `01…` for every instant between
+// 2004 and the year 2527. That is what makes a v7 sort by creation time; the
+// monotonic step itself is pinned by the unit test in
+// `crates/mwl-stdlib/src/uuid.rs`, which can sleep and a conformance case
+// should not.
+echo Core\Str::slice($v7, 0, 2), "\n";
+
+// Two draws of either version differ. That proves nothing on its own, but a
+// member answering with a constant would fail it every time.
+echo (Core\Uuid::v4()->toString() == $v4) ? "repeated" : "distinct", "\n";
+echo (Core\Uuid::v7()->toString() == $v7) ? "repeated" : "distinct", "\n";
+--EXPECT--
+36
+canonical
+canonical
+4
+7
+variant
+variant
+01
+distinct
+distinct

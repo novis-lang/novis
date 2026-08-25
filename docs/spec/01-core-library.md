@@ -729,10 +729,18 @@ have no equivalent, because seeding the global generator is exactly what that se
 | `Uuid::v7` | `v7(): Uuid` | nothing — time-ordered, for database keys | neutral |
 | `Uuid::parse` | `parse(string $s): Uuid` | manual validation | |
 | `Uuid::isValid` | `isValid(string $s): bool` | a regex | neutral |
+| `$uuid->toString` | `$uuid->toString(): string` | `(string)` on a userland UUID object | neutral |
 | `Hash::of` | `of(bytes\|string $data, Digest $digest): bytes` | `hash`, `md5`, `sha1`, `crc32`, `openssl_digest` | neutral |
 | `Hash::hmac` | `hmac(bytes\|string $data, secret bytes $key, StrongDigest $digest): bytes` | `hash_hmac` | neutral |
 | `Hash::equals` | `equals(bytes $a, bytes $b): bool` | `hash_equals` — constant-time | neutral |
 | `Hash::stream` | `stream(Digest $digest): Hash\Stream` | `hash_init`/`hash_update`/`hash_final`, `HashContext` | |
+
+A `Core\Uuid` is an opaque 128-bit **value**, not a string that has been checked once: `toString` renders
+RFC 9562's canonical lower-case `8-4-4-4-12` form and is the only way text comes back out, which is what
+lets a route segment ([ADR 0077](../adr/0077-compile-time-routing.md)) and a database column
+([ADR 0067](../adr/0067-core-db.md) § 4) state that they take one. `v7` is time-ordered across
+milliseconds and random inside one — the property that makes it the right primary key and the wrong public
+identifier, since a `v7` handed to a stranger tells them when the row was created.
 
 `Digest` carries every algorithm including `Md5`, `Sha1` and `Crc32`, because checksum interop genuinely
 needs them. `StrongDigest` is the closed subset ([ADR 0047](../adr/0047-literal-and-enum-case-types.md))

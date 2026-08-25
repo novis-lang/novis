@@ -1,0 +1,65 @@
+--TEST--
+Core\Uuid::parse and isValid answer one question about one spelling — the canonical hyphenated form in either case, with the three shapes a UUID library usually also takes refused — spec § 11, ADR 0063 R4
+--FILE--
+<?mwl
+// `Read` exists because a `catch` does not lower at file scope; every throwing
+// row goes through it.
+class Read {
+    public static function parsed(string $s): string {
+        try {
+            return Core\Uuid::parse($s)->toString();
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+// Spec § 11: the canonical form reads in either case and renders lower, so
+// `parse` is where a UUID is normalized.
+echo Read::parsed("f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4"), "\n";
+echo Read::parsed("F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4"), "\n";
+
+// RFC 9562 §§ 5.9 and 5.10: the nil and max UUIDs name no version and are
+// UUIDs all the same — the version nibble is a statement about how a value was
+// generated, never a checksum over it.
+echo Read::parsed("00000000-0000-0000-0000-000000000000"), "\n";
+echo Core\Uuid::isValid("ffffffff-ffff-ffff-ffff-ffffffffffff") ? "valid" : "invalid", "\n";
+echo Core\Uuid::isValid("00000000-0000-4000-8000-000000000000") ? "valid" : "invalid", "\n";
+
+// The three other spellings a UUID library usually accepts are each a second
+// name for one value, so `Core\Uuid` takes none of them — that module's own
+// docs own why, and ADR 0007 § 2's `string -> int` row draws the same line.
+echo Core\Uuid::isValid("f9168c5eceb24faab6bf329bf39fa1e4") ? "valid" : "invalid", "\n";
+echo Core\Uuid::isValid("{f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4}") ? "valid" : "invalid", "\n";
+echo Core\Uuid::isValid("urn:uuid:f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4") ? "valid" : "invalid", "\n";
+
+// A near miss is a miss: right length with one non-hex character, right
+// characters with a hyphen moved, and surrounding whitespace.
+echo Core\Uuid::isValid("f9168c5e-ceb2-4faa-b6bf-329bf39fa1eg") ? "valid" : "invalid", "\n";
+echo Core\Uuid::isValid("f9168c5ec-eb2-4faa-b6bf-329bf39fa1e4") ? "valid" : "invalid", "\n";
+echo Core\Uuid::isValid(" f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4") ? "valid" : "invalid", "\n";
+echo Core\Uuid::isValid("") ? "valid" : "invalid", "\n";
+
+// ADR 0063 R4: `parse` asserts that the text is a UUID, so it throws where
+// `isValid` answers `false`. The two share one definition of the shape.
+echo Read::parsed("not a uuid"), "\n";
+
+// A drawn UUID round-trips through its own rendering, which is what makes
+// `toString` the wire form rather than a debugging convenience.
+var $drawn = Core\Uuid::v4()->toString();
+echo (Read::parsed($drawn) == $drawn) ? "round trip" : "lost", "\n";
+--EXPECT--
+f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4
+f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4
+00000000-0000-0000-0000-000000000000
+valid
+valid
+invalid
+invalid
+invalid
+invalid
+invalid
+invalid
+invalid
+threw
+round trip
