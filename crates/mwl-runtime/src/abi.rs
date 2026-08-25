@@ -124,6 +124,50 @@ impl Fault {
     }
 }
 
+/// A size that is about to become an allocation, refused before it is
+/// attempted — **the one place every count-shaped argument is checked**.
+///
+/// `member` is the fully qualified name for the message, e.g.
+/// `"Core\\Arr::fill"`.
+///
+/// # Why this is a function and not four copies of three lines
+///
+/// It was four copies. `Core\Bytes` had one, `Core\Str::repeat` and both of
+/// `Core\Random`'s drawing members had their own, and the members with the
+/// largest appetite of all — `Core\Arr::fill`/`padStart`/`padEnd` through
+/// `append_copies`, and `Core\Str::padStart`/`padEnd` through `padding_run` —
+/// had none, because a guard that is written per call site is a guard the next
+/// call site forgets. That is the shape of PHP's own history here: its
+/// `memory_limit` is enforced in the allocator precisely because per-function
+/// checks did not hold.
+///
+/// # What it does and does not promise
+///
+/// Today it refuses only what cannot be allocated at all — a size past
+/// `isize::MAX`, or a computation that already overflowed to `None`. It is
+/// **not** a budget: nothing here knows what a request may spend.
+/// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) settles that
+/// it will be, through the `[limits.hard]` per-request ceiling the M6 arena
+/// enforces, and this function is the seam that ceiling attaches to — one
+/// place to change rather than seven.
+///
+/// # Errors
+///
+/// A [`Fault::Thrown`], so a program can catch it. The alternative is the
+/// allocator's own behaviour, which is an abort for the raw paths and a panic
+/// for the `Vec` ones — contained to the request by [`run_helper`], but not
+/// catchable, and a resource refusal is exactly the kind a caller may want to
+/// handle.
+pub fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
+    bytes
+        .filter(|size| isize::try_from(*size).is_ok())
+        .ok_or_else(|| {
+            Fault::thrown(format!(
+                "{member}: the requested allocation is larger than any this process could hold"
+            ))
+        })
+}
+
 /// What a helper body returns: the result value, or a [`Fault`].
 ///
 /// A helper invoked purely for its effect — `mwl_ir::Helper::EchoStr` is the

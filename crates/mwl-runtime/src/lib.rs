@@ -242,7 +242,9 @@ mod value;
 #[global_allocator]
 static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-pub use abi::{FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, call, run_helper};
+pub use abi::{
+    FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, affordable, call, run_helper,
+};
 pub use array::{
     ARRAY_REFCOUNT_OFFSET, ArrayHeader, MwlArray, mwl_array_append, mwl_array_count, mwl_array_get,
     mwl_array_has_key, mwl_array_key_at, mwl_array_new, mwl_array_next_slot, mwl_array_release,

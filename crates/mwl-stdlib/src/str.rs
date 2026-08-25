@@ -1926,11 +1926,17 @@ fn padding_run(subject: &str, length: usize, padding: &str, member: &str) -> Res
              length"
         )));
     }
-    Ok(unit
-        .pieces(padding)
-        .cycle()
-        .take(length - have)
-        .collect::<String>())
+    // The run is `length - have` pieces, each at most the whole padding, so
+    // that product is an upper bound on the bytes about to be collected. It
+    // had no check at all before: `$length` is a `uint` off the call site, so
+    // `padStart("x", n, "y")` would build an n-byte string with nothing
+    // between it and the allocator.
+    let run = length - have;
+    mwl_runtime::affordable(
+        run.checked_mul(padding.len()),
+        &format!("Core\\Str::{member}"),
+    )?;
+    Ok(unit.pieces(padding).cycle().take(run).collect::<String>())
 }
 
 mwl_runtime::mwl_helper! {
@@ -1940,18 +1946,9 @@ mwl_runtime::mwl_helper! {
         let subject = text(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
         // `str::repeat` panics on capacity overflow, which would be a contained
-        // FATAL rather than a catchable failure — so the size is checked first
-        // and reported as an ordinary throw instead.
-        subject
-            .len()
-            .checked_mul(times)
-            .filter(|bytes| isize::try_from(*bytes).is_ok())
-            .ok_or_else(|| {
-                Fault::thrown(
-                    "Core\\Str::repeat: the requested repetition is larger than any string this \
-                     process could hold",
-                )
-            })?;
+        // FATAL rather than a catchable failure — so the size goes through the
+        // one check first and is reported as an ordinary throw instead.
+        mwl_runtime::affordable(subject.len().checked_mul(times), "Core\\Str::repeat")?;
         produced(&subject.repeat(times))
     }
 }

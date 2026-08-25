@@ -1276,10 +1276,20 @@ pub(crate) fn borrowed(array: *mut mwl_runtime::ArrayHeader) -> std::mem::Manual
 /// than walked. `times` is a `u64` because it comes from a `uint` argument and
 /// the loop is what turns it into allocations; a count that will not fit in
 /// memory fails in [`MwlArray`], not by being truncated here.
-fn append_copies(out: &mut MwlArray, value: Value, times: u64) {
+fn append_copies(out: &mut MwlArray, value: Value, times: u64) -> Result<(), Fault> {
+    // The one check every count-shaped argument goes through — see
+    // `mwl_runtime::affordable`. This loop had none, which made
+    // `Core\Arr::fill($n, 0)` an unbounded run for any `uint` a caller chose;
+    // a `Value` per entry is the floor on what that costs, and the entry and
+    // its key cost several times more.
+    let entries = usize::try_from(times)
+        .ok()
+        .and_then(|count| count.checked_mul(std::mem::size_of::<Value>()));
+    mwl_runtime::affordable(entries, "Core\\Arr::fill")?;
     for _ in 0..times {
         append_borrowed(out, value);
     }
+    Ok(())
 }
 
 /// Appends one borrowed value to a result being built, under the next
@@ -1899,7 +1909,7 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_arr_pad_start(_ctx, args: [3]) {
         let (subject, missing, value) = padding(args, "padStart")?;
         let mut out = MwlArray::new();
-        append_copies(&mut out, value, missing);
+        append_copies(&mut out, value, missing)?;
         append_values(&subject, &mut out);
         Ok(Value::array(out))
     }
@@ -1917,7 +1927,7 @@ mwl_runtime::mwl_helper! {
         let (subject, missing, value) = padding(args, "padEnd")?;
         let mut out = MwlArray::new();
         append_values(&subject, &mut out);
-        append_copies(&mut out, value, missing);
+        append_copies(&mut out, value, missing)?;
         Ok(Value::array(out))
     }
 }
@@ -2244,7 +2254,7 @@ mwl_runtime::mwl_helper! {
             ))
         })?;
         let mut out = MwlArray::new();
-        append_copies(&mut out, args[1], count);
+        append_copies(&mut out, args[1], count)?;
         Ok(Value::array(out))
     }
 }

@@ -322,6 +322,12 @@ mwl_runtime::mwl_helper! {
             ));
         }
 
+        // Two checks, and they answer different questions: `affordable` is the
+        // policy seam every count-shaped argument passes through, and
+        // `try_reserve_exact` is the allocator actually refusing. Keep both —
+        // the first is where `[limits.hard]` will attach, the second is what
+        // catches a draw the machine cannot satisfy today.
+        mwl_runtime::affordable(Some(count), "Core\\Random::bytes()")?;
         let mut drawn: Vec<u8> = Vec::new();
         drawn.try_reserve_exact(count).map_err(|_| {
             Fault::thrown(
@@ -366,15 +372,7 @@ mwl_runtime::mwl_helper! {
         // than failing, so the size is checked first and reported as an
         // ordinary throw — `Core\Str::repeat` takes the same shape for the same
         // reason.
-        let digits = bytes
-            .checked_mul(2)
-            .filter(|len| isize::try_from(*len).is_ok())
-            .ok_or_else(|| {
-                Fault::thrown(
-                    "Core\\Random::token(): the requested token is larger than any string this \
-                     process could hold",
-                )
-            })?;
+        let digits = mwl_runtime::affordable(bytes.checked_mul(2), "Core\\Random::token()")?;
 
         let mut drawn = vec![0_u8; bytes];
         rand::rng().fill_bytes(&mut drawn);

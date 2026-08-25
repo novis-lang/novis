@@ -349,22 +349,12 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
     })
 }
 
-/// A byte count that is about to become an allocation, refused before it is
-/// attempted.
+/// [`mwl_runtime::affordable`] with this class's name already on the message.
 ///
-/// `Vec`'s own growth panics on capacity overflow, which would be a contained
-/// `FATAL` rather than something a program can catch — so the size is checked
-/// here and reported as an ordinary throw instead, exactly as
-/// `Core\Str::repeat` does.
+/// That function's own docs own why the check lives there rather than here,
+/// and what it will grow into once the M6 arena carries `[limits.hard]`.
 fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
-    bytes
-        .filter(|size| isize::try_from(*size).is_ok())
-        .ok_or_else(|| {
-            Fault::thrown(format!(
-                "Core\\Bytes::{member}: the requested buffer is larger than any this process \
-                 could hold"
-            ))
-        })
+    mwl_runtime::affordable(bytes, &format!("Core\\Bytes::{member}"))
 }
 
 /// A signed **position** as a byte offset into a subject of `total` bytes,
