@@ -1,0 +1,16 @@
+<?mwl
+// Templated text: sprintf-style formatting, the default way userland renders a line.
+class Bench {
+    public static function run(int $rounds): int {
+        var $total = 0;
+        var $i = 0;
+        while ($i < $rounds) {
+            var $line = Core\Str::format("%s #%d scored %s", "user", $i, "42");
+            $total = $total + Core\Str::length($line) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

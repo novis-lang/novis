@@ -1,0 +1,36 @@
+<?php
+// Calling an override through a base-typed handle — the interface dispatch a framework runs on.
+class Shape {
+    protected int $size;
+
+    public function __construct(int $size) {
+        $this->size = $size;
+    }
+
+    public function area(): int {
+        return $this->size * $this->size;
+    }
+}
+
+final class Circle extends Shape {
+    public function area(): int {
+        return $this->size * $this->size * 3;
+    }
+}
+
+final class Bench {
+    public static function run(int $rounds): int {
+        $shapes = [new Shape(3), new Circle(4), new Shape(5), new Circle(6)];
+        $total = 0;
+        $i = 0;
+        while ($i < $rounds) {
+            foreach ($shapes as $shape) {
+                $total = ($total + $shape->area()) % 1000003;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(500000), "\n";

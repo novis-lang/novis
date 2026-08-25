@@ -1,0 +1,23 @@
+<?mwl
+// preg_replace over a string - the slug, the sanitiser, the whitespace collapse.
+class Bench {
+    public static function run(int $rounds): int {
+        array<string> $raws = [];
+        var $k = 0;
+        while ($k < 16) {
+            $raws[] = "  The Quick,  Brown FOX -- jumped over " . Core\Str::repeat("2 ", ($k + 1) as uint) . "lazy dogs!!  ";
+            $k = $k + 1;
+        }
+
+        var $total = 1;
+        var $i = 0;
+        while ($i < $rounds) {
+            var $slug = Core\Regex::replace($raws[$total % 16], "[^A-Za-z0-9]+", "-");
+            $total = $total + Core\Str::length($slug) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

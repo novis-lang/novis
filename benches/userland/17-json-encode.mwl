@@ -1,0 +1,23 @@
+<?mwl
+// json_encode on a nested payload — what every API response ends with.
+class Bench {
+    public static function run(int $rounds): int {
+        array<string> $tags = ["billing", "eu", "priority"];
+        var $total = 0;
+        var $i = 0;
+        while ($i < $rounds) {
+            array<mixed> $payload = [
+                "id" => $i,
+                "name" => "order-" . $i,
+                "status" => "open",
+                "amount" => 1999,
+                "tags" => $tags,
+            ];
+            $total = $total + Core\Str::length(Core\Json::encode($payload)) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

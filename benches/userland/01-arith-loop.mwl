@@ -1,0 +1,15 @@
+<?mwl
+// A hot integer loop: the arithmetic every counter, accumulator and offset walk is made of.
+class Bench {
+    public static function run(int $rounds): int {
+        var $total = 0;
+        var $i = 0;
+        while ($i < $rounds) {
+            $total = ($total + $i * 3 - 1) % 1000003;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(3000000), "\n";

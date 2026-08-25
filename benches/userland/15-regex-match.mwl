@@ -1,0 +1,25 @@
+<?mwl
+// preg_match with capture groups - how userland parses a log line, a header or an id.
+class Bench {
+    public static function run(int $rounds): int {
+        array<string> $lines = [];
+        var $k = 0;
+        while ($k < 16) {
+            $lines[] = "2026-08-25 12:04:31 " . Core\Str::repeat("A", ($k + 1) as uint) . " /orders/4711 200 138ms";
+            $k = $k + 1;
+        }
+
+        var $total = 1;
+        var $i = 0;
+        while ($i < $rounds) {
+            var $found = Core\Regex::match($lines[$total % 16], "(\\w+) /orders/(\\d+) (\\d{3}) (\\d+)ms");
+            if ($found != null) {
+                $total = $total + Core\Str::length($found->group(1) ?? "") as int;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

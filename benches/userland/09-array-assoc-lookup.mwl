@@ -1,0 +1,25 @@
+<?mwl
+// String-keyed insert and read back — the cache, the index, the lookup table.
+class Bench {
+    public static function run(int $entries): int {
+        array<int> $index = [];
+        var $i = 0;
+        while ($i < $entries) {
+            $index["key-" . $i] = $i;
+            $i = $i + 1;
+        }
+
+        var $total = 0;
+        $i = 0;
+        while ($i < $entries) {
+            var $key = "key-" . ($i * 3 % $entries);
+            if (Core\Arr::hasKey($index, $key)) {
+                $total = $total + $index[$key];
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

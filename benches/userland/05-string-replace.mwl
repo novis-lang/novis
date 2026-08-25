@@ -1,0 +1,27 @@
+<?mwl
+// Substitution over a template - the placeholder fill every mailer and view helper does.
+class Bench {
+    public static function run(int $rounds): int {
+        var $template = "Hello {name}, your order {order} ships to {city} on {date}.";
+        array<string> $names = [];
+        var $k = 0;
+        while ($k < 16) {
+            $names[] = Core\Str::repeat("ab", ($k + 1) as uint);
+            $k = $k + 1;
+        }
+
+        var $total = 1;
+        var $i = 0;
+        while ($i < $rounds) {
+            var $line = Core\Str::replace($template, "{name}", $names[$total % 16]);
+            $line = Core\Str::replace($line, "{order}", "A-1000");
+            $line = Core\Str::replace($line, "{city}", "Vienna");
+            $line = Core\Str::replace($line, "{date}", "2026-08-25");
+            $total = $total + Core\Str::length($line) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

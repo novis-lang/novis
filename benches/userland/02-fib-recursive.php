@@ -1,0 +1,12 @@
+<?php
+// Recursive calls: the function-call and return path, unrolled by naive fibonacci.
+final class Bench {
+    public static function fib(int $n): int {
+        if ($n < 2) {
+            return $n;
+        }
+        return Bench::fib($n - 1) + Bench::fib($n - 2);
+    }
+}
+
+echo Bench::fib(30), "\n";

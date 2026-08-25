@@ -1,0 +1,38 @@
+<?mwl
+// json_decode then read the fields - MWL validates into a declared type where PHP hands back a map.
+#[Core\Json\Derive]
+class Order {
+    public int $id;
+    public string $name;
+    public string $status;
+    public int $amount;
+
+    public function constructor(int $id, string $name, string $status, int $amount) {
+        $this->id = $id;
+        $this->name = $name;
+        $this->status = $status;
+        $this->amount = $amount;
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<string> $payloads = [];
+        var $k = 0;
+        while ($k < 16) {
+            $payloads[] = "{\"id\":" . (4711 + $k) . ",\"name\":\"order-4711\",\"status\":\"open\",\"amount\":1999}";
+            $k = $k + 1;
+        }
+
+        var $total = 1;
+        var $i = 0;
+        while ($i < $rounds) {
+            var $order = Core\Json::decodeAs<Order>($payloads[$total % 16]);
+            $total = ($total + $order->id + $order->amount + Core\Str::length($order->name) as int) % 1000003;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

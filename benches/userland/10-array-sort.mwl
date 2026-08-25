@@ -1,0 +1,26 @@
+<?mwl
+// Sorting a list of numbers, from the same seeded input on both sides.
+class Bench {
+    public static function run(int $size, int $rounds): int {
+        array<int> $source = [];
+        var $seed = 12345;
+        var $i = 0;
+        while ($i < $size) {
+            $seed = ($seed * 1103515245 + 12345) % 2147483648;
+            $source[] = $seed % 100000;
+            $i = $i + 1;
+        }
+
+        var $total = 1;
+        var $round = 0;
+        while ($round < $rounds) {
+            $source[$round % $size] = $total % 100000;
+            var $sorted = Core\Arr::sort($source);
+            $total = $total + (Core\Arr::first($sorted) ?? 0) + (Core\Arr::last($sorted) ?? 0);
+            $round = $round + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000, 20), "\n";

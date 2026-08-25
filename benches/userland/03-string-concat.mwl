@@ -1,0 +1,16 @@
+<?mwl
+// Building output one piece at a time — the shape of every hand-rolled template and CSV writer.
+class Bench {
+    public static function run(int $rows): string {
+        var $out = "";
+        var $i = 0;
+        while ($i < $rows) {
+            $out .= "<tr><td>" . $i . "</td><td>row-" . $i . "</td></tr>";
+            $i = $i + 1;
+        }
+        return $out;
+    }
+}
+
+var $html = Bench::run(20000);
+echo Core\Str::length($html), "\n";

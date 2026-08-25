@@ -1,0 +1,29 @@
+<?mwl
+// Split a text and tally it - the single most-written userland loop there is.
+class Bench {
+    public static function run(int $rounds): int {
+        var $text = "the quick brown fox jumps over the lazy dog while the dog sleeps and the fox runs";
+        array<string> $words = Core\Str::split($text, " ");
+        array<string> $extras = Core\Str::split("alpha beta gamma delta epsilon zeta eta theta", " ");
+
+        var $total = 1;
+        var $round = 0;
+        while ($round < $rounds) {
+            array<int> $counts = [];
+            foreach ($words as string $word) {
+                if (Core\Arr::hasKey($counts, $word)) {
+                    $counts[$word] = $counts[$word] + 1;
+                } else {
+                    $counts[$word] = 1;
+                }
+            }
+            var $extra = $extras[$total % 8];
+            $counts[$extra] = 1;
+            $total = ($total + Core\Arr::count($counts) as int + (Core\Arr::max($counts) ?? 0)) % 1000003;
+            $round = $round + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

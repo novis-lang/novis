@@ -1,0 +1,22 @@
+<?mwl
+// Growing a list one element at a time, then walking it - the result set of every query loop.
+class Bench {
+    public static function run(int $rows): int {
+        array<int> $items = [];
+        var $seed = 1;
+        var $i = 0;
+        while ($i < $rows) {
+            $seed = ($seed * 31 + $i) % 9973;
+            $items[] = $seed;
+            $i = $i + 1;
+        }
+
+        var $total = 0;
+        foreach ($items as int $value) {
+            $total = $total + $value;
+        }
+        return $total + Core\Arr::count($items) as int;
+    }
+}
+
+echo Bench::run(1000000), "\n";
