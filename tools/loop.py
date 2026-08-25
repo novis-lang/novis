@@ -681,6 +681,17 @@ def rel_to_root(path):
 
 
 def main():
+    # A session's own output carries `§`, `↔` and em dashes, and this echoes it. On Windows a
+    # redirected stdout defaults to cp1252, where the first such character raises
+    # UnicodeEncodeError from inside the renderer -- which killed the driver mid-session, after
+    # the child had already done work, with an empty log to show for it. A console is fine; a
+    # `> file`, a `nohup` or CI is not, which is exactly where nobody is watching.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--max-sessions", type=int, default=1)
     ap.add_argument("--model", default="opus")
