@@ -11,7 +11,10 @@
 //! [`is_assignable`]'s own doc comment owns that rule and why ADR 0007 § 5's
 //! copy-on-write value semantics make it sound where an aliasing language
 //! could not. A qualifier widens but never narrows across it — see
-//! [`super::quals`].
+//! [`super::quals`]. ADR 0047 § 4 adds the last amendment: a literal type, an
+//! enum-case type, and any union of them widen to their base for free, which
+//! [`is_assignable`] answers by one recursion through
+//! [`TypeInterner::literal_base`] rather than by four table rows of its own.
 //!
 //! The positions are [`check_assign`] (`$x = e`, and the reads a target is
 //! made of), [`check_compound_assign`] (`$x ⊕= e`, typed as the `$x = $x ⊕ e`
@@ -36,12 +39,20 @@ use super::*;
 /// class receiver's own property types against a shape target. ADR 0024 § 2
 /// and ADR 0033 § 2 add one more: a same-base `string`/`bytes` value widens
 /// freely on its `tainted`/`secret` axes (see the qualifier check just above
-/// [`shape_satisfied`]'s call), never narrows.
+/// [`shape_satisfied`]'s call), never narrows. ADR 0047 § 4 adds the last:
+/// `"a" → string`, `Mode::Read → Mode`, and each of those over a union, are
+/// free — see the widening step below for why one recursion states all four
+/// rows and why the reverse direction needs no rule to refuse it.
+///
+/// Takes the interner by `&mut` for that one step: asking whether `from`
+/// widens to `to` means naming the type it widens *to*, and naming a type in
+/// this crate is interning it. Every caller already holds `Env::interner`
+/// mutably, so no call site changes shape.
 #[must_use]
 pub(crate) fn is_assignable(
     from: TypeId,
     to: TypeId,
-    interner: &TypeInterner,
+    interner: &mut TypeInterner,
     graph: &ClassGraph,
     signatures: &SignatureTable,
 ) -> bool {
@@ -53,6 +64,21 @@ pub(crate) fn is_assignable(
     }
     if matches!(interner.get(from), Ty::Mixed) {
         return false;
+    }
+    // ADR 0047 § 4's first four rows, all at once. `literal_base` widens a
+    // literal atom to its base, an enum-case atom to its enum, and a union
+    // member-wise — so `"a"|"b" → string` and `Mode::Read|Mode::Write → Mode`
+    // fall out of the same call the two atom rows do, and the recursion then
+    // composes each with every rule below it (`"a"` into `string|null`, into
+    // `tainted string`, into a `Stringable` target). `literal_base` is
+    // idempotent, so the recursion is one level deep.
+    //
+    // The reverse direction — `string → "a"` — needs no rule to refuse it:
+    // nothing below widens a base type *down*, and § 4's last three rows make
+    // that direction a checked `as`, never an assignment.
+    let widened = interner.literal_base(from);
+    if widened != from && is_assignable(widened, to, interner, graph, signatures) {
+        return true;
     }
     if let Ty::Union(members) = interner.get(to) {
         return match interner.get(from) {
@@ -70,7 +96,8 @@ pub(crate) fn is_assignable(
         return class_satisfied(from_q, to_q, to_args, graph, signatures);
     }
     if let Ty::Shape(to_fields) = interner.get(to) {
-        return shape_satisfied(from, to_fields, interner, graph, signatures);
+        let to_fields = to_fields.clone();
+        return shape_satisfied(from, &to_fields, interner, graph, signatures);
     }
     // **`array<T>` is covariant in its element type**, and it is the one
     // generic name in the language that is — see [`class_satisfied`] for why
@@ -87,7 +114,8 @@ pub(crate) fn is_assignable(
     // means by it — and `Core\Arr::flip`'s `array<T>` binding a `T` it could
     // not otherwise reach.
     if let (Ty::Array(from_elem), Ty::Array(to_elem)) = (interner.get(from), interner.get(to)) {
-        return is_assignable(*from_elem, *to_elem, interner, graph, signatures);
+        let (from_elem, to_elem) = (*from_elem, *to_elem);
+        return is_assignable(from_elem, to_elem, interner, graph, signatures);
     }
     // ADR 0024 § 2 / ADR 0033 § 2: `tainted` and `secret` are two independent
     // bits on the same `string`/`bytes` base, and each may only ever widen
@@ -152,11 +180,15 @@ pub(super) fn class_satisfied(
 pub(super) fn shape_satisfied(
     from: TypeId,
     to_fields: &[(String, TypeId)],
-    interner: &TypeInterner,
+    interner: &mut TypeInterner,
     graph: &ClassGraph,
     signatures: &SignatureTable,
 ) -> bool {
-    match interner.get(from) {
+    // Cloned rather than borrowed: [`is_assignable`] needs the interner
+    // mutably for ADR 0047 § 4's widening step, and a shape's field list is
+    // read while it recurses. A shape type is a handful of fields and this
+    // path runs once per shape-typed assignment.
+    match interner.get(from).clone() {
         Ty::Shape(from_fields) => to_fields.iter().all(|(name, field_ty)| {
             from_fields
                 .iter()
@@ -166,7 +198,7 @@ pub(super) fn shape_satisfied(
                 })
         }),
         Ty::Class(qname, _) => to_fields.iter().all(|(name, field_ty)| {
-            resolve_property(qname, name, signatures, graph).is_some_and(|from_field_ty| {
+            resolve_property(&qname, name, signatures, graph).is_some_and(|from_field_ty| {
                 is_assignable(from_field_ty, *field_ty, interner, graph, signatures)
             })
         }),

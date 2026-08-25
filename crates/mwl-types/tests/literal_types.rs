@@ -1,13 +1,15 @@
 //! Literal and enum-case types — [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md)
-//! §§ 1-3, at the point each atom becomes a real type.
+//! §§ 1-4, at the point each atom becomes a real type and a value of one
+//! becomes writable.
 //!
-//! What is pinned here is *what an atom interns to*, not yet what a value of
-//! one may be assigned to: § 4's assignability and conversion table is its own
-//! slice, and until it lands a literal-typed binding still fails to check the
-//! same way a `true`-typed one always has. The two facts this file exists to
-//! hold are the ones § 3 turns on — an enum case is **not** an int literal of
-//! its backing value, and a class constant **is** its value's own literal type
-//! — because unifying either one reopens
+//! Two halves are pinned here: *what an atom interns to* (§§ 1-3), and § 4's
+//! free-widening rows plus the placement rule that makes a value of one of
+//! these types writable at all. What is **not** here is § 4's checked `as` and
+//! § 6's two diagnostics, which are their own slice.
+//!
+//! The two facts this file exists to hold are the ones § 3 turns on — an enum
+//! case is **not** an int literal of its backing value, and a class constant
+//! **is** its value's own literal type — because unifying either one reopens
 //! [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5's hole.
 
 mod common;
@@ -210,4 +212,190 @@ fn a_literal_type_widens_to_its_base() {
     let one = types.of("1", "$one");
     let int = types.interner.int();
     assert_eq!(types.interner.literal_base(one), int);
+}
+
+/// § 4's producer half: a literal expression takes ADR 0047 § 1's singleton
+/// type from the position it lands in, so writing the value out is what
+/// satisfies the type — the step without which nothing but an `as` ever could.
+#[test]
+fn a_literal_expression_satisfies_the_literal_type_its_position_names() {
+    let diags = check_in_method(concat!(
+        "    \"a\"|\"b\" $mode = \"a\";
+",
+        "    ?\"x\" $maybe = \"x\";
+",
+        "    ?\"x\" $none = null;
+",
+        "    1|2 $n = 2;
+",
+        "    -1 $neg = -1;
+",
+        "    0x10 $hex = 16;
+",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The other side of the same rule: a literal *outside* the named set is an
+/// ordinary mismatch, reported once, at the assignment.
+#[test]
+fn a_literal_outside_the_named_set_is_a_mismatch() {
+    for body in [
+        "    \"a\"|\"b\" $mode = \"z\";
+",
+        "    1|2 $n = 3;
+",
+        "    -1 $neg = 1;
+",
+    ] {
+        let diags = check_in_method(body);
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{body}: {diags:?}"
+        );
+    }
+}
+
+/// § 4's first three rows, through an assignment rather than through
+/// `literal_base` directly: a literal type and a literal union widen to their
+/// base for free, and compose with everything already below that rule — a
+/// nullable base, and ADR 0024's `tainted` axis.
+#[test]
+fn a_literal_type_widens_to_its_base_for_free() {
+    let diags = check_in_method(concat!(
+        "    \"a\"|\"b\" $mode = \"a\";
+",
+        "    string $s = $mode;
+",
+        "    ?string $maybe = $mode;
+",
+        "    tainted string $t = $mode;
+",
+        "    mixed $m = $mode;
+",
+        "    1|2 $n = 1;
+",
+        "    int $i = $n;
+",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// And never the reverse — § 4's last row makes narrowing a checked `as`, so
+/// a base-typed value in a literal-typed position is a mismatch, not a
+/// silent membership test.
+#[test]
+fn a_base_type_does_not_narrow_to_a_literal_type_by_assignment() {
+    let diags = check_in_method(concat!(
+        "    string $s = \"a\";
+",
+        "    \"a\"|\"b\" $mode = $s;
+",
+    ));
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+/// § 3's atom, both halves at once: `Mode::Read` written where the position
+/// names it *is* that case's type, it widens to `Mode` for free, and the raw
+/// `int` its backing value equals still does not satisfy it — which is the
+/// hole [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5
+/// closed and § 3 refuses to reopen.
+#[test]
+fn an_enum_case_expression_satisfies_a_case_subset_type_and_widens_to_the_enum() {
+    let diags = check_src(concat!(
+        "<?mwl
+",
+        "enum Mode { Read, Write, Admin }
+",
+        "class T {
+",
+        "  function m(): void {
+",
+        "    Mode::Read|Mode::Write $m = Mode::Read;
+",
+        "    Mode $whole = $m;
+",
+        "    Mode::Read $one = Mode::Read;
+",
+        "  }
+",
+        "}
+",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    for value in ["Mode::Admin", "0"] {
+        let diags = check_src(&format!(
+            concat!(
+                "<?mwl
+",
+                "enum Mode {{ Read, Write, Admin }}
+",
+                "class T {{
+",
+                "  function m(): void {{
+",
+                "    Mode::Read|Mode::Write $m = {value};
+",
+                "  }}
+",
+                "}}
+",
+            ),
+            value = value,
+        ));
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{value}: {diags:?}"
+        );
+    }
+}
+
+/// § 2's fold is sugar, so the constant and the value it names are
+/// interchangeable at the call site — that is the whole argument for folding
+/// it, and this is the observable form of it.
+#[test]
+fn a_folded_class_constant_accepts_the_bare_value_it_names() {
+    let diags = check_src(concat!(
+        "<?mwl
+",
+        "class Foo { public const string TYPE_A = \"a\"; }
+",
+        "class T {
+",
+        "  function m(): void {
+",
+        "    Foo::TYPE_A $c = \"a\";
+",
+        "    string $s = $c;
+",
+        "  }
+",
+        "}
+",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// A literal type is usable at every binding site ADR 0007 § 1 lists, not
+/// only at a local — so the same free widening runs at a parameter and at a
+/// return.
+#[test]
+fn a_literal_type_is_assignable_at_a_parameter_and_a_return() {
+    let diags = check_src(concat!(
+        "<?mwl
+",
+        "class T {
+",
+        "  function take(\"a\"|\"b\" $mode): string { return $mode; }
+",
+        "  function call(): void { string $s = $this->take(\"a\"); }
+",
+        "}
+",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
 }

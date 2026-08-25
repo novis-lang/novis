@@ -31,17 +31,27 @@ use super::*;
 /// `Class::CONST` — [`super::infer`]'s `ExprKind::ClassConstAccess` arm.
 ///
 /// Two shapes are typed precisely, and they split by what the left-hand side
-/// names. `EnumName::CaseName` is ADR 0010 § 4's case, recovered as `Ty::Enum`;
+/// names. `EnumName::CaseName` is ADR 0010 § 4's case, recovered as `Ty::Enum`
+/// — or, where the position names that one case, as ADR 0047 § 3's narrower
+/// `Ty::EnumCase`, the same take-your-type-from-the-position rule
+/// `crate::expr::literals` states in full;
 /// `Core\Math::PI` is ADR 0011's class constant, recovered as the declared type
 /// of the `mwl_stdlib::registry::CoreConst` row. A **user-declared** class's
 /// constant is still unmodeled (`mixed`) — see the crate docs' known gaps —
 /// because nothing collects one into a signature table to look it up in.
 /// `mwl_hir::members` has already checked that every one of the three exists,
 /// so this only recovers the type.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the five-parameter checking context every expression walker in 
+              this module carries, plus the constant reference's own two 
+              spans and the expectation ADR 0047 § 3 places its case against"
+)]
 pub(super) fn infer_class_const(
     expr: &Expr,
     class: &Expr,
     name: Span,
+    expected: Option<TypeId>,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
@@ -79,7 +89,18 @@ pub(super) fn infer_class_const(
                 report_unknown_member(class.span, &qname, &case, "case", env);
             }
             let backing = env.enums.backing_of(&qname);
-            env.interner.enum_(qname, backing)
+            // ADR 0047 § 3: the case's own narrowed type where the position
+            // names it, the whole enum everywhere else — the placement rule
+            // `crate::expr::literals` applies to a `string`/`int` literal,
+            // reached here because § 3's atom is a *case*, not a literal of
+            // its backing value. `ExprInfo::EnumCase` is recorded either way,
+            // so `mwl-ir` sees the same integer constant it always did.
+            let placed = placed_literal(
+                expected,
+                env.interner,
+                |ty| matches!(ty, Ty::EnumCase(q, _, c) if *q == qname && *c == case),
+            );
+            placed.unwrap_or_else(|| env.interner.enum_(qname, backing))
         }
         // ADR 0011's class constant, on a `Core` class the registry states. The
         // *value* is recorded, not just the type, for exactly ADR 0010 § 3's

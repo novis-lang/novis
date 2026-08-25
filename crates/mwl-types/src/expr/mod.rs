@@ -136,7 +136,7 @@ pub(super) fn infer(
         ExprKind::Duration(_) => env
             .interner
             .class(QName::parse(mwl_stdlib::time::DURATION_NAME)),
-        ExprKind::Str(span) => infer_str_literal(*span, env),
+        ExprKind::Str(span) => infer_str_literal(*span, expected, env),
         ExprKind::Interpolated(parts) => infer_interpolated(expr, parts, live, scope, ctx, env),
         ExprKind::Variable(span) => {
             let name = strip_sigil(span_text(env.src, *span)).to_owned();
@@ -163,12 +163,17 @@ pub(super) fn infer(
             env.interner.shape(out)
         }
         ExprKind::Unary { op, expr: inner } => {
-            let inner_ty = check_expr(inner, None, live, scope, ctx, env);
+            // `infer`, not `check_expr`: the operand inherits an *expectation*
+            // rather than a position it has to satisfy, so a `-$n` under a
+            // `-1` target is still an ordinary mismatch reported once, at the
+            // negation, rather than twice.
+            let hint = negated_literal_expectation(*op, expected, env.interner);
+            let inner_ty = infer(inner, hint, live, scope, ctx, env);
             match op {
                 UnaryOp::Not => env.interner.bool_ty(),
                 UnaryOp::Neg | UnaryOp::Plus | UnaryOp::BitNot => {
                     reject_arithmetic_on_object(*op, inner_ty, expr.span, env);
-                    inner_ty
+                    negated_literal_result(*op, inner_ty, env.interner)
                 }
                 UnaryOp::Suppress => inner_ty,
                 _ => inner_ty,
@@ -246,7 +251,7 @@ pub(super) fn infer(
                 .unwrap_or_else(|| env.interner.mixed())
         }
         ExprKind::ClassConstAccess { class, name } => {
-            infer_class_const(expr, class, *name, live, scope, ctx, env)
+            infer_class_const(expr, class, *name, expected, live, scope, ctx, env)
         }
         ExprKind::ClassNameConst { class } => {
             check_expr(class, None, live, scope, ctx, env);

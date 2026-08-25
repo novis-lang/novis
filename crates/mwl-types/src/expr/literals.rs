@@ -12,6 +12,16 @@
 //! their complaints reported here, once per literal, so a malformed escape is
 //! a diagnostic rather than a lowering-time surprise.
 //!
+//! ADR 0047 §§ 1 and 4 add a fourth rule of the same shape, and
+//! [`placed_literal`] is all of it: a `string` or `int` literal types as its
+//! own singleton exactly where the position names that singleton, and as its
+//! plain base everywhere else. That is what ADR 0047's *Verification* M2 row
+//! asks for — without it nothing a caller writes ever satisfies a literal type
+//! except through an `as` — and it is why § 4's free-widening rows in
+//! [`super::assign`] are the only other half needed: every other position
+//! already sees the base. [`super::members`] applies the same helper to an
+//! enum case, which is § 3's atom rather than § 1's.
+//!
 //! [`check_array_literal`] is ADR 0007 § 5's half of the same idea for the one
 //! composite literal: an array literal checked against an `array<T>` target
 //! checks every element directly against `T`, never inferring an element type
@@ -23,6 +33,103 @@
 //! modules, which is the reach it had when `expr` was a single file.
 
 use super::*;
+
+/// ADR 0047 § 4's producer half: the literal atom `expected` names that this
+/// literal *is*, or `None` where the position names none — in which case the
+/// caller returns the base type, exactly as it did before this ADR.
+///
+/// `expected` is searched one level deep, the atom itself or the members of a
+/// union, which is the whole of it: ADR 0007 § 3 canonicalizes a union flat,
+/// so there is no deeper level for a literal atom to hide in.
+///
+/// `is_this_literal` is what makes this shared by three atom kinds — the two
+/// [`Ty::StringLiteral`]/[`Ty::IntLiteral`] callers below and
+/// [`super::members`]'s [`Ty::EnumCase`] one — since the only thing that
+/// differs between them is how a candidate atom is compared to the value in
+/// hand.
+pub(super) fn placed_literal(
+    expected: Option<TypeId>,
+    interner: &TypeInterner,
+    is_this_literal: impl Fn(&Ty) -> bool,
+) -> Option<TypeId> {
+    let expected = expected?;
+    match interner.get(expected) {
+        Ty::Union(members) => members
+            .iter()
+            .copied()
+            .find(|id| is_this_literal(interner.get(*id))),
+        ty => is_this_literal(ty).then_some(expected),
+    }
+}
+
+/// [`placed_literal`] for ADR 0047 § 1's string atom.
+///
+/// Two passes on purpose: the first asks the cheap question — does this
+/// position name a string literal type at all — and only then is the literal
+/// cooked. Cooking allocates a `String`, and the answer is `None` for very
+/// nearly every string literal in a program, so doing it unconditionally
+/// would spend an allocation per literal expression to learn nothing. The
+/// cooked value is what [`Ty::StringLiteral`] holds (see its own docs), so
+/// `"a\n"` and a literal `"a"` followed by a real newline place identically.
+fn placed_string_literal(span: Span, expected: Option<TypeId>, env: &Env<'_>) -> Option<TypeId> {
+    placed_literal(expected, env.interner, |ty| {
+        matches!(ty, Ty::StringLiteral(_))
+    })?;
+    let value = crate::string_lit::cook_string_literal(env.src, span);
+    placed_literal(
+        expected,
+        env.interner,
+        |ty| matches!(ty, Ty::StringLiteral(v) if *v == value),
+    )
+}
+
+/// The expectation a `-e` operand inherits, and `None` for every other unary
+/// operator — which is what [`super::infer`]'s arm passed before ADR 0047.
+///
+/// ADR 0047 § 1's int literal atom carries its own sign, so `-1` is *one*
+/// atom in type position; a `-1` expression is a negation wrapping the bare
+/// digit run `1`. Placing the operand against the negated value is what lets
+/// the two meet, and [`negated_literal_result`] puts the sign back on. Without
+/// the pair, `-1` would be a type nothing but an `as` could ever produce,
+/// while `1` was satisfied by writing it.
+pub(super) fn negated_literal_expectation(
+    op: UnaryOp,
+    expected: Option<TypeId>,
+    interner: &mut TypeInterner,
+) -> Option<TypeId> {
+    if op != UnaryOp::Neg {
+        return None;
+    }
+    let placed = placed_literal(
+        expected,
+        interner,
+        |ty| matches!(ty, Ty::IntLiteral(v) if *v < 0),
+    )?;
+    let &Ty::IntLiteral(value) = interner.get(placed) else {
+        return None;
+    };
+    Some(interner.int_literal(value.checked_neg()?))
+}
+
+/// The type `-e` has when its operand took ADR 0047 § 1's int literal type —
+/// the literal of the negated value, so `-1` placed at the type `-1` stays
+/// that type rather than widening to `int` at the operator. Any other operand
+/// type, and any other operator, is returned unchanged.
+pub(super) fn negated_literal_result(
+    op: UnaryOp,
+    inner: TypeId,
+    interner: &mut TypeInterner,
+) -> TypeId {
+    if op != UnaryOp::Neg {
+        return inner;
+    }
+    let &Ty::IntLiteral(value) = interner.get(inner) else {
+        return inner;
+    };
+    value
+        .checked_neg()
+        .map_or(inner, |negated| interner.int_literal(negated))
+}
 
 /// `123` — [`super::infer`]'s `ExprKind::Int` arm.
 ///
@@ -50,7 +157,22 @@ pub(super) fn infer_int_literal(
     }
     let wants_uint = expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Uint));
     let (radix, digits) = int_literal_digits(env.src, span);
-    match u64::from_str_radix(&digits, radix) {
+    let parsed = u64::from_str_radix(&digits, radix);
+    // ADR 0047 § 1, ahead of `uint`'s placement below because no position
+    // names both: a literal type is a singleton, and `uint` is not one. The
+    // digit run is never negative here — a leading `-` is the wrapping
+    // `ExprKind::Unary` [`negated_literal_expectation`] handles.
+    if let Ok(&magnitude) = parsed.as_ref()
+        && let Ok(value) = i64::try_from(magnitude)
+        && let Some(placed) = placed_literal(
+            expected,
+            env.interner,
+            |ty| matches!(ty, Ty::IntLiteral(v) if *v == value),
+        )
+    {
+        return placed;
+    }
+    match parsed {
         Ok(n) if i64::try_from(n).is_ok() => {
             if wants_uint {
                 env.interner.uint()
@@ -116,7 +238,7 @@ pub(super) fn infer_float_literal(
 /// (whose span opens with `<`, not a quote) runs [`crate::string_lit`]'s
 /// flexible-indentation check first, then the same escape grammar too — unless
 /// it is a nowdoc, which (like PHP's) applies no escapes at all.
-pub(super) fn infer_str_literal(span: Span, env: &mut Env<'_>) -> TypeId {
+pub(super) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut Env<'_>) -> TypeId {
     let raw = span_text(env.src, span);
     if raw.starts_with('"') {
         check_double_quoted_text_issues(inner_quoted_span(span), env);
@@ -126,7 +248,10 @@ pub(super) fn infer_str_literal(span: Span, env: &mut Env<'_>) -> TypeId {
         let run_escapes = !crate::string_lit::heredoc_is_nowdoc(raw);
         check_heredoc_run_issues(&shape.indent, shape.body, true, true, run_escapes, env);
     }
-    env.interner.string()
+    // ADR 0047 § 1, after the escape grammar has had its say: a literal that
+    // does not survive its own text has no singleton to be, and reporting the
+    // malformed escape once is what this arm is for.
+    placed_string_literal(span, expected, env).unwrap_or_else(|| env.interner.string())
 }
 
 /// `"a $b c"` — [`super::infer`]'s `ExprKind::Interpolated` arm.
