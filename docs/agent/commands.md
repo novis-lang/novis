@@ -84,17 +84,10 @@ whole verdict.
 `cargo-fuzz` (the `fuzz/` crate) needs libFuzzer, and `valgrind`/`callgrind`
 ([ADR 0026](../adr/0026-performance-measurement-methodology.md)) has no native Windows build at all — do
 both in WSL. From a Windows shell, `wsl.exe -- bash -lc "<command>"` runs a command in the default WSL
-distro, which mounts the repo at `/mnt/<drive>/<repo>`. One-time setup in that distro:
+distro, which mounts the repo at `/mnt/<drive>/<repo>`. What that distro must have installed — and why PHP goes in
+it as well, at the same version as the Windows one — is [docs/setup.md](../setup.md).
 
-```sh
-sudo apt-get update && sudo apt-get install -y build-essential clang valgrind
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-source "$HOME/.cargo/env"
-rustup toolchain install nightly
-cargo install cargo-fuzz --locked
-```
-
-Then, from `/mnt/<drive>/<repo>` (not `fuzz/` itself — cargo-fuzz expects the parent directory):
+From `/mnt/<drive>/<repo>` (not `fuzz/` itself — cargo-fuzz expects the parent directory):
 `cargo +nightly fuzz run lex -- -max_total_time=300` (and `parse` likewise). CI's `fuzz-smoke` job runs both
 for 60s on every push.
 

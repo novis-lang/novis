@@ -110,8 +110,8 @@ gives it a value — see § 3.
 
 ### 5. `valgrind` joins the WSL one-time setup
 
-[AGENTS.md](../../AGENTS.md)'s "Fuzzing on Windows: use WSL" section documents the one-time setup already
-needed for `cargo-fuzz`. `sudo apt-get install -y valgrind` is added to that same list — any contributor who
+[docs/setup.md](../setup.md) documents the one-time setup a WSL distro already needs for `cargo-fuzz`.
+`valgrind` is added to that same install list — any contributor who
 wants to run or verify the historical-dashboard leg locally needs it, the identical shape of dependency
 `cargo-fuzz` already introduced for the identical reason (a tool with no native Windows build).
 

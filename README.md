@@ -106,6 +106,7 @@ tools/
   gen-attribution   generates THIRD-PARTY-LICENSES.txt from the dep graph          exists
   leak-check.sh     valgrind over named .mwl fixtures (WSL/Linux)                  exists
   wsl-acceptance.sh whole-suite sweep under WSL/Linux                              exists
+docs/setup.md       what a development machine installs, and why twice on Windows exists
 docs/adr/           architecture decision records + the topic routing table        exists
 docs/agent/         how agents work in this repo: loop, prompts, live handoff      exists
 docs/spec/          normative language reference                                unwritten
@@ -132,8 +133,9 @@ the premise the calling convention exists for.
 
 ## Building
 
-Requires the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) (`rustup` installs it
-automatically) and, on Windows, the MSVC C++ build tools for linking.
+Requires the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml), which `rustup` installs on
+the first `cargo` command in the tree. Everything else a development machine needs — the MSVC build tools,
+WSL and PHP 8.5 on Windows, valgrind on Linux — is [docs/setup.md](docs/setup.md).
 
 ```sh
 cargo build            # debug; dependencies are still built with opt-level 2

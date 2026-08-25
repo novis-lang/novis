@@ -34,6 +34,7 @@ so you never have to open this file to route a topic.
 | Something that looks like it should work and does not — a `Core` member's four required edits, a `.mwlt` case that skips a leg, an MWL shape that will not compile | [docs/agent/playbook.md](../agent/playbook.md) — the trap list, append-mostly |
 | The *shape* of something you are about to write — a commit message, a `.mwlt` case, a `Core` member, an ADR, a diagnostic code, a splice patch | [docs/agent/conventions.md](../agent/conventions.md) — skeletons plus a worked example CI runs |
 | Running the build, the tests, clippy and fmt; what "verified" means for a session; `splice.py`, `plan.py`, WSL, valgrind, and why a shell never writes a file here | [docs/agent/commands.md](../agent/commands.md) |
+| Setting up a new development machine — what to install, why Windows needs WSL, why PHP 8.5 goes on both sides at the same version, how to prove the machine is right | [docs/setup.md](../setup.md) |
 | What a decision has already settled — one sentence per rule, with its ADR | [ground-rules.md](ground-rules.md), or `python tools/brief.py --where <keyword>` to route straight past it |
 | Writing anything under `docs/` — where a fact lives, folding a changed decision, the length targets nothing enforces | [docs/agent/doc-style.md](../agent/doc-style.md) |
 | What one loop session may read, and how a goal narrows it | `python tools/orient.py`, selected by `[context]` in [docs/agent/loop-goal.toml](../agent/loop-goal.toml) |
