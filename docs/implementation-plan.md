@@ -147,9 +147,15 @@
 > the base conversion, so `1 as "1"|"b"` throws rather than being rendered into the set it names.
 > What is left is § 3's enum-case subset over an operand only known at run time, which needs each
 > case's backing value plumbed into `mwl-ir` and is the same missing check as ADR 0010 § 5's
-> `int`-into-an-enum row (`mwl-ir` gap 20). Then, in order: **`private`/`protected`**, which nothing
-> enforces; **`Comparable`/`Stringable`**, which carry no member signatures, so `$s->toString()` is
-> `E0405` and `instanceof Stringable` panics `mwl-ir`; and **ADR 0061**'s `autoload` grammar and its
+> `int`-into-an-enum row (`mwl-ir` gap 20). **ADR 0094's levels are now enforced for a property** —
+> `E0471` from `mwl_types::expr::members::check_member_visibility`, keyed on the *accessing* class
+> (`Ctx::current_class`) and never on the receiver's type, so `$other->n` inside the declaring class
+> is legal and the same line at file scope is not; it reaches the static `Foo::$n` spelling and a
+> write through the same `PropertyAccess` span, and the two shapes still outside it are a promoted
+> constructor parameter (no table records one) and a **method**, which carries no visibility in
+> `MethodSig` at all. Then, in order: **`private`/`protected` for a method**;
+> **`Comparable`/`Stringable`**, which carry no member signatures, so `$s->toString()` is `E0405`
+> and `instanceof Stringable` panics `mwl-ir`; and **ADR 0061**'s `autoload` grammar and its
 > name-to-file fixpoint. **ADR 0069's refusal is built** — `+`/`+=` with an array operand is `E0467`
 > naming `Core\Arr::underlay` — leaving that ADR's combination *members* to § 1's `Core` breadth
 > below. **ADR 0087 is built** — `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008`

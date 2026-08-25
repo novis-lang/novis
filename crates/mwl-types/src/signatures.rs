@@ -19,7 +19,12 @@
 //! **Known gaps:**
 //! - A promoted constructor-parameter property (`function constructor(public
 //!   int $x) {}`) is not recorded as a property here, matching
-//!   `mwl_hir::members`'s own member table, which has the same gap.
+//!   `mwl_hir::members`'s own member table, which has the same gap. Its
+//!   visibility is therefore not enforced either, since [`is_visible_from`]
+//!   is only reached for a property this table found.
+//! - A method carries no visibility at all — [`MethodSig::interface_private`]
+//!   is the one narrow case ADR 0043 § 3 needed. ADR 0094's levels are
+//!   enforced for a property only.
 //! - A variadic parameter's declared type is matched against every argument
 //!   from its position onward (an element-type check) rather than being
 //!   modeled as its own `array<T>` — see [`crate::expr`]'s docs for where
@@ -32,6 +37,7 @@ use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use mwl_hir::{ClassGraph, QName, SymbolKind};
 use mwl_syntax::ast::{
     ClassMember, ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind,
+    Visibility,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -279,6 +285,14 @@ pub fn hook_label_class(label: &str) -> Option<&str> {
 pub struct ClassSignature {
     /// Instance property types, keyed by name with the `$` sigil stripped.
     pub properties: FxHashMap<String, TypeId>,
+    /// This declaration's own properties' **read** visibility (ADR 0094 § 3:
+    /// the plain keyword of an asymmetric pair is the read half, and
+    /// `private(set)`'s write half is a separate rule this map does not
+    /// model). Read through [`property_visibility`], never directly — a
+    /// property with no entry is `public`, which is what a `Core` class
+    /// installed through [`SignatureTable::install`] and every synthesized
+    /// declaration is, since only user source can write a level at all.
+    pub property_visibility: FxHashMap<String, Visibility>,
     /// This declaration's own properties that carry an ADR 0014 § 1 hook
     /// block, by name — see [`PropertyHooks`]. A property with no hooks, or
     /// whose hooks are all bodiless (an abstract hook in an interface), is
@@ -577,6 +591,23 @@ fn collect_stmts(
     }
 }
 
+/// The one plain `public`/`protected`/`private` keyword a member declaration
+/// carries, if it wrote one. [`Modifier::SetVisibility`] is deliberately not
+/// read here: `private(set)` is the *write* half of ADR 0094 § 3's pair, and
+/// the read half is always the plain keyword written alongside it.
+///
+/// `None` where nothing was written — which `mwl_syntax::check_declarations`
+/// already reports as `E_MISSING_VISIBILITY`, so this only has to not invent
+/// a level for source that is already being refused.
+fn declared_visibility(modifiers: &[Modifier]) -> Option<Visibility> {
+    modifiers.iter().find_map(|modifier| match modifier {
+        Modifier::Public => Some(Visibility::Public),
+        Modifier::Protected => Some(Visibility::Protected),
+        Modifier::Private => Some(Visibility::Private),
+        _ => None,
+    })
+}
+
 fn collect_members(
     members: &[ClassMember],
     qname: &QName,
@@ -606,8 +637,12 @@ fn collect_members(
                     && !is_lateinit
                     && !env.interner.is_nullable(ty);
                 let hooks = declared_hooks(p);
+                let visibility = declared_visibility(&p.modifiers);
                 let sig = table.entry(qname.clone());
                 sig.properties.insert(name.clone(), ty);
+                if let Some(level) = visibility {
+                    sig.property_visibility.insert(name.clone(), level);
+                }
                 if hooks != PropertyHooks::default() {
                     sig.hooked_properties.insert(name.clone(), hooks);
                 }
@@ -828,6 +863,47 @@ fn resolve_property_rec(
         .iter()
         .chain(links.implements.iter())
         .find_map(|parent| resolve_property_rec(parent, name, table, graph, seen))
+}
+
+/// The declared **read** visibility of `owner::$name` — `owner` being the
+/// declaring class [`resolve_property_owned`] returned, not the class the
+/// access was written on, since that is where the keyword is.
+///
+/// `public` where no entry exists, and that is not a default in ADR 0094 § 1's
+/// sense: a property with no entry is one no user declaration wrote, which
+/// today means a `Core` class installed through [`SignatureTable::install`].
+#[must_use]
+pub fn property_visibility(owner: &QName, name: &str, table: &SignatureTable) -> Visibility {
+    table
+        .get(owner)
+        .and_then(|sig| sig.property_visibility.get(name).copied())
+        .unwrap_or(Visibility::Public)
+}
+
+/// Whether a member declared at `level` on `owner` is reachable from code
+/// written inside `accessing` — `None` for file scope, a plain function, or a
+/// closure body that is not inside a class.
+///
+/// The question is asked of the **accessing** class and never of the
+/// receiver's static type: `$other->secret` inside `Secret`'s own method is
+/// legal precisely because visibility is a property of where the code is
+/// written. `protected` reaches down an `extends`/`implements` chain via
+/// [`mwl_hir::implements_interface`] — the same ancestor walk
+/// [`resolve_property_owned`] used to find the declaration in the first
+/// place — and never up one: a superclass does not see a subclass's members.
+#[must_use]
+pub fn is_visible_from(
+    level: Visibility,
+    owner: &QName,
+    accessing: Option<&QName>,
+    graph: &ClassGraph,
+) -> bool {
+    match level {
+        Visibility::Public => true,
+        Visibility::Private => accessing == Some(owner),
+        Visibility::Protected => accessing
+            .is_some_and(|from| from == owner || mwl_hir::implements_interface(from, owner, graph)),
+    }
 }
 
 /// Which ADR 0014 § 1 hooks the property `owner::$name` declares — `owner`

@@ -684,6 +684,14 @@ pub mod code {
     /// the set it names is a set of *cases* rather than of literal values,
     /// which is the distinction § 3 exists to keep.
     pub const E_ENUM_CASE_SUBSET_MISMATCH: Code = Code::new("E0470");
+    /// `$obj->secret` where `secret` is declared `private` outside the class
+    /// the access is written in, or `protected` outside that class and its
+    /// subclasses — ADR 0094's levels, now meaning something. The test is
+    /// keyed on the **accessing** class and never on the receiver's static
+    /// type: `$other->secret` is legal inside `Secret`'s own body and the
+    /// identical line is not at file scope. A name nothing declares anywhere
+    /// in the chain is [`E_UNKNOWN_MEMBER`] instead.
+    pub const E_MEMBER_NOT_VISIBLE: Code = Code::new("E0471");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

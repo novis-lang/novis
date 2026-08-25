@@ -49,7 +49,9 @@ use rustc_hash::FxHashSet;
 use crate::expr_table::{ExprInfo, ForeachDrive, ResolvedCall};
 use crate::locals::{Captures, LocalScope, check_block};
 use crate::lower::{lower_optional_type, lower_type};
-use crate::signatures::{MethodSig, SignatureTable, resolve_method, resolve_property};
+use crate::signatures::{
+    MethodSig, SignatureTable, resolve_method, resolve_property, resolve_property_owned,
+};
 use crate::ty::{Ty, TypeId, TypeInterner};
 use crate::{Ctx, Env, span_text, strip_sigil};
 
@@ -246,9 +248,26 @@ pub(super) fn infer(
             check_expr(class, None, live, scope, ctx, env);
             let text = span_text(env.src, *name);
             let prop_name = strip_sigil(text).to_owned();
-            resolve_class_expr(class, ctx, env)
-                .and_then(|qname| resolve_property(&qname, &prop_name, env.signatures, env.graph))
-                .unwrap_or_else(|| env.interner.mixed())
+            // Resolved through the *owning* class so ADR 0094's level test
+            // reaches the static spelling too — `Foo::$secret` is the same
+            // access as `$foo->secret` with the receiver written as a name.
+            let resolved = resolve_class_expr(class, ctx, env).and_then(|qname| {
+                resolve_property_owned(&qname, &prop_name, env.signatures, env.graph)
+            });
+            match resolved {
+                Some((owner, ty)) => {
+                    check_member_visibility(
+                        expr.span,
+                        &owner,
+                        &format!("${prop_name}"),
+                        crate::signatures::property_visibility(&owner, &prop_name, env.signatures),
+                        ctx,
+                        env,
+                    );
+                    ty
+                }
+                None => env.interner.mixed(),
+            }
         }
         ExprKind::ClassConstAccess { class, name } => {
             infer_class_const(expr, class, *name, expected, live, scope, ctx, env)

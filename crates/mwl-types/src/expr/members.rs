@@ -13,6 +13,12 @@
 //! `mwl_hir` at all (it has no static type to check against), so this module
 //! reports `E_UNKNOWN_MEMBER` for those directly.
 //!
+//! **A member that exists is then checked for being reachable.** ADR 0094's
+//! `private`/`protected` levels are applied by [`check_member_visibility`],
+//! keyed on the accessing class rather than on the receiver — every property
+//! access lands there, whatever its receiver's spelling, and a method call
+//! does not yet.
+//!
 //! [`check_property_access`]'s shape/`object` arms are the M2 half of ADR 0036
 //! § 4: a field a shape names types cleanly with no diagnostic either way; a
 //! name it doesn't list, or a plain `object` receiver, is silently `mixed`
@@ -364,6 +370,14 @@ pub(super) fn check_property_member(
                 if is_unset {
                     report_unset_on_property(object.span.to(*name_span), &qname, &name, env);
                 }
+                check_member_visibility(
+                    object.span.to(*name_span),
+                    &owner,
+                    &format!("${name}"),
+                    crate::signatures::property_visibility(&owner, &name, env.signatures),
+                    ctx,
+                    env,
+                );
                 // ADR 0014 § 1: a hooked property's access is a call to its
                 // accessor, not a field touch — except inside that property's
                 // own hooks, where `$this->p` is the backing slot (see
@@ -481,6 +495,57 @@ pub(super) fn report_unset_on_property(span: Span, qname: &QName, name: &str, en
 /// Reports `E_UNKNOWN_MEMBER` for a property/method access this module
 /// resolved a receiver class for, but found nothing declared under `name` on
 /// it or any ancestor.
+/// ADR 0094's three levels, enforced: `private` is reachable only from the
+/// declaring class's own bodies, `protected` from those and from any class
+/// that extends it, `public` from everywhere.
+///
+/// Keyed on the **accessing** class ([`Ctx::current_class`]) and never on the
+/// receiver's static type — `crate::signatures::is_visible_from` states why
+/// that distinction is the whole rule. `member` is the reference as it should
+/// read in the message (`$count` for a property, `m()` for a method), so the
+/// one diagnostic serves both halves of the pass without a kind flag to
+/// branch on.
+pub(super) fn check_member_visibility(
+    span: Span,
+    owner: &QName,
+    member: &str,
+    level: mwl_syntax::ast::Visibility,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    use mwl_syntax::ast::Visibility;
+
+    if crate::signatures::is_visible_from(level, owner, ctx.current_class, env.graph) {
+        return;
+    }
+    let (word, reach) = match level {
+        // Unreachable — `is_visible_from` answered `true` above — but written
+        // as an arm rather than an `unreachable!` so adding a fourth level is
+        // a compile error here instead of a panic in a request.
+        Visibility::Public => return,
+        Visibility::Private => ("private", format!("only `{owner}`'s own bodies reach it")),
+        Visibility::Protected => (
+            "protected",
+            format!("only `{owner}` and the classes that extend it reach it"),
+        ),
+    };
+    let written = ctx.current_class.map_or_else(
+        || "this access is outside any class".to_owned(),
+        |class| format!("this access is inside `{class}`"),
+    );
+    env.diags.report(
+        Diagnostic::error(
+            code::E_MEMBER_NOT_VISIBLE,
+            format!("`{owner}::{member}` is `{word}`, so {reach}"),
+        )
+        .with_primary(span, written)
+        .with_help(format!(
+            "widen the declaration to `public`, or reach the value through a member `{owner}` \
+             does expose"
+        )),
+    );
+}
+
 pub(super) fn report_unknown_member(
     span: Span,
     qname: &QName,
