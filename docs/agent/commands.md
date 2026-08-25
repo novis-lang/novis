@@ -140,6 +140,29 @@ contradicts, whether the handoff still matches its contract, and what is uncommi
 `session.py` is not loop-only. Steps 4 and 5 are the same steps in an interactive session, and `## status`
 simply reports itself skipped when there is no `.loop/` directory.
 
+## Benchmarking against PHP
+
+```sh
+python tools/bench.py                    # 20 userland cases, MWL and PHP side by side
+python tools/bench.py 05 regex           # only the cases whose name contains these
+python tools/bench.py --check            # do the two halves still agree? (no timing)
+python tools/bench.py --php-mode default # PHP as installed, rather than with opcache+JIT
+python tools/bench.py --json docs/perf/userland.ndjson   # append one record per case
+```
+
+`benches/userland/` holds twenty pieces of ordinary web-and-CLI PHP written twice, `NN-slug.php` beside
+`NN-slug.mwl`. [Its README](../../benches/userland/README.md) owns what a case is and how to add one —
+including the rule that is not obvious, that each iteration's input must depend on the last one's result,
+because PHP's tracing JIT deletes a loop whose input never changes and the deleted loop still prints the
+right answer.
+
+Nothing here builds anything: the release binary on disk is the binary that runs, a `target/debug/` one is
+refused by name, and the harness warns when the binary is older than the newest file under `crates/`. Two
+timings and their baseline-subtracted halves are printed; wall clock is a **same-host, same-minute** ratio
+and is not comparable across machines, which is why the cross-machine history in
+[ADR 0026](../adr/0026-performance-measurement-methodology.md) is counted in instructions instead. This
+suite is that ADR's § 3 secondary figure, in runnable form.
+
 ## Disk
 
 ```sh

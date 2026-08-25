@@ -123,6 +123,11 @@ harnesses the way `callgrind_spike.rs` spikes one) and grows as M3 onward adds r
 measure. This is a benchmark-design question, not a language decision, and is deferred the same way other
 ADRs already defer a `Core` class's exact method roster to whichever milestone builds it.
 
+§ 3's PHP-oracle ratio now has its runnable half: `benches/userland/` holds twenty pieces of ordinary
+web-and-CLI PHP written twice, once per language, and `python tools/bench.py` runs both and prints the
+same-host ratio. [Its README](../../benches/userland/README.md) owns what a case is; nothing about it
+changes this ADR's headline metric, which stays the instruction count, for the reason § 2 gives.
+
 ## Consequences
 
 **Positive**
