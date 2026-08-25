@@ -2,51 +2,61 @@
 
 ## State
 
-**Spec § 1 is whole.** `Core\Str::normalize` is registered, implemented and pinned by a conformance
-case; `Core\NormalForm { Nfc, Nfd, Nfkc, Nfkd }` is the enum beside it in
-`crates/mwl-stdlib/src/str.rs:49`, listed in `registry::ENUMS`. Its integers are ABI — the helper
-indexes on them — and `the_normal_form_enum_and_its_rust_twin_are_one_roster` is what says so. The
-member's own doc comment at `str.rs:2019` owns the two-axes reading (composed/decomposed ×
-canonical/compatibility) and why only the canonical pair round-trips; the ASCII fast path is stated
-there too.
+**§ 12's query pair is whole.** `Core\Uri::parseQuery` and `Core\Uri::buildQuery` are registered,
+implemented and pinned by a conformance case each; both live in `crates/mwl-stdlib/src/uri.rs`
+beside the four percent-encoding members they are built out of, and that module's own doc owns the
+bracket convention, the two places it diverges from `parse_str` (no key is ever rewritten, and a
+malformed name stays one literal key) and the one place `buildQuery` differs from `as string`
+(`false` writes `0`). The spec table already said `array<mixed>` and already named
+`Core\Request::query` at M8 — no spec edit was owed after all.
 
-**`unicode-normalization` is now a named dependency** rather than `caseless`'s transitive one:
-`[workspace.dependencies]` line with its reasoning, plus `crates/mwl-stdlib/Cargo.toml`.
-`cargo deny check` green, `THIRD-PARTY-LICENSES.txt` regenerated and unchanged (it already carried
-the crate), no licence identifier new to `deny.toml`.
+**Both members walk with an explicit stack, not recursion**, because the depth is caller text; each
+descent *borrows* the child array the parent already owns rather than retaining it, so nothing is
+copied. That is a new refcount edge and it is valgrind-clean
+(`tools/leak-check.sh .agent-tmp/uri-query-leak.mwl`, 0 failures).
 
-**The loop's gate is the ratchet in `crates/mwl-stdlib/tests/spec-members-outstanding.txt`**, now at
-**35 keys** for §§ 2-12; when it is empty, Part I is registered whole. Conformance is **394** of 600;
-differential is 86 of 150 and has not moved.
+**The ratchet in `crates/mwl-stdlib/tests/spec-members-outstanding.txt` is at 33 keys** for §§ 2-12;
+when it is empty, Part I is registered whole. Conformance is **396** of 600; differential is 86 of
+150 and has not moved.
 
-**`examples/collect.mwl`'s frontier is unchanged** — `Core\Uri::parseQuery` at `collect.mwl:36`, then
-`Core\Csv::parse`, `Core\Validate::isEmail`, `Core\Out::capture`.
+**`examples/collect.mwl`'s frontier has moved to `Core\Csv::parse` at `collect.mwl:39`**, then
+`Core\Validate::isEmail` (`:46`) and `Core\Out::capture` (`:47`). That last line also needs a fixture
+fix of its own: `fn () => { echo "inner"; }` is a block-bodied closure with no declared return type
+(`E0450`), so it must become `fn (): void => { … }` when `Out::capture` lands.
 
-## Next group — `Uri`'s query pair, then `Arr`'s set half
+## Next group — `Core\Csv`, both halves
 
-**Shared file set for `[1]`/`[2]`:** `crates/mwl-stdlib/src/uri.rs` (`:122` `CLASS`'s rows, `:126`-`:147`
-the four percent-encoding members already built, `:161` `address()`, `:413` the test module),
+**Shared file set for `[1]`/`[2]`:** a new `crates/mwl-stdlib/src/csv.rs`,
+`crates/mwl-stdlib/src/lib.rs` (`:210` the `mod` list, `:244` `symbols()`, `:277` the `address`
+chain), `crates/mwl-stdlib/src/registry.rs:625` `CLASSES`,
 `crates/mwl-stdlib/tests/spec-members-outstanding.txt`, `tests/conformance/core/`, and
-`examples/collect.mwl` + its frozen output. Take both — they are one file and one convention, and the
-round trip is the case that pins either of them honestly. `[3]` is a different file; leave it.
+`examples/collect.mwl:39`. Take both — one module, one dependency pick, and the round trip is the
+case that pins either honestly. `[3]` is a different file; leave it.
 
-- [ ] **`Core\Uri::parseQuery`** (§ 12; `loop-goal.md` § *Standing decisions* amends the spec row —
-      PHP's bracket convention **in full**: `a[]=1&a[]=2` is a list, `a[b]=c` is a map, nesting to
-      arbitrary depth, so the return type is not `array<string>`). Pick the spelling the type system
-      can state and **write it into the spec table** in `docs/spec/01-core-library.md` § 12; say there
-      that this also settles what `Core\Request::query` answers at M8. `array<mixed>` is the safe
-      default — `mwl_ir::Ty::Tagged` is settled, so it is statable now.
-- [ ] **`Core\Uri::buildQuery`** (§ 12) — the inverse, same file, same convention. The conformance
-      case is `buildQuery(parseQuery($q)) == $q` over a nested subject plus the flat rows.
-- [ ] **`Core\Arr::diff` / `intersect`** (§ 2) — `crates/mwl-stdlib/src/arr.rs`; both need the one
-      strict-identity comparison `mwl_runtime::identity` already defines (`loop-goal.md`
-      § *Standing decisions*). A different file set: do not pull it into the group above.
+- [ ] **`Core\Csv::parse`** (§ 12; spec row
+      `parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>`).
+      Pick the crate under [ADR 0051](../adr/0051-standard-library-tiers.md) § 4's two questions —
+      CSV *is* attacker-reachable, so a C dependency needs question 2's record and almost certainly
+      fails it; record the pick and its reasoning in the module's own doc comment, per the goal's
+      standing decisions. The three things a new dependency owes are in `playbook.md` § *Adding a
+      `Core` member*. `{header: true}` consumes the first row as column names and keys every returned
+      row by them, and is not itself returned — the return type is unchanged because every MWL array
+      key is a `string` already.
+- [ ] **`Core\Csv::format`** (§ 12) — the inverse, same file, same crate;
+      `{header: [...]}` writes those names as the first row.
+- [ ] **`Core\Validate`'s six members** (§ 12) — `isEmail`, `isIp(…, {version?: 4|6})`, `isMac`,
+      `isDomain`, `isAscii`, `isPrintable`, all `(subject, …): bool`. A different file
+      (`crates/mwl-stdlib/src/validate.rs`), so a different group. **No `Validate` member launders
+      anything** (ADR 0024), and `isUrl`/`oneOf`/`isIpV4`/`isIpV6` are deliberately absent.
 
 ## Backlog
 
-- `Core\Csv::parse` needs a dependency picked under [ADR 0051 § 4](../adr/0051-standard-library-tiers.md).
-- `Core\Uri::parse`/`isValid` still owe an RFC 3986 dependency — see the plan's *Open now*.
-- § 9 owes `Core\Heap` and the `Iterable` its three rows declare (`mwl_stdlib`'s module doc).
-- § 10 owes the constructor's `{previous: $e}` options shape and `$e->location` (ADR 0071 § 5).
-- § 11 owes `Random::bytes` and `Hash::stream`; the runtime `bytes` tag they wanted exists now.
-- ADR 0088's registry-wide qualifier classification is unbuilt and lands with M4S.
+- `Uri::parse`/`isValid` and the `Uri` instance need the RFC 3986 crate pick — `uri.rs` gap 1.
+- `uri.rs` gap 2 is now a *spec* question, not a runtime one: `Tag::Bytes` exists, so the two
+  decoders could answer `bytes`, but § 12's table writes `string`.
+- `Core\Out::capture` needs ADR 0088's sink carrier, not a `string` — `docs/spec/01-core-library.md`
+  § 12.
+- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s module doc.
+- ADR 0007 § 2's `array<T> as array<U>` row does not lower at all — `mwl-ir` gap; it is what stops a
+  case indexing into an `array<mixed>` (`playbook.md` § *Writing a test case*).
+- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.

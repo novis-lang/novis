@@ -170,6 +170,13 @@ is why" — is this file.
 
 ## Writing a test case
 
+- **A case cannot index into an `array<mixed>`'s elements, and `Core\Json::encode` is the way round
+  it.** `$q["b"] as array<string>` panics `mwl-ir` outright — *"got `Tagged as Array`"*, ADR 0007 § 2's
+  `array<T> as array<U>` row being the one still missing — so a member answering a nested shape has no
+  spelling that reaches past the first level. `Core\Json::encode($q)` renders the whole structure in one
+  line and it is byte-identical to PHP's `json_encode` over `parse_str`'s array, which makes it the
+  strongest assertion available as well as the only one. `$q["a"] as string` on a top-level scalar does
+  lower.
 - **Registering a `Core` member and writing its conformance case are one slice, not two.**
   `mwl-stdlib`'s `tests/conformance_coverage.rs` fails the moment a registry row has no `.mwlt` case
   calling it, so a plan that lands the rows in one session and the cases in another leaves the tree red
