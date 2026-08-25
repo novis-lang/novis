@@ -18,7 +18,8 @@
 //! table that answers it, and [`crate::call_closure`] already reaches a
 //! closure's `invoke` through it. This is the same lookup with three names
 //! instead of one, and it is the same dispatch a `foreach` over the same value
-//! performs.
+//! performs — [`crate::dispatch`] is where it lives, since more than one
+//! member asks an object something by name.
 //!
 //! An object answering [`ITERATE`] is driven through the cursor that returns,
 //! and one that does not is the cursor. A class implementing both interfaces
@@ -38,10 +39,10 @@
 
 use std::mem::ManuallyDrop;
 
-use crate::abi::{Fault, MwlFn, OK};
+use crate::abi::Fault;
 use crate::array::{ArrayHeader, MwlArray};
 use crate::ctx::Ctx;
-use crate::object::{ClassDesc, MwlObj};
+use crate::dispatch::method_address;
 use crate::value::Value;
 
 /// `Iterable<T>`'s sole member (ADR 0053 § 1) — a fresh cursor over the same
@@ -215,35 +216,6 @@ fn pump(
     Ok(())
 }
 
-/// The compiled address of `receiver`'s `name`, or `None` when its class
-/// declares no such method. Errs only when `receiver` is not an object with a
-/// live descriptor at all.
-fn method_address(receiver: Value, name: &str, what: &str) -> Result<Option<*const u8>, Fault> {
-    let ptr = receiver.obj_ptr().ok_or_else(|| {
-        Fault::fatal(format!(
-            "internal error: {what} looked for `{name}` on tag {}",
-            receiver.tag_byte()
-        ))
-    })?;
-    #[expect(
-        unsafe_code,
-        reason = "the caller owns a reference to this object, so the \
-                  allocation and its descriptor are both live for this read"
-    )]
-    let desc: *const ClassDesc = unsafe { MwlObj::class_of(ptr) };
-    if desc.is_null() {
-        return Err(Fault::fatal(format!(
-            "internal error: {what} was handed an object with no class descriptor"
-        )));
-    }
-    #[expect(
-        unsafe_code,
-        reason = "just checked the descriptor is non-null, and it is owned by \
-                  the compiled unit's class table for that unit's whole life"
-    )]
-    Ok(unsafe { &*desc }.method(name))
-}
-
 /// [`method_address`] where the member is owed rather than optional — the two
 /// `Iterator<T>` halves, which `mwl_types::conformance` already made a
 /// compile error to omit.
@@ -257,27 +229,9 @@ fn required_member(receiver: Value, name: &str, what: &str) -> Result<*const u8,
 
 /// Calls a no-argument member on `receiver`, returning whatever it produced.
 ///
-/// The receiver is retained before the call and released by the callee, so the
-/// caller keeps owning exactly what it owned before — the same reconciliation
-/// [`crate::call_closure`] performs, and for the same reason.
+/// [`crate::dispatch::call_at`] with an empty argument list: every cursor
+/// member ADR 0053 § 1 declares takes none, and the address is looked up once
+/// and driven many times rather than re-resolved per element.
 fn call_member(ctx: &mut Ctx, receiver: Value, target: *const u8) -> Result<Value, Fault> {
-    #[expect(
-        unsafe_code,
-        reason = "the address came out of a live descriptor's method table, \
-                  which `mwl-codegen` fills only with compiled functions of \
-                  exactly this signature"
-    )]
-    let target: MwlFn = unsafe { std::mem::transmute::<*const u8, MwlFn>(target) };
-    #[expect(
-        unsafe_code,
-        reason = "the caller owns a reference to the receiver, so its payload \
-                  is live for the length of this call"
-    )]
-    unsafe {
-        receiver.retain();
-    }
-    crate::abi::call(target, ctx, &[receiver]).map_err(|status| {
-        debug_assert_ne!(status, OK, "call reports Err only for a non-OK status");
-        Fault::Pending(status)
-    })
+    crate::dispatch::call_at(ctx, receiver, target, &[])
 }
