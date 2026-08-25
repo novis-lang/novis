@@ -209,9 +209,11 @@ pub(super) fn lower_closure(
                 .collect(),
             conforms: Vec::new(),
             methods: vec![(FN_INVOKE.to_owned(), class.clone())],
-            // A closure is not a declaration and carries no attribute.
+            // A closure is not a declaration and carries no attribute, and
+            // every one of its slots is written by the factory that builds it.
             codec: Vec::new(),
             ctor_arity: 0,
+            defaults: Vec::new(),
         },
         more,
     )

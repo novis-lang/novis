@@ -1,0 +1,56 @@
+--TEST--
+A property's declared `= expr` default is written into every fresh instance's slot, including one inherited from a base class — ADR 0022 § 2
+--FILE--
+<?mwl
+// ADR 0022 § 2 exempts a defaulted property from the constructor's
+// definite-assignment obligation, which is only sound if the default actually
+// reaches the slot. It is evaluated once, at compile time
+// (`mwl_types::defaults`), copied onto the class descriptor, and written by
+// `mwl_runtime::MwlObj::new` — so `constructor` below assigns nothing at all.
+class Counter
+{
+    public int $n = 4;
+    public string $label = "count";
+    public bool $on = true;
+    public float $step = 1.5;
+    public uint $seen = 7;
+    public array<string> $tags = [];
+
+    public function constructor() {}
+
+    public function bump(): void
+    {
+        $this->n = $this->n + 1;
+    }
+}
+
+// A subclass's instances carry its base's defaults too: the default is joined
+// against the *flattened* slot order, so `$n` lands in the slot `Counter`
+// declared and `$volume` in the one `Loud` appended.
+class Loud extends Counter
+{
+    public int $volume = 11;
+
+    public function constructor()
+    {
+        parent::constructor();
+    }
+}
+
+var $c = new Counter();
+echo $c->n, " ", $c->label, " ", $c->on, " ", $c->step, " ", $c->seen, "\n";
+echo Core\Arr::count($c->tags), "\n";
+
+// Per instance, not per class: bumping one instance leaves the next fresh one
+// at the declared default.
+$c->bump();
+var $fresh = new Counter();
+echo $c->n, " ", $fresh->n, "\n";
+
+var $l = new Loud();
+echo $l->n, " ", $l->label, " ", $l->volume, "\n";
+--EXPECT--
+4 count 1 1.5 7
+0
+5 4
+4 count 11

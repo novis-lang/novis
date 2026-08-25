@@ -253,6 +253,55 @@ struct TryFrame<'a> {
     finally: Option<&'a Block>,
 }
 
+/// The class labelled `label`'s declared property defaults, resolved against
+/// its own flattened slot order — [`crate::ir::Class::defaults`].
+///
+/// Its own class first and then every ancestor, so a subclass redeclaring a
+/// property wins the slot the two share; a name the layout has no slot for is
+/// skipped rather than mis-indexed, exactly as the codec join above skips one.
+/// The constant is translated here rather than in `mwl-codegen` because
+/// `mwl_types::ConstArg` is everything a *signature* can carry and
+/// `mwl_types::FieldDefault` is only what a written property declaration can
+/// reach: a variant outside that set is unreachable rather than lossy, since
+/// `mwl_types::defaults::eval_property_default` cannot produce one.
+fn property_defaults(
+    label: &str,
+    layout: &mwl_types::ClassLayout,
+    exprs: &ExprTypeTable,
+) -> Vec<(usize, mwl_types::FieldDefault)> {
+    use mwl_types::{ConstArg, FieldDefault};
+
+    let mut image: Vec<Option<FieldDefault>> = vec![None; layout.fields.len()];
+    let chain = std::iter::once(label).chain(layout.conforms.iter().map(String::as_str));
+    for owner in chain {
+        for (property, value) in exprs.property_defaults(owner) {
+            let Some(slot) = layout.slot_of(property) else {
+                continue;
+            };
+            if image[slot].is_some() {
+                continue;
+            }
+            image[slot] = match value {
+                ConstArg::Bool(v) => Some(FieldDefault::Bool(*v)),
+                ConstArg::Int(v) => Some(FieldDefault::Int(*v)),
+                ConstArg::Uint(v) => Some(FieldDefault::Uint(*v)),
+                ConstArg::Float(v) => Some(FieldDefault::Float(*v)),
+                ConstArg::Str(s) => Some(FieldDefault::Str(s.clone())),
+                ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
+                ConstArg::Null
+                | ConstArg::Bytes(_)
+                | ConstArg::Options(_)
+                | ConstArg::Built { .. } => None,
+            };
+        }
+    }
+    image
+        .into_iter()
+        .enumerate()
+        .filter_map(|(slot, value)| Some((slot, value?)))
+        .collect()
+}
+
 /// Lowers a whole checked **program**: every class method that has a body in
 /// any of `files`, plus the *entry* file's own top-level statements as one
 /// script frame named `script`.
@@ -467,6 +516,12 @@ pub fn lower_program(
                     .collect()
             }),
             ctor_arity: exprs.codec(label).map_or(0, |codec| codec.ctor_arity),
+            // Every declared default that lands in one of this class's slots:
+            // its own first, then each ancestor's, so a subclass redeclaring a
+            // property wins the slot the two share. A label with no slot for
+            // the name is skipped rather than mis-indexed, for the same reason
+            // the codec above skips one.
+            defaults: property_defaults(label, layout, exprs),
         })
         .collect();
     // ADR 0053 § 4's generator state classes have no source declaration and

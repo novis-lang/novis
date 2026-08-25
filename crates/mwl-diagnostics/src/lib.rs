@@ -724,6 +724,13 @@ pub mod code {
     /// identical line is not at file scope. A name nothing declares anywhere
     /// in the chain is [`E_UNKNOWN_MEMBER`] instead.
     pub const E_MEMBER_NOT_VISIBLE: Code = Code::new("E0471");
+    /// `public int $n = "no";` — a property's inline default is evaluated once,
+    /// at signature collection, into the constant every fresh instance's slot
+    /// is written with (`mwl_types::defaults`), so it has to be a literal of
+    /// the property's own declared type. Its own code rather than
+    /// [`E_PARAM_DEFAULT_NOT_LITERAL`] because the two accept different sets:
+    /// a property may be defaulted to `[]` and a parameter may not.
+    pub const E_PROPERTY_DEFAULT_NOT_LITERAL: Code = Code::new("E0472");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

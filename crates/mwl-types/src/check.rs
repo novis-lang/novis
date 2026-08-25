@@ -180,6 +180,7 @@ fn check_stmts(
                 check_class_lateinit_reads(decl, &qname, env);
                 crate::conformance::check_class_conformance(decl, &qname, env);
                 crate::derive::check_class_derive(decl, &qname, &ctx, env);
+                record_property_defaults(&qname, env);
             }
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
@@ -229,6 +230,26 @@ fn check_stmts(
             }
         }
     }
+}
+
+/// Copies `qname`'s own evaluated property defaults from the signature table
+/// into the expression table, under the same class label `mwl_types::layout`
+/// keys a layout by.
+///
+/// A move of already-computed data rather than a check: `crate::signatures`
+/// evaluated and diagnosed each one when it collected the declaration, and
+/// `mwl-ir` is handed the expression table alone — see
+/// [`crate::expr_table::ExprTypeTable::record_property_defaults`].
+fn record_property_defaults(qname: &QName, env: &mut Env<'_>) {
+    let Some(sig) = env.signatures.get(qname) else {
+        return;
+    };
+    if sig.property_defaults.is_empty() {
+        return;
+    }
+    let defaults = sig.property_defaults.clone();
+    env.exprs
+        .record_property_defaults(qname.to_string(), defaults);
 }
 
 fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {

@@ -121,7 +121,9 @@
 //! [`crate::mwl_str_release`] alike.
 //!
 //! This is not a defensive check. It is the state a field slot is *in* between
-//! [`MwlObj::new`] zeroing it and the constructor's first assignment: that
+//! [`MwlObj::new`] zeroing it and the constructor's first assignment — unless
+//! the property declared a default, which [`MwlObj::new`] writes over the zero
+//! before anything else runs ([`ClassDesc::defaults`]). Either way that first
 //! assignment releases whatever the slot previously held
 //! (`mwl_ir::lower::lower_reassignment`), and on the first write there is
 //! nothing there. Compiled code reads the payload half of the slot without
@@ -196,6 +198,64 @@ pub struct ClassDesc {
     /// shortened its argument list would call the constructor with the wrong
     /// arity.
     ctor_arity: usize,
+    /// Each field slot that carries a declared `= expr` default, as `(slot,
+    /// value)` in slot order — empty for a class that declares none, which is
+    /// most of them. Filled by [`ClassTable::set_defaults`].
+    ///
+    /// This is the whole of what a property initializer *is* at run time:
+    /// [`MwlObj::new`] writes these slots straight after nulling them, so a
+    /// default reaches an instance however it was built — a compiled `new`,
+    /// [`construct`] from native code, or ADR 0071's derived decoder. Compiled
+    /// code emits no initializer at all; `mwl_types::defaults` owns why.
+    defaults: Vec<(usize, FieldDefault)>,
+}
+
+/// One property default's already-evaluated value — the closed set
+/// `mwl_types::defaults::ConstArg` can reach from a *written* property
+/// declaration, which is that enum minus the shapes only `Core`'s own
+/// signature table produces.
+///
+/// Deliberately a recipe rather than a ready-made [`Value`]: a `Value` holding
+/// a string would make the descriptor a refcount owner, and every instance
+/// would then have to be careful to retain it — an invariant paid for on every
+/// allocation, in exchange for saving one `strlen`-sized copy on a class that
+/// declares a string default. AGENTS.md's ordering puts that the other way
+/// round. **Cost:** one [`crate::MwlStr`] allocation per instance per
+/// string-defaulted property, and one empty [`crate::MwlArray`] per instance
+/// per array-defaulted one — the same allocation the constructor assignment it
+/// replaces was already making.
+#[derive(Clone, Debug)]
+pub enum FieldDefault {
+    /// `bool`
+    Bool(bool),
+    /// `int`
+    Int(i64),
+    /// `uint`
+    Uint(u64),
+    /// `float`
+    Float(f64),
+    /// `string`, already cooked — the octets the slot's fresh
+    /// [`crate::MwlStr`] holds.
+    Str(String),
+    /// `[]` — a fresh empty array, which is the only array constant there is
+    /// (`mwl_types::defaults::ConstArg::EmptyArray`).
+    EmptyArray,
+}
+
+impl FieldDefault {
+    /// A fresh [`Value`] for this default, owning one reference to whatever it
+    /// allocated.
+    #[must_use]
+    fn materialize(&self) -> Value {
+        match self {
+            Self::Bool(v) => Value::bool(*v),
+            Self::Int(v) => Value::int(*v),
+            Self::Uint(v) => Value::uint(*v),
+            Self::Float(v) => Value::float(*v),
+            Self::Str(s) => Value::str(crate::MwlStr::new(s.as_bytes())),
+            Self::EmptyArray => Value::array(crate::MwlArray::new()),
+        }
+    }
 }
 
 /// What one [`CodecField`] decodes to: the closed set of runtime
@@ -419,8 +479,34 @@ impl ClassTable {
             methods: Vec::new(),
             codec: Vec::new(),
             ctor_arity: 0,
+            defaults: Vec::new(),
         }));
         id
+    }
+
+    /// Fills in `id`'s declared property defaults — see [`ClassDesc::defaults`].
+    ///
+    /// Separate from [`ClassTable::define`] on exactly [`ClassTable::set_codec`]'s
+    /// terms: the fact comes from a different `mwl-ir` table, and there is no
+    /// compiled address to wait for.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if a slot index is out of
+    /// range for the class — which would mean `mwl-ir` joined a default
+    /// against the wrong layout, and writing past the allocation is not a
+    /// failure to discover at run time.
+    pub fn set_defaults(&mut self, id: ClassId, defaults: Vec<(usize, FieldDefault)>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            defaults.iter().all(|(slot, _)| *slot < desc.field_count),
+            "a property default names a slot `{}` does not have",
+            desc.name
+        );
+        desc.defaults = defaults;
     }
 
     /// Fills in `id`'s ADR 0071 derived-codec field list — see
@@ -602,6 +688,35 @@ impl MwlObj {
         reason = "the descriptor's liveness is the caller's obligation to state"
     )]
     pub unsafe fn new(class: *const ClassDesc) -> Self {
+        #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+        let object = unsafe { Self::alloc(class) };
+        #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+        let desc = unsafe { &*class };
+        // Every declared `= expr` default, written over the null the slot was
+        // just given — see [`ClassDesc::defaults`]. `set_field` releases what
+        // it overwrites, which is a `null` here and therefore free.
+        for (slot, default) in &desc.defaults {
+            object.set_field(*slot, default.materialize());
+        }
+        object
+    }
+
+    /// The allocation half of [`MwlObj::new`]: a fresh instance with every
+    /// slot `null` and **no** default applied.
+    ///
+    /// Its own entry point for exactly one caller — [`mwl_object_clone`],
+    /// which overwrites every slot with the source's value and would otherwise
+    /// allocate a default string only to release it one line later.
+    ///
+    /// # Safety
+    ///
+    /// As [`MwlObj::new`].
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor's liveness is the caller's obligation to state"
+    )]
+    unsafe fn alloc(class: *const ClassDesc) -> Self {
         #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
         let field_count = unsafe { (*class).field_count };
         let layout = obj_layout(field_count);
@@ -1015,8 +1130,10 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
 // none of these can fail, so none of them wears ADR 0002's checked-return
 // shape. Every one is `extern "C"` and never `extern "C-unwind"`.
 
-/// Allocates a fresh instance of `class` with a reference count of one and
-/// every field slot `null` — `mwl_ir::InstKind::New`'s allocation half.
+/// Allocates a fresh instance of `class` with a reference count of one, every
+/// field slot `null`, and then every slot that declares one holding its
+/// default ([`ClassDesc::defaults`]) — `mwl_ir::InstKind::New`'s allocation
+/// half.
 ///
 /// # Safety
 ///
@@ -1070,7 +1187,7 @@ pub unsafe extern "C" fn mwl_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader
     )]
     let (source, copy) = unsafe {
         let source = MwlObj::from_raw(ptr);
-        let copy = MwlObj::new(source.class());
+        let copy = MwlObj::alloc(source.class());
         (source, copy)
     };
     for index in 0..source.field_count() {

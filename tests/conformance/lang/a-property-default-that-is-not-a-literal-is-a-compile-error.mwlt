@@ -1,0 +1,26 @@
+--TEST--
+A property default that is not a literal of the property's own declared type does not compile — ADR 0007 § 1
+--FILE--
+<?mwl
+// The default is evaluated once, at compile time, into the constant every
+// fresh instance's slot is written with (`mwl_types::defaults`), so it has to
+// be a literal of the declared type. Before this was checked, `= "no"` on an
+// `int` compiled and the slot read back `0`.
+class Bad
+{
+    public int $n = "no";
+    public string $s = 1;
+
+    public function constructor() {}
+}
+
+var $b = new Bad();
+echo $b->n, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0472]: a property default must be a `int` literal
+%A
+error[E0472]: a property default must be a `string` literal
+%A
+error: aborting due to 2 errors

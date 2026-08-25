@@ -165,16 +165,11 @@
 > the sink in force — `Core\Log`'s `Log\Level`, `Core\Debug::dump`, throwables, test results and
 > compiler diagnostics) and 0093 (`mwl service`). None invalidates built behaviour or a written
 > fixture; their work is M4, M6, M7, M8 and M10 and lands with those milestones. **Still open beside
-> the library** — a property's **declared default never runs**, and it is worse than the wrong
-> value it was recorded as: `public int $n = 4;` reads back `0`, and `public string $s = "x";` is a
-> **null-pointer dereference** the first time the slot is read, because nothing ever writes it.
-> Nothing evaluates the expression at all — `mwl_types::signatures` reads `p.default` only to decide
-> whether ADR 0022 obliges the constructor to assign the property, so `public int $n = "no";` is not
-> even type-checked. `InstKind::New` carries the constructor call, so an initializer cannot be
-> spliced between allocation and construction at the IR level; the answer is a per-class default
-> image on `mwl_runtime::ClassDesc` that `mwl_object_new` writes, which also reaches `NewDynamic`
-> and ADR 0071's native decoder. That is the next correctness item, and `docs/agent/handoff.md`
-> holds the resolved anchors for it. `do`/`while` is the one M4 control-flow statement that does not lower; an
+> the library** — a property's **declared default runs now** and is type-checked (`E0472`), a
+> per-class image on `mwl_runtime::ClassDesc` that `MwlObj::new` writes, so `NewDynamic` and
+> ADR 0071's native decoder reach it too; what a default may be is still a literal or `[]`, with
+> `= null`, an enum case and a `decimal` refused for the reasons `mwl_types::defaults` states.
+> `do`/`while` is the one M4 control-flow statement that does not lower; an
 > abandoned generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a PHP
 > divergence); ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31%
 > classified, one pass per PHP domain, reported by `python tools/check-migration.py`.

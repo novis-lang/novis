@@ -312,6 +312,18 @@ pub struct ClassSignature {
     /// whose hooks are all bodiless (an abstract hook in an interface), is
     /// absent.
     pub hooked_properties: FxHashMap<String, PropertyHooks>,
+    /// This declaration's own properties that carry a written `= expr`
+    /// default, already evaluated into the constant every fresh instance's
+    /// slot is written with — name and value, in declaration order.
+    ///
+    /// Own properties only, exactly like every other map here: an inherited
+    /// property's default belongs to the class that declared it, and the two
+    /// are joined against the flattened slot order in `mwl_ir::lower`, which
+    /// is the one place both this table and `crate::layout`'s slots are in
+    /// hand. `crate::defaults` owns what a default may be and where it ends up
+    /// at run time; a `static` property is excluded, since it occupies no
+    /// instance slot for anything to be written into.
+    pub property_defaults: Vec<(String, crate::defaults::ConstArg)>,
     /// Method signatures, keyed by method name.
     pub methods: FxHashMap<String, MethodSig>,
     /// This declaration's own properties that ADR 0022 § 2 requires a
@@ -660,6 +672,18 @@ fn collect_members(
                     && !env.interner.is_nullable(ty);
                 let hooks = declared_hooks(p);
                 let visibility = declared_visibility(&p.modifiers);
+                // Evaluated here rather than at check time because this is
+                // the one pass that holds the declared type and the written
+                // expression together, and because it must happen exactly
+                // once: `crate::defaults` reports a bad default, and a second
+                // walk would report it twice.
+                let default = if p.modifiers.contains(&Modifier::Static) {
+                    None
+                } else {
+                    p.default
+                        .as_ref()
+                        .and_then(|expr| crate::defaults::eval_property_default(expr, ty, env))
+                };
                 let sig = table.entry(qname.clone());
                 sig.properties.insert(name.clone(), ty);
                 if let Some(level) = visibility {
@@ -667,6 +691,9 @@ fn collect_members(
                 }
                 if hooks != PropertyHooks::default() {
                     sig.hooked_properties.insert(name.clone(), hooks);
+                }
+                if let Some(default) = default {
+                    sig.property_defaults.push((name.clone(), default));
                 }
                 if required {
                     sig.required_properties.push((name.clone(), p.name));

@@ -29,6 +29,19 @@
 //! `float`, `string` — optionally negated (`= -1`). Anything else is
 //! `E_PARAM_DEFAULT_NOT_LITERAL`, naming what is accepted.
 //!
+//! # A *property*'s default is the same decoder, one position along
+//!
+//! [`eval_property_default`] evaluates `public int $n = 4;` with exactly the
+//! same literal grammar, plus `= []`, and reports
+//! `E_PROPERTY_DEFAULT_NOT_LITERAL` instead. Where it *goes* is the whole
+//! difference: a parameter default is emitted by the caller, while a property
+//! default is copied onto `mwl_runtime::ClassDesc` and written into every
+//! fresh instance's slot by `mwl_runtime::MwlObj::new`. `mwl_ir` emits no
+//! instruction for it at all — `mwl_ir::ir::InstKind::New` carries the
+//! constructor call, so there is no site between allocation and construction
+//! for an initializer to be spliced into, and a constructor prologue would run
+//! the *declaring* class's defaults rather than the instantiated class's.
+//!
 //! **Known gap:** a *written* `= null` is refused along with the rest. The
 //! constant itself now exists — [`ConstArg::Null`], over
 //! `mwl_ir::ir::InstKind::ConstNull` — but the thing a written one would
@@ -98,13 +111,14 @@ pub enum ConstArg {
     Bytes(Vec<u8>),
     /// The empty array, `[]`.
     ///
-    /// Produced only by [`crate::core_lib`], from
+    /// Produced by [`crate::core_lib`], from
     /// `mwl_stdlib::registry::Const::EmptyArray`, which owns why the *only*
-    /// array constant is the empty one. [`eval_param_default`] does not
-    /// produce it: a written `= []` is still refused, for the reason that
-    /// function's own docs give — the literal is not a scalar, so nothing
-    /// here decodes it — and closing that is a separate question from the
-    /// registry's need for the constant.
+    /// array constant is the empty one — and by [`eval_property_default`],
+    /// which is the one written position that accepts it. A *parameter*
+    /// default of `= []` is still refused: it would have to be materialized
+    /// afresh at every call site that omitted it, which is a cost the caller
+    /// cannot see, whereas a property default is written once into a slot the
+    /// instance already owns.
     EmptyArray,
     /// ADR 0063 R2's options bag, wholly omitted at the call site: one entry
     /// per declared option, in the bag's own declared order, each holding that
@@ -151,6 +165,73 @@ pub(crate) fn eval_param_default(
     declared: TypeId,
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
+    let value = literal_default(expr, declared, env);
+    if value.is_none() {
+        let want = env.interner.describe(declared);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_PARAM_DEFAULT_NOT_LITERAL,
+                format!("a parameter default must be a `{want}` literal"),
+            )
+            .with_primary(expr.span, "not a literal of the declared type")
+            .with_help(
+                "a default is evaluated once, at the call site that omits it — write a \
+                 `bool`/`int`/`uint`/`float`/`string` literal, optionally negated",
+            ),
+        );
+    }
+    value
+}
+
+/// Evaluates a written `= expr` **property** default against the property's
+/// own declared type `declared`, reporting `E_PROPERTY_DEFAULT_NOT_LITERAL`
+/// and returning `None` for anything this module does not accept.
+///
+/// The same decoder [`eval_param_default`] uses, plus one shape a parameter
+/// has no use for: `= []`, which becomes [`ConstArg::EmptyArray`]. A property
+/// is the position where the empty array is worth having — ADR 0022 obliges a
+/// constructor to assign every non-defaulted property, so without it a class
+/// accumulating into an `array<T>` has to write the assignment by hand in
+/// every constructor it declares.
+///
+/// Unlike a parameter default, this constant is never emitted at a *call
+/// site*: it is copied onto the class descriptor and written into the fresh
+/// instance's slot by `mwl_runtime::MwlObj::new`, which is why an array
+/// constant is reachable here at all.
+pub(crate) fn eval_property_default(
+    expr: &Expr,
+    declared: TypeId,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    let empty_array = matches!(&expr.kind, ExprKind::ArrayLiteral(items) if items.is_empty())
+        && matches!(env.interner.get(declared), Ty::Array(_));
+    let value = if empty_array {
+        Some(ConstArg::EmptyArray)
+    } else {
+        literal_default(expr, declared, env)
+    };
+    if value.is_none() {
+        let want = env.interner.describe(declared);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_PROPERTY_DEFAULT_NOT_LITERAL,
+                format!("a property default must be a `{want}` literal"),
+            )
+            .with_primary(expr.span, "not a literal of the declared type")
+            .with_help(
+                "a property default is evaluated once, at compile time, and written into \
+                 every fresh instance's slot — write a `bool`/`int`/`uint`/`float`/`string` \
+                 literal, optionally negated, or `[]`; anything else belongs in `constructor`",
+            ),
+        );
+    }
+    value
+}
+
+/// The shared literal decoder behind both entry points above: the value, or
+/// `None` for a shape neither accepts. Reports nothing — each caller names its
+/// own position in its own diagnostic.
+fn literal_default(expr: &Expr, declared: TypeId, env: &mut Env<'_>) -> Option<ConstArg> {
     let (negated, inner) = match &expr.kind {
         ExprKind::Unary {
             op: UnaryOp::Neg,
@@ -162,7 +243,7 @@ pub(crate) fn eval_param_default(
         } => (false, &**inner),
         _ => (false, expr),
     };
-    let value = match (env.interner.get(declared).clone(), &inner.kind) {
+    match (env.interner.get(declared).clone(), &inner.kind) {
         (Ty::Bool, ExprKind::Bool(b)) if !negated => Some(ConstArg::Bool(*b)),
         (Ty::Int, ExprKind::Int(span)) => int_magnitude(*span, env)
             .and_then(|m| {
@@ -199,22 +280,7 @@ pub(crate) fn eval_param_default(
             env.src, *span,
         ))),
         _ => None,
-    };
-    if value.is_none() {
-        let want = env.interner.describe(declared);
-        env.diags.report(
-            Diagnostic::error(
-                code::E_PARAM_DEFAULT_NOT_LITERAL,
-                format!("a parameter default must be a `{want}` literal"),
-            )
-            .with_primary(expr.span, "not a literal of the declared type")
-            .with_help(
-                "a default is evaluated once, at the call site that omits it — write a \
-                 `bool`/`int`/`uint`/`float`/`string` literal, optionally negated",
-            ),
-        );
     }
-    value
 }
 
 /// An integer literal's magnitude, in whatever radix it was written —

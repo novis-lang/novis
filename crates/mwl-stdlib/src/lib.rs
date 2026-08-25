@@ -227,7 +227,7 @@ mod validate;
 /// and `mwl-ir` each produce a stage of it and neither depends on the runtime
 /// directly, so they reach it through this crate, which they already treat as
 /// the home of the `Core` contract.
-pub use mwl_runtime::{CodecField, CodecTy};
+pub use mwl_runtime::{CodecField, CodecTy, FieldDefault};
 
 use registry::CoreClass;
 

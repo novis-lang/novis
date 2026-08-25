@@ -380,6 +380,7 @@ pub struct ExprTypeTable {
     types: FxHashMap<Span, TypeId>,
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
+    property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
 }
 
@@ -482,6 +483,35 @@ impl ExprTypeTable {
     #[must_use]
     pub fn codec(&self, label: &str) -> Option<&crate::derive::DerivedCodec> {
         self.codecs.get(label)
+    }
+
+    /// Records the class labelled `label`'s **own** evaluated property
+    /// defaults — [`crate::signatures::ClassSignature::property_defaults`],
+    /// copied across at check time.
+    ///
+    /// Copied rather than read straight out of the signature table because
+    /// `mwl-ir` is handed this table and not that one, and threading a second
+    /// one through `lower_program` would change every caller for a fact that
+    /// already has a home here beside [`Self::record_codec`].
+    pub(crate) fn record_property_defaults(
+        &mut self,
+        label: String,
+        defaults: Vec<(String, crate::defaults::ConstArg)>,
+    ) {
+        self.property_defaults.insert(label, defaults);
+    }
+
+    /// The class labelled `label`'s own property defaults, in declaration
+    /// order — empty for a class that declares none, and for every class in a
+    /// program that writes no `= expr` on a property.
+    ///
+    /// **Own only**: an inherited property's default is recorded under the
+    /// class that declared it, so `mwl_ir::lower` walks a class's own entry
+    /// and then its ancestors' — see [`Self::codec`] for why this is keyed by
+    /// label.
+    #[must_use]
+    pub fn property_defaults(&self, label: &str) -> &[(String, crate::defaults::ConstArg)] {
+        self.property_defaults.get(label).map_or(&[], Vec::as_slice)
     }
 
     /// Records how the `foreach` whose subject sits at `span` reaches its

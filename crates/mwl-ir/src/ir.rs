@@ -60,6 +60,24 @@ pub struct Class {
     /// encoder and decoder can work an instance without asking the program
     /// anything.
     pub codec: Vec<mwl_types::CodecField>,
+    /// Every field slot that declares an `= expr` default, as `(slot, value)`
+    /// in slot order — empty for a class declaring none, which is most of
+    /// them.
+    ///
+    /// The join of the same two tables [`Self::codec`] joins, on the same
+    /// terms and in the same place (`crate::lower::lower_program`):
+    /// `mwl_types::signatures` evaluated each default against the property's
+    /// declared type, and `mwl_types::layout` fixed the slot order. An
+    /// ancestor's default lands in the slot that ancestor's property owns,
+    /// because a slot is looked up by *name*.
+    ///
+    /// **This crate emits no instruction for it.** `mwl-codegen` copies it
+    /// onto `mwl_runtime::ClassDesc` and `mwl_runtime::MwlObj::new` writes the
+    /// slots, which is the only shape that reaches [`InstKind::New`],
+    /// [`InstKind::NewDynamic`] and ADR 0071's native decoder alike — see
+    /// `mwl_types::defaults`, which owns why an initializer cannot be spliced
+    /// between allocation and construction.
+    pub defaults: Vec<(usize, mwl_types::FieldDefault)>,
     /// How many parameters this class's `constructor` declares — see
     /// `mwl_runtime::ClassDesc::ctor_arity`, which is where it ends up and
     /// which owns why it is carried beside the field list rather than derived

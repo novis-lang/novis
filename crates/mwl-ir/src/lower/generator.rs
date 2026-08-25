@@ -369,9 +369,10 @@ pub(super) fn lower_generator(
             (GEN_CURRENT_METHOD.to_owned(), class),
         ],
         // A generator state class is synthesized, so nothing wrote an
-        // attribute on it.
+        // attribute on it, and no source property to carry a default.
         codec: Vec::new(),
         ctor_arity: 0,
+        defaults: Vec::new(),
     });
     (functions, classes)
 }

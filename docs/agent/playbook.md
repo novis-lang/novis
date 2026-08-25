@@ -311,14 +311,13 @@ is why" — is this file.
   never assert a wall-clock value.
 - **Clippy refuses a float literal that approximates π or e**, and refuses `assert!` over two constants —
   a compile-time invariant belongs in `const _: () = assert!(…);`, not a `#[test]`.
-- **A property's declared default never runs, and for a refcounted field it is a crash rather than a
-  zero.** `public int $n = 4;` reads back `0` unless a constructor assigns it — no diagnostic,
-  nothing on stderr — and `public string $s = "x";` aborts with *"null pointer dereference"* in
-  `mwl-runtime`'s `string.rs` the first time anything reads the slot, because the slot was only ever
-  nulled. A cursor class written for an iteration case (`private int $at = 4;`) therefore drains
-  *empty* instead of failing, which reads exactly like a broken helper and costs a bisect that never
-  reaches the class. The expression is not type-checked either (`public int $n = "no";` compiles).
-  Assign every field inside `constructor` until the plan's *Open now* entry for this is closed.
+- **A property's declared default runs now, and the constant is checked — but only a literal or `[]`
+  is one.** `public int $n = 4;` reaches the slot of every fresh instance, inherited defaults
+  included, because `mwl_runtime::MwlObj::new` writes a per-class image the descriptor carries; there
+  is no IR instruction for it and nothing between `new`'s allocation and its constructor call. What
+  is *refused* is everything else: `= null`, an enum case, a `decimal`, a non-empty array literal and
+  a `Class::CONST` are all `E0472`, so a case reaching for one gets a diagnostic rather than a wrong
+  value. A `static` property is skipped entirely — it occupies no instance slot.
 
 ## Splitting a file that got too big
 

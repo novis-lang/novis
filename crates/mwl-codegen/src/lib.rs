@@ -468,6 +468,9 @@ impl Classes {
             self.table
                 .set_codec(id, class.codec.clone(), class.ctor_arity);
         }
+        if !class.defaults.is_empty() {
+            self.table.set_defaults(id, class.defaults.clone());
+        }
         let slots = class
             .fields
             .iter()

@@ -233,7 +233,7 @@ pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
 pub use mwl_stdlib::registry::constructor_symbol as core_constructor_symbol;
 pub use mwl_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use mwl_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
-pub use mwl_stdlib::{CodecField, CodecTy};
+pub use mwl_stdlib::{CodecField, CodecTy, FieldDefault};
 pub use ty::{Ty, TypeId, TypeInterner};
 
 use mwl_diagnostics::{SourceFile, Span};
