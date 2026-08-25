@@ -263,8 +263,20 @@ debug = "line-tables-only" # keep backtraces useful in production builds
 
 # Compiling MWL's own dependencies with optimisation makes debug builds of the
 # compiler usable; Cranelift is unbearably slow otherwise.
+#
+# `debug = 0` applies to dependencies only -- MWL's own crates keep full debug
+# info, so a backtrace or a debugger session through this repository's code is
+# unchanged. What it drops is the debug info for code nobody here steps into,
+# and on windows-msvc that is nearly all of it: the linker copies the debug
+# info of every linked object into each binary's PDB, so cranelift and wasmtime
+# were being written into all ~60 test binaries at once. Measured 2026-08-25:
+# 3.9 GB of PDBs per build generation before, 1.7 GB after, and a session's own
+# `verify.py` went 51s -> 43s rather than paying for it: there is less debug
+# info to link and to load. The one-time cost is that every dependency
+# recompiles once, 2m20s here. See tools/disk.py on why generations pile up.
 [profile.dev.package."*"]
 opt-level = 2
+debug = 0
 
 [profile.bench]
 inherits = "release"
