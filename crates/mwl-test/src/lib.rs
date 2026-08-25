@@ -32,7 +32,7 @@
 //! | `--ARGS--` | extra arguments for the run |
 //! | `--ENV--` | environment variables for the run |
 //!
-//! Four are MWL's own. Two of those are the differential pair
+//! Five are MWL's own. Two of those are the differential pair
 //! `docs/agent/loop-goal.md` names:
 //!
 //! | section | meaning |
@@ -41,6 +41,40 @@
 //! | `--ORACLE-DIVERGES--` | the one-line reason there is deliberately no twin |
 //! | `--EXPECT-ERROR--` | expected standard error, compared literally |
 //! | `--EXPECTF-ERROR--` | expected standard error, with `%` escapes |
+//! | `--FILE <relative/path>--` | another file, written beside `--FILE--`; repeatable |
+//!
+//! ## More than one file
+//!
+//! `--FILE--` is the program that runs, and it is always written as
+//! `case.mwl` in the working directory. `--FILE <relative/path>--` writes
+//! *another* file into that same directory, at the path it names, creating
+//! the directories along the way — so a case can hold a `require` target, an
+//! autoload root and the class it declares, which is what
+//! [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! needs to be observable end to end at all:
+//!
+//! ```text
+//! --FILE--
+//! <?mwl
+//! require './src/Bootstrap.mwl';
+//! echo (new App\Greeter())->greet(), "\n";
+//! --FILE src/Bootstrap.mwl--
+//! <?mwl
+//! autoload 'App' from './';
+//! --FILE src/Greeter.mwl--
+//! <?mwl
+//! namespace App;
+//! class Greeter { public function greet(): string { return "hi"; } }
+//! --EXPECT--
+//! hi
+//! ```
+//!
+//! The path is relative, `/`-separated on both legs, and may not hold a `.`
+//! or `..` segment or name one of the four files the runner writes itself
+//! (`case.mwl`, `skipif.mwl`, `clean.mwl`, `oracle.php`) — so a case cannot
+//! reach outside the temporary directory it is given, and needs no sanitiser
+//! to say so. Repeating one path is a parse error, the way repeating any
+//! other section is.
 //!
 //! `--ORACLE--` is how the differential suite proves PHP compatibility
 //! instead of freezing a belief about it: the expectation is not a string

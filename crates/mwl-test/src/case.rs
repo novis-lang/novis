@@ -32,6 +32,21 @@ pub enum Oracle {
     Diverges(String),
 }
 
+/// One file a case puts on disk beside its own `--FILE--`.
+///
+/// Written by `--FILE <relative/path>--`, which may appear any number of
+/// times. This is what lets one case cover something that is only observable
+/// across files — a `require` target, an autoload root, a shadowing vendor
+/// copy ([ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuxFile {
+    /// Where to write it, relative to the case's working directory, always
+    /// with `/` separators and never escaping that directory.
+    pub path: String,
+    /// Its contents, verbatim.
+    pub body: String,
+}
+
 /// One parsed `.mwlt` file.
 #[derive(Debug, Clone)]
 pub struct Case {
@@ -43,6 +58,8 @@ pub struct Case {
     pub skipif: Option<String>,
     /// `--FILE--`, the MWL program under test.
     pub file: String,
+    /// Every `--FILE <relative/path>--`, in the order they were written.
+    pub aux: Vec<AuxFile>,
     /// `--EXPECT--` or `--EXPECTF--`, matched against standard output.
     pub expect: Option<Expectation>,
     /// `--EXPECT-ERROR--` or `--EXPECTF-ERROR--`, matched against standard
@@ -92,6 +109,18 @@ fn err(message: impl Into<String>, line: Option<usize>) -> ParseError {
     }
 }
 
+/// One section as the line scanner found it, before any of it is interpreted.
+struct Section {
+    /// The header's name, e.g. `EXPECT`.
+    name: String,
+    /// The header's argument, for the one name that takes one.
+    arg: Option<String>,
+    /// The 1-based line the header is on.
+    line: usize,
+    /// Every line under the header, each still carrying its newline.
+    body: String,
+}
+
 /// The section names this format knows, in the order the module doc lists
 /// them. Anything else is a parse error naming the offender.
 const KNOWN: &[&str] = &[
@@ -127,10 +156,25 @@ const NOT_YET: &[(&str, &str)] = &[
     ),
 ];
 
-/// Returns the section name if `line` is a header, else `None`.
-fn header(line: &str) -> Option<&str> {
+/// The one section name that takes an argument, and what the argument is.
+const TAKES_A_PATH: &str = "FILE";
+
+/// The names the runner writes into the working directory itself, which an
+/// auxiliary file therefore may not claim.
+const RESERVED_NAMES: &[&str] = &["case.mwl", "skipif.mwl", "clean.mwl", "oracle.php"];
+
+/// Returns a header's section name and its argument, if `line` is a header.
+///
+/// A header is `--NAME--` or `--NAME argument--`; the name keeps the narrow
+/// character set it always had, so widening this cannot reclassify a body
+/// line that merely contains dashes.
+fn header(line: &str) -> Option<(&str, Option<&str>)> {
     let line = line.trim_end();
-    let name = line.strip_prefix("--")?.strip_suffix("--")?;
+    let inner = line.strip_prefix("--")?.strip_suffix("--")?;
+    let (name, arg) = match inner.split_once(' ') {
+        Some((name, arg)) => (name, Some(arg.trim())),
+        None => (inner, None),
+    };
     if name.is_empty()
         || !name
             .chars()
@@ -138,7 +182,39 @@ fn header(line: &str) -> Option<&str> {
     {
         return None;
     }
-    Some(name)
+    Some((name, arg))
+}
+
+/// Checks an auxiliary file's path, returning it or the reason it is refused.
+///
+/// The path is joined onto a temporary directory the runner owns, so this is
+/// the whole of the containment argument: `/` separators only, no root, no
+/// drive letter, and no `.` or `..` segment means the result cannot name
+/// anything outside that directory.
+fn aux_path(raw: &str) -> Result<String, String> {
+    if raw.is_empty() {
+        return Err("`--FILE <path>--` needs a path after the name".to_owned());
+    }
+    if raw.contains('\\') {
+        return Err(format!(
+            "`{raw}` separates with `\\`; an auxiliary path is written with `/` on both legs"
+        ));
+    }
+    if raw.starts_with('/') || raw.contains(':') {
+        return Err(format!("`{raw}` is not a relative path"));
+    }
+    if raw
+        .split('/')
+        .any(|segment| segment.is_empty() || segment == "." || segment == "..")
+    {
+        return Err(format!(
+            "`{raw}` has an empty, `.` or `..` segment; an auxiliary file stays under the case's own directory"
+        ));
+    }
+    if RESERVED_NAMES.contains(&raw) {
+        return Err(format!("`{raw}` is the name the runner writes itself"));
+    }
+    Ok(raw.to_owned())
 }
 
 /// Reads `text` as a `.mwlt` case named by `path`.
@@ -148,25 +224,49 @@ fn header(line: &str) -> Option<&str> {
 /// Returns [`ParseError`] for an unknown section, a repeated section, a
 /// missing required section, or two sections that contradict each other.
 pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
-    let mut sections: Vec<(String, usize, String)> = Vec::new();
-    let mut current: Option<(String, usize, String)> = None;
+    let mut sections: Vec<Section> = Vec::new();
+    let mut current: Option<Section> = None;
 
     for (index, line) in text.lines().enumerate() {
         let number = index + 1;
-        if let Some(name) = header(line) {
+        if let Some((name, arg)) = header(line) {
             if !KNOWN.contains(&name) {
                 return Err(err(format!("unknown section `--{name}--`"), Some(number)));
             }
+            let arg = match (arg, name) {
+                (None, _) => None,
+                (Some(raw), TAKES_A_PATH) => {
+                    Some(aux_path(raw).map_err(|why| err(why, Some(number)))?)
+                }
+                (Some(_), _) => {
+                    return Err(err(
+                        format!("`--{name}--` does not take an argument"),
+                        Some(number),
+                    ));
+                }
+            };
             if let Some(previous) = current.take() {
                 sections.push(previous);
             }
-            if sections.iter().any(|(seen, _, _)| seen == name) {
-                return Err(err(format!("`--{name}--` appears twice"), Some(number)));
+            if sections
+                .iter()
+                .any(|seen| seen.name == name && seen.arg == arg)
+            {
+                let shown = match &arg {
+                    Some(arg) => format!("--{name} {arg}--"),
+                    None => format!("--{name}--"),
+                };
+                return Err(err(format!("`{shown}` appears twice"), Some(number)));
             }
-            current = Some((name.to_owned(), number, String::new()));
-        } else if let Some((_, _, body)) = current.as_mut() {
-            body.push_str(line);
-            body.push('\n');
+            current = Some(Section {
+                name: name.to_owned(),
+                arg,
+                line: number,
+                body: String::new(),
+            });
+        } else if let Some(section) = current.as_mut() {
+            section.body.push_str(line);
+            section.body.push('\n');
         } else if !line.trim().is_empty() {
             return Err(err(
                 "text before the first section; a case starts with `--TEST--`",
@@ -184,9 +284,27 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
     let take = |name: &str| -> Option<(usize, String)> {
         sections
             .iter()
-            .find(|(seen, _, _)| seen == name)
-            .map(|(_, line, body)| (*line, body.clone()))
+            .find(|seen| seen.name == name && seen.arg.is_none())
+            .map(|seen| (seen.line, seen.body.clone()))
     };
+
+    let mut aux = Vec::new();
+    for section in sections
+        .iter()
+        .filter(|seen| seen.name == TAKES_A_PATH && seen.arg.is_some())
+    {
+        let path = section.arg.clone().expect("filtered to the argument form");
+        if section.body.trim().is_empty() {
+            return Err(err(
+                format!("`--FILE {path}--` is empty"),
+                Some(section.line),
+            ));
+        }
+        aux.push(AuxFile {
+            path,
+            body: section.body.clone(),
+        });
+    }
 
     let Some((title_line, title)) = take("TEST") else {
         return Err(err("no `--TEST--` section", None));
@@ -270,6 +388,7 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
             .map(|(_, body)| body)
             .filter(|body| !body.trim().is_empty()),
         file,
+        aux,
         expect,
         expect_error,
         clean: take("CLEAN")
@@ -409,6 +528,77 @@ mod tests {
         let parsed = case("--TEST--\nt\n--ARGS--\n\n--FILE--\n<?mwl\n--EXPECT--\n\n")
             .expect("an empty deferred section parses");
         assert!(parsed.unsupported.is_none());
+    }
+
+    #[test]
+    fn auxiliary_files_keep_their_paths_and_their_order() {
+        let parsed = case(
+            "--TEST--\nt\n--FILE--\n<?mwl\nrequire './src/B.mwl';\n--FILE src/B.mwl--\n<?mwl\nautoload 'App' from './';\n--FILE src/App/Greeter.mwl--\n<?mwl\nclass Greeter {}\n--EXPECT--\n\n",
+        )
+        .expect("auxiliary files parse");
+        assert_eq!(parsed.file, "<?mwl\nrequire './src/B.mwl';\n");
+        assert_eq!(
+            parsed
+                .aux
+                .iter()
+                .map(|a| a.path.as_str())
+                .collect::<Vec<_>>(),
+            ["src/B.mwl", "src/App/Greeter.mwl"]
+        );
+        assert!(parsed.aux[0].body.contains("autoload"));
+    }
+
+    #[test]
+    fn an_auxiliary_path_cannot_climb_out_of_the_case_directory() {
+        for path in [
+            "../x.mwl",
+            "a/../x.mwl",
+            "/etc/x.mwl",
+            "C:/x.mwl",
+            "./x.mwl",
+        ] {
+            let text =
+                format!("--TEST--\nt\n--FILE--\n<?mwl\n--FILE {path}--\n<?mwl\n--EXPECT--\n\n");
+            let e = case(&text).expect_err("an escaping path is rejected");
+            assert!(e.message.contains(path), "{e}");
+        }
+    }
+
+    #[test]
+    fn an_auxiliary_path_cannot_claim_a_name_the_runner_writes() {
+        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--FILE case.mwl--\n<?mwl\n--EXPECT--\n\n")
+            .expect_err("the runner's own name is rejected");
+        assert!(e.message.contains("the runner writes itself"), "{e}");
+    }
+
+    #[test]
+    fn an_auxiliary_path_is_written_with_forward_slashes() {
+        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--FILE src\\B.mwl--\n<?mwl\n--EXPECT--\n\n")
+            .expect_err("a backslash separator is rejected");
+        assert!(e.message.contains("both legs"), "{e}");
+    }
+
+    #[test]
+    fn the_same_auxiliary_path_cannot_be_written_twice() {
+        let e = case(
+            "--TEST--\nt\n--FILE--\n<?mwl\n--FILE a.mwl--\n<?mwl\n--FILE a.mwl--\n<?mwl\n--EXPECT--\n\n",
+        )
+        .expect_err("a repeated auxiliary path is rejected");
+        assert!(e.message.contains("`--FILE a.mwl--` appears twice"), "{e}");
+    }
+
+    #[test]
+    fn an_empty_auxiliary_file_is_rejected() {
+        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--FILE a.mwl--\n\n--EXPECT--\n\n")
+            .expect_err("an empty auxiliary file is rejected");
+        assert!(e.message.contains("is empty"), "{e}");
+    }
+
+    #[test]
+    fn only_the_file_section_takes_an_argument() {
+        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--EXPECT a.mwl--\n\n")
+            .expect_err("an argument on another section is rejected");
+        assert!(e.message.contains("does not take an argument"), "{e}");
     }
 
     #[test]

@@ -93,6 +93,15 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         ));
     }
 
+    // Auxiliary files go down before anything runs, including `--SKIPIF--`:
+    // they are part of the tree the case is written against, not part of one
+    // program's input.
+    for aux in &case.aux {
+        if let Err(error) = write_aux(workdir, &aux.path, &aux.body) {
+            return Outcome::Fail(vec![format!("--FILE {}--: {error}", aux.path)]);
+        }
+    }
+
     if let Some(source) = &case.skipif {
         match run_mwl(opts, workdir, "skipif.mwl", source) {
             Err(error) => return Outcome::Fail(vec![format!("--SKIPIF--: {error}")]),
@@ -195,6 +204,21 @@ fn judge(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
     }
 }
 
+/// Writes one auxiliary file, creating the directories its path names.
+///
+/// `relative` has already been checked by the parser to be a `/`-separated
+/// relative path with no `.` or `..` segment, so joining it onto `workdir`
+/// cannot reach outside it.
+fn write_aux(workdir: &Path, relative: &str, body: &str) -> io::Result<()> {
+    let target = relative
+        .split('/')
+        .fold(workdir.to_path_buf(), |path, segment| path.join(segment));
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(target, body)
+}
+
 /// Writes `source` into `workdir` as `name` and runs `mwl run` on it.
 fn run_mwl(opts: &Options, workdir: &Path, name: &str, source: &str) -> io::Result<Output> {
     fs::write(workdir.join(name), source)?;
@@ -238,6 +262,20 @@ fn indented(label: &str, text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_auxiliary_file_lands_under_the_directories_its_path_names() {
+        let root = std::env::temp_dir().join(format!("mwl-test-aux-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("a fresh working directory");
+
+        write_aux(&root, "src/App/Greeter.mwl", "<?mwl\n").expect("it writes");
+        let written = fs::read_to_string(root.join("src").join("App").join("Greeter.mwl"))
+            .expect("it is where the path said");
+        assert_eq!(written, "<?mwl\n");
+
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn an_empty_block_says_so_rather_than_showing_nothing() {
