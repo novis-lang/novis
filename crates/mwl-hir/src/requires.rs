@@ -26,6 +26,12 @@
 //! (`resolve_imports`, `hierarchy.resolve`, `members.check`, `aliases.resolve`)
 //! run once over the whole graph.
 //!
+//! The walk hands its files back alongside the [`Module`], as a [`Loaded`]
+//! per file in entry-first load order. Every phase after name resolution —
+//! type-checking, layout, lowering — needs each file's statements again, and
+//! this is the only place they were ever parsed, so dropping them here would
+//! force the caller to re-read the graph to find out what was in it.
+//!
 //! The same worklist runs
 //! [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 //! § 1's autoload resolution, as a fixpoint rather than a second pass. Each
@@ -111,12 +117,22 @@ use crate::members::MemberResolver;
 use crate::qname::QName;
 use crate::resolve::{Module, Resolver};
 
-/// One file already pulled into the require graph, kept around (rather than
-/// dropped after its `collect_*` pass) because [`crate::members::MemberResolver::check`]
-/// needs every file's statements again, after every file has been collected.
-struct Loaded {
-    id: SourceId,
-    stmts: Vec<Stmt>,
+/// One file pulled into the require graph, with the statements it parsed to.
+///
+/// [`resolve_program`] keeps these (rather than dropping each after its
+/// `collect_*` pass) because [`crate::members::MemberResolver::check`] needs
+/// every file's statements again, after every file has been collected — and
+/// then hands the whole vector back, because every later phase needs the same
+/// set: `mwl-types` type-checks each file's own top-level statements, and
+/// `mwl-ir` lowers each file's declarations. The entry file's statements are
+/// in here too, which is what makes the vector a complete description of the
+/// program rather than "the files the entry pulled in".
+#[derive(Debug)]
+pub struct Loaded {
+    /// The file, as [`mwl_diagnostics::SourceMap`] knows it.
+    pub id: SourceId,
+    /// Its whole parsed body, moved here once and never re-parsed.
+    pub stmts: Vec<Stmt>,
 }
 
 /// Resolves the `require` graph reachable from one entry file into a single
@@ -127,14 +143,22 @@ struct Loaded {
 /// discovered by a `require` along the way: this function owns every file's
 /// statements for as long as the graph walk needs them, since a later file
 /// can't be loaded while an earlier one's `&SourceFile` is still borrowed
-/// from `map`.
+/// from `map`. They come back out in the [`Loaded`] vector, because the
+/// caller's next phase needs them and nothing else in the pipeline is willing
+/// to re-parse a file this one already read.
+///
+/// **The order is the entry file first, then load order** — the order the
+/// walk finished collecting each file, which is a deterministic function of
+/// the graph and each file's own `require` order. A caller that must run a
+/// per-file phase in a stable sequence (a diagnostic's file order, a codegen
+/// unit's) can take this vector as given rather than sorting it.
 #[must_use]
 pub fn resolve_program(
     entry_id: SourceId,
     entry_stmts: Vec<Stmt>,
     map: &mut SourceMap,
     diags: &mut Diagnostics,
-) -> Module {
+) -> (Module, Vec<Loaded>) {
     let mut resolver = Resolver::new();
     let mut hierarchy = HierarchyResolver::new();
     let mut members = MemberResolver::new();
@@ -314,7 +338,7 @@ pub fn resolve_program(
     module.members = members.into_table();
     module.aliases = aliases.resolve(diags);
 
-    module
+    (module, loaded)
 }
 
 fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
@@ -1079,13 +1103,23 @@ mod tests {
     }
 
     fn resolve_entry(dir: &TempDir, entry_name: &str) -> (Module, Diagnostics) {
+        let (module, _loaded, _map, diags) = resolve_entry_loaded(dir, entry_name);
+        (module, diags)
+    }
+
+    /// The same walk, keeping what `resolve_entry` throws away: the files it
+    /// loaded, and the [`SourceMap`] their [`SourceId`]s index into.
+    fn resolve_entry_loaded(
+        dir: &TempDir,
+        entry_name: &str,
+    ) -> (Module, Vec<Loaded>, SourceMap, Diagnostics) {
         let mut map = SourceMap::new();
         let entry_path = dir.path.join(entry_name);
         let entry_id = map.load(&entry_path).expect("load entry fixture");
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(entry_id), &mut diags);
-        let module = resolve_program(entry_id, stmts, &mut map, &mut diags);
-        (module, diags)
+        let (module, loaded) = resolve_program(entry_id, stmts, &mut map, &mut diags);
+        (module, loaded, map, diags)
     }
 
     /// ADR 0062 § 3's whole point, stated as the invariant that holds on
@@ -1260,6 +1294,47 @@ require './Lib/Helper.mwl';
         );
     }
 
+    /// The contract [`resolve_program`]'s callers rely on: the entry file is
+    /// first, every file in the graph is there exactly once, and each carries
+    /// its own parsed statements. The order of the four is the walk's and is
+    /// deterministic, but only the entry's position is a promise — a caller
+    /// that needs more than "entry first" should say so here.
+    #[test]
+    fn the_walk_hands_back_every_file_it_loaded_entry_first() {
+        let dir = TempDir::new("loaded");
+        dir.write("d.mwl", "<?mwl\nclass Shared {}\n");
+        dir.write("b.mwl", "<?mwl\nrequire 'd.mwl';\nclass B {}\n");
+        dir.write("c.mwl", "<?mwl\nrequire 'd.mwl';\nclass C {}\n");
+        dir.write(
+            "main.mwl",
+            "<?mwl\nrequire 'b.mwl';\nrequire 'c.mwl';\nclass App {}\n",
+        );
+
+        let (_module, loaded, map, diags) = resolve_entry_loaded(&dir, "main.mwl");
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        let names: Vec<String> = loaded
+            .iter()
+            .map(|file| {
+                assert!(!file.stmts.is_empty(), "a loaded file kept no statements");
+                map.file(file.id)
+                    .path()
+                    .and_then(|p| p.file_name())
+                    .expect("every fixture has an on-disk name")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+
+        assert_eq!(
+            names[0], "main.mwl",
+            "the entry file comes first: {names:?}"
+        );
+        let mut sorted = names.clone();
+        sorted.sort();
+        assert_eq!(sorted, ["b.mwl", "c.mwl", "d.mwl", "main.mwl"], "{names:?}");
+    }
+
     #[test]
     fn a_dynamic_require_path_is_left_for_the_runtime_fallback() {
         let dir = TempDir::new("dynamic");
@@ -1278,7 +1353,7 @@ require './Lib/Helper.mwl';
         let id = map.add("virtual.mwl", "<?mwl\nrequire 'lib.mwl';\n");
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(id), &mut diags);
-        let _module = resolve_program(id, stmts, &mut map, &mut diags);
+        let (_module, _loaded) = resolve_program(id, stmts, &mut map, &mut diags);
         assert!(!diags.has_errors(), "{diags:?}");
     }
 

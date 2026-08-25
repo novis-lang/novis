@@ -35,7 +35,9 @@
 //!   from one entry file, merging every statically-resolvable target's
 //!   declarations into one [`Module`] via the same multi-file
 //!   `collect_*`-then-resolve shape every resolver above already supports;
-//!   diagnoses a missing target or a require cycle.
+//!   diagnoses a missing target or a require cycle. Hands back a [`Loaded`]
+//!   per file, entry first, so the phases after this one do not re-parse the
+//!   graph to find out what is in it.
 //!
 //! # Known gaps
 //!
@@ -69,6 +71,6 @@ pub use hierarchy::{
 };
 pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;
-pub use requires::resolve_program;
+pub use requires::{Loaded, resolve_program};
 pub use resolve::{Import, Module, Resolver, resolve_file};
 pub use symbol::{Symbol, SymbolKind, SymbolTable};
