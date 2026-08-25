@@ -305,14 +305,14 @@ impl Table {
     /// it, which is the whole saving.
     fn set(&mut self, key: MwlStr, value: Value) -> Option<Value> {
         self.note_key(key.as_bytes());
-        if let Shape::Packed(values) = &mut self.shape {
-            if let Some(slot) = packed_index(key.as_bytes()).filter(|slot| *slot <= values.len()) {
-                if slot == values.len() {
-                    values.push(value);
-                    return None;
-                }
-                return Some(std::mem::replace(&mut values[slot], value));
+        if let Shape::Packed(values) = &mut self.shape
+            && let Some(slot) = packed_index(key.as_bytes()).filter(|slot| *slot <= values.len())
+        {
+            if slot == values.len() {
+                values.push(value);
+                return None;
             }
+            return Some(std::mem::replace(&mut values[slot], value));
         }
         self.hashed_mut().set(key, value)
     }
@@ -324,12 +324,12 @@ impl Table {
     /// rendering, no allocation and no hashing at all.
     fn append(&mut self, value: Value) {
         let counter = self.next_index.unwrap_or(0);
-        if let Shape::Packed(values) = &mut self.shape {
-            if usize::try_from(counter).is_ok_and(|next| next == values.len()) {
-                values.push(value);
-                self.next_index = Some(counter.saturating_add(1));
-                return;
-            }
+        if let Shape::Packed(values) = &mut self.shape
+            && usize::try_from(counter).is_ok_and(|next| next == values.len())
+        {
+            values.push(value);
+            self.next_index = Some(counter.saturating_add(1));
+            return;
         }
         let key = MwlStr::new(counter.to_string().as_bytes());
         self.note_key(key.as_bytes());
@@ -372,8 +372,9 @@ impl Table {
     /// which never asks, never pays for one.
     fn key_at(&self, slot: usize) -> Option<MwlStr> {
         match &self.shape {
-            Shape::Packed(values) => (slot < values.len())
-                .then(|| MwlStr::new(slot.to_string().as_bytes())),
+            Shape::Packed(values) => {
+                (slot < values.len()).then(|| MwlStr::new(slot.to_string().as_bytes()))
+            }
             Shape::Hashed(hashed) => hashed.at(slot).map(|entry| entry.key.clone()),
         }
     }
@@ -611,6 +612,15 @@ impl MwlArray {
     #[cfg(test)]
     fn is_packed(&self) -> bool {
         matches!(self.header().table.borrow().shape, Shape::Packed(_))
+    }
+
+    /// Converts to the hash form without changing a single answer — how the
+    /// equivalence test produces the same content in the other shape, and the
+    /// only caller of [`Table::hashed_mut`] that is not a broken invariant.
+    #[cfg(test)]
+    fn degrade(&mut self) {
+        self.make_unique();
+        self.header().table.borrow_mut().hashed_mut();
     }
 
     /// The value stored at `key`, borrowed rather than retained.
@@ -1259,6 +1269,101 @@ mod tests {
             .collect()
     }
 
+    /// One named mutation, and whether the packed handle is still packed once
+    /// it has been applied.
+    type Mutation = (&'static str, fn(&mut MwlArray), bool);
+
+    /// A list of `count` values, built the way every list is: by appending.
+    fn list_of(count: i64) -> MwlArray {
+        let mut array = MwlArray::new();
+        for value in 0..count {
+            array.append(Value::int(value * 10));
+        }
+        array
+    }
+
+    /// Everything one `foreach` cursor can see, in a form two arrays' can be
+    /// compared with — `Value` carries no `PartialEq`, so the ints stand in.
+    fn readout(array: &MwlArray) -> Vec<(String, Option<i64>)> {
+        let mut seen = Vec::new();
+        let mut cursor = 0;
+        while let Some(slot) = array.next_slot(cursor) {
+            let key = array.key_at(slot).expect("the cursor names a live entry");
+            seen.push((
+                String::from_utf8(key.as_bytes().to_vec()).expect("test keys are ASCII"),
+                array.value_at(slot).and_then(Value::as_int),
+            ));
+            cursor = slot + 1;
+        }
+        seen
+    }
+
+    /// The same walk through the `extern "C"` trio compiled code actually
+    /// calls, rather than through the safe handle they share a table with.
+    fn raw_readout(array: &MwlArray) -> Vec<(String, Option<i64>)> {
+        let ptr: *const ArrayHeader = array.header();
+        let mut seen = Vec::new();
+        let mut cursor = 0;
+        loop {
+            #[expect(
+                unsafe_code,
+                reason = "the handle in `array` keeps the allocation live for \
+                          this whole walk, and every slot came from \
+                          `mwl_array_next_slot` itself"
+            )]
+            unsafe {
+                let slot = mwl_array_next_slot(ptr, cursor);
+                let Ok(slot) = usize::try_from(slot) else {
+                    return seen;
+                };
+                let key = MwlStr::from_raw(mwl_array_key_at(ptr, slot));
+                let mut value = Value::default();
+                mwl_array_value_at(ptr, slot, &raw mut value);
+                seen.push((
+                    String::from_utf8(key.as_bytes().to_vec()).expect("test keys are ASCII"),
+                    value.as_int(),
+                ));
+                cursor = slot + 1;
+            }
+        }
+    }
+
+    /// Asserts that two arrays holding the same content answer every primitive
+    /// alike, whatever shape each is in.
+    fn agree(packed: &MwlArray, hashed: &MwlArray, step: &str) {
+        assert_eq!(packed.count(), hashed.count(), "count, after {step}");
+        assert_eq!(keys_of(packed), keys_of(hashed), "keys, after {step}");
+        assert_eq!(readout(packed), readout(hashed), "cursor, after {step}");
+        assert_eq!(
+            raw_readout(packed),
+            raw_readout(hashed),
+            "the raw cursor, after {step}"
+        );
+        for probe in [
+            b"0".as_slice(),
+            b"1",
+            b"2",
+            b"5",
+            b"6",
+            b"08",
+            b"-1",
+            b"name",
+            b"",
+        ] {
+            let named = String::from_utf8_lossy(probe).into_owned();
+            assert_eq!(
+                packed.get(probe).and_then(Value::as_int),
+                hashed.get(probe).and_then(Value::as_int),
+                "`{named}`, after {step}"
+            );
+            assert_eq!(
+                packed.has_key(probe),
+                hashed.has_key(probe),
+                "`{named}` presence, after {step}"
+            );
+        }
+    }
+
     #[test]
     fn a_fresh_array_is_empty_and_solely_owned() {
         let array = MwlArray::new();
@@ -1313,6 +1418,178 @@ mod tests {
         assert!(list.get(b"08").is_none());
         assert!(list.get(b"x").is_none());
         assert!(!list.has_key(b"32"));
+    }
+
+    #[test]
+    fn a_non_sequential_key_degrades_the_packed_array() {
+        // One block per way to break "the keys are exactly `0`…`n−1`, in
+        // order". Each asserts both that the shape gave way and that the
+        // answer is the one the hash form would have given all along.
+
+        // A gap, and then an append that follows the counter over it.
+        let mut gapped = list_of(3);
+        gapped.set(key("5"), Value::int(50));
+        assert!(!gapped.is_packed());
+        assert_eq!(keys_of(&gapped), ["0", "1", "2", "5"]);
+        gapped.append(Value::int(60));
+        assert_eq!(keys_of(&gapped), ["0", "1", "2", "5", "6"]);
+        assert_eq!(gapped.get(b"1").and_then(Value::as_int), Some(10));
+
+        // A non-numeric key.
+        let mut named = list_of(3);
+        named.set(key("name"), Value::int(1));
+        assert!(!named.is_packed());
+        assert_eq!(keys_of(&named), ["0", "1", "2", "name"]);
+
+        // A non-canonical decimal, which ADR 0007 § 5 keeps distinct from
+        // `"8"` — the degrade is what preserves that.
+        let mut padded = list_of(3);
+        padded.set(key("08"), Value::int(1));
+        assert!(!padded.is_packed());
+        assert_eq!(keys_of(&padded), ["0", "1", "2", "08"]);
+
+        // A negative key, which the packed form has no position for.
+        let mut negative = list_of(3);
+        negative.set(key("-1"), Value::int(1));
+        assert!(!negative.is_packed());
+        assert_eq!(keys_of(&negative), ["0", "1", "2", "-1"]);
+
+        // A removal from the middle leaves a hole, which is exactly what the
+        // invariant forbids.
+        let mut middle = list_of(3);
+        middle.unset(b"1");
+        assert!(!middle.is_packed());
+        assert_eq!(keys_of(&middle), ["0", "2"]);
+
+        // A removal from the end does not, and the counter survives it: `$a =
+        // [1,2,3]; unset($a[2]); $a[] = 9;` writes key `3` in PHP 8.5, so the
+        // append that follows is where this one gives way.
+        let mut tail = list_of(3);
+        tail.unset(b"2");
+        assert!(tail.is_packed());
+        assert_eq!(keys_of(&tail), ["0", "1"]);
+        tail.append(Value::int(9));
+        assert!(!tail.is_packed());
+        assert_eq!(keys_of(&tail), ["0", "1", "3"]);
+
+        // Unsetting a key that is not there touches nothing at all.
+        let mut absent = list_of(3);
+        absent.unset(b"9");
+        absent.unset(b"name");
+        assert!(absent.is_packed());
+        assert_eq!(keys_of(&absent), ["0", "1", "2"]);
+
+        // The two integer writes that hold the invariant: exactly the next
+        // position, and any position already there.
+        let mut extended = list_of(3);
+        extended.set(key("3"), Value::int(30));
+        extended.set(key("0"), Value::int(99));
+        assert!(extended.is_packed());
+        assert_eq!(keys_of(&extended), ["0", "1", "2", "3"]);
+        assert_eq!(extended.get(b"0").and_then(Value::as_int), Some(99));
+        extended.append(Value::int(40));
+        assert!(extended.is_packed());
+        assert_eq!(keys_of(&extended), ["0", "1", "2", "3", "4"]);
+    }
+
+    #[test]
+    fn both_representations_answer_every_primitive_alike() {
+        // The same content in both shapes, so any difference the assertions
+        // find is a difference in the representation and nothing else.
+        let packed = list_of(6);
+        let mut hashed = list_of(6);
+        hashed.degrade();
+        assert!(packed.is_packed());
+        assert!(!hashed.is_packed());
+        agree(&packed, &hashed, "the build");
+
+        // Then the same mutation applied to both, compared after each one.
+        // The packed handle degrades of its own accord partway through, which
+        // is the point: after that the two are the same shape and must still
+        // agree with what the first half recorded.
+        let mut packed = packed;
+        for (step, mutate, still_packed) in mutations() {
+            mutate(&mut packed);
+            mutate(&mut hashed);
+            assert_eq!(
+                packed.is_packed(),
+                still_packed,
+                "the shape after {step} is not the one this test is comparing"
+            );
+            assert!(!hashed.is_packed(), "the hash form never packs itself");
+            agree(&packed, &hashed, step);
+        }
+
+        // Freeing is the last primitive, and the counting allocator is the
+        // only witness that says so.
+        let before = live_bytes();
+        {
+            let mut packed = list_of(4);
+            let mut hashed = list_of(4);
+            hashed.degrade();
+            packed.set(key("k"), Value::str(MwlStr::new(b"a stored string")));
+            hashed.set(key("k"), Value::str(MwlStr::new(b"a stored string")));
+            let alias = packed.clone();
+            packed.append(Value::int(1));
+            drop(alias);
+        }
+        assert_eq!(live_bytes(), before);
+    }
+
+    /// Every mutating primitive, in an order that holds the packed invariant
+    /// for the first four and breaks it for the rest — the third field is
+    /// which, so the test pins where the shape gives way rather than only that
+    /// the answers match.
+    fn mutations() -> Vec<Mutation> {
+        vec![
+            ("an append", |array| array.append(Value::int(60)), true),
+            (
+                "an overwrite",
+                |array| {
+                    array.set(key("2"), Value::int(99));
+                },
+                true,
+            ),
+            (
+                "a write at exactly the next position",
+                |array| {
+                    array.set(key("7"), Value::int(70));
+                },
+                true,
+            ),
+            ("a removal from the end", |array| array.unset(b"7"), true),
+            (
+                "a gap",
+                |array| {
+                    array.set(key("9"), Value::int(90));
+                },
+                false,
+            ),
+            (
+                "a named key",
+                |array| {
+                    array.set(key("name"), Value::int(1));
+                },
+                false,
+            ),
+            (
+                "a removal from the middle",
+                |array| array.unset(b"1"),
+                false,
+            ),
+            (
+                "an append after all of it",
+                |array| {
+                    array.append(Value::int(100));
+                },
+                false,
+            ),
+            (
+                "a removal of what is not there",
+                |array| array.unset(b"zzz"),
+                false,
+            ),
+        ]
     }
 
     #[test]
