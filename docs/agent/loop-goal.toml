@@ -47,6 +47,7 @@ modules = [
   "crates/mwl-diagnostics/src/lib.rs",
   "crates/mwl-syntax/src/parser/decl.rs",
   "crates/mwl-syntax/src/parser/stmt.rs",
+  "crates/mwl-syntax/src/ast.rs",
   "crates/mwl-hir/src/requires.rs",
   "crates/mwl-hir/src/resolve.rs",
   "crates/mwl-ir/src/lower/**",
