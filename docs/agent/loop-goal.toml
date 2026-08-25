@@ -45,7 +45,13 @@ modules = [
   "crates/mwl-diagnostics/src/lib.rs",
   "crates/mwl-runtime/src/identity.rs",
   "crates/mwl-runtime/src/value.rs",
+  "crates/mwl-runtime/src/helpers.rs",
+  "crates/mwl-runtime/src/decimal.rs",
+  "crates/mwl-stdlib/src/arr.rs",
   "crates/mwl-ir/src/lower/**",
+  "crates/mwl-ir/src/ir.rs",
+  "crates/mwl-codegen/src/emit.rs",
+  "crates/mwl-codegen/src/lib.rs",
 ]
 
 # The decisions this goal's work sits inside, by ADR number. orient.py prints the one-sentence
@@ -61,6 +67,7 @@ adrs = [
   "0090 §5",
   "0090 §6",
   "0069 §2",
+  "0054 §5",
   "0094",
   "0094 §2",
   "0094 §3",
