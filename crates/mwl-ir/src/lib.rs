@@ -303,24 +303,37 @@
 //!     equality that widening *is* the semantics rather than an approximation
 //!     of it, so it belongs in [`lower::Lowering::convert`]'s existing rows.
 //!
-//! 20. **ADR 0047 § 5 runs for a set of literals; a set of enum *cases* still
-//!     does not.** A union whose members all erase to one representation is
-//!     that representation ([`lower::lower_checked_ty`]), so `"a"|"b"` is a
-//!     `Ty::Str` and `1|2` a `Ty::Int` rather than the `Ty::Tagged` every
-//!     union used to be, and § 4's checked row runs the membership test
+//! 20. **ADR 0047 § 5 runs whole; ADR 0010 § 5's `int` *into* an enum is what
+//!     is left of it.** A union whose members all erase to one representation
+//!     is that representation ([`lower::lower_checked_ty`]), so `"a"|"b"` is a
+//!     `Ty::Str`, `1|2` a `Ty::Int` and `Mode::Read|Mode::Write` the enum's
+//!     own tag rather than the `Ty::Tagged` every union used to be, and § 4's
+//!     checked row runs the membership test
 //!     [`lower::Lowering::lower_literal_membership`] emits — a comparison per
 //!     member, throwing through [`ir::Helper::LiteralMismatch`] with the
-//!     accepted set named.
+//!     accepted set named. § 3's enum-case subset is in that set now: every
+//!     lowering entry point takes the run's `mwl_types::EnumTable` (handed
+//!     back by `mwl_types::check_program` rather than rebuilt, so ADR 0010
+//!     § 1/§ 2's declaration errors are not reported twice), which is where a
+//!     case's constant lives — [`ir::ExprInfo::EnumCase`] carries one only for
+//!     a case written as an *expression*, and a case named in a **type** has
+//!     no expression to record one against. An enum operand is reinterpreted
+//!     to its backing integer for the chain, because `mwl-codegen` lowers
+//!     `BinOp::Eq` over `Ty::Int`/`Ty::Uint` and not over `Ty::Enum`.
 //!
-//!     § 3's enum-case subset is the row still missing over an operand only
-//!     known at run time (`$any as Mode::Read|Mode::Write`), and it is missing
-//!     for the same reason ADR 0010 § 5's `int` *into* an enum is: the test
-//!     needs each case's backing value, which lives in `mwl_types::enums` and
-//!     is not handed to this crate — [`ir::ExprInfo::EnumCase`] carries one
-//!     only for a case written as an expression. Both rows are one check, so
-//!     plumbing that table here closes them together. A statically settled
-//!     operand needs no check and already works, since `mwl_types` refuses
-//!     `E0470` before lowering ever sees it. `as ?"a"`
+//!     What is missing is the *base* conversion underneath it: `Tagged as
+//!     Enum(_)` — and `Int as Enum(_)` — has no arm in
+//!     [`lower::Lowering::convert`], so `$any as Mode::Read|Mode::Write` over
+//!     a `mixed` runs its membership test and then panics converting, and a
+//!     plain `$n as Mode` never gets that far. That row is ADR 0010 § 5's own:
+//!     it throws on a value no case names, which is the same check
+//!     `lower_literal_membership` already emits, run against **every** case of
+//!     the declaration rather than a named subset. The table it needs is now
+//!     in hand ([`lower::Lowering::enums`]); what it still owes is a
+//!     whole-enum accepted set and the missing `convert` rows.
+//!
+//!     A statically settled operand needs no check and already worked, since
+//!     `mwl_types` refuses `E0470` before lowering ever sees it. `as ?"a"`
 //!     ([ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)'s
 //!     non-throwing form) runs no membership test either: its yield-`null`
 //!     miss arm has no shared representation with its hit arm, so it needs a

@@ -75,6 +75,7 @@ use mwl_syntax::ast::{
     FnBody, FnExpr, ForeachBinding, MatchArm, MethodMember, Modifier, NamespaceDecl, NewTarget,
     Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
+use mwl_types::EnumTable;
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable, ForeachDrive};
 use mwl_types::layout::ClassLayoutTable;
 use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
@@ -300,6 +301,7 @@ pub fn lower_program(
     files: &[mwl_types::ProgramFile<'_>],
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
     layouts: &ClassLayoutTable,
 ) -> crate::ir::Program {
     fn walk(
@@ -307,6 +309,7 @@ pub fn lower_program(
         src: &SourceFile,
         exprs: &ExprTypeTable,
         checked_types: &TypeInterner,
+        enums: &EnumTable,
         out: &mut Vec<Function>,
         synthesized: &mut Vec<crate::ir::Class>,
     ) {
@@ -318,7 +321,15 @@ pub fn lower_program(
                 // inside the block.
                 StmtKind::NamespaceDecl(NamespaceDecl {
                     body: Some(block), ..
-                }) => walk(&block.stmts, src, exprs, checked_types, out, synthesized),
+                }) => walk(
+                    &block.stmts,
+                    src,
+                    exprs,
+                    checked_types,
+                    enums,
+                    out,
+                    synthesized,
+                ),
                 // An `interface`'s default and private method bodies (ADR
                 // 0043 § 2/§ 3) are ordinary compiled methods — the interface
                 // is where they are *declared*, which is all that differs.
@@ -345,12 +356,13 @@ pub fn lower_program(
                                     .expect("just checked this declaration has one");
                                 if mwl_syntax::ast::is_generator_body(body) {
                                     let (fns, classes) =
-                                        lower_generator(label, m, src, exprs, checked_types);
+                                        lower_generator(label, m, src, exprs, checked_types, enums);
                                     out.extend(fns);
                                     synthesized.extend(classes);
                                     continue;
                                 }
-                                let lowered = lower_method(label, m, src, exprs, checked_types);
+                                let lowered =
+                                    lower_method(label, m, src, exprs, checked_types, enums);
                                 out.push(lowered.function);
                                 out.extend(lowered.closures);
                                 synthesized.extend(lowered.classes);
@@ -376,6 +388,7 @@ pub fn lower_program(
                                         src,
                                         exprs,
                                         checked_types,
+                                        enums,
                                     );
                                     out.push(lowered.function);
                                     out.extend(lowered.closures);
@@ -399,6 +412,7 @@ pub fn lower_program(
             file.src,
             exprs,
             checked_types,
+            enums,
             &mut functions,
             &mut synthesized,
         );
@@ -406,7 +420,7 @@ pub fn lower_program(
     let entry = files
         .first()
         .expect("a program has at least its entry file");
-    let lowered = lower_script(script, entry.stmts, entry.src, exprs, checked_types);
+    let lowered = lower_script(script, entry.stmts, entry.src, exprs, checked_types, enums);
     functions.push(lowered.function);
     functions.extend(lowered.closures);
     synthesized.extend(lowered.classes);
@@ -483,6 +497,7 @@ pub fn lower_file(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
     layouts: &ClassLayoutTable,
 ) -> crate::ir::Program {
     lower_program(
@@ -490,6 +505,7 @@ pub fn lower_file(
         &[mwl_types::ProgramFile { src, stmts }],
         exprs,
         checked_types,
+        enums,
         layouts,
     )
 }
@@ -521,12 +537,13 @@ pub fn lower_method(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
 ) -> Lowered {
     let ret_ty = m
         .return_type
         .as_ref()
         .map_or(Ty::Void, |t| lower_decl_type(t, exprs, checked_types));
-    let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types);
+    let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
     let mut env = Env::default();
@@ -606,7 +623,7 @@ pub fn lower_method(
 
     let pending = std::mem::take(&mut low.closures);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, classes) = drain_closures(pending, src, exprs, checked_types);
+    let (closures, classes) = drain_closures(pending, src, exprs, checked_types, enums);
     Lowered {
         function: Function {
             name: name.to_owned(),
@@ -661,13 +678,14 @@ pub fn lower_property_hook(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
 ) -> Lowered {
     use mwl_syntax::ast::{PropertyHookBody, PropertyHookKind};
 
     let prop_ty = lower_decl_type(&p.ty, exprs, checked_types);
     let is_set = hook.kind == PropertyHookKind::Set;
     let ret_ty = if is_set { Ty::Void } else { prop_ty };
-    let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types);
+    let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
     let mut env = Env::default();
@@ -743,7 +761,7 @@ pub fn lower_property_hook(
 
     let pending = std::mem::take(&mut low.closures);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, classes) = drain_closures(pending, src, exprs, checked_types);
+    let (closures, classes) = drain_closures(pending, src, exprs, checked_types, enums);
     Lowered {
         function: Function {
             name: name.to_owned(),
@@ -789,9 +807,10 @@ pub fn lower_script(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
 ) -> Lowered {
     let ret_ty = Ty::Tagged;
-    let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types);
+    let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
     let mut env = Env::default();
@@ -809,7 +828,7 @@ pub fn lower_script(
 
     let pending = std::mem::take(&mut low.closures);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, classes) = drain_closures(pending, src, exprs, checked_types);
+    let (closures, classes) = drain_closures(pending, src, exprs, checked_types, enums);
     Lowered {
         function: Function {
             name: name.to_owned(),
@@ -837,6 +856,17 @@ struct Lowering<'a> {
     /// translate a [`TypeId`] recorded in `exprs` into this crate's own
     /// [`Ty`] via [`lower_checked_ty`].
     checked_types: &'a TypeInterner,
+    /// The same run's [`EnumTable`]: every declared enum's backing type and
+    /// its cases' constant values.
+    ///
+    /// Threaded beside `checked_types` because a case's *value* is the one
+    /// thing the checker's type does not carry —
+    /// [`CheckedTy::EnumCase`](mwl_types::ty::Ty::EnumCase) names the enum and
+    /// the case, and ADR 0047 § 3's membership test needs the integer that
+    /// pair stands for. [`ExprInfo::EnumCase`] answers the same question, but
+    /// only for a case written as an *expression*; a case named in a **type**
+    /// has no expression to record one against.
+    enums: &'a EnumTable,
     /// Parallel to `block_insts`/`block_terms`: the [`BlockId`] each was
     /// created with, in creation order. [`IdGen::next_block`] hands out ids
     /// sequentially from zero, so a block's id and its position in these
@@ -1082,11 +1112,13 @@ impl<'a> Lowering<'a> {
         ret_ty: Ty,
         exprs: &'a ExprTypeTable,
         checked_types: &'a TypeInterner,
+        enums: &'a EnumTable,
     ) -> Self {
         Self {
             ids: IdGen::new(),
             exprs,
             checked_types,
+            enums,
             src,
             ret_ty,
             block_ids: Vec::new(),
@@ -2050,7 +2082,8 @@ mod tests {
             src: map.file(file),
             stmts: &stmts,
         }];
-        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
+        let enums =
+            mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
 
         let decl = stmts
@@ -2074,7 +2107,14 @@ mod tests {
             .expect("fixture class must declare a method");
 
         let name = span_text(map.file(file), method.name).to_owned();
-        let f = lower_method(&name, method, map.file(file), &exprs, &checked_types);
+        let f = lower_method(
+            &name,
+            method,
+            map.file(file),
+            &exprs,
+            &checked_types,
+            &enums,
+        );
         (f.function, map, file)
     }
 
@@ -2095,10 +2135,18 @@ mod tests {
             src: map.file(file),
             stmts: &stmts,
         }];
-        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
+        let enums =
+            mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
 
-        let f = lower_script("<script>", &stmts, map.file(file), &exprs, &checked_types);
+        let f = lower_script(
+            "<script>",
+            &stmts,
+            map.file(file),
+            &exprs,
+            &checked_types,
+            &enums,
+        );
         (f.function, map, file)
     }
 
@@ -2120,7 +2168,8 @@ mod tests {
             src: map.file(file),
             stmts: &stmts,
         }];
-        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
+        let enums =
+            mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
         let layouts = mwl_types::layout::build_class_layouts(&files, &module.graph);
         let p = lower_file(
@@ -2129,6 +2178,7 @@ mod tests {
             map.file(file),
             &exprs,
             &checked_types,
+            &enums,
             &layouts,
         );
         (p, map, file)
@@ -3803,7 +3853,8 @@ class T {
             src: map.file(file),
             stmts: &stmts,
         }];
-        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
+        let enums =
+            mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
         let layouts = mwl_types::build_class_layouts(&files, &module.graph);
         let program = lower_file(
@@ -3812,6 +3863,7 @@ class T {
             map.file(file),
             &exprs,
             &checked_types,
+            &enums,
             &layouts,
         );
         (program, map, file)

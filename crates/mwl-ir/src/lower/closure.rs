@@ -49,11 +49,12 @@ pub(super) fn drain_closures(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
 ) -> (Vec<Function>, Vec<crate::ir::Class>) {
     let mut functions = Vec::new();
     let mut classes = Vec::new();
     while let Some(next) = pending.pop() {
-        let (function, class, more) = lower_closure(&next, src, exprs, checked_types);
+        let (function, class, more) = lower_closure(&next, src, exprs, checked_types, enums);
         functions.push(function);
         classes.push(class);
         pending.extend(more);
@@ -110,6 +111,7 @@ pub(super) fn lower_closure(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
 ) -> (Function, crate::ir::Class, Vec<PendingClosure>) {
     let PendingClosure {
         class,
@@ -118,7 +120,7 @@ pub(super) fn lower_closure(
         ret,
     } = pending;
     let label = format!("{class}::{FN_INVOKE}");
-    let mut low = Lowering::new(&label, src, *ret, exprs, checked_types);
+    let mut low = Lowering::new(&label, src, *ret, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
     low.emit_safepoint(entry);

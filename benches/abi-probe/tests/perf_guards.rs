@@ -392,11 +392,12 @@ fn compile_source(name: &str, text: &str) -> (mwl_ir::Program, mwl_codegen::Unit
     let mut interner = mwl_types::TypeInterner::new();
     let mut exprs = mwl_types::ExprTypeTable::new();
     let files = [mwl_types::ProgramFile { src, stmts: &stmts }];
-    mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+    let enums = mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
     assert!(!diags.has_errors(), "{name} stopped type-checking");
 
     let layouts = mwl_types::build_class_layouts(&files, &module.graph);
-    let program = mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &layouts);
+    let program =
+        mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &enums, &layouts);
     let unit = mwl_codegen::compile(&program).expect("the fixture compiles");
     (program, unit)
 }

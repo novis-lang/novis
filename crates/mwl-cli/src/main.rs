@@ -224,6 +224,10 @@ struct Checked {
     files: Vec<mwl_hir::Loaded>,
     interner: mwl_types::TypeInterner,
     exprs: mwl_types::ExprTypeTable,
+    /// Every declared enum's backing type and its cases' values, handed back
+    /// by `check_program` rather than rebuilt — `mwl_ir::lower` needs a case's
+    /// constant for ADR 0047 § 3's membership test.
+    enums: mwl_types::EnumTable,
     layouts: mwl_types::ClassLayoutTable,
     /// The autoload map the graph walk consulted, kept for
     /// `check --autoload-map` and read by nothing else here.
@@ -284,7 +288,7 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 
     let mut interner = mwl_types::TypeInterner::new();
     let mut exprs = mwl_types::ExprTypeTable::new();
-    let layouts = {
+    let (enums, layouts) = {
         let files: Vec<mwl_types::ProgramFile<'_>> = loaded
             .iter()
             .map(|file| mwl_types::ProgramFile {
@@ -292,13 +296,14 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
                 stmts: &file.stmts,
             })
             .collect();
-        mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+        let enums =
+            mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
 
         if diags.has_errors() {
             render_diagnostics(&mut diags, &map);
             return Err(ExitCode::FAILURE);
         }
-        mwl_types::build_class_layouts(&files, &module.graph)
+        (enums, mwl_types::build_class_layouts(&files, &module.graph))
     };
     render_diagnostics(&mut diags, &map);
 
@@ -308,6 +313,7 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
         files: loaded,
         interner,
         exprs,
+        enums,
         layouts,
         autoload,
     })
@@ -364,6 +370,7 @@ fn run_run(
         &checked.program_files(),
         &checked.exprs,
         &checked.interner,
+        &checked.enums,
         &checked.layouts,
     );
     if dump_ir {

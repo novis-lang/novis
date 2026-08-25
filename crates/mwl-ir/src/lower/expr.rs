@@ -3044,12 +3044,26 @@ impl<'a> Lowering<'a> {
             .map(|id| match types.get(*id) {
                 CheckedTy::StringLiteral(text) => LiteralAtom::Str(text.clone()),
                 CheckedTy::IntLiteral(value) => LiteralAtom::Int(*value),
+                // § 3's enum-case subset. The checked type names the enum and
+                // the case but deliberately not the value (see
+                // `mwl_types::ty::Ty::EnumCase`'s own doc comment for why
+                // folding it to an int literal would reopen ADR 0010 § 5), so
+                // the constant comes from the run's own enum table — the one
+                // place it still exists by the time lowering runs.
+                CheckedTy::EnumCase(qname, _, case) => {
+                    let value = self.enums.case(qname, case).unwrap_or_else(|| {
+                        panic!(
+                            "mwl-ir: `{qname}::{case}` is an interned enum-case type with no \
+                             entry in the run's enum table — `mwl_types` interns one only for a \
+                             case it resolved, so the two tables disagree"
+                        )
+                    });
+                    LiteralAtom::EnumCase(value)
+                }
                 other => panic!(
-                    "mwl-ir does not lower ADR 0047 § 3's enum-case subset conversion over an \
-                     operand only known at run time — got {other:?}. The test needs each case's \
-                     backing value, which lives in `mwl_types::enums` and is not handed to this \
-                     crate; `ExprInfo::EnumCase` carries one only for a case written as an \
-                     *expression*. See the crate docs' known gaps"
+                    "mwl-ir does not lower a closed conversion target containing {other:?}; \
+                     `closed_literal_set` only builds a set out of the three atoms ADR 0047 \
+                     names. See the crate docs' known gaps"
                 ),
             })
             .collect();
@@ -3115,11 +3129,37 @@ impl<'a> Lowering<'a> {
         env: &Env,
         cur: &mut BlockId,
     ) {
+        // An enum operand is tested one representation down, on the integer
+        // its cases *are* (ADR 0010 § 3). `Ty::Enum` is a zero-byte tag over
+        // that integer, so this is the free `Reinterpret` row 1 of ADR 0010
+        // § 5 already uses for `$m as int` — and it is what keeps the chain
+        // below a machine compare, since `mwl-codegen` lowers `BinOp::Eq`
+        // over `Ty::Int`/`Ty::Uint` and not over `Ty::Enum`. The value the
+        // conversion answers with is untouched: this reinterpret feeds the
+        // comparisons alone.
+        let (value, value_ty) = match value_ty {
+            Ty::Enum(EnumRepr::Int) => {
+                self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: value })
+            }
+            Ty::Enum(EnumRepr::Uint) => {
+                self.emit(*cur, Ty::Uint, InstKind::Reinterpret { operand: value })
+            }
+            _ => (value, value_ty),
+        };
         let hit = self.new_block();
         for member in &accepted.members {
             let (kind, ty) = match member {
                 LiteralAtom::Str(text) => (InstKind::ConstStr(text.clone()), Ty::Str),
                 LiteralAtom::Int(number) => (InstKind::ConstInt(*number), Ty::Int),
+                // At the enum's *backing* scalar, not at `Ty::Enum` — see
+                // the reinterpret above for why the comparison happens one
+                // representation down.
+                LiteralAtom::EnumCase(mwl_types::EnumValue::Int(n)) => {
+                    (InstKind::ConstInt(*n), Ty::Int)
+                }
+                LiteralAtom::EnumCase(mwl_types::EnumValue::Uint(n)) => {
+                    (InstKind::ConstUint(*n), Ty::Uint)
+                }
             };
             let (wanted, _) = self.emit(*cur, ty, kind);
             let (equal, _) = if value_ty == Ty::Tagged {
@@ -3210,12 +3250,14 @@ struct AcceptedSet {
 /// One member of an [`AcceptedSet`], already reduced to the constant that
 /// tests for it.
 ///
-/// § 3's enum case is deliberately absent: erasing one needs its backing
-/// value, which this crate is not handed — [`Lowering::closed_literal_set`]
-/// panics naming that gap rather than modelling a case it cannot compare.
+/// § 3's enum case keeps its [`mwl_types::EnumValue`] rather than collapsing
+/// into [`Self::Int`]: the backing type decides both the constant's
+/// instruction and its representation, and an enum's tag is not `Ty::Int`
+/// even where its backing is (see [`Ty::Enum`]).
 enum LiteralAtom {
     Str(String),
     Int(i64),
+    EnumCase(mwl_types::EnumValue),
 }
 
 pub(super) struct NullsafeGuard {

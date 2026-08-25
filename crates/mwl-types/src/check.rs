@@ -68,13 +68,21 @@ fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 /// `$x` at the top of the entry file and `$x` at the top of a `require`d one
 /// are two locals of two frames, so neither the declare-once rule nor
 /// definite assignment reaches across the boundary.
+///
+/// Hands the [`crate::EnumTable`] it built back rather than dropping it, for
+/// the same reason `mwl_hir::resolve_program` hands its autoload map back:
+/// `mwl-ir` needs each case's constant value to lower ADR 0047 § 3's
+/// enum-case membership test, and [`crate::enums::build_enum_table`] reports
+/// ADR 0010 § 1/§ 2's declaration errors, so a caller that rebuilt the table
+/// for itself would report every one of them twice. A caller with no use for
+/// it drops it, exactly as it may drop `exprs`.
 pub fn check_program(
     files: &[crate::ProgramFile<'_>],
     module: &Module,
     interner: &mut TypeInterner,
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
-) {
+) -> crate::EnumTable {
     // ADR 0010 § 2's backing types first: interning an enum-typed annotation
     // needs one, and `build_signatures` interns every declared annotation in
     // the program. See `crate::enums`.
@@ -114,6 +122,7 @@ pub fn check_program(
         check_stmts(file.stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
         closure_seq = env.closure_seq;
     }
+    enums
 }
 
 /// The one synthesized frame a file's top-level statements share

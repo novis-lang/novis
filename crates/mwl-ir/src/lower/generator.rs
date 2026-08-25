@@ -315,6 +315,7 @@ pub(super) fn lower_generator(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
 ) -> (Vec<Function>, Vec<crate::ir::Class>) {
     let class = format!("{name}$gen");
     let elem = generator_element(name, m, exprs, checked_types);
@@ -333,6 +334,7 @@ pub(super) fn lower_generator(
         src,
         exprs,
         checked_types,
+        enums,
     );
     let advance = lower_generator_advance(
         &class,
@@ -343,6 +345,7 @@ pub(super) fn lower_generator(
         src,
         exprs,
         checked_types,
+        enums,
     );
     let (mut advance, fields) = advance;
     let current = lower_generator_current(&class, elem, src);
@@ -412,7 +415,7 @@ pub(super) fn generator_element(
 /// argument in it, return it. See [`lower_generator`].
 #[expect(
     clippy::too_many_arguments,
-    reason = "the arguments are one declaration's own parts plus the three \
+    reason = "the arguments are one declaration's own parts plus the four \
               tables every lowering entry point takes"
 )]
 pub(super) fn lower_generator_factory(
@@ -424,8 +427,9 @@ pub(super) fn lower_generator_factory(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
 ) -> Function {
-    let mut low = Lowering::new(name, src, Ty::Object, exprs, checked_types);
+    let mut low = Lowering::new(name, src, Ty::Object, exprs, checked_types, enums);
     let entry = low.new_block();
     low.emit_safepoint(entry);
 
@@ -493,7 +497,7 @@ pub(super) fn lower_generator_factory(
 /// behind an entry switch on the parked state. See [`lower_generator`].
 #[expect(
     clippy::too_many_arguments,
-    reason = "the arguments are one declaration's own parts plus the three \
+    reason = "the arguments are one declaration's own parts plus the four \
               tables every lowering entry point takes"
 )]
 pub(super) fn lower_generator_advance(
@@ -505,9 +509,10 @@ pub(super) fn lower_generator_advance(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    enums: &EnumTable,
 ) -> (Lowered, Vec<(String, Ty)>) {
     let label = format!("{class}::{GEN_ADVANCE}");
-    let mut low = Lowering::new(&label, src, Ty::Bool, exprs, checked_types);
+    let mut low = Lowering::new(&label, src, Ty::Bool, exprs, checked_types, enums);
     let entry = low.new_block();
     low.emit_safepoint(entry);
     let (gen_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
@@ -599,7 +604,7 @@ pub(super) fn lower_generator_advance(
 
     let pending = std::mem::take(&mut low.closures);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, classes) = drain_closures(pending, src, exprs, checked_types);
+    let (closures, classes) = drain_closures(pending, src, exprs, checked_types, enums);
     (
         Lowered {
             function: Function {

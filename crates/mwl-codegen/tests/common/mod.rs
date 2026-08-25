@@ -52,7 +52,7 @@ pub(crate) fn lower(source: &str) -> mwl_ir::Program {
     let mut interner = mwl_types::TypeInterner::new();
     let mut exprs = mwl_types::ExprTypeTable::new();
     let files = [mwl_types::ProgramFile { src, stmts: &stmts }];
-    mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+    let enums = mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
     assert!(
         !diags.has_errors(),
         "the fixture does not type-check: {:?}",
@@ -60,7 +60,7 @@ pub(crate) fn lower(source: &str) -> mwl_ir::Program {
     );
 
     let layouts = mwl_types::build_class_layouts(&files, &module.graph);
-    mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &layouts)
+    mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &enums, &layouts)
 }
 
 /// Compiles and runs `source` against `ctx`, returning the compiled status.
