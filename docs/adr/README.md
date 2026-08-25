@@ -33,7 +33,10 @@ so you never have to open this file to route a topic.
 | Which file holds a thing; where a symbol is defined; what a module is for | `python tools/brief.py` — one line per module, plus the file:line of the definitions most often searched for |
 | Something that looks like it should work and does not — a `Core` member's four required edits, a `.mwlt` case that skips a leg, an MWL shape that will not compile | [docs/agent/playbook.md](../agent/playbook.md) — the trap list, append-mostly |
 | The *shape* of something you are about to write — a commit message, a `.mwlt` case, a `Core` member, an ADR, a diagnostic code, a splice patch | [docs/agent/conventions.md](../agent/conventions.md) — skeletons plus a worked example CI runs |
-| Running the build, the tests, clippy and fmt; what "verified" means for a session | `python tools/verify.py`, defined in [AGENTS.md](../../AGENTS.md) § *Commands* |
+| Running the build, the tests, clippy and fmt; what "verified" means for a session; `splice.py`, `plan.py`, WSL, valgrind, and why a shell never writes a file here | [docs/agent/commands.md](../agent/commands.md) |
+| What a decision has already settled — one sentence per rule, with its ADR | [ground-rules.md](ground-rules.md), or `python tools/brief.py --where <keyword>` to route straight past it |
+| Writing anything under `docs/` — where a fact lives, folding a changed decision, the length targets nothing enforces | [docs/agent/doc-style.md](../agent/doc-style.md) |
+| What one loop session may read, and how a goal narrows it | `python tools/orient.py`, selected by `[context]` in [docs/agent/loop-goal.toml](../agent/loop-goal.toml) |
 | Setting a new loop goal; how many slices a session should take; why the context ceiling is 200k; what to pre-authorize so a run never halts on `BLOCKED` | [docs/agent/loop-authoring.md](../agent/loop-authoring.md), and `python tools/loop-stats.py` for the numbers it rests on |
 | Exceptions, the call ABI, helper signatures, panic containment | [0002](0002-error-propagation.md) — the only normative copy of the calling convention |
 | Extensions, wasm, WIT, `.mwlx` | [0003](0003-extension-system.md) |
@@ -149,7 +152,7 @@ so you never have to open this file to route a topic.
    with no unique content at all, delete it instead and update every reference; the number stays retired.
 4. If the topic is one an agent will search for by keyword, add one row to the *Where to look* table above —
    the only one there is, since [AGENTS.md](../../AGENTS.md) points here rather than keeping a copy — and,
-   only if it is a hard invariant, one **sentence** to AGENTS.md's *Ground rules enforced elsewhere*.
+   only if it is a hard invariant, one **sentence** to [ground-rules.md](ground-rules.md).
 5. If it changes what a milestone builds, update that milestone's paragraph in
    [the plan](../implementation-plan.md) with a link and a headline, not a restatement.
 

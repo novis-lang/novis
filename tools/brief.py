@@ -19,8 +19,8 @@ a page. Where a legitimately-long *prose* paragraph is only wanted at the head, 
 [`excerpt`] and marked inline with the file and line to open: that is the current/next
 milestone's lead, and every status field but the two that steer a session.
 
-The ADR index is a *count* by default rather than a line per ADR. AGENTS.md § *Ground rules
-enforced elsewhere* already carries one bullet per decision with its link, and the routing
+The ADR index is a *count* by default rather than a line per ADR. docs/adr/ground-rules.md
+already carries one bullet per decision with its link, and the routing
 table answers "which file owns this topic" far better than 78 title lines -- so printing the
 table too was a second copy of both. `--adrs` still prints it in full, and any ADR whose status
 is not Accepted is always printed, because that is the part no other file states.
@@ -407,9 +407,9 @@ def run_adr_index(full):
         for line in exceptions:
             emit(f"  {line}")
         emit()
-        emit("One bullet per decision, with its link, is in AGENTS.md § 'Ground rules enforced")
-        emit("elsewhere' -- printing the table here too was a second copy of it. For the whole")
-        emit("table as it used to print: python tools/brief.py --adrs")
+        emit("One bullet per decision, with its link, is in docs/adr/ground-rules.md -- printing")
+        emit("the table here too was a second copy of it. For the whole table as it used to")
+        emit("print: python tools/brief.py --adrs")
     emit()
     emit("The index never holds the full rule or its reasoning -- open the file it names, or")
     emit("run `python tools/brief.py --where <keyword>` to route a topic to its owner.")

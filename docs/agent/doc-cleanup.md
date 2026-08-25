@@ -8,7 +8,7 @@ needs adjusting — don't let it drift out of sync with how cleanup is actually 
 ## When this pass is due
 
 **Not on a budget signal — there is no budget signal.** Nothing in this repository measures a doc against
-a size, by design: see AGENTS.md § *Length targets, and why nothing enforces them*. Doc length never
+a size, by design: see [doc-style.md](doc-style.md) § *Length targets*. Doc length never
 triggers this pass.
 
 Run this pass when *you* judge the docs have drifted — rationale piled up, a decision superseded in three

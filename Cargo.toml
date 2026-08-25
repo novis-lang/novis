@@ -83,7 +83,7 @@ jiff = "0.2"
 
 # --- JSON (spec § 6) ---
 # RFC 8259 is an external specification, so it is a dependency rather than a
-# hand-written parser (AGENTS.md § *Implementation invariants*). `serde_json`
+# hand-written parser (docs/adr/ground-rules.md § *Implementation invariants*). `serde_json`
 # is the only Rust JSON crate that is simultaneously the ecosystem default,
 # pure Rust with no build script, and driveable *without* its own `Value` tree
 # — `Core\Json::decode` builds an `MwlArray` straight from a visitor, so no

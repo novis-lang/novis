@@ -8,7 +8,7 @@ match the file on disk.
 **Advisory. It always exits 0, and nothing in this repository or in CI runs it.** It exists because a
 doc restructure moves dozens of relative links at once and a broken one is invisible until someone
 follows it — that is a real defect with a ten-second fix, unlike a doc that runs a few bytes long, which
-nothing here measures at all (AGENTS.md § *Length targets, and why nothing enforces them*).
+nothing here measures at all (docs/agent/doc-style.md § *Length targets*).
 
 Two kinds of finding:
 

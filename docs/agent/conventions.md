@@ -29,7 +29,7 @@ statement of what is now true rather than an instruction. Two clauses joined by 
 style when a commit does two things; one clause is fine when it does one.
 
 Write the message to a file and use `git commit -F <file>` — never `-m` for anything multi-line, per
-AGENTS.md § *Commands*. `git log -1 --format=%B` is not needed to remember this; that is what this
+[commands.md](commands.md). `git log -1 --format=%B` is not needed to remember this; that is what this
 section is for.
 
 ## A `.mwlt` test case
@@ -134,7 +134,7 @@ Next free number: `python tools/brief.py` prints it, and re-check it immediately
 overlay:** amending an ADR means editing that ADR's body so it reads as currently true, plus a one-line
 cross-link — never a new paragraph elsewhere describing the change. Then add the row to
 [docs/adr/README.md](../adr/README.md)'s index table *and* its *Where to look* routing table, and a
-one-sentence bullet to AGENTS.md § *Ground rules enforced elsewhere*.
+one-sentence bullet to [docs/adr/ground-rules.md](../adr/ground-rules.md).
 
 ## A diagnostic
 

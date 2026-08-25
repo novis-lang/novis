@@ -12,7 +12,7 @@ done -- this is that cycle as one call.
     python tools/plan.py --set "Open now" --from <file>    # replace one field's text
 
 `--set` takes the replacement from a *file* rather than the command line, for the reason
-AGENTS.md § *Commands* gives: a shell parses its argument before anything runs, and this
+docs/agent/commands.md gives: a shell parses its argument before anything runs, and this
 repository's prose is full of apostrophes and backticks. Write the new text with the Write
 tool, pass the path.
 
