@@ -357,6 +357,9 @@ impl<'a> Lowering<'a> {
     /// A `ConstArg::Str` allocates a fresh string per evaluation, exactly as a
     /// written string literal does today (`mwl-codegen`'s known gap 4); it is
     /// the same `InstKind::ConstStr` and closing that gap closes both.
+    /// `ConstArg::Bytes` is that entry under `Ty::Bytes` — one allocation,
+    /// one tag apart — and it is the only way a `bytes` constant enters a
+    /// program at all, since the language has no `bytes` literal.
     ///
     /// `ConstArg::Built` is the one entry that emits a **call** rather than a
     /// constant — an instance has no constant form, so what an ADR 0011 class
@@ -403,6 +406,7 @@ impl<'a> Lowering<'a> {
             mwl_types::ConstArg::Uint(v) => (Ty::Uint, InstKind::ConstUint(*v)),
             mwl_types::ConstArg::Float(v) => (Ty::Float, InstKind::ConstFloat(*v)),
             mwl_types::ConstArg::Str(s) => (Ty::Str, InstKind::ConstStr(s.clone())),
+            mwl_types::ConstArg::Bytes(b) => (Ty::Bytes, InstKind::ConstBytes(b.clone())),
             // A bag has no single constant to emit — it is one per option, so
             // its own two call sites expand it before reaching here.
             mwl_types::ConstArg::Options(_) => panic!(

@@ -1,0 +1,28 @@
+--TEST--
+`Core\Bytes::join` concatenates buffers and defaults its separator to the empty one — spec § 7
+--FILE--
+<?mwl
+array<bytes> $parts = [
+    Core\Encoding::fromHex("de"),
+    Core\Encoding::fromHex("adbe"),
+    Core\Encoding::fromHex("ef"),
+];
+
+// The default separator is the empty buffer, materialized at this call site.
+echo Core\Encoding::toHex(Core\Bytes::join($parts)), "\n";
+echo Core\Encoding::toHex(Core\Bytes::join($parts, Core\Encoding::fromHex("00"))), "\n";
+
+// No parts is the empty buffer, and one part is that part unchanged.
+array<bytes> $none = [];
+echo Core\Bytes::length(Core\Bytes::join($none)), "\n";
+echo Core\Encoding::toHex(Core\Bytes::join([Core\Encoding::fromHex("ff")], Core\Encoding::fromHex("00"))), "\n";
+
+// An empty *leading* element still takes its separator after it.
+array<bytes> $gappy = ["" as bytes, "b" as bytes];
+echo Core\Encoding::toHex(Core\Bytes::join($gappy, "-" as bytes)), "\n";
+--EXPECT--
+deadbeef
+de00adbe00ef
+0
+ff
+2d62

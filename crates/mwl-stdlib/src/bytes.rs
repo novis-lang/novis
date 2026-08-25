@@ -8,17 +8,17 @@
 //! # What is registered here so far
 //!
 //! § 7's indexing half — `length`, `at`, `slice`, `indexOf`, `compare` — its
-//! three predicates, and two of its three builders: `fill` and `repeat`.
+//! three predicates, and all three of its builders: `fill`, `repeat` and
+//! `join`. `pack`/`unpack` are the two that are unwritten, for the ordinary
+//! reason.
 //!
-//! **`join` is unwritten, and it is blocked rather than merely unreached.**
-//! § 7 gives it as `join(array<bytes> $parts, bytes $separator = "")`, and
-//! [`crate::registry::Const`] has no `bytes` variant to state that default
-//! with: `Const::Str("")` would materialize a `Str`-tagged value into a
-//! `bytes` parameter, which is a type lie the helper would have to `FATAL` on.
-//! Adding one is the same missing capability as ADR 0009 § 3's `string as
-//! bytes` conversion row, which `mwl_ir::lower::expr` still panics for — both
-//! want one constant buffer built at a call site. `pack`/`unpack` are
-//! unwritten for the ordinary reason.
+//! **`join`'s `$separator = ""` is why [`crate::registry::Const`] has a
+//! `Bytes` variant.** `Const::Str("")` would materialize a `Str`-tagged value
+//! into a `bytes` parameter, which is a type lie this helper would have to
+//! `FATAL` on, so the default is written as the octets it means and reaches
+//! the call site as `mwl_ir::ir::InstKind::ConstBytes` — the only way a
+//! `bytes` constant enters a program, since ADR 0009 § 1 gives the language no
+//! `bytes` literal.
 //!
 //! # The unit is the byte, and that is the whole difference from `Core\Str`
 //!
@@ -174,6 +174,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Bytes,
             symbol: "mwl_core_bytes_repeat",
         },
+        CoreMethod {
+            name: "join",
+            params: &[CoreTy::Array(&CoreTy::Bytes), CoreTy::Bytes],
+            defaults: &[Const::Bytes(b"")],
+            return_ty: CoreTy::Bytes,
+            symbol: "mwl_core_bytes_join",
+        },
     ],
     instance: &[],
     slots: &[],
@@ -207,6 +214,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_bytes_ends_with" => (mwl_core_bytes_ends_with as *const ()).cast(),
         "mwl_core_bytes_fill" => (mwl_core_bytes_fill as *const ()).cast(),
         "mwl_core_bytes_repeat" => (mwl_core_bytes_repeat as *const ()).cast(),
+        "mwl_core_bytes_join" => (mwl_core_bytes_join as *const ()).cast(),
         _ => return None,
     })
 }
@@ -558,6 +566,73 @@ mwl_runtime::mwl_helper! {
         let times = count(&args[1], "repeat", "the repeat count")?;
         affordable(subject.len().checked_mul(times), "repeat")?;
         produced(&subject.repeat(times))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Bytes::join(array<bytes> $parts, bytes $separator = ""): bytes` —
+    /// `Core\Str::join`'s row over buffers, which is why it is `join` here
+    /// rather than a `concat` of its own: ADR 0063 R6 pairs this class's
+    /// members with `Core\Str`'s by name, and spec § 7 says so outright.
+    ///
+    /// The separator's default is the empty buffer, materialized at the call
+    /// site from `mwl_stdlib::registry::Const::Bytes` exactly as
+    /// `Core\Str::join`'s is from `Const::Str` — so this body always receives
+    /// two arguments and knows nothing about defaults.
+    ///
+    /// **No element is ever converted.** `Core\Str::join` renders each element
+    /// as text; here every element is already a buffer, so a wrong tag is a
+    /// miscompile rather than a conversion this member could perform —
+    /// ADR 0009 § 3 keeps `bytes` and `string` apart at exactly this boundary.
+    fn mwl_core_bytes_join(_ctx, args: [2]) {
+        let parts = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Bytes::join expected {:?} for the subject, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let separator = raw(&args[1], "join", "the separator")?;
+
+        let mut out: Vec<u8> = Vec::new();
+        let mut from = 0usize;
+        let mut written = 0usize;
+        loop {
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Array argument owns a reference to a live \
+                          allocation, so it is live for the length of this \
+                          call, and `from` only ever advances past a slot \
+                          this same cursor reported"
+            )]
+            let (slot, value) = unsafe {
+                let slot = mwl_runtime::mwl_array_next_slot(parts, from);
+                let Ok(slot) = usize::try_from(slot) else {
+                    break;
+                };
+                let mut value = Value::null();
+                mwl_runtime::mwl_array_value_at(parts, slot, &raw mut value);
+                (slot, value)
+            };
+            from = slot + 1;
+            let octets = raw(&value, "join", "an element")?;
+            // Counted rather than tested against `out.is_empty()`, because an
+            // empty *first* element must still be followed by a separator —
+            // the same edge `Core\Str::join` writes against its own cursor.
+            let size = out
+                .len()
+                .checked_add(octets.len())
+                .and_then(|size| {
+                    size.checked_add(if written == 0 { 0 } else { separator.len() })
+                });
+            affordable(size, "join")?;
+            if written > 0 {
+                out.extend_from_slice(separator);
+            }
+            out.extend_from_slice(octets);
+            written += 1;
+        }
+        produced(&out)
     }
 }
 

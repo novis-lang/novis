@@ -357,6 +357,17 @@ pub enum Const {
     /// A `string` default, already cooked — a registry row writes the bytes it
     /// means, so there is no escape grammar here at all.
     Str(&'static str),
+    /// A `bytes` default, as the octets themselves.
+    ///
+    /// Separate from [`Self::Str`] rather than reusing it, because the two
+    /// differ in exactly the way [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
+    /// § 1 says they do: a `bytes` default carries no UTF-8 promise, so it is
+    /// written as a byte string (`b"…"`) and materialized under `Tag::Bytes`.
+    /// Passing a `Str` default into a `bytes` parameter would be a type lie
+    /// the helper would have to `FATAL` on — `Core\Bytes::join`'s
+    /// `$separator = ""` is the row that wanted this variant, and the module
+    /// doc there records what it was blocked on.
+    Bytes(&'static [u8]),
     /// A [`CoreTy::Enum`] case, by enum name and case name — the default for
     /// an option whose type is a `Core` enum.
     ///
@@ -1507,6 +1518,7 @@ mod tests {
                         | (CoreTy::Uint, Const::Uint(_))
                         | (CoreTy::Float, Const::Float(_))
                         | (CoreTy::Str, Const::Str(_))
+                        | (CoreTy::Bytes, Const::Bytes(_))
                         // An instance's own agreement is a different question
                         // — the *symbol* has to be one of this class's
                         // members — and

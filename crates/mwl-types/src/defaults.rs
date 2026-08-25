@@ -86,6 +86,16 @@ pub enum ConstArg {
     /// other string literal in the program goes through, so a default is never
     /// a second escape grammar.
     Str(String),
+    /// `bytes`, as the octets themselves.
+    ///
+    /// Produced only by [`crate::core_lib`], from
+    /// `mwl_stdlib::registry::Const::Bytes`: there is no `bytes` literal in
+    /// the language ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
+    /// § 1), so no *written* default can reach this variant, and
+    /// [`literal_default`] does not produce it. It is kept apart from
+    /// [`Self::Str`] because the two materialize under different runtime tags,
+    /// which is the whole difference between the types.
+    Bytes(Vec<u8>),
     /// ADR 0063 R2's options bag, wholly omitted at the call site: one entry
     /// per declared option, in the bag's own declared order, each holding that
     /// option's default.
