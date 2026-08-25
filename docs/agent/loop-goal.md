@@ -17,7 +17,9 @@ stated. **What comes first now is Stage 0 below, not `Core` breadth.**
 
 **Eleven ADRs (0080–0090) landed after the milestones that own their work were reported done.** Two of
 them change a milestone's *built* behaviour rather than adding to a later one, and the debt beside them is
-what M1 and M2 never finished. Until this section is empty, **a session takes its group from here, in this
+what M1 and M2 never finished. **ADR 0094 joins the list from the other direction** — a decision taken
+while the loop is running, which reopens M1's declaration grammar rather than adding to a later milestone,
+so it is item 3 here instead of scheduled work somewhere ahead. Until this section is empty, **a session takes its group from here, in this
 order, and does not open a Stage 3 `Core` slice.** The reason is compounding cost, not tidiness: the
 spelling ADR 0090 deletes had reached 48 files and 93 lines before item 1 rewrote them, and every fixture
 written while an item here is open is written against a rule that is about to change.
@@ -35,25 +37,38 @@ one is how an item finishes.
    `==`/`!=`, a `switch` label and a `match` arm all reach (§ 6). The predicate is one-sided on purpose —
    it refuses only where disjointness is provable from the two types alone — and that function's own doc
    comment owns why.
-3. **ADR 0090 § 3 — the three non-scalar rows** (M3/M4; `mwl-ir`'s gap 19 owns it). The null test moved
+3. **ADR 0094 — every member declaration writes a visibility** (M1). Nothing requires one today: the parser
+   takes modifiers permissively and defers legality to a check that was never written — `E_BAD_MODIFIER`
+   (E0106) is defined and never emitted — so `int $x;`, `const A = 1;` and `function f()` all parse inside a
+   class body with no layer deciding what they mean, and MWL's property grammar is looser here than PHP's
+   own. `E0122` from `mwl-syntax`'s post-parse declaration walk, the one `check_casing` already makes over
+   every class, interface and anonymous-class body, **plus the corpus rewrite in the same slice** —
+   four member declarations in `.mwlt`/`.mwl` fixtures and roughly sixty inline snippets in Rust tests.
+   That rewrite is why this item is first: every fixture written while it is open is written against a rule
+   about to change. It is the *declaration* half of visibility; item 6 is the *access* half, and neither
+   waits on the other.
+4. **ADR 0090 § 3 — the three non-scalar rows** (M3/M4; `mwl-ir`'s gap 19 owns it). The null test moved
    with item 1, because deleting the spelling forced it: `mwl_types::locals::null_test` and
    `lower_null_identity` both read `Eq`/`NotEq` now. What is left is one runtime helper each for strings
    (text, never numeric), arrays (ordered, element-wise, recursive) and objects
    (`mwl_runtime::identity`), with § 5's `mixed` pairing answering `false` and never throwing.
-4. **ADR 0047 § 4 — the literal and enum-case type atoms are checked** (M2). They have parsed since M1 and
+5. **ADR 0047 § 4 — the literal and enum-case type atoms are checked** (M2). They have parsed since M1 and
    `mwl_types::lower` refuses all three by name; that ADR's *Verification* names the step its own table
    understates.
-5. **`private`/`protected` are enforced** (M2). Nothing enforces them on a class member today — only
+6. **`private`/`protected` are enforced** (M2). Nothing enforces them on a class member today — only
    ADR 0043 § 3's private *interface* method — which `mwl-types`' gap list calls a PHP-observable
    divergence rather than a design choice. One pass keyed on the accessing class, over property access and
-   method resolution.
-6. **`Comparable`/`Stringable` carry their member signatures** (M2). Both are reserved and empty, so
+   method resolution. This is the *access* half: who may touch a member from where. Requiring the keyword
+   to be written at all is item 3 (ADR 0094), a different check in a different crate, and neither item
+   waits on the other — item 3 makes every declaration state a level, this one makes the level mean
+   something.
+7. **`Comparable`/`Stringable` carry their member signatures** (M2). Both are reserved and empty, so
    `$s->toString()` on a `Stringable` is `E0405` and `$x instanceof Stringable` records no resolved class,
    which `mwl-ir` then panics on. `Core\Heap`'s ordering and `Duration`'s `Stringable` both need it.
-7. **ADR 0061 — `autoload` parses and resolves** (M1 grammar, M2 fixpoint). The two file-scope declaration
+8. **ADR 0061 — `autoload` parses and resolves** (M1 grammar, M2 fixpoint). The two file-scope declaration
    forms `docs/spec/00-overview.md` § 2 fixes, then name-to-file resolution as a fixpoint over the
    require-graph worklist `mwl_hir::requires` already walks.
-8. ~~**ADR 0069 — `array + array` does not compile** (M4's *Verify* list).~~ **Done.** `E0467` from
+9. ~~**ADR 0069 — `array + array` does not compile** (M4's *Verify* list).~~ **Done.** `E0467` from
    `reject_array_combination`, naming `Core\Arr::underlay`; `+=` reaches it through `binary_result` and
    reports once, because the recovery type is the array operand rather than `mixed`.
 
@@ -63,7 +78,8 @@ seven `.mwlt` cases pin it. Its two sink halves are M7's and M8's, not catch-up.
 
 **Not in this stage, deliberately:** ADR 0088's registry classification, 0086 § 6's command table and
 0085's OpenAPI emitter are all M4S work that lands with the milestone the loop is already inside; 0081–0084
-belong to milestones that have not started. **0091 and 0092 join them, and neither carries catch-up debt**
+belong to milestones that have not started, as does 0093's `mwl service`. **0091 and 0092 join them, and
+neither carries catch-up debt**
 — unlike 0090 they invalidate no built behaviour and no written fixture, so there is nothing to rewrite
 before Stage 3 continues. What they *do* carry is scheduled work, in the milestone that owns each piece:
 0092's record model, plaintext rendering and `Core\Debug::dump` are M4; `[mode]`, `[log] format`/`level`

@@ -38,6 +38,8 @@ files = [
 # Modules whose map line a session needs, as globs under crates/. The file set the handoff's
 # `## Next group` names, plus anything those files call into.
 modules = [
+  "crates/mwl-syntax/src/casing.rs",
+  "crates/mwl-syntax/src/parser/decl.rs",
   "crates/mwl-types/src/expr/**",
   "crates/mwl-types/src/locals.rs",
   "crates/mwl-diagnostics/src/lib.rs",
@@ -48,7 +50,7 @@ modules = [
 
 # The decisions this goal's work sits inside, by ADR number. orient.py prints the one-sentence
 # bullet for each out of docs/adr/ground-rules.md -- the index, not the rule.
-rules = ["0090", "0069", "0047", "0007", "0035", "0010"]
+rules = ["0090", "0094", "0069", "0047", "0007", "0035", "0010"]
 
 # ADR sections sliced live into the pack. `NNNN` alone is the In short block; `NNNN §N` is that
 # numbered section. Name only the sections the items actually need -- a whole ADR is 7k of context.
@@ -59,6 +61,10 @@ adrs = [
   "0090 §5",
   "0090 §6",
   "0069 §2",
+  "0094",
+  "0094 §2",
+  "0094 §3",
+  "0094 §4",
 ]
 
 # Headings of docs/agent/conventions.md naming shapes this goal will write.
@@ -105,6 +111,13 @@ tests = [
   "a_rejected_equality_spelling_is_a_compile_error",
   # ADR 0061 -- the two file-scope `autoload` declaration forms.
   "an_autoload_declaration_parses",
+  # ADR 0094 -- a member declaration with no visibility is E0122, the `(set)` form is written as a
+  # pair, a class-body `var` names the visibility rather than the local grammar, and a plain
+  # constructor parameter stays exempt (the one case this rule could wrongly break).
+  "a_member_without_visibility_is_a_compile_error",
+  "a_bare_set_visibility_is_a_compile_error",
+  "a_class_body_var_names_the_missing_visibility",
+  "a_plain_constructor_parameter_needs_no_visibility",
 ]
 
 [[check]]

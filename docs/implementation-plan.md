@@ -101,10 +101,12 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Catch-up outranks `Core` breadth.** Eleven ADRs (0080-0090) landed after the
-> milestones that own their work were reported done, and
-> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* is the ordered list the loop works
-> before opening another `Core` slice; `loop-goal.toml`'s `stage = "0 catch-up"` block is its
-> machine half and runs before the program legs. In order: **ADR 0090**, whose §§ 1 and 2 are built
+> milestones that own their work were reported done, ADR 0094 was decided while the loop was running
+> and reopens M1's declaration grammar, and [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage
+> 0* is the ordered list the loop works before opening another `Core` slice; `loop-goal.toml`'s
+> `stage = "0 catch-up"` block is its machine half and runs before the program legs. In order: **ADR
+> 0094**, which requires a visibility at every member declaration (`E0122`, no implicit `public`)
+> and is first because the corpus rewrite travels with it; **ADR 0090**, whose §§ 1 and 2 are built
 > (`===`/`!==` are `E0232` at the lexer, the whole 48-file corpus is rewritten, and `E0466` refuses
 > two statically disjoint operands — at `==`/`!=`, at a `switch` label and at a `match` arm alike),
 > leaving § 3's helper each for the string, array and object rows; **ADR 0047 § 4**'s literal and
