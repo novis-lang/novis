@@ -1,0 +1,50 @@
+--TEST--
+`$uri->with` replaces the components it is given and `$uri->resolve` is RFC 3986 § 5's reference resolution, both answering a fresh `Uri` — spec § 12
+--FILE--
+<?mwl
+var $u = Core\Uri::parse("https://user@example.com:8443/a/b?x=1#top");
+
+// § 12: `with` replaces what it is given and carries the rest over, including
+// `userInfo`, which is not on the bag at all.
+echo $u->with({path: "/c/d"})->toString(), "\n";
+echo $u->with({scheme: "http", port: 80})->toString(), "\n";
+echo $u->with({host: "other.test"})->toString(), "\n";
+echo $u->with({query: "y=2", fragment: "bottom"})->toString(), "\n";
+
+// § 12: every option is optional, so an empty bag is the identity — and the
+// answer is a fresh `Uri` rather than the receiver mutated, which is why the
+// receiver still reads the same afterwards.
+echo $u->with({})->toString(), "\n";
+echo $u->toString(), "\n";
+
+// § 12: RFC 3986 § 5.2, one row per shape of reference. The `../baz` row is
+// the only place in `Core\Uri` a path is rewritten, and § 5.2.4 is where the
+// RFC asks for it.
+var $base = Core\Uri::parse("http://example.com/foo/bar");
+echo $base->resolve("baz")->toString(), "\n";
+echo $base->resolve("../baz")->toString(), "\n";
+echo $base->resolve("/at-the-root")->toString(), "\n";
+echo $base->resolve("?q=1")->toString(), "\n";
+echo $base->resolve("#frag")->toString(), "\n";
+echo $base->resolve("//other.test/x")->toString(), "\n";
+echo $base->resolve("https://elsewhere.test/y")->toString(), "\n";
+
+// § 12: RFC 3986 § 5.1 defines a base URI as one without a fragment, so the
+// receiver's is dropped rather than the call being refused.
+var $fragmented = Core\Uri::parse("http://example.com/a/b#f");
+echo $fragmented->resolve("c")->toString(), "\n";
+--EXPECT--
+https://user@example.com:8443/c/d?x=1#top
+http://user@example.com:80/a/b?x=1#top
+https://user@other.test:8443/a/b?x=1#top
+https://user@example.com:8443/a/b?y=2#bottom
+https://user@example.com:8443/a/b?x=1#top
+https://user@example.com:8443/a/b?x=1#top
+http://example.com/foo/baz
+http://example.com/baz
+http://example.com/at-the-root
+http://example.com/foo/bar?q=1
+http://example.com/foo/bar#frag
+http://other.test/x
+https://elsewhere.test/y
+http://example.com/a/c

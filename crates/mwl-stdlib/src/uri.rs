@@ -5,8 +5,8 @@
 //! `rawurlencode`/`rawurldecode` and `urlencode`/`urldecode`, plus
 //! `parseQuery` and `buildQuery`, which are those four applied to a whole
 //! query string. The **grammar half** is `parse`, `isValid` and the `Uri`
-//! instance they answer with — RFC 3986, read by `fluent-uri`, argued four
-//! sections below. `$uri->with` and `$uri->resolve` are gap 1.
+//! instance they answer with, plus `$uri->with` and `$uri->resolve` on it —
+//! RFC 3986, read by `fluent-uri`, argued four sections below.
 //!
 //! # Two encodings, because PHP has two and the wire has two
 //!
@@ -206,13 +206,14 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`$uri->with` and `$uri->resolve` are not built** — § 12's table's last
-//!    two rows. `with` is recomposition over a written option bag and
-//!    `resolve` is RFC 3986 § 5's reference resolution, which `fluent-uri`
-//!    already carries as `UriRef::resolve_against`. Both answer a fresh `Uri`,
-//!    so both land as "recompose the text, then hand it to [`read`]" — which
-//!    is what makes `with({host: "a b"})` throw rather than build something
-//!    `parse` would have refused.
+//! 1. **`$uri->with` replaces a component and cannot remove one**, so there is
+//!    no spelling for "this URI without its fragment". [`written`] owns the
+//!    mechanism — an omitted option and a written `null` would arrive as the
+//!    same `Tag::Null`, so the option types are `string` rather than `?string`
+//!    and a clearing spelling would have to overload a real value. The fix is
+//!    an options bag that can tell the two apart, not an `""`-means-remove
+//!    rule: `""` is already an empty query, which `?` written with nothing
+//!    after it produces and which `query()` reports as distinct from `null`.
 //! 2. **A decoder answers `string`, so it throws on bytes that are not valid
 //!    UTF-8** — `decodeComponent("%FF")` throws rather than answering. The
 //!    honest signature is `: bytes`, since percent-decoding is defined over
@@ -231,10 +232,11 @@ use std::mem::ManuallyDrop;
 
 use fluent_uri::component::{Authority, Scheme};
 use fluent_uri::pct_enc::EStr;
-use fluent_uri::{ParseErrorKind, UriRef};
+use fluent_uri::resolve::ResolveError;
+use fluent_uri::{ParseErrorKind, Uri, UriRef};
 use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -244,8 +246,7 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy};
 /// every diagnostic naming the class cannot drift apart.
 pub const NAME: &str = r"Core\Uri";
 
-/// `Core\Uri`'s registry rows — the whole of spec § 12's first table except
-/// gap 1's two instance members.
+/// `Core\Uri`'s registry rows — the whole of spec § 12's first table.
 ///
 /// One class with both halves, because the spec writes `parse(string $uri):
 /// Uri`: the static members are namespaced functions and the instance members
@@ -369,6 +370,51 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Str,
             symbol: "mwl_core_uri_to_string",
         },
+        CoreMethod {
+            name: "with",
+            params: &[CoreTy::Options(&[
+                CoreOption {
+                    name: "scheme",
+                    ty: CoreTy::Str,
+                    default: Const::Null,
+                },
+                CoreOption {
+                    name: "host",
+                    ty: CoreTy::Str,
+                    default: Const::Null,
+                },
+                CoreOption {
+                    name: "port",
+                    ty: CoreTy::Int,
+                    default: Const::Null,
+                },
+                CoreOption {
+                    name: "path",
+                    ty: CoreTy::Str,
+                    default: Const::Null,
+                },
+                CoreOption {
+                    name: "query",
+                    ty: CoreTy::Str,
+                    default: Const::Null,
+                },
+                CoreOption {
+                    name: "fragment",
+                    ty: CoreTy::Str,
+                    default: Const::Null,
+                },
+            ])],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NAME),
+            symbol: "mwl_core_uri_with",
+        },
+        CoreMethod {
+            name: "resolve",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NAME),
+            symbol: "mwl_core_uri_resolve",
+        },
     ],
     slots: &[
         "text", "scheme", "userInfo", "host", "port", "path", "query", "fragment",
@@ -409,6 +455,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_uri_query" => (mwl_core_uri_query as *const ()).cast(),
         "mwl_core_uri_fragment" => (mwl_core_uri_fragment as *const ()).cast(),
         "mwl_core_uri_to_string" => (mwl_core_uri_to_string as *const ()).cast(),
+        "mwl_core_uri_with" => (mwl_core_uri_with as *const ()).cast(),
+        "mwl_core_uri_resolve" => (mwl_core_uri_resolve as *const ()).cast(),
         "mwl_core_uri_encode_component" => (mwl_core_uri_encode_component as *const ()).cast(),
         "mwl_core_uri_decode_component" => (mwl_core_uri_decode_component as *const ()).cast(),
         "mwl_core_uri_encode_form_value" => (mwl_core_uri_encode_form_value as *const ()).cast(),
@@ -697,6 +745,154 @@ fn component(args: &[Value], member: &str, index: usize) -> HelperResult {
         held.retain();
     }
     Ok(held)
+}
+
+/// The bytes one of a receiver's `string`-or-`null` slots holds, borrowed from
+/// `slots` rather than from the object, which is what keeps the read a
+/// [`crate::instance::slot`] borrow and not a retain.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] where the slot holds neither. Both halves of that
+/// invariant are in this module — [`built`] fills every slot — so a mismatch
+/// is a paste error here rather than anything a program can cause.
+fn held<'a>(slots: &'a [Value], index: usize, member: &str) -> Result<Option<&'a str>, Fault> {
+    let value = &slots[index];
+    if matches!(value.tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    let bytes = value.as_str_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Uri::{member} found tag {} in slot {index}",
+            value.tag_byte()
+        ))
+    })?;
+    std::str::from_utf8(bytes).map(Some).map_err(|_| {
+        Fault::fatal(format!(
+            "Core\\Uri::{member} found a non-UTF-8 slot {index}"
+        ))
+    })
+}
+
+/// One written option's text, or `None` where the call left the option out.
+///
+/// An omitted option arrives as [`Const::Null`] and a **written** one cannot
+/// be `null`, because each option's declared type is `string` rather than
+/// `?string` — which is what makes "not given" a state the helper can tell
+/// apart from every value a call site could write. It is also why `with`
+/// replaces and never removes: with no second null to spend, a clearing
+/// spelling would have to overload a legitimate value, and `""` is already an
+/// empty query rather than the absence of one.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] where the slot holds something else. `mwl_types` checked
+/// the declared type, so that is a runtime-contract violation.
+fn written<'a>(value: &'a Value, option: &str) -> Result<Option<&'a str>, Fault> {
+    if matches!(value.tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    let bytes = value.as_str_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Uri::with expected a `string` for its `{option}` option, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    std::str::from_utf8(bytes).map(Some).map_err(|_| {
+        Fault::fatal(format!(
+            "Core\\Uri::with received a `{option}` that is not valid UTF-8, which ADR 0009 \
+             guarantees it cannot be"
+        ))
+    })
+}
+
+/// The seven components [`mwl_core_uri_with`] wrote its text out of — what the
+/// result must still parse back to.
+///
+/// A recomposition is a concatenation, so the *grammar* is still
+/// `fluent-uri`'s: [`recompose`] joins, [`read`] decides. What a concatenation
+/// can still do is move a component across a delimiter — `with({path: "a"})`
+/// on a URI with an authority would write `//hosta`, whose host is `hosta` and
+/// whose path is empty — and re-parsing alone would not notice, because that
+/// text is a perfectly good URI. So the check is this struct compared against
+/// what came back, one component at a time, rather than three hand-written
+/// rules about where a `/` has to be: it catches the cases nobody enumerated.
+#[derive(Debug)]
+struct Composed<'a> {
+    scheme: Option<&'a str>,
+    user_info: Option<&'a str>,
+    host: Option<&'a str>,
+    port: Option<&'a str>,
+    path: &'a str,
+    query: Option<&'a str>,
+    fragment: Option<&'a str>,
+}
+
+/// RFC 3986 § 5.3's recomposition of `composed`, with no delimiter written for
+/// a component that is not there.
+fn recompose(composed: &Composed<'_>) -> String {
+    let mut text = String::new();
+    if let Some(scheme) = composed.scheme {
+        text.push_str(scheme);
+        text.push(':');
+    }
+    if let Some(host) = composed.host {
+        text.push_str("//");
+        if let Some(user_info) = composed.user_info {
+            text.push_str(user_info);
+            text.push('@');
+        }
+        text.push_str(host);
+        if let Some(port) = composed.port {
+            text.push(':');
+            text.push_str(port);
+        }
+    }
+    text.push_str(composed.path);
+    if let Some(query) = composed.query {
+        text.push('?');
+        text.push_str(query);
+    }
+    if let Some(fragment) = composed.fragment {
+        text.push('#');
+        text.push_str(fragment);
+    }
+    text
+}
+
+/// That `reference` still holds every component [`recompose`] put into it.
+///
+/// # Errors
+///
+/// A [`Fault::thrown`] naming the **first** component that moved. That name is
+/// the whole value of the check: `with({path: "a"})` on a URI with an
+/// authority fails saying `host`, which is where the caller's missing `/`
+/// actually landed, rather than saying the result is not a URI when it is.
+fn unmoved(composed: &Composed<'_>, reference: &UriRef<&str>) -> Result<(), Fault> {
+    let authority = reference.authority();
+    let moved = if composed.scheme != reference.scheme().map(Scheme::as_str) {
+        "scheme"
+    } else if composed.user_info != authority.and_then(|held| held.userinfo()).map(EStr::as_str) {
+        "userInfo"
+    } else if composed.host != authority.as_ref().map(Authority::host) {
+        "host"
+    } else if composed.port != authority.and_then(|held| held.port()).map(EStr::as_str) {
+        "port"
+    } else if composed.path != reference.path().as_str() {
+        "path"
+    } else if composed.query != reference.query().map(EStr::as_str) {
+        "query"
+    } else if composed.fragment != reference.fragment().map(EStr::as_str) {
+        "fragment"
+    } else {
+        return Ok(());
+    };
+    Err(Fault::thrown(format!(
+        "Core\\Uri::with(): the components given do not recompose to a URI that still holds them \
+         — the `{moved}` of the result is not the one asked for. A component that has to carry a \
+         delimiter must carry it: a `path` beside a `host` begins with `/`, and a `scheme` is not \
+         written into one"
+    )))
 }
 
 // ============================================================================
@@ -1054,6 +1250,129 @@ mwl_runtime::mwl_helper! {
     /// the member is what a program writes instead.
     fn mwl_core_uri_to_string(_ctx, args: [1]) {
         component(args, "toString", TEXT_SLOT)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri` —
+    /// replacing reassembly by hand.
+    ///
+    /// A fresh `Uri`, not a mutated one: every `Core` class except § 9's
+    /// collections is built once and read, and a URI that could change under a
+    /// caller who had already validated it is the shape this exists to avoid.
+    ///
+    /// **It replaces and never removes** — [`written`] owns why, and the one
+    /// component that is not on the bag at all, `userInfo`, is carried over
+    /// unchanged, so `with` can neither add nor drop a credential. The result
+    /// goes back through [`read`] and then [`unmoved`], which is what makes a
+    /// bad option a throw rather than a `Uri` describing somewhere else.
+    ///
+    /// An empty port on the receiver has already become "no port" by the time
+    /// it reaches a slot ([`port_of`]), so a `with` that does not mention the
+    /// port drops the `:` that was written — RFC 3986 § 3.2.3's own
+    /// instruction, and the one place a round trip through `with` is not the
+    /// identity.
+    fn mwl_core_uri_with(_ctx, args: [7]) {
+        let receiver = crate::instance::receiver(args[0], &CLASS, "with")?;
+        let slots: [Value; 8] =
+            std::array::from_fn(|index| crate::instance::slot(receiver, index));
+        // The one option declared `int` rather than `string`, so it is read
+        // here rather than through `written`. An out-of-range one still
+        // recomposes and still parses; `port_of` inside `built` is what
+        // refuses it, with the message that names why.
+        let port = if matches!(args[3].tag(), Some(Tag::Null)) {
+            slots[PORT_SLOT].as_int()
+        } else {
+            Some(args[3].as_int().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Uri::with expected an `int` for its `port` option, got tag {}",
+                    args[3].tag_byte()
+                ))
+            })?)
+        };
+        let port = port.map(|port| port.to_string());
+        let composed = Composed {
+            scheme: written(&args[1], "scheme")?.or(held(&slots, SCHEME_SLOT, "with")?),
+            user_info: held(&slots, USER_INFO_SLOT, "with")?,
+            host: written(&args[2], "host")?.or(held(&slots, HOST_SLOT, "with")?),
+            port: port.as_deref(),
+            path: written(&args[4], "path")?
+                .or(held(&slots, PATH_SLOT, "with")?)
+                .unwrap_or(""),
+            query: written(&args[5], "query")?.or(held(&slots, QUERY_SLOT, "with")?),
+            fragment: written(&args[6], "fragment")?.or(held(&slots, FRAGMENT_SLOT, "with")?),
+        };
+        let text = recompose(&composed);
+        let reference = read(&text, "with")?;
+        unmoved(&composed, &reference)?;
+
+        built(&reference, "with")
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->resolve(string $reference): Uri` — RFC 3986 § 5's reference
+    /// resolution, which PHP has no function for at all.
+    ///
+    /// The receiver is the **base** and must therefore be an absolute URI
+    /// (§ 5.2.1), so resolving against a relative one throws rather than
+    /// guessing. Its fragment is dropped first, which is not a normalization:
+    /// § 5.1 defines a base URI as one without a fragment, and every
+    /// implementation that "supports" a base with one is doing this silently.
+    ///
+    /// This is the one member here that rewrites a path — § 5.2.4's
+    /// dot-segment removal — and it is the place the RFC asks for it. An
+    /// **opaque** base, one with a rootless path and no authority
+    /// (`mailto:a@b`), has no path to merge a relative reference into and
+    /// throws saying so.
+    fn mwl_core_uri_resolve(_ctx, args: [2]) {
+        let receiver = crate::instance::receiver(args[0], &CLASS, "resolve")?;
+        let slots: [Value; 8] =
+            std::array::from_fn(|index| crate::instance::slot(receiver, index));
+        let base_text = held(&slots, TEXT_SLOT, "resolve")?
+            .ok_or_else(|| Fault::fatal("Core\\Uri::resolve found a null `text` slot"))?;
+        let base = Uri::parse(base_text).map_err(|_| {
+            Fault::thrown(
+                "Core\\Uri::resolve(): the receiver is a relative reference, and RFC 3986 \
+                 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, \
+                 or resolve against one that has one"
+                    .to_owned(),
+            )
+        })?;
+        let text = args[1].as_str_bytes().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Uri::resolve expected {:?}, got tag {}",
+                Tag::Str,
+                args[1].tag_byte()
+            ))
+        })?;
+        let text = std::str::from_utf8(text).map_err(|_| {
+            Fault::fatal(
+                "Core\\Uri::resolve received a `string` that is not valid UTF-8, which ADR 0009 \
+                 guarantees it cannot be"
+                    .to_owned(),
+            )
+        })?;
+        let reference = read(text, "resolve")?;
+        let resolved = reference
+            .resolve_against(&base.strip_fragment())
+            .map_err(|error| {
+                let refused = match error {
+                    ResolveError::InvalidReferenceAgainstOpaqueBase => {
+                        "the base has no authority and a rootless path, so it is opaque and there \
+                         is no path for a relative reference to be merged into"
+                    }
+                    // `resolve_against` allows path underflow, and the base's
+                    // fragment is stripped above, so neither of the other two
+                    // is reachable from here.
+                    _ => "RFC 3986 § 5.2 does not define a result for this pair",
+                };
+                Fault::thrown(format!("Core\\Uri::resolve(): {refused}"))
+            })?;
+
+        built(&UriRef::parse(resolved.as_str()).map_err(|_| {
+            Fault::fatal("Core\\Uri::resolve produced text `fluent-uri` will not read back")
+        })?, "resolve")
     }
 }
 
@@ -1586,5 +1905,102 @@ mod tests {
         assert_eq!(port("//h/").expect("absent is absent"), None);
         assert!(port("//h:65536/").is_err());
         assert!(port("//h:99999999999999999999/").is_err());
+    }
+
+    /// RFC 3986 § 5.3's guarantee, which is what makes `$uri->with({})` the
+    /// identity: recomposing a reference out of the components it was parsed
+    /// into gives the reference back. Only an empty port moves, and
+    /// [`super::port_of`] owns why.
+    #[test]
+    fn recomposing_a_parsed_reference_gives_it_back() {
+        for subject in [
+            "https://user@example.com:8443/a/b?x=1#top",
+            "HTTP://Example.COM:80/a/../b",
+            "file:///tmp/x",
+            "http://[::1]:8080/x",
+            "//host/path",
+            "/relative?a=1#f",
+            "mailto:someone@example.test",
+            "?just-a-query",
+            "#just-a-fragment",
+            "",
+        ] {
+            let reference = super::read(subject, "parse").expect("a URI reference");
+            let authority = reference.authority();
+            let composed = super::Composed {
+                scheme: reference.scheme().map(super::Scheme::as_str),
+                user_info: authority
+                    .and_then(|held| held.userinfo())
+                    .map(super::EStr::as_str),
+                host: authority.as_ref().map(super::Authority::host),
+                port: authority
+                    .and_then(|held| held.port())
+                    .map(super::EStr::as_str),
+                path: reference.path().as_str(),
+                query: reference.query().map(super::EStr::as_str),
+                fragment: reference.fragment().map(super::EStr::as_str),
+            };
+            assert_eq!(super::recompose(&composed), subject);
+        }
+    }
+
+    /// The check `with` does that re-parsing alone would not: each row here
+    /// recomposes to text that parses perfectly well and is a *different* URI
+    /// than the one asked for, because a component crossed a delimiter. The
+    /// name in the throw is the component it landed in, which is where the
+    /// caller's missing `/` actually went.
+    #[test]
+    fn a_component_that_crosses_a_delimiter_is_refused_by_name() {
+        let bare = super::Composed {
+            scheme: None,
+            user_info: None,
+            host: None,
+            port: None,
+            path: "",
+            query: None,
+            fragment: None,
+        };
+        let rows = [
+            // A path beside a host that does not begin with `/` joins the host.
+            (
+                super::Composed {
+                    scheme: Some("https"),
+                    host: Some("h"),
+                    path: "a",
+                    ..bare
+                },
+                "host",
+            ),
+            // A first path segment holding a `:`, with no scheme in front of
+            // it, becomes the scheme.
+            (
+                super::Composed {
+                    path: "a:b",
+                    ..bare
+                },
+                "scheme",
+            ),
+            // A rootless path opening with `//` and no authority becomes one.
+            (
+                super::Composed {
+                    scheme: Some("x"),
+                    path: "//h/p",
+                    ..bare
+                },
+                "host",
+            ),
+        ];
+        for (composed, moved) in rows {
+            let text = super::recompose(&composed);
+            let reference = super::read(&text, "with").expect("the recomposition still parses");
+            let refused = super::unmoved(&composed, &reference).expect_err("the component moved");
+            let mwl_runtime::Fault::Thrown(_, message) = refused else {
+                panic!("`with` throws rather than faulting");
+            };
+            assert!(
+                message.contains(&format!("`{moved}`")),
+                "{text:?} should name `{moved}`, said {message}"
+            );
+        }
     }
 }

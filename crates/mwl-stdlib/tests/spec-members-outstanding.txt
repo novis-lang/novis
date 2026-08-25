@@ -46,6 +46,4 @@
 §11 Random::bytes
 
 # § 12 `Core\Uri`, `Core\Out`
-§12 $uri->resolve
-§12 $uri->with
 §12 Out::capture
