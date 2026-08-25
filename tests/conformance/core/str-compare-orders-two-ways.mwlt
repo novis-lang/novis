@@ -1,0 +1,60 @@
+--TEST--
+`Core\Str::compare` answers a sign over one of two orderings, and `{natural: true}` selects the other one — spec § 1 *Comparison*, ADR 0063 R20
+--FILE--
+<?mwl
+// The answer is `-1`, `0` or `1` and never a byte difference — PHP 8 already
+// normalized `strcmp` that way, and a comparator is the only consumer.
+echo Core\Str::compare("a", "b"), " ", Core\Str::compare("b", "a"), " ", Core\Str::compare("a", "a"), "\n";
+echo Core\Str::compare("apple", "applesauce"), "\n";
+echo Core\Str::compare("Zoo", "apple"), "\n";
+
+// One option folds case; it does not change the ordering.
+echo Core\Str::compare("HELLO", "hello"), "\n";
+echo Core\Str::compare("HELLO", "hello", {caseInsensitive: true}), "\n";
+
+// The other selects a *different* ordering. This is the pair the spec names:
+// the sign flips because a digit run compares as a number.
+echo Core\Str::compare("img12", "img2"), "\n";
+echo Core\Str::compare("img12", "img2", {natural: true}), "\n";
+echo Core\Str::compare("2", "10", {natural: true}), "\n";
+echo Core\Str::compare("file10.txt", "file9.txt", {natural: true}), "\n";
+
+// Both together replace `strnatcasecmp`, which is the comparator behind
+// `natcasesort`.
+echo Core\Str::compare("IMG2", "img12", {caseInsensitive: true, natural: true}), "\n";
+
+// Leading zeros are dropped at the start of the subject and nowhere else: a
+// run that begins with one compares as the digits after a decimal point, so
+// `a01` sorts before `a1` even though the numbers are equal.
+echo Core\Str::compare("01", "1", {natural: true}), "\n";
+echo Core\Str::compare("a01", "a1", {natural: true}), "\n";
+echo Core\Str::compare("1.5", "1.10", {natural: true}), "\n";
+
+// A whitespace run is not significant in the natural ordering, and is in the
+// default one.
+echo Core\Str::compare(" 1", "1", {natural: true}), "\n";
+echo Core\Str::compare("a b", "a  b", {natural: true}), "\n";
+echo Core\Str::compare(" 1", "1"), "\n";
+
+// Folding is Unicode's, not ASCII's, exactly as `Core\Str::lower` is.
+echo Core\Str::compare("STRASSE", "strasse", {caseInsensitive: true}), "\n";
+echo Core\Str::compare("ÄRGER", "ärger", {caseInsensitive: true}), "\n";
+--EXPECT--
+-1 1 0
+-1
+-1
+-1
+0
+-1
+1
+-1
+1
+-1
+0
+-1
+-1
+0
+0
+-1
+0
+0

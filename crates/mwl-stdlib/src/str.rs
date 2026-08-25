@@ -32,6 +32,8 @@
 //! divergence, and the shape `docs/agent/loop-goal.md`'s `--ORACLE-DIVERGES--`
 //! section exists to record in the conformance suite.
 
+use std::cmp::Ordering;
+
 use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
@@ -122,6 +124,13 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "mwl_core_str_count_of",
+        },
+        CoreMethod {
+            name: "compare",
+            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(COMPARE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "mwl_core_str_compare",
         },
         CoreMethod {
             name: "before",
@@ -416,6 +425,28 @@ const LAST_INDEX_OF_OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `Core\Str::compare`'s `{caseInsensitive?: bool, natural?: bool}`.
+///
+/// The two are independent, and all four combinations name one of PHP's four
+/// comparison functions: neither is `strcmp`, `caseInsensitive` alone is
+/// `strcasecmp`, `natural` alone is `strnatcmp`, and both together are
+/// `strnatcasecmp`. `natural` selects a **different ordering** rather than a
+/// variant of the same one, which is why the spec's own prose under § 1's
+/// *Comparison* table calls it out; [`mwl_core_str_compare`] owns what that
+/// ordering is.
+const COMPARE_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "caseInsensitive",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "natural",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
 /// `Core\Str::before`/`after`'s `{last?: bool}`, shared by both — one bag, so
 /// the two members cannot drift apart on which occurrence they cut at.
 const AROUND_OPTIONS: &[CoreOption] = &[CoreOption {
@@ -460,6 +491,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_str_index_of" => (mwl_core_str_index_of as *const ()).cast(),
         "mwl_core_str_last_index_of" => (mwl_core_str_last_index_of as *const ()).cast(),
         "mwl_core_str_count_of" => (mwl_core_str_count_of as *const ()).cast(),
+        "mwl_core_str_compare" => (mwl_core_str_compare as *const ()).cast(),
         "mwl_core_str_before" => (mwl_core_str_before as *const ()).cast(),
         "mwl_core_str_after" => (mwl_core_str_after as *const ()).cast(),
         "mwl_core_str_reverse" => (mwl_core_str_reverse as *const ()).cast(),
@@ -1405,6 +1437,229 @@ mwl_runtime::mwl_helper! {
             cursor = after_match(subject, at, matched);
         }
         Ok(Value::uint(found))
+    }
+}
+
+/// The character at byte offset `at`, or `None` at the end of the subject —
+/// which [`natural_order`] reads exactly where PHP's comparator reads its
+/// terminating NUL, so it sorts below every character.
+fn char_at(subject: &str, at: usize) -> Option<char> {
+    subject[at..].chars().next()
+}
+
+/// The ASCII digit at byte offset `at`, or `None` for anything else.
+///
+/// A digit run is ASCII by definition here: what makes one a *number* rather
+/// than ordinary characters is that this member adds it up, and `٣` is not a
+/// digit it knows how to add up. Every other character goes down
+/// [`compare_chars`], where it is ordered rather than counted.
+fn digit_at(subject: &str, at: usize) -> Option<u8> {
+    subject
+        .as_bytes()
+        .get(at)
+        .copied()
+        .filter(u8::is_ascii_digit)
+}
+
+/// Past the whitespace run that starts at `at`.
+fn skip_whitespace(subject: &str, mut at: usize) -> usize {
+    while let Some(found) = char_at(subject, at) {
+        if !found.is_whitespace() {
+            break;
+        }
+        at += found.len_utf8();
+    }
+    at
+}
+
+/// Past the zeros PHP's `leading` flag drops — at the very start of a subject
+/// only, a `0` followed by another digit is not part of the number at all,
+/// which is why `compare("01", "1", {natural: true})` is `0` while
+/// `compare("a01", "a1", {natural: true})` is negative.
+fn skip_leading_zeros(subject: &str, mut at: usize) -> usize {
+    let bytes = subject.as_bytes();
+    while bytes.get(at) == Some(&b'0') && bytes.get(at + 1).is_some_and(u8::is_ascii_digit) {
+        at += 1;
+    }
+    at
+}
+
+/// Two digit runs, neither of which begins with a `0`: the longer run is the
+/// larger number, so the first differing digit decides only once both runs
+/// turn out to be the same length. Both cursors end past their own run.
+fn compare_integral(a: &str, ai: &mut usize, b: &str, bi: &mut usize) -> Ordering {
+    let mut bias = Ordering::Equal;
+    loop {
+        match (digit_at(a, *ai), digit_at(b, *bi)) {
+            (None, None) => return bias,
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(x), Some(y)) => {
+                if bias == Ordering::Equal {
+                    bias = x.cmp(&y);
+                }
+                *ai += 1;
+                *bi += 1;
+            }
+        }
+    }
+}
+
+/// Two digit runs, at least one of which begins with a `0` — read as the
+/// digits *after* a decimal point, so the first difference wins outright and
+/// the shorter run is the smaller number. That is what orders `1.5` before
+/// `1.10` and `a0010` before `a10`.
+fn compare_fractional(a: &str, ai: &mut usize, b: &str, bi: &mut usize) -> Ordering {
+    loop {
+        match (digit_at(a, *ai), digit_at(b, *bi)) {
+            (None, None) => return Ordering::Equal,
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(x), Some(y)) if x != y => return x.cmp(&y),
+            _ => {
+                *ai += 1;
+                *bi += 1;
+            }
+        }
+    }
+}
+
+/// One character against another, case-folded or not — Unicode's *simple*
+/// lower-case mapping, the same boundary [`match_at`] already sits on.
+fn compare_chars(a: char, b: char, case_insensitive: bool) -> Ordering {
+    if case_insensitive {
+        a.to_lowercase().cmp(b.to_lowercase())
+    } else {
+        a.cmp(&b)
+    }
+}
+
+/// A subject as the sequence of characters its case-insensitive ordering
+/// compares — [`compare_chars`]'s mapping over the whole of it, without
+/// building a second string to hold the result.
+fn folded(subject: &str) -> impl Iterator<Item = char> + '_ {
+    subject.chars().flat_map(char::to_lowercase)
+}
+
+/// `{natural: true}`'s ordering: a run of digits compares as a number and
+/// everything else compares as characters, which is what puts `img2` before
+/// `img12`.
+///
+/// This is a faithful port of PHP's `strnatcmp`, quirks included, because the
+/// spec's § 1 table names that function as what the option replaces and a
+/// program being migrated is entitled to the same order it already sorts in.
+/// Three of those quirks are not obvious and are pinned by
+/// `tests/conformance/core/str-compare-orders-two-ways.mwlt`:
+///
+/// * **A whitespace run is not significant, except at the very end.** Each
+///   subject skips its own run before every comparison, so `"a b"` and
+///   `"a  b"` are equal — but the walk stops the moment one subject runs out,
+///   which is checked *before* the next skip, so `"x "` is greater than `"x"`.
+/// * **A run beginning with `0` is a fraction** ([`compare_fractional`]),
+///   except at the start of the subject ([`skip_leading_zeros`]).
+/// * **An empty subject is ordered by length alone** — PHP guards it ahead of
+///   the walk, which is the only reason `" "` is greater than `""` rather
+///   than equal to it after the whitespace skip.
+///
+/// Two deliberate widenings, both the same one the rest of this module makes:
+/// whitespace is Unicode's `White_Space` rather than C's `isspace`, and case
+/// folding is Unicode's simple lower-case mapping rather than ASCII
+/// `toupper`. Both agree with PHP over ASCII and are better outside it.
+fn natural_order(a: &str, b: &str, case_insensitive: bool) -> Ordering {
+    if a.is_empty() || b.is_empty() {
+        return a.len().cmp(&b.len());
+    }
+    let (mut ai, mut bi) = (skip_leading_zeros(a, 0), skip_leading_zeros(b, 0));
+    loop {
+        ai = skip_whitespace(a, ai);
+        bi = skip_whitespace(b, bi);
+        let (mut ca, mut cb) = (char_at(a, ai), char_at(b, bi));
+
+        if let (Some(x), Some(y)) = (ca, cb)
+            && x.is_ascii_digit()
+            && y.is_ascii_digit()
+        {
+            let run = if x == '0' || y == '0' {
+                compare_fractional(a, &mut ai, b, &mut bi)
+            } else {
+                compare_integral(a, &mut ai, b, &mut bi)
+            };
+            if run != Ordering::Equal {
+                return run;
+            }
+            match (ai == a.len(), bi == b.len()) {
+                (true, true) => return Ordering::Equal,
+                (true, false) => return Ordering::Less,
+                (false, true) => return Ordering::Greater,
+                (false, false) => {}
+            }
+            // The character that ended two equal runs is compared here rather
+            // than at the top of the next turn, so it is *not* whitespace-
+            // skipped: `"1\t"` is less than `"1 "` where `"a\t"` and `"a "`
+            // are equal. PHP's own loop has this asymmetry and programs sort
+            // by it.
+            ca = char_at(a, ai);
+            cb = char_at(b, bi);
+        }
+
+        let ord = match (ca, cb) {
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => Ordering::Less,
+            (Some(_), None) => Ordering::Greater,
+            (Some(x), Some(y)) => compare_chars(x, y, case_insensitive),
+        };
+        if ord != Ordering::Equal {
+            return ord;
+        }
+        ai += ca.map_or(0, char::len_utf8);
+        bi += cb.map_or(0, char::len_utf8);
+        match (ai >= a.len(), bi >= b.len()) {
+            (true, true) => return Ordering::Equal,
+            (true, false) => return Ordering::Less,
+            (false, true) => return Ordering::Greater,
+            (false, false) => {}
+        }
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int`
+    /// — replacing all four of PHP's `strcmp`, `strcasecmp`, `strnatcmp` and
+    /// `strnatcasecmp`, plus the comparator behind `natsort`/`natcasesort`,
+    /// because ADR 0063 R20 leaves no room for four spellings of one
+    /// operation. `strncmp`'s length-limited form is `Core\Str::slice` first.
+    ///
+    /// **The answer is `-1`, `0` or `1` and never a byte difference.** PHP 8
+    /// already normalized `strcmp` that way, and the only consumer of this
+    /// member is a comparator — a magnitude would be a number callers could
+    /// come to depend on without it meaning anything.
+    ///
+    /// The default ordering is over characters, which for UTF-8 is also over
+    /// bytes; `{caseInsensitive: true}` compares Unicode's simple lower-case
+    /// mapping of each instead, the same boundary [`match_at`] sits on, so
+    /// `ß` and `SS` are still different. `{natural: true}` is a **different
+    /// ordering** rather than a variant of this one — [`natural_order`] owns
+    /// what it is, and the spec's own prose under § 1's *Comparison* table
+    /// says so with `compare("img12", "img2")` as the sign that flips.
+    ///
+    /// There is no locale-sensitive third ordering: `strcoll` has nothing to
+    /// read a locale from here (ADR 0051), which § 1 states.
+    fn mwl_core_str_compare(_ctx, args: [4]) {
+        let left = text(&args[0], "compare", "the first subject")?;
+        let right = text(&args[1], "compare", "the second subject")?;
+        let case_insensitive = boolean(&args[2], "compare", "the `caseInsensitive` option")?;
+        let natural = boolean(&args[3], "compare", "the `natural` option")?;
+
+        let ordering = match (natural, case_insensitive) {
+            (true, fold) => natural_order(left, right, fold),
+            (false, true) => folded(left).cmp(folded(right)),
+            (false, false) => left.cmp(right),
+        };
+        Ok(Value::int(match ordering {
+            Ordering::Less => -1,
+            Ordering::Equal => 0,
+            Ordering::Greater => 1,
+        }))
     }
 }
 
@@ -2501,5 +2756,42 @@ mod tests {
             ),
             "..\u{1f1e6}\u{1f1f9}"
         );
+    }
+
+    /// Every row here was checked against `php -r` while it was written.
+    /// `{natural: true}` is a port of `strnatcmp` rather than a fresh reading
+    /// of "sort numbers as numbers", and its three quirks are exactly where a
+    /// fresh reading would disagree with the program being migrated: the
+    /// leading-zero skip applies at the start of a subject and nowhere else, a
+    /// run that begins with `0` compares as a fraction, and a whitespace run
+    /// is insignificant everywhere except where it ends one subject before the
+    /// other.
+    #[test]
+    fn natural_order_answers_what_strnatcmp_answers() {
+        let rows: &[(&str, &str, i64)] = &[
+            ("img12", "img2", 1),
+            ("01", "1", 0),
+            ("a01", "a1", -1),
+            ("a0010", "a10", -1),
+            ("1.5", "1.10", -1),
+            (" 1", "1", 0),
+            ("a b", "a  b", 0),
+            ("1 2", "1  2", 0),
+            ("x", "x ", -1),
+            ("1\t", "1 ", -1),
+            ("a\t", "a ", 0),
+            (" ", "", 1),
+            ("9", "10 ", -1),
+            ("1a", "1 a", 1),
+            ("v1.0", "v1.0.0", -1),
+        ];
+        for &(left, right, want) in rows {
+            let answer = run(
+                super::mwl_core_str_compare,
+                &[s(left), s(right), Value::bool(false), Value::bool(true)],
+            )
+            .expect("no failure");
+            assert_eq!(answer.as_int(), Some(want), "compare({left:?}, {right:?})");
+        }
     }
 }
