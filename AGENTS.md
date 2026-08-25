@@ -310,6 +310,15 @@ A `grep`/`sed -n` through a shell is allowed where it is genuinely shaped better
 *command's* output, a `wc -l` across a glob — because nothing is being written and a bad quote costs one
 retry rather than a silent wrong edit.
 
+**What you read is the budget, so read a big file in the region you need.** A session starts around 42k
+of context — this file, the prompt and the one-call orientation — and must finish under 200k, which is
+about 125 more tool calls at the rate sessions actually grow. One `cat` of a 1,100-line module spends a
+tenth of that budget in a single call. So: whole file when it is small (roughly under 400 lines, or when
+you will touch most of it), otherwise `grep -n` for the anchor and read the region around it. This is the
+one place turn economy and context economy pull against each other, and context is the constraint that
+degrades the work rather than merely slowing it. `python tools/loop-stats.py` prints where the last
+sessions actually landed.
+
 Use a shell for what it is for — `cargo`, `git`, `python tools/brief.py`, `wsl.exe`. When one of those
 needs a multi-line argument, put the text in a file with the Write tool and pass the path: `git commit -F
 <file>`, never an inline heredoc or a `-m` string spanning lines.
@@ -446,10 +455,12 @@ Every session runs the same five steps, in this order, and **stops**:
    something new bites you. [conventions.md](docs/agent/conventions.md) is the shape — a commit message,
    a `.mwlt` case, a `Core` member's four edits, an ADR, a diagnostic. Read it instead of opening an
    existing example to copy; that lookup has the same answer every session.
-2. **Do the work — a *group* of related slices, not one.** The handoff names the group and the file set
-   it shares. Keep taking slices from it while the next one touches files already loaded, and stop at
-   **four commits** or at the first slice that would need a fresh orientation — whichever comes first. A
-   slice sharing no files with the group is the next session's, not this one's.
+2. **Do the work — as much of the group as fits under the context ceiling.** The handoff names a group of
+   related slices and the file set they share. **Take the first. Take a second only if it touches files
+   already loaded and the first left you well short of the ceiling. Never take a third.** Context is the
+   binding budget here, not the clock: an agent degrades well before its window is full, so the ceiling is
+   a fixed **200k**, and measured sessions have finished *over* it doing a single slice each. Which means
+   the saving on offer is reading less, not doing more — see *Reading and searching* under *Commands*.
 3. **Verify what you touched, once, at the end of the group** — `python tools/verify.py`, plus whatever
    the change specifically warrants (a `valgrind` run for a new refcount edge, per *Commands*). **This is
    the only place verification happens**, and a group shares one run: the build is the same build.

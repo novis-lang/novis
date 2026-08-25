@@ -29,10 +29,13 @@ prints its frozen output exactly.
 
 ## Next group — the equality pass (Stage 0 items 2, 8, 3)
 
-**Shared file set:** `crates/mwl-types/src/expr/operators.rs` (items 2 and 8 are two arms of it),
-`crates/mwl-diagnostics/src/lib.rs`, then `crates/mwl-runtime/` + `crates/mwl-ir/src/lower/` for item 3.
-One ADR, one semantic surface, and six of `loop-goal.toml`'s named Stage 0 tests. Do them in this order —
-item 2's table is what decides which operand pairs can still reach item 3's helpers at all.
+**Shared file set:** `crates/mwl-types/src/expr/operators.rs` (items 2 and 8 are two arms of it) and
+`crates/mwl-diagnostics/src/lib.rs`. One ADR, one semantic surface, six of `loop-goal.toml`'s named Stage 0
+tests. In this order — item 2's table is what decides which operand pairs can reach item 3's helpers.
+
+**Item 2 is the session. Item 8 is the natural second** if item 2 left you well short of the context
+ceiling, being one arm over in the same file. **Item 3 is almost certainly its own session**: it opens
+`crates/mwl-runtime/` and `crates/mwl-ir/src/lower/`, which is a fresh read, not a shared one.
 
 - [ ] **Item 2 — ADR 0090 § 2: two statically disjoint operands do not compile** (M2). A new E04xx code
       (`brief.py` prints the next free one) over

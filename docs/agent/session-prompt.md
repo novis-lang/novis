@@ -16,11 +16,10 @@ added; that file is authoritative for steps 1–5.
    That is the map, where the work stands, the traps, and the shape of anything you are about to write —
    one turn, not four. `docs/agent/loop-goal.md` holds the loop's target; steer toward it and do not
    invent busywork once it is reached.
-2. **Do the work — the whole group the handoff names, not one slice of it.** `## Next group` lists two to
-   four related items and the file set they share. Work them in order. **Stop opening new slices at four
-   commits, or at the first item that would send you re-orienting in files you have not loaded** —
-   whichever comes first. An item that shares no files with the group belongs to the next session; leave
-   it in `## Backlog` and say so.
+2. **Do the work — as much of the group as fits under the context ceiling.** `## Next group` lists related
+   items and the file set they share. **Take the first. Take a second only if it touches files you have
+   already loaded and the first left you well short of the ceiling. Never take a third.** Anything you do
+   not reach stays ticked-off-able in the group for the next session; say in the handoff where you stopped.
 3. **Verify once, at the end of the group:** `python tools/verify.py`, plus a `valgrind` run for any new
    refcount edge (`AGENTS.md` § *Commands*). **This is the only place verification happens**, and the
    whole group shares one run — it is the same build either way.
@@ -47,14 +46,21 @@ commit.
 
 ## Your clock is your turn count
 
-A session's wall time is very nearly **the number of tool calls it makes, times a constant** — measured at
-8.2 s per call, with 86% of the clock spent waiting on the model rather than on `cargo`. A full measured
-session made 165 calls and split them: **33% orientation before the first edit, 41% actual work, 25%
-verify-plus-docs-plus-commit.** Only two of every five calls produced code; the rest is fixed cost paid
-once per session, which is the whole reason step 2 takes a *group*.
+A session's wall time is very nearly **the number of tool calls it makes, times a constant** — about 7.6 s
+a call, three quarters of it spent waiting on the model rather than on `cargo`. Those calls split roughly
+**a quarter orientation before the first edit, half actual work, a quarter verify-plus-docs-plus-commit**:
+**over half of every session is fixed cost**, paid once no matter how little work sits between the two
+halves of it. That is the whole reason step 2 takes a *group*.
 
-**Nothing caps a session but that instruction.** The same session ran from 41k to 286k of context with no
-compaction and room left over. If you exit with the group unfinished, it is because you chose to.
+**But context, not the clock, is what caps a session.** The window is 1M and nothing compacts — and that
+is not the limit that matters, because an agent starts missing what it has already read long before its
+window is full. **The ceiling is a fixed 200k**, a session starts at about 42k of it, and the measured
+sessions have been finishing *over* the line doing one slice each. So the saving on offer here is reading
+less, not doing more, and the two bullets below that say so outrank the rest of this list.
+
+`python tools/loop-stats.py` re-derives every number in this section from `.loop/logs/`, so none of them
+has to be believed. Run it rather than trusting the sentence above; it is also the first step of setting a
+new goal ([loop-authoring.md](loop-authoring.md) § *Measure first*).
 
 So:
 
@@ -72,8 +78,13 @@ So:
   it is written down.
 - **Edit the plan's status block with `python tools/plan.py --set`,** never by locating its bytes and
   splicing them. That cycle averaged 11.6 tool calls a session.
-- **Read a file once, not in slices.** A sequence of narrow `sed -n` windows costs a turn each and usually
-  more tokens in total than the whole file would have.
+- **Read a small file once; read a big one in the region you need.** Under about 400 lines, or when you
+  will touch most of it, take the whole file — a sequence of narrow windows costs a turn each. Past that,
+  `grep -n` for the anchor and read around it: one `cat` of an 1,100-line module spends a tenth of the
+  whole session's context budget in a single call. This is the one place turn economy and context economy
+  disagree, and context wins, because it degrades the work rather than merely slowing it.
+- **Do not re-read what the orientation call already printed.** The handoff, the playbook, the conventions
+  and the brief are in your context from call one; opening any of them again is pure cost.
 - **Verify with one call, once for the whole group**, per step 3. A measured session ran `verify.py` four
   times for one slice; three of those runs rebuilt the same tree to learn the same thing.
 

@@ -39,6 +39,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | File | Role |
 |---|---|
 | `docs/agent/session-prompt.md` | The fixed prompt handed to every session. Also holds the `docs/agent/handoff.md` handoff contract. |
+| `docs/agent/loop-authoring.md` | How a *new* goal is written: measure first, what makes one drivable, what to pre-authorize, the stage order. Read before rewriting either half below. |
+| `tools/loop-stats.py` | What the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. |
 | `docs/agent/loop-goal.md` | The loop's target and the decisions pre-authorized on the way there — the prose. |
 | `docs/agent/loop-goal.toml` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests. The driver reads this; neither file restates the other. |
 | `tools/loop.py` | The driver. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. |
@@ -125,11 +127,9 @@ repo is still consistent either way, because every session commits before it exi
 
 ## Setting a new goal
 
-Rewrite both halves: `docs/agent/loop-goal.md` for the prose and the standing decisions, and
-`docs/agent/loop-goal.toml` for the checks. If the goal cannot be expressed as exit codes and exact
-output, the loop has no reliable stop condition and should not be run unattended. Put every tradeoff the
-road to it will hit into the prose file's *Standing decisions* section, pre-authorized; anything left out
-will eventually surface as a `BLOCKED` line and halt the run.
+**[loop-authoring.md](loop-authoring.md) owns this, in full** — measuring before you write anything, what
+makes a goal drivable at all, what must be pre-authorized so the run never halts on `BLOCKED`, the stage
+order, and how to write the item list so groups fall out of it. Read it before rewriting either half.
 
 ## Why not a coordinator conversation at all?
 
@@ -149,14 +149,19 @@ git worktree of its own and a handoff of its own before any of that matters, and
 splits are necessary and not sufficient — treat this as a smaller remaining problem than it was, not a
 solved one.
 
-**Grouping came first because it measured better than lanes, and it is why a session takes a group.**
-Two thirds of a session's clock was fixed cost — orientation before the first edit, then verify, docs and
-commit after the last one — paid once per session no matter how little work sat between them
-(`session-prompt.md` § *Your clock is your turn count* owns the constants). Three related slices in one
-session therefore finish in **1.74× less wall clock and ~14% fewer tokens** than three sessions do: three
-sessions each re-pay the baseline context and re-walk the same vertical path, and one session pays it
-once. Cheaper *and* faster is unusual, and it holds only while the group is small — the per-turn cost
-grows with context, so past about five slices a session is still faster but no longer cheaper, and it is
-approaching the compaction this whole design exists to avoid. Hence the four-commit cap in step 2.
-Parallel lanes are the *second* lever, worth roughly the same speedup for far more machinery; do them
-after grouping, not instead of it, and measure again first.
+**Neither is the lever right now, and that is a measured claim rather than an opinion.** Over half of a
+session's clock is fixed cost — orientation before the first edit, then verify, docs and commit after the
+last one — which argues for putting several related slices in one session. But sessions are already
+finishing *over* the 200k context ceiling doing **one** slice each, and past that line an agent starts
+missing what it has already read. So the available saving is reading less per session, not doing more, and
+step 2's cap is one slice with a conditional second.
+
+**Do not read a ratio out of this paragraph; run `python tools/loop-stats.py`.** It re-derives the curve
+from `.loop/logs/` and prints where the sessions actually landed against the ceiling. The cap it implies
+has already been 4, then 2, then 1 within a single afternoon as better evidence arrived — which is exactly
+why the script exists and the sentence does not.
+[loop-authoring.md](loop-authoring.md) § *Measure first* makes running it step zero of any new goal.
+
+Parallel lanes are the *second* lever, worth roughly the same speedup for far more machinery — a worktree
+and a handoff per lane, and unattended merges. They are also the one that does *not* care about the
+context ceiling, since each lane is its own session; revisit them once reading-less has been tried.
