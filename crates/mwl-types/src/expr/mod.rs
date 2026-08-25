@@ -304,7 +304,11 @@ pub(super) fn infer(
                 None => env.interner.mixed(),
             }
         }
-        ExprKind::New { target, args } => infer_new(expr, target, args, live, scope, ctx, env),
+        ExprKind::New {
+            target,
+            type_args,
+            args,
+        } => infer_new(expr, target, type_args, args, live, scope, ctx, env),
         ExprKind::Clone(inner) => check_expr(inner, None, live, scope, ctx, env),
         ExprKind::Fn(fn_expr) => check_fn_literal(expr, fn_expr, live, scope, ctx, env),
         ExprKind::Match { subject, arms } => {

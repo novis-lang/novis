@@ -348,7 +348,7 @@ fn anonymous_class_as_new_target() {
     let ExprKind::Assign { value, .. } = e.kind else {
         panic!("expected an assignment: {e:?}");
     };
-    let ExprKind::New { target, args } = value.kind else {
+    let ExprKind::New { target, args, .. } = value.kind else {
         panic!("expected a `new`: {value:?}");
     };
     let NewTarget::AnonClass(decl) = target else {

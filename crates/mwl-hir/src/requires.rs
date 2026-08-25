@@ -971,7 +971,11 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
                 e!(index);
             }
         }
-        ExprKind::New { target, args } => {
+        ExprKind::New {
+            target,
+            type_args,
+            args,
+        } => {
             match target {
                 NewTarget::Name(name) => record_name(name, src, out),
                 NewTarget::Expr(expr) => e!(expr),
@@ -984,6 +988,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
                 }
                 _ => {}
             }
+            walk_types(type_args, src, out);
             walk_args(args, src, out);
         }
         ExprKind::Fn(fn_expr) => {

@@ -203,3 +203,42 @@ fn a_refused_type_argument_list_does_not_cascade() {
         "{diags:?}"
     );
 }
+
+/// The third position a `<...>` may be written in: between a `new` target and
+/// its `(`. The grammar reads one there now (`ExprKind::New::type_args`), and
+/// a user-declared class refuses it by the same rule as a type position --
+/// user-declared generic classes stay deferred.
+#[test]
+fn a_new_target_written_with_type_arguments_is_refused() {
+    let diags = check_src(
+        "<?mwl\n\
+         class Box {}\n\
+         var $b = new Box<int>();\n\
+         echo \"x\";\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_ARGS_NOT_GENERIC)),
+        "{diags:?}"
+    );
+}
+
+/// A class named *inside* a refused list is still resolved, so a typo there is
+/// reported rather than swallowed by the refusal -- the rule
+/// `check_written_type_args` already applies to a call site's own list.
+#[test]
+fn a_class_named_inside_a_refused_new_type_argument_list_is_still_resolved() {
+    let diags = check_src(
+        "<?mwl\n\
+         class Box {}\n\
+         var $b = new Box<Nope>();\n\
+         echo \"x\";\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_UNDEFINED_CLASS)),
+        "{diags:?}"
+    );
+}

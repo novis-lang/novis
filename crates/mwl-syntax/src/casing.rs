@@ -769,7 +769,7 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
                 check_expr(index, src, diags);
             }
         }
-        ExprKind::New { target, args } => {
+        ExprKind::New { target, args, .. } => {
             check_new_target(target, src, diags);
             check_call_args(args, src, diags);
         }

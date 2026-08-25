@@ -169,7 +169,7 @@ impl<'a> Lowering<'a> {
                 self.lower_binary(*op, lhs, rhs, expected, env, cur)
             }
             ExprKind::Fn(fn_expr) => self.lower_closure_literal(fn_expr, expr, env, cur),
-            ExprKind::New { target, args } => self.lower_new(target, args, expr, env, cur),
+            ExprKind::New { target, args, .. } => self.lower_new(target, args, expr, env, cur),
             ExprKind::MethodCall {
                 object,
                 nullsafe,

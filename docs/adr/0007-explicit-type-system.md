@@ -149,10 +149,13 @@ field        := identifier ':' type
 Unions are canonicalised — flattened, de-duplicated, order-insensitive — so `int|string` and
 `string|int|int` are one type. `array` with no argument is exactly `array<mixed>`. `void` and `never` are
 return-only. `array<T>` is parsed **only in type position**, where a `<` is unambiguously a type-argument
-list; the one expression position that also admits one is a **call site's own** `<...>`, written between a
-member name and its `(` (§ 5's third bullet), and there it is settled by a checkpointed trial parse that
-commits only when the list parses cleanly and a `(` follows. User-defined generic *functions* are still
-not part of this decision.
+list. Two expression positions also admit one, and they are the same production under one rule: a **call
+site's own** `<...>`, written between a member name and its `(` (§ 5's third bullet), and a **`new`
+target's**, written between the class named and its `(` — `new Core\ObjectMap<Tag, int>()`. Both are
+settled by a checkpointed trial parse that commits only when the list parses cleanly and a `(` follows, so
+`new Foo < $x` and `Foo::BAR < $x` are both still comparisons. Which target may carry one is a resolution
+question, not a grammatical one: only a compiler-owned generic declaration, exactly as for `Name` below.
+User-defined generic *functions* and *classes* are still not part of this decision.
 
 `Name` covers four kinds of atom that share one lexical production and are told apart by resolution: a
 class/interface name, an enum's name, an enum case ([0047](0047-literal-and-enum-case-types.md)), and a

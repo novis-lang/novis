@@ -201,9 +201,14 @@ pub(super) fn infer_static_call(
 /// constructor of its own invokes `Animal::constructor`, and `mwl-ir` cannot
 /// re-walk the hierarchy to find that out (see
 /// `crate::expr_table::ExprInfo::New::ctor`).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one checker context threaded positionally, as everywhere else here"
+)]
 pub(super) fn infer_new(
     expr: &Expr,
     target: &NewTarget,
+    type_args: &[Type],
     args: &CallArgs,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
@@ -212,6 +217,7 @@ pub(super) fn infer_new(
 ) -> TypeId {
     let target_ty = check_new_target(target, live, scope, ctx, env);
     let target_qname = class_qname_of(target_ty, env.interner);
+    check_new_type_args(type_args, target_qname.as_ref(), ctx, env);
     let resolved = target_qname
         .clone()
         .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
@@ -253,6 +259,45 @@ pub(super) fn infer_new(
         );
     }
     target_ty
+}
+
+/// The `<...>` written between a `new` target and its `(` —
+/// `<Tag>` in `new Core\ObjectSet<Tag>()`.
+///
+/// Every written type is lowered whichever way this goes, so an unknown class
+/// named inside one is reported even when the list itself is refused; that is
+/// [`super::args::check_written_type_args`]'s rule at a call site, for the
+/// same reason.
+///
+/// **Nothing accepts a list here yet.** User-declared generic classes are
+/// deferred (ADR 0007 § 3), so the only target that could ever take one is a
+/// compiler-owned generic class, and no such class is registered — the
+/// grammar exists ahead of the roster, which is why this refuses every list
+/// rather than consulting one.
+fn check_new_type_args(
+    type_args: &[Type],
+    target: Option<&QName>,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    for ty in type_args {
+        lower_type(ty, ctx, env);
+    }
+    let (Some(first), Some(last)) = (type_args.first(), type_args.last()) else {
+        return;
+    };
+    let named = target.map_or_else(|| "this target".to_owned(), QName::to_string);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_ARGS_NOT_GENERIC,
+            format!("`{named}` takes no type arguments"),
+        )
+        .with_primary(first.span.to(last.span), "type arguments written here")
+        .with_help(
+            "user-declared generic classes are deferred (ADR 0007 § 3), so the only `new` \
+             target that may be written with one is a compiler-owned generic class",
+        ),
+    );
 }
 
 /// Builds the [`ExprInfo::Call`] entry [`crate::expr_table::ExprTypeTable`]

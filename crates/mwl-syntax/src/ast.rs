@@ -802,6 +802,18 @@ pub enum ExprKind {
     New {
         /// What is being instantiated.
         target: NewTarget,
+        /// The type arguments written between the target and the `(` —
+        /// `<Tag>` in `new Core\ObjectSet<Tag>()` — and empty when none were
+        /// written. Read by the same `parse_call_type_args` a call site's own
+        /// list goes through, so the ambiguity trade and
+        /// the requirement that a `(` follow are shared verbatim with
+        /// [`ExprKind::StaticCall::type_args`].
+        ///
+        /// Grammar only, again: `docs/agent/loop-goal.md`'s standing decision
+        /// keeps type variables compiler-owned, so the only target that
+        /// accepts one is a compiler-owned generic class and every other
+        /// written list is the checker's to refuse.
+        type_args: Vec<Type>,
         /// The constructor's arguments.
         args: CallArgs,
     },

@@ -1234,6 +1234,12 @@ impl<'src, 'd> Parser<'src, 'd> {
                 };
             }
         };
+        // `new Foo` with no `(...)` is a complete expression, so a following
+        // `<` is genuinely ambiguous with a comparison here exactly as it is
+        // after a member name. Reusing the call site's own trial parse keeps
+        // one answer for both: the list is a list only when it parses cleanly
+        // and a `(` follows, and `new Foo < $x` stays a comparison.
+        let type_args = self.parse_call_type_args();
         let args = if self.at(TokenKind::LParen) {
             self.parse_call_args()
         } else {
@@ -1242,7 +1248,11 @@ impl<'src, 'd> Parser<'src, 'd> {
         let span = start.to(self.last_span);
         Expr {
             span,
-            kind: ExprKind::New { target, args },
+            kind: ExprKind::New {
+                target,
+                type_args,
+                args,
+            },
         }
     }
 
@@ -1279,6 +1289,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     implements,
                     members,
                 })),
+                type_args: Vec::new(),
                 args,
             },
         }

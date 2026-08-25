@@ -268,6 +268,7 @@ fn new_with_args_and_dynamic_class() {
     let ExprKind::New {
         target: NewTarget::Name(_),
         args: CallArgs::List(args),
+        ..
     } = e.kind
     else {
         panic!("expected `new Foo(1, 2)`: {e:?}");
@@ -283,6 +284,50 @@ fn new_with_args_and_dynamic_class() {
             ..
         }
     ));
+}
+
+#[test]
+fn new_carries_a_written_type_argument_list() {
+    // `new Core\ObjectSet<Tag>()` — the same `<...>` a static call already
+    // reads, in the one other position that names a class before a `(`.
+    let e = parse_ok(r"new Core\ObjectSet<Tag>()");
+    let ExprKind::New {
+        target: NewTarget::Name(_),
+        type_args,
+        args: CallArgs::List(args),
+    } = e.kind
+    else {
+        panic!("expected a `new` with type arguments: {e:?}");
+    };
+    assert_eq!(type_args.len(), 1);
+    assert!(args.is_empty());
+
+    let e = parse_ok("new ObjectMap<Tag, int>($seed)");
+    let ExprKind::New {
+        type_args, args, ..
+    } = e.kind
+    else {
+        panic!("expected a `new` with two type arguments: {e:?}");
+    };
+    assert_eq!(type_args.len(), 2);
+    assert!(matches!(args, CallArgs::List(list) if list.len() == 1));
+
+    // Nothing written is still the empty list, not a missing one.
+    let e = parse_ok("new Foo(1)");
+    assert!(matches!(e.kind, ExprKind::New { type_args, .. } if type_args.is_empty()));
+}
+
+#[test]
+fn a_new_target_followed_by_a_comparison_is_still_a_comparison() {
+    // The trial parse commits only when the list parses cleanly *and* a `(`
+    // follows, so `new Foo` remains a complete expression under `<`.
+    let e = parse_ok("new Foo < $x");
+    assert!(matches!(e.kind, ExprKind::Binary { .. }), "{e:?}");
+
+    // A `(` follows here, but `$x` does not parse as a type — so this stays
+    // two comparisons rather than becoming a call with type arguments.
+    let e = parse_ok("new Foo < $x > ($y)");
+    assert!(matches!(e.kind, ExprKind::Binary { .. }), "{e:?}");
 }
 
 #[test]
