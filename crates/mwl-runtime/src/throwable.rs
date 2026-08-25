@@ -594,12 +594,16 @@ mod tests {
     use super::*;
     use crate::object::ClassTable;
 
+    /// The [`SLOT_COUNT`] slots in slot order, spelled the way
+    /// `mwl_types::error_lib` declares them.
+    const SLOT_NAMES: [&str; SLOT_COUNT] = ["message", "previous", "backtrace", "location"];
+
     /// A class table shaped like the seeded exception tree: `Throwable` with
     /// its four slots, and one subclass of it with none of its own.
     fn tree() -> (ClassTable, *const ClassDesc, *const ClassDesc) {
         let mut table = ClassTable::new();
-        let root = table.define("Throwable", SLOT_COUNT, &[]);
-        let leaf = table.define("LogicError", SLOT_COUNT, &[root]);
+        let root = table.define("Throwable", &SLOT_NAMES, &[]);
+        let leaf = table.define("LogicError", &SLOT_NAMES, &[root]);
         let (root, leaf) = (table.desc(root), table.desc(leaf));
         (table, root, leaf)
     }
@@ -657,7 +661,7 @@ mod tests {
     #[test]
     fn a_class_with_too_few_slots_is_refused_rather_than_written_past() {
         let mut table = ClassTable::new();
-        let narrow = table.define("NotAnException", 1, &[]);
+        let narrow = table.define("NotAnException", &["message"], &[]);
         #[expect(unsafe_code, reason = "the table outlives the call")]
         let e = unsafe { Thrown::new(table.desc(narrow), "boom") };
         assert!(e.is_none());

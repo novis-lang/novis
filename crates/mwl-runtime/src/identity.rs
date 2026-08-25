@@ -772,7 +772,7 @@ mod tests {
         use crate::object::{ClassTable, MwlObj};
 
         let mut table = ClassTable::new();
-        let point = table.define("Point", 0, &[]);
+        let point = table.define("Point", &[] as &[&str], &[]);
         #[expect(unsafe_code, reason = "the table outlives both objects")]
         let (one, two) = unsafe {
             (
@@ -896,7 +896,7 @@ mod tests {
         use crate::object::{ClassTable, MwlObj};
 
         let mut table = ClassTable::new();
-        let point = table.define("Point", 0, &[]);
+        let point = table.define("Point", &[] as &[&str], &[]);
         #[expect(unsafe_code, reason = "the table outlives both objects")]
         let (one, two) = unsafe {
             (

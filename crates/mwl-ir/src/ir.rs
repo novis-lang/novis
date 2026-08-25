@@ -498,14 +498,26 @@ pub enum InstKind {
     /// Reads a slot off an object **by index** — `$issue->path`, whose
     /// receiver is an ADR 0036 § 4 shape rather than a named class.
     ///
-    /// The difference from [`InstKind::FieldGet`] is only where the index
-    /// comes from. A shape is anonymous and methodless, so there is no class
-    /// label for codegen to resolve a layout through; what stands in for it is
-    /// the field's position in the shape's sorted field list, which
-    /// `mwl_types::expr_table::ExprInfo::ShapeProperty` already resolved and
-    /// which every producer of a shape value lays its slots out in. Codegen
-    /// therefore turns this straight into a load at the runtime's own
-    /// `field_offset`, with no table consulted at all.
+    /// The difference from [`InstKind::FieldGet`] is that the layout is not
+    /// known here. A shape is anonymous and methodless, so there is no class
+    /// label for codegen to resolve an offset through — and the receiver's
+    /// *static* shape need not be the concrete value's own: ADR 0036 § 3's
+    /// width subtyping lets a `{x: int, y: int}` reach a `{y: int}`
+    /// parameter, where the two lay their slots out differently. So this is
+    /// § 4's **name-keyed fetch**, `mwl_runtime::mwl_object_slot_get`, and not
+    /// a fixed offset; § 4 says so outright, and defers the per-call-site
+    /// specialization that would make it one to that ADR's *Revisiting*.
+    ///
+    /// [`Self::slot`] is carried anyway, as a *hint*: the receiver's own
+    /// shape is the overwhelmingly common case, and where it holds, the
+    /// runtime's lookup is one name comparison rather than a scan.
+    ///
+    /// **Fallible.** A name the concrete class does not carry is a catchable
+    /// throw (§ 4), so this is emitted through
+    /// `crate::lower::Lowering::emit_fallible` and carries ADR 0002's error
+    /// edge like any call. Unreachable through a receiver whose static shape
+    /// lists the field, which is every receiver the checker records one for —
+    /// it is the erased half of § 4 that can reach it.
     ///
     /// Borrows its receiver exactly as [`InstKind::FieldGet`] does: the slot
     /// keeps owning what it holds, so a consumer that outlives the receiver
@@ -513,7 +525,11 @@ pub enum InstKind {
     SlotGet {
         /// The receiver, already lowered.
         object: ValueId,
-        /// The field's position in the shape's sorted field list.
+        /// The field's own name, `$`-sigil not included — what the fetch is
+        /// actually keyed on.
+        field: String,
+        /// The field's position in the *receiver's static* shape, sorted by
+        /// name: a hint, not the answer. See this variant's own docs.
         slot: u32,
     },
     /// `$obj instanceof Class` — one linear scan of the receiver's flattened

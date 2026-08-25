@@ -461,9 +461,7 @@ impl Classes {
                 parents.push(*id);
             }
         }
-        let id = self
-            .table
-            .define(&class.label, class.fields.len(), &parents);
+        let id = self.table.define(&class.label, &class.fields, &parents);
         if !class.codec.is_empty() {
             self.table
                 .set_codec(id, class.codec.clone(), class.ctor_arity);
@@ -559,6 +557,11 @@ struct Signatures {
     /// runtime half of `static::method(...)`'s dispatch. See
     /// `mwl_runtime::mwl_class_method`.
     class_method: Signature,
+    /// `mwl_object_slot_get(ctx, object, name, len, hint, out) -> status` —
+    /// ADR 0036 § 4's name-keyed shape read. The one object access that is not
+    /// a fixed offset resolved here, and the one that can throw; see
+    /// `mwl_ir::ir::InstKind::SlotGet`.
+    slot_get: Signature,
     /// `mwl_array_new() -> *mut ArrayHeader`.
     array_new: Signature,
     /// `mwl_array_get(array, key, out)` — the read primitive, whose result
@@ -857,6 +860,15 @@ impl Signatures {
         class_method.params.push(AbiParam::new(ptr)); // fallback address
         class_method.returns.push(AbiParam::new(ptr));
 
+        let mut slot_get = module.make_signature();
+        slot_get.params.push(AbiParam::new(ptr)); // ctx
+        slot_get.params.push(AbiParam::new(ptr)); // object
+        slot_get.params.push(AbiParam::new(ptr)); // field name bytes
+        slot_get.params.push(AbiParam::new(ptr)); // field name length
+        slot_get.params.push(AbiParam::new(types::I64)); // slot hint
+        slot_get.params.push(AbiParam::new(ptr)); // out
+        slot_get.returns.push(AbiParam::new(types::I32));
+
         let mut array_new = module.make_signature();
         array_new.returns.push(AbiParam::new(ptr));
 
@@ -904,6 +916,7 @@ impl Signatures {
             raise_new,
             instanceof,
             class_method,
+            slot_get,
             array_new,
             array_get,
             array_set,

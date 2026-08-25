@@ -8,6 +8,20 @@
 
 use super::*;
 
+/// What `mwl_types::expr_table::ExprInfo::ShapeProperty` resolved for one
+/// `$shape->field` read, carried as one argument because the three parts are
+/// only ever used together — see [`Lowering::lower_shape_property_access`].
+struct ShapeField {
+    /// The field's own name, `$`-sigil not included: what ADR 0036 § 4's
+    /// fetch is keyed on.
+    name: String,
+    /// Its position in the *receiver's* sorted shape — the runtime's hint,
+    /// and not the answer through a widened view.
+    slot: u32,
+    /// Its declared type, still in `mwl_types`' interner.
+    ty: TypeId,
+}
+
 impl<'a> Lowering<'a> {
     /// The one entry point for lowering an expression, in every position.
     ///
@@ -2844,9 +2858,13 @@ impl<'a> Lowering<'a> {
         // the table, so this reads it and is done. Everything below — the
         // hook question, the declaring class, the label — is a class
         // receiver's problem and none of it applies.
-        if let Some(ExprInfo::ShapeProperty { slot, ty }) = self.exprs.lookup(expr.span) {
-            let (slot, ty) = (*slot, *ty);
-            return self.lower_shape_property_access(object, slot, ty, nullsafe, env, cur);
+        if let Some(ExprInfo::ShapeProperty { name, slot, ty }) = self.exprs.lookup(expr.span) {
+            let field = ShapeField {
+                name: name.clone(),
+                slot: *slot,
+                ty: *ty,
+            };
+            return self.lower_shape_property_access(object, &field, nullsafe, env, cur);
         }
         let (class, name, ty, get) = match self.exprs.lookup(expr.span) {
             Some(ExprInfo::Property { class, name, ty }) => (class, name, *ty, None),
@@ -3013,11 +3031,19 @@ impl<'a> Lowering<'a> {
         (obj, Ty::Object)
     }
 
-    /// `$issue->path` — the shape half of [`Self::lower_property_access`],
-    /// which is a slot read at a compile-time-known index and nothing else
+    /// `$issue->path` — the shape half of [`Self::lower_property_access`]
     /// (ADR 0036 § 4). A shape value is anonymous and methodless, so there is
-    /// no declaring class, no hook question and no label: `mwl_types` already
-    /// resolved the field to its position in the shape's sorted field list.
+    /// no declaring class, no hook question and no label; what `mwl_types`
+    /// resolved is the field's *name* plus its position in the receiver's own
+    /// sorted field list, and `InstKind::SlotGet` keys on the first and takes
+    /// the second as a hint — see that variant's docs for why a widened view
+    /// makes the position unusable on its own.
+    ///
+    /// Emitted through [`Self::emit_fallible`], because § 4 makes a name the
+    /// concrete class does not carry a catchable throw. Nothing the checker
+    /// records a `ShapeProperty` for can reach that edge — a field the
+    /// receiver's shape lists is proven present — so the landing block is the
+    /// price of the erased half of § 4 being expressible at all.
     ///
     /// The refcounting is the class receiver's, minus the hook case.
     /// `InstKind::SlotGet` borrows, so a base that is itself a fresh producer
@@ -3026,26 +3052,27 @@ impl<'a> Lowering<'a> {
     fn lower_shape_property_access(
         &mut self,
         object: &Expr,
-        slot: u32,
-        field: TypeId,
+        field: &ShapeField,
         nullsafe: bool,
         env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let field_ty = lower_checked_ty(field, self.checked_types);
+        let field_ty = lower_checked_ty(field.ty, self.checked_types);
         let mark = self.temporaries_mark();
         let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
         let base_is_temporary = receiver_ty.is_refcounted() && !self.aliasing_read(object);
         if base_is_temporary {
             self.own_temporary(object_v);
         }
-        let (v, ty) = self.emit(
+        let (v, ty) = self.emit_fallible(
             *cur,
             field_ty,
             InstKind::SlotGet {
                 object: object_v,
-                slot,
+                field: field.name.clone(),
+                slot: field.slot,
             },
+            env,
         );
         if base_is_temporary {
             if ty.is_refcounted() {

@@ -260,7 +260,13 @@ pub enum ExprInfo {
     /// record nothing: ADR 0036 § 4 erases both to `mixed` with nothing
     /// compile-time-known to read.
     ShapeProperty {
-        /// The field's position in the shape's sorted field list.
+        /// The field's own name, `$`-sigil not included. What the runtime
+        /// fetch is keyed on: ADR 0036 § 4 makes the read name-keyed, because
+        /// [`Self::ShapeProperty::slot`] is only the layout of the receiver's
+        /// *static* shape and a widened view's is not the value's own.
+        name: String,
+        /// The field's position in the shape's sorted field list — a hint the
+        /// runtime tries first, not the answer. See `mwl_ir::InstKind::SlotGet`.
         slot: u32,
         /// The field's own declared type.
         ty: TypeId,

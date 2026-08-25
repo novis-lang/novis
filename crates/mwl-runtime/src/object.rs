@@ -163,8 +163,19 @@ pub struct ClassDesc {
     /// `Ns\Class`). Used by diagnostics and by `Core\Reflect` later; never by
     /// dispatch, which is resolved at compile time.
     name: String,
-    /// Total field slots, including every ancestor's — see this module's docs.
-    field_count: usize,
+    /// Every field slot's own name, in slot order, including every ancestor's
+    /// — see this module's docs. Its length *is* the slot count, which is why
+    /// there is no separate `field_count`: the two could then disagree, and a
+    /// `Vec`'s length is the same load a `usize` field would have been.
+    ///
+    /// Compiled code never reaches these: a `$obj->prop` on a named class is
+    /// resolved to a fixed offset at compile time and loads inline. What
+    /// needs them is a read through an *erased* view —
+    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// name-keyed fetch, [`ClassDesc::field_slot`] — where the receiver's
+    /// static shape is not the concrete value's own layout. **Cost:** one
+    /// `String` per field per class, once per process, not per instance.
+    fields: Vec<String>,
     /// Every *other* class and interface an instance of this one also is,
     /// flattened at definition time so `instanceof` is one linear scan of a
     /// short slice rather than a chain walk plus a per-level interface search.
@@ -331,7 +342,29 @@ impl ClassDesc {
     /// ancestor's.
     #[must_use]
     pub fn field_count(&self) -> usize {
-        self.field_count
+        self.fields.len()
+    }
+
+    /// The slot `name` occupies on an instance of this class, or `None` if
+    /// this class has no such field —
+    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// name-keyed fetch, which is what a read through an erased or widened
+    /// view resolves through.
+    ///
+    /// `hint` is the slot the *static* type said the field was at, tried
+    /// first: where the receiver's shape is the value's own shape — a literal
+    /// read straight back — that is one length-and-bytes comparison and the
+    /// scan never runs. Where it is a widened view it is simply wrong, and the
+    /// scan below is the answer. A linear scan and not a sorted index because
+    /// a class's slot count is small and the hint carries the common case;
+    /// [`ClassDesc::method`]'s binary search exists because a dispatch has no
+    /// equivalent hint.
+    #[must_use]
+    pub fn field_slot(&self, name: &str, hint: usize) -> Option<usize> {
+        if self.fields.get(hint).is_some_and(|field| field == name) {
+            return Some(hint);
+        }
+        self.fields.iter().position(|field| field == name)
     }
 
     /// Whether an instance of this class is also an instance of `other` —
@@ -395,7 +428,7 @@ impl fmt::Debug for ClassDesc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClassDesc")
             .field("name", &self.name)
-            .field("field_count", &self.field_count)
+            .field("field_count", &self.fields.len())
             .field("conforms", &self.conforms.len())
             .field("methods", &self.methods.len())
             .finish()
@@ -440,11 +473,17 @@ impl ClassTable {
 
     /// Defines a class or interface.
     ///
-    /// `field_count` is the *total* slot count including every ancestor's (see
-    /// this module's docs); an interface's is zero, since nothing instantiates
-    /// one. `parents` names the direct superclass and every directly
-    /// implemented interface — each must already be defined in this same
-    /// table, which the checker's own hierarchy pass already orders.
+    /// `fields` names every slot in slot order, *including* every ancestor's
+    /// (see this module's docs), so its length is the total slot count; an
+    /// interface's is empty, since nothing instantiates one. `parents` names
+    /// the direct superclass and every directly implemented interface — each
+    /// must already be defined in this same table, which the checker's own
+    /// hierarchy pass already orders.
+    ///
+    /// The names are taken here rather than filled in afterwards the way
+    /// [`ClassTable::set_codec`] and [`ClassTable::set_methods`] are: those
+    /// two carry facts from a different table, or an address that does not
+    /// exist yet, whereas a slot's name is the same fact as its existence.
     ///
     /// # Panics
     ///
@@ -452,7 +491,7 @@ impl ClassTable {
     pub fn define(
         &mut self,
         name: impl Into<String>,
-        field_count: usize,
+        fields: &[impl AsRef<str>],
         parents: &[ClassId],
     ) -> ClassId {
         let mut conforms: Vec<*const ClassDesc> = Vec::new();
@@ -474,7 +513,7 @@ impl ClassTable {
         let id = ClassId(self.classes.len());
         self.classes.push(Box::new(ClassDesc {
             name: name.into(),
-            field_count,
+            fields: fields.iter().map(|f| f.as_ref().to_owned()).collect(),
             conforms,
             methods: Vec::new(),
             codec: Vec::new(),
@@ -502,7 +541,7 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         assert!(
-            defaults.iter().all(|(slot, _)| *slot < desc.field_count),
+            defaults.iter().all(|(slot, _)| *slot < desc.fields.len()),
             "a property default names a slot `{}` does not have",
             desc.name
         );
@@ -718,7 +757,7 @@ impl MwlObj {
     )]
     unsafe fn alloc(class: *const ClassDesc) -> Self {
         #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
-        let field_count = unsafe { (*class).field_count };
+        let field_count = unsafe { (*class).fields.len() };
         let layout = obj_layout(field_count);
         #[expect(
             unsafe_code,
@@ -765,7 +804,7 @@ impl MwlObj {
                       safety contract"
         )]
         unsafe {
-            (*self.class()).field_count
+            (*self.class()).fields.len()
         }
     }
 
@@ -1112,7 +1151,7 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
                   allocated with, before the header is freed"
     )]
     unsafe {
-        let field_count = (*MwlObj::class_of(ptr)).field_count;
+        let field_count = (*MwlObj::class_of(ptr)).fields.len();
         for index in 0..field_count {
             if let Some(dying) = crate::release::step_field(*field_ptr(ptr, index)) {
                 work.push(dying);
@@ -1494,6 +1533,91 @@ pub unsafe extern "C" fn mwl_object_field_get(ptr: *mut ObjHeader, index: usize)
     }
 }
 
+/// Reads the field *named* `name` off the object at `ptr`, writing what the
+/// slot holds to `out` — [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)
+/// § 4's name-keyed fetch, and `mwl_ir::InstKind::SlotGet`'s whole emission.
+///
+/// The name arrives as static bytes `mwl-codegen` put in the unit's data
+/// section rather than as an [`crate::MwlStr`]: a read through a shape must not
+/// cost an allocation, and the name is a compile-time constant on every path
+/// that reaches here.
+///
+/// **Borrows.** `out` receives the slot's value without a retain, exactly as
+/// an inline `FieldGet` load does, so a consumer that outlives the receiver
+/// owes it the retain — see `mwl_ir::InstKind::SlotGet`.
+///
+/// `hint` is the slot the static type said the field was at; see
+/// [`ClassDesc::field_slot`] for what it buys and when it is wrong.
+///
+/// # Errors
+///
+/// A [`Fault::Thrown`] naming the field and the concrete class when that class
+/// has no such field — ADR 0036 § 4's "checked, catchable throw; never a
+/// silent value, never PHP's warning-plus-`null`". Reached only through a
+/// widened or erased view, since a field the receiver's own shape lists is
+/// proven present.
+///
+/// # Safety
+///
+/// `ctx` and `out` must satisfy [`crate::run_helper`]'s contract, `ptr` must
+/// refer to a live MWL object allocation, and `name`/`len` must describe
+/// initialized bytes that live for the call.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a raw object pointer and a static byte \
+              range, neither of which the signature can bound"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_object_slot_get(
+    ctx: *mut Ctx,
+    ptr: *mut ObjHeader,
+    name: *const u8,
+    len: usize,
+    hint: usize,
+    out: *mut Value,
+) -> i32 {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the byte range is initialized and outlives \
+                  this call"
+    )]
+    let name = unsafe { std::slice::from_raw_parts(name, len) };
+    let body = move |_ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
+        let name = std::str::from_utf8(name)
+            .map_err(|_| Fault::fatal("internal error: a field name that is not UTF-8"))?;
+        if ptr.is_null() {
+            return Err(Fault::fatal(format!(
+                "internal error: `->{name}` reached a null receiver"
+            )));
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees the allocation is live, so its descriptor \
+                      is too"
+        )]
+        let desc = unsafe { &*MwlObj::class_of(ptr) };
+        let Some(slot) = desc.field_slot(name, hint) else {
+            return Err(Fault::thrown(format!(
+                "`{}` has no field `{name}`",
+                desc.name()
+            )));
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the slot came out of this object's own descriptor, so it is \
+                      inside the allocation and was initialized by `new`"
+        )]
+        Ok(unsafe { *field_ptr(ptr, slot) })
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller's contract is exactly `run_helper`'s"
+    )]
+    unsafe {
+        crate::run_helper(ctx, std::ptr::null(), 0, out, body)
+    }
+}
+
 /// Overwrites field slot `index` on the object at `ptr`, releasing whatever it
 /// held and taking over `value`'s reference —
 /// `mwl_ir::InstKind::FieldSet`'s out-of-line form.
@@ -1534,9 +1658,9 @@ mod tests {
     /// `Dog` implements — the shape `examples/objects.mwl` needs.
     fn hierarchy() -> (ClassTable, ClassId, ClassId, ClassId) {
         let mut table = ClassTable::new();
-        let greets = table.define("Greets", 0, &[]);
-        let animal = table.define("Animal", 1, &[]);
-        let dog = table.define("Dog", 2, &[animal, greets]);
+        let greets = table.define("Greets", &[] as &[&str], &[]);
+        let animal = table.define("Animal", &["name"], &[]);
+        let dog = table.define("Dog", &["name", "breed"], &[animal, greets]);
         (table, animal, dog, greets)
     }
 
@@ -1606,7 +1730,7 @@ mod tests {
     #[test]
     fn a_class_with_no_fields_is_still_a_real_allocation() {
         let mut table = ClassTable::new();
-        let marker = table.define("Marker", 0, &[]);
+        let marker = table.define("Marker", &[] as &[&str], &[]);
         #[expect(unsafe_code, reason = "the table outlives the object")]
         let object = unsafe { MwlObj::new(table.desc(marker)) };
         assert_eq!(object.field_count(), 0);
@@ -1644,10 +1768,10 @@ mod tests {
     #[test]
     fn a_grandchild_conforms_to_every_ancestor_and_their_interfaces() {
         let mut table = ClassTable::new();
-        let named = table.define("Named", 0, &[]);
-        let base = table.define("Base", 0, &[named]);
-        let mid = table.define("Mid", 0, &[base]);
-        let leaf = table.define("Leaf", 0, &[mid]);
+        let named = table.define("Named", &[] as &[&str], &[]);
+        let base = table.define("Base", &[] as &[&str], &[named]);
+        let mid = table.define("Mid", &[] as &[&str], &[base]);
+        let leaf = table.define("Leaf", &[] as &[&str], &[mid]);
         #[expect(unsafe_code, reason = "the table outlives the object")]
         unsafe {
             let object = MwlObj::new(table.desc(leaf));
@@ -1838,7 +1962,7 @@ mod tests {
         // 200_000 links: deep enough that a recursive release would overflow
         // the stack on every platform CI runs on. Passing is the whole claim.
         let mut table = ClassTable::new();
-        let link = table.define("Link", 1, &[]);
+        let link = table.define("Link", &["next"], &[]);
         #[expect(unsafe_code, reason = "the table outlives every object below")]
         unsafe {
             let mut head = MwlObj::new(table.desc(link));
@@ -1861,11 +1985,30 @@ mod tests {
         assert!(rendered.contains("refcount: 1"), "{rendered}");
     }
 
+    /// ADR 0036 § 4's name-keyed fetch: the hint is tried first and is right
+    /// where the receiver's shape is the value's own, wrong through a widened
+    /// view — and a name the class does not carry answers `None`, which is
+    /// what `mwl_object_slot_get` turns into a catchable throw.
+    #[test]
+    fn a_field_is_found_by_name_whether_or_not_the_hint_is_right() {
+        let mut table = ClassTable::new();
+        let id = table.define("Shape", &["x", "y"], &[]);
+        #[expect(unsafe_code, reason = "the table outlives this borrow")]
+        let desc = unsafe { &*table.desc(id) };
+
+        assert_eq!(desc.field_slot("y", 1), Some(1));
+        // A `{y: int}` view puts `y` at slot 0; the scan corrects it.
+        assert_eq!(desc.field_slot("y", 0), Some(1));
+        // A hint past the end is not an index error.
+        assert_eq!(desc.field_slot("x", 9), Some(0));
+        assert_eq!(desc.field_slot("z", 0), None);
+    }
+
     #[test]
     fn a_table_reports_what_it_holds() {
         let mut table = ClassTable::new();
         assert!(table.is_empty());
-        table.define("One", 0, &[]);
+        table.define("One", &[] as &[&str], &[]);
         assert_eq!(table.len(), 1);
         assert!(!table.is_empty());
     }

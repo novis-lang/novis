@@ -241,6 +241,12 @@ is why" — is this file.
   line and it is byte-identical to PHP's `json_encode` over `parse_str`'s array, which makes it the
   strongest assertion available as well as the only one. `$q["a"] as string` on a top-level scalar does
   lower.
+- **A named class does not satisfy a shape type**, whatever its properties are called: `View::y(new
+  Point(3, 4))` against a `{y: int}` parameter is `E0401: expected {y: int}, found Point`. ADR 0036 § 3's
+  width subtyping is shape-to-shape only (`mwl_types::expr::assign`), so the *one* way a shape receiver's
+  static layout differs from the value's own is a narrower shape — which is the only widening a case
+  testing § 4's name-keyed read can write. Several doc comments claimed the class direction worked; they
+  were wrong and are fixed, so do not design a case around it.
 - **A `?array<T>` cannot be indexed even after a `!= null` guard** — `mwl-ir` panics outright at
   `crates/mwl-ir/src/lower/expr.rs:2952`, *"has no resolved element type recorded … its base erased to
   `mixed`"*. The narrowing itself works for a `?string`, so the hole is specifically that a narrowed

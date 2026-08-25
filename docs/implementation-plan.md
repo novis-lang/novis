@@ -140,7 +140,7 @@
 > descriptor's own method table (`mwl_stdlib::cursor`, `mwl_stdlib::instance`'s dispatch roster), and the
 > spec's `Heap` row is amended to declare `Iterable` because a heap whose contents can only be reached by
 > emptying it is the PHP behaviour § 9 replaces; § 10 is **whole**, an `issues` entry being readable
-> now that a shape field resolves to a slot index the IR reads by number (`ExprInfo::ShapeProperty`,
+> now that a shape field resolves to a name the IR fetches by name (`ExprInfo::ShapeProperty`,
 > `InstKind::SlotGet`) — the constructor takes `{previous: $e}` and `$e->location` is pinned as the
 > throw site, both stated by `mwl_types::error_lib`'s own module doc; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes
 > `Out::capture` alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
@@ -152,7 +152,7 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Core\Hash\Stream` is the first *mutable* `Core` instance and the honest return type of `Uri`'s
 > two decoders is still unwritten rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 429 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 430 of the 600 that gate requires, differential is
 > 89 of 150, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against

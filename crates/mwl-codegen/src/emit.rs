@@ -511,9 +511,12 @@ impl Emitter<'_, '_> {
                 let value = self.emit_field_get(inst, *object, class, field)?;
                 self.define(inst, value)?;
             }
-            InstKind::SlotGet { object, slot } => {
-                let value = self.emit_slot_get(inst, *object, *slot)?;
-                self.define(inst, value)?;
+            InstKind::SlotGet {
+                object,
+                field,
+                slot,
+            } => {
+                return self.emit_slot_get(cur, inst, *object, field, *slot);
             }
             InstKind::FieldSet {
                 object,
@@ -1450,29 +1453,56 @@ impl Emitter<'_, '_> {
         self.load_value(base, offset, ty)
     }
 
-    /// `$issue->path`: the same single load, at a slot index the IR already
-    /// carries rather than one resolved through this unit's class table.
+    /// `$issue->path`: one call to `mwl_runtime::mwl_object_slot_get`, which
+    /// finds the slot by **name** on the receiver's own descriptor.
     ///
-    /// An ADR 0036 § 4 shape value has no class label to look a layout up
-    /// under — `mwl_ir::ir::InstKind::SlotGet`'s own doc comment owns why the
-    /// index is settled at lowering instead. Everything after that is
-    /// [`Self::emit_field_get`]: the same [`mwl_runtime::field_offset`], the
-    /// same borrow, the same "the consumer inserts the retain if it keeps the
-    /// value".
+    /// Not the inline load [`Self::emit_field_get`] emits, and deliberately:
+    /// an ADR 0036 § 4 shape value has no class label to resolve a layout
+    /// under, and the receiver's static shape may be a *widened* view of a
+    /// value that lays its slots out differently — see
+    /// `mwl_ir::ir::InstKind::SlotGet`, which owns the whole decision. The
+    /// field name goes in this unit's data section rather than through
+    /// `mwl_str_new`, so the read costs a call and no allocation, and the IR's
+    /// slot index rides along as the hint that keeps the runtime's lookup one
+    /// comparison on the common case.
+    ///
+    /// The borrow is [`Self::emit_field_get`]'s unchanged: the runtime copies
+    /// the slot's value into `out` without retaining, so the consumer inserts
+    /// the retain if it keeps it.
     fn emit_slot_get(
         &mut self,
+        cur: Block,
         inst: &Inst,
         object: ValueId,
+        field: &str,
         slot: u32,
-    ) -> Result<Value, CodegenError> {
-        let slot = usize::try_from(slot).map_err(|_| internal("a slot index past `usize`"))?;
-        let offset = i32::try_from(mwl_runtime::field_offset(slot))
-            .map_err(|_| internal("an object field sitting past a 2 GiB offset"))?;
+    ) -> Result<Block, CodegenError> {
+        let (name, len) = self.emit_bytes(field.as_bytes())?;
+        let hint = self.b.ins().iconst(types::I64, i64::from(slot));
         let (base, _) = self.value(object)?;
+
+        let out_slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            VALUE_SIZE.cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
+
+        let callee = self.runtime_ref("mwl_object_slot_get", RuntimeSig::SlotGet)?;
+        let call = self
+            .b
+            .ins()
+            .call(callee, &[self.ctx_p, base, name, len, hint, out_p]);
+        let status = self.b.inst_results(call)[0];
+        let cont = self.emit_status_check(status, inst.on_error)?;
+
         let ty = inst
             .ty
             .ok_or_else(|| internal("a shape-field read with no representation"))?;
-        self.load_value(base, offset, ty)
+        let value = self.load_value(out_p, 0, ty)?;
+        self.define(inst, value)?;
+        let _ = cur;
+        Ok(cont)
     }
 
     /// `$obj->prop = expr;`: one store into the receiver's field slot.
@@ -2097,6 +2127,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::RaiseNew => &self.sigs.raise_new,
             RuntimeSig::InstanceOf => &self.sigs.instanceof,
             RuntimeSig::ClassMethod => &self.sigs.class_method,
+            RuntimeSig::SlotGet => &self.sigs.slot_get,
             RuntimeSig::ArrayNew => &self.sigs.array_new,
             RuntimeSig::ArrayGet => &self.sigs.array_get,
             RuntimeSig::ArraySet => &self.sigs.array_set,
@@ -2149,6 +2180,7 @@ enum RuntimeSig {
     RaiseNew,
     InstanceOf,
     ClassMethod,
+    SlotGet,
     ArrayNew,
     ArrayGet,
     ArraySet,

@@ -160,7 +160,7 @@ fn descriptors() -> &'static ClassTable {
             }
             // No parents: a `Core` class is not part of any hierarchy, so
             // `instanceof` on one answers only for itself.
-            let id = table.define(class.name, class.slots.len(), &[]);
+            let id = table.define(class.name, class.slots, &[]);
             table.set_methods(id, dispatch_table(class.name));
         }
         let table: &'static ClassTable = Box::leak(Box::new(table));
@@ -248,7 +248,7 @@ fn shape_descriptor(name: &str) -> *const ClassDesc {
             // No parents, and no methods: ADR 0036 § 2 makes a shape value an
             // anonymous *methodless* instance, so there is nothing to inherit
             // and nothing to dispatch.
-            table.define(*shape, fields.len(), &[]);
+            table.define(*shape, fields, &[]);
         }
         let table: &'static ClassTable = Box::leak(Box::new(table));
         held.set(Some(table));

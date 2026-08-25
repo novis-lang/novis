@@ -2942,12 +2942,15 @@ class T {
     }
 
     /// `$i->path` on an ADR 0036 § 4 shape receiver — no class, no label and
-    /// no layout table: one `slot.get` at the field's position in the shape's
-    /// sorted field list, which puts `path` after `message`. The receiver is
-    /// a parameter, so it is an aliasing read and the value read out of its
-    /// slot is retained by whoever keeps it, exactly as for a class field.
+    /// no layout table: one `slot.get` keyed on the field's *name*, carrying
+    /// its position in the shape's sorted field list (which puts `path` after
+    /// `message`) as the runtime's hint. Fallible, so it has a landing block
+    /// of its own: § 4 makes a name the concrete receiver does not carry a
+    /// catchable throw. The receiver is a parameter, so it is an aliasing
+    /// read and the value read out of its slot is retained by whoever keeps
+    /// it, exactly as for a class field.
     #[test]
-    fn a_shape_property_access_reads_its_slot_by_index() {
+    fn a_shape_property_access_reads_its_slot_by_name() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m({path: string, message: string} $i): string {\n    return $i->path;\n  }\n}\n",
         );
