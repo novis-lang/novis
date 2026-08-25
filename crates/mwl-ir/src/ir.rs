@@ -255,14 +255,15 @@ pub enum InstKind {
     /// from the first backend commit" decision names
     /// ([`docs/adr/README.md`](../../../docs/adr/README.md)'s "Decisions
     /// taken at project start" section) and that ADR 0018 § *Negative*
-    /// contrasts its own, denser probe grid against. This slice reserves the
-    /// shape only — no codegen exists yet to lower it to an actual CPU-limit/
-    /// cancellation/cycle-collector check, and no guard test needs it
-    /// functional before M3 builds the backend on top of this IR. Reserved
-    /// now rather than later for the same "cheap now, expensive to
-    /// retrofit" reason `crate::ids` already gives for `StmtId`/`EdgeId`:
-    /// inserting it after the fact would mean re-walking every already-
-    /// lowered function. Defines no value.
+    /// contrasts its own, denser probe grid against. `mwl-codegen` lowers it
+    /// to one load of the context's safepoint word and a predicted-not-taken
+    /// branch, and the **function-entry** one — the first in the entry
+    /// block — also carries ADR 0020 § 1's call-stack compare, which is why
+    /// that ADR calls the site "not a new pass and not a new emit site".
+    /// Reserving the shape ahead of any of that was the point: inserting it
+    /// after the fact would have meant re-walking every already-lowered
+    /// function, the same "cheap now, expensive to retrofit" reason
+    /// `crate::ids` already gives for `StmtId`/`EdgeId`. Defines no value.
     Safepoint,
     /// A `bool` constant.
     ConstBool(bool),

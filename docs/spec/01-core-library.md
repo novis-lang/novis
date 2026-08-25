@@ -719,7 +719,8 @@ Throwable                     // the root; user classes extend it directly
   ├─ RuntimeError             // the world said no
   │    ├─ IOError             // a file, socket or process failed
   │    ├─ ParseError          // input did not match a format this code declared
-  │    └─ TimeoutError        // a deadline passed
+  │    ├─ TimeoutError        // a deadline passed
+  │    └─ RecursionError      // the call stack passed its soft depth (ADR 0020 § 1)
   └─ ArithmeticError          // overflow (ADR 0007), division by zero
 ```
 
@@ -734,6 +735,9 @@ list to report. There is no `getCode()`: an `int` code with no declared meaning 
 subclass with a typed property does properly. `Throwable`'s message is a `secret` sink
 ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)). Resource-limit reports are **not**
 `Throwable` at all and never reach a `catch` ([ADR 0020](../adr/0020-error-escalation-ladder.md)).
+`RecursionError` is not a counter-example to that: ADR 0020 § 1 puts a **soft** depth above the call-stack
+limit precisely so a recursive-descent parser over untrusted-depth input can degrade, and the limit itself —
+the `FATAL` at the true ceiling — is still not `Throwable` and still reaches no `catch`.
 Domain-specific errors are user-defined classes; `Core` does not attempt to enumerate them. The one
 exception is `Core\Db\DbError` and `Core\Db\RolledBack` (§ 18), which extend `RuntimeError`: a driver
 failure and a deliberate rollback have no user-defined home.

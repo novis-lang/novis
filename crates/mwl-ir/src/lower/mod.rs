@@ -4716,6 +4716,7 @@ class T {
                 "Iterator",
                 "LogicError",
                 "ParseError",
+                "RecursionError",
                 "RuntimeError",
                 "Stringable",
                 "Throwable",

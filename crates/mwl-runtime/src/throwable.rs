@@ -105,6 +105,11 @@ pub enum ThrownClass {
     Parse,
     /// `TimeoutError` — a deadline passed.
     Timeout,
+    /// `RecursionError` — the call stack passed
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// *soft* depth. The hard limit beneath it is a `FATAL` and is not in
+    /// this roster at all, because no `catch` ever sees one.
+    Recursion,
     /// `ArithmeticError` — overflow (ADR 0007), division by zero.
     Arithmetic,
 }
@@ -119,6 +124,7 @@ impl ThrownClass {
             Self::Io => "IOError",
             Self::Parse => "ParseError",
             Self::Timeout => "TimeoutError",
+            Self::Recursion => "RecursionError",
             Self::Arithmetic => "ArithmeticError",
         }
     }
@@ -130,6 +136,7 @@ impl ThrownClass {
         Self::Io,
         Self::Parse,
         Self::Timeout,
+        Self::Recursion,
         Self::Arithmetic,
     ];
 }

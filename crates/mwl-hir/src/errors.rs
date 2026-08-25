@@ -35,6 +35,7 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     ("IOError", Some("RuntimeError")),
     ("ParseError", Some("RuntimeError")),
     ("TimeoutError", Some("RuntimeError")),
+    ("RecursionError", Some("RuntimeError")),
     ("ArithmeticError", Some("Throwable")),
 ];
 

@@ -32,7 +32,8 @@ use mwl_ir::Ty;
 use mwl_ir::ids::{BlockId, ValueId};
 use mwl_ir::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
 use mwl_runtime::{
-    DEBUG_FLAGS_OFFSET, Decimal as MwlDecimal, OK, SAFEPOINT_OFFSET, THROWN, Tag, Value as MwlValue,
+    DEBUG_FLAGS_OFFSET, Decimal as MwlDecimal, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN,
+    Tag, Value as MwlValue,
 };
 use rustc_hash::FxHashMap;
 
@@ -165,6 +166,7 @@ pub(crate) fn emit_function(
         out_p,
         landing_status: None,
         order,
+        stack_check_pending: !is_leaf(f),
     };
     emitter.emit_blocks()?;
     emitter.b.seal_all_blocks();
@@ -189,6 +191,38 @@ fn leading_phis(block: &BasicBlock) -> Result<usize, CodegenError> {
         ));
     }
     Ok(count)
+}
+
+/// Whether `f` can be entered without growing the machine stack by more than
+/// [`mwl_runtime::STACK_RESERVE`] — in which case
+/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 elides
+/// its call-stack check, because whoever called it passed the compare with
+/// that much stack still underneath.
+///
+/// Read as "does it transfer control anywhere that could recurse": a `Call`,
+/// a virtual or dynamic one, a constructor, a runtime helper or a `Core`
+/// member. The last two cannot recurse into MWL by themselves, but a `Core`
+/// member taking a closure does, and telling those apart would mean a table
+/// this pass has no reason to own — so the predicate is deliberately the
+/// conservative one, and a function is a leaf only if it calls *nothing*.
+///
+/// Cranelift decides the real frame size long after this runs, so a frame
+/// bound is not available to check the reserve against directly. A function
+/// that calls nothing has no `alloca`, no by-value aggregate and no spill set
+/// that MWL's own lowering can make large — everything of unbounded size is on
+/// the heap — which is what makes the syntactic test sufficient here.
+fn is_leaf(f: &Function) -> bool {
+    !f.blocks.iter().flat_map(|b| &b.insts).any(|inst| {
+        matches!(
+            inst.kind,
+            InstKind::Call { .. }
+                | InstKind::CallVirtual { .. }
+                | InstKind::New { .. }
+                | InstKind::NewDynamic { .. }
+                | InstKind::HelperCall { .. }
+                | InstKind::CoreCall { .. }
+        )
+    })
 }
 
 /// Whether this block is one of `mwl_ir`'s landing blocks — the ones
@@ -295,6 +329,11 @@ struct Emitter<'a, 'f> {
     /// [`reachable_in_reverse_postorder`], computed once before any Cranelift
     /// block was created and reused here so the two cannot disagree.
     order: Vec<usize>,
+    /// Whether this function still owes the call-stack compare
+    /// [`Self::emit_stack_check`] emits — see [`is_leaf`], and
+    /// [`Self::emit_safepoint`] for why taking it at the first poll lands it
+    /// at function entry.
+    stack_check_pending: bool,
 }
 
 impl Emitter<'_, '_> {
@@ -752,10 +791,60 @@ impl Emitter<'_, '_> {
         Ok(cur)
     }
 
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// call-stack limit: one load of [`mwl_runtime::Ctx`]'s third word, one
+    /// compare against this frame's stack pointer, one predicted-not-taken
+    /// branch, and an out-of-line call to
+    /// [`mwl_runtime::mwl_stack_check`] whose status is checked like any other.
+    ///
+    /// The stack grows down, so exhaustion is an *unsigned less-than*: the
+    /// addresses are real ones, and a request whose bounds were armed from a
+    /// low address must not have the compare wrap.
+    ///
+    /// Only the **soft** address is compared here. Which of the ADR's two
+    /// tiers a crossing is gets decided in the slow path, which is what makes
+    /// two tiers cost exactly what one costs at the site.
+    fn emit_stack_check(&mut self, _cur: Block) -> Result<Block, CodegenError> {
+        let offset = i32::try_from(STACK_LIMIT_OFFSET)
+            .map_err(|_| internal("the stack-limit word sits past a 2 GiB offset"))?;
+        let limit = self
+            .b
+            .ins()
+            .load(types::I64, ctx_word(), self.ctx_p, offset);
+        let sp = self.b.ins().get_stack_pointer(types::I64);
+        let past = self.b.ins().icmp(IntCC::UnsignedLessThan, sp, limit);
+
+        let slow = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.ins().brif(past, slow, &[], cont, &[]);
+
+        self.b.switch_to_block(slow);
+        let callee = self.runtime_ref("mwl_stack_check", RuntimeSig::StackCheck)?;
+        let call = self.b.ins().call(callee, &[self.ctx_p, sp]);
+        let status = self.b.inst_results(call)[0];
+        let stop = self.b.create_block();
+        self.b.ins().brif(status, stop, &[], cont, &[]);
+
+        self.b.switch_to_block(stop);
+        self.b.ins().return_(&[status]);
+
+        self.b.switch_to_block(cont);
+        Ok(cont)
+    }
+
     /// The safepoint poll: one load of [`mwl_runtime::Ctx`]'s first word, one
     /// predicted-not-taken branch, and an out-of-line call to
     /// [`mwl_runtime::mwl_safepoint`] whose status is checked like any other.
-    fn emit_safepoint(&mut self, _cur: Block) -> Result<Block, CodegenError> {
+    ///
+    /// This is also where the call-stack check rides, at the **first**
+    /// safepoint of a non-leaf function — which is the function-entry one,
+    /// since `mwl_ir::lower` emits that before anything else and the entry
+    /// block is first in [`reachable_in_reverse_postorder`]. A loop back
+    /// edge's poll gets no check: going round a loop does not grow the stack.
+    fn emit_safepoint(&mut self, cur: Block) -> Result<Block, CodegenError> {
+        if std::mem::take(&mut self.stack_check_pending) {
+            self.emit_stack_check(cur)?;
+        }
         let offset = i32::try_from(SAFEPOINT_OFFSET)
             .map_err(|_| internal("the safepoint word sits past a 2 GiB offset"))?;
         let flags = self
@@ -2176,6 +2265,7 @@ impl Emitter<'_, '_> {
         let signature = match sig {
             RuntimeSig::Helper => &self.sigs.helper,
             RuntimeSig::Safepoint => &self.sigs.safepoint,
+            RuntimeSig::StackCheck => &self.sigs.stack_check,
             RuntimeSig::Probe => &self.sigs.probe,
             RuntimeSig::ProbeCall => &self.sigs.probe_call,
             RuntimeSig::ProbeCallExit => &self.sigs.probe_call_exit,
@@ -2230,6 +2320,7 @@ enum Callee {
 enum RuntimeSig {
     Helper,
     Safepoint,
+    StackCheck,
     Probe,
     ProbeCall,
     ProbeCallExit,

@@ -8,7 +8,7 @@
 //!
 //! # Layout is part of the ABI
 //!
-//! The two hot words come first, in a `#[repr(C)]` struct, because compiled
+//! The three hot words come first, in a `#[repr(C)]` struct, because compiled
 //! code loads them inline rather than calling anything:
 //!
 //! * [`SAFEPOINT_OFFSET`] — the safepoint poll `mwl-codegen` emits at every
@@ -21,9 +21,46 @@
 //!   any request ever sets a bit — that is what makes coverage and tracing
 //!   start/stoppable *mid-request*, which the rejected instrumented-tier
 //!   design could not do.
+//! * [`STACK_LIMIT_OFFSET`] — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+//!   § 1's call-stack ceiling, compared against the stack pointer at the same
+//!   emit site the safepoint poll uses. It sits in this line rather than
+//!   anywhere colder precisely so the compare costs a load that is already
+//!   paid for.
 //!
-//! Both are exposed as `offset_of!` constants rather than restated numbers, so
-//! adding a field can never silently desynchronise codegen from this struct.
+//! All three are exposed as `offset_of!` constants rather than restated
+//! numbers, so adding a field can never silently desynchronise codegen from
+//! this struct.
+//!
+//! # The call-stack limit
+//!
+//! MWL compiles natively, so a user call is a real machine frame and
+//! exhausting the stack is a `SIGSEGV` rather than something
+//! [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s checked returns
+//! could carry. [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+//! § 1's answer is a bounds pair, armed per request and compared at every
+//! non-leaf function entry:
+//!
+//! * `stack_limit` is the **soft** address. Crossing it is a catchable
+//!   [`ThrownClass::Recursion`], so a recursive-descent parser over
+//!   untrusted-depth input degrades instead of killing the request.
+//! * `stack_floor` is the **hard** address, [`STACK_RESERVE`] further down.
+//!   Crossing it is a [`crate::FATAL`] no `catch` sees, like every other
+//!   resource limit. The reserve between the two is the room the throw has to
+//!   unwind in.
+//!
+//! Compiled code compares against the soft address only; [`mwl_stack_check`]
+//! decides which of the two it is. [`Ctx::arm_stack_limit`] is the one place
+//! the pair is computed, so they cannot be written inconsistently.
+//!
+//! **Known gap: the ceiling is asserted, not discovered.** [`Ctx::new`] arms
+//! from the stack pointer at construction and [`STACK_CEILING`], which is
+//! correct on a stack at least that deep and permissive — behaving exactly as
+//! the runtime did before this existed — on a shallower one, where the guard
+//! page is still reached first and `mwl-codegen`'s `enable_probestack` still
+//! turns that into a clean crash rather than a stack clash. Reading a thread's
+//! true bounds needs a platform call this crate has no dependency for; the
+//! request's stack becomes MWL's own to size at M6, and until then an embedder
+//! that knows its bounds calls [`Ctx::arm_stack_limit`] with them.
 //!
 //! # Output
 //!
@@ -103,6 +140,17 @@ pub struct Ctx {
     safepoint: SafepointFlags,
     /// Hot. Read inline by every ADR 0018 probe site; see the module docs.
     debug: DebugFlags,
+    /// Hot. Read inline by every non-leaf function entry; see the module docs'
+    /// call-stack-limit section. The **soft** address: below it, a
+    /// [`ThrownClass::Recursion`] throws.
+    stack_limit: usize,
+    /// The **hard** address beneath [`Self::stack_limit`], read only by
+    /// [`mwl_stack_check`]'s slow path: below it, the request is over.
+    ///
+    /// Cold as far as compiled code is concerned — it is never loaded inline —
+    /// but it shares the hot line anyway, because the slow path that reads it
+    /// has just read the word beside it.
+    stack_floor: usize,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -332,14 +380,47 @@ pub const SAFEPOINT_OFFSET: usize = std::mem::offset_of!(Ctx, safepoint);
 /// Byte offset of the debug-flags word within [`Ctx`] — see the module docs.
 pub const DEBUG_FLAGS_OFFSET: usize = std::mem::offset_of!(Ctx, debug);
 
+/// Byte offset of the soft call-stack limit within [`Ctx`] — see the module
+/// docs.
+pub const STACK_LIMIT_OFFSET: usize = std::mem::offset_of!(Ctx, stack_limit);
+
+/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+/// call-stack ceiling: **8 MiB of reserved address space per request**, of
+/// which only the touched pages are ever resident.
+///
+/// About 65,000 frames — the same order as what PHP permits, and the default
+/// Linux thread stack. Stated as
+/// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) requires: what
+/// the number buys is how deep a program may recurse and how much one runaway
+/// commits before it is stopped, and at `benches/abi-probe`'s measured 1.32 ns
+/// per call that is ≈86 µs either way.
+pub const STACK_CEILING: usize = 8 << 20;
+
+/// The slice between [`Ctx::arm_stack_limit`]'s soft address and its hard one.
+///
+/// It is what a [`ThrownClass::Recursion`] unwinds in, and it is also the
+/// slack that lets a **leaf** function skip the check entirely: its caller
+/// passed the compare with this much stack still under it, so a frame that
+/// allocates no further calls cannot cross the floor.
+pub const STACK_RESERVE: usize = 256 << 10;
+
 impl Ctx {
     /// A context writing to the given sink, with nothing pending and every
     /// flag clear.
     #[must_use]
     pub fn new(output: OutputSink) -> Self {
-        Self {
+        // The address of a local is a stack address in *this* frame, which is
+        // the closest thing to "where the request starts" that needs no
+        // platform call. It under-reports the true base by however deep the
+        // caller already is, which shrinks the ceiling rather than stretching
+        // it — the safe direction.
+        let anchor = 0_u8;
+        let base = std::ptr::from_ref(&anchor) as usize;
+        let mut ctx = Self {
             safepoint: SafepointFlags::empty(),
             debug: DebugFlags::empty(),
+            stack_limit: 0,
+            stack_floor: 0,
             pending: None,
             runtime_error_class: None,
             output,
@@ -347,7 +428,30 @@ impl Ctx {
             trace: Vec::new(),
             fault: None,
             helper_calls: 0,
-        }
+        };
+        ctx.arm_stack_limit(base, STACK_CEILING);
+        ctx
+    }
+
+    /// Arms [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// § 1's two stack addresses from a base address and a ceiling: the hard
+    /// floor `ceiling` bytes below `base`, and the soft limit
+    /// [`STACK_RESERVE`] above the floor.
+    ///
+    /// The one place the pair is computed, so no caller can write a floor
+    /// above its own limit. An embedder that knows the request's real stack
+    /// bounds — which [`Ctx::new`] cannot discover, see the module docs — calls
+    /// this with them.
+    pub fn arm_stack_limit(&mut self, base: usize, ceiling: usize) {
+        self.stack_floor = base.saturating_sub(ceiling);
+        self.stack_limit = self.stack_floor.saturating_add(STACK_RESERVE);
+    }
+
+    /// The armed `(soft, hard)` stack addresses — see
+    /// [`Ctx::arm_stack_limit`].
+    #[must_use]
+    pub fn stack_bounds(&self) -> (usize, usize) {
+        (self.stack_limit, self.stack_floor)
     }
 
     /// A context writing to the process's standard output.
@@ -698,6 +802,57 @@ pub unsafe extern "C" fn mwl_safepoint(ctx: *mut Ctx) -> i32 {
     crate::OK
 }
 
+/// The call-stack limit's slow path — reached only when the stack pointer
+/// compiled code compared was already below [`Ctx::stack_limit`].
+///
+/// Compiled code tests the **soft** address alone, so which of
+/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's two
+/// tiers this is gets decided here: a catchable [`ThrownClass::Recursion`]
+/// between the soft address and the floor, and a [`crate::FATAL`] no `catch`
+/// sees below it. That is what makes two tiers cost the same as one at the
+/// site.
+///
+/// `sp` is the callee's own stack pointer, passed rather than re-read: this
+/// frame's is a different and lower address, and the compare that got here was
+/// against the caller's.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned, and valid for the duration of the call.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer; the contract cannot be \
+              expressed in the signature"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_stack_check(ctx: *mut Ctx, sp: u64) -> i32 {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `ctx` is valid for this call; nothing \
+                  here can panic, so no `catch_unwind` is needed to keep the \
+                  unwind out of the JIT frame above"
+    )]
+    let ctx = unsafe { &mut *ctx };
+
+    // `I64` is the width `mwl-codegen` gives every pointer-shaped value, and
+    // this JIT targets 64-bit hosts only; an address that does not fit a
+    // `usize` is therefore not this machine's stack pointer, and the safe
+    // reading of a value that cannot be one is the one that stops the request.
+    let sp = usize::try_from(sp).unwrap_or(0);
+    if sp < ctx.stack_floor {
+        ctx.set_pending("the request exceeded its call-stack limit");
+        return crate::FATAL;
+    }
+    if sp < ctx.stack_limit {
+        ctx.set_pending_as(ThrownClass::Recursion, "the call stack is too deep");
+        return crate::THROWN;
+    }
+    // The compare at the site was against the caller's stack pointer, and an
+    // embedder may re-arm the bounds mid-request; neither is a reason to stop
+    // a frame that is in fact within them.
+    crate::OK
+}
+
 /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 /// § 1's statement-boundary probe — the slow path behind the debug-flags
 /// check, reached only when the word compiled code loaded was non-zero.
@@ -845,6 +1000,7 @@ mod tests {
     fn the_hot_words_come_first_and_are_a_word_apart() {
         assert_eq!(SAFEPOINT_OFFSET, 0);
         assert_eq!(DEBUG_FLAGS_OFFSET, 8);
+        assert_eq!(STACK_LIMIT_OFFSET, 16);
     }
 
     #[test]

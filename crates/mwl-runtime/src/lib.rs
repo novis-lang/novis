@@ -253,8 +253,8 @@ pub use array::{
 pub use closure::{CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, call_closure};
 pub use ctx::{
     Ctx, DEBUG_FLAGS_OFFSET, DebugFlags, ErrorClass, FaultSite, OutputSink, SAFEPOINT_OFFSET,
-    SafepointFlags, TraceEvent, mwl_probe_call_enter, mwl_probe_call_exit, mwl_probe_stmt,
-    mwl_safepoint,
+    STACK_CEILING, STACK_LIMIT_OFFSET, STACK_RESERVE, SafepointFlags, TraceEvent,
+    mwl_probe_call_enter, mwl_probe_call_exit, mwl_probe_stmt, mwl_safepoint, mwl_stack_check,
 };
 pub use decimal::Decimal;
 pub use dispatch::{call_method, method_address};

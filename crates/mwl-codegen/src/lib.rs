@@ -65,14 +65,21 @@
 //! at a call boundary and at the `out` slot — exactly as that type's own docs
 //! say. [`ty::clif_ty`] is the whole of the mapping.
 //!
-//! ## The two flag checks
+//! ## The three hot-word checks
 //!
-//! Both are a load of one word from [`mwl_runtime::Ctx`] plus a
-//! predicted-not-taken branch, and both are emitted unconditionally:
+//! Each is a load of one word from [`mwl_runtime::Ctx`] plus a
+//! predicted-not-taken branch, and each is emitted unconditionally:
 //!
 //! * the **safepoint poll** at every [`mwl_ir::ir::InstKind::Safepoint`] —
 //!   function entry and loop back edges, the project-start decision's two
 //!   fixed sites;
+//! * [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+//!   **call-stack compare**, riding the *first* of those polls so that it
+//!   lands at function entry and nowhere else — one load, one compare against
+//!   Cranelift's `get_stack_pointer`, branching to
+//!   [`mwl_runtime::mwl_stack_check`]. It is the one of the three that is
+//!   *elided*: `emit::is_leaf` answers which functions cannot grow the stack
+//!   past the reserve their caller already checked with, and those carry none;
 //! * [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 //!   § 1's **debug-flags check**, at every
 //!   [`mwl_ir::ir::InstKind::StmtMarker`] (branching to
@@ -80,11 +87,14 @@
 //!   after (branching to [`mwl_runtime::mwl_probe_call_enter`] and
 //!   [`mwl_runtime::mwl_probe_call_exit`]).
 //!
-//! Neither is behind a flag or a build configuration: ADR 0018's whole
+//! None is behind a flag or a build configuration: ADR 0018's whole
 //! argument is that a request already running must be able to have coverage
-//! turned on, which a compiled-in-advance instrumented tier cannot do. Their
-//! all-bits-off cost is guarded in `benches/abi-probe`
-//! (`tests/perf_guards.rs`), not asserted here.
+//! turned on, which a compiled-in-advance instrumented tier cannot do, and ADR
+//! 0020's is that a stack limit no build enables is a limit that is there when
+//! the runaway arrives. Their nothing-set cost is guarded in
+//! `benches/abi-probe` (`tests/perf_guards.rs`), not asserted here — the
+//! call-stack compare is the one that shows, as a one-time step in
+//! `abi/frame_depth`, which is a benchmark that does nothing but call.
 //!
 //! # Scope of this slice
 //!
@@ -531,6 +541,11 @@ struct Signatures {
     helper: Signature,
     /// `mwl_safepoint(ctx) -> status`.
     safepoint: Signature,
+    /// `mwl_stack_check(ctx, sp) -> status` —
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// slow path. `sp` is `I64` for the reason every other pointer-shaped
+    /// parameter here is: this JIT compiles for 64-bit targets only.
+    stack_check: Signature,
     /// `mwl_probe_stmt(ctx, stmt_id)`.
     probe: Signature,
     /// `mwl_probe_call_enter(ctx, name, len)`.
@@ -841,6 +856,11 @@ impl Signatures {
         safepoint.params.push(AbiParam::new(ptr));
         safepoint.returns.push(AbiParam::new(types::I32));
 
+        let mut stack_check = module.make_signature();
+        stack_check.params.push(AbiParam::new(ptr));
+        stack_check.params.push(AbiParam::new(types::I64));
+        stack_check.returns.push(AbiParam::new(types::I32));
+
         let mut probe = module.make_signature();
         probe.params.push(AbiParam::new(ptr));
         probe.params.push(AbiParam::new(types::I32));
@@ -954,6 +974,7 @@ impl Signatures {
         Self {
             helper,
             safepoint,
+            stack_check,
             probe,
             probe_call,
             probe_call_exit,

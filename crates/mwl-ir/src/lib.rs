@@ -269,9 +269,14 @@
 //!     [`ir::Helper::EchoStr`] call `echo` emits over the raw span; it is out
 //!     only because `mwl_types` treats `InlineHtml` as a no-op too, so landing
 //!     it widens two crates at once.
-//! 14. **Safepoints are reserved, not functional.** [`ir::InstKind::Safepoint`]
-//!     is emitted at function entry and every loop back edge, but nothing
-//!     lowers it to a real CPU-limit or cancellation check yet.
+//! 14. **Two of the safepoint's four flags still do nothing.**
+//!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
+//!     back edge, and `mwl-codegen` lowers it to a real poll: `CPU_LIMIT` and
+//!     `CANCEL` stop the request, and the function-entry site also carries
+//!     ADR 0020 § 1's call-stack compare. `COLLECT` and `DEBUG_BREAK` are
+//!     cleared and otherwise ignored — there is no collector and no debugger
+//!     to hand the frame to. Nothing in this crate is what is missing; see
+//!     `mwl_runtime::mwl_safepoint`.
 //! 15. **`decimal` lowers, but `<=>` over one does not.** ADR 0054's scalar
 //!     has a representation now — [`ty::Ty::Decimal`], the same register pair
 //!     [`ty::Ty::Tagged`] travels in, whose own doc comment owns the decision —
