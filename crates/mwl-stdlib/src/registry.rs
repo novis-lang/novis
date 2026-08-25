@@ -731,6 +731,7 @@ pub struct CoreEnum {
 /// rule [`CLASSES`] follows, for the same reason.
 pub const ENUMS: &[CoreEnum] = &[
     crate::arr::ORDER,
+    crate::arr::SET_ON,
     crate::str::NORMAL_FORM,
     crate::math::ROUND_MODE,
     crate::encoding::CHARSET,

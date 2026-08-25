@@ -25,6 +25,17 @@
 //! type error rather than an `array<mixed>`; a call that means it widens the
 //! layers to `array<mixed>` itself, which element-covariance-on-read makes
 //! free.
+//!
+//! # `on` selects, `by` maps what it selected
+//!
+//! `diff` and `intersect` take `{on?: SetOn, by?: callable, comparator?:
+//! callable}`, and the twelve PHP functions they replace differ only in how
+//! those three interact. The rule, decided here because neither the spec nor
+//! ADR 0069 states it: **`on` selects the part of an entry that is compared —
+//! the value, the key, or both — and `by` and `comparator` apply to the part
+//! it selected.** So a `by` under `SetOn::Keys` replaces the *key*, not the
+//! value; it is never an option that could not change the answer.
+//! [`comparison_subject`] and [`set_member`] hold the mechanics and the cost.
 
 use mwl_runtime::{Decimal, Fault, MwlArray, MwlStr, Tag, Value};
 
@@ -305,6 +316,28 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_append_all",
         },
         CoreMethod {
+            name: "diff",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Options(SET_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_diff",
+        },
+        CoreMethod {
+            name: "intersect",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Options(SET_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_intersect",
+        },
+        CoreMethod {
             name: "countBy",
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Options(BY_OPTION)],
             defaults: &[],
@@ -379,6 +412,19 @@ pub const ORDER: CoreEnum = CoreEnum {
     cases: &[("Asc", 0), ("Desc", 1)],
 };
 
+/// `Core\SetOn` — the enum [`mwl_core_arr_diff`] and [`mwl_core_arr_intersect`]
+/// take, and the whole of what twelve PHP `array_diff*`/`array_intersect*`
+/// functions differed by.
+///
+/// Declared here beside its two consumers, exactly as [`ORDER`] is, and
+/// `Values` is `0` so it is also what an omitted `{on: ...}` ends up meaning.
+/// This module's own docs hold what each case compares and how `by` and
+/// `comparator` compose with it.
+pub const SET_ON: CoreEnum = CoreEnum {
+    name: r"Core\SetOn",
+    cases: &[("Values", 0), ("Keys", 1), ("Both", 2)],
+};
+
 /// `int|string` — ADR 0007 § 5's two array-key types, which the spec's § 2
 /// writes at every member taking or producing a key.
 const ARRAY_KEY: &[CoreTy] = &[CoreTy::Int, CoreTy::Str];
@@ -447,6 +493,31 @@ const BY_OPTION: &[CoreOption] = &[CoreOption {
 /// `by` and `comparator` are the first options whose default is
 /// [`Const::Null`] (there is no "no callback" callable), and `order` is the
 /// first use of [`CoreTy::Enum`].
+/// `{on?: SetOn, by?: callable, comparator?: callable}` — the bag the spec's
+/// § 2 set members share, in the order the ABI passes them.
+///
+/// `by` and `comparator` default to [`Const::Null`] for the reason that
+/// variant's own docs give: a `callable` has no "no callback" value, so the
+/// declared type stays what a call site may write and the helper reads
+/// `Tag::Null` for not-given.
+const SET_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "on",
+        ty: CoreTy::Enum(r"Core\SetOn"),
+        default: Const::EnumCase(r"Core\SetOn", "Values"),
+    },
+    CoreOption {
+        name: "by",
+        ty: CoreTy::Callable,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "comparator",
+        ty: CoreTy::Callable,
+        default: Const::Null,
+    },
+];
+
 const SORT_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "by",
@@ -502,6 +573,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_overlay_deep" => (mwl_core_arr_overlay_deep as *const ()).cast(),
         "mwl_core_arr_underlay" => (mwl_core_arr_underlay as *const ()).cast(),
         "mwl_core_arr_append_all" => (mwl_core_arr_append_all as *const ()).cast(),
+        "mwl_core_arr_diff" => (mwl_core_arr_diff as *const ()).cast(),
+        "mwl_core_arr_intersect" => (mwl_core_arr_intersect as *const ()).cast(),
         "mwl_core_arr_count_by" => (mwl_core_arr_count_by as *const ()).cast(),
         "mwl_core_arr_first" => (mwl_core_arr_first as *const ()).cast(),
         "mwl_core_arr_last" => (mwl_core_arr_last as *const ()).cast(),
@@ -2533,6 +2606,238 @@ mwl_runtime::mwl_helper! {
             Ok(())
         })?;
         Ok(Value::array(out))
+    }
+}
+
+/// Which part of an entry a set member compares — spec § 2's `Core\SetOn`,
+/// decoded from the `{on: ...}` option's integer case.
+///
+/// [`SET_ON`] is where the cases and their values are stated; this is the
+/// same closed set read back on the runtime side, and the two cannot drift
+/// because the default is written as a named case rather than as its number.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum On {
+    Values,
+    Keys,
+    Both,
+}
+
+/// The `{on: ...}` option as an [`On`].
+fn on_of(value: &Value, member: &str) -> Result<On, Fault> {
+    match value.as_int() {
+        Some(0) => Ok(On::Values),
+        Some(1) => Ok(On::Keys),
+        Some(2) => Ok(On::Both),
+        _ => Err(Fault::fatal(format!(
+            "Core\\Arr::{member} expected a `Core\\SetOn` case for `on`, got tag {} value {}",
+            value.tag_byte(),
+            value.bits()
+        ))),
+    }
+}
+
+/// What one entry contributes to a set member's comparison, under `on` and
+/// `by`.
+///
+/// **`on` selects the part that is compared and `by` maps the part it
+/// selected.** Under `Values` and `Both` that part is the value; under `Keys`
+/// it is the key, so a `by` there replaces the key rather than being quietly
+/// ignored — an option that could not affect the answer would be the worse of
+/// the two designs. The callback receives `($value, $key)` in every case, as
+/// every other `Core\Arr` callback does.
+///
+/// Every reference produced here is handed to `extracted`, which releases it
+/// on the way out: a callback's answer belongs to this frame, and so does the
+/// `Value` a key is wrapped in.
+fn comparison_subject(
+    ctx: &mut mwl_runtime::Ctx,
+    on: On,
+    by: Option<Value>,
+    key: &MwlStr,
+    value: Value,
+    extracted: &mut Extracted,
+) -> Result<Value, Fault> {
+    let Some(by) = by else {
+        if on != On::Keys {
+            return Ok(value);
+        }
+        let held = Value::str(key.clone());
+        extracted.0.push(held);
+        return Ok(held);
+    };
+
+    // One reference for the duration of the call, released right after:
+    // `call_closure` takes its own.
+    let key_arg = Value::str(key.clone());
+    let answer = mwl_runtime::call_closure(ctx, by, &[value, key_arg]);
+    #[expect(
+        unsafe_code,
+        reason = "this frame owns exactly the reference `key.clone()` just produced"
+    )]
+    unsafe {
+        key_arg.release();
+    }
+    let answer = answer?;
+    extracted.0.push(answer);
+    Ok(answer)
+}
+
+/// The shared body of [`mwl_core_arr_diff`] and [`mwl_core_arr_intersect`]:
+/// the entries of `args[0]` whose presence in `args[1]` is `keep_when_present`.
+///
+/// The two members ask one question and keep opposite answers, so they are one
+/// walk — the same pairing [`slot_of`] serves for `contains`/`keyOf`. Twelve
+/// PHP functions collapse into it: `on` chooses what is compared, `by` maps it
+/// and `comparator` replaces identity with a program.
+///
+/// **Linear where it can be, quadratic only where a comparator forces it.**
+/// Without one, identity is hashable ([`Identity`]), so the other side goes
+/// into a set built in one pass and each entry of the subject is one lookup. A
+/// comparator is an arbitrary function with no hash to agree with, so that
+/// path is the pairwise scan PHP's `array_udiff` also is. Under `On::Both` the
+/// index is keyed by the other side's key bytes, which costs one `Vec<u8>` per
+/// entry of it — spent, per AGENTS.md's priority ordering, to keep the common
+/// `array_diff_assoc` shape off the quadratic path.
+fn set_member(
+    ctx: &mut mwl_runtime::Ctx,
+    args: &[Value],
+    member: &str,
+    keep_when_present: bool,
+) -> Result<Value, Fault> {
+    let subject = subject(args, member)?;
+    let other = args[1].array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Arr::{member} expected {:?} for the second array, got tag {}",
+            Tag::Array,
+            args[1].tag_byte()
+        ))
+    })?;
+    let other = borrowed(other);
+    let on = on_of(&args[2], member)?;
+    let by = optional_callback(&args[3], member, "by")?;
+    let comparator = optional_callback(&args[4], member, "comparator")?;
+
+    // Freed on every exit path, including a throw out of a callback — see
+    // [`Extracted`]. Declared before anything that borrows from it.
+    let mut extracted = Extracted(Vec::new());
+
+    // The other side's comparison subjects, computed once. `by` is called
+    // once per entry rather than once per pair, which is the difference
+    // between one pass and a quadratic one even on the comparator path.
+    let mut theirs: Vec<(MwlStr, Value)> = Vec::new();
+    let mut from = 0usize;
+    while let Some(slot) = other.next_slot(from) {
+        let key = other
+            .key_at(slot)
+            .expect("next_slot only names live entries");
+        let value = other
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        from = slot + 1;
+        let compared = comparison_subject(ctx, on, by, &key, value, &mut extracted)?;
+        theirs.push((key, compared));
+    }
+
+    let mut values: std::collections::HashSet<Identity> = std::collections::HashSet::new();
+    let mut pairs: std::collections::HashMap<Vec<u8>, Identity> = std::collections::HashMap::new();
+    if comparator.is_none() {
+        for (key, compared) in &theirs {
+            if on == On::Both {
+                pairs.insert(key.as_bytes().to_vec(), Identity(*compared));
+            } else {
+                values.insert(Identity(*compared));
+            }
+        }
+    }
+
+    let mut out = MwlArray::new();
+    let mut from = 0usize;
+    while let Some(slot) = subject.next_slot(from) {
+        let key = subject
+            .key_at(slot)
+            .expect("next_slot only names live entries");
+        let value = subject
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        from = slot + 1;
+        let mine = comparison_subject(ctx, on, by, &key, value, &mut extracted)?;
+
+        let present = match comparator {
+            None if on == On::Both => pairs
+                .get(key.as_bytes())
+                .is_some_and(|theirs| *theirs == Identity(mine)),
+            None => values.contains(&Identity(mine)),
+            Some(comparator) => {
+                let mut found = false;
+                for (their_key, compared) in &theirs {
+                    if on == On::Both && their_key.as_bytes() != key.as_bytes() {
+                        continue;
+                    }
+                    let verdict = mwl_runtime::call_closure(ctx, comparator, &[mine, *compared])?;
+                    let sign = comparator_sign(verdict);
+                    #[expect(
+                        unsafe_code,
+                        reason = "the verdict is a fresh value this frame \
+                                  owns; a comparator returning a heap value \
+                                  would otherwise leak one reference per \
+                                  comparison"
+                    )]
+                    unsafe {
+                        verdict.release();
+                    }
+                    if sign? == std::cmp::Ordering::Equal {
+                        found = true;
+                        break;
+                    }
+                }
+                found
+            }
+        };
+
+        if present == keep_when_present {
+            #[expect(
+                unsafe_code,
+                reason = "the entry is owned by the subject array, which \
+                          outlives this call, so the copy stored here needs a \
+                          reference of its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            out.set(key, value);
+        }
+    }
+    Ok(Value::array(out))
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::diff(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>`
+    /// — the entries of `$a` that `$b` does not have, replacing PHP's
+    /// `array_diff` and its five variants.
+    ///
+    /// **Strict identity, never a string cast.** PHP's `array_diff` compares
+    /// `(string) $x === (string) $y`, so `1` and `"1"` are the same element
+    /// and two arrays are the same element as each other. [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// § 3 calls that a bug source rather than a decision; this compares the
+    /// way `contains` and `unique` already do, which is `mwl_runtime`'s
+    /// `value_identical`.
+    ///
+    /// `$a`'s keys and order are kept, as PHP keeps them. [`set_member`] owns
+    /// the walk, the `on`/`by`/`comparator` composition and the cost.
+    fn mwl_core_arr_diff(ctx, args: [5]) {
+        set_member(ctx, args, "diff", false)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::intersect(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>`
+    /// — the entries of `$a` that `$b` also has, replacing PHP's
+    /// `array_intersect` and its five variants.
+    ///
+    /// The same question [`mwl_core_arr_diff`] asks with the other answer
+    /// kept, and the same strict-identity rule.
+    fn mwl_core_arr_intersect(ctx, args: [5]) {
+        set_member(ctx, args, "intersect", true)
     }
 }
 

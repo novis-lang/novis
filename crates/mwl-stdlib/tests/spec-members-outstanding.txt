@@ -15,12 +15,10 @@
 §2 append
 §2 chunk
 §2 column
-§2 diff
 §2 flatten
 §2 flattenDeep
 §2 from
 §2 groupBy
-§2 intersect
 §2 mapKeys
 §2 prepend
 §2 reduce

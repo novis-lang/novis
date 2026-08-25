@@ -1,0 +1,72 @@
+--TEST--
+Core\Arr::diff and ::intersect ask one question with SetOn, {by} and {comparator}, comparing by strict identity, per ADR 0069 § 3
+--FILE--
+<?mwl
+// Two members plus a three-case enum replace twelve `array_diff*` and
+// `array_intersect*` functions. Both keep the first array's keys and order,
+// which `Core\Json::encode` pins along with the values.
+array<int> $a = ["x" => 1, "y" => 2, "z" => 3];
+array<int> $b = ["p" => 2, "z" => 9];
+
+// The default is `{on: Core\SetOn::Values}` — PHP's `array_diff` and
+// `array_intersect`, except for the comparison; see below.
+echo Core\Json::encode(Core\Arr::diff($a, $b)), "\n";
+echo Core\Json::encode(Core\Arr::intersect($a, $b)), "\n";
+
+// `Keys` is `array_diff_key` / `array_intersect_key`.
+echo Core\Json::encode(Core\Arr::diff($a, $b, {on: Core\SetOn::Keys})), "\n";
+echo Core\Json::encode(Core\Arr::intersect($a, $b, {on: Core\SetOn::Keys})), "\n";
+
+// `Both` is `array_diff_assoc` / `array_intersect_assoc`: an entry matches
+// only where the key and the value both do.
+echo Core\Json::encode(Core\Arr::diff($a, $b, {on: Core\SetOn::Both})), "\n";
+echo Core\Json::encode(Core\Arr::intersect($a, $b, {on: Core\SetOn::Both})), "\n";
+
+// ADR 0069 § 3: the comparison is strict identity, never PHP's string cast, so
+// `"1"` and `1` are two elements. `array_diff` answers `[]` for this pair.
+array<string|int> $spellings = ["1", 2];
+array<string|int> $numbers = [1, "2"];
+echo Core\Json::encode(Core\Arr::diff($spellings, $numbers)), "\n";
+
+// `{by}` maps the part `on` selected — here the value, which is the
+// `array_udiff` shape without a comparator at all.
+array<string> $left = ["Ann", "bob", "CY"];
+array<string> $right = ["ANN", "dee"];
+echo Core\Json::encode(Core\Arr::diff($left, $right, {by: fn (string $s): string => Core\Str::lower($s)})), "\n";
+echo Core\Json::encode(Core\Arr::intersect($left, $right, {by: fn (string $s): string => Core\Str::lower($s)})), "\n";
+
+// Under `Keys` the part selected is the key, so `{by}` maps *that* — it is
+// never an option that could not change the answer. Every Core\Arr callback
+// receives ($value, $key) whichever part it maps.
+array<int> $upper = ["A" => 1, "B" => 2];
+array<int> $lower = ["a" => 9];
+echo Core\Json::encode(Core\Arr::diff($upper, $lower, {on: Core\SetOn::Keys, by: fn (int $v, string $k): string => Core\Str::lower($k)})), "\n";
+
+// `{comparator}` replaces identity with a program, `usort`-shaped.
+array<int> $nums = [1, 2, 3, 4];
+array<int> $evens = [2, 4];
+echo Core\Json::encode(Core\Arr::diff($nums, $evens, {comparator: fn (int $x, int $y): int => $x - $y})), "\n";
+echo Core\Json::encode(Core\Arr::intersect($nums, $evens, {comparator: fn (int $x, int $y): int => $x - $y})), "\n";
+
+// An empty side answers everything and nothing, and neither argument is
+// touched (ADR 0063 R3).
+array<int> $empty = [];
+echo Core\Json::encode(Core\Arr::diff($a, $empty)), "\n";
+echo Core\Json::encode(Core\Arr::intersect($a, $empty)), "\n";
+echo Core\Json::encode($a), Core\Json::encode($b), "\n";
+--EXPECT--
+{"x":1,"z":3}
+{"y":2}
+{"x":1,"y":2}
+{"z":3}
+{"x":1,"y":2,"z":3}
+[]
+["1",2]
+{"1":"bob","2":"CY"}
+["Ann"]
+{"B":2}
+{"0":1,"2":3}
+{"1":2,"3":4}
+{"x":1,"y":2,"z":3}
+[]
+{"x":1,"y":2,"z":3}{"p":2,"z":9}
