@@ -109,191 +109,48 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Catch-up is done, and `Core` breadth is what is open.** Every `stage = "0
-> catch-up"` check in `loop-goal.toml` passes, so the ordered list in
-> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* is closed and no longer outranks
-> anything; the gate's frontier is now `examples/collect.mwl`, and `docs/agent/handoff.md` names the
-> group it stops on. **ADR 0094 is built** — a property, class constant or method with no
-> `public`/`protected`/`private` is `E0122` from `mwl_syntax::check_declarations` (the walk that was
-> `check_casing`), a bare `(set)` names the pair it is missing, a class-body `var` is redirected in
-> the parser, and a plain constructor parameter stays exempt because visibility is what promotes it.
-> **ADR 0090 is built end to end** — `===`/`!==` are `E0232` at the lexer, the whole 48-file corpus
-> is rewritten, `E0466` refuses two statically disjoint operands at `==`/`!=`, at a `switch` label
-> and at a `match` arm alike, § 3's non-scalar rows reach `mwl_str_eq`, `mwl_array_eq` and an inline
-> pointer compare, a `mixed` operand takes `Helper::Identical` over `mwl_runtime::value_identical`
-> (which answers `false` for a mismatched runtime pairing rather than throwing), and § 2's numeric
-> domain now runs: a cross-representation pair such as `$n == $f` is `Helper::NumericEq` over
-> `mwl_runtime::numeric_identical`, settled in `mwl-ir`'s `lower_binary` so `mwl-codegen` keeps its
-> "a `BinOp` has one representation" invariant. § 3's numeric row now has **one** answer wherever it
-> is reached: `value_identical` delegates its four numeric representations to `numeric_identical`,
-> so a `mixed` operand answers `1 == 1.0` as `true`, `Core\Arr::contains([1.0], 1)` is `true` with
-> it, and `value_hash` canonicalizes a numeric to the `f64` it coincides with so `unique` indexes
-> what it compares — a deliberate divergence from PHP's `===` that `mwl_runtime::identity`'s own
-> module doc owns in full. One thing trails it, recorded in its owner's known gaps rather than here:
-> the same representation mismatch under `+` or `<` is ADR 0007 § 4's promotion table and still
-> fails in codegen (`mwl-ir` gap 19). **ADR 0047's three type atoms now intern** rather than being
-> refused: `Ty::StringLiteral`, `Ty::IntLiteral` and `Ty::EnumCase`, the last of them deliberately
-> not the second, so a bare `int` still cannot satisfy `Mode::Read`; § 2's fold reads a declared
-> constant's value from the new `mwl_types::consts::ConstTable` and a `Core` one from the registry;
-> § 5's "zero additional runtime representation" is three erasure arms in
-> `mwl_ir::lower::lower_checked_ty`, and `E0457` is retired. **§ 4's assignability half is built
-> too** — `mwl_types::expr::is_assignable` widens a literal type, an enum-case type and either of
-> them over a union to its base by one recursion through `TypeInterner::literal_base`, and a literal
-> expression takes the singleton type from the position it lands in
-> (`expr::literals::placed_literal`, reached for an enum case from `expr::members`), so `"a"|"b"
-> $mode = "a";` checks, `Mode::Read|Mode::Write $m = Mode::Read;` checks, and neither `string → "a"`
-> nor a bare `int → Mode::Read` does. **§ 4's checked `as` and § 6's two diagnostics are built** — a
-> string literal operand is placed at its conversion target the way ADR 0054 § 2 already places a
-> numeric one, so `"a" as "a"|"b"` is statically satisfied, and
-> `mwl_types::expr::operators::reject_impossible_literal_conversion` refuses a conversion the
-> operand's own value disproves: `E0469` for a closed set of literals, `E0470` for one of enum
-> cases, each naming the accepted set generated from the target type. **§ 5's run-time half is built
-> for a set of literals** — `mwl_ir::lower::lower_checked_ty` folds a union whose members all erase
-> to one representation back to that representation, so `"a"|"b"` is a `Ty::Str` and `1|2` a
-> `Ty::Int` rather than the `Ty::Tagged` every union used to be, and `lower_literal_membership`
-> emits one comparison per member with `Helper::LiteralMismatch` throwing at the far end, naming the
-> accepted set exactly as `E0469` does. A `mixed` operand is tested on its own runtime tag before
-> the base conversion, so `1 as "1"|"b"` throws rather than being rendered into the set it names. §
-> 3's enum-case subset runs too: every `mwl_ir::lower` entry point takes the run's
-> `mwl_types::EnumTable`, which `check_program` hands back rather than dropping — rebuilding it
-> would report ADR 0010 § 1/§ 2's declaration errors twice — so `$m as Mode::Read|Mode::Write` emits
-> the same comparison chain a set of `int` literals gets, run one representation down on the enum's
-> backing integer because `mwl-codegen` has no `BinOp::Eq` row for `Ty::Enum`. ADR 0010 § 5's other
-> direction runs too, so both sections are whole for a statically typed operand: `$n as Mode` is one
-> free `Reinterpret` — an enum is a tag over its backing integer — behind a membership chain built
-> from **every** case of the declaration rather than a subset named at the site, and an operand that
-> is not already that backing scalar is converted to it by ADR 0007 § 2's own rows first, by
-> recursion inside `convert`, so `$f as Rank` and `$s as Rank` each throw naming whichever of the
-> two steps failed. **ADR 0007 § 2's `mixed` rows run too**: `Helper::TaggedToInt` and its unsigned
-> and `float` twins throw exactly where `Helper::ToIntOrNull` answers `null`, over one shared row
-> set in `mwl_runtime`, so `$any as int` runs — and `$any as Mode` runs through it, because an enum
-> target converts the operand to its backing scalar *before* the membership chain, which is what
-> makes ADR 0010 § 5's own `Core\Request::query('status') as Status` example turn a run-time string
-> into a case whose value is an integer. A set of plain literals keeps the opposite order, for the
-> reason `1 as "1"|"b"` needs it. Both orders are pinned by conformance cases now
-> (`tests/conformance/lang/a-mixed-value-converts-to-a-scalar-on-request.mwlt` and
-> `a-mixed-value-converts-into-an-enum-case.mwlt`): a `mixed` holding `"42"`, `2.5` or `7` into
-> `int`/`uint`/`float` with each failure's throw named beside ADR 0066's `as ?int ?? -1` twin, and a
-> `mixed` holding the string `"1"` reaching `Mode::Read` while `9` throws naming every case. What
-> still panics is ADR 0009 § 3's `string` ↔ `bytes` pair and `array<T> as array<U>` (`mwl-ir` gap
-> 20). **ADR 0094's levels are now enforced for a property** — `E0471` from
-> `mwl_types::expr::members::check_member_visibility`, keyed on the *accessing* class
-> (`Ctx::current_class`) and never on the receiver's type, so `$other->n` inside the declaring class
-> is legal and the same line at file scope is not; it reaches the static `Foo::$n` spelling and a
-> write through the same `PropertyAccess` span, and the one shape still outside it is a promoted
-> constructor parameter, which no table records as a property. **A method takes the same test now**
-> — `MethodSig::visibility` carries ADR 0094's level for every declaration, and
-> `mwl_types::expr::members::check_method_visibility` applies it at `$obj->m()`, `C::m()` and `new
-> C(...)` alike, so a `private` constructor is the singleton idiom it was written to be rather than
-> a keyword that means nothing; where ADR 0043 § 3's private-interface-method rule already fired,
-> that more specific diagnostic is the only one reported. **`Comparable`/`Stringable` now carry
-> their members** — `mwl_types::iter_lib` seeds all four compiler-declared interfaces rather than
-> only the two generic ones, so `Comparable` declares `compareTo(Comparable $other): int` (ADR 0013
-> § 1's `self`, at the declaration it is written on) and `Stringable` declares `toString(): string`;
-> a parameter at either type resolves its member instead of taking `E0405`, and
-> `mwl_types::conformance` now holds an implementer to a body for it, like an implementer of any
-> other interface. **`instanceof` against one of those four now runs**:
-> `mwl_types::layout::build_class_layouts` seeds a layout for every `mwl_hir::interfaces::RESERVED`
-> name the way it already seeds the exception tree, so a descriptor exists for `mwl-codegen` to bake
-> in and an implementor's `conforms` keeps the edge to it — `$m instanceof Stringable` is `true`, a
-> subclass of an implementor inherits it, and a generator's synthesized class answers for
-> `Iterator`. **ADR 0028 § 1's implicit conversion now runs too**:
-> `mwl_types::expr::operators::require_stringable` records the resolved `toString()` in the new
-> `ExprTypeTable::to_string_call` side map, and `mwl_ir::lower::Lowering::lower_to_string_call`
-> desugars all four of that section's sites — `.`, an interpolated piece, `echo`/`print` and `as
-> string` — through one virtual call, so an override wins and a `toString` body may throw like any
-> other. `mwl_hir::implements_interface` is reflexive now, which is what lets a value typed at
-> `Stringable` itself stringify and one typed `Comparable` order through `<`; that function's own
-> doc says why the zero-step walk is the answer all five callers wanted. One shape stays out and is
-> `mwl-ir` gap 12's whole remainder: a `Core`-owned class, which `require_stringable` exempts and so
-> records no target for. **ADR 0061 resolves names to files now** — both file-scope forms parse to
-> `StmtKind::AutoloadDecl` (`autoload` reserved, `discover` contextual, a non-literal path `E0123`
-> once per declaration), and `mwl_hir::requires::resolve_program` runs § 1's lookup as a fixpoint on
-> the same worklist that walks `require`: one AST walk per file harvests its requires, its
-> `autoload` declarations and every name it uses where a class is meant, and when the `require`
-> graph drains, `mwl_hir::autoload::AutoloadMap` places the first still-undeclared name and pushes
-> that file back onto the worklist. Longest prefix wins, roots are probed in declaration order, the
-> on-disk spelling is compared exactly (a mis-cased entry is a miss, not a diagnostic), an explicit
-> prefix shadows a `discover` glob and any other duplicate is `E0315`; `E0316` refuses an `autoload`
-> anywhere in the autoloaded sub-graph, `E0317` is § 2's one-declaration-per-file rule and `E0318` a
-> malformed glob. § 5's probe trace is produced and dropped — folding it into the cache key is the
-> ADR 0042 slice's work — § 1's last sentence now runs as `mwl check --autoload-map`, which prints
-> the resolved prefix → roots map beside what a `discover` glob passed over in silence and what an
-> explicit prefix shadowed (`mwl_hir::AutoloadMap::render`, whose module doc owns the
-> three-counted-section shape; `resolve_program` hands the map back rather than dropping it), and
-> the name harvest is a deliberate over-approximation that now reaches every declaration site's
-> `#[...]` groups too, so a class named only by `#[Route(...)]` autoloads
-> (`mwl_hir::requires::walk_attributes`; that module's doc owns what is left). **That ADR is pinned
-> by ten conformance cases now** (`tests/conformance/lang/`, the eight named `*autoload*` plus the
-> two `*discover*`): a class no `require` names is found by its prefix and runs, an explicit prefix
-> shadows a `discover` glob, a prefix's second root answers only where the first misses, a name
-> written only inside an `#[...]` group pulls its file in, a mis-cased entry on disk is a miss
-> rather than a diagnostic, a glob sweeping `vendor/`, `node_modules/`, `_Private/` and `.git/`
-> discovers only the one directory that names a namespace and diagnoses none of the rest, and
-> `E0315`, `E0316`, `E0317` and `E0318` each fire from a `--EXPECTF-ERROR--` case. Two things make
-> that observable at all: `.mwlt` has an auxiliary-file section — a repeatable `--FILE
-> <relative/path>--` writing another file into the case's own working directory, documented in
-> `crates/mwl-test`'s module doc — and `mwl-cli`'s `front_end` is multi-file end to end. It calls
-> `mwl_hir::resolve_program`, so the unit of work is the whole require/autoload graph rather than
-> one `SourceId`: `mwl_types::ProgramFile` is the `{ src, stmts }` pair every phase now takes a
-> *slice* of, and `check_program`, `build_signatures`, `build_enum_table`, `build_const_table` and
-> `build_class_layouts` each build one table across the whole set before any body is checked, since
-> a class declared in a required file is named from the file that required it. `Checked` carries the
-> files entry-first, and `mwl_ir::lower::lower_program` lowers every file's declarations while
-> giving a script frame to the entry alone (`lower_file` is now the one-file spelling of it); a
-> `require` in statement position lowers to nothing, because the graph is already resolved by the
-> time lowering starts. So `require './src/Greeter.mwl'; App\Greeter::hello(…)` runs from `mwl run`,
-> and so does a class reached only through an `autoload 'App' from './src'` in a bootstrap file. Two
-> things stay out and are `mwl-ir` gap 22: a required file's own top-level statements are not run,
-> and ADR 0021 § 3's value form (`$c = require '…';`) has no lowering arm. **ADR 0069's refusal is
-> built** — `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay` — leaving that
-> ADR's combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** —
-> `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008` per line over comments, string
-> literals and inline HTML, and seven `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink
-> halves are M7's and M8's. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows
-> carry no qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR
-> makes it, and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
-> the test that refuses an unclassified member exists; it lands with M4S's remaining sections.
-> **Then `Core` breadth, where Stage 3 stopped.** Spec §§ 3 and 6 are whole, § 2's aggregations are
-> written, § 5 is six of its eight members, and § 1 is missing its eleven text-shaping rows,
-> `Arr::diff`/`intersect` and ADR 0069's combination members. Every signature shape the spec writes
-> can now be stated: a variadic tail is `registry::CoreTy::Variadic`, a `Core`-owned instance is
-> `CoreClass`'s `instance` roster over `mwl_stdlib::instance`, a class constant may be an instance
-> through `registry::Const::Built`, and a member may be handed the class its call site wrote through
-> `registry::WRITTEN_CLASS_MEMBERS`. § 4 runs whole but owes `Date`/`TimeOfDay`/`Core\Month` (that
-> module's gap 1). **ADR 0071 is built end to end for a scalar-fielded class**; its gaps are no
+> **Open now:** **Catch-up is done, and what is open is `Core` breadth plus the gate's own counts.**
+> Every `stage = "0 catch-up"` check in `loop-goal.toml` passes, so the ordered list in
+> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* is closed and outranks nothing; the
+> gate's frontier is `examples/collect.mwl`, and [docs/agent/handoff.md](agent/handoff.md) names the
+> group it stops on. **What has already landed is not restated here** — `git log` holds the
+> session-by-session history and the crate's own module doc holds its per-file gaps, which is this
+> field's contract in AGENTS.md § *Keep each slice small*. What follows is what is **not** built.
+> **Spec §§ 1-12, by section** — § 1 owes its eleven text-shaping rows; § 2 owes
+> `Arr::diff`/`intersect` and ADR 0069's combination members (its refusal half is built, `E0467`); §
+> 4 owes `Date`, `TimeOfDay` and `Core\Month` (`mwl_stdlib::time` gap 1); § 5 owes
+> `compile`/`replaceWith`, which need `Pattern` (`regex` gap 1); § 6 owes `decodeAs<T>` (`json` gap
+> 2, which waited on a written type argument at a call site and no longer does); § 7 owes all seven
+> rows (`Core\Encoding` and `Core\Bytes`); § 9 owes all three collections (`Core\ObjectMap`,
+> `Core\ObjectSet`, `Core\Heap`); § 10 owes the constructor's `{previous: $e}` options shape and
+> `$e->location`; § 11 owes `Random::bytes` and `Hash::of`/`hmac`/`equals`; § 12 owes
+> `Uri::parse`/`isValid`, `Csv`, `Validate` and `Out::capture`. §§ 3 and 8 are whole, and every
+> signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
+> `Union` and `Decimal`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
+> unwritten. **One runtime hole sits under four of those** — nothing constructs a fresh `bytes`
+> value, because `mwl_runtime::Tag` has no `Bytes` row even though `mwl_ir::Ty::Bytes` and
+> `registry::CoreTy::Bytes` both exist — it blocks § 7 whole, `Random::bytes`, `Hash::*` and the
+> honest return type of `Uri`'s two decoders, and it is a design call the loop is pre-authorized to
+> settle (loop-goal.md § *Standing decisions*). **Stage 4's counts are their own work rather than a
+> side effect of member slices** — conformance is 370 of the 600 that gate requires, differential is
+> 86 of 150 and has not moved this run, and `every_part_one_spec_member_is_registered` — the loop's
+> own definition of done, which reads the spec's member rows and checks each against the registry —
+> does not exist yet. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
+> qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it,
+> and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
+> that refuses an unclassified member exists; it lands with M4S's remaining sections. **ADR 0071 is
+> built end to end for a scalar-fielded class**; its gaps are no
 > enum/`decimal`/`Instant`/`array`/nested-class field decode and no optional key from a parameter
-> default. **Next on the path is `examples/collect.mwl`**, which needs §§ 7-9 and 11-12 at once, and
-> **spec § 8 is now whole**: `mwl_stdlib::path` registers all nine `Core\Path` members plus the
-> `Path::SEPARATOR` constant — the first `Core` constant that is a `string` — over no dependency at
-> all, since a path is `&str` arithmetic. That module's own docs own the three decisions it settled:
-> one parse grammar on **every** platform with only the emitted separator following the host (which
-> is what makes a case pinnable on both legs), `join` that only ever appends rather than letting an
-> absolute segment replace the base, and three divergences from `pathinfo`/`dirname` that keep
-> `withExtension` the exact inverse of `extension`. **Spec § 11's first table is six of its seven
-> members**: `mwl_stdlib::random` registers `int`, `float`, `token`, `pick`, `sample` and `shuffle`
-> over `rand`, picked under ADR 0051 § 4 as a CSPRNG that is also a userspace one — that module's
-> own docs own the pick, what a `ThreadRng` spends per thread, and the three gaps it leaves
-> (`Random::bytes`, which waits on a runtime `bytes` tag; `Core\Random\Seeded`; no reseed on
-> `fork`). **Its second table is whole**: `mwl_stdlib::uuid` registers `v4`, `v7`, `parse` and
-> `isValid`, plus the `$uuid->toString()` rendering row that section's table gained to make the type
-> observable, over `uuid` — picked under ADR 0051 § 4 as the crate that already owns RFC 9562's
-> nibble layout *and* the reader attacker-controlled text reaches, and costing this tree no crate at
-> all since `wasmtime` already pulled it. That module's own docs own the pick, why entropy still
-> comes from `rand` and the clock from `jiff` rather than from `uuid`'s own `v4`/`v7` features, why
-> two `uint` slots rather than one `string`, why only the canonical hyphenated spelling parses, and
-> the three gaps it leaves. Left on that fixture: `Encoding`/`Hash`, each needing a dependency
-> picked under ADR 0051 § 4, then `ObjectSet`/`ObjectMap`, which additionally need `new Core\X<T>()`
-> to parse. One PHP divergence stands unfixed — an abandoned generator never runs the `finally` it
-> is suspended inside, `mwl-ir`'s gap 18. In docs, `docs/spec/02-php-migration.md` is 31%
-> classified, one pass per PHP domain remaining, reported by `python tools/check-migration.py`.
-> **Three more ADRs are decided and unbuilt but are not catch-up** — 0091 (the
+> default. **Three ADRs are decided and unbuilt but are not catch-up** — 0091 (the
 > `development`/`production` run mode: a `[mode]` block, a `System` ceiling, four governed
 > directives, `Core\Env::mode`), 0092 (one diagnostic record rendered as plaintext, JSON or HTML by
 > the sink in force — `Core\Log`'s `Log\Level`, `Core\Debug::dump`, throwables, test results and
 > compiler diagnostics) and 0093 (`mwl service`). None invalidates built behaviour or a written
-> fixture; their work is M4, M6, M7, M8 and M10 and lands with those milestones. Off path: ADR
-> 0043's `by`-delegation.
+> fixture; their work is M4, M6, M7, M8 and M10 and lands with those milestones. **Still open beside
+> the library** — `do`/`while` is the one M4 control-flow statement that does not lower; an
+> abandoned generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a PHP
+> divergence); ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31%
+> classified, one pass per PHP domain, reported by `python tools/check-migration.py`.
 >
 > **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
