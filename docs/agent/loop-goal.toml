@@ -39,13 +39,16 @@ files = [
 # `## Next group` names, plus anything those files call into.
 modules = [
   "crates/mwl-stdlib/src/registry.rs",
-  "crates/mwl-stdlib/src/instance.rs",
-  "crates/mwl-stdlib/src/uuid.rs",
   "crates/mwl-stdlib/src/lib.rs",
+  "crates/mwl-stdlib/src/encoding.rs",
+  "crates/mwl-stdlib/src/math.rs",
   "crates/mwl-types/src/core_lib.rs",
-  "crates/mwl-types/src/expr/calls.rs",
   "crates/mwl-types/src/ty.rs",
-  "crates/mwl-runtime/src/identity.rs",
+  "crates/mwl-runtime/src/value.rs",
+  "crates/mwl-runtime/src/string.rs",
+  "crates/mwl-runtime/src/helpers.rs",
+  "crates/mwl-runtime/src/release.rs",
+  "crates/mwl-codegen/src/ty.rs",
   "crates/mwl-diagnostics/src/lib.rs",
 ]
 
@@ -56,10 +59,10 @@ rules = ["0090", "0094", "0069", "0047", "0007", "0035", "0010"]
 # ADR sections sliced live into the pack. `NNNN` alone is the In short block; `NNNN §N` is that
 # numbered section. Name only the sections the items actually need -- a whole ADR is 7k of context.
 adrs = [
+  "0009 §1",
+  "0009 §3",
+  "0051 §4",
   "0007 §3",
-  "0007 §6",
-  "0066 §1",
-  "0013 §1",
 ]
 
 # Headings of docs/agent/conventions.md naming shapes this goal will write.
