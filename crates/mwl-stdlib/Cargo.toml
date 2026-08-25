@@ -35,6 +35,7 @@ subtle.workspace = true
 base64.workspace = true
 data-encoding.workspace = true
 encoding_rs.workspace = true
+csv-core.workspace = true
 
 # `tests/conformance_coverage.rs` reads the `.mwlt` suite's `--FILE--`
 # sections, and the format's parser already exists. `mwl-test` depends on

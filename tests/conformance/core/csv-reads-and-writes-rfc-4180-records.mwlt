@@ -1,0 +1,57 @@
+--TEST--
+`Core\Csv::parse` reads RFC 4180 and `Core\Csv::format` writes it back, spec § 12's second table
+--FILE--
+<?mwl
+// The reader's grammar: a quoted field holds the separator and a bare CRLF, a
+// doubled quote inside one is a single quote, a blank line is not a record and
+// the trailing newline every generator writes does not add one.
+var $rows = Core\Csv::parse("a,\"b,c\"\r\n\n\"d\"\"e\",f\n");
+echo "rows=", Core\Arr::count($rows), "\n";
+echo "quoted=", $rows["0"]["1"], "\n";
+echo "doubled=", $rows["1"]["0"], "\n";
+
+// `{header: true}` consumes the first record as the column names and keys
+// every later record by them; the header record is not itself returned, and
+// the return type is unchanged because every array key is a `string` already.
+var $keyed = Core\Csv::parse("name,qty\nfig,2\npear,5\n", {header: true});
+echo "keyed=", Core\Arr::count($keyed), "\n";
+foreach ($keyed as array<string> $row) {
+    echo "  ", $row["name"], "x", $row["qty"], "\n";
+}
+
+// The dialect is the caller's: three single ASCII bytes, defaulting to
+// RFC 4180's. `crates/mwl-stdlib/src/csv.rs`'s module doc owns why `escape`
+// defaults to none.
+var $semi = Core\Csv::parse("x;y\n", {separator: ";"});
+echo "semi=", $semi["0"]["1"], "\n";
+
+// The writer's one rule: quote a field exactly where a byte in it would
+// otherwise change the parse, doubling the quote inside one. A field holding
+// neither is written as itself, and every record ends with a newline.
+var $awkward = Core\Csv::format([["a,b", "c\"d", "plain"]]);
+echo "awkward=[", $awkward, "]\n";
+
+// `{header: [...]}` writes the names as the first record. A row is written by
+// its values in order and its keys are ignored, which is what makes this the
+// inverse of `{header: true}` rather than a rekeying.
+var $written = Core\Csv::format($keyed, {header: ["name", "qty"]});
+echo "written=[", $written, "]\n";
+
+// ...so the round trip answers the same records again.
+var $again = Core\Csv::parse($written, {header: true});
+echo "again=", $again["1"]["name"], "x", $again["1"]["qty"], "\n";
+--EXPECT--
+rows=2
+quoted=b,c
+doubled=d"e
+keyed=2
+  figx2
+  pearx5
+semi=y
+awkward=["a,b","c""d",plain
+]
+written=[name,qty
+fig,2
+pear,5
+]
+again=pearx5

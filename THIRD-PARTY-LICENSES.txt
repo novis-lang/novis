@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     python tools/gen-attribution.py
 
 
-COMPONENTS (145)
+COMPONENTS (146)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, MWL takes the one shown and
@@ -61,6 +61,7 @@ platform MWL builds for, so one may appear that a given build omits.
   cranelift-srcgen                        0.135.0  Apache-2.0 WITH LLVM-exception
   crc32fast                               1.5.0    MIT                             (MIT OR Apache-2.0)
   crypto-common                           0.1.7    MIT                             (MIT OR Apache-2.0)
+  csv-core                                0.1.13   MIT                             (Unlicense/MIT)
   data-encoding                           2.11.1   MIT
   defmt                                   1.1.1    MIT                             (MIT OR Apache-2.0)
   defmt-macros                            1.1.1    MIT                             (MIT OR Apache-2.0)
@@ -179,6 +180,7 @@ than once.
 
 Applies to:
   aho-corasick 1.1.5
+  csv-core 0.1.13
   defmt-parser 1.0.0
   jiff 0.2.35
   jiff-core 0.1.0

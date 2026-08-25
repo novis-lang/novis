@@ -643,6 +643,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::uuid::CLASS,
     crate::hash::CLASS,
     crate::uri::CLASS,
+    crate::csv::CLASS,
 ];
 
 /// Every `Core` class a program may write `new` on, with the symbol that

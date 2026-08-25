@@ -189,6 +189,7 @@
 pub mod arr;
 mod bytes;
 mod cldr;
+mod csv;
 mod encoding;
 mod format;
 pub mod granularity;
@@ -264,6 +265,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
     str::address(symbol)
         .or_else(|| arr::address(symbol))
         .or_else(|| bytes::address(symbol))
+        .or_else(|| csv::address(symbol))
         .or_else(|| encoding::address(symbol))
         .or_else(|| hash::address(symbol))
         .or_else(|| json::address(symbol))

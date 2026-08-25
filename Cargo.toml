@@ -230,6 +230,23 @@ data-encoding = "2"
 # *not* decide, and why.
 encoding_rs = "0.8"
 
+# --- csv (spec § 12's `Core\Csv::parse`) ---
+# RFC 4180 plus the two knobs every real dialect turns is a grammar, and
+# ground-rules.md's "an external specification is a dependency rather than a
+# hand-written parser" applies to the *reader*: quoted fields, doubled quotes,
+# an embedded separator, an embedded CRLF and a file that ends mid-quote are
+# exactly the corners a hand-written scanner gets wrong one at a time. ADR
+# 0051 § 4's first question is "yes" -- an uploaded spreadsheet is
+# attacker-controlled -- and the second one does not arise, because
+# `csv-core` is pure Rust: no build script, no C, `no_std`, and `memchr` its
+# only dependency, which this tree already carries under `regex`. It is the
+# parsing core of the `csv` crate the ecosystem reads for this, split out so a
+# caller owns its own buffers, which is what lets the member allocate once per
+# field into an `MwlStr` instead of through a `String` it would then copy.
+# `crates/mwl-stdlib/src/csv.rs` owns why the *writing* half takes no
+# dependency and what each of the three options is set to.
+csv-core = "0.1"
+
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in mwl-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so
