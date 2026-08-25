@@ -387,17 +387,17 @@ want = [
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
-kind = "cargo-suite"
+kind = "mwl-suite"
 stage = "4 suites"
 name = "conformance"
-args = ["run", "--quiet", "-p", "mwl-cli", "--", "test", "tests/conformance/"]
+args = ["test", "tests/conformance/"]
 min_passing = 600
 
 [[check]]
-kind = "cargo-suite"
+kind = "mwl-suite"
 stage = "4 suites"
 name = "differential"
-args = ["run", "--quiet", "-p", "mwl-cli", "--", "test", "tests/differential/"]
+args = ["test", "tests/differential/"]
 min_passing = 150
 
 # A named test must both EXIST and pass -- `cargo test` is green on a suite that never ran the guard.

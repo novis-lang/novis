@@ -91,7 +91,7 @@ Check kinds:
 | `ordered` | each element of `want` appears in `stdout`/`stderr`, each after the one before it |
 | `contains` | named substrings appear on the named streams |
 | `min-bytes` | the named stream is at least `min_bytes` long (this is how `--dump-asm` is checked) |
-| `cargo-suite` | `cargo …` exits 0 **and** prints `N passed, M failed` with `M == 0` and `N >= min_passing` |
+| `mwl-suite` | `mwl …` exits 0 **and** prints `N passed, M failed` with `M == 0` and `N >= min_passing` |
 | `cargo-named` | `cargo test …` exits 0 **and** each named test actually ran — a suite that never ran the guard is green too |
 
 `exit = "nonzero"` inverts the exit expectation for the fixtures that fail by design.
@@ -105,8 +105,25 @@ item is what the ledger names rather than a later stage's fixture (`loop-goal.md
 Last comes the valgrind sweep: every fixture again under `--leak-check=full --errors-for-leak-kinds=definite`
 (in WSL on Windows, directly on Linux; skipped entirely where `valgrind` is not installed).
 
+**A leg builds the CLI once and then invokes that binary**, rather than reaching for `cargo run` per
+fixture — twenty-three fixtures is twenty-three workspace fingerprint scans to start the same process,
+and on the WSL leg every one of them crosses the `/mnt` mount. The `mwl-suite` checks run through the
+same binary for the same reason.
+
+Nothing is skipped, but two results are remembered. Within one run, an identical `args` list runs cargo
+once — the list names `mwl-runtime` twice on purpose, for different guard tests, and the second run
+cannot answer differently. Across runs, the three checks whose cost is *minutes* — the release-profile
+`abi-probe`, the whole WSL leg, and the valgrind sweep — are remembered in `.loop/goal-green.json`
+against the exact tree that made them green (HEAD plus a hash of anything dirty). Any change at all drops
+the cache. In a normal loop every session commits, so this almost never fires; what it buys is a
+`--goal-only` that is cheap to run twice by hand.
+
+Every check is timed, and the driver writes a `goal cost:` line to the ledger each iteration naming the
+total and the three slowest checks. An acceptance test nobody has ever timed is one nobody can tune.
+
 Inspect it without running it: `python tools/loop.py --list`. Run it once, without any session:
-`python tools/loop.py --goal-only`, which prints each check as it goes and names the first failure.
+`python tools/loop.py --goal-only`, which prints each check as it goes, names the first failure, and
+prints what it cost.
 
 ## Running it
 

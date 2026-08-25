@@ -18,6 +18,7 @@ an exact or ordered-substring match on real output.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -51,6 +52,7 @@ LEDGER = RUNDIR / "log.md"
 STATUS = RUNDIR / "status.txt"
 STOP = RUNDIR / "stop"
 RUNNING = RUNDIR / "running"
+GOALCACHE = RUNDIR / "goal-green.json"
 
 IS_WINDOWS = os.name == "nt"
 
@@ -293,18 +295,41 @@ def ordered_in(text, wanted):
 
 
 class NativeLeg:
+    """The fixtures against the build this platform is.
+
+    `prepare()` builds the CLI once and every fixture then invokes that binary directly.
+    `cargo run` per fixture would pay a workspace fingerprint scan twenty-odd times over to
+    start the same process -- which is exactly the shape the valgrind sweep below has always
+    used, and the only reason the legs did not was that nobody had counted the invocations.
+    """
+
     name = "native"
 
+    def __init__(self):
+        self.binary = None
+
+    def prepare(self):
+        r = capture("cargo", ["build", "--quiet", "-p", "mwl-cli"])
+        if r.code != 0:
+            return f"the {self.name} build failed -- {r.first_err_line}"
+        self.binary = str(ROOT / "target" / "debug" / ("mwl.exe" if IS_WINDOWS else "mwl"))
+        return ""
+
     def run(self, mwl_args):
-        return capture("cargo", ["run", "--quiet", "-p", "mwl-cli", "--", "run", *mwl_args])
+        return capture(self.binary, ["run", *mwl_args])
 
 
-class WslLeg:
-    """Windows only: the same fixtures against a Linux build, through the default WSL distro."""
+class WslLeg(NativeLeg):
+    """Windows only: the same fixtures against a Linux build, through the default WSL distro.
+
+    Building once matters more here than on the native leg: every cargo invocation crosses the
+    9p mount at `/mnt/<drive>`, so the fingerprint scan it opens with is the expensive part.
+    """
 
     name = "wsl"
 
     def __init__(self, target_dir):
+        super().__init__()
         drive = str(ROOT)[0].lower()
         self.repo = "/mnt/" + drive + str(ROOT)[2:].replace("\\", "/")
         self.target_dir = target_dir
@@ -312,11 +337,17 @@ class WslLeg:
     def bash(self, inner, timeout=1800):
         return capture("wsl.exe", ["--", "bash", "-lc", inner], timeout=timeout)
 
-    def run(self, mwl_args):
-        return self.bash(
-            f"cd {self.repo} && CARGO_TARGET_DIR={self.target_dir} "
-            f"cargo run --quiet -p mwl-cli -- run " + " ".join(mwl_args)
+    def prepare(self):
+        r = self.bash(
+            f"cd {self.repo} && CARGO_TARGET_DIR={self.target_dir} cargo build --quiet -p mwl-cli"
         )
+        if r.code != 0:
+            return f"the {self.name} build failed -- {r.first_err_line}"
+        self.binary = f"{self.target_dir}/debug/mwl"
+        return ""
+
+    def run(self, mwl_args):
+        return self.bash(f"cd {self.repo} && {self.binary} run " + " ".join(mwl_args))
 
 
 def wsl_available():
@@ -329,10 +360,27 @@ def wsl_available():
 PROGRAM_KINDS = {"exact", "ordered", "contains", "min-bytes"}
 SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 
+# Checks whose cost is minutes and whose answer is a pure function of the tree: the release-profile
+# probe (`lto = "thin"`, `codegen-units = 1`), the second toolchain's whole leg, and a valgrind run
+# per fixture. A green verdict on these is remembered against the commit that produced it -- see
+# `Goal.remembered`.
+EXPENSIVE = {"abi-probe", "wsl leg", "valgrind sweep"}
+
 
 class Goal:
     """The acceptance test, read from docs/agent/loop-goal.toml. `check()` returns "" when everything
-    passes, or the first failure as one line."""
+    passes, or the first failure as one line.
+
+    Two things are memoized, and neither of them skips a check:
+
+    * **Within one run**, an identical `args` list runs cargo once. The list holds `mwl-runtime`
+      twice on purpose -- stage 0 and stage 5 name different guard tests on it -- and running the
+      crate's suite a second time cannot answer differently.
+    * **Across runs**, the three checks in `EXPENSIVE` are remembered against the exact tree that
+      made them green (HEAD plus a hash of anything dirty). A tree that has not changed cannot
+      produce a different verdict, so the sweep is not re-derived; any change at all drops the
+      whole cache. This is what makes `--goal-only` cheap to iterate on by hand.
+    """
 
     def __init__(self, spec):
         self.files = spec.get("files", [])
@@ -340,6 +388,10 @@ class Goal:
         self.valgrind_skip = set(spec.get("valgrind", {}).get("skip", []))
         self.wsl_target = spec.get("wsl", {}).get("target_dir", "/tmp/mwl-target-wsl")
         self.program_checks = [c for c in self.checks if c["kind"] in PROGRAM_KINDS]
+        self.ran = []  # (label, seconds) for every check this run actually paid for
+        self._cargo = {}  # args tuple -> Result, within one check() call
+        self._tree = ""
+        self._green = set()
         cargo = [c for c in self.checks if c["kind"] not in PROGRAM_KINDS]
         # Stage 0 is catch-up: work a later ADR reopened inside a milestone that
         # was already reported done. It runs before everything else so the
@@ -349,11 +401,62 @@ class Goal:
         self.catch_up_checks = [c for c, first in zip(cargo, catch_up) if first]
         self.cargo_checks = [c for c, first in zip(cargo, catch_up) if not first]
 
+    # -- measuring, and the two memos --------------------------------------------------
+
+    def timed(self, label, thunk):
+        """Run `thunk`, recording what it cost. `check()` reports the total and the three
+        slowest, because an acceptance test nobody has ever timed is one nobody can tune."""
+        started = time.monotonic()
+        try:
+            return thunk()
+        finally:
+            self.ran.append((label, time.monotonic() - started))
+
+    def cargo(self, args):
+        """`cargo` with the result shared by every check that asks for the same argument list."""
+        key = tuple(args)
+        if key not in self._cargo:
+            self._cargo[key] = capture("cargo", args)
+        return self._cargo[key]
+
+    def tree_id(self):
+        """HEAD, plus a hash of everything not committed. Two runs with the same id are two runs
+        over the same bytes, so a deterministic check cannot answer them differently."""
+        head = git("rev-parse", "HEAD") or "no-head"
+        dirty = git("status", "--porcelain") + "\n" + git("diff", "HEAD")
+        return head + ":" + hashlib.blake2b(dirty.encode("utf-8", "replace"),
+                                            digest_size=8).hexdigest()
+
+    def remembered(self, name):
+        return name in EXPENSIVE and name in self._green
+
+    def remember(self, name):
+        if name in EXPENSIVE:
+            self._green.add(name)
+            try:
+                GOALCACHE.parent.mkdir(exist_ok=True)
+                GOALCACHE.write_text(
+                    json.dumps({"tree": self._tree, "green": sorted(self._green)}, indent=1),
+                    encoding="utf-8", newline="\n",
+                )
+            except OSError:
+                pass
+
+    def load_green(self):
+        self._tree = self.tree_id()
+        self._green = set()
+        try:
+            entry = json.loads(GOALCACHE.read_text(encoding="utf-8"))
+            if entry.get("tree") == self._tree:
+                self._green = set(entry.get("green", []))
+        except (OSError, ValueError):
+            pass
+
     # -- one program check on one leg -------------------------------------------------
 
     def program_check(self, leg, c):
         label = f"{leg.name} {c['file']} [{c.get('stage', '?')}]"
-        r = leg.run([*c.get("args", []), c["file"]])
+        r = self.timed(label, lambda: leg.run([*c.get("args", []), c["file"]]))
         wants_nonzero = c.get("exit") == "nonzero"
         if wants_nonzero and r.code == 0:
             return f"{label}: exited 0, wanted non-zero"
@@ -386,14 +489,20 @@ class Goal:
 
     # -- the cargo-side checks, run once ----------------------------------------------
 
-    def cargo_check(self, c):
+    def cargo_check(self, c, leg=None):
         label = f"{c['name']} [{c.get('stage', '?')}]"
-        r = capture("cargo", c["args"])
+
+        if c["kind"] == "mwl-suite":
+            # The suite runner is the CLI the leg already built; `cargo run` here would be one
+            # more workspace fingerprint scan to start a binary sitting on disk.
+            r = self.timed(label, lambda: capture(leg.binary, c["args"]))
+        else:
+            r = self.timed(label, lambda: self.cargo(c["args"]))
         if r.code != 0:
             return f"{label}: exit {r.code} -- {r.first_err_line}"
         both = r.out + "\n" + r.err
 
-        if c["kind"] == "cargo-suite":
+        if c["kind"] == "mwl-suite":
             m = SUMMARY_RE.search(both)
             if not m:
                 return f"{label}: no 'N passed, M failed' summary line in the output"
@@ -413,33 +522,29 @@ class Goal:
 
     # -- the valgrind sweep -------------------------------------------------------------
 
-    def valgrind(self, wsl):
-        """Every fixture under `valgrind --leak-check=full`. In WSL on Windows, directly on Linux."""
-        if wsl is not None:
-            build = wsl.bash(
-                f"cd {wsl.repo} && CARGO_TARGET_DIR={wsl.target_dir} cargo build --quiet -p mwl-cli"
-            )
-            if build.code != 0:
-                return f"valgrind: the linux build failed -- {build.first_err_line}"
-            binary = f"{wsl.target_dir}/debug/mwl"
-        else:
-            if shutil.which("valgrind") is None:
-                return ""  # not a failure: this platform simply has no valgrind leg
-            build = capture("cargo", ["build", "--quiet", "-p", "mwl-cli"])
-            if build.code != 0:
-                return f"valgrind: the build failed -- {build.first_err_line}"
-            binary = str(ROOT / "target" / "debug" / "mwl")
+    def valgrind(self, leg):
+        """Every fixture under `valgrind --leak-check=full`, over the binary the leg already
+        built. In WSL on Windows, directly on Linux."""
+        if self.remembered("valgrind sweep"):
+            return ""
+        if leg.name == "native" and shutil.which("valgrind") is None:
+            return ""  # not a failure: this platform simply has no valgrind leg
 
         for f in self.files:
             if f in self.valgrind_skip:
                 continue
             cmd = (
                 "valgrind --error-exitcode=1 --leak-check=full "
-                f"--errors-for-leak-kinds=definite -q {binary} run {f}"
+                f"--errors-for-leak-kinds=definite -q {leg.binary} run {f}"
             )
-            r = wsl.bash(f"cd {wsl.repo} && {cmd}") if wsl else capture("bash", ["-lc", cmd])
+            r = self.timed(
+                f"valgrind {f}",
+                lambda: (leg.bash(f"cd {leg.repo} && {cmd}") if leg.name == "wsl"
+                         else capture("bash", ["-lc", cmd])),
+            )
             if r.code != 0:
                 return f"valgrind {f}: exit {r.code} -- {r.first_err_line}"
+        self.remember("valgrind sweep")
         return ""
 
     # -- the whole thing ----------------------------------------------------------------
@@ -449,17 +554,28 @@ class Goal:
             if verbose:
                 say(f"   .. {msg}", C.GRAY)
 
+        self.ran = []
+        self._cargo = {}
+        self.load_green()
+
         for f in self.files:
             if not (ROOT / f).exists():
                 return f"{f} is missing -- the acceptance fixtures are fixed, see docs/agent/loop-goal.md"
 
+        # One build for every fixture that follows, and a broken tree is reported as a broken
+        # build rather than as twenty-three fixtures with nothing on stdout.
+        native = NativeLeg()
+        trace("building the native CLI")
+        fail = self.timed("native build", native.prepare)
+        if fail:
+            return fail
+
         for c in self.catch_up_checks:
             trace(f"cargo {c['name']} (catch-up)")
-            fail = self.cargo_check(c)
+            fail = self.cargo_check(c, native)
             if fail:
                 return fail
 
-        native = NativeLeg()
         for c in self.program_checks:
             trace(f"{native.name} {c['file']}")
             fail = self.program_check(native, c)
@@ -467,22 +583,44 @@ class Goal:
                 return fail
 
         for c in self.cargo_checks:
+            if self.remembered(c["name"]):
+                trace(f"cargo {c['name']} (green on this tree already)")
+                continue
             trace(f"cargo {c['name']}")
-            fail = self.cargo_check(c)
+            fail = self.cargo_check(c, native)
             if fail:
                 return fail
+            self.remember(c["name"])
 
         # Windows is green, so now pay for the Linux leg.
-        wsl = WslLeg(self.wsl_target) if wsl_available() else None
-        if wsl is not None:
-            for c in self.program_checks:
-                trace(f"{wsl.name} {c['file']}")
-                fail = self.program_check(wsl, c)
-                if fail:
-                    return fail
+        leg = native
+        if wsl_available():
+            leg = WslLeg(self.wsl_target)
+            trace("building the wsl CLI")
+            fail = self.timed("wsl build", leg.prepare)
+            if fail:
+                return fail
+            if self.remembered("wsl leg"):
+                trace("wsl fixtures (green on this tree already)")
+            else:
+                for c in self.program_checks:
+                    trace(f"{leg.name} {c['file']}")
+                    fail = self.program_check(leg, c)
+                    if fail:
+                        return fail
+                self.remember("wsl leg")
 
         trace("valgrind sweep")
-        return self.valgrind(wsl)
+        return self.valgrind(leg)
+
+    def summary(self):
+        """One line: what this run cost, and the three checks that cost the most of it."""
+        if not self.ran:
+            return "nothing ran"
+        total = sum(s for _, s in self.ran)
+        worst = sorted(self.ran, key=lambda x: -x[1])[:3]
+        slow = ", ".join(f"{label} {s:.0f}s" for label, s in worst if s >= 1)
+        return f"{total:.0f}s over {len(self.ran)} check(s)" + (f"; slowest: {slow}" if slow else "")
 
 
 # -------------------------------------------------------------------------------- driver
@@ -744,7 +882,9 @@ def main():
                 extra = " ".join(c.get("args", []))
                 say(f"  [{c.get('stage', '?')}] {c['kind']:<10} {c['file']} {extra}".rstrip())
                 continue
-            say(f"  [{c.get('stage', '?')}] {c['kind']:<10} {c['name']}: cargo {' '.join(c['args'])}")
+            driver = "mwl" if c["kind"] == "mwl-suite" else "cargo"
+            say(f"  [{c.get('stage', '?')}] {c['kind']:<11} {c['name']}: "
+                f"{driver} {' '.join(c['args'])}")
         skipped = ", ".join(sorted(goal.valgrind_skip)) or "nothing"
         say(f"  valgrind sweep over every fixture except: {skipped}")
         return 0
@@ -752,10 +892,11 @@ def main():
     if opts.goal_only:
         say("running the acceptance test ...", C.CYAN)
         fail = goal.check(verbose=True)
+        say(f"\ncost: {goal.summary()}", C.GRAY)
         if fail:
-            say(f"\nNOT GREEN: {fail}", C.RED)
+            say(f"NOT GREEN: {fail}", C.RED)
             return 1
-        say("\nGOAL REACHED: every acceptance check passes", C.GREEN)
+        say("GOAL REACHED: every acceptance check passes", C.GREEN)
         return 0
 
     LOGDIR.mkdir(parents=True, exist_ok=True)
@@ -826,6 +967,7 @@ def drive(opts, goal):
 
         # The deterministic goal check outranks whatever the session reported.
         fail = goal.check()
+        ledger(f"       goal cost: {goal.summary()}")
         if not fail:
             reason = "GOAL REACHED: every acceptance check in docs/agent/loop-goal.toml passes"
             break
