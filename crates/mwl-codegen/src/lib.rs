@@ -620,6 +620,25 @@ impl Jit {
             ("use_colocated_libcalls", "false"),
             ("is_pic", "false"),
             ("opt_level", "speed"),
+            // Cranelift defaults this **off**, and off means a frame larger
+            // than the guard page can move the stack pointer past it in one
+            // step and write into whatever lies beyond — a stack clash, which
+            // is a memory-safety bug rather than the clean crash a guard page
+            // exists to produce. `probestack_size_log2` defaults to 12, so a
+            // probe is emitted only for a frame over 4 KiB and no MWL frame is
+            // that big today: measured under callgrind on this tree, the
+            // retired-instruction count is unchanged to five significant
+            // figures either way (92,237,951 off vs 92,237,800 inline on a
+            // call-heavy fixture; 55,399,358 vs 55,399,652 on a 200-deep
+            // recursion). It is therefore insurance bought for nothing, and
+            // the frame that would need it is exactly the one nobody predicts.
+            //
+            // **Not the same mechanism as ADR 0020 § 1's call-stack limit**,
+            // which counts *depth* against a `Ctx` field at the safepoint's
+            // emit site. That catches a runaway recursion of ordinary frames;
+            // this catches one oversized frame skipping the guard. Neither
+            // covers the other, and both are wanted.
+            ("enable_probestack", "true"),
         ] {
             flags
                 .set(name, value)
