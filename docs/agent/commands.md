@@ -67,17 +67,29 @@ a previous answer.
 ## Verifying
 
 ```sh
-python tools/verify.py                                         # build + test + clippy + fmt, one call
+python tools/verify.py                                         # build + fmt + test + clippy, one call
 python tools/verify.py -p mwl-ir                               # the same, scoped to one package
+python tools/verify.py --no-cache                              # re-run even on an unchanged tree
 cargo test --release -p mwl-abi-probe                          # cost guards (skipped in debug)
 cargo test --release -p mwl-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
 
-`verify.py` runs `cargo build`, `test`, `clippy --all-targets -- -D warnings` and `fmt --check` in that
+`verify.py` runs `cargo build`, `fmt --check`, `test` and `clippy --all-targets -- -D warnings` in that
 order, stops at the first failure, and prints about ten lines when green — the four separately are four
 calls and tens of thousands of tokens of output nobody reads once it passes. Every step's full output is
 written to `.agent-tmp/verify-<step>.log` either way. It judges nothing: a step's own exit status is the
 whole verdict.
+
+`fmt` is second, not last, because it costs a second and a formatting slip should not cost a whole run;
+it is not *first* because `cargo fmt --check` on unparseable code reports a rustfmt parse error instead
+of the compiler diagnostic that typo deserves.
+
+**A repeat run on an unchanged tree is free** — about two tenths of a second. The green verdict is cached
+against a content hash of every file cargo reads plus the exact `rustc -vV`, so a second run after step 4
+has edited only documentation prints the verdict it already holds rather than re-deriving it. That is not
+a check being skipped: the inputs are bit-identical. Only green is cached, the entry expires after an
+hour, and `--no-cache` forces the real thing. A `--fast` or `-p`-scoped verdict never satisfies a wider
+run; a wider one does satisfy a narrower.
 
 ## Fuzzing and callgrind on Windows: use WSL
 
