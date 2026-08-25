@@ -273,6 +273,30 @@ tests = [
   "both_representations_answer_every_primitive_alike",
 ]
 
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-codegen (stack probes)"
+args = ["test", "-p", "mwl-codegen"]
+tests = [
+  # Item 16 -- Cranelift defaults stack probes off, so a frame over the 4 KiB guard page could step
+  # past it. Measured at no instruction-count change either way, so the flag is insurance bought for
+  # nothing. Not item 14 under another name: that counts depth, this catches one oversized frame.
+  "stack_probes_are_enabled",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-stdlib (allocation seam)"
+args = ["test", "-p", "mwl-stdlib"]
+tests = [
+  # Item 17 -- one allocation guard, in `mwl_runtime::affordable`, rather than four hand-written
+  # copies and three members with none. The test is the invariant, not the behaviour: it fails when
+  # someone writes copy number five.
+  "no_member_writes_its_own_allocation_guard",
+]
+
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 1 -- what the previous loop reached, unchanged. This is the non-regression floor: nothing below

@@ -19,11 +19,14 @@ stated. **What comes first now is Stage 0 below, not `Core` breadth.**
 them change a milestone's *built* behaviour rather than adding to a later one, and the debt beside them is
 what M1 and M2 never finished. **ADR 0094 joins the list from the other direction** — a decision taken
 while the loop is running, which reopens M1's declaration grammar rather than adding to a later milestone,
-so it is item 3 here instead of scheduled work somewhere ahead. **Items 10–15 arrive the same way**, from
+so it is item 3 here instead of scheduled work somewhere ahead. **Items 10–17 arrive the same way**, from
 a review of what PHP's last three years of CVEs and performance work say about MWL: each was settled with
 the user, and each is here rather than scheduled to a milestone because the emit site, the ABI or the
 member it changes is being written *right now* — item 15 alone is the difference between `$a[] = $v`
-costing 9.4× what PHP's interpreter charges and roughly an eighth of it. Until this section is empty, **a session takes its group from here, in this
+costing 9.4× what PHP's interpreter charges and roughly an eighth of it. **16 and 17 came from a second
+pass over the same ground and are already done**, both being small enough that queueing them would have
+cost more than doing them; they are listed so neither is re-opened and so the review's full output is in
+one place. Until this section is empty, **a session takes its group from here, in this
 order, and does not open a Stage 3 `Core` slice.** The reason is compounding cost, not tidiness: the
 spelling ADR 0090 deletes had reached 48 files and 93 lines before item 1 rewrote them, and every fixture
 written while an item here is open is written against a rule that is about to change.
@@ -131,6 +134,25 @@ one is how an item finishes.
     `docs/perf/history.ndjson` entry, with a `php_ratio`, per
     [ADR 0026](../adr/0026-performance-measurement-methodology.md); that file not existing is why nothing
     caught this.
+16. ~~**Cranelift's stack probes are on.**~~ **Done.** Cranelift defaults `enable_probestack` to
+    *false*, and off means a frame larger than the 4 KiB guard page can move the stack pointer past it
+    in one step — a stack clash, which is a memory-safety bug rather than the clean crash a guard page
+    exists to produce. `Jit::new`'s own comment owns the reasoning and the measurement: under callgrind
+    on this tree the retired-instruction count is unchanged to five significant figures with the flag on
+    (92,237,951 off vs 92,237,800 inline, call-heavy; 55,399,358 vs 55,399,652 at 200 frames deep),
+    because a probe is emitted only above 4 KiB and no MWL frame is that big *yet*. **It is not item 14
+    under another name** — that counts depth against a `Ctx` field, this catches one oversized frame
+    skipping the guard, and neither covers the other.
+17. ~~**One allocation guard, not one per member.**~~ **Done.** `mwl_runtime::affordable` is the single
+    place a count-shaped argument becomes a refusal, and its own doc comment owns why — including that
+    it is *not* a budget yet, and that [ADR 0004](../adr/0004-memory-for-simplicity.md)'s
+    `[limits.hard]` per-request ceiling attaches there when the M6 arena carries it. It replaced four
+    hand-written copies (`Core\Bytes`, `Core\Str::repeat`, both `Core\Random` draws) and, more to the
+    point, reached the three members that had **no** check at all: `Core\Arr::fill`/`padStart`/`padEnd`
+    through `append_copies`, and `Core\Str::padStart`/`padEnd` through `padding_run`. `Arr::fill($n, 0)`
+    was an unbounded run for any `uint` a caller chose — measured at 110 bytes and ~1.2 µs *per entry*,
+    so 100M entries is ~11 GB and about two minutes — and is now a catchable throw. The gate test is the
+    invariant rather than the behaviour: it fails when someone writes copy number five.
 
 **Already done, and listed so it is not re-opened:** ADR 0087's lexer half is built — `mwl_syntax::bidi` is
 the one predicate, the lexer makes it `E0008` over comments, string literals and inline HTML per line, and
