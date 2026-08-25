@@ -194,24 +194,15 @@
 //!   diagnosed here. ADR 0007 § 5 gives an array one stored key type, so
 //!   `foreach ($a as int $k => …)` is always wrong; today it type-checks and
 //!   then trips `mwl_ir`'s assertion instead of getting a diagnostic.
-//! - **A class member's `private`/`protected` modifier is not enforced at
-//!   all.** Only ADR 0043 § 3's private *interface* method is
-//!   ([`signatures::MethodSig::interface_private`]); a `private` method or
-//!   property declared on a class is callable and readable from anywhere,
-//!   which is a PHP-observable divergence, not a design choice. It wants one
-//!   pass keyed on the accessing class, over both
-//!   [`expr::members::check_property_access`] and method resolution.
-//! - **`$x instanceof Stringable` records no resolved class**, which
-//!   `mwl_ir` then panics on rather than lowering. The member half of that
-//!   gap is closed — [`iter_lib`] seeds `Comparable::compareTo` and
-//!   `Stringable::toString`, so a parameter declared at either type resolves
-//!   its member and [`conformance`] holds an implementor to it — but a
-//!   reserved interface still has no entry the `instanceof` path can name.
 //! - **A value typed at the interface itself is not `Stringable` to
 //!   [`expr::operators`]'s `require_stringable`**, which asks
 //!   [`mwl_hir::implements_interface`] and gets `false` for a name against
 //!   itself. So `echo $s` on a `Stringable $s` is `E0412` even though
-//!   `$s->toString()` now checks.
+//!   `$s->toString()` now checks. Accepting it here is not enough on its own:
+//!   `echo $m` on a *concrete* implementor already type-checks and then panics
+//!   in `mwl_ir` (that crate's gap 12, which owns the missing `toString`
+//!   desugar), so widening this check without landing that one only moves the
+//!   refusal from a diagnostic to a panic.
 
 pub mod check;
 pub(crate) mod conformance;

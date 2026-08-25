@@ -323,6 +323,15 @@
 //!     non-throwing form) runs no membership test either: its yield-`null`
 //!     miss arm has no shared representation with its hit arm, so it needs a
 //!     merge the throwing form does not.
+//! 21. **A binding declared at ADR 0007 § 3's opaque `object` top has no
+//!     representation arm.** `erase_checked_ty` maps a *named* class to
+//!     [`ty::Ty::Object`], but the checker's own `object` reaches no arm at
+//!     all, so `object $o = $obj;` — or any parameter or return declared
+//!     `object` — panics naming itself. The representation is not in question:
+//!     it is the same pointer a named class already erases to, and the arm is
+//!     one line. What is unverified is whether anything below this crate reads
+//!     a class *label* off an operand it would now receive without one, which
+//!     is what a session landing it owes a check of.
 
 pub mod ids;
 pub mod ir;

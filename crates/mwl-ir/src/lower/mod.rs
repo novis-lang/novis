@@ -4248,12 +4248,16 @@ class T {
         assert!(modulo.on_error.is_none(), "{modulo:?}");
     }
 
-    /// A file declaring no class still lowers, and still carries the
-    /// exception tree plus its one synthesized constructor — the `hello.mwl`
-    /// shape. Nothing in the file references either, and both are emitted
-    /// anyway: `mwl_hir::errors`' classes exist in every program.
+    /// A file declaring no class still lowers, and still carries both rosters
+    /// no source declares — `mwl_hir::errors`' exception tree, with its one
+    /// synthesized constructor, and `mwl_hir::interfaces`' four global
+    /// interfaces — the `hello.mwl` shape. Nothing in the file references any
+    /// of them and they are emitted anyway: a descriptor has to exist before
+    /// `$x instanceof Stringable` has anything to test against, and a class
+    /// implementing one only keeps the edge if the label it names is in this
+    /// list (`mwl_types::layout::build_class_layouts`).
     #[test]
-    fn a_file_with_no_class_still_carries_the_exception_tree() {
+    fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
         let program = lower_whole_file("<?mwl\necho \"hi\";\n");
         let labels: Vec<&str> = program
             .classes
@@ -4264,10 +4268,14 @@ class T {
             labels,
             [
                 "ArithmeticError",
+                "Comparable",
                 "IOError",
+                "Iterable",
+                "Iterator",
                 "LogicError",
                 "ParseError",
                 "RuntimeError",
+                "Stringable",
                 "Throwable",
                 "TimeoutError",
             ]

@@ -1,0 +1,62 @@
+--TEST--
+`instanceof` answers for the four global interfaces the compiler declares and no source does — ADR 0013 § 1, ADR 0028 § 1, ADR 0053 § 1
+--FILE--
+<?mwl
+// `Stringable` and `Comparable` have no declaration anywhere: the compiler
+// seeds them (`mwl_hir::interfaces`), so this pins that an implementor still
+// carries a real ancestor edge to each at run time.
+class Money implements Stringable, Comparable {
+    public int $cents;
+
+    public function constructor(int $cents) {
+        $this->cents = $cents;
+    }
+
+    public function toString(): string {
+        return ($this->cents) as string;
+    }
+
+    public function compareTo(Comparable $other): int {
+        return 0;
+    }
+}
+
+// The edge is inherited like any other: `Coin` names neither interface.
+class Coin extends Money {
+}
+
+class Plain {
+}
+
+class Nums {
+    public static function upTo(int $n): Iterator<int> {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+var $m = new Money(250);
+var $c = new Coin(5);
+var $p = new Plain();
+Iterator<int> $it = Nums::upTo(2);
+
+echo ($m instanceof Stringable) as string, "|\n";
+echo ($m instanceof Comparable) as string, "|\n";
+echo ($c instanceof Stringable) as string, "|\n";
+echo ($p instanceof Stringable) as string, "|\n";
+echo ($p instanceof Comparable) as string, "|\n";
+// ADR 0053 § 4's state machine is a synthesized class implementing
+// `Iterator`, so the same edge exists for a generator's own object.
+echo ($it instanceof Iterator) as string, "|\n";
+echo ($m instanceof Iterator) as string, "|\n";
+--EXPECT--
+1|
+1|
+1|
+|
+|
+1|
+|

@@ -145,6 +145,12 @@ pub(super) fn infer_class_const(
 /// here so `mwl-ir` never has to resolve one (see
 /// `crate::expr_table::ExprInfo::InstanceOf`). Anything else is the dynamic
 /// form, which still checks as an ordinary expression and records nothing.
+///
+/// The three names worth recording are a declared symbol, one of the reserved
+/// global exception classes, and one of the reserved global interfaces — the
+/// last two have no declaration to find in `env.symbols`, and
+/// `crate::layout::build_class_layouts` seeds a descriptor for each so
+/// `mwl-codegen` has something to test against.
 pub(super) fn infer_instanceof(
     expr: &Expr,
     inner: &Expr,
@@ -158,7 +164,10 @@ pub(super) fn infer_instanceof(
     if let ExprKind::ConstFetch(name) = &class.kind {
         let text = span_text(env.src, name.span);
         let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
-        if env.symbols.get(&qname).is_some() || qname.is_reserved_global_class() {
+        if env.symbols.get(&qname).is_some()
+            || qname.is_reserved_global_class()
+            || qname.is_reserved_global_interface()
+        {
             env.exprs
                 .record(expr.span, ExprInfo::InstanceOf { class: qname });
         }

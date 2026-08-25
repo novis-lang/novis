@@ -137,7 +137,9 @@ impl ClassLayoutTable {
     }
 }
 
-/// Builds the layout of every class and interface declared in `stmts`.
+/// Builds the layout of every class and interface declared in `stmts`, plus
+/// the two rosters no source declares — `mwl_hir::errors`' exception tree and
+/// `mwl_hir::interfaces`' global interfaces.
 ///
 /// `graph` is the already-resolved hierarchy `mwl_hir::resolve_file` produced
 /// for the same file — the one thing this pass cannot derive from the AST,
@@ -177,6 +179,18 @@ pub fn build_class_layouts(
         };
         own.insert(QName::parse(name), fields);
         own_methods.insert(QName::parse(name), methods);
+    }
+    // The compiler-declared global interfaces, for the same reason and on the
+    // same terms (`mwl_hir::interfaces`): nothing declares `Stringable` in
+    // source, but `$x instanceof Stringable` needs a descriptor to point at
+    // and `class S implements Stringable` needs the edge to it in `conforms`,
+    // which `collect_conforms` only keeps for a label the table has an entry
+    // for. Both lists are empty: an interface declares no property, and every
+    // member on these four is bodiless (`crate::iter_lib`), so there is no
+    // code for a descriptor's method table to name.
+    for (name, _) in mwl_hir::interfaces::RESERVED {
+        own.insert(QName::parse(name), Vec::new());
+        own_methods.insert(QName::parse(name), Vec::new());
     }
     collect_own(stmts, src, &[], &mut own, &mut own_methods);
 
@@ -444,6 +458,29 @@ mod tests {
         assert_eq!(table.get("Dog").expect("Dog").conforms, ["Greets"]);
     }
 
+    /// The four `mwl_hir::interfaces` names have no source declaration at
+    /// all, so without the seeding in [`build_class_layouts`] an implementor's
+    /// `conforms` would name a label the table has no entry for — and
+    /// `mwl-codegen` drops exactly those edges, leaving `$m instanceof
+    /// Stringable` with nothing to test against.
+    #[test]
+    fn a_reserved_global_interface_has_an_entry_and_an_implementor_keeps_the_edge() {
+        let table = layouts(
+            "<?mwl\nclass Money implements Stringable {\n  \
+             public function toString(): string { return \"m\"; }\n}\n\
+             class Coin extends Money {\n}\n",
+        );
+        for (name, _) in mwl_hir::interfaces::RESERVED {
+            let layout = table.get(name).expect("a reserved interface has a layout");
+            assert!(layout.fields.is_empty(), "{name} claims a slot");
+        }
+        assert_eq!(table.get("Money").expect("Money").conforms, ["Stringable"]);
+        assert_eq!(
+            table.get("Coin").expect("Coin").conforms,
+            ["Money", "Stringable"]
+        );
+    }
+
     #[test]
     fn an_interfaces_own_parents_are_flattened_in() {
         let table = layouts(
@@ -489,13 +526,18 @@ mod tests {
         assert_eq!(table.get("B").expect("B").fields, ["v", "w"]);
     }
 
-    /// A file declaring nothing still gets the exception tree, and nothing
-    /// else — `mwl_hir::errors`' classes exist in every program, with the
-    /// root's four slots inherited at the same indices by every one of them.
+    /// A file declaring nothing still gets both rosters no source declares,
+    /// and nothing else — `mwl_hir::errors`' classes and
+    /// `mwl_hir::interfaces`' interfaces exist in every program, with the
+    /// exception root's four slots inherited at the same indices by every one
+    /// of its subclasses.
     #[test]
-    fn a_file_declaring_nothing_yields_exactly_the_exception_tree() {
+    fn a_file_declaring_nothing_yields_exactly_the_two_compiler_owned_rosters() {
         let table = layouts("<?mwl\necho \"hi\";\n");
-        assert_eq!(table.len(), mwl_hir::errors::TREE.len());
+        assert_eq!(
+            table.len(),
+            mwl_hir::errors::TREE.len() + mwl_hir::interfaces::RESERVED.len()
+        );
         for (name, _) in mwl_hir::errors::TREE {
             let layout = table.get(name).unwrap_or_else(|| panic!("{name}"));
             // The root's own row *is* `PROPERTIES`; every other row adds to it.

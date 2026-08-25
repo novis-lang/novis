@@ -2,57 +2,56 @@
 
 ## State
 
-**Stage 0 items 1-6 and 9 are done; item 7 is one third done and item 8 is untouched.**
-`mwl_types::iter_lib` now seeds *all four* compiler-declared global interfaces rather than only the two
-generic ones ([iter_lib.rs:69](../../crates/mwl-types/src/iter_lib.rs#L69)): `Comparable` declares
-`compareTo(Comparable $other): int` and `Stringable` declares `toString(): string`, both bodiless and
-`Visibility::Public`. `mwl_hir::interfaces` gained `COMPARABLE`/`STRINGABLE` beside `ITERABLE`/`ITERATOR`
-so neither half spells a name the other owns. ADR 0013 § 1 writes the parameter as `self`; the seeded
-declaration *is* `Comparable`, and that module's own docs say why the wider spelling costs nothing (the
-same-class rule is the operator's, in `expr::operators::object_comparison_result`). `compareTo` returns
-`int`, settled against `mwl_stdlib::ordering`, which is `std::cmp::Ordering` and not an MWL-visible type.
+**Stage 0 items 1-6, 7a, 7b and 9 are done; 7c is untouched and item 8 is untouched.**
+`instanceof` against a compiler-declared global interface now runs end to end.
+[`mwl_types::layout::build_class_layouts`](../../crates/mwl-types/src/layout.rs#L191) seeds a layout for
+every `mwl_hir::interfaces::RESERVED` name exactly the way it already seeds `mwl_hir::errors`' exception
+tree, so `mwl-codegen` has a `ClassDesc` to bake in and — the half that actually mattered — an
+implementor's `conforms` list keeps its edge, since `Classes::define` drops any label the unit declares no
+class for. `mwl_types::expr::members::infer_instanceof` records the resolved class for a reserved
+interface too. Consequences pinned by
+`tests/conformance/class/instanceof-answers-for-a-reserved-global-interface.mwlt`: `$m instanceof
+Stringable` is true for an implementor, true for a subclass that names nothing, false for an unrelated
+class, and true for a generator's synthesized state machine against `Iterator`.
 
-Consequence, and it is the point: `crate::conformance` reads that table, so `class Money implements
-Comparable {}` is now `E0449` like any other unanswered interface. Two `mwl-types` integration fixtures
-declared exactly that and were given bodies.
+Cost: four extra `ClassDesc`s per compiled unit, no fields and no methods on any of them.
 
-`python tools/verify.py` is green (1369 tests), `mwl test tests/` is 429/0, and every `examples/*.mwl`
-runs as before (`collect.mwl` still fails on unbuilt `Core` members, `uncaught.mwl` still exits 1 by
-design).
+`python tools/verify.py` is green (1370 tests) and `mwl test tests/` is 430/0.
 
-## Next group — Stage 0 item 7's two remaining thirds, then item 8
+## Next group — item 7c, which is two slices rather than one, then item 8
 
-**Shared file set:** `crates/mwl-types/src/expr/members.rs`, `crates/mwl-ir/src/lower/expr.rs`,
-`crates/mwl-codegen/src/lib.rs` and `tests/conformance/class/`. The rule is `docs/agent/loop-goal.md`
-§ *Stage 0* items 7 and 8.
+**Shared file set:** `crates/mwl-types/src/expr/operators.rs`, `crates/mwl-hir/src/hierarchy.rs`,
+`crates/mwl-ir/src/lower/expr.rs` and `tests/conformance/class/`. The rule is
+[`loop-goal.md`](loop-goal.md) § *Stage 0* items 7 and 8.
 
-- [ ] **7b — `instanceof Stringable` must record a resolved class, and something must exist to test
-      against.** The checker half is one condition:
-      [members.rs:161](../../crates/mwl-types/src/expr/members.rs#L161) records an `ExprInfo::InstanceOf`
-      only for a declared symbol or a reserved global *class*, so add the interface roster
-      (`QName::is_reserved_global_interface`). The runtime half is the real work and is not a panic —
-      `emit_instanceof` ([emit.rs:1399](../../crates/mwl-codegen/src/emit.rs#L1399)) returns
-      `CodegenError::Unsupported` because `Classes::build`
-      ([lib.rs:433](../../crates/mwl-codegen/src/lib.rs#L433)) builds descriptors from
-      `mwl_ir::ir::Class` and no source declares `Stringable`. `mwl_runtime::object::is_instance_of`
-      ([object.rs:768](../../crates/mwl-runtime/src/object.rs#L768)) already answers an *interface*
-      ancestor, so what is missing is a `ClassDesc` for the reserved four and an ancestor edge from each
-      implementor. `lower_instanceof` is [expr.rs:2790](../../crates/mwl-ir/src/lower/expr.rs#L2790).
-- [ ] **7c — `echo $s` on a value typed at the interface itself.** `require_stringable`
-      ([operators.rs:792](../../crates/mwl-types/src/expr/operators.rs#L792)) asks
-      `mwl_hir::implements_interface` ([hierarchy.rs:367](../../crates/mwl-hir/src/hierarchy.rs#L367)),
-      which walks *parents* only and so answers `false` for `Stringable` against `Stringable` — so
-      `$s->toString()` checks but `echo $s` is `E0412`. Decide it at the call site or in the walk, then
-      write the `.mwlt` cases item 7 asks for under `tests/conformance/class/`: a `Stringable` parameter
-      whose `toString()` is called and echoed, and a `Comparable` one ordered through `<`. Both are
-      recorded in `mwl-types`' known gaps ([lib.rs:205](../../crates/mwl-types/src/lib.rs#L205)).
+- [ ] **7c-i — the implicit `toString` desugar, `mwl-ir` gap 12
+      ([lib.rs:218](../../crates/mwl-ir/src/lib.rs#L218)).** Do this one **first**: `echo $m` on a
+      *concrete* `Stringable` implementor already type-checks and then panics at
+      [expr.rs:436](../../crates/mwl-ir/src/lower/expr.rs#L436), so widening the checker first would only
+      move 7c's refusal from a diagnostic to a panic. The gap's own text names the two ways out — the
+      checker records an `ExprInfo::Call` for the operand's `toString()`, or this crate re-resolves it —
+      and the first keeps `mwl-ir`'s "trusts its input" rule. `.`, `as string` and `echo` share the
+      conversion, so one desugar closes all three.
+- [ ] **7c-ii — a value typed at the interface itself.** `require_stringable`
+      ([operators.rs:792](../../crates/mwl-types/src/expr/operators.rs#L792)) and
+      `object_comparison_result` ([operators.rs:329](../../crates/mwl-types/src/expr/operators.rs#L329))
+      both ask `mwl_hir::implements_interface`
+      ([hierarchy.rs:367](../../crates/mwl-hir/src/hierarchy.rs#L367)), which walks *parents* only and so
+      answers `false` for `Stringable` against `Stringable`. Its other two callers (`class_satisfied`,
+      `classes_are_unrelated`) already return on equal names before calling, so making the walk reflexive
+      is a one-place decision — but say which you chose in that function's doc. Then the `.mwlt` cases item
+      7 asks for: a `Stringable` parameter echoed, and a `Comparable` one ordered through `<`. Check the
+      second actually *lowers* before writing it; a `<` over two interface-typed operands has no single
+      resolved `compareTo` to call.
 - [ ] **8 — ADR 0061's `autoload`**, both file-scope declaration forms and the name-to-file fixpoint over
       the require-graph worklist. `loop-goal.toml` already waits on `an_autoload_declaration_parses`
       (`mwl-syntax`) and `an_autoload_declaration_resolves_a_name_to_its_file` (`mwl-hir`). Different file
-      set from 7b/7c — start a session on it rather than tacking it onto one.
+      set from 7c — start a session on it rather than tacking it onto one.
 
 ## Backlog
 
+- `mwl-ir` gap 21 (new): a binding declared at the opaque `object` top has no representation arm, so
+  `object $o = $obj;` panics — that gap's text says what a session landing it owes.
 - ADR 0094's one uncovered shape: a promoted constructor parameter is no table's property, so nothing
   resolves it to check — `mwl-types`' `signatures` known gaps.
 - `private(set)` is ADR 0094 § 3's write half and is not modeled at all — same known-gap list.
@@ -62,5 +61,3 @@ design).
   — `mwl-types`' `signatures`.
 - `mwl-ir` gap 19: `$n + $f` and `$n < $f` type-check and still fail in codegen.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
-
-`orient.py` printed everything this session needed.
