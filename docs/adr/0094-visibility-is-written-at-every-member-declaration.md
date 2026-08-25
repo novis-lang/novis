@@ -156,10 +156,11 @@ author nothing here.
 
 ## Verification
 
-- **M1, in `mwl-syntax`.** The check belongs with the other post-parse declaration checks — the walk
-  `check_casing` already makes over every class, interface and anonymous-class body — so it reaches
-  every call site that already runs the casing pass (`mwl-cli`, and `mwl_hir::requires` for a required file)
-  with no new wiring.
+- **M1, in `mwl-syntax`.** The check belongs with the other post-parse declaration checks — the walk over
+  every class, interface and anonymous-class body that `check_casing` already made — so it reaches every
+  call site that already runs the casing pass (`mwl-cli`, and `mwl_hir::requires` for a required file) with
+  no new wiring. That walk is `check_declarations` now: it answers two questions rather than one, and
+  `mwl_syntax::casing`'s own module doc says why they share a visit.
 - `E_MISSING_VISIBILITY` = **E0122**, parser band, with the fix hint of § 1.
 - **One report per declaration.** An `enum` body parses its members through the same class-member path and
   already rejects each one with `E0220`, so the walk skips an enum's member list rather than adding a

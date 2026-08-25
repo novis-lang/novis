@@ -432,6 +432,14 @@ impl<'src, 'd> Parser<'src, 'd> {
     pub(super) fn parse_class_member(&mut self, out: &mut Vec<ClassMember>) {
         let start = self.peek().span;
         let attributes = self.parse_attribute_groups();
+        // Only a class/interface/anonymous-class body redirects `var`; an
+        // enum body reaches `parse_class_member_with_attrs` directly and
+        // already reports `E_ENUM_MEMBER_UNSUPPORTED` for whatever it holds,
+        // which is the one diagnostic ADR 0094's scope leaves it.
+        if self.at_keyword(Keyword::Var) {
+            out.push(self.parse_class_body_var(start, attributes));
+            return;
+        }
         self.parse_class_member_with_attrs(start, attributes, out);
     }
 
@@ -474,6 +482,47 @@ impl<'src, 'd> Parser<'src, 'd> {
             kind: ClassMemberKind::Error,
             span,
         });
+    }
+
+    /// PHP's `var $x;` property form, which
+    /// [ADR 0094](../../../docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
+    /// § 4 answers with the same `E_MISSING_VISIBILITY` a bare `int $x;`
+    /// gets. It needs its own arm because `var` is
+    /// [ADR 0037](../../../docs/adr/0037-var-local-type-inference.md)'s
+    /// local-inference keyword and starts no type, so without this the
+    /// declaration falls through to `expected a class member` — a message
+    /// about the grammar, aimed at an author who wrote the one shape the
+    /// diagnostic exists to redirect.
+    ///
+    /// Recovery consumes the rest of the declaration, so the body's loop
+    /// resumes at the next member rather than re-reading `$x` as one.
+    fn parse_class_body_var(
+        &mut self,
+        start: Span,
+        attributes: Vec<AttributeGroup>,
+    ) -> ClassMember {
+        let _ = attributes;
+        let kw = self.peek().span;
+        self.bump(); // 'var'
+        while !matches!(
+            self.peek().kind,
+            TokenKind::Semicolon | TokenKind::RBrace | TokenKind::Eof
+        ) {
+            self.bump();
+        }
+        let _ = self.eat(TokenKind::Semicolon);
+        self.diags.report(
+            Diagnostic::error(
+                code::E_MISSING_VISIBILITY,
+                "`var` is not a visibility, and a property declares its type",
+            )
+            .with_primary(kw, "write `public int $x;`")
+            .with_fix(kw, "public int", "write a visibility and a type"),
+        );
+        ClassMember {
+            span: start.to(self.last_span),
+            kind: ClassMemberKind::Error,
+        }
     }
 
     /// `const (Type)? Name = expr (',' Name = expr)*;` — `const` and the

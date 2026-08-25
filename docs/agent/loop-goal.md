@@ -37,16 +37,14 @@ one is how an item finishes.
    `==`/`!=`, a `switch` label and a `match` arm all reach (§ 6). The predicate is one-sided on purpose —
    it refuses only where disjointness is provable from the two types alone — and that function's own doc
    comment owns why.
-3. **ADR 0094 — every member declaration writes a visibility** (M1). Nothing requires one today: the parser
-   takes modifiers permissively and defers legality to a check that was never written — `E_BAD_MODIFIER`
-   (E0106) is defined and never emitted — so `int $x;`, `const A = 1;` and `function f()` all parse inside a
-   class body with no layer deciding what they mean, and MWL's property grammar is looser here than PHP's
-   own. `E0122` from `mwl-syntax`'s post-parse declaration walk, the one `check_casing` already makes over
-   every class, interface and anonymous-class body, **plus the corpus rewrite in the same slice** —
-   four member declarations in `.mwlt`/`.mwl` fixtures and roughly sixty inline snippets in Rust tests.
-   That rewrite is why this item is first: every fixture written while it is open is written against a rule
-   about to change. It is the *declaration* half of visibility; item 6 is the *access* half, and neither
-   waits on the other.
+3. ~~**ADR 0094 — every member declaration writes a visibility** (M1).~~ **Done.** `E0122` from
+   `mwl_syntax::check_declarations` — the post-parse declaration walk that was `check_casing`, renamed
+   because it now answers two questions rather than one — over every property, class constant and method
+   in a `class`, `interface` or anonymous-class body, with a bare `(set)` naming the pair it is missing
+   (§ 3) and a class-body `var` redirected in the parser (§ 4). A plain constructor parameter stays exempt
+   and an `enum` body still reports only `E0220`. The corpus rewrite landed in the same slice; it was far
+   smaller than estimated, because a `mwl-types` or parser fixture never reaches that walk. It is the
+   *declaration* half of visibility; item 6 is the *access* half, and neither waits on the other.
 4. **ADR 0090 § 3 — the three non-scalar rows** (M3/M4; `mwl-ir`'s gap 19 owns it). The null test moved
    with item 1, because deleting the spelling forced it: `mwl_types::locals::null_test` and
    `lower_null_identity` both read `Eq`/`NotEq` now. What is left is one runtime helper each for strings

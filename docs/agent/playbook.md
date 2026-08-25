@@ -107,6 +107,12 @@ is why" — is this file.
 
 ## Writing a test case
 
+- **A rule added to `mwl_syntax::check_declarations` reaches far less of the corpus than a grep
+  suggests.** Only `mwl-cli` and `mwl_hir::requires` call that walk, so every `mwl-types` fixture, every
+  parser test and every `mwl-codegen` fixture goes straight past it — ADR 0094's estimated "sixty inline
+  snippets to rewrite" turned out to be eleven, all in `casing.rs`'s own tests. Grep for the *callers*
+  before budgeting a corpus rewrite; a `<?mwl` snippet in a Rust string is not automatically subject to
+  everything the compiler enforces.
 - **A row the checker accepts is not a row that runs.** `mwl-codegen` refuses a binary operator over two
   representations — `int == float`, `uint == int` — with *"does not lower a binary operator over
   mismatched representations"*, even though ADR 0090 § 2 makes the numeric types one domain and

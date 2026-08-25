@@ -40,7 +40,7 @@ use std::process::ExitCode;
 
 use clap::{Parser as ClapParser, Subcommand};
 use mwl_diagnostics::{Diagnostics, Renderer, SourceMap};
-use mwl_syntax::{check_casing, parse_file};
+use mwl_syntax::{check_declarations, parse_file};
 
 mod info;
 
@@ -188,7 +188,7 @@ fn run_ast(path: &std::path::Path) -> ExitCode {
 
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
-    check_casing(&stmts, map.file(id), &mut diags);
+    check_declarations(&stmts, map.file(id), &mut diags);
 
     render_diagnostics(&mut diags, &map);
     println!("{stmts:#?}");
@@ -231,7 +231,7 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
-    check_casing(&stmts, map.file(id), &mut diags);
+    check_declarations(&stmts, map.file(id), &mut diags);
     let module = mwl_hir::resolve_file(&stmts, map.file(id), &mut diags);
     let mut interner = mwl_types::TypeInterner::new();
     let mut exprs = mwl_types::ExprTypeTable::new();

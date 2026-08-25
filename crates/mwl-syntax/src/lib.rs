@@ -10,9 +10,10 @@
 //!   [`parse_file`] is the whole-file entry point (the `mwl-cli` crate's
 //!   `mwl ast` uses it); [`Parser`] and [`parse_expression`] are for callers
 //!   that want less than a whole file.
-//! - [`casing`] — [`check_casing`], the ADR 0029/0030 identifier-casing
-//!   check, run directly on a parsed file's declarations; see its module
-//!   docs for exactly what is and isn't covered.
+//! - [`casing`] — [`check_declarations`], the two rules a parsed file's
+//!   declarations answer on their own: ADR 0029/0030's identifier casing and
+//!   ADR 0094's required member visibility. See its module docs for exactly
+//!   what is and isn't covered.
 //! - [`bidi`] — ADR 0087's unterminated-directional-scope predicate, the one
 //!   place that rule is written. Public because it is shared: the lexer makes
 //!   it a hard error, and `Core\Html::escape` (M7) and `Core\Cli`'s sink (M8)
@@ -94,7 +95,7 @@ mod lexer;
 mod parser;
 mod token;
 
-pub use casing::check_casing;
+pub use casing::check_declarations;
 pub use lexer::{Lexer, tokenize};
 pub use parser::{Parser, parse_expression, parse_file};
 pub use token::{Keyword, Token, TokenKind};

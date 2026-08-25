@@ -2,85 +2,69 @@
 
 ## State
 
-**Stage 0 items 1, 2 and 9 are done, and the list gained a new item 3.** ADR 0094 was decided with the user
-after the previous session ended: every member declaration writes a visibility, `E0122`, no implicit
-`public`. It sits first among the undone because it rewrites the corpus, so every item below it shifted by
-one — what was item 3 is now item 4, and so on. The ADR is on disk, the code is claimed in
-`mwl-diagnostics`, and **nothing of it is built**.
+**Stage 0 items 1, 2, 3 and 9 are done.** ADR 0094 is built: a property, class constant or method with no
+`public`/`protected`/`private` is `E0122`, in a `class`, `interface` or anonymous-class body. The walk that
+reports it is `mwl_syntax::check_declarations` — **renamed from `check_casing`**, because it now answers
+two questions off one visit; `casing.rs`'s module doc owns why they share a walk, and the file keeps its
+name so ADRs 0029/0043/0049 still point at it. A bare `private(set)` names the pair it is missing (§ 3), a
+class-body `var` is redirected in the parser (§ 4, `parse_class_body_var`), a plain constructor parameter
+is exempt (§ 2), and an `enum` body still reports only `E0220` because `check_enum_decl` never walks its
+members.
 
-From the two items before it: `===`/`!==` no longer exist (`E0232` at the lexer); two statically disjoint
-operands are **`E0466`** from `mwl_types::expr::operators::reject_disjoint_equality`, which `==`/`!=`, a
-`switch` label and a `match` arm all reach — ADR 0090 § 6 makes the last two the same check against the
-subject; and `+`/`+=` with an array operand is **`E0467`** naming `Core\Arr::underlay` (ADR 0069 § 2),
-recovering to the array type so `$a += $b` reports once rather than twice.
+**The corpus rewrite was eleven fixtures, not sixty**, all in `casing.rs`'s own tests plus two `.mwlt`
+methods — only `mwl-cli` and `mwl_hir::requires` call that walk, so a `<?mwl` snippet in a `mwl-types` or
+parser test never reaches it. That is now a playbook bullet; do not budget a large rewrite for the next
+rule added there without checking its callers.
 
-The disjointness predicate is **one-sided on purpose** — it refuses only where disjointness is provable
-from the two types alone, so `mixed`, `iterable`, an intersection, a union with any overlapping member and
-any class name this compilation did not declare all pass. `types_are_disjoint`'s own doc comment owns why;
-do not "tighten" it without reading that first.
+`python tools/verify.py` is green (1327 tests) and `mwl test tests/` is 422 passed / 0 failed.
 
-`python tools/verify.py` is green (1321 tests) and `mwl test tests/` is 421 passed / 0 failed.
-
-**One gap the equality work uncovered:** ADR 0090 § 2 makes `int`/`uint`/`float`/`decimal` **one domain**,
-so the checker now accepts `$n == $f` — but `mwl-codegen` refuses it at
+**Still open from earlier items:** ADR 0090 § 2 makes `int`/`uint`/`float`/`decimal` one domain, so the
+checker accepts `$n == $f` — but `mwl-codegen` refuses it at
 [emit.rs:861](../../crates/mwl-codegen/src/emit.rs#L861) (*"a binary operator over mismatched
 representations"*). Those rows are pinned in `crates/mwl-types/tests/equality.rs` and deliberately left out
-of the conformance case, which says so in a comment. It travels with item 4, in the backlog below.
+of the conformance case, which says so in a comment. It travels with the group below.
 
-**`orient.py` did not print three things the previous session needed.** `[context] modules` in
-`loop-goal.toml` is missing `mwl-types/src/ty.rs` (the `Ty` enum — every rule over types starts there) and
-the whole of `mwl-hir` (`symbol.rs`'s `SymbolKind`, `hierarchy.rs`'s `implements_interface`); `[context]
-shapes` has no entry for a `mwl-types` integration test, whose harness is
-`crates/mwl-types/tests/common/mod.rs`.
+**`orient.py` did not print three things.** `[context] modules` in `loop-goal.toml` is missing
+`mwl-types/src/ty.rs` (the `Ty` enum) and the whole of `mwl-hir`; `[context] shapes` has no entry for a
+`mwl-types` integration test (harness: `crates/mwl-types/tests/common/mod.rs`). This session also needed
+`crates/mwl-syntax/src/ast.rs` (`Modifier`, `ClassMemberKind`, the three member structs) and
+`crates/mwl-syntax/src/parser/ty.rs` (`token_starts_type`), neither of which `[context] modules` names.
 
-## Next group — ADR 0094, visibility at every member declaration (Stage 0 item 3)
+## Next group — ADR 0090 § 3, equality at runtime (Stage 0 item 4)
 
-**Shared file set:** `crates/mwl-syntax/src/casing.rs`, `crates/mwl-syntax/src/parser/decl.rs`,
-`crates/mwl-diagnostics/src/lib.rs`, then the corpus. One ADR, one post-parse walk, one mechanical rewrite —
-[1] is the check, [2] is every file that has to change because of it, and they land in the same slice so no
-fixture is left written against the old rule.
+**Shared file set:** `crates/mwl-runtime/src/identity.rs`, `crates/mwl-ir/src/lower/expr.rs`,
+`crates/mwl-codegen/src/emit.rs`, then the two test files. The helper exists and is unwired; [1] wires it,
+[2] widens the one representation mismatch that blocks the numeric rows, [3] puts the pinned rows back.
 
-- [ ] **Item 3 — the check** (M1). `E0122` on a property, class constant or method carrying no
-      `public`/`protected`/`private`, in a `class`, `interface` or anonymous-class body. The declaration
-      path is [decl.rs:442](../../crates/mwl-syntax/src/parser/decl.rs#L442)
-      `parse_class_member_with_attrs` — one function behind all three bodies — and the modifiers it takes
-      permissively come from [decl.rs:78](../../crates/mwl-syntax/src/parser/decl.rs#L78)
-      `parse_modifiers`, whose doc comment says the legality check is "a later check": this is it. The walk
-      to extend is [casing.rs:66](../../crates/mwl-syntax/src/casing.rs#L66) `check_casing`, already called
-      from [main.rs:191](../../crates/mwl-cli/src/main.rs#L191), main.rs:234 and
-      [requires.rs:187](../../crates/mwl-hir/src/requires.rs#L187) — reuse it and there is no new wiring.
-      `E_MISSING_VISIBILITY` is already reserved at
-      [lib.rs:169](../../crates/mwl-diagnostics/src/lib.rs#L169) and marked not-yet-emitted; delete that
-      sentence when it fires. Watch three edges: a plain constructor parameter must **not** report (ADR 0094
-      § 2 — visibility is the promotion marker), a bare `private(set)` must (§ 3), and an `enum` body must
-      keep reporting only `E0220` rather than both. Tests: `a_member_without_visibility_is_a_compile_error`,
-      `a_bare_set_visibility_is_a_compile_error`, `a_class_body_var_names_the_missing_visibility`,
-      `a_plain_constructor_parameter_needs_no_visibility`, plus
-      `tests/conformance/reject/a-member-must-declare-its-visibility.mwlt`.
-- [ ] **Item 3b — the corpus rewrite, same slice.** Four member declarations across `.mwlt`/`.mwl` and
-      roughly sixty inline snippets in Rust tests omit a visibility today. Find them with
-      `grep -rEn "^\s+(final |abstract |static )*function [a-zA-Z_]" --include=*.mwlt --include=*.mwl .`
-      and the `{ function`/`; function` shapes under `crates/`. `public` is the answer everywhere — these
-      were written against PHP's default, and the rewrite must not change what any of them tests.
+- [ ] **Item 4a — wire `==`/`!=` to the three non-scalar rows** (ADR 0090 § 3). `value_identical` at
+      [identity.rs:108](../../crates/mwl-runtime/src/identity.rs#L108) is written and reaches nothing.
+      Lowering point is `lower_binary` at [expr.rs:1946](../../crates/mwl-ir/src/lower/expr.rs#L1946),
+      dispatch at [expr.rs:162](../../crates/mwl-ir/src/lower/expr.rs#L162). Strings compare as text and
+      never as numbers, arrays ordered and element-wise and recursive, objects by identity; § 5's `mixed`
+      pairing answers `false` and never throws. Tests named by `loop-goal.toml`'s stage 0 block:
+      `equal_strings_compare_as_text_and_never_as_numbers`, `equal_arrays_compare_ordered_and_element_wise`,
+      `equal_objects_compare_by_identity`, all in `crates/mwl-runtime`.
+- [ ] **Item 4b — one side widened before a cross-representation numeric compare.** `emit_binop` at
+      [emit.rs:850](../../crates/mwl-codegen/src/emit.rs#L850) refuses two representations outright;
+      ADR 0090 § 2's table makes `int`/`uint`/`float`/`decimal` one domain, so the widen belongs here
+      rather than in a checker that already accepts the pairing.
+- [ ] **Item 4c — restore the dropped conformance rows.** The numeric rows removed from
+      `tests/conformance/lang/equality-across-overlapping-types-still-compiles.mwlt` go back once 4b lands;
+      the comment in that case says why they left, and `crates/mwl-types/tests/equality.rs` keeps pinning
+      the static half either way.
 
 ## Backlog
 
-- **ADR 0090 § 3 at runtime** — a helper each for strings, arrays and objects, plus § 5's `mixed` pairing
-  answering `false`; `mwl_runtime::identity::value_identical` at
-  [identity.rs:108](../../crates/mwl-runtime/src/identity.rs#L108) exists and is *not yet wired to `==`*;
-  wiring point [expr.rs:162](../../crates/mwl-ir/src/lower/expr.rs#L162) and `lower_binary` at expr.rs:1946.
-  Travelling with it: `emit_binop` at [emit.rs:850](../../crates/mwl-codegen/src/emit.rs#L850) needs one
-  side widened before cross-representation numeric equality lowers, and the rows dropped from
-  `tests/conformance/lang/equality-across-overlapping-types-still-compiles.mwlt` go back when it does
-  (loop-goal.md § *Stage 0* item 4).
-- **ADR 0047 § 4** — the literal and enum-case type atoms are checked, not refused by name (same list,
+- **ADR 0047 § 4** — the literal and enum-case type atoms are checked, not refused by name (Stage 0
   item 5; test `a_literal_type_atom_is_checked`).
 - **`private`/`protected` are enforced** — the *access* half of visibility, keyed on the accessing class
-  (same list, item 6). Item 3 above is the declaration half; neither waits on the other.
+  (item 6). The declaration half landed above; neither waits on the other.
 - **`Comparable`/`Stringable` carry their member signatures** — `$s->toString()` is `E0405` today, and
-  `instanceof Stringable` panics `mwl-ir` (same list, item 7).
+  `instanceof Stringable` panics `mwl-ir` (item 7).
 - **ADR 0061** — `autoload` grammar plus the name-to-file fixpoint over `mwl_hir::requires` (item 8).
+- **`E_BAD_MODIFIER` (E0106) is still defined and never emitted** — ADR 0094 answered the *missing*
+  modifier, not the nonsensical one (`abstract` on a property, two visibilities at once); `docs/adr/0039`
+  § 1 owns order, nothing owns combination.
 - **`examples/collect.mwl`** is the next Stage 3 fixture, needing spec §§ 7-9 and 11-12 at once
-  (`docs/implementation-plan.md` § *Open now*); **ADR 0069's combination members**
-  (`overlay`/`underlay`/`appendAll`/`overlayDeep`) are M4S work in the same stage — the *refusal* landed,
-  the members did not.
+  (`docs/implementation-plan.md` § *Open now*); **ADR 0069's combination members** are M4S work in the
+  same stage — the *refusal* landed, the members did not.

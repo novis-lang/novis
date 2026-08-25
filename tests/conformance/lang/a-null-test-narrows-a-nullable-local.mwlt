@@ -3,7 +3,7 @@
 --FILE--
 <?mwl
 class Finder {
-    static function idOf(string $subject): string {
+    public static function idOf(string $subject): string {
         var $m = Core\Regex::match($subject, "id-(\\d+)");
         if ($m == null) {
             return "none";

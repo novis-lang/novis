@@ -1,8 +1,16 @@
-//! Identifier casing ([ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md),
-//! tightened by [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md)):
-//! every declared identifier's spelling is checked directly off the AST a
-//! declaration already produces — no name resolution needed, so this lives
-//! in `mwl-syntax` rather than waiting on `mwl-hir`/`mwl-types`.
+//! The declaration checks that need only the AST: identifier casing
+//! ([ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md),
+//! tightened by [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md))
+//! and the visibility
+//! [ADR 0094](../../../docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
+//! requires at every member declaration. Each is checked directly off the
+//! AST a declaration already produces — no name resolution needed, so this
+//! lives in `mwl-syntax` rather than waiting on `mwl-hir`/`mwl-types`.
+//!
+//! The two rules share one walk because they ask the same question of the
+//! same node: a declaration site, off the parse tree, with nothing resolved.
+//! Splitting them into two passes would walk every file twice to learn what
+//! one visit already knows.
 //!
 //! Every category uses exactly the pattern in ADR 0029's table — the leading
 //! character's case, an alphanumeric rest — with no leading-underscore
@@ -21,6 +29,15 @@
 //! ([`crate::ast::FnExpr::name`]) is checked the same way as a local
 //! variable — it is exactly that shape of identifier, just spelled without a
 //! `$` sigil.
+//!
+//! ADR 0094's visibility rule reaches the member slots of a `class`, an
+//! `interface` and an anonymous class — the three bodies [`check_members`]
+//! walks. It deliberately does not reach a parameter (§ 2: visibility is
+//! what promotes one to a property, so requiring it everywhere would delete
+//! the distinction) or an `enum` body (§ 3 of
+//! [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) already
+//! rejects every non-`case` member there, and two diagnostics for one
+//! mistake is worse than one).
 //!
 //! # Who calls it
 //!
@@ -52,18 +69,20 @@
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
-    AnonClassDecl, Arg, ArrayItem, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
-    DestructureTarget, EnumDecl, Expr, ExprKind, FnBody, FnExpr, MemberName, MethodMember,
-    NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart,
+    AnonClassDecl, Arg, ArrayItem, AttributeGroup, CallArgs, ClassMember, ClassMemberKind,
+    DestructureElement, DestructureTarget, EnumDecl, Expr, ExprKind, FnBody, FnExpr, MemberName,
+    MethodMember, Modifier, NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt,
+    StmtKind, StringPart, Visibility,
 };
 
-/// Checks every declared identifier in `stmts` against ADR 0029/0030's
-/// casing rules, reporting one diagnostic per violation into `diags`.
+/// Checks every declaration in `stmts` against ADR 0029/0030's casing rules
+/// and ADR 0094's required member visibility, reporting one diagnostic per
+/// violation into `diags`.
 ///
 /// Needs nothing besides the parsed AST and the source it came from — no
 /// symbol table, no class graph — so it can run directly on the output of
 /// [`crate::parse_file`].
-pub fn check_casing(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) {
+pub fn check_declarations(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) {
     check_stmts(stmts, src, diags);
 }
 
@@ -469,6 +488,14 @@ fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnost
     for member in members {
         match &member.kind {
             ClassMemberKind::Property(p) => {
+                check_visibility(
+                    &p.attributes,
+                    &p.modifiers,
+                    member.span,
+                    p.name,
+                    "property",
+                    diags,
+                );
                 check_property_name(p.name, src, diags);
                 if let Some(default) = &p.default {
                     check_expr(default, src, diags);
@@ -480,12 +507,86 @@ fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnost
                 }
             }
             ClassMemberKind::Const(c) => {
+                check_visibility(
+                    &c.attributes,
+                    &c.modifiers,
+                    member.span,
+                    c.name,
+                    "class constant",
+                    diags,
+                );
                 check_const_name(c.name, src, diags);
                 check_expr(&c.value, src, diags);
             }
-            ClassMemberKind::Method(m) => check_method(m, src, diags),
+            ClassMemberKind::Method(m) => {
+                check_visibility(
+                    &m.attributes,
+                    &m.modifiers,
+                    member.span,
+                    m.name,
+                    "method",
+                    diags,
+                );
+                check_method(m, src, diags);
+            }
             ClassMemberKind::Error => {}
         }
+    }
+}
+
+/// [ADR 0094](../../../docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
+/// § 1: a member declaration carrying none of `public`/`protected`/`private`
+/// is [`code::E_MISSING_VISIBILITY`], because there is no default for it to
+/// have meant. § 3 makes PHP 8.4's bare `private(set)` the same error rather
+/// than a member whose read side is inferred, so a `(set)` modifier does not
+/// answer this question — it is why the visibility test below asks only about
+/// the three plain modifiers.
+///
+/// `member` is the declaration's full span, which starts *before* any
+/// `#[...]` groups; the fix therefore inserts after the last of them, since a
+/// modifier written ahead of an attribute would not parse.
+fn check_visibility(
+    attributes: &[AttributeGroup],
+    modifiers: &[Modifier],
+    member: Span,
+    name: Span,
+    category: &str,
+    diags: &mut Diagnostics,
+) {
+    if modifiers.iter().any(|m| {
+        matches!(
+            m,
+            Modifier::Public | Modifier::Protected | Modifier::Private
+        )
+    }) {
+        return;
+    }
+    let message = match modifiers.iter().find_map(set_visibility) {
+        Some(v) => format!(
+            "`{v}(set)` is only the write half; a {category} writes its read visibility too, \
+             e.g. `public {v}(set)`"
+        ),
+        None => format!("a {category} must declare `public`, `protected` or `private`"),
+    };
+    let (at, keyword) = match attributes.last() {
+        Some(group) => (group.span.shrink_to_end(), " public"),
+        None => (member.shrink_to_start(), "public "),
+    };
+    diags.report(
+        Diagnostic::error(code::E_MISSING_VISIBILITY, message)
+            .with_primary(name, "no visibility written here")
+            .with_fix(at, keyword, "write `public`"),
+    );
+}
+
+/// The keyword spelling of a `(set)` modifier's visibility, or `None` for
+/// every other modifier.
+fn set_visibility(m: &Modifier) -> Option<&'static str> {
+    match m {
+        Modifier::SetVisibility(Visibility::Public) => Some("public"),
+        Modifier::SetVisibility(Visibility::Protected) => Some("protected"),
+        Modifier::SetVisibility(Visibility::Private) => Some("private"),
+        _ => None,
     }
 }
 
@@ -732,7 +833,19 @@ mod tests {
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
-        check_casing(&stmts, map.file(file), &mut diags);
+        check_declarations(&stmts, map.file(file), &mut diags);
+        diags
+    }
+
+    /// [`check`] for a fixture whose diagnostic is the *parser's* — the
+    /// `var` and enum-body shapes, which never reach a well-formed member —
+    /// so it collects both halves rather than asserting the parse was clean.
+    fn parse_and_check(src: &str) -> Diagnostics {
+        let mut map = SourceMap::new();
+        let file = map.add("t.mwl", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        check_declarations(&stmts, map.file(file), &mut diags);
         diags
     }
 
@@ -764,7 +877,7 @@ mod tests {
 
     #[test]
     fn an_all_caps_acronym_in_a_camel_case_name_is_accepted() {
-        let diags = check("<?mwl\nclass Foo { function parseHTTPRequest(): void {} }\n");
+        let diags = check("<?mwl\nclass Foo { public function parseHTTPRequest(): void {} }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
@@ -822,27 +935,27 @@ mod tests {
 
     #[test]
     fn a_correctly_cased_method_is_clean() {
-        let diags = check("<?mwl\nclass Foo { function getName(): void {} }\n");
+        let diags = check("<?mwl\nclass Foo { public function getName(): void {} }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_mis_cased_method_is_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { function get_name(): void {} }\n");
+        let diags = check("<?mwl\nclass Foo { public function get_name(): void {} }\n");
         assert_eq!(only_code(&diags), code::E_BAD_METHOD_CASING);
         assert!(diags.iter().next().unwrap().message.contains("getName"));
     }
 
     #[test]
     fn dunder_construct_gets_the_targeted_diagnostic() {
-        let diags = check("<?mwl\nclass Foo { function __construct(): void {} }\n");
+        let diags = check("<?mwl\nclass Foo { public function __construct(): void {} }\n");
         assert_eq!(only_code(&diags), code::E_LEGACY_CONSTRUCTOR_SPELLING);
         assert!(diags.iter().next().unwrap().message.contains("constructor"));
     }
 
     #[test]
     fn plain_constructor_is_not_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { function constructor(): void {} }\n");
+        let diags = check("<?mwl\nclass Foo { public function constructor(): void {} }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
@@ -888,25 +1001,26 @@ mod tests {
 
     #[test]
     fn a_correctly_cased_parameter_is_clean() {
-        let diags = check("<?mwl\nclass Foo { function a(int $userId): void {} }\n");
+        let diags = check("<?mwl\nclass Foo { public function a(int $userId): void {} }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_leading_underscore_parameter_is_rejected() {
-        let diags = check("<?mwl\nclass Foo { function a(int $_unused): void {} }\n");
+        let diags = check("<?mwl\nclass Foo { public function a(int $_unused): void {} }\n");
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
     }
 
     #[test]
     fn a_correctly_cased_local_is_clean() {
-        let diags = check("<?mwl\nclass Foo { function a(): void { int $rowCount = 1; } }\n");
+        let diags =
+            check("<?mwl\nclass Foo { public function a(): void { int $rowCount = 1; } }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_leading_underscore_local_is_rejected() {
-        let diags = check("<?mwl\nclass Foo { function a(): void { int $_tmp = 1; } }\n");
+        let diags = check("<?mwl\nclass Foo { public function a(): void { int $_tmp = 1; } }\n");
         assert!(
             diags
                 .iter()
@@ -916,8 +1030,9 @@ mod tests {
 
     #[test]
     fn a_foreach_binding_is_checked() {
-        let diags =
-            check("<?mwl\nclass Foo { function a(): void { foreach ($xs as int $_bad) {} } }\n");
+        let diags = check(
+            "<?mwl\nclass Foo { public function a(): void { foreach ($xs as int $_bad) {} } }\n",
+        );
         assert!(
             diags
                 .iter()
@@ -927,8 +1042,9 @@ mod tests {
 
     #[test]
     fn a_catch_binding_is_checked() {
-        let diags =
-            check("<?mwl\nclass Foo { function a(): void { try {} catch (Exception $_e) {} } }\n");
+        let diags = check(
+            "<?mwl\nclass Foo { public function a(): void { try {} catch (Exception $_e) {} } }\n",
+        );
         assert!(
             diags
                 .iter()
@@ -938,7 +1054,7 @@ mod tests {
 
     #[test]
     fn a_destructure_leaf_is_checked() {
-        let diags = check("<?mwl\nclass Foo { function a(): void { [int $_x] = $xs; } }\n");
+        let diags = check("<?mwl\nclass Foo { public function a(): void { [int $_x] = $xs; } }\n");
         assert!(
             diags
                 .iter()
@@ -948,15 +1064,17 @@ mod tests {
 
     #[test]
     fn a_closure_self_name_is_checked_like_a_local() {
-        let diags =
-            check("<?mwl\nclass Foo { function a(): void { $f = fn bad_name(int $n) => $n; } }\n");
+        let diags = check(
+            "<?mwl\nclass Foo { public function a(): void { $f = fn bad_name(int $n) => $n; } }\n",
+        );
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
     }
 
     #[test]
     fn a_correctly_named_closure_self_name_is_clean() {
-        let diags =
-            check("<?mwl\nclass Foo { function a(): void { $f = fn factorial(int $n) => $n; } }\n");
+        let diags = check(
+            "<?mwl\nclass Foo { public function a(): void { $f = fn factorial(int $n) => $n; } }\n",
+        );
         assert!(diags.is_empty(), "{diags:?}");
     }
 
@@ -975,7 +1093,7 @@ mod tests {
 
     #[test]
     fn a_nested_class_declaration_is_still_checked() {
-        let diags = check("<?mwl\nclass Outer { function a(): void { class inner {} } }\n");
+        let diags = check("<?mwl\nclass Outer { public function a(): void { class inner {} } }\n");
         assert!(
             diags
                 .iter()
@@ -986,7 +1104,7 @@ mod tests {
     #[test]
     fn an_anonymous_class_bodys_members_are_checked() {
         let diags = check(
-            "<?mwl\nclass Foo { function a(): void { $x = new class { public int $bad_name = 1; }; } }\n",
+            "<?mwl\nclass Foo { public function a(): void { $x = new class { public int $bad_name = 1; }; } }\n",
         );
         assert!(
             diags
@@ -1010,7 +1128,84 @@ mod tests {
         // `Foo::bar()` is a reference, not a declaration — only `bar`'s own
         // declaration (absent here) would ever be checked, so a call site
         // naming a mis-cased method produces nothing on its own.
-        let diags = check("<?mwl\nclass Foo { function a(): void { self::snake_case_call(); } }\n");
+        let diags =
+            check("<?mwl\nclass Foo { public function a(): void { self::snake_case_call(); } }\n");
         assert!(diags.is_empty(), "{diags:?}");
+    }
+
+    // ------------------------------------------------------------------
+    // ADR 0094 — a member declaration writes its visibility
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn a_member_without_visibility_is_a_compile_error() {
+        // ADR 0094 § 1: all three member slots, in all three bodies that
+        // have one. There is no default for any of them to have meant.
+        for src in [
+            "<?mwl\nclass Foo { int $count = 0; }\n",
+            "<?mwl\nclass Foo { const int MAX = 1; }\n",
+            "<?mwl\nclass Foo { function run(): void {} }\n",
+            "<?mwl\nclass Foo { static function run(): void {} }\n",
+            "<?mwl\ninterface Runner { function run(): void; }\n",
+            "<?mwl\nclass Foo { public function a(): void { $x = new class { int $n = 1; }; } }\n",
+        ] {
+            let diags = check(src);
+            assert_eq!(only_code(&diags), code::E_MISSING_VISIBILITY, "{src}");
+        }
+    }
+
+    #[test]
+    fn a_written_visibility_is_clean() {
+        for src in [
+            "<?mwl\nclass Foo { public int $count = 0; }\n",
+            "<?mwl\nclass Foo { protected const int MAX = 1; }\n",
+            "<?mwl\nclass Foo { private static function run(): void {} }\n",
+            "<?mwl\nclass Foo { public private(set) string $name = \"a\"; }\n",
+        ] {
+            let diags = check(src);
+            assert!(diags.is_empty(), "{src}: {diags:?}");
+        }
+    }
+
+    #[test]
+    fn a_bare_set_visibility_is_a_compile_error() {
+        // ADR 0094 § 3: PHP 8.4 infers a `public` read side here, which is
+        // the same implicit `public` this rule removes — so the message
+        // names the pair rather than a bare keyword.
+        let diags = check("<?mwl\nclass Foo { private(set) string $name = \"a\"; }\n");
+        assert_eq!(only_code(&diags), code::E_MISSING_VISIBILITY);
+        let message = &diags.iter().next().unwrap().message;
+        assert!(message.contains("public private(set)"), "{message}");
+    }
+
+    #[test]
+    fn a_plain_constructor_parameter_needs_no_visibility() {
+        // ADR 0094 § 2: visibility is what promotes a parameter to a
+        // property, so requiring it on every parameter would delete the
+        // distinction. Only the promoted one is a member.
+        let diags = check(
+            "<?mwl\nclass Foo { public function constructor(int $n, public int $kept) {} }\n",
+        );
+        assert!(diags.is_empty(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_class_body_var_names_the_missing_visibility() {
+        // ADR 0094 § 4: `var` is ADR 0037's local-inference keyword, so
+        // without its own arm this would report something about the
+        // statement grammar to an author writing PHP's property form.
+        let diags = parse_and_check("<?mwl\nclass Foo { var $name; }\n");
+        assert_eq!(only_code(&diags), code::E_MISSING_VISIBILITY);
+    }
+
+    #[test]
+    fn an_enum_body_reports_only_that_it_has_no_members() {
+        // ADR 0094's scope stops at a body with a member slot; ADR 0010 § 3
+        // already rejects everything in an enum that is not a case, and two
+        // diagnostics for one mistake is worse than one.
+        let diags = parse_and_check(
+            "<?mwl\nenum Color { Red = 1, }\nenum Sized { function run(): void {} }\n",
+        );
+        assert_eq!(only_code(&diags), code::E_ENUM_MEMBER_UNSUPPORTED);
     }
 }

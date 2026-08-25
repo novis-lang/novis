@@ -1,0 +1,21 @@
+--TEST--
+a property, class constant or method written without `public`/`protected`/`private` is refused, and there is no implicit `public` to fall back on — ADR 0094 §§ 1, 4
+--FILE--
+<?mwl
+class Account {
+    // ADR 0094 § 4: MWL's own grammar accepts this bare property shape, so
+    // it is the omission the rule has to catch rather than a parse error.
+    int $balance = 0;
+
+    public function constructor(int $opening) {
+        $this->balance = $opening;
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0122]: a property must declare `public`, `protected` or `private`
+  --> case.mwl:5:9
+%A
+error: aborting due to 1 error

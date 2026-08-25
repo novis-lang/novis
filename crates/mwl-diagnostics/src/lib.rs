@@ -164,8 +164,8 @@ pub mod code {
     /// `public`/`protected`/`private`, or PHP 8.4's `(set)` form written
     /// without its read visibility. There is no implicit `public`; see
     /// [ADR 0094](../../../docs/adr/0094-visibility-is-written-at-every-member-declaration.md).
-    /// **Not emitted yet** — the number is claimed by that ADR, and the
-    /// check is Stage 0 item 9 of the loop goal.
+    /// A class body's PHP `var $x;` reports this too, rather than a message
+    /// about the statement grammar it would otherwise fall into (§ 4).
     pub const E_MISSING_VISIBILITY: Code = Code::new("E0122");
 
     // --- E02xx rejected PHP constructs -------------------------------------
