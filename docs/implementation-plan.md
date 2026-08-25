@@ -62,9 +62,10 @@
 > `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, `Time` × 7 plus
 > `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
 > `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+ `SEPARATOR`) over nothing at all, `Random` × 6
-> over `rand`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli`
+> over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`, `Uri` × 4 over nothing at all, and the
+> conformance-coverage gate), `mwl-codegen`, `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 365 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 369 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -299,9 +300,9 @@
 > its seven fixtures produce their frozen output — `examples/core.mwl`, `report.mwl`, `numbers.mwl`,
 > `text.mwl`, `dates.mwl` and `json.mwl` — and `collect.mwl` is the first that does not. That one
 > fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one: § 8's
-> `Core\Path` and § 11's `Core\Uuid` are built, `Encoding`/`Hash`/`Csv` each need a dependency
-> picked under ADR 0051 § 4, and `ObjectSet`/`ObjectMap` additionally need `new Core\X<T>()` to
-> parse.
+> `Core\Path`, § 11's `Core\Uuid` and § 12's `Core\Uri` percent-encoding half are built; `Uri::parse`
+> and its instance still owe the RFC 3986 dependency, `Encoding`/`Hash`/`Csv` each need one picked
+> under ADR 0051 § 4, and `ObjectSet`/`ObjectMap` additionally need `new Core\X<T>()` to parse.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
