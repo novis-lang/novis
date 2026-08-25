@@ -11,9 +11,6 @@
 # Grouped by section for reading; the test compares sets, so order means nothing
 # to it.
 
-# § 1 `Core\Str` — the text-shaping half
-§1 normalize
-
 # § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
 §2 append
 §2 appendAll

@@ -1303,6 +1303,7 @@ dependencies = [
  "sha1",
  "sha2",
  "subtle",
+ "unicode-normalization",
  "unicode-segmentation",
  "uuid",
 ]

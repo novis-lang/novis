@@ -64,9 +64,9 @@
 > `mwl-syntax` (+ `duration`, ADR 0070's one grammar, and `bidi`, ADR 0087's one predicate),
 > `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`, `derive`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`,
-> `closure`, `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 28, `Math` × 38, `format`,
-> `granularity`, `ordering`, `cldr`, `instance`, `issue`, `Order`, `RoundMode`, `Unit` and
-> `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, `Time` × 7 plus
+> `closure`, `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 39, `Math` × 38, `format`,
+> `granularity`, `ordering`, `cldr`, `instance`, `issue`, `Order`, `NormalForm`, `RoundMode`, `Unit`
+> and `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, `Time` × 7 plus
 > `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
 > `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+ `SEPARATOR`) over nothing at all, `Random` × 6
 > over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`, `Uri` × 4 over nothing at all, `Encoding` × 2
@@ -74,7 +74,7 @@
 > and `ObjectSet` × 9 over `identity_store`, and the conformance-coverage gate), `mwl-codegen`,
 > `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 375 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 394 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -118,8 +118,8 @@
 > group it stops on. **What has already landed is not restated here** — `git log` holds the
 > session-by-session history and the crate's own module doc holds its per-file gaps, which is this
 > field's contract in AGENTS.md § *Keep each slice small*. What follows is what is **not** built.
-> **Spec §§ 1-12, by section** — § 1 owes one row, `normalize`, and its whole cost is a `NormalForm`
-> enum plus a binding to `unicode-normalization`, which `caseless` has already put in the tree; § 2
+> **Spec §§ 1-12, by section** — § 1 is **whole**, `normalize` having landed with `Core\NormalForm`
+> and a named binding to `unicode-normalization`; § 2
 > owes
 > `Arr::diff`/`intersect` and ADR 0069's combination members (its refusal half is built, `E0467`); §
 > 4 owes `Date`, `TimeOfDay` and `Core\Month` (`mwl_stdlib::time` gap 1); § 5 owes
@@ -139,12 +139,12 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Random::bytes`, `Hash::stream` and the honest return type of `Uri`'s two decoders are unwritten
 > rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 393 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 394 of the 600 that gate requires, differential is
 > 86 of 150 and has not moved this run, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
 > `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its
-> own module doc states, and that file's **36 remaining keys are the machine-readable work list for
+> own module doc states, and that file's **35 remaining keys are the machine-readable work list for
 > §§ 1-12**: when it holds none, Part I is registered whole. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
 > qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it,
 > and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test

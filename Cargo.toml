@@ -73,6 +73,18 @@ unicode-segmentation = "1"
 # `Core\Str::normalize` needs next anyway.
 caseless = "0.2"
 
+# --- Unicode normalization (`Core\Str::normalize`) ---
+# UAX #15's four normal forms are the same shape of problem as folding above:
+# a table plus the canonical-ordering algorithm, not something a member can
+# derive. `unicode-normalization` is the reference implementation from the
+# same `unicode-rs` org as the two crates above, pure Rust with no build
+# script and no C, and it is already in the tree as `caseless`'s own
+# dependency — naming it here is the difference between depending on a crate
+# and depending on another crate's choice of one. ICU4X's `icu_normalizer`
+# was rejected for `icu_casemap`'s reason and would not be cheaper for having
+# been rejected twice.
+unicode-normalization = "0.1"
+
 # --- regular expressions (ADR 0056's two tiers, both named by the user) ---
 # `regex` is the linear-time default: a finite-automata engine that cannot be
 # made to backtrack exponentially, which is the whole point of that ADR.

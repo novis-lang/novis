@@ -1,0 +1,43 @@
+--TEST--
+`Core\Str::normalize` answers UAX #15's four normal forms over two independent axes, and only the canonical pair round-trips — spec § 1 *Transformation*
+--FILE--
+<?mwl
+// The two spellings of `é`: one precomposed code point, and `e` followed by a
+// combining acute. They render identically and are not the same string, which
+// is the whole reason this member exists.
+string $composed = "é";
+string $decomposed = Core\Str::fromCodePoints([101, 769]);
+echo Core\Encoding::toHex($composed as bytes), " ", Core\Encoding::toHex($decomposed as bytes), "\n";
+echo Core\Str::compare($composed, $decomposed), "\n";
+
+// The composed/decomposed axis. Both directions are lossless, so the
+// canonical pair round-trips.
+echo Core\Encoding::toHex(Core\Str::normalize($decomposed, Core\NormalForm::Nfc) as bytes), "\n";
+echo Core\Encoding::toHex(Core\Str::normalize($composed, Core\NormalForm::Nfd) as bytes), "\n";
+echo Core\Str::compare($composed, Core\Str::normalize($decomposed, Core\NormalForm::Nfc)), "\n";
+
+// The canonical/compatibility axis. A `K` form unifies a character that
+// merely renders like another with it, so it discards a distinction the
+// original made — a key, not a rendering, exactly as `fold` is.
+echo Core\Str::normalize("ﬁle", Core\NormalForm::Nfc), " ", Core\Str::normalize("ﬁle", Core\NormalForm::Nfkc), "\n";
+echo Core\Str::normalize("①②③", Core\NormalForm::Nfkc), "\n";
+
+// The axes are independent: a `K` form still chooses composed or decomposed,
+// so `Nfkd` unifies the ligature *and* splits the accent.
+echo Core\Encoding::toHex(Core\Str::normalize("ﬁé", Core\NormalForm::Nfkc) as bytes), "\n";
+echo Core\Encoding::toHex(Core\Str::normalize("ﬁé", Core\NormalForm::Nfkd) as bytes), "\n";
+
+// Nothing to normalize, and nothing there. No ASCII character has a canonical
+// or a compatibility decomposition, so all four forms are the identity here.
+echo Core\Str::normalize("plain ascii", Core\NormalForm::Nfkd), "|", Core\Str::normalize("", Core\NormalForm::Nfc), "|\n";
+--EXPECT--
+c3a9 65cc81
+1
+c3a9
+65cc81
+0
+ﬁle file
+123
+6669c3a9
+666965cc81
+plain ascii||

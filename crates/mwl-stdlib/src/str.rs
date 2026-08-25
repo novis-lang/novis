@@ -35,12 +35,33 @@
 use std::cmp::Ordering;
 
 use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
+use unicode_normalization::UnicodeNormalization;
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
+
+/// `Core\NormalForm`'s fully-qualified name, written once for
+/// [`NORMAL_FORM`], for the registry row that takes one, and for the message
+/// quoting it.
+pub(crate) const NORMAL_FORM_NAME: &str = r"Core\NormalForm";
+
+/// Spec § 1's `NormalForm` — UAX #15's four normal forms, and the only
+/// argument [`mwl_core_str_normalize`] takes beside its subject.
+///
+/// The order is the spec's own, which is also the order the two axes fall
+/// out in: composed before decomposed, canonical before compatibility. The
+/// integers are each case's own constant, written out rather than
+/// auto-incremented, per [`CoreEnum::cases`], and they are **ABI** —
+/// [`normal_form_of`] indexes this table with the integer compiled code
+/// wrote, so reordering the list is a behaviour change rather than a cosmetic
+/// one.
+pub(crate) const NORMAL_FORM: CoreEnum = CoreEnum {
+    name: NORMAL_FORM_NAME,
+    cases: &[("Nfc", 0), ("Nfd", 1), ("Nfkc", 2), ("Nfkd", 3)],
+};
 
 /// `Core\Str`'s registry rows, in the spec's own order.
 ///
@@ -315,6 +336,13 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_str_fold",
         },
         CoreMethod {
+            name: "normalize",
+            params: &[CoreTy::Str, CoreTy::Enum(NORMAL_FORM_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_normalize",
+        },
+        CoreMethod {
             name: "fromCodePoint",
             params: &[CoreTy::Uint],
             defaults: &[],
@@ -525,6 +553,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_str_upper_first" => (mwl_core_str_upper_first as *const ()).cast(),
         "mwl_core_str_lower_first" => (mwl_core_str_lower_first as *const ()).cast(),
         "mwl_core_str_fold" => (mwl_core_str_fold as *const ()).cast(),
+        "mwl_core_str_normalize" => (mwl_core_str_normalize as *const ()).cast(),
         "mwl_core_str_format" => (mwl_core_str_format as *const ()).cast(),
         _ => return None,
     })
@@ -1989,6 +2018,85 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::normalize(string $s, NormalForm $form): string` — replacing
+    /// PHP's `Normalizer::normalize`.
+    ///
+    /// UAX #15's four forms over two independent axes, which is why this is
+    /// one member with an enum rather than four members: **composed or
+    /// decomposed** says whether `é` is one code point or `e` plus a
+    /// combining acute, and **canonical or compatibility** says whether a
+    /// character that merely *renders* like another is unified with it — `ﬁ`
+    /// to `fi`, `①` to `1`. Only the canonical pair round-trips; a `K` form
+    /// discards a distinction the original made, which is the same
+    /// "comparison key, not a rendering" caveat [`mwl_core_str_fold`] carries
+    /// and for the same reason.
+    ///
+    /// Distinct from folding, and both are needed: folding removes case, and
+    /// normalizing removes the choice of encoding. Two strings that look
+    /// identical on screen can differ in either, so a lookup key that has to
+    /// survive both text-editor round trips and case wants
+    /// `fold(normalize($s, NormalForm::Nfc))`.
+    ///
+    /// ASCII takes the buffer unchanged: no ASCII character has a canonical
+    /// or a compatibility decomposition, so all four forms are the identity
+    /// there, and the check costs a scan where the general path costs a
+    /// `String`.
+    fn mwl_core_str_normalize(_ctx, args: [2]) {
+        let subject = text(&args[0], "normalize", "the subject")?;
+        // The form is read before the fast path rather than after it, so a
+        // value that is no case is a fatal for every subject and not only for
+        // the ones that reach the table.
+        let form = normal_form_of(&args[1])?;
+        if subject.is_ascii() {
+            return produced(subject);
+        }
+        produced(&match form {
+            NormalForm::Nfc => subject.nfc().collect::<String>(),
+            NormalForm::Nfd => subject.nfd().collect::<String>(),
+            NormalForm::Nfkc => subject.nfkc().collect::<String>(),
+            NormalForm::Nfkd => subject.nfkd().collect::<String>(),
+        })
+    }
+}
+
+/// [`NORMAL_FORM`]'s cases, as the thing the implementation actually branches
+/// on.
+///
+/// A second spelling of one roster is what
+/// `the_normal_form_enum_and_its_rust_twin_are_one_roster` exists to refuse,
+/// and it is worth the test: the alternative is matching on the raw integer,
+/// where a reordered [`NORMAL_FORM`] compiles and answers the wrong form.
+#[derive(Clone, Copy)]
+enum NormalForm {
+    Nfc,
+    Nfd,
+    Nfkc,
+    Nfkd,
+}
+
+/// The `Core\NormalForm` case in slot 1, or the `FATAL` a value that is no
+/// case is.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`], not a throw, for [`text`]'s reason: the checker placed
+/// this argument and compiled code wrote the integer, so anything else here
+/// is a runtime-contract violation rather than something a program can cause.
+fn normal_form_of(value: &Value) -> Result<NormalForm, Fault> {
+    match value.as_int() {
+        Some(0) => Ok(NormalForm::Nfc),
+        Some(1) => Ok(NormalForm::Nfd),
+        Some(2) => Ok(NormalForm::Nfkc),
+        Some(3) => Ok(NormalForm::Nfkd),
+        _ => Err(Fault::fatal(format!(
+            "Core\\Str::normalize expected a `{NORMAL_FORM_NAME}` case, got tag {} value {:?}",
+            value.tag_byte(),
+            value.as_int()
+        ))),
+    }
+}
+
 /// One code point, as the `char` it names, or the throw that says why it names
 /// none.
 ///
@@ -2693,6 +2801,50 @@ mod tests {
         let status = run(super::mwl_core_str_at, &[s(""), Value::int(0)])
             .expect_err("the empty string has no characters");
         assert_eq!(status, mwl_runtime::THROWN);
+    }
+
+    /// [`super::NORMAL_FORM`]'s integers are ABI, and this is what says so:
+    /// each case's own constant, fed to the member as compiled code would
+    /// write it, must answer in the form of that name.
+    ///
+    /// One subject distinguishes all four, which is the property that makes
+    /// the check worth anything — `ﬁ` is a compatibility ligature (only a `K`
+    /// form unifies it with `fi`) and `é` is precomposed (only a `D` form
+    /// splits it into `e` plus a combining acute).
+    #[test]
+    fn the_normal_form_enum_and_its_rust_twin_are_one_roster() {
+        for ((case, value), want) in super::NORMAL_FORM.cases.iter().zip([
+            ("Nfc", "\u{fb01}\u{e9}"),
+            ("Nfd", "\u{fb01}e\u{301}"),
+            ("Nfkc", "fi\u{e9}"),
+            ("Nfkd", "fie\u{301}"),
+        ]) {
+            assert_eq!(*case, want.0, "the case table's order changed");
+            assert_eq!(
+                taken(
+                    run(
+                        super::mwl_core_str_normalize,
+                        &[s("\u{fb01}\u{e9}"), Value::int(*value)],
+                    )
+                    .expect("normalize never fails")
+                ),
+                want.1,
+                "{case}"
+            );
+        }
+        // The whole roster, so a fifth case added without a branch is a
+        // failure here rather than a fatal at the first call site.
+        let status = run(
+            super::mwl_core_str_normalize,
+            &[
+                s("é"),
+                Value::int(
+                    i64::try_from(super::NORMAL_FORM.cases.len()).expect("four fits in an i64"),
+                ),
+            ],
+        )
+        .expect_err("an integer that is no case is a contract violation");
+        assert_eq!(status, mwl_runtime::FATAL);
     }
 
     /// Every row verified against PHP 8.5's `wordwrap`, which [`super::wrapped`]

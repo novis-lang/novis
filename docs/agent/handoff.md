@@ -2,61 +2,51 @@
 
 ## State
 
-**Spec § 1 is one row from whole.** `Core\Str::compare` and `Core\Str::fold` are registered,
-implemented and pinned by a conformance case each. `compare` answers `-1`/`0`/`1` — never a byte
-difference — and folds four PHP functions into one member with two options; `{natural: true}` is a
-*port* of `strnatcmp` rather than a fresh reading of "sort digit runs as numbers", quirks included,
-and `natural_order`'s doc comment at `crates/mwl-stdlib/src/str.rs:1576` owns all three of them.
-`fold` is Unicode's full case folding — a comparison key, not a rendering — and it is deliberately
-what `compare`'s per-character `{caseInsensitive: true}` is not: `ß`/`SS` needs the fold.
+**Spec § 1 is whole.** `Core\Str::normalize` is registered, implemented and pinned by a conformance
+case; `Core\NormalForm { Nfc, Nfd, Nfkc, Nfkd }` is the enum beside it in
+`crates/mwl-stdlib/src/str.rs:49`, listed in `registry::ENUMS`. Its integers are ABI — the helper
+indexes on them — and `the_normal_form_enum_and_its_rust_twin_are_one_roster` is what says so. The
+member's own doc comment at `str.rs:2019` owns the two-axes reading (composed/decomposed ×
+canonical/compatibility) and why only the canonical pair round-trips; the ASCII fast path is stated
+there too.
 
-**The tree gained one dependency**, `caseless` (the folding table at Unicode 16.0, pure Rust), with
-`unicode-normalization` under it — which is the crate § 1's last row wants, so `normalize` now owes a
-`CoreEnum` and a binding rather than a dependency argument. `cargo deny check` green,
-`THIRD-PARTY-LICENSES.txt` regenerated, no licence identifier new to `deny.toml`.
+**`unicode-normalization` is now a named dependency** rather than `caseless`'s transitive one:
+`[workspace.dependencies]` line with its reasoning, plus `crates/mwl-stdlib/Cargo.toml`.
+`cargo deny check` green, `THIRD-PARTY-LICENSES.txt` regenerated and unchanged (it already carried
+the crate), no licence identifier new to `deny.toml`.
 
 **The loop's gate is the ratchet in `crates/mwl-stdlib/tests/spec-members-outstanding.txt`**, now at
-**36 keys** for §§ 1-12; when it is empty, Part I is registered whole. Conformance is **393** of 600;
+**35 keys** for §§ 2-12; when it is empty, Part I is registered whole. Conformance is **394** of 600;
 differential is 86 of 150 and has not moved.
 
 **`examples/collect.mwl`'s frontier is unchanged** — `Core\Uri::parseQuery` at `collect.mwl:36`, then
 `Core\Csv::parse`, `Core\Validate::isEmail`, `Core\Out::capture`.
 
-## Next group — close § 1, then open `Uri`'s query half
+## Next group — `Uri`'s query pair, then `Arr`'s set half
 
-Three slices, and **they do not share one file**: take `normalize` alone unless you are far under the
-gate, because `[2]` opens a file you have not loaded. `[2]` and `[3]` are the pair that shares a file
-set — a session starting there should take both.
-
-**Shared file set for `[2]`/`[3]`:** `crates/mwl-stdlib/src/uri.rs` (`:122` `CLASS`'s rows, `:126`-`:147`
+**Shared file set for `[1]`/`[2]`:** `crates/mwl-stdlib/src/uri.rs` (`:122` `CLASS`'s rows, `:126`-`:147`
 the four percent-encoding members already built, `:161` `address()`, `:413` the test module),
 `crates/mwl-stdlib/tests/spec-members-outstanding.txt`, `tests/conformance/core/`, and
-`examples/collect.mwl` + its frozen output.
+`examples/collect.mwl` + its frozen output. Take both — they are one file and one convention, and the
+round trip is the case that pins either of them honestly. `[3]` is a different file; leave it.
 
-- [ ] **`Core\Str::normalize`** (`01-core-library.md` § 1 *Transformation*, `:166`; the enum at `:196`).
-      `normalize(string $s, NormalForm $form): string`, over `NormalForm { Nfc, Nfd, Nfkc, Nfkd }`.
-      The enum is a `CoreEnum` declared beside the member — copy `crate::encoding::CHARSET`'s shape —
-      and listed in `registry::ENUMS` at `crates/mwl-stdlib/src/registry.rs:706`. The binding is
-      `unicode_normalization::UnicodeNormalization`'s four iterators, already in the tree under
-      `caseless`; add it to `[workspace.dependencies]` and `crates/mwl-stdlib/Cargo.toml` explicitly
-      rather than relying on the transitive edge. Member anchors in `str.rs`: `:311` the `fold` row
-      (`normalize`'s neighbour), `:527` `address()`, `:1985` `fold`'s helper, `:2230` the test module's
-      `s()`. Strike `§1 normalize` and § 1 is whole.
-- [ ] **`Core\Uri::parseQuery`** (§ 12; `loop-goal.md` § *Standing decisions* amends the spec row).
-      PHP's bracket convention **in full** — `a[]=1&a[]=2` a list, `a[b]=c` a map, nesting to any
-      depth — so the return type is not `array<string>`; pick the spelling the type system can now
-      state (`?T`/`mixed` landed, `mwl_ir::Ty::Tagged`), write it into the § 12 table, and say in that
-      table that this settles what `Core\Request::query` answers at M8. `decodeFormValue` at
-      `uri.rs:147` is the per-value half, already written. Strike `§12 Uri::parseQuery`.
-- [ ] **`Core\Uri::buildQuery`** (§ 12) — the inverse, same file, same convention, and the round trip
-      with `[2]` is the conformance case both want. `encodeFormValue` at `uri.rs:140` is its per-value
-      half. Strike `§12 Uri::buildQuery`.
+- [ ] **`Core\Uri::parseQuery`** (§ 12; `loop-goal.md` § *Standing decisions* amends the spec row —
+      PHP's bracket convention **in full**: `a[]=1&a[]=2` is a list, `a[b]=c` is a map, nesting to
+      arbitrary depth, so the return type is not `array<string>`). Pick the spelling the type system
+      can state and **write it into the spec table** in `docs/spec/01-core-library.md` § 12; say there
+      that this also settles what `Core\Request::query` answers at M8. `array<mixed>` is the safe
+      default — `mwl_ir::Ty::Tagged` is settled, so it is statable now.
+- [ ] **`Core\Uri::buildQuery`** (§ 12) — the inverse, same file, same convention. The conformance
+      case is `buildQuery(parseQuery($q)) == $q` over a nested subject plus the flat rows.
+- [ ] **`Core\Arr::diff` / `intersect`** (§ 2) — `crates/mwl-stdlib/src/arr.rs`; both need the one
+      strict-identity comparison `mwl_runtime::identity` already defines (`loop-goal.md`
+      § *Standing decisions*). A different file set: do not pull it into the group above.
 
 ## Backlog
 
-- § 2's `Arr::diff`/`intersect` and ADR 0069's combination members — plan § *Open now*.
-- § 12's `Uri::parse`/`isValid`, which still owe an RFC 3986 dependency picked under ADR 0051 § 4.
-- § 9's `Core\Heap` and the `Iterable` its three rows declare — plan § *Open now*.
-- § 10's `{previous: $e}` constructor options shape and `$e->location` — ADR 0071 § 5.
-- ADR 0088's registry-wide qualifier classification for member rows — plan § *Open now*.
-- `do`/`while` does not lower — `mwl-ir`'s own module doc.
+- `Core\Csv::parse` needs a dependency picked under [ADR 0051 § 4](../adr/0051-standard-library-tiers.md).
+- `Core\Uri::parse`/`isValid` still owe an RFC 3986 dependency — see the plan's *Open now*.
+- § 9 owes `Core\Heap` and the `Iterable` its three rows declare (`mwl_stdlib`'s module doc).
+- § 10 owes the constructor's `{previous: $e}` options shape and `$e->location` (ADR 0071 § 5).
+- § 11 owes `Random::bytes` and `Hash::stream`; the runtime `bytes` tag they wanted exists now.
+- ADR 0088's registry-wide qualifier classification is unbuilt and lands with M4S.

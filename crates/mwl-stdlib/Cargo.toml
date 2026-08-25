@@ -18,6 +18,7 @@ mwl-runtime.workspace = true
 mwl-syntax.workspace = true
 unicode-segmentation.workspace = true
 caseless.workspace = true
+unicode-normalization.workspace = true
 regex.workspace = true
 fancy-regex.workspace = true
 jiff.workspace = true
