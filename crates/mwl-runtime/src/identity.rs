@@ -16,9 +16,10 @@
 //! case, where the row is a runtime tag — arrives through `mwl_value_identical`
 //! on [`crate::abi`]'s general helper convention, and § 5's "a mismatched
 //! runtime type is `false` rather than a throw" is the fall-through arm of
-//! [`shallow_identical`] rather than a rule stated twice. One row of that
-//! table is answered by [`numeric_identical`] beside these instead, and the
-//! *Known gap* below is why.
+//! [`shallow_identical`] rather than a rule stated twice. The numeric row is
+//! answered by [`numeric_identical`], which the statically typed
+//! `mwl_ir::Helper::NumericEq` reaches directly and [`shallow_identical`]
+//! delegates to, so the row has one answer however it is reached.
 //!
 //! # What identity means, one row per representation
 //!
@@ -27,26 +28,37 @@
 //!
 //! * **`null`** — one value, so two of them are identical.
 //! * **`bool`** — equal payloads.
-//! * **`int` and `uint` are one integer domain.** `3` and `3 as uint` are
-//!   identical. [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4
-//!   makes `uint` a *range* restriction over the same integers rather than a
-//!   different value space, so the alternative — two spellings of three that
-//!   `contains` cannot match — would be a trap with nothing to gain. The
-//!   comparison goes through `i128` so no large `uint` is ever reinterpreted
-//!   as a negative `int`. PHP has no `uint`, so nothing is diverged from.
-//! * **`float` never crosses to an integer**, matching PHP's `1 === 1.0`
-//!   being `false`. Two floats compare with `==`, not by bits: `0.0` and
-//!   `-0.0` are identical and `NaN` is identical to nothing, both PHP's
-//!   answers, and both the opposite of what `total_cmp` (which
-//!   `Core\Arr::sort` needs, and which is a different question) would say.
-//! * **`decimal` compares by value, never by scale, and crosses to neither
-//!   `int` nor `float`.** [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)
-//!   § 4 states the first half outright — "scale is carried for rendering, and
-//!   does not affect equality or hashing", so `1.10` and `1.1000` are one
-//!   value — and the second half is the `float` row's rule applied to a third
-//!   numeric type. That is why this needs a row rather than falling into the
-//!   opaque-handle case below: two equal decimals at different scales hold
-//!   different bits.
+//! * **`int`, `uint`, `float` and `decimal` are one numeric domain**, and
+//!   [`numeric_identical`] is the whole of it: `3` and `3 as uint` are
+//!   identical, `1` and `1.0` are identical, and so is `1.00` written as a
+//!   `decimal`. ADR 0090 § 3 gives that row as "mathematically equal across
+//!   the whole domain", and this comparison takes it **including** where
+//!   `Core\Arr` reads it — so `Arr::contains([1.0], 1)` is `true`, diverging
+//!   from PHP's `1 === 1.0`. The alternative was the worse trap: one
+//!   comparison answering `==` one way and `contains` the other, with nothing
+//!   in the language to tell a reader which they had. Along the edges of that
+//!   one row:
+//!     * `int` against `uint` goes through `i128`, so no large `uint` is ever
+//!       reinterpreted as a negative `int`.
+//!       [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 makes
+//!       `uint` a *range* restriction over the same integers rather than a
+//!       different value space, so there was never a second value here.
+//!     * Two floats compare with `==`, not by bits: `0.0` and `-0.0` are
+//!       identical and `NaN` is identical to nothing, both PHP's answers, and
+//!       both the opposite of what `total_cmp` (which `Core\Arr::sort` needs,
+//!       and which is a different question) would say.
+//!     * Two decimals compare by value and never by scale.
+//!       [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 4 puts it
+//!       outright — "scale is carried for rendering, and does not affect
+//!       equality or hashing" — so `1.10` and `1.1000` are one value even
+//!       though they hold different bits.
+//!     * A `float` against an integer is read at the float's **exact** binary
+//!       value; a `float` against a `decimal` is read at the decimal it
+//!       **prints** as, which is ADR 0054 § 4's conversion row and is what
+//!       makes `(0.1 as decimal) == 0.1` true. The two readings differ only
+//!       for an integral float past 2^53, where they disagree about a third
+//!       value rather than about each other — [`hash_numeric`] carries the
+//!       consequence.
 //! * **`string`/`bytes`** — by content, never by pointer, so a computed
 //!   string matches a literal. [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
 //!   makes a `string` valid UTF-8 but does *not* normalize it, so this is a
@@ -63,26 +75,6 @@
 //!   property-walk fallback that ADR removed. A closure is an object
 //!   ([`crate::closure`]), so two `fn` literals are never identical and one
 //!   closure value is identical to a copy of itself.
-//!
-//! # Known gap: a cross-representation numeric pair has two answers
-//!
-//! ADR 0090 § 3's numeric row is one row — `int`, `uint`, `float` and
-//! `decimal` "mathematically equal across the whole domain", so `1 == 1.0` is
-//! `true` — and its § 5 says a `mixed` operand applies *that* table. The rows
-//! above do not: they keep PHP's `1 === 1.0` being `false`, because the seven
-//! `Core\Arr` members that share this comparison ask for **strict identity**
-//! (`docs/spec/01-core-library.md` § 2) and `Arr::contains([1.0], 1)` reads as
-//! a different question from `1 == 1.0`.
-//!
-//! So today `$n == $f` over two statically typed operands answers § 3's row —
-//! through [`numeric_identical`], which `mwl_ir::Helper::NumericEq` reaches —
-//! and the same comparison with one operand `mixed` answers PHP's, through
-//! [`value_identical`]. **One of those has to move**, and closing it is not a
-//! one-line change either way: making [`value_identical`] cross the three
-//! representations also obliges [`value_hash`] to hash `1`, `1.0` and `1.0`
-//! as `decimal` alike, or `Arr::unique` indexes a set that disagrees with its
-//! own comparison. Until then, [`numeric_identical`] is the one that states
-//! the ADR's rule and this one states `Core\Arr`'s.
 //!
 //! # Why this terminates, and what it costs
 //!
@@ -105,10 +97,17 @@
 //! a quadratic member over request-shaped input is a denial of service, not a
 //! slow path. Its one obligation is the standard one: **identical values hash
 //! equally.** It is deliberately allowed to be coarse in the other direction,
-//! and is, in two places — a `NaN` hashes like any other float though it is
-//! identical to nothing, and an array is hashed only [`HASH_DEPTH`] levels
-//! deep — because a collision costs one extra [`value_identical`] call and
-//! bounded work is what keeps the hash itself immune to a deep input.
+//! and is, in three places — a `NaN` hashes like any other float though it is
+//! identical to nothing, an array is hashed only [`HASH_DEPTH`] levels deep,
+//! and the numeric domain merges the one trio [`hash_numeric`] describes —
+//! because a collision costs one extra [`value_identical`] call and bounded
+//! work is what keeps the hash itself immune to a deep input.
+//!
+//! The numeric family is the one row where the hash costs more than a write:
+//! an `int` pays two casts, a `float` pays nothing, and a `decimal` pays the
+//! rendering `crate::Decimal::to_f64` and `compare_f64` each do — the same
+//! allocation the *comparison* already makes for a `decimal`/`float` pair, so
+//! it buys agreement rather than adding a new class of cost.
 //!
 //! It writes into a caller-supplied [`Hasher`] rather than returning a `u64`
 //! so the caller's own [`std::collections::HashSet`] supplies the randomly
@@ -116,6 +115,7 @@
 //! would hand an attacker collision-crafting against a `Core` member, which
 //! is the exact failure the set index was introduced to avoid.
 
+use std::cmp::Ordering;
 use std::hash::Hasher;
 use std::mem::ManuallyDrop;
 
@@ -180,16 +180,13 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
     match (left.tag(), right.tag()) {
         (Some(Tag::Null), Some(Tag::Null)) => true,
         (Some(Tag::Bool), Some(Tag::Bool)) => left.bits() == right.bits(),
-        (Some(Tag::Int | Tag::Uint), Some(Tag::Int | Tag::Uint)) => integer(left) == integer(right),
-        (Some(Tag::Float), Some(Tag::Float)) => {
-            // `==`, not the bit pattern: `-0.0 == 0.0` and `NaN != NaN` are
-            // both PHP's answers, and both differ from comparing `bits()`.
-            f64::from_bits(left.bits()) == f64::from_bits(right.bits())
-        }
-        (Some(Tag::Decimal), Some(Tag::Decimal)) => match (left.as_decimal(), right.as_decimal()) {
-            (Some(a), Some(b)) => a.compare(b).is_eq(),
-            _ => false,
-        },
+        // One arm, not four: ADR 0090 § 3's numeric row is a single row, so
+        // the four representations delegate to the one comparison that spans
+        // them rather than to four that disagree across their edges.
+        (
+            Some(Tag::Int | Tag::Uint | Tag::Float | Tag::Decimal),
+            Some(Tag::Int | Tag::Uint | Tag::Float | Tag::Decimal),
+        ) => numeric_identical(left, right),
         (Some(Tag::Str), Some(Tag::Str)) => left.as_str_bytes() == right.as_str_bytes(),
         (Some(Tag::Array), Some(Tag::Array)) => {
             let (Some(a), Some(b)) = (left.array_ptr(), right.array_ptr()) else {
@@ -254,37 +251,16 @@ pub fn value_hash<H: Hasher>(value: Value, state: &mut H) {
 
 /// [`value_hash`], carrying how many more levels of array it may descend.
 fn hash_to_depth<H: Hasher>(value: Value, state: &mut H, depth: u32) {
-    // One discriminant per *family*, not per tag: `int` and `uint` share one
-    // because they are one integer domain, and every opaque handle shares one
-    // because it is hashed as its bits either way.
+    // One discriminant per *family*, not per tag: the four numeric
+    // representations share one because they are one domain, and every opaque
+    // handle shares one because it is hashed as its bits either way.
     match value.tag() {
         Some(Tag::Null) => state.write_u8(0),
         Some(Tag::Bool) => {
             state.write_u8(1);
             state.write_u64(value.bits());
         }
-        Some(Tag::Int | Tag::Uint) => {
-            state.write_u8(2);
-            state.write_i128(integer(value));
-        }
-        Some(Tag::Float) => {
-            state.write_u8(3);
-            // `-0.0` is identical to `0.0`, so both hash as `0.0`.
-            let float = f64::from_bits(value.bits());
-            state.write_u64(if float == 0.0 { 0.0f64 } else { float }.to_bits());
-        }
-        Some(Tag::Decimal) => {
-            state.write_u8(7);
-            // Trailing zeros are stripped first, because they are exactly the
-            // difference identity ignores: `1.10` and `1.1000` are one value
-            // and must be one hash.
-            let Some(value) = value.as_decimal().map(crate::Decimal::reduced) else {
-                return;
-            };
-            state.write_u8(u8::from(value.is_negative()));
-            state.write_u128(value.mantissa());
-            state.write_u8(value.scale());
-        }
+        Some(Tag::Int | Tag::Uint | Tag::Float | Tag::Decimal) => hash_numeric(value, state),
         Some(Tag::Str) => {
             state.write_u8(4);
             state.write(value.as_str_bytes().unwrap_or_default());
@@ -316,22 +292,104 @@ fn hash_to_depth<H: Hasher>(value: Value, state: &mut H, depth: u32) {
     }
 }
 
-/// Whether two numeric values are mathematically equal with `int`, `uint` and
-/// `float` read as **one domain** —
+/// The bytes a numeric contributes, chosen so that any pair
+/// [`numeric_identical`] answers `true` for feeds the same ones.
+///
+/// **A numeric hashes as the `f64` it coincides with, when there is one, and
+/// as its own exact decimal otherwise.** The `f64` is the canonical form
+/// because it is the only thing the domain's two readings of a float agree on:
+/// [`integer_eq_float`] reads a float at its exact binary value and
+/// [`decimal_eq_float`] reads it at the decimal it prints as, so past 2^53 one
+/// float can be identical to two different exact values — `2^60` is identical
+/// both to the `int` it holds and to the `decimal` `1152921504606847000` it
+/// prints as, while those two are not identical to each other. Keying all
+/// three on the float merges exactly that trio, and [`coincident_float`]
+/// refuses every value that merely *rounds* to a float, so a neighbouring
+/// large `int` keeps its own bucket rather than sharing one with the 1023
+/// beside it — a bucket an attacker could fill is the denial of service this
+/// hash exists to prevent.
+fn hash_numeric<H: Hasher>(value: Value, state: &mut H) {
+    state.write_u8(2);
+    if let Some(float) = coincident_float(value) {
+        state.write_u8(0);
+        state.write_u64(float.to_bits());
+        return;
+    }
+    state.write_u8(1);
+    // Trailing zeros are stripped, because they are exactly the difference
+    // identity ignores: `1.10` and `1.1000` are one value and one hash.
+    let exact = match value.tag() {
+        Some(Tag::Decimal) => value.as_decimal().map(crate::Decimal::reduced),
+        _ => decimal_of_integer(integer(value)),
+    };
+    let Some(exact) = exact else { return };
+    state.write_u8(u8::from(exact.is_negative()));
+    state.write_u128(exact.mantissa());
+    state.write_u8(exact.scale());
+}
+
+/// The `f64` a numeric coincides with under either of the domain's readings,
+/// or `None` where the nearest float holds a different number.
+fn coincident_float(value: Value) -> Option<f64> {
+    match value.tag() {
+        // A float coincides with itself, and `-0.0` is identical to `0.0`, so
+        // both answer `0.0`.
+        Some(Tag::Float) => value
+            .as_float()
+            .map(|float| if float == 0.0 { 0.0 } else { float }),
+        Some(Tag::Decimal) => {
+            let decimal = value.as_decimal()?;
+            let float = decimal.to_f64();
+            // Both readings, because both rows reach a `decimal`: an equal
+            // `float` takes the printed one, an equal `int` the exact one.
+            let printed = decimal.compare_f64(float).is_some_and(Ordering::is_eq);
+            let exact = || integer_of(decimal).is_some_and(|n| exactly_a_float(n).is_some());
+            (printed || exact()).then_some(float)
+        }
+        _ => exactly_a_float(integer(value)),
+    }
+}
+
+/// The `f64` an integer *is*, or `None` where the nearest one holds a
+/// different number.
+fn exactly_a_float(integer: i128) -> Option<f64> {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the round trip below is precisely the test for whether that \
+                  loss happened"
+    )]
+    let float = integer as f64;
+    (float.is_finite() && exact_i128(float) == Some(integer)).then_some(float)
+}
+
+/// A `decimal` as the `int`/`uint`-range integer it is, or `None` when it has
+/// a fractional part or lies outside both ranges — where no integer can be
+/// identical to it anyway.
+fn integer_of(decimal: crate::Decimal) -> Option<i128> {
+    decimal
+        .to_i64()
+        .map(i128::from)
+        .or_else(|| decimal.to_u64().map(i128::from))
+}
+
+/// Whether two numeric values are mathematically equal with `int`, `uint`,
+/// `float` and `decimal` read as **one domain** —
 /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-/// § 2's numeric row, reached from `mwl_ir::Helper::NumericEq` when that row
-/// put two different *representations* on either side of one `==`. `1 == 1.0`
-/// is `true` here, which is § 3's "mathematically equal across the whole
-/// domain" and deliberately not PHP's `1 === 1.0`.
+/// § 3's numeric row, which its § 2 admits as a compiling pairing and its § 5
+/// resolves a `mixed` operand to.
 ///
-/// A `decimal` operand never arrives: `mwl_ir::Helper::DecimalEq` already
-/// takes every pairing one side of which is one, and answers the same question
-/// through `crate::Decimal::compare_f64`. A pair of the same representation
-/// never arrives either — that is one machine comparison `mwl-codegen` emits
-/// inline — so every call here really does cross two of the three.
+/// It is reached two ways, and answers the same question in both:
+/// `mwl_ir::Helper::NumericEq` when two statically typed operands crossed two
+/// representations, and [`shallow_identical`] when a `mixed` operand's runtime
+/// tags did — which is also `Core\Arr`'s strict identity, so
+/// `Arr::contains([1.0], 1)` is `true`. `1 == 1.0` is `true` here and
+/// deliberately not PHP's `1 === 1.0`: one comparison with two answers is the
+/// worse trap, and this module's docs' rows state the whole of it.
 ///
-/// This is **not** [`value_identical`]'s numeric rows; see this module's docs'
-/// *Known gap* for the one question the two currently answer differently.
+/// A pair of the same representation still arrives — from the `mixed` side,
+/// where the row is a runtime tag rather than a static type. From the other
+/// side it never does: that is one machine comparison `mwl-codegen` emits
+/// inline.
 #[must_use]
 pub fn numeric_identical(left: Value, right: Value) -> bool {
     match (left.tag(), right.tag()) {
@@ -343,16 +401,65 @@ pub fn numeric_identical(left: Value, right: Value) -> bool {
             .as_float()
             .is_some_and(|float| integer_eq_float(integer(right), float)),
         (Some(Tag::Float), Some(Tag::Float)) => match (left.as_float(), right.as_float()) {
-            // `==` rather than the bit pattern, for [`shallow_identical`]'s
-            // reason: `-0.0 == 0.0` and `NaN != NaN`.
+            // `==` rather than the bit pattern: `-0.0 == 0.0` and
+            // `NaN != NaN` are both PHP's answers, and both differ from
+            // comparing `bits()`.
             (Some(a), Some(b)) => a == b,
             _ => false,
         },
+        (Some(Tag::Decimal), Some(Tag::Decimal)) => match (left.as_decimal(), right.as_decimal()) {
+            (Some(a), Some(b)) => a.compare(b).is_eq(),
+            _ => false,
+        },
+        (Some(Tag::Decimal), Some(Tag::Int | Tag::Uint)) => {
+            decimal_eq_integer(left, integer(right))
+        }
+        (Some(Tag::Int | Tag::Uint), Some(Tag::Decimal)) => {
+            decimal_eq_integer(right, integer(left))
+        }
+        (Some(Tag::Decimal), Some(Tag::Float)) => decimal_eq_float(left, right),
+        (Some(Tag::Float), Some(Tag::Decimal)) => decimal_eq_float(right, left),
         // Unreachable from a compiled `==`, whose two operands were both
         // numeric before this was chosen — and cheaper to answer than to
         // argue about, exactly like [`entries_identical`]'s last arm.
         _ => false,
     }
+}
+
+/// Whether a `decimal` and an integer denote the same number, **exactly**.
+///
+/// Every `int` and every `uint` payload is a `decimal` without loss —
+/// `u64::MAX` needs 64 of the mantissa's 96 bits and `i64::MIN`'s magnitude
+/// needs 63 — so there is no reading to choose here, only
+/// `crate::Decimal::compare`'s scale-independent ordering.
+fn decimal_eq_integer(decimal: Value, integer: i128) -> bool {
+    match (decimal.as_decimal(), decimal_of_integer(integer)) {
+        (Some(decimal), Some(other)) => decimal.compare(other).is_eq(),
+        _ => false,
+    }
+}
+
+/// Whether a `decimal` and a `float` denote the same number, with the float
+/// read at the decimal it **prints** as.
+///
+/// That is `crate::Decimal::compare_f64`'s reading and
+/// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 4's `float →
+/// decimal` row, so `(0.1 as decimal) == 0.1` holds — the answer this pairing
+/// exists to give, and the one the statically typed `mwl_ir::Helper::DecimalEq`
+/// already gave. It differs from [`integer_eq_float`]'s exact reading only for
+/// an integral float past 2^53, which [`hash_numeric`] is coarse enough to
+/// cover.
+fn decimal_eq_float(decimal: Value, float: Value) -> bool {
+    match (decimal.as_decimal(), float.as_float()) {
+        (Some(decimal), Some(float)) => decimal.compare_f64(float).is_some_and(Ordering::is_eq),
+        _ => false,
+    }
+}
+
+/// An `int` or `uint` payload as a `decimal`. Total over both ranges, for
+/// [`decimal_eq_integer`]'s reason.
+fn decimal_of_integer(integer: i128) -> Option<crate::Decimal> {
+    crate::Decimal::new(integer.is_negative(), integer.unsigned_abs(), 0)
 }
 
 /// Whether an integer and a float denote the same number, **exactly**.
@@ -363,17 +470,23 @@ pub fn numeric_identical(left: Value, right: Value) -> bool {
 /// integer it holds, and equating by that form would answer `false` for a pair
 /// that really is equal.
 fn integer_eq_float(integer: i128, float: f64) -> bool {
+    exact_i128(float) == Some(integer)
+}
+
+/// The integer a float holds exactly, or `None` for a NaN, an infinity or a
+/// value with a fractional part.
+fn exact_i128(float: f64) -> Option<i128> {
     if !float.is_finite() || float.trunc() != float {
-        return false;
+        return None;
     }
     #[expect(
         clippy::cast_possible_truncation,
         reason = "`as` saturates at `i128`'s bounds, and both of those lie far \
                   outside the `[-2^63, 2^64)` an int/uint payload can hold, so \
-                  any float that can equal `integer` converted exactly"
+                  any float that can equal one converted exactly"
     )]
     let exact = float as i128;
-    exact == integer
+    Some(exact)
 }
 
 /// An `int` or a `uint` payload as the integer it denotes.
@@ -460,11 +573,56 @@ mod tests {
         assert!(!identical(Value::uint(u64::MAX), Value::int(-1)));
     }
 
+    /// ADR 0090 § 3's numeric row reached through [`value_identical`] — the
+    /// same row [`numeric_identical`] answers for a statically typed pair, and
+    /// the one `Core\Arr`'s strict identity therefore takes too. Every `true`
+    /// here also asserts the hash agrees, through [`identical`].
     #[test]
-    fn a_float_never_crosses_to_an_integer() {
-        assert!(!identical(Value::float(1.0), Value::int(1)));
-        assert!(!identical(Value::int(1), Value::float(1.0)));
+    fn the_four_numeric_representations_are_one_domain() {
+        let one = crate::Decimal::parse("1.00").expect("a decimal literal");
+        let tenth = crate::Decimal::parse("0.1").expect("a decimal literal");
+
+        assert!(identical(Value::float(1.0), Value::int(1)));
+        assert!(identical(Value::int(1), Value::float(1.0)));
+        assert!(identical(Value::uint(1), Value::decimal(one)));
+        assert!(identical(Value::decimal(one), Value::float(1.0)));
+        // A `decimal` reads a `float` at the value it prints as, which is
+        // exactly what makes `(0.1 as decimal) == 0.1` true.
+        assert!(identical(Value::decimal(tenth), Value::float(0.1)));
+
         assert!(identical(Value::float(1.5), Value::float(1.5)));
+        assert!(!identical(Value::float(1.5), Value::int(1)));
+        assert!(!identical(Value::decimal(one), Value::int(2)));
+        assert!(!identical(Value::decimal(tenth), Value::float(0.2)));
+    }
+
+    /// The trio the two readings of a float disagree over: `2^60` is an `f64`
+    /// exactly *and* prints as a different integer, so it is identical to the
+    /// `int` it holds and to the `decimal` it prints as while those two are
+    /// not identical to each other. All three must still hash alike, and the
+    /// integer beside them must not join them.
+    #[test]
+    fn an_integral_float_past_two_to_the_53_hashes_with_both_of_its_readings() {
+        let exact = 1_152_921_504_606_846_976_i64;
+        let printed = crate::Decimal::parse("1152921504606847000").expect("a decimal literal");
+        let held = crate::Decimal::parse("1152921504606846976").expect("a decimal literal");
+
+        assert!(identical(Value::int(exact), Value::float(exact as f64)));
+        assert!(identical(
+            Value::decimal(printed),
+            Value::float(exact as f64)
+        ));
+        assert!(identical(Value::decimal(held), Value::int(exact)));
+        assert!(!identical(Value::decimal(printed), Value::int(exact)));
+        assert_eq!(hashed(Value::decimal(printed)), hashed(Value::int(exact)));
+
+        // The neighbour keeps its own bucket: it merely *rounds* to that
+        // float, which is what `coincident_float` refuses.
+        assert!(!identical(
+            Value::int(exact + 1),
+            Value::float(exact as f64)
+        ));
+        assert_ne!(hashed(Value::int(exact + 1)), hashed(Value::int(exact)));
     }
 
     #[test]
@@ -744,9 +902,10 @@ mod tests {
         release_all(&[first, copy, second, holds_first, holds_same, holds_second]);
     }
 
-    /// ADR 0090 § 2's numeric row, which [`numeric_identical`] answers and
-    /// [`value_identical`] deliberately does not — see this module's docs'
-    /// *Known gap*.
+    /// ADR 0090 § 2's numeric row at [`numeric_identical`] itself, which is
+    /// where `mwl_ir::Helper::NumericEq` enters it — the edges of the domain
+    /// rather than the rows [`the_four_numeric_representations_are_one_domain`]
+    /// already walks through [`value_identical`].
     #[test]
     fn a_cross_representation_numeric_pair_is_one_domain() {
         assert!(numeric_identical(Value::int(1), Value::float(1.0)));
@@ -769,22 +928,23 @@ mod tests {
             Value::uint(u64::MAX),
             Value::float(18_446_744_073_709_551_615_u64 as f64),
         ));
-    }
 
-    /// The case that separates an exact comparison from one taken at the
-    /// decimal the float *prints* as: 2^60 is an `f64` exactly, but its
-    /// shortest round-tripping form is `1152921504606847000`, so a
-    /// `crate::Decimal::compare_f64` reading would answer `false` here.
-    #[test]
-    fn an_integral_float_past_two_to_the_53_compares_at_its_own_value() {
-        let exact = 1_152_921_504_606_846_976_i64;
-        assert!(numeric_identical(
-            Value::int(exact),
-            Value::float(exact as f64)
-        ));
+        // A `decimal` reaches every one of the other three, at any scale.
+        let one = crate::Decimal::parse("1.000").expect("a decimal literal");
+        assert!(numeric_identical(Value::decimal(one), Value::int(1)));
+        assert!(numeric_identical(Value::uint(1), Value::decimal(one)));
+        assert!(numeric_identical(Value::decimal(one), Value::float(1.0)));
         assert!(!numeric_identical(
-            Value::int(exact + 1),
-            Value::float(exact as f64)
+            Value::decimal(one),
+            Value::float(f64::NAN)
         ));
+        // `u64::MAX` needs 64 of the mantissa's 96 bits, so no integer is out
+        // of a `decimal`'s reach in either direction.
+        let large = crate::Decimal::parse("18446744073709551615").expect("a decimal literal");
+        assert!(numeric_identical(
+            Value::decimal(large),
+            Value::uint(u64::MAX)
+        ));
+        assert!(!numeric_identical(Value::decimal(large), Value::int(-1)));
     }
 }

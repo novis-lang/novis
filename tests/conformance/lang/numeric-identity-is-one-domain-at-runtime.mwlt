@@ -1,0 +1,34 @@
+--TEST--
+`int`, `uint`, `float` and `decimal` are one numeric domain wherever equality is resolved at runtime — a `mixed` `==` and `Core\Arr`'s strict identity alike — ADR 0090 §§ 3, 5
+--FILE--
+<?mwl
+// § 5: a `mixed` operand resolves on the runtime tags and applies § 3's
+// table, whose numeric row is *one* row — so this is `true` where PHP's
+// `1 === 1.0` was `false`.
+mixed $n = 1;
+mixed $f = 1.0;
+decimal $scaled = 1.00;
+mixed $d = $scaled;
+echo ($n == $f) as string, "|", ($d == $n) as string, "|", ($d == $f) as string, "|\n";
+
+// …and the same row still separates two different numbers, and still answers
+// `false` rather than throwing when the two tags name different rows.
+mixed $half = 1.5;
+mixed $text = "1";
+echo ($n == $half) as string, "|", ($n == $text) as string, "|\n";
+
+// `Core\Arr`'s "strict identity" is that same comparison, so a needle matches
+// across representations too — one comparison with two answers would be the
+// worse trap.
+array<mixed> $holds = [1.0, "x"];
+echo Core\Arr::contains($holds, 1) as string, "|", Core\Arr::contains($holds, 2) as string, "|\n";
+
+// `unique` indexes that comparison with a hash, so the hash has to agree with
+// it: `1`, `1.0` and `1.00` are one value and collapse to one entry.
+array<mixed> $numbers = [1, 1.0, $scaled, 2];
+echo Core\Arr::count(Core\Arr::unique($numbers)) as string, "\n";
+--EXPECT--
+1|1|1|
+||
+1||
+2

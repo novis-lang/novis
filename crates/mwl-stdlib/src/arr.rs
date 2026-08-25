@@ -2095,8 +2095,11 @@ mwl_runtime::mwl_helper! {
     /// forget. What "strict" means is `mwl_runtime::value_identical`, whose
     /// own module docs own every row of it, including the two that differ
     /// from a naive bit comparison (`0.0` and `-0.0` are one value, `NaN` is
-    /// identical to nothing) and the one that has no PHP counterpart at all
-    /// (an `int` and a `uint` are one integer domain).
+    /// identical to nothing) and the one that diverges from PHP's `===`:
+    /// `int`, `uint`, `float` and `decimal` are **one numeric domain**, so
+    /// `contains([1.0], 1)` is `true` where `in_array(1, [1.0], true)` is
+    /// `false`. That is ADR 0090 § 3's numeric row, and taking it here is what
+    /// keeps this member and the `==` operator one comparison rather than two.
     fn mwl_core_arr_contains(_ctx, args: [2]) {
         let subject = subject(args, "contains")?;
         Ok(Value::bool(slot_of(&subject, args[1]).is_some()))
