@@ -1,0 +1,69 @@
+--TEST--
+A parameter typed `Stringable` stringifies and one typed `Comparable` orders — an interface satisfies itself in zero steps — ADR 0028 § 1, ADR 0013 § 2
+--FILE--
+<?mwl
+// `mwl_hir::implements_interface` is reflexive, so `Stringable` reaches
+// `Stringable`'s own `toString()` and `Comparable` its own `compareTo()`.
+// Neither declaration has a body, so both dispatch on the runtime class —
+// the same path any other interface-method call already takes.
+class Label implements Stringable {
+    private string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    public function toString(): string {
+        return "[" . $this->text . "]";
+    }
+}
+
+class Loud implements Stringable {
+    public function toString(): string {
+        return "!!";
+    }
+}
+
+class Cell implements Comparable {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+
+    public function compareTo(Comparable $other): int {
+        Cell $c = $other as Cell;
+        return $this->n - $c->n;
+    }
+}
+
+class Show {
+    public static function render(Stringable $s): string {
+        return "<" . $s . ">";
+    }
+
+    public static function shout(Stringable $s): void {
+        echo $s, "\n";
+    }
+
+    public static function before(Comparable $a, Comparable $b): bool {
+        return $a < $b;
+    }
+}
+
+echo Show::render(new Label("x")), "\n";
+echo Show::render(new Loud()), "\n";
+Show::shout(new Label("y"));
+
+// A local declared at the interface, not at a class.
+Stringable $s = new Label("direct");
+echo $s, " ", $s as string, "\n";
+
+echo (Show::before(new Cell(1), new Cell(2))) as string, "|";
+echo (Show::before(new Cell(2), new Cell(1))) as string, "|\n";
+--EXPECT--
+<[x]>
+<!!>
+[y]
+[direct] [direct]
+1||

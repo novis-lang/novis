@@ -355,7 +355,7 @@ fn resolve_supertype(
     }
 }
 
-/// Whether `qname` is provably known to implement `target` — walking every
+/// Whether `qname` is provably known to satisfy `target` — walking every
 /// `extends`/`implements` ancestor, the same shape
 /// [`crate::members::member_declared`] and every `mwl-types` signature
 /// lookup already walk, generalised here to a plain reachability question
@@ -363,8 +363,23 @@ fn resolve_supertype(
 /// [`ClassGraph`] entry — a reserved global interface like ADR 0013's
 /// `Comparable` never does, since equality against it is checked before ever
 /// calling [`ClassGraph::get`] on it.
+///
+/// **Reflexive:** a name satisfies itself, in zero steps. That is the answer
+/// every caller wants and three of them already spelled for themselves before
+/// calling (`is_throwable_shaped`, `is_visible_from`, and
+/// `classes_are_unrelated`, which returns early on equal names) — and the one
+/// that did not, `mwl_types::expr::operators::require_stringable`, was
+/// refusing `echo $s` on a `Stringable $s` for it: a value typed at the
+/// interface provably has the member the interface declares, which is the
+/// whole of what this predicate is asked. The name still reads
+/// `implements_interface` because "does `qname` reach `target`'s members" is
+/// what all five callers mean by it; the zero-step case is simply the
+/// shortest walk, not a different question.
 #[must_use]
 pub fn implements_interface(qname: &QName, target: &QName, graph: &ClassGraph) -> bool {
+    if qname == target {
+        return true;
+    }
     let mut seen = FxHashSet::default();
     implements_interface_rec(qname, target, graph, &mut seen)
 }
