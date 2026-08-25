@@ -602,6 +602,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::time::ZONE,
     crate::random::CLASS,
     crate::uuid::CLASS,
+    crate::uri::CLASS,
 ];
 
 /// One `Core`-owned enum — [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s

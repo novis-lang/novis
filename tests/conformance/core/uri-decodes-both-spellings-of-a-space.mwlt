@@ -1,0 +1,42 @@
+--TEST--
+Core\Uri::decodeComponent and decodeFormValue read `%20` alike and `+` differently, either case of hex reads, and a malformed escape is text — spec § 12
+--FILE--
+<?mwl
+// The mirror of the encoding pair: a `+` is a literal `+` to the component
+// decoder and a space to the form one. This is why reading a query value with
+// `decodeComponent` is a bug the type system cannot catch and the member
+// names have to.
+echo Core\Uri::decodeComponent("a+b"), "\n";
+echo Core\Uri::decodeFormValue("a+b"), "\n";
+
+// `%20` is a space to both, so a query string written by something that
+// followed RFC 3986 still reads through the form decoder.
+echo Core\Uri::decodeComponent("a%20b"), "\n";
+echo Core\Uri::decodeFormValue("a%20b"), "\n";
+
+// And `%2B` is the `+` the user actually typed.
+echo Core\Uri::decodeFormValue("a%2Bb"), "\n";
+
+// Either case of hex reads — RFC 3986 § 6.2.2.1's normalization rule seen
+// from the reading side, since `%2f` and `%2F` are one octet.
+echo Core\Uri::decodeComponent("%2f%2F"), "\n";
+
+// A `%` that does not begin two hex digits is left exactly as it stands: a
+// decoder sits at the edge of a request, where a byte a client mistyped must
+// not abort a handler that was going to reject the value anyway.
+echo Core\Uri::decodeComponent("%zz-%4-100%"), "\n";
+
+// Each encoder's own output decodes back to what went in, which is the
+// property that makes the pair usable at all.
+echo Core\Uri::decodeComponent(Core\Uri::encodeComponent("a b/~é")), "\n";
+echo Core\Uri::decodeFormValue(Core\Uri::encodeFormValue("a b/~é")), "\n";
+--EXPECT--
+a+b
+a b
+a b
+a b
+a+b
+//
+%zz-%4-100%
+a b/~é
+a b/~é

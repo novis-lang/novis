@@ -197,6 +197,7 @@ pub mod regex;
 pub mod registry;
 pub mod str;
 pub mod time;
+pub mod uri;
 pub mod uuid;
 
 /// ADR 0071's derived-codec field list, re-exported from where it is
@@ -243,6 +244,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
                 .or_else(|| random::address(method.symbol))
                 .or_else(|| regex::address(method.symbol))
                 .or_else(|| time::address(method.symbol))
+                .or_else(|| uri::address(method.symbol))
                 .or_else(|| uuid::address(method.symbol))
                 .unwrap_or_else(|| {
                     panic!(

@@ -1,0 +1,41 @@
+--TEST--
+Core\Uri::encodeComponent and encodeFormValue are two encodings, not one with a flag — they disagree about a space and about `~`, exactly as PHP's rawurlencode and urlencode do — spec § 12
+--FILE--
+<?mwl
+// Spec § 12: a space is `%20` inside a URI and `+` in a form value. That is
+// the one disagreement a program notices, and using the wrong member puts a
+// literal `+` in a filename or a space where a `+` was typed.
+echo Core\Uri::encodeComponent("a b"), "\n";
+echo Core\Uri::encodeFormValue("a b"), "\n";
+
+// RFC 3986 § 2.3 added `~` to the unreserved set;
+// `application/x-www-form-urlencoded` is still defined against RFC 1738's
+// older one. PHP's two functions each follow their own specification, so
+// `Core\Uri` keeps the difference rather than collapsing it — the module's
+// own docs own why.
+echo Core\Uri::encodeComponent("~"), "\n";
+echo Core\Uri::encodeFormValue("~"), "\n";
+
+// Every reserved delimiter is escaped, which is what makes an encoded
+// component safe to interpolate: a `/` cannot climb out of a path segment,
+// and an `&` cannot open a second query pair.
+echo Core\Uri::encodeComponent("a/b?c#d&e=f"), "\n";
+
+// The bytes both sets leave alone: ASCII alphanumerics and `-_.`.
+echo Core\Uri::encodeFormValue("aZ09-_."), "\n";
+
+// Hex is upper case, and a multi-byte character is escaped one octet at a
+// time — percent-encoding is defined over bytes, not characters.
+echo Core\Uri::encodeComponent("é"), "\n";
+
+// An empty subject encodes to nothing at all rather than to a placeholder.
+echo Core\Uri::encodeComponent(""), "|", "\n";
+--EXPECT--
+a%20b
+a+b
+~
+%7E
+a%2Fb%3Fc%23d%26e%3Df
+aZ09-_.
+%C3%A9
+|
