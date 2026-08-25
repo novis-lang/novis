@@ -1,0 +1,70 @@
+#!/bin/sh
+# Reject a commit message carrying an attribution trailer.
+#
+# A commit message in this repository documents the work and stops -- docs/agent/conventions.md
+# § *A commit message* is the home of that rule. `Co-Authored-By`, `Signed-off-by`,
+# `Generated-with` and their relatives are boilerplate every future reader of `git log` pays for,
+# and several agent harnesses append one by default without ever having read the convention. So
+# the convention is enforced here rather than trusted.
+#
+# `tools/session.py` already strips these out of any message it is handed; this catches the same
+# thing arriving by `git commit -m`, `-F`, an editor, a merge, or a tool nobody thought about.
+#
+# Enabled per clone, because git does not version `.git/hooks`:
+#
+#     git config core.hooksPath tools/git-hooks
+#
+# `python tools/verify.py` says so when it is not set, so a clone that forgot is told once rather
+# than finding out in review. Never bypass with `--no-verify`: the message names the offending
+# lines and deleting them is the whole fix.
+#
+# sh and awk, not python, on purpose. Git for Windows runs a hook through its own sh and resolves
+# a `python3` shebang to the Microsoft Store stub, which fails and would block EVERY commit --
+# the playbook's "`python`, not `python3`" trap, in the one place where getting it wrong looks
+# like the hook working.
+
+msg="$1"
+[ -f "$msg" ] || exit 0
+
+keys='co-authored-by|signed-off-by|generated-by|generated-with|assisted-by|authored-by|reviewed-by|on-behalf-of|committed-by|created-by|made-with'
+
+# The prose spelling of the same thing -- `Generated with [Some Tool](url)` -- is not a
+# `Key: value` trailer, so it needs its own pattern. Narrow on purpose: it wants the markdown
+# link, because "generated with" is an ordinary phrase a commit about a code generator may use.
+# `[[]` and not `\[`: this reaches awk as a *dynamic* regex built from a string, where a
+# backslash is consumed by the string literal first and awk then sees a bare `[` opening a
+# bracket expression that never closes. That spelling failed fatally and, before the exit-status
+# check below existed, the hook then let the commit through -- a gate that fails open.
+# `^[^a-z]*` and not `^[ \t]*` so an emoji, a bullet or any other decoration in front of the
+# phrase is still caught without this file having to carry the emoji's bytes -- which is the one
+# thing that would make it encoding-fragile across the shells git runs it under. A line with real
+# words before the phrase ("the table is generated with ...") has letters there and is left alone.
+prose='^[^a-z]*(generated|created|made)[ \t]+(with|by)[ \t]+[[]'
+
+offenders=$(awk -v keys="$keys" -v prose="$prose" '
+    /^[ \t]*#/ { next }                     # git own commentary, stripped before the message is stored
+    { lower = tolower($0) }
+    lower ~ "^[ \t]*(" keys ")[ \t]*:" || lower ~ prose {
+        printf "  line %d: %s\n", NR, substr($0, 1, 100)
+    }
+' "$msg")
+status=$?
+
+# Fail CLOSED. If awk could not run, or died on its own pattern, the message has not been checked
+# and must not be assumed clean -- refusing a commit is recoverable, letting boilerplate into the
+# history unnoticed is what this hook exists to prevent.
+if [ "$status" -ne 0 ]; then
+    echo "commit-msg: the trailer check did not run (awk exited $status); refusing." >&2
+    echo "Fix tools/git-hooks/commit-msg rather than passing --no-verify." >&2
+    exit 1
+fi
+
+[ -z "$offenders" ] && exit 0
+
+echo "commit-msg: this repository keeps no attribution trailers." >&2
+echo "A commit message documents the work and stops -- docs/agent/conventions.md, A commit message." >&2
+echo "" >&2
+echo "$offenders" >&2
+echo "" >&2
+echo "Delete those lines and commit again. Do not pass --no-verify." >&2
+exit 1

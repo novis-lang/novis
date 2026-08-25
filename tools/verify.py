@@ -271,6 +271,25 @@ def tail(text, limit):
     return "\n".join(lines[-limit:]), len(lines) - limit
 
 
+def hooks_note():
+    """Say once, here, if this clone has not enabled the versioned hooks.
+
+    git does not version `.git/hooks`, so `tools/git-hooks/` is inert until a clone points at it
+    and there is nothing in the tree to notice that. This is the one command every session runs,
+    which makes it the cheapest place to be told -- it prints a line and never fails a run: a
+    missing hook is a setup gap, not a broken tree, and verify.py judges the tree.
+    """
+    try:
+        got = subprocess.run(["git", "config", "core.hooksPath"], cwd=ROOT,
+                             capture_output=True, text=True, check=False).stdout.strip()
+    except OSError:
+        return
+    if got.replace("\\", "/").rstrip("/") == "tools/git-hooks":
+        return
+    print("verify: this clone has no hooks -- `git config core.hooksPath tools/git-hooks`")
+    print("        (it rejects attribution trailers; docs/agent/conventions.md says why)\n")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -288,6 +307,7 @@ def main():
 
     steps = steps_for(opts)
     scope = f" (-p {opts.package})" if opts.package else ""
+    hooks_note()
 
     key = tree_key()
     hit = cached_verdict(key, opts, steps)

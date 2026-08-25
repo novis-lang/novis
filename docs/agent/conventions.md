@@ -28,6 +28,13 @@ path — `lang`, `types`, `ir`, `runtime`, `stdlib`, `codegen`, `syntax`, `test`
 statement of what is now true rather than an instruction. Two clauses joined by `, and ` is the house
 style when a commit does two things; one clause is fine when it does one.
 
+**No trailers, ever.** A commit message documents the work and stops. No `Co-Authored-By`, no
+`Signed-off-by`, no `Generated-with`, no tool or model attribution in any spelling. Who or what wrote a
+commit is not part of the record this project keeps, and boilerplate at the foot of every message is
+noise every future reader pays for. `git log` should read as a history of the language, not of its
+authorship. This is enforced twice — `tools/session.py` strips a trailer out of any message it is handed,
+and the `commit-msg` hook in `tools/git-hooks/` rejects one that arrives any other way.
+
 Write the message to a file and use `git commit -F <file>` — never `-m` for anything multi-line, per
 [commands.md](commands.md). `git log -1 --format=%B` is not needed to remember this; that is what this
 section is for.

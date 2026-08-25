@@ -3,6 +3,9 @@
     "allow": [
       "Bash(python tools/brief.py)",
       "Bash(python tools/brief.py --no-git)",
+      "Bash(python tools/peek.py:*)",
+      "Bash(python tools/session.py --check)",
+      "Bash(python tools/session.py --counts)",
       "Bash(cargo build:*)",
       "Bash(cargo test:*)",
       "Bash(cargo clippy:*)",
