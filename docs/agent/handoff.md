@@ -2,6 +2,21 @@
 
 ## State
 
+**Stage 0 is re-opened, and it outranks everything below.** Six items — 10 to 15 in
+[loop-goal.md](loop-goal.md) § *Stage 0*, with fourteen named tests at `stage = "0 catch-up"` in
+[loop-goal.toml](loop-goal.toml) — were settled with the user from a review of PHP's 2023-2026 CVE and
+performance record, and each is dated *now* because the emit site, the ABI or the member it changes is
+being written this milestone. `loop.py` short-circuits at stage 0, so **Stage 3 is shut until all six
+clear** and the group named further down this file waits behind them. Take item 10 first; they are
+ordered cheapest first on purpose. Each item points at the ADR section or module doc that owns its rule
+rather than restating it, and `[context]` deliberately adds no selector for any of them — a session takes
+one item, the six share no files, and the union cost +10,869 tokens of orientation for five sections
+nobody reads. Four further decisions from the same review are recorded in
+[ADR 0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md),
+[ADR 0096](../adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md) and
+[ADR 0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s last section;
+their milestones have not started and they are not this goal's work.
+
 **ADR 0036 is whole, erased receiver included.** `$o->x` on a plain `object` reads *and* writes: the
 checker records an `ExprInfo::ShapeProperty` carrying the written name alone — slot `0`, type `mixed`
 — for both the plain-`object` receiver and a name a shape does not list, and `mwl-ir` lowers each to
@@ -27,10 +42,19 @@ view, self-assignment, and both missing-name throw edges — 200 iterations.
 behind ADR 0088's sink carriers (`Core\Html\Markup`/`Cli\Text`), which spec § 12's own prose makes
 its return type. It is M4S work, not a slice to open ahead of the sinks.
 
-## Next group — M4's three remaining operator/control-flow holes (`mwl-ir` gap 16, `lib.rs:266`)
+## Next group — Stage 0 items 10 to 15, in order, starting at item 10
+
+[loop-goal.md](loop-goal.md) § *Stage 0* holds each item and the ADR section or module doc that owns its
+rule; [loop-goal.toml](loop-goal.toml)'s `stage = "0 catch-up"` blocks hold the fourteen tests that close
+them. One item is a group. Item 15 is the largest by far — a second array representation with a degrade
+path, roughly 300 to 500 lines across `array.rs` and the ABI — and item 10 is close to done already, so do
+not size the set from its first member.
+
+## After Stage 0 — M4's three remaining operator/control-flow holes (`mwl-ir` gap 16, `lib.rs:266`)
 
 These are named in the goal's standing decisions as in scope precisely because the corpus cannot be
-written around them, and Stage 4's counts (433 of 600) are now the gate's own work.
+written around them, and Stage 4's counts (433 of 600) are now the gate's own work. **They resume once
+Stage 0 is empty**, not before — `loop.py` will not reach a Stage 3 fixture until then.
 
 **Shared file set:** `crates/mwl-ir/src/ir.rs:1380` (`BinOp`),
 `crates/mwl-ir/src/lower/expr.rs:161` (the binary-operator match),
