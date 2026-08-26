@@ -24,6 +24,42 @@
 //! and ADR 0020's ladder wants such a bug reported, not left to take the
 //! process down.
 //!
+//! # A result is written once
+//!
+//! A member that builds its result **writes it straight into the allocation it
+//! is answered from**, through [`built`] and `mwl_runtime`'s `MwlStr::build`.
+//! The spelling it replaces — accumulate into a `String`, hand that to
+//! [`produced`] — allocates twice and copies every byte twice, because
+//! [`produced`] can only copy the text it is given. [`produced`] stays for the
+//! members whose result is already sitting in a borrowed slice of the subject,
+//! where that copy is the only one there is.
+//!
+//! `repeat`, `padStart`/`padEnd` and `reverse` know their length exactly and so
+//! allocate exactly once, which `tests/allocation_policy.rs` holds them to.
+//! `replace` starts the writer at its subject's length and lets it grow by the
+//! same doubling the `String` did, so a guess that is wrong costs what it
+//! always cost and never the final copy.
+//!
+//! **Buying an exact length with a second pass is a loss, and was measured as
+//! one** — twice, which is why it is written down rather than left to be
+//! rediscovered. Counting `replace`'s matches before writing them took
+//! `05-string-replace` from 0.92× to 0.74× against PHP; walking a cycle of
+//! `padEnd`'s padding to measure what a second walk then wrote took
+//! `07-string-normalize` from 0.50× to 0.45×. A read is not free, and at these
+//! sizes it is not cheaper than the `memcpy` it saves. Both are arithmetic now,
+//! and `docs/perf/userland-gap.md` § E holds the numbers.
+//!
+//! **`join` is the member this rule does not reach**, and it is unchanged: its
+//! length costs a walk of the subject's slots, which is the expensive half of
+//! the member, and all three ways round that measured worse than the `String`
+//! it builds — a writer at a guessed capacity grows two or three times per
+//! call (87.3 ms of work to 90.0), a `Vec` of borrowed pieces spends an
+//! allocation per call (105.1), and measuring first walks the slots twice
+//! (92.5).
+//!
+//! Every length that *is* computed goes through `mwl_runtime::affordable`,
+//! which is the one seam a per-request ceiling attaches to.
+//!
 //! # Granularity is decided elsewhere, and read from one place
 //!
 //! `length`, `at` and `padStart`/`padEnd`'s `$length` all count in
@@ -44,7 +80,7 @@
 
 use std::cmp::Ordering;
 
-use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
+use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, StrWriter, Tag, Value};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy};
@@ -635,9 +671,65 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
     })
 }
 
-/// A freshly built `string` result.
+/// A freshly built `string` result, copied out of the borrowed text it is
+/// already sitting in.
 fn produced(text: &str) -> HelperResult {
     Ok(Value::str(MwlStr::new(text.as_bytes())))
+}
+
+/// A freshly built `string` result, written straight into the allocation it is
+/// answered from — `capacity` being what the member can say up front, exactly
+/// where it knows and as a starting point where it guesses.
+///
+/// See this module's § *A result is written once*.
+fn built(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> HelperResult {
+    Ok(Value::str(MwlStr::build(capacity, write)))
+}
+
+/// The values an `array` argument holds, in slot order, each **borrowed** from
+/// the array rather than retained — which is what `mwl_array_value_at` writes,
+/// and why nothing here releases one.
+///
+/// The cursor exists as an iterator so [`mwl_core_str_join`]'s body is the join
+/// and not the walk; the `unsafe` the walk needs is stated once, here.
+struct Elements {
+    /// The array being walked. Live for this iterator's whole life, which is
+    /// [`Elements::of`]'s obligation on its caller.
+    array: *const mwl_runtime::ArrayHeader,
+    /// The slot the next step starts looking from.
+    from: usize,
+}
+
+impl Elements {
+    /// The elements of `array`, which must stay live and unwritten for as long
+    /// as the iterator does. A helper's own `Tag::Array` argument satisfies
+    /// both: it owns a reference for the length of the call, and no member
+    /// reading one also writes it.
+    fn of(array: *const mwl_runtime::ArrayHeader) -> Self {
+        Self { array, from: 0 }
+    }
+}
+
+impl Iterator for Elements {
+    type Item = Value;
+
+    fn next(&mut self) -> Option<Value> {
+        #[expect(
+            unsafe_code,
+            reason = "`Elements::of`'s caller states the array is live for \
+                      this iterator's life, and `from` only ever advances \
+                      past a slot this same cursor reported"
+        )]
+        let (slot, value) = unsafe {
+            let slot =
+                usize::try_from(mwl_runtime::mwl_array_next_slot(self.array, self.from)).ok()?;
+            let mut value = Value::null();
+            mwl_runtime::mwl_array_value_at(self.array, slot, &raw mut value);
+            (slot, value)
+        };
+        self.from = slot + 1;
+        Some(value)
+    }
 }
 
 mwl_runtime::mwl_helper! {
@@ -763,29 +855,17 @@ mwl_runtime::mwl_helper! {
         })?;
         let separator = text(&args[1], "join", "the separator")?;
 
+        // The one member § E named that is **left as it was**, because all
+        // three alternatives measured slower than accumulating into a `String`
+        // and copying it: a writer at a guessed capacity grows two or three
+        // times per call, a piece list spends a `Vec` per call, and measuring
+        // the length first walks the slots twice. This module's § *A result is
+        // written once* records the numbers. What makes `join` different from
+        // the members above it is that its length costs a slot walk to learn,
+        // and that walk is the expensive part of the member.
         let mut out = String::new();
-        let mut from = 0usize;
-        loop {
-            #[expect(
-                unsafe_code,
-                reason = "a Tag::Array argument owns a reference to a live \
-                          allocation, so it is live for the length of this \
-                          call, and `from` only ever advances past a slot \
-                          this same cursor reported"
-            )]
-            let (slot, value) = unsafe {
-                let slot = mwl_runtime::mwl_array_next_slot(parts, from);
-                let Ok(slot) = usize::try_from(slot) else {
-                    break;
-                };
-                let mut value = Value::null();
-                mwl_runtime::mwl_array_value_at(parts, slot, &raw mut value);
-                (slot, value)
-            };
-            from = slot + 1;
-            if !out.is_empty() || from > 1 {
-                // Written against the cursor rather than a "first" flag so an
-                // empty leading element still gets its separator.
+        for (at, value) in Elements::of(parts).enumerate() {
+            if at > 0 {
                 out.push_str(separator);
             }
             out.push_str(text(&value, "join", "an element")?);
@@ -1126,20 +1206,27 @@ mwl_runtime::mwl_helper! {
         if search.is_empty() || limit == 0 {
             return produced(subject);
         }
-        let mut out = String::with_capacity(subject.len());
-        let mut rest = subject;
-        let mut done = 0u64;
-        while done < limit {
-            let Some((at, matched)) = find_from(rest, search, case_insensitive) else {
-                break;
-            };
-            out.push_str(&rest[..at]);
-            out.push_str(replacement);
-            rest = &rest[at + matched..];
-            done += 1;
-        }
-        out.push_str(rest);
-        produced(&out)
+        // The subject's own length is the capacity the accumulation starts
+        // with, exactly as the `String` this replaced started with — but the
+        // buffer being filled *is* the one the result is answered from, so
+        // there is no copy of the whole accumulation at the end. Counting the
+        // matches first to make the length exact was measured and is a loss:
+        // a second `find_from` pass over the subject costs more than the copy
+        // it saves.
+        built(subject.len(), |out| {
+            let mut rest = subject;
+            let mut done = 0u64;
+            while done < limit {
+                let Some((at, matched)) = find_from(rest, search, case_insensitive) else {
+                    break;
+                };
+                out.push_str(&rest[..at]);
+                out.push_str(replacement);
+                rest = &rest[at + matched..];
+                done += 1;
+            }
+            out.push_str(rest);
+        })
     }
 }
 
@@ -1779,12 +1866,19 @@ mwl_runtime::mwl_helper! {
     /// attached to the letter it modifies.
     ///
     /// Spends one `Vec` of borrowed pieces per call — [`crate::granularity`]'s
-    /// iterator is forward-only, and a reverse needs the last piece first.
+    /// iterator is forward-only, and a reverse needs the last piece first. The
+    /// pieces are only ever *read* backwards, so that `Vec` is the whole of
+    /// what this member spends beyond its result: a reversal is the same bytes
+    /// in a different order, so the length is the subject's and [`built`]
+    /// writes them once.
     fn mwl_core_str_reverse(_ctx, args: [1]) {
         let subject = text(&args[0], "reverse", "the subject")?;
-        let mut pieces: Vec<&str> = crate::granularity::DEFAULT.pieces(subject).collect();
-        pieces.reverse();
-        produced(&pieces.concat())
+        let pieces: Vec<&str> = crate::granularity::DEFAULT.pieces(subject).collect();
+        built(subject.len(), |out| {
+            for piece in pieces.iter().rev() {
+                out.push_str(piece);
+            }
+        })
     }
 }
 
@@ -1904,8 +1998,11 @@ mwl_runtime::mwl_helper! {
         let subject = text(&args[0], "padStart", "the subject")?;
         let length = count(&args[1], "padStart", "the target length")?;
         let padding = text(&args[2], "padStart", "the padding")?;
-        let fill = padding_run(subject, length, padding, "padStart")?;
-        produced(&(fill + subject))
+        let (run, fill) = padding_run(subject, length, padding, "Core\\Str::padStart")?;
+        built(fill + subject.len(), |out| {
+            write_run(out, padding, run);
+            out.push_str(subject);
+        })
     }
 }
 
@@ -1917,27 +2014,37 @@ mwl_runtime::mwl_helper! {
         let subject = text(&args[0], "padEnd", "the subject")?;
         let length = count(&args[1], "padEnd", "the target length")?;
         let padding = text(&args[2], "padEnd", "the padding")?;
-        let fill = padding_run(subject, length, padding, "padEnd")?;
-        produced(&(subject.to_owned() + &fill))
+        let (run, fill) = padding_run(subject, length, padding, "Core\\Str::padEnd")?;
+        built(subject.len() + fill, |out| {
+            out.push_str(subject);
+            write_run(out, padding, run);
+        })
     }
 }
 
 /// The run of padding `padStart`/`padEnd` prepend or append — `padding`
 /// repeated and then cut to exactly the shortfall, counted in
-/// [`crate::granularity::DEFAULT`].
+/// [`crate::granularity::DEFAULT`] — as **how many pieces it is, and how many
+/// bytes they occupy**, which is all [`write_run`] and the result's length
+/// between them need. Building the run as a `String` here is what the member
+/// then had to copy a second time.
 ///
 /// Empty padding throws rather than looping: it can never close a shortfall,
 /// and PHP's own `str_pad` refuses it too.
-fn padding_run(subject: &str, length: usize, padding: &str, member: &str) -> Result<String, Fault> {
+fn padding_run(
+    subject: &str,
+    length: usize,
+    padding: &str,
+    member: &str,
+) -> Result<(usize, usize), Fault> {
     let unit = crate::granularity::DEFAULT;
     let have = unit.length(subject);
     if have >= length {
-        return Ok(String::new());
+        return Ok((0, 0));
     }
     if padding.is_empty() {
         return Err(Fault::thrown(format!(
-            "Core\\Str::{member}: the padding is empty, so it can never reach the requested \
-             length"
+            "{member}: the padding is empty, so it can never reach the requested length"
         )));
     }
     // The run is `length - have` pieces, each at most the whole padding, so
@@ -1946,11 +2053,36 @@ fn padding_run(subject: &str, length: usize, padding: &str, member: &str) -> Res
     // `padStart("x", n, "y")` would build an n-byte string with nothing
     // between it and the allocator.
     let run = length - have;
-    mwl_runtime::affordable(
-        run.checked_mul(padding.len()),
-        &format!("Core\\Str::{member}"),
-    )?;
-    Ok(unit.pieces(padding).cycle().take(run).collect::<String>())
+    // `member` arrives already qualified, so the path that succeeds formats
+    // nothing: a `format!` here was one allocation per pad.
+    mwl_runtime::affordable(run.checked_mul(padding.len()), member)?;
+    // The run is whole copies of the padding and then a prefix of one more, so
+    // both its length and [`write_run`]'s writing are arithmetic on the pieces
+    // of `padding` alone — walking `run` pieces of a cycle to measure what a
+    // second walk then writes was measured and is a loss.
+    let pieces = unit.length(padding);
+    let tail: usize = unit.pieces(padding).take(run % pieces).map(str::len).sum();
+    // Cannot overflow: the check above bounds the whole run, and this is it.
+    Ok((run, (run / pieces) * padding.len() + tail))
+}
+
+/// Writes the run [`padding_run`] measured: `run` pieces of `padding`, which is
+/// `run / pieces` whole copies of it and then the first `run % pieces` of one
+/// more.
+fn write_run(out: &mut StrWriter<'_>, padding: &str, run: usize) {
+    if run == 0 {
+        // A subject already at or past the target length, where `padding_run`
+        // answers before it has refused an empty padding — so this is also
+        // what keeps the piece count below non-zero.
+        return;
+    }
+    let unit = crate::granularity::DEFAULT;
+    let pieces = unit.length(padding);
+    for _ in 0..run / pieces {
+        out.push_str(padding);
+    }
+    let tail: usize = unit.pieces(padding).take(run % pieces).map(str::len).sum();
+    out.push_str(&padding[..tail]);
 }
 
 mwl_runtime::mwl_helper! {
@@ -1959,11 +2091,18 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_str_repeat(_ctx, args: [2]) {
         let subject = text(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
-        // `str::repeat` panics on capacity overflow, which would be a contained
-        // FATAL rather than a catchable failure — so the size goes through the
-        // one check first and is reported as an ordinary throw instead.
-        mwl_runtime::affordable(subject.len().checked_mul(times), "Core\\Str::repeat")?;
-        produced(&subject.repeat(times))
+        // The size goes through the one shared check first, so a repeat too
+        // large to hold is an ordinary throw rather than the contained FATAL a
+        // panicking allocation would be.
+        let len = mwl_runtime::affordable(
+            subject.len().checked_mul(times),
+            "Core\\Str::repeat",
+        )?;
+        built(len, |out| {
+            for _ in 0..times {
+                out.push_str(subject);
+            }
+        })
     }
 }
 
