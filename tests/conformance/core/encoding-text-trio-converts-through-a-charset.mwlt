@@ -5,6 +5,9 @@ Core\Encoding's encodeText/decodeText/isValidText convert through a Charset exac
 // § 7: the text trio sits on the `bytes`<->`string` seam, over the WHATWG
 // Encoding Standard's index as `Core\Charset`. UTF-8 out is the octets a
 // `string` already holds (ADR 0009 § 3), so this is the identity spelling.
+// What each of the two throwing members *says* when it refuses, and the bounds
+// it says it at, is
+// `encoding-charset-conversion-names-the-character-it-cannot-spell.mwlt`.
 echo Core\Encoding::toHex(Core\Encoding::encodeText("mwl", Core\Charset::Utf8)), "\n";
 
 // One character, three charsets, three widths.

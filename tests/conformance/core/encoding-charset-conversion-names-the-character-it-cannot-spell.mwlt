@@ -1,0 +1,177 @@
+--TEST--
+`Core\Encoding::encodeText` names the character a charset has no spelling for and `::decodeText` the offset a sequence it cannot read starts at, and neither substitutes — spec § 7, ADR 0009 § 3, ADR 0088
+--FILE--
+<?mwl
+// Spec § 7's text trio sits on the `bytes`<->`string` seam, and ADR 0009 § 3
+// makes every conversion across it exact or a throw — no `//IGNORE`, no
+// `//TRANSLIT`, no U+FFFD. `encoding-text-trio-converts-through-a-charset.mwlt`
+// pins what the trio *accepts*; this one pins what each of the two throwing
+// members says when it does not, because a refusal naming neither the offending
+// character nor its offset is one the caller has to bisect by hand.
+// `crates/mwl-stdlib/src/encoding.rs` owns both sites, `encode_exact` and
+// `decode_exact` behind them.
+//
+// The charset is written at every call rather than passed to a helper: a
+// source-declared `Core\Charset` parameter does not unify with the registry's
+// own enum type (`E0401`, "expected `Core\Charset`, found `Core\Charset`"), so
+// the `final class` helper the neighbouring decoder case uses is unavailable
+// here. Each `catch` therefore takes its own binding name.
+
+// encodeText refuses at the first character the charset cannot spell, and says
+// which character, its code point, and the byte offset it sits at. Four
+// charsets from three of the five schemes: a prefix of the code space (Ascii,
+// Latin1) and a delegated WHATWG table (Windows1252, ShiftJis).
+try { echo Core\Encoding::toHex(Core\Encoding::encodeText("café", Core\Charset::Ascii)), "\n"; }
+catch (Throwable $ascii) { echo $ascii->message, "\n"; }
+try { echo Core\Encoding::toHex(Core\Encoding::encodeText("5 €", Core\Charset::Latin1)), "\n"; }
+catch (Throwable $latin) { echo $latin->message, "\n"; }
+try { echo Core\Encoding::toHex(Core\Encoding::encodeText("あ", Core\Charset::Windows1252)), "\n"; }
+catch (Throwable $cp1252) { echo $cp1252->message, "\n"; }
+try { echo Core\Encoding::toHex(Core\Encoding::encodeText("🦀", Core\Charset::ShiftJis)), "\n"; }
+catch (Throwable $jis) { echo $jis->message, "\n"; }
+
+// The two prefix schemes have an exact bound, and it is asserted on both sides:
+// the last code point each accepts beside the first it refuses. A charset that
+// stopped one code point early prints plausibly against either half alone.
+// U+007F and U+0080 are reached through `Latin1`, which is the one total decode.
+string $del = Core\Encoding::decodeText(Core\Encoding::fromHex("7f"), Core\Charset::Latin1);
+string $pad = Core\Encoding::decodeText(Core\Encoding::fromHex("80"), Core\Charset::Latin1);
+try { echo Core\Encoding::toHex(Core\Encoding::encodeText($del, Core\Charset::Ascii)), "\n"; }
+catch (Throwable $lastAscii) { echo $lastAscii->message, "\n"; }
+// U+0080 is a C1 control, so its message quotes an invisible byte back and the
+// message itself cannot be a frozen expectation. The two things the bound is
+// about — which code point, at what offset — are asserted instead.
+try { echo Core\Encoding::toHex(Core\Encoding::encodeText($pad, Core\Charset::Ascii)), "\n"; }
+catch (Throwable $firstNonAscii) {
+    echo (Core\Str::contains($firstNonAscii->message, "(U+0080) at offset 0 of") ? "yes" : "no"), "\n";
+}
+try { echo Core\Encoding::toHex(Core\Encoding::encodeText("ÿ", Core\Charset::Latin1)), "\n"; }
+catch (Throwable $lastLatin) { echo $lastLatin->message, "\n"; }
+try { echo Core\Encoding::toHex(Core\Encoding::encodeText("Ā", Core\Charset::Latin1)), "\n"; }
+catch (Throwable $firstOverLatin) { echo $firstOverLatin->message, "\n"; }
+
+// decodeText names the offset the first unreadable sequence *starts* at, and
+// nothing else: there is no character to quote, because the whole point is that
+// these octets spell none. One row per way a scheme can refuse — a malformed
+// UTF-8 sequence, an octet outside ASCII, an odd trailing byte and an unpaired
+// surrogate under UTF-16, and a lead byte with no trail under a delegated
+// table. Every offset here is 1 or 2 rather than 0, so a member reporting the
+// start of the buffer instead of the start of the sequence fails.
+try { echo Core\Encoding::decodeText(Core\Encoding::fromHex("6dff"), Core\Charset::Utf8), "\n"; }
+catch (Throwable $badUtf8) { echo $badUtf8->message, "\n"; }
+try { echo Core\Encoding::decodeText(Core\Encoding::fromHex("6d80"), Core\Charset::Ascii), "\n"; }
+catch (Throwable $high) { echo $high->message, "\n"; }
+try { echo Core\Encoding::decodeText(Core\Encoding::fromHex("6d00ff"), Core\Charset::Utf16Le), "\n"; }
+catch (Throwable $odd) { echo $odd->message, "\n"; }
+try { echo Core\Encoding::decodeText(Core\Encoding::fromHex("6d0000d8"), Core\Charset::Utf16Le), "\n"; }
+catch (Throwable $lone) { echo $lone->message, "\n"; }
+try { echo Core\Encoding::decodeText(Core\Encoding::fromHex("6d82"), Core\Charset::ShiftJis), "\n"; }
+catch (Throwable $lead) { echo $lead->message, "\n"; }
+
+// Counted, over every octet there is. `Latin1` is the one charset with no
+// refusal at all, because ISO-8859-1 gives all 256 octets a meaning — a
+// property of the encoding, not a hole — so it reads every one and each comes
+// back as the octet it went in as. `Ascii` reads exactly half, which is the
+// same bound as above stated as a partition rather than as two rows. And the
+// third member *agrees* with the second on all 256: `isValidText` answers
+// `false` at exactly the octets `decodeText` throws for, which is what makes
+// one the other's question with somewhere to put the answer. A scheme that grew
+// its own validator still looks right on every row above and fails here.
+int $read = 0;
+int $same = 0;
+int $narrow = 0;
+int $agreed = 0;
+int $b = 0;
+for ($b = 0; $b < 256; $b = $b + 1) {
+    bytes $octet = Core\Bytes::fill(1, $b as uint);
+    if (Core\Encoding::isValidText($octet, Core\Charset::Latin1)) {
+        $read = $read + 1;
+    }
+    string $back = Core\Encoding::decodeText($octet, Core\Charset::Latin1);
+    if (Core\Encoding::encodeText($back, Core\Charset::Latin1) == $octet) {
+        $same = $same + 1;
+    }
+    bool $valid = Core\Encoding::isValidText($octet, Core\Charset::Ascii);
+    if ($valid) {
+        $narrow = $narrow + 1;
+    }
+    bool $threw = false;
+    try {
+        Core\Encoding::decodeText($octet, Core\Charset::Ascii);
+    } catch (Throwable $refused) {
+        $threw = true;
+    }
+    if ($valid != $threw) {
+        $agreed = $agreed + 1;
+    }
+}
+echo $read, " of 256\n";
+echo $same, " of 256\n";
+echo $narrow, " of 256\n";
+echo $agreed, " of 256\n";
+
+// Counted: the offset each member names is the offending position and not a
+// constant, and both members count it in *bytes* — which is the one thing the
+// two messages have to agree about, since a caller uses one to index what it
+// handed the other. Eight positions in turn, each side.
+int $encNamed = 0;
+int $k = 0;
+for ($k = 0; $k < 8; $k = $k + 1) {
+    var $spoilt = Core\Str::slice("aaaaaaaa", 0, $k) . "é" . Core\Str::slice("aaaaaaaa", $k + 1, null);
+    try {
+        Core\Encoding::encodeText($spoilt, Core\Charset::Ascii);
+    } catch (Throwable $sweptEnc) {
+        if (Core\Str::contains($sweptEnc->message, "at offset " . ($k as string) . " of")) {
+            $encNamed = $encNamed + 1;
+        }
+    }
+}
+echo $encNamed, " of 8\n";
+
+int $decNamed = 0;
+int $j = 0;
+for ($j = 0; $j < 8; $j = $j + 1) {
+    var $raw = Core\Str::slice("6d6d6d6d6d6d6d6d", 0, $j * 2) . "ff" . Core\Str::slice("6d6d6d6d6d6d6d6d", $j * 2 + 2, null);
+    try {
+        Core\Encoding::decodeText(Core\Encoding::fromHex($raw), Core\Charset::Utf8);
+    } catch (Throwable $sweptDec) {
+        if (Core\Str::contains($sweptDec->message, "at offset " . ($j as string) . " is")) {
+            $decNamed = $decNamed + 1;
+        }
+    }
+}
+echo $decNamed, " of 8\n";
+
+// `encodeText` quotes the text back so the caller can see what was refused, and
+// that quotation is bounded on both sides of 32 characters — at 32 the whole of
+// it is there, at 34 the first 32 are with an ellipsis saying so. The text is a
+// value that arrived from somewhere, so quoting it whole would let a request
+// pick how many bytes a log gains (ADR 0088's register). The bound counts
+// *characters* where the offset counts bytes, which is why the offset is 31 and
+// 33 while the quotation stops at 32 either way.
+try { echo Core\Encoding::toHex(Core\Encoding::encodeText(Core\Str::repeat("z", 31) . "é", Core\Charset::Ascii)), "\n"; }
+catch (Throwable $whole) { echo $whole->message, "\n"; }
+try { echo Core\Encoding::toHex(Core\Encoding::encodeText(Core\Str::repeat("z", 33) . "é", Core\Charset::Ascii)), "\n"; }
+catch (Throwable $cut) { echo $cut->message, "\n"; }
+--EXPECT--
+Core\Encoding::encodeText(): `Core\Charset::Ascii` has no spelling for 'é' (U+00E9) at offset 3 of "café" — it is exact or it throws, and there is no transliterating or ignoring mode
+Core\Encoding::encodeText(): `Core\Charset::Latin1` has no spelling for '€' (U+20AC) at offset 2 of "5 €" — it is exact or it throws, and there is no transliterating or ignoring mode
+Core\Encoding::encodeText(): `Core\Charset::Windows1252` has no spelling for 'あ' (U+3042) at offset 0 of "あ" — it is exact or it throws, and there is no transliterating or ignoring mode
+Core\Encoding::encodeText(): `Core\Charset::ShiftJis` has no spelling for '🦀' (U+1F980) at offset 0 of "🦀" — it is exact or it throws, and there is no transliterating or ignoring mode
+7f
+yes
+ff
+Core\Encoding::encodeText(): `Core\Charset::Latin1` has no spelling for 'Ā' (U+0100) at offset 0 of "Ā" — it is exact or it throws, and there is no transliterating or ignoring mode
+Core\Encoding::decodeText(): the byte sequence at offset 1 is not `Core\Charset::Utf8` — a conversion is exact or it throws, so nothing is replaced with U+FFFD or dropped
+Core\Encoding::decodeText(): the byte sequence at offset 1 is not `Core\Charset::Ascii` — a conversion is exact or it throws, so nothing is replaced with U+FFFD or dropped
+Core\Encoding::decodeText(): the byte sequence at offset 2 is not `Core\Charset::Utf16Le` — a conversion is exact or it throws, so nothing is replaced with U+FFFD or dropped
+Core\Encoding::decodeText(): the byte sequence at offset 2 is not `Core\Charset::Utf16Le` — a conversion is exact or it throws, so nothing is replaced with U+FFFD or dropped
+Core\Encoding::decodeText(): the byte sequence at offset 1 is not `Core\Charset::ShiftJis` — a conversion is exact or it throws, so nothing is replaced with U+FFFD or dropped
+256 of 256
+256 of 256
+128 of 256
+256 of 256
+8 of 8
+8 of 8
+Core\Encoding::encodeText(): `Core\Charset::Ascii` has no spelling for 'é' (U+00E9) at offset 31 of "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzé" — it is exact or it throws, and there is no transliterating or ignoring mode
+Core\Encoding::encodeText(): `Core\Charset::Ascii` has no spelling for 'é' (U+00E9) at offset 33 of "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz…" — it is exact or it throws, and there is no transliterating or ignoring mode
