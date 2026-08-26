@@ -786,3 +786,10 @@ sibling in the same namespace unqualified.
   literal (`0`, `1`) and asserts *separately* that the member answers it, which is two claims where one
   was wanted but is the only pair available. Rendering the union is fine: `echo` takes it, and so does
   `as string`.
+- **An array literal written straight into an `array<array<mixed>>` element reads as `array<mixed>`,
+  and then does not satisfy an `array<array<T>>` parameter.** `Core\Arr::flatten([$s, $s])` inside a
+  `array<array<mixed>> $answers = [...]` literal is `E0401: expected array<array<mixed>>, found
+  array<mixed>` pointing at the *inner* literal — the outer literal's expected element type is what
+  the inner one is checked against, so the nesting the argument needs is one level short. Bind it
+  first (`array<array<string>> $pair = [$s, $s];`) and pass the binding; the same literal in a
+  `var`-free typed binding infers exactly what its declaration says.

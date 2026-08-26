@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 482 of 600 and differential 90 of 150. **Nothing below them is
+> Stage 4's two counts**, conformance 484 of 600 and differential 90 of 150. **Nothing below them is
 > red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -69,7 +69,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 482 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 484 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -112,7 +112,7 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 4's own two counts are the frontier: conformance is 482 of the 600 that gate
+> **Open now:** **Stage 4's own two counts are the frontier: conformance is 484 of the 600 that gate
 > requires and differential is 90 of 150.** Both of Stage 4's named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) exist
 > and pass, so the gap is behavioural *depth* per member rather than an unregistered member or an
@@ -122,12 +122,13 @@
 > `hash`, `csv`, `validate`, `out`, `heap`, `uuid`, `path`, `json`, `random`, `bytes`, § 9's two
 > collections, `regex`, `math`, `uri`, `time`, `str` and finally `arr`, whose own slices were the
 > window pair (`slice`/`chunk`), `sort`, `unique`, the callback protocol, the combination trio,
-> `reduce`'s carry, the key-answering members' agreement, the numeric folds' edges and the search
-> members' agreement — and each case's own `--TEST--` line states what it pins, so it is not
-> restated here. **A pass lands its claim as a new case file**: the gate counts files, so deepening
-> an existing one in place is progress the count cannot see. **The remaining count therefore comes
-> from members whose section has already had one, and four shapes are established for it to reuse**:
-> a section's *edges* (`Core\Heap`'s empty read throwing under each member's own name; every
+> `reduce`'s carry, the key-answering members' agreement, the numeric folds' edges, the search
+> members' agreement, the list predicate's agreement with `Core\Json::encode` and `range`'s two
+> closed ends — and each case's own `--TEST--` line states what it pins, so it is not restated here.
+> **A pass lands its claim as a new case file**: the gate counts files, so deepening an existing one
+> in place is progress the count cannot see. **The remaining count therefore comes from members
+> whose section has already had one, and four shapes are established for it to reuse**: a section's
+> *edges* (`Core\Heap`'s empty read throwing under each member's own name; every
 > `ObjectMap`/`ObjectSet` member answering over an empty receiver, with the empty set asserted as
 > `union`'s identity and `intersect`'s annihilator from both sides; `Core\Uri::parseQuery`'s answer
 > for a name it cannot read, which is the whole name as one literal key rather than PHP's repaired
@@ -177,60 +178,71 @@
 > first that does, with a size at and one past the subject's own count saturating to one run without
 > a throw; and `Core\Arr::reduce`'s empty subject, where the seed of each of three types comes back
 > past a callback that throws on sight — the zero-call side of a bound whose one-call side is a
-> one-entry subject, and the only way "no call made" is assertable at all); and — the one to reach
-> for wherever several members share a rule — *one question asked of every member that shares it*,
-> where the assertion is their **agreement** rather than their answers, which now carries six cases
-> and is still the shape with the most room left: `Core\Arr::unique`, `contains`, `diff` and
-> `intersect` are put to all 29 rows of ADR 0090 § 3's identity table plus § 5's cross-type pairs,
-> each row's four verdicts collapsed to one character and the tally of rows where all four agreed
-> asserted against the row count, so a member that grew its own comparison — a string cast, a loose
-> `==`, a hash over raw bits — would still answer plausibly on its own line and fails here; every
-> `Core\Arr` member taking a callback is asked its own question twice, once from a closure declaring
-> `($value)` and once from one declaring `($value, $key)`, so fourteen rows assert that spec § 2's
-> trimming is one rule rather than four arity-reading members and ten always-offering ones, with a
-> second sweep recovering from each member's own answer the keys it was offered and proving those
-> nine reports one list, and the `comparator` pinned as the one callback in the class that is not
-> `($value, $key)`; `overlay`, `underlay` and `appendAll` are put to eight tables mixing string,
-> integer, integer-like-string and empty sides, five claims per row — the key order is the left
-> argument's rather than the winner's, it is ADR 0069 § 1's rule spelled out without either member,
-> one member with its sides swapped holds the other's entries, the variadic tail is a left fold for
-> all three, and `appendAll` is the one that renumbers; ADR 0069 § 5's six key-*answering* members —
-> `keys`, `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip` — are asked which key holds each
-> entry of ten tables mixing every key shape there is, with `hasKey` asked from the other direction
-> so an integer subscript and its decimal spelling are one key while `"08"` stays the distinct key
-> PHP also keeps; spec § 2's five numeric folds — `min`, `max`, `sum`, `product` and `average` — are
-> asked one table of subjects and the assertion is how many *different* things the five said, which
-> is three over the empty subject (`0`, `1` and absence), one over `[$v]` for every value, and up to
-> five over two entries, with an appended-identity sweep proving `sum`'s and `product`'s empty
-> answers are their fold's identity rather than a chosen constant, `min`/`max` agreeing with
-> `sort`'s two ends over every subject including the empty one, and the doubled subject `[$v, $v]`
-> agreeing only at `0`, the one fixed point both folds share; and the five search members —
-> `contains`, `keyOf`, `find`, `findKey` and `any` — are asked "is there an entry equal to this, and
-> where" over a fifteen-cell grid, each cell's five verdicts collapsed to one character and every
-> match required to hand the needle back, so ADR 0090 § 3's one comparison is what all five ask
-> rather than five comparisons that happen to agree, and `array_search`'s `=== false` trap has
-> nothing to catch because a key of `"0"` and an absent answer are different values in both members
-> that answer *where*. **What is still unbuilt in the library**, none of it a registration gap:
-> `Core\Json::decodeAs<T>`'s decoder (`mwl_stdlib::json` gap 2); ADR 0071 decodes only a
-> scalar-fielded class — no enum/`decimal`/`Instant`/`array`/nested-class field and no optional key
-> from a parameter default; ADR 0088's registry-wide item, that `mwl-stdlib`'s member rows carry
-> **no qualifier classification**, so `Core\Str::format`'s template is not yet the sink that ADR
-> makes it, neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the
-> test refusing an unclassified member exists, and `Core\Hash::hmac`'s `secret bytes $key` is a
-> plain `CoreTy::Bytes` for the same reason (`mwl_stdlib::hash`'s own module doc); and ADR 0086 §
-> 1's substitution table, which is what makes the terminal sink neutralize a control byte and
-> `Cli\Text::plain` a constructor that cannot produce an injected escape — both M8, and
-> `crates/mwl-stdlib/src/cli.rs`'s gap 1. **Four ADRs are decided and unbuilt but are not catch-up**
-> — 0091 (the `development`/`production` run mode), 0092 (one diagnostic record rendered three ways
-> by the sink in force), 0093 (`mwl service`) and 0097 (the server's scope and its `[server]`
-> block). None invalidates built behaviour or a written fixture; their work is M4, M6, M7, M8 and
-> M10. **Still open beside the library** — a property's declared default runs and is type-checked
-> (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow statement that
-> does not lower; a closure cannot be *called* through the variable holding it, and the first-class
-> callable spelling `Class::method(...)` panics `mwl-ir` outright, so a `.mwlt` case sweeps a table
-> with `foreach` and never with a helper it names once (`mwl-ir` gap 1's remainder) — a `class` with
-> a `public static function` declared in the same case file is the way round it, and every `arr`
-> depth case uses one; `bool as int` does not lower either, and `bool as string` renders `false` as
+> one-entry subject, and the only way "no call made" is assertable at all; and `Core\Arr::range`'s
+> two closed ends, where thirteen rows each assert the last entry is inside the range *and* the
+> value one step past it outside it — the half that a member stopping one entry early would still
+> print plausibly — with `1` the smallest stride that advances, `0` and `-1` refused by name, and a
+> range ending at `int`'s maximum reaching it while a stride that would carry the cursor past it
+> ends the walk instead of wrapping); and — the one to reach for wherever several members share a
+> rule — *one question asked of every member that shares it*, where the assertion is their
+> **agreement** rather than their answers, which now carries seven cases and is still the shape with
+> the most room left: `Core\Arr::unique`, `contains`, `diff` and `intersect` are put to all 29 rows
+> of ADR 0090 § 3's identity table plus § 5's cross-type pairs, each row's four verdicts collapsed
+> to one character and the tally of rows where all four agreed asserted against the row count, so a
+> member that grew its own comparison — a string cast, a loose `==`, a hash over raw bits — would
+> still answer plausibly on its own line and fails here; every `Core\Arr` member taking a callback
+> is asked its own question twice, once from a closure declaring `($value)` and once from one
+> declaring `($value, $key)`, so fourteen rows assert that spec § 2's trimming is one rule rather
+> than four arity-reading members and ten always-offering ones, with a second sweep recovering from
+> each member's own answer the keys it was offered and proving those nine reports one list, and the
+> `comparator` pinned as the one callback in the class that is not `($value, $key)`; `overlay`,
+> `underlay` and `appendAll` are put to eight tables mixing string, integer, integer-like-string and
+> empty sides, five claims per row — the key order is the left argument's rather than the winner's,
+> it is ADR 0069 § 1's rule spelled out without either member, one member with its sides swapped
+> holds the other's entries, the variadic tail is a left fold for all three, and `appendAll` is the
+> one that renumbers; ADR 0069 § 5's six key-*answering* members — `keys`, `keyOf`, `firstKey`,
+> `lastKey`, `findKey` and `flip` — are asked which key holds each entry of ten tables mixing every
+> key shape there is, with `hasKey` asked from the other direction so an integer subscript and its
+> decimal spelling are one key while `"08"` stays the distinct key PHP also keeps; spec § 2's five
+> numeric folds — `min`, `max`, `sum`, `product` and `average` — are asked one table of subjects and
+> the assertion is how many *different* things the five said, which is three over the empty subject
+> (`0`, `1` and absence), one over `[$v]` for every value, and up to five over two entries, with an
+> appended-identity sweep proving `sum`'s and `product`'s empty answers are their fold's identity
+> rather than a chosen constant, `min`/`max` agreeing with `sort`'s two ends over every subject
+> including the empty one, and the doubled subject `[$v, $v]` agreeing only at `0`, the one fixed
+> point both folds share; and the five search members — `contains`, `keyOf`, `find`, `findKey` and
+> `any` — are asked "is there an entry equal to this, and where" over a fifteen-cell grid, each
+> cell's five verdicts collapsed to one character and every match required to hand the needle back,
+> so ADR 0090 § 3's one comparison is what all five ask rather than five comparisons that happen to
+> agree, and `array_search`'s `=== false` trap has nothing to catch because a key of `"0"` and an
+> absent answer are different values in both members that answer *where*; and ADR 0007 § 5's list
+> test — the keys are exactly `"0"` to `"n−1"`, in that order — is asked of `Core\Arr::isList` and
+> of `Core\Json::encode`'s array-versus-object choice, two statements of one rule that share no
+> code, over the subject and seven answers per row across six subjects, tallied as 56 questions, 45
+> lists, 11 maps and no disagreement, so the five members that invent their own keys are shown
+> answering a list from any subject at all while `flip` answers one only where the subject's
+> *values* spelled one and a `{preserveKeys: true}` chunk run only where it was handed one. **What
+> is still unbuilt in the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s
+> decoder (`mwl_stdlib::json` gap 2); ADR 0071 decodes only a scalar-fielded class — no
+> enum/`decimal`/`Instant`/`array`/nested-class field and no optional key from a parameter default;
+> ADR 0088's registry-wide item, that `mwl-stdlib`'s member rows carry **no qualifier
+> classification**, so `Core\Str::format`'s template is not yet the sink that ADR makes it, neither
+> the fail-closed default for an unclassified `string`/`bytes` parameter nor the test refusing an
+> unclassified member exists, and `Core\Hash::hmac`'s `secret bytes $key` is a plain `CoreTy::Bytes`
+> for the same reason (`mwl_stdlib::hash`'s own module doc); and ADR 0086 § 1's substitution table,
+> which is what makes the terminal sink neutralize a control byte and `Cli\Text::plain` a
+> constructor that cannot produce an injected escape — both M8, and `crates/mwl-stdlib/src/cli.rs`'s
+> gap 1. **Four ADRs are decided and unbuilt but are not catch-up** — 0091 (the
+> `development`/`production` run mode), 0092 (one diagnostic record rendered three ways by the sink
+> in force), 0093 (`mwl service`) and 0097 (the server's scope and its `[server]` block). None
+> invalidates built behaviour or a written fixture; their work is M4, M6, M7, M8 and M10. **Still
+> open beside the library** — a property's declared default runs and is type-checked (`E0472`),
+> limited to a literal or `[]`; `do`/`while` is the one M4 control-flow statement that does not
+> lower; a closure cannot be *called* through the variable holding it, and the first-class callable
+> spelling `Class::method(...)` panics `mwl-ir` outright, so a `.mwlt` case sweeps a table with
+> `foreach` and never with a helper it names once (`mwl-ir` gap 1's remainder) — a `class` with a
+> `public static function` declared in the same case file is the way round it, and every `arr` depth
+> case uses one; `bool as int` does not lower either, and `bool as string` renders `false` as
 > nothing at all, so a case that wants a predicate's answer as a character branches on it; an
 > abandoned generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a PHP
 > divergence); ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31%
@@ -247,7 +259,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: conformance stands at 482 of 600 and differential at 90 of 150, and the remainder is
+> decision: conformance stands at 484 of 600 and differential at 90 of 150, and the remainder is
 > written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
