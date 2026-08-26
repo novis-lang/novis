@@ -1,0 +1,170 @@
+--TEST--
+Core\Path::join($base, Core\Path::relativeTo($p, $base)) normalizes back to $p on every row, the pair parts exactly where the two arguments disagree about Core\Path::isAbsolute, and the absence is null rather than a path — docs/spec/01-core-library.md § 8
+--FILE--
+<?mwl
+// `relativeTo` answers "how do I get from $base to $p", so the only thing
+// that says it answered *correctly* is walking it: joining the answer onto
+// the base has to arrive back at the path. Asked one row at a time the member
+// looks right for free — `relativeTo("a/b/c", "a")` is obviously `"b/c"` —
+// and the rows that actually test the walk are the ones nobody writes by
+// hand: a base that is a prefix of nothing, a `..` on either side, the root
+// alone, the empty path. So the question is asked as an agreement between
+// `relativeTo` and `join` over a whole table and counted.
+//
+// The identity is *through the normal form*, because `join` only ever appends
+// (its own docs say a segment's leading separator is dropped rather than
+// allowed to replace the base) and it is `normalize` that resolves. So
+// `join($base, $rel)` is a path spelled with the `..` steps still in it, and
+// normalizing both sides is what makes the two comparable.
+//
+// Every literal below is written with `/` and no drive letter, and every path
+// printed goes through `Core\Path::SEPARATOR`, because the native Windows leg
+// and the WSL leg do not spell a separator the same way.
+
+// The answer is `?string`, and a narrowed nullable does not reach an argument
+// position on its own — the narrowing ADR 0066 gives `!= null` is what lets
+// `->` through, not what re-types the local. `as string` inside the guarded
+// branch is the conversion that does, and it is a checked one (ADR 0007 § 2),
+// so it would throw rather than lie if the guard above it were wrong.
+final class Pair {
+    public static function rel(string $p, string $b): string {
+        var $r = Core\Path::relativeTo($p, $b);
+        if ($r != null) {
+            return Core\Str::replace($r as string, Core\Path::SEPARATOR, "/");
+        }
+        return "<null>";
+    }
+}
+
+// Pairs, as two arrays read in step: `$paths[$i]` is asked relative to
+// `$bases[$i]`. Both spellings of every shape appear — the relative half
+// first, then the absolute one — because absoluteness is what section 2 is
+// about and a table that only carried one of them could not tell that apart.
+array<string> $paths = [
+    "a/b/c", "a/b/c", "a", "a/b", "a", "a/./b", "a/b/../c", "x", "", "a/b", "", "a//b//",
+    "/a/b/c", "/a", "/", "/a/b", "/", "/a/../b", "/a/b", "/..",
+];
+array<string> $bases = [
+    "a", "a/b", "a/b/c", "a/c", "a", "a", "a", "y", "", "", "a/b", "a",
+    "/a", "/a/b/c", "/a/b", "/", "/", "/a", "/a/b", "/",
+];
+
+// 1. The round trip, counted. On every row where a relative path exists,
+//    walking it from the base lands on the path — which is the whole claim,
+//    and the only one that a member computing a plausible-looking but wrong
+//    number of `..` steps fails.
+int $n = Core\Arr::count($paths) as int;
+int $rows = 0;
+int $answered = 0;
+int $trips = 0;
+int $walkedUp = 0;
+int $sameDir = 0;
+int $rooted = 0;
+int $i = 0;
+for (; $i < $n; $i = $i + 1) {
+    $rows = $rows + 1;
+    string $p = $paths[$i as string];
+    string $b = $bases[$i as string];
+    var $r = Core\Path::relativeTo($p, $b);
+    if ($r != null) {
+        string $step = $r as string;
+        $answered = $answered + 1;
+        if (Core\Path::normalize(Core\Path::join($b, $step)) == Core\Path::normalize($p)) {
+            $trips = $trips + 1;
+        }
+        // Not a vacuous sweep: on this many rows the answer had to leave the
+        // base before it could descend, so `walk` emitted a `..` per component
+        // of the base it could not keep. A member that only ever descended
+        // would still print a plausible answer on every other row.
+        if (Core\Str::startsWith($step, "..")) {
+            $walkedUp = $walkedUp + 1;
+        }
+        // `.` where the two name the same place — the shortest relative path
+        // there is, and the one row where `join` appends nothing that survives
+        // normalization.
+        if ($step == ".") {
+            $sameDir = $sameDir + 1;
+        }
+        // The answer never carries a root, on any row, however absolute both
+        // arguments were: a relative path is what was asked for.
+        if (Core\Path::isAbsolute($step)) {
+            $rooted = $rooted + 1;
+        }
+    }
+}
+echo "answered ", $answered, "/", $rows, ", round trip ", $trips, "/", $answered, "\n";
+echo "walked up ", $walkedUp, ", same place ", $sameDir, ", rooted answers ", $rooted, "\n";
+
+// 2. The bound, on both sides. There is no relative path from an absolute
+//    base to a relative one, or the other way round, because the two have no
+//    common starting point to count from — and `isAbsolute` is exactly the
+//    question that decides it. The same three path shapes appear in all four
+//    pairings, so the two halves of the bound differ in nothing but a leading
+//    separator, and the assertion is the *equivalence*: a relative path exists
+//    if and only if the two arguments agree.
+array<string> $lhs = [
+    "a/b", "/a/b", "a/b", "/a/b",
+    "x/y/z", "/x/y/z", "x/y/z", "/x/y/z",
+    "a", "/a", "a", "/a",
+];
+array<string> $rhs = [
+    "c/d", "/c/d", "/c/d", "c/d",
+    "x/y", "/x/y", "/x/y", "x/y",
+    "b", "/b", "/b", "b",
+];
+int $m = Core\Arr::count($lhs) as int;
+int $pairs = 0;
+int $bound = 0;
+int $named = 0;
+int $refused = 0;
+int $j = 0;
+for (; $j < $m; $j = $j + 1) {
+    $pairs = $pairs + 1;
+    string $left = $lhs[$j as string];
+    string $right = $rhs[$j as string];
+    bool $agree = Core\Path::isAbsolute($left) == Core\Path::isAbsolute($right);
+    var $answer = Core\Path::relativeTo($left, $right);
+    bool $exists = $answer != null;
+    if ($exists) {
+        $named = $named + 1;
+    }
+    if ($exists == false) {
+        $refused = $refused + 1;
+    }
+    if ($agree == $exists) {
+        $bound = $bound + 1;
+    }
+}
+echo "bound ", $bound, "/", $pairs, ", named ", $named, ", refused ", $refused, "\n";
+
+// 3. The other refusal, also on both sides. A base that still holds a `..`
+//    after resolution names a directory whose own name is not in the input, so
+//    there is no component that walks back *into* it and the answer is `null`
+//    — but only while the `..` survives. It survives on a relative base and it
+//    cannot on an absolute one, where a root has no parent and `normalize`
+//    drops it, which is why the same two paths part company here.
+echo "base keeps a ..: ", Pair::rel("a", "../b"), "\n";
+echo "absolute base drops it: ", Pair::rel("/a", "/../b"), "\n";
+// And the `..` alone is not the refusal: a base whose `..` cancels is an
+// ordinary base, and a `..` both sides share is shared prefix like any other.
+echo "base resolves it: ", Pair::rel("a", "b/../c"), "\n";
+echo "both keep one: ", Pair::rel("../a", "../b"), "\n";
+
+// 4. The absence is `null` and not a path. `?string` is R5's one absence
+//    spelling, so the refusal is a value the caller has to open rather than a
+//    sentinel like `""` or `"."` that would join onto the base and quietly
+//    answer the wrong place — which is the failure `??` here makes visible.
+echo "refusal: ", Core\Path::relativeTo("a/b", "/a/b") ?? "<null>", "\n";
+echo "the same pair, agreeing: ", Pair::rel("a/b", "a"), "\n";
+echo "identity: ", Pair::rel("a/b", "a/b"), "\n";
+--EXPECT--
+answered 20/20, round trip 20/20
+walked up 7, same place 5, rooted answers 0
+bound 12/12, named 6, refused 6
+base keeps a ..: <null>
+absolute base drops it: ../a
+base resolves it: ../a
+both keep one: ../a
+refusal: <null>
+the same pair, agreeing: b
+identity: .
