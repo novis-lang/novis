@@ -712,19 +712,12 @@ impl Emitter<'_, '_> {
                 self.define(inst, result)?;
             }
             InstKind::ArrayAppend { array, value } => {
-                let result = self.emit_array_write(
-                    "mwl_array_append",
-                    RuntimeSig::ArrayAppend,
-                    *array,
-                    None,
-                    *value,
-                )?;
-                self.define(inst, result)?;
+                return self.emit_array_append(inst, *array, *value);
             }
             InstKind::ArrayUnset { array, key } => {
                 let (array, _) = self.value(*array)?;
                 let (key, _) = self.value(*key)?;
-                let callee = self.runtime_ref("mwl_array_unset", RuntimeSig::ArrayAppend)?;
+                let callee = self.runtime_ref("mwl_array_unset", RuntimeSig::ArrayUnset)?;
                 let call = self.b.ins().call(callee, &[array, key]);
                 let result = self.b.inst_results(call)[0];
                 self.define(inst, result)?;
@@ -2023,6 +2016,44 @@ impl Emitter<'_, '_> {
         Ok(self.b.inst_results(call)[0])
     }
 
+    /// `$a[] = expr;`: the one array write that can fail, so the one emitted
+    /// as a status check rather than as a value.
+    ///
+    /// PHP 8.5 refuses an append whose next integer key is already live, and
+    /// `mwl_runtime::mwl_array_append` matches that refusal — see its own doc
+    /// comment, and `mwl_runtime::array`'s *the append is the one array write
+    /// with a fault channel*, which owns the signature. The array it yields
+    /// comes back through a caller-owned pointer-wide slot, and on the error
+    /// edge there is nothing to re-point: the refusal leaves the pointer the
+    /// frame already holds live and owned.
+    fn emit_array_append(
+        &mut self,
+        inst: &Inst,
+        array: ValueId,
+        value: ValueId,
+    ) -> Result<Block, CodegenError> {
+        let (array, _) = self.value(array)?;
+        let in_p = self.value_slot();
+        let (value, ty) = self.value(value)?;
+        self.store_value(in_p, 0, value, ty)?;
+
+        let out_slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            u32::try_from(std::mem::size_of::<usize>()).unwrap_or(8),
+            3,
+        ));
+        let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
+
+        let callee = self.runtime_ref("mwl_array_append", RuntimeSig::ArrayAppend)?;
+        let call = self.b.ins().call(callee, &[self.ctx_p, array, in_p, out_p]);
+        let status = self.b.inst_results(call)[0];
+        let cont = self.emit_status_check(status, inst.on_error)?;
+
+        let written = self.b.ins().load(types::I64, trusted(), out_p, 0);
+        self.define(inst, written)?;
+        Ok(cont)
+    }
+
     /// A retain or release of one refcounted value.
     ///
     /// [`Ty::Str`] and [`Ty::Bytes`] share the `StrHeader` representation, so
@@ -2429,6 +2460,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::ArraySet => &self.sigs.array_set,
             RuntimeSig::ArraySetIndex => &self.sigs.array_set_index,
             RuntimeSig::ArrayAppend => &self.sigs.array_append,
+            RuntimeSig::ArrayUnset => &self.sigs.array_unset,
             RuntimeSig::ArrayNextSlot => &self.sigs.array_next_slot,
             RuntimeSig::ArrayKeyAt => &self.sigs.array_key_at,
             RuntimeSig::ArrayValueAt => &self.sigs.array_value_at,
@@ -2485,6 +2517,7 @@ enum RuntimeSig {
     ArraySet,
     ArraySetIndex,
     ArrayAppend,
+    ArrayUnset,
     ArrayNextSlot,
     ArrayKeyAt,
     ArrayValueAt,

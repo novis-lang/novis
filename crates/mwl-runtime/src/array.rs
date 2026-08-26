@@ -129,6 +129,42 @@
 //! `&mut self` and re-point the handle, which is why nothing outside this
 //! module writes a separation by hand.
 //!
+//! # Decision: the append is the one array write with a fault channel
+//!
+//! `$a[] = v` has an outcome no other write has: PHP 8.5 refuses it with
+//! *"Cannot add element to the array as the next element is already
+//! occupied"* once the append counter names a live key, which
+//! [`Table::note_index`]'s saturation at `i64::MAX` is the only way to reach.
+//! MWL matches that refusal rather than PHP's older silent overwrite, so
+//! [`mwl_array_append`] needs somewhere to put a failure — and the
+//! pointer-in, pointer-out shape every other primitive here has does not have
+//! one.
+//!
+//! It therefore takes [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s
+//! shape instead — `(ctx, array, value, out) -> status`, the array it yields
+//! travelling through a caller-owned pointer-wide slot the way
+//! `mwl_object_slot_set`'s result does — and it is the **only** array
+//! primitive that does. `mwl_ir::ir::InstKind::ArrayAppend` carries an
+//! `Inst::on_error` edge to match, and `mwl-codegen` gives `mwl_array_unset`
+//! its own signature rather than the one it used to borrow from this.
+//!
+//! What the refusal costs is stated here because the section above promises
+//! the opposite: **the occupancy test runs before the copy-on-write
+//! separation** ([`MwlArray::try_append`]), so a refused append leaves the
+//! caller's pointer live and still owning the reference it was handed, and
+//! compiled code has nothing to re-point on the error path. One comparison on
+//! every append pays for it — an unsaturated counter is strictly greater than
+//! every integer key in use, so only a counter *at* `i64::MAX` ever reaches
+//! the lookup behind it.
+//!
+//! [`MwlArray::append`] keeps the infallible signature every `Core` producer's
+//! `out.append(…)` calls, because an array a call is building from index 0
+//! cannot reach that state; it panics rather than overwriting where one
+//! somehow does, which `mwl_helper!`'s `catch_unwind` contains to a single
+//! request. A `debug_assert` stood there before, which meant a release build
+//! silently overwrote a live entry — the one place an array could lose a
+//! value.
+//!
 //! # Decision: freeing is iterative, and shared with objects
 //!
 //! An array can hold an object that holds an array, to any depth, so freeing
@@ -375,19 +411,36 @@ impl Table {
         self.hashed_mut().set(key, value)
     }
 
-    /// Appends under the next integer key.
+    /// Whether the key `$a[]` would append under is already live — PHP 8.5's
+    /// *"Cannot add element to the array as the next element is already
+    /// occupied"*, and the one state [`Table::append`] cannot serve.
+    ///
+    /// Only a saturated counter can name a live key: [`Table::note_index`]
+    /// leaves every other counter strictly greater than the key that moved it.
+    /// So the comparison short-circuits on every ordinary append, and the
+    /// lookup behind it runs only for a program that has actually used
+    /// `i64::MAX` as a key — which is what keeps the refusal off the hot path.
+    fn next_is_occupied(&self) -> bool {
+        self.next_index == Some(i64::MAX) && self.get_index(i64::MAX).is_some()
+    }
+
+    /// Appends under the next integer key, or hands `value` back untouched
+    /// where [`Table::next_is_occupied`] says there is no next key to use.
     ///
     /// A packed array whose counter is its own length — every list that has
     /// not had an entry removed — pushes, and that is the path with no key
     /// rendering, no allocation and no hashing at all.
-    fn append(&mut self, value: Value) {
+    fn append(&mut self, value: Value) -> Result<(), Value> {
+        if self.next_is_occupied() {
+            return Err(value);
+        }
         let counter = self.next_index.unwrap_or(0);
         if let Shape::Packed(values) = &mut self.shape
             && usize::try_from(counter).is_ok_and(|next| next == values.len())
         {
             values.push(value);
             self.next_index = Some(counter.saturating_add(1));
-            return;
+            return Ok(());
         }
         let key = MwlStr::new(counter.to_string().as_bytes());
         self.note_key(key.as_bytes());
@@ -396,6 +449,7 @@ impl Table {
             displaced.is_none(),
             "the append counter never names a live key"
         );
+        Ok(())
     }
 
     /// Room for `additional` more entries in whichever form is held, or
@@ -800,10 +854,43 @@ impl MwlArray {
     }
 
     /// Appends `value` under the next integer key, taking over its reference
-    /// and separating first if this handle is not the only owner.
-    pub fn append(&mut self, value: Value) {
+    /// and separating first if this handle is not the only owner, or hands the
+    /// reference back where the next integer key is already live.
+    ///
+    /// The occupancy test runs **before** the copy-on-write separation, so a
+    /// refusal leaves this handle's allocation — and therefore the raw pointer
+    /// its caller holds — exactly as it was. That is what lets
+    /// [`mwl_array_append`] report PHP's refusal without its caller having to
+    /// re-point anything: the reference the call was given is still the one the
+    /// caller's slot names. See this module's *the append is the one array
+    /// write with a fault channel*.
+    ///
+    /// # Errors
+    ///
+    /// `value`, unappended and with its reference still owed to the caller,
+    /// where [`Table::next_is_occupied`].
+    pub fn try_append(&mut self, value: Value) -> Result<(), Value> {
+        if self.header().table.borrow().next_is_occupied() {
+            return Err(value);
+        }
         self.make_unique();
-        self.header().table.borrow_mut().append(value);
+        self.header().table.borrow_mut().append(value)
+    }
+
+    /// Appends `value` under the next integer key, for an array **this call is
+    /// building** — every `Core` producer's `out.append(…)`.
+    ///
+    /// # Panics
+    ///
+    /// Where the next integer key is already live, which an array filled from
+    /// index 0 by the caller cannot reach. Compiled `$a[] = …` runs over an
+    /// array the *program* supplied and can, so it goes through
+    /// [`Self::try_append`] and reports PHP's refusal instead.
+    pub fn append(&mut self, value: Value) {
+        assert!(
+            self.try_append(value).is_ok(),
+            "an array a producer built from index 0 cannot have its next integer key occupied"
+        );
     }
 
     /// Room for `additional` more entries, answering `false` where the
@@ -1324,14 +1411,28 @@ pub unsafe extern "C" fn mwl_array_set_index(
 /// Appends `value` under the next integer key —
 /// `mwl_ir::InstKind::ArrayAppend`, `$a[] = expr`.
 ///
-/// Consumes one reference to `array` and one to `value`, and returns the one
-/// reference to the array that now holds the entry — see
-/// [`mwl_array_set`].
+/// Consumes one reference to `array` and one to `value`, and writes into `out`
+/// the one reference to the array that now holds the entry — see
+/// [`mwl_array_set`], whose protocol this shares apart from where the array
+/// comes back.
+///
+/// Answers [`crate::OK`], or [`crate::THROWN`] where the next integer key is
+/// already live: PHP 8.5's *"Cannot add element to the array as the next
+/// element is already occupied"*, raised as
+/// [`ThrownClass::Logic`](crate::ThrownClass::Logic) because that is spec
+/// § 10's class for a program that asked for something its own state forbids.
+/// **On that refusal `array` is written to `out` unchanged and `value`'s
+/// reference is released**, so the pointer the caller already holds stays live
+/// and stays owned and there is nothing for the error path to re-point — see
+/// this module's *the append is the one array write with a fault channel* for
+/// why the signature is this shape at all.
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation whose reference the
-/// caller owns, and `value` must own the reference it transfers.
+/// `ctx` must refer to the live [`Ctx`](crate::Ctx) of the request this call
+/// runs inside, `array` to a live MWL array allocation whose reference the
+/// caller owns, `value` must own the reference it transfers, and `out` must
+/// point at a writable pointer-wide slot.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw pointer and a value whose ownership \
@@ -1339,18 +1440,32 @@ pub unsafe extern "C" fn mwl_array_set_index(
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mwl_array_append(
+    ctx: *mut crate::Ctx,
     array: *mut ArrayHeader,
     value: *const Value,
-) -> *mut ArrayHeader {
+    out: *mut *mut ArrayHeader,
+) -> i32 {
     #[expect(
         unsafe_code,
-        reason = "the caller guarantees it owns one reference to each argument \
-                  and that `value` points at a readable 16-byte slot"
+        reason = "the caller guarantees it owns one reference to each argument, \
+                  that `value` points at a readable 16-byte slot, and that \
+                  `ctx` and `out` are live and writable"
     )]
     unsafe {
         let mut handle = MwlArray::from_raw(array);
-        handle.append(value.read());
-        handle.into_raw()
+        let outcome = handle.try_append(value.read());
+        out.write(handle.into_raw());
+        match outcome {
+            Ok(()) => crate::OK,
+            Err(refused) => {
+                crate::release::release_value(refused);
+                (*ctx).set_pending_as(
+                    crate::ThrownClass::Logic,
+                    "Cannot add element to the array as the next element is already occupied",
+                );
+                crate::THROWN
+            }
+        }
     }
 }
 
@@ -2041,6 +2156,45 @@ mod tests {
         array.unset(b"8");
         array.append(Value::int(14));
         assert_eq!(keys_of(&array), ["0", "1", "7", "9"]);
+    }
+
+    #[test]
+    fn an_append_onto_the_saturated_counter_is_refused_and_changes_nothing() {
+        // Every assertion below is `php -r` output from the 8.5.9 oracle, and
+        // `tests/conformance/array/` pins the same bound from MWL source.
+        let mut array = MwlArray::new();
+        array.set(key("9223372036854775806"), Value::int(1));
+        // The last accepted side: the counter still has one key left to give.
+        assert!(array.try_append(Value::int(2)).is_ok());
+        assert_eq!(
+            keys_of(&array),
+            ["9223372036854775806", "9223372036854775807"]
+        );
+
+        // The first refused side. The value comes back unappended, so the
+        // caller still owes its reference and nothing was overwritten.
+        assert_eq!(
+            array.try_append(Value::int(3)).unwrap_err().as_int(),
+            Some(3)
+        );
+        assert_eq!(array.count(), 2);
+        assert_eq!(
+            array.get(b"9223372036854775807").and_then(Value::as_int),
+            Some(2)
+        );
+
+        // `unset` frees the key without moving the counter, so the very next
+        // append lands on it a second time.
+        array.unset(b"9223372036854775807");
+        assert!(array.try_append(Value::int(4)).is_ok());
+        assert_eq!(
+            keys_of(&array),
+            ["9223372036854775806", "9223372036854775807"]
+        );
+        assert_eq!(
+            array.get(b"9223372036854775807").and_then(Value::as_int),
+            Some(4)
+        );
     }
 
     #[test]

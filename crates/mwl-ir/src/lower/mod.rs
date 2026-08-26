@@ -1609,13 +1609,22 @@ impl<'a> Lowering<'a> {
     /// Appends an [`InstKind::ArrayAppend`] to `b`, yielding the array that
     /// now holds the entry — see [`Self::emit_array_set`], whose protocol this
     /// shares.
+    ///
+    /// Unlike that one it goes through [`Self::emit_fallible`]: an append is
+    /// the one array write with an outcome other than success, since PHP
+    /// refuses one whose next integer key is already live
+    /// (`mwl_runtime::array`'s *the append is the one array write with a fault
+    /// channel*). Neither operand needs anything of the landing block — the
+    /// refusal releases the value it was handed and leaves the array's
+    /// reference where the frame's own slot already names it.
     pub(super) fn emit_array_append(
         &mut self,
         b: BlockId,
         array: ValueId,
         value: ValueId,
+        env: &Env,
     ) -> ValueId {
-        self.emit(b, Ty::Array, InstKind::ArrayAppend { array, value })
+        self.emit_fallible(b, Ty::Array, InstKind::ArrayAppend { array, value }, env)
             .0
     }
     /// Binds `name` to `(v, ty)` in `env` — every `var`/typed local
@@ -3914,6 +3923,9 @@ class T {
     /// `writing_an_int_element_through_a_literal_key_carries_the_integer_unrendered`
     /// but with no `lower_array_key` call in the output at all, since there is
     /// no key to lower.
+    ///
+    /// It is the one array write with an error edge (` ! bb1`), so the snapshot
+    /// also carries a landing block — see `Lowering::emit_array_append`.
     #[test]
     fn appending_a_fresh_int_value_needs_no_retain() {
         let (f, map, file) = lower_first_method(
@@ -3928,6 +3940,11 @@ class T {
     /// `writing_a_string_element_through_a_string_local_key_retains_both_key_and_value`
     /// already gives an explicit key's value; `$a`/`$v` each still get their
     /// ordinary release at `m`'s exit sweep.
+    ///
+    /// The landing block releases both locals and nothing more: the refusal
+    /// path inside `mwl_runtime::mwl_array_append` releases the extra reference
+    /// the retain above staged, and leaves the array's where this frame's own
+    /// slot still names it.
     #[test]
     fn appending_an_aliasing_string_value_retains_it() {
         let (f, map, file) = lower_first_method(

@@ -612,7 +612,7 @@ impl<'a> Lowering<'a> {
                         if elem_ty.is_refcounted() && self.aliasing_read(value) {
                             self.emit_retain(*cur, v);
                         }
-                        self.emit_array_append(*cur, array_v, v)
+                        self.emit_array_append(*cur, array_v, v, env)
                     }
                     Some(index) => {
                         let (key_v, _key_ty, key_aliasing) = self.lower_array_key(index, env, cur);

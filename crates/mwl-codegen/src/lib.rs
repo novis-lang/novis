@@ -648,10 +648,23 @@ struct Signatures {
     /// `mwl_array_set_index(array, index, value) -> *mut ArrayHeader` — the
     /// write half of [`Self::array_get_index`].
     array_set_index: Signature,
-    /// `mwl_array_append(array, value) -> *mut ArrayHeader`, and
-    /// `mwl_array_unset(array, key) -> *mut ArrayHeader`, which is the same
-    /// two-pointers-in, one-pointer-out shape.
+    /// `mwl_array_append(ctx, array, value, out) -> status` — the one array
+    /// write that can fail, and so the one carrying ADR 0002's status shape
+    /// rather than handing the array straight back. The array it yields
+    /// travels through `out`, a caller-owned pointer-wide slot, the way
+    /// [`Self::slot_set`]'s result travels through a 16-byte one;
+    /// `mwl_runtime::mwl_array_append` owns what `out` holds on the refusal
+    /// and why the refusal exists.
     array_append: Signature,
+    /// `mwl_array_unset(array, key) -> *mut ArrayHeader` — two pointers in,
+    /// one pointer back.
+    ///
+    /// It borrowed [`Self::array_append`]'s signature while the two shapes
+    /// happened to agree, which is a call this crate would have miscompiled in
+    /// silence the moment that one grew its fault channel. It has its own now,
+    /// and no signature here is shared by two symbols whose Rust declarations
+    /// are not the same shape for the same reason.
+    array_unset: Signature,
     /// `mwl_array_next_slot(array, from) -> i64` — the `foreach` cursor step.
     /// `from` is a `usize` in the Rust signature, `I64` here: every target
     /// this JIT compiles for is 64-bit (see [`crate::ty::clif_ty`], which maps
@@ -1009,9 +1022,16 @@ impl Signatures {
         array_set_index.returns.push(AbiParam::new(ptr));
 
         let mut array_append = module.make_signature();
+        array_append.params.push(AbiParam::new(ptr)); // ctx
         array_append.params.push(AbiParam::new(ptr)); // array
         array_append.params.push(AbiParam::new(ptr)); // value
-        array_append.returns.push(AbiParam::new(ptr));
+        array_append.params.push(AbiParam::new(ptr)); // out
+        array_append.returns.push(AbiParam::new(types::I32));
+
+        let mut array_unset = module.make_signature();
+        array_unset.params.push(AbiParam::new(ptr)); // array
+        array_unset.params.push(AbiParam::new(ptr)); // key
+        array_unset.returns.push(AbiParam::new(ptr));
 
         let mut array_next_slot = module.make_signature();
         array_next_slot.params.push(AbiParam::new(ptr)); // array
@@ -1052,6 +1072,7 @@ impl Signatures {
             array_set,
             array_set_index,
             array_append,
+            array_unset,
             array_next_slot,
             array_key_at,
             array_value_at,

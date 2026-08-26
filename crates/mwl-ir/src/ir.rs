@@ -1041,6 +1041,11 @@ pub enum InstKind {
     /// **Defines a fresh [`crate::ty::Ty::Array`] value**, on exactly
     /// [`InstKind::ArraySet`]'s consume-one-reference-yield-one protocol —
     /// see that variant's own doc comment, which is the one home for it.
+    ///
+    /// The one array write carrying an [`Inst::on_error`] edge: PHP refuses an
+    /// append whose next integer key is already live, and `mwl_runtime::array`
+    /// § *the append is the one array write with a fault channel* owns both
+    /// the refusal and what it leaves each operand's reference holding.
     ArrayAppend {
         /// The array, already lowered.
         array: ValueId,
