@@ -2,65 +2,61 @@
 
 ## State
 
-**Stage 0's last item is landed, and § E of `docs/perf/userland-gap.md` is struck whole.** A
-`Core\Str` member now writes its result **into the allocation it is answered from**:
-`mwl_runtime::MwlStr::build` (`string.rs:@build`) hands the producer a `StrWriter`
-(`string.rs:@StrWriter`) over that allocation, so nothing is built in a `String` and copied in
-afterwards. `repeat`, `padStart`/`padEnd` and `reverse` know their length exactly and allocate once;
-`replace` starts the writer at its subject's length and the writer `realloc`s on `String`'s own
-doubling. **`join` is deliberately unchanged** — its length costs a walk of the subject's array
-slots and all three ways round that measured worse; `str.rs`'s new module § *A result is written
-once* holds that finding and the two rejected "measure it first" designs so they are not retried.
+**Reading a `string` argument is one tag check across the whole of `mwl-stdlib`, not just in
+`str.rs`.** The nine sibling `text()`/`text_of()`/`subject()` helpers — `csv.rs`, `encoding.rs`,
+`json.rs`, `path.rs`, `regex.rs`, `time.rs`, `uri.rs`, `uuid.rs`, `validate.rs` — now call
+`mwl_runtime::Value::as_text`, and so do the seven other sites that carried the same
+`as_str_bytes` + `std::str::from_utf8` chain (`bytes.rs`'s two format readers, `format.rs`'s
+`rendered`, `json.rs`'s serializer, `time.rs`'s two zone-slot reads, `uri.rs`'s three). Each keeps
+its own wrong-tag message; every one lost an O(n) pass ADR 0009 § 3's tag already discharges.
 
-**Measured, full 9-rep sweep:** suite median **0.69× → 0.80×**. `05-string-replace` 0.91× →
-**1.05×** (work 80.1 ms → 70.8 ms), `07-string-normalize` 0.50× → **0.93×** (81.8 → 44.5). Verify is
-green (**1584** tests, 74 suites, clippy and fmt clean); no refcount edge changed, so no valgrind run
-was owed.
+**Stage 0's item 22 check is green.** `no_member_revalidates_a_string_argument` exists beside
+`a_str_member_allocates_its_result_once` in `crates/mwl-stdlib/tests/allocation_policy.rs`: a source
+scan over each module's non-test half, banning an `as_str_bytes` whose result reaches `from_utf8`
+within twelve lines. `Value::as_bytes` is deliberately outside the ban — a `bytes` carries no
+encoding guarantee, so `Core\Encoding`'s `Utf8` scheme validating one is the real check.
+Verify is green: **1585** tests, 74 suites, clippy and fmt clean. No refcount edge changed, so no
+valgrind run was owed, and no bench sweep either — this removes work, it does not move a design.
 
-**The acceptance check for item 22 is still red, and it is one test short.**
-`loop-goal.toml:456` (`mwl-stdlib (one write per result)`) names two tests.
-`a_str_member_allocates_its_result_once` exists now — it counts allocations behind a debug-only
-counting allocator in `crates/mwl-stdlib/tests/allocation_policy.rs`. The other,
-`no_member_revalidates_a_string_argument`, **does not exist and cannot pass yet**: nine sibling
-argument readers still run `std::str::from_utf8` over a `string` the tag already guarantees. That is
-the next group's first slice, and it closes the check.
-
-**`orient.py` still does not print `docs/perf/userland-gap.md`.** `[context]` in `loop-goal.toml`
-has no field selecting a perf doc. Stage 0 is done, so the manifest now needs re-pointing wholesale
-rather than one more selector.
+**Stage 3 is now the first red check, and it stops at `Core\Out::capture`.** `examples/collect.mwl:47`
+is the one fixture of the seven that does not produce its frozen output. `Core\Out` has no module at
+all, and `§12 Out::capture` is the single remaining key in
+`crates/mwl-stdlib/tests/spec-members-outstanding.txt:17` — so one member closes both the ratchet and
+Stage 3. `[context]` in `docs/agent/loop-goal.toml` is re-pointed at it: `crates/mwl-runtime/src/ctx.rs`
+in `modules`, `0088 §3` and `0088 §5` in `adrs`, and the twelve conformance-case traps kept
+deliberately for Stage 4's corpus rather than left as a stale `--gap` block.
 
 ## Next group
 
-All of `crates/mwl-stdlib/src/`, one mechanical change repeated across nine files, plus the guard
-the acceptance check names. Slice 1 unblocks the Stage 0 check; 2 and 3 carry the same two patterns
-into the modules `str.rs` left behind.
+`Core\Out::capture`, sharing a new `crates/mwl-stdlib/src/out.rs` with `registry.rs`, `lib.rs` and
+`crates/mwl-runtime/src/ctx.rs`. Slice 1 decides what the carrier is; 2 and 3 cannot start before it.
 
-- [ ] **The sibling `text()` helpers stop re-validating.** Each reads `as_str_bytes` and then
-      `std::str::from_utf8` — an O(n) pass ADR 0009's tag already discharges. Replace the pair with
-      `Value::as_text()`, keeping each module's own wrong-tag message: `csv.rs:240`,
-      `encoding.rs:446`, `json.rs:1009`, `path.rs:380`, `regex.rs:575`, `time.rs:1505`,
-      `uri.rs:680`, `uuid.rs:206`, `validate.rs:250`. `str.rs:620` is the shape to copy. Then add
-      **`no_member_revalidates_a_string_argument`** beside
-      `a_str_member_allocates_its_result_once` in `crates/mwl-stdlib/tests/allocation_policy.rs`
-      (a source scan over those readers is the cheapest true form), which is what turns
-      `loop-goal.toml:456` green.
-- [ ] **`produced` writes once in the sibling modules.** The same helper as `str.rs`'s, still
-      allocating twice: `bytes.rs:425`, `path.rs:434`, `regex.rs:678`, and `uri.rs`'s own. Use
-      `MwlStr::build` where a length is exact or a capacity is a fair guess, and leave a member
-      alone where the length costs a walk — `str.rs`'s § *A result is written once* is the rule and
-      the playbook's *Performance* section says why measuring first is not the answer.
-- [ ] **Re-point `[context]` in `docs/agent/loop-goal.toml`.** Stage 0 is finished, so its
-      manifest — perf modules, ADR 0009's §§, the string playbook bullets — selects the wrong pack
-      for whatever the loop takes next. `python tools/orient.py --audit` prices it.
+- [ ] **The sink's carrier is a `Core` instance.** ADR 0088 § 5 with spec § 12's paragraph under the
+      `Out::capture` row (`docs/spec/01-core-library.md:888`) — the return is **not** a `string`,
+      because the captured bytes have already been through the sink and re-emitting them as text
+      would escape them twice. `Cli\Text` is the carrier outside an HTTP request and is the one to
+      build; `Core\Html\Markup` is M8's. Anchors: `crates/mwl-runtime/src/ctx.rs:138` (`Ctx`),
+      `ctx.rs:465` (`buffered`), `crates/mwl-runtime/src/lib.rs:283` (the `OutputSink` re-export).
+- [ ] **`capture` redirects the sink for the closure's dynamic extent and always swallows.** ADR 0088
+      § 3 — `echo` always has a sink, so this pushes one rather than intercepting a byte stream.
+      Buffers nest by call nesting; there is no `ob_*` stack and no implicit flush. `{through:}` takes
+      and returns the same carrier. Anchors: `crates/mwl-stdlib/src/registry.rs` (the row, and
+      `WRITTEN_CLASS_MEMBERS` if the options bag needs it), `crates/mwl-stdlib/src/lib.rs`
+      (`mod out;` — private, so its `CLASS`/`NAME` are `pub(crate)`).
+- [ ] **The `.mwlt` case, then strike the ratchet's last key.**
+      `crates/mwl-stdlib/tests/spec-members-outstanding.txt:17` is `§12 Out::capture` and nothing
+      else, so removing it registers spec Part I whole. `examples/collect.mwl:47` then produces its
+      frozen output and Stage 3 goes green.
 
 ## Backlog
 
-- `Core\Out::capture` is the **last** key on `crates/mwl-stdlib/tests/spec-members-outstanding.txt`,
-  and `Core\Out` has no module at all yet; it needs M4S's sink work first (plan, *Open now*).
-- `examples/collect.mwl` is Stage 3's one failing fixture, blocked on that member at `collect.mwl:47`.
-- `Core\Json::decodeAs<T>` — `mwl_stdlib::json` gap 2, unblocked now that a call site may write a
-  type argument.
-- Stage 4's counts are their own work: conformance 436 of 600, differential 90 of 150.
-- Item 19 still owes the append-only `docs/perf/history.ndjson` entry item 15 asked for.
-- `do`/`while` does not lower (`mwl-ir` gap 1's remainder); ADR 0088's registry-wide qualifier
-  classification lands with M4S.
+- `produced()` still builds a `String` and copies it into an `MwlStr`: `bytes.rs:425`, `path.rs:430`,
+  `regex.rs:674`, `uri.rs:694`. `crates/mwl-stdlib/src/str.rs` § *A result is written once* is the
+  pattern, and its two rejected designs — docs/perf/userland-gap.md.
+- `docs/perf/history.ndjson` does not exist; plan item 19 owes it — docs/implementation-plan.md.
+- Stage 4's counts are their own work: conformance 436 of 600, differential 90 of 150 —
+  docs/implementation-plan.md § *Open now*.
+- No `mwl-stdlib` member row carries a qualifier classification, so ADR 0088's fail-closed default
+  for an unclassified `string`/`bytes` parameter does not exist — docs/plan/m4s.md.
+- `Core\Json::decodeAs<T>` is § 6's one unregistered member — `mwl_stdlib::json` gap 2.
+- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s module doc.

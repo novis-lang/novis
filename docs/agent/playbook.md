@@ -397,6 +397,15 @@ is why" — is this file.
   carry: reach for arithmetic or for a good capacity guess, never for "measure it first" — and if a
   member's length genuinely costs a data-structure walk to learn, as `Core\Str::join`'s does, leave
   it alone. `crates/mwl-stdlib/src/str.rs` § *A result is written once* holds all of it.
+- **`Value::as_str_bytes` and `Value::as_text` make the *same* tag check, so a `from_utf8` after the
+  first can never catch anything.** Both go through `Value::str_ptr`, which answers for `Tag::Str`
+  alone — and since `Tag::Bytes` became its own row over the shared allocation, a `bytes` argument
+  reaches neither. Sixteen sites in `mwl-stdlib` carried the pair anyway, and `json.rs`'s carried a
+  doc comment saying it was where "the caller passed binary data into a text format" got caught,
+  which had quietly stopped being true. A defence a later ADR made unreachable reads exactly like a
+  live one, and grepping for the *tag* it claims to catch is the cheap way to tell them apart.
+  `crates/mwl-stdlib/tests/allocation_policy.rs`'s `no_member_revalidates_a_string_argument` is the
+  source scan that keeps the pair out now.
 
 ## Writing a test case
 
