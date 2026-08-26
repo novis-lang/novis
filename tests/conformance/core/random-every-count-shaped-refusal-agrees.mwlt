@@ -1,0 +1,117 @@
+--TEST--
+Core\Random's four count-shaped refusals agree — each answers one step inside its bound, throws one step outside it in the same class, and says which member and which numbers — spec § 11, ADR 0063 R4
+--FILE--
+<?mwl
+// ADR 0063 R4 read at four members at once: a call with no answer to invent
+// throws rather than inventing one. What this case pins is that the four
+// *agree* — same class of throw, same shape of sentence, and the bound one
+// step either side — rather than what each says on its own line, which the
+// members' own cases already hold. A member that grew its own reading of R4
+// still looks right there and fails here.
+//
+// The class is asserted by construction: every helper catches `RuntimeError`
+// and nothing wider, so a refusal raised in another class leaves the case with
+// an uncaught throw instead of an answer.
+final class Refused {
+    public static function int(int $min, int $max): string {
+        try {
+            Core\Random::int($min, $max);
+            return "served";
+        } catch (RuntimeError $range) {
+            return $range->message;
+        }
+    }
+
+    public static function bytes(uint $count): string {
+        try {
+            Core\Random::bytes($count);
+            return "served";
+        } catch (RuntimeError $draw) {
+            return $draw->message;
+        }
+    }
+
+    public static function token(uint $count): string {
+        try {
+            Core\Random::token($count);
+            return "served";
+        } catch (RuntimeError $rendered) {
+            return $rendered->message;
+        }
+    }
+
+    public static function sample(array<string> $subject, uint $count): string {
+        try {
+            Core\Random::sample($subject, $count);
+            return "served";
+        } catch (RuntimeError $short) {
+            return $short->message;
+        }
+    }
+}
+
+array<string> $three = ["a", "b", "c"];
+array<string> $one = ["only"];
+
+// The last call each member answers. `int` is inclusive at both ends, so a
+// one-point range is a draw and not an empty one; `bytes` and `token` draw at
+// one unit of entropy; `sample` draws every entry an array holds.
+array<string> $accepted = [
+    Refused::int(4, 4),
+    Refused::bytes(1),
+    Refused::token(1),
+    Refused::sample($three, 3),
+];
+
+// The first call each one does not, one step further out in the single
+// argument that decides it — a lower bound above the upper, a draw of nothing,
+// a sample wider than the array.
+array<string> $refusals = [
+    Refused::int(4, 3),
+    Refused::bytes(0),
+    Refused::token(0),
+    Refused::sample($three, 4),
+];
+
+int $served = 0;
+foreach ($accepted as string $answer) {
+    if ($answer == "served") {
+        $served = $served + 1;
+    }
+}
+echo "answered one step inside the bound: ", $served, " of ", Core\Arr::count($accepted), "\n";
+
+int $named = 0;
+foreach ($refusals as string $refusal) {
+    if (Core\Str::startsWith($refusal, 'Core\Random::')) {
+        $named = $named + 1;
+    }
+}
+echo "refused one step outside it, each naming the member: ", $named, " of ", Core\Arr::count($refusals), "\n";
+
+// Four sentences and not one refusal spelled four times: a message is equal to
+// itself and to nothing else, so the diagonal is the whole of it.
+int $same = 0;
+foreach ($refusals as string $left) {
+    foreach ($refusals as string $right) {
+        if ($left == $right) {
+            $same = $same + 1;
+        }
+    }
+}
+echo "sentences equal to another: ", $same, " of 16\n";
+
+// What a refusal quotes is what it was handed and not a constant, asserted at
+// two operand sets for each of the two members that have operands to quote.
+echo Refused::int(4, 3), "\n";
+echo Refused::int(-1, -2), "\n";
+echo Refused::sample($three, 4), "\n";
+echo Refused::sample($one, 2), "\n";
+--EXPECT--
+answered one step inside the bound: 4 of 4
+refused one step outside it, each naming the member: 4 of 4
+sentences equal to another: 4 of 16
+Core\Random::int(): the range is empty — the lower bound 4 is above the upper bound 3, and both ends are inclusive
+Core\Random::int(): the range is empty — the lower bound -1 is above the upper bound -2, and both ends are inclusive
+Core\Random::sample(): asked for 4 distinct entries from an array that holds 3
+Core\Random::sample(): asked for 2 distinct entries from an array that holds 1
