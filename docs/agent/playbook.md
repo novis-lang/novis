@@ -288,6 +288,14 @@ is why" — is this file.
   merely hidden. The list is a worklist, not a ledger: when the drop is larger than the number
   of sites you asserted, diff it against the tree with your new cases moved aside and name the
   hidden ones in the handoff, or the next session inherits a shorter worklist than the tree has.
+- **Never write a `## plan: Open now` section into a wrap file.** That field is 40 KB, `--wrap`
+  replaces a field whole, and retyping it is both a fifth of a session's ceiling and a chance to
+  silently drop a paragraph. Edit the one sentence in place in `docs/implementation-plan.md` with
+  the Edit tool instead — `grep -n` the phrase, which the neighbouring bullet already recommends
+  over `--get`. The one rule a hand edit has to respect: **a bare `>` line is the field separator**,
+  so a blank line added for readability inside a field splits it in two and `plan.py --check`
+  reports six fields where there were seven. Keep the paragraph continuous, and run
+  `python tools/plan.py --check` after — it prints the field count and each field's size.
 
 ## Running things
 
@@ -1027,3 +1035,11 @@ sibling in the same namespace unqualified.
   (`E0450`: `fn (): void => { ... }`), an expression-bodied one takes the expression's; and a
   `mixed` is **not** implicitly assignable to a narrower type, so `array<string> $row = ["a",
   $cell];` over a `mixed $cell` is `E0401` at the element.
+- **An integer literal past `int` lowers in a `uint` *argument* and panics `mwl-ir` inside an
+  `array<uint>` literal.** `Core\Random::bytes(9223372036854775808)` is fine — the parameter's
+  declared type is what decides how the literal lowers — but `array<uint> $counts = [1,
+  9223372036854775808];` dies with *"mwl-ir: integer literal `9223372036854775808` doesn't fit an
+  `int`"*, an element position carrying no such expectation. So a sweep table whose rows run past
+  `i64::MAX` has to *compute* them rather than write them, and the multiplier is the second half of
+  the trap: `$n * 2` over a `uint` is `E0407` and then `E0401`, the literal `2` being an `int` with
+  no representable common type, so the case declares `uint $two = 2;` and multiplies by that.

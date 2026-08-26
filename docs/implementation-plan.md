@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 504 of 600 and differential 151 of 150. **Nothing below them
+> Stage 4's two counts**, conformance 506 of 600 and differential 151 of 150. **Nothing below them
 > is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -69,7 +69,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 504 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 506 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 151, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -113,7 +113,7 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Stage 4's differential gate is met — 151 against the 150 it requires — so
-> conformance is the only frontier left, at 504 of the 600.** Both named guards
+> conformance is the only frontier left, at 506 of the 600.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
@@ -121,9 +121,9 @@
 > counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is the worklist and no
 > session should re-derive it**: `--differential` names every member whose spec **Replaces** column
 > gives it a PHP twin and which no oracle case calls — 8 left — and `--errors` every `Fault::` site
-> in `mwl-stdlib` whose message no case asserts, 59 of them — of which **57 are `Fault::fatal`,
-> unreachable by any handler and so by any case, leaving 2 a case can catch — and one of those two
-> is unreachable from source as well**. A site leaves the list when the literal run of its message
+> in `mwl-stdlib` whose message no case asserts, 58 of them — of which **57 are `Fault::fatal`,
+> unreachable by any handler and so by any case, and the one `thrown` left is unreachable from
+> source as well**, so the list holds nothing a case can take. A site leaves the list when the literal run of its message
 > *before the first format hole* appears anywhere in either suite, so a case echoing
 > `Core\Time\DateTime::format():` also silences every message spelled `Core\Time\DateTime::{member}`
 > — which is how closing seven sites once took twelve rows off the list at once. Three sites are
@@ -491,10 +491,25 @@
 > used to report a tag *number* only this crate can read, and an object by its class. The claim is a
 > partition and is counted: of the eight answers a `through` can give exactly the identity is
 > accepted, all seven refusals are wrapped in the member's own name, and nothing the refusing seven
-> captured reaches the program's output, the capture level being closed on both edges. **What a case
-> can still catch is one site, `random.rs:333`** — and even that one sits behind
-> `mwl_runtime::affordable`, which refuses first. **The fourth, `csv.rs:512`, is not reachable from
-> source at all and is owed no case**: `Core\Csv::format` takes an `array<array<string>>` and its
+> captured reaches the program's output, the capture level being closed on both edges. **`--errors`
+> names no catchable site a case can still assert anywhere in `mwl-stdlib`.** `random.rs:333` was
+> reachable after all: `mwl_runtime::affordable` refuses only a size past `isize::MAX`, so every
+> count at or below it that the allocator cannot serve reaches the *second* check, and the bound
+> between the two is one count wide with a different sentence on each side of it.
+> **`Core\Random::token` ran the same two checks and then drew infallibly**, which is the one
+> behaviour a session changed here rather than only asserting: `vec![0; n]` and
+> `String::with_capacity` abort the process when the allocator refuses, so a count the seam allowed
+> and the machine could not serve killed the process — exit 127, nothing on stderr, nothing
+> catchable, and every in-flight request with it. Both buffers are reserved through
+> `try_reserve_exact` now and report `bytes`'s own sentence. The seam is asked about the *answer's*
+> width rather than the draw's, the token being twice as long as its entropy, so `token`'s bound
+> sits at exactly half of `bytes`'s — which is what the case counts rather than reads off a line:
+> `token($n)` answers as `bytes(2 * $n)` does on all six rows of a table spanning served, the
+> allocator's refusal and the seam's, and not one of those counts is past `bytes`'s seam where
+> exactly two are past `token`'s. **The four count-shaped refusals agree** as well — each answers
+> one step inside its bound, throws in `RuntimeError` one step outside it, and names both the member
+> and the numbers it was handed, four sentences distinct over all sixteen ordered pairs. **The last
+> site, `csv.rs:512`, is not reachable from source at all and is owed no case**: `Core\Csv::format` takes an `array<array<string>>` and its
 > `{header:}` an `array<string>`, a `mixed` is not implicitly assignable to a narrower type, and ADR
 > 0007 § 2's `array<T> as array<U>` does not lower — so no program can put a non-`string` in a cell,
 > and the column that refusal names cannot be reached until that conversion row lands. **Unbuilt in
@@ -513,7 +528,16 @@
 > `[server]` block) and 0100 § 3 (a file opening `#!` starts in code mode with no tag — one
 > `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no parser or runtime change).
 > None invalidates built behaviour or a written fixture; their work is M1, M4, M6, M7, M8 and M10.
-> **Open beside the library** — a property's declared default runs and is type-checked (`E0472`),
+> **Every other count-shaped allocator still aborts the process where `Core\Random`'s two now
+> throw**, and that is the largest thing open in the library: `mwl_runtime::affordable` refuses only
+> a size past `isize::MAX`, so a count it allows and the machine cannot serve reaches an infallible
+> `vec![…; n]`, `slice::repeat` or `String::with_capacity` at `Core\Bytes::fill` (`bytes.rs:623`),
+> `Core\Bytes::repeat` (`:635`), `Core\Bytes::join` (`:695`), `Core\Str::repeat` (`str.rs:2103`),
+> the padding pair (`str.rs:2060`) and `Core\Arr::fill` (`arr.rs:1317`). Measured, not deduced:
+> `Core\Str::repeat("x", 1000000000000)` prints `memory allocation of 1000000000024 bytes failed`
+> and exits 127, taking every in-flight request with it, where `Core\Random::bytes` at the same
+> count throws and is caught. The fix is the one `random.rs:331` now carries — reserve fallibly and
+> report the seam's own sentence. **Open beside the library** — a property's declared default runs and is type-checked (`E0472`),
 > limited to a literal or `[]`; `do`/`while` is the one M4 control-flow statement that does not
 > lower; a closure cannot be called through the variable holding it and `Class::method(...)` panics
 > `mwl-ir` outright, so a case sweeps a table with `foreach` and reaches a helper through a `public
@@ -534,7 +558,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: the differential gate is met at 151 of 150, conformance stands at 504 of 600, and the
+> decision: the differential gate is met at 151 of 150, conformance stands at 506 of 600, and the
 > remainder is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
