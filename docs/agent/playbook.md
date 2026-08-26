@@ -699,6 +699,7 @@ is why" — is this file.
   `php -r` for the *divergence* half instead, where the frozen `--EXPECT--` is MWL's own output and
   PHP's answer only appears in the case's prose — that is the one place the runner cannot check the
   sentence you wrote.
+- **An `int` literal does not reach an `array<float>`'s element type**, so a differential case about MWL's *one numeric domain* has to declare the subject `array<int|float>`. `Core\Arr::contains($floats, 1)` against an `array<float>` is `E0401: expected float, found int` at the argument — the needle is typed `T`, and the widening `1 == 1.0` gets in an expression is not one an argument position performs. Declaring `array<int|float> $numeric = [1.0, 2.5];` makes `T` the union, the literal fits, and `contains($numeric, 1)` then answers `true` — which is the ADR 0090 § 3 row worth pinning, since `in_array(1, [1.0], true)` is `false` and the loose `in_array(1, [1.0])` is `true`, so MWL matches neither of PHP's two modes.
 
 ## Splitting a file that got too big
 
