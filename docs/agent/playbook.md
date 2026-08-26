@@ -1353,6 +1353,13 @@ sibling in the same namespace unqualified.
   shape: a table of units cannot be iterated, so a `.mwlt` that steps by several units writes the
   case literal at each `plus`/`minus` call site inside a loop over the *other* dimension, which is
   what both `Core\Time\Date` and `Core\Time\TimeOfDay`'s agreement cases do.
+- **A local's name is checked, and the diagnostic is `E0112`.** `int $words_n = …` in a case is
+  *"local variable names must be camelCase, e.g. `wordsN`"*, with the rename spelled out in the
+  suggestion — so a snake_case counter or table name costs a whole run of the case to learn
+  something the name itself could have avoided. Reach for `$wordsN`, `$firstOrdered`,
+  `$mathMinRefused` from the first draft; a `.mwlt` case tends to want several near-identical names
+  at once (one `catch` binding per clause, since they are all function-scoped) and that is exactly
+  where the underscore creeps in.
 
 ## Divergences and refusals already pinned
 
@@ -1858,3 +1865,22 @@ every session. Nothing below was reworded on the way.
   empty: `http://h:/p` reports `port()` of `null` because § 3.2.3's empty port is not a port, so a
   `with` that never mentions the port drops the `:` — `mwl_core_uri_with`'s own doc comment names
   this as the single place a round trip through `with` is not the identity. Both are pinned now.
+- **Seven members share one total order, and it is asserted by counting agreements between them.**
+  `Core\Arr::sort`/`min`/`max`, `Core\Math::min`/`max`/`clamp` and `Core\Heap` all reach
+  `mwl_stdlib::ordering::compare_values`, so over one table the sorted pair's two ends are
+  `Core\Math`'s two answers, `Core\Arr::min`/`max` name those same ends, `clamp` treats each value
+  as inside the pair's own interval, and a heap's `peek` is the smaller whichever way round the two
+  were pushed — 432 agreements over 36 ordered pairs, for a `string` table and an `int` one alike.
+  A heap drained by `pop` is `Core\Arr::sort`'s sequence entry for entry, which is the same order
+  applied n log n times. Pinned by
+  `tests/conformance/core/ordering-is-one-total-order-shared-by-arr-math-and-heap.mwlt`.
+- **The ordering refusal is one throw in one wording, and a case only reaches it through `mixed`.**
+  `Core\Math::min("a", 1)` never runs — `T` unifies at the first argument, so the second is
+  `E0401: expected string, found int` — so both halves of an orderless pair have to be laundered
+  through `mixed` locals, and the array through `array<mixed>`, before the pair reaches
+  `compare_values` at all. What it then raises is the *same* `Fault::thrown` for every member,
+  `<member> has no natural order for tag N against tag M: …`, differing only in the name in front,
+  and a `catch (Throwable …)` reaches all of them. All seven agree about refusing string/int,
+  null/int, bool/int, null/string, bool/string and array/int, and about accepting an ordered pair.
+  Pinned by
+  `tests/conformance/core/ordering-refuses-a-pair-with-no-order-once-for-all-seven-members.mwlt`.
