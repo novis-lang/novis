@@ -50,8 +50,10 @@ pub const CLOSURE_ARITY_SLOT: usize = 0;
 /// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
 /// § 2's "every callback receives `($value, $key)` and may declare fewer
 /// parameters" — the rule that removes PHP's `ARRAY_FILTER_USE_KEY`/
-/// `ARRAY_FILTER_USE_BOTH` flags. A caller therefore always passes its full
-/// argument set and never inspects the arity itself.
+/// `ARRAY_FILTER_USE_BOTH` flags. A caller therefore passes every argument it
+/// already holds and lets the trimming happen here; the one reason to ask
+/// [`closure_arity`] first is an argument that would have to be *built* — see
+/// that function.
 ///
 /// The receiver and each argument actually passed are retained before the
 /// call and released by the callee, so the caller keeps owning exactly what
@@ -69,7 +71,7 @@ pub const CLOSURE_ARITY_SLOT: usize = 0;
 /// expected, and no `Core` member offers fewer than the spec says it does.
 pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Value, Fault> {
     let target = invoke_address(closure)?;
-    let arity = arity_of(closure)?;
+    let arity = closure_arity(closure)?;
     let args = args.get(..arity).ok_or_else(|| {
         Fault::fatal(format!(
             "internal error: a `callable` declaring {arity} parameters was called with only \
@@ -105,11 +107,27 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
     })
 }
 
-/// How many parameters `closure` declares — [`CLOSURE_ARITY_SLOT`].
-fn arity_of(closure: Value) -> Result<usize, Fault> {
-    let ptr = closure
-        .obj_ptr()
-        .expect("invoke_address already rejected a non-object");
+/// How many parameters `closure` declares — [`CLOSURE_ARITY_SLOT`], read
+/// straight off the object with no call made.
+///
+/// [`call_closure`] uses it to trim the argument list, and a caller asks it
+/// directly to avoid *building* an argument that trimming would throw away:
+/// `Core\Arr::map`'s `$key` costs a rendered decimal and an `MwlStr` per
+/// entry on a list, which is `docs/perf/userland-gap.md` § D. That is the
+/// only reason to inspect an arity — a caller that already holds every
+/// argument still passes them all and lets the trimming happen here.
+///
+/// # Errors
+///
+/// [`Fault::Fatal`] when `closure` is not a closure value at all, the same
+/// engine fault [`call_closure`] answers with.
+pub fn closure_arity(closure: Value) -> Result<usize, Fault> {
+    let ptr = closure.obj_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: a `callable` argument carried tag {} rather than an object",
+            closure.tag_byte()
+        ))
+    })?;
     #[expect(
         unsafe_code,
         reason = "the caller owns a reference to this object, and the slot \

@@ -437,6 +437,20 @@ impl Table {
         }
     }
 
+    /// The key at `slot` in whichever form the shape already holds it, so
+    /// **nothing is rendered and nothing is allocated** while the array is
+    /// packed — [`SlotKey`] says which callers that is for.
+    fn slot_key(&self, slot: usize) -> Option<SlotKey> {
+        match &self.shape {
+            Shape::Packed(values) => (slot < values.len()).then(|| {
+                SlotKey::Index(
+                    i64::try_from(slot).expect("a packed array is bounded by isize::MAX"),
+                )
+            }),
+            Shape::Hashed(hashed) => hashed.at(slot).map(|entry| SlotKey::Str(entry.key.clone())),
+        }
+    }
+
     /// The value at `slot`, borrowed rather than retained.
     fn value_at(&self, slot: usize) -> Option<Value> {
         match &self.shape {
@@ -618,6 +632,41 @@ impl fmt::Debug for ArrayHeader {
     }
 }
 
+/// A key as the array's own shape holds it — [`MwlArray::slot_key`]'s answer.
+///
+/// [`MwlArray::key_at`] answers every key as an [`MwlStr`], which means a
+/// packed list renders a decimal and allocates one per entry. A caller that
+/// only means to *store* the entry under the same key, or to pass the key on
+/// to a callback that may not want it, does not need that string built: the
+/// `Index` arm carries the position itself, and [`MwlArray::set_index`] takes
+/// it without rendering anything. `docs/perf/userland-gap.md` § D is the
+/// measurement, and `Core\Arr`'s `map`/`filter`/`reduce` are the callers.
+///
+/// The `Str` arm carries a reference the receiver owns, exactly as `key_at`
+/// does — dropping it releases.
+#[derive(Debug, Clone)]
+pub enum SlotKey {
+    /// A packed array's key *is* its position; nothing was allocated to
+    /// answer, and nothing has to be freed.
+    Index(i64),
+    /// A hashed array already holds its key as a string, so this is a
+    /// reference to the one it holds and not a fresh rendering.
+    Str(MwlStr),
+}
+
+impl SlotKey {
+    /// The key as a string, rendering the decimal a packed array does not
+    /// hold — the allocation § D exists to avoid making where nothing asks
+    /// for one, paid here where something does.
+    #[must_use]
+    pub fn to_str(&self) -> MwlStr {
+        match self {
+            Self::Index(index) => MwlStr::new(index.to_string().as_bytes()),
+            Self::Str(key) => key.clone(),
+        }
+    }
+}
+
 /// An owning handle to one reference of an MWL array.
 ///
 /// Cloning retains, dropping releases, and a mutator separates first when the
@@ -772,6 +821,13 @@ impl MwlArray {
     #[must_use]
     pub fn key_at(&self, slot: usize) -> Option<MwlStr> {
         self.header().table.borrow().key_at(slot)
+    }
+
+    /// The key at `slot` in whichever form the array already holds it,
+    /// allocating nothing while the array is a list — [`SlotKey`].
+    #[must_use]
+    pub fn slot_key(&self, slot: usize) -> Option<SlotKey> {
+        self.header().table.borrow().slot_key(slot)
     }
 
     /// The value at `slot`, borrowed rather than retained.
@@ -1661,6 +1717,71 @@ mod tests {
         assert!(!negative.is_packed(), "a negative key degrades");
         assert_eq!(negative.get(b"-1").and_then(Value::as_int), Some(-10));
         assert_eq!(negative.get_index(-1).and_then(Value::as_int), Some(-10));
+    }
+
+    #[test]
+    fn a_callback_that_does_not_want_a_key_synthesizes_none() {
+        // `docs/perf/userland-gap.md` § D's guard, at the level where the
+        // allocation either happens or does not: `Core\Arr::map` over a list
+        // reads one key per entry and stores under it, and a one-parameter
+        // callback never asks for the string. What that member walks is
+        // exactly this pair, so measuring it here needs no compiled closure.
+        const RUN: i64 = 16;
+
+        let list = list_of(RUN);
+        let walk = |out: &mut MwlArray| {
+            let mut from = 0;
+            while let Some(slot) = list.next_slot(from) {
+                from = slot + 1;
+                let value = list.value_at(slot).expect("a live entry");
+                match list.slot_key(slot).expect("a live entry") {
+                    SlotKey::Index(index) => out.set_index(index, value),
+                    SlotKey::Str(key) => out.set(key, value),
+                }
+            }
+        };
+
+        // The first pass grows the result's own storage, which is the array
+        // being built and not a key; the second writes at positions that
+        // already exist, so a rendered decimal is the only thing left that
+        // could allocate.
+        let mut out = MwlArray::new();
+        walk(&mut out);
+        let before = allocated_bytes();
+        walk(&mut out);
+        assert_eq!(
+            allocated_bytes() - before,
+            0,
+            "{RUN} key-preserving stores over a list allocated something: a \
+             rendered decimal is the only thing they could have built"
+        );
+        assert_eq!(keys_of(&out), keys_of(&list));
+
+        // And the string is there for the callback that does declare a second
+        // parameter — the same walk, one `to_str` heavier.
+        let before = allocated_bytes();
+        assert_eq!(
+            list.slot_key(0).expect("a live entry").to_str().as_bytes(),
+            b"0"
+        );
+        assert!(
+            allocated_bytes() > before,
+            "asking for the key as a string is what renders it"
+        );
+
+        // A hashed array holds its keys already, so the same walk hands back a
+        // reference to the one it holds rather than a second rendering.
+        let mut hashed = list_of(RUN);
+        hashed.degrade();
+        let before = allocated_bytes();
+        let key = hashed.slot_key(0).expect("a live entry");
+        assert!(matches!(key, SlotKey::Str(_)));
+        assert_eq!(key.to_str().as_bytes(), b"0");
+        assert_eq!(
+            allocated_bytes() - before,
+            0,
+            "a hashed key is retained, never rebuilt"
+        );
     }
 
     #[test]

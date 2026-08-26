@@ -36,8 +36,33 @@
 //! it selected.** So a `by` under `SetOn::Keys` replaces the *key*, not the
 //! value; it is never an option that could not change the answer.
 //! [`comparison_subject`] and [`set_member`] hold the mechanics and the cost.
+//!
+//! # A callback that does not want a key is never handed one
+//!
+//! [`mwl_core_arr_map`], [`mwl_core_arr_filter`] and [`mwl_core_arr_reduce`]
+//! each call back into MWL code per entry, and § 2's "every callback receives
+//! `($value, $key)` and may declare fewer parameters" means the key is
+//! frequently built and then dropped by the trimming in
+//! `mwl_runtime::call_closure`. On a list that is a rendered decimal and an
+//! `MwlStr` allocation per entry, for nothing. So each of them reads
+//! `mwl_runtime::closure_arity` **once before the loop** and builds the key
+//! only where the callback declared a parameter to receive it.
+//!
+//! Preserving a key is not the same as rendering one, which is the other half:
+//! [`store_at`] writes an entry back under `mwl_runtime::SlotKey`, the key in
+//! whichever form the subject's own shape already holds it, so a `map` over a
+//! list allocates no keys at all and a `filter` allocates them only where it
+//! left a gap. `docs/perf/userland-gap.md` § D is the measurement, and
+//! `mwl-runtime`'s `a_callback_that_does_not_want_a_key_synthesizes_none` is
+//! the guard.
+//!
+//! [`mwl_core_arr_sort`] takes the same rule one step further, because it is
+//! the one member that may not need the keys *at all*: with `preserveKeys`
+//! false and no `by` closure declaring a second parameter, nothing downstream
+//! can observe a key, so its walk collects none rather than collecting and
+//! discarding them.
 
-use mwl_runtime::{Decimal, Fault, MwlArray, MwlStr, Tag, Value};
+use mwl_runtime::{Decimal, Fault, MwlArray, MwlStr, SlotKey, Tag, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy};
@@ -860,49 +885,44 @@ mwl_runtime::mwl_helper! {
     /// that: `MwlArray` and `MwlStr` both release on drop, so the partial
     /// result and the entry's own key are freed by the early return itself.
     fn mwl_core_arr_filter(ctx, args: [2]) {
-        let subject = args[0].array_ptr().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Arr::filter expected {:?}, got tag {}",
-                Tag::Array,
-                args[0].tag_byte()
-            ))
-        })?;
+        let base = subject(args, "filter")?;
+        // Read once for the whole walk rather than per entry: a predicate
+        // declaring one parameter is never handed a key, so none is rendered
+        // for it — `docs/perf/userland-gap.md` § D.
+        let wants_key = mwl_runtime::closure_arity(args[1])? >= 2;
 
         let mut kept = MwlArray::new();
         let mut from = 0usize;
-        loop {
-            #[expect(
-                unsafe_code,
-                reason = "a Tag::Array argument owns a reference to a live \
-                          allocation, so it is live for the length of this \
-                          call, and `from` only ever advances past a slot \
-                          this same cursor reported"
-            )]
-            let (slot, key, value) = unsafe {
-                let slot = mwl_runtime::mwl_array_next_slot(subject, from);
-                let Ok(slot) = usize::try_from(slot) else {
-                    break;
-                };
-                let key = MwlStr::from_raw(mwl_runtime::mwl_array_key_at(subject, slot));
-                let mut value = Value::null();
-                mwl_runtime::mwl_array_value_at(subject, slot, &raw mut value);
-                (slot, key, value)
-            };
+        while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
+            let value = base
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            // Read *before* the call, since the predicate may reshape the
+            // subject under the cursor. On a list this is the position itself
+            // and allocates nothing — see [`store_at`].
+            let key = base
+                .slot_key(slot)
+                .expect("next_slot only names live entries");
 
-            // One reference for the duration of the call, released right
-            // after: `call_closure` takes its own, and `key` itself is still
-            // owed to either `kept` or its own drop below.
-            let key_arg = Value::str(key.clone());
-            let verdict = mwl_runtime::call_closure(ctx, args[1], &[value, key_arg]);
-            #[expect(
-                unsafe_code,
-                reason = "this frame owns exactly the reference `key.clone()` \
-                          just produced"
-            )]
-            unsafe {
-                key_arg.release();
-            }
+            let verdict = if wants_key {
+                // One reference for the duration of the call, released right
+                // after: `call_closure` takes its own, and `key` itself is
+                // still owed to either `kept` or its own drop below.
+                let key_arg = Value::str(key.to_str());
+                let verdict = mwl_runtime::call_closure(ctx, args[1], &[value, key_arg]);
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame owns exactly the reference \
+                              `key.to_str()` just produced"
+                )]
+                unsafe {
+                    key_arg.release();
+                }
+                verdict
+            } else {
+                mwl_runtime::call_closure(ctx, args[1], &[value])
+            };
             let verdict = verdict?;
             let truthy = mwl_runtime::value_truthy(verdict);
             #[expect(
@@ -925,7 +945,7 @@ mwl_runtime::mwl_helper! {
                 unsafe {
                     value.retain();
                 }
-                kept.set(key, value);
+                store_at(&mut kept, key, value);
             }
         }
         Ok(Value::array(kept))
@@ -957,55 +977,47 @@ mwl_runtime::mwl_helper! {
     /// That is the difference from `filter`, which stores a value belonging to
     /// the subject array and therefore has to retain one first.
     fn mwl_core_arr_map(ctx, args: [2]) {
-        let subject = args[0].array_ptr().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Arr::map expected {:?}, got tag {}",
-                Tag::Array,
-                args[0].tag_byte()
-            ))
-        })?;
+        let base = subject(args, "map")?;
+        // Read once for the whole walk — [`mwl_core_arr_filter`]'s comment.
+        let wants_key = mwl_runtime::closure_arity(args[1])? >= 2;
 
         let mut out = MwlArray::new();
         let mut from = 0usize;
-        loop {
-            #[expect(
-                unsafe_code,
-                reason = "a Tag::Array argument owns a reference to a live \
-                          allocation, so it is live for the length of this \
-                          call, and `from` only ever advances past a slot \
-                          this same cursor reported"
-            )]
-            let (slot, key, value) = unsafe {
-                let slot = mwl_runtime::mwl_array_next_slot(subject, from);
-                let Ok(slot) = usize::try_from(slot) else {
-                    break;
-                };
-                let key = MwlStr::from_raw(mwl_runtime::mwl_array_key_at(subject, slot));
-                let mut value = Value::null();
-                mwl_runtime::mwl_array_value_at(subject, slot, &raw mut value);
-                (slot, key, value)
-            };
+        while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
+            let value = base
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            // Read before the call, and on a list this is the position itself:
+            // preserving a key is not the same as rendering one — [`store_at`].
+            let key = base
+                .slot_key(slot)
+                .expect("next_slot only names live entries");
 
-            // One reference for the duration of the call, released right
-            // after — `call_closure` takes its own. `key` itself is still owed
-            // to `out.set` below.
-            let key_arg = Value::str(key.clone());
-            let mapped = mwl_runtime::call_closure(ctx, args[1], &[value, key_arg]);
-            #[expect(
-                unsafe_code,
-                reason = "this frame owns exactly the reference `key.clone()` \
-                          just produced"
-            )]
-            unsafe {
-                key_arg.release();
-            }
+            let mapped = if wants_key {
+                // One reference for the duration of the call, released right
+                // after — `call_closure` takes its own. `key` itself is still
+                // owed to [`store_at`] below.
+                let key_arg = Value::str(key.to_str());
+                let mapped = mwl_runtime::call_closure(ctx, args[1], &[value, key_arg]);
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame owns exactly the reference \
+                              `key.to_str()` just produced"
+                )]
+                unsafe {
+                    key_arg.release();
+                }
+                mapped
+            } else {
+                mwl_runtime::call_closure(ctx, args[1], &[value])
+            };
             // Unwrapped into a local of its own *before* `key` is moved: a
             // throw partway through then frees the partial result and this
             // entry's key by dropping two named locals, which `MwlArray` and
-            // `MwlStr` both do by releasing.
+            // `SlotKey`'s own `MwlStr` both do by releasing.
             let mapped = mapped?;
-            out.set(key, mapped);
+            store_at(&mut out, key, mapped);
         }
         Ok(Value::array(out))
     }
@@ -1266,6 +1278,23 @@ pub(crate) fn borrowed(array: *mut mwl_runtime::ArrayHeader) -> std::mem::Manual
                   never dropped"
     )]
     std::mem::ManuallyDrop::new(unsafe { MwlArray::from_raw(array) })
+}
+
+/// Stores `value` under the key a subject entry already had, taking over its
+/// reference — the key-preserving half of [`mwl_core_arr_map`] and
+/// [`mwl_core_arr_filter`].
+///
+/// A [`SlotKey::Index`] goes through [`MwlArray::set_index`], which writes at
+/// an existing position or the next one with no decimal rendered at all, so
+/// mapping a list allocates no keys — and a `filter` that skips an entry still
+/// preserves the keys it kept, because the gap is exactly what degrades the
+/// result to the hash form and renders them there. `docs/perf/userland-gap.md`
+/// § D is the measurement.
+fn store_at(out: &mut MwlArray, key: SlotKey, value: Value) {
+    match key {
+        SlotKey::Index(index) => out.set_index(index, value),
+        SlotKey::Str(key) => out.set(key, value),
+    }
 }
 
 /// Appends `times` copies of a borrowed `value` to a result being built.
@@ -2591,28 +2620,41 @@ mwl_runtime::mwl_helper! {
         }
         let mut carry = Extracted(vec![args[2]]);
 
+        // Read once for the whole fold: the key sits at the third position, so
+        // a callback declaring `($carry, $value)` — the shape a sum is written
+        // in — never sees one and none is built. § D, and
+        // [`mwl_core_arr_filter`] is the same reading two positions earlier.
+        let wants_key = mwl_runtime::closure_arity(args[1])? >= 3;
+
         let mut from = 0usize;
         while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
             let value = base
                 .value_at(slot)
                 .expect("next_slot only names live entries");
-            let key = base
-                .key_at(slot)
-                .expect("next_slot only names live entries");
 
-            // One reference for the duration of the call, released right
-            // after — `call_closure` takes its own.
-            let key_arg = Value::str(key);
-            let next = mwl_runtime::call_closure(ctx, args[1], &[carry.0[0], value, key_arg]);
-            #[expect(
-                unsafe_code,
-                reason = "this frame owns exactly the reference `key_at` just \
-                          handed back"
-            )]
-            unsafe {
-                key_arg.release();
-            }
+            let next = if wants_key {
+                // One reference for the duration of the call, released right
+                // after — `call_closure` takes its own. Nothing else in a fold
+                // wants the key, so this is the only place it is built.
+                let key_arg = Value::str(
+                    base.slot_key(slot)
+                        .expect("next_slot only names live entries")
+                        .to_str(),
+                );
+                let next = mwl_runtime::call_closure(ctx, args[1], &[carry.0[0], value, key_arg]);
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame owns exactly the reference \
+                              `slot_key(..).to_str()` just produced"
+                )]
+                unsafe {
+                    key_arg.release();
+                }
+                next
+            } else {
+                mwl_runtime::call_closure(ctx, args[1], &[carry.0[0], value])
+            };
             // Unwrapped after the key is released and while the guard still
             // holds the current carry, so a throwing callback frees both.
             let next = next?;
@@ -2721,13 +2763,7 @@ mwl_runtime::mwl_helper! {
     /// a helper is not reachable yet, so an object without a `comparator` is a
     /// throw naming the interface rather than a wrong answer.
     fn mwl_core_arr_sort(ctx, args: [5]) {
-        let subject = args[0].array_ptr().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Arr::sort expected {:?}, got tag {}",
-                Tag::Array,
-                args[0].tag_byte()
-            ))
-        })?;
+        let base = subject(args, "sort")?;
         let by = optional_callback(&args[1], "sort", "by")?;
         let descending = match args[2].as_int() {
             Some(0) => false,
@@ -2750,33 +2786,35 @@ mwl_runtime::mwl_helper! {
             ))
         })?;
 
+        // Whether anything at all is going to look at a key: the result keeps
+        // them, or a `by` closure declared a parameter to receive one. A sort
+        // that renumbers and extracts by value alone — `sort($list)`, the
+        // common call — reads none, so this walk collects none.
+        // `docs/perf/userland-gap.md` § D's second paragraph.
+        let by_wants_key = match by {
+            Some(by) => mwl_runtime::closure_arity(by)? >= 2,
+            None => false,
+        };
+        let needs_keys = preserve_keys || by_wants_key;
+
         // Every entry, in insertion order. Both halves are *borrowed* from the
-        // subject: the keys are released by their own `MwlStr` drops, and the
-        // values belong to the array, which outlives this call.
-        let mut keys: Vec<MwlStr> = Vec::new();
+        // subject: a `SlotKey::Str` is released by its own `MwlStr` drop, and
+        // the values belong to the array, which outlives this call.
+        let mut keys: Vec<SlotKey> = Vec::new();
         let mut values: Vec<Value> = Vec::new();
         let mut from = 0usize;
-        loop {
-            #[expect(
-                unsafe_code,
-                reason = "a Tag::Array argument owns a reference to a live \
-                          allocation, so it is live for the length of this \
-                          call, and `from` only ever advances past a slot \
-                          this same cursor reported"
-            )]
-            let (slot, key, value) = unsafe {
-                let slot = mwl_runtime::mwl_array_next_slot(subject, from);
-                let Ok(slot) = usize::try_from(slot) else {
-                    break;
-                };
-                let key = MwlStr::from_raw(mwl_runtime::mwl_array_key_at(subject, slot));
-                let mut value = Value::null();
-                mwl_runtime::mwl_array_value_at(subject, slot, &raw mut value);
-                (slot, key, value)
-            };
+        while let Some(slot) = base.next_slot(from) {
             from = slot + 1;
-            keys.push(key);
-            values.push(value);
+            if needs_keys {
+                keys.push(
+                    base.slot_key(slot)
+                        .expect("next_slot only names live entries"),
+                );
+            }
+            values.push(
+                base.value_at(slot)
+                    .expect("next_slot only names live entries"),
+            );
         }
 
         // Decorate. Dropped by the guard on every exit path below, including
@@ -2784,16 +2822,21 @@ mwl_runtime::mwl_helper! {
         let mut sort_keys = Extracted(Vec::new());
         if let Some(by) = by {
             for (index, value) in values.iter().enumerate() {
-                let key_arg = Value::str(keys[index].clone());
-                let extracted = mwl_runtime::call_closure(ctx, by, &[*value, key_arg]);
-                #[expect(
-                    unsafe_code,
-                    reason = "this frame owns exactly the reference \
-                              `keys[index].clone()` just produced"
-                )]
-                unsafe {
-                    key_arg.release();
-                }
+                let extracted = if by_wants_key {
+                    let key_arg = Value::str(keys[index].to_str());
+                    let extracted = mwl_runtime::call_closure(ctx, by, &[*value, key_arg]);
+                    #[expect(
+                        unsafe_code,
+                        reason = "this frame owns exactly the reference \
+                                  `keys[index].to_str()` just produced"
+                    )]
+                    unsafe {
+                        key_arg.release();
+                    }
+                    extracted
+                } else {
+                    mwl_runtime::call_closure(ctx, by, &[*value])
+                };
                 sort_keys.0.push(extracted?);
             }
         }
@@ -2841,7 +2884,7 @@ mwl_runtime::mwl_helper! {
                 values[index].retain();
             }
             if preserve_keys {
-                out.set(keys[index].clone(), values[index]);
+                store_at(&mut out, keys[index].clone(), values[index]);
             } else {
                 out.append(values[index]);
             }
