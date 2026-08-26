@@ -668,6 +668,11 @@ is why" — is this file.
   (`E0414`), and `foreach ($rows as string $row)` over the literal directly is `E0401` for the same
   reason. Counting agreements into an `int` declared above the loop is how the sweep is then asserted,
   since there is no compound assignment either.
+- **Deepening a `.mwlt` case in place does not move Stage 4's count.** The gate counts case *files*, so a
+  depth slice that rewrites an existing thin case makes real progress the acceptance test cannot see —
+  `mwl test tests/conformance` read 478 both before and after two sessions' worth of work. Land the new
+  claim as its **own file**, named for the claim, and leave the thin case where it is with a one-line
+  comment pointing at the deep one. Splitting after the fact is free; noticing after the run is not.
 
 ## Splitting a file that got too big
 
@@ -763,3 +768,13 @@ sibling in the same namespace unqualified.
   argument that can be written, and the honest row asserts the reach — `-9223372036854775807` and
   `18446744073709551615` both landing in the field — instead of inventing a refusal that cannot
   exist. Narrower widths (`C`, `n`, `v`, `N`, `V`) have both sides spellable and should assert them.
+- **The first-class callable spelling `Class::method(...)` panics `mwl-ir` outright** — *"a static call
+  has no resolved target recorded in the typed-expression table"*, which reads like a checker/lowering
+  mismatch rather than a missing feature. It is the same hole as `mwl-ir` gap 1: a case cannot name one
+  callback and hand it to several members, so every callback in a sweep is written inline at its call
+  site. A `public static function` in the case file is still callable *directly*; it is only the
+  reference-to-it that does not exist.
+- **`bool as string` renders `false` as the empty string**, so a line built out of `as string` over
+  predicates silently loses its false columns and still looks like a shorter tally. `bool as int` does not
+  lower at all, so the way to *show* a predicate's answer is a two-line helper that branches and returns a
+  character.
