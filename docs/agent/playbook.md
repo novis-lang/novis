@@ -1000,6 +1000,16 @@ is why" — is this file.
   the magnitude taken by hand (`if ($mag < 0.0) { $mag = 0.0 - $mag; }`) because
   `Core\Math::abs` answers the `int|float` union and not a `float`. `-0.0` echoes as `-0` and is
   read through `1.0 / $x` when it has to be told from `0.0`, as the parity case does.
+- **A float landmark is exact on both legs, and `php` inside WSL says so without a Linux build of
+  `mwl`.** PHP calls the same libm Rust's `f64` methods do, so
+  `wsl.exe -- bash -lc "php /mnt/<drive>/<repo>/.agent-tmp/rows.php"` answers the "does glibc round this the
+  same way MSVC does" question in one call, against the two minutes a cross-build costs. Measured
+  that way and safe to assert as *equalities*, on both legs: `acos(-1.0) == PI`, `asin(1.0) == PI /
+  2.0`, `acos(0.0) == PI / 2.0`, `atan(1.0) == PI / 4.0`, `cos(PI) == -1.0`, `sin(PI / 2.0) == 1.0`,
+  `exp(1.0) == E` and `log(E) == 1.0` — every one a domain endpoint or a halving, which is the same
+  "pick the rows, not the member" reading as the `hypot` and `cbrt` bullets. The *interior* of the
+  circle is not: `sin($x) * sin($x) + cos($x) * cos($x)` needs the tolerance spelling above even
+  though it agreed on all 20 rows of one table.
 
 ## Splitting a file that got too big
 
