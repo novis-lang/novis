@@ -832,6 +832,14 @@ is why" — is this file.
   so a case that asserts `jiff`'s or `regex`'s sentence with `Core\Str::startsWith($e->message, '…')`
   has to spell the prefix out, and cannot instead echo the whole message and freeze a tail the next
   dependency bump will rewrite.
+- **`echo "label=", <a call that may throw>` prints the label before it throws**, so a `try` body
+  written the obvious way leaks its own prefix into stdout on exactly the rows the case exists to
+  refuse — `not refused=Core\Json::encode(): …` on one line, with the refusal's own text welded to
+  it. Bind the call first (`var $written = Core\Json::encode($v);`) and echo on the line after, so
+  the refusing row prints nothing at all and the `--EXPECT--` block stays a list of the rows that
+  answered. In the same family, a local declared in a case obeys `E0112`: `var $written_nan` is
+  refused and `$writtenNan` is the spelling, which bites when a sweep needs one `var` per row and
+  reaches for snake_case to keep them apart.
 
 ## Splitting a file that got too big
 
