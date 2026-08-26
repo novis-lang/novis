@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 490 of 600 and differential 151 of 150. **Nothing below them
+> Stage 4's two counts**, conformance 492 of 600 and differential 151 of 150. **Nothing below them
 > is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -69,7 +69,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 490 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 492 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 151, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -113,7 +113,7 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Stage 4's differential gate is met — 151 against the 150 it requires — so
-> conformance is the only frontier left, at 488 of the 600.** Both named guards
+> conformance is the only frontier left, at 492 of the 600.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
@@ -121,31 +121,28 @@
 > counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is the worklist and no
 > session should re-derive it**: `--differential` names every member whose spec **Replaces** column
 > gives it a PHP twin and which no oracle case calls — 8 left — and `--errors` every `Fault::` site
-> in `mwl-stdlib` whose message no case asserts, 91 of them — a count that fell by five in one
-> tooling fix as well as by four in cases, because `gaps.py` read a message that quotes its own
-> operand back (`… "{}" is not base64 …`) as a stem ending at the escaped quote, which no case
-> could ever contain, so four decoders and `Core\Uuid::parse` stayed listed however well asserted.
-> Over `Core\Arr` the twin's key rule
-> decides which kind of case it is: PHP renumbers a result's integer keys and keeps its string ones,
-> ADR 0069 § 3 refuses that, so a member matches its twin over a *list* and diverges over a map, and
-> both shapes exist now for the window, the ends, the padding pair and `reverse`. **A member
-> answering a value rather than an array has no key rule to diverge over at all**, which is why
-> `min`/`max` and `reduce` match PHP over a map as readily as over a list; what parts them from
-> their twins is PHP's loose comparison — `min([0, "a"])` is `0`, and two numeral strings compare
-> numerically — and `array_reduce`'s callback taking exactly two arguments where MWL's takes the key
-> third. **Four other twins sit outside the key rule**: `array_unique` renumbers nothing at all, so
-> the divergence there is `SORT_STRING`'s comparison by *spelling*; `array_count_values` names a
-> bucket through the same key normalization `countBy` uses, so that pair parts only where PHP
-> warns-and-skips a value `countBy` refuses; `ksort` reads a numeral *key* as a number where ADR
-> 0007 § 5 makes every stored key a `string` compared bytewise, so `sortByKey` parts from it over a
-> numeral or mixed-key subject and a `comparator` is the way back; and `array_fill` takes a start
-> index `fill` drops, so every non-zero start is `Core\Arr::fillKeys` over the keys the caller
-> wanted. **`Core\Str` and `Core\Regex` are closed, `Core\Math` is down to the `gmp` pair alone, and
-> `Core\Path`'s three are now the largest block of the 8.** `Core\Math`'s settled pairs say what
-> shape the rest take: nothing there has a key rule, so a member either agrees with its twin
-> outright or parts over a *tie*, a *conversion*, a *guard* or a *repair*. **PHP's two-argument
-> `min` answers its second argument on a tie and its `max` answers its first**, where
-> `mwl_stdlib::math::pick` answers the first to both — visible wherever two equal values are
+> in `mwl-stdlib` whose message no case asserts, 84 of them — of which **63 are `Fault::fatal`,
+> unreachable by any handler and so by any case, leaving 21 a case can catch**. Over `Core\Arr` the
+> twin's key rule decides which kind of case it is: PHP renumbers a result's integer keys and keeps
+> its string ones, ADR 0069 § 3 refuses that, so a member matches its twin over a *list* and
+> diverges over a map, and both shapes exist now for the window, the ends, the padding pair and
+> `reverse`. **A member answering a value rather than an array has no key rule to diverge over at
+> all**, which is why `min`/`max` and `reduce` match PHP over a map as readily as over a list; what
+> parts them from their twins is PHP's loose comparison — `min([0, "a"])` is `0`, and two numeral
+> strings compare numerically — and `array_reduce`'s callback taking exactly two arguments where
+> MWL's takes the key third. **Four other twins sit outside the key rule**: `array_unique` renumbers
+> nothing at all, so the divergence there is `SORT_STRING`'s comparison by *spelling*;
+> `array_count_values` names a bucket through the same key normalization `countBy` uses, so that
+> pair parts only where PHP warns-and-skips a value `countBy` refuses; `ksort` reads a numeral *key*
+> as a number where ADR 0007 § 5 makes every stored key a `string` compared bytewise, so `sortByKey`
+> parts from it over a numeral or mixed-key subject and a `comparator` is the way back; and
+> `array_fill` takes a start index `fill` drops, so every non-zero start is `Core\Arr::fillKeys`
+> over the keys the caller wanted. **`Core\Str` and `Core\Regex` are closed, `Core\Math` is down to
+> the `gmp` pair alone, and `Core\Path`'s three are now the largest block of the 8.** `Core\Math`'s
+> settled pairs say what shape the rest take: nothing there has a key rule, so a member either
+> agrees with its twin outright or parts over a *tie*, a *conversion*, a *guard* or a *repair*.
+> **PHP's two-argument `min` answers its second argument on a tie and its `max` answers its first**,
+> where `mwl_stdlib::math::pick` answers the first to both — visible wherever two equal values are
 > distinguishable, `min(1000000000000000000, 1.0e18)` being the sharpest — and `f64::total_cmp`
 > separates `-0.0` from `0.0` where PHP's `<` calls them equal. **A `CoreTy::Var("T")` signature
 > binds `T` to the first argument**, so a crossed pair reaches the runtime refusal only when the
@@ -330,42 +327,64 @@
 > cannot, and each of `fromBase64`, `fromBase64Url`, `fromBase32` and `fromHex` says which of its
 > reasons refused and at what offset — four reasons for base64 and for base32, two for hex, and
 > which one a text gets is decided by the earliest thing wrong with it, so a space at offset 4 of
-> eight base32 symbols is the alphabet's refusal while a space that also makes the text nine long
-> is the group's. What the two cases add past their rows is counted: a code reads its whole width
-> or none of it at every width in the table, an index and its negative name one octet, all 256
-> values a `fill` byte admits are one octet read back, and the offset a base64 refusal names is the
-> offending position at each of eight in turn rather than a constant. Two boundaries are the
-> compiler's rather than the member's — `fill`'s low end is `E0401` on a `uint` parameter, as
-> `pack`'s 64-bit range is `E0429` at the call — and the operand a decoder quotes back is bounded
-> at 32 characters, asserted on both sides of that bound. `bytes.rs` keeps four `fatal` sites no
-> handler reaches and no case can assert; `encoding.rs` keeps the `encodeText`/`decodeText` charset
-> pair, which is the section's one remaining item. **Unbuilt in the library**, none of it a
-> registration gap: `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a
-> scalar-fielded class only — no enum, `decimal`, `Instant`, `array` or nested-class field, and no
-> optional key from a parameter default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier
-> classification, missing from every `mwl-stdlib` member row, which is why `Core\Str::format`'s
-> template is not yet the sink that ADR makes it, why neither the fail-closed default for an
-> unclassified `string`/`bytes` parameter nor the test refusing an unclassified member exists, and
-> why `Core\Hash::hmac`'s `secret bytes $key` is a plain `CoreTy::Bytes` (`mwl_stdlib::hash`'s
-> module doc); and ADR 0086 § 1's substitution table, which is what would make the terminal sink
-> neutralize a control byte and `Cli\Text::plain` a constructor that cannot produce an injected
-> escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, but not catch-up** —
-> ADRs 0091 (the `development`/`production` run mode), 0092 (one diagnostic record rendered three
-> ways by the sink in force), 0093 (`mwl service`), 0097 (the server's scope and its `[server]`
-> block) and 0100 § 3 (a file opening `#!` starts in code mode with no tag — one `mwl-syntax` branch
-> at offset 0, `E0009` reserved in the registry, no parser or runtime change). None invalidates
-> built behaviour or a written fixture; their work is M1, M4, M6, M7, M8 and M10. **Open beside the
-> library** — a property's declared default runs and is type-checked (`E0472`), limited to a literal
-> or `[]`; `do`/`while` is the one M4 control-flow statement that does not lower; a closure cannot
-> be called through the variable holding it and `Class::method(...)` panics `mwl-ir` outright, so a
-> case sweeps a table with `foreach` and reaches a helper through a `public static function`
-> declared in the same file (`mwl-ir` gap 1); a `?bool` cannot be tested for truth at all, so a
-> member answering one has no `yn` rendering; `bool as int` does not lower and `bool as string`
-> renders `false` as nothing at all; an abandoned generator never runs the `finally` it is suspended
-> inside (`mwl-ir` gap 18, a deliberate PHP divergence); ADR 0043's `by`-delegation is off path; and
-> `docs/spec/02-php-migration.md` is 31% classified, reported by `python tools/check-migration.py`.
-> **What has landed is not restated here** — `git log` holds the session-by-session history and each
-> crate's own module doc holds its per-file gaps.
+> eight base32 symbols is the alphabet's refusal while a space that also makes the text nine long is
+> the group's. What the two cases add past their rows is counted: a code reads its whole width or
+> none of it at every width in the table, an index and its negative name one octet, all 256 values a
+> `fill` byte admits are one octet read back, and the offset a base64 refusal names is the offending
+> position at each of eight in turn rather than a constant. Two boundaries are the compiler's rather
+> than the member's — `fill`'s low end is `E0401` on a `uint` parameter, as `pack`'s 64-bit range is
+> `E0429` at the call — and the operand a decoder quotes back is bounded at 32 characters, asserted
+> on both sides of that bound. **`--errors` names no assertable site in `str.rs` or `encoding.rs` at
+> all now.** Spec § 7's `encodeText` says which character the charset has no spelling for, its code
+> point and the byte offset it sits at, and `decodeText` the offset the first unreadable sequence
+> *starts* at — there being no character to quote when the whole point is that these octets spell
+> none. Spec § 1's five say what they stopped at: `at`'s index against the length it is outside of,
+> `chunk`'s size, `countOf`'s needle, and which of `wrap`'s two options, whose width pair is the
+> sharper because the same width of 0 is an answer or a throw depending only on `cutLongWords`.
+> **`Core\Str::at`'s message was the one in `mwl-stdlib` missing the `()` every sibling writes** and
+> now has it. What the two cases add past their rows is counted. `Latin1` is the one charset with no
+> refusal at all, so it reads every one of the 256 octets and each returns as the octet it went in
+> as, while `Ascii` reads exactly half — the same bound stated as a partition rather than as two
+> rows — and `isValidText` answers `false` at exactly the octets `decodeText` throws for on all 256,
+> which is what makes one the other's question with somewhere to put the answer. **Both encoding
+> members count their reported offset in bytes**, asserted over eight positions in turn on each
+> side, which is the one thing the two messages have to agree about since a caller uses one to index
+> what it handed the other; and `encodeText`'s quoted operand is bounded on both sides of 32
+> characters, ADR 0088's register being why it is bounded at all. `at`'s accepted set is exactly the
+> 2n indices from -n to n-1 and nothing else, over sixteen spanning both bounds, and the length it
+> reports agrees with `Core\Str::length` on six subjects whose byte and cluster counts diverge in
+> different places. **Two spellings a case reaching for these cannot use**: a source-declared
+> `Core\Charset` parameter does not unify with the registry's own enum type and fails `E0401` naming
+> the same type twice, so the enum is written at each call site; and a message quoting a C1 control
+> back cannot be a frozen `--EXPECT--`, so U+0080's row asserts the printable half. Both are
+> playbook bullets. `bytes.rs`, `str.rs` and `encoding.rs` keep only `fatal` sites no case reaches;
+> **`path.rs`'s four `withExtension` refusals are the next block**, and `time.rs`'s seven the one
+> after. **Unbuilt in the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s
+> decoder, which ADR 0071 leaves reading a scalar-fielded class only — no enum, `decimal`,
+> `Instant`, `array` or nested-class field, and no optional key from a parameter default
+> (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing from every `mwl-stdlib`
+> member row, which is why `Core\Str::format`'s template is not yet the sink that ADR makes it, why
+> neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
+> refusing an unclassified member exists, and why `Core\Hash::hmac`'s `secret bytes $key` is a plain
+> `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's substitution table, which is
+> what would make the terminal sink neutralize a control byte and `Cli\Text::plain` a constructor
+> that cannot produce an injected escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
+> unbuilt, but not catch-up** — ADRs 0091 (the `development`/`production` run mode), 0092 (one
+> diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`), 0097 (the
+> server's scope and its `[server]` block) and 0100 § 3 (a file opening `#!` starts in code mode
+> with no tag — one `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no parser or
+> runtime change). None invalidates built behaviour or a written fixture; their work is M1, M4, M6,
+> M7, M8 and M10. **Open beside the library** — a property's declared default runs and is
+> type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow
+> statement that does not lower; a closure cannot be called through the variable holding it and
+> `Class::method(...)` panics `mwl-ir` outright, so a case sweeps a table with `foreach` and reaches
+> a helper through a `public static function` declared in the same file (`mwl-ir` gap 1); a `?bool`
+> cannot be tested for truth at all, so a member answering one has no `yn` rendering; `bool as int`
+> does not lower and `bool as string` renders `false` as nothing at all; an abandoned generator
+> never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a deliberate PHP divergence);
+> ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31% classified,
+> reported by `python tools/check-migration.py`. **What has landed is not restated here** — `git
+> log` holds the session-by-session history and each crate's own module doc holds its per-file gaps.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
@@ -376,7 +395,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: the differential gate is met at 151 of 150, conformance stands at 490 of 600, and the
+> decision: the differential gate is met at 151 of 150, conformance stands at 492 of 600, and the
 > remainder is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

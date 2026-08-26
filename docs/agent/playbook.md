@@ -788,6 +788,22 @@ is why" — is this file.
   rather than as the missing row it is. Render such a case with `Core\Arr::count` for the shape and
   a separate `Core\Encoding::toHex` for each buffer, and keep `Json::encode` for the numeric
   formats, where it prints the whole list in one line.
+- **A `.mwlt` helper cannot take a `Core` enum parameter, and the diagnostic names the same type
+  twice.** `public static function m(string $s, Core\Charset $c)` called with `Core\Charset::Ascii`
+  is `E0401`, reading *expected `Core\Charset`, found `Core\Charset`* — a source-declared annotation does
+  not unify with the registry's own `CoreTy::Enum`, and a `mixed` parameter is refused just as hard
+  at the `Core` call inside. `var $c = Core\Charset::Ascii;` *does* infer correctly and passes, so
+  the hole is specifically the declared type. A case sweeping several charsets therefore writes the
+  enum at each call site with an inline `try`/`catch` per row — each `catch` taking its own binding
+  name — rather than folding the rendering into the `final class` helper the neighbouring cases use.
+
+- **A frozen `--EXPECT--` must not render an invisible byte either, and a refusal that quotes its
+  operand back will.** `Core\Encoding::encodeText`'s message spells the offending character through
+  Rust's `Debug`, so U+0080 arrives printable as `'\u{80}'` — but the same message quotes the
+  *subject* back unescaped, which puts a raw C1 control in the expectation where no reader can see
+  it and no editor shows it. Assert the printable half with
+  `Core\Str::contains($e->message, "(U+0080) at offset 0 of")` and echo a `yes`, exactly as the
+  neighbouring decomposed-cluster bullet does for the other kind of invisible.
 
 ## Splitting a file that got too big
 
