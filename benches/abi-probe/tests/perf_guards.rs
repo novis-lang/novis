@@ -14,6 +14,7 @@
 //! cargo test --release -p mwl-abi-probe --test perf_guards
 //! ```
 
+use std::alloc::{GlobalAlloc, Layout, System};
 use std::hint::black_box;
 use std::time::{Duration, Instant};
 
@@ -967,5 +968,75 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
          the unhooked access paying nothing for a mechanism it never asked \
          for; if this is real, that claim needs revisiting rather than this \
          threshold."
+    );
+}
+
+/// One `alloc`/`dealloc` round trip through whatever allocator this process
+/// registered — `mwl_runtime`'s own in an optimized build.
+#[expect(
+    unsafe_code,
+    reason = "measuring an allocator means calling it; the block is freed with \
+              the layout it was allocated with, and a null return is refused \
+              rather than freed"
+)]
+fn global_round_trip(layout: Layout) {
+    unsafe {
+        let block = std::alloc::alloc(layout);
+        assert!(!block.is_null(), "the global allocator returned null");
+        std::alloc::dealloc(black_box(block), layout);
+    }
+}
+
+/// The same round trip, taken straight to the platform heap.
+#[expect(
+    unsafe_code,
+    reason = "as `global_round_trip`, against `System` rather than whatever is \
+              registered"
+)]
+fn platform_round_trip(layout: Layout) {
+    unsafe {
+        let block = System.alloc(layout);
+        assert!(!block.is_null(), "`System` returned null");
+        System.dealloc(black_box(block), layout);
+    }
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
+    // Self-relative, per ADR 0026: the bound is this machine's own platform
+    // heap, measured in the same loop rather than quoted. A 32-byte round trip
+    // through `System` is 28.7 ns on the tree that motivated
+    // `mwl_runtime::alloc` (docs/perf/userland-gap.md § A) and a free-list pop
+    // and push is a small multiple of a load and a store, so the real ratio is
+    // an order of magnitude under this bound. What the guard holds is the cost
+    // *class*: MWL either serves a small allocation from its own cache or it
+    // does not, and the failure this file's preamble names — the pooling
+    // allocator silently not being registered — lands exactly here, because
+    // then the two sides are the same code and the ratio is 1.
+    const MAX_RATIO: f64 = 0.5;
+
+    // 32 bytes with 8-byte alignment: `MwlStr`'s header plus a short string,
+    // and squarely inside the second size class.
+    let layout = Layout::from_size_align(32, 8).expect("a valid layout");
+
+    let pooled = ns_per_op(500_000, 5, || global_round_trip(layout));
+    let platform = ns_per_op(500_000, 5, || platform_round_trip(layout));
+
+    let ratio = pooled / platform;
+    println!(
+        "32-byte allocation round trip: {pooled:.2} ns through the registered \
+         allocator against {platform:.2} ns through the platform heap, ratio \
+         {ratio:.3}x"
+    );
+
+    assert!(
+        ratio < MAX_RATIO,
+        "a 32-byte round trip now costs {ratio:.3}x the platform heap's own \
+         ({pooled:.2} ns vs {platform:.2} ns), over the {MAX_RATIO}x guard. \
+         Either `mwl_runtime::alloc` is no longer the `#[global_allocator]` \
+         for this build, or its cache is no longer serving a request this \
+         size; docs/perf/userland-gap.md § A is the measurement that made \
+         MWL own its allocator."
     );
 }
