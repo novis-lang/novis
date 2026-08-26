@@ -1,0 +1,54 @@
+--TEST--
+Core\Arr::reduce over an empty subject is the seed returned unchanged with no call made, whatever the seed's type, and the seed the caller holds is never written through (spec § 2 Iteration and aggregation)
+--FILE--
+<?mwl
+// Spec § 2 says an empty array is "that seed returned unchanged with no call
+// made", which is two claims. The first is read off the answer; the second is
+// only assertable by handing the fold a *landmine* — a callback that throws the
+// moment it is called — since a callback that merely returns its carry would
+// leave the two indistinguishable. Every callback here is written inline: the
+// first-class callable spelling `Fold::boom(...)` panics mwl-ir outright, so a
+// case cannot name one landmine and reuse it.
+array<int> $nums = [1, 2, 3, 4];
+
+// One entry is exactly one call, which is the step either side of the edge: the
+// answer is the callback applied to the seed and that element, never the
+// element alone and never the seed alone.
+array<int> $one = [5];
+echo Core\Arr::reduce($one, fn(int $carry, int $v): int => $carry * 10 + $v, 9), "\n";
+
+// The edge itself, over three seed types — int, string and array — each past a
+// landmine. The seed's type is the only thing that varies, because the identity
+// a fold needs is what makes `reduce` the one aggregating member with no empty
+// case to throw on.
+array<int> $none = [];
+array<string> $noWords = [];
+array<int> $arraySeed = [9];
+echo Core\Arr::reduce($none, fn(int $carry, int $v): int => Core\Math::intDiv(1, 0), 7), "\n";
+echo Core\Arr::reduce($noWords, fn(string $carry, string $v): string => Core\Str::slice($carry, Core\Math::intDiv(1, 0), 1), "seed"), "\n";
+echo Core\Json::encode(
+    Core\Arr::reduce($noWords, fn(array<int> $carry, string $v): array<int> => Core\Arr::prepend($carry, Core\Math::intDiv(1, 0)), $arraySeed)
+), "\n";
+
+// The other side of that bound: the same landmine over a subject with entries
+// does throw, so the three silent lines above are the absence of a call rather
+// than a callback with nothing to say.
+try {
+    echo Core\Arr::reduce($nums, fn(int $carry, int $v): int => Core\Math::intDiv(1, 0), 7), "\n";
+} catch (Throwable $e) {
+    echo "threw: ", $e->message, "\n";
+}
+
+// "Unchanged" is also a claim about the caller's value, not just the answer's
+// bytes: the seed is passed by value, so a fold whose carry is an array leaves
+// the variable that seeded it reading what it always read — ADR 0007 § 5's
+// copy-on-write semantics, asked of the one argument a fold holds on to.
+array<int> $grown = Core\Arr::reduce($nums, fn(array<int> $carry, int $v): array<int> => Core\Arr::append($carry, $v), $arraySeed);
+echo Core\Json::encode($grown), " ", Core\Json::encode($arraySeed), "\n";
+--EXPECT--
+95
+7
+seed
+[9]
+threw: Core\Math::intDiv was given a zero divisor
+[9,1,2,3,4] [9]

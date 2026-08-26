@@ -1,30 +1,41 @@
 --TEST--
-Core\Arr::reduce folds `($carry, $value, $key)` from a seed whose type is the answer's, and returns that seed untouched for an empty array (spec § 2 Iteration and aggregation)
+Core\Arr::reduce's answer is the seed's type rather than the element's, and the fold runs left to right over insertion order (spec § 2 Iteration and aggregation)
 --FILE--
 <?mwl
-// The carry comes first and § 2's `($value, $key)` follows it, so a callback
-// may still declare fewer parameters (R9) — `$count` below takes only the
-// carry.
+// This case is about the *carry*. The arity half of § 2's callback protocol —
+// that `reduce` prefixes `($value, $key)` with the accumulator and a callback
+// may still declare fewer parameters — is pinned for all fourteen members at
+// once in arr-every-callback-is-offered-value-and-key.mwlt, and the empty
+// subject's edge in arr-reduce-returns-an-untouched-seed-for-an-empty-subject.mwlt.
 array<int> $nums = [1, 2, 3, 4];
+array<string> $words = ["a" => "one", "b" => "three", "c" => "two"];
+
+// `U` is bound by `$initial`, not by `T`: the same subject folds to a different
+// type for each seed and the elements never get a say. Four folds, three answer
+// types — int, string, array — over two subjects, and the third of them reads
+// its answer out of a subject whose elements are strings.
 echo Core\Arr::reduce($nums, fn(int $carry, int $v): int => $carry + $v, 0), "\n";
-echo Core\Arr::reduce($nums, fn(int $carry): int => $carry + 1, 0), "\n";
+echo Core\Arr::reduce($nums, fn(string $carry, int $v): string => $carry . ($v as string) . ",", ""), "\n";
+echo Core\Arr::reduce($words, fn(int $carry, string $v): int => $carry + (Core\Str::length($v) as int), 0), "\n";
+array<int> $noInts = [];
+echo Core\Json::encode(
+    Core\Arr::reduce($nums, fn(array<int> $carry, int $v): array<int> => Core\Arr::prepend($carry, $v), $noInts)
+), "\n";
 
-// `U` is bound by `$initial`, not by the callback: the fold's type is the
-// seed's type, so a fold that builds a string starts from `""`.
-array<string> $words = ["a" => "one", "b" => "two"];
-string $joined = Core\Arr::reduce(
-    $words,
-    fn(string $carry, string $v, string $k): string => $carry . $k . ":" . $v . ";",
-    ""
-);
-echo $joined, "\n";
-
-// An empty array is the seed, unchanged and with no call made — the identity
-// every fold needs, which is why this member has no empty case to throw on.
-array<int> $none = [];
-echo Core\Arr::reduce($none, fn(int $carry, int $v): int => $carry + $v, 7), "\n";
+// The direction. Each of these three answers is the one a right fold could not
+// produce: `$carry * 10 + $v` reads 1234 rather than 4321, a callback that
+// discards its carry answers the *last* element rather than the first, and a
+// subject whose insertion order differs from its key order folds in the order
+// it was built rather than the order its keys sort in.
+echo Core\Arr::reduce($nums, fn(int $carry, int $v): int => $carry * 10 + $v, 0), "\n";
+echo Core\Arr::reduce($nums, fn(int $carry, int $v): int => $v, 99), "\n";
+array<int> $outOfOrder = ["c" => 1, "a" => 2, "b" => 3];
+echo Core\Arr::reduce($outOfOrder, fn(string $carry, int $v, string $k): string => $carry . $k, ""), "\n";
 --EXPECT--
 10
+1,2,3,4,
+11
+[4,3,2,1]
+1234
 4
-a:one;b:two;
-7
+cab
