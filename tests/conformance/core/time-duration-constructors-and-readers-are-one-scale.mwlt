@@ -1,0 +1,170 @@
+--TEST--
+Spec § 4: `Core\Time\Duration`'s eight constructors, its four readers and its `toString` are one nanosecond scale, and the sign is a rendering the grammar does not read (ADR 0070 §§ 1, 5)
+--FILE--
+<?mwl
+// A `Duration` is one `i64` count of nanoseconds and nothing else (ADR 0070
+// § 1), so every constructor, every `to…` reader and the rendering are the
+// same scale seen from a different unit. Each block below asserts that by
+// counting agreements over a whole table rather than reading one off a line:
+// a member that grew its own factor still prints plausibly row by row.
+
+// The counts every sweep is driven by. Both signs, zero, and both ends of
+// what `weeks` can hold — 15250 weeks is the last count that fits, so the
+// table is the widest one all eight constructors share.
+array<int> $counts = [0, 1, -1, 2, -2, 7, 60, -60, 1000, -1000, 15250, -15250];
+
+// ADR 0070 § 2: the suffix *is* the type, so the eight computed constructors
+// and the eight literal units are one table of lengths. `ctor($c)` is the
+// one-unit literal multiplied by the count, for every unit and every count.
+int $a = 0;
+int $scale = 0;
+for (; $a < 12; $a = $a + 1) {
+    var $c = $counts[$a as string];
+    if (Core\Time\Duration::nanoseconds($c)->compareTo((1ns)->multipliedBy($c)) == 0) { $scale = $scale + 1; }
+    if (Core\Time\Duration::microseconds($c)->compareTo((1us)->multipliedBy($c)) == 0) { $scale = $scale + 1; }
+    if (Core\Time\Duration::milliseconds($c)->compareTo((1ms)->multipliedBy($c)) == 0) { $scale = $scale + 1; }
+    if (Core\Time\Duration::seconds($c)->compareTo((1s)->multipliedBy($c)) == 0) { $scale = $scale + 1; }
+    if (Core\Time\Duration::minutes($c)->compareTo((1m)->multipliedBy($c)) == 0) { $scale = $scale + 1; }
+    if (Core\Time\Duration::hours($c)->compareTo((1h)->multipliedBy($c)) == 0) { $scale = $scale + 1; }
+    if (Core\Time\Duration::days($c)->compareTo((1d)->multipliedBy($c)) == 0) { $scale = $scale + 1; }
+    if (Core\Time\Duration::weeks($c)->compareTo((1w)->multipliedBy($c)) == 0) { $scale = $scale + 1; }
+}
+echo "one scale: ", $scale as string, "/96\n";
+
+// The readers are the constructors' inverse wherever the count is exact: a
+// value built in a unit reads back as itself in that unit, and a coarser one
+// reads as its own length in seconds. `days` and `weeks` are 24 and 168 hours
+// exactly, never a calendar step — that is why they live on this type at all.
+int $b = 0;
+int $exact = 0;
+for (; $b < 12; $b = $b + 1) {
+    var $e = $counts[$b as string];
+    if (Core\Time\Duration::nanoseconds($e)->toNanoseconds() == $e) { $exact = $exact + 1; }
+    if (Core\Time\Duration::microseconds($e)->toMicroseconds() == $e) { $exact = $exact + 1; }
+    if (Core\Time\Duration::milliseconds($e)->toMilliseconds() == $e) { $exact = $exact + 1; }
+    if (Core\Time\Duration::seconds($e)->toSeconds() == $e) { $exact = $exact + 1; }
+    if (Core\Time\Duration::minutes($e)->toSeconds() == $e * 60) { $exact = $exact + 1; }
+    if (Core\Time\Duration::hours($e)->toSeconds() == $e * 3600) { $exact = $exact + 1; }
+    if (Core\Time\Duration::days($e)->toSeconds() == $e * 86400) { $exact = $exact + 1; }
+    if (Core\Time\Duration::weeks($e)->toSeconds() == $e * 604800) { $exact = $exact + 1; }
+}
+echo "readers invert: ", $exact as string, "/96\n";
+
+// Where the count is *not* exact the readers truncate toward zero, which is
+// two properties of the remainder rather than a direction to remember: what
+// the reader dropped is strictly shorter than one of its own units, and it
+// never crosses zero — so a reader rounding away from zero on the negative
+// half fails the second even while passing the first.
+array<int> $ragged = [0, 1, -1, 999, -999, 1000, -1000, 1001, -1001, 1500000001, -1500000001, 1234567890123, -1234567890123];
+int $g = 0;
+int $inside = 0;
+int $sameSide = 0;
+for (; $g < 13; $g = $g + 1) {
+    var $r = $ragged[$g as string];
+    var $whole = Core\Time\Duration::nanoseconds($r);
+    var $restUs = $whole->minus(Core\Time\Duration::microseconds($whole->toMicroseconds()));
+    var $restMs = $whole->minus(Core\Time\Duration::milliseconds($whole->toMilliseconds()));
+    var $restS = $whole->minus(Core\Time\Duration::seconds($whole->toSeconds()));
+    if ($restUs->compareTo(1us) < 0) { if ($restUs->negated()->compareTo(1us) < 0) { $inside = $inside + 1; } }
+    if ($restMs->compareTo(1ms) < 0) { if ($restMs->negated()->compareTo(1ms) < 0) { $inside = $inside + 1; } }
+    if ($restS->compareTo(1s) < 0) { if ($restS->negated()->compareTo(1s) < 0) { $inside = $inside + 1; } }
+    if ($restUs->compareTo(0s) == 0) { $sameSide = $sameSide + 1; } else { if ($restUs->compareTo(0s) == $whole->compareTo(0s)) { $sameSide = $sameSide + 1; } }
+    if ($restMs->compareTo(0s) == 0) { $sameSide = $sameSide + 1; } else { if ($restMs->compareTo(0s) == $whole->compareTo(0s)) { $sameSide = $sameSide + 1; } }
+    if ($restS->compareTo(0s) == 0) { $sameSide = $sameSide + 1; } else { if ($restS->compareTo(0s) == $whole->compareTo(0s)) { $sameSide = $sameSide + 1; } }
+}
+echo "remainder shorter than its unit: ", $inside as string, "/39\n";
+echo "remainder never crosses zero: ", $sameSide as string, "/39\n";
+
+// `multipliedBy` is iterated `plus` in both directions — ADR 0070 § 4 makes a
+// backwards step `minus` or `negated`, so the negative factors are folded the
+// only way the type offers — and negation commutes with it.
+array<Core\Time\Duration> $bases = [1ns, 500ms, 1s, 90m, 3d, 1w];
+array<int> $factors = [-3, -1, 0, 1, 2, 5];
+int $p = 0;
+int $q = 0;
+int $t = 0;
+int $steps = 0;
+int $folds = 0;
+int $commutes = 0;
+for (; $p < 6; $p = $p + 1) {
+    var $base = $bases[$p as string];
+    $q = 0;
+    for (; $q < 6; $q = $q + 1) {
+        var $f = $factors[$q as string];
+        var $sum = 0s;
+        $steps = $f;
+        if ($steps < 0) { $steps = 0 - $steps; }
+        $t = 0;
+        for (; $t < $steps; $t = $t + 1) {
+            if ($f < 0) { $sum = $sum->minus($base); } else { $sum = $sum->plus($base); }
+        }
+        if ($sum->compareTo($base->multipliedBy($f)) == 0) { $folds = $folds + 1; }
+        if ($base->multipliedBy($f)->negated()->compareTo($base->negated()->multipliedBy($f)) == 0) { $commutes = $commutes + 1; }
+    }
+}
+echo "multiplication is iterated addition: ", $folds as string, "/36\n";
+echo "negation commutes with it: ", $commutes as string, "/36\n";
+
+// The three factors that are not a scaling at all: -1 is `negated`, 0 is the
+// zero duration whatever it started as, and 1 is the value itself.
+int $u = 0;
+int $identities = 0;
+for (; $u < 6; $u = $u + 1) {
+    var $one = $bases[$u as string];
+    if ($one->multipliedBy(-1)->compareTo($one->negated()) == 0) { $identities = $identities + 1; }
+    if ($one->negated()->negated()->compareTo($one) == 0) { $identities = $identities + 1; }
+    if ($one->multipliedBy(0)->compareTo(0s) == 0) { $identities = $identities + 1; }
+    if ($one->multipliedBy(1)->compareTo($one) == 0) { $identities = $identities + 1; }
+}
+echo "negation and the two unit factors: ", $identities as string, "/24\n";
+
+// ADR 0070 § 5: `parse` and `toString` are the same grammar, so a value's
+// magnitude always reads back. Its *sign* does not: `toString` writes a
+// leading `-` because showing a negative duration beats refusing to, and the
+// grammar has no spelling for one, so the negative half of this table renders
+// to text `parse` then declines. Both halves counted from the one loop.
+array<int> $written = [0, 1, -1, 1000, -1000, 90000000000, -90000000000, 604800000000000, -604800000000000, 788645006007008, -788645006007008];
+int $v = 0;
+int $back = 0;
+int $reads = 0;
+int $refused = 0;
+for (; $v < 11; $v = $v + 1) {
+    var $w = $written[$v as string];
+    var $value = Core\Time\Duration::nanoseconds($w);
+    var $mag = $value;
+    if ($value->compareTo(0s) < 0) { $mag = $value->negated(); }
+    if (Core\Time\Duration::parse($mag->toString())->compareTo($mag) == 0) { $back = $back + 1; }
+    try {
+        var $reread = Core\Time\Duration::parse($value->toString());
+        if ($reread->compareTo($value) == 0) { $reads = $reads + 1; }
+    } catch (Throwable $signed) {
+        $refused = $refused + 1;
+    }
+}
+echo "magnitude always reads back: ", $back as string, "/11\n";
+echo "rendered as written: ", $reads as string, "|refused for its sign: ", $refused as string, "\n";
+
+// The range is `i64` nanoseconds, so it is asymmetric by exactly one: the
+// least duration there is has no negation, and one nanosecond above it has
+// the greatest. Both sides of that bound, and the only way `negated` fails.
+var $least = Core\Time\Duration::nanoseconds(-9223372036854775807)->minus(1ns);
+echo $least->toString(), "\n";
+echo $least->plus(1ns)->negated()->toString(), "\n";
+try {
+    echo $least->negated()->toString(), "\n";
+} catch (Throwable $noNegation) {
+    echo $noNegation->message, "\n";
+}
+--EXPECT--
+one scale: 96/96
+readers invert: 96/96
+remainder shorter than its unit: 39/39
+remainder never crosses zero: 39/39
+multiplication is iterated addition: 36/36
+negation commutes with it: 36/36
+negation and the two unit factors: 24/24
+magnitude always reads back: 11/11
+rendered as written: 6|refused for its sign: 5
+-15250w1d23h47m16s854ms775us808ns
+15250w1d23h47m16s854ms775us807ns
+Core\Time\Duration::negated(): this duration is longer than `Core\Time\Duration` can hold
