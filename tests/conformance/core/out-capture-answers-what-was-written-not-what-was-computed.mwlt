@@ -1,0 +1,84 @@
+--TEST--
+`Core\Out::capture` discards its closure's result, answers a value that outlives the next capture, closes its level on a caught throw, and runs `{through:}` after the level is already closed — spec § 12, ADR 0088 § 5
+--FILE--
+<?mwl
+// `crates/mwl-stdlib/src/out.rs`'s module doc owns the three properties this
+// case takes to depth; the neighbouring
+// `out-capture-answers-the-sinks-carrier.mwlt` pins the roster itself. What is
+// here is the behaviour at each edge of the one member: what is answered, how
+// long it lives, what happens on a throw, and when the transform runs.
+
+// The member answers what was *written*, not what was computed: the closure's
+// own return value is released and never reaches the caller. A `callable` is
+// opaque as to signature (ADR 0031), so a body that returns a `string` is an
+// ordinary argument here rather than a type error.
+echo "[", Core\Out::capture(fn (): string => { echo "written"; return "computed"; }), "]\n";
+
+// The captured carrier is a value like any other: it is echoed twice, and the
+// second capture does not disturb the first. Nothing about the capture stack
+// leaks into what a closed capture answers.
+var $first = Core\Out::capture(fn (): void => { echo "one"; });
+var $second = Core\Out::capture(fn (): void => { echo "two"; });
+echo "[", $first, $second, $first, "]\n";
+
+// Nesting is call nesting three deep, and two captures that are siblings at
+// the same level each take only their own writes — the second opens after the
+// first has closed, so `d` is not part of `b<c>`.
+echo "[", Core\Out::capture(fn (): void => {
+    echo "a<";
+    echo Core\Out::capture(fn (): void => {
+        echo "b<";
+        echo Core\Out::capture(fn (): void => { echo "c"; });
+        echo ">";
+    });
+    echo "|";
+    echo Core\Out::capture(fn (): void => { echo "d"; });
+    echo ">";
+}), "]\n";
+
+// The level is closed on the throwing edge as well as the ordinary one, and
+// this is where that matters: the throw is caught *inside* an enclosing
+// capture, so if the inner level had stayed open the `after` below would have
+// gone into an orphaned buffer instead of the outer one. What the inner
+// capture had collected is dropped with it — a throw answers no carrier.
+echo "[", Core\Out::capture(fn (): void => {
+    echo "before|";
+    try {
+        echo Core\Out::capture(fn (): void => { echo "lost"; var $n = "abc" as int; echo $n; });
+    } catch (Throwable $e) {
+        echo "caught|";
+    }
+    echo "after";
+}), "]\n";
+
+// `{through:}` transforms the captured carrier, and it runs *after* the level
+// has closed — so its own `echo` reaches the enclosing sink immediately, which
+// is why `<in-through>` is written before the `body` this statement echoes on
+// its way out. A transform is a transform, not an extra level of capture.
+echo "[", Core\Out::capture(
+    fn (): void => { echo "body"; },
+    {through: fn (Core\Cli\Text $t): Core\Cli\Text => { echo "<in-through>"; return $t; }}
+), "]\n";
+
+// ADR 0088 § 5 is why the carrier is not a `string`, so a `through` that hands
+// back plain text is refused rather than quietly re-entering the sink. The
+// message names the class the transform owed; the tag it answered with is left
+// to the implementation.
+try {
+    echo Core\Out::capture(
+        fn (): void => { echo "x"; },
+        {through: fn (Core\Cli\Text $t): string => "plain"}
+    );
+} catch (Throwable $e) {
+    echo (Core\Str::startsWith(
+        $e->message,
+        "`Core\\Out::capture`'s `through` must answer a `Core\\Cli\\Text`"
+    ) ? "refused" : $e->message), "\n";
+}
+--EXPECT--
+[written]
+[onetwoone]
+[a<b<c>|d>]
+[before|caught|after]
+[<in-through>body]
+refused
