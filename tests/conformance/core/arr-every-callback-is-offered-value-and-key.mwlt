@@ -1,0 +1,150 @@
+--TEST--
+Every Core\Arr callback is offered ($value, $key) and trimmed to what it declared, so the two spellings of one function agree — spec § 2
+--FILE--
+<?mwl
+// The depth claim is *agreement*, not another row of answers. Spec § 2 gives
+// this class one callback protocol — every callback receives `($value, $key)`
+// and may declare fewer parameters, which is what removes PHP's
+// `ARRAY_FILTER_USE_KEY`/`ARRAY_FILTER_USE_BOTH` pair — and
+// `mwl_runtime::call_closure` trims the tail to the arity the closure wrote.
+// Four members read `mwl_runtime::closure_arity` themselves and skip building
+// a key nobody declared (`crates/mwl-stdlib/src/arr.rs`'s module doc, and
+// `docs/perf/userland-gap.md` § D); the rest always offer both. That split is
+// exactly where one member could drift from the protocol while still
+// answering plausibly on its own line, so what is asserted below is that the
+// one-parameter and the two-parameter spelling of one function are the same
+// question, for every member that takes a callback at all.
+
+// Keys that are not in sorted order, so a member reporting the *subject's*
+// order and one reporting its own answer's cannot be confused.
+array<int> $subject = ["b" => 20, "d" => 40, "a" => 10, "c" => 30];
+array<int> $partner = ["p" => 10, "q" => 60];
+array<int> $twin = ["a" => 0, "b" => 0, "c" => 0, "d" => 0];
+
+// Each row is one member asked its own question twice: the left cell's closure
+// declares `($value)`, the right cell's declares `($value, $key)` and ignores
+// the key. `Core\Json::encode` renders whatever shape the member answers, so
+// two answers of any shape compare as one string.
+array<array<string>> $asked = [
+    // filter — a predicate, and the member the flags came from
+    [Core\Json::encode(Core\Arr::filter($subject, fn(int $v) => $v > 20)),
+     Core\Json::encode(Core\Arr::filter($subject, fn(int $v, string $k) => $v > 20))],
+    // map — the answer is the callback's, one per entry
+    [Core\Json::encode(Core\Arr::map($subject, fn(int $v) => $v + 1)),
+     Core\Json::encode(Core\Arr::map($subject, fn(int $v, string $k) => $v + 1))],
+    // mapKeys — the callback's answer becomes the key
+    [Core\Json::encode(Core\Arr::mapKeys($subject, fn(int $v) => $v as string)),
+     Core\Json::encode(Core\Arr::mapKeys($subject, fn(int $v, string $k) => $v as string))],
+    // groupBy — the callback names a bucket
+    [Core\Json::encode(Core\Arr::groupBy($subject, fn(int $v) => $v % 30)),
+     Core\Json::encode(Core\Arr::groupBy($subject, fn(int $v, string $k) => $v % 30))],
+    // countBy — the same naming, counted rather than collected
+    [Core\Json::encode(Core\Arr::countBy($subject, {by: fn(int $v) => $v % 30})),
+     Core\Json::encode(Core\Arr::countBy($subject, {by: fn(int $v, string $k) => $v % 30}))],
+    // reduce — the key sits one position later, so its two spellings are
+    // `($carry, $value)` and `($carry, $value, $key)`
+    [Core\Json::encode(Core\Arr::reduce($subject, fn(int $c, int $v) => $c + $v, 0)),
+     Core\Json::encode(Core\Arr::reduce($subject, fn(int $c, int $v, string $k) => $c + $v, 0))],
+    // find, findKey, any, all — one predicate, four questions about it
+    [Core\Json::encode(Core\Arr::find($subject, fn(int $v) => $v > 20)),
+     Core\Json::encode(Core\Arr::find($subject, fn(int $v, string $k) => $v > 20))],
+    [Core\Json::encode(Core\Arr::findKey($subject, fn(int $v) => $v > 20)),
+     Core\Json::encode(Core\Arr::findKey($subject, fn(int $v, string $k) => $v > 20))],
+    [Core\Json::encode(Core\Arr::any($subject, fn(int $v) => $v > 20)),
+     Core\Json::encode(Core\Arr::any($subject, fn(int $v, string $k) => $v > 20))],
+    [Core\Json::encode(Core\Arr::all($subject, fn(int $v) => $v > 20)),
+     Core\Json::encode(Core\Arr::all($subject, fn(int $v, string $k) => $v > 20))],
+    // unique {by} — the extraction identity is asked about
+    [Core\Json::encode(Core\Arr::unique($subject, {by: fn(int $v) => $v % 30})),
+     Core\Json::encode(Core\Arr::unique($subject, {by: fn(int $v, string $k) => $v % 30}))],
+    // sort {by} — the one member that may observe no key at all
+    [Core\Json::encode(Core\Arr::sort($subject, {by: fn(int $v) => 0 - $v})),
+     Core\Json::encode(Core\Arr::sort($subject, {by: fn(int $v, string $k) => 0 - $v}))],
+    // diff {by} and intersect {by} — the same extraction, on both sides
+    [Core\Json::encode(Core\Arr::diff($subject, $partner, {by: fn(int $v) => $v % 30})),
+     Core\Json::encode(Core\Arr::diff($subject, $partner, {by: fn(int $v, string $k) => $v % 30}))],
+    [Core\Json::encode(Core\Arr::intersect($subject, $partner, {by: fn(int $v) => $v % 30})),
+     Core\Json::encode(Core\Arr::intersect($subject, $partner, {by: fn(int $v, string $k) => $v % 30}))],
+];
+
+var $verdicts = "";
+var $agreed = 0;
+foreach ($asked as array<string> $row) {
+    if ($row["0"] == $row["1"]) {
+        $verdicts = $verdicts . "y";
+        $agreed = $agreed + 1;
+    } else {
+        $verdicts = $verdicts . ".";
+    }
+}
+echo $verdicts, "\n";
+// Counted rather than read off a line: a `.` anywhere is a member whose answer
+// depends on how its callback was spelled, and the tally is what says every
+// member was actually asked.
+echo $agreed, " of ", Core\Arr::count($asked), "\n";
+
+// The other half of the protocol: the key offered is the entry's *own* key, in
+// the subject's own order — not a position, and not the order the member's own
+// answer ends up in. Each entry below is one member's report of the keys it
+// offered, recovered from whatever that member does with what the callback
+// returns, so they are one list because it is one protocol.
+array<string> $seen = [
+    Core\Str::join(Core\Arr::keys(Core\Arr::filter($subject,
+        fn(int $v, string $k) => $k == "b" || $k == "d" || $k == "a" || $k == "c")), ","),
+    Core\Str::join(Core\Arr::values(Core\Arr::map($subject, fn(int $v, string $k) => $k)), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::mapKeys($subject, fn(int $v, string $k) => $k)), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::groupBy($subject, fn(int $v, string $k) => $k)), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::countBy($subject, {by: fn(int $v, string $k) => $k})), ","),
+    // The fold has no answer of its own to read the keys back out of, so it
+    // builds one: a leading separator, dropped by the slice.
+    Core\Str::slice(Core\Arr::reduce($subject,
+        fn(string $c, int $v, string $k) => $c . "," . $k, ""), 1),
+    Core\Str::join(Core\Arr::keys(Core\Arr::unique($subject, {by: fn(int $v, string $k) => $k})), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::diff($subject, $partner, {by: fn(int $v, string $k) => $k})), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::intersect($subject, $twin, {by: fn(int $v, string $k) => $k})), ","),
+];
+
+var $same = 0;
+foreach ($seen as string $report) {
+    if ($report == $seen["0"]) {
+        $same = $same + 1;
+    }
+}
+echo $seen["0"], "\n";
+echo $same, " of ", Core\Arr::count($seen), "\n";
+
+// `sort` is the one member above whose answer reorders, so its report of the
+// keys it saw is its answer's order rather than the subject's — sorting *by*
+// the key is what makes it the sorted list.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::sort($subject,
+    {by: fn(int $v, string $k) => $k, preserveKeys: true})), ","), "\n";
+
+// The four members that answer about one entry rather than a list, asked for
+// the entry whose key is "c" — a question only the second parameter can answer.
+echo Core\Arr::find($subject, fn(int $v, string $k) => $k == "c") ?? -1, "|",
+     Core\Arr::findKey($subject, fn(int $v, string $k) => $k == "c") ?? "none", "|",
+     Core\Arr::any($subject, fn(int $v, string $k) => $k == "c") as string, "|",
+     Core\Arr::all($subject, fn(int $v, string $k) => $k == "c") as string, "\n";
+
+// A `comparator` is the one callback in this class that is *not* `($value,
+// $key)`: it receives the two values being compared, which under `{by}` are
+// what `by` extracted rather than the entries themselves. One ascending
+// comparator therefore answers descending entries where a `by` negated them,
+// and ascending entries where there is nothing to extract.
+echo Core\Json::encode(Core\Arr::sort($subject,
+    {by: fn(int $v) => 0 - $v, comparator: fn(int $x, int $y) => $x - $y})), "\n";
+echo Core\Json::encode(Core\Arr::sort($subject,
+    {comparator: fn(int $x, int $y) => $x - $y})), "\n";
+// `sortByKey`'s comparator is handed two keys, by the same rule.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::sortByKey($subject,
+    {comparator: fn(string $x, string $y) => Core\Str::compare($y, $x)})), ","), "\n";
+--EXPECT--
+yyyyyyyyyyyyyy
+14 of 14
+b,d,a,c
+9 of 9
+a,b,c,d
+30|c|1|
+[40,30,20,10]
+[10,20,30,40]
+d,c,b,a
