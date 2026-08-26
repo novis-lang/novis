@@ -699,12 +699,71 @@ def crate_modules():
     return groups
 
 
+def editor_modules():
+    """Every `editors/*/src/**/*.{ts,tsx}`, grouped by package, as (relative path, summary).
+
+    The same shape `crate_modules` returns, so every consumer -- this file's map and `orient.py`'s
+    scoped one -- treats an editor package exactly like a crate. It exists because from M4B a
+    session's file set is not always Rust: `editors/vscode` is TypeScript, and a session working
+    there would otherwise orient on nothing at all.
+
+    The key is the package's ROOT-relative path (`editors/vscode`) rather than a bare name, so the
+    map's group heading is already the thing a `[context] modules` glob is written against.
+    """
+    base = ROOT / "editors"
+    if not base.is_dir():
+        return {}
+    groups = {}
+    for pkg in sorted(p for p in base.iterdir() if (p / "src").is_dir()):
+        entries = []
+        for src in sorted((pkg / "src").rglob("*.ts")) + sorted((pkg / "src").rglob("*.tsx")):
+            if "node_modules" in src.parts:
+                continue
+            text = read(src)
+            if text is None:
+                continue
+            within = src.relative_to(pkg).as_posix()
+            # `extension.ts` is the activation entry point and sorts first, the way `lib.rs` does.
+            entries.append((within != "src/extension.ts", within, first_sentence(header_doc(text))))
+        if entries:
+            groups[pkg.relative_to(ROOT).as_posix()] = [(w, s) for _, w, s in sorted(entries)]
+    return groups
+
+
+def header_doc(text):
+    """The first paragraph of a TypeScript file's own leading comment, or "" if it has none.
+
+    `//!` has no TypeScript equivalent, so the convention is the same one every other TS project
+    uses: a `/** ... */` or `//` block at the top of the file, before any import. Anything else at
+    the top means this file has no header doc, which the map says out loud rather than guessing.
+    """
+    para = []
+    for raw in text.split("\n"):
+        line = raw.strip()
+        if line.startswith("/**") or line.startswith("/*"):
+            line = line.lstrip("/*").strip()
+        elif line.startswith("*/"):
+            break
+        elif line.startswith("*"):
+            line = line[1:].strip()
+        elif line.startswith("//"):
+            line = line[2:].strip()
+        elif para or line:
+            break  # real code, or a blank line after the paragraph
+        if not line:
+            if para:
+                break
+            continue
+        para.append(line)
+    return " ".join(para)
+
+
 def run_map():
     section(
         "THE MAP -- ONE LINE PER MODULE",
         "each module's own `//!` first sentence, sliced live",
     )
-    groups = crate_modules()
+    groups = {**crate_modules(), **editor_modules()}
     if not groups:
         warn(f"no `crates/*/src/**/*.rs` under {rel(CRATES)} -- that directory is the source")
         return

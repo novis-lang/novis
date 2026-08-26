@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """AGENTS.md § *Session workflow* step 3, as one command.
 
-`cargo build`, `cargo fmt --check`, `cargo test` and `cargo clippy --all-targets -- -D warnings`
-in that order, stopping at the first failure. Green prints one line per step; a failure prints
-that step's output and nothing else.
+`cargo build`, `cargo fmt --check`, `cargo test`, `cargo clippy --all-targets -- -D warnings`
+and -- once `editors/vscode` exists -- that extension's headless suites, in that order, stopping at
+the first failure. Green prints one line per step; a failure prints that step's output and nothing
+else.
 
-The point is turn count, not typing. Run separately, those four are four tool calls whose
+The point is turn count, not typing. Run separately, those are as many tool calls whose
 combined output runs to tens of thousands of tokens a session never reads once it is green --
 and a session's wall clock is very nearly its number of turns times a constant. Run here, a
 green verification is one call and about ten lines.
 
-    python tools/verify.py                  # the four steps
+    python tools/verify.py                  # every step
     python tools/verify.py -p mwl-ir        # scope build/test/clippy to one package
     python tools/verify.py --fast           # build and test only, for a mid-work check
     python tools/verify.py --full           # do not truncate the failing step's output
@@ -38,8 +39,8 @@ sessions ran this script more than once -- 2.4 times on average -- and most of t
 came after step 4 edited only documentation. Prose cannot break a build, so those runs paid
 about forty seconds to re-derive a verdict they already held.
 
-So the verdict is cached against a content hash of everything `cargo` reads: every file under
-`crates/`, `benches/`, `tests/` and `examples/`, the workspace manifests, `rustfmt.toml`,
+So the verdict is cached against a content hash of every input the steps read: every file under
+`crates/`, `benches/`, `tests/`, `examples/` and `editors/`, the workspace manifests, `rustfmt.toml`,
 `rust-toolchain.toml` and the exact `rustc -vV`. A repeat run whose hash matches prints the
 cached verdict and exits, in about a fifth of a second. This is **not** a check being skipped:
 the inputs are bit-identical, so re-running the same compiler over them cannot reach a
@@ -73,8 +74,13 @@ CACHE_TTL = 3600  # seconds. A tree hash cannot go stale on its own; this is a b
 
 # Everything cargo reads, relative to ROOT. Directories are walked in full -- a `.mwlt`
 # fixture, an insta `.snap` and a `Cargo.toml` all change what the steps will answer.
-INPUT_DIRS = ("crates", "benches", "tests", "examples")
+INPUT_DIRS = ("crates", "benches", "tests", "examples", "editors")
 INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml")
+# Directories under an INPUT_DIR that are output or a package cache, never an input. `target` is
+# cargo's; the other three belong to `editors/vscode` and between them hold tens of thousands of
+# files, which would make the green cache's own hash the slowest thing in this script.
+NOT_INPUTS = {"target", "node_modules", "out", ".vscode-test"}
+EXTENSION = ROOT / "editors" / "vscode"
 
 # `cargo test` prints one of these per test binary.
 RESULT_RE = re.compile(r"test result: \w+\. (\d+) passed; (\d+) failed")
@@ -83,25 +89,34 @@ WARN_RE = re.compile(r"^(warning|error)(\[[^\]]+\])?: (.*)$", re.MULTILINE)
 
 
 class Step:
-    def __init__(self, name, args, summarize):
+    """One command, its exit status, and a one-line summary of what it said.
+
+    `exe`/`cwd` exist because from M4B the workspace is no longer only Rust: `editors/vscode` is a
+    TypeScript package whose suites are `npm` scripts, and an `npm` script only finds its
+    `package.json` from the directory holding it. Everything else here is `cargo` in the repo root
+    and says so by omission."""
+
+    def __init__(self, name, args, summarize, exe="cargo", cwd=None):
         self.name = name
         self.args = args
         self.summarize = summarize
+        self.exe = exe
+        self.cwd = cwd or ROOT
         self.seconds = 0.0
         self.code = None
         self.out = ""
 
     @property
     def cmd(self):
-        return "cargo " + " ".join(self.args)
+        return f"{self.exe} " + " ".join(self.args)
 
 
 def run(step):
     started = time.monotonic()
     try:
         p = subprocess.run(
-            ["cargo", *step.args],
-            cwd=ROOT,
+            [step.exe, *step.args],
+            cwd=step.cwd,
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -141,6 +156,11 @@ def summarize_fmt(out):
     return "clean"
 
 
+def summarize_extension(out):
+    m = re.search(r"(\d+)\s+passing", out)
+    return f"{m.group(1)} passing" if m else "ran, but printed no `N passing` line -- check the log"
+
+
 def steps_for(opts):
     scope = ["-p", opts.package] if opts.package else []
     steps = [Step("build", ["build", *scope], summarize_build)]
@@ -154,6 +174,20 @@ def steps_for(opts):
             Step("clippy", ["clippy", "--all-targets", *scope, "--", "-D", "warnings"],
                  summarize_clippy)
         )
+        # The VS Code extension's headless suites -- the TextMate grammar snapshots, the
+        # contributions/dependency-allowlist test and the LSP protocol round-trip. No editor, no
+        # display, no network. It runs LAST because it is the only step that is not `cargo`: a
+        # Rust failure should be reported by the Rust steps, not discovered here.
+        #
+        # Present-and-absent are both real states rather than one being an error. Before M4B the
+        # directory does not exist, and `docs/adr/0016-ide-integration.md` § 5 is explicit that
+        # nothing sits scaffolded ahead of its milestone. Once it does exist, a missing `node` is a
+        # machine that is not set up (docs/setup.md) and this says so rather than passing quietly.
+        if not opts.package and (EXTENSION / "package.json").is_file():
+            steps.append(
+                Step("extension", ["run", "--silent", "test:headless"], summarize_extension,
+                     exe="npm.cmd" if os.name == "nt" else "npm", cwd=EXTENSION)
+            )
     return steps
 
 
@@ -166,7 +200,7 @@ def rustc_version():
 
 
 def input_paths():
-    """Every file the four steps read, sorted, as ROOT-relative posix strings."""
+    """Every file the steps read, sorted, as ROOT-relative posix strings."""
     seen = []
     for name in INPUT_FILES:
         if (ROOT / name).is_file():
@@ -176,8 +210,7 @@ def input_paths():
         if not base.is_dir():
             continue
         for dirpath, dirnames, filenames in os.walk(base):
-            # A nested `target/` is cargo's own output, never an input.
-            dirnames[:] = [d for d in dirnames if d != "target"]
+            dirnames[:] = [d for d in dirnames if d not in NOT_INPUTS]
             rel = Path(dirpath).relative_to(ROOT)
             seen.extend((rel / f).as_posix() for f in filenames)
     seen.sort()

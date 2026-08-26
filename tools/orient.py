@@ -481,9 +481,14 @@ def run_map(m: Manifest) -> None:
         "THE MAP, SCOPED",
         f"each module's own `//!` first sentence, filtered to [context] modules ({len(m.modules)} pattern(s))",
     )
-    groups = brief.crate_modules()
+    # A crate is keyed by its bare name and lives under `crates/`; an editor package is already
+    # keyed by its ROOT-relative path. One dict of `(group -> prefix)` keeps the loop below from
+    # caring which it is looking at, which is the whole point: from M4B a goal's file set can be
+    # TypeScript, and a session working there must orient the same way.
+    groups = {**brief.crate_modules(), **brief.editor_modules()}
+    prefix = {g: (g if "/" in g else f"crates/{g}") for g in groups}
     if not groups:
-        warn("no `crates/*/src/**/*.rs` found -- that directory is the source")
+        warn("no `crates/*/src/**/*.rs` or `editors/*/src/**/*.ts` found -- those are the source")
         return
     if not m.modules:
         warn("[context] modules is empty, so the map is not printed at all. A goal that touches "
@@ -495,10 +500,10 @@ def run_map(m: Manifest) -> None:
         keep = []
         for within, summary in entries:
             total += 1
-            full = f"crates/{crate}/{within}"
+            full = f"{prefix[crate]}/{within}"
             for pat in m.modules:
                 if fnmatch.fnmatch(full, pat) or fnmatch.fnmatch(full, pat.rstrip("/") + "/**"):
-                    keep.append((within, summary or "(no `//!` doc comment)"))
+                    keep.append((within, summary or "(no header doc comment)"))
                     unmatched.discard(pat)
                     break
         if not keep:
@@ -727,7 +732,7 @@ def main() -> int:
         return 2
     m = Manifest(tomllib.loads(read(GOAL_TOML)))
     if opts.full:
-        m.modules = ["crates/**"]
+        m.modules = ["crates/**", "editors/**"]
 
     emit("MWL -- oriented to the current goal. This is deliberately narrow: it prints what this")
     emit("goal's [context] manifest names and nothing else. `python tools/brief.py` is the wide one.")
