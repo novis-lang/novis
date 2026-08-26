@@ -1,0 +1,198 @@
+--TEST--
+Spec § 4: `Core\Time\Date`'s six members agree over one table of dates — `at` and `format` are inverses, a step undoes itself except where a month clamps, `with` is the identity on the parts `format` just read, and `compareTo` is the table's own order
+--FILE--
+<?mwl
+// § 4: one table, in calendar order, carrying every civil boundary a date
+// member can be wrong about — the two century rules (1900 is not a leap year,
+// 2000 and 2400 are), a month end that a step has to clamp, and a year on
+// either side of the epoch. Every claim below is asserted by *counting*
+// agreements over this table rather than by reading one row off a line, so a
+// member that answers plausibly row by row still fails here.
+array<Core\Time\Date> $dates = [
+    Core\Time\Date::at(1899, 12, 31),
+    Core\Time\Date::at(1900, 2, 28),
+    Core\Time\Date::at(1970, 1, 1),
+    Core\Time\Date::at(2000, 2, 29),
+    Core\Time\Date::at(2023, 2, 28),
+    Core\Time\Date::at(2024, 1, 31),
+    Core\Time\Date::at(2024, 2, 29),
+    Core\Time\Date::at(2024, 12, 31),
+    Core\Time\Date::at(2025, 3, 15),
+    Core\Time\Date::at(2400, 2, 29),
+];
+array<string> $iso = [
+    "1899-12-31",
+    "1900-02-28",
+    "1970-01-01",
+    "2000-02-29",
+    "2023-02-28",
+    "2024-01-31",
+    "2024-02-29",
+    "2024-12-31",
+    "2025-03-15",
+    "2400-02-29",
+];
+
+// `at` and `format` are inverses in both directions: what `at` was handed is
+// what `format` renders, and the parts `format` renders are what `at` rebuilds
+// the same date from. A member that dropped or reordered a field would still
+// satisfy one of these halves alone.
+int $i = 0;
+int $renders = 0;
+int $rebuilds = 0;
+for (; $i < 10; $i = $i + 1) {
+    var $row = $dates[$i as string];
+    if ($row->format("yyyy-MM-dd") == $iso[$i as string]) {
+        $renders = $renders + 1;
+    }
+    var $again = Core\Time\Date::at(
+        $row->format("yyyy") as int,
+        $row->format("MM") as uint,
+        $row->format("dd") as uint,
+    );
+    if ($again->compareTo($row) == 0) {
+        $rebuilds = $rebuilds + 1;
+    }
+}
+echo "renders=", $renders as string, " rebuilds=", $rebuilds as string, "|\n";
+
+// § 4's *absolute* half of the calendar step: a day and a week are fixed
+// lengths on a zone-free date, so `plus` and `minus` in either of them undo
+// each other on every row with nothing to clamp.
+int $j = 0;
+int $byDay = 0;
+int $byWeek = 0;
+for (; $j < 10; $j = $j + 1) {
+    var $start = $dates[$j as string];
+    if ($start->plus(1, Core\Unit::Day)->minus(1, Core\Unit::Day)->compareTo($start) == 0) {
+        $byDay = $byDay + 1;
+    }
+    if ($start->plus(3, Core\Unit::Week)->minus(3, Core\Unit::Week)->compareTo($start) == 0) {
+        $byWeek = $byWeek + 1;
+    }
+}
+echo "day=", $byDay as string, " week=", $byWeek as string, "|\n";
+
+// § 4's *calendar* half, where a step can land in a shorter month and clamp.
+// The claim is not that the round trip holds — it does not — but that clamping
+// is the **only** reason it fails: the trip returns exactly when the outward
+// step kept the day of the month it started on. Asserted for `Month`,
+// `Quarter` and `Year` over every row, so a member that clamped for some other
+// reason disagrees with its own rendering here.
+int $k = 0;
+int $clamped = 0;
+for (; $k < 10; $k = $k + 1) {
+    var $from = $dates[$k as string];
+    var $onward = $from->plus(1, Core\Unit::Month);
+    if (($onward->minus(1, Core\Unit::Month)->compareTo($from) == 0)
+        == ($onward->format("dd") == $from->format("dd"))) {
+        $clamped = $clamped + 1;
+    }
+    var $quarter = $from->plus(1, Core\Unit::Quarter);
+    if (($quarter->minus(1, Core\Unit::Quarter)->compareTo($from) == 0)
+        == ($quarter->format("dd") == $from->format("dd"))) {
+        $clamped = $clamped + 1;
+    }
+    var $annual = $from->plus(1, Core\Unit::Year);
+    if (($annual->minus(1, Core\Unit::Year)->compareTo($from) == 0)
+        == ($annual->format("dd") == $from->format("dd"))) {
+        $clamped = $clamped + 1;
+    }
+}
+echo "clamp-agrees=", $clamped as string, "|\n";
+
+// `with` leaves every field it is not handed, so handing it the parts `format`
+// has just read is the identity — for no field, for each field on its own, and
+// for all three at once. Five spellings per row, and they must all agree.
+int $w = 0;
+int $same = 0;
+for (; $w < 10; $w = $w + 1) {
+    var $value = $dates[$w as string];
+    int $year = $value->format("yyyy") as int;
+    var $month = $value->format("MM") as uint;
+    var $day = $value->format("dd") as uint;
+    if ($value->with({})->compareTo($value) == 0) {
+        $same = $same + 1;
+    }
+    if ($value->with({year: $year})->compareTo($value) == 0) {
+        $same = $same + 1;
+    }
+    if ($value->with({month: $month})->compareTo($value) == 0) {
+        $same = $same + 1;
+    }
+    if ($value->with({day: $day})->compareTo($value) == 0) {
+        $same = $same + 1;
+    }
+    if ($value->with({year: $year, month: $month, day: $day})->compareTo($value) == 0) {
+        $same = $same + 1;
+    }
+}
+echo "with-identity=", $same as string, "|\n";
+
+// `compareTo` is the one order a civil date has, and the table above is
+// written in it — so over all 100 ordered pairs the sign of `compareTo` is the
+// sign of the table's own index difference, and swapping the operands negates
+// it. Both counts, because a member answering a constant satisfies neither and
+// one answering only `0` satisfies antisymmetry alone.
+int $p = 0;
+int $ordered = 0;
+int $antisym = 0;
+for (; $p < 10; $p = $p + 1) {
+    int $q = 0;
+    for (; $q < 10; $q = $q + 1) {
+        var $left = $dates[$p as string];
+        var $right = $dates[$q as string];
+        int $want = 0;
+        if ($p < $q) {
+            $want = -1;
+        }
+        if ($p > $q) {
+            $want = 1;
+        }
+        if ($left->compareTo($right) == $want) {
+            $ordered = $ordered + 1;
+        }
+        if ($left->compareTo($right) + $right->compareTo($left) == 0) {
+            $antisym = $antisym + 1;
+        }
+    }
+}
+echo "ordered=", $ordered as string, " antisym=", $antisym as string, "|\n";
+
+// The step and the order agree with each other too: a day later is later, on
+// every row, including the three that end a month and the two that end a year.
+int $n = 0;
+int $forward = 0;
+for (; $n < 10; $n = $n + 1) {
+    var $today = $dates[$n as string];
+    if ($today->compareTo($today->plus(1, Core\Unit::Day)) == -1) {
+        $forward = $forward + 1;
+    }
+}
+echo "a-day-later=", $forward as string, "|\n";
+
+// The clamp named on both sides, in one step, so what the sweep counts is
+// visible as dates: in 2024 the 29th is the last day of January whose `+1
+// Month` survives the return trip, and the 30th is the first that does not —
+// both land on 29 February, and only one of them started there.
+echo Core\Time\Date::at(2024, 1, 29)->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), " ",
+    Core\Time\Date::at(2024, 1, 29)->plus(1, Core\Unit::Month)->minus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "|\n";
+echo Core\Time\Date::at(2024, 1, 30)->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), " ",
+    Core\Time\Date::at(2024, 1, 30)->plus(1, Core\Unit::Month)->minus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "|\n";
+
+// And the century rule the table is chosen around, read through the one member
+// that cannot be told a leap year: the day after 28 February is 1 March in
+// 1900, 29 February in 2000 and 29 February in 2400.
+echo Core\Time\Date::at(1900, 2, 28)->plus(1, Core\Unit::Day)->format("yyyy-MM-dd"), " ",
+    Core\Time\Date::at(2000, 2, 28)->plus(1, Core\Unit::Day)->format("yyyy-MM-dd"), " ",
+    Core\Time\Date::at(2400, 2, 28)->plus(1, Core\Unit::Day)->format("yyyy-MM-dd"), "|\n";
+--EXPECT--
+renders=10 rebuilds=10|
+day=10 week=10|
+clamp-agrees=30|
+with-identity=50|
+ordered=100 antisym=100|
+a-day-later=10|
+2024-02-29 2024-01-29|
+2024-02-29 2024-01-29|
+1900-03-01 2000-02-29 2400-02-29|
