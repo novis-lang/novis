@@ -1,0 +1,62 @@
+--TEST--
+Spec § 4: `Core\Time\Duration::parse` is ADR 0070 § 5's second entry point into the literal's own grammar, so every refusal is a `ParseError` naming the rule it broke
+--FILE--
+<?mwl
+// A duration literal's refusals are compile errors, so the only place a
+// program can watch the grammar say no is `parse` -- ADR 0070 § 5's second
+// entry point into the one parser, printing the same sentence the lexer does.
+// Every row below is a rule from § 1, in the order that section states them.
+array<string> $refused = [
+    "",                      // the grammar has no empty spelling
+    "ms",                    // a unit with nothing in front of it
+    "1h30",                  // a count that runs out before its unit
+    "30x",                   // a spelling the eight units do not have
+    "30S",                   // the right unit in the wrong case (ADR 0062 § 2)
+    "1H30M",                 // named by the first mis-cased unit, not the last
+    "30m1h",                 // units strictly descend
+    "1h1h",                  // and may not repeat, which is the same rule
+    "-7d",                   // no sign anywhere: a backwards step is `negated`
+    "1.5s",                  // no fraction: the finer unit is the spelling
+    "30 seconds",            // and no separator, so the space stops it
+];
+foreach ($refused as string $text) {
+    try {
+        echo Core\Time\Duration::parse($text)->toString(), "|\n";
+    } catch (ParseError $bad) {
+        echo $bad->message, "|\n";
+    }
+}
+
+// The class is `ParseError` and not merely a `Throwable`: what failed is a
+// text that will not read. `ParseError` descends from `RuntimeError`, so the
+// narrower clause is written first and it is the one that answers.
+try {
+    echo Core\Time\Duration::parse("nope")->toString(), "|\n";
+} catch (ParseError $narrow) {
+    echo "parse|\n";
+} catch (RuntimeError $wide) {
+    echo "runtime|\n";
+}
+
+// Everything the grammar *does* accept survives the round trip, because
+// `toString` is this same table read backwards: a canonical text comes back
+// unchanged, and zero has the one spelling the grammar cannot write as empty.
+echo Core\Time\Duration::parse("1w2d3h4m5s6ms7us8ns")->toString(), "|\n";
+echo Core\Time\Duration::parse("0s")->toString(), "|\n";
+echo Core\Time\Duration::parse("0s")->compareTo(0s) as string, "|\n";
+--EXPECT--
+Core\Time\Duration::parse(): a duration is empty|
+Core\Time\Duration::parse(): a duration unit needs a count before it|
+Core\Time\Duration::parse(): a duration count needs a unit after it|
+Core\Time\Duration::parse(): `x` is not a duration unit — the units are `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`|
+Core\Time\Duration::parse(): a duration unit is lower case only, so `S` is `s` (ADR 0062)|
+Core\Time\Duration::parse(): a duration unit is lower case only, so `H` is `h` (ADR 0062)|
+Core\Time\Duration::parse(): duration units strictly descend and may not repeat, so `h` may not follow `m`|
+Core\Time\Duration::parse(): duration units strictly descend and may not repeat, so `h` may not follow `h`|
+Core\Time\Duration::parse(): `-` has no meaning in a duration|
+Core\Time\Duration::parse(): `.` has no meaning in a duration|
+Core\Time\Duration::parse(): ` ` has no meaning in a duration|
+parse|
+1w2d3h4m5s6ms7us8ns|
+0s|
+0|

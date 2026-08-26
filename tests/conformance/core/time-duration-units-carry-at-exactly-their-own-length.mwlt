@@ -1,0 +1,80 @@
+--TEST--
+Spec § 4: each `Core\Time\Duration` unit is a fixed length (ADR 0070 § 1), asserted at both sides of every carry and at both sides of the type's own range
+--FILE--
+<?mwl
+// Each unit is a fixed number of nanoseconds (ADR 0070 § 1), and the place
+// that number is observable is where the rendering carries: one count below
+// the next unit's length still renders in its own unit, and the count that
+// reaches it renders as one of the next. Both sides of all seven carries.
+echo (999ns)->toString(), "|", (1000ns)->toString(), "|\n";
+echo (999us)->toString(), "|", (1000us)->toString(), "|\n";
+echo (999ms)->toString(), "|", (1000ms)->toString(), "|\n";
+echo (59s)->toString(), "|", (60s)->toString(), "|\n";
+echo (59m)->toString(), "|", (60m)->toString(), "|\n";
+echo (23h)->toString(), "|", (24h)->toString(), "|\n";
+echo (6d)->toString(), "|", (7d)->toString(), "|\n";
+
+// The computed constructors carry at exactly the same counts, since they and
+// the literal are one table of lengths rather than two.
+echo Core\Time\Duration::nanoseconds(1000)->compareTo(1us) as string, "|\n";
+echo Core\Time\Duration::microseconds(1000)->compareTo(1ms) as string, "|\n";
+echo Core\Time\Duration::milliseconds(1000)->compareTo(1s) as string, "|\n";
+echo Core\Time\Duration::seconds(60)->compareTo(1m) as string, "|\n";
+echo Core\Time\Duration::minutes(60)->compareTo(1h) as string, "|\n";
+echo Core\Time\Duration::hours(24)->compareTo(1d) as string, "|\n";
+echo Core\Time\Duration::days(7)->compareTo(1w) as string, "|\n";
+echo Core\Time\Duration::weeks(1)->compareTo(168h) as string, "|\n";
+
+// The readers meet the same boundary from the other side, truncating toward
+// zero: one below the carry is nothing at all, in either direction.
+echo (999ns)->toMicroseconds() as string, "|", (1000ns)->toMicroseconds() as string, "|\n";
+echo (999us)->toMilliseconds() as string, "|", (1000us)->toMilliseconds() as string, "|\n";
+echo (999ms)->toSeconds() as string, "|", (1000ms)->toSeconds() as string, "|\n";
+echo (999ns)->negated()->toMicroseconds() as string, "|", (1000ns)->negated()->toMicroseconds() as string, "|\n";
+
+// The type's own range is `i64` nanoseconds, so the largest duration there is
+// is exactly that count -- accepted, and one nanosecond past it refused. Its
+// rendering is the whole unit table at once, which is the round trip's widest
+// row: every unit carries into the one above it and nothing is left over.
+echo Core\Time\Duration::parse("9223372036854775807ns")->toString(), "|\n";
+try {
+    echo Core\Time\Duration::parse("9223372036854775808ns")->toString(), "|\n";
+} catch (ParseError $past) {
+    echo $past->message, "|\n";
+}
+
+// A count that will not fit is the same sentence from a constructor -- but a
+// `RuntimeError`, not a `ParseError`: nothing failed to *read*, a value failed
+// to fit. 15250 weeks is the last one that does.
+echo Core\Time\Duration::weeks(15250)->toString(), "|\n";
+try {
+    echo Core\Time\Duration::weeks(15251)->toString(), "|\n";
+} catch (ParseError $misread) {
+    echo "parse|", $misread->message, "|\n";
+} catch (RuntimeError $unfit) {
+    echo "runtime|", $unfit->message, "|\n";
+}
+--EXPECT--
+999ns|1us|
+999us|1ms|
+999ms|1s|
+59s|1m|
+59m|1h|
+23h|1d|
+6d|1w|
+0|
+0|
+0|
+0|
+0|
+0|
+0|
+0|
+0|1|
+0|1|
+0|1|
+0|-1|
+15250w1d23h47m16s854ms775us807ns|
+Core\Time\Duration::parse(): this duration is longer than `Core\Time\Duration` can hold|
+15250w|
+runtime|Core\Time\Duration::weeks(): this duration is longer than `Core\Time\Duration` can hold|
