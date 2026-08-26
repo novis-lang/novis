@@ -766,6 +766,21 @@ is why" — is this file.
   string], $cut)` and `Core\Str::slice($s, ($at as uint) as int)` both check, so a nullable answer can
   be fed straight into the next member without a local.
 - **`preg_split("//u", $s, -1, PREG_SPLIT_NO_EMPTY)` is the mbstring-free code point splitter**, and it works on the Windows `php` where every `mb_*` the neighbouring bullet names does not — PCRE carries its own UTF-8 support, so a `Core\Str` slice that needs PHP to count *code points* has a real oracle rather than a frozen `--EXPECT--`. What it cannot give you is a code point's *number* (`mb_ord`) or a grapheme (`grapheme_strlen`: no `intl` either), so an oracle needing those still decodes UTF-8 by hand in the `--ORACLE--` block or freezes the rows and cites the UCD table.
+- **A PHP *notice* lands in the oracle leg's stdout, so a deprecated twin cannot be swept in an
+  `--ORACLE--` file.** On 8.5.9 `chr()` deprecates an argument outside `0..255` and prints
+  `Deprecated: chr(): Providing a value not in-between 0 and 255 …` for **every** such call, so a
+  sweep over code points past 255 fails on text neither side computed rather than on the answers.
+  One `php -r '…'` before freezing a sweep is what catches it — and when the twin is deprecated at
+  exactly the rows a case wants, that is usually the same boundary the divergence already sat on,
+  so the rows belong in an `--ORACLE-DIVERGES--` file with a frozen `--EXPECT--` anyway.
+
+- **A typed declaration *inside* a loop body is fine; it is the second loop that collides.**
+  `uint $want = $cp as uint;` and `array<uint> $points = …;` in a `for` body run 128 times without
+  an `E0406` — the binding is declared once and assigned each iteration, which is what the
+  neighbouring function-scope bullet means and not what it looks like it means. What collides is a
+  *later* loop reusing the name. In the same family: `foreach (Core\Str::codePoints($s) as uint
+  $point)` lowers, where the same shape over an array literal is `E0401`, because a member's
+  declared `array<uint>` return carries the element type a literal does not.
 
 ## Splitting a file that got too big
 

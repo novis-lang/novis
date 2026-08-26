@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 486 of 600 and differential 145 of 150. **Nothing below them
+> Stage 4's two counts**, conformance 486 of 600 and differential 149 of 150. **Nothing below them
 > is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -70,7 +70,7 @@
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
 > `run`), `tests/conformance` × 486 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 145, `fuzz/`, `tools/`, `benches/abi-probe`.
+> and `reject`) and `tests/differential` × 149, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -113,14 +113,14 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Stage 4's two counts are the frontier: conformance is 486 of the 600 the gate
-> requires and differential is 147 of 150.** Both named guards
+> requires and differential is 149 of 150.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
 > conventions.md rather than for a section, and lands its claim as its own file, because the gate
 > counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is the worklist and no
 > session should re-derive it**: `--differential` names every member whose spec **Replaces** column
-> gives it a PHP twin and which no oracle case calls — 12 left — and `--errors` every `Fault::` site
+> gives it a PHP twin and which no oracle case calls — 10 left — and `--errors` every `Fault::` site
 > in `mwl-stdlib` whose message no case asserts. **Differential is the half that comes first** — the
 > smaller of the two gaps, and an `--ORACLE--` case has no frozen output to derive at all, because
 > PHP computes it. Over `Core\Arr` the twin's key rule decides which kind of case it is: PHP
@@ -137,9 +137,9 @@
 > refuses; `ksort` reads a numeral *key* as a number where ADR 0007 § 5 makes every stored key a
 > `string` compared bytewise, so `sortByKey` parts from it over a numeral or mixed-key subject and a
 > `comparator` is the way back; and `array_fill` takes a start index `fill` drops, so every non-zero
-> start is `Core\Arr::fillKeys` over the keys the caller wanted. **`Core\Math` is down to the `gmp`
-> pair alone and `Core\Str` to the code point pair; `Core\Path`'s three are now the largest block of
-> the 12.** `Core\Math`'s settled pairs say what shape the rest take: nothing there has a key rule,
+> start is `Core\Arr::fillKeys` over the keys the caller wanted. **`Core\Str`'s twins are closed,
+> `Core\Math` is down to the `gmp` pair alone, and `Core\Path`'s three are now the largest block of
+> the 10.** `Core\Math`'s settled pairs say what shape the rest take: nothing there has a key rule,
 > so a member either agrees with its twin outright or parts over a *tie*, a *conversion*, a *guard*
 > or a *repair*. **PHP's two-argument `min` answers its second argument on a tie and its `max`
 > answers its first**, where `mwl_stdlib::math::pick` answers the first to both — visible wherever
@@ -262,8 +262,29 @@
 > width *without* cutting is an answer on both sides and breaks at every space. What the cutting
 > option is worth is counted: 352 of 352 lines are within their width when long words may be cut,
 > and 122 when they may not. **`wrap`'s width counts clusters where `wordwrap` counts bytes**, so
-> its multibyte half is still owed as an `--ORACLE-DIVERGES--` file. **Unbuilt in the library**,
-> none of it a registration gap: `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a
+> its multibyte half is still owed as an `--ORACLE-DIVERGES--` file — the last `Core\Str` divergence
+> file not written. **`codePoints` and `fromCodePoint` close the section, and they are the one pair
+> whose unit the *member* chose rather than one the class default imposed**: `codePoints` is
+> `Unit::CodePoint` on purpose, `mwl_core_str_code_points`'s doc comment being the home of why, so
+> it parts from `Core\Str::length` on exactly the subjects where a cluster holds more than one
+> scalar value — four of seven sampled, `\r\n` among them, which is the one place inside ASCII the
+> two units disagree. Inside ASCII the byte-wise half of PHP's pair answers the same question, so
+> `str_split` plus `array_map("ord", …)` is `codePoints` and `chr` is `fromCodePoint` over the whole
+> 0–127 table: the 128 encodings render as bytes sixteen to a line, the round trip holds on all 128,
+> each answer is exactly one byte, and both members are injective there — 128 code points giving 128
+> distinct strings. **Past 127 the pair parts in both directions and the reason is the same one read
+> from either end.** `ord` reads a byte and `str_split` cuts between them, so `array_map("ord",
+> str_split("é"))` is `[195, 169]` where `codePoints("é")` is `[233]`; and `chr` constrains its
+> argument with `% 256`, which makes `chr(55296)`, `chr(1114112)` and `chr(0)` one byte and the
+> function not injective past 255 — with no diagnostic. `fromCodePoint` refuses instead: a surrogate
+> in `55296..=57343` and anything past `1114111` are a catchable `Fault::thrown`
+> (`mwl_stdlib::str::scalar_value`), never a substituted U+FFFD, ADR 0009 § 3's checked-not-repaired
+> rule reaching a code point exactly as it reaches a buffer. **PHP is retreating from the wrap from
+> its own end**: on 8.5.9 `chr()` *deprecates* an argument outside `0..255`, and the notice it
+> prints to stdout is itself why that half cannot be an oracle leg. What survives the unit change is
+> the round trip, which holds on every multibyte subject too, `fromCodePoints` being the fused
+> spelling of `fromCodePoint` applied element by element. **Unbuilt in the library**, none of it a
+> registration gap: `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a
 > scalar-fielded class only — no enum, `decimal`, `Instant`, `array` or nested-class field, and no
 > optional key from a parameter default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier
 > classification, missing from every `mwl-stdlib` member row, which is why `Core\Str::format`'s
@@ -299,7 +320,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: conformance stands at 486 of 600 and differential at 147 of 150, and the remainder is
+> decision: conformance stands at 486 of 600 and differential at 149 of 150, and the remainder is
 > written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
