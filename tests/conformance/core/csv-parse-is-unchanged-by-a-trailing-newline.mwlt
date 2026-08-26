@@ -1,0 +1,71 @@
+--TEST--
+`Core\Csv::parse`'s terminator edges: a trailing newline never changes what a document holds, and only terminators is no records at all — spec § 12's second table
+--FILE--
+<?mwl
+// Every CSV generator writes a terminator after its last record and a good
+// many do not, so the reader's first edge is that the two are the same
+// document. That is asserted by *counting* over a table rather than read off
+// one line — a reader that appended a phantom record for the terminator would
+// still look right on the two-record document everyone tests with.
+//
+// The comparison is the whole structure, not the record count: re-formatting
+// each parse renders every field of every record into one `string`, so a
+// reader that agreed on the count and lost a field still fails here.
+array<string> $docs = ["", "a", "a,b", "a,b\nc,d", ",", "\"x\"", "  ", "a,", "\"\""];
+int $same = 0;
+int $counts = 0;
+foreach ($docs as string $d) {
+    var $bare = Core\Csv::parse($d);
+    var $term = Core\Csv::parse($d . "\n");
+    if (Core\Arr::count($bare) == Core\Arr::count($term)) {
+        $counts = $counts + 1;
+    }
+    if (Core\Csv::format($bare) == Core\Csv::format($term)) {
+        $same = $same + 1;
+    }
+}
+echo "docs=", Core\Arr::count($docs), " counts=", $counts, " same=", $same, "\n";
+
+// `{header: true}` consumes a record rather than a line, so the terminator is
+// no more visible to it than it is above — including where the header is the
+// only record there is.
+array<string> $headed = ["", "a,b", "a,b\n1,2", "a,b\n1,2\n3,4"];
+int $hsame = 0;
+foreach ($headed as string $hd) {
+    var $hbare = Core\Csv::parse($hd, {header: true});
+    var $hterm = Core\Csv::parse($hd . "\n", {header: true});
+    if (Core\Csv::format($hbare) == Core\Csv::format($hterm)) {
+        $hsame = $hsame + 1;
+    }
+}
+echo "headed=", Core\Arr::count($headed), " hsame=", $hsame, "\n";
+
+// The bound, on both sides. A document made of nothing but terminators is no
+// records however many of them there are — a blank line is not a record, and
+// neither is the absence of one.
+echo "none=", Core\Arr::count(Core\Csv::parse("")),
+     Core\Arr::count(Core\Csv::parse("\n")),
+     Core\Arr::count(Core\Csv::parse("\n\n\n")),
+     Core\Arr::count(Core\Csv::parse("\r\n")), "\n";
+
+// ...and the shortest documents that *are* a record. Two bytes of quote is a
+// record of one empty field, which is the field a blank line cannot express
+// and the reason `Core\Csv::format` of that one record is not a round trip
+// (`csv-format-then-parse-is-the-identity-over-awkward-records.mwlt`).
+var $quoted = Core\Csv::parse("\"\"");
+echo "quoted=", Core\Arr::count($quoted), " fields=", Core\Arr::count($quoted["0"]),
+     " len=", Core\Str::length($quoted["0"]["0"]), "\n";
+
+// One separator is a record of two empty fields, and whitespace is a field
+// like any other: nothing is trimmed off either end, since a reader that
+// trimmed could not answer a column whose values are padded.
+var $sep = Core\Csv::parse(",");
+var $space = Core\Csv::parse("  ");
+echo "sep=", Core\Arr::count($sep["0"]), " space=", Core\Arr::count($space["0"]),
+     " kept=[", $space["0"]["0"], "]\n";
+--EXPECT--
+docs=9 counts=9 same=9
+headed=4 hsame=4
+none=0000
+quoted=1 fields=1 len=0
+sep=2 space=1 kept=[  ]
