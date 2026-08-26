@@ -47,6 +47,13 @@ backslashes and apostrophes this repository's Rust and prose are full of. The ex
 hand — locating a field's exact bytes and splicing them was the single most expensive repeated action a
 session performed.
 
+**A goal's playbook selection is chosen with `python tools/playbook.py`, not by reading 86 bullets.**
+`--goal` ranks every bullet against the goal's own `[context] modules` and prints a paste-ready
+`playbook = [...]`; `--match <paths>` does the same for one session's file set; `--check` reports a bullet
+naming a path that has left the tree — the only pruning signal an append-mostly file can have — and prices
+what the current manifest costs. It never writes to the playbook: appending a bullet is `session.py`'s
+`## playbook:` section and stays there.
+
 **The plan is an index and one file per milestone**, and `plan.py` is the only thing that needs to know
 which is which: `--show M8` prints one milestone, `--show M8:verify` its acceptance paragraph alone, and
 `--amend M8 --from <file>` rewrites one. `--check` prices the status block against the aim the plan's own

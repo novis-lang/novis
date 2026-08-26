@@ -91,7 +91,49 @@ shapes = ["A diagnostic", "A `.mwlt` test case", "A commit message"]
 # playbook is append-mostly by decision, so every trap a session writes down is charged to every
 # session after it. A goal that needs three traps should name three traps. `orient.py --audit`
 # prices whichever you pick.
-playbook = ["Tooling", "Running things", "Adding a `Core` member", "Writing a test case"]
+#
+# The four whole sections this used to name were 42,328 B -- 17k tokens of a 31k pack, over half of
+# it, for a session that reads perhaps three bullets. The list below is bullet-level and was
+# produced by `python tools/playbook.py --goal --min 3`: every bullet whose text names three or more
+# of this goal's own `modules` above. Re-run that after the file set changes; `--min 2` widens it,
+# `python tools/playbook.py --match <paths>` narrows it to one session's own next group.
+#
+# The second block is by hand and cannot be otherwise. Those traps are about how a session RUNS --
+# how it ends, how it reads, what a commit may not carry, what to do when this pack is short -- so
+# they name no crate and no file and rank zero against any file set. They apply to every session.
+playbook = [
+  # matched against [context] modules, 19 bullets, 10,580 B
+  'Adding a `Core` member > a new domain',
+  'Adding a `Core` member > a member on',
+  'Adding a `Core` member > a core symbol',
+  'Adding a `Core` member > a new core',
+  'Adding a `Core` member > a spec',
+  'Adding a `Core` member > adding a',
+  "Adding a `Core` member > a core instance's",
+  'Writing a test case > registering a',
+  'Writing a test case > a rule',
+  "Writing a test case > a property's",
+  'Writing a test case > a mwl-types',
+  'Writing a test case > a named',
+  'Writing a test case > "…" as',
+  'Tooling > a test failing',
+  'Tooling > mwl-ir cannot',
+  'Tooling > a loop-goal.toml',
+  'Tooling > teaching mwl-ir',
+  'Running things > a leak',
+  'Splitting a file that got too big > a big',
+
+  # the process traps, by hand, 9 bullets, 4,764 B
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > never plan.py',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
 
 # Fields of the plan's status block worth printing. Default is these two.
 plan = ["Open now", "Blocking"]
