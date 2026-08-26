@@ -30,8 +30,11 @@
 //! # Capacity, and what it spends
 //!
 //! `cap` is how many payload bytes the allocation has room for; `len` is how
-//! many are live. **Every constructor here sets the two equal**, so the only
-//! way a string ever holds an unused byte is [`mwl_str_append`] growing one.
+//! many are live. The two ways they come apart are [`mwl_str_append`] growing
+//! one and [`MwlStr::build`] being asked for more capacity than its writer
+//! filled; every other constructor sets them equal. `len` is written last in
+//! both, so a buffer that is still being filled reads as empty rather than as
+//! bytes nobody wrote.
 //!
 //! What the third word costs is **8 bytes per string allocation**, a 16-byte
 //! header becoming 24. What it buys is that `$out .= $piece` stops being
@@ -107,9 +110,10 @@
 //! build, which is what keeps the paragraph above a checked claim rather than
 //! a remembered one.
 
-use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
+use std::alloc::{Layout, alloc, dealloc, handle_alloc_error, realloc};
 use std::cell::Cell;
 use std::fmt;
+use std::marker::PhantomData;
 use std::ptr::NonNull;
 
 /// The header sitting in front of every MWL string's bytes.
@@ -123,8 +127,9 @@ use std::ptr::NonNull;
 pub struct StrHeader {
     /// How many owners hold this allocation. Reaching `0` frees it.
     refcount: Cell<usize>,
-    /// Payload length in bytes. Written only by [`mwl_str_append`], and only
-    /// while this allocation has exactly one owner.
+    /// Payload length in bytes. Written after construction only by
+    /// [`mwl_str_append`] and [`MwlStr::build`], and only while this
+    /// allocation has exactly one owner.
     len: Cell<usize>,
     /// How many payload bytes the allocation has room for — what the layout
     /// this header was allocated with, and will be freed with, is computed
@@ -260,22 +265,52 @@ impl MwlStr {
             .iter()
             .try_fold(0_usize, |total, piece| total.checked_add(piece.len()))
             .expect("an MWL string's length cannot overflow a usize");
-        let ptr = Self::alloc_uninit(len, len);
+        Self::build(len, |out| {
+            for piece in pieces {
+                out.push(piece);
+            }
+        })
+    }
+
+    /// Allocates a fresh string with room for `capacity` bytes and lets
+    /// `write` fill it in place, with a reference count of one. The result's
+    /// length is what was written.
+    ///
+    /// The seam for a producer that would otherwise **build a `String` and
+    /// have it copied**: the buffer it writes into *is* the allocation the
+    /// value is answered from, so the bytes are written once instead of once
+    /// into a `String` and again into here. It is `String`'s own shape
+    /// otherwise, growth included — a writer that exceeds `capacity` grows by
+    /// the same doubling [`grown_capacity`] gives `mwl_str_append`, so a
+    /// producer whose length is only a good guess is never *worse* off than
+    /// the `String` it replaces, and one whose length is exact
+    /// (`Core\Str::repeat`, `padStart`) allocates exactly once.
+    ///
+    /// [`MwlStr::from_pieces`] is the case where the pieces are already in
+    /// hand; this is the case where a loop produces them, and it costs no
+    /// scratch buffer to hold them in.
+    ///
+    /// # Panics
+    ///
+    /// Aborts through [`handle_alloc_error`] if the allocator fails, per
+    /// [`MwlStr::new`].
+    #[must_use]
+    pub fn build(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> Self {
+        let mut out = StrWriter {
+            ptr: Self::alloc_uninit(0, capacity),
+            written: 0,
+            capacity,
+            owns: PhantomData,
+        };
+        write(&mut out);
+        let (ptr, written) = (out.ptr, out.written);
+        std::mem::forget(out);
         #[expect(
             unsafe_code,
-            reason = "`alloc_uninit` returned an allocation with room for \
-                      `len` payload bytes, so writing them stays inside it; \
-                      the regions cannot overlap because each piece borrows a \
-                      different allocation, and the running offset never \
-                      exceeds `len` because that is their summed length"
+            reason = "`ptr` is the allocation the writer just finished with, \
+                      and no other handle to it exists"
         )]
-        unsafe {
-            let mut at = ptr.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
-            for piece in pieces {
-                std::ptr::copy_nonoverlapping(piece.as_ptr(), at, piece.len());
-                at = at.add(piece.len());
-            }
-        }
+        unsafe { ptr.as_ref() }.len.set(written);
         Self { ptr }
     }
 
@@ -494,6 +529,121 @@ impl MwlStr {
         #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
         unsafe {
             (*ptr).refcount.get()
+        }
+    }
+}
+
+/// The one handle an [`MwlStr::build`] writer has on the allocation it fills.
+///
+/// A cursor over payload bytes that are not yet initialized, so it hands out
+/// no reference to them and cannot outlive the call that made it. Every write
+/// goes through [`StrWriter::push`], which is where the room is checked — once
+/// per piece, not once per byte — and where the allocation grows if a producer
+/// wrote past the capacity it asked for.
+#[derive(Debug)]
+pub struct StrWriter<'a> {
+    /// The allocation being filled. Replaced wholesale by [`StrWriter::grow`],
+    /// which is the only thing that may write this field.
+    ptr: NonNull<StrHeader>,
+    /// How many bytes the pieces so far occupy. The header's own `len` stays
+    /// `0` until [`MwlStr::build`] finishes, so a panic mid-write cannot leave
+    /// uninitialized bytes readable.
+    written: usize,
+    /// How many the allocation has room for.
+    capacity: usize,
+    /// The writer owns the allocation for the call's duration, and hands it to
+    /// [`MwlStr::build`] at the end.
+    owns: PhantomData<&'a mut [u8]>,
+}
+
+impl StrWriter<'_> {
+    /// Appends `piece` to what has been written so far, growing the allocation
+    /// if it does not fit.
+    pub fn push(&mut self, piece: &[u8]) {
+        let needed = self
+            .written
+            .checked_add(piece.len())
+            .expect("an MWL string's length cannot overflow a usize");
+        if needed > self.capacity {
+            self.grow(needed);
+        }
+        #[expect(
+            unsafe_code,
+            reason = "`needed` is at most `capacity` by the branch above, so \
+                      the write stays inside the payload; the regions cannot \
+                      overlap because this writer is the only handle to a \
+                      fresh allocation"
+        )]
+        unsafe {
+            let at = self.ptr.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
+            std::ptr::copy_nonoverlapping(piece.as_ptr(), at.add(self.written), piece.len());
+        }
+        self.written = needed;
+    }
+
+    /// Appends `piece`'s bytes — [`StrWriter::push`] spelled for text, which
+    /// is what every `Core\Str` producer has in hand.
+    pub fn push_str(&mut self, piece: &str) {
+        self.push(piece.as_bytes());
+    }
+
+    /// Grows the allocation to hold `needed` bytes.
+    ///
+    /// The same doubling `mwl_str_append` grows by, so a producer whose
+    /// capacity was a guess pays exactly what the `String` it replaced paid,
+    /// and one whose capacity was exact never reaches here at all.
+    #[cold]
+    fn grow(&mut self, needed: usize) {
+        let capacity = grown_capacity(self.capacity, needed);
+        let bigger = str_layout(capacity);
+        // `realloc` and not an allocate-copy-free of our own, for the reason
+        // `Vec` uses it: an allocator that can extend the block in place does,
+        // and the bytes already written are then not moved at all. Measured —
+        // `Core\Str::join` copying instead cost the whole saving this seam
+        // exists for, and then some.
+        #[expect(
+            unsafe_code,
+            reason = "`self.ptr` was allocated with `str_layout(self.capacity)` \
+                      and this writer is its only handle; `bigger.size()` is \
+                      larger, so `realloc`'s contract is met"
+        )]
+        let raw = unsafe {
+            realloc(
+                self.ptr.as_ptr().cast::<u8>(),
+                str_layout(self.capacity),
+                bigger.size(),
+            )
+        };
+        let Some(ptr) = NonNull::new(raw.cast::<StrHeader>()) else {
+            handle_alloc_error(bigger)
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`ptr` is the reallocated block, which begins with the \
+                      header `alloc_uninit` wrote; the capacity it will be \
+                      freed with has to be the one it now has"
+        )]
+        unsafe {
+            (&raw mut (*ptr.as_ptr()).cap).write(capacity);
+        }
+        self.ptr = ptr;
+        self.capacity = capacity;
+    }
+}
+
+impl Drop for StrWriter<'_> {
+    /// Frees the allocation, which only happens when `write` panicked partway
+    /// through: [`MwlStr::build`] takes the allocation out of the writer on
+    /// the path that finishes. A helper's panic is a contained `FATAL`
+    /// (ADR 0020), so it must not also be a leak.
+    fn drop(&mut self) {
+        #[expect(
+            unsafe_code,
+            reason = "this writer is the only handle to the allocation, and \
+                      the layout is the one it was made with"
+        )]
+        unsafe {
+            dealloc(self.ptr.as_ptr().cast::<u8>(), str_layout(self.capacity));
         }
     }
 }

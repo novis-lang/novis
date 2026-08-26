@@ -298,7 +298,7 @@ pub use object::{
 };
 pub use string::{
     CAP_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET, MwlStr, PAYLOAD_OFFSET,
-    REFCOUNT_OFFSET, StrHeader, immortal_header_bytes, mwl_str_append, mwl_str_concat,
+    REFCOUNT_OFFSET, StrHeader, StrWriter, immortal_header_bytes, mwl_str_append, mwl_str_concat,
     mwl_str_concat_n, mwl_str_eq, mwl_str_new, mwl_str_release, mwl_str_retain,
 };
 pub use throwable::{
