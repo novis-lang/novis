@@ -108,6 +108,24 @@ A small script or a criterion-report-style renderer turns this into a trend char
 this ADR requires that renderer to exist before the data collection does. `php_ratio` is `null` until M3+
 gives it a value — see § 3.
 
+**The file exists as of `9ae7aa8`**, and its first entry is the workload the packed list representation is
+measured by: `benches/userland/08-array-list-build.mwl`, a million appends followed by a `foreach` walk.
+The three commands that produced it, run from WSL, are the whole recipe for the next one:
+
+```
+CARGO_TARGET_DIR=/tmp/mwl-linux cargo build --release -p mwl-cli
+valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out \
+    /tmp/mwl-linux/release/mwl run benches/userland/08-array-list-build.mwl      # the `I refs` line
+python3 tools/bench.py 00-baseline 08-array --mwl /tmp/mwl-linux/release/mwl     # wall clock, php/mwl
+```
+
+That first entry also narrows § 2's determinism claim, which is measured of `callgrind_spike` — a bare
+example binary — and **not** of a whole `mwl run`. Two consecutive runs of the workload above counted
+217,254,092 and 217,254,355 instructions: reproducible to six significant figures rather than exactly,
+because the process reads a file and JIT-compiles it before any of the workload runs. The number recorded
+is the lower of the two. A trend line reading at that resolution is unaffected; a guard asserting equality
+between two runs would not be, so no such guard exists.
+
 ### 5. `valgrind` joins the WSL one-time setup
 
 [docs/setup.md](../setup.md) documents the one-time setup a WSL distro already needs for `cargo-fuzz`.
@@ -187,8 +205,11 @@ Verification, in the order it becomes possible:
 
 - **Now**: `benches/abi-probe/examples/callgrind_spike.rs` under `valgrind --tool=callgrind` — done, see
   *Investigation*, and rerunnable by any contributor with the WSL setup in § 5.
-- **M3 (Hello World)**: the first real MWL-compiled program exists; `history.ndjson` gets its first
-  non-synthetic workload, and `php_ratio` gets its first real value against the pinned PHP 8.5.8 oracle.
+- ~~**M3 (Hello World)**: the first real MWL-compiled program exists; `history.ndjson` gets its first
+  non-synthetic workload, and `php_ratio` gets its first real value against the pinned PHP oracle.~~
+  **Done** — § 4 holds the entry and the recipe. The oracle it ran against is the WSL leg's PHP **8.5.9**,
+  which is the interpreter on the machine that can run callgrind at all; the ratio is a same-host,
+  same-run figure either way, which is the only property § 3 asks of it.
 - **M12 (optimising JIT tier)**: the plan's existing verify line — "macro benchmarks show a multiple over
   the baseline tier and over PHP 8.5 with JIT" — is satisfied using this ADR's methodology: the same-host,
   same-run PHP-oracle ratio from § 3, not a cross-machine wall-clock claim.
