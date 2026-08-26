@@ -1,0 +1,146 @@
+--TEST--
+Spec § 4: `Core\Time\TimeOfDay` is a clock that wraps at both ends — a step of `n` minutes is `(minute-of-day + n) mod 1440` over a sweep that crosses midnight in both directions, a full turn is the identity in three units, and `compareTo` orders by the same reading `format` renders
+--FILE--
+<?mwl
+// § 4: a time of day has no date under it for a carry to go into, so the
+// clock step is total and wraps. That makes the whole member a modular
+// arithmetic, and this sweep asserts it as one: 429 offsets from a fixed
+// 09:05, every seventh minute from a full day before it to a full day after,
+// each checked against `(545 + n) mod 1440` computed here rather than read
+// off the value. 7 is coprime with 1440, so the offsets visit residues right
+// across the dial instead of a repeating handful.
+var $base = Core\Time\TimeOfDay::at(9, 5);
+int $n = -1500;
+int $wrapped = 0;
+int $mirrored = 0;
+for (; $n <= 1500; $n = $n + 7) {
+    var $moved = $base->plus($n, Core\Unit::Minute);
+    // MWL's `%` truncates toward zero, as PHP's does, so a negative offset is
+    // brought back into 0..1439 before the comparison — the wrap being tested
+    // is the member's, not this line's.
+    int $want = ((545 + $n) % 1440 + 1440) % 1440;
+    int $got = ($moved->format("HH") as int) * 60 + ($moved->format("mm") as int);
+    if ($got == $want) {
+        $wrapped = $wrapped + 1;
+    }
+    // `minus` is `plus` of the negated count on every one of those offsets,
+    // including the ones that cross midnight, so the two members cannot have
+    // grown separate opinions about the wrap.
+    if ($base->minus(0 - $n, Core\Unit::Minute)->compareTo($moved) == 0) {
+        $mirrored = $mirrored + 1;
+    }
+}
+echo "wrap=", $wrapped as string, " mirror=", $mirrored as string, "|\n";
+
+// The table is in clock order, and every row is a distinct second of the day —
+// which is what lets the order below be checked against a number derived from
+// each value's own rendering rather than against the order they are written in.
+array<Core\Time\TimeOfDay> $clock = [
+    Core\Time\TimeOfDay::at(0, 0),
+    Core\Time\TimeOfDay::at(0, 0, {second: 1}),
+    Core\Time\TimeOfDay::at(1, 2, {second: 3}),
+    Core\Time\TimeOfDay::at(6, 30),
+    Core\Time\TimeOfDay::at(9, 5),
+    Core\Time\TimeOfDay::at(12, 0),
+    Core\Time\TimeOfDay::at(12, 0, {second: 1}),
+    Core\Time\TimeOfDay::at(18, 45, {second: 59}),
+    Core\Time\TimeOfDay::at(23, 59, {second: 58}),
+    Core\Time\TimeOfDay::at(23, 59, {second: 59}),
+];
+
+// A full turn of the dial is the identity, and it is the same dial whichever
+// unit measures it: 1440 minutes, 24 hours and 86400 seconds all come back to
+// the row they left. A member that wrapped at anything but a day disagrees
+// with at least one of the three.
+int $t = 0;
+int $turns = 0;
+for (; $t < 10; $t = $t + 1) {
+    var $row = $clock[$t as string];
+    if ($row->plus(1440, Core\Unit::Minute)->compareTo($row) == 0) {
+        $turns = $turns + 1;
+    }
+    if ($row->plus(24, Core\Unit::Hour)->compareTo($row) == 0) {
+        $turns = $turns + 1;
+    }
+    if ($row->minus(86400, Core\Unit::Second)->compareTo($row) == 0) {
+        $turns = $turns + 1;
+    }
+}
+echo "full-turn=", $turns as string, "|\n";
+
+// `with` leaves every field it is not handed, so an empty bag and the four
+// parts `format` has just read are both the identity on every row.
+int $w = 0;
+int $kept = 0;
+for (; $w < 10; $w = $w + 1) {
+    var $held = $clock[$w as string];
+    if ($held->with({})->compareTo($held) == 0) {
+        $kept = $kept + 1;
+    }
+    var $rebuilt = $held->with({
+        hour: $held->format("HH") as uint,
+        minute: $held->format("mm") as uint,
+        second: $held->format("ss") as uint,
+        nanos: $held->format("SSSSSSSSS") as uint,
+    });
+    if ($rebuilt->compareTo($held) == 0) {
+        $kept = $kept + 1;
+    }
+}
+echo "with-identity=", $kept as string, "|\n";
+
+// `compareTo` orders by the reading itself: over all 100 ordered pairs its
+// answer is the sign of the difference between the two seconds-of-day that
+// `format` renders, and swapping the operands negates it.
+int $p = 0;
+int $ordered = 0;
+int $antisym = 0;
+for (; $p < 10; $p = $p + 1) {
+    int $q = 0;
+    for (; $q < 10; $q = $q + 1) {
+        var $left = $clock[$p as string];
+        var $right = $clock[$q as string];
+        int $leftKey = ($left->format("HH") as int) * 3600
+            + ($left->format("mm") as int) * 60
+            + ($left->format("ss") as int);
+        int $rightKey = ($right->format("HH") as int) * 3600
+            + ($right->format("mm") as int) * 60
+            + ($right->format("ss") as int);
+        int $sign = 0;
+        if ($leftKey < $rightKey) {
+            $sign = -1;
+        }
+        if ($leftKey > $rightKey) {
+            $sign = 1;
+        }
+        if ($left->compareTo($right) == $sign) {
+            $ordered = $ordered + 1;
+        }
+        if ($left->compareTo($right) + $right->compareTo($left) == 0) {
+            $antisym = $antisym + 1;
+        }
+    }
+}
+echo "ordered=", $ordered as string, " antisym=", $antisym as string, "|\n";
+
+// Both ends of the wrap, named together: the nanosecond before midnight and
+// the nanosecond after the last one of the day. Neither carries a date,
+// because there is none here to carry into.
+echo Core\Time\TimeOfDay::at(0, 0)->minus(1, Core\Unit::Nanosecond)->format("HH:mm:ss.SSSSSSSSS"), " ",
+    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999})->plus(1, Core\Unit::Nanosecond)->format("HH:mm:ss.SSSSSSSSS"), "|\n";
+
+// The one place the second-of-day number above is coarser than the order it
+// was checked against: two readings in the same second are still ordered, by
+// the field the number does not carry.
+var $early = Core\Time\TimeOfDay::at(9, 5, {second: 1, nanos: 1});
+var $later = Core\Time\TimeOfDay::at(9, 5, {second: 1, nanos: 2});
+echo $early->compareTo($later) as string, " ",
+    (($early->format("ss") as int) - ($later->format("ss") as int)) as string, " ",
+    $early->with({nanos: 2})->compareTo($later) as string, "|\n";
+--EXPECT--
+wrap=429 mirror=429|
+full-turn=30|
+with-identity=20|
+ordered=100 antisym=100|
+23:59:59.999999999 00:00:00.000000000|
+-1 0 0|
