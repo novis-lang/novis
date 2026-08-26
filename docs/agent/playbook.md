@@ -612,6 +612,13 @@ is why" — is this file.
   a `var` binding is function-scoped exactly as the `catch` binding the loop goal's standing
   decisions name; give the second loop its own name. Separate `try` statements each binding `$e`
   at file scope are fine — four in one case compile — so it is only `var` that bites.
+- **A `catch` binding declared inside a loop body still belongs to the function, so a later file-scope
+  `catch` cannot reuse its name.** Several file-scope `try`s each binding `$e` compile — that much is
+  already true — but the moment one of them is inside a `for` or `foreach`, every later clause reporting
+  `E0406: `$e` is already declared` points at the *loop's* clause as the first declaration. Give each
+  `catch` in a case its own name (`$capped`, `$zero`, `$beyond`), which is what the older `Core\Json` case
+  already does. In the same family: `Core\Str::repeat` takes a `uint`, so a `for` counter declared `int`
+  needs `Core\Str::repeat("[", $d as uint)` and not `$d` — the diagnostic is `E0401`, at the argument.
 
 ## Splitting a file that got too big
 
