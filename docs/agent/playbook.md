@@ -259,6 +259,14 @@ is why" — is this file.
   into a two-line edit. Correct the *list* when the tree's name is truer, and say so in the toml
   comment; a predicted name is status, not a decision, and the playbook's neighbouring bullet about a
   check's *comment* is the same rule one field over.
+- **`python tools/verify.py` does not run a single `.mwlt` case.** Its 74 suites are cargo's; the
+  conformance tree is executed by `mwl test`, so a case that fails to compile or whose `--EXPECT--`
+  is one byte off leaves verify green and fails the *driver's* acceptance check instead, one
+  session later. `./target/release/mwl.exe test <path>` takes a single case and answers in under a
+  second — run it while writing, and `mwl test tests/conformance` once before the wrap, which is
+  also where the count the plan's fields quote comes from. Use the **release** binary:
+  `target/debug/mwl.exe` is whatever the last `cargo test` left behind and can predate your change
+  by a whole session.
 
 ## Running things
 

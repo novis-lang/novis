@@ -2,59 +2,53 @@
 
 ## State
 
-**Stage 0's catch-up list is closed.** Items 20 and 21 landed together this session, and neither needed
-its implementation written: `StrHeader`'s capacity, `mwl_str_append`, the n-ary `InstKind::Concat`, the
-data-section string literal, and `map`/`filter`/`reduce`/`sort` reading `mwl_runtime::closure_arity` once
-before the walk were all already on disk. What was missing was two measurements and four *names*.
+**Stage 0's catch-up list is closed and the frontier is Stage 4's own counts** — conformance **439**
+of 600, differential **90** of 150. Both of Stage 4's named guards pass, so what is short is
+behavioural depth per member, not coverage: every registered member already has a case. Verify is
+green: **1596** tests, 74 suites, clippy and fmt clean.
 
-The measurements are `a_one_parameter_callback_synthesizes_no_key` and
-`a_sort_that_renumbers_builds_no_keys`, both new in `crates/mwl-stdlib/tests/allocation_policy.rs:436`
-and `:498`, which already carried its own debug-only `#[global_allocator]`. That file's `closure_of`
-(`:321`) is new and is the reusable half: a closure value built from a `ClassTable` and a native
-`extern "C"` callback, which is how a `-p mwl-stdlib` test reaches any member taking a `callable`.
+**A codegen hole is closed, and it was blocking the case work rather than merely near it.**
+Cranelift's `enable_probestack` was on but its *strategy* defaulted to `outline`, which emits a
+call to `__cranelift_probestack` — a symbol with its own register convention that `Jit::new`'s
+`builder.symbol` loop never supplied. So a frame over 4 KiB did not get a probe; it panicked
+`cranelift-jit` with `can't resolve libcall __cranelift_probestack`. That is roughly **fifty
+statements at a script's file scope**, which any `.mwlt` case of ordinary size reaches. The
+strategy is `inline` now (`crates/mwl-codegen/src/lib.rs:674`, with the reasoning beside the flag)
+and `crates/mwl-codegen/tests/backend_policy.rs:36` runs a 200-statement script rather than
+grepping the source for a flag, because this one is observable.
 
-**One premise of item 21 was wrong and the test says so**: preserving keys is not what cost anything on a
-list. `MwlArray::slot_key` (`crates/mwl-runtime/src/array.rs:443`) answers a `SlotKey::Index` while the
-array is packed and renders nothing, so `preserveKeys: true` was five allocations dearer than `false` over
-64 entries, not 64. The one place a sort *renders* a key is a two-parameter `by`, and that is the gap the
-test asserts.
-
-The four names are item 20's three in `mwl-runtime` and one in `mwl-codegen`.
-`docs/agent/loop-goal.toml` now names the tests the tree actually holds, with a comment per check saying
-why each is the truer claim; `loop-goal.md` items 20 and 21 are struck. Verify is green: **1595** tests,
-74 suites, clippy and fmt clean.
-
-**The next red acceptance check is Stage 4's own count** — conformance 437 of 600, differential 90 of 150.
-Both of Stage 4's *named* guards already pass, so every registered member has a case; what is short is
-behavioural depth per member. That is the next group.
+**`encoding` gained two cases and is no longer a thin section.** They pin what the four existing
+ones did not: every padding length as a function of the operand's length, the empty operand in both
+directions, a symbol neither base64 alphabet admits, base32's five block lengths and their padding
+counts, `fromHex` refusing a space/`0x`/newline/non-ASCII, and — the row that needed `fromHex` to
+write at all — a buffer of `00 ff 80 fe` round-tripping through all three pairs, which no
+`"…" as bytes` can produce (ADR 0009 § 1).
 
 ## Next group
 
-Three conformance-case slices over the two thinnest `bytes`-facing sections, in this order. Shared file
-set: `crates/mwl-stdlib/src/encoding.rs`, `crates/mwl-stdlib/src/hash.rs`,
-`tests/conformance/core/encoding-*.mwlt` and `hash-*.mwlt`, and `docs/spec/01-core-library.md` §§ 7 and
-11. All three live inside the playbook's `bytes` trap — `"…" as bytes` and `Core\Encoding::fromHex(…)`
-are the only two spellings, and `toHex` is the only assertion, because `echo` has no `bytes` row.
+Three `Core\Hash` slices, in this order. Shared file set: `crates/mwl-stdlib/src/hash.rs`,
+`tests/conformance/core/hash-*.mwlt`, and `docs/spec/01-core-library.md` § 11. All three live inside
+the playbook's `bytes` trap — `"…" as bytes` and `Core\Encoding::fromHex(…)` are the only two
+spellings and `toHex` is the only assertion — and inside the `Core`-instance trap for the third,
+since `Hash\Stream` accumulates into a slot rather than holding a native context.
 
-- [ ] **base64 and base64url edge rows** — `encoding.rs:821` `toBase64`, `:837` `fromBase64`, `:859`
-      `toBase64Url`, `:869` `fromBase64Url`. Four cases today (`encoding-base64-writes-each-variant…`);
-      what is unpinned is the empty input, each padding length, an octet neither alphabet admits, and
-      the round trip through a buffer `as bytes` cannot produce.
-- [ ] **base32 and hex edge rows** — `encoding.rs:890` `toBase32`, `:907` `fromBase32`, `:934` `toHex`,
-      `:956` `fromHex`. Same shape one alphabet over, plus the case-folding rule
-      `encoding-base32-folds-case-and-padding-but-nothing-else.mwlt` states but does not exhaust.
-- [ ] **`Core\Hash` per algorithm** — `hash.rs:452` `of`, `:468` `hmac`, `:501` `equals`, `:549`
-      `stream`. Three cases today; one row per algorithm the registry admits, `equals` over a
-      length-mismatched pair, and a `Stream` fed in chunks that straddle the block size.
+- [ ] **`Core\Hash::of` per algorithm** — `hash.rs:452`. One published test vector per `Core\Digest`
+      case, the empty input for each, and a `bytes` no `string` could hold. Today
+      `hash-computes-every-digest-and-authenticates-with-hmac.mwlt` walks the roster once with one
+      input.
+- [ ] **`Core\Hash::hmac` and `::equals` edge rows** — `hash.rs:468`, `hash.rs:501`. RFC 4231's key
+      shapes (empty, shorter than the block, longer than it and therefore hashed first) and
+      `equals` over operands of unequal length, which is the row a constant-time compare must still
+      answer. `hash-hmac-refuses-a-weak-digest.mwlt` is the only case touching either.
+- [ ] **`Core\Hash\Stream` chunk boundaries** — `hash.rs:549` `stream`, `:573` `update`, `:601`
+      `finish`. Zero updates, a value split across two updates matching `of` on the whole, and what
+      a second `finish` does. `hash-streams-a-digest-in-chunks.mwlt` pins one chunking today.
 
 ## Backlog
 
-- `Core\Json::decodeAs<T>`'s decoder — `mwl_stdlib::json` gap 2, and ADR 0071's non-scalar fields.
-- ADR 0088's registry-wide qualifier classification — `docs/implementation-plan.md` `Open now`.
+- `Core\Json::decodeAs<T>`'s decoder — `crates/mwl-stdlib/src/json.rs` gap 2, ADR 0071.
+- ADR 0088's registry-wide qualifier classification on `mwl-stdlib`'s member rows — M8.
 - `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s module doc.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
-- The differential suite is 90 of 150 and needs PHP on the native leg — `tests/differential/`.
-- `orient.py` gaps this session: `[context]` printed no `mwl-stdlib` map line for `arr.rs`, no
-  `mwl-runtime` line for `array.rs`/`closure.rs`, and nothing at all from `loop-goal.toml`'s check
-  bodies — which is where the item's real acceptance names live. Add `modules` patterns for those two
-  and a selector for the current stage's `[[check]]` block.
+- The next-thinnest sections after `hash`: `csv`, `out` and `validate` at one case each.
+- The differential corpus is 90 of 150 — `tests/differential/`, and it needs PHP on the leg.
