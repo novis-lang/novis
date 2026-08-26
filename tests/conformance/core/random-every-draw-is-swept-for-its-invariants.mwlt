@@ -1,0 +1,143 @@
+--TEST--
+Every `Core\Random` draw is swept for its invariants: an int stays inside its closed bounds and reaches both of them, a float fills the unit interval, no two buffers repeat, `pick` only ever answers an element of its subject, and `shuffle` is a permutation rather than a fresh draw — spec § 11, ADR 0063 R5
+--FILE--
+<?mwl
+// A drawn value cannot be asserted, so every member here is pinned by
+// *invariance over a run of draws* rather than by any one answer — the shape
+// `Core\Uuid`'s own sweep uses, for the same reason. Each line counts how many
+// draws held the invariant, so an implementation that got a bound right most
+// of the time fails the count rather than passing a spot check. The single
+// draws, the degenerate range and the two refusals are the sibling cases'
+// (`random-draws-inside-its-stated-bounds`, `random-draws-over-an-array`);
+// nothing here repeats them.
+int $i = 0;
+
+// Spec § 11: `int` is closed at *both* ends, so a die is the range where both
+// endpoints are also the extremes of the sweep. 200 draws reach 1 and 6 unless
+// the generator is skewed — missing either is a 2 * (5/6)^200 event, which is
+// under 1 in 10^15, so `$lowest` and `$highest` are an assertion and not a
+// hope.
+int $inside = 0;
+int $lowest = 6;
+int $highest = 1;
+for ($i = 0; $i < 200; $i = $i + 1) {
+    var $d = Core\Random::int(1, 6);
+    $inside = $inside + (($d >= 1 && $d <= 6) ? 1 : 0);
+    $lowest = ($d < $lowest) ? $d : $lowest;
+    $highest = ($d > $highest) ? $d : $highest;
+}
+echo "die ", $inside, " ", $lowest, " ", $highest, "\n";
+
+// The same sweep over a range whose *width* is not representable: 2^63 values
+// is one more than an `int` holds, so an implementation computing `$max - $min
+// + 1` overflows here while a die tells it nothing. This is the boundary the
+// member's rejection sampling is written around.
+int $wide = 0;
+for ($i = 0; $i < 24; $i = $i + 1) {
+    var $w = Core\Random::int(-4611686018427387904, 4611686018427387903);
+    $wide = $wide + ((($w >= -4611686018427387904) && ($w <= 4611686018427387903)) ? 1 : 0);
+}
+echo "wide ", $wide, "\n";
+
+// `float()` is uniform in the half-open `[0, 1)`. Every draw is inside it, and
+// both halves are reached — a member answering a constant, or one clamped to a
+// single end, holds the first count and fails the second.
+int $unit = 0;
+int $lowHalf = 0;
+for ($i = 0; $i < 120; $i = $i + 1) {
+    var $f = Core\Random::float();
+    $unit = $unit + ((($f >= 0.0) && ($f < 1.0)) ? 1 : 0);
+    $lowHalf = $lowHalf + (($f < 0.5) ? 1 : 0);
+}
+echo "unit ", $unit, " ", ($lowHalf > 0 && $lowHalf < 120) ? "both halves" : "one half", "\n";
+
+// `bytes` counts octets, and ADR 0009 § 3 makes `bytes as string` checked, so
+// a draw is compared through `Core\Encoding::toHex`. Every buffer is its
+// stated length and no two of 24 draws are the same — a generator seeded once
+// per process, or one reseeded identically per call, fails the second count.
+string $seen = "";
+int $sized = 0;
+int $repeats = 0;
+for ($i = 0; $i < 24; $i = $i + 1) {
+    var $b = Core\Encoding::toHex(Core\Random::bytes(16));
+    $sized = $sized + ((Core\Str::length($b) == 32) ? 1 : 0);
+    $repeats = $repeats + (Core\Str::contains($seen, $b) ? 1 : 0);
+    $seen = $seen . $b . ";";
+}
+echo "bytes ", $sized, " ", $repeats, "\n";
+
+// `pick` answers a *member of its argument*, never a value of the same type:
+// `Arr::diff` of the whole run against the subject is what says so, and it is
+// empty only if every one of 120 draws came out of the box. Every element is
+// also reached, so a member answering the first entry — or the last — fails
+// the distinct count. ADR 0063 R5 makes the empty subject `null`, which is why
+// the answer is `?int`; over a non-empty one it is never null, and that is the
+// last count.
+array<int> $box = [10, 20, 30, 40];
+array<int> $picks = [];
+int $nulls = 0;
+for ($i = 0; $i < 120; $i = $i + 1) {
+    var $p = Core\Random::pick($box);
+    $nulls = $nulls + (($p == null) ? 1 : 0);
+    $picks = Core\Arr::append($picks, $p as int);
+}
+echo "pick ",
+    Core\Arr::count($picks), " ",
+    Core\Arr::count(Core\Arr::unique($picks)), " ",
+    Core\Arr::count(Core\Arr::diff($picks, $box)), " ",
+    $nulls, "\n";
+
+// `sample` is the same claim plus distinctness, held over every draw rather
+// than over one: two entries, two *different* entries, and both of them the
+// subject's. The union of 24 such draws covers the whole box, which is what
+// says the choice is not fixed.
+int $exact = 0;
+int $distinct = 0;
+int $drawnFrom = 0;
+array<int> $union = [];
+for ($i = 0; $i < 24; $i = $i + 1) {
+    var $two = Core\Random::sample($box, 2);
+    $exact = $exact + ((Core\Arr::count($two) == 2) ? 1 : 0);
+    $distinct = $distinct + ((Core\Arr::count(Core\Arr::unique($two)) == 2) ? 1 : 0);
+    $drawnFrom = $drawnFrom + ((Core\Arr::count(Core\Arr::diff($two, $box)) == 0) ? 1 : 0);
+    $union = Core\Arr::appendAll($union, $two);
+}
+echo "sample ", $exact, " ", $distinct, " ", $drawnFrom, " ",
+    Core\Arr::count(Core\Arr::unique($union)), "\n";
+
+// `shuffle` is a *permutation*, and the subject carries duplicates precisely
+// so that a re-draw over the same element set cannot pass: sorting the answer
+// has to give the sorted subject back, multiplicities and all. A member
+// drawing 5 entries from `{1, 2, 3}` would hold the count, the sum's siblings
+// and `unique`, and fail this line on the first draw that repeats a value the
+// subject holds once.
+array<int> $bag = [1, 1, 2, 3, 3];
+var $sorted = Core\Json::encode(Core\Arr::sort($bag));
+string $orders = "";
+int $permutation = 0;
+int $shapes = 0;
+for ($i = 0; $i < 24; $i = $i + 1) {
+    var $s = Core\Random::shuffle($bag);
+    $permutation = $permutation + ((Core\Json::encode(Core\Arr::sort($s)) == $sorted) ? 1 : 0);
+    var $rendered = Core\Json::encode($s);
+    $shapes = $shapes + (Core\Str::contains($orders, $rendered . ";") ? 0 : 1);
+    $orders = $orders . $rendered . ";";
+}
+echo "shuffle ", $permutation, " ", ($shapes > 1) ? "reordered" : "constant", "\n";
+
+// The two orders that have only one arrangement, where a shuffle is still
+// total: an empty array and a single entry each come back as themselves.
+array<int> $none = [];
+echo Core\Json::encode(Core\Random::shuffle($none)), "\n";
+array<int> $one = [7];
+echo Core\Json::encode(Core\Random::shuffle($one)), "\n";
+--EXPECT--
+die 200 1 6
+wide 24
+unit 120 both halves
+bytes 24 0
+pick 120 4 0 0
+sample 24 24 24 4
+shuffle 24 reordered
+[]
+[7]
