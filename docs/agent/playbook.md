@@ -1010,6 +1010,30 @@ is why" — is this file.
   "pick the rows, not the member" reading as the `hypot` and `cbrt` bullets. The *interior* of the
   circle is not: `sin($x) * sin($x) + cos($x) * cos($x)` needs the tolerance spelling above even
   though it agreed on all 20 rows of one table.
+- **A float round trip has a well-conditioned direction and an ill-conditioned one, and the case
+  picks the direction rather than loosening the tolerance.** Composing a member with its inverse
+  amplifies the inner answer's last digits wherever the outer member is steep, so the same claim is
+  host-independent one way round and a measurement of the host's libm the other. Measured here, all
+  on both legs through `php`: `asinh(sinh($x))` and `acosh(cosh($x))` are contractions and agree to
+  `1.0E-13` relative on every row of a table out to ±5 — `acosh` recovers `|$x|`, since `cosh` is
+  even — while `atanh(tanh($x))` is not: `atanh` amplifies by `1 / (1 - $y * $y)`, which is 5500× at
+  `$x = 5`, so that round trip is written `tanh(atanh($y))` over a table of `$y` inside `(-1, 1)`
+  instead. Same reading for the circular three: `asin(sin($x))` and `acos(cos($x))` need every row a
+  quarter radian clear of a turning point (`±PI/2` for `asin`, `0` and `PI` for `acos`), where
+  `atan(tan($x))` is well conditioned even beside the pole because `tan`'s blow-up and `atan`'s
+  contraction cancel. This is the `hypot` and `atanh` bullets' "pick the rows, not the member" met
+  from the composition side.
+
+- **The hyperbolic and inverse-circular rows that are exact on both legs, so a case can assert them
+  as equalities.** Measured through `php` natively and inside WSL, alongside the list in the
+  neighbouring *A float landmark is exact on both legs* bullet: `sinh(0.0) == 0.0`,
+  `cosh(0.0) == 1.0`, `tanh(0.0) == 0.0`, `asinh(0.0) == 0.0`, `acosh(1.0) == 0.0`,
+  `atanh(0.0) == 0.0`, `asin(sin(0.0)) == 0.0`, `acos(cos(0.0)) == 0.0`, `atan(tan(0.0)) == 0.0`,
+  `acos(cos(PI)) == PI` and `asin(sin(PI / 2.0)) == PI / 2.0`. Two saturation rows are exact as
+  well and are properties rather than digits: `tanh(20.0) == 1.0` — past about 19 the two
+  exponentials are a double's whole precision apart, so the ratio *is* one — while `cosh(20.0)` is
+  still finite, and at 1000 both `cosh` and `sinh` answer `INFINITY` rather than refusing, a
+  hyperbolic member having no domain to leave on that side.
 
 ## Splitting a file that got too big
 

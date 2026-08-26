@@ -2,60 +2,65 @@
 
 ## State
 
-**Conformance is at 536 of 600, and it is the only frontier left.** The differential gate is met at
+**Conformance is at 538 of 600, and it is the only frontier left.** The differential gate is met at
 **159** of the 150 it requires and `python tools/gaps.py --differential` is empty. Verify is green
 (1597 cargo tests, 74 suites, clippy and fmt clean) and runs both `.mwlt` trees itself, so after a
 green `verify.py` there is nothing else to run (playbook, *Running things*). The tree is clean.
 
-**`Core\Math` is 38 members and 11 constants over 27 cases**, and the two added here take the
-family's *constant* and *identity* frontiers. Every constant is now pinned to the member that
-produces it rather than only to its own literal: `PI` is what four inverse and circular members
-answer at their landmarks, `TAU` is `PI` doubled in all three directions, `E` is `exp` at one and
-`log`'s own default base, `EPSILON` and `FLOAT_MIN` are read from both sides of the same relative
-step (the step survives at `FLOAT_MIN` and is lost one halving below it, which is what makes
-`FLOAT_MIN` the smallest *normal*), `FLOAT_MAX`/`INFINITY` are the two sides of `isFinite`, `NAN` is
-the one constant `==` cannot confirm, `INT_MAX`/`INT_MIN` are exactly where `intDiv`, `gcd` and
-`abs` stop — the last argument each answers and the first each refuses — and `UINT_MAX` is the 64th
-bit `fromBase` has no `int` for. Eleven of eleven, counted rather than read off the lines.
-`sin`/`cos`/`tan` are then one circle over a 20-row table: the Pythagorean identity, the quotient
-and the `[-1, 1]` bound each hold on all 20, held to a rounding step because none of the three is
-correctly rounded, and the quarter turns are asserted as *properties* — `tan(PI / 2.0)` is enormous
-and finite rather than an infinity, `cos(PI / 2.0)` and `sin(PI)` are tiny and positive rather than
-zero — so no platform's last digits are frozen. Both cases were measured on the WSL leg as well as
-the native one, through `php` rather than a cross-build; the new playbook bullet names the rows that
-came back exact so the next float session does not re-measure them.
+**`Core\Math` is 38 members over 31 cases, and only one specified slice is left in it** — the
+`format`/`round` agreement below. The two added here take the family's *composition* frontier. The
+six hyperbolic members are held to their exponential definitions over 18 rows out to ±5: `sinh` is
+the half difference of `exp($x)` and `exp(0.0 - $x)` and `cosh` the half sum, `cosh² - sinh²` is 1
+to a step taken relative to `cosh²` (the magnitude the subtraction happens at, not that of its
+answer), `tanh` is the ratio and has no pole to be near, `asinh` and `acosh` undo their partners —
+`acosh` up to sign, `cosh` being even — and `atanh` is round-tripped the *other* way as
+`tanh(atanh($y))`, because in its own direction it amplifies by 5500× at `$x = 5`. Past the table
+the claims are properties: `tanh(20.0)` is exactly 1 while `cosh(20.0)` is still finite, and at 1000
+both growing members answer `INFINITY`. The three inverse circular members are then pinned to their
+*branch*: `asin(sin($x))` reflects about the nearer quarter turn outside `[-PI/2, PI/2]`,
+`acos(cos($x))` folds onto `[0, PI]` and turns around again at `TAU - |$x|`, and `atan(tan($x))`
+is the one that shifts by whole `PI`s rather than reflecting — which is why `atan2` exists. Each of
+the three answers inside its own branch on all 20 rows, and `sin(asin(sin($x)))` recovers `sin($x)`
+unconditionally, which is what makes the three counts a statement about the branch and not about
+the members disagreeing. Every row of both cases was measured on the WSL leg as well as the native
+one, through `php` rather than a cross-build; the two new playbook bullets name the well-conditioned
+direction and the exact-on-both-legs rows so the next float session does not re-measure either.
 
 ## Next group
 
-Three slices, all reading `crates/mwl-stdlib/src/math.rs` and adding new files under
-`tests/conformance/core/`. `docs/spec/01-core-library.md` § 3 owns the rules; each is the
-*agreement* shape from conventions.md. The tolerance spelling and the exact-on-both-legs rows are
-both playbook bullets under *Writing a test case* — do not re-derive either.
+The first slice closes `Core\Math` and reads `crates/mwl-stdlib/src/math.rs`; the other two are
+`Core\Path` and both read `crates/mwl-stdlib/src/path.rs`. All three add a new file under
+`tests/conformance/core/` and all three are the *agreement* shape from conventions.md.
+`docs/spec/01-core-library.md` §§ 3 and 7 own the rules. The tolerance spelling, the well-conditioned
+direction and the exact-on-both-legs rows are all playbook bullets under *Writing a test case* — do
+not re-derive any of them.
 
-- [ ] **The six hyperbolic members are their exponential definitions** — `sinh` against
-      `(exp($x) - exp(0.0 - $x)) / 2.0` and `cosh` against the sum, `cosh * cosh - sinh * sinh`
-      is 1, `tanh` is the ratio, and `asinh`/`acosh`/`atanh` undo the three over a table — all to a
-      relative step, never to equality, since none of the six is correctly rounded.
-      `crates/mwl-stdlib/src/math.rs:229` (`sinh`), `:236` (`cosh`), `:243` (`tanh`),
-      `:250` (`asinh`), `:257` (`acosh`), `:264` (`atanh`).
-- [ ] **The three inverse circular members undo the three circular ones only inside their own
-      principal branch** — `asin(sin($x))` is `$x` on a swept table inside `[-PI/2, PI/2]` and is
-      the *reflection* of it outside, `acos(cos($x))` folds the negative half onto the positive,
-      and `atan(tan($x))` is the one that is periodic rather than reflected. Counted, to a relative
-      step. `crates/mwl-stdlib/src/math.rs:180` (`sin`), `:187` (`cos`), `:194` (`tan`),
-      `:201` (`asin`), `:208` (`acos`), `:215` (`atan`).
 - [ ] **`format` and `round` agree wherever both name the same precision** — `Core\Math::format($n,
       {decimals: $d})` renders what `Core\Math::round($n, {precision: $d})` answers, on every row of
       a table, and parts from it only in the options `round` has no opinion about (the separators,
       whose defaults are MWL's and not `number_format`'s). `crates/mwl-stdlib/src/math.rs:110`
       (`round`), `:313` (`format`), `:449` (`FORMAT_OPTIONS`, where the empty group separator is
       decided).
+- [ ] **`split` and `join` are inverses through `normalize`'s normal form** — `join` of what `split`
+      returned is `normalize($p)` on every row of a table, `split` never yields an empty segment
+      however many separators were repeated, and the round trip is asserted separator-free or
+      through `Core\Str::replace($p, Core\Path::SEPARATOR, "/")`, per the goal's *Path and the two
+      legs* decision. `crates/mwl-stdlib/src/path.rs:104` (`join`), `:111` (`split`), `:118`
+      (`normalize`).
+- [ ] **`relativeTo` and `join` undo each other, and the boundary is where they stop** —
+      `join($base, relativeTo($p, $base))` normalizes back to `$p` over a table, and the pair parts
+      exactly where no relative path exists (a different drive, `isAbsolute` disagreeing between the
+      two arguments). Both sides of that bound named together. `crates/mwl-stdlib/src/path.rs:104`
+      (`join`), `:118` (`normalize`), `:125` (`isAbsolute`), `:132` (`relativeTo`).
 
 ## Backlog
 
-- `Core\Json::decodeAs<T>`'s decoder reads scalar fields only — ADR 0071, `mwl_stdlib::json` gap 2.
-- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row — `mwl_stdlib::hash`'s module doc.
-- ADR 0086 § 1's substitution table, which `Cli\Text::plain` needs — `crates/mwl-stdlib/src/cli.rs` gap 1.
-- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir` gap 1.
-- A closure cannot be called through the variable holding it — `mwl-ir` gap 1, playbook.
+- `basename`/`dirname`/`extension`/`withExtension` agree on where the name ends — read
+  `path-decomposes-a-path-without-touching-the-disk.mwlt` first; it may already own the claim.
+- `Core\Csv` is 2 members over 5 cases and `Core\Validate` 5 cases — the two thinnest areas after
+  `Core\Path`; `python tools/gaps.py` is the worklist (`docs/implementation-plan.md`, *Open now*).
+- `Core\Json::decodeAs<T>`'s decoder reads scalar-fielded classes only — ADR 0071,
+  `mwl_stdlib::json` gap 2.
+- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row —
+  `mwl_stdlib::hash`'s module doc.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.

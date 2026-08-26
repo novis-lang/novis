@@ -1,0 +1,165 @@
+--TEST--
+Core\Math's asin, acos and atan undo sin, cos and tan only inside their own principal branch, and fold, reflect or shift everything outside it, spec § 3
+--FILE--
+<?mwl
+// The *agreement* shape (conventions.md), asserted by *counting*. An inverse
+// circular member answers one turn's worth of arguments with one branch's
+// worth of answers, so "asin undoes sin" is only true inside `[-PI/2, PI/2]`
+// and the whole claim is what it does *outside* — which is a different
+// arithmetic for each of the three, and the thing a member that grew its own
+// range reduction gets wrong while still looking right on its own line.
+//
+// None of the six is correctly rounded, so every row is held to a relative
+// step and never to equality: the tolerance spelling is the playbook's, under
+// *Writing a test case*. `0.000000000001` is 1.0E-12.
+//
+// The table is picked, not swept: every row is at least a quarter radian away
+// from a turning point, because `asin` amplifies its argument's last digits
+// where `sin` is flat (at ±PI/2) and `acos` does the same where `cos` is flat
+// (at 0 and PI). Near those the round trip asks the host's libm a question
+// rather than asking the pair whether they are inverses — the same "pick the
+// rows, not the member" reading the `hypot` and `atanh` bullets record. All
+// 20 rows were measured through `php` on both legs, native and WSL.
+array<float> $xs = [
+    0.25, 0.5, 0.75, 1.0, 1.25, 1.9, 2.2, 2.5, 2.8, 3.5, 3.9, 4.3,
+    -0.25, -0.75, -1.25, -1.9, -2.5, -2.8, -3.5, -4.3,
+];
+
+float $quarterTurn = Core\Math::PI / 2.0;
+
+int $rows = 0;
+int $asinReflects = 0;
+int $acosFolds = 0;
+int $atanShifts = 0;
+int $asinInBranch = 0;
+int $acosInBranch = 0;
+int $atanInBranch = 0;
+int $sinIsRecovered = 0;
+foreach ($xs as float $x) {
+    $rows = $rows + 1;
+
+    float $xMag = $x;
+    if ($xMag < 0.0) {
+        $xMag = 0.0 - $xMag;
+    }
+    float $tol = 0.000000000001 * ($xMag + 1.0);
+
+    float $s = Core\Math::sin($x);
+    float $c = Core\Math::cos($x);
+    float $t = Core\Math::tan($x);
+
+    // asin's branch is `[-PI/2, PI/2]`, and outside it the round trip is a
+    // *reflection* about the nearer quarter turn: sin rises to 1 and comes
+    // back down the way it went up, so the argument PI - $x has the same sine
+    // that $x does and is the one asin can name.
+    float $asinExpected = $x;
+    if ($x > $quarterTurn) {
+        $asinExpected = Core\Math::PI - $x;
+    }
+    if ($x < 0.0 - $quarterTurn) {
+        $asinExpected = (0.0 - Core\Math::PI) - $x;
+    }
+    float $asinBack = Core\Math::asin($s);
+    float $asinGap = $asinBack - $asinExpected;
+    if ($asinGap < 0.0) {
+        $asinGap = 0.0 - $asinGap;
+    }
+    if ($asinGap < $tol) {
+        $asinReflects = $asinReflects + 1;
+    }
+    if (($asinBack <= $quarterTurn) && ($asinBack >= 0.0 - $quarterTurn)) {
+        $asinInBranch = $asinInBranch + 1;
+    }
+
+    // acos's branch is `[0, PI]`, half a turn and all of it non-negative, so
+    // the round trip *folds*: cos is even, which puts the negative half of the
+    // table onto its own magnitude, and past PI the fold turns around again at
+    // TAU - |$x|. No row of this table can come back negative at all.
+    float $acosExpected = $xMag;
+    if ($xMag > Core\Math::PI) {
+        $acosExpected = Core\Math::TAU - $xMag;
+    }
+    float $acosBack = Core\Math::acos($c);
+    float $acosGap = $acosBack - $acosExpected;
+    if ($acosGap < 0.0) {
+        $acosGap = 0.0 - $acosGap;
+    }
+    if ($acosGap < $tol) {
+        $acosFolds = $acosFolds + 1;
+    }
+    if (($acosBack >= 0.0) && ($acosBack <= Core\Math::PI)) {
+        $acosInBranch = $acosInBranch + 1;
+    }
+
+    // atan is the one that is *periodic* rather than reflected, and the reason
+    // the three cannot share one rule: tan repeats every half turn instead of
+    // turning around, so the round trip subtracts whole PIs and never changes
+    // the direction the answer moves in. That is also why `atan2` exists —
+    // this member cannot tell the two quadrants sharing a tangent apart, which
+    // is pinned in the atan2 case rather than here.
+    float $atanExpected = $x;
+    if ($x > $quarterTurn) {
+        $atanExpected = $x - Core\Math::PI;
+    }
+    if ($x < 0.0 - $quarterTurn) {
+        $atanExpected = $x + Core\Math::PI;
+    }
+    float $atanBack = Core\Math::atan($t);
+    float $atanGap = $atanBack - $atanExpected;
+    if ($atanGap < 0.0) {
+        $atanGap = 0.0 - $atanGap;
+    }
+    if ($atanGap < $tol) {
+        $atanShifts = $atanShifts + 1;
+    }
+    if (($atanBack <= $quarterTurn) && ($atanBack >= 0.0 - $quarterTurn)) {
+        $atanInBranch = $atanInBranch + 1;
+    }
+
+    // Composed the other way round there is no branch to leave and nothing to
+    // fold: whichever argument asin named, it has the sine the row started
+    // with. This is the half of "inverse" that holds on all 20 rows without a
+    // condition, and it is what makes the three counts above a statement about
+    // the *branch* rather than about the members disagreeing.
+    float $again = Core\Math::sin($asinBack);
+    float $againGap = $again - $s;
+    if ($againGap < 0.0) {
+        $againGap = 0.0 - $againGap;
+    }
+    if ($againGap < 0.000000000001) {
+        $sinIsRecovered = $sinIsRecovered + 1;
+    }
+}
+
+echo "rows: ", $rows, "\n";
+echo "asin(sin(x)) reflects: ", $asinReflects, " of ", $rows, "\n";
+echo "acos(cos(x)) folds: ", $acosFolds, " of ", $rows, "\n";
+echo "atan(tan(x)) shifts by PI: ", $atanShifts, " of ", $rows, "\n";
+echo "asin in [-PI/2, PI/2]: ", $asinInBranch, " of ", $rows, "\n";
+echo "acos in [0, PI]: ", $acosInBranch, " of ", $rows, "\n";
+echo "atan in [-PI/2, PI/2]: ", $atanInBranch, " of ", $rows, "\n";
+echo "sin(asin(sin(x))) == sin(x): ", $sinIsRecovered, " of ", $rows, "\n";
+
+// The rows the table leaves out because only there is the round trip exact,
+// and both legs agree on all five — measured through `php`, not assumed.
+echo "asin(sin(0))=", Core\Math::asin(Core\Math::sin(0.0)) == 0.0 ? "0" : "other",
+     " acos(cos(0))=", Core\Math::acos(Core\Math::cos(0.0)) == 0.0 ? "0" : "other",
+     " atan(tan(0))=", Core\Math::atan(Core\Math::tan(0.0)) == 0.0 ? "0" : "other", "\n";
+
+// The two branch endpoints, which are the one place the fold and the identity
+// meet: PI is its own reflection under acos and PI/2 is its own under asin.
+echo "acos(cos(PI))=",
+     Core\Math::acos(Core\Math::cos(Core\Math::PI)) == Core\Math::PI ? "PI" : "other",
+     " asin(sin(PI/2))=",
+     Core\Math::asin(Core\Math::sin($quarterTurn)) == $quarterTurn ? "PI/2" : "other", "\n";
+--EXPECT--
+rows: 20
+asin(sin(x)) reflects: 20 of 20
+acos(cos(x)) folds: 20 of 20
+atan(tan(x)) shifts by PI: 20 of 20
+asin in [-PI/2, PI/2]: 20 of 20
+acos in [0, PI]: 20 of 20
+atan in [-PI/2, PI/2]: 20 of 20
+sin(asin(sin(x))) == sin(x): 20 of 20
+asin(sin(0))=0 acos(cos(0))=0 atan(tan(0))=0
+acos(cos(PI))=PI asin(sin(PI/2))=PI/2
