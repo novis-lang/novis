@@ -5,7 +5,7 @@
 - **Scope:** the directive registry, `Core\Config::set`/`::get`, per-request limit enforcement
 - **Amends:** [0004](0004-memory-for-simplicity.md) — the enforceable per-request cap is now the *ceiling*
   directive, not the default one
-- **Amended by:** 0064, 0072, 0073, 0074, 0076, 0078, 0091 — each fold is applied below; this body states
+- **Amended by:** 0064, 0072, 0073, 0074, 0076, 0078, 0091, 0103, 0104 — each fold is applied below; this body states
   the current rule. The registry's full block list, with the ADR that argues each block's directives, is
   [0064 § 2a](0064-configuration-file-format.md).
 
@@ -85,14 +85,17 @@ max_output = "512M"
 The shipped ceilings are deliberately generous: they are sized to stop a runaway, not to shape ordinary
 code. A script that raises its own `memory` to 512M for an import is doing something the operator has
 already permitted; a script that asks for 8G is refused. `[limits.hard] memory = false` removes the ceiling
-entirely, giving literal PHP behaviour on a trusted single-tenant host, and a per-app block may override a
-ceiling downward the same way it overrides a capability grant. **What a per-app block is keyed on, and how
-one is spelled, is not stated anywhere yet** — this ADR, [0064](0064-configuration-file-format.md)
-§ *Revisiting* and [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 5 all build on
-them and none defines them. [0097](0097-development-server-and-proxied-origin.md) § 10 records the gap and
-the constraint that resolving it must satisfy: an application's identity should be its **entry file path**,
-so that `mwl run` on the CLI has one too and per-app configuration does not become reachable only once a
-server exists.
+entirely, giving literal PHP behaviour on a trusted single-tenant host.
+
+**A per-app block is `[[app]]`, keyed on the entry file path**, and
+[0104](0104-an-application-is-an-entry-file-path.md) is the only copy of how one is spelled and matched.
+Two things it settles belong here because they are this ADR's model: such a block sets any `[app.limits]`
+value for its application, **wider or narrower**, bounded by the global `[limits.hard]` ceiling, and may
+grant a capability the global `[capabilities]` block withholds as well as drop one it holds — which is what
+keeps deny-by-default at the top workable. Only `[app.limits.hard]` is one-directional, lowering an
+application's own ceiling and never raising it. (This body previously said a per-app block "may override a
+ceiling downward the same way it overrides a capability grant", which read as narrowing-only for both;
+0104 § 3 argues why that inverts deny-by-default and states the rule above instead.)
 
 **A refused `Core\Config::set` returns `false` and leaves the value unchanged**, with a `W`-class diagnostic naming
 the ceiling. It is not clamped to the ceiling: silently running with a different number than the one

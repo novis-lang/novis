@@ -14,8 +14,8 @@
   ([0017](0017-hot-reload-without-restart.md)); the route table, its grammar and its three compile errors
   ([0077](0077-compile-time-routing.md)); persistent connections ([0083](0083-persistent-connections-are-isolates.md));
   how a message's spelling is read ([0095](0095-ambiguous-input-is-refused-never-repaired.md)); and the
-  per-app capability and limit block, which is [0005](0005-config-changeability.md)'s and which § 10 records
-  as undefined rather than defining here.
+  per-app capability, limit and mode block, which is [0005](0005-config-changeability.md)'s model and
+  [0104](0104-an-application-is-an-entry-file-path.md)'s spelling rather than this ADR's (§ 10).
 - **Amends:** [0017](0017-hot-reload-without-restart.md) — `opcache.validate` gains a mode-selected startup
   default, and the directory listings it already revalidates gain a second consumer in § 3's scan.
   [0025](0025-wasm-browser-target.md) — its precedent for a contingent milestone can no longer be M13, which
@@ -25,7 +25,8 @@
   keeps its brotli and zstd rows on the decompression-bomb-is-policy reason that ADR already gives
   `Core\Zip`, not on a server request path that § 1 removes.
   [0005](0005-config-changeability.md) — its claim that per-app blocks "already live in the root config"
-  now names the gap § 10 records. [0064](0064-configuration-file-format.md) § 2a — the block table
+  is answered by [0104](0104-an-application-is-an-entry-file-path.md), which § 10 routes to.
+  [0064](0064-configuration-file-format.md) § 2a — the block table
   gains `[server]` and `[[server.mount]]`, and `[limits]`/`[limits.hard]` gain `request_body`.
   [0074](0074-http-defaults-safe-and-finite.md) — HSTS is emitted when the effective scheme is `https`
   rather than only over a TLS connection MWL now never terminates, and its *Alternatives* line pushing edge
@@ -51,6 +52,9 @@
   glob captures together; § 7's sentence about the server having no route table is scoped to the CORS
   preflight it was true of, which is what lets that ADR's § 1 match once. Nothing about the mount grammar,
   the proxy trust rules or the three conventions changes.
+  [0104](0104-an-application-is-an-entry-file-path.md) — § 10's mount loses its `mode` key, the gap that
+  section recorded being closed there. [0103](0103-configuration-is-a-tree-of-files.md) — § 4's
+  `--listen`/`--port` precedence becomes that ADR's § 8 rule.
 - **Relates to:** 0004, 0005, 0006, 0012, 0024, 0042, 0059, 0061, 0072, 0079, 0080, 0092
 
 > **In short:** the server has exactly **two deployments** and no third — a **development server** that
@@ -391,22 +395,30 @@ rendering carries it, and it is emitted on the response so a proxy can log it wi
 **An inbound `X-Request-ID` is ignored**, which avoids a validation rule against log injection for a fact
 MWL already has.
 
-### 10. A mount carries `mode`, and the per-app block is a gap this ADR does not fill
+### 10. A mount routes and carries nothing else; policy is the per-app block's
 
-A mount may set `mode`, bounded by `[mode] ceiling`. That fulfils
-[0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 5's mixed-application host, whose
-third row promised per-application mode selection and had no configuration mechanism to point at.
+**A mount carries no `mode`, no limits and no capabilities.** `path` and `root` say where requests arrive;
+everything about what the code serving them may do belongs to
+[0104](0104-an-application-is-an-entry-file-path.md)'s `[[app]]` block, keyed on the entry file path.
+The two usually name the same directory, and that is the intended shape:
 
-**A mount carries nothing else, and the reason is a doc bug this ADR records rather than fixes.**
-[0005](0005-config-changeability.md) states that per-app blocks "already live in the root config";
-[0064](0064-configuration-file-format.md) § *Revisiting* discusses their layout and calls it 0005's
-question; [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 5 builds a deployment on
-them. **No document defines what one is keyed on or how one is spelled.** Defining capabilities and limits
-here would put a second home on a fact 0005 nominally owns, trading one doc bug for a worse one.
+```toml
+[[server.mount]]
+path = "/shop"
+root = "/srv/www/shop"        # routing
 
-**The constraint to carry into that design:** an application's identity should be its **entry file path**,
-not its mount. A mount-keyed block would leave `mwl run` on the CLI with no per-application identity at all,
-and would make per-app configuration unreachable until M7 even though 0005 lands in M6.
+[[app]]
+root = "/srv/www/shop"        # policy
+mode = "production"
+```
+
+This section previously gave a mount its own `mode` key, as the only mechanism
+[0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 5's mixed-application host could
+point at, and recorded the missing per-app block as a doc bug it declined to fix — because defining
+capabilities and limits here would have put a second home on a fact
+[0005](0005-config-changeability.md) owns. 0104 fixes it on 0005's behalf, honouring the constraint this
+section carried forward: **an application's identity is its entry file path, not its mount**, so `mwl run`
+on the CLI has one too and per-app configuration is reachable in M6 rather than only once a server exists.
 
 ## Consequences
 

@@ -282,3 +282,10 @@ spellings rejected, and the reasoning.
 - **Against Python MWL claims the tool that gets handed over, never speed or replacement: a file opening
   `#!` starts in code mode with no tag, there is no REPL, and the userland suite measures three engines**
   ([0100](0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md)).
+- **The configuration is a tree of files resolved as one ordered stream where later wins and every override
+  is reported; every file in it must be unwritable by any account but its owner, and an absent `optional`
+  include puts that check on the directory that would hold it**
+  ([0103](0103-configuration-is-a-tree-of-files.md)).
+- **An application is its entry file path: `[[app]]` is keyed on a canonicalized `root` prefix or exact
+  `entry`, every matching block layers least-specific first, and a block may grant as well as narrow,
+  bounded by the global `[limits.hard]`** ([0104](0104-an-application-is-an-entry-file-path.md)).
