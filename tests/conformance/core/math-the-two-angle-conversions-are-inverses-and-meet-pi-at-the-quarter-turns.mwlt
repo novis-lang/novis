@@ -1,0 +1,121 @@
+--TEST--
+Core\Math::toRadians and toDegrees invert each other over a swept table, and land on PI and TAU exactly at the quarter turns — docs/spec/01-core-library.md § 3
+--FILE--
+<?mwl
+// The pair is implemented as PHP's own expressions — `($d / 180.0) * PI` and
+// `($r / PI) * 180.0` — rather than as Rust's `f64::to_radians`, which scales
+// by the correctly rounded `PI / 180.0`. The two spellings part by an ulp, and
+// `==` over `float` is exact (ADR 0090), so the round trip below is the thing
+// that difference is observable through. `mwl_stdlib::math`'s doc comment on
+// `mwl_core_math_to_radians` owns the reasoning; this case pins the behaviour.
+// What each trigonometric member answers on its own is
+// math-trigonometry-and-angle-conversion.mwlt.
+
+// 1. The quarter turns, both signs: every row comes back the degree it went in
+//    as. Counted, not read off nine lines, so a spelling that is right for a
+//    turn and wrong for a three-quarter turn still fails here.
+array<float> $quarters = [-360.0, -270.0, -180.0, -90.0, 0.0, 90.0, 180.0, 270.0, 360.0];
+int $quarterTrips = 0;
+int $quarterRows = 0;
+foreach ($quarters as float $q) {
+    $quarterRows = $quarterRows + 1;
+    if (Core\Math::toDegrees(Core\Math::toRadians($q)) == $q) {
+        $quarterTrips = $quarterTrips + 1;
+    }
+}
+echo "quarter round trips: ", $quarterTrips, "/", $quarterRows, "\n";
+
+// 2. The off-quarter angles are where the two spellings actually diverge: a
+//    whole degree's radians is not exactly representable, so the round trip is
+//    only an identity because both halves scale by the same PI. Under the std
+//    spelling `toDegrees(toRadians(30.0)) == 30.0` is false.
+array<float> $obliques = [-150.0, -135.0, -120.0, -60.0, -45.0, -30.0, 30.0, 45.0, 60.0, 120.0, 135.0, 150.0];
+int $obliqueTrips = 0;
+int $obliqueRows = 0;
+foreach ($obliques as float $o) {
+    $obliqueRows = $obliqueRows + 1;
+    if (Core\Math::toDegrees(Core\Math::toRadians($o)) == $o) {
+        $obliqueTrips = $obliqueTrips + 1;
+    }
+}
+echo "oblique round trips: ", $obliqueTrips, "/", $obliqueRows, "\n";
+
+// 3. The inverse holds starting from the radian side too, over the constants
+//    themselves rather than over a decimal written out by hand.
+array<float> $radians = [0.0 - Core\Math::TAU, 0.0 - Core\Math::PI, 0.0, Core\Math::PI / 2.0, Core\Math::PI, Core\Math::TAU * 0.75, Core\Math::TAU];
+int $radianTrips = 0;
+int $radianRows = 0;
+foreach ($radians as float $r) {
+    $radianRows = $radianRows + 1;
+    if (Core\Math::toRadians(Core\Math::toDegrees($r)) == $r) {
+        $radianTrips = $radianTrips + 1;
+    }
+}
+echo "radian round trips: ", $radianTrips, "/", $radianRows, "\n";
+
+// 4. Each quarter turn named against a constant expression, never against a
+//    frozen decimal: a turn that missed would drop its own token from the line.
+//    Each of these four is exact because the scale factor is a power of two or
+//    a value both sides reach the same way — `90 / 180` is 0.5, `360 / 180` is
+//    2.0, and halving or doubling a `float` loses nothing.
+echo "quarter turns: ";
+if (Core\Math::toRadians(90.0) == Core\Math::PI / 2.0) {
+    echo "90=PI/2 ";
+}
+if (Core\Math::toRadians(180.0) == Core\Math::PI) {
+    echo "180=PI ";
+}
+if (Core\Math::toRadians(270.0) == Core\Math::TAU * 0.75) {
+    echo "270=TAU*3/4 ";
+}
+if (Core\Math::toRadians(360.0) == Core\Math::TAU) {
+    echo "360=TAU";
+}
+echo "\n";
+
+// The two constants are one value apart, which is what lets the line above use
+// either of them for a turn without picking a side.
+if (Core\Math::TAU == Core\Math::PI * 2.0) {
+    echo "TAU is exactly two PI\n";
+} else {
+    echo "TAU differs from two PI\n";
+}
+
+// 5. Negating the argument negates the answer exactly — the scaling is a
+//    multiplication, so no row may round differently from its mirror.
+array<float> $mirrored = [30.0, 45.0, 90.0, 180.0, 270.0, 360.0];
+int $mirrors = 0;
+int $mirrorRows = 0;
+foreach ($mirrored as float $m) {
+    $mirrorRows = $mirrorRows + 1;
+    if (Core\Math::toRadians(0.0 - $m) == 0.0 - Core\Math::toRadians($m)) {
+        $mirrors = $mirrors + 1;
+    }
+}
+echo "mirrored: ", $mirrors, "/", $mirrorRows, "\n";
+
+// 6. The one place the pair is not symmetric, and it follows from the order of
+//    the two operations rather than from the magnitude. `toRadians` divides by
+//    180 first, so the largest finite `float` survives it; `toDegrees` divides
+//    by PI — barely more than 3 — and then multiplies by 180, which overflows.
+//    Neither throws: § 3 answers IEEE's value.
+if (Core\Math::isFinite(Core\Math::toRadians(1.0e308))) {
+    echo "toRadians finite";
+} else {
+    echo "toRadians INF";
+}
+echo "|";
+if (Core\Math::isFinite(Core\Math::toDegrees(1.0e308))) {
+    echo "toDegrees finite";
+} else {
+    echo "toDegrees INF";
+}
+echo "\n";
+--EXPECT--
+quarter round trips: 9/9
+oblique round trips: 12/12
+radian round trips: 7/7
+quarter turns: 90=PI/2 180=PI 270=TAU*3/4 360=TAU
+TAU is exactly two PI
+mirrored: 6/6
+toRadians finite|toDegrees INF

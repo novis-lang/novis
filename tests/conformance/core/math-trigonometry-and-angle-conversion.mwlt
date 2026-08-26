@@ -13,6 +13,9 @@ echo Core\Math::sinh(0.0), "|", Core\Math::cosh(0.0), "|", Core\Math::tanh(0.0),
 echo Core\Math::asinh(0.0), "|", Core\Math::acosh(1.0), "|", Core\Math::atanh(0.0), "\n";
 
 // The two conversions are inverses, and a half turn is the value to say so at.
+// That they invert each other on *every* row of a swept table, and land on PI
+// and TAU exactly at the four quarter turns, is
+// math-the-two-angle-conversions-are-inverses-and-meet-pi-at-the-quarter-turns.mwlt.
 echo Core\Math::toRadians(180.0), "|", Core\Math::toDegrees(Core\Math::toRadians(180.0)), "\n";
 echo (Core\Math::sin(Core\Math::toRadians(90.0)) == 1.0) as string, "|\n";
 --EXPECT--
