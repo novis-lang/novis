@@ -2,6 +2,9 @@
 Core\Math's twelve trigonometric members plus toRadians and toDegrees
 --FILE--
 <?mwl
+// Answers read off arguments chosen so they are exact. The one property that
+// holds on every argument, and so can be swept, is parity:
+// math-the-odd-and-even-members-keep-their-parity-on-every-row.mwlt.
 echo Core\Math::sin(0.0), "|", Core\Math::cos(0.0), "|", Core\Math::tan(0.0), "\n";
 // What each inverse member answers *outside* its own domain, counted over one
 // table, is math-inverse-members-answer-nan-outside-their-own-domain.mwlt.

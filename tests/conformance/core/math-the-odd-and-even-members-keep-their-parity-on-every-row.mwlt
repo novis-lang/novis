@@ -1,0 +1,160 @@
+--TEST--
+Nine Core\Math members are exactly odd and two exactly even on every row of two swept tables, atanh is odd only to within a rounding step, and NaN is the one input where no member's parity can be asked — docs/spec/01-core-library.md § 3
+--FILE--
+<?mwl
+// Almost nothing about a transcendental member can be asserted across hosts:
+// math-trigonometry-and-angle-conversion.mwlt has to pick arguments whose
+// answers are exact, because MSVC's libm and glibc's are free to round the rest
+// differently. Parity is the exception — where the member computes `f(-$x)` by
+// the same steps as `f($x)`, `sin(-$x) == 0.0 - sin($x)` is either exactly true
+// or the member has grown a second code path for negative arguments, with no
+// row where rounding could excuse a difference. That is what makes this the one
+// property most of the family can be swept for, and part 3 is the member where
+// the antecedent fails.
+
+// 1. The narrow table: magnitudes inside the domain of every member, so all
+//    eleven exactly-parity members are asked on all seven rows. `1.0` is a row
+//    and not an exclusion — `asin` answers a quarter turn there, and where a
+//    member answers an infinity the infinity is odd exactly as a finite answer
+//    is.
+array<float> $narrow = [0.0, 0.125, 0.25, 0.5, 0.75, 0.9, 1.0];
+int $narrowRows = 0;
+int $oddHeld = 0;
+int $evenHeld = 0;
+foreach ($narrow as float $x) {
+    $narrowRows = $narrowRows + 1;
+    float $negX = 0.0 - $x;
+    if (Core\Math::sin($negX) == 0.0 - Core\Math::sin($x)) { $oddHeld = $oddHeld + 1; }
+    if (Core\Math::tan($negX) == 0.0 - Core\Math::tan($x)) { $oddHeld = $oddHeld + 1; }
+    if (Core\Math::sinh($negX) == 0.0 - Core\Math::sinh($x)) { $oddHeld = $oddHeld + 1; }
+    if (Core\Math::tanh($negX) == 0.0 - Core\Math::tanh($x)) { $oddHeld = $oddHeld + 1; }
+    if (Core\Math::asin($negX) == 0.0 - Core\Math::asin($x)) { $oddHeld = $oddHeld + 1; }
+    if (Core\Math::atan($negX) == 0.0 - Core\Math::atan($x)) { $oddHeld = $oddHeld + 1; }
+    if (Core\Math::asinh($negX) == 0.0 - Core\Math::asinh($x)) { $oddHeld = $oddHeld + 1; }
+    if (Core\Math::cbrt($negX) == 0.0 - Core\Math::cbrt($x)) { $oddHeld = $oddHeld + 1; }
+    // `sign` is odd in the same sense while answering an `int`, which is why it
+    // belongs in the sweep rather than beside it.
+    if (Core\Math::sign($negX) == 0 - Core\Math::sign($x)) { $oddHeld = $oddHeld + 1; }
+    if (Core\Math::cos($negX) == Core\Math::cos($x)) { $evenHeld = $evenHeld + 1; }
+    if (Core\Math::cosh($negX) == Core\Math::cosh($x)) { $evenHeld = $evenHeld + 1; }
+}
+echo "narrow: ", $narrowRows, " rows, odd ", $oddHeld, "/", $narrowRows * 9,
+     ", even ", $evenHeld, "/", $narrowRows * 2, "\n";
+
+// 2. The wide table, for the members with no domain limit. It reaches past where
+//    `sinh` and `cosh` overflow to an infinity and past where `sin`/`tan` need a
+//    full argument reduction — the two places a second code path would most
+//    plausibly hide — and the parity is still exact at both.
+array<float> $wide = [1.5, 3.0, 7.5, 100.0, 1000.0, 1.0e15];
+int $wideRows = 0;
+int $wideOdd = 0;
+int $wideEven = 0;
+foreach ($wide as float $w) {
+    $wideRows = $wideRows + 1;
+    float $negW = 0.0 - $w;
+    if (Core\Math::sin($negW) == 0.0 - Core\Math::sin($w)) { $wideOdd = $wideOdd + 1; }
+    if (Core\Math::tan($negW) == 0.0 - Core\Math::tan($w)) { $wideOdd = $wideOdd + 1; }
+    if (Core\Math::sinh($negW) == 0.0 - Core\Math::sinh($w)) { $wideOdd = $wideOdd + 1; }
+    if (Core\Math::tanh($negW) == 0.0 - Core\Math::tanh($w)) { $wideOdd = $wideOdd + 1; }
+    if (Core\Math::atan($negW) == 0.0 - Core\Math::atan($w)) { $wideOdd = $wideOdd + 1; }
+    if (Core\Math::asinh($negW) == 0.0 - Core\Math::asinh($w)) { $wideOdd = $wideOdd + 1; }
+    if (Core\Math::cbrt($negW) == 0.0 - Core\Math::cbrt($w)) { $wideOdd = $wideOdd + 1; }
+    if (Core\Math::sign($negW) == 0 - Core\Math::sign($w)) { $wideOdd = $wideOdd + 1; }
+    if (Core\Math::cos($negW) == Core\Math::cos($w)) { $wideEven = $wideEven + 1; }
+    if (Core\Math::cosh($negW) == Core\Math::cosh($w)) { $wideEven = $wideEven + 1; }
+}
+echo "wide: ", $wideRows, " rows, odd ", $wideOdd, "/", $wideRows * 8,
+     ", even ", $wideEven, "/", $wideRows * 2, "\n";
+
+// 3. `atanh` is the tenth odd member and it is in neither table, because it is
+//    the one whose answer for `-$x` is not computed by the same steps as its
+//    answer for `$x`: it goes through a logarithm of an expression that is not
+//    itself symmetric, so the two answers can land a rounding step apart. They
+//    do, on both of this tree's legs and on *different* rows of this very table
+//    — which is exactly why the exact equality above cannot include it, and why
+//    what is asserted here instead is host-independent: the two agree to within
+//    a relative rounding step on every row, and exactly where the answer is an
+//    infinity, since infinities negate exactly.
+int $atanhRows = 0;
+int $nearlyOdd = 0;
+foreach ($narrow as float $t) {
+    $atanhRows = $atanhRows + 1;
+    float $there = Core\Math::atanh($t);
+    float $back = Core\Math::atanh(0.0 - $t);
+    if (Core\Math::isFinite($there)) {
+        float $gap = Core\Math::abs($there + $back) as float;
+        float $scale = Core\Math::abs($there) as float;
+        if ($gap <= $scale * 1.0e-15) { $nearlyOdd = $nearlyOdd + 1; }
+    } else if ($back == 0.0 - $there) {
+        $nearlyOdd = $nearlyOdd + 1;
+    }
+}
+echo "atanh: odd to within a rounding step on ", $nearlyOdd, "/", $atanhRows, " rows\n";
+
+// 4. What the sweeps could not see. Their first row is a zero, and `==` puts the
+//    two zeros on the same side of itself, so an odd member that dropped the
+//    sign of `-0.0` would still have counted there. Read through the reciprocal
+//    it does not: every one of the nine `float`-valued odd members, `atanh`
+//    included, carries the sign into its answer — the same distinction the four
+//    rounding members are pinned on. The two even members are the opposite by
+//    definition: they answer 1 for both zeros, having no sign to carry.
+float $nz = -0.0;
+int $signCarried = 0;
+if (1.0 / Core\Math::sin($nz) < 0.0) { $signCarried = $signCarried + 1; }
+if (1.0 / Core\Math::tan($nz) < 0.0) { $signCarried = $signCarried + 1; }
+if (1.0 / Core\Math::sinh($nz) < 0.0) { $signCarried = $signCarried + 1; }
+if (1.0 / Core\Math::tanh($nz) < 0.0) { $signCarried = $signCarried + 1; }
+if (1.0 / Core\Math::asin($nz) < 0.0) { $signCarried = $signCarried + 1; }
+if (1.0 / Core\Math::atan($nz) < 0.0) { $signCarried = $signCarried + 1; }
+if (1.0 / Core\Math::asinh($nz) < 0.0) { $signCarried = $signCarried + 1; }
+if (1.0 / Core\Math::atanh($nz) < 0.0) { $signCarried = $signCarried + 1; }
+if (1.0 / Core\Math::cbrt($nz) < 0.0) { $signCarried = $signCarried + 1; }
+echo "negative zero: carried by ", $signCarried, "/9 odd members, discarded by both even ones ",
+     Core\Math::cos($nz) == 1.0 && Core\Math::cosh($nz) == 1.0 ? "y" : "n",
+     "; sign has no zero to carry it, and answers ", Core\Math::sign($nz), "\n";
+
+// 5. The one input where parity cannot be asked at all, and the two different
+//    reasons for it. A `float`-valued member answers NaN back — which is right —
+//    but NaN is on neither side of `==`, so the equality is false rather than
+//    true and would stay false however the member behaved. `sign` has to answer
+//    an `int` and there is none, so it refuses instead: the equality has no
+//    left-hand side to be false. Four members, one from each family.
+float $nan = Core\Math::sqrt(0.0 - 1.0);
+float $negNan = 0.0 - $nan;
+int $heldAtNan = 0;
+int $stillNan = 0;
+if (Core\Math::sin($negNan) == 0.0 - Core\Math::sin($nan)) { $heldAtNan = $heldAtNan + 1; }
+if (Core\Math::tanh($negNan) == 0.0 - Core\Math::tanh($nan)) { $heldAtNan = $heldAtNan + 1; }
+if (Core\Math::asin($negNan) == 0.0 - Core\Math::asin($nan)) { $heldAtNan = $heldAtNan + 1; }
+if (Core\Math::cbrt($negNan) == 0.0 - Core\Math::cbrt($nan)) { $heldAtNan = $heldAtNan + 1; }
+if (Core\Math::isNan(Core\Math::sin($nan))) { $stillNan = $stillNan + 1; }
+if (Core\Math::isNan(Core\Math::tanh($nan))) { $stillNan = $stillNan + 1; }
+if (Core\Math::isNan(Core\Math::asin($nan))) { $stillNan = $stillNan + 1; }
+if (Core\Math::isNan(Core\Math::cbrt($nan))) { $stillNan = $stillNan + 1; }
+int $signRefused = 0;
+try {
+    echo Core\Math::sign($nan);
+} catch (Throwable $noSide) {
+    $signRefused = 1;
+}
+echo "nan: parity held ", $heldAtNan, "/4, answer still nan ", $stillNan, "/4, sign refused ",
+     $signRefused, "\n";
+
+// 6. The two members of the family that are in no table at all, so that their
+//    absence is a claim rather than an omission. `acos` is defined on a
+//    symmetric domain and is still neither odd nor even on it; `acosh`'s domain
+//    starts at 1, so the negated argument is not in it and the answer is the NaN
+//    a domain error gets — the module keeps IEEE's answer there rather than
+//    throwing, which is why this reads as a value and not as a refusal.
+float $half = 0.5;
+echo "acos: even ", Core\Math::acos(0.0 - $half) == Core\Math::acos($half) ? "y" : "n",
+     ", odd ", Core\Math::acos(0.0 - $half) == 0.0 - Core\Math::acos($half) ? "y" : "n",
+     "; acosh(-2) nan ", Core\Math::isNan(Core\Math::acosh(0.0 - 2.0)) ? "y" : "n",
+     ", acosh(2) finite ", Core\Math::isFinite(Core\Math::acosh(2.0)) ? "y" : "n", "\n";
+--EXPECT--
+narrow: 7 rows, odd 63/63, even 14/14
+wide: 6 rows, odd 48/48, even 12/12
+atanh: odd to within a rounding step on 7/7 rows
+negative zero: carried by 9/9 odd members, discarded by both even ones y; sign has no zero to carry it, and answers 0
+nan: parity held 0/4, answer still nan 4/4, sign refused 1
+acos: even n, odd n; acosh(-2) nan y, acosh(2) finite y
