@@ -247,6 +247,18 @@ is why" — is this file.
   failed and nothing was wrong — it is just 84 files of churn inside a feature commit. Use plain
   `INSTA_UPDATE=always cargo test -p <crate>` (no `FORCE`), or sort it out afterwards with
   `git diff --numstat` per file and `git checkout --` the ones whose whole diff is two lines.
+- **An acceptance check in `loop-goal.toml` can be red on a *name* rather than on a claim, and the
+  difference costs a session to tell apart.** Item 20's three tests and item 21's two were all listed
+  under names predicted before anyone wrote them; the implementations had landed sessions earlier
+  under names that state the narrower, true claim
+  (`appending_into_spare_capacity_allocates_nothing`, not
+  `appending_to_a_uniquely_owned_string_does_not_reallocate` — spare capacity is what makes an append
+  free, and a uniquely owned string with no room *does* reallocate). So when the handoff says a check
+  names "three tests that do not exist", **grep the crate's test names for the claim before writing
+  anything**: `grep -n "    fn " crates/<crate>/src/<file>.rs` costs one call and can turn a slice
+  into a two-line edit. Correct the *list* when the tree's name is truer, and say so in the toml
+  comment; a predicted name is status, not a decision, and the playbook's neighbouring bullet about a
+  check's *comment* is the same rule one field over.
 
 ## Running things
 
@@ -568,6 +580,22 @@ is why" — is this file.
   allocated" is, and it is the same claim, because a per-access cost is O(accesses) and a setup cost cancels
   out of the difference. Pair it with a control arm that *does* allocate per access — the same accesses
   through a rendered key — or a counter stuck at zero passes the test for you.
+- **A `-p mwl-stdlib` test can hand a `Core` member a real `callable` without a compiler in front of
+  it.** `mwl_runtime::call_closure` reads exactly two things off a closure value — slot
+  `CLOSURE_ARITY_SLOT`, and the `CLOSURE_INVOKE` method's address in its class — so a
+  `ClassTable::define` + `set_methods` pair with a plain `unsafe extern "C" fn` is a whole closure, and
+  everything else in `lower_closure`'s representation is captured state a native callback does not
+  have. `crates/mwl-stdlib/tests/allocation_policy.rs`'s `closure_of` is the shape; leak the table,
+  because a descriptor's address is its identity. The callee owes the exit sweep — release the
+  receiver and each parameter, which `call_closure` retained on the way in — or the case leaks one
+  reference per element and the WSL valgrind leg catches it much later.
+
+- **Measuring "no allocation per element" is a *difference*, not a zero, whenever a closure is
+  called.** `call_closure` allocates the argument slice it retains, once per call, whatever the
+  callback declares — so a key-free `Core\Arr::map` over 64 entries spends 70 allocations, not 6, and
+  an assertion of zero fails for the wrong reason. Assert the gap between two arities instead
+  (`keyed >= quiet + entries`), and where there is no callback at all — `sort($list)` — assert the
+  absolute bound, because nothing is left that could scale with the entry count.
 
 ## Splitting a file that got too big
 

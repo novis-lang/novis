@@ -2,56 +2,59 @@
 
 ## State
 
-**Stage 0 item 19 is closed and Stage 3 is still green.** `mwl-codegen`'s
-`an_integer_subscript_reaches_the_packed_form_from_compiled_code`
-(`crates/mwl-codegen/tests/arrays.rs:110`) holds the compiled half of the packed-array claim
-`mwl_runtime::array`'s `an_integer_subscript_allocates_no_key` holds for the primitive: 404 passes over a
-four-element list allocate exactly what 4 passes allocate, while the same accesses through a rendered key
-allocate per access. It measures with a `#[cfg(debug_assertions)]` `#[global_allocator]` of its own, because
-`mwl-runtime`'s `counting_alloc` is `#[cfg(test)]`-private to that crate; the playbook's two new bullets own
-both halves of that shape.
+**Stage 0's catch-up list is closed.** Items 20 and 21 landed together this session, and neither needed
+its implementation written: `StrHeader`'s capacity, `mwl_str_append`, the n-ary `InstKind::Concat`, the
+data-section string literal, and `map`/`filter`/`reduce`/`sort` reading `mwl_runtime::closure_arity` once
+before the walk were all already on disk. What was missing was two measurements and four *names*.
 
-`docs/perf/history.ndjson` exists and holds its first entry —
-`{"workload":"userland_08_array_list_build","instructions":217254092,"php_ratio":0.93}`, measured in WSL
-against PHP 8.5.9 on a release build taken *after* item 18's allocator landed. ADR 0026 § 4 now carries the
-three-command recipe and the finding that a whole `mwl run` reproduces to six significant figures rather
-than bit-for-bit, which narrows that ADR's § 2 claim (measured of `callgrind_spike`, a bare example binary).
-Items 15 and 19 are struck in `loop-goal.md`. Verify is green: **1593** tests, 74 suites, clippy and fmt
-clean.
+The measurements are `a_one_parameter_callback_synthesizes_no_key` and
+`a_sort_that_renumbers_builds_no_keys`, both new in `crates/mwl-stdlib/tests/allocation_policy.rs:436`
+and `:498`, which already carried its own debug-only `#[global_allocator]`. That file's `closure_of`
+(`:321`) is new and is the reusable half: a closure value built from a `ClassTable` and a native
+`extern "C"` callback, which is how a `-p mwl-stdlib` test reaches any member taking a `callable`.
 
-**The first red acceptance check is now Stage 0's `mwl-runtime (string capacity)`** — item 20, three tests
-that do not exist. That is the next group.
+**One premise of item 21 was wrong and the test says so**: preserving keys is not what cost anything on a
+list. `MwlArray::slot_key` (`crates/mwl-runtime/src/array.rs:443`) answers a `SlotKey::Index` while the
+array is packed and renders nothing, so `preserveKeys: true` was five allocations dearer than `false` over
+64 entries, not 64. The one place a sort *renders* a key is a two-parameter `by`, and that is the gap the
+test asserts.
+
+The four names are item 20's three in `mwl-runtime` and one in `mwl-codegen`.
+`docs/agent/loop-goal.toml` now names the tests the tree actually holds, with a comment per check saying
+why each is the truer claim; `loop-goal.md` items 20 and 21 are struck. Verify is green: **1595** tests,
+74 suites, clippy and fmt clean.
+
+**The next red acceptance check is Stage 4's own count** — conformance 437 of 600, differential 90 of 150.
+Both of Stage 4's *named* guards already pass, so every registered member has a case; what is short is
+behavioural depth per member. That is the next group.
 
 ## Next group
 
-Item 20's one layout revision, in the order its three tests are listed. Shared file set:
-`crates/mwl-runtime/src/string.rs`, `crates/mwl-ir/src/ir.rs` + `crates/mwl-ir/src/lower/expr.rs`, and
-`crates/mwl-codegen/src/emit.rs`. `loop-goal.md` item 20 argues all three; nothing here restates it.
+Three conformance-case slices over the two thinnest `bytes`-facing sections, in this order. Shared file
+set: `crates/mwl-stdlib/src/encoding.rs`, `crates/mwl-stdlib/src/hash.rs`,
+`tests/conformance/core/encoding-*.mwlt` and `hash-*.mwlt`, and `docs/spec/01-core-library.md` §§ 7 and
+11. All three live inside the playbook's `bytes` trap — `"…" as bytes` and `Core\Encoding::fromHex(…)`
+are the only two spellings, and `toHex` is the only assertion, because `echo` has no `bytes` row.
 
-- [ ] **`appending_to_a_uniquely_owned_string_does_not_reallocate`** — `StrHeader`
-      (`crates/mwl-runtime/src/string.rs:127`) gains a capacity beside its refcount and length, and
-      `mwl_str_append` (`string.rs:912`, which already exists) appends into it on `mwl_array_set`'s own
-      *consume one reference, return one* protocol. `mwl_str_concat` is `string.rs:797`. Measure it the way
-      the playbook's new bullet says — `counting_alloc::allocated_bytes` is in scope here, since this one is
-      `-p mwl-runtime`'s own test.
-- [ ] **`a_concat_of_many_pieces_allocates_once`** — an n-ary `InstKind::Concat` (`crates/mwl-ir/src/ir.rs:657`
-      already carries the variant, and `lower/expr.rs:1849` already emits it) reaching
-      `MwlStr::from_pieces` (`string.rs:263`), which exists and which codegen never calls.
-- [ ] **`an_immortal_literal_is_never_retained_or_freed`** — `emit_const_str`
-      (`crates/mwl-codegen/src/emit.rs:933`) stops allocating per evaluation. **The part to write down
-      rather than re-derive**: an immortal literal lives in the compiled unit, the one thing a request
-      shares with another, so `string.rs`'s "no `MwlStr` is ever reachable from two threads" reasoning
-      behind the plain `Cell` refcount stops being true as stated. It stays sound — a pinned refcount is
-      never written — and the module doc has to say so.
+- [ ] **base64 and base64url edge rows** — `encoding.rs:821` `toBase64`, `:837` `fromBase64`, `:859`
+      `toBase64Url`, `:869` `fromBase64Url`. Four cases today (`encoding-base64-writes-each-variant…`);
+      what is unpinned is the empty input, each padding length, an octet neither alphabet admits, and
+      the round trip through a buffer `as bytes` cannot produce.
+- [ ] **base32 and hex edge rows** — `encoding.rs:890` `toBase32`, `:907` `fromBase32`, `:934` `toHex`,
+      `:956` `fromHex`. Same shape one alphabet over, plus the case-folding rule
+      `encoding-base32-folds-case-and-padding-but-nothing-else.mwlt` states but does not exhaust.
+- [ ] **`Core\Hash` per algorithm** — `hash.rs:452` `of`, `:468` `hmac`, `:501` `equals`, `:549`
+      `stream`. Three cases today; one row per algorithm the registry admits, `equals` over a
+      length-mismatched pair, and a `Stream` fed in chunks that straddle the block size.
 
 ## Backlog
 
-- Item 21: `Core\Arr::map`/`filter`/`reduce`/`sort` synthesize a key per element no callback asked for —
-  `loop-goal.md` item 21.
-- Item 22: `produced(&str)` copies twice and `text()` re-validates UTF-8, at 56 call sites each —
-  `loop-goal.md` item 22.
-- Stage 4 is the wall: conformance 437 of 600, differential 90 of 150 — `docs/implementation-plan.md`
-  § *Open now*.
-- `Core\Json::decodeAs<T>`'s decoder and ADR 0071's non-scalar fields — `mwl_stdlib::json`'s module doc.
-- ADR 0088's registry-wide qualifier classification — `crates/mwl-stdlib/src/registry.rs`.
+- `Core\Json::decodeAs<T>`'s decoder — `mwl_stdlib::json` gap 2, and ADR 0071's non-scalar fields.
+- ADR 0088's registry-wide qualifier classification — `docs/implementation-plan.md` `Open now`.
+- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s module doc.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- The differential suite is 90 of 150 and needs PHP on the native leg — `tests/differential/`.
+- `orient.py` gaps this session: `[context]` printed no `mwl-stdlib` map line for `arr.rs`, no
+  `mwl-runtime` line for `array.rs`/`closure.rs`, and nothing at all from `loop-goal.toml`'s check
+  bodies — which is where the item's real acceptance names live. Add `modules` patterns for those two
+  and a selector for the current stage's `[[check]]` block.
