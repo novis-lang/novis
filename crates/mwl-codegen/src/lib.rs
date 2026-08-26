@@ -323,6 +323,28 @@ impl Unit {
             id,
         ))
     }
+
+    /// Hands `ctx` this unit's class table. **Every embedder calls this before
+    /// running any of the unit's code**, whether or not it cares about `catch`.
+    ///
+    /// Two obligations share the one call, and the second is the reason it is
+    /// not optional:
+    ///
+    /// 1. *Behaviour.* A runtime helper's failure carries only a message; the
+    ///    installed class is what promotes it to a catchable object with a
+    ///    backtrace ([`mwl_runtime::Ctx::set_runtime_error_class`]).
+    /// 2. *Safety.* Compiled code bakes each descriptor's address in as a
+    ///    constant (see [`Classes`]), so an exception object still sitting on
+    ///    the context points into this table and nothing else keeps it alive.
+    ///    The handle installed here shares ownership of the table, which is
+    ///    what makes a `Ctx` safe to outlive the `Unit` whose code it ran.
+    ///    Skip the call and drop the `Unit` first, and `Ctx::pending` reads
+    ///    freed memory — a use-after-free with no `unsafe` at the call site.
+    pub fn install_in(&self, ctx: &mut mwl_runtime::Ctx) {
+        if let Some(class) = self.runtime_error_class() {
+            ctx.set_runtime_error_class(class);
+        }
+    }
 }
 
 /// Compiles every function in `program` to native code.

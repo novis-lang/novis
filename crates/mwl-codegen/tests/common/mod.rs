@@ -64,8 +64,14 @@ pub(crate) fn lower(source: &str) -> mwl_ir::Program {
 }
 
 /// Compiles and runs `source` against `ctx`, returning the compiled status.
+///
+/// The `unit` dies at this function's brace while `ctx` outlives it, so the
+/// `install_in` call is not a convenience: it is what keeps the unit's class
+/// table alive for an exception the run left on the context. Without it,
+/// reading `ctx.pending()` after this returns is a use-after-free.
 pub(crate) fn run_with(ctx: &mut Ctx, source: &str) -> Result<Value, i32> {
     let unit = compile(source).expect("the fixture compiles");
+    unit.install_in(ctx);
     let entry = unit
         .function("<script>")
         .expect("the script frame was compiled");

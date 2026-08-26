@@ -411,13 +411,10 @@ fn run_run(
     // The script's own frame is the request, for a CLI run: one `Ctx` writing
     // to the process's standard output.
     let mut ctx = mwl_runtime::Ctx::stdout();
-    // A runtime helper's failure carries only a message; this is the class it
-    // is promoted to, so a `catch` can bind it and it can carry a backtrace.
-    // Spec § 10's `RuntimeError` — "the world said no" — is exactly what a
-    // helper failure is.
-    if let Some(class) = unit.runtime_error_class() {
-        ctx.set_runtime_error_class(class);
-    }
+    // Hands the context the unit's class table: the class a helper's
+    // bare-message failure is promoted to, and the shared ownership that lets
+    // the context outlive the unit. `Unit::install_in` owns both reasons.
+    unit.install_in(&mut ctx);
     if let Some(site) = fault_inject {
         ctx.inject_fault(site.into());
     }

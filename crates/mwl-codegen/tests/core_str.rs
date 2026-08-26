@@ -84,9 +84,9 @@ echo \"|\", Core\\Str::replace($s, \"a\", \"z\", {limit: 1, caseInsensitive: tru
 /// as a real argument rather than being dropped on the way — an option that
 /// never arrived would have taken its default of `1` and succeeded.
 ///
-/// Asserted as a status rather than through a `catch`: this harness installs
-/// no runtime error class, and `mwl_runtime::Ctx::set_runtime_error_class`
-/// owns why a helper-raised message is not catchable without one. The
+/// Asserted as a status rather than through a `catch`, which is the narrower
+/// claim: what is under test is that the option reached the helper at all, and
+/// a status says so without also depending on the promotion `catch` needs. The
 /// `mwl_stdlib` unit test beside the member covers the message itself.
 #[test]
 fn an_option_a_core_member_rejects_throws_through_the_helper_boundary() {
