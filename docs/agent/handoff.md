@@ -2,58 +2,53 @@
 
 ## State
 
-**Conformance is the only frontier left, at 512 of 600.** The differential gate is met at **159** of
-the 150 it requires and `python tools/gaps.py --differential` is **empty** — every spec member with a
-PHP twin now has an oracle case. Verify is green (1597 cargo tests, 74 suites, clippy and fmt clean)
-and runs both `.mwlt` trees itself, so after a green `verify.py` there is nothing else to run
-(playbook, *Running things*).
+**Conformance is at 514 of 600, and it is the only frontier left.** The differential gate is met at
+**159** of the 150 it requires and `python tools/gaps.py --differential` is empty. Verify is green
+(1597 cargo tests, 74 suites, clippy and fmt clean) and runs both `.mwlt` trees itself, so after a
+green `verify.py` there is nothing else to run (playbook, *Running things*).
 
-**`Core\Arr::flattenDeep` was the last member on the differential list and it agrees with its twin
-outright** — `iterator_to_array(new RecursiveIteratorIterator(...), false)`, keys and all, because
-`false` discards every key alike and that is ADR 0069 § 3's rule. Not the divergence the previous
-handoff predicted; the playbook bullet says why.
+**§ 9's `Core\Heap` is deep now — 5 conformance cases for 6 members.** The two new ones are the
+*agreement* and *invariance* shapes over a push/pop table: `count`, `isEmpty`, `peek` and ADR 0053
+§ 3's cursor agree at every step (65 agreements over 13 steps, on both orderings), and every `pop`
+answers the element that sorts first among everything still held (10 pairs, both orderings), with a
+monotone table draining non-decreasing. Both are counted, not printed.
 
-**The three JSON number rows that do not agree now have their case.** The refusal band, its two
-bounds, the absent negative half, `1e999`, `-0`, and the writer's `.0` — all in the new
-`--ORACLE-DIVERGES--` case, with the same summary as a *Divergences* playbook bullet.
+**A `.mwlt` case can factor a sweep into a `public static function` taking the collection itself.**
+`Sweep::run(Core\Heap<int> $h, array<int> $ops): int` lowers, `foreach` over that parameter inside
+the loop lowers, and `($h->count() as int) == $size` is how a `uint`-answering `count` is compared
+against an `int` counter the case keeps. Nothing here needed a workaround, so no playbook bullet.
 
-**The group's third slice turned out to be already done.** `Core\Json::isValid` and
-`Core\Json::decode` agreeing on every spelling is the second clause of
-`tests/conformance/core/json-a-decoded-document-re-encodes-byte-for-byte.mwlt`'s `--TEST--` line, so
-it was dropped rather than written twice. Read the `--TEST--` lines of a section's existing cases
-before scheduling one — `sed -n 2p` over the glob is one call.
-
-**`Core\Json` and `Core\Arr` are both deep now** (7 and 55 conformance cases), so the next group
-moves to `Core\Heap`, which has 3 cases for 6 members. **`orient.py`'s `[context] modules` manifest
-has no `heap.rs` selector** — add one, beside `arr.rs` and `json.rs`.
+**The group's third slice was not taken** — it is the third item below, unchanged and anchored.
+`[context] modules` in `loop-goal.toml` now names `csv.rs` and `heap.rs`; `json.rs` came out, § 6
+being deep at 7 cases and both its remaining `Fault::` sites hidden by the codec case's stem.
 
 ## Next group
 
-Three slices, all `crates/mwl-stdlib/src/heap.rs` plus new files under `tests/conformance/core/`;
-the third also reads `crates/mwl-stdlib/src/arr.rs`. Spec § 9 and ADR 0013 own the rules. The three
-existing `heap-*.mwlt` cases pin pop order, the empty-read refusal and `foreach`; none of the below
-is in them.
+Three slices. **The first two share `crates/mwl-stdlib/src/csv.rs`** — 2 members, 3 cases, the
+thinnest section left — plus new files under `tests/conformance/core/`; spec § 12's second table
+owns the rules. The third is the § 9 leftover and reads `heap.rs` + `arr.rs` instead, so take it
+alone or first. The existing `csv-*.mwlt` three pin RFC 4180 round-tripping, a ragged record's keys
+and a non-default dialect; none of the below is in them.
 
-- [ ] **`count`, `isEmpty` and `peek` agree at every step of a push/pop sweep** — the *agreement*
-      shape, counted rather than printed, so a reader that grew its own idea of the size fails here
-      while still looking right on its own line. `heap.rs:617` (`count`), `heap.rs:629` (`isEmpty`),
-      `heap.rs:575` (`peek`), `heap.rs:551` (`push`).
-- [ ] **An interleaved push/pop sequence still pops in non-decreasing order** — the *invariance*
-      shape: pushing a smaller key after a larger one has already been popped must not produce a
-      pop that goes backwards, asserted by counting the non-decreasing steps over a table of
-      sequences. `heap.rs:589` (`pop`), `heap.rs:516` (the constructor's comparator argument).
+- [ ] **`Core\Csv::format` then `Core\Csv::parse` is the identity over a table of awkward records** —
+      the *invariance* shape, counted rather than printed: a field holding the separator, one
+      holding the quote, one holding a newline, an empty field, one with leading and trailing
+      space, and one that is nothing but a quote. `csv.rs:452` (`format`), `csv.rs:354` (`parse`).
+- [ ] **`Core\Csv::parse`'s edges** — the *edges* shape: empty text, a header-only document under
+      `header: true`, the same document with and without its trailing newline, and a record of one
+      empty field. `csv.rs:354`.
 - [ ] **`Core\Heap`'s pop order and `Core\Arr::sort` answer the same permutation** — the
-      *agreement* shape across the two members that share ADR 0013's ordering, over a table
-      including ties and one comparator. `heap.rs:589`, `arr.rs:2790` (`mwl_core_arr_sort`).
+      *agreement* shape across two members implementing one rule (ADR 0013): drain a heap into an
+      array, sort the same table with `Core\Arr::sort`, and count the positions that agree rather
+      than printing either sequence. `heap.rs:589` (`pop`), `arr.rs:2790` (`sort`).
 
 ## Backlog
 
-- `Core\Csv` (2 members, 3 cases), `Core\Uuid` (5, 3), `Core\Validate` (3), `Core\Out` (1, 3) are the
-  next-thinnest sections after `Core\Heap` — `docs/spec/01-core-library.md` §§ 7, 11, 12.
-- `Core\Json::decodeAs<T>`'s field roster is narrower than ADR 0071 § 2's — `mwl_stdlib::json` gap 2.
-- The `i64::MAX`..=`u64::MAX` refusal band's upper edge is a gap, not a rule — `mwl_stdlib::json`
-  gap 1; closing it now shows up as a diff in the new divergence case.
+- `Core\Validate`, `Core\Uuid` and `Core\Out` are 3 cases each — the thinnest sections after
+  `Core\Csv` (`python tools/gaps.py` is the worklist; do not re-derive it).
+- `Core\Json::decodeAs<T>`'s decoder reads scalar-fielded classes only — plan, *Open now*; ADR 0071.
 - ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row —
   `mwl_stdlib::hash`'s module doc.
-- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir` gap 1.
+- `do`/`while` does not lower, and a closure cannot be called through the variable holding it —
+  `mwl-ir` gap 1.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.

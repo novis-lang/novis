@@ -48,7 +48,8 @@ modules = [
   # what the group is chosen from now. `str.rs`, `encoding.rs`, `path.rs`, `time.rs` and `math.rs`
   # came out when their last assertable site was asserted; put a module back the session a group
   # needs it, and take one out the session its last assertable site is asserted.
-  "crates/mwl-stdlib/src/json.rs",
+  "crates/mwl-stdlib/src/csv.rs",
+  "crates/mwl-stdlib/src/heap.rs",
   "crates/mwl-stdlib/src/arr.rs",
   "crates/mwl-stdlib/src/regex.rs",
   # Stage 0 is closed, and the reason it added nothing here is worth keeping because it applies to
