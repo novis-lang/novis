@@ -14,7 +14,9 @@
   — `[debug] mode`'s comma-separated string becomes a TOML array.
 - **Amended by:** 0072, 0073, 0074, 0076, 0081, 0091, 0092 — each adds blocks, listed in § 2a; nothing about
   the format changes. 0078 — the file is re-read on `mwl ctl reload`, not only at boot; each fold is applied
-  below.
+  below. 0103 — the configuration is a *tree* of files rather than one: § 1 gains the resolution order,
+  § 3 gains its cross-file boundary, § 4's discovery rule is restated, and § 2a gains `[[include]]`.
+  0104 — § 2a gains `[[app]]`.
 - **Relates to:** 0007, 0011, 0052, 0061
 
 > **In short:** MWL's server configuration is a TOML file named `mwl.toml`, read through the `toml` crate
@@ -62,6 +64,12 @@ Read into the directive registry through the `toml` crate with `serde` derive �
 replacement snapshot before publishing it and leaves the running one untouched if any part fails. Pure Rust,
 no C, and already inside the dependency set [deny.toml](../../deny.toml) audits, because Cargo's own
 manifests are TOML — this adds no new dependency class.
+
+**`mwl.toml` names the root of a tree, not the whole configuration.**
+[0102](0103-configuration-is-a-tree-of-files.md) owns where that root is found, how `[[include]]` pulls in
+further files, the order they are merged in, the ownership every one of them must pass, and the
+`mwl config` verbs that report the result. Everything below is the syntax each of those files is written
+in, which is the same whether there is one of them or ten.
 
 [ADR 0005](0005-config-changeability.md)'s layout is unchanged; only its spelling moves:
 
@@ -123,6 +131,8 @@ that a reader of `mwl.toml` has one place to start:
 
 | Block | Owner |
 |---|---|
+| `[[include]]` | [0102](0103-configuration-is-a-tree-of-files.md) |
+| `[[app]]` | [0104](0104-an-application-is-an-entry-file-path.md) |
 | `[limits]`, `[limits.hard]` | [0005](0005-config-changeability.md) |
 | `[mode]` | [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) |
 | `[capabilities]` | [0005](0005-config-changeability.md), [0006](0006-isolated-script-execution.md) |
@@ -150,15 +160,28 @@ as "granted nothing" by accident. On a reload the same diagnostic refuses the sw
 keeps serving, so a typo can never be published to a running server either. Both are `serde`'s default behaviour with `deny_unknown_fields`; neither
 is new machinery.
 
+**Both refusals are per file.** Across an `[[include]]` the same key set twice is not a duplicate but an
+override, which [0103 § 3](0103-configuration-is-a-tree-of-files.md) allows and requires to be reported
+with both origins — the property this section protects is that no assignment is *silently* shadowed, and
+inside one file the only way to hold that is to refuse.
+
 ### 4. `mwl.toml` is not a project manifest
 
 [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) rejected "a manifest file
 (`mwl.toml`/`mwl.json`), found by walking up from the entry file". **That rejection stands**, and it is
-about discovery and lifetime rather than syntax. The file decided here is a single root-owned deployment
-file at a path the operator hands the host: never searched for by walking up from a source file, never
-placed inside or beside a document root, and holding no source-tree state — an `[autoload]` table is still
-refused for exactly the reason ADR 0061 gives. Sharing an extension with `Cargo.toml` is not a collision;
-the name, the location and the owner all differ.
+about discovery and lifetime rather than syntax. The file decided here is a root-owned deployment file,
+**never searched for by walking up from a source file** and holding no source-tree state — an `[autoload]`
+table is still refused for exactly the reason ADR 0061 gives. Sharing an extension with `Cargo.toml` is not
+a collision; the name, the location and the owner all differ.
+
+Where the file is *found* is [0103 § 1](0103-configuration-is-a-tree-of-files.md)'s, and one part of it
+changed what this section used to say. It read "at a path the operator hands the host … never placed inside
+or beside a document root"; 0103 § 1 adds `./mwl.toml`, exactly one directory and still never a walk
+upward. The objection that sentence carried was a configuration file *discovered* in a directory the
+serving account can write, and what answers it is 0103 § 6's ownership refusal, the resolved absolute path
+announced at boot, and [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)'s installer
+refusing a service whose config came from a working directory. The walking-up rejection this section rests
+on is untouched.
 
 ### 5. `ini_set` is `Core\Config::set`
 

@@ -19,7 +19,7 @@
 - **Amended by:** 0071 — § 6's `Core\Db\Codec` may be generated from a class's own properties by
   `#[Db\Derive]` instead of hand-written, and `DbError` carries every failed column rather than the first;
   both are applied below. 0084 — the durable job queue is a first-party consumer, and its tables are the one
-  schema the runtime itself owns.
+  schema the runtime itself owns. 0103 — § 4's `password` gains a `password_file` sibling, applied below.
 - **Relates to:** 0002, 0005, 0006, 0007, 0009, 0020, 0028, 0033, 0036, 0043, 0047, 0053, 0054, 0057, 0063,
   0064, 0066
 
@@ -135,6 +135,11 @@ and read files off the application host. The only way through is
 justification — which is the honest spelling for an Adminer-style tool where a human genuinely types the
 host. `Settings.database` and `.user` accept `tainted` freely (length-prefixed protocol fields, not parsed
 text), and `.password` is `secret tainted string`.
+
+**`password` has a `password_file` sibling**, and exactly one of the pair may be set:
+[0103 § 7](0103-configuration-is-a-tree-of-files.md) owns that indirection — the named file's whole content
+is the value, which is how Docker Compose, Kubernetes secret volumes and systemd `LoadCredential=` all
+deliver a credential, and it keeps the secret out of a config file that is otherwise safe to read.
 
 Three defaults close holes PHP leaves open, and none is configurable to the unsafe value:
 

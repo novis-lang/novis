@@ -10,6 +10,8 @@
   §§ 1 and 6 — the file is no longer read only at boot;
   [0042](0042-on-disk-artifact-cache-format.md) §§ 2 and 6 — the key gains the extension set;
   [0003](0003-extension-system.md) § *Isolation, limits and loading* — the extension set is reloadable.
+- **Amended by:** 0103 — § 3 gains `mwl ctl config` as a second operation, and what `reload` re-reads is a
+  whole tree of files whose ownership is re-checked; the fold is applied below.
 - **Relates to:** 0017, 0052, 0055
 
 > **In short:** the parsed config is one immutable `Arc<Config>`; a request clones it at start and is
@@ -112,8 +114,14 @@ socket = "/run/mwl/control.sock"   # \\.\pipe\mwl-control on Windows; `false` di
   the server itself, `curl --unix-socket` debugs it with no special tooling, and adding a network listener
   later becomes a second `bind` rather than a second protocol.
 - **`mwl ctl` is the client**, a namespace of its own because every other subcommand (`run`, `check`, `test`,
-  `fmt`, `info`) acts on files with no server involved. `--socket` addresses one of several servers on a
-  host. `mwl ctl reload` is the only operation in v1.
+  `fmt`, `info`, `config`) acts on files with no server involved. `--socket` addresses one of several
+  servers on a host. `reload` and **`ctl config`** are the operations:
+  [0103 § 9](0103-configuration-is-a-tree-of-files.md) adds the second, which prints the live snapshot with
+  each directive's origin. It is a read, it runs no MWL code, and it is what the offline `mwl config dump`
+  cannot answer — what a reload actually published, including an `optional` include that has appeared since
+  boot. What `reload` re-reads is the whole **tree** that ADR describes, re-running its ownership checks on
+  every file, so a file that became group-writable since boot refuses the swap and leaves the previous
+  snapshot serving.
 - **Operations serialize**, single-flighting on the same [0017](0017-hot-reload-without-restart.md) machinery
   a concurrent compile already uses, so two reloads cannot interleave two snapshots.
 - **No control operation runs user MWL code**, ever. One that could would be

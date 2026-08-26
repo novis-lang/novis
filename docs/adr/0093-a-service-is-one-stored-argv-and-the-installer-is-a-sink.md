@@ -12,6 +12,8 @@
   [0073](0073-scheduled-work-is-config.md) and is not a service; and bundling a program into one file,
   which stays [0048](0048-portable-single-file-executables.md) — § 6 here is the boundary that ADR's § 1
   named and deferred.
+- **Amended by:** 0103 — § 2's closed subcommand list gains `config`, and its refusal table gains an argv
+  carrying no `--config`, so a service never derives its configuration from a working directory.
 - **Amends:** [0048](0048-portable-single-file-executables.md) § 1 — its single-trust-domain argument now
   also refuses a bundle that would install *itself* as a service, § 6 below.
 - **Relates to:** 0004, 0005, 0033, 0044, 0051, 0078, 0080, 0088
@@ -96,11 +98,12 @@ removes it. So the default is refusal, and the allowlist is closed.
 
 | Refused | Because |
 |---|---|
-| A subcommand other than `serve` or `run` | `ast`, `check`, `test`, `fmt`, `info`, `ctl` and `service` itself either exit immediately — which every service manager reports as a crash loop, forever — or are meaningless with no terminal attached |
+| A subcommand other than `serve` or `run` | `ast`, `check`, `test`, `fmt`, `info`, `config`, `ctl` and `service` itself either exit immediately — which every service manager reports as a crash loop, forever — or are meaningless with no terminal attached |
 | `--fault-inject`, on any subcommand | `mwl-cli`'s own doc comment states that hook must never be reachable from a served request; a service carrying it is exactly that, with a privileged account attached |
 | Any relative path, in the argv or in an installer option | A Windows service starts in `System32` with a minimal environment, so a relative `--config` is a guaranteed first-boot failure surfacing as an opaque SCM error code |
 | An install with neither `--log-file` nor a `[log]` destination in the named config | A Windows service has no console handle, so stderr is discarded — a refused compile or a `FATAL` would leave no trace anywhere (§ 4) |
 | An `--account` password passed on the command line | A command line is readable by other users on the box; it is prompted instead, and is `secret` in [0033](0033-secret-qualifier-for-confidential-values.md)'s sense for its whole life |
+| An argv carrying no `--config` at all | The stored argv would fall back to [0103 § 1](0103-configuration-is-a-tree-of-files.md)'s `./mwl.toml`, making the service's configuration a property of whatever directory the manager happens to start it in — the same first-boot failure as a relative path, one step less visible. A service names its configuration absolutely |
 | Running from a [0048](0048-portable-single-file-executables.md) bundle | § 6 |
 
 Every surviving path is canonicalized and stored absolute. Each refusal is a diagnostic in the `E06xx`

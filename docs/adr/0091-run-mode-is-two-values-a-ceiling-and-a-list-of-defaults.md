@@ -23,7 +23,9 @@
   the class and leaves the roster to "the milestone that implements them", which is this one.
   [docs/implementation-plan.md](../implementation-plan.md) — M6 gains the directive and the ceiling, M7 the
   public-bind banner.
-- **Amended by:** 0097 — § 3 gains a `[log] access` row, § 3a carries the three `Boot`/`System` startup
+- **Amended by:** 0103 — § 3's "ordinary CLI precedence" becomes that ADR's § 8 rule, stated once for
+  every directive-setting flag and placed at the global layer; 0104 — § 5's mixed-application host gains
+  the `[[app]]` block its third row assumed. 0097 — § 3 gains a `[log] access` row, § 3a carries the three `Boot`/`System` startup
   defaults a mode selects, and § 5's mixed-application host gains its mechanism in a mount's `mode`.
 - **Relates to:** 0004, 0017, 0018, 0074, 0080, 0092, 0097
 
@@ -113,6 +115,10 @@ ceiling = "development"     # System  — the most permissive mode any code may 
   flag is the last word about the mode the server starts in. This is a deliberate choice of ergonomics over
   one safety catch — refusing a flag that contradicts the file would have caught a deploy script carrying a
   stale `--mode`, and § 6's banner is what covers that case instead.
+  [0103 § 8](0103-configuration-is-a-tree-of-files.md) states that precedence once for every such flag, and
+  places it: `--mode` replaces the **global** value, and a matching `[[app]]` block
+  ([0104](0104-an-application-is-an-entry-file-path.md)) still layers over it, so a flag never drags an
+  application that pins its own mode along with it. The flag set is closed and there is no `--set`.
 - **No environment variable is read. Not `MWL_MODE`, not `APP_ENV`, not `NODE_ENV`.**
   [0012](0012-no-superglobals.md) says no variable is ever populated by the host and
   [0064](0064-configuration-file-format.md) § 5 makes `Core\Env` read-only; an env-var mode would be the
