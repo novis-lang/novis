@@ -23,8 +23,10 @@
   `ParseError`'s `issues` and the `Core\Issue` shape, § 18 gains the `Db` half.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the derive pass and its conformance
   cases.
-- **Amended by:** 0077, 0085, 0086 — each extends § 1's closed list of compiler-recognized attributes; the
-  folds are applied there and this body states the current rule.
+- **Amended by:** 0077, 0085, 0086, 0096, 0102 — each adds an entry to § 1's closed list of
+  compiler-recognized attributes, and § 1's table is that list's one home. 0102 § 9 additionally deletes the
+  running count of names those ADRs used to restate. The folds are applied there and this body states the
+  current rule.
 - **Relates to:** 0004, 0007, 0022, 0023, 0024, 0033, 0036, 0038, 0051, 0057, 0077
 
 > **In short:** [ADR 0063](0063-core-api-conventions.md) § 4 rejected *structural* encoding of public
@@ -103,14 +105,30 @@ echo Json::encode($u);              // {"id":7,"name":"…","email_address":"…
 
 **A compiler-recognized attribute is matched nominally.** The compiler acts on an attribute only when its
 `Name` **resolves** — through the ordinary namespace and `use` rules, case-sensitively per
-[ADR 0062](0062-case-sensitivity-is-a-compiler-property.md) — to one of a **closed, `Core`-owned list**,
-which this ADR opens with exactly those four names, which
-[ADR 0077](0077-compile-time-routing.md) extends with a fifth, `Core\Route`, and which
-[ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 6 extends with three more — `Core\Command`,
-`Core\Option` and `Core\Argument`, the last two matched on a *parameter* rather than a declaration — and
-which [ADR 0085](0085-openapi-is-generated-from-the-route-table.md) § 2 extends with `Core\Api`.
-Spelling is irrelevant,
-resolution is everything:
+[ADR 0062](0062-case-sensitivity-is-a-compiler-property.md) — to one of a **closed, `Core`-owned list**.
+
+**This table is that list's one home.** An ADR adding an entry says its attribute "joins the closed list"
+and states no running total; a count restated in each amending ADR is a count that goes stale, and by the
+seventh entry it had ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+§ 9). The registry the compiler actually reads is
+[`mwl_types::derive::ATTRIBUTES`](../../crates/mwl-types/src/derive.rs), and this table is what it must agree
+with:
+
+| Attribute | Attaches to | Owner |
+|---|---|---|
+| `Core\Json\Derive` | a class | this ADR |
+| `Core\Json\Field` | a property | this ADR |
+| `Core\Db\Derive` | a class | this ADR |
+| `Core\Db\Field` | a property | this ADR |
+| `Core\Route` | a method | [0077](0077-compile-time-routing.md) § 1 |
+| `Core\Access` | a method | [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) § 1 |
+| `Core\Query` | a parameter | [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 3 |
+| `Core\Api` | a method | [0085](0085-openapi-is-generated-from-the-route-table.md) § 2 |
+| `Core\Command` | a method | [0086](0086-core-cli-terminal-is-a-sink.md) § 6 |
+| `Core\Option` | a parameter | [0086](0086-core-cli-terminal-is-a-sink.md) § 6 |
+| `Core\Argument` | a parameter | [0086](0086-core-cli-terminal-is-a-sink.md) § 6 |
+
+Spelling is irrelevant, resolution is everything:
 `#[Core\Json\Derive]` and `#[Json\Derive]` under the `use` above are the same attribute, and a userland
 `type Derive = {};` is not it no matter how it is spelled. A bare `#[{...}]` literal never triggers a
 compiler-recognized attribute, since it resolves to no name at all.

@@ -9,8 +9,16 @@
   `#[Route]`, and does **not** introduce middleware, filters, groups or a dispatch opinion of any kind
   ([0077](0077-compile-time-routing.md) § 4 stands, unamended). Does **not** address object-level
   authorisation — see *Consequences*.
-- **Amends:** nothing. [0077](0077-compile-time-routing.md) is extended by a **sibling attribute**
-  precisely so its § 4 does not have to be reopened.
+- **Amends:** [0071](0071-derived-codecs.md) § 1 — `Core\Access` joins the closed, `Core`-owned list of
+  **compiler-recognized** attributes. § 1 below relies on the attribute being matched **nominally**, and
+  that ADR's § 1 is where a name earns nominal matching, so the entry is load-bearing rather than
+  bookkeeping: without it a userland `type Access = {...};` would satisfy the mandatory-sibling check and
+  the compile error would pass on a decision nobody made.
+  [0077](0077-compile-time-routing.md) is otherwise extended by a **sibling attribute** precisely so its
+  § 4 does not have to be reopened.
+- **Amended by:** [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+  — § 2's open "the M7 server, or `Web\Auth`" is resolved in favour of the dispatcher, and § 4's CSRF check
+  is given the once-per-request match that ADR's § 1 makes. Nothing about § 1 or § 3 changes.
 
 ## Context
 
@@ -67,8 +75,20 @@ attribute, and this attaches a *declaration* to the method instead.
 It verifies that the attribute is there and that the name inside it resolves — an enum case, a class
 constant, whatever the application declares, checked structurally like any other attribute
 ([0046](0046-attributes-shape-literal-metadata.md)). It never asks what the name means, never calls
-anything, and has no opinion about roles, policies or sessions. Interpretation belongs to whoever dispatches:
-the M7 server, or `Web\Auth` in [0082](0082-the-first-party-framework.md)'s `mwl/web`.
+anything, and has no opinion about roles, policies or sessions.
+
+**Interpretation belongs to whoever dispatches, and to nobody else.** The declared name rides on the match
+the server makes ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+§ 1) as uninterpreted data; `Web\Auth` in [0082](0082-the-first-party-framework.md)'s `mwl/web` reads and
+enforces it, or an application's own dispatch does. **The server enforces § 4's CSRF check and nothing
+else** — interpreting `Role::Admin` would need a session, a user model and a role source, all three of which
+this ADR and [0082](0082-the-first-party-framework.md) § 4 put outside the binary. Two enforcement points is
+how a route ends up checked twice in development and not at all in production, so there is one.
+
+**The limit that leaves is stated rather than implied: the compiler guarantees the decision was *written*,
+not that it was *honoured*.** An application that hand-rolls dispatch and never reads the access name gets
+no enforcement from anyone. Closing that would require the compiler to recognise a dispatch site, which is
+the opinion [0077](0077-compile-time-routing.md) § 4 refuses to hold.
 
 This is the same division the path already lives under. The compiler knows `/admin/users` is a route's path
 and refuses a duplicate; it does not serve it.
@@ -87,8 +107,11 @@ the absence meant anything.
 
 ### 4. CSRF is on by default for unsafe methods
 
-The M7 server refuses a `POST`, `PUT`, `PATCH` or `DELETE` without a valid token, using the route table to
-know which handler is which. [0060](0060-application-security-protocols.md) already owns generation and
+The M7 server refuses a `POST`, `PUT`, `PATCH` or `DELETE` without a valid token, using the match it already
+made to know which handler is which
+([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 1 — the
+server matches once, before the handler, which is what makes this check possible and is where the route
+table reaches it). [0060](0060-application-security-protocols.md) already owns generation and
 constant-time verification; this decides only the default.
 
 A route that legitimately needs no token — a webhook receiver authenticated by signature, an API

@@ -114,9 +114,9 @@ logged and granted exactly like any other. It holds what an application needs an
 
 | Area | What it provides |
 |---|---|
-| `Web\Controller`, `Web\Middleware` | Dispatch and a middleware pipeline over [0077](0077-compile-time-routing.md)'s table — the layer that ADR deliberately did not build |
+| `Web\Controller`, `Web\Middleware` | Dispatch and a middleware pipeline over [0077](0077-compile-time-routing.md)'s table — the layer that ADR deliberately did not build. The dispatch `switch` is **generated while compiling** from the route table, so an application never writes one and receives typed, laundered parameters directly ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 9) |
 | `Web\Response` | `view`, `json`, `redirect`, `file`, `stream` constructors over [0074](0074-http-defaults-safe-and-finite.md)'s defaults |
-| `Web\Auth` | Login and logout flows, remember-me, password reset, policies and role checks over `Core\Session`, `Core\Password` and [0060](0060-application-security-protocols.md)'s CSRF and signed cookies |
+| `Web\Auth` | Login and logout flows, remember-me, password reset, policies and role checks over `Core\Session`, `Core\Password` and [0060](0060-application-security-protocols.md)'s CSRF and signed cookies. It is **the** enforcer of `#[Access]`: the server checks CSRF and nothing else, so interpretation happens here or in the application's own dispatch, never in both ([0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) § 2) |
 | `Web\Validation` | Named rule sets, form binding and error presentation over `Core\Validate` — the ergonomics, never the laundering |
 | `Web\Mail` | Message composition, templating, attachments, and queued sending over `Core\Mail` and `Core\Queue` |
 | `Web\I18n` | Catalogs, locale negotiation, message formatting and plurals over `Core\Str::format` and `Core\Cldr::pluralCategory` |
