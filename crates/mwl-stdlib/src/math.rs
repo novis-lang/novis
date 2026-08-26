@@ -979,6 +979,16 @@ mwl_runtime::mwl_helper! {
     /// `ln($n) / ln($base)`, which is a ratio of two inexact values and
     /// answers `1.9999999999999998` for `log(100.0, {base: 10.0})`. Every
     /// other base is that ratio, because there is nothing more exact to use.
+    ///
+    /// A base that is not greater than zero has no logarithm at all, and the
+    /// ratio would answer one anyway — `ln($n) / ln(0.0)` is a signed zero and
+    /// `ln($n) / ln(-2.0)` a `NaN` — so it is refused rather than repaired,
+    /// the way spec § 3 refuses a zero divisor. Base `1.0` is `NaN`: the ratio
+    /// divides by zero there and would answer an infinity whose sign is the
+    /// argument's. Both rules are PHP's, which raises a `ValueError` for the
+    /// first and answers `NAN` to the second; only the class of the refusal
+    /// differs. The *argument's* domain is left at IEEE's answer, matching
+    /// PHP's `log` exactly: zero is `-INF` and a negative is `NaN`.
     fn mwl_core_math_log(_ctx, args: [2]) {
         let n = float_at(args, 0, "log")?;
         let base = float_at(args, 1, "log")?;
@@ -988,6 +998,12 @@ mwl_runtime::mwl_helper! {
             n.log10()
         } else if base == 2.0 {
             n.log2()
+        } else if base <= 0.0 {
+            return Err(Fault::thrown(
+                "Core\\Math::log was given a base that is not greater than zero".to_owned(),
+            ));
+        } else if base == 1.0 {
+            f64::NAN
         } else {
             n.log(base)
         };
