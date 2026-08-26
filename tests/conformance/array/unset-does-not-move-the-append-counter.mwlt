@@ -1,0 +1,150 @@
+--TEST--
+The append counter only ever counts up: a removal never lowers it, in either representation, and only a canonical decimal key raises it — ADR 0007 § 5
+--FILE--
+<?mwl
+// `$a[]` appends under PHP's "highest integer key used so far, plus one",
+// which `mwl_runtime::array`'s `Table::next_index` holds. Two things about it
+// are easy to get wrong and neither shows up on a single row:
+//
+//   * it is carried by *both* representations, because a packed array cannot
+//     re-derive it from its own length once an entry has been removed; and
+//   * it is raised by the key, not by the write, so a key that is not a
+//     canonical decimal leaves it exactly where it was.
+//
+// So each claim below is a *pair*: the last case on one side of the boundary
+// and the first case on the other, named together. Reading either half alone
+// is what makes a counter that stops one entry early look right.
+//
+// The counter's upper end is deliberately absent: a key of `9223372036854775807`
+// followed by an append is a known crash rather than a refusal, and the plan's
+// `Open now` owns it. PHP throws there.
+//
+// Every row below was checked against PHP 8.5.9, which answers all twelve
+// identically; the case carries no --ORACLE-- because CI's runners have no PHP.
+//
+// That the two shapes agree about everything else is
+// tests/conformance/core/arr-readers-agree-across-both-array-shapes.mwlt;
+// the thin version of the removal claim is
+// append-does-not-reuse-an-index-unset-freed.mwlt in this directory.
+
+final class Render {
+    public static function of(array<string> $a): string {
+        string $out = "";
+        foreach ($a as string $k => string $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The representation boundary, both sides. For a five-entry list, index 4 is
+// the last removal the packed form survives — `Table::remove` pops it — and
+// index 3 is the first that cannot be held without a gap and therefore
+// degrades to the hash form. The counter reads 5 on both sides of that line.
+// ---------------------------------------------------------------------------
+array<string> $keepsPacked = ["a", "b", "c", "d", "e"];
+unset($keepsPacked[4]);
+$keepsPacked[] = "z";
+echo Render::of($keepsPacked), "\n";
+
+array<string> $degrades = ["a", "b", "c", "d", "e"];
+unset($degrades[3]);
+$degrades[] = "z";
+echo Render::of($degrades), "\n";
+
+// Emptied one entry at a time from the back, the array is packed at every
+// step; emptied from the front it is a hash after the first `unset`. Both end
+// with nothing left and both still append at 5, which is the whole claim: the
+// counter is state the removal does not touch, in either shape.
+array<string> $fromBack = ["a", "b", "c", "d", "e"];
+unset($fromBack[4]);
+unset($fromBack[3]);
+unset($fromBack[2]);
+unset($fromBack[1]);
+unset($fromBack[0]);
+$fromBack[] = "z";
+echo Render::of($fromBack), "\n";
+
+array<string> $fromFront = ["a", "b", "c", "d", "e"];
+unset($fromFront[0]);
+unset($fromFront[1]);
+unset($fromFront[2]);
+unset($fromFront[3]);
+unset($fromFront[4]);
+$fromFront[] = "z";
+echo Render::of($fromFront), "\n";
+
+// ---------------------------------------------------------------------------
+// Which key raises it, both sides. `"9"` is a canonical decimal and takes the
+// counter to 10; `"09"` and `"-0"` are the two spellings `integer_key` refuses
+// for a leading zero, so they are ordinary string keys and the next append
+// still lands at 3. A key that is not a number at all is the same answer for
+// the same reason.
+// ---------------------------------------------------------------------------
+array<string> $canonical = ["a", "b", "c"];
+$canonical["9"] = "n";
+$canonical[] = "z";
+echo Render::of($canonical), "\n";
+
+array<string> $padded = ["a", "b", "c"];
+$padded["09"] = "n";
+$padded[] = "z";
+echo Render::of($padded), "\n";
+
+array<string> $minusZero = ["a", "b", "c"];
+$minusZero["-0"] = "n";
+$minusZero[] = "z";
+echo Render::of($minusZero), "\n";
+
+array<string> $named = ["a", "b", "c"];
+$named["x"] = "n";
+$named[] = "z";
+echo Render::of($named), "\n";
+
+// A map that has never held an integer key leaves the counter unset, and
+// "unset" is not the same as zero-so-far — it is the marker that makes the
+// *first* integer key set the counter outright rather than raise it.
+array<string> $noInteger = ["x" => "n", "y" => "m"];
+$noInteger[] = "z";
+echo Render::of($noInteger), "\n";
+
+// ---------------------------------------------------------------------------
+// The first integer key sets it; every later one may only raise it. So a
+// negative first key hands the array negative append keys, and a negative key
+// arriving after a positive one changes nothing at all. This is the pair that
+// tells "set outright" apart from "raise", which agree on every non-negative
+// input and disagree here.
+// ---------------------------------------------------------------------------
+array<string> $firstNegative = [];
+$firstNegative["-5"] = "n";
+$firstNegative[] = "z";
+$firstNegative[] = "y";
+echo Render::of($firstNegative), "\n";
+
+array<string> $raiseOnly = [];
+$raiseOnly["7"] = "n";
+$raiseOnly["-5"] = "m";
+$raiseOnly[] = "z";
+echo Render::of($raiseOnly), "\n";
+
+// And an overwrite is a use of the key like any other: rewriting an existing
+// entry cannot lower the counter either, because the counter was already at
+// least that high.
+array<string> $overwritten = ["a", "b", "c"];
+$overwritten["1"] = "B";
+$overwritten[] = "z";
+echo Render::of($overwritten), "\n";
+--EXPECT--
+0=a;1=b;2=c;3=d;5=z;
+0=a;1=b;2=c;4=e;5=z;
+5=z;
+5=z;
+0=a;1=b;2=c;9=n;10=z;
+0=a;1=b;2=c;09=n;3=z;
+0=a;1=b;2=c;-0=n;3=z;
+0=a;1=b;2=c;x=n;3=z;
+x=n;y=m;0=z;
+-5=n;-4=z;-3=y;
+7=n;-5=m;8=z;
+0=a;1=B;2=c;3=z;
