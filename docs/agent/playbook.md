@@ -1160,6 +1160,14 @@ sibling in the same namespace unqualified.
   is an `int` comparison, it lowers, and over fixed-width zero-padded hex it *is* the numeric comparison —
   which is what lets a case assert that a `Core\Uuid::v7` sweep never goes backwards without leaving for
   the crate's own `#[test]`.
+- **`Core\Math::INT_MAX as float` throws, so a case reaching for "a huge finite float" has to
+  reach for `Core\Math::FLOAT_MAX` instead.** `int as float` is one of ADR 0007 § 2's *checked*
+  conversions and 2^63-1 is not representable in an `f64`, so the row lands as
+  `Uncaught Exception: cannot convert `int` 9223372036854775807 to `float`` at run time with
+  nothing said at compile time. `Core\Math`'s roster already has the four floats a numeric table
+  wants — `FLOAT_MAX`, `FLOAT_MIN` (the smallest positive *normal*, PHP's name, not `f64::MIN`),
+  `INFINITY` and `NAN` — and a derived infinity is spelled `Core\Math::FLOAT_MAX * 10.0` or
+  `Core\Math::log(0.0)`, whose second `{base: …}` argument may be omitted entirely.
 
 ## Divergences and refusals already pinned
 
