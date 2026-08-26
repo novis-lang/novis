@@ -19,6 +19,25 @@ fn concatenation_joins_its_operands_and_converts_a_scalar_one_first() {
     assert_eq!(output_of("<?mwl\necho \"f\" . 1.5 . true;\n"), "f1.51");
 }
 
+/// `mwl_ir::ir::InstKind::Concat` carries every piece, so three or more of them
+/// are one `mwl_str_concat_n` over a stack array rather than a fold of
+/// `mwl_str_concat` calls. What that changes is the allocation count, which no
+/// program can observe — so what this pins is that the bytes and their order
+/// survive the new path, including the two shapes the flattening in
+/// `Lowering::lower_concat` has to get right: a parenthesized right operand,
+/// and the same local appearing more than once.
+#[test]
+fn an_n_ary_concatenation_joins_every_piece_in_order() {
+    let source = "<?mwl
+string $tag = \"td\";
+int $i = 7;
+echo \"<tr><\" . $tag . \">\" . $i . \"</\" . $tag . \">\", \"\\n\";
+echo \"a\" . (\"b\" . \"c\") . \"d\", \"\\n\";
+echo \"<\" . $tag . \">$i</\" . $tag . \">\", \"\\n\";
+";
+    assert_eq!(output_of(source), "<tr><td>7</td>\nabcd\n<td>7</td>\n");
+}
+
 #[test]
 fn a_concatenation_in_a_loop_keeps_producing_the_right_bytes() {
     // Each iteration's result is released once the local it was assigned to is

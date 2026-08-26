@@ -3136,15 +3136,15 @@ class T {
 
     /// `"pre$mid post"` — a double-quoted literal with one interpolation
     /// site surrounded by literal text on both sides — lowers to the same
-    /// two-`InstKind::Concat` shape a written-out `"pre" . $mid . " post"`
-    /// would, per `Lowering::lower_interpolated_parts`. `$mid`'s own read is
-    /// an aliasing one, so it's left unreleased by the first `Concat`
-    /// (its slot still owns it); the two literal text pieces and both
-    /// intermediate/final `Concat` results are all fresh and released once
-    /// each side reads them, ending with the whole method's own `void`
-    /// exit releasing `$s`.
+    /// single three-piece `InstKind::Concat` a written-out
+    /// `"pre" . $mid . " post"` does, per
+    /// `Lowering::lower_interpolated_parts`, so the whole string is one
+    /// allocation rather than a fold's two. `$mid`'s own read is an aliasing
+    /// one, so it's left unreleased (its slot still owns it); the two literal
+    /// text pieces are fresh and released once the `Concat` has read them,
+    /// ending with the whole method's own `void` exit releasing `$s`.
     #[test]
-    fn interpolated_string_with_text_on_both_sides_folds_left_to_right() {
+    fn interpolated_string_with_text_on_both_sides_is_one_concat() {
         let (f, map, file) = lower_first_method(
             r#"<?mwl
 class T {
@@ -3227,8 +3227,9 @@ class T {
     }
 
     /// A heredoc with an interpolation site lowers through the exact same
-    /// `InstKind::Concat` fold `lower_interpolated_parts` already builds for
-    /// a double-quoted literal — the only difference is each `Text` run
+    /// `InstKind::Concat` over every piece that `lower_interpolated_parts`
+    /// already builds for a double-quoted literal — the only difference is
+    /// each `Text` run
     /// getting dedented first. The middle line picks up right after `$x`'s
     /// interpolation site, so it has to be recognized as a fresh line of
     /// its own for the indentation strip to apply to it at all.

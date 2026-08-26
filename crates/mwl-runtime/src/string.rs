@@ -473,7 +473,9 @@ pub unsafe extern "C" fn mwl_str_new(ptr: *const u8, len: usize) -> *mut StrHead
 }
 
 /// Allocates a fresh string holding `lhs`'s bytes followed by `rhs`'s, with a
-/// reference count of one — `mwl_ir::InstKind::Concat`'s entry point.
+/// reference count of one — `mwl_ir::InstKind::Concat`'s entry point for the
+/// two-operand case, which is the common one and is kept because it needs
+/// neither the stack array nor the count [`mwl_str_concat_n`] takes.
 ///
 /// Neither operand is retained or released: that instruction only *reads* its
 /// two operands to build the new buffer, and ownership of each stays wherever
@@ -503,6 +505,67 @@ pub unsafe extern "C" fn mwl_str_concat(
     )]
     let (left, right) = unsafe { (MwlStr::bytes_of(lhs), MwlStr::bytes_of(rhs)) };
     MwlStr::from_pieces(&[left, right]).into_raw()
+}
+
+/// Allocates a fresh string holding every piece's bytes in order, with a
+/// reference count of one — [`mwl_str_concat`] for three or more operands, and
+/// the entry point `mwl_ir::InstKind::Concat` takes once it carries that many.
+///
+/// **One allocation for the whole expression.** `"<tr><td>" . $i . "</td>"`
+/// used to fold left into a chain of [`mwl_str_concat`] calls, so an n-operand
+/// concatenation allocated n-1 buffers and copied a growing prefix into each
+/// one; here the total length is summed first and every piece is copied once.
+///
+/// Ownership is [`mwl_str_concat`]'s exactly: each piece is only *read*, so
+/// none is retained and none is released — `mwl_ir::ir::InstKind::Concat`'s own
+/// doc comment is the one home for that rule.
+///
+/// It does not route through [`MwlStr::from_pieces`], which wants a
+/// `&[&[u8]]`: materializing one from the pointer array would be a second
+/// allocation on the path whose whole point is to have exactly one. The two
+/// loops here are that function's two, over `bytes_of` instead of over
+/// borrowed slices.
+///
+/// # Safety
+///
+/// `pieces` must point at `count` consecutive `*const StrHeader`, each
+/// referring to a live MWL string allocation. Two of them may be the same
+/// allocation: every piece is read before the destination — a fresh
+/// allocation regardless — is written.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a stack array of raw string pointers whose \
+              liveness and count the signature cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_str_concat_n(
+    pieces: *const *const StrHeader,
+    count: usize,
+) -> *mut StrHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `count` live pointers at `pieces` and a \
+                  live pointee behind each; every borrow ends before the fresh \
+                  allocation this returns is written"
+    )]
+    unsafe {
+        let pieces = std::slice::from_raw_parts(pieces, count);
+        let len = pieces
+            .iter()
+            .try_fold(0_usize, |total, piece| {
+                total.checked_add(MwlStr::bytes_of(*piece).len())
+            })
+            .expect("an MWL string's length cannot overflow a usize");
+        let out = MwlStr::alloc_uninit(len, len);
+        let dst = out.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
+        let mut written = 0_usize;
+        for piece in pieces {
+            let bytes = MwlStr::bytes_of(*piece);
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), dst.add(written), bytes.len());
+            written += bytes.len();
+        }
+        out.as_ptr()
+    }
 }
 
 /// Appends `suffix`'s bytes to `target`'s — `mwl_ir::InstKind::StrAppend`'s
@@ -782,6 +845,97 @@ mod tests {
 
             mwl_str_release(empty);
             mwl_str_release(abc);
+        }
+    }
+
+    #[test]
+    fn concat_n_joins_every_piece_into_one_fresh_allocation() {
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let open = MwlStr::new(b"<tr><td>").into_raw();
+            let mid = MwlStr::new(b"7").into_raw();
+            let close = MwlStr::new(b"</td></tr>").into_raw();
+            let empty = MwlStr::new(b"").into_raw();
+
+            // The shape this exists for: three pieces, one allocation.
+            let pieces = [open.cast_const(), mid.cast_const(), close.cast_const()];
+            let joined = mwl_str_concat_n(pieces.as_ptr(), pieces.len());
+            assert_eq!(MwlStr::bytes_of(joined), b"<tr><td>7</td></tr>");
+            assert_eq!(MwlStr::refcount_of(joined), 1);
+            // No piece is retained or released — `mwl_str_concat`'s rule,
+            // unchanged by the arity.
+            for piece in pieces {
+                assert_eq!(MwlStr::refcount_of(piece), 1);
+            }
+            mwl_str_release(joined);
+
+            // An empty piece, and the same allocation appearing twice: every
+            // piece is read before the fresh destination is written.
+            let repeated = [
+                mid.cast_const(),
+                empty.cast_const(),
+                mid.cast_const(),
+                mid.cast_const(),
+            ];
+            let joined = mwl_str_concat_n(repeated.as_ptr(), repeated.len());
+            assert_eq!(MwlStr::bytes_of(joined), b"777");
+            mwl_str_release(joined);
+
+            for piece in [open, mid, close, empty] {
+                mwl_str_release(piece);
+            }
+        }
+    }
+
+    /// The claim § B of `docs/perf/userland-gap.md` asks for, measured rather
+    /// than asserted about: an n-piece concatenation allocates one buffer,
+    /// where the fold of two-operand `mwl_str_concat` calls it replaced
+    /// allocated n-1 of them and copied its leading pieces n-1 times.
+    ///
+    /// Bytes-ever-allocated, for the reason
+    /// [`appending_into_spare_capacity_allocates_nothing`] reads the same
+    /// counter: a `live_bytes` delta cannot tell a copy that was freed again
+    /// from no copy at all, and every intermediate here is freed.
+    #[test]
+    fn an_n_ary_concatenation_allocates_one_buffer() {
+        use crate::counting_alloc::allocated_bytes;
+
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let pieces: Vec<*const StrHeader> = (0..8)
+                .map(|_| MwlStr::new(b"0123456789").into_raw().cast_const())
+                .collect();
+            let total = 8 * 10;
+
+            let before = allocated_bytes();
+            let joined = mwl_str_concat_n(pieces.as_ptr(), pieces.len());
+            let n_ary = allocated_bytes() - before;
+            assert_eq!(MwlStr::bytes_of(joined).len(), total);
+            assert_eq!(n_ary, PAYLOAD_OFFSET + total);
+            mwl_str_release(joined);
+
+            // The shape it replaced, for the same eight pieces: seven
+            // allocations, each holding the accumulation so far.
+            let before = allocated_bytes();
+            let mut folded = mwl_str_concat(pieces[0], pieces[1]);
+            for piece in &pieces[2..] {
+                let next = mwl_str_concat(folded, *piece);
+                mwl_str_release(folded);
+                folded = next;
+            }
+            let fold = allocated_bytes() - before;
+            assert_eq!(MwlStr::bytes_of(folded).len(), total);
+            mwl_str_release(folded);
+
+            assert!(
+                n_ary * 4 < fold,
+                "eight pieces cost {n_ary} bytes n-ary against the fold's {fold}: \
+                 the pieces are being copied more than once"
+            );
+
+            for piece in pieces {
+                mwl_str_release(piece.cast_mut());
+            }
         }
     }
 

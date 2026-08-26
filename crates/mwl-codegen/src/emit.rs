@@ -46,6 +46,14 @@ const VALUE_SIZE: i32 = 16;
 /// `align_shift` for a 16-byte-aligned stack slot: 2^4 == 16.
 const VALUE_ALIGN_SHIFT: u8 = 4;
 
+/// Size of one raw pointer, as an offset multiplier. This JIT compiles for
+/// 64-bit targets only, which is the same assumption every `AbiParam::new(ptr)`
+/// in [`crate::Sigs`] already makes.
+const POINTER_SIZE: i32 = 8;
+
+/// `align_shift` for an 8-byte-aligned stack slot: 2^3 == 8.
+const POINTER_ALIGN_SHIFT: u8 = 3;
+
 /// Memory flags for a load or store this frame fully controls — a stack slot
 /// it just allocated, or the `out` pointer its caller promised is writable.
 fn trusted() -> MemFlagsData {
@@ -577,8 +585,8 @@ impl Emitter<'_, '_> {
                 let result = self.emit_instanceof(*value, class)?;
                 self.define(inst, result)?;
             }
-            InstKind::Concat { lhs, rhs } => {
-                let value = self.emit_concat(*lhs, *rhs)?;
+            InstKind::Concat { pieces } => {
+                let value = self.emit_concat(pieces)?;
                 self.define(inst, value)?;
             }
             InstKind::StrAppend { target, suffix } => {
@@ -1763,27 +1771,57 @@ impl Emitter<'_, '_> {
         Ok(reference)
     }
 
-    /// `.` concatenation: one call to `mwl_str_concat`, which allocates the
-    /// joined buffer once.
+    /// `.` concatenation: one call, which allocates the joined buffer once
+    /// however many pieces there are.
+    ///
+    /// **Which call is the piece count.** Two pieces stay on the two-argument
+    /// `mwl_str_concat`, which is the common shape and reads both operands out
+    /// of registers. Three or more go to `mwl_str_concat_n` through a
+    /// [`Self::pointer_array_slot`] — the same stack-array shape a helper
+    /// call's argument list already uses, over bare `StrHeader` pointers
+    /// instead of 16-byte `Value`s. Both allocate exactly one buffer, which is
+    /// the whole point of `mwl_ir::ir::InstKind::Concat` being n-ary.
     ///
     /// No status check and no `Value` materialization: like `mwl_str_new`,
-    /// this is a memory primitive over bare `StrHeader` pointers rather than
-    /// an ADR 0002 helper, because it cannot fail — see `mwl-runtime`'s
-    /// "primitives compiled code calls" section for that split. Neither
-    /// operand is retained or released here; `mwl_ir::ir::InstKind::Concat`'s
-    /// own doc comment owns that rule and `mwl-ir` emits the releases.
-    fn emit_concat(&mut self, lhs: ValueId, rhs: ValueId) -> Result<Value, CodegenError> {
-        let (l, lty) = self.value(lhs)?;
-        let (r, rty) = self.value(rhs)?;
-        for ty in [lty, rty] {
+    /// these are memory primitives over bare `StrHeader` pointers rather than
+    /// ADR 0002 helpers, because they cannot fail — see `mwl-runtime`'s
+    /// "primitives compiled code calls" section for that split. No piece is
+    /// retained or released here; `mwl_ir::ir::InstKind::Concat`'s own doc
+    /// comment owns that rule and `mwl-ir` emits the releases.
+    fn emit_concat(&mut self, pieces: &[ValueId]) -> Result<Value, CodegenError> {
+        let mut operands = Vec::with_capacity(pieces.len());
+        for piece in pieces {
+            let (value, ty) = self.value(*piece)?;
             if !matches!(ty, Ty::Str | Ty::Bytes) {
                 return Err(internal(
                     "a concatenation operand that lowering left unconverted",
                 ));
             }
+            operands.push(value);
         }
-        let callee = self.runtime_ref("mwl_str_concat", RuntimeSig::StrConcat)?;
-        let call = self.b.ins().call(callee, &[l, r]);
+        // Two operands is the common shape and keeps the two-argument call:
+        // nothing is stored, nothing is addressed, and `mwl_str_concat` reads
+        // its pieces straight out of registers.
+        if let [l, r] = operands[..] {
+            let callee = self.runtime_ref("mwl_str_concat", RuntimeSig::StrConcat)?;
+            let call = self.b.ins().call(callee, &[l, r]);
+            return Ok(self.b.inst_results(call)[0]);
+        }
+        if operands.len() < 2 {
+            return Err(internal("a concatenation of fewer than two operands"));
+        }
+        let count = i32::try_from(operands.len())
+            .map_err(|_| internal("a concatenation past i32 pieces"))?;
+        let base = self.pointer_array_slot(count);
+        for (index, operand) in operands.iter().enumerate() {
+            let offset = i32::try_from(index)
+                .map_err(|_| internal("a concatenation past i32 pieces"))?
+                * POINTER_SIZE;
+            self.b.ins().store(trusted(), *operand, base, offset);
+        }
+        let len = self.b.ins().iconst(types::I64, i64::from(count));
+        let callee = self.runtime_ref("mwl_str_concat_n", RuntimeSig::StrConcat)?;
+        let call = self.b.ins().call(callee, &[base, len]);
         Ok(self.b.inst_results(call)[0])
     }
 
@@ -1821,6 +1859,22 @@ impl Emitter<'_, '_> {
             StackSlotKind::ExplicitSlot,
             VALUE_SIZE.cast_unsigned(),
             VALUE_ALIGN_SHIFT,
+        ));
+        self.b.ins().stack_addr(types::I64, slot, 0)
+    }
+
+    /// A stack slot holding `count` consecutive raw pointers, and its address
+    /// — [`Self::value_slot`] for a runtime primitive that takes a *list* of
+    /// bare pointers rather than one [`mwl_runtime::Value`].
+    ///
+    /// Frame-scoped, like every Cranelift stack slot: an n-ary concatenation
+    /// inside a loop allocates this once per call site and restages into it
+    /// every iteration, so what it costs is `count` stores and nothing else.
+    fn pointer_array_slot(&mut self, count: i32) -> Value {
+        let slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            (count * POINTER_SIZE).cast_unsigned(),
+            POINTER_ALIGN_SHIFT,
         ));
         self.b.ins().stack_addr(types::I64, slot, 0)
     }

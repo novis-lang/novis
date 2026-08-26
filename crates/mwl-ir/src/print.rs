@@ -218,7 +218,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::InstanceOf { value, class } => {
             format!("instanceof v{}, {class}", value.index())
         }
-        InstKind::Concat { lhs, rhs } => format!("concat v{}, v{}", lhs.index(), rhs.index()),
+        InstKind::Concat { pieces } => {
+            let parts: Vec<String> = pieces.iter().map(|p| format!("v{}", p.index())).collect();
+            format!("concat {}", parts.join(", "))
+        }
         InstKind::StrAppend { target, suffix } => {
             format!("str.append v{}, v{}", target.index(), suffix.index())
         }

@@ -612,36 +612,52 @@ pub enum InstKind {
         class: String,
     },
     /// `.` string concatenation: builds a fresh [`Ty::Str`] value from the
-    /// cooked bytes of `lhs` and `rhs`, both already [`Ty::Str`] by the time
-    /// this instruction sees them — see
-    /// `crate::lower::Lowering::concat_operand`, which converts a scalar
-    /// operand through an [`InstKind::HelperCall`] first, and still panics
-    /// naming a `Stringable`-object operand (needs a resolved `toString`
-    /// call this crate can't synthesize yet). Modeled as a dedicated
-    /// instruction rather than a runtime-helper call itself, the same
-    /// "native instruction over already-typed operands" treatment
-    /// [`InstKind::BinOp`] already gives scalar arithmetic — `.` only ever
-    /// needs this one fixed two-operand shape, unlike the open-ended,
-    /// enum-tagged set [`HelperCall`](InstKind::HelperCall) exists for. The
-    /// result is a fresh value with exactly one natural owner —
+    /// cooked bytes of every piece, each already [`Ty::Str`] by the time this
+    /// instruction sees them — see `crate::lower::Lowering::concat_operand`,
+    /// which converts a scalar operand through an [`InstKind::HelperCall`]
+    /// first and an object operand through the `toString`
+    /// `mwl_types::expr::operators::require_stringable` resolved for it.
+    /// Modeled as a dedicated instruction rather than a runtime-helper call
+    /// itself, the same "native instruction over already-typed operands"
+    /// treatment [`InstKind::BinOp`] already gives scalar arithmetic — `.` only
+    /// ever needs this one fixed shape, unlike the open-ended, enum-tagged set
+    /// [`HelperCall`](InstKind::HelperCall) exists for.
+    ///
+    /// **N-ary, not binary, and that is what makes it one allocation.** `.` is
+    /// left-associative and an interpolated string is a run of pieces, so both
+    /// producers used to fold into a chain of two-operand `Concat`s — and every
+    /// link of that chain allocated a buffer holding the accumulation so far
+    /// and copied it, so an n-piece concatenation allocated n-1 buffers and
+    /// copied its leading pieces n-1 times. One instruction carrying every
+    /// piece is one allocation, sized once, with each piece copied once:
+    /// `crate::lower::Lowering::lower_concat` flattens the `.` spine and
+    /// `crate::lower::Lowering::lower_interpolated_parts` hands its pieces over
+    /// whole. `mwl_runtime`'s `mwl_str_concat_n` is the entry point, with the
+    /// two-piece case kept on `mwl_str_concat` because it needs neither the
+    /// stack array nor the count.
+    ///
+    /// `pieces` always holds **two or more**. A single-piece interpolation
+    /// emits no `Concat` at all — `lower_interpolated_parts`' own doc comment
+    /// says what it does instead — and nothing else produces one.
+    ///
+    /// The result is a fresh value with exactly one natural owner —
     /// concatenation always allocates a new buffer, so
     /// `crate::lower::is_aliasing_read` stays `false` for `ExprKind::Binary`,
     /// same as it already is for [`InstKind::ConstStr`]/[`InstKind::New`]/
-    /// [`InstKind::Call`]. Neither operand is retained by this instruction
-    /// itself: each is only *read* to build the new buffer, exactly the way
+    /// [`InstKind::Call`]. No piece is retained by this instruction itself:
+    /// each is only *read* to build the new buffer, exactly the way
     /// [`InstKind::FieldGet`] reads its `object` receiver without retaining
-    /// it, so ownership of `lhs`/`rhs` stays wherever it already was (their
-    /// own local slot, field, ...) — and `crate::lower::Lowering::concat_operand`'s
-    /// caller releases either operand right after this instruction reads it
-    /// when that operand was never such a slot to begin with (a literal, a
-    /// nested `Concat`'s own result, or a freshly converted
+    /// it, so ownership of each stays wherever it already was (its own local
+    /// slot, field, ...) — and `crate::lower::Lowering::concat_operand`'s
+    /// caller releases a piece right after this instruction reads it when that
+    /// piece was never such a slot to begin with (a literal, a nested
+    /// `Concat`'s own result, or a freshly converted
     /// [`HelperCall`](InstKind::HelperCall) result), since nothing else will
     /// ever release it otherwise.
     Concat {
-        /// The left operand, already lowered and already [`Ty::Str`].
-        lhs: ValueId,
-        /// The right operand, already lowered and already [`Ty::Str`].
-        rhs: ValueId,
+        /// The operands in evaluation order, each already lowered and already
+        /// [`Ty::Str`]. Two or more.
+        pieces: Vec<ValueId>,
     },
     /// `$s .= e` where `$s` is a plain [`Ty::Str`] local — the one compound
     /// assignment `crate::lower::Lowering::lower_compound_assignment` does not

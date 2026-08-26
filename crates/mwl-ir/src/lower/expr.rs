@@ -1732,9 +1732,9 @@ impl<'a> Lowering<'a> {
         (result, ty)
     }
     /// Lowers `ExprKind::Interpolated`'s parts into the single [`Ty::Str`]
-    /// value they denote — a left-to-right fold of [`InstKind::Concat`],
+    /// value they denote — one n-ary [`InstKind::Concat`] over every piece,
     /// reusing [`Self::concat_operand`] per `StringPart::Expr` piece exactly
-    /// the way `.`-concatenation's own two-operand arm does (a
+    /// the way `.`-concatenation's own arm does (a
     /// `Stringable`-object piece hits the identical "needs a resolved
     /// `toString`" panic that method's own doc comment already names as a
     /// shared, not-yet-lowerable case — this is not primarily a new gap, just
@@ -1754,8 +1754,8 @@ impl<'a> Lowering<'a> {
     /// entry (never an `Expr`: the body always ends in literal text, at
     /// minimum the one newline before the closing marker).
     ///
-    /// The one shape plain N-ary `.`-folding wouldn't otherwise force into
-    /// the open: an `Interpolated` with exactly one part that is itself an
+    /// The one shape a written-out `.` expression wouldn't otherwise force
+    /// into the open: an `Interpolated` with exactly one part that is itself an
     /// aliasing read (`"$x"` alone, no literal text around it and nothing
     /// else to concatenate against) never emits an `InstKind::Concat` at
     /// all, so nothing along the way copies `$x`'s value into a fresh
@@ -1794,13 +1794,12 @@ impl<'a> Lowering<'a> {
         let last_text_idx = is_heredoc
             .then(|| parts.iter().rposition(|p| matches!(p, StringPart::Text(_))))
             .flatten();
-        // Every piece, and every partial `Concat` result, is in flight for as
-        // long as the pieces after it are still being lowered — and one of
-        // those can be a call that throws. So the accumulator itself lives on
-        // [`Self::owned_temporaries`], and only the finished string leaves it
-        // ([`Self::forget_temporaries_since`]).
+        // Every piece is in flight for as long as the pieces after it are
+        // still being lowered — and one of those can be a call that throws. So
+        // each lives on [`Self::owned_temporaries`], and only the finished
+        // string leaves it ([`Self::forget_temporaries_since`]).
         let mark = self.temporaries_mark();
-        let mut acc: Option<(ValueId, bool)> = None;
+        let mut pieces: Vec<(ValueId, bool)> = Vec::with_capacity(parts.len());
         for (i, part) in parts.iter().enumerate() {
             let piece = match part {
                 StringPart::Text(span) => {
@@ -1825,22 +1824,21 @@ impl<'a> Lowering<'a> {
             if !piece.1 {
                 self.own_temporary(piece.0);
             }
-            acc = Some(match acc {
-                None => piece,
-                Some((lv, _)) => {
-                    let (rv, _) = piece;
-                    let (result, _) =
-                        self.emit(*cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
-                    // Both operands are consumed here, and whichever of them
-                    // was fresh is on the stack — so this releases exactly
-                    // what the two `if !alias` guards used to.
-                    self.release_temporaries_since(mark, *cur);
-                    self.own_temporary(result);
-                    (result, false)
-                }
-            });
+            pieces.push(piece);
         }
-        let (v, alias) = acc.expect("checked non-empty above");
+        let (v, alias) = match pieces[..] {
+            [only] => only,
+            _ => {
+                let ids = pieces.iter().map(|(v, _)| *v).collect();
+                let (result, _) = self.emit(*cur, Ty::Str, InstKind::Concat { pieces: ids });
+                // Every piece is consumed here, and whichever of them were
+                // fresh are on the stack — so this releases exactly what the
+                // `if !alias` guard above staged.
+                self.release_temporaries_since(mark, *cur);
+                self.own_temporary(result);
+                (result, false)
+            }
+        };
         // From here the value is the caller's, not this expression's.
         self.forget_temporaries_since(mark);
         if alias {
@@ -2131,9 +2129,18 @@ impl<'a> Lowering<'a> {
     /// its one and only use is done" precedent `Self::lower_expr_stmt`
     /// already sets for a bare call/`new` statement.
     ///
-    /// The left operand is staged on [`Self::owned_temporaries`] *before*
-    /// the right one is lowered, which is what makes `"x" . $obj` — where
-    /// the `toString()` throws — release the `"x"` rather than leak it.
+    /// **The whole `.` spine is one instruction.** `.` is left-associative, so
+    /// `"a" . $i . "b"` parses as `("a" . $i) . "b"`; lowering the nested
+    /// `Binary` on its own would emit a `Concat` per operator, each allocating
+    /// a buffer for the accumulation so far. [`Self::flatten_concat`] collects
+    /// the operands instead, and one `InstKind::Concat` carries all of them —
+    /// that instruction's own doc comment owns why. Evaluation order is
+    /// unchanged: the flatten is a left-to-right walk of the same tree, and
+    /// concatenation's intermediate results are not observable.
+    ///
+    /// Each operand is staged on [`Self::owned_temporaries`] *before* the next
+    /// one is lowered, which is what makes `"x" . $obj` — where the
+    /// `toString()` throws — release the `"x"` rather than leak it.
     fn lower_concat(
         &mut self,
         lhs: &Expr,
@@ -2141,18 +2148,43 @@ impl<'a> Lowering<'a> {
         env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        let mut operands = Vec::new();
+        Self::flatten_concat(lhs, &mut operands);
+        Self::flatten_concat(rhs, &mut operands);
         let mark = self.temporaries_mark();
-        let (lv, l_alias) = self.concat_operand(lhs, env, cur);
-        if !l_alias {
-            self.own_temporary(lv);
+        let mut pieces = Vec::with_capacity(operands.len());
+        for operand in operands {
+            let (v, aliasing) = self.concat_operand(operand, env, cur);
+            if !aliasing {
+                self.own_temporary(v);
+            }
+            pieces.push(v);
         }
-        let (rv, r_alias) = self.concat_operand(rhs, env, cur);
-        if !r_alias {
-            self.own_temporary(rv);
-        }
-        let result = self.emit(*cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
+        let result = self.emit(*cur, Ty::Str, InstKind::Concat { pieces });
         self.release_temporaries_since(mark, *cur);
         result
+    }
+
+    /// Appends `expr`'s concatenation operands to `out`, in evaluation order —
+    /// descending through any nested `.` so the whole spine reaches one
+    /// `InstKind::Concat`.
+    ///
+    /// Both sides are descended, not just the left one: `.` only ever
+    /// associates left, but `$a . ($b . $c)` is written with parentheses often
+    /// enough to be worth the one extra arm, and it is the same flattening —
+    /// operand order, and therefore evaluation order, is identical either way.
+    fn flatten_concat<'e>(expr: &'e Expr, out: &mut Vec<&'e Expr>) {
+        if let ExprKind::Binary {
+            op: BinaryOp::Concat,
+            lhs,
+            rhs,
+        } = &expr.kind
+        {
+            Self::flatten_concat(lhs, out);
+            Self::flatten_concat(rhs, out);
+        } else {
+            out.push(expr);
+        }
     }
 
     /// `$x === null` / `$x !== null` — a *tag* comparison, not a value

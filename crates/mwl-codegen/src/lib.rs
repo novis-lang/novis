@@ -530,7 +530,8 @@ impl Classes {
 /// The signatures the runtime exports, beyond the helper ABI itself.
 ///
 /// `mwl-runtime`'s entry points are deliberately not all the same shape:
-/// `mwl_str_new`/`mwl_str_concat`/`mwl_str_retain`/`mwl_str_release` operate on
+/// `mwl_str_new`/`mwl_str_concat`/`mwl_str_concat_n`/`mwl_str_retain`/
+/// `mwl_str_release` operate on
 /// raw `StrHeader` pointers with no context and no `Value`, because they are
 /// memory primitives rather than language operations, and `mwl_probe_stmt`
 /// returns nothing because a coverage probe cannot fail. Each therefore gets
@@ -554,10 +555,14 @@ struct Signatures {
     probe_call_exit: Signature,
     /// `mwl_str_new(ptr, len) -> *mut StrHeader`.
     str_new: Signature,
-    /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`, and
-    /// `mwl_str_append(target, suffix) -> *mut StrHeader`, which is the same
-    /// shape. The two differ in ownership, not in ABI — see
-    /// `mwl_ir::ir::InstKind::StrAppend` — so one signature serves both.
+    /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`,
+    /// `mwl_str_append(target, suffix) -> *mut StrHeader` and
+    /// `mwl_str_concat_n(pieces, count) -> *mut StrHeader`, which are all the
+    /// same shape: two pointer-width parameters, one pointer back. The three
+    /// differ in ownership and in what the second parameter *means*, not in
+    /// ABI — see `mwl_ir::ir::InstKind::StrAppend` and `InstKind::Concat` — so
+    /// one signature serves all of them, exactly as `str_new` already declares
+    /// its `usize` length with `AbiParam::new(ptr)`.
     str_concat: Signature,
     /// `mwl_str_eq(lhs, rhs) -> bool` and `mwl_array_eq(lhs, rhs) -> bool`,
     /// which share one shape: two raw pointers to an `I8`, like
