@@ -1,0 +1,127 @@
+--TEST--
+Core\Arr::contains, keyOf, find, findKey and any answer one question over one grid, and never disagree about whether there is a match or which key holds the first one — spec § 2, ADR 0090 § 3
+--FILE--
+<?mwl
+// "Is there an entry equal to this, and where?" is spec § 2's question, asked
+// five ways: two members take the needle itself and three take a predicate
+// that compares against it. Under ADR 0090 § 3 those are one comparison, so
+// the five can only ever give one answer -- and what this case asserts is that
+// agreement rather than the five answers, which each already have a case.
+//
+// A closure cannot be called through the variable holding it (`mwl-ir` gap 1),
+// so each question is a static method called directly, and the needle is
+// captured by the predicate it builds.
+class Search {
+    // The row's verdict as one character: `y` when all five say there is a
+    // match, `n` when all five say there is not, `?` when any of them broke
+    // ranks. A member that grew its own comparison -- a loose `==`, a string
+    // cast, PHP's `in_array` default -- still answers plausibly on its own
+    // line and shows up here as a `?`.
+    public static function verdict(array<int> $a, int $n): string {
+        bool $c = Core\Arr::contains($a, $n);
+        bool $k = Core\Arr::keyOf($a, $n) != null;
+        bool $f = Core\Arr::find($a, fn(int $v) => $v == $n) != null;
+        bool $fk = Core\Arr::findKey($a, fn(int $v) => $v == $n) != null;
+        bool $any = Core\Arr::any($a, fn(int $v) => $v == $n);
+        if ($c == $k && $c == $f && $c == $fk && $c == $any) {
+            if ($c) {
+                return "y";
+            }
+            return "n";
+        }
+        return "?";
+    }
+
+    // The other half of the question. `keyOf` and `findKey` are the two
+    // members that answer *where*, and both name the first match in insertion
+    // order, so the row prints one key or `-` for none; `!` is the two of them
+    // disagreeing, which is what a member walking the other way would print.
+    public static function where(array<int> $a, int $n): string {
+        var $k = Core\Arr::keyOf($a, $n);
+        var $fk = Core\Arr::findKey($a, fn(int $v) => $v == $n);
+        if ($k == null) {
+            if ($fk == null) {
+                return "-";
+            }
+            return "!";
+        }
+        if ($k == $fk) {
+            return $k as string;
+        }
+        return "!";
+    }
+
+    // `find` answers the entry itself, so on a matching row it is the needle
+    // back again -- the property that makes `find(..) != null` the same
+    // question as `contains(..)` rather than a weaker one.
+    public static function foundIsTheNeedle(array<int> $a, int $n): int {
+        var $v = Core\Arr::find($a, fn(int $v) => $v == $n);
+        if ($v == null) {
+            return 0;
+        }
+        if ($v == $n) {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+// The empty subject, a plain one, one holding the needle twice, one whose only
+// entry is `0`, and one where `0` sits away from the front.
+array<array<int>> $subjects = [[], [4, 8, 15], [8, 8], [0], [-1, 0, 1]];
+array<int> $needles = [8, 0, 99];
+
+int $agreed = 0;
+int $matched = 0;
+int $needleBack = 0;
+foreach ($subjects as array<int> $a) {
+    string $line = "";
+    foreach ($needles as int $n) {
+        var $v = Search::verdict($a, $n);
+        $line = $line . $v . Search::where($a, $n) . " ";
+        if ($v == "y") {
+            $matched = $matched + 1;
+            $needleBack = $needleBack + Search::foundIsTheNeedle($a, $n);
+        }
+        if ($v != "?") {
+            $agreed = $agreed + 1;
+        }
+    }
+    echo $line, "\n";
+}
+
+// Every cell of the grid agreed; every match handed the needle back. The
+// first line above is the empty subject, where all five say no -- `any` is
+// `false`, and the three members answering `?T` say `null` rather than
+// throwing the way PHP's `min` does over the same input.
+int $cells = (Core\Arr::count($subjects) as int) * (Core\Arr::count($needles) as int);
+echo $agreed, "/", $cells, " ", $needleBack, "/", $matched, "\n";
+
+// `0` is the value PHP's `array_search` needs `=== false` to survive, and
+// `array_find` needs it again for the entry itself. Here the key of a
+// front-of-array match is the string `"0"` and absence is `null`, so the two
+// are never the same answer in either member (ADR 0063 R5).
+array<int> $zero = [0];
+array<int> $none = [];
+echo Core\Arr::keyOf($zero, 0) ?? "absent", "|", Core\Arr::keyOf($none, 0) ?? "absent", "|",
+     Core\Arr::find($zero, fn(int $v) => $v == 0) ?? -1, "|",
+     Core\Arr::find($none, fn(int $v) => $v == 0) ?? -1, "\n";
+
+// The same five over a string-keyed subject holding the needle twice: the two
+// key-answering members name the first key rather than a position, and `find`
+// answers the entry.
+array<string> $words = ["b" => "bee", "a" => "ay", "c" => "bee"];
+echo Core\Arr::keyOf($words, "bee") ?? "absent", "|",
+     Core\Arr::findKey($words, fn(string $v) => $v == "bee") ?? "absent", "|",
+     Core\Arr::find($words, fn(string $v) => $v == "bee") ?? "absent", "|",
+     Core\Arr::contains($words, "bee") as string,
+     Core\Arr::any($words, fn(string $v) => $v == "bee") as string, "\n";
+--EXPECT--
+n- n- n-
+y1 n- n-
+y0 n- n-
+n- y0 n-
+n- y1 n-
+15/15 4/4
+0|absent|0|-1
+b|b|bee|11
