@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 542 of 600 and differential 159 of 150. **Nothing below them
+> Stage 4's two counts**, conformance 543 of 600 and differential 159 of 150. **Nothing below them
 > is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -69,7 +69,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 542 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 543 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 159, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -146,7 +146,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: the differential gate is met at 159 of 150, conformance stands at 542 of 600, and the
+> decision: the differential gate is met at 159 of 150, conformance stands at 543 of 600, and the
 > remainder is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

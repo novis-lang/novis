@@ -2,64 +2,60 @@
 
 ## State
 
-**Conformance is at 542 of 600, and it is the only frontier left.** Verify is green (1597 cargo tests,
-74 suites, 542 conformance, 159 differential, clippy and fmt clean) and runs both `.mwlt` trees itself,
+**Conformance is at 543 of 600, and it is the only frontier left.** Verify is green (1597 cargo tests,
+74 suites, 543 conformance, 159 differential, clippy and fmt clean) and runs both `.mwlt` trees itself,
 so after a green `verify.py` there is nothing else to run (playbook, *Running things*).
 
-This session added no library code. It landed the first two of the three `Core\Path` slices the previous
-handoff named: `path-relative-to-and-join-undo-each-other.mwlt` (20 pairs whose round trip through
-`join` and `normalize` returns the path, 12 pairs asserting a relative path exists **iff** the two
-arguments agree about `isAbsolute`, and the other refusal — a base still holding a `..` — named against
-the absolute spelling where `normalize` drops it) and `path-dirname-and-basename-partition-a-path.mwlt`
-(20 paths recomposed through the normal form, so a bare name and a bare root stop being exceptions;
-names asserted separator-free under both spellings; `{levels:}` checked against walking up one level at
-a time at every depth, and at both ends of what it accepts). The third, the `withExtension`/`extension`
-inverse pair, was not taken and heads the next group.
+This session added no library code. It landed the last of the three `Core\Path` slices the previous
+handoff named: `path-with-extension-and-extension-are-inverses.mwlt` — 120 cells asserting
+`extension(withExtension($p, $e)) == $e`, 20 asserting `withExtension($p, extension($p))` is the path
+back through the normal form, 720 asserting that setting twice is setting once, and the removal walk,
+which peels **one** extension per call and reaches a fixed point that is exactly a name `extension`
+answers `null` for. The three places the pair stops are named: an extension holding a dot (the setter
+accepts `tar.gz`, the reader answers `gz`), a dotfile, and a trailing dot — the last two being
+`stem_and_extension`'s single divergence from PHP, written here as what buys the inverse.
 
-**`Core\Path` is spec § 8, not § 7** — the previous handoff and one case's `--TEST--` line said § 7;
-the case is fixed, and `docs/spec/01-core-library.md` is the home.
+**`Core\Path` is off the frontier**: `gaps.py --coverage` now puts it at 1.22 cases per member, 15th of
+27 classes. `Core\Time\Instant` (0.00, three members no case calls) and `Core\Time\DateTime` (0.06,
+three more) are the thinnest, with `Core\Time\Date` (0.33) third — all in one file.
 
-`orient.py`'s pack was complete for this work; nothing was fetched outside it beyond `path.rs` and two
-sibling `Core\Path` cases.
+`orient.py`'s pack was complete for this work; nothing was fetched outside it beyond `path.rs`'s two
+helper bodies and one sibling `Core\Path` case.
 
-**A by-hand pass over `docs/adr/` is in flight and is not loop work.** The tree was clean at this
-session's first commit and carried 103 modified ADRs plus `ground-rules.md` by its last — a `Scope:`
-field added, `Supersedes:` renamed to `Amends:`, heading levels moved. That is
-[doc-cleanup.md](doc-cleanup.md)'s pass, which AGENTS.md says the user fires and the loop never does.
-**Do not stage it and do not `git commit -a`**: stage your own paths, exactly as `session.py --wrap`
-already does. If it is still uncommitted several sessions from now, say so rather than absorbing it.
+**A by-hand pass over `docs/adr/` is still in flight and is not loop work.** 103 modified ADRs plus
+`ground-rules.md` have been uncommitted for two sessions now — a `Scope:` field added, `Supersedes:`
+renamed to `Amends:`, heading levels moved. That is [doc-cleanup.md](doc-cleanup.md)'s pass, which
+AGENTS.md says the user fires and the loop never does. **Do not stage it and do not `git commit -a`**:
+stage your own paths, exactly as `session.py --wrap` already does.
 
 ## Next group
 
-Three slices, and the file set changes once inside it: **item 1 stands alone on
-`crates/mwl-stdlib/src/path.rs`** and closes `Core\Path`, **items 2 and 3 share
-`crates/mwl-stdlib/src/time.rs`** — so a session taking two should take 2 and 3 together, not 1 and 2.
-Each writes a new file under `tests/conformance/core/`. `docs/spec/01-core-library.md` § 8 owns the
-`Path` rules and § 4 the `Time` ones. Items 2 and 3 are where the frontier actually is:
-`gaps.py --coverage` puts `Core\Time\Instant` at 0.00 cases per member with three members no case calls
-at all, and `Core\Time\DateTime` at 0.06 with three more.
+Three slices, **all on `crates/mwl-stdlib/src/time.rs`** and all writing a new file under
+`tests/conformance/core/`, so a session taking two pays for the file set once.
+`docs/spec/01-core-library.md` § 4 owns the `Time` rules. This is where the frontier actually is.
 
-- [ ] **`withExtension` and `extension` are inverses wherever the name has one** —
-      `extension(withExtension($p, $e)) == $e` over a table, `withExtension($p, null)` removes it, and
-      a dotfile and a trailing dot are where the pair stops agreeing (`stem_and_extension` owns both
-      divergences in one place, so a case asserting them separately is asserting one rule).
-      `crates/mwl-stdlib/src/path.rs:90` (`extension`), `:97` (`withExtension`),
-      `:296` (`stem_and_extension`).
 - [ ] **`Core\Time\Instant` orders and subtracts consistently, and `in` is the only zone question** —
-      `compareTo` agrees with the ordering `minus` implies over a table of instants, and `in` moves the
-      rendering without moving the instant. `crates/mwl-stdlib/src/time.rs:1793` (`minus`),
-      `:1819` (`compareTo`), `:2450` (`in`).
-- [ ] **`Core\Time\DateTime`'s parts agree with each other** — `date`, `dayOfYear` and `difference`
-      asked of one table and asserted against each other rather than row by row (a `dayOfYear` that is
-      the count of days since `date`'s own January 1, a `difference` that is what re-adding undoes).
-      `crates/mwl-stdlib/src/time.rs:2330` (`difference`), `:2366` (`date`), `:2407` (`dayOfYear`).
+      `compareTo` agrees with the sign of `minus` on every pair of a table, `minus` is antisymmetric,
+      and `in` changes what the instant *renders* as without changing any ordering or difference, since
+      an `Instant` is a point on the line and a zone is a reading of it.
+      `crates/mwl-stdlib/src/time.rs:1819` (`compareTo`), `:1793` (`minus`), `:2450` (`in`).
+- [ ] **`Core\Time\DateTime`'s parts agree with each other** — `date` is the civil date the
+      part accessors already answer, `dayOfYear` agrees with walking the months of that year (and with
+      the leap rule at both ends of February), and `difference` between two `DateTime`s agrees with the
+      `Instant` subtraction underneath it. `crates/mwl-stdlib/src/time.rs:2366` (`date`),
+      `:2407` (`dayOfYear`), `:2330` (`difference`).
+- [ ] **`Core\Time\Date` is six members over one civil date** — 0.33 cases per member, third thinnest.
+      Take it only after the two above, and only if the file is already loaded.
 
 ## Backlog
 
-- `Core\Uri` is 0.53 cases per member and `Core\Validate` 0.83 — `docs/spec/01-core-library.md` §§ 12, 6.
-- `Core\Time\Duration` (0.37) and `Core\Time\Date` (0.33) sit in the same file as the group's items 2-3.
-- 9 differential candidates remain (`gaps.py --differential`); three of the six `Core\Time` ones have no
-  oracle a case could freeze.
-- `Core\ObjectMap` (0.78) and `Core\ObjectSet` (0.89) — spec § 9.
-- 57 of the 58 unasserted `Fault::` sites are `fatal` and so unreachable by any case (`gaps.py --errors`).
+- `Core\Time` and `Core\Encoding` own all 9 members whose PHP twin has no oracle case
+  (`python tools/gaps.py --differential`) — cheap to add while `time.rs` is open.
+- `Core\Uri` at 0.53 cases per member, and its `parseQuery` bracket convention (loop-goal § *Standing
+  decisions*).
+- `Core\Json::decodeAs<T>` reads a scalar-fielded class only (`mwl_stdlib::json` gap 2).
+- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row
+  (`mwl_stdlib::hash`'s module doc).
 - `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+- `mwl-ir` gaps 1 and 18: `do`/`while`, a closure called through the variable holding it, ADR 0043's
+  `by`-delegation.
