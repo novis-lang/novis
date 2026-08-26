@@ -24,7 +24,8 @@ try {
 } catch (Throwable $e) {
     echo "empty: ", $e->message, "\n";
 }
-// The digits and the Latin letters run out at 36.
+// The digits and the Latin letters run out at 36. Both ends of that range, for
+// both members, are `math-both-base-members-stop-at-the-same-two-bases.mwlt`.
 try {
     echo Core\Math::toBase(3, 1), "\n";
 } catch (Throwable $e) {

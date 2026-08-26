@@ -1,0 +1,92 @@
+--TEST--
+Core\Math::toBase and fromBase accept exactly bases 2 to 36, named on both sides of each end, spec § 3
+--FILE--
+<?mwl
+// `math-base-conversion-round-trips.mwlt` owns the inverse property and the
+// refusal of a digit the base has no room for. What it does not say is where
+// the *base* argument stops: it shows base 1 refused at `toBase` and nothing
+// about the top end, nor that `fromBase` stops in the same place. Both
+// members reach one `radix` helper, so the range is a single rule with two
+// entry points and it is asserted here as one.
+
+// The last accepted entry at each end of the range, for both members. Two is
+// the smallest positional base; thirty-six is as far as the ten digits and
+// the twenty-six Latin letters reach.
+echo Core\Math::toBase(5, 2), "|", Core\Math::toBase(35, 36), "|",
+     Core\Math::fromBase("101", 2), "|", Core\Math::fromBase("z", 36), "\n";
+
+// The first refused entry past each end, named beside the accepted one above
+// so a member that stopped one entry early or late cannot print plausibly
+// against either half alone. PHP's `base_convert` answers `0` out here, which
+// is the quiet wrong answer ADR 0063 R4 turns into a throw.
+try {
+    echo Core\Math::toBase(5, 1), "\n";
+} catch (Throwable $writeUnder) {
+    echo $writeUnder->message, "\n";
+}
+try {
+    echo Core\Math::toBase(5, 37), "\n";
+} catch (Throwable $writeOver) {
+    echo $writeOver->message, "\n";
+}
+try {
+    echo Core\Math::fromBase("11", 1), "\n";
+} catch (Throwable $readUnder) {
+    echo $readUnder->message, "\n";
+}
+try {
+    echo Core\Math::fromBase("11", 37), "\n";
+} catch (Throwable $readOver) {
+    echo $readOver->message, "\n";
+}
+
+// The same claim as a sweep, which is what makes the four lines above a bound
+// rather than four samples: every base from 0 to 40 asked of both members,
+// counting how many each accepted and how often the two answered alike. A
+// member that grew its own range agrees with itself on every line above and
+// still fails `agreed` here.
+int $lowest = 0;
+int $highest = 0;
+int $accepted = 0;
+int $refused = 0;
+int $agreed = 0;
+int $base = 0;
+for (; $base <= 40; $base = $base + 1) {
+    bool $wrote = true;
+    bool $read = true;
+    try {
+        Core\Math::toBase(255, $base as uint);
+    } catch (Throwable $writeFault) {
+        $wrote = false;
+    }
+    // `"11"` spells a number in every base this member can read, so the only
+    // thing that can refuse it is the base argument itself.
+    try {
+        Core\Math::fromBase("11", $base as uint);
+    } catch (Throwable $readFault) {
+        $read = false;
+    }
+    if ($wrote == $read) {
+        $agreed = $agreed + 1;
+    }
+    if ($wrote) {
+        $accepted = $accepted + 1;
+        if ($lowest == 0) {
+            $lowest = $base;
+        }
+        $highest = $base;
+    }
+    if (!$wrote) {
+        $refused = $refused + 1;
+    }
+}
+echo "accepted ", $accepted, ", refused ", $refused, ", from ", $lowest, " to ", $highest, "\n";
+echo "agreed ", $agreed, " of 41\n";
+--EXPECT--
+101|z|5|35
+Core\Math::toBase has no digits for base 1: a base runs from 2 to 36
+Core\Math::toBase has no digits for base 37: a base runs from 2 to 36
+Core\Math::fromBase has no digits for base 1: a base runs from 2 to 36
+Core\Math::fromBase has no digits for base 37: a base runs from 2 to 36
+accepted 35, refused 6, from 2 to 36
+agreed 41 of 41
