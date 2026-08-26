@@ -1,0 +1,113 @@
+--TEST--
+Every `Core\Uuid` draw is canonical, distinct and round-trips through `parse`; `tryParse` agrees with `parse` on every spelling; and a refusal quotes the operand it refused, bounded — spec § 11, ADR 0063 R4, ADR 0088
+--FILE--
+<?mwl
+// A drawn UUID cannot be asserted, so the two generators are pinned by
+// *invariance* over a run of draws rather than by any one value: each is
+// counted only when it is canonical, carries its own version nibble, carries
+// RFC 9562's variant, and comes back unchanged through `parse`. A generator
+// that got any of those right most of the time would fail here.
+string $seen = "";
+int $repeats = 0;
+int $draws = 0;
+
+int $shape4 = 0;
+int $trip4 = 0;
+int $i = 0;
+for ($i = 0; $i < 24; $i = $i + 1) {
+    var $t = Core\Uuid::v4()->toString();
+    $shape4 = $shape4
+        + (Core\Regex::matches($t, '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') ? 1 : 0);
+    // `toString` is the wire form, so `parse` of it is the identity — the
+    // pair is a round trip and not two renderings that happen to agree.
+    $trip4 = $trip4 + ((Core\Uuid::parse($t)->toString() == $t) ? 1 : 0);
+    $repeats = $repeats + (Core\Str::contains($seen, $t) ? 1 : 0);
+    $seen = $seen . $t . ";";
+    $draws = $draws + 1;
+}
+echo "v4 ", $shape4, " ", $trip4, "\n";
+
+// The same sweep for v7, whose version nibble is the only part of the
+// rendering that differs from a v4's. Its millisecond clock is what makes it
+// sort by creation time; the monotonic step across a *pause* is pinned by the
+// unit test in `crates/mwl-stdlib/src/uuid.rs`, which can sleep.
+int $shape7 = 0;
+int $trip7 = 0;
+for ($i = 0; $i < 24; $i = $i + 1) {
+    // `$u`, not `$t` again: a `var` binding is function-scoped, so the second
+    // loop cannot re-declare the first's name (`E0406`).
+    var $u = Core\Uuid::v7()->toString();
+    $shape7 = $shape7
+        + (Core\Regex::matches($u, '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') ? 1 : 0);
+    $trip7 = $trip7 + ((Core\Uuid::parse($u)->toString() == $u) ? 1 : 0);
+    $repeats = $repeats + (Core\Str::contains($seen, $u) ? 1 : 0);
+    $seen = $seen . $u . ";";
+    $draws = $draws + 1;
+}
+echo "v7 ", $shape7, " ", $trip7, "\n";
+
+// 48 draws, no value seen twice. A generator answering a constant, or one
+// re-seeded per call, fails this line rather than the shape lines above.
+echo "distinct ", $draws, " ", $repeats, "\n";
+
+// ADR 0063 R4 and this module's own docs: `tryParse` is `parse` with the
+// throw turned into a `null`, which is a claim about *every* spelling rather
+// than about the rows each member's own case happens to write. So the two are
+// swept together and only their agreement is counted.
+array<string> $spellings = [
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+    "F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4",
+    "00000000-0000-0000-0000-000000000000",
+    "f9168c5eceb24faab6bf329bf39fa1e4",
+    "{f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4}",
+    "urn:uuid:f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e",
+    "",
+];
+int $agree = 0;
+int $accepted = 0;
+foreach ($spellings as string $text) {
+    var $maybe = Core\Uuid::tryParse($text);
+    bool $threw = false;
+    try {
+        Core\Uuid::parse($text);
+    } catch (Throwable $e) {
+        $threw = true;
+    }
+    $agree = $agree + ((($maybe != null) == !$threw) ? 1 : 0);
+    $accepted = $accepted + (($maybe != null) ? 1 : 0);
+}
+echo "agree ", $agree, " of ", Core\Arr::count($spellings), ", accepted ", $accepted, "\n";
+
+// The refused operand is the one value in this member a caller sizes, and the
+// message is written to a log — ADR 0088's wider rule — so the quote is
+// bounded at 48 characters. The boundary is asserted on both sides and built
+// with `Core\Str::repeat` rather than pasted: 48 is quoted whole, so the
+// closing quote follows the last character, and 49 is cut to 48 with an
+// ellipsis standing where the rest was.
+try {
+    Core\Uuid::parse(Core\Str::repeat("z", 48));
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "\"" . Core\Str::repeat("z", 48) . "\"") ? "whole" : "cut", "\n";
+}
+try {
+    Core\Uuid::parse(Core\Str::repeat("z", 49));
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "\"" . Core\Str::repeat("z", 48) . "…\"") ? "bounded" : "unbounded", "\n";
+}
+
+// And the short case is quoted whole, which is what makes the message
+// actionable at all — the near miss a program actually sends.
+try {
+    Core\Uuid::parse("f9168c5e-ceb2-4faa-b6bf-329bf39fa1e");
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+v4 24 24
+v7 24 24
+distinct 48 0
+agree 8 of 8, accepted 3
+whole
+bounded
+Core\Uuid::parse(): "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e" is not a UUID — the canonical form is eight hexadecimal digits, three groups of four and then twelve, hyphen-separated, as in "00000000-0000-4000-8000-000000000000"
