@@ -1,0 +1,69 @@
+--TEST--
+`$a[]` lands on the append counter's last usable key and refuses the one past it, catchably — ADR 0007 § 5
+--FILE--
+<?mwl
+// The counter `mwl_runtime::array`'s `Table::note_index` keeps saturates at
+// `i64::MAX`, so the bound named here is the last key an append can land on
+// and the first append that has nowhere to go. Both sides, per conventions.md:
+// a case asserting only the refusal still passes against an implementation
+// that stops one entry early.
+
+// The last accepted side. A key one below the maximum leaves the next element
+// free, so `$a[]` lands exactly on the maximum.
+array<int> $accepted = [];
+$accepted[9223372036854775806] = 1;
+$accepted[] = 2;
+echo "landed at: ", Core\Json::encode(Core\Arr::keys($accepted)), "\n";
+
+// The first refused side. The counter now names a live key, and PHP 8.5 throws
+// there rather than overwriting it — `mwl_runtime::mwl_array_append` carries
+// that message verbatim, and it is the one array write with a fault channel to
+// carry it in.
+try {
+    $accepted[] = 3;
+    echo "appended past the bound\n";
+} catch (Throwable $refused) {
+    echo "refused: ", $refused->message, "\n";
+}
+
+// The refusal changed nothing: nothing overwritten, nothing added.
+echo "count: ", Core\Arr::count($accepted), "\n";
+echo "still holds: ", $accepted[9223372036854775807], "\n";
+
+// It is a `LogicError` — spec § 10's class for a program asking for something
+// its own state forbids — not the bare `RuntimeError` a helper with nothing
+// more specific to say raises.
+try {
+    $accepted[] = 4;
+    echo "appended past the bound\n";
+} catch (LogicError $classified) {
+    echo "class: LogicError\n";
+}
+
+// Writing the bound itself refuses at the very first append, because that key
+// is what moved the counter onto itself.
+array<int> $atBound = [];
+$atBound[9223372036854775807] = 1;
+try {
+    $atBound[] = 2;
+    echo "appended onto the bound\n";
+} catch (Throwable $atMax) {
+    echo "refused: ", $atMax->message, "\n";
+}
+
+// `unset` frees the key without moving the counter — the sibling case
+// `unset-does-not-move-the-append-counter.mwlt` pins that half — so the key it
+// freed is exactly where the next append lands, a second time. PHP 8.5 agrees.
+unset($atBound[9223372036854775807]);
+$atBound[] = 2;
+echo "after unset: ", Core\Json::encode(Core\Arr::keys($atBound)), "\n";
+echo "count: ", Core\Arr::count($atBound), "\n";
+--EXPECT--
+landed at: ["9223372036854775806","9223372036854775807"]
+refused: Cannot add element to the array as the next element is already occupied
+count: 2
+still holds: 2
+class: LogicError
+refused: Cannot add element to the array as the next element is already occupied
+after unset: ["9223372036854775807"]
+count: 1
