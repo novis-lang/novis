@@ -1,0 +1,55 @@
+--TEST--
+Core\Math::format writes a hundred decimals and refuses the hundred-and-first, naming the count it was handed — spec § 3
+--FILE--
+<?mwl
+// The bound, named on both sides. A hundred decimals is past every digit an
+// `f64` distinguishes, so the cap costs no caller an answer it could have
+// used; what it buys is a result whose size is a function of the *value*
+// rather than of an argument. At the cap the fraction is a hundred digits
+// wide whatever the subject is, so each length here is its integer part plus
+// the separator plus a hundred.
+echo Core\Str::length(Core\Math::format(1.5, {decimals: 100})), "|",
+     Core\Str::length(Core\Math::format(0.0, {decimals: 100})), "|",
+     Core\Str::length(Core\Math::format(42, {decimals: 100})), "\n";
+try {
+    echo Core\Math::format(1.5, {decimals: 101}), "\n";
+} catch (Throwable $justPast) {
+    echo "101: ", $justPast->message, "\n";
+}
+
+// The count in the sentence is the one the call was handed, not the cap said
+// a second time — a member that quoted its own constant back would read the
+// same way at 101 and be useless at 1000.
+uint $asked = 200;
+try {
+    echo Core\Math::format(1.5, {decimals: $asked}), "\n";
+} catch (Throwable $twoHundred) {
+    echo "200: ", $twoHundred->message, "\n";
+}
+try {
+    echo Core\Math::format(1.5, {decimals: 1000}), "\n";
+} catch (Throwable $thousand) {
+    echo "1000: ", $thousand->message, "\n";
+}
+
+// Counted, so that a member padding to something other than what it was
+// asked for still fails here: the accepted count really is the fraction's
+// width, so one more decimal is exactly one more character — over six
+// subjects whose exact binary value terminates well before either count, and
+// which therefore cannot carry into the integer part between the two.
+array<float> $subjects = [1.5, 2.25, -0.125, 1234.5, 0.0, -8.75];
+int $wider = 0;
+uint $one = 1;
+foreach ($subjects as float $n) {
+    if (Core\Str::length(Core\Math::format($n, {decimals: 100}))
+        == Core\Str::length(Core\Math::format($n, {decimals: 99})) + $one) {
+        $wider = $wider + 1;
+    }
+}
+echo $wider, " of 6 widened by exactly one\n";
+--EXPECT--
+102|102|103
+101: Core\Math::format was asked for 101 decimals, past its cap of 100
+200: Core\Math::format was asked for 200 decimals, past its cap of 100
+1000: Core\Math::format was asked for 1000 decimals, past its cap of 100
+6 of 6 widened by exactly one

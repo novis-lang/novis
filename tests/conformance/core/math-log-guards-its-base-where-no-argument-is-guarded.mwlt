@@ -1,0 +1,91 @@
+--TEST--
+Core\Math::log refuses a base that is not greater than zero, where none of the eighteen float-to-float members guards its argument — spec § 3
+--FILE--
+<?mwl
+// Spec § 3 leaves an *argument's* own domain at IEEE's answer: a value with
+// no mathematical answer comes back as `NaN` or an infinity rather than as a
+// throw, which is what leaves `isNan` and `isFinite` something to ask about.
+// Asserted by counting rather than row by row, over every `Core\Math` member
+// whose argument and whose answer are both a `float` — one `NaN` offered to
+// all eighteen of them. `hypot` and `atan2` take two, and `isNan`/`isFinite`
+// answer a `bool`, so those four are the rest of the class's `float` surface.
+var $nan = Core\Math::sqrt(-1.0);
+array<float> $answers = [
+    Core\Math::sqrt($nan), Core\Math::cbrt($nan), Core\Math::exp($nan),
+    Core\Math::log($nan), Core\Math::sin($nan), Core\Math::cos($nan),
+    Core\Math::tan($nan), Core\Math::asin($nan), Core\Math::acos($nan),
+    Core\Math::atan($nan), Core\Math::sinh($nan), Core\Math::cosh($nan),
+    Core\Math::tanh($nan), Core\Math::asinh($nan), Core\Math::acosh($nan),
+    Core\Math::atanh($nan), Core\Math::toRadians($nan), Core\Math::toDegrees($nan),
+];
+int $answered = 0;
+foreach ($answers as float $a) {
+    if (Core\Math::isNan($a)) {
+        $answered = $answered + 1;
+    }
+}
+
+// The same value is refused by the two members that guard one: `sign`, which
+// would otherwise hand back a side of zero the caller goes on to branch on,
+// and `format`, which has no digit string to write for it.
+int $refused = 0;
+try {
+    echo Core\Math::sign($nan), "\n";
+} catch (Throwable $e) {
+    $refused = $refused + 1;
+    echo $e->message, "\n";
+}
+try {
+    echo Core\Math::format($nan), "\n";
+} catch (Throwable $e) {
+    $refused = $refused + 1;
+    echo $e->message, "\n";
+}
+echo $answered, " answered, ", $refused, " refused\n";
+
+// `log` is one of the eighteen and answered that `NaN` back with the rest.
+// Its *base* is the one guarded argument in the whole block, and it arrives
+// through an option rather than a position, which is why the sweep above
+// cannot see it. A base with no logarithm is refused rather than repaired:
+// the ratio would answer a signed zero for base zero and a `NaN` for a
+// negative one, and both are a wrong answer stated confidently.
+try {
+    echo Core\Math::log(100.0, {base: 0.0}), "\n";
+} catch (Throwable $zero) {
+    echo "zero: ", $zero->message, "\n";
+}
+try {
+    echo Core\Math::log(100.0, {base: -0.0}), "\n";
+} catch (Throwable $signed) {
+    echo "minus zero: ", $signed->message, "\n";
+}
+try {
+    echo Core\Math::log(100.0, {base: -2.0}), "\n";
+} catch (Throwable $negative) {
+    echo "negative: ", $negative->message, "\n";
+}
+
+// The bound, named on both sides: zero is refused whichever sign it carries,
+// and the least positive `float` there is — one subnormal step above it, the
+// value `exp(-745.0)` lands on — is accepted and answers a ratio of logs.
+var $tiny = Core\Math::exp(-745.0);
+echo $tiny, "|", Core\Math::log(100.0, {base: $tiny}), "\n";
+
+// Base one is inside the guard and is not refused: the ratio divides by zero
+// there, so PHP answers `NAN` and so does this, rather than the infinity
+// whose sign would be the argument's.
+echo Core\Math::isNan(Core\Math::log(100.0, {base: 1.0})) as string, "|\n";
+
+// And `log`'s own argument, for the row the sweep counts: zero is `-INF` and
+// a negative is `NaN`, exactly as PHP's `log` has them.
+echo Core\Math::log(0.0), "|", Core\Math::isNan(Core\Math::log(-1.0)) as string, "|\n";
+--EXPECT--
+Core\Math::sign has no answer for `NaN`: it is on neither side of zero
+Core\Math::format has no digits for an infinity or a `NaN`
+18 answered, 2 refused
+zero: Core\Math::log was given a base that is not greater than zero
+minus zero: Core\Math::log was given a base that is not greater than zero
+negative: Core\Math::log was given a base that is not greater than zero
+4.9406564584125E-324|-0.0061860858377791
+1|
+-INF|1|
