@@ -606,8 +606,18 @@ struct Signatures {
     /// `mwl_runtime::array`'s "the primitives compiled code calls" note for
     /// why no `Value` crosses this boundary in a register.
     array_get: Signature,
+    /// `mwl_array_get_index(array, index, out)` — [`Self::array_get`] reached
+    /// by the `i64` an `int` subscript already was, with no key string built
+    /// at all while the array is packed. `mwl_ir::ir::InstKind::ArrayGet`'s
+    /// key operand says which of the two applies, and `mwl-ir`'s module doc
+    /// § *an array key is a `string`, and an `int` subscript no longer spells
+    /// it* is the decision.
+    array_get_index: Signature,
     /// `mwl_array_set(array, key, value) -> *mut ArrayHeader`.
     array_set: Signature,
+    /// `mwl_array_set_index(array, index, value) -> *mut ArrayHeader` — the
+    /// write half of [`Self::array_get_index`].
+    array_set_index: Signature,
     /// `mwl_array_append(array, value) -> *mut ArrayHeader`, and
     /// `mwl_array_unset(array, key) -> *mut ArrayHeader`, which is the same
     /// two-pointers-in, one-pointer-out shape.
@@ -951,6 +961,17 @@ impl Signatures {
         let mut array_set = array_get.clone();
         array_set.returns.push(AbiParam::new(ptr));
 
+        // Spelled out rather than cloned from the key-taking pair: the middle
+        // parameter is an `i64` index in the Rust signature, and only happens
+        // to share `ptr`'s machine type on every target this crate builds for.
+        let mut array_get_index = module.make_signature();
+        array_get_index.params.push(AbiParam::new(ptr)); // array
+        array_get_index.params.push(AbiParam::new(types::I64)); // index
+        array_get_index.params.push(AbiParam::new(ptr)); // out
+
+        let mut array_set_index = array_get_index.clone();
+        array_set_index.returns.push(AbiParam::new(ptr));
+
         let mut array_append = module.make_signature();
         array_append.params.push(AbiParam::new(ptr)); // array
         array_append.params.push(AbiParam::new(ptr)); // value
@@ -992,7 +1013,9 @@ impl Signatures {
             slot_set,
             array_new,
             array_get,
+            array_get_index,
             array_set,
+            array_set_index,
             array_append,
             array_next_slot,
             array_key_at,

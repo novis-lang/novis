@@ -689,13 +689,14 @@ impl Emitter<'_, '_> {
                 self.define(inst, value)?;
             }
             InstKind::ArraySet { array, key, value } => {
-                let result = self.emit_array_write(
-                    "mwl_array_set",
-                    RuntimeSig::ArraySet,
-                    *array,
-                    Some(*key),
-                    *value,
-                )?;
+                // The key operand's own representation picks the primitive,
+                // exactly as in `Self::emit_array_get`.
+                let (symbol, sig) = if self.value(*key)?.1 == Ty::Int {
+                    ("mwl_array_set_index", RuntimeSig::ArraySetIndex)
+                } else {
+                    ("mwl_array_set", RuntimeSig::ArraySet)
+                };
+                let result = self.emit_array_write(symbol, sig, *array, Some(*key), *value)?;
                 self.define(inst, result)?;
             }
             InstKind::ArrayAppend { array, value } => {
@@ -1830,6 +1831,17 @@ impl Emitter<'_, '_> {
 
     /// `$a[$k]`: one call, reading the result back out of a stack slot.
     ///
+    /// **Which call is decided by the key operand's own representation.** An
+    /// [`Ty::Int`] key is an unrendered subscript and goes to
+    /// `mwl_array_get_index`, which indexes the packed form directly;
+    /// anything else is a `Ty::Str` and goes to the key-taking
+    /// `mwl_array_get`. The two are semantically identical — `mwl_runtime`'s
+    /// `Table::get_index` is `Table::get` of `index.to_string()`, hash form
+    /// included — so this is a representation choice, not a behaviour one;
+    /// `mwl_ir`'s module doc § *an array key is a `string`, and an `int`
+    /// subscript no longer spells it* owns the decision and names the two
+    /// subscripts that still arrive rendered.
+    ///
     /// Nothing is retained here. `mwl_ir::ir::InstKind::ArrayGet` reads the
     /// element without taking ownership, exactly like a `FieldGet`, and
     /// `mwl_ir::lower::is_aliasing_read` makes the consumer insert the retain
@@ -1844,15 +1856,24 @@ impl Emitter<'_, '_> {
             .ty
             .ok_or_else(|| internal("an array read with no representation"))?;
         let (array, _) = self.value(array)?;
-        let (key, _) = self.value(key)?;
+        let (key, key_ty) = self.value(key)?;
         let out = self.value_slot();
-        let callee = self.runtime_ref("mwl_array_get", RuntimeSig::ArrayGet)?;
+        let callee = if key_ty == Ty::Int {
+            self.runtime_ref("mwl_array_get_index", RuntimeSig::ArrayGetIndex)?
+        } else {
+            self.runtime_ref("mwl_array_get", RuntimeSig::ArrayGet)?
+        };
         self.b.ins().call(callee, &[array, key, out]);
         self.load_value(out, 0, ty)
     }
 
     /// `$a[$k] = expr;` and `$a[] = expr;`: one call that consumes the array
     /// and yields the array that now holds the entry.
+    ///
+    /// `symbol` and `sig` come from the caller because an `ArraySet` picks
+    /// between `mwl_array_set` and `mwl_array_set_index` off its key
+    /// operand's representation — [`Self::emit_array_get`] states why — while
+    /// an `ArrayAppend` has no key to pick with.
     ///
     /// No refcount operation of any kind. `mwl_ir::ir::InstKind::ArraySet`'s
     /// own doc comment owns that rule: the reference the primitive consumes
@@ -2283,7 +2304,9 @@ impl Emitter<'_, '_> {
             RuntimeSig::SlotSet => &self.sigs.slot_set,
             RuntimeSig::ArrayNew => &self.sigs.array_new,
             RuntimeSig::ArrayGet => &self.sigs.array_get,
+            RuntimeSig::ArrayGetIndex => &self.sigs.array_get_index,
             RuntimeSig::ArraySet => &self.sigs.array_set,
+            RuntimeSig::ArraySetIndex => &self.sigs.array_set_index,
             RuntimeSig::ArrayAppend => &self.sigs.array_append,
             RuntimeSig::ArrayNextSlot => &self.sigs.array_next_slot,
             RuntimeSig::ArrayKeyAt => &self.sigs.array_key_at,
@@ -2338,7 +2361,9 @@ enum RuntimeSig {
     SlotSet,
     ArrayNew,
     ArrayGet,
+    ArrayGetIndex,
     ArraySet,
+    ArraySetIndex,
     ArrayAppend,
     ArrayNextSlot,
     ArrayKeyAt,
