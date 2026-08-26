@@ -4020,10 +4020,15 @@ mwl_runtime::mwl_helper! {
     /// The ordering is [`compare_values`] — the same total order
     /// [`mwl_core_arr_sort`] uses without a comparator, so
     /// `min($a) === first(sort($a))` holds by construction. It is therefore
-    /// *not* PHP's `min`, which compares loosely: `min([0, "a"])` is `"a"` in
-    /// PHP 8 and a throw here, because a `string` and an `int` have no order
-    /// between them. The spec's § 2 has no comparator option on either
-    /// member; a caller who wants one writes `first(sort($a, {by: ...}))`.
+    /// *not* PHP's `min`, which compares loosely: `min([0, "a"])` is `0` in
+    /// PHP 8 — the `int` cast to `"0"` and compared as a string — and a throw
+    /// here, because a `string` and an `int` have no order between them.
+    /// `min(["1e2", "50"])` is the other side of the same rule: PHP reads two
+    /// numeral strings as numbers and answers `"50"`, and this member compares
+    /// them bytewise, exactly as [`mwl_core_arr_sort`] does. The spec's § 2 has
+    /// no comparator option on either member; a caller who wants one writes
+    /// `first(sort($a, {by: ...}))`. Both halves are pinned in
+    /// `tests/differential/core/arr-min-and-max-*`.
     ///
     /// PHP's variadic `min(1, 2, 3)` has no member at all: that is what `<`
     /// and a ternary are for (ADR 0063 R17), and the array form is the one
