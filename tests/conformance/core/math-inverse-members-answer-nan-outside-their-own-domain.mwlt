@@ -1,0 +1,125 @@
+--TEST--
+Core\Math's inverse trigonometric members each answer IEEE's NaN outside their own domain rather than throwing, and agree with each other about where that domain ends — docs/spec/01-core-library.md § 3
+--FILE--
+<?mwl
+// § 3's rule is that a domain error is IEEE's value and not a throw, and these
+// six members are where it has the most to say: three of them stop at a
+// different place and two of them never stop at all. One table is swept through
+// all six, and every claim below is a *count* over it, so a member that grew its
+// own opinion about its domain fails here while still answering plausibly on any
+// line of the case above it.
+//
+// The table straddles every boundary in the family at once: |x| > 1, |x| = 1,
+// |x| < 1, and both signs of each.
+array<float> $xs = [-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0];
+
+int $asinFinite = 0;
+int $asinNan = 0;
+int $acosFinite = 0;
+int $acosNan = 0;
+int $agreed = 0;
+int $acoshFinite = 0;
+int $acoshNan = 0;
+int $atanhFinite = 0;
+int $atanhInfinite = 0;
+int $atanhNan = 0;
+int $partitioned = 0;
+int $totalFinite = 0;
+int $threw = 0;
+
+foreach ($xs as float $x) {
+    try {
+        // asin and acos share one domain, [-1, 1]. Asserting they *agree* about
+        // each row is the claim; asserting what each answered is not, since a
+        // pair that had both drifted the same way would still look right.
+        bool $asinIsNan = Core\Math::isNan(Core\Math::asin($x));
+        bool $acosIsNan = Core\Math::isNan(Core\Math::acos($x));
+        if ($asinIsNan == $acosIsNan) {
+            $agreed = $agreed + 1;
+        }
+        if ($asinIsNan) {
+            $asinNan = $asinNan + 1;
+        } else {
+            $asinFinite = $asinFinite + 1;
+        }
+        if ($acosIsNan) {
+            $acosNan = $acosNan + 1;
+        } else {
+            $acosFinite = $acosFinite + 1;
+        }
+
+        // acosh stops at the other end: it is defined from 1 upwards, so it is
+        // NaN on six of the nine rows asin and acos accept five of.
+        if (Core\Math::isNan(Core\Math::acosh($x))) {
+            $acoshNan = $acoshNan + 1;
+        } else {
+            $acoshFinite = $acoshFinite + 1;
+        }
+
+        // atanh is the three-way one, and the reason NaN is not the whole story:
+        // it is finite strictly inside (-1, 1), an infinity *at* +/-1 — the pole,
+        // not a domain error — and NaN outside. Counting that exactly one of the
+        // three holds per row is what a member answering two of them fails.
+        float $at = Core\Math::atanh($x);
+        bool $atNan = Core\Math::isNan($at);
+        bool $atFin = Core\Math::isFinite($at);
+        bool $atInf = ($atNan == false) && ($atFin == false);
+        int $held = 0;
+        if ($atNan) {
+            $atanhNan = $atanhNan + 1;
+            $held = $held + 1;
+        }
+        if ($atFin) {
+            $atanhFinite = $atanhFinite + 1;
+            $held = $held + 1;
+        }
+        if ($atInf) {
+            $atanhInfinite = $atanhInfinite + 1;
+            $held = $held + 1;
+        }
+        if ($held == 1) {
+            $partitioned = $partitioned + 1;
+        }
+
+        // atan and asinh have no domain to leave: every float is an argument, so
+        // the whole sweep is finite for both.
+        if (Core\Math::isFinite(Core\Math::atan($x))) {
+            $totalFinite = $totalFinite + 1;
+        }
+        if (Core\Math::isFinite(Core\Math::asinh($x))) {
+            $totalFinite = $totalFinite + 1;
+        }
+    } catch (Throwable $refused) {
+        // Never taken. `threw=0` below is the "rather than throwing" half of the
+        // claim, asserted rather than assumed from the case having got this far.
+        $threw = $threw + 1;
+    }
+}
+
+echo "asin: finite=", $asinFinite, " nan=", $asinNan, "\n";
+echo "acos: finite=", $acosFinite, " nan=", $acosNan, "\n";
+echo "asin/acos agreed=", $agreed, " of 9\n";
+echo "acosh: finite=", $acoshFinite, " nan=", $acoshNan, "\n";
+echo "atanh: finite=", $atanhFinite, " infinite=", $atanhInfinite,
+     " nan=", $atanhNan, " partitioned=", $partitioned, "\n";
+echo "atan+asinh finite=", $totalFinite, " of 18\n";
+echo "threw=", $threw, "\n";
+
+// The rows the counts are made of, named on both sides of each boundary: the
+// last argument each member accepts, and the first one it does not.
+echo Core\Math::asin(1.0), "|", Core\Math::asin(-1.0), "|", Core\Math::asin(2.0), "\n";
+echo Core\Math::acos(1.0), "|", Core\Math::acos(-1.0), "|", Core\Math::acos(-2.0), "\n";
+echo Core\Math::acosh(1.0), "|", Core\Math::acosh(0.5), "\n";
+echo Core\Math::atanh(1.0), "|", Core\Math::atanh(-1.0), "|", Core\Math::atanh(1.5), "\n";
+--EXPECT--
+asin: finite=5 nan=4
+acos: finite=5 nan=4
+asin/acos agreed=9 of 9
+acosh: finite=3 nan=6
+atanh: finite=3 infinite=2 nan=4 partitioned=9
+atan+asinh finite=18 of 18
+threw=0
+1.5707963267949|-1.5707963267949|NAN
+0|3.1415926535898|NAN
+0|NAN
+INF|-INF|NAN
