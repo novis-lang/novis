@@ -1151,6 +1151,15 @@ sibling in the same namespace unqualified.
   `\0`); `Core\Str::length("a\u{0000}b")` reads **3**, so it is a character in the string rather
   than a terminator, which is the assertion a `Core\Validate` sweep over degenerate subjects rests
   on.
+- **A case that sweeps code points writes `Core\Str::fromCodePoint($c as uint)`, and orders two strings
+  with `Core\Str::compare`.** The obvious spellings both fail: `Core\Str::fromCodePoints` takes
+  `array<uint>` while `Core\Arr::range` answers `array<int>`, and `array<int> as array<uint>` is the
+  conversion ADR 0007 § 2 still owes — so the singular member, with the loop's `int` counter converted at
+  the argument, is the way a sweep names a code point at all. For ordering, the neighbouring bullet's
+  `<`/`>` hole over two `string`s is real but no longer the end of it: `Core\Str::compare($a, $b) <= 0`
+  is an `int` comparison, it lowers, and over fixed-width zero-padded hex it *is* the numeric comparison —
+  which is what lets a case assert that a `Core\Uuid::v7` sweep never goes backwards without leaving for
+  the crate's own `#[test]`.
 
 ## Divergences and refusals already pinned
 

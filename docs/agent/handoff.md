@@ -2,45 +2,45 @@
 
 ## State
 
-**Conformance is at 518 of 600, and it is the only frontier left.** The differential gate is met at
+**Conformance is at 520 of 600, and it is the only frontier left.** The differential gate is met at
 **159** of the 150 it requires and `python tools/gaps.py --differential` is empty. Verify is green
 (1597 cargo tests, 74 suites, clippy and fmt clean) and runs both `.mwlt` trees itself, so after a
 green `verify.py` there is nothing else to run (playbook, *Running things*).
 
-**The § 9 leftover is landed and § 12's `Core\Validate` is at 5 cases.** The first is the
-*agreement* shape across two members implementing one rule: a heap drained by `pop` and the same
-table given to `Core\Arr::sort` are compared position for position under four orderings — natural,
-reversed (`{order: Core\Order::Desc}` against a comparator), a key written twice (`{by}` against a
-comparator over the same static helper), and bytewise over strings — with every heap asserted
-drained and one crossed pair scoring 0 of 6 so the counter is shown able to say no. The second asks
-one question of all six `Core\Validate` predicates at once: six degenerate subjects (empty, three
-whitespace, a NUL-holding one, a run of spaces) are refused unanimously by the four structural
-predicates (24 of 24), are all six ASCII, and split 3 of 6 on `isPrintable` — the count that says
-the two character-class predicates are not one predicate asked twice.
+**§ 12's `Core\Validate` leftover is closed and `Core\Uuid` is 5 cases for 5 members.** The first
+names each character-class predicate's bound beside the entry past it — `~`/DEL for `isPrintable`,
+DEL/`U+0080` for `isAscii`, `U+009F`/`U+00A0` for the C1 run — then sweeps `U+0000`..`U+010F` into
+the four cells the two predicates carve out (95|33|32|112) and searches the same three bounds out as
+run lengths (128|95|33), so a line that moved by one entry moves two counts. The second pins v7's one
+behavioural claim: 64 consecutive draws compared by their 48-bit millisecond field, every adjacent
+pair non-decreasing and the last also compared against the first, with the same sweep over `v4`
+showing the counter can say no, and the field bounded on both sides between 2020 and 2100 so it is
+the Unix clock rather than a monotonic sequence of its own.
 
-**Item 3 below is the carried leftover this time**, and the group's second and third slices move on
-to `Core\Uuid`, which is 3 cases for 4 members plus `toString`.
+**The old group's third slice is dropped, not carried**: `parse`/`tryParse` agreement over a table,
+counted, is already on disk as `agree 8 of 8` in
+`tests/conformance/core/uuid-every-draw-round-trips-and-a-refusal-quotes-boundedly.mwlt`.
 
 ## Next group
 
-Three slices. **Item 1 is the carried § 12 leftover** and reads `crates/mwl-stdlib/src/validate.rs`
-alone, so take it first. **Items 2 and 3 share `crates/mwl-stdlib/src/uuid.rs`** — 4 members plus
-`toString` over 3 cases, the thinnest section left with more than one member — plus new files under
-`tests/conformance/core/`; spec § 11 owns the rules (and says there is no `isValid`) and the crate's
-module doc owns every divergence from PHP's `uniqid`/`random_bytes` idiom.
+Three slices, all reading `crates/mwl-stdlib/src/math.rs` and adding new files under
+`tests/conformance/core/`. `Core\Math` is 38 members over 13 cases — the widest members-per-case gap
+left — and the 13 are listed by `ls tests/conformance/core/ | grep ^math`, which is worth one call
+before writing, because the family cases are broad and each slice below is the claim they leave.
+`docs/spec/01-core-library.md` § 3 owns the rules.
 
-- [ ] **`isAscii` and `isPrintable` are bounds asserted on both sides** — the last code point each
-      accepts and the first it refuses, named together in one case: `~` (7E) against DEL (7F) for
-      `isPrintable`, DEL (7F) against U+0080 for `isAscii`, and where the two disagree in between.
-      `validate.rs:450` (`isAscii`), `validate.rs:465` (`isPrintable`).
-- [ ] **`Core\Uuid::v7` is time-ordered across a sweep, not just across two draws** — the
-      *invariance* shape: draw a table of v7s in a loop, compare each against the one before by its
-      leading timestamp field, and **count** the non-decreasing pairs rather than printing any of
-      them. `uuid.rs:309` (`v7`), `uuid.rs:385` (`toString`).
-- [ ] **`parse` and `tryParse` agree about every subject, and disagree only in how they say no** —
-      the *agreement* shape over a table of canonical and malformed forms: `tryParse` answering
-      `null` exactly where `parse` throws, counted. `uuid.rs:334` (`parse`), `uuid.rs:362`
-      (`tryParse`).
+- [ ] **`isNan` and `isFinite` partition every float a member can answer** — the *agreement* shape:
+      one table (`0.0`, `-0.0`, `Core\Math::EPSILON`, `INT_MAX as float`, `log(0)`, `sqrt(-1)`, a
+      huge product) asked of both predicates, counting that exactly one of nan / finite / infinite
+      holds per row, so a predicate that grew its own idea of infinity fails the count.
+      `math.rs:285` (`isNan`), `math.rs:292` (`isFinite`).
+- [ ] **`toBase` and `fromBase` are bounded on both sides at the base argument** — 2 and 36 accepted,
+      1 and 37 refused, named together, with the refusal caught and its message asserted by prefix.
+      `math-base-conversion-round-trips.mwlt` owns the round trip and asserts no bound.
+      `math.rs:299` (`toBase`), `math.rs:306` (`fromBase`).
+- [ ] **`hypot` agrees with `sqrt($x * $x + $y * $y)` everywhere the naive form is representable, and
+      answers where it is not** — the *agreement* shape over a table, plus the overflow row that is
+      the whole reason the member exists. `math.rs:159` (`hypot`), `math.rs:145` (`sqrt`).
 
 ## Backlog
 
