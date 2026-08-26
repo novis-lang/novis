@@ -105,7 +105,6 @@ tools/
   check-links.py    advisory: markdown links that break, or that mis-match case    exists
   gen-attribution   generates THIRD-PARTY-LICENSES.txt from the dep graph          exists
   leak-check.sh     valgrind over named .mwl fixtures (WSL/Linux)                  exists
-  wsl-acceptance.sh whole-suite sweep under WSL/Linux                              exists
 docs/setup.md       what a development machine installs, and why twice on Windows exists
 docs/adr/           architecture decision records + the topic routing table        exists
 docs/agent/         how agents work in this repo: loop, prompts, live handoff      exists

@@ -10,6 +10,7 @@ already is that target, so there is one leg plus the valgrind sweep.
     python tools/loop.py --max-sessions 300
     python tools/loop.py --max-sessions 300 --full-output   # no truncation anywhere
     python tools/loop.py --goal-only                        # run the acceptance test and exit
+    python tools/loop.py --leg-only                         # just the Linux leg, and exit
 
 Nothing on the stop path depends on a model's self-assessment: every acceptance item is an exit code plus
 an exact or ordered-substring match on real output.
@@ -321,6 +322,12 @@ class NativeLeg:
     def run(self, mwl_args):
         return capture(self.binary, ["run", *mwl_args])
 
+    def suite(self, mwl_args):
+        """`mwl test <dir>` on this leg. Separate from `run` because a suite takes its own
+        subcommand, and separate from calling `self.binary` directly because on the WSL leg that
+        path is a Linux one and Windows cannot execute it."""
+        return capture(self.binary, mwl_args)
+
 
 class WslLeg(NativeLeg):
     """Windows only: the same fixtures against a Linux build, through the default WSL distro.
@@ -352,6 +359,9 @@ class WslLeg(NativeLeg):
     def run(self, mwl_args):
         return self.bash(f"cd {self.repo} && {self.binary} run " + " ".join(mwl_args))
 
+    def suite(self, mwl_args):
+        return self.bash(f"cd {self.repo} && {self.binary} " + " ".join(mwl_args))
+
 
 def wsl_available():
     return IS_WINDOWS and shutil.which("wsl.exe") is not None
@@ -372,7 +382,11 @@ EXPENSIVE = {"abi-probe", "wsl leg", "valgrind sweep"}
 
 class Goal:
     """The acceptance test, read from docs/agent/loop-goal.toml. `check()` returns "" when everything
-    passes, or the first failure as one line.
+    passes, or the first failure as one line -- with one deliberate exception, a suite that runs
+    clean but holds fewer cases than its `min_passing`. That is the loop's stopping condition rather
+    than a claim about the language, so it is held back and reported only once everything else has
+    run; otherwise a corpus still being grown short-circuits the memory-safety sweep behind it for
+    as many sessions as the growing takes.
 
     Two things are memoized, and neither of them skips a check:
 
@@ -392,6 +406,7 @@ class Goal:
         self.wsl_target = spec.get("wsl", {}).get("target_dir", "/tmp/mwl-target-wsl")
         self.program_checks = [c for c in self.checks if c["kind"] in PROGRAM_KINDS]
         self.ran = []  # (label, seconds) for every check this run actually paid for
+        self.short = []  # `min_passing` thresholds not met; see `check()`
         self._cargo = {}  # args tuple -> Result, within one check() call
         self._tree = ""
         self._green = set()
@@ -497,8 +512,10 @@ class Goal:
 
         if c["kind"] == "mwl-suite":
             # The suite runner is the CLI the leg already built; `cargo run` here would be one
-            # more workspace fingerprint scan to start a binary sitting on disk.
-            r = self.timed(label, lambda: capture(leg.binary, c["args"]))
+            # more workspace fingerprint scan to start a binary sitting on disk. Through the leg
+            # rather than at the binary, because `--leg-only` runs these on the Linux build, whose
+            # path Windows cannot execute.
+            r = self.timed(label, lambda: leg.suite(c["args"]))
         else:
             r = self.timed(label, lambda: self.cargo(c["args"]))
         if r.code != 0:
@@ -512,7 +529,14 @@ class Goal:
             if int(m.group(2)) != 0:
                 return f"{label}: {m.group(2)} case(s) failed"
             if int(m.group(1)) < c["min_passing"]:
-                return (
+                # Held, not returned. A `min_passing` threshold is the loop's STOPPING condition --
+                # "is the corpus big enough yet" -- and not a correctness signal; the two lines
+                # above are the correctness half and they have just passed, so every case that
+                # exists runs and none of them fails. Returning here would short-circuit the Stage 5
+                # guards, the second leg and the valgrind sweep for as long as the corpus is still
+                # growing, which is dozens of sessions, and priority 1 does not wait behind
+                # priority 4. `check()` reports this after all of them.
+                self.short.append(
                     f"{label}: only {m.group(1)} passing case(s), wanted at least {c['min_passing']}"
                 )
         elif c["kind"] == "cargo-named":
@@ -552,18 +576,26 @@ class Goal:
 
     # -- the whole thing ----------------------------------------------------------------
 
+    def begin(self):
+        """Reset the per-run bookkeeping, and confirm every fixture is still on disk before
+        anything is built. Shared by the two entry points below."""
+        self.ran = []
+        self._cargo = {}
+        self.short = []  # thresholds not met yet, judged after everything else
+        self.load_green()
+        for f in self.files:
+            if not (ROOT / f).exists():
+                return f"{f} is missing -- the acceptance fixtures are fixed, see docs/agent/loop-goal.md"
+        return ""
+
     def check(self, verbose=False):
         def trace(msg):
             if verbose:
                 say(f"   .. {msg}", C.GRAY)
 
-        self.ran = []
-        self._cargo = {}
-        self.load_green()
-
-        for f in self.files:
-            if not (ROOT / f).exists():
-                return f"{f} is missing -- the acceptance fixtures are fixed, see docs/agent/loop-goal.md"
+        fail = self.begin()
+        if fail:
+            return fail
 
         # One build for every fixture that follows, and a broken tree is reported as a broken
         # build rather than as twenty-three fixtures with nothing on stdout.
@@ -614,7 +646,61 @@ class Goal:
                 self.remember("wsl leg")
 
         trace("valgrind sweep")
-        return self.valgrind(leg)
+        fail = self.valgrind(leg)
+        if fail:
+            return fail
+
+        # Last, because a corpus that is merely still growing is the one failure that must not hide
+        # anything: everything above is a claim about whether the language is correct on both legs
+        # and leaks nothing, and all of it has now run. See `cargo_check`'s `min_passing` arm.
+        return self.short[0] if self.short else ""
+
+    def leg_check(self, verbose=False):
+        """The Linux leg on its own: every fixture, both suites and the valgrind sweep against a
+        Linux build. The cargo suites are left out because they do not divide by target -- what
+        this leg exists to catch is a calling-convention divergence in the JIT or a leak in the
+        refcount protocol, and both of those show up through the CLI.
+
+        This was `tools/wsl-acceptance.sh`, and it is a method rather than a shell script because
+        that script carried its own frozen copy of every fixture's expected output. A second copy
+        of a frozen list drifts, and that one had: by the time the two were run side by side it was
+        seven fixtures and seven valgrind targets behind `loop-goal.toml`, while its own header
+        still said it ran "the same commands". `WslLeg` also already solves the quoting the script
+        was written as a file to avoid.
+        """
+        def trace(msg):
+            if verbose:
+                say(f"   .. {msg}", C.GRAY)
+
+        fail = self.begin()
+        if fail:
+            return fail
+
+        leg = WslLeg(self.wsl_target) if wsl_available() else NativeLeg()
+        trace(f"building the {leg.name} CLI")
+        fail = self.timed(f"{leg.name} build", leg.prepare)
+        if fail:
+            return fail
+
+        for c in self.program_checks:
+            trace(f"{leg.name} {c['file']}")
+            fail = self.program_check(leg, c)
+            if fail:
+                return fail
+
+        for c in self.cargo_checks:
+            if c["kind"] != "mwl-suite":
+                continue
+            trace(f"{leg.name} {c['name']}")
+            fail = self.cargo_check(c, leg)
+            if fail:
+                return fail
+
+        trace("valgrind sweep")
+        fail = self.valgrind(leg)
+        if fail:
+            return fail
+        return self.short[0] if self.short else ""
 
     def summary(self):
         """One line: what this run cost, and the three checks that cost the most of it."""
@@ -906,6 +992,11 @@ def main():
     ap.add_argument("--max-line-chars", type=int, default=500)
     ap.add_argument("--full-output", action="store_true", help="no truncation anywhere")
     ap.add_argument("--goal-only", action="store_true", help="run the acceptance test and exit")
+    ap.add_argument(
+        "--leg-only", action="store_true",
+        help="run just the Linux leg -- every fixture, both suites and the valgrind sweep against a "
+             "Linux build -- and exit"
+    )
     ap.add_argument("--list", action="store_true", help="print the acceptance plan and exit")
     ap.add_argument(
         "--force", action="store_true", help="start even if .loop/running says a driver is up"
@@ -952,6 +1043,16 @@ def main():
             say(f"NOT GREEN: {fail}", C.RED)
             return 1
         say("GOAL REACHED: every acceptance check passes", C.GREEN)
+        return 0
+
+    if opts.leg_only:
+        say("running the Linux leg ...", C.CYAN)
+        fail = goal.leg_check(verbose=True)
+        say(f"\ncost: {goal.summary()}", C.GRAY)
+        if fail:
+            say(f"NOT GREEN: {fail}", C.RED)
+            return 1
+        say("Linux leg: everything passes", C.GREEN)
         return 0
 
     LOGDIR.mkdir(parents=True, exist_ok=True)

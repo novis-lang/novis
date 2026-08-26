@@ -87,7 +87,7 @@ cargo test --release -p mwl-abi-probe --features wasm-probe    # wasmtime moved
 
 ```sh
 python tools/loop.py --goal-only          # --list shows what it would run
-wsl.exe -- bash /mnt/<drive>/<repo>/tools/wsl-acceptance.sh
+python tools/loop.py --leg-only           # the Linux leg alone, when that is all that moved
 ```
 
 **D. If a lexer/parser-adjacent crate moved:**

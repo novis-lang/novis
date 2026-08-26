@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `valgrind --leak-check=full` over the fixtures named on the command line — the
-# narrow counterpart of `tools/wsl-acceptance.sh`'s whole-suite memory leg.
+# narrow counterpart of `python tools/loop.py --leg-only`'s whole-suite memory leg.
 #
 # Run one of these for **any** new refcount edge, before it reaches a session's
 # last commit: the whole-suite leg only covers `examples/`, and this repository's

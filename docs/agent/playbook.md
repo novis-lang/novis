@@ -72,9 +72,10 @@ is why" — is this file.
   a fixture or a `.mwlt` case by hand, or a stale binary reports a member you just registered as `mixed`.
 - **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles, and WSL's
   default shell has no `grep`/`sed` on `PATH` from a bare `bash -c`. Whole suite:
-  `wsl.exe -- bash /mnt/<drive>/<repo>/tools/wsl-acceptance.sh` (background it; minutes). One fixture:
-  `tools/leak-check.sh <paths>` — it takes `.mwl` files only, so a `.mwlt` passed to it reports a failure
-  that is not a leak.
+  `python tools/loop.py --leg-only` (background it; minutes) — every fixture, both suites and the
+  valgrind sweep against a Linux build, and it needs no script because it drives `wsl.exe` for you.
+  One fixture: `tools/leak-check.sh <paths>` — a file passed by path, for the reason above — and it
+  takes `.mwl` files only, so a `.mwlt` passed to it reports a failure that is not a leak.
 - **Another agent may be editing this repo at the same time.** Check the ADR directory for the next free
   number immediately before writing one, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud

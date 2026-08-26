@@ -73,7 +73,7 @@ machine's job.
 ```sh
 python tools/verify.py                                   # build, test, clippy, fmt
 cargo run -q -p mwl-cli -- test tests/differential/       # must report 0 skipped
-wsl.exe -- bash /mnt/<drive>/<repo>/tools/wsl-acceptance.sh        # Windows only: the whole Linux leg
+python tools/loop.py --leg-only                          # the whole Linux leg; drives WSL on Windows
 ```
 
 The middle one is the check that actually catches a missing PHP: what matters is **`0 skipped`**. A suite
