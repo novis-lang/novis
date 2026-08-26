@@ -363,6 +363,14 @@ is why" — is this file.
   indistinguishable from a definite leak — the `definitely lost: 0 bytes in 0 blocks` line printed right
   beside the "failure" was the only tell. It uses 97 now, a status no MWL program produces, so a throwing
   fixture is a fair leak subject.
+- **`target/release/mwl.exe` is whatever the *last* session built, and a `.mwlt` case it fails may
+  simply predate it.** A session that adds nothing but cases still owes a
+  `cargo build --release -p mwl-cli` — about two minutes — before it believes a red run: this one's
+  binary was two hours and four commits old, so `mwl test tests/conformance` reported
+  `str-replace-and-pad-are-the-identity-at-their-own-bound.mwlt` failing on a `Core\Str::padStart` line
+  nothing in the session had touched. `git status --short` showing that file unmodified says the failure
+  was not *caused* here, which is the neighbouring bullet's rule; only the rebuild says it is not real.
+  The same tree, rebuilt, is 478 passed / 0 failed.
 
 ## Adding a `Core` member
 
