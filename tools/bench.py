@@ -5,24 +5,28 @@
     python tools/bench.py 05 regex             # only cases whose name contains "05" or "regex"
     python tools/bench.py --reps 9             # more reps when a number looks noisy
     python tools/bench.py --check              # correctness only: do they agree? (no timing)
-    python tools/bench.py --engines mwl,php    # narrow to two engines; the default is all three
+    python tools/bench.py --engines mwl,php    # narrow the roster; the default is all four
     python tools/bench.py --php-mode default   # PHP as installed, instead of with opcache+JIT
     python tools/bench.py --json docs/perf/userland.ndjson   # append one record per case
 
-The cases live in `benches/userland/` as twins -- `NN-slug.mwl`, `NN-slug.php` and `NN-slug.py`
--- and [its README](../benches/userland/README.md) owns what a case is and how to add one. This
-file owns only how they are *measured*.
+The cases live in `benches/userland/` as twins -- `NN-slug.mwl`, `.php`, `.py` and `.ts` -- and
+[its README](../benches/userland/README.md) owns what a case is and how to add one. This file
+owns only how they are *measured*.
 
-## Three engines, and why the list is data
+## The engine roster, and why the list is data
 
-`ENGINES` below is a list, not a pair, because the comparison this suite has to answer changed
-once: [ADR 0100](../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5
-adds Python, since MWL's CLI claim is made against Python and this project does not publish an
-unmeasured claim. Everything downstream -- the baseline subtraction, the table, the JSON record --
-iterates that list, so a fourth engine is an entry plus a file suffix, never a rewrite.
+The roster in `build_engines()` is a list, not a pair, because the comparison this suite has to
+answer keeps changing:
+[ADR 0100](../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5 added
+Python, since MWL's CLI claim is made against Python and this project does not publish an
+unmeasured claim, and that ADR's *Revisiting* is what pre-authorised Bun as the fourth. Everything
+downstream -- the baseline subtraction, the table, the JSON record -- iterates the list, so a
+fifth engine is an entry plus a file suffix, never a rewrite.
 
 A case is defined by its `.mwl` file. Every other engine attaches if its twin is on disk and is
-skipped, with a warning, if it is not: a missing twin must never look like agreement.
+skipped, with a warning, if it is not: a missing twin must never look like agreement. An engine
+whose executable is not installed fails every case it is asked to run, so name the ones you have
+with `--engines` rather than reading a wall of ERROR rows.
 
 ## What is measured, and what the number means
 
@@ -67,7 +71,9 @@ has been asked to run slower proves nothing. `--php-mode default` runs it exactl
 -- the CLI's real out-of-the-box behaviour -- and the mode is recorded in every JSON record, so
 the two are never silently mixed in one history file. Python is run as the interpreter running
 this script unless `--python` names another, and no flag is passed: there is no second CPython
-mode the way there is a second PHP one.
+mode the way there is a second PHP one. Bun runs the `.ts` file directly -- it transpiles
+TypeScript on the way in, which is part of what a Bun user pays at start-up and so is deliberately
+inside the measurement rather than pre-compiled away.
 
 ## Adding a measure later
 
@@ -140,12 +146,15 @@ class Case:
         return self.name == BASELINE
 
 
-def build_engines(selected: list[str], mwl_binary: Path, php: str, php_mode: str, python: str) -> list[Engine]:
+def build_engines(
+    selected: list[str], mwl_binary: Path, php: str, php_mode: str, python: str, bun: str
+) -> list[Engine]:
     """The engine roster, in table order. `--engines` picks a subset; `mwl` is always in it."""
     available = {
         "mwl": Engine("mwl", "mwl", ".mwl", [str(mwl_binary), "run"], ["--version"]),
         "php": Engine("php", "php", ".php", [php, *PHP_MODES[php_mode]], ["-r", "echo PHP_VERSION;"]),
         "python": Engine("python", "py", ".py", [python], ["--version"]),
+        "bun": Engine("bun", "bun", ".ts", [bun, "run"], ["--version"]),
     }
     unknown = [key for key in selected if key not in available]
     if unknown:
@@ -315,9 +324,9 @@ def evaluate(case: Case, engines: list[Engine], reps: int) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run the userland benchmark suite across MWL, PHP and Python side by side.",
+        description="Run the userland benchmark suite across MWL, PHP, Python and Bun side by side.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__.split("## Three engines", 1)[0],
+        epilog=__doc__.split("## The engine roster", 1)[0],
     )
     parser.add_argument("patterns", nargs="*", help="substrings; only matching cases run")
     parser.add_argument("--reps", type=int, default=5, help="timed reps per engine (default 5)")
@@ -329,10 +338,11 @@ def main() -> int:
         default=sys.executable,
         help="python executable (default: the one running this script)",
     )
+    parser.add_argument("--bun", default="bun", help="bun executable (default `bun`)")
     parser.add_argument(
         "--engines",
-        default="mwl,php,python",
-        help="comma-separated engine list, in table order; must include mwl (default all three)",
+        default="mwl,php,python,bun",
+        help="comma-separated engine list, in table order; must include mwl (default all four)",
     )
     parser.add_argument(
         "--php-mode",
@@ -351,7 +361,7 @@ def main() -> int:
     binary = find_mwl(args.mwl, args.allow_debug)
     warn_if_stale(binary)
     selected = [name.strip() for name in args.engines.split(",") if name.strip()]
-    engines = build_engines(selected, binary, args.php, args.php_mode, args.python)
+    engines = build_engines(selected, binary, args.php, args.php_mode, args.python, args.bun)
     cases = discover(args.patterns, engines)
     if not cases:
         sys.exit("no runnable case found under benches/userland")

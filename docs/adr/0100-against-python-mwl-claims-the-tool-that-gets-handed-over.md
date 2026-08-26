@@ -198,30 +198,36 @@ What exists instead, and what the documentation points at when the question is a
 This is a **decision, not a gap**, and § 2 requires it to be said out loud wherever MWL is compared to
 Python — a reader who discovers it after installing has been misled by omission.
 
-### 5. Python is a third engine in the userland suite
+### 5. Python is a third engine in the userland suite, and the roster is open
 
 [benches/userland/](../../benches/userland/) gains a `NN-slug.py` beside each existing pair, and
-`tools/bench.py` runs whichever engines a case has twins for.
+`tools/bench.py` runs whichever engines a case has twins for. **Bun is the fourth**, added under this
+section's own *Revisiting* clause rather than by a new ADR, with its cases in TypeScript and a `.ts`
+suffix; it is the strongest engine in the suite and is kept for exactly that reason.
 
 - **The engine list is data, not a count.** `evaluate`, the `00-baseline` subtraction, the table, `explain`
   and the NDJSON record all iterate the list; `--engines mwl,php` narrows it. This is the change the
-  harness's own "Adding a measure later" note anticipated, one axis over.
+  harness's own "Adding a measure later" note anticipated, one axis over — and Bun landing as one entry
+  plus a suffix is the evidence that it was the right shape.
 - **`total` is the headline for a CLI claim and `work` for a language claim**, and the suite keeps refusing
   to pick one. Against Python the two answer genuinely different questions, and quoting either without
   saying which is the misuse § 2 forbids.
 - **Byte-identical output is still the gate**, unchanged: a case whose three halves disagree reports `DIFF`
   and no time.
-- **The fairness rule gains exactly one exception.** `benches/userland/README.md` says a case is written in
-  each language's own idiom rather than transliterated, and that stands — a Python case joins its parts and
-  builds a list comprehension where the PHP one appends to a string and calls `array_map`. The exception is
-  **arithmetic that must agree**: PHP and MWL truncate `%` toward zero and Python floors it, so a case whose
-  running total goes negative writes the truncated remainder explicitly, with a comment saying why. That is
-  a correctness requirement of the byte-identical gate, not a style choice, and it is confined to the two
-  cases that need it.
-- **Python is not a new toolchain dependency.** `tools/` is already Python
+- **The fairness rule gains exactly one exception, of one kind.** `benches/userland/README.md` says a case
+  is written in each language's own idiom rather than transliterated, and that stands — a Python case joins
+  its parts and builds a list comprehension where the PHP one appends to a string and calls `array_map`,
+  and a TypeScript case chains `.map().filter().reduce()`. The exception is **arithmetic that must agree**,
+  because the byte-identical gate is a correctness requirement rather than a style choice: Python floors
+  `%` where the other three truncate it, so two cases spell the truncated remainder out; and a `number` is
+  a float64, so the two cases whose seeded LCG passes 2^53 run that one line in `BigInt`. Each is confined
+  to the cases that need it and carries a comment saying why.
+- **Neither Python nor Bun is a toolchain dependency.** `tools/` is already Python
   ([0065](0065-third-party-attribution-and-mwl-info.md) § *Consequences* is where that was accepted), so
-  the machine that can run `bench.py` can already run its cases. A missing `.py` twin skips that engine with
-  a warning, exactly as a missing `.php` twin already skips the case.
+  the machine that can run `bench.py` can already run its cases; Bun is an ordinary optional install, named
+  in [docs/setup.md](../setup.md). A missing twin skips that engine with a warning and an uninstalled
+  engine is narrowed away with `--engines`, so neither can turn a build, a test or a loop session red —
+  nothing outside this suite reads any of it.
 
 ## Consequences
 
@@ -290,7 +296,13 @@ Python — a reader who discovers it after installing has been misled by omissio
   exception precisely so it is not read as licence for more.
 - **Benchmark against PyPy as well, or instead.** Rejected: the Python a tool is actually run under is
   CPython, and a second Python engine doubles the maintenance of the twins to sharpen a comparison nobody
-  in § 1's audience experiences. `--engines` makes adding one later a flag rather than a redesign.
+  in § 1's audience experiences. `--engines` makes adding one later a flag rather than a redesign — as Bun
+  then demonstrated.
+- **Leave Bun out, on the grounds that it is not what § 1's audience is switching from.** True, and
+  rejected anyway: Bun is the closest thing in the suite to what MWL is trying to be — a fast JIT behind a
+  scripting surface with the batteries in the binary — so it is the engine whose numbers actually test
+  this project's own claims. Measuring only engines MWL beats is how a benchmark suite stops being
+  evidence.
 
 ## Verification
 
@@ -316,6 +328,12 @@ Python — a reader who discovers it after installing has been misled by omissio
 - **§ 1 reopens if the CLI audience ever produces adoption the primary one does not.** That would be
   evidence about which greenfield story is real, and 0080 § 1's ordering is a hypothesis, not a
   commitment.
-- **§ 5's engine list reopens the moment a comparison is asked for that the suite cannot answer** — a
-  second Python implementation, Node, or Go. The list being data is what makes that a flag rather than
-  this ADR again.
+- **§ 5's engine list reopens the moment a comparison is asked for that the suite cannot answer.** It has
+  already reopened once, for Bun, and cost one `Engine` entry and a suffix — which is the clause working
+  as intended. A second Python implementation, Node or Go would go the same way. The list being data is
+  what makes each of those a flag rather than this ADR again.
+- **Bun's numbers are the sharpest standing argument against § 2's permitted claims**, and are recorded in
+  [docs/perf/userland-gap.md](../perf/userland-gap.md) rather than softened. A mature JIT beats MWL on the
+  median userland case today; what MWL still wins there is cold start, which is the CLI headline § 5
+  names. If that stops being true, § 1's second audience loses its best evidence and this ADR is worth
+  re-reading whole.

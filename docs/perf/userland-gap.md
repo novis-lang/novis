@@ -70,18 +70,32 @@ change at all* yet its work figure read 87.3 ms on the base build and 93.3 ms he
 that relinks the whole runtime moves code layout, and these two rows carry about ±6% of it. The
 median above is the honest statistic; a single row's third digit is not.
 
-**The suite measures a third engine as of 2026-08-26**, CPython 3.11.2, because MWL's CLI claim is made
-against Python and this project does not publish an unmeasured one
+**The suite measures four engines as of 2026-08-26** — MWL, PHP 8.5.9, CPython 3.11.2 and Bun 1.4.0 —
+because MWL's CLI claim is made against Python and this project does not publish an unmeasured one, and
+because a suite that measured only engines MWL beats would stop being evidence
 ([ADR 0100](../adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5). On the same
-9-rep sweep as the table above: the median `work` ratio is **2.10× in MWL's favour**, and cold start —
-`00-baseline`'s *total*, which every `work` figure subtracts away — is **7.5 ms for MWL against 19.2 ms
-for Python** and 37.8 ms for PHP. **Neither half may be quoted without the other**, because the split is
-not uniform and is not noise: MWL loses `12-array-map-filter` (0.44×), `10-array-sort` (0.69×),
-`13-array-contains` (0.78×) and `11-array-sort-by-field` (0.82×) — every one a case whose Python loop is
-really a call into C — and wins the genuinely interpreted loops by one to two orders of magnitude
-(`01-arith-loop` 44×, `19-object-property` 17×). **No row in this file's ledger is Python work.** Items A
-through J are the PHP gap; nothing below is waiting on the Python column, and when the last of them lands
-and this file is deleted, this paragraph goes with it.
+9-rep sweep as the table above, medians of the `work` ratio: **PHP 0.80×, Python 2.13×, Bun 0.57×.**
+Cold start — `00-baseline`'s *total*, which every `work` figure subtracts away — is **MWL 7.8 ms, Bun
+13.4 ms, Python 19.5 ms, PHP 39.2 ms.**
+
+**Bun is the engine to beat and MWL does not currently beat it.** It wins seventeen of the twenty cases,
+and four of them by more than 3×: `12-array-map-filter` **0.08×**, `18-json-decode` 0.22×,
+`20-method-dispatch` 0.24×, `15-regex-match` 0.29×. MWL wins `05-string-replace` (1.53×) and draws
+`01-arith-loop`, `03-string-concat` and `07-string-normalize`. Read that as the standing verdict on this
+suite: a mature JIT behind a scripting surface is ahead of MWL on ordinary userland work today, and the
+one figure MWL still owns outright is **cold start**, which it wins against every engine here — Bun
+included, and while Bun is also transpiling TypeScript on the way in.
+
+Against Python the split is not uniform and is not noise, and **neither half may be quoted without the
+other**: MWL loses `12-array-map-filter` (0.45×), `10-array-sort` (0.71×), `13-array-contains` (0.81×)
+and `11-array-sort-by-field` (0.85×) — every one a case whose Python loop is really a call into C — and
+wins the genuinely interpreted loops by one to two orders of magnitude (`01-arith-loop` 44×,
+`19-object-property` 17×).
+
+**No row in this file's ledger is Python or Bun work.** Items A through J are the PHP gap; nothing below
+is waiting on either column, and when the last of them lands and this file is deleted, these paragraphs
+go with it. If the Bun gap is ever worked deliberately it earns items of its own, and the first place to
+look is the same one every PHP row points at — allocation count, not the compiler.
 
 Three rows moved on item D alone, and they are the last three the array members were holding down:
 `12-array-map-filter` 0.36× → **0.51×**, `10-array-sort` 0.69× → **0.96×** and

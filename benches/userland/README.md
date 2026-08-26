@@ -1,20 +1,22 @@
 # The userland benchmark suite
 
 Twenty-odd pieces of ordinary web-and-CLI code, each written once per engine: `NN-slug.mwl`,
-`NN-slug.php` and `NN-slug.py`. They are not micro-benchmarks of the runtime — [ADR 0026](../../docs/adr/0026-performance-measurement-methodology.md)
+`NN-slug.php`, `NN-slug.py` and `NN-slug.ts`. They are not micro-benchmarks of the runtime — [ADR 0026](../../docs/adr/0026-performance-measurement-methodology.md)
 owns *that* measurement, counted in instructions so it compares across machines. These are the loops a
 person actually writes: build a string, tally an array, sort a table, match a regex, encode a payload.
 
 **Python is here because MWL's CLI claim is made against Python**, and this project does not publish an
 unmeasured claim — [ADR 0100](../../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md)
-§ 5 is the decision and `--engines` is how you narrow it.
+§ 5 is the decision. **Bun is here because it is the hardest engine to beat**, and a suite that only
+measured engines MWL wins against would stop being evidence. `--engines` is how you narrow the roster,
+and an engine you have not installed is narrowed away rather than left to fail every case.
 
 Run them with one call:
 
 ```sh
 python tools/bench.py                    # every case, every engine, side by side
 python tools/bench.py 05 regex           # only the cases whose name contains these
-python tools/bench.py --check            # do all three agree? (no timing)
+python tools/bench.py --check            # do all four agree? (no timing)
 python tools/bench.py --engines mwl,php  # narrow the roster; mwl is always in it
 python tools/bench.py --php-mode default # PHP as installed, not with opcache+JIT
 ```
@@ -35,13 +37,18 @@ silently reading as agreement:
   naming the *userland* thing it stands for — "the placeholder fill every mailer does", not "str_replace".
 - **They are written the way a person writes them**, in each language's own idiom: `explode`/`implode`
   against `Core\Str::split`/`join`, `usort` with a comparator against `Arr::sort` with a `by` key, PHP's
-  `.=` against Python's list-and-`join`, `array_map` against a comprehension. A case is a fair fight
-  between each language's normal spelling, not a transliteration of one into the others.
-- **The one exception is arithmetic that has to agree.** PHP and MWL truncate `%` toward zero where Python
-  floors it, so a case whose running total goes negative writes the truncated remainder explicitly, in a
-  named helper with a comment saying why. Two cases need it — `01-arith-loop` and `19-object-property` —
-  and it is a requirement of the byte-identical gate, not licence to transliterate anything else
-  ([ADR 0100](../../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5).
+  `.=` against Python's list-and-`join` — but *not* against TypeScript's, where `+=` builds a rope and is
+  what a JS author writes; `array_map` against a comprehension against a chained `.map().filter()`. A case
+  is a fair fight between each language's normal spelling, not a transliteration of one into the others.
+- **The only exceptions are arithmetic that has to agree**, because the byte-identical gate below is a
+  correctness requirement and not a style choice. There are two kinds, each carrying a comment saying why
+  ([ADR 0100](../../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5):
+  - **Python floors `%` where the other three truncate it toward zero.** `01-arith-loop` and
+    `19-object-property` run a negative total, so their Python twins spell the truncated remainder out in
+    a named helper. Their TypeScript twins need nothing — JavaScript truncates.
+  - **A TypeScript `number` is a float64.** `10-array-sort` and `11-array-sort-by-field` seed themselves
+    with an LCG whose product reaches ~2.4e18, past the 2^53 a float64 holds exactly, so those two run
+    that one line in `BigInt` and convert back. Every other value in the suite fits.
 - **Each iteration's input depends on the previous iteration's result.** This is the one rule that is not
   obvious, and it is not stylistic — see below.
 
@@ -73,7 +80,7 @@ the symptom.
   language". **For a CLI claim the headline is `total` and for a language claim it is `work`**, and
   quoting either without saying which is the misuse
   [ADR 0100](../../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 2 forbids.
-- `php/mwl` and `py/mwl` are ratios of the `work` figures: **above 1.00 means MWL is faster.**
+- `php/mwl`, `py/mwl` and `bun/mwl` are ratios of the `work` figures: **above 1.00 means MWL is faster.**
 
 Two things the table cannot say for itself:
 
@@ -103,3 +110,8 @@ actually run under — a PyPy column was considered and rejected in ADR 0100's *
 Expect Python to win the cases where its loop is really a call into C (`sorted`, `sum`, a comprehension,
 `in` over a list) and to lose the ones that are a real interpreted loop. That split is the honest shape of
 the comparison and neither half should be quoted without the other.
+
+**Bun runs the `.ts` file directly**, unless `--bun` names another executable. It transpiles the
+TypeScript on the way in, and that stays inside the measurement on purpose: it is part of what a Bun user
+pays at start-up, and pre-compiling it away would measure an engine nobody runs. Expect Bun to be the
+engine to beat — it is a mature JIT and the suite exists to be evidence, not encouragement.
