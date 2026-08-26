@@ -84,12 +84,26 @@ pub const DEFAULT: Unit = Unit::Grapheme;
 /// count and the k-th cluster is the k-th byte.
 ///
 /// This is what makes ADR 0009 § 2's decision affordable rather than merely
-/// correct: `is_ascii` is a vectorized scan, so the overwhelmingly common case
-/// — a request path full of ASCII — pays a UTF-8-validation-shaped pass rather
-/// than a segmentation one. `a_grapheme_index_costs_more_than_a_code_point_index`
-/// measures both halves of that claim.
+/// correct: the two disqualifiers are folded into **one** branchless pass, so
+/// the overwhelmingly common case — a request path full of ASCII — pays a
+/// single vectorizable scan rather than a segmentation one.
+/// `a_grapheme_index_costs_more_than_a_code_point_index` measures both halves
+/// of that claim.
+///
+/// The obvious spelling, `subject.is_ascii() && !bytes.contains(&b'\r')`, is
+/// two vectorized passes over the same buffer where one does. Each byte
+/// contributes its high bit — set exactly when it is non-ASCII — or the high
+/// bit of `(x - 1) & !x` for `x = b ^ b'\r'`, which is the classic zero-byte
+/// test and is set exactly when `b` is `CR`. The fold has no early exit, which
+/// is what lets it vectorize; the only subject an early exit would have saved
+/// work on is one that then goes down the segmentation path, which costs
+/// strictly more than the bytes this skips.
 fn one_byte_per_cluster(subject: &str) -> bool {
-    subject.is_ascii() && !subject.as_bytes().contains(&b'\r')
+    subject.as_bytes().iter().fold(0_u8, |flags, &byte| {
+        let cr = byte ^ b'\r';
+        flags | byte | (cr.wrapping_sub(1) & !cr)
+    }) & 0x80
+        == 0
 }
 
 impl Unit {
@@ -356,6 +370,37 @@ mod tests {
                 Unit::Grapheme.pieces(subject).collect::<Vec<&str>>(),
                 reference,
                 "{subject:?} split differently from the segmenter"
+            );
+        }
+    }
+
+    /// The fused scan answers exactly what the two-pass spelling it replaced
+    /// did, over every byte a `str` can carry. The bit trick is the whole of
+    /// the fast path's correctness, so it is checked against the obvious
+    /// spelling rather than against a handful of examples.
+    #[test]
+    fn the_fused_scan_agrees_with_the_two_pass_spelling() {
+        let mut subjects: Vec<String> = (0..=0x7f_u32)
+            .map(|byte| {
+                format!(
+                    "a{}z",
+                    char::from_u32(byte).expect("every ASCII byte is a scalar value")
+                )
+            })
+            .collect();
+        subjects.extend([
+            String::new(),
+            "\u{7f}".to_owned(),
+            "caf\u{e9}".to_owned(),
+            "日本語".to_owned(),
+            "\u{1f1e6}\u{1f1f9}".to_owned(),
+        ]);
+        for subject in subjects {
+            let reference = subject.is_ascii() && !subject.as_bytes().contains(&b'\r');
+            assert_eq!(
+                one_byte_per_cluster(&subject),
+                reference,
+                "{subject:?} classified differently from the two-pass spelling"
             );
         }
     }
