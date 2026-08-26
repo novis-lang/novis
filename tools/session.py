@@ -260,6 +260,12 @@ RETYPE_BYTES = 1_500
 #: paragraph gets silently dropped.
 RETYPE_OVERLAP = 0.70
 
+#: ...unless the replacement is substantially SHORTER than what it replaces, which is a trim and
+#: is the one edit that is legitimately all-verbatim: cutting a field down re-emits only the part
+#: that survives, and expressing that as fragments would mean one `--- old` per deleted paragraph.
+#: A retype comes back the same size or bigger, which is what this separates it by.
+RETYPE_SHRINK = 0.60
+
 
 def verbatim_overlap(new: str, old: str) -> float:
     """The fraction of `new`'s 8-word runs that appear verbatim in `old`.
@@ -301,7 +307,8 @@ def validate(sections: list[Section]) -> list[str]:
             new = normalize(s.body)
             old = working[s.arg.lower()]
             share = verbatim_overlap(new, old)
-            if len(new) > RETYPE_BYTES and share >= RETYPE_OVERLAP:
+            if (len(new) > RETYPE_BYTES and share >= RETYPE_OVERLAP
+                    and len(new) > len(old) * RETYPE_SHRINK):
                 errors.append(
                     f"`## plan: {s.arg}` -- {len(new):,} B, and {share * 100:.0f}% of it is already "
                     f"on disk word for word. That is a retype, not a rewrite: use "
@@ -628,9 +635,9 @@ def wrap(path: Path, dry: bool) -> int:
             say(f"== HEAD  (the {n} commit(s) this wrap made, newest first)")
             for ln in _checked(["git", "log", f"-{n}", "--oneline"]).stdout.strip().split("\n"):
                 say(f"  {ln}")
-        say()
-        say("That is step 5. The tree is committed and the handoff is written -- there is nothing")
-        say("a `git log`, a `git status` or a second `verify.py` can add. Stop here.")
+            say()
+            say("That is step 5. The tree is committed and the handoff is written -- there is")
+            say("nothing a `git log`, a `git status` or a second `verify.py` can add. Stop here.")
     return 0
 
 
