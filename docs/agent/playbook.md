@@ -625,6 +625,16 @@ is why" — is this file.
   run. Wrap it in a `final class` and call it `Render::pairs($m)`; a compiler-owned generic type
   (`Core\ObjectMap<Tag, int>`) is accepted in that method's parameter list, so the helper can take the
   collection the case is about.
+- **A case that sweeps a table cannot factor the sweep into a closure.** Two separate walls, one call
+  apart: `function (…) { … }` is `E0222` outright (`fn (…) => …` or `fn (…) => { … }` is the one closure
+  literal), and the `fn` form then *lowers nowhere* — calling a closure through the variable holding it
+  panics `mwl-ir`'s control-flow slice with a bare `got Call { callee: Variable(…) }`, which reads as a
+  parser gap rather than as the missing lowering it is. The shape that works is a typed array plus
+  `foreach`, with the `try`/`catch` inline in the loop body: `array<string> $rows = ["…", …];` — **no
+  `var`**, because an array literal is `array<mixed>` and `var` refuses to infer an element type
+  (`E0414`), and `foreach ($rows as string $row)` over the literal directly is `E0401` for the same
+  reason. Counting agreements into an `int` declared above the loop is how the sweep is then asserted,
+  since there is no compound assignment either.
 
 ## Splitting a file that got too big
 
