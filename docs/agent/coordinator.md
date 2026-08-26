@@ -87,7 +87,7 @@ the next one — used to print nothing, so a run that was working looked hung fo
 session's status line. It now prints a `[HH:MM:SS]` line entering each phase and what the phase cost, and
 the acceptance test always runs verbose here, naming each check as it starts and each one that took a
 second or more. The question "what is it doing right now" is answered by the last line on screen, which
-is the one under the white rule: the status line repaints in place at the bottom, and the rule above it is
+is the white one under the rule: the status line repaints in place at the bottom, and the grey rule above it is
 what separates the live line from the dead scrollback it would otherwise read as a paragraph with.
 
 **And all of it is on disk.** The console is for watching a run; `.loop/logs/<run>-console.log` is for

@@ -249,21 +249,33 @@ class StatusLine:
         against whatever the driver or the session printed last -- and both are indented, wrapped
         prose. Watching a run, the live line and the dead one above it read as one paragraph, and
         the eye has to parse the text to find out which is which. A rule makes the boundary a
-        shape rather than a colour, and the two of them are white against the scrollback's grey."""
-        return C.paint(self.bar * max(18, self.width() - 1), C.WHITE)
+        shape rather than a colour, so the rule stays grey and only the live line goes white --
+        what should catch the eye is the status, not the furniture around it."""
+        return C.paint(self.bar * max(18, self.width() - 1), C.GRAY)
 
     def erase(self):
         if self._drawn:
-            # Up over the rule, clearing both rows. The cursor lands where the rule began, which
-            # is where the next line of output belongs.
+            # Both rows cleared, cursor left on the rule's row -- which is where the next line of
+            # output belongs, exactly as it was when this line was one row tall.
             sys.stdout.write("\r\033[2K\033[A\r\033[2K")
             sys.stdout.flush()
             self._drawn = False
 
     def draw(self):
+        """Repaint both rows IN PLACE.
+
+        The spinner redraws every 0.12s, so this must consume no rows it does not already own: a
+        `\\n` in here is a newline twelve times a second, and the first version of the rule had one
+        -- the console scrolled itself to death instead of repainting. So the second row is claimed
+        exactly once, by the one `\\n` under `not self._drawn`, and every frame after that moves
+        between the two rows with `ESC [ A` and `ESC [ B`, which do not scroll. `erase()` gives the
+        row back. Net rows per printed line is what it always was: one, plus the live block."""
         if not self.enabled:
             return
-        sys.stdout.write("\r\033[2K" + self.divider() + "\n\r\033[2K" + self.compose())
+        out = "\n" if not self._drawn else ""  # claim the status row, once
+        out += "\033[A\r\033[2K" + self.divider()  # up to the rule
+        out += "\033[B\r\033[2K" + self.compose()  # back down to the status line
+        sys.stdout.write(out)
         sys.stdout.flush()
         self._drawn = True
 
