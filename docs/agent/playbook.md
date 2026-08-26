@@ -303,6 +303,13 @@ is why" — is this file.
   must match exactly once, and the refusal says whether it matched none or several. A deliberate
   *trim* is exempt — cutting a field to under 60% of its size is all-verbatim by definition and
   goes through as a `## plan:` — and so is a real rewrite, which overlaps less than 70%.
+- **`gaps.py --differential` reads a `Core\X::member` spelling *inside a comment* as a call**, so a
+  case whose prose names a neighbouring member silences that member's own row. `called_members`
+  (`tools/gaps.py:159`) is one regex over the whole case text and never looks for a `(`. One
+  sentence of comment in a new `Core\Path::basename` case — "only `Core\Path::normalize` resolves
+  them" — took the list from 8 members to 5, which reads exactly like a session that closed three.
+  Name a neighbour without its class (`normalize`), or cite the case *file* that owns it, and re-run
+  `--differential` after writing a case so the drop you see is the one you earned.
 
 ## Running things
 

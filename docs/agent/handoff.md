@@ -2,60 +2,58 @@
 
 ## State
 
-**Conformance is the only frontier left, at 510 of 600; the differential gate is met at 151 of the
+**Conformance is the only frontier left, at 510 of 600; the differential gate is met at 153 of the
 150 it requires.** Verify is green (**1597** cargo tests, 74 suites, clippy and fmt clean) and
 executes both `.mwlt` trees itself, so after a green `verify.py` there is nothing else to run
 (playbook, *Running things*) — in particular no release rebuild.
 
-**The `$a[]` crash is closed, and all three slices of the previous group landed.** `$a[] = v` onto an
-array whose append counter has saturated at `i64::MAX` now throws PHP 8.5's `Cannot add element to
-the array as the next element is already occupied` as a catchable `LogicError` instead of firing a
-`debug_assert` and silently overwriting a live entry in release. The decision — why
-`mwl_array_append` alone among the array primitives carries ADR 0002's `(ctx, array, value, out) ->
-status` shape, and why the occupancy test runs *before* the copy-on-write separation so a refusal
-leaves the caller's pointer live and owned — is `crates/mwl-runtime/src/array.rs`'s module doc
-§ *the append is the one array write with a fault channel*. Slice 3's audit was forced into slice 1
-rather than deferred: `mwl_array_unset` was emitted through `RuntimeSig::ArrayAppend` and now has
-its own `RuntimeSig::ArrayUnset`; the playbook's *Writing MWL itself* has the trap.
+**`Core\Path::basename` and `Core\Path::dirname` now have oracle cases**, so `python tools/gaps.py
+--differential` is down to six members with a PHP twin and no case: `Core\Path::normalize`,
+`Core\Math::gcd`/`lcm`, `Core\Json::decode`/`isValid` and `Core\Arr::flattenDeep`. Both new cases
+sweep the boundaries the member is written around rather than adding rows — a trailing separator
+(one and several), a bare name, the root, the empty subject, `.`/`..`, and the option that is PHP's
+second argument on both sides. Neither pins a *divergence*: `dirname('')` answering `.` and
+`{levels: 0}` answering the path itself are PHP-unaskable and stay pinned in
+`tests/conformance/core/path-decomposes-a-path-without-touching-the-disk.mwlt` and
+`path-normalize-has-a-normal-form-and-join-never-replaces-its-base.mwlt`, which the new cases point
+at instead of restating. A `Core\Path` oracle case has to normalize its own answer
+(`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) *and* the oracle's (`str_replace("\\", "/",
+…)`), and must never spell a `\` in a subject: MWL parses both separators on every platform where
+PHP parses `\` on Windows only, so a backslash row would pass one leg and fail the other.
 
-**The new refcount edge is valgrind-clean.** `tools/leak-check.sh` over a fixture exercising the
-refusal three ways — a fresh string temporary, an aliasing read of a local, and an uncaught
-propagate out of a callee frame holding a shared (refcount-2) array — reports 0 failures.
-
-**`orient.py`'s `[context] modules` manifest is still wrong, fourth session running.** It names
+**`orient.py`'s `[context] modules` manifest is still wrong, fifth session running.** It names
 `registry.rs`, `json.rs`, `arr.rs` and `regex.rs`; this session worked entirely in
-`crates/mwl-runtime/src/array.rs`, `crates/mwl-codegen/src/{emit,lib}.rs` and
-`crates/mwl-ir/src/{ir.rs,lower/}`, none of which the pack printed a map line for. The pack also
-still truncates the rest-of-group bullets mid-sentence, costing one `peek.py` back into this file.
+`crates/mwl-stdlib/src/path.rs`, which the pack printed no map line for, and the next group is in
+the same file. The pack also still truncates the rest-of-group bullets mid-sentence.
 
 ## Next group
 
-Four cases closing three of the eight members `python tools/gaps.py --differential` still lists,
-plus the conformance case the same file set is already open for. The file set is
-`crates/mwl-stdlib/src/path.rs`, `tests/differential/` and `tests/conformance/core/`; the first
-three are one shape each and share their reading.
+Three slices, all in the same file set: `crates/mwl-stdlib/src/path.rs`, `tests/differential/core/`
+and `tests/conformance/core/`. The first is the last differential gap `Core\Path` has.
 
-- [ ] **`Core\Path::basename` against PHP's `basename`** (`crates/mwl-stdlib/src/path.rs:447`) — a
-      `tests/differential/` oracle case, so PHP computes the expectation and nothing is frozen by
-      hand. Sweep the boundaries the twin is written around: a trailing separator, a bare name, a
-      root, an empty subject, a suffix argument that does and does not match.
-- [ ] **`Core\Path::dirname` against PHP's `dirname`** (`path.rs:478`) — same shape, same file, and
-      the two twins disagree with each other at the root, which is the row worth having.
-- [ ] **`Core\Path::normalize` against PHP's `realpath`** (`path.rs:664`) — the twin touches the
-      filesystem and MWL's does not, so pin the rows where they agree and say in the case comment
-      which rows are deliberately absent rather than asserting a divergence PHP cannot answer.
-- [ ] **One `tests/conformance/core/` case: the separator invariant, counted rather than read off a
-      line** (conventions.md's *invariance over a sweep*). Every `Core\Path` member that builds a
-      path emits `Path::SEPARATOR`, which differs between the native and WSL legs (loop-goal.md
-      § *Standing decisions*), so assert that a table of subjects round-trips through
-      `Core\Str::replace($p, Core\Path::SEPARATOR, "/")` identically on both — a member that grew
-      its own separator handling fails here while still looking right on its own line.
+- [ ] **`Core\Path::normalize` against PHP's `realpath`** (`path.rs:664`, its `resolved` helper at
+      `path.rs:@resolved`) — a `tests/differential/` oracle case, but `realpath` touches the disk and
+      answers `false` for a path that does not exist, so the oracle side is a **hand-written** fold
+      of `.`/`..` over `explode("/", …)`, exactly as
+      `tests/differential/core/uri-compare-to-matches-a-hand-written-rfc-3986-normalization.mwlt`
+      already does for RFC 3986. Sweep: a `..` past the root, a `..` in a relative path (which
+      survives), a repeated and a trailing separator, `.` alone.
+- [ ] **The separator invariant, counted rather than read off a line** — a `tests/conformance/core/`
+      case asserting that every `Core\Path` member accepts `/` and `\` alike and emits
+      `Core\Path::SEPARATOR` (`path.rs:175` for the emission rule, `path.rs:221` `is_separator` for
+      the acceptance one, module doc lines 11-24 for why only the emission is platform-dependent).
+      Count agreements over an `array<string>` of subjects into an `int`; a case that reads one row
+      off a line passes on one leg only.
+- [ ] **The trailing-separator rule asked of every member that shares it** (conventions.md's
+      *Agreement* shape) — `basename`, `dirname`, `split` (`path.rs:621`) and `normalize` all route
+      through `parse` (`path.rs:245`), which drops an empty component; assert that they **agree**
+      about `/var/log/` and `/var/log//` rather than what each answered.
 
 ## Backlog
 
-- Five members with a PHP twin and no oracle case remain after the group above — `Core\Arr::flattenDeep`, `Core\Math::gcd`/`lcm`, `Core\Json::decode`/`isValid` (`python tools/gaps.py --differential`).
-- `Core\Csv::format`'s `thrown` at `crates/mwl-stdlib/src/csv.rs:512` is the one catchable site `gaps.py --errors` lists among 58; the other 57 are `fatal` and unreachable by any case.
-- `MwlArray::append`'s 62 producers still call the panicking wrapper, which is sound only because each builds its array from index 0; the first `Core` member to append onto a *caller's* array wants `try_append` and a `Fault` (`crates/mwl-runtime/src/array.rs`).
-- `do`/`while` is the one M4 control-flow statement that does not lower (`mwl-ir` gap 1).
-- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
-- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row (`mwl_stdlib::hash`'s module doc).
+- `Core\Math::gcd` and `lcm` in one oracle case — `crates/mwl-stdlib/src/math.rs:945` and `:960`.
+- `Core\Json::decode` and `isValid` oracle cases — `crates/mwl-stdlib/src/json.rs:685` and `:989`.
+- `Core\Arr::flattenDeep` against `iterator_to_array` — `crates/mwl-stdlib/src/arr.rs:2150`.
+- `[context] modules` in `docs/agent/loop-goal.toml` misses every file the last five sessions
+  touched, `path.rs` included.
+- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
