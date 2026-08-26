@@ -58,7 +58,11 @@
 //! (92.5).
 //!
 //! Every length that *is* computed goes through `mwl_runtime::affordable`,
-//! which is the one seam a per-request ceiling attaches to.
+//! which is the one seam a per-request ceiling attaches to. That seam refuses
+//! only a size past `isize::MAX`, so a member whose capacity is a **count off
+//! its call site** — `repeat`, `padStart`, `padEnd` — writes through
+//! [`built_fallibly`] and asks the allocator as well, rather than aborting the
+//! process on a count the seam allowed and the machine cannot serve.
 //!
 //! # Granularity is decided elsewhere, and read from one place
 //!
@@ -684,6 +688,34 @@ fn produced(text: &str) -> HelperResult {
 /// See this module's § *A result is written once*.
 fn built(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> HelperResult {
     Ok(Value::str(MwlStr::build(capacity, write)))
+}
+
+/// [`built`], for a member whose capacity is a **count off its own call site**
+/// rather than a bound on a subject already in memory.
+///
+/// Two checks, and they answer different questions, exactly as
+/// `mwl_core_random_bytes` runs them: `mwl_runtime::affordable` is the policy
+/// seam every count-shaped argument passes through and refuses only a size
+/// past `isize::MAX`, so every count below it that the machine cannot serve
+/// reaches the allocator — where an abort takes the process and every
+/// in-flight request with it, for a refusal a caller may well want to handle.
+/// [`MwlStr::try_build`] asks instead.
+///
+/// `capacity` must be the result's *exact* length; a writer that exceeds it
+/// grows through the aborting path, which is why [`built`] stays the spelling
+/// for a member whose capacity is only a guess or an upper bound.
+fn built_fallibly(
+    capacity: usize,
+    member: &str,
+    write: impl FnOnce(&mut StrWriter<'_>),
+) -> HelperResult {
+    MwlStr::try_build(capacity, write)
+        .map(Value::str)
+        .ok_or_else(|| {
+            Fault::thrown(format!(
+                "{member}: the result is larger than any string this process could hold"
+            ))
+        })
 }
 
 /// The values an `array` argument holds, in slot order, each **borrowed** from
@@ -2001,7 +2033,7 @@ mwl_runtime::mwl_helper! {
         let length = count(&args[1], "padStart", "the target length")?;
         let padding = text(&args[2], "padStart", "the padding")?;
         let (run, fill) = padding_run(subject, length, padding, "Core\\Str::padStart")?;
-        built(fill + subject.len(), |out| {
+        built_fallibly(fill + subject.len(), "Core\\Str::padStart", |out| {
             write_run(out, padding, run);
             out.push_str(subject);
         })
@@ -2017,7 +2049,7 @@ mwl_runtime::mwl_helper! {
         let length = count(&args[1], "padEnd", "the target length")?;
         let padding = text(&args[2], "padEnd", "the padding")?;
         let (run, fill) = padding_run(subject, length, padding, "Core\\Str::padEnd")?;
-        built(subject.len() + fill, |out| {
+        built_fallibly(subject.len() + fill, "Core\\Str::padEnd", |out| {
             out.push_str(subject);
             write_run(out, padding, run);
         })
@@ -2095,12 +2127,14 @@ mwl_runtime::mwl_helper! {
         let times = count(&args[1], "repeat", "the repeat count")?;
         // The size goes through the one shared check first, so a repeat too
         // large to hold is an ordinary throw rather than the contained FATAL a
-        // panicking allocation would be.
+        // panicking allocation would be — and then the allocation itself is
+        // asked, because that check answers a different question. See
+        // [`built_fallibly`].
         let len = mwl_runtime::affordable(
             subject.len().checked_mul(times),
             "Core\\Str::repeat",
         )?;
-        built(len, |out| {
+        built_fallibly(len, "Core\\Str::repeat", |out| {
             for _ in 0..times {
                 out.push_str(subject);
             }

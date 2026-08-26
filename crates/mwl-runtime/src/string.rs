@@ -293,11 +293,41 @@ impl MwlStr {
     /// # Panics
     ///
     /// Aborts through [`handle_alloc_error`] if the allocator fails, per
-    /// [`MwlStr::new`].
+    /// [`MwlStr::new`]. [`MwlStr::try_build`] is the half that answers instead.
     #[must_use]
     pub fn build(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> Self {
+        Self::written_into(Self::alloc_uninit(0, capacity), capacity, write)
+    }
+
+    /// [`MwlStr::build`], answering `None` where that one aborts.
+    ///
+    /// The seam for a producer whose capacity is a **count off a call site**
+    /// rather than a bound on something already in memory. `crate::affordable`
+    /// refuses only a size past `isize::MAX`, so every count between that and
+    /// what the machine can actually serve reaches the allocator — and an
+    /// allocator that refuses is an abort, which takes the process and every
+    /// in-flight request with it for what a caller may well want to handle.
+    /// Asking is both exact and the whole difference between a throw and that.
+    ///
+    /// **Only the first allocation is fallible.** A writer that exceeds
+    /// `capacity` still grows through [`StrWriter::grow`], which aborts, so
+    /// this is for a producer whose capacity is *exact* — which is the same
+    /// set of producers as the ones whose capacity is a count.
+    #[must_use]
+    pub fn try_build(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> Option<Self> {
+        let ptr = Self::try_alloc_uninit(0, capacity)?;
+        Some(Self::written_into(ptr, capacity, write))
+    }
+
+    /// The half [`MwlStr::build`] and [`MwlStr::try_build`] share: run `write`
+    /// against an allocation already in hand, then publish what it wrote.
+    fn written_into(
+        ptr: NonNull<StrHeader>,
+        capacity: usize,
+        write: impl FnOnce(&mut StrWriter<'_>),
+    ) -> Self {
         let mut out = StrWriter {
-            ptr: Self::alloc_uninit(0, capacity),
+            ptr,
             written: 0,
             capacity,
             owns: PhantomData,
@@ -326,6 +356,15 @@ impl MwlStr {
     /// Debug-asserts `len <= cap`; aborts through [`handle_alloc_error`] if
     /// the allocator fails, per [`MwlStr::new`].
     fn alloc_uninit(len: usize, cap: usize) -> NonNull<StrHeader> {
+        Self::try_alloc_uninit(len, cap).unwrap_or_else(|| handle_alloc_error(str_layout(cap)))
+    }
+
+    /// [`MwlStr::alloc_uninit`], answering `None` where that one aborts.
+    ///
+    /// The `alloc` call itself is here rather than in both, so the layout an
+    /// allocation is made with stays the single expression [`Drop`] frees it
+    /// with.
+    fn try_alloc_uninit(len: usize, cap: usize) -> Option<NonNull<StrHeader>> {
         debug_assert!(
             len <= cap,
             "an MWL string's length never exceeds its capacity"
@@ -338,9 +377,7 @@ impl MwlStr {
                       PAYLOAD_OFFSET > 0, which is `alloc`'s one precondition"
         )]
         let raw = unsafe { alloc(layout) };
-        let Some(ptr) = NonNull::new(raw.cast::<StrHeader>()) else {
-            handle_alloc_error(layout)
-        };
+        let ptr = NonNull::new(raw.cast::<StrHeader>())?;
         #[expect(
             unsafe_code,
             reason = "`ptr` is a fresh, correctly aligned allocation of exactly \
@@ -353,7 +390,7 @@ impl MwlStr {
                 cap,
             });
         }
-        ptr
+        Some(ptr)
     }
 
     /// The payload.
