@@ -15,7 +15,12 @@ session prompt currently says, the prompt is the thing that is stale.
 What it measures, per session:
 
   calls           tool calls -- the unit a session's wall clock is proportional to
-  calls/msg       tool calls per assistant message; 1.00 means nothing was ever batched
+  calls/msg       tool calls per assistant message; 1.00 means no message carried two
+  cmd/call        commands per shell call -- a `;`/`&&` chain is batching too, and it is the
+                  only kind that has ever happened here. Read the two together: `calls/msg`
+                  1.00 beside `cmd/call` 1.97 is a session batching inside the shell, which
+                  is what `peek.py` and the chaining habit ask for, not a saving left on
+                  the table.
   head            calls before the first edit: orientation, paid once per session
   work            calls between the first edit and the first verify: the part that ships
   tail            calls from the first verify on: verify, docs, handoff, commit -- also once
@@ -30,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -40,6 +46,10 @@ LOGDIR = ROOT / ".loop" / "logs"
 # handoff and commit, which a group pays once no matter how many slices sit in front of it.
 VERIFY_MARKERS = ("verify.py", "tools/verify")
 MUTATORS = ("Edit", "Write", "NotebookEdit")
+
+#: A top-level command separator inside one shell call. `|` is deliberately not one -- a pipeline
+#: is a single command -- and the lookarounds keep `||` from being counted as two.
+SEPARATOR_RE = re.compile(r"(?<!\|)(?:;|&&)(?!\|)")
 
 # The ceiling is a QUALITY limit, not a capacity one, and it is deliberately a fixed number
 # rather than whatever the model reports. A coding agent degrades noticeably long before its
@@ -126,6 +136,7 @@ def subagent_cost(path):
 def read_session(path):
     """One transcript -> the measurements above, or None if it holds no assistant turn."""
     calls, contexts, per_message, result = [], [], [], None
+    shell_calls, shell_cmds = 0, 0
     names, attribution = {}, {}
     pack_bytes = 0
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -165,6 +176,14 @@ def read_session(path):
             for c in tool_uses:
                 label = bucket_of(c.get("name"), call_text((c.get("name"), c.get("input"))))
                 names[str(c.get("id"))] = label
+                # A `;`/`&&` chain is a batch: one round trip, several commands. Counting only
+                # calls-per-message called a session that chained 39 commands into one call
+                # "never batched", which is the opposite of what it did. Pipes are one command.
+                inp = c.get("input")
+                cmd = inp.get("command") if isinstance(inp, dict) else None
+                if c.get("name") in ("Bash", "PowerShell") and cmd:
+                    shell_calls += 1
+                    shell_cmds += len(SEPARATOR_RE.findall(cmd)) + 1
                 # An Edit's *input* is the new code, which is real context the session spent.
                 if c.get("name") in MUTATORS:
                     attribution[label] = attribution.get(label, 0) + len(
@@ -203,6 +222,7 @@ def read_session(path):
         "log": path.name,
         "calls": n,
         "per_message": round(sum(per_message) / len(per_message), 2) if per_message else 0.0,
+        "per_shell_call": round(shell_cmds / shell_calls, 2) if shell_calls else 0.0,
         "head": head,
         "work": tail_start - head,
         "tail": n - tail_start,
@@ -524,7 +544,7 @@ def main():
 
     print(f"== PER SESSION  ({len(sessions)} transcript(s) in .loop/logs)")
     print(
-        f"{'log':<28}{'calls':>6}{'/msg':>6}{'head':>6}{'work':>6}{'tail':>6}"
+        f"{'log':<28}{'calls':>6}{'/msg':>6}{'cmd/c':>7}{'head':>6}{'work':>6}{'tail':>6}"
         f"{'vfy':>5}{'cmt':>5}{'ctx end':>10}{'min':>7}{'$':>8}"
     )
     for s in sessions:
@@ -532,7 +552,8 @@ def main():
         cost = f"{s['cost_usd']:.2f}" if s["cost_usd"] else "-"
         flag = "  COMPACTED" if s["compactions"] else ""
         print(
-            f"{s['log']:<28}{s['calls']:>6}{s['per_message']:>6}{s['head']:>6}"
+            f"{s['log']:<28}{s['calls']:>6}{s['per_message']:>6}{s['per_shell_call']:>7.2f}"
+            f"{s['head']:>6}"
             f"{s['work']:>6}{s['tail']:>6}{s['verify_runs']:>5}{s['commits']:>5}"
             f"{s['ctx_end']:>10,}{mins:>7}{cost:>8}{flag}"
         )
@@ -557,12 +578,29 @@ def main():
 
     report_drift(sessions)
 
-    batched = [s for s in sessions if s["per_message"] > 1.05]
-    if not batched:
+    # Two kinds of batching, and only one of them has ever happened. Across messages: 0 of 3,647
+    # calls over one run, then 0 again over the next 19 sessions -- it does not happen and the
+    # tooling stopped asking. Inside one shell call, a `;`/`&&` chain: 42% of shell calls, 3.3
+    # commands each. Reporting only the first said "nothing was ever batched" at a session that
+    # had just chained 39 commands into one call, and sent every goal author after a saving that
+    # was already taken.
+    chained = [s for s in sessions if s["per_shell_call"] > 1.05]
+    if chained:
+        mean = sum(s["per_shell_call"] for s in chained) / len(chained)
         print(
-            "\n   NOTHING WAS EVER BATCHED. Every message carried exactly one tool call, so the\n"
-            "   clock above is the worst case and the cheapest available saving is untaken.\n"
-            "   session-prompt.md's clock section already asks for this."
+            f"\n   BATCHING IS IN THE SHELL, NOT ACROSS MESSAGES. {len(chained)} of "
+            f"{len(sessions)} session(s) chained\n"
+            f"   commands with `;`/`&&`, {mean:.2f} per shell call, while every message still "
+            f"carried one\n"
+            f"   tool call. That is the habit `peek.py` and AGENTS.md rule 2 ask for, so the "
+            f"saving is\n"
+            f"   taken -- do not read the 1.00 above as one going begging."
+        )
+    else:
+        print(
+            "\n   NOTHING WAS BATCHED, in either sense: no message carried two tool calls and no\n"
+            "   shell call carried two commands. That is the one case where the clock above is\n"
+            "   the worst case and the cheapest saving really is untaken."
         )
 
     window = context_window(sessions)
