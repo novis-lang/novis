@@ -1,0 +1,99 @@
+--TEST--
+`Core\Uri`'s four percent-coders are two inverse pairs: each decoder undoes its own encoder over every ASCII byte, the two encoders disagree on exactly the two the form encoding spells differently, and above `U+007F` they are one encoding — spec § 12, RFC 3986 § 2.1
+--FILE--
+<?mwl
+// § 12 has two encodings because the wire has two, and the pairs are named for
+// where the answer goes rather than for which C function they came from. The
+// neighbouring cases assert what each member does to a handful of bytes; this
+// one asks the two questions that only a sweep can answer — is each pair
+// actually inverse, and is the disagreement between them *exactly* the two
+// bytes the module's own table names, rather than those two plus one nobody
+// wrote a row for.
+int $b = 0;
+int $componentPair = 0;
+int $formPair = 0;
+int $formReadsComponent = 0;
+int $componentReadsForm = 0;
+int $sameSpelling = 0;
+string $differ = "";
+for ($b = 0; $b < 128; $b = $b + 1) {
+    var $c = Core\Str::fromCodePoint($b as uint);
+    var $ec = Core\Uri::encodeComponent($c);
+    var $ef = Core\Uri::encodeFormValue($c);
+    // Each decoder undoes its own encoder. Nothing here is exempt: a NUL, a
+    // control byte, every reserved delimiter and every unreserved character
+    // all go out and come back as themselves.
+    if (Core\Uri::decodeComponent($ec) == $c) { $componentPair = $componentPair + 1; }
+    if (Core\Uri::decodeFormValue($ef) == $c) { $formPair = $formPair + 1; }
+    // The two cross directions are not symmetric, and that asymmetry is the
+    // reason the member names have to carry the difference: the form decoder
+    // reads `%20` as well as `+`, so it undoes the component encoder over the
+    // whole sweep, while the component decoder reads only `%20` and therefore
+    // misses on exactly one byte.
+    if (Core\Uri::decodeFormValue($ec) == $c) { $formReadsComponent = $formReadsComponent + 1; }
+    if (Core\Uri::decodeComponent($ef) == $c) { $componentReadsForm = $componentReadsForm + 1; }
+    if ($ec == $ef) {
+        $sameSpelling = $sameSpelling + 1;
+    } else {
+        // Not counted — spelled out, so a third disagreement could not hide
+        // inside a number that still looked plausible.
+        $differ = $differ . " " . $ec . "/" . $ef;
+    }
+}
+echo "component pair ", $componentPair, "/128\n";
+echo "form pair ", $formPair, "/128\n";
+echo "form reads component ", $formReadsComponent, "/128\n";
+echo "component reads form ", $componentReadsForm, "/128\n";
+echo "same spelling ", $sameSpelling, "/128 ->", $differ, "\n";
+
+// Above `U+007F` the two are one encoding, because percent-encoding is defined
+// over octets and no octet of a multi-byte sequence is in either unreserved
+// set. The escape count is the UTF-8 length of the sweep — 2 octets for the
+// first five code points, 3 for the next two, 4 for the last three — which is
+// what "one escape per octet, not per character" means when it is counted
+// rather than shown on one row.
+array<uint> $high = [128, 160, 233, 255, 256, 8364, 65533, 65536, 128512, 1114111];
+int $agree = 0;
+int $trips = 0;
+int $escapes = 0;
+foreach ($high as uint $cp) {
+    var $h = Core\Str::fromCodePoint($cp);
+    var $hc = Core\Uri::encodeComponent($h);
+    if ($hc == Core\Uri::encodeFormValue($h)) { $agree = $agree + 1; }
+    if (Core\Uri::decodeComponent($hc) == $h) { $trips = $trips + 1; }
+    if (Core\Uri::decodeFormValue($hc) == $h) { $trips = $trips + 1; }
+    $escapes = $escapes + (Core\Str::countOf($hc, "%") as int);
+}
+echo "high agree ", $agree, "/10, trips ", $trips, "/20, escapes ", $escapes, "\n";
+echo Core\Uri::encodeComponent(Core\Str::fromCodePoint(128512)), "\n";
+
+// The one byte the sweep above found, named on its own line so the count has a
+// witness: a form-encoded space read as a URI component is a literal `+`, not
+// a space. This is the bug the pair split exists to make impossible to write
+// by accident, and the type system cannot catch it — both members take a
+// `string` and answer one.
+echo "[", Core\Uri::decodeComponent(Core\Uri::encodeFormValue(" ")), "]\n";
+
+// The sweep stops at `U+007F` because past it a *lone* octet is not text: the
+// decoders answer `string`, so `%FF` throws rather than answering (the
+// module's gap 2 — the honest signature is `: bytes`, and the throw is what
+// ADR 0009 § 3's checked `bytes as string` row would do one line later). An
+// octet sequence that *is* UTF-8 decodes, which is the other side of the same
+// bound.
+try {
+    echo Core\Uri::decodeComponent("%FF"), "\n";
+} catch (Throwable $lone) {
+    echo "lone octet: refused\n";
+}
+echo Core\Uri::decodeComponent("%C3%A9"), "\n";
+--EXPECT--
+component pair 128/128
+form pair 128/128
+form reads component 128/128
+component reads form 127/128
+same spelling 126/128 -> %20/+ ~/%7E
+high agree 10/10, trips 20/20, escapes 28
+%F0%9F%98%80
+[+]
+lone octet: refused
+é
