@@ -68,6 +68,12 @@ plan edits, milestones, playbook, handoff, commits in the order written, then `s
 whose paths match nothing staged is an error before the first field is touched, not a
 half-finished tail.
 
+Because the docs are written before anything is staged, **one wrap writes the handoff, the
+playbook and the plan and commits them** -- there is never a second call for that. Name them in
+a `## commit:` as above (`--template` pre-fills it); anything this wrap wrote that no section
+names joins the last commit rather than being left dirty, and the report says which paths it
+added and to which commit.
+
 ## The rest
 
     python tools/session.py --check          # what step 4-5 still owes, from the tree
@@ -89,6 +95,7 @@ everything else it writes is what you handed it.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import re
 import subprocess
 import sys
@@ -140,10 +147,13 @@ def _checked(cmd: list[str]) -> subprocess.CompletedProcess:
 
 
 class Section:
-    __slots__ = ("kind", "arg", "body", "line")
+    __slots__ = ("kind", "arg", "body", "line", "added")
 
     def __init__(self, kind: str, arg: str, body: str, line: int):
         self.kind, self.arg, self.body, self.line = kind, arg, body, line
+        #: Paths `wrap()` added to a `## commit:` because this wrap wrote them and no section
+        #: named them. Reported rather than applied silently; see `written_paths`.
+        self.added: list[str] = []
 
 
 def parse_wrap(text: str) -> tuple[list[Section], list[str]]:
@@ -287,6 +297,55 @@ def plan_fields() -> list[tuple[str, int, int, str]]:
     return planmod.find_fields(lines)
 
 
+def rel_path(path: Path) -> str:
+    """Repo-relative and forward-slashed -- the spelling a `## commit:` pathspec uses."""
+    return path.relative_to(ROOT).as_posix()
+
+
+def written_paths(sections: list[Section]) -> list[str]:
+    """The tracked files this wrap's doc sections write, in application order, deduplicated.
+
+    Measured over one 19-session run, **9 sessions closed with a hand-rolled `git add
+    docs/agent/handoff.md docs/agent/playbook.md docs/implementation-plan.md && git commit`**
+    after this tool had already written all three -- about two and a half calls each, at the
+    point in a session where a call is most expensive, and exactly the hand-rolled git the wrap
+    exists to remove. The cause is a chicken-and-egg that is not real: the docs look like they
+    cannot be committed by the wrap that writes them, when `ORDER` puts every doc section ahead
+    of every commit precisely so they can be.
+
+    So the wrap answers it itself. Anything here that no `## commit:` names is appended to the
+    last one, and reported.
+
+    `## status` is not in this list: `.loop/` is gitignored, so nothing it writes is committable.
+    """
+    out: list[str] = []
+    for s in [x for kind in ORDER for x in sections if x.kind == kind]:
+        if s.kind in ("plan", "plan-edit"):
+            out.append(rel_path(PLAN))
+        elif s.kind == "milestone":
+            entry = planmod.resolve(s.arg)
+            if entry is not None:
+                out.append(rel_path(entry["path"]))
+        elif s.kind == "playbook":
+            out.append(rel_path(PLAYBOOK))
+        elif s.kind == "handoff":
+            out.append(rel_path(HANDOFF))
+    return list(dict.fromkeys(out))
+
+
+def covers(pathspec: str, path: str) -> bool:
+    """Does one `## commit:` pathspec carry this file? Git's rule: the path itself, a directory
+    above it, or a glob matching it."""
+    spec = pathspec.replace("\\", "/").rstrip("/")
+    return path == spec or path.startswith(spec + "/") or fnmatch.fnmatch(path, spec)
+
+
+def uncommitted_writes(sections: list[Section]) -> list[str]:
+    """What this wrap writes that none of its `## commit:` sections would carry."""
+    specs = [spec for s in sections if s.kind == "commit" for spec in s.arg.split()]
+    return [p for p in written_paths(sections) if not any(covers(spec, p) for spec in specs)]
+
+
 def validate(sections: list[Section]) -> list[str]:
     """Everything that could refuse, refusing here -- before a single byte is written."""
     errors: list[str] = []
@@ -368,6 +427,17 @@ def validate(sections: list[Section]) -> list[str]:
             errors.extend(validate_commit(s))
         elif s.kind == "handoff":
             errors.extend(validate_handoff(s.body))
+
+    # A wrap that writes the docs and commits nothing leaves step 5 owing exactly the files it
+    # just changed. There is nothing to guess here -- but inventing a commit subject for them
+    # would be this tool judging content, which it does not do -- so it refuses and names them.
+    writes = written_paths(sections)
+    if writes and not any(s.kind == "commit" for s in sections):
+        errors.append(
+            f"this wrap writes {', '.join(writes)} and has no `## commit:` section, so step 5 "
+            f"would end with {'them' if len(writes) > 1 else 'it'} dirty. Add "
+            f"`## commit: {' '.join(writes)}` -- every doc section is applied before any commit "
+            f"is staged, so one wrap does both.")
     return errors
 
 
@@ -565,8 +635,9 @@ def strip_trailers(body: str) -> tuple[str, int]:
 def apply_commit(s: Section, dry: bool) -> str:
     paths = s.arg.split()
     subject = s.body.strip().split("\n")[0]
+    grew = f"  [+{len(s.added)} this wrap wrote: {' '.join(s.added)}]" if s.added else ""
     if dry:
-        return f"commit: {subject[:70]}  ({len(paths)} path(s))"
+        return f"commit: {subject[:70]}  ({len(paths)} path(s)){grew}"
     TMP.mkdir(exist_ok=True)
     msg = TMP / "session-commit.txt"
     text, stripped = strip_trailers(s.body.rstrip() + "\n")
@@ -582,7 +653,7 @@ def apply_commit(s: Section, dry: bool) -> str:
     _checked(["git", "commit", "-F", str(msg), "--", *paths])
     head = _checked(["git", "log", "-1", "--format=%h %s"]).stdout.strip()
     note = f"  [{stripped} trailer(s) stripped]" if stripped else ""
-    return f"commit: {head}  ({len(staged)} file(s)){note}"
+    return f"commit: {head}  ({len(staged)} file(s)){note}{grew}"
 
 
 def apply_status(s: Section, dry: bool) -> str:
@@ -619,6 +690,18 @@ def wrap(path: Path, dry: bool) -> int:
 
     # Fixed order, not file order, so the docs are on disk before anything is staged.
     ordered = [s for kind in ORDER for s in sections if s.kind == kind]
+
+    # The safety net behind `written_paths`: a doc this wrap writes that no `## commit:` names
+    # joins the last one rather than being left dirty for a hand-rolled `git add`. The last is
+    # the right one because a session's commits read oldest-first and its docs commit is the one
+    # that closes the session. Explicit is still better -- `--template` pre-fills the section --
+    # and when the session was explicit this finds nothing to do.
+    commits = [s for s in ordered if s.kind == "commit"]
+    owed = uncommitted_writes(sections)
+    if owed and commits:
+        commits[-1].arg = " ".join(commits[-1].arg.split() + owed)
+        commits[-1].added = owed
+
     say(f"session.py: {'would apply' if dry else 'applied'} {len(ordered)} section(s)")
     for s in ordered:
         say(f"  {APPLY[s.kind](s, dry)}")
@@ -661,6 +744,72 @@ def counts() -> dict[str, int]:
     }
 
 
+#: How far a `--- old` quote may be widened before it is given up on as un-quotable. Long enough
+#: for the sentence a count sits in, short enough that the fragment stays readable in a wrap file.
+QUOTE_MAX = 200
+
+
+def unique_span(body: str, lo: int, hi: int) -> tuple[int, int] | None:
+    """Widen `body[lo:hi]` a word at a time until it appears exactly once, or give up.
+
+    A `--- old` fragment that matches twice is refused by `validate`, and "conformance 512" is
+    exactly the kind of run of words a status field says more than once. Widening is what a human
+    does about that, so it is done here rather than reported.
+    """
+    while body.count(body[lo:hi]) != 1:
+        if hi - lo >= QUOTE_MAX:
+            return None
+        left = body.rfind(" ", 0, max(lo - 1, 0)) if lo > 0 else -1
+        right = body.find(" ", min(hi + 1, len(body))) if hi < len(body) else -1
+        if left == -1 and right == -1:
+            return None
+        if left != -1:
+            lo = left + 1
+        if right != -1:
+            hi = right
+    return lo, hi
+
+
+def stale_edits() -> list[tuple[str, str, str]]:
+    """`(field, old, new)` for every count in the plan that disagrees with the tree.
+
+    This is the edit **every** session of a counted goal makes, and it was being derived by hand:
+    measured over one 19-session run, sessions ran `grep -n "<count>" docs/implementation-plan.md`
+    twelve times, in the tail, to find where the number they had just moved was written down. The
+    substitution is mechanical -- the tree knows the new number and the field holds the old one --
+    so `--template` hands it over ready to apply instead.
+
+    A `new` with an empty `old` is a count that could not be quoted uniquely: still reported, but
+    the session has to write that fragment itself.
+    """
+    c = counts()
+    out: list[tuple[str, str, str]] = []
+    for name, _a, _b, body in plan_fields():
+        for label, value in (("conformance", c["conformance"]),
+                             ("differential", c["differential"])):
+            for m in re.finditer(rf"{label}\D{{0,12}}(\d{{2,4}})", body, flags=re.I):
+                if int(m.group(1)) == value:
+                    continue
+                span = unique_span(body, m.start(), m.end())
+                if span is None:
+                    out.append((name, "", f"{label} {m.group(1)} -> {value}"))
+                    continue
+                lo, hi = span
+                old = body[lo:hi]
+                at = m.start(1) - lo
+                out.append((name, old, old[:at] + str(value) + old[at + len(m.group(1)):]))
+    return out
+
+
+def playbook_headings() -> list[str]:
+    """The `## ` headings a `## playbook:` section may name.
+
+    Thirteen `grep -n "^## " docs/agent/playbook.md` calls over one 19-session run, every one of
+    them in the tail, asking a question the file answers the same way every time.
+    """
+    return re.findall(r"^## (.+)$", PLAYBOOK.read_text(encoding="utf-8"), flags=re.M)
+
+
 def check() -> int:
     c = counts()
     say("== COUNTS  (what the plan's prose should agree with)")
@@ -672,15 +821,14 @@ def check() -> int:
     say()
     aim = planmod.field_aim()
     say(f"== PLAN  (fields, any that name a stale count, and what each costs; aim ~{aim} B)")
-    stale = 0
+    edits = stale_edits()
+    stale = len(edits)
     total = 0
     for name, _a, _b, body in plan_fields():
         flag = ""
-        for label, value in (("conformance", c["conformance"]), ("differential", c["differential"])):
-            for found in re.findall(rf"{label}\D{{0,12}}(\d{{2,4}})", body, flags=re.I):
-                if int(found) != value:
-                    flag = f"   <- says {label} {found}, tree has {value}"
-                    stale += 1
+        mine = [e for e in edits if e[0] == name]
+        if mine:
+            flag = f"   <- {len(mine)} stale count(s); `--template` hands them back ready to apply"
         n = len(body.encode("utf-8"))
         total += n
         if not flag and n > aim * 1.5:
@@ -738,23 +886,40 @@ def template() -> int:
     else it reports is something the fill-in got wrong.
     """
     c = counts()
-    # The `--- old` below is a real run of words out of the live field, so the unedited skeleton
-    # validates -- and so the shape of a quote is shown rather than described. Replace both
-    # fragments; keep quoting the field as it READS, one single-spaced paragraph.
-    field = next((t for n, _a, _b, t in plan_fields() if n == "Open now"), "")
-    sample = " ".join(field.split()[:9]) or "the run of words that is now wrong"
-    say("## plan-edit: Open now")
-    say("--- old")
-    say(sample)
-    say("--- new")
-    say(f"{sample}   <- REPLACE both fragments. Repeat the pair per place the field moved.")
-    say(f"The tree's counts are {', '.join(f'{k} {v}' for k, v in c.items())}; a field naming a")
-    say("stale one is what `--check` reports. `## plan: <Field>` replaces a field WHOLE instead,")
-    say("for a real rewrite -- a big replacement mostly already on disk is refused as a retype.")
+    edits = stale_edits()
+    if edits:
+        # Every count the tree has moved past, already written as an applicable edit. This is the
+        # one section a counted goal's session always needs and always used to derive by hand.
+        # Nothing but the pairs goes in these sections: `parse_edits` refuses text in front of a
+        # `--- old` and folds text after a `--- new` into the fragment, so a note here would
+        # corrupt the very edit it was explaining. The guidance lives in --help and --check.
+        for field in dict.fromkeys(name for name, _o, _n in edits):
+            say(f"## plan-edit: {field}")
+            for _f, old, new in [e for e in edits if e[0] == field]:
+                say("--- old")
+                say(old or f"QUOTE THE SENTENCE HOLDING {new} -- widening past {QUOTE_MAX} chars")
+                say("--- new")
+                say(new)
+            say("")
+    else:
+        # Nothing is stale, so the skeleton shows the SHAPE of a quote instead. The `--- old` is
+        # a real run of words out of the live field, so the unedited skeleton still validates.
+        field = next((t for n, _a, _b, t in plan_fields() if n == "Open now"), "")
+        sample = " ".join(field.split()[:9]) or "the run of words that is now wrong"
+        say("## plan-edit: Open now")
+        say("--- old")
+        say(sample)
+        say("--- new")
+        say(f"{sample}   <- REPLACE both fragments. Repeat the pair per place the field moved.")
+        say(f"The tree's counts are {', '.join(f'{k} {v}' for k, v in c.items())} and no plan field")
+        say("names a stale one. `## plan: <Field>` replaces a field WHOLE instead, for a real")
+        say("rewrite -- a big replacement mostly already on disk is refused as a retype.")
     say("")
     say("## playbook: Tooling")
     say("- **DELETE THIS SECTION unless a trap cost you time.** A bullet is appended under the")
-    say("  heading, never rewritten, so only add one that is not already there.")
+    say("  heading, never rewritten, so only add one that is not already there. The headings are")
+    for heading in playbook_headings():
+        say(f"  {heading}")
     say("")
     say("## handoff")
     say("## State")
@@ -771,6 +936,15 @@ def template() -> int:
     say("test(stdlib): what is now true, lower case, no trailing period")
     say("")
     say("The body. No trailers of any kind -- they are stripped and counted.")
+    say("")
+    # The docs this wrap writes, committed by this wrap. It is pre-filled because leaving it to
+    # be remembered did not work: 9 of 19 sessions in one run ended with a hand-rolled `git add`
+    # of exactly these three paths, after the wrap had already written all three.
+    say(f"## commit: {' '.join([rel_path(PLAN), rel_path(PLAYBOOK), rel_path(HANDOFF)])}")
+    say("docs(agent): what the plan and the handoff now say")
+    say("")
+    say("Drop a path this wrap does not write. Anything it does write that no `## commit:`")
+    say("names joins the last one regardless, so the docs cannot be left dirty.")
     say("")
     say("## status")
     say("CONTINUE one line saying what landed")
