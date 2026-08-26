@@ -1055,6 +1055,28 @@ is why" — is this file.
   exponentials are a double's whole precision apart, so the ratio *is* one — while `cosh(20.0)` is
   still finite, and at 1000 both `cosh` and `sinh` answer `INFINITY` rather than refusing, a
   hyperbolic member having no domain to leave on that side.
+- **A spread argument does not lower, so a case that composes a variadic member folds instead.**
+  `Core\Path::join(...Core\Path::split($p))` is how `path.rs`'s own doc comment writes the round trip
+  and it panics `mwl-ir` at `crates/mwl-ir/src/lower/call.rs:75` — *"does not yet lower a named or
+  spread call argument"*. The fold is a `public static function` helper taking the `array<string>`:
+  the first element is the base and the rest are joined one at a time, which is the same composition
+  because `join` only ever appends. Indexing that array is by the *string* of the offset —
+  `$parts["0"]`, and `$parts[$i as string]` inside the loop — and `Core\Arr::count($parts) as int` is
+  what an `int` counter may be compared against.
+
+- **A count that compares a library-built path against its input string is leg-dependent, and length
+  is the way round it.** `Core\Path`'s members re-render with `Core\Path::SEPARATOR`, so "the rebuilt
+  path differs from the input" counted 16 of 20 rows on the Windows leg and would count 4 on the WSL
+  one — a non-vacuity counter that means two different things. `Core\Str::length($rebuilt) !=
+  Core\Str::length($p)` counts only what was genuinely dropped (a repeated or trailing separator),
+  which is 4 on both. The goal's *Path and the two legs* decision covers what a case may *print*;
+  this is the same trap one step earlier, in what it may *count*.
+
+- **`Core\Path::split` keeps `.` and `..` as elements**, so `join` of what it returned is the path
+  with its separators respelled and **not** its normal form — resolving them is `normalize`'s job
+  alone. The round trip is therefore an identity *through* the normal form (`normalize($rebuilt) ==
+  normalize($p)` on every row) and exact only on a path that is already normal. A case asserting
+  `join(split($p)) == normalize($p)` fails on 8 of 20 ordinary rows.
 
 ## Splitting a file that got too big
 
