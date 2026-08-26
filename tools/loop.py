@@ -626,6 +626,22 @@ class Goal:
         return f"{total:.0f}s over {len(self.ran)} check(s)" + (f"; slowest: {slow}" if slow else "")
 
 
+def load_goal():
+    """The acceptance list, read from disk. Call this per session rather than once per run: a
+    session may rewrite `loop-goal.toml` -- strike an item, correct the test name a check demands --
+    and the run it belongs to has to be checked against what it wrote, not against what the driver
+    read hours earlier.
+
+    Measured. Session 0013 of the 2026-08-26 run renamed the two tests the string-capacity check
+    names, to the names the tree had actually landed them under. The driver held the pre-rename
+    spec for the rest of the run, so `check()` short-circuited at check 16 of 47 on a test that
+    exists nowhere -- and because a short-circuit skips everything after it, Stage 4's two counts,
+    Stage 5's guards, the WSL leg and the valgrind sweep did not run for the following seventeen
+    sessions. The loop could not have stopped even had the goal been reached.
+    """
+    return Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
+
+
 # -------------------------------------------------------------------------------- driver
 
 
@@ -910,7 +926,7 @@ def main():
             say(f"missing {f}", C.RED)
             return 2
 
-    goal = Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
+    goal = load_goal()
 
     if opts.list:
         legs = ["native"] + (["wsl"] if wsl_available() else [])
@@ -983,6 +999,14 @@ def drive(opts, goal):
         STATUS.unlink(missing_ok=True)
         say(f"== session {i}/{opts.max_sessions}  {datetime.now():%H:%M:%S}", C.CYAN)
 
+        # The prompt is re-read for the same reason `load_goal()` is called below: a session that
+        # improved it should be improving the next session, not the next run. A read that fails
+        # keeps the last good text rather than ending a run nobody is watching.
+        try:
+            prompt_text = PROMPT.read_text(encoding="utf-8")
+        except OSError as e:
+            say(f"   {rel_to_root(PROMPT)} did not read, using the last good one -- {e}", C.YELLOW)
+
         cli_exit, log, session_id = run_session(run_id, i, prompt_text, opts, renderer)
         if cli_exit != 0:
             fails += 1
@@ -1006,7 +1030,15 @@ def drive(opts, goal):
         delegated = f" | {agents} subagent(s), {agent_calls} call(s)" if agents else ""
         ledger(f"- {i:04d} {commits} commit(s){delegated} | {line or '(no status written)'}")
 
-        # The deterministic goal check outranks whatever the session reported.
+        # The deterministic goal check outranks whatever the session reported -- against the list
+        # as the session left it, which is why this is re-read rather than held from start-up. A
+        # `loop-goal.toml` that does not parse keeps the last good spec: a run of 300 sessions must
+        # not end on one session's typo, and the ledger names it loudly instead.
+        try:
+            goal = load_goal()
+        except (OSError, tomllib.TOMLDecodeError) as e:
+            ledger(f"       goal spec: {rel_to_root(GOAL_TOML)} did not parse -- "
+                   f"checking against the last good one. {e}")
         fail = goal.check()
         ledger(f"       goal cost: {goal.summary()}")
         if not fail:

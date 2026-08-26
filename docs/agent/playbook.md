@@ -259,6 +259,17 @@ is why" — is this file.
   into a two-line edit. Correct the *list* when the tree's name is truer, and say so in the toml
   comment; a predicted name is status, not a decision, and the playbook's neighbouring bullet about a
   check's *comment* is the same rule one field over.
+- **A `goal check:` line that repeats verbatim across sessions *is* the work, whatever the handoff
+  says.** The acceptance test short-circuits at its first failure, so everything after that check is
+  not red — it is unmeasured, which reads identically from the ledger. Sessions 0014–0030 of the
+  2026-08-26 run all reported `mwl-runtime (string capacity): test '…' did not run`, and for those
+  seventeen sessions Stage 4's two counts, Stage 5's guards, the WSL leg and the valgrind sweep
+  never ran: the case counts the ledger quotes were session prose rather than the gate, and the run
+  could not have stopped even had the goal been reached. That one was a stale *spec* — `loop.py`
+  read `loop-goal.toml` once at start-up, so the rename the bullet above records never reached the
+  running driver, and `drive()` now re-reads the list before every check. A repeat can just as
+  easily be a real red check nobody has opened. Either way `python tools/loop.py --goal-only`
+  answers it in one call, and it is worth one call the moment the same line lands twice.
 - **`python tools/verify.py` does not run a single `.mwlt` case.** Its 74 suites are cargo's; the
   conformance tree is executed by `mwl test`, so a case that fails to compile or whose `--EXPECT--`
   is one byte off leaves verify green and fails the *driver's* acceptance check instead, one
