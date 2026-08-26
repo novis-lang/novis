@@ -2,60 +2,64 @@
 
 ## State
 
-**Stage 0 item 18 is done, and the loop moves to item 19.** MWL owns its allocator in every
-optimized build — `crates/mwl-runtime/src/alloc.rs` is a per-thread size-class free list, registered
-at `crates/mwl-runtime/src/lib.rs:274` — and the test build's byte counters now sit in front of *it*
-rather than the platform heap: `counting_alloc::Counting` forwards all four methods to
-`alloc::Pooled`. The counters sit **outside** the cache, so a recycled block is still one `alloc`
-and one `dealloc` and both counts mean what they meant; that is stated in `counting_alloc`'s own
-header, not here. `mwl-runtime`'s crate doc now states what the allocator spends (~2 MB per thread
-that touches every class, O(threads), never O(requests served)) per ADR 0004 § *Say what you spend*.
+**Stage 0 item 19 is done bar its ledger entry.** An `int` subscript now reaches
+`mwl_array_get_index`/`mwl_array_set_index` with nothing rendered and nothing allocated:
+`Lowering::lower_array_key` (`crates/mwl-ir/src/lower/expr.rs:1876`) hands the `int` straight to
+`InstKind::ArrayGet`/`ArraySet`, and `mwl-codegen` picks the primitive off the key operand's own
+`Ty` (`crates/mwl-codegen/src/emit.rs:687` and `:1848`). There is no second instruction and no
+key-kind field — `mwl-ir`'s module doc § *an array key is a `string`, and an `int` subscript no
+longer spells it* owns that shape decision and the two subscripts that **still** render: a `uint`,
+because the index ABI is an `i64` and a `uint` above `i64::MAX` has no `i64` spelling naming the
+same key, and any key reaching `InstKind::ArrayUnset`, which has no index-shaped primitive beside
+it. Both are pinned by their own IR snapshot test.
 
-**Every number measured from here is measured against the baseline that ships**, which is why item
-18 came first — `docs/perf/history.ndjson` is append-only and still does not exist.
+**Measured, not projected: 6.3 ns against the rendered path's 28.5 ns**, an A/B of `$a[$i]` and
+`$a[$i as uint]` inside one release binary over the same packed array. That is 22.2 ns off every
+integer subscript, and `docs/perf/userland-gap.md` § A now records it. The suite rows do not move
+for it — `08`/`09`/`12`/`13` measure 0.69×/0.40×/0.34×/0.47×, where the pooled-allocator column
+already put them — because those cases reach elements through `foreach` and a `string` key.
 
-Verify is green (**1566** tests, 74 suites, clippy and fmt clean) — unchanged count: this group
-added no test, because the change is which allocator every existing guard already measures. No
-valgrind run: a debug build still takes the platform heap by construction, which is the whole reason
-`alloc` is `cfg(any(test, not(debug_assertions)))`.
+Verify is green (**1568** tests, 74 suites, clippy and fmt clean); the two new tests are the two
+still-renders snapshots. **No valgrind run, deliberately**: this change removes an allocation and
+the release that matched it and adds no refcount edge at all, so there is no new edge to check.
 
-**`orient.py` still does not print `docs/perf/userland-gap.md`** — items 19–22 each cite a section
-of it and `[context]` in `loop-goal.toml` has no field that selects a perf doc at all. It is the one
-selector worth adding, and item 19's group below needs § A's four rows.
+**`orient.py` still does not print `docs/perf/userland-gap.md`** — `[context]` in `loop-goal.toml`
+has no field selecting a perf doc, and items 20-22 each cite a section of it.
 
-## Next group — item 19, an integer subscript reaches the packed form
+## Next group — item 20, a string has capacity and `.=` appends into it
 
-One file set across three crates, all of it small: `crates/mwl-codegen/src/emit.rs`,
-`crates/mwl-codegen/src/lib.rs`, `crates/mwl-ir/src/lower/expr.rs`. The runtime half already exists
-and is **unreferenced** — nothing in `crates/mwl-codegen/src` names `mwl_array_get_index` at all.
-[loop-goal.md](loop-goal.md) item 19 and `crates/mwl-runtime/src/array.rs`'s module doc
-§ *the ABI was the part that expired* are the specification.
+One file set: `crates/mwl-runtime/src/string.rs`, `crates/mwl-ir/src/lower/expr.rs`,
+`crates/mwl-codegen/src/emit.rs`. [loop-goal.md](loop-goal.md) item 20 is the specification, and it
+names three changes over one layout revision. `03-string-concat` is 0.03× and is the one case no
+allocator fixes: 50,000 appends take 238 ms and 100,000 take 1,386 ms.
 
-- [ ] **Stop rendering a decimal for an integer subscript.** `Lowering::lower_array_key` at
-      `crates/mwl-ir/src/lower/expr.rs:1876` renders the key to an `MwlStr` before codegen can
-      decline to, which is where the 82.4 ns goes. Read it first: if `InstKind::ArrayGet`'s key
-      operand cannot carry an unrendered integer, that is an IR shape question — decide it under the
-      goal's standing decisions, record it in `mwl-ir`'s module doc, and do not widen it silently.
-- [ ] **Emit the integer pair from codegen.** `emit_array_get` at
-      `crates/mwl-codegen/src/emit.rs:1837` and `ArraySet`'s call at `:1824`; add the two
-      `RuntimeSig` rows beside `emit.rs:2340` and `:2285`, declared at
-      `crates/mwl-codegen/src/lib.rs:604` the way the key-taking pair is. The runtime side is
-      `crates/mwl-runtime/src/array.rs:1129` (`mwl_array_get_index`), `:1212`
-      (`mwl_array_set_index`) and `:252` (`packed_index`).
-- [ ] **The first `docs/perf/history.ndjson` entry**, with a `php_ratio`, per
-      [ADR 0026](../adr/0026-performance-measurement-methodology.md) — now sound, because item 18
-      landed first. The four rows to re-measure are the ones in `array.rs`'s own module doc table
-      (`$a[] = $v`, `$a[$i]`, `$a['name']`, `foreach`) against the PHP 8.5.9 oracle on this machine;
-      the table's "unpacked" column is the before.
+- [ ] **`StrHeader` carries capacity, and `mwl_str_append` appends into it.**
+      `crates/mwl-runtime/src/string.rs:54` is the header, `:413` is `mwl_str_concat`. The append
+      takes `mwl_array_set`'s own *consume one reference, return one* protocol, so the holder is
+      re-pointed at the result with no retain or release — `mwl_ir::ir::InstKind::ArraySet`'s doc
+      comment is the worked statement of it.
+- [ ] **`InstKind::Concat` becomes n-ary**, so `$a . $b . $c` is one allocation.
+      `crates/mwl-ir/src/lower/expr.rs:2137` (`lower_concat`) and `:391` (`concat_operand`) on the
+      IR side, `crates/mwl-codegen/src/emit.rs:1771` (`emit_concat`) on the other.
+      `MwlStr::from_pieces` already exists for exactly this and codegen never calls it.
+- [ ] **A string literal stops allocating.** `emit_const_str`'s own doc comment already asks for it
+      and defers to `mwl-runtime` on layout grounds. **Write down** what item 20's own paragraph
+      says must not be re-derived: an immortal literal lives in the compiled unit, which is the one
+      thing a request *does* share with another, so `string.rs`'s "no `MwlStr` is ever reachable
+      from two threads" reasoning behind the plain `Cell` refcount stops being true as stated. It
+      stays sound only because a pinned refcount is never written, and the module doc has to say so.
 
 ## Backlog
 
-- `Core\Out::capture` is the one remaining key in `crates/mwl-stdlib/tests/spec-members-outstanding.txt`, and its `Sink` return type waits on ADR 0088's sink work — `docs/spec/01-core-library.md:888`.
-- `examples/collect.mwl:47` is Stage 3's last unfrozen fixture and stops on exactly that member — plan `Blocking`.
-- `Core\Json::decodeAs<T>` — spec § 6's one gap, `mwl_stdlib::json` gap 2.
-- ADR 0088's qualifier classification on every `mwl-stdlib` member row — plan `Open now`.
-- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s module doc.
-- The bench review's other half, after Stage 3 rather than in front of it: a cached hash on
-  `StrHeader`, a virtual call resolved to a slot instead of a name search, and `Core\Arr::sort`
-  without its permutation indirection — `docs/perf/userland-gap.md` §§ F, G, J, which also says
-  which case each moves and why none is urgent.
+- The first `docs/perf/history.ndjson` entry, with a `php_ratio` — item 19's last slice and item
+  15's, `python tools/bench.py --json <path>` writes the record. [loop-goal.md](loop-goal.md):196.
+- Item 21, no key synthesized for a callback that does not want one — `Core\Arr::map`/`filter`/
+  `reduce`/`sort`. [loop-goal.md](loop-goal.md):216.
+- Item 22, a `Core\Str` member writes its result once — `produced(&str)` and `text()`, 56 call
+  sites each. [loop-goal.md](loop-goal.md):222.
+- `mwl_array_unset_index` does not exist, so `unset($a[$i])` still renders a decimal. A deliberate
+  non-widening, not an oversight — `mwl-ir`'s module doc says why.
+- A positional element in an array literal that also has an explicit key still emits a `ConstStr`
+  decimal per element (`crates/mwl-ir/src/lower/expr.rs:3275`); the same `Ty::Int` operand would do.
+- `§12 Out::capture` is the whole remaining machine-readable work list for spec §§ 1-12 —
+  `crates/mwl-stdlib/tests/spec-members-outstanding.txt`.

@@ -121,84 +121,83 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 holds four items, and they are what the loop runs next.**
-> `python tools/bench.py` puts MWL's median at 0.31× PHP 8.5.9 with its JIT on, and
-> [docs/perf/userland-gap.md](perf/userland-gap.md) is the ledger behind that number — the suite
-> case by case, what one operation costs, and which item moves it. Item **18** is **done**: MWL
-> owns its allocator in every optimized build and the test build's byte counters wrap it, so a
-> number measured now is measured against the baseline that ships;
-> [`mwl-runtime`](../crates/mwl-runtime/src/lib.rs)'s module doc states what it spends and
-> `alloc.rs`'s own doc argues every decision it took. In order from here: **19** an integer
-> subscript reaches the packed form from compiled code, which is item
-> 15's other half and the group [docs/agent/handoff.md](agent/handoff.md) already scopes; **20** a
-> string has capacity so `.=` stops being quadratic, `.` becomes n-ary and a literal stops
-> allocating; **21** no key is synthesized for a callback that does not want one; **22** a
-> `Core\Str` member writes its result once. None is a JIT optimisation and none belongs to
-> [M12](plan/m12.md) — three change an ABI that ADR 0042's artifacts and M9's WIT signatures are
-> about to freeze, and two are the pattern every `Core` member written after them would copy.
-> **What has already landed is not restated here** — `git log` holds the
+> **Open now:** **Stage 0 holds three items, and they are what the loop runs next.** `python
+> tools/bench.py` puts MWL's median at 0.31× PHP 8.5.9 with its JIT on, and
+> docs/perf/userland-gap.md is the ledger behind that number — the suite case by case, what one
+> operation costs, and which item moves it. Items **18** and **19** are **done**: MWL owns its
+> allocator in every optimized build and the test build's byte counters wrap it, so a number
+> measured now is measured against the baseline that ships, and an `int` subscript now travels to
+> `mwl_array_get_index`/`mwl_array_set_index` unrendered — **6.3 ns against the rendered path's 28.5
+> ns**, an A/B inside one release binary that § A of the ledger now records rather than projects.
+> What item 19 still owes is the append-only `docs/perf/history.ndjson` entry item 15 asked for,
+> which does not exist yet. In order from here: **20** a string has capacity so `.=` stops being
+> quadratic, `.` becomes n-ary and a literal stops allocating; **21** no key is synthesized for a
+> callback that does not want one; **22** a `Core\Str` member writes its result once. None is a JIT
+> optimisation and none belongs to M12 — one changes an ABI that ADR 0042's artifacts and M9's WIT
+> signatures are about to freeze, and two are the pattern every `Core` member written after them
+> would copy. **What has already landed is not restated here** — `git log` holds the
 > session-by-session history and the crate's own module doc holds its per-file gaps, which is this
 > field's contract in AGENTS.md § *Keep each slice small*. What follows is what is **not** built.
 > **Spec §§ 1-12, by section** — § 1 is **whole**, `normalize` having landed with `Core\NormalForm`
-> and a named binding to `unicode-normalization`; § 2
-> is
-> **whole**, `from` having landed over `registry::CoreTy::Iterated` — ADR 0069's four combination members, the `diff`/`intersect` set half
-> with `Core\SetOn`, the positional rows, the callback rows and both sorts are all registered, which the
-> ratchet below is the machine-readable statement of; §
-> 4 is **whole**, `withTime` having landed beside `Core\Time\Date`, `Core\Time\TimeOfDay` and the two
-> views that answer with them, and there is **no** `Core\Month` — § 4 writes no member that takes or
-> answers with one (`mwl_stdlib::time` gap 1); § 5 is **whole**, `replaceWith` having landed beside
+> and a named binding to `unicode-normalization`; § 2 is **whole**, `from` having landed over
+> `registry::CoreTy::Iterated` — ADR 0069's four combination members, the `diff`/`intersect` set
+> half with `Core\SetOn`, the positional rows, the callback rows and both sorts are all registered,
+> which the ratchet below is the machine-readable statement of; § 4 is **whole**, `withTime` having
+> landed beside `Core\Time\Date`, `Core\Time\TimeOfDay` and the two views that answer with them, and
+> there is **no** `Core\Month` — § 4 writes no member that takes or answers with one
+> (`mwl_stdlib::time` gap 1); § 5 is **whole**, `replaceWith` having landed beside
 > `Core\Regex\Pattern` and `compile`, with the callback taking one `Match` rather than PHP's
-> positional array and the six pattern-taking rows all reading the `Pattern|string`
-> the spec writes; § 6 owes `decodeAs<T>` (`json` gap
-> 2, which waited on a written type argument at a call site and no longer does); § 7 is **whole** —
-> `Core\Bytes`'s twelve members and the whole of `Core\Encoding`, `pack`/`unpack` sharing one closed
-> code table that `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 is **whole**, its three
-> collections each answering a `foreach` — a `Core` receiver reaches ADR 0053's protocol through its
-> descriptor's own method table (`mwl_stdlib::cursor`, `mwl_stdlib::instance`'s dispatch roster), and the
-> spec's `Heap` row is amended to declare `Iterable` because a heap whose contents can only be reached by
-> emptying it is the PHP behaviour § 9 replaces; § 10 is **whole**, an `issues` entry being readable
-> now that a shape field resolves to a name the IR fetches by name (`ExprInfo::ShapeProperty`,
-> `InstKind::SlotGet`) — the constructor takes `{previous: $e}` and `$e->location` is pinned as the
-> throw site, both stated by `mwl_types::error_lib`'s own module doc; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes
-> `Out::capture` alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
-> signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
-> `Union`, `Decimal` and `Iterated`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
-> unwritten. **The runtime hole that sat under four of those is closed** — `mwl_runtime::Tag` has a
-> `Bytes` row of its own over the existing `MwlStr` allocation, so a fresh `bytes` value now
-> constructs, refcounts, releases and round-trips through codegen; `mwl-runtime`'s module doc
-> § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
-> `Core\Hash\Stream` is the first *mutable* `Core` instance and the honest return type of `Uri`'s
-> two decoders is still unwritten rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 435 of the 600 that gate requires, differential is
-> 90 of 150, and `every_part_one_spec_member_is_registered` — the loop's
-> own definition of done, which reads the spec's member rows and checks each against the registry —
-> exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
+> positional array and the six pattern-taking rows all reading the `Pattern|string` the spec writes;
+> § 6 owes `decodeAs<T>` (`json` gap 2, which waited on a written type argument at a call site and
+> no longer does); § 7 is **whole** — `Core\Bytes`'s twelve members and the whole of
+> `Core\Encoding`, `pack`/`unpack` sharing one closed code table that
+> `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 is **whole**, its three collections
+> each answering a `foreach` — a `Core` receiver reaches ADR 0053's protocol through its
+> descriptor's own method table (`mwl_stdlib::cursor`, `mwl_stdlib::instance`'s dispatch roster),
+> and the spec's `Heap` row is amended to declare `Iterable` because a heap whose contents can only
+> be reached by emptying it is the PHP behaviour § 9 replaces; § 10 is **whole**, an `issues` entry
+> being readable now that a shape field resolves to a name the IR fetches by name
+> (`ExprInfo::ShapeProperty`, `InstKind::SlotGet`) — the constructor takes `{previous: $e}` and
+> `$e->location` is pinned as the throw site, both stated by `mwl_types::error_lib`'s own module
+> doc; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes `Out::capture`
+> alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every signature shape
+> the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`, `Union`, `Decimal` and
+> `Iterated`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only unwritten. **The
+> runtime hole that sat under four of those is closed** — `mwl_runtime::Tag` has a `Bytes` row of
+> its own over the existing `MwlStr` allocation, so a fresh `bytes` value now constructs, refcounts,
+> releases and round-trips through codegen; `mwl-runtime`'s module doc § *`bytes` is a tag, not a
+> second heap shape* owns that decision and what it spends. `Core\Hash\Stream` is the first
+> *mutable* `Core` instance and the honest return type of `Uri`'s two decoders is still unwritten
+> rather than blocked. **Stage 4's counts are their own work rather than a side effect of member
+> slices** — conformance is 435 of the 600 that gate requires, differential is 90 of 150, and
+> `every_part_one_spec_member_is_registered` — the loop's own definition of done, which reads the
+> spec's member rows and checks each against the registry — exists now, in
+> `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
 > `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its
 > own module doc states, and that file's **one remaining key — `§12 Out::capture` — is the whole
-> machine-readable work list for §§ 1-12**: when it holds none, Part I is registered whole. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
-> qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it,
-> and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
-> that refuses an unclassified member exists; it lands with M4S's remaining sections. **ADR 0071 is
-> built end to end for a scalar-fielded class**; its gaps are no
-> enum/`decimal`/`Instant`/`array`/nested-class field decode and no optional key from a parameter
-> default. **Four ADRs are decided and unbuilt but are not catch-up** — 0091 (the
-> `development`/`production` run mode: a `[mode]` block, a `System` ceiling, five governed
-> directives plus § 3a's three startup defaults, `Core\Env::mode`), 0092 (one diagnostic record
-> rendered as plaintext, JSON or HTML by the sink in force — `Core\Log`'s `Log\Level`,
-> `Core\Debug::dump`, throwables, test results and compiler diagnostics), 0093 (`mwl service`) and
-> 0097 (the server's scope and its `[server]` block: mounts expanded from globs at boot, the
-> trusted-proxy walk, four idle waits, `max_in_flight`; and the removal of the inbound TLS listener,
-> h2c and the FastCGI transport, which deleted M13). None invalidates built behaviour or a written
-> fixture; their work is M4, M6, M7, M8 and M10 and lands with those milestones. **Still open beside
-> the library** — a property's **declared default runs now** and is type-checked (`E0472`), a
-> per-class image on `mwl_runtime::ClassDesc` that `MwlObj::new` writes, so `NewDynamic` and
-> ADR 0071's native decoder reach it too; what a default may be is still a literal or `[]`, with
-> `= null`, an enum case and a `decimal` refused for the reasons `mwl_types::defaults` states.
-> `do`/`while` is the one M4 control-flow statement that does not lower; an
-> abandoned generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a PHP
-> divergence); ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31%
-> classified, one pass per PHP domain, reported by `python tools/check-migration.py`.
+> machine-readable work list for §§ 1-12**: when it holds none, Part I is registered whole. **ADR
+> 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no qualifier classification,
+> so `Core\Str::format`'s template is not yet the sink that ADR makes it, and neither the
+> fail-closed default for an unclassified `string`/`bytes` parameter nor the test that refuses an
+> unclassified member exists; it lands with M4S's remaining sections. **ADR 0071 is built end to end
+> for a scalar-fielded class**; its gaps are no enum/`decimal`/`Instant`/`array`/nested-class field
+> decode and no optional key from a parameter default. **Four ADRs are decided and unbuilt but are
+> not catch-up** — 0091 (the `development`/`production` run mode: a `[mode]` block, a `System`
+> ceiling, five governed directives plus § 3a's three startup defaults, `Core\Env::mode`), 0092 (one
+> diagnostic record rendered as plaintext, JSON or HTML by the sink in force — `Core\Log`'s
+> `Log\Level`, `Core\Debug::dump`, throwables, test results and compiler diagnostics), 0093 (`mwl
+> service`) and 0097 (the server's scope and its `[server]` block: mounts expanded from globs at
+> boot, the trusted-proxy walk, four idle waits, `max_in_flight`; and the removal of the inbound TLS
+> listener, h2c and the FastCGI transport, which deleted M13). None invalidates built behaviour or a
+> written fixture; their work is M4, M6, M7, M8 and M10 and lands with those milestones. **Still
+> open beside the library** — a property's **declared default runs now** and is type-checked
+> (`E0472`), a per-class image on `mwl_runtime::ClassDesc` that `MwlObj::new` writes, so
+> `NewDynamic` and ADR 0071's native decoder reach it too; what a default may be is still a literal
+> or `[]`, with `= null`, an enum case and a `decimal` refused for the reasons `mwl_types::defaults`
+> states. `do`/`while` is the one M4 control-flow statement that does not lower; an abandoned
+> generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a PHP divergence); ADR
+> 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31% classified, one
+> pass per PHP domain, reported by `python tools/check-migration.py`.
 >
 > **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the

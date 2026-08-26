@@ -224,6 +224,16 @@ is why" — is this file.
   own commit named for what it is, and the session's own slices stay clean. Check the blast radius first
   with `grep -c "^Diff in" .agent-tmp/verify-fmt.log` — one file means fix it here, a dozen means say so in
   the handoff instead of reformatting the workspace inside an unrelated slice.
+- **Widening an operand's *representation* in `mwl-ir` moves a refcount decision you did not edit.**
+  `lower_array_key` returned `(ValueId, bool)` where the `bool` meant "aliases storage someone else
+  owns", and its four call sites read the `false` case as "a fresh buffer this frame owes a release
+  for" — two different facts that happened to coincide while every key was a `Ty::Str`. The moment an
+  `int` subscript could travel unrendered, `false` still arrived but there was nothing to release, so
+  the *unchanged* `if !key_aliasing { emit_release }` line became a release of a plain integer. The
+  fix is to return the operand's `Ty` alongside and guard on `ty.is_refcounted()`, and the general
+  rule is that a widened operand's every consumer has to be re-read for a decision phrased as the
+  *negation* of the old invariant. Nothing catches this: it builds, and the IR snapshots are the only
+  place it shows.
 
 ## Running things
 

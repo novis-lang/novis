@@ -83,6 +83,17 @@ and the process start are already subtracted.
 The control is exact: the two operations that allocate nothing did not move, and every one that
 allocates fell by half or better.
 
+**Item 19 has landed, and the `$a[$i]` row is measured rather than projected now.** The A/B is
+inside one release binary — the same 20 M subscripts over the same packed array, indexed once by an
+`int`, which no longer renders, and once by a `uint`, which still does for the reason
+`mwl_ir::lower::Lowering::lower_array_key` states — and the loop is otherwise identical, since
+`$i as uint` is a free reinterpret. The two measure **6.3 ns and 28.5 ns** per subscript, each
+including the loop's own add and compare. So the rendered path lands exactly on the 27.7 ns above,
+and not rendering takes **22.2 ns off every integer subscript**. The suite rows do not move for it:
+`08`, `09`, `12` and `13` measure 0.69×, 0.40×, 0.34× and 0.47×, which is where the pooled-allocator
+column already put them, because those cases reach their elements through `foreach` and a `string`
+key rather than through an integer subscript.
+
 **No PHP column, deliberately.** A micro-case that discards its result is one PHP's tracing JIT may
 delete outright — `benches/userland/README.md` § *Why the inputs are chained* is that trap, and it
 applies to a micro-case as much as to a suite case. The suite table above is where the comparison
