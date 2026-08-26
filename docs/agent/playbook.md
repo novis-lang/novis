@@ -554,6 +554,20 @@ is why" — is this file.
   relink and never returned in four subsequent runs, including the full workspace sweep; the
   `.loop` logs hold an identical one-off in `--test strings`. The deterministic cause below (an
   empty argument slice) reproduces every time, which is how the two are told apart.
+- **A test binary outside `mwl-runtime` cannot reach `counting_alloc`** — that module is `#[cfg(test)]` and
+  its `allocated_bytes` is `pub(crate)`, so a `mwl-codegen` or `mwl-stdlib` integration test that wants to
+  measure allocations installs **its own** `#[global_allocator]` in the test file, gated
+  `#[cfg(debug_assertions)]`. The gate is not decoration: `mwl-runtime` registers its pooled allocator in
+  every `not(test)` *optimized* build, so an ungated one makes `cargo test --release` fail to link rather
+  than fail a test. `crates/mwl-stdlib/tests/allocation_policy.rs:135` and
+  `crates/mwl-codegen/tests/arrays.rs`'s `Counting` are the two copies of the shape.
+
+- **Measure compiled code's allocations as a difference between two run lengths, never as an absolute
+  zero.** A run allocates its array, its locals and its output buffer once whatever the loop count is, so
+  "this script allocated nothing" is not a claim that can hold; "400 passes allocated exactly what 4 passes
+  allocated" is, and it is the same claim, because a per-access cost is O(accesses) and a setup cost cancels
+  out of the difference. Pair it with a control arm that *does* allocate per access — the same accesses
+  through a rendered key — or a counter stuck at zero passes the test for you.
 
 ## Splitting a file that got too big
 

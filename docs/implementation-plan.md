@@ -101,31 +101,28 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Spec §§ 1-12 is registered whole and Stage 3 is green**, so the machine-readable
-> work list that drove the last forty sessions —
-> `crates/mwl-stdlib/tests/spec-members-outstanding.txt` — is empty. `Core\Out::capture` was its
-> last key: it runs its closure with `mwl_runtime::Ctx`'s capture stack in force, always swallows,
-> nests by call nesting, and answers **the carrier of the sink in force** rather than a `string`
-> (ADR 0088 § 5), because bytes that have already been through a sink would be escaped a second time
-> by the `echo` that re-emits them. That carrier is `Core\Cli\Text`, whose name and one-slot layout
-> are `mwl_runtime::CARRIER_CLI_TEXT`/`CARRIER_TEXT_SLOT` so the crate that *renders* one can find
-> it without naming `mwl-stdlib`; `crates/mwl-stdlib/src/cli.rs`'s own module doc owns why it
-> carries no member yet and what M8 adds. `echo` of a `Core` instance was a `mwl-ir` **panic** and
-> is now the same tag-dispatched conversion a union takes, so a non-carrier object is a diagnosable
-> throw instead. **The first red acceptance check is now Stage 0's item 19 second half** —
-> `loop-goal.toml`'s `mwl-codegen (packed subscript)` names a test,
-> `an_integer_subscript_reaches_the_packed_form_from_compiled_code`, that **does not exist anywhere
-> in the tree**. `mwl_runtime::array`'s `an_integer_subscript_allocates_no_key` holds the primitive;
-> what is unheld is the path *compiled code* takes to it, which is the half `lower_array_key` used
-> to render a decimal for. Item 19 also still owes the append-only `docs/perf/history.ndjson` entry
-> item 15 asked for, which does not exist. Behind those, **Stage 4 is the wall**: conformance is
-> **437** of the 600 that gate requires and differential is **90** of 150, and both are their own
-> work rather than a side effect of member slices. **What is still unbuilt in the library**, none of
-> it a registration gap: `Core\Json::decodeAs<T>`'s decoder (`mwl_stdlib::json` gap 2); ADR 0071
-> decodes only a scalar-fielded class — no enum/`decimal`/`Instant`/`array`/nested-class field and
-> no optional key from a parameter default; ADR 0088's registry-wide item, that `mwl-stdlib`'s
-> member rows carry **no qualifier classification**, so `Core\Str::format`'s template is not yet the
-> sink that ADR makes it and neither the fail-closed default for an unclassified `string`/`bytes`
+> **Open now:** **Stage 0 item 19 is closed, and the next red acceptance check is item 20** —
+> `mwl-runtime (string capacity)`, whose three tests
+> (`appending_to_a_uniquely_owned_string_does_not_reallocate`,
+> `a_concat_of_many_pieces_allocates_once`, `an_immortal_literal_is_never_retained_or_freed`) name a
+> layout revision nothing has started: `mwl_runtime::string`'s `StrHeader` carries a refcount and a
+> length and no capacity, so `$out .= $piece` copies the whole accumulation every iteration and
+> `03-string-concat` runs at 0.03×. `docs/agent/loop-goal.md` item 20 owns the three changes and the
+> one fact that must be written down rather than re-derived — an immortal literal lives in the
+> compiled unit, which is the one thing a request shares. Item 19's own half is `mwl-codegen`'s
+> `an_integer_subscript_reaches_the_packed_form_from_compiled_code`, which measures the compiled
+> path with a debug-only counting allocator installed in that test binary, and item 15's other half
+> is `docs/perf/history.ndjson`, which exists now with its first entry
+> (`userland_08_array_list_build`, 217,254,092 instructions, `php_ratio` 0.93); [ADR
+> 0026](adr/0026-performance-measurement-methodology.md) § 4 owns the schema, the recipe and what a
+> repeat run does not reproduce. Behind Stage 0, **Stage 4 is the wall**: conformance is **437** of
+> the 600 that gate requires and differential is **90** of 150, and both are their own work rather
+> than a side effect of member slices. **What is still unbuilt in the library**, none of it a
+> registration gap: `Core\Json::decodeAs<T>`'s decoder (`mwl_stdlib::json` gap 2); ADR 0071 decodes
+> only a scalar-fielded class — no enum/`decimal`/`Instant`/`array`/nested-class field and no
+> optional key from a parameter default; ADR 0088's registry-wide item, that `mwl-stdlib`'s member
+> rows carry **no qualifier classification**, so `Core\Str::format`'s template is not yet the sink
+> that ADR makes it and neither the fail-closed default for an unclassified `string`/`bytes`
 > parameter nor the test refusing an unclassified member exists; and ADR 0086 § 1's substitution
 > table, which is what makes the terminal sink neutralize a control byte and `Cli\Text::plain` a
 > constructor that cannot produce an injected escape — both M8, and `crates/mwl-stdlib/src/cli.rs`'s
@@ -141,17 +138,16 @@
 > restated here** — `git log` holds the session-by-session history and each crate's own module doc
 > holds its per-file gaps.
 >
-> **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop
+> **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
 > `?T`/`mixed` representation (settled, `mwl_ir::Ty::Tagged`), re-scoping a `catch` binding to its
 > own handler block, widening `array<T>` to element-covariant-on-read (settled,
 > `mwl_types::expr::is_assignable`), object identity (settled, `mwl_runtime::identity`), the sink's
-> carrier being a `Core` instance rather than a `string` (settled this session under ADR 0088 § 5,
-> `mwl_runtime::ctx`'s carrier constants and `mwl_stdlib::cli`), and picking every dependency but
-> the two the user named. Stages 1, 2 and **3** pass whole on both legs, so any failure below Stage
-> 4 is a regression rather than unfinished work — with one exception, which is not a regression but
-> a check that was never satisfied: Stage 0's `mwl-codegen (packed subscript)` names a test nobody
-> wrote. That is the first red check and `Open now` says what it has to hold.
+> carrier being a `Core` instance rather than a `string` (settled under ADR 0088 § 5), and picking
+> every dependency but the two the user named. Stages 1, 2 and **3** pass whole on both legs, so any
+> failure below Stage 4 is a regression rather than unfinished work. Stage 0's own catch-up list is
+> not: its next red check, `mwl-runtime (string capacity)`, names three tests for a layout revision
+> that has not been written, and `Open now` says what it has to hold.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in

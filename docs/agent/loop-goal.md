@@ -152,14 +152,13 @@ one is how an item finishes.
     dated now because that emit site exists and lowers to nothing yet (`mwl-ir` gap 14), and the plan
     states that retrofitting it means rewriting the backend. Expect a one-time step in `abi/frame_depth`,
     a benchmark that does nothing but call; say so in the commit.
-15. **A list-shaped array is packed** — [`array.rs`](../../crates/mwl-runtime/src/array.rs)'s module doc
-    owns the decision, the PHP comparison that dates it, and what the ABI addition costs if it waits. Two
-    points from that section worth repeating here: [ADR 0007 § 5](../adr/0007-explicit-type-system.md) is
-    **unchanged** — this is representation, not semantics — and `mwl_array_get_index`/`set_index` are a
-    compatible addition only while nothing depends on the current ABI. Give it the first
-    `docs/perf/history.ndjson` entry, with a `php_ratio`, per
-    [ADR 0026](../adr/0026-performance-measurement-methodology.md); that file not existing is why nothing
-    caught this.
+15. ~~**A list-shaped array is packed.**~~ **Done**, both halves.
+    [`array.rs`](../../crates/mwl-runtime/src/array.rs)'s module doc owns the representation, the PHP
+    comparison that dates it, and why [ADR 0007 § 5](../adr/0007-explicit-type-system.md) is **unchanged**
+    by it — this is representation, not semantics. `docs/perf/history.ndjson` exists and holds its first
+    entry, `userland_08_array_list_build` at 217,254,092 instructions with a `php_ratio` of 0.93;
+    [ADR 0026](../adr/0026-performance-measurement-methodology.md) § 4 owns the schema, the recipe that
+    produced it, and what a repeat run does and does not reproduce.
 16. ~~**Cranelift's stack probes are on.**~~ **Done.** Cranelift defaults `enable_probestack` to
     *false*, and off means a frame larger than the 4 KiB guard page can move the stack pointer past it
     in one step — a stack clash, which is a memory-safety bug rather than the clean crash a guard page
@@ -195,12 +194,12 @@ one is how an item finishes.
     measures a path the release build does not take. **It is first because every number measured before
     it is measured against the wrong baseline** — including the `docs/perf/history.ndjson` entry item 15
     still owes, which is append-only and would record it permanently.
-19. **An integer subscript reaches the packed form from compiled code** — item 15's other half, and the
-    only item here that is already scoped to `file:line`: [handoff.md](handoff.md)'s `## Next group` owns
-    the four slices, `crates/mwl-runtime/src/array.rs`'s module doc § *the ABI was the part that expired*
-    owns the shape, and neither is restated here. It costs 82.4 ns today because
-    `Lowering::lower_array_key` renders the decimal before `mwl_array_get_index` — which exists, and which
-    nothing calls — can decline to.
+19. ~~**An integer subscript reaches the packed form from compiled code**~~ — item 15's other half.
+    **Done.** `Lowering::lower_array_key` hands a `Ty::Int` subscript through as the `int` it already was
+    (`crates/mwl-ir/src/lower/expr.rs`'s own doc comment owns the rule, including why a `uint` still
+    renders), and `mwl-codegen`'s `an_integer_subscript_reaches_the_packed_form_from_compiled_code`
+    measures it from compiled code: the accesses in a loop cost the same number of allocations however
+    many times it goes round, while the rendered-key spelling beside it costs one per access.
 20. **A string has capacity, and `.=` appends into it.** `StrHeader` carries a refcount and a length and
     nothing else, so `mwl_str_concat` always builds a fresh buffer and `$out .= $piece` copies the whole
     accumulation every iteration: 50,000 appends take 238 ms and 100,000 take 1,386 ms, which is

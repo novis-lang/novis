@@ -390,7 +390,8 @@ tests = [
 #
 # THE ORDER OF THESE FIVE BLOCKS IS THE ORDER OF THE WORK, and it is not the order of payoff. The
 # allocator is first because every measurement taken before it -- including the `history.ndjson`
-# entry item 15 still owes, which is append-only -- is taken against the wrong baseline.
+# entry item 15 owed, which is append-only -- would be taken against the wrong baseline. That entry
+# exists now and was taken after the allocator landed, so the file's first line is on the right one.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
