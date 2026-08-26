@@ -1,0 +1,98 @@
+--TEST--
+`Core\Encoding`'s base32 pair spells every block length and reads its own padding back, and its hex pair admits no separator, prefix or newline — spec § 7, ADR 0009 §§ 1 and 3
+--FILE--
+<?mwl
+class B32 {
+    public static function enc(string $hex): string {
+        return Core\Encoding::toBase32(Core\Encoding::fromHex($hex));
+    }
+
+    public static function dec(string $text): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromBase32($text));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+class Hex {
+    public static function dec(string $text): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromHex($text));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+// RFC 4648 § 6 encodes five octets to eight symbols, so the block is five
+// long and each remainder has its own symbol count: 2, 4, 5, 7, 8. `toBase32`
+// writes them unpadded, which is the `otpauth:` form, and zero octets is a
+// spelling rather than a failure.
+echo "[", B32::enc(""), "]\n";
+echo B32::enc("6d"), "\n";
+echo B32::enc("6d77"), "\n";
+echo B32::enc("6d776c"), "\n";
+echo B32::enc("6d776c21"), "\n";
+echo B32::enc("6d776c2121"), "\n";
+echo B32::enc("6d776c212121"), "\n";
+
+// The padded spelling of each of those is read back to the same octets: one
+// pair, so padding cannot mean a second member (`encoding.rs`'s own module
+// doc, *base32 is one pair*). The count is what the group is short of.
+echo B32::dec("NU======"), "\n";
+echo B32::dec("NV3Q===="), "\n";
+echo B32::dec("NV3WYII="), "\n";
+echo B32::dec("NV3WYIJB"), "\n";
+
+// Padding that does not complete the group, padding past it, and padding on
+// a group that is already whole: none of the three is a spelling.
+echo B32::dec("NU====="), "\n";
+echo B32::dec("NU======="), "\n";
+echo B32::dec("NV3WYIJB="), "\n";
+echo B32::dec("NV3WY=NV"), "\n";
+
+// Octets no `"…" as bytes` could produce (ADR 0009 § 1) round-trip like any
+// other, and the written spelling is the one that reads back.
+echo B32::enc("00ff80fe"), "\n";
+echo B32::dec("AD7YB7Q"), "\n";
+
+// `fromHex` takes digits and nothing else: not a leading or trailing space,
+// not a `0x` prefix, not a trailing newline, and not a character outside
+// ASCII — `é` is two octets, so it is even-length and still refused on the
+// digits rather than on the count.
+echo Hex::dec("00ff80fe"), "\n";
+echo Hex::dec(" ab"), "\n";
+echo Hex::dec("ab "), "\n";
+echo Hex::dec("0xab"), "\n";
+echo Hex::dec("ab\n"), "\n";
+echo Hex::dec("é"), "\n";
+
+// A single digit is the odd count, which is refused rather than padded.
+echo Hex::dec("0"), "\n";
+--EXPECT--
+[]
+NU
+NV3Q
+NV3WY
+NV3WYII
+NV3WYIJB
+NV3WYIJBEE
+6d
+6d77
+6d776c21
+6d776c2121
+threw
+threw
+threw
+threw
+AD7YB7Q
+00ff80fe
+00ff80fe
+threw
+threw
+threw
+threw
+threw
+threw
