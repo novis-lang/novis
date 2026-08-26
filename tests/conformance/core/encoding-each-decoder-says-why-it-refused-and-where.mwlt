@@ -1,0 +1,125 @@
+--TEST--
+`Core\Encoding`'s four decoders each name the reason they refused and the offset it is at, and bound the operand they quote back — spec § 8, ADR 0009 § 3, ADR 0088
+--FILE--
+<?mwl
+// Spec § 8's four `from*` members. The neighbouring cases pin *what* each
+// accepts; this one pins what each says when it does not, because ADR 0009 § 3
+// makes every one of these checked rather than repairing, and a refusal a
+// caller cannot act on is the same dead end as `base64_decode`'s silent
+// discard or `hex2bin`'s `false`. `crates/mwl-stdlib/src/encoding.rs` owns the
+// four sites and the two `why_not_*` helpers behind them.
+
+final class Say {
+    public static function b64(string $s): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromBase64($s));
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+
+    public static function url(string $s): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromBase64Url($s));
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+
+    public static function b32(string $s): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromBase32($s));
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+
+    public static function hex(string $s): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromHex($s));
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+}
+
+// Base64 has four ways to be wrong and says which: a byte outside § 4's
+// alphabet, padding that is absent where the standard form requires it, a final
+// symbol carrying bits no octet reads, and — the one a caller most often means
+// — the *other* variant's alphabet, refused here rather than accepted as a
+// courtesy, since a decoder taking both cannot say which was meant.
+echo Say::b64("YW*j"), "\n";
+echo Say::b64("YWJ"), "\n";
+echo Say::b64("YWJjZB=="), "\n";
+echo Say::b64("YW-j"), "\n";
+
+// The URL-safe half mirrors it, and its two differences from the standard form
+// are exactly the two things the messages name: padding is refused rather than
+// required, and `+` and `/` are outside its alphabet. Refusing padding is also
+// what makes its *length* reason reachable — a lone truncated group, which the
+// padded form reports as missing padding instead.
+echo Say::url("YWJjZA=="), "\n";
+echo Say::url("YW+j"), "\n";
+echo Say::url("YWJjZ"), "\n";
+
+// Base32 folds case and optional padding, so what is left to refuse is a symbol
+// outside `A`-`Z`/`2`-`7`, stray trailing bits, padding that is present but not
+// a group's worth, and a text that stops part-way through a group. Which of the
+// four a given text gets is decided by the earliest thing wrong with it: a
+// space at offset 4 of eight symbols is the symbol reason, but a space that
+// also makes the text nine long is the length one, because a group is counted
+// before its contents are read.
+echo Say::b32("MZXW YTB"), "\n";
+echo Say::b32("MZXW6YT"), "\n";
+echo Say::b32("MZXW6YTB========"), "\n";
+echo Say::b32("MZXW6YTBMQ====="), "\n";
+echo Say::b32("MZXW 6YTB"), "\n";
+
+// Hex has two, and they are ordered the same way: the digit count is checked
+// before the digits are, so a separator between pairs is the odd-count reason
+// when it makes the count odd and the digit reason when it does not. Neither
+// guesses a nibble the way `hex2bin("abc")` does.
+echo Say::hex("abc"), "\n";
+echo Say::hex("ab:cd"), "\n";
+echo Say::hex("0xff"), "\n";
+
+// Counted: the offset a refusal names is the offending position and not a
+// constant. Eight valid symbols, each in turn replaced by one that is not, and
+// the message names that index every time — a decoder reporting offset 0 for
+// everything still prints plausibly against any single row above.
+int $named = 0;
+int $k = 0;
+for ($k = 0; $k < 8; $k = $k + 1) {
+    var $spoilt = Core\Str::slice("YWJjZAYW", 0, $k) . "*" . Core\Str::slice("YWJjZAYW", $k + 1, null);
+    if (Core\Str::contains(Say::b64($spoilt), "at offset " . ($k as string))) {
+        $named = $named + 1;
+    }
+}
+echo $named, " of 8\n";
+
+// The operand is quoted back so the caller can see which text was refused, and
+// that quotation is bounded on both sides of 32 characters: at 32 the whole of
+// it is there, at 34 the first 32 are, with an ellipsis saying so. A decoder
+// that echoed its whole argument would make a refusal message as large as the
+// attacker-supplied text that caused it (ADR 0088's register).
+echo Say::hex(Core\Str::repeat("z", 32)), "\n";
+echo Say::hex(Core\Str::repeat("z", 34)), "\n";
+--EXPECT--
+Core\Encoding::fromBase64(): "YW*j" is not base64 — the byte 0x2a at offset 2 is not a base64 character, and whitespace, a newline and a misplaced `=` are each that byte rather than something skipped
+Core\Encoding::fromBase64(): "YWJ" is not base64 — its `=` padding is missing or malformed, and the standard form is written with it
+Core\Encoding::fromBase64(): "YWJjZB==" is not base64 — the final symbol 0x42 at offset 5 carries bits no octet reads, so it is one of several spellings of the same value and not the canonical one (RFC 4648 § 3.5)
+Core\Encoding::fromBase64(): "YW-j" is not base64 — the byte 0x2d at offset 2 is not a base64 character, and whitespace, a newline and a misplaced `=` are each that byte rather than something skipped
+Core\Encoding::fromBase64Url(): "YWJjZA==" is not URL-safe base64 — it is padded, and the URL-safe form is written without `=`
+Core\Encoding::fromBase64Url(): "YW+j" is not URL-safe base64 — the byte 0x2b at offset 2 is not a base64url character, and whitespace, a newline and a misplaced `=` are each that byte rather than something skipped
+Core\Encoding::fromBase64Url(): "YWJjZ" is not URL-safe base64 — it measures 5 symbols, and a base64 group is 2, 3 or 4 of them — this one is truncated
+Core\Encoding::fromBase32(): "MZXW YTB" is not base32 — the byte at offset 4 is not one of `A`-`Z` or `2`-`7` — the digits `0`, `1` and `8` are not in this alphabet, and a space grouping a secret for a reader is a byte like any other
+Core\Encoding::fromBase32(): "MZXW6YT" is not base32 — the symbol at offset 6 carries bits no octet reads, so it is one of several spellings of the same value and not the canonical one (RFC 4648 § 3.5)
+Core\Encoding::fromBase32(): "MZXW6YTB========" is not base32 — the `=` padding at offset 8 is not what a base32 group takes — write it in full or leave it off entirely
+Core\Encoding::fromBase32(): "MZXW6YTBMQ=====" is not base32 — it ends at offset 8 part-way through a group, and a base32 group is 8 symbols — this one is truncated
+Core\Encoding::fromBase32(): "MZXW 6YTB" is not base32 — it ends at offset 8 part-way through a group, and a base32 group is 8 symbols — this one is truncated
+Core\Encoding::fromHex(): "abc" is not hexadecimal — it has an odd number of digits, and an octet takes two
+Core\Encoding::fromHex(): "ab:cd" is not hexadecimal — it has an odd number of digits, and an octet takes two
+Core\Encoding::fromHex(): "0xff" is not hexadecimal — only the digits `0`-`9`, `a`-`f` and `A`-`F` spell one, with nothing between the pairs
+8 of 8
+Core\Encoding::fromHex(): "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz" is not hexadecimal — only the digits `0`-`9`, `a`-`f` and `A`-`F` spell one, with nothing between the pairs
+Core\Encoding::fromHex(): "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz…" is not hexadecimal — only the digits `0`-`9`, `a`-`f` and `A`-`F` spell one, with nothing between the pairs
