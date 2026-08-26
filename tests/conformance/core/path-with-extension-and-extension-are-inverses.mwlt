@@ -1,0 +1,154 @@
+--TEST--
+Core\Path::withExtension and Core\Path::extension undo each other wherever the name has one — setting then reading is the extension back, reading then setting is the path back, removal peels exactly one, and a dotfile, a trailing dot and a dotted extension are the three places the pair stops — docs/spec/01-core-library.md § 8
+--FILE--
+<?mwl
+// Spec § 8 gives `Core\Path` one reading member and one rewriting member over
+// the same cut, and `crates/mwl-stdlib/src/path.rs`'s `stem_and_extension`
+// makes that cut for both. The neighbouring case pins where `withExtension`
+// refuses; this one pins the property the two members exist as a pair for, and
+// the three names where the property stops.
+//
+// Nothing here echoes a built path except single-component relative names, so
+// no row depends on which separator this leg renders: the two counted claims
+// compare two *rendered* answers to each other, and both go through the same
+// renderer.
+
+// The table is 20 names covering every shape the cut can meet: an ordinary
+// extension, none at all, a trailing dot, a dotfile, a dotfile that then has
+// one, two and three dots, an extension on a directory but not on the name, a
+// drive, a trailing separator, a repeated one, an upper-case extension and a
+// space in the name.
+array<string> $paths = [
+    "report.txt", "report", "report.", ".gitignore", ".gitignore.txt",
+    "archive.tar.gz", "a/b/c.md", "/etc/hosts", "C:/data/file.csv", "a/b/",
+    "a//b.txt", "x.tar.gz", ".config/app.json", "a.b.c", "file.TXT",
+    "sub/.hidden", "9.9", "a/b.c/d", "a..b", "read me.txt",
+];
+int $rows = Core\Arr::count($paths) as int;
+
+// The extensions are the ones `withExtension` accepts *and* `extension` can
+// answer: undotted, non-empty, separator-free. An extension holding a dot is
+// accepted by the setter and is where the pair stops — that is the last
+// section, not this one.
+array<string> $exts = ["txt", "md", "gz", "T", "x9", "0"];
+int $cells = $rows * (Core\Arr::count($exts) as int);
+
+// 1. Setting, then reading, is the extension handed in — on every cell, whether
+//    the name arrived with an extension, without one, or with a dot the member
+//    reads as part of the name. A member that skipped the rewrite for a name it
+//    thought had no extension would still print plausibly on any single row.
+int $roundTrip = 0;
+foreach ($paths as string $p) {
+    foreach ($exts as string $e) {
+        var $read = Core\Path::extension(Core\Path::withExtension($p, $e));
+        if ($read != null) {
+            if (($read as string) == $e) {
+                $roundTrip = $roundTrip + 1;
+            }
+        }
+    }
+}
+echo "set then read is the extension ", $roundTrip, "/", $cells, "\n";
+
+// 2. Reading, then setting, is the path back — through the normal form, which
+//    is the only thing `withExtension` is allowed to change about the rest of
+//    the path. This is the direction that has to hold for the names with *no*
+//    extension too, and it does, because the same helper decides both: passing
+//    `null` back rewrites the name to its own stem, which is itself.
+int $identity = 0;
+foreach ($paths as string $q) {
+    var $held = Core\Path::extension($q);
+    if (Core\Path::withExtension($q, $held) == Core\Path::normalize($q)) {
+        $identity = $identity + 1;
+    }
+}
+echo "read then set is the path ", $identity, "/", $rows, "\n";
+
+// 3. Setting twice is setting once. The stem the second call cuts is the stem
+//    the first one wrote, so no cell accumulates extensions — which is what
+//    makes `withExtension` a rewrite rather than an append, and it is only true
+//    because the extension put on carries no dot for the next cut to find.
+int $twice = 0;
+foreach ($paths as string $r) {
+    foreach ($exts as string $first) {
+        foreach ($exts as string $second) {
+            if (Core\Path::withExtension(Core\Path::withExtension($r, $first), $second)
+                == Core\Path::withExtension($r, $second)) {
+                $twice = $twice + 1;
+            }
+        }
+    }
+}
+echo "setting twice is setting once ", $twice, "/", $cells * (Core\Arr::count($exts) as int), "\n";
+
+// 4. `null` removes exactly one extension — the one `extension` answers, not
+//    every dot in the name. So removal is a walk, not a strip: repeating it
+//    reaches a fixed point, and the fixed point is precisely a name `extension`
+//    answers `null` for. Four removals are more than the deepest name here
+//    needs, and the fifth changes nothing on any row.
+array<string> $peels = ["1", "2", "3", "4"];
+int $settled = 0;
+int $exhausted = 0;
+int $stillHasOne = 0;
+foreach ($paths as string $s) {
+    string $cur = Core\Path::withExtension($s, null);
+    var $afterOne = Core\Path::extension($cur);
+    if ($afterOne != null) {
+        $stillHasOne = $stillHasOne + 1;
+    }
+    foreach ($peels as string $peel) {
+        $cur = Core\Path::withExtension($cur, null);
+    }
+    if (Core\Path::extension($cur) == null) {
+        $exhausted = $exhausted + 1;
+    }
+    if (Core\Path::withExtension($cur, null) == $cur) {
+        $settled = $settled + 1;
+    }
+}
+echo "removal reaches a fixed point ", $settled, "/", $rows,
+     ", and the fixed point has no extension ", $exhausted, "/", $rows,
+     ", one removal left one behind on ", $stillHasOne, "\n";
+
+// The same peel, spelled out, because a count cannot show the order: the three
+// dots of `a.b.c` come off one at a time and the walk stops on the bare name.
+echo "peel ", Core\Path::withExtension("a.b.c", null), " ",
+     Core\Path::withExtension(Core\Path::withExtension("a.b.c", null), null), " ",
+     Core\Path::withExtension(Core\Path::withExtension(Core\Path::withExtension("a.b.c", null), null), null), "\n";
+
+// 5. Where the pair stops, first reason: an extension that holds a dot is
+//    accepted by the setter — `tar.gz` is a usable extension — but `extension`
+//    reads only after the *last* dot, so it answers the tail. A trailing dot in
+//    the extension is accepted too and reads back as an absence. Both are the
+//    setter agreeing to something the reader was never going to give back, and
+//    both are decided in `stem_and_extension`, not in either member.
+echo "dotted ", Core\Path::withExtension("report.txt", "tar.gz"), " reads ",
+     Core\Path::extension(Core\Path::withExtension("report.txt", "tar.gz")) ?? "<null>", "\n";
+echo "trailing ", Core\Path::withExtension("report.txt", "txt."), " reads ",
+     Core\Path::extension(Core\Path::withExtension("report.txt", "txt.")) ?? "<null>", "\n";
+
+// 6. Where the pair stops, second and third reason — and they are the two rows
+//    the module diverges from PHP on, stated here as what the divergence buys.
+//    A dotfile's whole name is its name, and a trailing dot is an absence, so
+//    `extension` answers `null` for both; because the setter cuts at the same
+//    place, putting an extension on and taking it off again returns the exact
+//    name. PHP's `pathinfo` reads `gitignore` out of `.gitignore`, so the same
+//    two steps would leave `.txt` and then strip the file to nothing.
+echo ".gitignore has ", Core\Path::extension(".gitignore") ?? "<null>",
+     ", takes ", Core\Path::withExtension(".gitignore", "txt"),
+     ", reads ", Core\Path::extension(Core\Path::withExtension(".gitignore", "txt")) ?? "<null>",
+     ", gives back ", Core\Path::withExtension(Core\Path::withExtension(".gitignore", "txt"), null), "\n";
+echo "report. has ", Core\Path::extension("report.") ?? "<null>",
+     ", takes ", Core\Path::withExtension("report.", "txt"),
+     ", reads ", Core\Path::extension(Core\Path::withExtension("report.", "txt")) ?? "<null>",
+     ", gives back ", Core\Path::withExtension(Core\Path::withExtension("report.", "txt"), null), "\n";
+--EXPECT--
+set then read is the extension 120/120
+read then set is the path 20/20
+setting twice is setting once 720/720
+removal reaches a fixed point 20/20, and the fixed point has no extension 20/20, one removal left one behind on 3
+peel a.b a a
+dotted report.tar.gz reads gz
+trailing report.txt. reads <null>
+.gitignore has <null>, takes .gitignore.txt, reads txt, gives back .gitignore
+report. has <null>, takes report..txt, reads txt, gives back report.
