@@ -1,0 +1,149 @@
+--TEST--
+Core\Path::split decomposes losslessly and Core\Path::join puts it back — the round trip is normalize($p) on every row, exact on an already-normal one, and no element it yields is ever the empty string — docs/spec/01-core-library.md § 7
+--FILE--
+<?mwl
+// `split` and `join` are written against each other: the decomposition is
+// lossless, so putting the pieces back is the path again. Asked one at a time
+// they both look right — `split("a/b")` is obviously `["a", "b"]` — and the
+// rows where a decomposition actually loses something are the ones nobody
+// writes by hand: a repeated separator, a trailing one, a root, a `.` or a
+// `..` that `split` must keep and not resolve. So the question is asked as an
+// agreement between the two members over a whole table and counted, rather
+// than read off a line.
+//
+// `split` keeps `.` and `..` as elements — resolving them is `normalize`'s
+// job and only `normalize`'s — so the round trip is an identity *through the
+// normal form*: `normalize` of the rebuilt path is `normalize` of the
+// original on every row, and on a path that is already normal the rebuild is
+// exact. Every literal below is written with `/` and no drive letter, and
+// every path printed goes through `Core\Path::SEPARATOR`, because the native
+// Windows leg and the WSL leg do not spell a separator the same way.
+
+// `join` is variadic and a spread argument does not lower, so the array
+// `split` returned is folded one segment at a time. That is the same
+// composition — `join` only ever appends, and its own docs say a segment's
+// leading separator is dropped rather than allowed to replace the base.
+final class Fold {
+    public static function join(array<string> $parts): string {
+        int $n = Core\Arr::count($parts) as int;
+        if ($n == 0) {
+            return "";
+        }
+        string $acc = $parts["0"];
+        int $i = 1;
+        for (; $i < $n; $i = $i + 1) {
+            $acc = Core\Path::join($acc, $parts[$i as string]);
+        }
+        return $acc;
+    }
+}
+
+array<string> $paths = [
+    "a", "a/b/c", "x/y/./z/../w",
+    "/a", "/a/b", "/",
+    "a//b", "/a//b//", "a/", "a/b/",
+    "a/./b", "./a", "a/.", ".",
+    "a/../b", "a/b/..", "..", "../..", "/..",
+    "",
+];
+
+// 1. The round trip. Rebuilding what `split` handed back and normalizing it is
+//    normalizing the path itself, on every row — which is what "lossless"
+//    means when the only thing the decomposition is allowed to drop is how a
+//    separator was spelled.
+int $rows = 0;
+int $trips = 0;
+int $respelled = 0;
+foreach ($paths as string $p) {
+    $rows = $rows + 1;
+    string $rebuilt = Fold::join(Core\Path::split($p));
+    if (Core\Path::normalize($rebuilt) == Core\Path::normalize($p)) {
+        $trips = $trips + 1;
+    }
+    // Not a vacuous sweep: on this many rows the rebuild is shorter than the
+    // input, so the round trip had a repeated or a trailing separator to drop
+    // and dropped it. Length rather than `!=`, because respelling a separator
+    // is a difference on the Windows leg and not on the WSL one, and this
+    // count has to mean the same thing on both.
+    if (Core\Str::length($rebuilt) != Core\Str::length($p)) {
+        $respelled = $respelled + 1;
+    }
+}
+echo "round trip ", $trips, "/", $rows, ", the rebuild dropped separators on ", $respelled, "\n";
+
+// 2. On a path that is already in normal form the two members are inverses
+//    outright — no second `normalize`, byte for byte. That is the only place
+//    they are, and it is the reason section 1 has to say "through the normal
+//    form": `split` keeps a `.` and a `..` as elements, so a path carrying one
+//    rebuilds to itself and not to its normal form.
+int $exact = 0;
+int $keptDots = 0;
+foreach ($paths as string $q) {
+    string $normal = Core\Path::normalize($q);
+    if (Fold::join(Core\Path::split($normal)) == $normal) {
+        $exact = $exact + 1;
+    }
+    // A row whose rebuild is itself but whose normal form is something else is
+    // a row where `split` refused to resolve, which is the division of labour
+    // being asserted rather than a failure.
+    if (Fold::join(Core\Path::split($q)) != $normal) {
+        $keptDots = $keptDots + 1;
+    }
+}
+echo "exact on the normal form ", $exact, "/", $rows, ", rows split left unresolved ", $keptDots, "\n";
+
+// 3. No element is ever the empty string, however many separators were
+//    repeated or trailing. This is the divergence from PHP's
+//    `explode(DIRECTORY_SEPARATOR, …)`, which answers `['', 'a']` for `/a` and
+//    leaves the caller to work out which empties meant something; the table
+//    above carries `//`, a trailing `/`, a bare `/` and the empty path on
+//    purpose.
+int $elements = 0;
+int $empties = 0;
+foreach ($paths as string $r) {
+    foreach (Core\Path::split($r) as string $segment) {
+        $elements = $elements + 1;
+        if (Core\Str::length($segment) == 0) {
+            $empties = $empties + 1;
+        }
+    }
+}
+echo "elements ", $elements, ", of which empty ", $empties, "\n";
+
+// 4. The one element that is not a name is the root, it is the first, and it
+//    is there exactly when the path is absolute — which is what makes the
+//    decomposition lossless rather than merely tidy, since a leading separator
+//    is otherwise the one thing `explode` cannot tell from a repeated one.
+int $rootAgrees = 0;
+foreach ($paths as string $s) {
+    array<string> $parts = Core\Path::split($s);
+    bool $rooted = false;
+    if (Core\Arr::count($parts) as int > 0) {
+        if ($parts["0"] == Core\Path::SEPARATOR) {
+            $rooted = true;
+        }
+    }
+    if ($rooted == Core\Path::isAbsolute($s)) {
+        $rootAgrees = $rootAgrees + 1;
+    }
+}
+echo "root present exactly when absolute: ", $rootAgrees, "/", $rows, "\n";
+
+// 5. The bound, on both sides. The empty path is the one row `split` has
+//    nothing to return for, so it is the one row the fold has no base for; `.`
+//    is the shortest path that does have an element. Both normalize to the
+//    same thing, and that is where the round trip bottoms out.
+echo "empty: ", Core\Arr::count(Core\Path::split("")) as int, " elements, normalizes to ",
+     Core\Str::replace(Core\Path::normalize(""), Core\Path::SEPARATOR, "/"), "\n";
+echo "dot: ", Core\Arr::count(Core\Path::split(".")) as int, " elements, normalizes to ",
+     Core\Str::replace(Core\Path::normalize("."), Core\Path::SEPARATOR, "/"), "\n";
+echo "root alone: ", Core\Arr::count(Core\Path::split("/")) as int, " element, rebuilt as ",
+     Core\Str::replace(Fold::join(Core\Path::split("/")), Core\Path::SEPARATOR, "/"), "\n";
+--EXPECT--
+round trip 20/20, the rebuild dropped separators on 4
+exact on the normal form 20/20, rows split left unresolved 8
+elements 43, of which empty 0
+root present exactly when absolute: 20/20
+empty: 0 elements, normalizes to .
+dot: 1 elements, normalizes to .
+root alone: 1 element, rebuilt as /
