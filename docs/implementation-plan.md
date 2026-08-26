@@ -7,14 +7,15 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-26. **M3 is done and Stage 0's catch-up list is finished.** All seventeen
-> items of [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* are done — 12 landed **twice**,
-> its `$s as ?Uri` parse roster withdrawn by ADR 0066 § 3 in favour of
+> **Status:** 2026-08-26. **M3 is done, and Stage 0 has re-opened with a second catch-up batch.** All
+> seventeen original items of [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* are done — 12
+> landed **twice**, its `$s as ?Uri` parse roster withdrawn by ADR 0066 § 3 in favour of
 > `Core\Uri::tryParse`/`Core\Uuid::tryParse`, so `as` now targets no class at all — and every one of
-> the 37 tests `loop-goal.toml`'s
-> `stage = "0 catch-up"` block names now exists and passes, so
-> `python tools/loop.py --goal-only` runs the stages below Stage 0 rather than short-circuiting at
-> it. Next below is Stage 3's last fixture, `examples/collect.mwl`, itself past its parser
+> the 37 tests `loop-goal.toml`'s `stage = "0 catch-up"` block named for them exists and passes.
+> **Items 18–22 join them from a bench review**, so `python tools/loop.py --goal-only`
+> short-circuits at Stage 0 again and Stage 3 waits behind them; `Open now` says what they are and
+> [docs/perf/userland-gap.md](perf/userland-gap.md) holds every number. Behind them is Stage 3's last
+> fixture, `examples/collect.mwl`, itself past its parser
 > hole: `new
 > Core\ObjectSet<Tag>()` parses, because `ExprKind::New` carries a `type_args` list read by the same
 > checkpointed trial parse a call site's own `<...>` goes through, and both lists now *bind*:
@@ -121,17 +122,20 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 is closed — every one of its seventeen items now passes the test
-> `loop-goal.toml` names for it**, item 15's fourth and last,
-> `an_integer_subscript_allocates_no_key`, having landed with the
-> `mwl_array_get_index`/`mwl_array_set_index` ABI pair it waited on. So `tools/loop.py` no longer
-> short-circuits there and the loop is on **Stage 3**, where the frontier is `examples/collect.mwl`.
-> One half of item 15's *measured* claim is still unbanked and is not a Stage 0 item: `$a[] = $v`
-> and `foreach` reach the packed form from compiled code today, but `$a[$i]` does not, because
-> `mwl_ir::lower::Lowering::lower_array_key` still renders an `int` subscript to a decimal string
-> before `InstKind::ArrayGet`/`ArraySet` reaches codegen — `mwl_runtime::array`'s own module doc
-> states what routing it through the new pair costs and where.
-> [docs/agent/handoff.md](agent/handoff.md) names the group it stops on. **What has already landed is not restated here** — `git log` holds the
+> **Open now:** **Stage 0 holds five items again, and they are what the loop runs next.**
+> `python tools/bench.py` puts MWL's median at 0.31× PHP 8.5.9 with its JIT on, and
+> [docs/perf/userland-gap.md](perf/userland-gap.md) is the ledger behind that number — the suite
+> case by case, what one operation costs, and which item moves it. In order: **18** MWL owns its
+> allocator (measured 0.31× → 0.54× on this tree, and it is
+> [docs/plan/design.md](plan/design.md)'s per-request arena landing early rather than a new
+> decision); **19** an integer subscript reaches the packed form from compiled code, which is item
+> 15's other half and the group [docs/agent/handoff.md](agent/handoff.md) already scopes; **20** a
+> string has capacity so `.=` stops being quadratic, `.` becomes n-ary and a literal stops
+> allocating; **21** no key is synthesized for a callback that does not want one; **22** a
+> `Core\Str` member writes its result once. None is a JIT optimisation and none belongs to
+> [M12](plan/m12.md) — three change an ABI that ADR 0042's artifacts and M9's WIT signatures are
+> about to freeze, and two are the pattern every `Core` member written after them would copy.
+> **What has already landed is not restated here** — `git log` holds the
 > session-by-session history and the crate's own module doc holds its per-file gaps, which is this
 > field's contract in AGENTS.md § *Keep each slice small*. What follows is what is **not** built.
 > **Spec §§ 1-12, by section** — § 1 is **whole**, `normalize` having landed with `Core\NormalForm`
@@ -199,7 +203,8 @@
 > settled and recorded in `mwl_types::expr::is_assignable`), object identity (now settled and
 > recorded in `mwl_runtime::identity`), and picking every dependency but the two the user named.
 > Stages 1 and 2 pass whole on both legs, so any failure below Stage 3 is a regression rather than
-> unfinished work. The loop is on **Stage 3**, `Core` Part I across all twelve spec sections: six of
+> unfinished work. **Behind Stage 0's five reopened items** the loop resumes **Stage 3**, `Core`
+> Part I across all twelve spec sections: six of
 > its seven fixtures produce their frozen output — `examples/core.mwl`, `report.mwl`, `numbers.mwl`,
 > `text.mwl`, `dates.mwl` and `json.mwl` — and `collect.mwl` is the first that does not. That one
 > fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one: § 8's
