@@ -619,6 +619,12 @@ is why" — is this file.
   `catch` in a case its own name (`$capped`, `$zero`, `$beyond`), which is what the older `Core\Json` case
   already does. In the same family: `Core\Str::repeat` takes a `uint`, so a `for` counter declared `int`
   needs `Core\Str::repeat("[", $d as uint)` and not `$d` — the diagnostic is `E0401`, at the argument.
+- **A `.mwlt` case's own helper has to be a `public static function` inside a class.** A case is top-level
+  statements, so the instinct when two steps want the same rendering is a plain `function render(...)` at
+  file scope — which is `E0215: a function must be a method` (ADR 0011 § 1), caught only when the case is
+  run. Wrap it in a `final class` and call it `Render::pairs($m)`; a compiler-owned generic type
+  (`Core\ObjectMap<Tag, int>`) is accepted in that method's parameter list, so the helper can take the
+  collection the case is about.
 
 ## Splitting a file that got too big
 

@@ -2,48 +2,48 @@
 
 ## State
 
-**Stage 4's two counts are the frontier — conformance 455 of 600, differential 90 of 150** — and the
+**Stage 4's two counts are the frontier — conformance 462 of 600, differential 90 of 150** — and the
 gap is behavioural depth per member, not coverage: every registered member already has a case, and both
 of Stage 4's named guards pass. Verify is green (**1596** cargo tests, 74 suites, clippy and fmt clean)
-and `mwl test tests/conformance` is **455 passed, 0 failed** — run it as well as `verify.py`, which
+and `mwl test tests/conformance` is **462 passed, 0 failed** — run it as well as `verify.py`, which
 executes no `.mwlt` case at all (playbook, twice).
 
-**`Core\Random` and `Core\Bytes` are each done to depth at 4 and 6 cases**, joining `hash`, `csv`,
-`validate`, `out`, `heap`, `uuid`, `path` and `json`. Random is pinned by the one shape a draw admits —
-invariance counted over a run: 200 die draws all inside `[1, 6]` with both endpoints reached as the
-sweep's own extremes, a range whose width overflows `int` (`-2^62 … 2^62-1`), `float()` filling both
-halves of `[0, 1)`, 24 buffers all of their stated length and none repeated, 120 `pick`s whose
-`Arr::diff` against the subject is empty and whose distinct count is the whole subject, and `shuffle`
-over a subject carrying duplicates, where sorting the answer has to give the sorted subject back — the
-one assertion a re-draw over the element set cannot pass. Bytes is pinned by each `pack` integer code's
-range being the *union* of its width's signed and unsigned halves, asserted at both accepted extremes
-and at the value one past each end, by `unpack` reading every code but `c` back unsigned, and by
-`slice`'s window clamping at the boundary offsets rather than one past them.
+**§ 9's two collections and `Core\Regex` are now done to depth**, at 10 and 8 cases, joining `hash`,
+`csv`, `validate`, `out`, `heap`, `uuid`, `path`, `json`, `random`, `bytes` and `encoding`. The
+collections are pinned by what identity *is* — ADR 0090 § 3's table read one row per representation, so
+`1`/`1 as uint`/`1.0` are one member while `"1"`, `true` and `null` are three more; an array is one
+member per content *in order*; a string is its bytes however it was built; and an object is only itself,
+so three same-named tags are three keys and a mutated key is still its own — by the map's two lists
+staying positionally paired through a re-`set` (replaces in place), a removal (closes the same gap in
+both) and a re-add (lands at the end), and by a twelve-tag sweep of scattered removals whose survivors
+are proved equal to the directly-built set with `diff` in both directions. Regex is pinned by the
+replacement grammar's accepted and rejected spellings — `$0`/`$1`/`${name}`/`$$` accepted, `\1` left
+literal, an unknown group empty, and `$10` against `${1}0` as the boundary — and by `split`'s `limit` at
+the exact piece count, one past it, and a negative that drops every piece, with `keepEmpty` proved to
+apply *after* the limit.
 
 **Three case shapes are established** and named in the plan's *Open now*: a section's edges, invariance
 over a sweep, and a bound asserted on both sides. Reuse them rather than inventing a fourth.
 
 ## Next group
 
-Three sections that have not had a depth pass, each its own domain module plus its
-`tests/conformance/core/<name>-*.mwlt`. The file set they share is
-`crates/mwl-stdlib/src/{objmap,objset,math,regex}.rs` and `tests/conformance/core/`.
+The three sections that have not had a depth pass, weakest first. Each is its own domain module plus its
+`tests/conformance/core/<name>-*.mwlt`; the file set they share is
+`crates/mwl-stdlib/src/{math,uri,time}.rs` and `tests/conformance/core/`.
 
-- [ ] **§ 9's two collections depth** — `crates/mwl-stdlib/src/objmap.rs:212` `set`, `:256` `get`,
-      `:293` `remove`, `:359` `iterate`, `crates/mwl-stdlib/src/objset.rs:237` `add`, `:262` `has`,
-      `:324` `union`; spec § 9. Five `object-` cases. The edges are identity ones under ADR 0090 § 4:
-      two equal-content objects are two keys, the same object re-`set` replaces rather than appends,
-      `remove` of an absent key, and iteration order being insertion order through a remove.
-- [ ] **`Core\Regex` depth** — `crates/mwl-stdlib/src/regex.rs:1014` `replace`, `:1193` `split`;
-      spec § 6. Six cases over ten members. The boundaries: an empty match and what it does to
-      `split`'s and `replace`'s cursor, a `$1` referring to a group that did not participate, the
-      `limit` option at 0 and at 1, and ADR 0056's two tiers — which patterns reach the backtracking
-      one and what its budget refuses.
-- [ ] **`Core\Math` depth** — `crates/mwl-stdlib/src/math.rs:837` `clamp`, `:861` `round`, `:892`
-      `mod`, `:974` `log`; spec § 3. Eight cases over 38 members, the thinnest per member left. The
-      boundaries: `int` overflow at each arithmetic member, `mod` and division by zero, every
-      `RoundMode` at a tie, `log` at and below zero, and the `int`/`uint`/`float` row that does not
-      lower (playbook — `$n + $f` still fails in codegen, so check a row before writing it).
+- [ ] **`Core\Math` depth** — `crates/mwl-stdlib/src/math.rs:837` `clamp`, `:861` `round`, `:892` `mod`,
+      `:875` `intDiv`; spec § 3. Three `math-` cases. The shape is a bound on both sides: `clamp` at each
+      end and one past it, `round`'s `RoundMode` × a half-way value (the one input every mode answers
+      differently), `intDiv`/`mod` at zero and at `int`'s own extremes, where ADR 0007's overflow rule
+      makes the answer a throw rather than a wrap.
+- [ ] **`Core\Uri` depth** — `crates/mwl-stdlib/src/uri.rs:1769` `parseQuery`, `:1596` `resolve`,
+      `:1657` `compareTo`, `:1543` `with`; spec § 12. Three `uri-` cases. `parseQuery`'s bracket
+      convention is a sweep (`a[]=1&a[]=2`, `a[b]=c`, nesting), asserted with `Core\Json::encode` because
+      a case cannot index an `array<mixed>` (playbook); `resolve` is RFC 3986 § 5.4's own table of
+      normal and abnormal examples; `compareTo` is the content equality `==` refuses (ADR 0090 § 4).
+- [ ] **`Core\Time` depth** — `crates/mwl-stdlib/src/time.rs:473` `Duration::parse` and the eight
+      component readers at `:405`-`:458`; spec § 4. Two `time-` cases. `parse` shares ADR 0070's literal
+      grammar, so the case is that one grammar reached from two entry points, plus each unit's boundary.
 
 ## Backlog
 
