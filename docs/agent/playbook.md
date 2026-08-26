@@ -346,6 +346,23 @@ is why" — is this file.
   naming the throw. So a red `verify.py` in a session that touched no Rust is worth **one** re-run to
   identify — and if that is the test, it is inherited: say so and leave it to the slice that owns it,
   because a second green run does not mean the tree is clean.
+- **A `Ctx` that outlives the `Unit` whose code it ran reads freed class descriptors, and the crash lands
+  nowhere near the cause.** Compiled code bakes each `ClassDesc`'s *address* in as a constant, so an
+  exception object left on the context points into the `Rc<ClassTable>` the `Unit` owns and nothing else
+  keeps alive. Drop the unit first and `ctx.pending()` reads freed memory — intermittently a wrong message,
+  intermittently a *misaligned pointer dereference* inside `mwl_runtime::object::drop_one`, which is the
+  release walking garbage slot counts. This is what made `verify.py` non-deterministic for several
+  sessions (28 of 40 runs of one `mwl-codegen` test, 7% inside `verify.py`), and the reason it looked like
+  a flake is that `mwl run` never hits it — `mwl-cli` installs the table. **`mwl_codegen::Unit::install_in`
+  is now the one spelling and its doc comment is the rule**: call it before running any of a unit's code,
+  whether or not you care about `catch`. A harness that builds a `Ctx`, runs a unit and then reads anything
+  off the context is the shape to watch for.
+
+- **`tools/leak-check.sh` used to report a fixture's own non-zero exit as a leak.** `examples/uncaught.mwl`
+  ends in an uncaught throw and so exits 1 by design, which under valgrind's `--error-exitcode=1` was
+  indistinguishable from a definite leak — the `definitely lost: 0 bytes in 0 blocks` line printed right
+  beside the "failure" was the only tell. It uses 97 now, a status no MWL program produces, so a throwing
+  fixture is a fair leak subject.
 
 ## Adding a `Core` member
 
