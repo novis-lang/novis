@@ -32,31 +32,36 @@ is faster. Every row is one full sweep of the *current* build, not a mix of read
 | | today | before item A | closed by |
 |---|---|---|---|
 | median ratio | **0.69×** | 0.31× | A, B, C, D |
-| 04-string-format | 0.18× | 0.07× | E, I |
 | 14-word-count | 0.20× | 0.13× | F |
-| 07-string-normalize | 0.41× | 0.17× | E |
-| 09-array-assoc-lookup | 0.42× | 0.25× | F |
-| 17-json-encode | 0.42× | 0.21× | E |
-| 13-array-contains | 0.48× | 0.12× | — |
+| 04-string-format | 0.21× | 0.07× | E, I |
+| 09-array-assoc-lookup | 0.43× | 0.25× | F |
+| 17-json-encode | 0.43× | 0.21× | E |
+| 13-array-contains | 0.49× | 0.12× | — |
+| 07-string-normalize | 0.50× | 0.17× | E |
 | 12-array-map-filter | 0.51× | 0.18× | — |
-| 15-regex-match | 0.51× | 0.25× | — |
-| 16-regex-replace | 0.56× | 0.44× | E |
+| 15-regex-match | 0.52× | 0.25× | — |
+| 16-regex-replace | 0.57× | 0.44× | E |
 | 08-array-list-build | 0.66× | 0.59× | — |
 | 20-method-dispatch | 0.71× | 0.76× | **G** |
-| 05-string-replace | 0.72× | 0.32× | E |
-| 06-string-split-join | 0.77× | 0.31× | E |
-| 10-array-sort | 0.96× | 0.68× | J |
-| 18-json-decode | 1.07× | 0.53× | — |
-| 03-string-concat | 1.46× † | 0.03× | — |
-| 01-arith-loop | 1.50× | 1.33× | — |
-| 02-fib-recursive | 2.57× | 2.25× | — |
-| 19-object-property | 3.35× | 1.05× | — |
-| 11-array-sort-by-field | 5.12× | 3.22× | — |
+| 05-string-replace | 0.89× | 0.32× | E |
+| 10-array-sort | 0.94× | 0.68× | J |
+| 06-string-split-join | 0.97× | 0.31× | E |
+| 18-json-decode | 1.10× | 0.53× | — |
+| 03-string-concat | 1.56× † | 0.03× | — |
+| 01-arith-loop | 1.61× | 1.33× | — |
+| 02-fib-recursive | 2.47× | 2.25× | — |
+| 19-object-property | 3.29× | 1.05× | — |
+| 11-array-sort-by-field | 4.61× ‡ | 3.22× | — |
 
 † `03-string-concat` sits at the suite's noise floor: 3 ms of work behind a 7 ms process start, so
 its *ratio* swings between 1.2× and 1.5× from run to run — mostly on PHP's number — while its own
 work figure holds at 3.0 ms. § B is where its history is, and it is the one row to read as a work
 figure rather than as a ratio.
+
+‡ `11-array-sort-by-field` is the other row to read loosely, for the opposite reason: 1.2 s of its
+1.5 s is PHP's, so its ratio moves with PHP's variance rather than with MWL's. Two full sweeps on
+the same build an hour apart read 5.21× and 4.61×; MWL's own work figure moved 234 ms to 263 ms
+across them. Read § D's paragraph for what actually changed there.
 
 Three rows moved on item D alone, and they are the last three the array members were holding down:
 `12-array-map-filter` 0.36× → **0.51×**, `10-array-sort` 0.69× → **0.96×** and
@@ -94,6 +99,11 @@ and the process start are already subtracted.
 
 The control is exact: the two operations that allocate nothing did not move, and every one that
 allocates fell by half or better.
+
+The `Core\Str::length` row predates § E's second bullet and has **not** been re-measured against it:
+that member now makes one pass over the bytes where it made three, so the figure is an upper bound
+rather than a current reading. It is left as measured rather than guessed at, and § E carries the
+suite-level A/B that was actually taken.
 
 ‡ The constant-key row moved once more when § B's last change landed and a literal stopped
 allocating: 26.6 ns to **21.3 ns**, paired against the commit before it, so a literal's own cost in
@@ -269,14 +279,37 @@ member copies whichever one is there:
   `MwlStr` and copies it. 56 call sites across `str`, `bytes`, `path`, `regex` and `uri`. Where the
   result length is known — `replace`, `padStart`/`padEnd`, `join` — the member can write straight
   into one `MwlStr`.
-- **`text()` re-validates UTF-8 on every string argument.** 56 call sites in `str.rs` alone, each
+- ~~**`text()` re-validates UTF-8 on every string argument.** 56 call sites in `str.rs` alone, each
   an O(n) pass over a string [ADR 0009](../adr/0009-string-and-bytes.md) already guarantees valid —
   the function's own error message says so. `Core\Str::length` then adds two more O(n) passes
   (`is_ascii`, then a scan for `\r`) where `strlen` is O(1); the grapheme unit makes O(n)
-  unavoidable, three passes does not.
+  unavoidable, three passes does not.~~ **Landed, both halves.**
 
-*Owner:* `crates/mwl-stdlib/src/str.rs`'s module doc. *Guard:* a `Core\Str` member allocates its
-result once.
+Reading a `string` argument is now a tag check. The unchecked read lives once, behind one `unsafe`
+in `mwl_runtime::MwlStr::text_of`, with `Value::as_text` as the safe caller that discharges it —
+the tag *is* ADR 0009's guarantee, so deriving it again per argument was work whose answer the
+runtime already held. A debug build re-validates inside that one reader, which is what keeps the
+invariant checked rather than remembered. The second half is `crate::granularity`'s fast-path test:
+the `is_ascii` scan and the search for `\r` are one branchless fold over the bytes, so an ASCII
+`Core\Str::length` is one pass and then `len`.
+
+Measured as an A/B on one machine — the same suite, 9 reps, this build against the commit before
+it, rather than against the sweep above: `05-string-replace` **0.72× → 0.91×** (work 103.1 ms →
+81.5 ms), `06-string-split-join` **0.78× → 0.96×**, `07-string-normalize` **0.42× → 0.51×**,
+`04-string-format` work 92.9 ms → 82.0 ms. The base half of that pair reproduced the sweep above to
+within 0.02× on every one of those rows, which is what makes it an A/B rather than two readings.
+The median did not move: those four rows crossed *over*
+the median rather than lifting it, so the statistic sat still while a fifth of the suite's work
+disappeared — which is the reading to keep, since nothing outside the string rows moved beyond the
+run-to-run noise the two footnotes above describe.
+
+*Owner:* `crates/mwl-stdlib/src/str.rs`'s module doc §§ *`string` is valid UTF-8, so this module
+never validates* and — once the bullet above lands — its result-writing rule.
+*Guard:* `the_fused_scan_agrees_with_the_two_pass_spelling` in
+`crates/mwl-stdlib/src/granularity.rs` holds the fold against the spelling it replaced, and
+`a_bytes_value_is_a_string_allocation_under_a_tag_of_its_own` in `crates/mwl-runtime/src/value.rs`
+holds the one thing soundness rests on: the unchecked reader answers nothing for a `bytes`. Still
+owed by the bullet above: a `Core\Str` member allocates its result once.
 
 ### F — a string carries its hash
 

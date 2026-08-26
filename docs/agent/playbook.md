@@ -291,6 +291,20 @@ is why" — is this file.
   `cargo run -p mwl-cli -- test <the cases>` of its own beside `verify.py`, and
   `mwl test tests/` to confirm the suite's pass/fail split has not moved. On Windows the baseline
   is **519 passed / 6 failed**, those six being the PHP-on-Windows oracle set.
+- **A before/after measurement is worth a `git stash`, and the base half is what makes it an
+  A/B rather than two readings** — stash, `cargo build --release -p mwl-cli`, `bench.py <cases>
+  --reps 9`, pop, rebuild. Item 22's base run reproduced the ledger's own sweep to within 0.02×
+  on every row, which is the check that the pair is comparable; without it a 0.72× → 0.91× move
+  is indistinguishable from a quiet machine. Two costs to budget for: the two release rebuilds
+  are about two minutes each, and the harness re-prints **every stashed file it has seen** into
+  the session as an on-disk change, twice — that was about 16k of context for four files. A
+  `git worktree` avoids the re-print and pays a full cold build instead, which is worse.
+
+- **`bench.py` says when the machine was busy, and it means it.** A sweep whose min and median
+  differ by more than 25% on `00-baseline` prints a note, and since the baseline is subtracted
+  from every row, that run's ratios are all shifted — one such sweep read `20-method-dispatch`
+  at 0.67× and the clean re-run put it back at 0.71×. Re-run before quoting, and do not reason
+  about a 5% row move from a sweep carrying that note.
 
 ## Adding a `Core` member
 

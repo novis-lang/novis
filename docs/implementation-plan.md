@@ -120,29 +120,40 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 holds one item, and it is what the loop runs next.** `python
-> tools/bench.py` puts MWL's median at **0.69×** PHP 8.5.9 with its JIT on, and
-> docs/perf/userland-gap.md is the ledger behind that number — the suite case by case, what one
-> operation costs, and which item moves it. Items **18**, **19**, **20** and **21** are **done**:
-> MWL owns its allocator in every optimized build and the test build's byte counters wrap it, an
-> `int` subscript travels to `mwl_array_get_index`/`mwl_array_set_index` unrendered — **6.3 ns
-> against the rendered path's 28.5 ns** — a `string` carries a capacity so `$out .= $piece` appends
-> into its own buffer, `mwl_ir::ir::InstKind::Concat` is **n-ary**, a **string literal no longer
-> allocates at all** — a whole `StrHeader` with a pinned refcount goes into the compiled unit's data
-> section — and, item 21, **no `Core\Arr` callback member synthesizes a key nothing observes**:
-> `map`, `filter`, `reduce` and `sort` each read `mwl_runtime::closure_arity` once before their
-> loop, and `mwl_runtime::SlotKey` carries a preserved key in the shape the subject already holds it
-> rather than as a rendered decimal. The first three took `03-string-concat` from **0.03× to above
-> 1.00×** and `04-string-format` from **100.0 ms of work to 87.2 ms**; the fourth took
-> `12-array-map-filter` from **0.36× to 0.51×**, `10-array-sort` from **0.69× to 0.96×** and
-> `11-array-sort-by-field` from **3.98× to 5.12×**. The median went 0.31× to **0.69×** over the
-> four. §§ B, C and D of the ledger record them, what the third header word spends is stated in
-> `crates/mwl-runtime/src/string.rs`'s own module doc, why a pinned refcount keeps that module's
-> plain `Cell` sound is its § *An immortal string*, and the key rule is
-> `crates/mwl-stdlib/src/arr.rs`'s § *A callback that does not want a key is never handed one*. What
-> item 19 still owes is the append-only `docs/perf/history.ndjson` entry item 15 asked for, which
-> does not exist yet. Left from here: **22**, a `Core\Str` member writes its result once — § E of
-> the ledger. It is not a JIT optimisation and does not belong to M12; it is the pattern every
+> **Open now:** **Stage 0 holds one item, and two thirds of it are landed.** `python tools/bench.py`
+> puts MWL's median at **0.69×** PHP 8.5.9 with its JIT on, and docs/perf/userland-gap.md is the
+> ledger behind that number — the suite case by case, what one operation costs, and which item moves
+> it. Items **18**, **19**, **20** and **21** are **done**: MWL owns its allocator in every
+> optimized build and the test build's byte counters wrap it, an `int` subscript travels to
+> `mwl_array_get_index`/`mwl_array_set_index` unrendered — **6.3 ns against the rendered path's 28.5
+> ns** — a `string` carries a capacity so `$out .= $piece` appends into its own buffer,
+> `mwl_ir::ir::InstKind::Concat` is **n-ary**, a **string literal no longer allocates at all** — a
+> whole `StrHeader` with a pinned refcount goes into the compiled unit's data section — and, item
+> 21, **no `Core\Arr` callback member synthesizes a key nothing observes**: `map`, `filter`,
+> `reduce` and `sort` each read `mwl_runtime::closure_arity` once before their loop, and
+> `mwl_runtime::SlotKey` carries a preserved key in the shape the subject already holds it rather
+> than as a rendered decimal. The first three took `03-string-concat` from **0.03× to above 1.00×**
+> and `04-string-format` from **100.0 ms of work to 87.2 ms**; the fourth took `12-array-map-filter`
+> from **0.36× to 0.51×**, `10-array-sort` from **0.69× to 0.96×** and `11-array-sort-by-field` from
+> **3.98× to 5.12×**. The median went 0.31× to **0.69×** over the four. §§ B, C and D of the ledger
+> record them, what the third header word spends is stated in `crates/mwl-runtime/src/string.rs`'s
+> own module doc, why a pinned refcount keeps that module's plain `Cell` sound is its § *An immortal
+> string*, and the key rule is `crates/mwl-stdlib/src/arr.rs`'s § *A callback that does not want a
+> key is never handed one*. What item 19 still owes is the append-only `docs/perf/history.ndjson`
+> entry item 15 asked for, which does not exist yet. Item **22** — a `Core\Str` member writes its
+> result once, § E of the ledger — is two of its three slices in. Reading a `string` argument is a
+> **tag check**: the unchecked read sits once behind `mwl_runtime::MwlStr::text_of`,
+> `mwl_runtime::Value::as_text` is the safe caller that discharges it, and a debug build
+> re-validates inside that one reader, so the O(n) `from_utf8` that ran at 56 call sites in `str.rs`
+> is gone. `crate::granularity`'s ASCII fast-path test is one branchless fold where it was an
+> `is_ascii` scan plus a separate search for `\r`, so `Core\Str::length` makes one pass and then
+> `len`. Measured as an A/B against the commit before it: `05-string-replace` **0.72× → 0.91×**,
+> `06-string-split-join` **0.78× → 0.96×**, `07-string-normalize` **0.42× → 0.51×**,
+> `04-string-format`'s own work 92.9 ms → 82.0 ms. The median held at **0.69×** because those four
+> rows crossed *over* it rather than lifting it. Left from here is § E's other half: `produced`
+> allocates twice, and where the result length is known — `replace`, `padStart`/`padEnd`, `join` —
+> the member can write straight into one `MwlStr`; the same helper is in `bytes.rs`, `path.rs` and
+> `regex.rs`. It is not a JIT optimisation and does not belong to M12; it is the pattern every
 > `Core` member written after it would copy. **What has already landed is not restated here** — `git
 > log` holds the session-by-session history and the crate's own module doc holds its per-file gaps,
 > which is this field's contract in AGENTS.md § *Keep each slice small*. What follows is what is
