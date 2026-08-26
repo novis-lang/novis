@@ -783,7 +783,7 @@ mwl_runtime::mwl_helper! {
         let unit = crate::granularity::DEFAULT;
         let found = unit.at(subject, index).ok_or_else(|| {
             Fault::thrown(format!(
-                "Core\\Str::at: index {index} is outside a string of {} characters",
+                "Core\\Str::at(): index {index} is outside a string of {} characters",
                 unit.length(subject)
             ))
         })?;

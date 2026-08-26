@@ -1,0 +1,125 @@
+--TEST--
+`Core\Str`'s five refusals each name what they stopped at — the index and the length it is outside of, the size, the needle, and which of `wrap`'s two options — spec § 1, ADR 0009 § 3
+--FILE--
+<?mwl
+// Spec § 1's five throwing sites, none of which had a case asserting its
+// *message*. The neighbouring `Core\Str` cases pin what each member answers;
+// this one pins where each stops accepting and what it says there, because a
+// refusal a caller cannot act on is the same dead end `substr_count`'s
+// `ValueError` and `wordwrap`'s `false` leave behind.
+// `crates/mwl-stdlib/src/str.rs` owns all five.
+//
+// Each `catch` takes its own binding name: a binding is function-scoped, and
+// two clauses reusing one name is `E0406` even at file scope once a loop below
+// has declared it.
+
+// `at` is the one refusal carrying two numbers — the index that was asked for
+// and the length it is outside of — so it is the one asserted as a bound on
+// both sides, at both ends. `a🦀b` is three characters and six bytes, which is
+// what makes the reported length a *cluster* count rather than a byte one: a
+// member counting bytes would say 6 here and still print plausibly against any
+// ASCII subject.
+echo Core\Str::at("a🦀b", 2), "\n";
+try { echo Core\Str::at("a🦀b", 3), "\n"; }
+catch (Throwable $pastEnd) { echo $pastEnd->message, "\n"; }
+
+// A negative index counts from the end (R8's range rule over a range of one),
+// so that end has its own bound and its own last accepted value.
+echo Core\Str::at("a🦀b", -3), "\n";
+try { echo Core\Str::at("a🦀b", -4), "\n"; }
+catch (Throwable $pastStart) { echo $pastStart->message, "\n"; }
+
+// The empty subject is the degenerate case of both bounds at once: no index is
+// inside it, and the message says so with a length rather than refusing to
+// answer at all.
+try { echo Core\Str::at("", 0), "\n"; }
+catch (Throwable $emptySubject) { echo $emptySubject->message, "\n"; }
+
+// `chunk`'s size and `countOf`'s needle are each a guard against a member that
+// would otherwise not terminate or would answer the character count by
+// accident. Both are asserted beside the smallest value they do accept, so a
+// member refusing one too many fails.
+echo Core\Str::join(Core\Str::chunk("abc", 1), "|"), "\n";
+try { echo Core\Str::join(Core\Str::chunk("abc", 0), "|"), "\n"; }
+catch (Throwable $noSize) { echo $noSize->message, "\n"; }
+echo Core\Str::countOf("banana", "a"), "\n";
+try { echo Core\Str::countOf("banana", ""), "\n"; }
+catch (Throwable $noNeedle) { echo $noNeedle->message, "\n"; }
+
+// `wrap` refuses twice and the two messages name *which option* was the
+// problem, which is the whole reason there are two rather than one. An empty
+// `breakWith` would insert nothing at a break, so the wrapping would be
+// silently dropped rather than performed.
+echo Core\Str::wrap("a b c", 1, {breakWith: "/", cutLongWords: false}), "\n";
+try { echo Core\Str::wrap("a b c", 1, {breakWith: "", cutLongWords: false}), "\n"; }
+catch (Throwable $noBreak) { echo $noBreak->message, "\n"; }
+
+// The second is the sharper pair, because the *same* width is an answer or a
+// throw depending only on the other option: a width of 0 breaks at every space
+// when long words may not be cut, and asks for a break both before and after
+// every character when they may — which does not terminate. PHP's `wordwrap`
+// raises `ValueError` for exactly this pair and answers for the other.
+echo Core\Str::wrap("a b c", 0, {breakWith: "/", cutLongWords: false}), "\n";
+try { echo Core\Str::wrap("a b c", 0, {breakWith: "/", cutLongWords: true}), "\n"; }
+catch (Throwable $noWidth) { echo $noWidth->message, "\n"; }
+echo Core\Str::wrap("abcd", 1, {breakWith: "/", cutLongWords: true}), "\n";
+
+// Counted: `at`'s accepted set is exactly the 2n indices from -n to n-1 and
+// nothing else, and every refusal names the index it was actually asked for
+// rather than a constant. Sixteen indices spanning both bounds, over the
+// three-character subject: 6 taken, 10 refused, 10 naming their own index. A
+// member off by one at either end, or reporting offset 0 for everything, still
+// prints plausibly against any single row above.
+int $taken = 0;
+int $refused = 0;
+int $named = 0;
+int $i = 0;
+for ($i = -8; $i < 8; $i = $i + 1) {
+    try {
+        Core\Str::at("a🦀b", $i);
+        $taken = $taken + 1;
+    } catch (Throwable $swept) {
+        $refused = $refused + 1;
+        if (Core\Str::contains($swept->message, "index " . ($i as string) . " is outside")) {
+            $named = $named + 1;
+        }
+    }
+}
+echo $taken, " taken, ", $refused, " refused, ", $named, " named\n";
+
+// Counted, and an agreement rather than a value: the length `at` reports is
+// `Core\Str::length`'s own answer on every subject, so the two members share
+// one idea of how long a string is. Six subjects whose byte and cluster counts
+// diverge in different places — empty, ASCII, one two-byte character, one
+// four-byte one, two combining-free accents, and ten plain bytes. A member that
+// grew its own count would answer each row plausibly and fail here.
+array<string> $subjects = ["", "a", "café", "a🦀b", "naïve", "abcdefghij"];
+int $agreed = 0;
+foreach ($subjects as string $s) {
+    var $len = Core\Str::length($s);
+    try {
+        Core\Str::at($s, $len as int);
+    } catch (Throwable $edge) {
+        if (Core\Str::contains($edge->message, "outside a string of " . ($len as string) . " characters")) {
+            $agreed = $agreed + 1;
+        }
+    }
+}
+echo $agreed, " of 6\n";
+--EXPECT--
+b
+Core\Str::at(): index 3 is outside a string of 3 characters
+a
+Core\Str::at(): index -4 is outside a string of 3 characters
+Core\Str::at(): index 0 is outside a string of 0 characters
+a|b|c
+Core\Str::chunk(): the chunk size must be at least 1
+3
+Core\Str::countOf(): the needle must not be empty
+a/b/c
+Core\Str::wrap(): the `breakWith` option must not be empty
+a/b/c
+Core\Str::wrap(): a width of 0 cannot cut long words, since every character would have to be broken both before and after
+a/b/c/d
+6 taken, 10 refused, 10 named
+6 of 6
