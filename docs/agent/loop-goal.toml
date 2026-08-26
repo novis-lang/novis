@@ -45,7 +45,8 @@ modules = [
   # `mwl-diagnostics`, and `encoding`/`math`/`hash`. Put one back the session a group needs it.
   "crates/mwl-stdlib/src/registry.rs",
   "crates/mwl-stdlib/src/str.rs",
-  "crates/mwl-stdlib/src/arr.rs",
+  "crates/mwl-stdlib/src/encoding.rs",
+  "crates/mwl-stdlib/src/path.rs",
   # Stage 0 is closed, and the reason it added nothing here is worth keeping because it applies to
   # any item list: a session takes ONE item, so the union of six items' file sets prints five unread
   # module maps every session. Measured at +1,715 tokens for items 10-15, and items 18-22 sat in

@@ -781,6 +781,13 @@ is why" — is this file.
   *later* loop reusing the name. In the same family: `foreach (Core\Str::codePoints($s) as uint
   $point)` lowers, where the same shape over an array literal is `E0401`, because a member's
   declared `array<uint>` return carries the element type a literal does not.
+- **`Core\Json::encode` refuses a `bytes` value**, so it is the way round an `array<mixed>` only
+  while every element is a scalar or a string. `Core\Bytes::unpack`'s answer is exactly where that
+  bites: a format holding an `a`, `A` or `Z` field yields a buffer element, and encoding the list
+  throws *"Core\Json::encode(): tag 11 has no JSON encoding"* — which reads as a bug in the case
+  rather than as the missing row it is. Render such a case with `Core\Arr::count` for the shape and
+  a separate `Core\Encoding::toHex` for each buffer, and keep `Json::encode` for the numeric
+  formats, where it prints the whole list in one line.
 
 ## Splitting a file that got too big
 

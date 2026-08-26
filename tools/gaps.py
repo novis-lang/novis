@@ -202,15 +202,25 @@ def error_gaps() -> list[dict]:
         text = read(path)
         owners = [(m.start(), m.group(1)) for m in re.finditer(r"\bfn\s+(mwl_core_[a-z0-9_]+)\s*\(", text)]
         for m in FAULT_RE.finditer(text):
-            quoted = re.search(r'"([^"]{10,400})"', text[m.end():m.end() + 700])
+            # The literal runs to the first *unescaped* quote: a message that quotes its own
+            # operand back writes `\"` inside itself, and a class that stopped at it would read
+            # every one of `encoding.rs`'s decoders as a stem of `Core\Encoding::fromBase64(): \`
+            # -- a stem no case can ever contain, so the site stays on this list however well it
+            # is asserted.
+            esc_bs = re.escape(BS)
+            quoted = re.search(
+                rf'"((?:[^"{esc_bs}]|{esc_bs}[\s\S]){{10,400}})"', text[m.end():m.end() + 700]
+            )
             if not quoted:
                 continue
             # Two rewrites, in this order, to recover the text a case actually echoes. A trailing
             # backslash continues a Rust literal onto the next line and eats the indent that
             # follows, so a message wrapped for rustfmt would otherwise be truncated at the wrap
-            # -- which is most of `bytes.rs`. Then `\\` is one backslash to the program, which is
-            # how every `Core\Bytes` in a message is spelled in the source.
-            message = re.sub(re.escape(BS) + r"\n\s*", "", quoted.group(1)).replace(BS + BS, BS)
+            # -- which is most of `bytes.rs`. Then each remaining escape is the one character it
+            # spells, in one left-to-right pass so `\\"` is a backslash and then a quote rather
+            # than an escaped one -- which is how every `Core\Bytes` in a message is spelled.
+            message = re.sub(esc_bs + r"\n\s*", "", quoted.group(1))
+            message = re.sub(rf'{esc_bs}(["{esc_bs}])', lambda esc: esc.group(1), message)
             stem = re.split(r"[{}]", message)[0].strip()
             if len(stem) < 14 or stem in seen:
                 continue

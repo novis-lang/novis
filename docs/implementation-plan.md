@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 488 of 600 and differential 151 of 150. **Nothing below them
+> Stage 4's two counts**, conformance 490 of 600 and differential 151 of 150. **Nothing below them
 > is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -69,7 +69,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 488 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 490 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 151, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -121,7 +121,11 @@
 > counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is the worklist and no
 > session should re-derive it**: `--differential` names every member whose spec **Replaces** column
 > gives it a PHP twin and which no oracle case calls — 8 left — and `--errors` every `Fault::` site
-> in `mwl-stdlib` whose message no case asserts, 100 of them. Over `Core\Arr` the twin's key rule
+> in `mwl-stdlib` whose message no case asserts, 91 of them — a count that fell by five in one
+> tooling fix as well as by four in cases, because `gaps.py` read a message that quotes its own
+> operand back (`… "{}" is not base64 …`) as a stem ending at the escaped quote, which no case
+> could ever contain, so four decoders and `Core\Uuid::parse` stayed listed however well asserted.
+> Over `Core\Arr` the twin's key rule
 > decides which kind of case it is: PHP renumbers a result's integer keys and keeps its string ones,
 > ADR 0069 § 3 refuses that, so a member matches its twin over a *list* and diverges over a map, and
 > both shapes exist now for the window, the ends, the padding pair and `reverse`. **A member
@@ -320,9 +324,22 @@
 > while a finite value that would round to an infinity throws and the same argument is an ordinary
 > field under the 8-byte code. **`Z` differs from `a` by exactly the octet it reserves**, asserted
 > as an agreement over five widths rather than as a row, and `a0` over the empty argument is the
-> sharpest accepted cell against `Z0`, which has nowhere to put its NUL. `bytes.rs`'s remainder is
-> four `thrown` sites — `unpack`'s two bounds, `Core\Bytes::at` and `Core\Bytes::fill` — plus four
-> `fatal` ones no handler reaches and no case can assert. **Unbuilt in the library**, none of it a
+> sharpest accepted cell against `Z0`, which has nowhere to put its NUL. **`bytes.rs`'s reachable
+> list is empty now, and so is `Core\Encoding`'s decoder half.** `unpack`'s two bounds,
+> `Core\Bytes::at` and `Core\Bytes::fill` each name the last octet they read beside the first they
+> cannot, and each of `fromBase64`, `fromBase64Url`, `fromBase32` and `fromHex` says which of its
+> reasons refused and at what offset — four reasons for base64 and for base32, two for hex, and
+> which one a text gets is decided by the earliest thing wrong with it, so a space at offset 4 of
+> eight base32 symbols is the alphabet's refusal while a space that also makes the text nine long
+> is the group's. What the two cases add past their rows is counted: a code reads its whole width
+> or none of it at every width in the table, an index and its negative name one octet, all 256
+> values a `fill` byte admits are one octet read back, and the offset a base64 refusal names is the
+> offending position at each of eight in turn rather than a constant. Two boundaries are the
+> compiler's rather than the member's — `fill`'s low end is `E0401` on a `uint` parameter, as
+> `pack`'s 64-bit range is `E0429` at the call — and the operand a decoder quotes back is bounded
+> at 32 characters, asserted on both sides of that bound. `bytes.rs` keeps four `fatal` sites no
+> handler reaches and no case can assert; `encoding.rs` keeps the `encodeText`/`decodeText` charset
+> pair, which is the section's one remaining item. **Unbuilt in the library**, none of it a
 > registration gap: `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a
 > scalar-fielded class only — no enum, `decimal`, `Instant`, `array` or nested-class field, and no
 > optional key from a parameter default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier
@@ -359,7 +376,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: the differential gate is met at 151 of 150, conformance stands at 488 of 600, and the
+> decision: the differential gate is met at 151 of 150, conformance stands at 490 of 600, and the
 > remainder is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
