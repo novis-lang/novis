@@ -271,14 +271,6 @@ is why" — is this file.
   running driver, and `drive()` now re-reads the list before every check. A repeat can just as
   easily be a real red check nobody has opened. Either way `python tools/loop.py --goal-only`
   answers it in one call, and it is worth one call the moment the same line lands twice.
-- **`python tools/verify.py` does not run a single `.mwlt` case.** Its 74 suites are cargo's; the
-  conformance tree is executed by `mwl test`, so a case that fails to compile or whose `--EXPECT--`
-  is one byte off leaves verify green and fails the *driver's* acceptance check instead, one
-  session later. `./target/release/mwl.exe test <path>` takes a single case and answers in under a
-  second — run it while writing, and `mwl test tests/conformance` once before the wrap, which is
-  also where the count the plan's fields quote comes from. Use the **release** binary:
-  `target/debug/mwl.exe` is whatever the last `cargo test` left behind and can predate your change
-  by a whole session.
 - **`gaps.py --errors` matches a site by the literal run of its message *before the first
   format hole*, so closing one member can silence siblings that are still unasserted.** A case
   echoing `Core\Time\DateTime::format(): …` contains the stem `Core\Time\DateTime::`, which is
@@ -299,7 +291,8 @@ is why" — is this file.
 
 ## Running things
 
-- **Verification is one call:** `python tools/verify.py` — build, test, clippy and fmt in order, stopping at
+- **Verification is one call:** `python tools/verify.py` — build, fmt, test, the two `.mwlt` trees and
+  clippy in order, stopping at
   the first failure, ~10 lines when green. `-p <crate>` scopes it, `--fast` drops clippy and fmt for a
   mid-work check, and every step's full output lands in `.agent-tmp/verify-<step>.log` either way.
 - **The whole acceptance test in one command:** `python tools/loop.py --goal-only` (both legs plus the
@@ -333,13 +326,17 @@ is why" — is this file.
   and answers `false` for these shapes. So a consumer must not retain such a read a second time —
   every retain decision in `mwl-ir` already goes through `aliasing_read`, and a new one that reaches
   for the syntactic `is_aliasing_read` instead is how the double-retain gets back in.
-- **`verify.py` never executes a `.mwlt` case**, so editing one is invisible to it. `cargo test`'s
-  `conformance_coverage.rs` asserts only that a case *exists* naming each registry member — nothing
-  in the cargo suite runs the case body, so a rewritten case can leave all four verify steps green
-  and fail at `loop.py` one stage later. Any session that touches a `.mwlt` owes a
-  `cargo run -p mwl-cli -- test <the cases>` of its own beside `verify.py`, and
-  `mwl test tests/` to confirm the suite's pass/fail split has not moved. On Windows the baseline
-  is **519 passed / 6 failed**, those six being the PHP-on-Windows oracle set.
+- **`verify.py` executes the `.mwlt` trees, so nothing else needs running before the wrap.** Its
+  `conformance` and `differential` steps are `target/debug/mwl test tests/<tree>` — the very
+  command `tools/loop.py`'s acceptance check judges a session by — and their two lines are the
+  counts the plan's fields quote. Fourteen seconds for both. So after a green `verify.py` there is
+  no `mwl test tests/conformance` to run, no `mwl test tests/`, and above all **no
+  `cargo build --release -p mwl-cli`**: that is 125s for a less faithful answer, and one measured
+  run spent 8% of its entire wall clock on it across nine sessions. This bullet used to say the
+  opposite — `cargo test`'s `conformance_coverage.rs` asserts only that a case *exists* naming each
+  registry member, so a rewritten case body could leave every verify step green and fail at
+  `loop.py` a stage later. That hole is what the two steps close. While *writing* a case, one at a
+  time is still fastest: `./target/debug/mwl.exe test <path>`, under a second.
 - **A before/after measurement is worth a `git stash`, and the base half is what makes it an
   A/B rather than two readings** — stash, `cargo build --release -p mwl-cli`, `bench.py <cases>
   --reps 9`, pop, rebuild. Item 22's base run reproduced the ledger's own sweep to within 0.02×
@@ -392,14 +389,18 @@ is why" — is this file.
   indistinguishable from a definite leak — the `definitely lost: 0 bytes in 0 blocks` line printed right
   beside the "failure" was the only tell. It uses 97 now, a status no MWL program produces, so a throwing
   fixture is a fair leak subject.
-- **`target/release/mwl.exe` is whatever the *last* session built, and a `.mwlt` case it fails may
-  simply predate it.** A session that adds nothing but cases still owes a
-  `cargo build --release -p mwl-cli` — about two minutes — before it believes a red run: this one's
-  binary was two hours and four commits old, so `mwl test tests/conformance` reported
-  `str-replace-and-pad-are-the-identity-at-their-own-bound.mwlt` failing on a `Core\Str::padStart` line
-  nothing in the session had touched. `git status --short` showing that file unmodified says the failure
-  was not *caused* here, which is the neighbouring bullet's rule; only the rebuild says it is not real.
-  The same tree, rebuilt, is 478 passed / 0 failed.
+- **`target/release/mwl.exe` is whatever the *last* session built, and rebuilding it costs two
+  minutes for a verdict the debug binary already gives.** A `.mwlt` case a stale binary fails may
+  simply predate it — one session's was two hours and four commits old and reported
+  `str-replace-and-pad-are-the-identity-at-their-own-bound.mwlt` failing on a `Core\Str::padStart`
+  line nothing in the session had touched. The fix is **not** the release rebuild it used to be:
+  `cargo build --release -p mwl-cli` is 125s here (thin LTO at `codegen-units = 1` relinks the world
+  for a one-line edit), nine sessions of one run paid it, and that was 8% of the whole run's clock.
+  Build `cargo build -p mwl-cli` and run `target/debug/mwl.exe` instead — 2s once `verify.py` has
+  built, and it is the *same* binary `tools/loop.py`'s acceptance check judges you by, so it is the
+  more faithful answer as well as the cheap one. `git status --short` showing the case unmodified
+  says the failure was not *caused* here, which is the neighbouring bullet's rule; only a current
+  binary says it is not real.
 - **A scratch `.mwl` still needs its `<?mwl` tag, and without one the panic names a construct you did
   not write.** A file under `.agent-tmp/` that opens straight into `echo` lowers as a single
   `InlineHtml(0:0..139)` statement and dies in `mwl-ir`'s control-flow slice listing every statement it

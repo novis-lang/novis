@@ -76,7 +76,7 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
    questions, one call, and `--locate <symbol> ...` for `file:line` anchors alone.
 3. **Read a big file in the region you need.** Whole file under ~400 lines; past that, `grep -n` for the
    anchor and read around it. Context, not the clock, is what caps a session.
-4. **Verify with one call, once, at the end:** `python tools/verify.py` — build, test, clippy and fmt in
+4. **Verify with one call, once, at the end:** `python tools/verify.py` — build, fmt, test, the `.mwlt` trees and clippy in
    order, stopping at the first failure.
 5. **Finish with one call:** `python tools/session.py --wrap <file>` applies steps 4 and 5 below — plan
    fields, playbook bullet, handoff, one commit per slice, status — or refuses and changes nothing.

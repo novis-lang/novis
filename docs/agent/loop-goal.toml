@@ -118,7 +118,7 @@ playbook = [
   'Writing a test case > a named',
   'Writing a test case > "…" as',
   'Running things > target/release/mwl.exe is',
-  'Running things > verify.py never',
+  'Running things > verify.py executes',
   'Tooling > a loop-goal.toml',
 
   # The conformance-case traps, 12 bullets, 7,489 B. These arrived as a `python tools/playbook.py

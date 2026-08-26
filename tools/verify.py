@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """AGENTS.md § *Session workflow* step 3, as one command.
 
-`cargo build`, `cargo fmt --check`, `cargo test`, `cargo clippy --all-targets -- -D warnings`
-and -- once `editors/vscode` exists -- that extension's headless suites, in that order, stopping at
-the first failure. Green prints one line per step; a failure prints that step's output and nothing
-else.
+`cargo build`, `cargo fmt --check`, `cargo test`, the `.mwlt` trees through the binary the build
+just produced, `cargo clippy --all-targets -- -D warnings` and -- once `editors/vscode` exists --
+that extension's headless suites, in that order, stopping at the first failure. Green prints one
+line per step; a failure prints that step's output and nothing else.
+
+The `conformance` and `differential` steps run `target/debug/mwl test tests/<tree>`, which is
+exactly what `tools/loop.py`'s acceptance check runs, and they print the two counts the plan's
+status fields quote. They cost about fourteen seconds together. **Do not rebuild
+`target/release/mwl.exe` to run a case** -- see `CASE_TREES` below for the measurement, and the
+playbook under *Running things*.
 
 The point is turn count, not typing. Run separately, those are as many tool calls whose
 combined output runs to tens of thousands of tokens a session never reads once it is green --
@@ -84,6 +90,25 @@ EXTENSION = ROOT / "editors" / "vscode"
 
 # `cargo test` prints one of these per test binary.
 RESULT_RE = re.compile(r"test result: \w+\. (\d+) passed; (\d+) failed")
+# `mwl test <dir>` prints exactly one of these, at the end.
+CASES_RE = re.compile(r"(\d+) passed, (\d+) failed, (\d+) skipped")
+
+#: The `.mwlt` trees, and the binary that executes them.
+#:
+#: This is the DEBUG binary on purpose, and it is the one decision in this file worth stating.
+#: `tools/loop.py`'s acceptance check -- the thing that actually judges a session -- builds
+#: `cargo build -p mwl-cli` and runs these same trees through `target/debug/mwl`. So the debug
+#: binary is not a cheaper approximation of the verdict; it *is* the verdict, and the release
+#: binary is the approximation.
+#:
+#: The cost difference is the whole reason this step can exist at all. Measured over one
+#: 21-session run: `cargo build --release -p mwl-cli` took 125s (thin LTO at
+#: `codegen-units = 1` relinks the world for a one-line stdlib edit) and nine sessions paid it,
+#: 21 minutes in all -- 8% of the run's entire wall clock. The same tree's debug build, after
+#: the `build` step above has already run, took **2s** in all 21 acceptance checks, and these
+#: two trees took 8s and 6s. A session was paying two minutes for a verdict it could have had
+#: in fourteen seconds, and a less faithful one.
+CASE_TREES = ("conformance", "differential")
 # clippy/rustc summary lines worth surfacing above the raw tail.
 WARN_RE = re.compile(r"^(warning|error)(\[[^\]]+\])?: (.*)$", re.MULTILINE)
 
@@ -156,6 +181,15 @@ def summarize_fmt(out):
     return "clean"
 
 
+def summarize_cases(out):
+    m = CASES_RE.search(out)
+    if not m:
+        return "ran, but printed no `N passed` line -- check the log"
+    passed, failed, skipped = (int(g) for g in m.groups())
+    note = f"{passed} passed, {failed} failed"
+    return note + (f", {skipped} skipped" if skipped else "")
+
+
 def summarize_extension(out):
     m = re.search(r"(\d+)\s+passing", out)
     return f"{m.group(1)} passing" if m else "ran, but printed no `N passing` line -- check the log"
@@ -170,6 +204,20 @@ def steps_for(opts):
         steps.append(Step("fmt", ["fmt", "--check"], summarize_fmt))
     steps.append(Step("test", ["test", *scope], summarize_test))
     if not opts.fast:
+        # The `.mwlt` trees, through the binary `build` above just produced. Until this step
+        # existed, `verify.py` ran no case at all: a case that failed to compile, or whose
+        # `--EXPECT--` was one byte off, left verify green and failed the *driver's* acceptance
+        # check one session later, which is the most expensive place for it to fail. It runs
+        # after `test` so a Rust fault is reported by the Rust step, not discovered here.
+        #
+        # Scoped runs skip it: `cargo build -p mwl-ir` does not produce the CLI, and a stale
+        # binary would answer a question about a tree it predates.
+        if not opts.package:
+            exe = ROOT / "target" / "debug" / ("mwl.exe" if os.name == "nt" else "mwl")
+            for tree in CASE_TREES:
+                if (ROOT / "tests" / tree).is_dir():
+                    steps.append(Step(tree, ["test", f"tests/{tree}"], summarize_cases,
+                                      exe=str(exe)))
         steps.append(
             Step("clippy", ["clippy", "--all-targets", *scope, "--", "-D", "warnings"],
                  summarize_clippy)
@@ -348,7 +396,7 @@ def main():
         print(f"verify: green, tree unchanged since {ago(time.time() - hit['when'])}"
               f" -- nothing to re-run{scope}")
         for name, summary in hit["steps"].items():
-            print(f"  {name:<8} {'--':>6}   {summary}")
+            print(f"  {name:<13} {'--':>6}   {summary}")
         print(f"\nthat verdict cost {clock(hit['seconds'])} and covers this tree exactly; "
               f"`--no-cache` runs it again anyway.")
         return 0
@@ -367,15 +415,15 @@ def main():
         store_verdict(key, opts, steps)
         print(f"verify: {len(done)} of {len(steps)} green in {clock(total)}{scope}")
         for s in done:
-            print(f"  {s.name:<8} {clock(s.seconds):>6}   {s.summarize(s.out)}")
+            print(f"  {s.name:<13} {clock(s.seconds):>6}   {s.summarize(s.out)}")
         return 0
 
     drop_verdict()
     print(f"verify: FAILED at {failed.name} "
           f"(step {len(done) + 1} of {len(steps)}) after {clock(total)}{scope}")
     for s in done:
-        print(f"  {s.name:<8} {clock(s.seconds):>6}   {s.summarize(s.out)}")
-    print(f"  {failed.name:<8} {'---':>6}   exit {failed.code}")
+        print(f"  {s.name:<13} {clock(s.seconds):>6}   {s.summarize(s.out)}")
+    print(f"  {failed.name:<13} {'---':>6}   exit {failed.code}")
 
     body, hidden = tail(failed.out, 0 if opts.full else TAIL_LINES)
     print(f"\n-- `{failed.cmd}`" + (f", last {TAIL_LINES} lines" if hidden else ""))

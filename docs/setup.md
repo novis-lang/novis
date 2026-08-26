@@ -74,7 +74,7 @@ machine's job.
 ## Proving the machine is set up
 
 ```sh
-python tools/verify.py                                   # build, test, clippy, fmt, the extension
+python tools/verify.py                                   # build, fmt, test, the .mwlt trees, clippy, the extension
 cargo run -q -p mwl-cli -- test tests/differential/       # must report 0 skipped
 python tools/loop.py --leg-only                          # the whole Linux leg; drives WSL on Windows
 ```
