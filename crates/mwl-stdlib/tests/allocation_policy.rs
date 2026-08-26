@@ -1,17 +1,27 @@
 //! Every argument goes through one check, and only one — and a member that
 //! knows how long its result is allocates it once.
 //!
-//! Three guards, one rule each: a size becomes a refusal in exactly one place,
+//! Five guards, one rule each: a size becomes a refusal in exactly one place,
 //! a `string` argument's UTF-8 is established by its tag and never re-derived,
-//! and a result is written into the allocation it is answered from.
+//! a result is written into the allocation it is answered from, a callback
+//! that declares no key parameter is handed no key, and a sort that renumbers
+//! reads none.
 //!
-//! The guard this pins was four hand-written copies of the same three lines,
-//! and the members with the largest appetite had none at all — which is the
-//! failure mode the test exists for. A copy is easy to add and impossible to
-//! notice, so the invariant is checked at the source rather than left to
+//! The first guard pins what was four hand-written copies of the same three
+//! lines, with the members of largest appetite carrying none at all — which is
+//! the failure mode the test exists for. A copy is easy to add and impossible
+//! to notice, so the invariant is checked at the source rather than left to
 //! review: `mwl_runtime::affordable` is the only place a size becomes a
 //! refusal, and it is where `[limits.hard]` attaches when the M6 arena carries
 //! it (ADR 0004).
+//!
+//! The last two are `docs/perf/userland-gap.md` § D, and they are measured
+//! here rather than from compiled code because the member is where the
+//! decision is made: `mwl_runtime::closure_arity` is read once before the walk
+//! and decides whether a key is *built*, so a native callback with an arity
+//! slot is the whole of what the measurement needs. [`closure_of`] is that
+//! callback, and it is the only thing in this file a compiler would otherwise
+//! have to produce.
 
 use std::fs;
 use std::path::Path;
@@ -265,4 +275,268 @@ fn a_str_member_allocates_its_result_once() {
             }
         }
     }
+}
+
+/// Hands back the one reference this test owns in `value`.
+#[cfg(debug_assertions)]
+fn release(value: mwl_runtime::Value) {
+    #[expect(
+        unsafe_code,
+        reason = "every value passed here was built by this test or came back \
+                  from `call`, which transfers the reference the helper produced"
+    )]
+    unsafe {
+        mwl_runtime::mwl_value_release(u64::from(value.tag_byte()), value.bits());
+    }
+}
+
+/// A packed list of `count` integers — the shape whose key is a *position*
+/// rather than a stored string, and therefore the only one where synthesizing
+/// a key costs an allocation at all.
+#[cfg(debug_assertions)]
+fn list_of(count: usize) -> mwl_runtime::Value {
+    let mut list = mwl_runtime::MwlArray::new();
+    for index in 0..count {
+        list.append(mwl_runtime::Value::int(
+            i64::try_from(index).expect("a test-sized index"),
+        ));
+    }
+    mwl_runtime::Value::array(list)
+}
+
+/// A closure value whose `invoke` is a plain Rust function.
+///
+/// `mwl_runtime::call_closure` reads exactly two things off a closure — slot
+/// `CLOSURE_ARITY_SLOT`, and the `CLOSURE_INVOKE` method's address in its
+/// class — so a test in this crate can hand a `Core` member a `callable`
+/// without a compiler in front of it. Everything else in
+/// `mwl_ir::lower::lower_closure`'s representation is captured state, and a
+/// native callback captures nothing.
+///
+/// The table is leaked because a descriptor's *address* is its identity and it
+/// must outlive every instance made from it, which is the rule
+/// `mwl_stdlib::instance`'s own docs state; the test process exiting is what
+/// reclaims it.
+#[cfg(debug_assertions)]
+fn closure_of(arity: usize, invoke: mwl_runtime::MwlFn) -> mwl_runtime::Value {
+    let mut table = mwl_runtime::ClassTable::new();
+    let id = table.define("{closure}", &["arity"], &[]);
+    table.set_methods(
+        id,
+        vec![(mwl_runtime::CLOSURE_INVOKE.to_owned(), invoke as *const u8)],
+    );
+    let table: &'static mwl_runtime::ClassTable = Box::leak(Box::new(table));
+    #[expect(
+        unsafe_code,
+        reason = "the table above is leaked, so the descriptor outlives every \
+                  instance made from it — `MwlObj::new`'s whole obligation"
+    )]
+    let object = unsafe { mwl_runtime::MwlObj::new(table.desc(id)) };
+    object.set_field(
+        mwl_runtime::CLOSURE_ARITY_SLOT,
+        mwl_runtime::Value::int(i64::try_from(arity).expect("a small arity")),
+    );
+    mwl_runtime::Value::object(object)
+}
+
+/// What every callback below does: sweep the `slots` references a compiled
+/// callee would release on exit — the receiver and each parameter, which
+/// `call_closure` retained on the way in — and answer `true`.
+///
+/// `true` rather than anything derived from the arguments so that the callback
+/// itself allocates nothing: what is being counted is what the *member* spends
+/// per entry.
+#[cfg(debug_assertions)]
+#[expect(
+    unsafe_code,
+    reason = "`call_closure` passes exactly `slots` live values, each retained \
+              for this callee to release, and `abi::call` passes the address \
+              of a live `Value` for the result — neither is expressible in the \
+              signature compiled code calls through"
+)]
+unsafe fn swept(
+    args: *const mwl_runtime::Value,
+    slots: usize,
+    out: *mut mwl_runtime::Value,
+) -> i32 {
+    for index in 0..slots {
+        release(unsafe { *args.add(index) });
+    }
+    unsafe {
+        *out = mwl_runtime::Value::bool(true);
+    }
+    mwl_runtime::OK
+}
+
+/// `fn ($value)` — or `fn ($carry, $value)` read from `reduce`'s side: one
+/// parameter, so the receiver plus one.
+#[cfg(debug_assertions)]
+#[expect(unsafe_code, reason = "forwarding this callee's own contract")]
+unsafe extern "C" fn declares_one(
+    _ctx: *mut mwl_runtime::Ctx,
+    args: *const mwl_runtime::Value,
+    out: *mut mwl_runtime::Value,
+) -> i32 {
+    unsafe { swept(args, 2, out) }
+}
+
+/// `fn ($value, $key)`, and `reduce`'s `fn ($carry, $value)`.
+#[cfg(debug_assertions)]
+#[expect(unsafe_code, reason = "forwarding this callee's own contract")]
+unsafe extern "C" fn declares_two(
+    _ctx: *mut mwl_runtime::Ctx,
+    args: *const mwl_runtime::Value,
+    out: *mut mwl_runtime::Value,
+) -> i32 {
+    unsafe { swept(args, 3, out) }
+}
+
+/// `reduce`'s `fn ($carry, $value, $key)`.
+#[cfg(debug_assertions)]
+#[expect(unsafe_code, reason = "forwarding this callee's own contract")]
+unsafe extern "C" fn declares_three(
+    _ctx: *mut mwl_runtime::Ctx,
+    args: *const mwl_runtime::Value,
+    out: *mut mwl_runtime::Value,
+) -> i32 {
+    unsafe { swept(args, 4, out) }
+}
+
+/// A callback declaring `arity` parameters and doing nothing with them.
+///
+/// # Panics
+///
+/// If `arity` is not one this file has a callback for.
+#[cfg(debug_assertions)]
+fn callback(arity: usize) -> mwl_runtime::Value {
+    let invoke: mwl_runtime::MwlFn = match arity {
+        1 => declares_one,
+        2 => declares_two,
+        3 => declares_three,
+        other => panic!("no native callback declares {other} parameters"),
+    };
+    closure_of(arity, invoke)
+}
+
+/// `docs/perf/userland-gap.md` § D, measured: the key a callback never
+/// declared is never built.
+///
+/// `map`, `filter` and `reduce` each read `mwl_runtime::closure_arity` once
+/// before their walk and pass `$key` only to a callback with somewhere to put
+/// it. On a packed list that key is a *rendered decimal* — one `MwlStr` per
+/// entry — so the difference between the two arities is exactly one allocation
+/// per element, and it is the whole of what this pins.
+///
+/// **The key-free run is not zero**, and the assertion is a difference for
+/// that reason: `call_closure` builds the argument slice it retains, which is
+/// one allocation per call whatever the callback declares. That cost is
+/// identical in both runs, so subtracting them isolates the key.
+#[cfg(debug_assertions)]
+#[test]
+fn a_one_parameter_callback_synthesizes_no_key() {
+    use mwl_runtime::{MwlFn, Value};
+    use mwl_stdlib::arr::{mwl_core_arr_filter, mwl_core_arr_map, mwl_core_arr_reduce};
+
+    const ENTRIES: usize = 64;
+
+    // Member, the arity that wants no key, the arity that does, and whatever
+    // trailing arguments the member's row declares after the callback.
+    let cases: Vec<(&str, MwlFn, usize, usize, Vec<Value>)> = vec![
+        ("map", mwl_core_arr_map, 1, 2, Vec::new()),
+        ("filter", mwl_core_arr_filter, 1, 2, Vec::new()),
+        ("reduce", mwl_core_arr_reduce, 2, 3, vec![Value::int(0)]),
+    ];
+
+    for (name, member, quiet, keyed, tail) in cases {
+        let mut spent = Vec::new();
+        for arity in [quiet, keyed] {
+            let mut args = vec![list_of(ENTRIES), callback(arity)];
+            args.extend_from_slice(&tail);
+            let (count, answer) = allocations_of(member, &args);
+            spent.push(count);
+            release(answer);
+            for value in args {
+                release(value);
+            }
+        }
+        let (quiet_spent, keyed_spent) = (spent[0], spent[1]);
+        assert!(
+            quiet_spent <= ENTRIES + ENTRIES / 4,
+            "`Core\\Arr::{name}` spent {quiet_spent} allocations over {ENTRIES} entries for a \
+             {quiet}-parameter callback, and the floor is one an entry — `call_closure`'s own \
+             argument slice. Anything much above that is a key being built and dropped again."
+        );
+        assert!(
+            keyed_spent >= quiet_spent + ENTRIES,
+            "`Core\\Arr::{name}` spent {quiet_spent} allocations for a {quiet}-parameter \
+             callback and {keyed_spent} for a {keyed}-parameter one over {ENTRIES} entries: \
+             the gap is the rendered key, so if it has closed the walk is either building one \
+             for a callback that never asked or handing the other a key it did not render."
+        );
+    }
+}
+
+/// The second half of § D: `Core\Arr::sort($list)` renumbers, so it reads no
+/// key — and neither does one whose `by` declares a single parameter.
+///
+/// **Preserving a key is not what costs anything, and measuring said so.**
+/// `preserveKeys: true` over a packed list was five allocations dearer than
+/// `false` over sixty-four entries, not sixty-four: `MwlArray::slot_key`
+/// answers a `SlotKey::Index` while the array is packed and renders nothing,
+/// so what those five bought was the `Vec` holding them. The one place a sort
+/// *renders* a key is `keys[index].to_str()`, reached only when a `by` closure
+/// declared somewhere to put it — which is why the gap this test asserts is
+/// between two arities of `by` rather than between the two `preserveKeys`.
+///
+/// The no-`by` run is asserted absolutely, which the callback cases above
+/// could not be: it makes no closure call at all, so there is no per-entry
+/// allocation left for anything but a key. What it may spend is the handful of
+/// `Vec`s the permutation and the merge scratch need, and those grow with the
+/// logarithm of the entry count rather than with the count.
+#[cfg(debug_assertions)]
+#[test]
+fn a_sort_that_renumbers_builds_no_keys() {
+    use mwl_runtime::Value;
+    use mwl_stdlib::arr::mwl_core_arr_sort;
+
+    const ENTRIES: usize = 64;
+
+    // `by`, and nothing else varying: `order` ascending, no `comparator`, and
+    // `preserveKeys` false throughout — the renumbering sort § D names.
+    let mut spent = Vec::new();
+    for by in [Value::null(), callback(1), callback(2)] {
+        let args = vec![
+            list_of(ENTRIES),
+            by,
+            Value::int(0),
+            Value::null(),
+            Value::bool(false),
+        ];
+        let (count, answer) = allocations_of(mwl_core_arr_sort, &args);
+        spent.push(count);
+        release(answer);
+        for value in args {
+            release(value);
+        }
+    }
+    let (bare, quiet, keyed) = (spent[0], spent[1], spent[2]);
+
+    assert!(
+        bare < ENTRIES,
+        "`Core\\Arr::sort($list)` made {bare} allocations over {ENTRIES} entries, which is at \
+         least one an entry: a renumbering sort with no `by` reads no key and calls nothing, \
+         so nothing in it should scale with the entry count"
+    );
+    assert!(
+        quiet <= bare + ENTRIES + ENTRIES / 4,
+        "a one-parameter `by` cost {quiet} allocations against the bare sort's {bare} over \
+         {ENTRIES} entries, and it owes only `call_closure`'s argument slice per entry: \
+         anything more is a key built for a callback that never declared one"
+    );
+    assert!(
+        keyed >= quiet + ENTRIES,
+        "a two-parameter `by` cost {keyed} allocations against the one-parameter `by`'s \
+         {quiet} over {ENTRIES} entries: the gap is the key `keys[index].to_str()` renders, \
+         so if it has closed the arity is no longer deciding anything"
+    );
 }
