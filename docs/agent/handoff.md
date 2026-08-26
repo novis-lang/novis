@@ -22,6 +22,13 @@ the case is fixed, and `docs/spec/01-core-library.md` is the home.
 `orient.py`'s pack was complete for this work; nothing was fetched outside it beyond `path.rs` and two
 sibling `Core\Path` cases.
 
+**A by-hand pass over `docs/adr/` is in flight and is not loop work.** The tree was clean at this
+session's first commit and carried 103 modified ADRs plus `ground-rules.md` by its last — a `Scope:`
+field added, `Supersedes:` renamed to `Amends:`, heading levels moved. That is
+[doc-cleanup.md](doc-cleanup.md)'s pass, which AGENTS.md says the user fires and the loop never does.
+**Do not stage it and do not `git commit -a`**: stage your own paths, exactly as `session.py --wrap`
+already does. If it is still uncommitted several sessions from now, say so rather than absorbing it.
+
 ## Next group
 
 Three slices, and the file set changes once inside it: **item 1 stands alone on
