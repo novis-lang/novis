@@ -113,40 +113,40 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Stage 4's two counts are the frontier: conformance is 486 of the 600 the gate
-> requires and differential is 97 of 150.** Both named guards
+> requires and differential is 106 of 150.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
-> [conventions.md](agent/conventions.md) rather than for a section, and lands its claim as its own
-> file, because the gate counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is
-> the worklist and no session should re-derive it**: `--differential` names every member whose
-> spec **Replaces** column gives it a PHP twin and which no oracle case calls, `--errors` every
-> `Fault::` site in `mwl-stdlib` whose message no case asserts. **Differential is the half that
-> comes first** — the smaller of the two gaps, and an `--ORACLE--` case has no frozen output to
-> derive at all, because PHP computes it. **Unbuilt in the library**, none of it a registration
-> gap: `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a scalar-fielded class only
-> — no enum, `decimal`, `Instant`, `array` or nested-class field, and no optional key from a
-> parameter default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing from
-> every `mwl-stdlib` member row, which is why `Core\Str::format`'s template is not yet the sink that
-> ADR makes it, why neither the fail-closed default for an unclassified `string`/`bytes` parameter
-> nor the test refusing an unclassified member exists, and why `Core\Hash::hmac`'s `secret bytes
-> $key` is a plain `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's
-> substitution table, which is what would make the terminal sink neutralize a control byte and
-> `Cli\Text::plain` a constructor that cannot produce an injected escape (M8,
-> `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, but not catch-up** — ADRs 0091 (the
-> `development`/`production` run mode), 0092 (one diagnostic record rendered three ways by the sink
-> in force), 0093 (`mwl service`) and 0097 (the server's scope and its `[server]` block). None
-> invalidates built behaviour or a written fixture; their work is M4, M6, M7, M8 and M10. **Open
-> beside the library** — a property's declared default runs and is type-checked (`E0472`), limited
-> to a literal or `[]`; `do`/`while` is the one M4 control-flow statement that does not lower; a
-> closure cannot be called through the variable holding it and `Class::method(...)` panics `mwl-ir`
-> outright, so a case sweeps a table with `foreach` and reaches a helper through a `public static
-> function` declared in the same file (`mwl-ir` gap 1); `bool as int` does not lower and `bool as
-> string` renders `false` as nothing at all; an abandoned generator never runs the `finally` it is
-> suspended inside (`mwl-ir` gap 18, a deliberate PHP divergence); ADR 0043's `by`-delegation is off
-> path; and `docs/spec/02-php-migration.md` is 31% classified, reported by `python
-> tools/check-migration.py`. **What has landed is not restated here** — `git log` holds the
-> session-by-session history and each crate's own module doc holds its per-file gaps.
+> conventions.md rather than for a section, and lands its claim as its own file, because the gate
+> counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is the worklist and no
+> session should re-derive it**: `--differential` names every member whose spec **Replaces** column
+> gives it a PHP twin and which no oracle case calls, `--errors` every `Fault::` site in
+> `mwl-stdlib` whose message no case asserts. **Differential is the half that comes first** — the
+> smaller of the two gaps, and an `--ORACLE--` case has no frozen output to derive at all, because
+> PHP computes it. **Unbuilt in the library**, none of it a registration gap:
+> `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a scalar-fielded class only — no
+> enum, `decimal`, `Instant`, `array` or nested-class field, and no optional key from a parameter
+> default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing from every
+> `mwl-stdlib` member row, which is why `Core\Str::format`'s template is not yet the sink that ADR
+> makes it, why neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
+> the test refusing an unclassified member exists, and why `Core\Hash::hmac`'s `secret bytes $key`
+> is a plain `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's substitution
+> table, which is what would make the terminal sink neutralize a control byte and `Cli\Text::plain`
+> a constructor that cannot produce an injected escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1).
+> **Decided and unbuilt, but not catch-up** — ADRs 0091 (the `development`/`production` run mode),
+> 0092 (one diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`) and
+> 0097 (the server's scope and its `[server]` block). None invalidates built behaviour or a written
+> fixture; their work is M4, M6, M7, M8 and M10. **Open beside the library** — a property's declared
+> default runs and is type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one
+> M4 control-flow statement that does not lower; a closure cannot be called through the variable
+> holding it and `Class::method(...)` panics `mwl-ir` outright, so a case sweeps a table with
+> `foreach` and reaches a helper through a `public static function` declared in the same file
+> (`mwl-ir` gap 1); `bool as int` does not lower and `bool as string` renders `false` as nothing at
+> all; an abandoned generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a
+> deliberate PHP divergence); ADR 0043's `by`-delegation is off path; and
+> `docs/spec/02-php-migration.md` is 31% classified, reported by `python tools/check-migration.py`.
+> **What has landed is not restated here** — `git log` holds the session-by-session history and each
+> crate's own module doc holds its per-file gaps.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
@@ -157,7 +157,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: conformance stands at 486 of 600 and differential at 97 of 150, and the remainder is
+> decision: conformance stands at 486 of 600 and differential at 106 of 150, and the remainder is
 > written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

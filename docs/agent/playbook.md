@@ -692,6 +692,13 @@ is why" — is this file.
   runs, so the failure reads as a broken PHP install. Name an oracle helper for what it renders
   (`render`, `show`) and check `php -r 'var_dump(function_exists("<name>"));'` if in doubt; `key`,
   `next`, `end`, `reset`, `current` and `compact` are the other easy collisions.
+- **A differential case checks itself, so write the rows and run it rather than pricing PHP's answer
+  by hand first.** An `--ORACLE--` case's failure output prints both columns side by side, which is
+  the whole comparison in one call; three `php -r '…'` calls spent pre-computing what a matching case
+  was going to assert told this session nothing the first `mwl test <case>` did not. Reach for
+  `php -r` for the *divergence* half instead, where the frozen `--EXPECT--` is MWL's own output and
+  PHP's answer only appears in the case's prose — that is the one place the runner cannot check the
+  sentence you wrote.
 
 ## Splitting a file that got too big
 
