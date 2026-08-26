@@ -217,6 +217,11 @@
 //!    cycles is the one shape that pays.
 
 mod abi;
+// Compiled where it is used: by the `#[global_allocator]` below in an
+// optimized build, and by its own tests in a test build. A debug build takes
+// the platform heap, for the reason that module's doc states.
+#[cfg(any(test, not(debug_assertions)))]
+mod alloc;
 pub mod array;
 pub mod closure;
 #[cfg(test)]
@@ -241,6 +246,14 @@ mod value;
 #[cfg(test)]
 #[global_allocator]
 static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
+
+/// MWL owns its allocator in every optimized build, and every binary that
+/// links this crate gets it: a `#[global_allocator]` is chosen once for the
+/// whole crate graph. See [`alloc`] for what the per-thread cache spends and
+/// why a debug build is deliberately left on the platform heap.
+#[cfg(all(not(test), not(debug_assertions)))]
+#[global_allocator]
+static POOLED_ALLOCATOR: alloc::Pooled = alloc::Pooled;
 
 pub use abi::{
     FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, affordable, call, run_helper,
