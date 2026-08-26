@@ -55,15 +55,15 @@ modules = [
   "crates/mwl-runtime/src/release.rs",
   "crates/mwl-codegen/src/ty.rs",
   "crates/mwl-diagnostics/src/lib.rs",
-  # Stage 0 items 10-15 deliberately add NOTHING here either, for the reason the `adrs` block below
-  # gives: a session takes ONE item, and the six items share no files, so the union would print five
-  # unread module maps every session. Measured: +1,715 tokens, most of it the two directory
-  # selectors. Each item names its own file set in `loop-goal.md` instead.
-  #
-  # Items 18-22 add nothing for the same reason and it is even clearer there: the five sit in five
-  # different crates (abi-probe, mwl-codegen, mwl-runtime, mwl-stdlib twice) and share no file at
-  # all. `string.rs`, `helpers.rs` and `str.rs` are already above for other reasons, which covers
-  # three of them by accident and is not a reason to add the rest.
+  # Where `echo` and its sink live. Stage 3's one failing fixture stops at `Core\Out::capture`,
+  # whose whole difficulty is that it redirects the sink in force rather than a byte stream
+  # (ADR 0088 §§ 3, 5), so `Ctx` and its `OutputSink` are the file set that work shares.
+  "crates/mwl-runtime/src/ctx.rs",
+  # Stage 0 is closed, and the reason it added nothing here is worth keeping because it applies to
+  # any item list: a session takes ONE item, so the union of six items' file sets prints five unread
+  # module maps every session. Measured at +1,715 tokens for items 10-15, and items 18-22 sat in
+  # five different crates and shared no file at all. A selector belongs here when the *file set* a
+  # group shares is what the handoff names.
 ]
 
 # The decisions this goal's work sits inside, by ADR number. orient.py prints the one-sentence
@@ -77,10 +77,16 @@ adrs = [
   "0009 §3",
   "0051 §4",
   "0007 §3",
-  # Stage 0 items 10-15 deliberately add NOTHING here. Each item names its own ADR section in
-  # `loop-goal.md`, and a session takes ONE item -- so pre-printing all six items' ADRs would print five
-  # unread sections every session. Measured: adding them cost +9,154 tokens of pack for a session that
-  # reads one of them. A selector belongs here when *every* session of this goal needs it.
+  # The two sections `Core\Out::capture` is specified by. Spec § 12 gives it one member and then
+  # spends a paragraph saying its return is not a `string` at all but the carrier of the sink in
+  # force -- so a session that reads only the signature table builds the wrong member.
+  "0088 §3",
+  "0088 §5",
+  # Stage 0's items deliberately added NOTHING here, and the rule behind that still holds: a session
+  # takes ONE item, so pre-printing every item's ADR prints five unread sections every session --
+  # measured at +9,154 tokens of pack for a session that reads one of them. A selector belongs here
+  # when *every* session of this goal needs it, which is why the four above are all foundational
+  # (the `string`/`bytes` pair, the dependency test, the type grammar) rather than per-item.
 ]
 
 # Headings of docs/agent/conventions.md naming shapes this goal will write.
@@ -128,10 +134,11 @@ playbook = [
   'Running things > a leak',
   'Splitting a file that got too big > a big',
 
-  # `python tools/playbook.py --gap`: bullets the handoff's `## Next group` file set implies that
-  # the block above misses, because `modules` still describes the closed Stage 0 stdlib work while
-  # the work in flight is mwl-ir/mwl-codegen. 12 bullets, 7,489 B. **Refresh `modules` above to the
-  # crates actually in play and re-run `--goal`** -- then this block collapses back into that one.
+  # The conformance-case traps, 12 bullets, 7,489 B. These arrived as a `python tools/playbook.py
+  # --gap` block when the work in flight was mwl-ir/mwl-codegen; they are kept deliberately now that
+  # it is not, because what follows Stage 0 is Stage 4's corpus -- conformance 436 of 600,
+  # differential 90 of 150 -- and every bullet below is a shape that compiles and then does not run.
+  # A session writing `.mwlt` cases pays for each of these exactly once if it has not read them.
   'Writing a test case > mwl-codegen has',
   'Writing a test case > a row',
   'Writing a test case > a case cannot',
