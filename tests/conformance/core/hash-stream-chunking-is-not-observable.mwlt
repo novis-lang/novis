@@ -1,0 +1,76 @@
+--TEST--
+`Core\Hash\Stream` answers one digest for every chunking of one input, wherever a boundary falls inside a compression block — spec § 11, ADR 0009 §§ 1 and 3
+--FILE--
+<?mwl
+// § 11: the incremental form's whole contract is that the chunking is not
+// observable — `finish` answers what `Core\Hash::of` would over the
+// concatenation, whatever shape the updates arrived in. 130 bytes is two full
+// SHA-256 compression blocks plus two, and one full SHA-512 block plus two, so
+// a boundary swept across the subject lands inside a block, on a block edge,
+// and inside the tail that the length padding shares.
+string $message = Core\Str::repeat("0123456789", 13);
+bytes $whole = Core\Hash::of($message, Core\Digest::Sha256);
+echo Core\Encoding::toHex($whole), "\n";
+
+// A stream fed nothing at all is the digest of the empty input. Written as the
+// identity against `Core\Hash::of` rather than as a pasted constant, so it
+// stays true if the vector behind it ever moves — the empty input is the row
+// that exercises padding and nothing else.
+var $none = Core\Hash::stream(Core\Digest::Sha256);
+echo Core\Hash::equals($none->finish(), Core\Hash::of("", Core\Digest::Sha256)) ? "same" : "differ", "\n";
+
+// Every two-update split, offset 0 through 130 inclusive: that sweep contains
+// the empty leading chunk, the empty trailing one, and the 63/64/65 boundaries
+// either side of SHA-256's first block edge.
+int $bad = 0;
+int $at = 0;
+for ($at = 0; $at <= 130; $at = $at + 1) {
+    var $s = Core\Hash::stream(Core\Digest::Sha256);
+    $s->update(Core\Str::slice($message, 0, $at));
+    $s->update(Core\Str::slice($message, $at, 130 - $at));
+    if (!Core\Hash::equals($s->finish(), $whole)) {
+        $bad = $bad + 1;
+    }
+}
+echo "sha256 splits disagreeing: ", $bad, "\n";
+
+// SHA-512's block is 128 bytes wide, so the same sweep puts a boundary inside a
+// block of a second width — and past 111 bytes, where the length field no
+// longer fits beside the message and the padding needs a block of its own.
+bytes $wide = Core\Hash::of($message, Core\Digest::Sha512);
+$bad = 0;
+for ($at = 0; $at <= 130; $at = $at + 1) {
+    var $w = Core\Hash::stream(Core\Digest::Sha512);
+    $w->update(Core\Str::slice($message, 0, $at));
+    $w->update(Core\Str::slice($message, $at, 130 - $at));
+    if (!Core\Hash::equals($w->finish(), $wide)) {
+        $bad = $bad + 1;
+    }
+}
+echo "sha512 splits disagreeing: ", $bad, "\n";
+
+// Three updates, with the two boundaries placed either side of the first block
+// edge, and empty chunks interleaved: an `update` carrying no octets
+// contributes none.
+var $three = Core\Hash::stream(Core\Digest::Sha256);
+$three->update(Core\Str::slice($message, 0, 63));
+$three->update("");
+$three->update(Core\Str::slice($message, 63, 2));
+$three->update(Core\Str::slice($message, 65, 65));
+$three->update("");
+echo Core\Hash::equals($three->finish(), $whole) ? "same" : "differ", "\n";
+
+// ADR 0009 § 3: `string as bytes` is total, so the tag a chunk arrives under is
+// not part of the digest either — including when it changes exactly on the
+// block edge.
+var $tagged = Core\Hash::stream(Core\Digest::Sha256);
+$tagged->update(Core\Str::slice($message, 0, 64) as bytes);
+$tagged->update(Core\Str::slice($message, 64, 66));
+echo Core\Hash::equals($tagged->finish(), $whole) ? "same" : "differ", "\n";
+--EXPECT--
+426f26da928927a3520b61ade620dc7c69ed4d315425929fa04d9a993a22a0f3
+same
+sha256 splits disagreeing: 0
+sha512 splits disagreeing: 0
+same
+same
