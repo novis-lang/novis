@@ -338,6 +338,14 @@ is why" — is this file.
   byte-identical, and `04-string-format` moved 82.4 to 86.9 with nothing of its own touched. So an
   A/B on a single row is only worth reading when the delta is well past that, and the *median* is
   the statistic to quote. Re-run the base binary once before believing a small regression.
+- **`python tools/verify.py` is not deterministic, and the one test that makes it so is a real
+  use-after-free rather than a flake to re-run past.** `-p mwl-codegen --test throwing`'s
+  `an_uncaught_throw_leaves_the_status_and_the_message_on_the_context` fails about 7% of runs inside
+  `verify.py` and 22 of 40 run on its own, either as a wrong `ctx.pending()` message or as a bare
+  *"misaligned pointer dereference"* panic in `crates/mwl-runtime/src/object.rs:1220` with nothing
+  naming the throw. So a red `verify.py` in a session that touched no Rust is worth **one** re-run to
+  identify — and if that is the test, it is inherited: say so and leave it to the slice that owns it,
+  because a second green run does not mean the tree is clean.
 
 ## Adding a `Core` member
 
