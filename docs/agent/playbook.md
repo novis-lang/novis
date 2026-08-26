@@ -279,6 +279,15 @@ is why" — is this file.
   also where the count the plan's fields quote comes from. Use the **release** binary:
   `target/debug/mwl.exe` is whatever the last `cargo test` left behind and can predate your change
   by a whole session.
+- **`gaps.py --errors` matches a site by the literal run of its message *before the first
+  format hole*, so closing one member can silence siblings that are still unasserted.** A case
+  echoing `Core\Time\DateTime::format(): …` contains the stem `Core\Time\DateTime::`, which is
+  also the whole stem of every message spelled `Core\Time\DateTime::{member}(…)` — so the
+  session that closed the three `format` refusals took **twelve** rows off the list for
+  **seven** real closures, five of them (`time.rs:1968` and four `fatal` at `:1950`-`:1973`)
+  merely hidden. The list is a worklist, not a ledger: when the drop is larger than the number
+  of sites you asserted, diff it against the tree with your new cases moved aside and name the
+  hidden ones in the handoff, or the next session inherits a shorter worklist than the tree has.
 
 ## Running things
 

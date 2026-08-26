@@ -2,64 +2,58 @@
 
 ## State
 
-**Conformance is the only frontier left, at 492 of 600; the differential gate is met at 151 of the
-150 it requires.** Verify is green (**1596** cargo tests, 74 suites, clippy and fmt clean),
-`mwl test tests/conformance` is **492 passed, 0 failed** and `mwl test tests/` is **643 passed, 0
+**Conformance is the only frontier left, at 494 of 600; the differential gate is met at 151 of
+the 150 it requires.** Verify is green (**1596** cargo tests, 74 suites, clippy and fmt clean),
+`mwl test tests/conformance` is **494 passed, 0 failed** and `mwl test tests/` is **645 passed, 0
 failed** — run those as well as `verify.py`, which executes no `.mwlt` case at all (playbook,
-twice), and **rebuild `target/release/mwl.exe` first** if anything under `crates/` is newer than it
-(playbook, *Running things*).
+twice), and **rebuild `target/release/mwl.exe` first** if anything under `crates/` is newer than
+it (playbook, *Running things*).
 
-**`python tools/gaps.py --errors` is the worklist and it is down to 84 sites from 91**, of which
-**63 are `fatal` and unreachable by any case, leaving 21 a case can catch**. `str.rs` and
-`encoding.rs` now hold none of them: this session closed `Core\Encoding`'s `encodeText`/`decodeText`
-charset pair and all five `Core\Str` refusals, in one new case each. The plan's `Open now` says what
-the two cases assert past their rows.
+**`python tools/gaps.py --errors` is the worklist and it now prints 72 sites, of which 59 are
+`fatal` and unreachable by any case — but read the assertable remainder as 14, not the 13 it
+shows.** This session closed `Core\Path::withExtension`'s four and `Core\Time`'s three `format`
+refusals in one new case each; the list dropped by twelve, because a stem match also hid
+`time.rs:1968` (a real, unasserted `thrown`) and four `fatal` siblings. The new playbook bullet
+under *Tooling* owns why, and the plan's `Open now` says what the two cases assert past their
+rows. `path.rs` now holds no assertable site at all.
 
-**One library change rode along**: `Core\Str::at`'s message was the only one in `mwl-stdlib`
-missing the `()` every sibling writes, so it now reads `Core\Str::at():`. Nothing asserted the old
-spelling, but it means the release binary must be current before that case is believed.
+**`time.rs` is the whole of the next group**, and its four are `fromIso`, `Zone::of`, and
+`Core\Time::parse`'s two `thrown_as` — the last of which are `mwl_stdlib::cldr::read`'s
+sentences, not `time.rs`'s own, so the messages to assert are in `cldr.rs:487-680`.
 
-**Spec § 7 owns `Core\Encoding`, not § 8** — § 8 is `Core\Path`. The previous session's
-`encoding-each-decoder-says-why-it-refused-and-where.mwlt` cited § 8 in its `--TEST--` line and its
-lead comment; both are corrected, and the handoff item that said this work "closes spec § 8" meant
-§ 7.
-
-**`orient.py`'s `[context] modules` needs `time.rs` and `math.rs`**, which the next group reads and
-which did not print. `path.rs` is already in it.
+**`orient.py`'s `[context] modules` needs `time.rs` and `cldr.rs`**, neither of which printed and
+both of which every slice below reads. `path.rs` is already in it; `str.rs` and `encoding.rs` can
+come out.
 
 ## Next group
 
-Each slice reads **one** `mwl-stdlib` module for its messages and writes **one** new file under
-`tests/conformance/core/` — that directory is the file set they share, and the modules are read-only
-here, so a second slice costs one `peek.py` of its anchors. Every one is the *Edges* shape over a
-`Fault::thrown`, closed with a counted claim and with the bound named on both sides where there is
-one. `gaps.py --errors` already holds these anchors; do not re-derive them. Slices 2 and 3 share
-`time.rs`, so they are the cheap pair to take together.
+Each slice reads `crates/mwl-stdlib/src/time.rs` (and, for the parse half, `cldr.rs`) for its
+messages and writes **one** new file under `tests/conformance/core/` — that pair of modules plus
+that directory is the file set all three share, and the modules are read-only here, so a second
+slice costs one `peek.py` of its anchors. Every one is the *Edges* shape over a `Fault::thrown`,
+closed with a counted claim and with the bound named on both sides where there is one.
 
-- [ ] **`Core\Path::withExtension`'s four** — `crates/mwl-stdlib/src/path.rs:529` (an empty
-      extension, where `null` is how a caller removes one), `:535` (written with its dot), `:541`
-      (contains a path separator) and `:550` (a path that names no file). Spec § 8 owns the rows.
-      A built path must normalize `Path::SEPARATOR` or assert something separator-free, per the
-      goal's standing decisions — but all four of these are refusals, so none renders a path.
-- [ ] **`Core\Time`'s three `format` refusals** — `crates/mwl-stdlib/src/time.rs:2155`
-      (`DateTime::format`), `:2681` (`Date::format`) and `:2876` (`TimeOfDay::format`). One `why`
-      behind three members is the *Agreement* shape outright: assert that the three answer the same
-      thing for the same bad pattern rather than what each answered.
-- [ ] **`Core\Time`'s zone and parse refusals** — `crates/mwl-stdlib/src/time.rs:1844`
-      (`Zone::of`, unknown id), `:1968` (`DateTime::{member}`, the same id reached through a second
-      member, so the two agree), `:1715` (`fromIso`) and `:2464`/`:2469` (`Time::parse`, both
-      `thrown_as`). Spec § 4 owns the rows.
+- [ ] **`Core\Time`'s two unknown-zone refusals** — `crates/mwl-stdlib/src/time.rs:1844`
+      (`Core\Time\Zone::of(): unknown time zone `{id}``) and `crates/mwl-stdlib/src/time.rs:1968`
+      (the same sentence from whichever `DateTime` member was called, which is the `{member}`
+      hole that hides it from `--errors`). Spec § 4 owns the rows. `Zone::UTC` and a real IANA
+      identifier are the accepted side; the counted claim is that every member reaching a zone
+      answers with **its own** name in front of one shared sentence.
+- [ ] **`Core\Time::parse`'s two `thrown_as`** — `crates/mwl-stdlib/src/time.rs:2464` and `:2469`,
+      whose `{why}` is one of `mwl_stdlib::cldr::read`'s five: a literal that does not match at an
+      offset (`cldr.rs:490`), too few digits of a named field (`cldr.rs:677`), `expected AM or PM`
+      (`cldr.rs:612`), trailing text with a character count (`cldr.rs:507`), and a zonal pattern
+      refused because the zone is `parse`'s third argument (`cldr.rs:496`). The offsets are the
+      bound to name on both sides.
+- [ ] **`Core\Time::fromIso`** — `crates/mwl-stdlib/src/time.rs:1715`, whose `{err}` is `jiff`'s
+      own sentence rather than one this repo writes, so the case pins the prefix and the shape of
+      what is quoted back rather than freezing a dependency's wording.
 
 ## Backlog
 
-- `Core\Math`'s two — `math.rs:1022` (`log`'s base not greater than zero), `:1150` (`format` past
-  its decimals cap). Needs `math.rs` in `[context] modules`.
-- `Core\Json`'s two `thrown_as` — `json.rs:509` (`encode`), `:741` (`decodeAs` with no codec).
-- `Core\Regex\Match::group` on an undeclared group — `regex.rs:933`; `Core\Csv::format` on a
-  non-`string` column — `csv.rs:512`.
-- `Core\Out::capture`'s `through` answer — `out.rs:141`; `Core\Random::bytes`' draw cap —
-  `random.rs:333`; `Core\Arr::average`'s missing `decimal` quotient — `arr.rs:4105`.
-- `Core\Str::wrap`'s multibyte half is the last unwritten `--ORACLE-DIVERGES--` file — the plan's
-  `Open now` owns it.
-- 63 of the 84 `--errors` sites are `fatal` and no case reaches them, so depth past the low 500s
-  comes from conventions.md's four shapes rather than from more refusal messages.
+- `Core\Regex\Match::group()`'s "the pattern declares no group" — `crates/mwl-stdlib/src/regex.rs:933`.
+- `Core\Math::log`'s non-positive base and `::format`'s decimal cap — `math.rs:1022`, `math.rs:1150`.
+- `Core\Arr::average`'s subject with no `decimal` quotient — `arr.rs:4105`.
+- `Core\Csv::format`'s non-`string` column and `Core\Out::capture`'s `through` carrier — `csv.rs:512`, `out.rs:141`.
+- `Core\Random::bytes`' draw larger than any buffer this process will allocate — `random.rs:333`.
+- `Core\Str::wrap`'s multibyte half as an `--ORACLE-DIVERGES--` file — the last `Core\Str` divergence file not written (plan, `Open now`).
