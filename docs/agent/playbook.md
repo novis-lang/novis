@@ -240,6 +240,13 @@ is why" — is this file.
   three of them orphans naming tests that no longer exist, which nothing then fails on. `git status
   --short` immediately after is the whole diagnosis: any `??` snapshot whose name you did not just
   write is one to delete.
+- **`INSTA_FORCE_UPDATE=1` rewrites every snapshot in the crate, not the failing ones.** Two
+  lowering snapshots needed new content this session; the run came back with **86** modified files,
+  because every other `.snap` still carried `source: crates/mwl-ir/src/lower.rs` from before that
+  module was carved into `lower/mod.rs` and the forced update refreshed that header too. Nothing
+  failed and nothing was wrong — it is just 84 files of churn inside a feature commit. Use plain
+  `INSTA_UPDATE=always cargo test -p <crate>` (no `FORCE`), or sort it out afterwards with
+  `git diff --numstat` per file and `git checkout --` the ones whose whole diff is two lines.
 
 ## Running things
 

@@ -78,7 +78,7 @@
 > over nothing at all, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over `identity_store`, all
 > three iterable through `cursor`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 435 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 436 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -124,18 +124,20 @@
 > **Open now:** **Stage 0 holds three items, and they are what the loop runs next.** `python
 > tools/bench.py` puts MWL's median at 0.31× PHP 8.5.9 with its JIT on, and
 > docs/perf/userland-gap.md is the ledger behind that number — the suite case by case, what one
-> operation costs, and which item moves it. Items **18** and **19** are **done**, and **20 is a
-> third done**: MWL owns its allocator in every optimized build and the test build's byte counters
+> operation costs, and which item moves it. Items **18** and **19** are **done**, and **20 is two
+> thirds done**: MWL owns its allocator in every optimized build and the test build's byte counters
 > wrap it, an `int` subscript now travels to `mwl_array_get_index`/`mwl_array_set_index` unrendered
-> — **6.3 ns against the rendered path's 28.5 ns** — and a `string` now carries a capacity, so `$out
-> .= $piece` appends into its own buffer instead of copying the accumulation. That last one took
-> `03-string-concat` from **0.03× to 1.19×**: 50,000 appends were 238 ms and are 15.3 ms, 100,000
-> were 1,386 ms and are 20.6 ms, so the shape went from 5.8× for twice the work to 1.65×. § B of the
-> ledger records it, and what the third header word spends is stated in
+> — **6.3 ns against the rendered path's 28.5 ns** — a `string` now carries a capacity, so `$out .=
+> $piece` appends into its own buffer instead of copying the accumulation, and
+> `mwl_ir::ir::InstKind::Concat` is **n-ary**, so `"<tr><td>" . $i . "</td>"` is one allocation
+> rather than a fold of growing prefixes. Together those two took `03-string-concat` from **0.03× to
+> 1.39×**: 50,000 appends were 238 ms and are 15.3 ms, 100,000 were 1,386 ms and are 20.6 ms, and
+> the n-ary change then cut this case's own work from 3.5 ms to 2.8 ms measured against the commit
+> before it. § B of the ledger records both, and what the third header word spends is stated in
 > `crates/mwl-runtime/src/string.rs`'s own module doc. What item 19 still owes is the append-only
 > `docs/perf/history.ndjson` entry item 15 asked for, which does not exist yet. In order from here:
-> the **two thirds of 20 still open** — `.` becomes n-ary so `"a" . $i . "b"` is one allocation, and
-> a string literal stops allocating; then **21** no key is synthesized for a callback that does not
+> the **last third of 20** — a string literal stops allocating, `emit_const_str` calling
+> `mwl_str_new` on every evaluation; then **21** no key is synthesized for a callback that does not
 > want one; **22** a `Core\Str` member writes its result once. None is a JIT optimisation and none
 > belongs to M12 — one changes an ABI that ADR 0042's artifacts and M9's WIT signatures are about to
 > freeze, and two are the pattern every `Core` member written after them would copy. **What has
