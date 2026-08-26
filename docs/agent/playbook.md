@@ -1185,6 +1185,15 @@ sibling in the same namespace unqualified.
   wants — `FLOAT_MAX`, `FLOAT_MIN` (the smallest positive *normal*, PHP's name, not `f64::MIN`),
   `INFINITY` and `NAN` — and a derived infinity is spelled `Core\Math::FLOAT_MAX * 10.0` or
   `Core\Math::log(0.0)`, whose second `{base: …}` argument may be omitted entirely.
+- **A `Core` member declared `CoreTy::Union(NUMBER)` answers `int|float|decimal`, and that union is a
+  *representation* no binary operator will meet a plain `int` or `float` across.** `Core\Math::abs` is
+  the one a sweep reaches for first: `Core\Math::abs($n) == Core\Math::max($n, 0 - $n)` type-checks and
+  then dies at run time with *"mwl-codegen does not lower a binary operator over mismatched
+  representations"*, and passing it on to a member that wants one arm — `Core\Math::isNan(Core\Math::abs($x))`
+  — is `E0401: expected float, found int|float|decimal` at compile time instead. Write
+  `Core\Math::abs($x) as int` / `as float` at every use; the cast is free, and which arm to write is
+  decided by the argument, since the member never crosses arms. `grep -n 'CoreTy::Union' <the module>`
+  says in one call which members owe the cast.
 
 ## Divergences and refusals already pinned
 
@@ -1670,3 +1679,11 @@ every session. Nothing below was reworded on the way.
   level's key, so `[[1,2],[3,4]]` collapses to `[3,4]` and entries are lost. Both sides also agree
   that an empty level contributes nothing and no hole, that `0`/`""`/`false`/`null` are leaves, and
   at 300 levels of nesting.
+- **`0 - $x` at `int`'s smallest value wraps back to itself in silence** — no throw, no diagnostic, the
+  answer is `-9223372036854775808` again. This is what makes `Core\Math::abs` a member rather than sugar
+  for `Core\Math::max($x, 0 - $x)`: the composition is *total* at that row and quietly wrong, while `abs`
+  refuses with "its magnitude is one past the largest" (ADR 0007's no-silent-promotion rule). A case
+  asserting the divergence should assert that the derivation *answered* and `abs` *refused*, not what the
+  arithmetic wrapped to — the overflow policy is a different member's question and pinning it here would
+  make this case fail for the wrong reason. `math-abs-and-sign-are-the-ordering-trio-and-part-from-it-only-where-they-refuse.mwlt`
+  is the shape.
