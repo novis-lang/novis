@@ -2,64 +2,65 @@
 
 ## State
 
-**Stage 0 item 19 is done bar its ledger entry.** An `int` subscript now reaches
-`mwl_array_get_index`/`mwl_array_set_index` with nothing rendered and nothing allocated:
-`Lowering::lower_array_key` (`crates/mwl-ir/src/lower/expr.rs:1876`) hands the `int` straight to
-`InstKind::ArrayGet`/`ArraySet`, and `mwl-codegen` picks the primitive off the key operand's own
-`Ty` (`crates/mwl-codegen/src/emit.rs:687` and `:1848`). There is no second instruction and no
-key-kind field — `mwl-ir`'s module doc § *an array key is a `string`, and an `int` subscript no
-longer spells it* owns that shape decision and the two subscripts that **still** render: a `uint`,
-because the index ABI is an `i64` and a `uint` above `i64::MAX` has no `i64` spelling naming the
-same key, and any key reaching `InstKind::ArrayUnset`, which has no index-shaped primitive beside
-it. Both are pinned by their own IR snapshot test.
+**Item 20's first of three changes is done.** `StrHeader` carries a capacity
+(`crates/mwl-runtime/src/string.rs:71`), `mwl_str_append` (`:548`) writes into the spare room when
+the target is solely owned and doubles when it is not, and `mwl_ir::ir::InstKind::StrAppend`
+(`crates/mwl-ir/src/ir.rs:646`) carries `$s .= e` on a plain `string` local to it with **no retain
+and no release** — `mwl_array_set`'s consume-one-yield-one protocol, whose one home stays
+`InstKind::ArraySet`'s doc comment. `Lowering::lower_string_append`
+(`crates/mwl-ir/src/lower/stmt.rs:395`) is the only lowering that takes it; every other compound
+assignment, and `.=` on a property or an element, keeps the `$x = $x op e` rewrite because those
+already need its write-back.
 
-**Measured, not projected: 6.3 ns against the rendered path's 28.5 ns**, an A/B of `$a[$i]` and
-`$a[$i as uint]` inside one release binary over the same packed array. That is 22.2 ns off every
-integer subscript, and `docs/perf/userland-gap.md` § A now records it. The suite rows do not move
-for it — `08`/`09`/`12`/`13` measure 0.69×/0.40×/0.34×/0.47×, where the pooled-allocator column
-already put them — because those cases reach elements through `foreach` and a `string` key.
+**Measured: `03-string-concat` is 1.19× where it was 0.03×**, and the two runs § B quoted went from
+238 ms / 1,386 ms to 15.3 ms / 20.6 ms. `docs/perf/userland-gap.md` § B records it and strikes the
+first of its three bullets. What the third header word spends — 8 bytes per string, and up to twice
+the payload for one that has been appended to — is in `string.rs`'s module doc § *Capacity, and what
+it spends*, not in the ledger.
 
-Verify is green (**1568** tests, 74 suites, clippy and fmt clean); the two new tests are the two
-still-renders snapshots. **No valgrind run, deliberately**: this change removes an allocation and
-the release that matched it and adds no refcount edge at all, so there is no new edge to check.
+Verify is green (**1576** tests, 74 suites, clippy and fmt clean). `tools/leak-check.sh` was run over
+a fixture exercising all four append shapes (loop, shared binding, self-append, scalar suffix) and is
+clean — the grow path's release of the consumed reference is a genuinely new refcount edge.
 
-**`orient.py` still does not print `docs/perf/userland-gap.md`** — `[context]` in `loop-goal.toml`
-has no field selecting a perf doc, and items 20-22 each cite a section of it.
+**`orient.py` still does not print `docs/perf/userland-gap.md`** — `[context]` in `loop-goal.toml` has
+no field selecting a perf doc, and both remaining item-20 slices cite § B of it.
 
-## Next group — item 20, a string has capacity and `.=` appends into it
+## Next group — the two thirds of item 20 still open
 
-One file set: `crates/mwl-runtime/src/string.rs`, `crates/mwl-ir/src/lower/expr.rs`,
-`crates/mwl-codegen/src/emit.rs`. [loop-goal.md](loop-goal.md) item 20 is the specification, and it
-names three changes over one layout revision. `03-string-concat` is 0.03× and is the one case no
-allocator fixes: 50,000 appends take 238 ms and 100,000 take 1,386 ms.
+One file set: `crates/mwl-ir/src/ir.rs`, `crates/mwl-ir/src/lower/expr.rs`,
+`crates/mwl-codegen/src/emit.rs`, `crates/mwl-runtime/src/string.rs`.
+[loop-goal.md](loop-goal.md) item 20 and `docs/perf/userland-gap.md` § B are the specification.
 
-- [ ] **`StrHeader` carries capacity, and `mwl_str_append` appends into it.**
-      `crates/mwl-runtime/src/string.rs:54` is the header, `:413` is `mwl_str_concat`. The append
-      takes `mwl_array_set`'s own *consume one reference, return one* protocol, so the holder is
-      re-pointed at the result with no retain or release — `mwl_ir::ir::InstKind::ArraySet`'s doc
-      comment is the worked statement of it.
-- [ ] **`InstKind::Concat` becomes n-ary**, so `$a . $b . $c` is one allocation.
-      `crates/mwl-ir/src/lower/expr.rs:2137` (`lower_concat`) and `:391` (`concat_operand`) on the
-      IR side, `crates/mwl-codegen/src/emit.rs:1771` (`emit_concat`) on the other.
-      `MwlStr::from_pieces` already exists for exactly this and codegen never calls it.
-- [ ] **A string literal stops allocating.** `emit_const_str`'s own doc comment already asks for it
-      and defers to `mwl-runtime` on layout grounds. **Write down** what item 20's own paragraph
-      says must not be re-derived: an immortal literal lives in the compiled unit, which is the one
-      thing a request *does* share with another, so `string.rs`'s "no `MwlStr` is ever reachable
-      from two threads" reasoning behind the plain `Cell` refcount stops being true as stated. It
-      stays sound only because a pinned refcount is never written, and the module doc has to say so.
+- [ ] **`InstKind::Concat` becomes n-ary**, so `"<tr><td>" . $i . "</td>"` is one allocation rather
+      than a fold of growing prefixes. `MwlStr::from_pieces` (`crates/mwl-runtime/src/string.rs:156`)
+      already exists for it and no codegen path calls it — it needs an `extern "C"` entry point taking
+      a pointer array and a count, and a stack slot to build that array in (`Self::value_slot`,
+      `crates/mwl-codegen/src/emit.rs:1794`, is the nearest shape). The two producers are
+      `Lowering::lower_concat` (`crates/mwl-ir/src/lower/expr.rs:2137`) and
+      `lower_interpolated_parts` (`:1774`), both already left-to-right folds over operands
+      `concat_operand` (`:391`) has normalized; `emit_concat` is
+      `crates/mwl-codegen/src/emit.rs:1775`. Eight lowering snapshots print `concat` and will churn.
+- [ ] **A string literal stops allocating.** `emit_const_str`
+      (`crates/mwl-codegen/src/emit.rs:916`) calls `mwl_str_new` on every *evaluation*, so a literal
+      key inside a loop allocates millions of times; its own doc comment already asks for this and
+      defers it here on layout grounds. A whole `StrHeader` written into the compiled unit's data
+      section with a **pinned** refcount makes it an address and no call at all. Two things this owes:
+      a sentinel the retain/release/append paths recognise so a pinned count is never written (
+      `mwl_str_append`'s `refcount == 1` test already declines to write a pinned literal in place, but
+      `MwlStr::drop` would still decrement one), and the module-doc note item 20 names explicitly —
+      an immortal literal lives in the compiled unit, the one thing a request *does* share with
+      another, so `string.rs`'s § *Why the refcount is a plain `Cell`* stops being true as written
+      and has to say why it stays sound.
 
 ## Backlog
 
-- The first `docs/perf/history.ndjson` entry, with a `php_ratio` — item 19's last slice and item
-  15's, `python tools/bench.py --json <path>` writes the record. [loop-goal.md](loop-goal.md):196.
-- Item 21, no key synthesized for a callback that does not want one — `Core\Arr::map`/`filter`/
-  `reduce`/`sort`. [loop-goal.md](loop-goal.md):216.
-- Item 22, a `Core\Str` member writes its result once — `produced(&str)` and `text()`, 56 call
-  sites each. [loop-goal.md](loop-goal.md):222.
-- `mwl_array_unset_index` does not exist, so `unset($a[$i])` still renders a decimal. A deliberate
-  non-widening, not an oversight — `mwl-ir`'s module doc says why.
-- A positional element in an array literal that also has an explicit key still emits a `ConstStr`
-  decimal per element (`crates/mwl-ir/src/lower/expr.rs:3275`); the same `Ty::Int` operand would do.
-- `§12 Out::capture` is the whole remaining machine-readable work list for spec §§ 1-12 —
-  `crates/mwl-stdlib/tests/spec-members-outstanding.txt`.
+- `docs/perf/history.ndjson`, the append-only per-item entry item 15 asked for — still does not exist
+  (`docs/perf/userland-gap.md`).
+- The suite table's median is stale by one row until the next full `tools/bench.py` run
+  (`docs/perf/userland-gap.md` § *Where the suite stands*).
+- Stage 0 items 21 and 22, after 20 closes (`docs/agent/loop-goal.md`).
+- `§12 Out::capture` is the last outstanding spec §§ 1-12 member
+  (`crates/mwl-stdlib/tests/spec-members-outstanding.txt`).
+- `do`/`while` is the one M4 control-flow statement that does not lower (`mwl-ir` gap 1).
+- Conformance is 436 of the 600 Stage 4 requires; differential is 90 of 150
+  (`docs/implementation-plan.md`).

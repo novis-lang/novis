@@ -234,6 +234,12 @@ is why" — is this file.
   rule is that a widened operand's every consumer has to be re-read for a decision phrased as the
   *negation* of the old invariant. Nothing catches this: it builds, and the IR snapshots are the only
   place it shows.
+- **`cargo insta accept` accepts *every* pending snapshot in the tree, including a previous
+  session's.** Item 19 renamed three lowering tests and left their `.pending-snap` files behind, so
+  one `cargo insta accept --workspace` after adding two new tests materialized five `.snap` files —
+  three of them orphans naming tests that no longer exist, which nothing then fails on. `git status
+  --short` immediately after is the whole diagnosis: any `??` snapshot whose name you did not just
+  write is one to delete.
 
 ## Running things
 
