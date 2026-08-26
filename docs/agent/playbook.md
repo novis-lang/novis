@@ -497,6 +497,18 @@ is why" — is this file.
   `Value::int(0)`; `mwl-codegen`'s `stack_limit.rs` fixtures all declare one, which is why nothing
   had hit this. `run_with`/`output_of` are unaffected — the script frame is entered the same way but
   never faulted, so the crash arrives only when a test reaches for `unit.function("Class::member")`.
+- **An allocation guard over a member that *builds* something measures the result's own storage
+  first.** A `counting_alloc::allocated_bytes` delta over one `map`-shaped walk into a fresh
+  `MwlArray` read 448 bytes with no key rendered at all: the output's own `Vec` doubling on the way
+  to 16 entries is an allocation the guard cannot tell from the one it exists to catch. Walk twice
+  and measure the *second* pass, where every write lands at a position that already exists — then
+  the only thing left that can allocate is the thing under test.
+  `a_callback_that_does_not_want_a_key_synthesizes_none` is the shape.
+- **A `cargo test` that dies with a bare `STATUS_ACCESS_VIOLATION` may not reproduce**, so run it
+  again before bisecting. One arrived in `-p mwl-codegen --test throwing` on the first run after a
+  relink and never returned in four subsequent runs, including the full workspace sweep; the
+  `.loop` logs hold an identical one-off in `--test strings`. The deterministic cause below (an
+  empty argument slice) reproduces every time, which is how the two are told apart.
 
 ## Splitting a file that got too big
 

@@ -31,32 +31,36 @@ is faster. Every row is one full sweep of the *current* build, not a mix of read
 
 | | today | before item A | closed by |
 |---|---|---|---|
-| median ratio | **0.66×** | 0.31× | A, B, C |
-| 04-string-format | 0.20× | 0.07× | E, I |
+| median ratio | **0.69×** | 0.31× | A, B, C, D |
+| 04-string-format | 0.18× | 0.07× | E, I |
 | 14-word-count | 0.20× | 0.13× | F |
-| 12-array-map-filter | 0.36× | 0.18× | D |
 | 07-string-normalize | 0.41× | 0.17× | E |
 | 09-array-assoc-lookup | 0.42× | 0.25× | F |
-| 17-json-encode | 0.44× | 0.21× | E |
-| 13-array-contains | 0.50× | 0.12× | — |
+| 17-json-encode | 0.42× | 0.21× | E |
+| 13-array-contains | 0.48× | 0.12× | — |
+| 12-array-map-filter | 0.51× | 0.18× | — |
 | 15-regex-match | 0.51× | 0.25× | — |
 | 16-regex-replace | 0.56× | 0.44× | E |
-| 08-array-list-build | 0.64× | 0.59× | — |
-| 20-method-dispatch | 0.68× | 0.76× | **G** |
-| 10-array-sort | 0.69× | 0.68× | J |
-| 05-string-replace | 0.71× | 0.32× | E |
-| 06-string-split-join | 0.82× | 0.31× | E |
-| 18-json-decode | 1.06× | 0.53× | — |
-| 03-string-concat | 1.24× † | 0.03× | — |
-| 01-arith-loop | 1.48× | 1.33× | — |
+| 08-array-list-build | 0.66× | 0.59× | — |
+| 20-method-dispatch | 0.71× | 0.76× | **G** |
+| 05-string-replace | 0.72× | 0.32× | E |
+| 06-string-split-join | 0.77× | 0.31× | E |
+| 10-array-sort | 0.96× | 0.68× | J |
+| 18-json-decode | 1.07× | 0.53× | — |
+| 03-string-concat | 1.46× † | 0.03× | — |
+| 01-arith-loop | 1.50× | 1.33× | — |
 | 02-fib-recursive | 2.57× | 2.25× | — |
-| 19-object-property | 3.39× | 1.05× | — |
-| 11-array-sort-by-field | 3.98× | 3.22× | — |
+| 19-object-property | 3.35× | 1.05× | — |
+| 11-array-sort-by-field | 5.12× | 3.22× | — |
 
 † `03-string-concat` sits at the suite's noise floor: 3 ms of work behind a 7 ms process start, so
 its *ratio* swings between 1.2× and 1.5× from run to run — mostly on PHP's number — while its own
 work figure holds at 3.0 ms. § B is where its history is, and it is the one row to read as a work
 figure rather than as a ratio.
+
+Three rows moved on item D alone, and they are the last three the array members were holding down:
+`12-array-map-filter` 0.36× → **0.51×**, `10-array-sort` 0.69× → **0.96×** and
+`11-array-sort-by-field` 3.98× → **5.12×**, which is what carried the median from 0.66×.
 
 The second column is the original sweep, taken before item A. The middle column this table used to
 carry — the same suite against a 90-line thread-local size-class free list built to price A and
@@ -102,10 +106,12 @@ inside one release binary — the same 20 M subscripts over the same packed arra
 `mwl_ir::lower::Lowering::lower_array_key` states — and the loop is otherwise identical, since
 `$i as uint` is a free reinterpret. The two measure **6.3 ns and 28.5 ns** per subscript, each
 including the loop's own add and compare. So the rendered path lands exactly on the 27.7 ns above,
-and not rendering takes **22.2 ns off every integer subscript**. The suite rows do not move for it:
-`08`, `09`, `12` and `13` measure 0.69×, 0.40×, 0.34× and 0.47×, which is where the pooled-allocator
-column already put them, because those cases reach their elements through `foreach` and a `string`
-key rather than through an integer subscript.
+and not rendering takes **22.2 ns off every integer subscript**. The suite rows did not move for it:
+`08`, `09`, `12` and `13` measured 0.69×, 0.40×, 0.34× and 0.47× on either side of that change,
+which is where the pooled-allocator column already put them, because those cases reach their
+elements through `foreach` and a `string` key rather than through an integer subscript. `12` moved
+later, on item D, which is the other half of the same observation: what those cases pay for a key
+is paid on the way *out* of the array rather than on the way in.
 
 **No PHP column, deliberately.** A micro-case that discards its result is one PHP's tracing JIT may
 delete outright — `benches/userland/README.md` § *Why the inputs are chained* is that trap, and it
@@ -224,17 +230,35 @@ to reach it through compiled code.
 
 ### D — no key is synthesized for a callback that does not want one
 
-`Core\Arr::map`, `filter`, `reduce` and `sort` all call `mwl_array_key_at` per element. On a packed
-list that renders a decimal and allocates an `MwlStr` — two allocations — and `call_closure` then
-slices the argument list to the closure's declared arity and throws it away. `12-array-map-filter`
-burns 400 000 of them per round for nothing. The arity is a field on the closure object and is
-readable once before the loop instead of per call.
+~~`Core\Arr::map`, `filter`, `reduce` and `sort` all call `mwl_array_key_at` per element. On a
+packed list that renders a decimal and allocates an `MwlStr` — two allocations — and `call_closure`
+then slices the argument list to the closure's declared arity and throws it away.
+`12-array-map-filter` burns 400 000 of them per round for nothing. The arity is a field on the
+closure object and is readable once before the loop instead of per call.~~ ~~`Core\Arr::sort`
+compounds it: it builds a key per element even when `preserveKeys` is `false`, and the key is then
+discarded.~~ **Landed, both halves.**
 
-`Core\Arr::sort` compounds it: it builds a key per element even when `preserveKeys` is `false`, and
-the key is then discarded.
+All four members read `mwl_runtime::closure_arity` once before their loop and build the key only
+where the callback declared a parameter to receive it. That alone would not have paid for `map` and
+`filter`, which *preserve* keys and so were going to build one anyway, so the store half changed
+too: `mwl_runtime::SlotKey` answers the key in whichever form the subject's own shape already holds
+it — the position itself while the array is packed, a reference to the stored string once it is
+hashed — and `MwlArray::set_index` writes it back with nothing rendered. A `filter` allocates a key
+only where it left a gap, which is exactly where the result stops being a list. `sort` goes one
+further: with `preserveKeys` false and no `by` closure asking for one, nothing downstream can
+observe a key, so its walk collects none.
 
-*Owner:* `crates/mwl-stdlib/src/arr.rs`'s module doc. *Guard:* a one-parameter callback synthesizes
-no key.
+Measured against the sweep in *Where the suite stands*, which was taken on the commit before this
+one: `12-array-map-filter` **0.36× → 0.51×**, its own work now 268.5 ms; `10-array-sort`
+**0.69× → 0.96×**; `11-array-sort-by-field` **3.98× → 5.12×**. Nothing else in the suite moved, and
+the median went 0.66× → **0.69×**. That is the *floor* section above collected: a rendered decimal
+is 38.9 ns and its allocation round trip 28.7 ns, and this case walked 4.7 M entries.
+
+*Owner:* `crates/mwl-stdlib/src/arr.rs`'s module doc § *A callback that does not want a key is never
+handed one*. *Guard:* `a_callback_that_does_not_want_a_key_synthesizes_none` in
+`crates/mwl-runtime/src/array.rs`, which reads `counting_alloc::allocated_bytes` over exactly the
+walk those members make — with the control the playbook asks for, since the same test measures that
+asking for the key as a string *does* allocate.
 
 ### E — a `Core\Str` member writes its result once
 
@@ -307,8 +331,10 @@ classification — its template is that ADR's sink — so it is cheapest done in
 ### J — `Core\Arr::sort` compares without an indirection
 
 It sorts an index permutation with a `Result`-returning closure over `compare_values`, where PHP
-sorts the buckets directly with a specialized comparator. The least bad of the losing cases
-(0.66×), and the only one whose fix is a rewrite rather than a removal.
+sorts the buckets directly with a specialized comparator. It was the least bad of the losing cases
+and it is barely a losing case now — item D took it from 0.69× to **0.96×** without touching the
+comparison at all — but it is still the only one on this list whose fix is a rewrite rather than a
+removal.
 
 ## What is not on this list, and why
 
