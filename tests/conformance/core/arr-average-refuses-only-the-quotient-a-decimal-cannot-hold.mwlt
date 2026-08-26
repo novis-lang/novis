@@ -1,0 +1,71 @@
+--TEST--
+Core\Arr::average answers every exact quotient a decimal holds and refuses exactly the one whose rounding carries past it, spec § 2 and ADR 0054 §§ 1, 3
+--FILE--
+<?mwl
+// Spec § 2's `average` keeps an exact subject exact: a `decimal` total is
+// divided by the entry count as a `decimal`, which ADR 0054 § 3 rounds half to
+// even at the widest scale the quotient admits. The one subject it has no
+// answer for is the one whose rounding carries past § 1's 96-bit mantissa.
+// That is the member's only refusal a handler can reach -- the guard beside it,
+// a subject holding more entries than a `uint` counts, is a `Fault::fatal` no
+// `catch` sees and no array can reach.
+
+// 2^96 - 1 is 79228162514264337593543950335, the largest mantissa a `decimal`
+// holds. Seven tenths of it, read one place further out, is the total whose
+// quotient by 7 lands on exactly that mantissa with a remainder left over --
+// and the remainder rounds away from zero, which is the carry there is no
+// room for.
+decimal $edge = 5545971375998503631548076523.5;
+array<decimal> $seven = [$edge, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+try {
+    echo Core\Arr::average($seven) ?? 0.0 as decimal, "\n";
+} catch (Throwable $atBound) {
+    echo $atBound->message, "\n";
+}
+
+// The bound is a point one place wide rather than a half-line, so it is named
+// on both sides by the same division over the same count. The total one tenth
+// below has a digit to spare and answers at a wider scale; the one above
+// rounds up instead of carrying and answers at a narrower one.
+array<decimal> $below = [5545971375998503631548076523.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+array<decimal> $above = [5545971375998503631548076523.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+echo Core\Arr::average($below) ?? 0.0 as decimal, "\n";
+echo Core\Arr::average($above) ?? 0.0 as decimal, "\n";
+
+// What is refused is a property of the *quotient* and not of the total, so
+// counting is what asserts it: one total, fourteen counts -- the entries past
+// the first are zero, so every prefix carries the whole of it -- and exactly
+// one of them has no answer. Seven of the other thirteen divide inexactly and
+// round without complaint, which is why "inexact" is not the rule here.
+// `Core\Arr::sum` agrees on all fourteen, so the refusal belongs to the
+// division and not to the fold that feeds it.
+array<decimal> $all = [$edge, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+int $answered = 0;
+int $refused = 0;
+int $summed = 0;
+int $c = 1;
+for ($c = 1; $c <= 14; $c = $c + 1) {
+    array<decimal> $rows = Core\Arr::slice($all, 0, $c);
+    if (Core\Arr::sum($rows) == $edge) {
+        $summed = $summed + 1;
+    }
+    try {
+        float|decimal $quotient = Core\Arr::average($rows) ?? 0.0 as decimal;
+        $answered = $answered + 1;
+    } catch (Throwable $sweep) {
+        $refused = $refused + 1;
+    }
+}
+echo $answered, "|", $refused, "|", $summed, "\n";
+
+// The same arithmetic in the other arm answers, because only the exact arm has
+// a range to run out of: a `float` total is divided as a `float`, which is what
+// makes this member's return type a union rather than one type.
+array<float> $reals = [5545971375998503631548076523.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+echo Core\Arr::average($reals) ?? 0.0, "\n";
+--EXPECT--
+Core\Arr::average has no `decimal` answer for this subject: the quotient is outside ADR 0054 § 1's range
+792281625142643375935439503.34
+792281625142643375935439503.4
+13|1|14
+7.9228162514264E+26
