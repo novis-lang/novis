@@ -102,9 +102,178 @@ def enable_ansi():
         C.enabled = False
 
 
+class StatusLine:
+    """The one line that stays on the bottom row and says what is happening right now.
+
+    Everything else scrolls past it: `say()` erases it before it writes and redraws it after, and a
+    ticker thread repaints it a few times a second so the spinner moves even while the driver is
+    blocked on a build or on a child's stdout. A run that prints nothing for four minutes -- the
+    orientation pack, a cold cargo build, the WSL leg -- is indistinguishable from a hung one
+    without it, and the phases that go quiet are exactly the slow ones.
+
+    Four fields, in the order they narrow:
+
+        scope    where the run is       `session 3/12`
+        phase    what it is doing now   `acceptance check`, with `31/58 53%` when that is countable
+        detail   the current item       `wsl fixtures/closures.mwl`, `Edit tools/loop.py`
+        elapsed  how long this phase has been going
+
+    A count is shown only when the total is known ahead of time -- the acceptance sweep knows how
+    many checks it is about to run, a session does not know how many tool calls it will make, so the
+    session shows a running count and no percentage rather than a number that pretends to be one.
+
+    Disabled whenever stdout is not a terminal. A redirected run, `nohup` or CI would otherwise
+    collect thousands of repaints of a line nobody is watching.
+    """
+
+    BRAILLE = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    ASCII = "|/-\\"
+    INTERVAL = 0.12
+
+    def __init__(self):
+        self.enabled = False
+        self.lock = threading.RLock()
+        self.frames = self.ASCII
+        self.sep = " | "
+        self.cut = "..."
+        self.scope = ""
+        self.phase = ""
+        self.detail = ""
+        self.done = 0
+        self.total = 0
+        self.calls = 0
+        self.since = time.monotonic()
+        self._frame = 0
+        self._drawn = False
+        self._stop = threading.Event()
+        self._thread = None
+
+    # -- lifecycle ---------------------------------------------------------------------
+
+    def start(self):
+        """Begin painting, if this is a console that can be painted on."""
+        if self.enabled or not (C.enabled and sys.stdout.isatty()):
+            return
+        # A console that cannot encode a braille frame gets an ASCII one rather than a row of
+        # replacement characters: `main()` reconfigures stdout to UTF-8, but a legacy code page
+        # is still what a raw `cmd.exe` hands back.
+        if "utf" in (getattr(sys.stdout, "encoding", "") or "").lower():
+            self.frames, self.sep, self.cut = self.BRAILLE, " · ", "…"
+        self.enabled = True
+        self.since = time.monotonic()
+        self._thread = threading.Thread(target=self._tick, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        """Erase the line and leave the cursor where the next print expects it."""
+        self._stop.set()
+        with self.lock:
+            self.erase()
+            self.enabled = False
+
+    def _tick(self):
+        while not self._stop.wait(self.INTERVAL):
+            with self.lock:
+                self._frame += 1
+                self.draw()
+
+    # -- what it says ------------------------------------------------------------------
+
+    def set(self, phase=None, detail=None, scope=None, total=None, done=None, calls=None):
+        """Update any subset of the fields. A new `phase` restarts the elapsed clock and clears
+        the detail and the counters, because those belonged to the phase that just ended."""
+        with self.lock:
+            if scope is not None:
+                self.scope = scope
+            if phase is not None and phase != self.phase:
+                self.phase = phase
+                self.detail = ""
+                self.done = self.total = self.calls = 0
+                self.since = time.monotonic()
+            if detail is not None:
+                self.detail = detail
+            if total is not None:
+                self.total = total
+            if done is not None:
+                self.done = done
+            if calls is not None:
+                self.calls = calls
+            self.draw()
+
+    def advance(self, detail=None):
+        """One planned step of the current phase is finished."""
+        with self.lock:
+            self.done += 1
+            if detail is not None:
+                self.detail = detail
+            self.draw()
+
+    def tool(self, name):
+        """A session made a tool call. Counted, never totalled -- see the class doc."""
+        with self.lock:
+            self.calls += 1
+            self.note(name)
+
+    def note(self, text):
+        """What the session is doing between tool calls, behind the running call count."""
+        with self.lock:
+            self.detail = (f"{self.calls} tool call(s){self.sep}" if self.calls else "") + text
+            self.draw()
+
+    # -- painting ----------------------------------------------------------------------
+
+    def compose(self):
+        head = self.phase
+        if self.total > 0:
+            done = min(self.done, self.total)
+            head = f"{head} {done}/{self.total} {done * 100 // self.total}%".lstrip()
+        parts = [p for p in (self.scope, head, self.detail) if p]
+        parts.append(mmss(time.monotonic() - self.since))
+        body = self.sep.join(parts).replace("\n", " ")
+        # One column short of the width on purpose: a line that exactly fills the terminal wraps,
+        # and a wrapped status line is one the next erase only half removes.
+        room = max(18, shutil.get_terminal_size((100, 24)).columns - 3)  # the spinner and its space
+        if len(body) > room:
+            body = body[: room - len(self.cut)] + self.cut
+        spin = self.frames[self._frame % len(self.frames)]
+        return C.paint(spin, C.CYAN) + " " + C.paint(body, C.GRAY)
+
+    def erase(self):
+        if self._drawn:
+            sys.stdout.write("\r\033[2K")
+            sys.stdout.flush()
+            self._drawn = False
+
+    def draw(self):
+        if not self.enabled:
+            return
+        sys.stdout.write("\r\033[2K" + self.compose())
+        sys.stdout.flush()
+        self._drawn = True
+
+
+TICKER = StatusLine()
+
+
 def say(text="", colour=None):
-    sys.stdout.write((C.paint(text, colour) if colour else text) + "\n")
-    sys.stdout.flush()
+    line = C.paint(text, colour) if colour else text
+    with TICKER.lock:
+        TICKER.erase()
+        sys.stdout.write(line + "\n")
+        sys.stdout.flush()
+        TICKER.draw()
+
+
+def wait(seconds, label):
+    """`time.sleep`, with the status line counting it down. A silent multi-minute sleep is the one
+    pause a watcher cannot tell from a crash."""
+    end = time.monotonic() + seconds
+    while True:
+        left = end - time.monotonic()
+        if left <= 0:
+            return
+        TICKER.set(detail=f"{label}{TICKER.sep}{mmss(left)} left")
+        time.sleep(min(0.25, left))
 
 
 def mmss(seconds):
@@ -179,6 +348,22 @@ class Renderer:
                     parts.append(json.dumps(block))
         return "\n".join(parts)
 
+    @staticmethod
+    def call_target(block):
+        """`Edit tools/loop.py`, `Bash cargo build ...` -- the tool plus the one argument that says
+        what it is about. For the status line only: the console above it already has every argument,
+        and a bottom row that has to fit in a terminal width gets the name of the thing."""
+        name = str(block.get("name") or "tool")
+        args = block.get("input")
+        if not isinstance(args, dict):
+            return name
+        for key in ("file_path", "path", "pattern", "command", "prompt", "url", "notebook_path"):
+            value = args.get(key)
+            if isinstance(value, str) and value.strip():
+                first = value.strip().split("\n", 1)[0]
+                return f"{name} {first[:60]}"
+        return name
+
     def tool_input(self, obj):
         """Every argument of a tool call, not just the first one that looked interesting."""
         if not isinstance(obj, dict):
@@ -222,13 +407,16 @@ class Renderer:
             for b in e.get("message", {}).get("content", []) or []:
                 btype = b.get("type")
                 if btype == "text":
+                    TICKER.note("writing")
                     self.wrapped(b.get("text"), "   ", C.WHITE, 0)
                 elif btype == "thinking":
+                    TICKER.note("thinking")
                     self.wrapped(b.get("thinking"), "   . ", C.MAGENTA, self.max_result_lines)
                 elif btype == "tool_use":
                     if b.get("id"):
                         self.tool_names[str(b["id"])] = str(b.get("name"))
                     say(f"   > {b.get('name')}", C.CYAN)
+                    TICKER.tool(self.call_target(b))
                     self.tool_input(b.get("input"))
 
         elif kind == "user":
@@ -277,14 +465,18 @@ class Result:
         return (self.err.strip().splitlines() or [""])[0]
 
 
-def capture(exe, args, timeout=1800):
+def capture(exe, args, timeout=1800, cwd=None):
     """Run a program with stdout and stderr captured SEPARATELY -- the acceptance list distinguishes
-    them (a backtrace and FATAL go to stderr, program output to stdout)."""
+    them (a backtrace and FATAL go to stderr, program output to stdout).
+
+    `cwd` defaults to the repository root, which is what every cargo and `mwl` invocation wants. A
+    `command` check names its own, because an `npm` script only finds its `package.json` from the
+    directory that holds it."""
     path = shutil.which(exe) or exe
     try:
         p = subprocess.run(
             [path, *args],
-            cwd=ROOT,
+            cwd=cwd or ROOT,
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -397,6 +589,15 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 # `Goal.remembered`.
 EXPENSIVE = {"abi-probe", "wsl leg", "valgrind sweep"}
 
+# A `command` check is an argv run in a directory, exit 0, with `want` as ordered substrings across
+# both streams. It exists because the acceptance test grew a leg that is neither `mwl run` stdout nor
+# `cargo test`: from M4B, `editors/vscode` is TypeScript and its suites are `npm` scripts. Kept
+# deliberately general -- a check kind per external tool is how a driver becomes a build system.
+#
+# It is not a PROGRAM_KIND, so it runs ONCE between the legs rather than per leg. That is the right
+# default and not an accident of implementation: the WSL leg exists because a JIT is where a
+# calling-convention divergence hides, and a TextMate grammar has no calling convention.
+
 
 class Goal:
     """The acceptance test, read from docs/agent/loop-goal.toml. `check()` returns "" when everything
@@ -430,6 +631,7 @@ class Goal:
         self._cargo = {}  # args tuple -> Result, within one check() call
         self._tree = ""
         self._green = set()
+        self._memoized = {c["name"] for c in self.checks if c.get("memoize") and "name" in c}
         cargo = [c for c in self.checks if c["kind"] not in PROGRAM_KINDS]
         # Stage 0 is catch-up: work a later ADR reopened inside a milestone that
         # was already reported done. It runs before everything else so the
@@ -443,7 +645,11 @@ class Goal:
 
     def trace(self, msg):
         """Name the check about to run, stamped with how long the whole sweep has been going.
-        Silent unless the caller asked for it; see `step()` for why it exists at all."""
+        Silent unless the caller asked for it; see `step()` for why it exists at all.
+
+        The status line gets it either way: `verbose` decides whether the console keeps a scrolling
+        record of every check, not whether a watcher can see which one is running."""
+        TICKER.set(detail=msg)
         if self.verbose:
             say(f"   .. +{mmss(time.monotonic() - self._begun):>6}  {msg}", C.GRAY)
 
@@ -459,6 +665,7 @@ class Goal:
         finally:
             spent = time.monotonic() - started
             self.ran.append((label, spent))
+            TICKER.advance()
             if self.verbose and spent >= 1:
                 say(f"   .. {'':>7}  {label} took {mmss(spent)}", C.GRAY)
 
@@ -477,11 +684,20 @@ class Goal:
         return head + ":" + hashlib.blake2b(dirty.encode("utf-8", "replace"),
                                             digest_size=8).hexdigest()
 
+    def memoizable(self, name):
+        """Whether a green verdict on `name` may be remembered against the tree that produced it.
+
+        Two sources, and both are about cost rather than confidence: `EXPENSIVE` is the three checks
+        this driver has always known are minutes long, and `_memoized` is whatever the goal itself
+        marked `memoize = true` -- which a `command` check needs, since the goal is the only thing
+        that knows an `npm` script downloads an editor."""
+        return name in EXPENSIVE or name in self._memoized
+
     def remembered(self, name):
-        return name in EXPENSIVE and name in self._green
+        return self.memoizable(name) and name in self._green
 
     def remember(self, name):
-        if name in EXPENSIVE:
+        if self.memoizable(name):
             self._green.add(name)
             try:
                 GOALCACHE.parent.mkdir(exist_ok=True)
@@ -541,6 +757,19 @@ class Goal:
 
     def cargo_check(self, c, leg=None):
         label = f"{c['name']} [{c.get('stage', '?')}]"
+
+        if c["kind"] == "command":
+            if self.remembered(c["name"]):
+                return ""
+            r = self.timed(label, lambda: capture(c["argv"][0], c["argv"][1:],
+                                                  cwd=ROOT / c.get("cwd", ".")))
+            if r.code != 0:
+                return f"{label}: exit {r.code} -- {r.first_err_line}"
+            missing = ordered_in(r.out + "\n" + r.err, c.get("want", []))
+            if missing:
+                return f"{label}: {missing}"
+            self.remember(c["name"])
+            return ""
 
         if c["kind"] == "mwl-suite":
             # The suite runner is the CLI the leg already built; `cargo run` here would be one
@@ -611,17 +840,49 @@ class Goal:
 
     # -- the whole thing ----------------------------------------------------------------
 
-    def begin(self):
+    def plan_size(self, mode, wsl):
+        """How many `timed()` steps the sweep about to start will pay for.
+
+        Countable exactly, and that is the whole reason the status line shows a percentage here and
+        nowhere else: the list is fixed on disk, the legs are known before the first build, and the
+        two memos say up front what will be skipped rather than discovering it halfway through. Call
+        it only after `load_green()`, or every remembered check is counted as work still to do.
+
+        It is an upper bound in one direction only -- a failing check returns early, so a run can
+        end at 40% -- and it never undercounts, so the bar cannot reach 100% with work left.
+        """
+        programs = len(self.program_checks)
+        sweep = sum(1 for f in self.files if f not in self.valgrind_skip)
+        # Only the wsl leg's valgrind is a given: on a native leg the sweep is skipped outright
+        # when the platform has no valgrind, and counting it would strand the bar short of 100%.
+        sweepable = not self.remembered("valgrind sweep") and bool(wsl or shutil.which("valgrind"))
+
+        n = 1  # the tree fingerprint, already spent by the time this is called
+        if mode == "leg":
+            n += 1 + programs  # the leg's build, then every fixture on it
+            n += sum(1 for c in self.cargo_checks if c["kind"] == "mwl-suite")
+            return n + (sweep if sweepable else 0)
+
+        n += 1 + len(self.catch_up_checks) + programs  # native build, catch-up, native fixtures
+        n += sum(1 for c in self.cargo_checks if not self.remembered(c["name"]))
+        n += 1  # the wsl probe
+        if wsl:
+            n += 1 + (0 if self.remembered("wsl leg") else programs)
+        return n + (sweep if sweepable else 0)
+
+    def begin(self, mode="check"):
         """Reset the per-run bookkeeping, and confirm every fixture is still on disk before
         anything is built. Shared by the two entry points below."""
         self.ran = []
         self._cargo = {}
         self.short = []  # thresholds not met yet, judged after everything else
         self._begun = time.monotonic()
+        TICKER.set(done=0, total=0)
         # Hashing the dirty tree is a `git diff HEAD` over everything the session just wrote, so
         # on a large working tree this is itself a visible pause before any check has started.
         self.trace("fingerprinting the tree for the green-check memo")
         self.timed("tree fingerprint", self.load_green)
+        TICKER.set(total=self.plan_size(mode, wsl_available()))
         for f in self.files:
             if not (ROOT / f).exists():
                 return f"{f} is missing -- the acceptance fixtures are fixed, see docs/agent/loop-goal.md"
@@ -631,7 +892,8 @@ class Goal:
         self.verbose = verbose
         trace = self.trace
 
-        fail = self.begin()
+        TICKER.set(phase="acceptance check")
+        fail = self.begin("check")
         if fail:
             return fail
 
@@ -710,7 +972,8 @@ class Goal:
         self.verbose = verbose
         trace = self.trace
 
-        fail = self.begin()
+        TICKER.set(phase="linux leg")
+        fail = self.begin("leg")
         if fail:
             return fail
 
@@ -852,6 +1115,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
     # spawned, and on a cold filesystem cache that is tens of seconds between the "== session"
     # banner and the first token. It is the second half of the gap between two sessions.
     step("building the orientation pack (tools/orient.py)")
+    TICKER.set(phase="orienting", detail="tools/orient.py")
     started = time.monotonic()
     pack = orientation_pack()
     spent = mmss(time.monotonic() - started)
@@ -869,6 +1133,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         fh.write(json.dumps({"type": "loop_pack", "bytes": len(pack.encode("utf-8"))}) + "\n")
         fh.flush()
         step(f"launching {exe} (--model {opts.model}, --permission-mode {opts.permission_mode})")
+        TICKER.set(phase="launching", detail=f"{exe} --model {opts.model}")
         launched = time.monotonic()
         proc = subprocess.Popen(
             cmd,
@@ -889,6 +1154,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
                     # The CLI's own start-up -- config, MCP servers, the model handshake -- is
                     # dead air on the console, and it is charged to whatever ran just before it.
                     step(f"claude answered after {mmss(time.monotonic() - launched)}")
+                    TICKER.set(phase="working")
                     launched = 0
                 fh.write(line)
                 fh.flush()
@@ -904,6 +1170,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
             # transcript, tearing down MCP servers. Named, because it is time the console
             # would otherwise attribute to the driver's own work.
             closed = time.monotonic()
+            TICKER.set(phase="closing the session", detail="flushing the transcript")
             proc.wait()
             if time.monotonic() - closed >= 1:
                 step(f"claude took {mmss(time.monotonic() - closed)} to exit after its last event")
@@ -1031,6 +1298,15 @@ def rel_to_root(path):
 
 
 def main():
+    """A thin wrapper so the status line is torn down on every exit path -- a normal return, a
+    Ctrl-C, or an exception -- rather than leaving a half-painted bottom row on the console."""
+    try:
+        return run_cli()
+    finally:
+        TICKER.stop()
+
+
+def run_cli():
     # A session's own output carries `§`, `↔` and em dashes, and this echoes it. On Windows a
     # redirected stdout defaults to cp1252, where the first such character raises
     # UnicodeEncodeError from inside the renderer -- which killed the driver mid-session, after
@@ -1053,6 +1329,10 @@ def main():
     ap.add_argument("--max-input-lines", type=int, default=40)
     ap.add_argument("--max-line-chars", type=int, default=500)
     ap.add_argument("--full-output", action="store_true", help="no truncation anywhere")
+    ap.add_argument(
+        "--no-status", dest="status", action="store_false",
+        help="do not paint the live status line (it is off by itself when stdout is not a terminal)"
+    )
     ap.add_argument("--goal-only", action="store_true", help="run the acceptance test and exit")
     ap.add_argument(
         "--leg-only", action="store_true",
@@ -1090,12 +1370,20 @@ def main():
                 extra = " ".join(c.get("args", []))
                 say(f"  [{c.get('stage', '?')}] {c['kind']:<10} {c['file']} {extra}".rstrip())
                 continue
+            if c["kind"] == "command":
+                memo = "  (memoized against the tree)" if c.get("memoize") else ""
+                say(f"  [{c.get('stage', '?')}] {c['kind']:<11} {c['name']}: "
+                    f"{' '.join(c['argv'])} in {c.get('cwd', '.')}{memo}")
+                continue
             driver = "mwl" if c["kind"] == "mwl-suite" else "cargo"
             say(f"  [{c.get('stage', '?')}] {c['kind']:<11} {c['name']}: "
                 f"{driver} {' '.join(c['args'])}")
         skipped = ", ".join(sorted(goal.valgrind_skip)) or "nothing"
         say(f"  valgrind sweep over every fixture except: {skipped}")
         return 0
+
+    if opts.status:
+        TICKER.start()
 
     if opts.goal_only:
         say("running the acceptance test ...", C.CYAN)
@@ -1121,6 +1409,7 @@ def main():
     if not LEDGER.exists():
         LEDGER.write_text("# Loop ledger\n", encoding="utf-8", newline="\n")
 
+    TICKER.set(phase="making room", detail="pruning earlier runs' logs and scratch")
     if not make_room(opts):
         return 2
     if not claim_run(opts):
@@ -1160,6 +1449,7 @@ def drive(opts, goal):
 
         head_before = git("rev-parse", "HEAD")
         STATUS.unlink(missing_ok=True)
+        TICKER.set(scope=f"session {i}/{opts.max_sessions}", phase="starting")
         say(f"== session {i}/{opts.max_sessions}  {datetime.now():%H:%M:%S}", C.CYAN)
 
         # The prompt is re-read for the same reason `load_goal()` is called below: a session that
@@ -1185,7 +1475,8 @@ def drive(opts, goal):
                 break
             backoff = min(300, 30 * 2**fails)
             step(f"backing off {mmss(backoff)} before retry {fails + 1}", C.YELLOW)
-            time.sleep(backoff)
+            TICKER.set(phase=f"backing off before retry {fails + 1}")
+            wait(backoff, "claude exited non-zero")
             continue
         fails = 0
 
@@ -1195,6 +1486,7 @@ def drive(opts, goal):
         if head_after and head_after != head_before:
             commits = int(git("rev-list", "--count", f"{head_before}..{head_after}") or 0)
         step("collecting subagent transcripts")
+        TICKER.set(phase="collecting subagent transcripts")
         started = time.monotonic()
         agents, agent_calls = collect_subagents(session_id, run_id, i)
         spent = time.monotonic() - started
@@ -1242,7 +1534,8 @@ def drive(opts, goal):
 
         if opts.delay_seconds:
             step(f"--delay-seconds: waiting {mmss(opts.delay_seconds)} before the next session")
-            time.sleep(opts.delay_seconds)
+            TICKER.set(phase="waiting")
+            wait(opts.delay_seconds, "--delay-seconds")
 
     ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- {reason}")
     say("")

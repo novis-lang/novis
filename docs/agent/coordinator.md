@@ -139,7 +139,16 @@ prints what it cost.
 
 Flags worth knowing: `--model`, `--permission-mode`, `--max-stalls`, `--max-retries`, `--delay-seconds`,
 `--full-output` (echo every tool call's full input and result, no truncation anywhere), `--goal-only`,
-`--list`.
+`--list`, `--no-status`.
+
+A status line holds the bottom row for as long as the driver is up, under everything that scrolls past
+it: the spinner, where the run is (`session 3/12`), what it is doing (`orienting`, `working`,
+`acceptance check`), the current item, and how long this phase has been going. The acceptance sweep is
+the one phase that also carries `31/94 33%`, because it is the only one whose size is known before it
+starts — `loop-goal.toml` is a fixed list, the legs are known, and the two memos say up front what will
+be skipped. A session shows a running tool-call count and no percentage rather than a number that
+pretends to be one. The line paints only on a terminal, so a redirected run, `nohup` or CI is unchanged;
+`--no-status` turns it off on a terminal too.
 
 `--permission-mode` defaults to `bypassPermissions`, and that is not an incidental default. A `claude -p`
 session auto-denies any tool call that would otherwise prompt, so under `default` an unattended session
