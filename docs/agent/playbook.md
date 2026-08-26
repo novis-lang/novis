@@ -341,6 +341,16 @@ is why" — is this file.
   tool runs is a report, and so is this one — the name is the only thing that suggests a fix. Paste the
   new row into `docs/adr/README.md` yourself, or the *index table is stale* finding stays red through
   however many times you re-run it.
+- **`gaps.py --coverage` attributes a case to a class only when the case *text* names that class,
+  so a class whose values are never spelled out reads as zero and its "no case calls" list is a
+  false alarm.** `Core\Time\Instant` prints `0.00  0  9 … no case calls compareTo, in, minus` while
+  three cases exercise all nine members — because an `Instant` is obtained (`Core\Time::now()`,
+  `->toInstant()`) and never written, so the `re.escape(owner)` filter at `tools/gaps.py:301` keeps
+  none of them, and the `->member(` scan only runs over the cases that filter kept.
+  `Core\Time\DateTime` reads 0.06 for the same reason. The number is trustworthy for a class a
+  program has to name — `Core\Time\Duration::ofSeconds`, `Core\Uri::parse`, `Core\Validate` — and
+  is a floor, never a count, for the rest. Check with `python tools/gaps.py --member compareTo`
+  before writing a case the ranking says is missing.
 
 ## Running things
 
@@ -1332,6 +1342,16 @@ sibling in the same namespace unqualified.
   is fine, since the `E0406` that bites is a second declaration in the *source*, not a second execution.
   So the shape of an agreement case is: typed array literals above, counters as `int` above, one
   `if (…) { $n = $n + 1; }` per claim, and one `echo` of the counts against the sweep's own total.
+- **A `Core`-owned enum cannot be written as a type at all — not as a parameter, not as an
+  `array<T>` element — and the diagnostic prints the same name on both sides.** `array<Core\Unit>
+  $units = [Core\Unit::Day]` and `public static function step(Core\Unit $u)` are each `E0401:
+  expected `Core\Unit`, found `Core\Unit``, because the registry interns the name as an enum type
+  (`crates/mwl-types/src/core_lib.rs:292`) and the source-written annotation resolves to something
+  else. A **user-declared** `enum Mode: int { Fast = 0, }` works in both positions, so the hole is
+  specific to `Core\Unit`, `Core\Order` and their siblings. What this costs a case is the sweep
+  shape: a table of units cannot be iterated, so a `.mwlt` that steps by several units writes the
+  case literal at each `plus`/`minus` call site inside a loop over the *other* dimension, which is
+  what both `Core\Time\Date` and `Core\Time\TimeOfDay`'s agreement cases do.
 
 ## Divergences and refusals already pinned
 
