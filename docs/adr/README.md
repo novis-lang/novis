@@ -76,6 +76,7 @@ so you never have to open this file to route a topic.
 | Changing a running server — `mwl ctl reload`, the control socket, adding or replacing an extension without a restart, which directives still need one, why there is no control port | [0078](0078-config-reload-and-control-socket.md) |
 | Running MWL as a Windows service or a systemd unit — `mwl service install`, NSSM/WinSW, `sc create`, `ImagePath` quoting, which service account, a hardened unit file, `Type=notify`, `ExecReload`, why a bundle cannot install itself | [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) |
 | The built-in HTTP server — what `mwl serve` is for and what it is not, mount points and several entry points under one root, serving static files, why there is no TLS listener, h2c, FastCGI or compression, what a proxy in front is trusted to assert, `X-Forwarded-For` and the client IP, connection timeouts, the in-flight ceiling, a health endpoint | [0097](0097-development-server-and-proxied-origin.md) |
+| File uploads — `$_FILES`, `tmp_name`, `move_uploaded_file`, `upload_max_filesize`, streaming a large upload, how big an upload may be, where an uploaded file is stored, writing a stream to disk, `Core\IO::writeStream` | [0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) |
 | `spawn script`, isolates, the request boundary | [0006](0006-isolated-script-execution.md) |
 | Caching between requests, APCu, `Core\Cache`, why a cached value is copied | [0059](0059-cross-request-state-is-explicit.md) |
 | `include`/`require`, loading another file into the current frame | [0021](0021-single-file-inclusion-construct.md) |
@@ -305,6 +306,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) | A request is matched once, and the route table completes without crossing into dispatch | Accepted |
 | [0103](0103-configuration-is-a-tree-of-files.md) | Configuration is a tree of files, and file ownership is the trust anchor | Accepted |
 | [0104](0104-an-application-is-an-entry-file-path.md) | An application is an entry file path, and a per-app block is keyed on it | Accepted |
+| [0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) | An uploaded file is a stream, and there is one way to receive it | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

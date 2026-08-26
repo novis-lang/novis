@@ -47,7 +47,7 @@
   `isDraining` and `traceId`.
   [docs/plan/m7.md](../plan/m7.md) — M7 gains this ADR's surface and loses TLS and h2c. M13 is deleted
   outright; § 1 is why there is no TLS-terminating milestone left to hold.
-- **Amended by:** 0102, 0103, 0104
+- **Amended by:** 0102, 0103, 0104, 0105
 
 > **In short:** the server has exactly **two deployments** and no third — a **development server** that
 > serves static files beside `.mwl`, and a **proxied production origin** that replaces FastCGI. Everything a
@@ -337,32 +337,29 @@ one mount's prefix being confused for another's.
 
 ### 8. The body, uploads, and the streaming reader
 
-The cap is **`[limits] request_body` with a `[limits.hard]` ceiling** — [0005](0005-config-changeability.md)'s
-existing `Runtime`-default-plus-`System`-ceiling pair, not a third instance of it, which is what keeps
+The caps are **`[limits] request_body` and `[limits] upload_total`, each with a `[limits.hard]` ceiling** —
+[0005](0005-config-changeability.md)'s existing `Runtime`-default-plus-`System`-ceiling pair gaining two
+rows, not a third instance of the pattern, which is what keeps
 [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s "second and last" wording true.
-Defaults are `"8M"` and `"64M"`. Because `Core\Request::body()` is a call, the body is read on demand: a
-route that never reads one allocates nothing, and an upload route may raise its own cap before reading.
+`request_body` bounds **bytes parsed into memory** at `"8M"`/`"64M"`; `upload_total` bounds a **streamed
+multipart body** at `"256M"`/`"2G"`. Because `Core\Request::body()` is a call, the body is read on demand: a
+route that never reads one allocates nothing, and a route may raise its own cap before reading.
 
-**An uploaded file is `tainted bytes` in memory. There is no temp file** — no `tmp_name`, no
-`move_uploaded_file`, no temp directory to configure, permission, defend against symlinks, clean up after a
-crash, or bound against disk exhaustion that no memory cap covers. This is [0004](0004-memory-for-simplicity.md)'s
-priority ordering applied literally: memory is last and simplicity is above it, and the bytes stay
-attributable to one request, under an enforceable cap, and O(in-flight).
+**An uploaded file is a stream, and `Core\Request::files(): Iterable<Part>` is the only way to receive one.**
+There is still no temp file — no `tmp_name`, no `move_uploaded_file`, no temp directory to configure,
+permission, defend against symlinks or clean up after a crash — because where a part lands is an
+application's explicit call under `fs.write` rather than the runtime's default. What a part is, the three
+ways to consume one, `Core\IO::writeStream`, and both caps' enforcement are
+[0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md), which holds the only copy.
 
-```mwl
-foreach (Core\Request::files() as $f) {
-    $f->name;         // tainted string — the client's claimed filename, never a path
-    $f->contentType;  // tainted string
-    $f->content;      // tainted bytes
-}
-```
-
-**`Core\Request::bodyStream(): Iterable<bytes>`** is the second path, for a body larger than a request's
-memory budget: it yields chunks over [0053](0053-iteration-and-generators.md)'s protocol, each `tainted`,
-and consuming it is exclusive with `body()` and `files()` on one request. `request_body` bounds the buffered
-path; the streaming path is bounded by the connection's `body_idle_timeout` and by whatever the consumer
-does with each chunk. [0095](0095-ambiguous-input-is-refused-never-repaired.md)'s multipart **part count**
-cap applies to both, since part accounting is a cost no byte cap bounds.
+**`Core\Request::bodyStream(): Iterable<bytes>`** is the raw-body reader, for a body larger than a request's
+memory budget and for a content-type `files()` does not describe: it yields chunks over
+[0053](0053-iteration-and-generators.md)'s protocol, each `tainted`, and consuming it is exclusive with
+`body()` and `files()` on one request. It is bounded by `request_body` on the bytes a consumer retains, by
+the connection's `body_idle_timeout`, and by whatever the consumer does with each chunk —
+`Core\IO::writeStream` being the member that does the usual thing with it.
+[0095](0095-ambiguous-input-is-refused-never-repaired.md)'s multipart **part count** cap applies alongside
+both byte caps, since part accounting is a cost no byte cap bounds.
 
 ### 9. Logging, and one identifier
 
@@ -422,8 +419,10 @@ on the CLI has one too and per-app configuration is reachable in M6 rather than 
   shedding, no TLS. [0075](0075-core-ratelimit.md)'s "gap on paper" is now a stated requirement: put a proxy
   in front. What MWL still guarantees alone is the parsing half
   ([0095](0095-ambiguous-input-is-refused-never-repaired.md)) and the finite waits of § 5.
-- **The largest buffered upload equals a request's memory budget.** Past that, § 8's streaming reader is the
-  answer and the application writes the chunks somewhere itself.
+- **An upload costs one chunk of memory and a file's worth of disk**, per
+  [0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) § 6: the resource a large
+  upload can exhaust on an MWL origin is the volume the application writes to, and bounding that is the
+  application's and the operator's, not the server's.
 - **Browsers always speak HTTP/1.1 to MWL**, since h2 requires TLS and § 1 removes it. This costs nothing in
   development and nothing behind a proxy, which terminates h2 or h3 for the client either way.
 - **A mount scan reads the filesystem at boot and on reload**, so a deployment adding a module makes it

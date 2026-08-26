@@ -961,6 +961,10 @@ object (R14).
 - **Whole-file:** `read(string $path): bytes`, `readText(string $path, {charset?}): string`,
   `write(string $path, bytes|string $data)`, `append(…)`, `lines(string $path): Iterable<string>` —
   replacing `file_get_contents`, `file_put_contents`, `file`, `readfile`, `fpassthru`.
+- **Streaming write:** `writeStream(string $path, Iterable<bytes> $src, {max?, overwrite?})` — any stream to
+  disk in one member: an upload part, `Core\Request::bodyStream()`, a decompressed archive. `overwrite`
+  defaults to `false`, and a write that fails mid-stream removes the partial file
+  ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) § 4).
 - **Metadata:** `exists`, `isFile`, `isDir`, `isReadable`, `isWritable`, `size`, `modifiedAt`, `stat` —
   replacing `file_exists`, `is_file`, `is_dir`, `filesize`, `filemtime`, `fileperms`, `stat`, `lstat`.
 - **Manipulation:** `copy`, `move`, `remove`, `makeDir`, `removeDir`, `list(string $path): array<string>`,
@@ -993,10 +997,14 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   and the `route` metric label read ([0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md));
   `method` reports `Get` for a `HEAD` request so a
   `Get`-only route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` are
-  resolved from the socket peer unless a peer in `[server] trusted_proxies` asserted otherwise; `files`
-  entries carry `name`, `contentType` and `content` as `tainted bytes` — there is no temp path and no
-  `move_uploaded_file`; and `bodyStream(): Iterable<bytes>` is the streaming alternative to `body`,
-  exclusive with it on one request
+  resolved from the socket peer unless a peer in `[server] trusted_proxies` asserted otherwise;
+  `files(): Iterable<Part>` is the **only** way to receive an uploaded file and yields parts lazily, each
+  carrying `name`, a `tainted` `filename` that is never a path and a `tainted` `contentType`, and consumed
+  by `readAll({max?}): tainted bytes`, by iterating `content: Iterable<bytes>`, or by
+  `saveTo(string $path, {max?, overwrite?})` — there is no temp path, no `move_uploaded_file` and no `size`
+  ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)); a
+  multipart form's non-file parts are buffered into `post()` as usual; and `bodyStream(): Iterable<bytes>`
+  is the raw-body alternative to `body`, exclusive with it and with `files` on one request
   ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) §§ 3, 6, 7, 8).
 - `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the five body members
   `html(Core\Html\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`,

@@ -12,7 +12,7 @@
   entry carrying its own hash pin. [0006](0006-isolated-script-execution.md) — `script.spawn`'s
   `:`-joined root list becomes a TOML array. [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
   — `[debug] mode`'s comma-separated string becomes a TOML array.
-- **Amended by:** 0070, 0072, 0073, 0074, 0076, 0078, 0081, 0091, 0092, 0097, 0103, 0104
+- **Amended by:** 0070, 0072, 0073, 0074, 0076, 0078, 0081, 0091, 0092, 0097, 0103, 0104, 0105
 
 > **In short:** MWL's server configuration is a TOML file named `mwl.toml`, read through the `toml` crate
 > and `serde` — at boot, and again on each `mwl ctl reload`
@@ -84,9 +84,11 @@ max_tasks  = 4096
 max_output = "512M"
 ```
 
-`request_body` joins both blocks ([0097](0097-development-server-and-proxied-origin.md) § 8) — an inbound
-body is per-request memory, so it belongs to the pair that already governs per-request memory rather than to
-a third one of its own.
+`request_body` and `upload_total` join both blocks
+([0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) § 5) — an inbound body is
+per-request cost, so it belongs to the pair that already governs per-request cost rather than to a third one
+of its own. Two rows rather than one because they measure different things: `request_body` bounds bytes
+parsed into memory, `upload_total` bounds a streamed multipart body on the wire.
 
 A size or a duration stays a **quoted string carrying its suffix** (`"128M"`, `"5s"`) rather than becoming
 a bare integer of implied units: the suffix is what makes the file readable at a glance, and the parser for

@@ -6,7 +6,7 @@
   removed; the sinks that refuse a tainted value (HTML output, SQL query text, process arguments, HTTP
   header values, filesystem paths); the `Core\Html\Markup` safe-markup type and the HTML output sink's
   auto-escape default.
-- **Amended by:** 0033, 0044, 0046, 0055, 0058, 0067, 0077, 0086, 0087, 0088
+- **Amended by:** 0033, 0044, 0046, 0055, 0058, 0067, 0077, 0086, 0087, 0088, 0105
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — adds a `tainted` qualifier axis to the conversion
   table for `string`/`bytes`, following the same total/checked shape as every other conversion; every other
   row is unchanged.
@@ -283,8 +283,11 @@ Verification, in the order it becomes possible:
   the qualifier and the sink; a checked `as uint`/`as` an enum's backing type on a tainted source produces
   an unqualified result with no extra syntax; `tainted string as Markup` is refused even though
   `"literal" as Markup` succeeds.
-- **M7**: `Core\Request::query()`/`::post()`/`::cookie()`/`::file()` and `Core\Server::header()` return
-  `tainted string`/`tainted bytes`; the path-traversal and header-injection conformance suites already on
+- **M7**: `Core\Request::query()`/`::post()`/`::cookie()`/`::files()` and `Core\Server::header()` return
+  `tainted string`/`tainted bytes` — for `files()` that is each part's `filename` and `contentType` and
+  every chunk it yields ([ADR 0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)),
+  and a tainted `filename` reaching `Core\IO::writeStream`'s path argument is one of that ADR's
+  verification cases; the path-traversal and header-injection conformance suites already on
   M7's verify list ([ADR 0017](0017-hot-reload-without-restart.md)'s neighboring milestone paragraph) gain a
   case built specifically from a live `Core\Request` value reaching a filesystem or header sink without
   laundering, and confirm it is rejected at compile time, not only caught by the runtime suite.

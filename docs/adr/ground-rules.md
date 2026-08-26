@@ -179,6 +179,10 @@ spellings rejected, and the reasoning.
 - **The built-in server is a development server and a proxied origin, and a URL selects a mount rather than
   a path** — no TLS listener, no h2c, no FastCGI and no compression, and every executable path is enumerated
   at boot ([0097](0097-development-server-and-proxied-origin.md)).
+- **An uploaded file is a stream and there is one way to receive it** — `Core\Request::files()` yields parts
+  lazily, a part is read into a bounded buffer or written straight to disk, and there is no temp file
+  because the destination is the application's own call
+  ([0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)).
 
 ## Runtime, tooling and the standard library
 
