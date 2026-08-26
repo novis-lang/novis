@@ -944,6 +944,14 @@ is why" — is this file.
   `Core\Encoding::toHex($s as bytes)` says `610d0a62` before and after. Any claim about *which bytes*
   survived a member is written with `toHex`, and `length` is kept for what it answers, a count of
   characters.
+- **A case that asserts two float computations agree has to pick rows whose *intermediate* is exactly
+  representable, or it is pinning one libm rather than a property.** `Core\Math::hypot($x, $y)` against
+  `Core\Math::sqrt($x * $x + $y * $y)` agreed on all 21 rows of a first table here, including `[0.3, 0.4]`
+  and `[123.456, 789.012]` — but only because MSVC's `hypot` happens to round those the same way, and
+  nothing says glibc's does on the WSL leg. Restricting the table to Pythagorean triples, zeros and
+  dyadic fractions makes `$x * $x + $y * $y` exact, so both members are computing the correctly rounded
+  square root of the *same* double and IEEE 754 requires them to agree — a property of the table, not of
+  the host. The same test applies to any "these two spellings answer the same thing" float case.
 
 ## Splitting a file that got too big
 

@@ -2,53 +2,58 @@
 
 ## State
 
-**Conformance is at 522 of 600, and it is the only frontier left.** The differential gate is met at
+**Conformance is at 524 of 600, and it is the only frontier left.** The differential gate is met at
 **159** of the 150 it requires and `python tools/gaps.py --differential` is empty. Verify is green
 (1597 cargo tests, 74 suites, clippy and fmt clean) and runs both `.mwlt` trees itself, so after a
 green `verify.py` there is nothing else to run (playbook, *Running things*).
 
-**`Core\Math` is 38 members over 15 cases**, and the two added here are the ones the family cases
-left. The first sweeps eleven floats — the four constants, two derived infinities, a derived `NaN`,
-and `FLOAT_MAX` beside `FLOAT_MAX * 10.0` — through both `isNan` and `isFinite`, labelling each row
-and counting that exactly one of nan / finite / infinite holds, so a predicate that both accepted
-would leave `partitioned` short while all three tallies still looked plausible. The second names
-both ends of the base argument's range for **both** `toBase` and `fromBase` — 2 and 36 accepted, 1
-and 37 refused with their messages — then sweeps bases 0 to 40 through both members, counting 35
-accepted, 6 refused, and 41 of 41 rows where the two agreed, which is what makes the four named
-lines a bound rather than four samples. `math-base-conversion-round-trips.mwlt` keeps the inverse
-property and gains a one-line pointer at the new file.
+**`Core\Math` is 38 members over 17 cases.** The two added here take the family's two float
+frontiers. The first asserts `hypot` answers exactly what `sqrt($x * $x + $y * $y)` answers on
+nineteen rows whose square sum is *exactly representable* — triples, zeros, signs, dyadic fractions
+and `3 * 2^52` — which is what makes the agreement a property rather than this host's libm
+(playbook, *Writing a test case*), and then names the two rows where the naive form loses: `3e200`
+squared is an infinity while `hypot` still answers `5.0E+200`, and `3e-200` squared underflows to a
+finite, plausible, wrong `0`. The second sweeps one nine-row table straddling `|x| > 1`, `|x| = 1`
+and `|x| < 1` through six inverse members at once, counting rather than reading off lines: `asin`
+and `acos` agree about their shared domain on 9 of 9 rows, `acosh` is NaN on the six the other two
+accept five of, `atanh` partitions all nine into finite / infinite-at-the-pole / NaN with exactly
+one holding per row, `atan` and `asinh` are finite on 18 of 18, and `threw=0` asserts § 3's
+"IEEE's value, not a throw" rather than inferring it from the case having got that far. The two
+existing family cases keep what they claim and each gained a one-line pointer at its new neighbour.
 
 ## Next group
 
 Three slices, all reading `crates/mwl-stdlib/src/math.rs` and adding new files under
-`tests/conformance/core/`; `math-trigonometry-and-angle-conversion.mwlt` and
-`math-roots-exponentials-and-logarithms.mwlt` hold what is already claimed and are worth one read
-before writing. `docs/spec/01-core-library.md` § 3 owns the rules, and `mwl_stdlib::math`'s own
-module doc owns the domain-error rule slices 1 and 2 both rest on.
+`tests/conformance/core/`. `docs/spec/01-core-library.md` § 3 owns the rules; each slice is the
+*agreement* shape from conventions.md, which is where this family has the most room left.
 
-- [ ] **`hypot` agrees with `sqrt($x * $x + $y * $y)` everywhere the naive form is representable,
-      and answers where it is not** — the *agreement* shape over a table of pairs, counting the
-      rows where the two forms are equal, plus the overflow row (`FLOAT_MAX`-scale operands) that
-      is the whole reason the member exists: the naive square is an infinity there and `hypot` is
-      still finite. `crates/mwl-stdlib/src/math.rs:159` (`hypot`),
-      `crates/mwl-stdlib/src/math.rs:145` (`sqrt`).
-- [ ] **The inverse members answer IEEE's `NaN` outside their domain rather than throwing** — the
-      module doc's second bullet is the rule and no case asserts it: `asin(2.0)`, `acos(2.0)`,
-      `acosh(0.5)` and `atanh(1.0)` classified through `Core\Math::isNan`, beside the in-domain row
-      that is finite, so the refusal-shaped behaviour is pinned as a *value* and not as a throw.
-      `crates/mwl-stdlib/src/math.rs:201` (`asin`), `:208` (`acos`), `:257` (`acosh`), `:264`
-      (`atanh`).
-- [ ] **`toRadians` and `toDegrees` are inverses, and agree with the constants at the quarter
-      turns** — a sweep over 0, 90, 180, 270, 360 counting the round trips that come back equal,
-      with `toRadians(180.0)` against `Core\Math::PI` and `toRadians(360.0)` against
-      `Core\Math::TAU` as the two rows a member with its own conversion factor fails.
-      `crates/mwl-stdlib/src/math.rs:271` (`toRadians`), `:278` (`toDegrees`).
+- [ ] **`toRadians` and `toDegrees` are inverses over a sweep, and agree with `PI` and `TAU` at the
+      quarter turns** — count the round-trip rows that return the degree they started at over a
+      table of 0/90/180/270/360 and both signs, then name the four quarter turns against
+      `PI / 2`-style constant expressions rather than against a frozen decimal.
+      `crates/mwl-stdlib/src/math.rs:271` (`toRadians`), `:278` (`toDegrees`), `:342` (`PI`),
+      `:347` (`TAU`).
+- [ ] **`clamp` agrees with `min(max($x, $lo), $hi)` on every row** — the composition is the
+      definition, so counting the rows where the two spellings answer the same value is what a
+      `clamp` that grew its own bound check fails, while `math-clamp-is-closed-at-both-ends.mwlt`
+      keeps the endpoints. `crates/mwl-stdlib/src/math.rs:82` (`clamp`), `:68` (`min`), `:75`
+      (`max`).
+- [ ] **The four rounding members agree on every integer-valued float and split only where the
+      sign says they must** — `ceil`/`floor`/`truncate`/`round` over a table straddling zero,
+      counting the rows where all four agree (the integer-valued ones) and asserting `truncate`
+      follows `ceil` below zero and `floor` above it, which is the one rule that separates it from
+      `floor` at all. `crates/mwl-stdlib/src/math.rs:89` (`ceil`), `:96` (`floor`), `:103`
+      (`truncate`), `:110` (`round`).
 
 ## Backlog
 
-- `Core\Csv` and `Core\Out` are the next-thinnest after `Core\Math` — 5 cases for 2 members and 3
-  for 1 — `docs/spec/01-core-library.md` § 12.
-- `Core\Json::decodeAs<T>`'s decoder reads a scalar-fielded class only (`mwl_stdlib::json` gap 2).
-- ADR 0088's qualifier classification is on no `mwl-stdlib` member row (`mwl_stdlib::hash` doc).
+- `Core\Json::decodeAs<T>` reads scalar fields only — no enum, `decimal`, `Instant`, nested class or
+  optional key (`mwl_stdlib::json` gap 2, ADR 0071).
+- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row, so
+  `Core\Hash::hmac`'s key is a plain `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc).
+- ADR 0086 § 1's substitution table is unbuilt, so no terminal sink neutralizes a control byte
+  (`crates/mwl-stdlib/src/cli.rs` gap 1, M8).
 - `do`/`while` is the one M4 control-flow statement that does not lower (`mwl-ir` gap 1).
-- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+- A `?bool` cannot be tested for truth, so a member answering one has no `yn` rendering
+  (implementation-plan, *Open now*).
+- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
