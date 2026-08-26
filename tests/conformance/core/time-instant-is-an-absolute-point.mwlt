@@ -30,7 +30,9 @@ echo $later->since($at)->toSeconds() as string, "|\n";
 echo $at->since($later)->toSeconds() as string, "|\n";
 echo $at->compareTo($later) as string, "|", $later->compareTo($at) as string, "|", $at->compareTo($at) as string, "|\n";
 
-// ADR 0063 R4: failure throws rather than answering a wrong value.
+// ADR 0063 R4: failure throws rather than answering a wrong value. Which
+// texts `fromIso` accepts, and in what class it refuses the rest, is
+// time-from-iso-needs-an-offset-and-refuses-as-a-parse-error.mwlt.
 try {
     echo Core\Time::fromIso("yesterday")->toIso(), "|\n";
 } catch (Throwable $e) {

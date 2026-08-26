@@ -1,0 +1,84 @@
+--TEST--
+Core\Time::fromIso accepts only a text that carries its own offset and refuses the rest as a ParseError under its own name — spec §§ 4, 10
+--FILE--
+<?mwl
+// § 4 gives `fromIso` the half of `strtotime` that reads an ISO-8601
+// timestamp, so what it needs is an *absolute* point and the text has to
+// carry its own offset. A civil time with none is `Core\Time::parse`'s
+// question, which takes a zone as a third argument in order to answer it,
+// and a relative expression is not accepted in either half.
+//
+// Counted over a table rather than read off a line: fourteen texts, of which
+// exactly the five spelling one absolute point are accepted — and they spell
+// the *same* point, so the epoch second they answer is one value rather than
+// five separately plausible ones.
+var $reference = Core\Time::fromIso("2024-03-01T12:00:00Z")->toEpochSeconds();
+array<string> $texts = [
+    // Accepted: the offset written as `Z`, as either sign, with a subsecond,
+    // and with a space where the `T` goes — five spellings, one point.
+    "2024-03-01T12:00:00Z",
+    "2024-03-01T14:00:00+02:00",
+    "2024-03-01T07:00:00-05:00",
+    "2024-03-01T12:00:00.500Z",
+    "2024-03-01 12:00:00Z",
+    // Refused for a missing component: the offset, the time, the date.
+    "2024-03-01T12:00:00",
+    "2024-03-01",
+    "12:00:00Z",
+    // Refused as a relative expression, which `strtotime` reads and this
+    // member does not, and the empty text.
+    "now",
+    "+1 day",
+    "",
+    // Refused as a calendar value that no year holds.
+    "2024-02-30T12:00:00Z",
+    "2024-13-01T12:00:00Z",
+    "2024-03-01T25:00:00Z",
+];
+int $accepted = 0;
+int $sameSecond = 0;
+int $refused = 0;
+int $named = 0;
+foreach ($texts as string $text) {
+    try {
+        var $at = Core\Time::fromIso($text);
+        $accepted = $accepted + 1;
+        if ($at->toEpochSeconds() == $reference) {
+            $sameSecond = $sameSecond + 1;
+        }
+    } catch (ParseError $bad) {
+        // The class is § 10's `ParseError` and not a bare `RuntimeError`:
+        // this member's one argument is text that arrived from elsewhere,
+        // which is the same rule `Core\Time::parse` splits its two classes
+        // by. A wrong class would not be caught here and would end the case.
+        $refused = $refused + 1;
+        if (Core\Str::startsWith($bad->message, 'Core\Time::fromIso(): ')) {
+            $named = $named + 1;
+        }
+    }
+}
+echo $accepted, " accepted, ", $sameSecond, " of them at one second\n";
+echo $refused, " refused, ", $named, " under the member's own name\n";
+
+// The sentence past that name is `jiff`'s, because it says which component
+// it stopped at and nothing here would say it better — so it is asserted by
+// its class and by the name in front of it rather than frozen.
+
+// The bound, named on both sides, and it is one character wide: the same
+// civil time is refused without an offset and accepted with one.
+try {
+    echo Core\Time::fromIso("2024-03-01T12:00:00")->toIso(), "\n";
+} catch (ParseError $civil) {
+    echo "no offset: refused\n";
+}
+echo "with one: ", Core\Time::fromIso("2024-03-01T12:00:00Z")->toIso(), "\n";
+
+// The five accepted texts share a second, not a point: a subsecond is read
+// and kept, and `toEpochSeconds` is what truncates it.
+echo "subsecond: ", Core\Time::fromIso("2024-03-01T12:00:00.500Z")->toIso(), "\n";
+--EXPECT--
+5 accepted, 5 of them at one second
+9 refused, 9 under the member's own name
+no offset: refused
+with one: 2024-03-01T12:00:00Z
+subsecond: 2024-03-01T12:00:00.5Z

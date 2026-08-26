@@ -1708,11 +1708,21 @@ mwl_runtime::mwl_helper! {
     /// replaces here. A relative expression is not accepted in either half
     /// (§ 4), and a *civil* time with no offset is `Time::parse`, which needs
     /// a zone.
+    ///
+    /// The refusal is a `ParseError` on the same rule
+    /// [`mwl_core_time_parse`] splits its two classes by: this member's one
+    /// argument is text, which arrives from somewhere else, so a text that
+    /// does not spell a timestamp is the input's failure and not the call
+    /// site's. The sentence past the member's own name is `jiff`'s, since it
+    /// says which component it stopped at and nothing here could say it
+    /// better.
     fn mwl_core_time_from_iso(_ctx, args: [1]) {
         let text = text_of(args, 0, "Core\\Time::fromIso")?;
         text.parse::<Timestamp>()
             .map(instant_built)
-            .map_err(|err| Fault::thrown(format!("Core\\Time::fromIso(): {err}")))
+            .map_err(|err| {
+                Fault::thrown_as(ThrownClass::Parse, format!("Core\\Time::fromIso(): {err}"))
+            })
     }
 }
 

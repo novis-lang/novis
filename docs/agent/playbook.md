@@ -824,6 +824,14 @@ is why" — is this file.
   `Core\Time::parse` answers `LogicError` for its pattern argument and `ParseError` for its text,
   and counting each table into the other's class is what a member throwing one class for everything
   fails.
+- **A case that has to name a `Core\Class::member` inside a *string* writes the literal single-quoted.**
+  `'Core\Time::fromIso(): '` is exactly those characters — the lexer treats only `\\` and `\'` as
+  escapes in a single-quoted string, PHP's rule, so every other backslash stays literal. This matters
+  past taste whenever the member's message ends in a *dependency's* wording: `gaps.py --errors` drops a
+  site only when the literal run before the message's first format hole appears somewhere in the suite,
+  so a case that asserts `jiff`'s or `regex`'s sentence with `Core\Str::startsWith($e->message, '…')`
+  has to spell the prefix out, and cannot instead echo the whole message and freeze a tail the next
+  dependency bump will rewrite.
 
 ## Splitting a file that got too big
 
