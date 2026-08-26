@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 510 of 600 and differential 153 of 150. **Nothing below them
+> Stage 4's two counts**, conformance 511 of 600 and differential 154 of 150. **Nothing below them
 > is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -69,8 +69,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 510 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 153, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 511 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 154, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -112,47 +112,47 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 4's differential gate is met — 153 against the 150 it requires — so
-> conformance is the only frontier left, at 510 of the 600.** Both named guards
+> **Open now:** **Stage 4's differential gate is met — 154 against the 150 it requires — so
+> conformance is the only frontier left, at 511 of the 600.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
 > conventions.md rather than for a section, and lands its claim as its own file, because the gate
 > counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is the worklist and no
 > session should re-derive it**: `--differential` names every member whose spec **Replaces** column
-> gives it a PHP twin and which no oracle case calls — 6 left — and `--errors` every `Fault::` site
-> in `mwl-stdlib` whose message no case asserts, 58 of them — of which **57 are `Fault::fatal`,
-> unreachable by any handler and so by any case, and the one `thrown` left is unreachable from
-> source as well**, so the list holds nothing a case can take. A site leaves the list when the
-> literal run of its message *before the first format hole* appears anywhere in either suite, so a
-> case echoing `Core\Time\DateTime::format():` also silences every message spelled
-> `Core\Time\DateTime::{member}` — which is how closing seven sites once took twelve rows off the
-> list at once. Three sites are hidden that way today and none is owed a case: `time.rs:1968`'s
-> unknown zone, where `datetime_built` re-derives every stored zone id from the resolved zone so no
-> program can reach it and the invariant is what a case asserts in its place, and `json.rs:767` and
-> `json.rs:869`, both `fatal` and both hidden by the `Core\Json::decodeAs(): ` stem the codec case
-> asserts. The list is a worklist rather than a ledger, and the playbook's *Tooling* section owns
-> what to do when the drop is larger than the number of sites a session asserted. Over `Core\Arr`
-> the twin's key rule decides which kind of case it is: PHP renumbers a result's integer keys and
-> keeps its string ones, ADR 0069 § 3 refuses that, so a member matches its twin over a *list* and
-> diverges over a map, and both shapes exist now for the window, the ends, the padding pair and
-> `reverse`. **Unbuilt in the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s
-> decoder, which ADR 0071 leaves reading a scalar-fielded class only — no enum, `decimal`,
-> `Instant`, `array` or nested-class field, and no optional key from a parameter default
-> (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing from every `mwl-stdlib`
-> member row, which is why `Core\Str::format`'s template is not yet the sink that ADR makes it, why
-> neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
-> refusing an unclassified member exists, and why `Core\Hash::hmac`'s `secret bytes $key` is a plain
-> `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's substitution table, which is
-> what would make the terminal sink neutralize a control byte and `Cli\Text::plain` a constructor
-> that cannot produce an injected escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
-> unbuilt, but not catch-up** — ADRs 0091 (the `development`/`production` run mode), 0092 (one
-> diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`), 0097 (the
-> server's scope and its `[server]` block) and 0100 § 3 (a file opening `#!` starts in code mode
-> with no tag — one `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no parser or
-> runtime change). None invalidates built behaviour or a written fixture; their work is M1, M4, M6,
-> M7, M8 and M10. **Open beside the library** — a property's declared default runs and is
-> type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow
+> gives it a PHP twin and which no oracle case calls — 5 left, and `Core\Path` is clear of them —
+> and `--errors` every `Fault::` site in `mwl-stdlib` whose message no case asserts, 58 of them — of
+> which **57 are `Fault::fatal`, unreachable by any handler and so by any case, and the one `thrown`
+> left is unreachable from source as well**, so the list holds nothing a case can take. A site
+> leaves the list when the literal run of its message *before the first format hole* appears
+> anywhere in either suite, so a case echoing `Core\Time\DateTime::format():` also silences every
+> message spelled `Core\Time\DateTime::{member}` — which is how closing seven sites once took twelve
+> rows off the list at once. Three sites are hidden that way today and none is owed a case:
+> `time.rs:1968`'s unknown zone, where `datetime_built` re-derives every stored zone id from the
+> resolved zone so no program can reach it and the invariant is what a case asserts in its place,
+> and `json.rs:767` and `json.rs:869`, both `fatal` and both hidden by the `Core\Json::decodeAs(): `
+> stem the codec case asserts. The list is a worklist rather than a ledger, and the playbook's
+> *Tooling* section owns what to do when the drop is larger than the number of sites a session
+> asserted. Over `Core\Arr` the twin's key rule decides which kind of case it is: PHP renumbers a
+> result's integer keys and keeps its string ones, ADR 0069 § 3 refuses that, so a member matches
+> its twin over a *list* and diverges over a map, and both shapes exist now for the window, the
+> ends, the padding pair and `reverse`. **Unbuilt in the library**, none of it a registration gap:
+> `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a scalar-fielded class only — no
+> enum, `decimal`, `Instant`, `array` or nested-class field, and no optional key from a parameter
+> default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing from every
+> `mwl-stdlib` member row, which is why `Core\Str::format`'s template is not yet the sink that ADR
+> makes it, why neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
+> the test refusing an unclassified member exists, and why `Core\Hash::hmac`'s `secret bytes $key`
+> is a plain `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's substitution
+> table, which is what would make the terminal sink neutralize a control byte and `Cli\Text::plain`
+> a constructor that cannot produce an injected escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1).
+> **Decided and unbuilt, but not catch-up** — ADRs 0091 (the `development`/`production` run mode),
+> 0092 (one diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`), 0097
+> (the server's scope and its `[server]` block) and 0100 § 3 (a file opening `#!` starts in code
+> mode with no tag — one `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no
+> parser or runtime change). None invalidates built behaviour or a written fixture; their work is
+> M1, M4, M6, M7, M8 and M10. **Open beside the library** — a property's declared default runs and
+> is type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow
 > statement that does not lower; a closure cannot be called through the variable holding it and
 > `Class::method(...)` panics `mwl-ir` outright, so a case sweeps a table with `foreach` and reaches
 > a helper through a `public static function` declared in the same file (`mwl-ir` gap 1); a `?bool`
@@ -177,7 +177,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: the differential gate is met at 153 of 150, conformance stands at 510 of 600, and the
+> decision: the differential gate is met at 154 of 150, conformance stands at 511 of 600, and the
 > remainder is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

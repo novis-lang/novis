@@ -1,0 +1,79 @@
+--TEST--
+Every Core\Path member accepts `/` and `\` alike, and every one that answers a path emits only Core\Path::SEPARATOR — counted over a sweep rather than read off a line, spec § 8
+--FILE--
+<?mwl
+// § 8's separator rule is two rules, and `crates/mwl-stdlib/src/path.rs`'s
+// module doc reads them as the stronger pair they have to be: *acceptance* is
+// one grammar on every platform, and only *emission* follows the host. A case
+// that asked one member on one line would pass on one leg and say nothing
+// about the other, so both halves are counted over a sweep here: a member that
+// grew its own parse — reading `\` as an ordinary character, or emitting the
+// separator it was handed — fails the count while still looking right on its
+// own row.
+array<string> $subjects = [
+    "/var/log/app.log",
+    "/var/log/",
+    "a/b/c.txt",
+    "C:/tmp/x",
+    "/",
+    "a//b/./c/..",
+    "x",
+    "",
+];
+
+// Acceptance: the `\` spelling of a subject is the same path as its `/`
+// spelling, so every member answers it identically — including `isAbsolute`,
+// whose whole answer is about the root, and `split`, whose whole answer is the
+// components the grammar found. What each member answered is a sibling case's
+// question; this one asserts only that all eight agree with themselves across
+// the two spellings.
+int $accepted = 0;
+foreach ($subjects as string $s) {
+    var $t = Core\Str::replace($s, "/", "\\");
+    $accepted = $accepted + ((Core\Path::basename($s) == Core\Path::basename($t)) ? 1 : 0);
+    $accepted = $accepted + ((Core\Path::dirname($s) == Core\Path::dirname($t)) ? 1 : 0);
+    $accepted = $accepted + ((Core\Path::extension($s) == Core\Path::extension($t)) ? 1 : 0);
+    $accepted = $accepted + ((Core\Path::normalize($s) == Core\Path::normalize($t)) ? 1 : 0);
+    $accepted = $accepted + ((Core\Path::isAbsolute($s) == Core\Path::isAbsolute($t)) ? 1 : 0);
+    $accepted = $accepted + ((Core\Path::split($s) == Core\Path::split($t)) ? 1 : 0);
+    $accepted = $accepted + ((Core\Path::join($s) == Core\Path::join($t)) ? 1 : 0);
+    // The base is spelled both ways too, since `relativeTo` parses two paths.
+    $accepted = $accepted + ((Core\Path::relativeTo($s, "/var") == Core\Path::relativeTo($t, "\\var")) ? 1 : 0);
+}
+echo "accepted ", $accepted, " of 8 members x ", Core\Arr::count($subjects), " subjects\n";
+
+// The ninth member is asked over its own list: `withExtension` has no name to
+// rewrite on a path whose last component is missing, so `'/'` and `''` throw
+// (ADR 0063 R4) rather than joining the sweep above.
+array<string> $named = ["/var/log/app.log", "a/b/c.txt", "C:/tmp/x", "x"];
+int $renamed = 0;
+foreach ($named as string $n) {
+    var $u = Core\Str::replace($n, "/", "\\");
+    $renamed = $renamed + ((Core\Path::withExtension($n, "bak") == Core\Path::withExtension($u, "bak")) ? 1 : 0);
+}
+echo "renamed ", $renamed, " of ", Core\Arr::count($named), "\n";
+
+// Emission: whichever separator the subject was written with, an answer that
+// is a path carries this platform's and no other. Asserted as the absence of
+// the *foreign* one, which is what keeps the claim platform-neutral — the
+// alternative, naming the expected separator, is the row that can only pass on
+// one leg.
+string $foreign = (Core\Path::SEPARATOR == "/") ? "\\" : "/";
+int $emitted = 0;
+foreach ($subjects as string $e) {
+    var $w = Core\Str::replace($e, "/", "\\");
+    $emitted = $emitted + (Core\Str::contains(Core\Path::normalize($w), $foreign) ? 0 : 1);
+    $emitted = $emitted + (Core\Str::contains(Core\Path::join($w, "sub"), $foreign) ? 0 : 1);
+    $emitted = $emitted + (Core\Str::contains(Core\Path::dirname($w), $foreign) ? 0 : 1);
+}
+echo "emitted ", $emitted, " of 3 members x ", Core\Arr::count($subjects), " subjects\n";
+
+// And the constant is inside the grammar it names: it is one of the two
+// separators every member accepts, so a path that is nothing but SEPARATOR is
+// a root.
+echo "separator rooted ", (Core\Path::isAbsolute(Core\Path::SEPARATOR) ? "yes" : "no"), " accepted ", ((Core\Path::SEPARATOR == "/" || Core\Path::SEPARATOR == "\\") ? "yes" : "no"), "\n";
+--EXPECT--
+accepted 64 of 8 members x 8 subjects
+renamed 4 of 4
+emitted 24 of 3 members x 8 subjects
+separator rooted yes accepted yes

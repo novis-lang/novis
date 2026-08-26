@@ -2,58 +2,56 @@
 
 ## State
 
-**Conformance is the only frontier left, at 510 of 600; the differential gate is met at 153 of the
+**Conformance is the only frontier left, at 511 of 600; the differential gate is met at 154 of the
 150 it requires.** Verify is green (**1597** cargo tests, 74 suites, clippy and fmt clean) and
 executes both `.mwlt` trees itself, so after a green `verify.py` there is nothing else to run
 (playbook, *Running things*) — in particular no release rebuild.
 
-**`Core\Path::basename` and `Core\Path::dirname` now have oracle cases**, so `python tools/gaps.py
---differential` is down to six members with a PHP twin and no case: `Core\Path::normalize`,
-`Core\Math::gcd`/`lcm`, `Core\Json::decode`/`isValid` and `Core\Arr::flattenDeep`. Both new cases
-sweep the boundaries the member is written around rather than adding rows — a trailing separator
-(one and several), a bare name, the root, the empty subject, `.`/`..`, and the option that is PHP's
-second argument on both sides. Neither pins a *divergence*: `dirname('')` answering `.` and
-`{levels: 0}` answering the path itself are PHP-unaskable and stay pinned in
-`tests/conformance/core/path-decomposes-a-path-without-touching-the-disk.mwlt` and
-`path-normalize-has-a-normal-form-and-join-never-replaces-its-base.mwlt`, which the new cases point
-at instead of restating. A `Core\Path` oracle case has to normalize its own answer
-(`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) *and* the oracle's (`str_replace("\\", "/",
-…)`), and must never spell a `\` in a subject: MWL parses both separators on every platform where
-PHP parses `\` on Windows only, so a backslash row would pass one leg and fail the other.
+**`Core\Path` is finished as far as the two counts can see it**: every § 8 member now has a
+conformance case and the class has no differential gap left. `python tools/gaps.py --differential`
+is down to five, all outside it — `Core\Math::gcd`/`lcm`, `Core\Json::decode`/`isValid` and
+`Core\Arr::flattenDeep`. Two shapes landed this session and both are reusable: an oracle written as
+a **hand-written second implementation in PHP** where the twin cannot be asked at all
+(`realpath` stats the disk, so the oracle folds `.`/`..` itself, exactly as the RFC 3986 case does),
+and § 8's separator rule asserted as **two counted invariants** — acceptance is one grammar on every
+platform, emission follows the host — so a member that grew its own parse fails the count while
+still looking right on its own row. `==` compares two `array<string>` and two `?string` results
+directly, which is what let the acceptance sweep ask `split` and `relativeTo` alongside the rest.
 
-**`orient.py`'s `[context] modules` manifest is still wrong, fifth session running.** It names
+**`orient.py`'s `[context] modules` manifest is still wrong, sixth session running.** It names
 `registry.rs`, `json.rs`, `arr.rs` and `regex.rs`; this session worked entirely in
-`crates/mwl-stdlib/src/path.rs`, which the pack printed no map line for, and the next group is in
-the same file. The pack also still truncates the rest-of-group bullets mid-sentence.
+`crates/mwl-stdlib/src/path.rs` and `str.rs`, for neither of which the pack printed a map line. The
+pack also still truncates the rest-of-group bullets mid-sentence, so the full text had to be read
+back out of `handoff.md`.
 
 ## Next group
 
-Three slices, all in the same file set: `crates/mwl-stdlib/src/path.rs`, `tests/differential/core/`
-and `tests/conformance/core/`. The first is the last differential gap `Core\Path` has.
+Three slices. The first shares `crates/mwl-stdlib/src/path.rs` and `tests/conformance/core/` with
+the two that just landed; the last two are the next differential frontier and share
+`tests/differential/core/`, one stdlib module each.
 
-- [ ] **`Core\Path::normalize` against PHP's `realpath`** (`path.rs:664`, its `resolved` helper at
-      `path.rs:@resolved`) — a `tests/differential/` oracle case, but `realpath` touches the disk and
-      answers `false` for a path that does not exist, so the oracle side is a **hand-written** fold
-      of `.`/`..` over `explode("/", …)`, exactly as
-      `tests/differential/core/uri-compare-to-matches-a-hand-written-rfc-3986-normalization.mwlt`
-      already does for RFC 3986. Sweep: a `..` past the root, a `..` in a relative path (which
-      survives), a repeated and a trailing separator, `.` alone.
-- [ ] **The separator invariant, counted rather than read off a line** — a `tests/conformance/core/`
-      case asserting that every `Core\Path` member accepts `/` and `\` alike and emits
-      `Core\Path::SEPARATOR` (`path.rs:175` for the emission rule, `path.rs:221` `is_separator` for
-      the acceptance one, module doc lines 11-24 for why only the emission is platform-dependent).
-      Count agreements over an `array<string>` of subjects into an `int`; a case that reads one row
-      off a line passes on one leg only.
 - [ ] **The trailing-separator rule asked of every member that shares it** (conventions.md's
-      *Agreement* shape) — `basename`, `dirname`, `split` (`path.rs:621`) and `normalize` all route
-      through `parse` (`path.rs:245`), which drops an empty component; assert that they **agree**
-      about `/var/log/` and `/var/log//` rather than what each answered.
+      *Agreement* shape) — `basename`, `dirname`, `split` (`path.rs:621`) and `normalize`
+      (`path.rs:664`) all route through `parse` (`path.rs:245`), which drops an empty component;
+      assert that they **agree** about `/var/log/` and `/var/log//` rather than what each answered.
+      Count into an `int` declared above the loop, as
+      `tests/conformance/core/path-accepts-both-separators-and-emits-only-one.mwlt` does.
+- [ ] **`Core\Math::gcd` and `lcm` against `gmp_gcd`/`gmp_lcm`** (`math.rs:945`, `math.rs:960`) — one
+      `tests/differential/` case for both, since `lcm` is defined through `gcd`. **Run
+      `php -m | grep gmp` first**: the Windows `php` on `PATH` is missing `mbstring` already, so if
+      `ext-gmp` is absent too the oracle is a hand-written Euclid in PHP, which is the same shape as
+      `path-normalize-matches-a-hand-written-lexical-fold.mwlt`. Sweep the boundaries: zero on either
+      side, one, two coprimes, a pair where `lcm` would overflow a narrower type.
+- [ ] **`Core\Json::isValid` against `json_validate`** (`json.rs:989`) — `json_validate` is PHP 8.3+,
+      so check `php -v` first and fall back to `json_decode` + `json_last_error() === JSON_ERROR_NONE`,
+      which is the twin the spec's **Replaces** column names beside it. Sweep the shapes that decide
+      it: a bare scalar, a trailing comma, a lone `NaN`, depth past the limit, invalid UTF-8.
 
 ## Backlog
 
-- `Core\Math::gcd` and `lcm` in one oracle case — `crates/mwl-stdlib/src/math.rs:945` and `:960`.
-- `Core\Json::decode` and `isValid` oracle cases — `crates/mwl-stdlib/src/json.rs:685` and `:989`.
-- `Core\Arr::flattenDeep` against `iterator_to_array` — `crates/mwl-stdlib/src/arr.rs:2150`.
-- `[context] modules` in `docs/agent/loop-goal.toml` misses every file the last five sessions
-  touched, `path.rs` included.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- `Core\Json::decode` against `json_decode` (`json.rs:685`) — pairs with `isValid` above, plan *Open now*.
+- `Core\Arr::flattenDeep` against `iterator_to_array` (`arr.rs:2150`) — the last differential gap.
+- `gaps.py --errors` holds nothing a case can take: 57 `Fault::fatal` and one unreachable `thrown` (plan *Open now*).
+- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row (`mwl_stdlib::hash` module doc).
+- `Core\Json::decodeAs<T>` reads a scalar-fielded class only (ADR 0071, `mwl_stdlib::json` gap 2).
+- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
