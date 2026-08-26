@@ -337,6 +337,10 @@ is why" — is this file.
   check what it found against the thing it is reading — `registry()` against `grep -c CoreClass` — before
   believing a total, and give an unresolvable name an empty owner rather than letting its members fall
   to the class above it.
+- **`adr.py --index` prints the regenerated index table; it does not write it.** Every other check the
+  tool runs is a report, and so is this one — the name is the only thing that suggests a fix. Paste the
+  new row into `docs/adr/README.md` yourself, or the *index table is stale* finding stays red through
+  however many times you re-run it.
 
 ## Running things
 

@@ -2,41 +2,42 @@
 
 ## State
 
-**Conformance is at 545 of 600, and it is the only frontier left.** Verify is green (1597 cargo tests,
-74 suites, 545 conformance, 159 differential, clippy and fmt clean) and runs both `.mwlt` trees itself,
-so after a green `verify.py` there is nothing else to run (playbook, *Running things*).
+**Conformance is at 545 committed of 600, and it is the only frontier left.** Verify is green (1597
+cargo tests, 74 suites, 546 conformance, 159 differential, clippy and fmt clean) and runs both `.mwlt`
+trees itself, so after a green `verify.py` there is nothing else to run (playbook, *Running things*).
 
-This session added no library code. It took the first two slices of the `Core\Time` group, both new
-files under `tests/conformance/core/` and both agreement sweeps over `crates/mwl-stdlib/src/time.rs`:
+This session was **user-fired and is not loop work**: a design question about uploads that turned into
+one ADR slice. No library code, no conformance case. **[ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+replaces [ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 8's two body paths with
+one:** `Core\Request::files(): Iterable<Part>` is now the only way to receive an uploaded file, the
+buffered array is withdrawn, and a part is consumed by `readAll({max?})`, by iterating
+`content: Iterable<bytes>`, or by `saveTo`, which delegates to a new `Core\IO::writeStream`. `[limits]`
+gains a second row: `request_body` (`"8M"`/`"64M"`) now means bytes parsed into memory, `upload_total`
+(`"256M"`/`"2G"`) bounds a streamed multipart body and is enforced on the wire, refused pre-dispatch
+when `Content-Length` already exceeds it. There is still no temp file. All of it is M7's to build; none
+of it exists in `crates/`.
 
-- `time-instant-order-and-difference-agree-and-a-zone-is-only-a-reading.mwlt` — 100 pairs of a
-  ten-row table asserting that `compareTo`'s sign is `since`'s sign, that `since` is antisymmetric,
-  and that `minus` and `plus` each rebuild the other end; then 50 readings asserting `in`→`toInstant`
-  is the identity in five zones, 100 cross-zone pairs asserting order and difference survive being
-  read in two *different* calendars, and the five renderings that show `in` is not decorative.
-- `time-datetime-parts-agree-with-the-value-they-came-from.mwlt` — 24 values (six instants × four
-  zones) asserting `date`, `timeOfDay`, `zone`, `dayOfYear` and `isLeapYear` each agree with what the
-  value `format`s as, and 36 pairs asserting `difference` in an absolute unit is `Instant::since` with
-  the operands swapped. Its tail pins the one place the zone decides the answer: 23 absolute hours is
-  no whole day in UTC and exactly one in Europe/Berlin, because the Berlin day between them is 23
-  hours long.
+The reason the buffered path went, recorded here because it is a fact about this runtime rather than
+about HTTP: a `bytes` value is a `StrHeader` with its payload allocated inline
+(`crates/mwl-runtime/src/string.rs:127`) and there is **no slice-of-parent representation**, so a
+multipart part could never alias the accumulated body buffer — it had to be copied out of it, making the
+buffered path cost twice what its cap said.
 
-`gaps.py --coverage` named `date`, `dayOfYear` and `difference` as the three `DateTime` members no case
-called, and all three are called now. `orient.py`'s pack was complete for this work; nothing was fetched
-outside it beyond `time.rs`'s member tables and the part-member bodies.
-
-**A by-hand pass over `docs/adr/` is still in flight and is not loop work.** 103 modified ADRs plus
-`ground-rules.md` have been uncommitted for three sessions now — a `Scope:` field added, `Supersedes:`
-renamed to `Amends:`, heading levels moved. That is [doc-cleanup.md](doc-cleanup.md)'s pass, which
-AGENTS.md says the user fires and the loop never does. **Do not stage it and do not `git commit -a`**:
-stage your own paths, exactly as `session.py --wrap` already does.
+**Two conformance cases are on disk untracked and are not this session's** —
+`tests/conformance/core/time-date-members-undo-each-other-over-one-table.mwlt` and
+`time-of-day-wraps-at-midnight-and-orders-by-the-same-clock.mwlt`, which are the first two slices of the
+*Next group* below. They are left exactly as found: unstaged, unjudged, uncommitted. A session picking
+that group up should read them before writing anything, because they may be finished work that only
+needs committing. This is also why the plan's conformance counts were **not** advanced — the number on
+disk (547 files) is not a number anyone has committed to.
 
 ## Next group
 
-Three slices, **all on `crates/mwl-stdlib/src/time.rs`** and all writing a new file under
-`tests/conformance/core/`, so a session taking two pays for the file set once.
-`docs/spec/01-core-library.md` § 4 owns the `Time` rules. `Core\Time\Date` is the thinnest class left
-at 0.33 cases per member; `TimeOfDay` and `Duration` are next at 0.67 and 0.37.
+Unchanged by this session — three slices, **all on `crates/mwl-stdlib/src/time.rs`** and all writing a
+new file under `tests/conformance/core/`, so a session taking two pays for the file set once.
+`docs/spec/01-core-library.md` § 4 owns the `Time` rules. `Core\Time\Date` is the thinnest class left at
+0.33 cases per member; `TimeOfDay` and `Duration` are next at 0.67 and 0.37. **Check the two untracked
+files named in *State* first — the first two slices may already be written.**
 
 - [ ] **`Core\Time\Date` is six members over one civil date, and they undo each other** — `at` and
       `format` are inverses over a table of dates, `plus`/`minus` in the same unit return the date
@@ -55,6 +56,7 @@ at 0.33 cases per member; `TimeOfDay` and `Duration` are next at 0.67 and 0.37.
 
 ## Backlog
 
+- The two untracked `.mwlt` files above: read, verify, commit or delete. Nobody owns them right now.
 - `Core\Uri` is 0.53 cases per member over 19 — the thinnest class outside `Core\Time`
   (`python tools/gaps.py --coverage`).
 - `gaps.py --differential` still names 9 members with a PHP twin and no oracle case, all `Core\Time`
@@ -62,4 +64,5 @@ at 0.33 cases per member; `TimeOfDay` and `Duration` are next at 0.67 and 0.37.
 - `Core\Json::decodeAs<T>` still decodes a scalar-fielded class only (`mwl_stdlib::json` gap 2).
 - ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row
   (`mwl_stdlib::hash`'s module doc).
-- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`) — its
+  `$_FILES` row is unwritten, and ADR 0105 is what it now maps to.
