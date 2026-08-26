@@ -101,10 +101,13 @@ is why" — is this file.
   instinct — "my registry rows broke something" — costs a bisect. `git status --short` showing that
   file unmodified is the whole diagnosis. Fix it, but in **its own commit**, so `git log` does not
   read as though the feature slice touched it.
-- **Never `plan.py --get "Open now"` just to check an edit landed.** That field is one logical line of
-  about 10,000 tokens, and `--get` unwraps and prints the whole of it — five per cent of a session's
-  ceiling to confirm a sentence you already wrote. `grep -n` the phrase in `docs/implementation-plan.md`
-  instead; the surrounding `> `-prefixed lines are the same fact for a hundredth of the cost.
+- **`plan.py --get <Field>` prints a field whole, so weigh it against what the field costs.** It was
+  once flatly not worth it: `Open now` had grown to 44 KB — one logical line of about 11,000 tokens,
+  five per cent of a session's ceiling to confirm a sentence you already wrote. That field is 5 KB
+  now (its record of landed work is playbook bullets), so `--get` is the right call when you need
+  the field's exact wording, which is what a `## plan-edit:` fragment has to quote. To confirm an
+  edit *landed*, still `grep -n` the phrase in `docs/implementation-plan.md` — the surrounding
+  `> `-prefixed lines are the same fact for a fraction of the cost, and `--wrap` already told you.
 - **A plan status field is *one* logical line, and three renderings of it disagree.** `plan.py --get`
   hands back the unwrapped line, `orient.py` re-wraps it again, and on disk it is a `> `-prefixed
   blockquote wrapped at ~100 columns. So an anchor copied out of either *rendering* never matches the
@@ -288,6 +291,18 @@ is why" — is this file.
   so a blank line added for readability inside a field splits it in two and `plan.py --check`
   reports six fields where there were seven. Keep the paragraph continuous, and run
   `python tools/plan.py --check` after — it prints the field count and each field's size.
+
+- **A plan field is patched, not retyped: `## plan-edit: <Field>` with `--- old` / `--- new`.**
+  `## plan: <Field>` still exists and still replaces the field whole, but a replacement over 1.5 KB
+  whose 8-word runs are 70% already on disk is refused as a retype and names the patch form. That
+  is not pedantry about bytes: over one 21-session run `## plan:` sections were 160,388 B of wrap
+  payload, 45% of everything those sessions wrote into a wrap file, one of them 33 KB in a single
+  Write that cost 189 seconds — and re-emitting a field by hand is exactly where a paragraph gets
+  silently dropped. Quote the `--- old` fragment as the field *reads*, which is one single-spaced
+  paragraph however it is wrapped on disk (`python tools/plan.py --get "Open now"` prints it); it
+  must match exactly once, and the refusal says whether it matched none or several. A deliberate
+  *trim* is exempt — cutting a field to under 60% of its size is all-verbatim by definition and
+  goes through as a `## plan:` — and so is a real rewrite, which overlaps less than 70%.
 
 ## Running things
 

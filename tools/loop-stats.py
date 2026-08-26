@@ -420,6 +420,50 @@ def calibrate(sessions, write):
     return ratio
 
 
+#: A session's fixed cost is meant to be FIXED -- that is the whole claim `loop.py`'s docstring
+#: makes for starting a fresh session each time ("the per-session context cost is constant no
+#: matter how many sessions run"). It stops being true the moment something a session writes is
+#: also something every later session reads: the plan's status fields and the playbook both are,
+#: and both are written by `session.py --wrap`. Growth there is not a big pack, it is a pack that
+#: gets bigger with the number of sessions served -- the same shape AGENTS.md's priority ordering
+#: calls a leak rather than a trade-off.
+#:
+#: It went unseen for a whole run once. `Open now` grew 4,106 -> 44,160 B over 21 sessions, about
+#: 2 KB a session, until it was 48% of the orientation pack; every number in this script was
+#: already being printed and none of them was that one. So this is a slope, not a size.
+DRIFT_BYTES_PER_SESSION = 400
+
+
+def report_drift(sessions):
+    """Is the pack growing with the number of sessions? A slope, printed only when there is one."""
+    pts = [(i, s["pack_bytes"]) for i, s in enumerate(sessions) if s.get("pack_bytes")]
+    if len(pts) < 5:
+        return
+    n = len(pts)
+    mx = sum(x for x, _ in pts) / n
+    my = sum(y for _, y in pts) / n
+    denom = sum((x - mx) ** 2 for x, _ in pts)
+    if not denom:
+        return
+    slope = sum((x - mx) * (y - my) for x, y in pts) / denom
+    first, last = pts[0][1], pts[-1][1]
+    print(f"\n== FIXED COST  (the orientation pack, first session to last)")
+    print(f"   {first:,} -> {last:,} B, {slope:+,.0f} B a session")
+    if slope < DRIFT_BYTES_PER_SESSION:
+        print("   flat enough -- the per-session cost is not growing with the number of sessions.")
+        return
+    print(
+        f"   THIS IS A LEAK, NOT A BIG PACK. At {slope:,.0f} B a session the next {n} sessions pay\n"
+        f"   {first + slope * 2 * n:,.0f} B each, and every byte is re-billed on every one of a\n"
+        f"   session's calls. Something a session WRITES is being read by every session after it.\n"
+        f"   `python tools/orient.py --audit` says which section, and it is usually the plan's\n"
+        f"   status block or the playbook: `python tools/plan.py --check` and\n"
+        f"   `python tools/playbook.py --check` price those two. A status field carrying a record\n"
+        f"   of what landed belongs in `git log`; a finding belongs in a playbook bullet no goal\n"
+        f"   ships until its file set implies it."
+    )
+
+
 def main():
     try:
         sys.stdout.reconfigure(encoding="utf-8", newline="\n")
@@ -510,6 +554,8 @@ def main():
         f"({fixed/total_calls*100:.0f}%) -- head {t['head']:.0f} + tail {t['tail']:.0f}"
     )
     print(f"   cost per session          ${t['cost_per_session']:.2f}")
+
+    report_drift(sessions)
 
     batched = [s for s in sessions if s["per_message"] > 1.05]
     if not batched:
