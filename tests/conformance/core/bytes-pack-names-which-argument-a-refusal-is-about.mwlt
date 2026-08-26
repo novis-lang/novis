@@ -1,0 +1,147 @@
+--TEST--
+`Core\Bytes::pack` reports which argument each mismatch is about, and every code accepts exactly one kind of argument — spec § 7, ADR 0009 §§ 1 and 3, ADR 0007 § 3
+--FILE--
+<?mwl
+// Spec § 7's `pack(string $format, mixed ...$values): bytes`. The value list is
+// `mixed`, which is ADR 0007 § 3's one unchecked position, so nothing the
+// checker knows lines the format up against the arguments — the member does it
+// at the call, and ADR 0009 § 3's checked-never-repaired rule is why every
+// mismatch is a throw rather than a NUL, a truncation or a wrap.
+//
+// `tests/conformance/core/bytes-pack-writes-explicit-width-fields.mwlt` pins
+// what a well-formed call writes and reports its refusals as "threw". This case
+// pins the six refusals themselves, by the message each names, because a member
+// that threw the *wrong* one still reads as correct there.
+// `crates/mwl-stdlib/src/bytes.rs` owns each site.
+
+final class Pack {
+    // The message a refused call reports, or "" when the call is an answer.
+    // Each `catch` binds its own name: a binding belongs to the function, so
+    // two clauses in one class body cannot share one.
+    public static function none(string $format): string {
+        try {
+            Core\Bytes::pack($format);
+            return "";
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+
+    public static function one(string $format, mixed $a): string {
+        try {
+            Core\Bytes::pack($format, $a);
+            return "";
+        } catch (Throwable $b) {
+            return $b->message;
+        }
+    }
+
+    public static function two(string $format, mixed $a, mixed $c): string {
+        try {
+            Core\Bytes::pack($format, $a, $c);
+            return "";
+        } catch (Throwable $d) {
+            return $d->message;
+        }
+    }
+
+    public static function accepts(string $format, mixed $a): string {
+        if (Pack::one($format, $a) == "") {
+            return "y";
+        }
+        return "n";
+    }
+
+    // Which of the seven argument kinds the code writes a field from, in the
+    // order `string`, `bytes`, `int`, `uint`, `float`, `bool`, `null`.
+    public static function mask(string $code): string {
+        return Pack::accepts($code, "A")
+            . Pack::accepts($code, "A" as bytes)
+            . Pack::accepts($code, 65)
+            . Pack::accepts($code, 65 as uint)
+            . Pack::accepts($code, 65.0)
+            . Pack::accepts($code, true)
+            . Pack::accepts($code, null);
+    }
+}
+
+// A field the call wrote no argument for names the code that came up short and
+// both counts, so a format built at run time says where it outran the call
+// rather than only that it did. The repeater and the buffer codes reach the
+// same site.
+echo Pack::one("NN", 1), "\n";
+echo Pack::one("N2", 1), "\n";
+echo Pack::one("a4a4", "Hi"), "\n";
+
+// The other side of that bound is its own refusal, not a silent drop: a format
+// that writes fewer fields than the call passed reports both counts too.
+echo Pack::two("N", 1, 2), "\n";
+echo "[", Core\Encoding::toHex(Core\Bytes::pack("NN", 1, 2)), "]\n";
+
+// `*` is the one repeater that can meet neither bound — it takes exactly the
+// arguments left, down to none at all — so a `*` format never reaches either
+// counting refusal.
+echo "[", Core\Encoding::toHex(Core\Bytes::pack("N*", 1, 2)), "]\n";
+echo "[", Core\Encoding::toHex(Core\Bytes::pack("N*")), "]\n";
+
+// `x` is the exception in the other direction: it consumes no argument, so its
+// repeater is a NUL count and `*` has nothing to count.
+echo "[", Core\Encoding::toHex(Core\Bytes::pack("x")), "]\n";
+echo "[", Core\Encoding::toHex(Core\Bytes::pack("x2")), "]\n";
+echo Pack::none("x*"), "\n";
+
+// A field given the wrong kind of argument names the kind of field it writes
+// and the runtime tag the program actually passed — the tag `mixed` carries,
+// not one the checker placed.
+echo Pack::one("a4", 65), "\n";
+echo Pack::one("Z", 65.0), "\n";
+echo Pack::one("N", "x"), "\n";
+echo Pack::one("C", 65.0), "\n";
+echo Pack::one("G", 1), "\n";
+echo Pack::one("e", "1.0"), "\n";
+
+// The claim those six rows are samples of, counted over the whole roster: each
+// code accepts exactly one class of argument and refuses the other five kinds,
+// so the three classes partition the codes. A code that grew a conversion of
+// its own — an integer field taking a numeral string, a float field taking an
+// `int` — still looks right on its own line and fails here. `x` is the code
+// that accepts nothing, since it reads no argument at all.
+array<string> $codes = ["a", "A", "Z", "C", "n", "N", "v", "V", "J", "P", "G", "g", "E", "e", "x"];
+int $buffer = 0;
+int $integer = 0;
+int $fractional = 0;
+int $refuses = 0;
+foreach ($codes as string $code) {
+    string $m = Pack::mask($code);
+    if ($m == "yynnnnn") {
+        $buffer = $buffer + 1;
+    }
+    if ($m == "nnyynnn") {
+        $integer = $integer + 1;
+    }
+    if ($m == "nnnnynn") {
+        $fractional = $fractional + 1;
+    }
+    if ($m == "nnnnnnn") {
+        $refuses = $refuses + 1;
+    }
+}
+echo $buffer, " ", $integer, " ", $fractional, " ", $refuses, " of ", Core\Arr::count($codes), "\n";
+--EXPECT--
+Core\Bytes::pack: `N` wants argument 2, and the call wrote 1
+Core\Bytes::pack: `N` wants argument 2, and the call wrote 1
+Core\Bytes::pack: `a` wants argument 2, and the call wrote 1
+Core\Bytes::pack: the format writes 1 of the 2 arguments the call wrote
+[0000000100000002]
+[0000000100000002]
+[]
+[00]
+[0000]
+Core\Bytes::pack: `x*` has nothing to repeat — `x` consumes no argument, so write the number of NUL bytes
+Core\Bytes::pack: `a` writes a buffer field, and the argument is a Int
+Core\Bytes::pack: `Z` writes a buffer field, and the argument is a Float
+Core\Bytes::pack: `N` writes an integer field, and the argument is a Str
+Core\Bytes::pack: `C` writes an integer field, and the argument is a Float
+Core\Bytes::pack: `G` writes a float field, and the argument is a Int
+Core\Bytes::pack: `e` writes a float field, and the argument is a Str
+3 7 4 1 of 15
