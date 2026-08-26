@@ -107,6 +107,24 @@ def say(text="", colour=None):
     sys.stdout.flush()
 
 
+def mmss(seconds):
+    """`123` -> `2m03s`. Durations here run from milliseconds to tens of minutes, and a bare
+    float of seconds is unreadable at the top of that range."""
+    seconds = int(seconds)
+    return f"{seconds // 60}m{seconds % 60:02d}s" if seconds >= 60 else f"{seconds}s"
+
+
+def step(text, colour=C.GRAY):
+    """One line of between-sessions progress, stamped with the wall clock.
+
+    Everything a session does prints itself as it happens; everything the DRIVER does between
+    two sessions used to print nothing at all -- and the driver's half is the slow half (a
+    build, both suites, the WSL leg, the valgrind sweep, then `orient.py` for the next one).
+    A run therefore looked stalled for minutes at a time with the last session's status line
+    sitting on screen. Every phase now names itself before it starts and says what it cost."""
+    say(f"   [{datetime.now():%H:%M:%S}] {text}", colour)
+
+
 # --------------------------------------------------------------------- session transcript
 #
 # Renders the NDJSON from `claude --output-format stream-json` the way Claude Code's own transcript
@@ -407,6 +425,8 @@ class Goal:
         self.program_checks = [c for c in self.checks if c["kind"] in PROGRAM_KINDS]
         self.ran = []  # (label, seconds) for every check this run actually paid for
         self.short = []  # `min_passing` thresholds not met; see `check()`
+        self.verbose = False  # narrate each check as it starts and what it cost
+        self._begun = 0.0  # monotonic start of the current check(), for the elapsed stamp
         self._cargo = {}  # args tuple -> Result, within one check() call
         self._tree = ""
         self._green = set()
@@ -421,14 +441,26 @@ class Goal:
 
     # -- measuring, and the two memos --------------------------------------------------
 
+    def trace(self, msg):
+        """Name the check about to run, stamped with how long the whole sweep has been going.
+        Silent unless the caller asked for it; see `step()` for why it exists at all."""
+        if self.verbose:
+            say(f"   .. +{mmss(time.monotonic() - self._begun):>6}  {msg}", C.GRAY)
+
     def timed(self, label, thunk):
         """Run `thunk`, recording what it cost. `check()` reports the total and the three
-        slowest, because an acceptance test nobody has ever timed is one nobody can tune."""
+        slowest, because an acceptance test nobody has ever timed is one nobody can tune.
+
+        Anything that took a second or more also says so on the spot: the summary at the end
+        is no help while you are watching a run and wondering whether it is still moving."""
         started = time.monotonic()
         try:
             return thunk()
         finally:
-            self.ran.append((label, time.monotonic() - started))
+            spent = time.monotonic() - started
+            self.ran.append((label, spent))
+            if self.verbose and spent >= 1:
+                say(f"   .. {'':>7}  {label} took {mmss(spent)}", C.GRAY)
 
     def cargo(self, args):
         """`cargo` with the result shared by every check that asks for the same argument list."""
@@ -553,13 +585,16 @@ class Goal:
         """Every fixture under `valgrind --leak-check=full`, over the binary the leg already
         built. In WSL on Windows, directly on Linux."""
         if self.remembered("valgrind sweep"):
+            self.trace("valgrind sweep (green on this tree already)")
             return ""
         if leg.name == "native" and shutil.which("valgrind") is None:
+            self.trace("valgrind sweep skipped -- no valgrind on this platform")
             return ""  # not a failure: this platform simply has no valgrind leg
 
         for f in self.files:
             if f in self.valgrind_skip:
                 continue
+            self.trace(f"valgrind {f}")
             cmd = (
                 "valgrind --error-exitcode=1 --leak-check=full "
                 f"--errors-for-leak-kinds=definite -q {leg.binary} run {f}"
@@ -582,16 +617,19 @@ class Goal:
         self.ran = []
         self._cargo = {}
         self.short = []  # thresholds not met yet, judged after everything else
-        self.load_green()
+        self._begun = time.monotonic()
+        # Hashing the dirty tree is a `git diff HEAD` over everything the session just wrote, so
+        # on a large working tree this is itself a visible pause before any check has started.
+        self.trace("fingerprinting the tree for the green-check memo")
+        self.timed("tree fingerprint", self.load_green)
         for f in self.files:
             if not (ROOT / f).exists():
                 return f"{f} is missing -- the acceptance fixtures are fixed, see docs/agent/loop-goal.md"
         return ""
 
     def check(self, verbose=False):
-        def trace(msg):
-            if verbose:
-                say(f"   .. {msg}", C.GRAY)
+        self.verbose = verbose
+        trace = self.trace
 
         fail = self.begin()
         if fail:
@@ -629,7 +667,8 @@ class Goal:
 
         # Windows is green, so now pay for the Linux leg.
         leg = native
-        if wsl_available():
+        trace("asking whether there is a wsl leg")
+        if self.timed("wsl probe", wsl_available):
             leg = WslLeg(self.wsl_target)
             trace("building the wsl CLI")
             fail = self.timed("wsl build", leg.prepare)
@@ -668,9 +707,8 @@ class Goal:
         still said it ran "the same commands". `WslLeg` also already solves the quoting the script
         was written as a file to avoid.
         """
-        def trace(msg):
-            if verbose:
-                say(f"   .. {msg}", C.GRAY)
+        self.verbose = verbose
+        trace = self.trace
 
         fail = self.begin()
         if fail:
@@ -810,7 +848,18 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         "stream-json",
         "--verbose",
     ]
+    # `orient.py` runs a `brief.py`, a `git log` and a plan read before the child is even
+    # spawned, and on a cold filesystem cache that is tens of seconds between the "== session"
+    # banner and the first token. It is the second half of the gap between two sessions.
+    step("building the orientation pack (tools/orient.py)")
+    started = time.monotonic()
     pack = orientation_pack()
+    spent = mmss(time.monotonic() - started)
+    if pack:
+        step(f"orientation pack: {len(pack.encode('utf-8')):,} bytes in {spent}")
+    else:
+        step(f"orientation pack: orient.py failed after {spent} -- "
+             "the session will run it itself", C.YELLOW)
     session_id = ""
     with log.open("a", encoding="utf-8", newline="\n") as fh:
         # The pack's size, recorded beside the transcript that paid for it. Two sessions with
@@ -819,6 +868,8 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         # it. Nothing downstream needs this line; every reader skips a `type` it does not know.
         fh.write(json.dumps({"type": "loop_pack", "bytes": len(pack.encode("utf-8"))}) + "\n")
         fh.flush()
+        step(f"launching {exe} (--model {opts.model}, --permission-mode {opts.permission_mode})")
+        launched = time.monotonic()
         proc = subprocess.Popen(
             cmd,
             cwd=ROOT,
@@ -834,6 +885,11 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         assert proc.stdout is not None
         try:
             for line in proc.stdout:
+                if launched:
+                    # The CLI's own start-up -- config, MCP servers, the model handshake -- is
+                    # dead air on the console, and it is charged to whatever ran just before it.
+                    step(f"claude answered after {mmss(time.monotonic() - launched)}")
+                    launched = 0
                 fh.write(line)
                 fh.flush()
                 if not session_id and '"session_id"' in line:
@@ -844,7 +900,13 @@ def run_session(run_id, index, prompt_text, opts, renderer):
                     except json.JSONDecodeError:
                         pass
                 renderer.event(line)
+            # Its stdout is closed but the process is not necessarily gone -- flushing its
+            # transcript, tearing down MCP servers. Named, because it is time the console
+            # would otherwise attribute to the driver's own work.
+            closed = time.monotonic()
             proc.wait()
+            if time.monotonic() - closed >= 1:
+                step(f"claude took {mmss(time.monotonic() - closed)} to exit after its last event")
         except BaseException:
             # The child does not outlive its supervisor. It is an autonomous agent writing
             # this tree with permissions bypassed, and when the driver died on an encoding
@@ -1108,7 +1170,10 @@ def drive(opts, goal):
         except OSError as e:
             say(f"   {rel_to_root(PROMPT)} did not read, using the last good one -- {e}", C.YELLOW)
 
+        session_started = time.monotonic()
         cli_exit, log, session_id = run_session(run_id, i, prompt_text, opts, renderer)
+        step(f"session {i} ended after {mmss(time.monotonic() - session_started)}, "
+             f"claude exit {cli_exit}", C.CYAN)
         if cli_exit != 0:
             fails += 1
             ledger(
@@ -1118,7 +1183,9 @@ def drive(opts, goal):
             if fails >= opts.max_retries:
                 reason = f"claude CLI failed {fails} times in a row"
                 break
-            time.sleep(min(300, 30 * 2**fails))
+            backoff = min(300, 30 * 2**fails)
+            step(f"backing off {mmss(backoff)} before retry {fails + 1}", C.YELLOW)
+            time.sleep(backoff)
             continue
         fails = 0
 
@@ -1127,7 +1194,12 @@ def drive(opts, goal):
         commits = 0
         if head_after and head_after != head_before:
             commits = int(git("rev-list", "--count", f"{head_before}..{head_after}") or 0)
+        step("collecting subagent transcripts")
+        started = time.monotonic()
         agents, agent_calls = collect_subagents(session_id, run_id, i)
+        spent = time.monotonic() - started
+        if spent >= 1:
+            step(f"subagent transcripts took {mmss(spent)}")
         delegated = f" | {agents} subagent(s), {agent_calls} call(s)" if agents else ""
         ledger(f"- {i:04d} {commits} commit(s){delegated} | {line or '(no status written)'}")
 
@@ -1140,7 +1212,13 @@ def drive(opts, goal):
         except (OSError, tomllib.TOMLDecodeError) as e:
             ledger(f"       goal spec: {rel_to_root(GOAL_TOML)} did not parse -- "
                    f"checking against the last good one. {e}")
-        fail = goal.check()
+        # Verbose on purpose, and the one place a run spends minutes without a session running:
+        # a native build, every fixture, both suites, the WSL leg and the valgrind sweep. Silent,
+        # this read as a driver that had hung after printing the session's status line.
+        step("acceptance check: build, fixtures, suites, wsl leg, valgrind", C.CYAN)
+        checked = time.monotonic()
+        fail = goal.check(verbose=True)
+        step(f"acceptance check done in {mmss(time.monotonic() - checked)}", C.CYAN)
         ledger(f"       goal cost: {goal.summary()}")
         if not fail:
             reason = "GOAL REACHED: every acceptance check in docs/agent/loop-goal.toml passes"
@@ -1163,6 +1241,7 @@ def drive(opts, goal):
             stalls = 0
 
         if opts.delay_seconds:
+            step(f"--delay-seconds: waiting {mmss(opts.delay_seconds)} before the next session")
             time.sleep(opts.delay_seconds)
 
     ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- {reason}")

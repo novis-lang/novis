@@ -78,6 +78,14 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 
 The acceptance check running *before* the `DONE` check is deliberate: the machine outranks the claim.
 
+**Every phase of that names itself on the console, stamped with the clock.** A session prints itself as
+it happens, but the driver's own half between two sessions — the subagent sweep, the acceptance test
+(build, fixtures, both suites, the WSL leg, valgrind), then `orient.py` and the CLI's own start-up for
+the next one — used to print nothing, so a run that was working looked hung for minutes behind the last
+session's status line. It now prints a `[HH:MM:SS]` line entering each phase and what the phase cost, and
+the acceptance test always runs verbose here, naming each check as it starts and each one that took a
+second or more. The question "what is it doing right now" is answered by the last line on screen.
+
 ## The acceptance test
 
 `docs/agent/loop-goal.toml` is a list of checks, run in order and short-circuiting on the first failure,
