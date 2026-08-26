@@ -70,6 +70,19 @@ change at all* yet its work figure read 87.3 ms on the base build and 93.3 ms he
 that relinks the whole runtime moves code layout, and these two rows carry about ±6% of it. The
 median above is the honest statistic; a single row's third digit is not.
 
+**The suite measures a third engine as of 2026-08-26**, CPython 3.11.2, because MWL's CLI claim is made
+against Python and this project does not publish an unmeasured one
+([ADR 0100](../adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5). On the same
+9-rep sweep as the table above: the median `work` ratio is **2.10× in MWL's favour**, and cold start —
+`00-baseline`'s *total*, which every `work` figure subtracts away — is **7.5 ms for MWL against 19.2 ms
+for Python** and 37.8 ms for PHP. **Neither half may be quoted without the other**, because the split is
+not uniform and is not noise: MWL loses `12-array-map-filter` (0.44×), `10-array-sort` (0.69×),
+`13-array-contains` (0.78×) and `11-array-sort-by-field` (0.82×) — every one a case whose Python loop is
+really a call into C — and wins the genuinely interpreted loops by one to two orders of magnitude
+(`01-arith-loop` 44×, `19-object-property` 17×). **No row in this file's ledger is Python work.** Items A
+through J are the PHP gap; nothing below is waiting on the Python column, and when the last of them lands
+and this file is deleted, this paragraph goes with it.
+
 Three rows moved on item D alone, and they are the last three the array members were holding down:
 `12-array-map-filter` 0.36× → **0.51×**, `10-array-sort` 0.69× → **0.96×** and
 `11-array-sort-by-field` 3.98× → **5.12×**, which is what carried the median from 0.66×.
