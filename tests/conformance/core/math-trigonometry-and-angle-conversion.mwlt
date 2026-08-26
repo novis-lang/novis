@@ -9,7 +9,10 @@ echo Core\Math::sin(0.0), "|", Core\Math::cos(0.0), "|", Core\Math::tan(0.0), "\
 // What each inverse member answers *outside* its own domain, counted over one
 // table, is math-inverse-members-answer-nan-outside-their-own-domain.mwlt.
 echo Core\Math::asin(0.0), "|", Core\Math::acos(1.0), "|", Core\Math::atan(0.0), "\n";
-// `$y` first, as in PHP and in C.
+// `$y` first, as in PHP and in C. That `atan2` is `atan` of the quotient on
+// the half-plane a quotient can carry, and is the only member that tells the
+// four quadrants apart, is
+// math-atan2-is-atan-plus-the-quadrant-and-is-the-only-member-that-tells-the-four-apart.mwlt.
 echo Core\Math::atan2(0.0, 1.0), "|", Core\Math::atan2(1.0, 1.0), "\n";
 
 echo Core\Math::sinh(0.0), "|", Core\Math::cosh(0.0), "|", Core\Math::tanh(0.0), "\n";
