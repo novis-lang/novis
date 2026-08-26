@@ -1,0 +1,141 @@
+--TEST--
+Core\Arr::overlay, ::underlay and ::appendAll are one key-order rule asked three ways, over a table mixing integer and string keys — ADR 0069 §§ 1 and 5
+--FILE--
+<?mwl
+// The depth claim is *agreement*: ADR 0069 § 1 gives all three combining
+// members one key-order rule — an existing key keeps its position, a new key
+// lands at the end in the order first met — and lets them differ only in which
+// side's value survives. So each pair below is put to every member and what is
+// asserted is that they answer from one rule rather than three, which is what
+// a member that reached for a key's *type* (PHP's `array_merge`, renumbering
+// an integer key and keeping a string one) would break while still looking
+// right on its own line.
+class Ask {
+    // Every value of an array, in insertion order, under a leading separator —
+    // so an empty array folds to "" and two folds concatenate. Keys are not
+    // read: this is what the members are being compared *about*, so it must
+    // not be built out of one of them.
+    public static function joined(array<string> $a): string {
+        return Core\Arr::reduce($a, fn(string $c, string $v) => $c . "," . $v, "");
+    }
+
+    // "y" when every claim below holds of this triple, and otherwise the
+    // letter of the first that did not — which is the failure this case exists
+    // to catch.
+    public static function verdict(array<string> $x, array<string> $y, array<string> $z): string {
+        // The order is the left argument's, never the winner's: `overlay` and
+        // `underlay` disagree about which value survives and never about where
+        // it sits.
+        if (Ask::joined(Core\Arr::keys(Core\Arr::overlay($x, $y)))
+            != Ask::joined(Core\Arr::keys(Core\Arr::underlay($x, $y)))) {
+            return "o";
+        }
+        // And that order is § 1's rule spelled out without either member:
+        // every key of the base in place, then each key the base did not have,
+        // in the order the layer first met it.
+        if (Ask::joined(Core\Arr::keys(Core\Arr::overlay($x, $y)))
+            != Ask::joined(Core\Arr::keys($x))
+             . Ask::joined(Core\Arr::values(Core\Arr::diff(Core\Arr::keys($y), Core\Arr::keys($x))))) {
+            return "k";
+        }
+        // Two operations rather than one with its arguments flipped: the
+        // entries agree once the order is taken away, and § 1 says the order
+        // itself does not — the tally below counts where it differs.
+        if (Core\Json::encode(Core\Arr::sortByKey(Core\Arr::overlay($x, $y)))
+            != Core\Json::encode(Core\Arr::sortByKey(Core\Arr::underlay($y, $x)))) {
+            return "s";
+        }
+        // The variadic tail walks left to right with the same rule at every
+        // step, which is exactly a left fold — for all three members.
+        if (Core\Json::encode(Core\Arr::overlay($x, $y, $z))
+            != Core\Json::encode(Core\Arr::overlay(Core\Arr::overlay($x, $y), $z))) {
+            return "v";
+        }
+        if (Core\Json::encode(Core\Arr::underlay($x, $y, $z))
+            != Core\Json::encode(Core\Arr::underlay(Core\Arr::underlay($x, $y), $z))) {
+            return "v";
+        }
+        if (Core\Json::encode(Core\Arr::appendAll($x, $y, $z))
+            != Core\Json::encode(Core\Arr::appendAll(Core\Arr::appendAll($x, $y), $z))) {
+            return "v";
+        }
+        // `appendAll` is the one that answers under no key it was given: a
+        // list of every value of every argument, in order, duplicates and all.
+        var $all = Core\Arr::appendAll($x, $y);
+        if (!Core\Arr::isList($all)) {
+            return "l";
+        }
+        if (Ask::joined(Core\Arr::values($all))
+            != Ask::joined(Core\Arr::values($x)) . Ask::joined(Core\Arr::values($y))) {
+            return "a";
+        }
+        return "y";
+    }
+}
+
+// Each row is a base, a layer and a second layer. The key shapes are the point:
+// string keys, integer keys, an integer key written as its string spelling
+// (§ 5 — a key is a string either way), a pair sharing nothing, an empty side,
+// a layer whose key set is the base's in the other order, and numeric strings
+// that are not in numeric order.
+array<array<array<string>>> $tables = [
+    [["a" => "1", "b" => "2"], ["b" => "9", "c" => "3"], ["a" => "7"]],
+    [[0 => "z", 1 => "o"], [1 => "O", 2 => "t"], [0 => "Z"]],
+    [["0" => "z", "1" => "o"], [1 => "O", 2 => "t"], ["0" => "Z"]],
+    [["x" => "1"], [0 => "2"], ["x" => "3"]],
+    [[], ["a" => "1"], []],
+    [["a" => "1"], [], ["b" => "2"]],
+    [["a" => "1", "b" => "2"], ["b" => "9", "a" => "8"], ["b" => "5"]],
+    [["10" => "a", "9" => "b"], ["9" => "B", "11" => "c"], ["10" => "C"]],
+];
+
+var $verdicts = "";
+var $held = 0;
+var $reordered = 0;
+foreach ($tables as array<array<string>> $row) {
+    var $v = Ask::verdict($row["0"], $row["1"], $row["2"]);
+    $verdicts = $verdicts . $v;
+    if ($v == "y") {
+        $held = $held + 1;
+    }
+    // The same entries in a different order, which is § 1's own sentence and
+    // the reason these are two members. It is only *one* order where a side is
+    // empty, which is the two rows this does not count.
+    if (Core\Json::encode(Core\Arr::overlay($row["0"], $row["1"]))
+        != Core\Json::encode(Core\Arr::underlay($row["1"], $row["0"]))) {
+        $reordered = $reordered + 1;
+    }
+}
+echo $verdicts, "\n";
+// Counted rather than read off a line: a letter anywhere is a member that
+// answered from its own rule, and the tally is what says every row was asked.
+echo $held, " of ", Core\Arr::count($tables), "\n";
+echo $reordered, " of ", Core\Arr::count($tables), "\n";
+
+// The first row's pair, as ADR 0069 § 1 writes it: the same three entries, in
+// the order each member's own left argument gave them.
+array<string> $base = ["a" => "1", "b" => "2"];
+array<string> $layer = ["b" => "9", "c" => "3"];
+echo Core\Json::encode(Core\Arr::overlay($base, $layer)), "|",
+     Core\Json::encode(Core\Arr::underlay($layer, $base)), "\n";
+
+// § 5: a key comes back as a `string`, and a key parameter is normalised the
+// same way — so an integer key and its string spelling are one table, and
+// nothing here can tell them apart.
+array<string> $ints = [0 => "z", 1 => "o"];
+array<string> $texts = ["0" => "z", "1" => "o"];
+array<string> $over = [1 => "O", 2 => "t"];
+echo Core\Json::encode(Core\Arr::overlay($ints, $over)), "|",
+     Core\Json::encode(Core\Arr::overlay($texts, $over)), "\n";
+
+// And `appendAll` over the same pair, where PHP's `array_merge` would renumber
+// the integer keys and keep a string one: every value, no key, always a list.
+echo Core\Json::encode(Core\Arr::appendAll($ints, $over)), "|",
+     Core\Json::encode(Core\Arr::appendAll($texts, $over)), "\n";
+--EXPECT--
+yyyyyyyy
+8 of 8
+6 of 8
+{"a":"1","b":"9","c":"3"}|{"b":"9","c":"3","a":"1"}
+["z","O","t"]|["z","O","t"]
+["z","o","O","t"]|["z","o","O","t"]
