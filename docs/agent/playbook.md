@@ -765,6 +765,7 @@ is why" — is this file.
   `as` re-supplies the type inside an expression too — `Core\Str::join([$head as string, $tail as
   string], $cut)` and `Core\Str::slice($s, ($at as uint) as int)` both check, so a nullable answer can
   be fed straight into the next member without a local.
+- **`preg_split("//u", $s, -1, PREG_SPLIT_NO_EMPTY)` is the mbstring-free code point splitter**, and it works on the Windows `php` where every `mb_*` the neighbouring bullet names does not — PCRE carries its own UTF-8 support, so a `Core\Str` slice that needs PHP to count *code points* has a real oracle rather than a frozen `--EXPECT--`. What it cannot give you is a code point's *number* (`mb_ord`) or a grapheme (`grapheme_strlen`: no `intl` either), so an oracle needing those still decodes UTF-8 by hand in the `--ORACLE--` block or freezes the rows and cites the UCD table.
 
 ## Splitting a file that got too big
 

@@ -113,14 +113,14 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Stage 4's two counts are the frontier: conformance is 486 of the 600 the gate
-> requires and differential is 145 of 150.** Both named guards
+> requires and differential is 147 of 150.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
 > conventions.md rather than for a section, and lands its claim as its own file, because the gate
 > counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is the worklist and no
 > session should re-derive it**: `--differential` names every member whose spec **Replaces** column
-> gives it a PHP twin and which no oracle case calls — 14 left — and `--errors` every `Fault::` site
+> gives it a PHP twin and which no oracle case calls — 12 left — and `--errors` every `Fault::` site
 > in `mwl-stdlib` whose message no case asserts. **Differential is the half that comes first** — the
 > smaller of the two gaps, and an `--ORACLE--` case has no frozen output to derive at all, because
 > PHP computes it. Over `Core\Arr` the twin's key rule decides which kind of case it is: PHP
@@ -138,84 +138,84 @@
 > `string` compared bytewise, so `sortByKey` parts from it over a numeral or mixed-key subject and a
 > `comparator` is the way back; and `array_fill` takes a start index `fill` drops, so every non-zero
 > start is `Core\Arr::fillKeys` over the keys the caller wanted. **`Core\Math` is down to the `gmp`
-> pair alone, and `Core\Str`'s remaining 4 are still the largest block of the 14.** `Core\Math`'s
-> settled pairs
-> say what shape the rest take: nothing there has a key rule, so a member either agrees with its
-> twin outright or parts over a *tie*, a *conversion*, a *guard* or a *repair*. **PHP's two-argument
-> `min` answers its second argument on a tie and its `max` answers its first**, where
-> `mwl_stdlib::math::pick` answers the first to both — visible wherever two equal values are
-> distinguishable, `min(1000000000000000000, 1.0e18)` being the sharpest — and `f64::total_cmp`
-> separates `-0.0` from `0.0` where PHP's `<` calls them equal. **A `CoreTy::Var("T")` signature
-> binds `T` to the first argument**, so a crossed pair reaches the runtime refusal only when the
-> union is declared on the bindings; written as two literals `Core\Math::min(0, "a")` is `E0401`,
-> and the same holds of `Core\Math::mod(7, 2)`, whose two `float` parameters do not widen an `int`
-> the way `fmod` does — the integer remainder is the `%` operator. **`Core\Math::mod` throws on a
-> zero divisor where `fmod` answers `NAN`**, spec § 3 making a division by zero a throw wherever it
-> appears, while the IEEE *domain* rows — an infinite dividend, either operand a `NAN` — stay at
-> IEEE's answer and agree; `intDiv` agrees with `intdiv` on every row including both refusals. **The
-> transcendental pairs are closed and they agree with their twins outright**: `sqrt`, `exp` and
-> `log` leave the *argument's* domain unguarded, so a negative root and a negative logarithm are
-> `NaN`, a zero logarithm is `-INF`, `exp` overflows to `INF` and underflows to the smallest
-> subnormal, and every one of those renders byte-identically on both sides; `hypot` and `atan2`
-> agree on the four signed-zero quadrants, on the infinite ones, and on the magnitude where `sqrt($x
-> * $x + $y * $y)` overflows and `hypot` does not. **The one guard this added is `log`'s *base***,
-> which PHP has and MWL did not: a base not greater than zero is a `Fault::thrown` where PHP raises
-> a `ValueError`, and base `1.0` is `NAN` on both sides rather than the infinity `ln($n) / ln(1.0)`
-> would answer. **The base pair and the two predicates are closed too, and each parts from its twins
-> over a repair rather than over arithmetic.** `toBase`/`fromBase` agree with
-> `decbin`/`dechex`/`decoct`/`base_convert` and their from-halves on every non-negative number
-> written in digits the base holds — the same lowercase alphabet out, either case in, and the same
-> `ValueError`-versus-`Fault` refusal outside base 2 to 36 — and part at the four inputs PHP has no
-> failure mode for: a negative `$n` is `-ff` where `dechex` writes the two's complement
-> `ffffffffffffff01` and `base_convert` drops the sign as a character it has no digit for, a digit
-> past the base is a throw where `hexdec("beefy")` is `48879`, an empty string is a throw where
-> `bindec("")` is `0`, and an answer past `int` is a throw where `hexdec("ffffffffffffffff")` widens
-> to a `float`. `isNan` and `isFinite` agree with `is_nan` and `is_finite` outright, and PHP's third
-> predicate is the two of them folded, so `is_infinite` is neither — asserted as a *partition* over
-> a table rather than row by row. **`toRadians` and `toDegrees` now compute PHP's own expression
-> rather than the accurate one**, and that is the only place in `Core\Math` where a spelling was
-> changed to match a twin: `($degrees / 180.0) * PI` replaces `f64::to_radians`'s multiply by the
-> correctly rounded `PI / 180.0`, and `($radians / PI) * 180.0` replaces `f64::to_degrees`. The std
-> forms are the more accurate — over the 3,600 tenths of a degree in a turn they are closer to the
-> true value 851 times against 118 — and the difference is at most one ulp, invisible at both
-> languages' precision-14 rendering. It is visible through `==`, which is exact over `float` (ADR
-> 0090): under PHP's spelling a whole-degree round trip lands back on its angle for 19 of 22 sampled
-> angles and under the std one for 13, so the ulp is what a ported program comparing a round trip
-> actually sees. AGENTS.md's priority 2 — PHP-compatible *observable* behaviour — is what decides
-> it, and the accuracy spent is stated in `mwl_stdlib::math`'s own doc comments at both members.
-> **`Core\Math::gcd` and `::lcm` have no callable twin on either leg**: neither the Windows `php`
-> nor WSL's has `gmp`, so `gmp_gcd`/`gmp_lcm` are undefined functions and an oracle case for those
-> two has to compute its expectation with an explicit Euclidean loop in PHP or be left out of the
-> count. **MWL's `float` rendering is PHP's**, precision 14 with trailing zeros trimmed —
-> `sqrt(2.0)` prints `1.4142135623731`, `exp(-745.0)` prints `4.9406564584125E-324` and `0.1 + 0.2`
-> prints `0.3` on both sides — so a `Core\Math` oracle case may echo a float directly and needs no
-> formatting, but never a `NAN`, which PHP 8.4 and later warn about coercing to a string.
-> **`Core\Str`'s remaining twins part from PHP over a *unit* before they part over anything else**,
-> and `slice`/`replaceRange` is the worked pair: `mwl_stdlib::granularity::DEFAULT` is
-> `Unit::Grapheme`, so a member's `int $offset` and `?int $length` count clusters where `substr`
-> counts bytes and `mb_substr` counts code points. Inside ASCII with no carriage return all three
-> units coincide, which is why the whole offset/length sign table — 10 offsets × 9 lengths, both
-> members, plus the `null` length, the empty subject and the deletion spelling — agrees outright as
-> one `--ORACLE--` file, and the three-way split is a second `--ORACLE-DIVERGES--` file with a
-> frozen `--EXPECT--`, because the `php` on the Windows `PATH` has no `mbstring` and `mb_substr` is
-> not callable at all. Both members read one `window` helper, and putting a window's own slice back
-> into it reproduces the subject on all 90 ASCII cells and all 72 multibyte ones — **PHP's pair
-> holds that identity too**, which the `replaceRange` doc comment used to deny and no longer does.
-> **A frozen `--EXPECT--` must never render a decomposed cluster**: `e`+U+0301 and U+00E9 are
-> indistinguishable in an editor and are different strings, so a divergence case echoes
-> `Core\Encoding::toHex($s as bytes)` for those cells instead. **`Core\Str::before`/`::after` and
-> `::compare` are closed, and each parts from a *twin* rather than from a rule.** Both cut members
-> exclude the needle where `strstr` keeps it, so the port of a program that wanted PHP's shape is
-> `$needle . Str::after(...)`, and an absent needle is `null` where `strstr`, `stristr` and
-> `strrchr` all answer `false` — a difference in how "no answer" is spelled, folded to one sentinel
-> on both sides rather than a divergence. **`{last: true}` is `strrchr` only at a one-character
-> needle**: `strrchr` reads the needle's first character and nothing else, so `strrchr("a::b::c",
-> "::")` is `":c"` where the member answers `"c"`, and `strrchr("banana", "an")` answers `"a"` for a
-> needle that never occurs at all; at the empty needle `strrchr` fails outright where `strrpos`
-> answers the subject's length, which is the member's answer too. The honest twin past one character
-> is `strrpos` plus a `substr`, and both halves rejoin through the needle to the subject on every
-> cell where it occurs — counted, on both sides, under each occurrence rule. **`stristr` has no
-> twin**, because the pair's one option is `{last}`; the port is `Core\Str::indexOf($s, $n,
+> pair alone and `Core\Str` to the code point pair; `Core\Path`'s three are now the largest block of
+> the 12.** `Core\Math`'s settled pairs say what shape the rest take: nothing there has a key rule,
+> so a member either agrees with its twin outright or parts over a *tie*, a *conversion*, a *guard*
+> or a *repair*. **PHP's two-argument `min` answers its second argument on a tie and its `max`
+> answers its first**, where `mwl_stdlib::math::pick` answers the first to both — visible wherever
+> two equal values are distinguishable, `min(1000000000000000000, 1.0e18)` being the sharpest — and
+> `f64::total_cmp` separates `-0.0` from `0.0` where PHP's `<` calls them equal. **A
+> `CoreTy::Var("T")` signature binds `T` to the first argument**, so a crossed pair reaches the
+> runtime refusal only when the union is declared on the bindings; written as two literals
+> `Core\Math::min(0, "a")` is `E0401`, and the same holds of `Core\Math::mod(7, 2)`, whose two
+> `float` parameters do not widen an `int` the way `fmod` does — the integer remainder is the `%`
+> operator. **`Core\Math::mod` throws on a zero divisor where `fmod` answers `NAN`**, spec § 3
+> making a division by zero a throw wherever it appears, while the IEEE *domain* rows — an infinite
+> dividend, either operand a `NAN` — stay at IEEE's answer and agree; `intDiv` agrees with `intdiv`
+> on every row including both refusals. **The transcendental pairs are closed and they agree with
+> their twins outright**: `sqrt`, `exp` and `log` leave the *argument's* domain unguarded, so a
+> negative root and a negative logarithm are `NaN`, a zero logarithm is `-INF`, `exp` overflows to
+> `INF` and underflows to the smallest subnormal, and every one of those renders byte-identically on
+> both sides; `hypot` and `atan2` agree on the four signed-zero quadrants, on the infinite ones, and
+> on the magnitude where `sqrt($x * $x + $y * $y)` overflows and `hypot` does not. **The one guard
+> this added is `log`'s *base***, which PHP has and MWL did not: a base not greater than zero is a
+> `Fault::thrown` where PHP raises a `ValueError`, and base `1.0` is `NAN` on both sides rather than
+> the infinity `ln($n) / ln(1.0)` would answer. **The base pair and the two predicates are closed
+> too, and each parts from its twins over a repair rather than over arithmetic.**
+> `toBase`/`fromBase` agree with `decbin`/`dechex`/`decoct`/`base_convert` and their from-halves on
+> every non-negative number written in digits the base holds — the same lowercase alphabet out,
+> either case in, and the same `ValueError`-versus-`Fault` refusal outside base 2 to 36 — and part
+> at the four inputs PHP has no failure mode for: a negative `$n` is `-ff` where `dechex` writes the
+> two's complement `ffffffffffffff01` and `base_convert` drops the sign as a character it has no
+> digit for, a digit past the base is a throw where `hexdec("beefy")` is `48879`, an empty string is
+> a throw where `bindec("")` is `0`, and an answer past `int` is a throw where
+> `hexdec("ffffffffffffffff")` widens to a `float`. `isNan` and `isFinite` agree with `is_nan` and
+> `is_finite` outright, and PHP's third predicate is the two of them folded, so `is_infinite` is
+> neither — asserted as a *partition* over a table rather than row by row. **`toRadians` and
+> `toDegrees` now compute PHP's own expression rather than the accurate one**, and that is the only
+> place in `Core\Math` where a spelling was changed to match a twin: `($degrees / 180.0) * PI`
+> replaces `f64::to_radians`'s multiply by the correctly rounded `PI / 180.0`, and `($radians / PI)
+> * 180.0` replaces `f64::to_degrees`. The std forms are the more accurate — over the 3,600 tenths
+> of a degree in a turn they are closer to the true value 851 times against 118 — and the difference
+> is at most one ulp, invisible at both languages' precision-14 rendering. It is visible through
+> `==`, which is exact over `float` (ADR 0090): under PHP's spelling a whole-degree round trip lands
+> back on its angle for 19 of 22 sampled angles and under the std one for 13, so the ulp is what a
+> ported program comparing a round trip actually sees. AGENTS.md's priority 2 — PHP-compatible
+> *observable* behaviour — is what decides it, and the accuracy spent is stated in
+> `mwl_stdlib::math`'s own doc comments at both members. **`Core\Math::gcd` and `::lcm` have no
+> callable twin on either leg**: neither the Windows `php` nor WSL's has `gmp`, so
+> `gmp_gcd`/`gmp_lcm` are undefined functions and an oracle case for those two has to compute its
+> expectation with an explicit Euclidean loop in PHP or be left out of the count. **MWL's `float`
+> rendering is PHP's**, precision 14 with trailing zeros trimmed — `sqrt(2.0)` prints
+> `1.4142135623731`, `exp(-745.0)` prints `4.9406564584125E-324` and `0.1 + 0.2` prints `0.3` on
+> both sides — so a `Core\Math` oracle case may echo a float directly and needs no formatting, but
+> never a `NAN`, which PHP 8.4 and later warn about coercing to a string. **`Core\Str`'s remaining
+> twins part from PHP over a *unit* before they part over anything else**, and
+> `slice`/`replaceRange` is the worked pair: `mwl_stdlib::granularity::DEFAULT` is `Unit::Grapheme`,
+> so a member's `int $offset` and `?int $length` count clusters where `substr` counts bytes and
+> `mb_substr` counts code points. Inside ASCII with no carriage return all three units coincide,
+> which is why the whole offset/length sign table — 10 offsets × 9 lengths, both members, plus the
+> `null` length, the empty subject and the deletion spelling — agrees outright as one `--ORACLE--`
+> file, and the three-way split is a second `--ORACLE-DIVERGES--` file with a frozen `--EXPECT--`,
+> because the `php` on the Windows `PATH` has no `mbstring` and `mb_substr` is not callable at all.
+> Both members read one `window` helper, and putting a window's own slice back into it reproduces
+> the subject on all 90 ASCII cells and all 72 multibyte ones — **PHP's pair holds that identity
+> too**, which the `replaceRange` doc comment used to deny and no longer does. **A frozen
+> `--EXPECT--` must never render a decomposed cluster**: `e`+U+0301 and U+00E9 are indistinguishable
+> in an editor and are different strings, so a divergence case echoes `Core\Encoding::toHex($s as
+> bytes)` for those cells instead. **`Core\Str::before`/`::after` and `::compare` are closed, and
+> each parts from a *twin* rather than from a rule.** Both cut members exclude the needle where
+> `strstr` keeps it, so the port of a program that wanted PHP's shape is `$needle .
+> Str::after(...)`, and an absent needle is `null` where `strstr`, `stristr` and `strrchr` all
+> answer `false` — a difference in how "no answer" is spelled, folded to one sentinel on both sides
+> rather than a divergence. **`{last: true}` is `strrchr` only at a one-character needle**:
+> `strrchr` reads the needle's first character and nothing else, so `strrchr("a::b::c", "::")` is
+> `":c"` where the member answers `"c"`, and `strrchr("banana", "an")` answers `"a"` for a needle
+> that never occurs at all; at the empty needle `strrchr` fails outright where `strrpos` answers the
+> subject's length, which is the member's answer too. The honest twin past one character is
+> `strrpos` plus a `substr`, and both halves rejoin through the needle to the subject on every cell
+> where it occurs — counted, on both sides, under each occurrence rule. **`stristr` has no twin**,
+> because the pair's one option is `{last}`; the port is `Core\Str::indexOf($s, $n,
 > {caseInsensitive: true})` plus a `slice`, needle-inclusive. **`compare` folds four twins into two
 > independent options and the fold is exact over ASCII** — all 144 ordered pairs of a table, in all
 > four corners — but only after a *sign* normalization, because PHP's four disagree with each other
@@ -237,33 +237,58 @@
 > `Fault::thrown`. **The counted claim that survives a unit change is not the discriminating one**:
 > pieces rejoined with nothing between them reproduce the subject under all three units, so what
 > parts the members from their twins is the piece *count* — `Core\Str::chunk($s, 1)` answers
-> `Core\Str::length($s)` pieces where `str_split($s, 1)` answers `strlen($s)` of them. **Unbuilt in
-> the library**, none of it a registration gap:
-> `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a scalar-fielded class only — no
-> enum, `decimal`, `Instant`, `array` or nested-class field, and no optional key from a parameter
-> default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing from every
-> `mwl-stdlib` member row, which is why `Core\Str::format`'s template is not yet the sink that ADR
-> makes it, why neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
-> the test refusing an unclassified member exists, and why `Core\Hash::hmac`'s `secret bytes $key`
-> is a plain `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's substitution
-> table, which is what would make the terminal sink neutralize a control byte and `Cli\Text::plain`
-> a constructor that cannot produce an injected escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1).
-> **Decided and unbuilt, but not catch-up** — ADRs 0091 (the `development`/`production` run mode),
-> 0092 (one diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`), 0097
-> (the server's scope and its `[server]` block) and 0100 § 3 (a file opening `#!` starts in code
-> mode with no tag — one `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no
-> parser or runtime change). None invalidates built behaviour or a written fixture; their work is
-> M1, M4, M6, M7, M8 and M10. **Open beside the library** — a property's declared default runs and
-> is type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow
-> statement that does not lower; a closure cannot be called through the variable holding it and
-> `Class::method(...)` panics `mwl-ir` outright, so a case sweeps a table with `foreach` and reaches
-> a helper through a `public static function` declared in the same file (`mwl-ir` gap 1); a `?bool`
-> cannot be tested for truth at all, so a member answering one has no `yn` rendering; `bool as int`
-> does not lower and `bool as string` renders `false` as nothing at all; an abandoned generator
-> never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a deliberate PHP divergence);
-> ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31% classified,
-> reported by `python tools/check-migration.py`. **What has landed is not restated here** — `git
-> log` holds the session-by-session history and each crate's own module doc holds its per-file gaps.
+> `Core\Str::length($s)` pieces where `str_split($s, 1)` answers `strlen($s)` of them.
+> **`replaceAll` and `wrap` are closed too, and each is a fold whose two twins disagree with *each
+> other* rather than with MWL.** `replaceAll` folds `str_replace`'s array form and `strtr`, which
+> read one table two ways: `strtr` scans the subject once and takes the longest needle matching at
+> each position, never rescanning what it produced, where `str_replace` runs each pair over the
+> whole subject in turn and feeds every earlier replacement to every later pair. **The member is
+> `strtr`**, ADR 0063 R20 being why, and 19 cells of a 48-cell table of cascades, swaps, prefix
+> pairs and a growth the next pair re-matches are where the two twins part. The cascading reading is
+> not lost and is owed no option: `Core\Str::replace` applied pair by pair in a `foreach` reproduces
+> `str_replace`'s array form on all 48, and the property that decides between the two readings is
+> *counted* rather than read off a line — the same table written back to front answers the same
+> thing on 48 of 48 cells one-pass and on 29 in sequence. **`replaceAll` is also the one `Core\Str`
+> member the unit question does not reach**: it matches a needle as a byte sequence, and a valid
+> UTF-8 needle can never begin inside a character, so it splits a decomposed cluster exactly as
+> `strtr` does — `"e"` over `"e\u{301}ta\u{301}t"`, a subject `Core\Str::length` counts as 4 — and
+> there is no divergence file to write. Its one boundary left to the conformance case is the *empty
+> needle*, which both skip but PHP warns while skipping, and a warning on stdout is not a difference
+> in the result. **`wrap` runs `wordwrap`'s own algorithm** with PHP's third and fourth arguments as
+> `{breakWith, cutLongWords}`, so 8 subjects × 8 widths under both cutting readings, a
+> multi-character break and the default newline agree outright, the rule that a break already
+> present in the subject *resets the line* included; both refusals agree as well — an empty break
+> and a zero width that must cut, `ValueError` against a catchable `Fault::thrown` — while a zero
+> width *without* cutting is an answer on both sides and breaks at every space. What the cutting
+> option is worth is counted: 352 of 352 lines are within their width when long words may be cut,
+> and 122 when they may not. **`wrap`'s width counts clusters where `wordwrap` counts bytes**, so
+> its multibyte half is still owed as an `--ORACLE-DIVERGES--` file. **Unbuilt in the library**,
+> none of it a registration gap: `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a
+> scalar-fielded class only — no enum, `decimal`, `Instant`, `array` or nested-class field, and no
+> optional key from a parameter default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier
+> classification, missing from every `mwl-stdlib` member row, which is why `Core\Str::format`'s
+> template is not yet the sink that ADR makes it, why neither the fail-closed default for an
+> unclassified `string`/`bytes` parameter nor the test refusing an unclassified member exists, and
+> why `Core\Hash::hmac`'s `secret bytes $key` is a plain `CoreTy::Bytes` (`mwl_stdlib::hash`'s
+> module doc); and ADR 0086 § 1's substitution table, which is what would make the terminal sink
+> neutralize a control byte and `Cli\Text::plain` a constructor that cannot produce an injected
+> escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, but not catch-up** —
+> ADRs 0091 (the `development`/`production` run mode), 0092 (one diagnostic record rendered three
+> ways by the sink in force), 0093 (`mwl service`), 0097 (the server's scope and its `[server]`
+> block) and 0100 § 3 (a file opening `#!` starts in code mode with no tag — one `mwl-syntax` branch
+> at offset 0, `E0009` reserved in the registry, no parser or runtime change). None invalidates
+> built behaviour or a written fixture; their work is M1, M4, M6, M7, M8 and M10. **Open beside the
+> library** — a property's declared default runs and is type-checked (`E0472`), limited to a literal
+> or `[]`; `do`/`while` is the one M4 control-flow statement that does not lower; a closure cannot
+> be called through the variable holding it and `Class::method(...)` panics `mwl-ir` outright, so a
+> case sweeps a table with `foreach` and reaches a helper through a `public static function`
+> declared in the same file (`mwl-ir` gap 1); a `?bool` cannot be tested for truth at all, so a
+> member answering one has no `yn` rendering; `bool as int` does not lower and `bool as string`
+> renders `false` as nothing at all; an abandoned generator never runs the `finally` it is suspended
+> inside (`mwl-ir` gap 18, a deliberate PHP divergence); ADR 0043's `by`-delegation is off path; and
+> `docs/spec/02-php-migration.md` is 31% classified, reported by `python tools/check-migration.py`.
+> **What has landed is not restated here** — `git log` holds the session-by-session history and each
+> crate's own module doc holds its per-file gaps.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
@@ -274,7 +299,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: conformance stands at 486 of 600 and differential at 145 of 150, and the remainder is
+> decision: conformance stands at 486 of 600 and differential at 147 of 150, and the remainder is
 > written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
