@@ -1,0 +1,52 @@
+--TEST--
+Core\Math::intDiv overflows for exactly one dividend and mod's zero divisor is zero whichever sign it carries, per spec § 3 and ADR 0007 § 2
+--FILE--
+<?mwl
+// `-1` is the one divisor an overflow is possible at, and it overflows for
+// exactly one dividend. `int`'s smallest over `1` is itself, `int`'s largest
+// over `-1` fits, and so does the value one above the smallest — the first
+// dividend that does not fit is the smallest itself.
+echo Core\Math::intDiv(Core\Math::INT_MIN, 1), "|",
+     Core\Math::intDiv(Core\Math::INT_MAX, -1), "\n";
+echo Core\Math::intDiv(Core\Math::INT_MIN + 1, -1), "\n";
+try {
+    echo Core\Math::intDiv(Core\Math::INT_MIN, -1), "\n";
+} catch (Throwable $e) {
+    echo "overflow: ", $e->message, "\n";
+}
+
+// Truncation toward zero is what the smallest magnitudes show: `floor` would
+// answer -1 for the middle one, and every quotient here is instead the zero
+// the truncation leaves.
+echo Core\Math::intDiv(1, 2), "|", Core\Math::intDiv(-1, 2), "|",
+     Core\Math::intDiv(-1, -2), "\n";
+
+// A dividend of smaller magnitude than its divisor is its own remainder, and
+// keeps its own sign whichever sign the divisor has...
+echo Core\Math::mod(1.5, 3.0), "|", Core\Math::mod(-1.5, 3.0), "|",
+     Core\Math::mod(1.5, -3.0), "\n";
+// ...and it keeps that sign when the remainder is zero, which is the one place
+// a sign is still observable with no magnitude left to carry it.
+echo Core\Math::mod(6.0, 3.0), "|", Core\Math::mod(-6.0, 3.0), "\n";
+
+// A signed zero is still a zero divisor, so the throw is about the value and
+// not about the bit pattern that reached it.
+try {
+    echo Core\Math::mod(1.0, -0.0), "\n";
+} catch (Throwable $e) {
+    echo "negzero: ", $e->message, "\n";
+}
+
+// `float`'s other end: an infinite divisor leaves the whole dividend as the
+// remainder, and an infinite dividend has no remainder at all.
+echo Core\Math::mod(5.0, Core\Math::INFINITY), "|",
+     Core\Math::isNan(Core\Math::mod(Core\Math::INFINITY, 2.0)) ? "nan" : "a number", "\n";
+--EXPECT--
+-9223372036854775808|-9223372036854775807
+9223372036854775807
+overflow: Core\Math::intDiv's answer does not fit an `int`
+0|0|0
+1.5|-1.5|1.5
+0|-0
+negzero: Core\Math::mod was given a zero divisor
+5|nan

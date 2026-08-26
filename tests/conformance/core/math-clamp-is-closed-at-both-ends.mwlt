@@ -1,0 +1,39 @@
+--TEST--
+Core\Math::clamp holds a closed range at both ends, and a one-point range is the last non-empty one, per spec § 3
+--FILE--
+<?mwl
+// The range is closed: a subject *at* either bound is already inside it, so it
+// is returned rather than moved, and one step past each end answers that bound.
+echo Core\Math::clamp(0, 0, 10), "|", Core\Math::clamp(10, 0, 10), "\n";
+echo Core\Math::clamp(-1, 0, 10), "|", Core\Math::clamp(11, 0, 10), "\n";
+
+// `low == high` is the smallest non-empty range — one point, which every
+// subject answers with — and a `low` one *above* `high` is the first empty
+// one, which throws. Those two rows are the two sides of the same bound.
+echo Core\Math::clamp(7, 7, 7), "|", Core\Math::clamp(0, 7, 7), "|",
+     Core\Math::clamp(9, 7, 7), "\n";
+try {
+    echo Core\Math::clamp(7, 8, 7), "\n";
+} catch (Throwable $e) {
+    echo "empty: ", $e->message, "\n";
+}
+
+// All three parameters are one type variable and the ordering is the one
+// `min`/`max` walk, so the range is closed over `float` and over `string` for
+// the same reason it is over `int`.
+echo Core\Math::clamp(1.5, 1.5, 2.5), "|", Core\Math::clamp(2.5, 1.5, 2.5), "\n";
+echo Core\Math::clamp("m", "a", "z"), "|", Core\Math::clamp("A", "a", "z"), "|",
+     Core\Math::clamp("~", "a", "z"), "\n";
+
+// `int`'s own extremes are an ordinary closed range — the widest one there is,
+// with both of its ends inside it.
+echo Core\Math::clamp(Core\Math::INT_MIN, Core\Math::INT_MIN, Core\Math::INT_MAX), "|",
+     Core\Math::clamp(Core\Math::INT_MAX, Core\Math::INT_MIN, Core\Math::INT_MAX), "\n";
+--EXPECT--
+0|10
+0|10
+7|7|7
+empty: Core\Math::clamp was given a `low` above its `high`, which is an empty range
+1.5|2.5
+m|a|z
+-9223372036854775808|9223372036854775807

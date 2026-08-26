@@ -1,0 +1,34 @@
+--TEST--
+Core\Math::round's six modes differ on an exact tie and on nothing else, and `precision` chooses the place the tie is looked for, per spec § 3
+--FILE--
+<?mwl
+// A tie is the only input the modes disagree about, so it is the bound the
+// mode is consulted at at all: `2.5` splits them, while the two nearest
+// `float`s either side of it are not ties and answer the nearer integer under
+// every mode — including the mode that rounds a tie the other way.
+echo Core\Math::round(2.5, {mode: Core\RoundMode::HalfDown}), "|",
+     Core\Math::round(2.5000000000000004, {mode: Core\RoundMode::HalfDown}), "|",
+     Core\Math::round(2.4999999999999996, {mode: Core\RoundMode::HalfUp}), "\n";
+echo Core\Math::round(2.5000000000000004, {mode: Core\RoundMode::HalfEven}), "|",
+     Core\Math::round(2.5000000000000004, {mode: Core\RoundMode::HalfOdd}), "\n";
+
+// `precision` scales before the mode applies, so the tie is whatever falls
+// half way at *that* place: the modes that disagree about `2.5` disagree about
+// `0.25` at one decimal and about `0.125` at two.
+echo Core\Math::round(0.25, {precision: 1, mode: Core\RoundMode::HalfEven}), "|",
+     Core\Math::round(0.25, {precision: 1, mode: Core\RoundMode::HalfUp}), "\n";
+echo Core\Math::round(0.125, {precision: 2, mode: Core\RoundMode::HalfEven}), "|",
+     Core\Math::round(0.125, {precision: 2, mode: Core\RoundMode::HalfOdd}), "\n";
+
+// The two ends of a precision sweep: past the digits the value has, rounding
+// is the identity; far enough below its magnitude every digit is rounded away
+// and nothing is left. `1250.0` is on either side of that at -3 and at -4.
+echo Core\Math::round(1.25, {precision: 5}), "|",
+     Core\Math::round(1250.0, {precision: -3}), "|",
+     Core\Math::round(1250.0, {precision: -4}), "\n";
+--EXPECT--
+2|3|2
+3|3
+0.2|0.3
+0.12|0.13
+1.25|1000|0
