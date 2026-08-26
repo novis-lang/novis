@@ -939,3 +939,12 @@ sibling in the same namespace unqualified.
   type, not about narrowing, so do not generalise it into wrapping every nullable in a
   `public static function`. Narrowing a `?string` to compare it with `""` works in the same
   place, which is what lets a case tell an absent group from one that captured nothing.
+- **`int`'s own low end is not a writable literal, so a case pinning a 64-bit bound spells it
+  `-9223372036854775807 - 1`.** `-9223372036854775808` is `E0429: this integer literal is too large
+  for `int`; it is only legal where a `uint` is expected` — the minus is an operator applied to a
+  literal that has already overflowed, exactly as in PHP and Rust, and the diagnostic names `uint`
+  rather than the negation, which reads as though a `uint` would have helped. The top of the
+  unsigned range needs no such trick: `18446744073709551615 as uint` is accepted. A sweep that
+  pairs each code with its own bounds carries them in a parallel `array<int>` and reads it by key —
+  `foreach ($codes as string $k => string $c)` binds both, and `$high[$k]` indexes the sibling
+  array — since there is no arithmetic on a format string to build one from.
