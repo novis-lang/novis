@@ -1822,6 +1822,17 @@ def drive(opts, goal):
     ledger(f"## run started {datetime.now():%Y-%m-%d %H:%M} (max {opts.max_sessions}, logs {run_id}-*)")
     say(f"console log: {rel_to_root(LOGDIR / f'{run_id}-console.log')}", C.GRAY, driver=True)
 
+    # Every acceptance check builds the debug CLI, so from the second session on it is current at
+    # the tree the next session starts from -- and orient.py's closing block tells the session so,
+    # to stop it spending a call on `ls -la target/debug/mwl.exe` and a defensive `cargo build`
+    # (0.6 calls a session, measured). The first session of a run is the one case that promise
+    # would be false, because no check has run in front of it yet. So it runs here. It is a no-op
+    # against a warm target/ and it is not fatal: a red build is a thing a session may be sent to
+    # fix, and the goal check reports it either way.
+    warm = NativeLeg().prepare()
+    if warm:
+        say(f"the debug CLI is not built: {warm}", C.YELLOW, driver=True)
+
     for i in range(1, opts.max_sessions + 1):
         if STOP.exists():
             reason = f"{STOP.relative_to(ROOT).as_posix()} present"
