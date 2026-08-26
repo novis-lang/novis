@@ -1,0 +1,88 @@
+--TEST--
+`Core\Heap<T>`'s `count`, `isEmpty`, `peek` and its `foreach` cursor agree at every step of a push/pop sweep, counted rather than read off a line — docs/spec/01-core-library.md § 9, ADR 0013, ADR 0053 § 3
+--FILE--
+<?mwl
+// § 9 gives the class five members and an iteration, and four of them are
+// independent readers of one question: how much is in there, and what comes
+// out next. `count` reads the entries array, `isEmpty` reads its length,
+// `peek` reads position 0, and the cursor ADR 0053 § 3 builds walks a *copy*
+// of the entries in pop order. Each of them could grow its own idea of the
+// size and still look right on its own line — the other cases here print what
+// each answered, so this one asserts only that they **agree**, and asserts it
+// as a count over a whole sweep rather than as a row per step.
+final class Sweep {
+    // A positive entry is a push of that value; `0` is a pop, guarded so a pop
+    // against an empty heap is a step of the sweep rather than the throw
+    // `heap-holds-every-push-and-refuses-an-empty-read.mwlt` already pins.
+    public static function run(Core\Heap<int> $h, array<int> $ops): int {
+        int $size = 0;
+        int $agreed = 0;
+        foreach ($ops as int $op) {
+            if ($op == 0) {
+                if (!$h->isEmpty()) {
+                    $h->pop();
+                    $size = $size - 1;
+                }
+            } else {
+                $h->push($op);
+                $size = $size + 1;
+            }
+
+            // `peek` is a reader that answers by throwing on an empty heap, so
+            // it is read into a sentinel no row of the table can produce.
+            int $peeked = -1;
+            try {
+                $peeked = $h->peek();
+            } catch (Throwable $emptyRead) {
+                $peeked = -1;
+            }
+
+            // The cursor is the fourth reader: its length and its first
+            // element are the same two facts, derived from the copy it made.
+            int $walked = 0;
+            int $head = -1;
+            foreach ($h as int $seen) {
+                if ($walked == 0) {
+                    $head = $seen;
+                }
+                $walked = $walked + 1;
+            }
+
+            if (($h->count() as int) == $size) {
+                $agreed = $agreed + 1;
+            }
+            if ($h->isEmpty() == ($size == 0)) {
+                $agreed = $agreed + 1;
+            }
+            if (($peeked == -1) == ($size == 0)) {
+                $agreed = $agreed + 1;
+            }
+            if ($walked == $size) {
+                $agreed = $agreed + 1;
+            }
+            if ($head == $peeked) {
+                $agreed = $agreed + 1;
+            }
+        }
+        return $agreed;
+    }
+}
+
+// Thirteen steps whose sizes run 1,2,1,2,3,2,1,2,1,0,0,1,0 — so the sweep
+// reaches the empty heap twice in the middle, takes a pop there that does
+// nothing, and grows again afterwards. Every reader is asked at all thirteen.
+array<int> $ops = [5, 3, 0, 8, 1, 0, 0, 9, 0, 0, 0, 4, 0];
+
+// The ordering in force is not one of the four readers' business: the same
+// sweep over ADR 0013's natural order and over a comparator has to produce the
+// same agreement count, 5 readers x 13 steps.
+var $rising = new Core\Heap<int>();
+var $falling = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);
+echo "agreements ", Sweep::run($rising, $ops), " ", Sweep::run($falling, $ops), " of 65\n";
+
+// And the sweep left both heaps where the table says it did, which is what
+// makes the agreement count a claim about a heap that was actually worked.
+echo "drained ", $rising->count(), $falling->count(), " [", $rising->isEmpty(), $falling->isEmpty(), "]\n";
+--EXPECT--
+agreements 65 65 of 65
+drained 00 [11]
