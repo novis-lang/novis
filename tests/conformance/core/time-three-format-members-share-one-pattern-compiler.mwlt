@@ -1,0 +1,151 @@
+--TEST--
+`Core\Time`'s three `format` members refuse a malformed pattern with one sentence each naming its own member, and the two zone-free halves narrow that grammar into disjoint halves — spec § 4
+--FILE--
+<?mwl
+// Spec § 4's three rendering members — `Core\Time\DateTime::format`,
+// `Core\Time\Date::format` and `Core\Time\TimeOfDay::format` — read one pattern
+// compiler (`crates/mwl-stdlib/src/cldr.rs`), and each wraps its refusal in its
+// own name. The neighbouring cases assert a *fragment* of one of those
+// sentences; this one asserts them whole, on every member that can raise them,
+// because the member name is the half a caller reads first and no case pinned
+// it.
+//
+// Each `catch` takes its own binding name: a binding is function-scoped, and
+// two clauses reusing one name is `E0406` even at file scope once a loop below
+// has declared it.
+var $utc = Core\Time\Zone::UTC;
+var $dt = Core\Time::at(2024, 3, 1, $utc, {hour: 14, minute: 5, second: 9});
+var $date = Core\Time\Date::at(2024, 3, 1);
+var $clock = Core\Time\TimeOfDay::at(14, 5, {second: 9});
+
+// An unquoted letter outside the closed subset is a diagnostic naming itself
+// and the quoting that would emit it — CLDR's own rule, and the opposite of
+// `strftime` silently passing it through. All three members say it, so the
+// grammar cannot drift between them, and the accepted side is the very
+// spelling the message suggests.
+try { echo $dt->format("G"), "\n"; }
+catch (Throwable $unknownOnDateTime) { echo $unknownOnDateTime->message, "\n"; }
+try { echo $date->format("G"), "\n"; }
+catch (Throwable $unknownOnDate) { echo $unknownOnDate->message, "\n"; }
+try { echo $clock->format("G"), "\n"; }
+catch (Throwable $unknownOnClock) { echo $unknownOnClock->message, "\n"; }
+echo $dt->format("'G'"), "\n";
+
+// An unterminated quote is the other way the compiler stops, and it names the
+// opening rather than a position: a pattern is short and the `'` is what a
+// reader fixes. `''` is one apostrophe, which is what makes an unpaired one
+// detectable at all.
+try { echo $dt->format("'unclosed"), "\n"; }
+catch (Throwable $openQuote) { echo $openQuote->message, "\n"; }
+echo $dt->format("''"), "\n";
+
+// `V` is the one letter whose *count* is the whole grammar: the IANA
+// identifier has one spelling, so the bound is named on both sides at once —
+// `VV` renders and every other count is refused, from either direction.
+echo $dt->format("VV"), "\n";
+try { echo $dt->format("V"), "\n"; }
+catch (Throwable $tooFew) { echo $tooFew->message, "\n"; }
+try { echo $dt->format("VVV"), "\n"; }
+catch (Throwable $tooMany) { echo $tooMany->message, "\n"; }
+
+// The two zone-free halves refuse a field they would have to invent a value
+// for, rather than filling one in: every value they could invent — midnight,
+// the process's own zone — is a wrong answer stated confidently. Each of the
+// four sentences names the class it is speaking for.
+try { echo $date->format("HH"), "\n"; }
+catch (Throwable $hourOnDate) { echo $hourOnDate->message, "\n"; }
+try { echo $date->format("VV"), "\n"; }
+catch (Throwable $zoneOnDate) { echo $zoneOnDate->message, "\n"; }
+try { echo $clock->format("yyyy"), "\n"; }
+catch (Throwable $yearOnClock) { echo $yearOnClock->message, "\n"; }
+try { echo $clock->format("VV"), "\n"; }
+catch (Throwable $zoneOnClock) { echo $zoneOnClock->message, "\n"; }
+
+// Quoting is what a caller reaches for when the *text* was wanted rather than
+// the field, and it is accepted by exactly the members that refuse the field —
+// which is the accepted side of all four refusals above.
+echo $date->format("'HH'"), "|", $clock->format("'yyyy'"), "\n";
+
+// The order the checks run in is observable, and it is what a pattern wrong in
+// two ways at once reports. The whole pattern is compiled before either half
+// narrows it, so an unreadable letter beats a field the value cannot carry;
+// and inside the narrowing, the field the class has no room for beats the zone
+// it does not have.
+try { echo $date->format("G HH"), "\n"; }
+catch (Throwable $unreadableFirst) { echo $unreadableFirst->message, "\n"; }
+try { echo $date->format("HH VV"), "\n"; }
+catch (Throwable $timeBeforeZone) { echo $timeBeforeZone->message, "\n"; }
+try { echo $clock->format("yyyy VV"), "\n"; }
+catch (Throwable $calendarBeforeZone) { echo $calendarBeforeZone->message, "\n"; }
+
+// Counted: the subset is closed over the whole ASCII alphabet, not merely over
+// the letters § 4's own examples happen to use. 52 single-letter patterns, 15
+// of which are fields, 37 refused — and 36 of those 37 quote the letter they
+// were handed rather than a constant. The one refusal that does not is `V`,
+// which is a pattern letter at the wrong count and says so, which is why the
+// two numbers are not the same. A compiler treating an unknown letter as a
+// literal, as `strftime` does, takes all 52 and passes every row above.
+string $alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+int $taken = 0;
+int $refused = 0;
+int $named = 0;
+int $n = 0;
+for ($n = 0; $n < 52; $n = $n + 1) {
+    var $letter = Core\Str::at($alphabet, $n);
+    try {
+        $dt->format($letter);
+        $taken = $taken + 1;
+    } catch (Throwable $sweptLetter) {
+        $refused = $refused + 1;
+        if (Core\Str::contains($sweptLetter->message, "`" . $letter . "` is not a pattern letter")) {
+            $named = $named + 1;
+        }
+    }
+}
+echo $taken, " taken, ", $refused, " refused, ", $named, " named\n";
+
+// Counted, and the claim the four narrowing sentences exist for: over all 16
+// fields the subset carries, `DateTime` takes every one — it is the value with
+// nothing missing — while the two halves **partition** the rest. No field is
+// accepted by both `Date` and `TimeOfDay`, and the three neither takes are
+// exactly the zonal ones, which is the same statement read from either end. A
+// half that leaked one field of the other's — a `Date` rendering `a`, a
+// `TimeOfDay` rendering `D` — still answers every row above correctly.
+array<string> $fields = ["y", "M", "d", "D", "E", "a", "h", "H", "K", "k", "m", "s", "S", "X", "x", "VV"];
+int $whole = 0;
+int $onDates = 0;
+int $onClocks = 0;
+int $onBoth = 0;
+int $onNeither = 0;
+foreach ($fields as string $field) {
+    bool $dateTakes = true;
+    bool $clockTakes = true;
+    try { $dt->format($field); $whole = $whole + 1; } catch (Throwable $notWhole) { }
+    try { $date->format($field); } catch (Throwable $notOnDate) { $dateTakes = false; }
+    try { $clock->format($field); } catch (Throwable $notOnClock) { $clockTakes = false; }
+    if ($dateTakes) { $onDates = $onDates + 1; }
+    if ($clockTakes) { $onClocks = $onClocks + 1; }
+    if ($dateTakes && $clockTakes) { $onBoth = $onBoth + 1; }
+    if (!$dateTakes && !$clockTakes) { $onNeither = $onNeither + 1; }
+}
+echo $whole, " whole, ", $onDates, " calendar, ", $onClocks, " clock, ", $onBoth, " both, ", $onNeither, " neither\n";
+--EXPECT--
+Core\Time\DateTime::format(): `G` is not a pattern letter this library carries; quote it as `'G'` to emit it literally
+Core\Time\Date::format(): `G` is not a pattern letter this library carries; quote it as `'G'` to emit it literally
+Core\Time\TimeOfDay::format(): `G` is not a pattern letter this library carries; quote it as `'G'` to emit it literally
+G
+Core\Time\DateTime::format(): a `'` opens a literal that nothing closes
+'
+UTC
+Core\Time\DateTime::format(): `V` names a zone only as `VV`, the IANA identifier
+Core\Time\DateTime::format(): `V` names a zone only as `VV`, the IANA identifier
+Core\Time\Date::format(): a pattern rendering a date names no time of day — a `Core\Time\Date` carries none
+Core\Time\Date::format(): a pattern rendering a date names no zone — a `Core\Time\Date` is zone-free
+Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no calendar field — a `Core\Time\TimeOfDay` carries none
+Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no zone — a `Core\Time\TimeOfDay` is zone-free
+HH|yyyy
+Core\Time\Date::format(): `G` is not a pattern letter this library carries; quote it as `'G'` to emit it literally
+Core\Time\Date::format(): a pattern rendering a date names no time of day — a `Core\Time\Date` carries none
+Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no calendar field — a `Core\Time\TimeOfDay` carries none
+15 taken, 37 refused, 36 named
+16 whole, 5 calendar, 8 clock, 0 both, 3 neither
