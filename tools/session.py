@@ -454,10 +454,14 @@ def apply_plan_edit(s: Section, dry: bool) -> str:
         new = new.replace(was, now, 1)
     aim = planmod.field_aim(text)
     note = f"plan-edit: {name}  {len(pairs)} fragment(s), {len(old)} -> {len(new)} bytes"
-    if len(new) > aim * 4:
-        note += (f"  (the field is {len(new) / aim:.0f}x the ~{aim} B aim -- what is in it that is"
-                 " not status? per-member findings belong in the playbook, per-file gaps in that"
-                 " crate's module doc, what landed in `git log`)")
+    # Only when the field GREW, and only when it is already well over the aim. A note that fires
+    # on every edit is a note every session learns to skip; growth on an oversized field is the
+    # one thing worth saying, because it is how `Open now` reached 44 KB one session at a time.
+    if len(new) > len(old) and len(new) > aim * 4:
+        note += (f"  (+{len(new) - len(old)} B, and the field is now {len(new) / aim:.0f}x the"
+                 f" ~{aim} B aim -- what is in it that is not status? a finding belongs in a"
+                 " playbook bullet, a per-file gap in that crate's module doc, what landed in"
+                 " `git log`)")
     if dry:
         return note
     rewritten = lines[:start] + ["> " + ln for ln in planmod.render(name, new)] + lines[end:]
