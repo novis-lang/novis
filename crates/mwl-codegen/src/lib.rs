@@ -672,6 +672,17 @@ impl Jit {
             // this catches one oversized frame skipping the guard. Neither
             // covers the other, and both are wanted.
             ("enable_probestack", "true"),
+            // Cranelift's default *strategy* is `outline`, which emits a call
+            // to a `__cranelift_probestack` libcall — a symbol with a custom
+            // register convention that no JIT gets for free, and that this
+            // module's `builder.symbol` loop below does not supply. So an
+            // outline probe does not protect an oversized frame; it panics
+            // `cranelift-jit` with `can't resolve libcall __cranelift_probestack`
+            // the first time one is compiled, which measured as roughly fifty
+            // consecutive `echo`s at a script's file scope. `inline` emits the
+            // probe loop into the frame itself and needs no symbol, so the
+            // guarantee above is the one actually in force.
+            ("probestack_strategy", "inline"),
         ] {
             flags
                 .set(name, value)
