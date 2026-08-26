@@ -34,7 +34,12 @@ is the same pass over a second format and lands with M8. The **second** compiler
 here as well: [ADR 0077](../adr/0077-compile-time-routing.md)'s `#[Route]`, whose route table is built by
 filtering [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md) § 3's program enumeration and
 whose three compile errors — a duplicate route, a `{param}` with no matching method parameter, an unknown
-literal `url()` name — are the whole point of doing it here. `Core\Router::match` itself waits for M7.
+literal `url()` name — are the whole point of doing it here.
+[ADR 0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) adds
+four more to the same pass: a `{name?}` outside the last position or bound to a parameter with no default
+(§ 4), a capture or `#[Query]` parameter whose type is outside § 3's list, and a `url()` key that is neither
+a capture nor a declared `#[Query]` parameter (§ 6). Its `#[Query]` and `#[Access]` are two further
+compiler-recognized attributes on the same nominal-matching rule. `Core\Router::match` itself waits for M7.
 The **third** rides the same pass: [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) § 6's
 `#[Command]`/`#[Option]`/`#[Argument]` command table, with its own three compile errors — a duplicate
 command name, two options sharing a spelling, an `#[Option]` on a parameter with no conversion from

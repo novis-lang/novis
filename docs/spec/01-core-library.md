@@ -914,7 +914,7 @@ same shape rules.
 | `Core\Ast` | `parse(string): Node` returning inert typed data | [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md) |
 | `Core\Attributes` | `get<T>`, `all<T>` — structural, not a `Reflect` walk | [0046](../adr/0046-attributes-shape-literal-metadata.md) |
 | `Core\Program` | `implementing<T>()` | [0061](../adr/0061-compile-time-autoload-and-program-discovery.md) |
-| `Core\Router` | `match(Http\Method, tainted string): ?Router\Match` and `url(string $name, array<string, mixed>): string` (**launder**, URL path), over a table built while compiling from `#[Route]`. A duplicate route, a `{param}` with no matching method parameter and an unknown literal `url()` name are compile errors | [0077](../adr/0077-compile-time-routing.md) |
+| `Core\Router` | `match(Http\Method, tainted string): ?Router\Match`, `methodsFor(tainted string): array<Http\Method>` (empty ⇒ 404, else 405 + `Allow:`), `url(string $name, array<string, mixed>): string` (**launder**, URL path) and `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors | [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) |
 | `Core\Command` | `run(): uint`, `help(?string): Cli\Text` and `completions(Cli\Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\Router` it dispatches, because a CLI has one entry point and no middleware question | [0086](../adr/0086-core-cli-terminal-is-a-sink.md) |
 | `Core\Decimal`, `Core\BigInt` | the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp` | [0054](../adr/0054-decimal-scalar-type.md) |
 | `Core\Serialize` | `encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize` | [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md) |
@@ -985,9 +985,13 @@ These replace PHP's superglobals ([ADR 0012](../adr/0012-no-superglobals.md)); e
 originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)).
 
 - `Core\Request`: `method`, `path`, `query`, `body`, `bodyStream`, `header`, `headers`, `cookie`, `files`,
-  `clientIp`, `scheme`, `host`, `mountPrefix`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
+  `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
   `$_COOKIE`, `$_REQUEST`, `filter_input`. `path` is the request path with the matched mount's prefix
-  **removed** and `mountPrefix` is what was removed; `method` reports `Get` for a `HEAD` request so a
+  **removed** and `mount(): {prefix, captures}` is what was removed together with that mount's glob
+  captures, `tainted`, which is how a host-mounted deployment learns which tenant it serves;
+  `route(): ?Router\Match` is the match the server made once before the handler, and is what the CSRF check
+  and the `route` metric label read ([0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md));
+  `method` reports `Get` for a `HEAD` request so a
   `Get`-only route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` are
   resolved from the socket peer unless a peer in `[server] trusted_proxies` asserted otherwise; `files`
   entries carry `name`, `contentType` and `content` as `tainted bytes` — there is no temp path and no

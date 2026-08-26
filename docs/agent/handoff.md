@@ -7,24 +7,38 @@
 (1597 cargo tests, 74 suites, clippy and fmt clean) and runs both `.mwlt` trees itself, so after a
 green `verify.py` there is nothing else to run (playbook, *Running things*). The tree is clean.
 
-**`Core\Math` is 38 members over 31 cases, and only one specified slice is left in it** — the
-`format`/`round` agreement below. The two added here take the family's *composition* frontier. The
-six hyperbolic members are held to their exponential definitions over 18 rows out to ±5: `sinh` is
-the half difference of `exp($x)` and `exp(0.0 - $x)` and `cosh` the half sum, `cosh² - sinh²` is 1
-to a step taken relative to `cosh²` (the magnitude the subtraction happens at, not that of its
-answer), `tanh` is the ratio and has no pole to be near, `asinh` and `acosh` undo their partners —
-`acosh` up to sign, `cosh` being even — and `atanh` is round-tripped the *other* way as
-`tanh(atanh($y))`, because in its own direction it amplifies by 5500× at `$x = 5`. Past the table
-the claims are properties: `tanh(20.0)` is exactly 1 while `cosh(20.0)` is still finite, and at 1000
-both growing members answer `INFINITY`. The three inverse circular members are then pinned to their
-*branch*: `asin(sin($x))` reflects about the nearer quarter turn outside `[-PI/2, PI/2]`,
-`acos(cos($x))` folds onto `[0, PI]` and turns around again at `TAU - |$x|`, and `atan(tan($x))`
-is the one that shifts by whole `PI`s rather than reflecting — which is why `atan2` exists. Each of
-the three answers inside its own branch on all 20 rows, and `sin(asin(sin($x)))` recovers `sin($x)`
-unconditionally, which is what makes the three counts a statement about the branch and not about
-the members disagreeing. Every row of both cases was measured on the WSL leg as well as the native
-one, through `php` rather than a cross-build; the two new playbook bullets name the well-conditioned
-direction and the exact-on-both-legs rows so the next float session does not re-measure either.
+**`Core\Math` is closed but for one pair, and `Core\Path` is the next thinnest area.** The three
+slices below are unchanged from the previous session and none of them has been taken — the two that
+landed since (`math-the-hyperbolic-members-are-their-exponential-definitions`,
+`math-the-inverse-circular-members-undo-the-circular-ones-only-on-their-own-branch`) were the ones
+above them in that list.
+
+**This session added no code. It settled the routing surface end to end and landed
+[ADR 0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md),
+which repairs three defects that were already in the tree.** In order of how much they cost if
+missed: `#[Access]` was a compiler-recognized attribute that ADR 0096 never added to ADR 0071 § 1's
+closed list, so as written a userland `type Access = {...};` satisfied the mandatory-sibling check
+and the compile error passed on a decision nobody made; ADR 0096 § 4 and ADR 0097 § 7 flatly
+contradicted each other about whether the server holds the route table, which is what ADR 0096's
+CSRF check and ADR 0076 § 1's `route` label are both specified against; and ADR 0085 § 1 documented
+a query-parameter binding no ADR had ever defined. 0102 § 1 resolves the second by making the server
+match **once**, before the handler, with `Core\Request::route()` as that match — measured at
+**32.7 ns** against the **135.9 ns** the server already spends parsing the request line and ten
+headers, so it *removes* a match for any request that also runs CSRF or emits the `route` label
+rather than adding one. The bench that produced those numbers is not in the tree; it was a
+throwaway over `matchit` 0.8.6, the crate ADR 0077 § 2 names as its trie model, and the numbers are
+recorded in 0102 § 1 as an upper bound because `matchit` returns captures through a map where a
+compiled table writes fixed shape slots.
+
+**Nothing routing-related is built** — `grep -rn "Router" crates/ --include=*.rs` is empty, and M4S
+owns the table pass with M7 the matcher. The one already-built thing 0102 touches is
+`crates/mwl-types/src/derive.rs:72`'s `ATTRIBUTES` const, which gains `Core\Route`, `Core\Access` and
+`Core\Query` when M4S opens; it is already the right shape and needs no restructure. **ADR 0071 § 1
+is now the one home for that roster**, as a table naming the registry it must agree with, and the
+running count every amending ADR used to restate is deleted. **ADR 0077's claim that routing is a
+forcing case for typed `callable` is withdrawn** (0102 § 9): routes do not share a signature,
+handlers share no return type, and § 4's *boundary* ground survives the deferral either way — so the
+count is back to three, and a future ADR re-arguing it must not cite routing.
 
 ## Next group
 
@@ -64,3 +78,5 @@ not re-derive any of them.
 - ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row —
   `mwl_stdlib::hash`'s module doc.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- `docs/adr/0097-development-server-and-proxied-origin.md:47` links `../plan/m13.md`, which that ADR
+  itself deleted. Pre-existing and unrelated to routing; the link should go, not the sentence.

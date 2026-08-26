@@ -316,6 +316,16 @@ is why" — is this file.
   from the list too, in the same run, before anything pinned it. The list is a worklist and not a
   ledger (the plan's *Open now* says so for the `--errors` half as well): when the drop is larger
   than the number of members the session actually asked about, the extra one is still owed a case.
+- **A fact restated across ADRs goes stale, and the two shapes that always do it are a running
+  count and an ordinal.** ADR 0071 § 1 said its closed attribute list "opens with exactly those four
+  names", 0077 § 1 said it "now holds five", and 0085/0086/0096 each added entries without touching
+  either — while the typed-`callable` deferral had a *forcing case* ordinal chained across four ADRs
+  (0031 "second", 0061 "second", 0072 "third", 0077 "fourth"), so withdrawing one link renumbered
+  nothing and left a wrong count in two places. Before adding to any roster, grep for the total:
+  `grep -rn "holds .* names\|forcing case\|opens with exactly" docs/adr/`. The fix that sticks is a
+  **table in the owning ADR** plus a rule that amending ADRs say "joins the list" and state no
+  number — 0071 § 1 is now that table, and it names `mwl_types::derive::ATTRIBUTES` as the registry
+  it must agree with.
 
 ## Running things
 
