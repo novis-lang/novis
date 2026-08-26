@@ -121,13 +121,15 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 holds five items again, and they are what the loop runs next.**
+> **Open now:** **Stage 0 holds four items, and they are what the loop runs next.**
 > `python tools/bench.py` puts MWL's median at 0.31× PHP 8.5.9 with its JIT on, and
 > [docs/perf/userland-gap.md](perf/userland-gap.md) is the ledger behind that number — the suite
-> case by case, what one operation costs, and which item moves it. In order: **18** MWL owns its
-> allocator (measured 0.31× → 0.54× on this tree, and it is
-> [docs/plan/design.md](plan/design.md)'s per-request arena landing early rather than a new
-> decision); **19** an integer subscript reaches the packed form from compiled code, which is item
+> case by case, what one operation costs, and which item moves it. Item **18** is **done**: MWL
+> owns its allocator in every optimized build and the test build's byte counters wrap it, so a
+> number measured now is measured against the baseline that ships;
+> [`mwl-runtime`](../crates/mwl-runtime/src/lib.rs)'s module doc states what it spends and
+> `alloc.rs`'s own doc argues every decision it took. In order from here: **19** an integer
+> subscript reaches the packed form from compiled code, which is item
 > 15's other half and the group [docs/agent/handoff.md](agent/handoff.md) already scopes; **20** a
 > string has capacity so `.=` stops being quadratic, `.` becomes n-ary and a literal stops
 > allocating; **21** no key is synthesized for a callback that does not want one; **22** a

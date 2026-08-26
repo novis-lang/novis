@@ -163,7 +163,22 @@
 //!   keeps in step. Compiled code enters it by whichever door its operands'
 //!   static types justify — [`mwl_array_eq`], [`mwl_str_eq`], an inline
 //!   pointer comparison, or `mwl_value_identical` for a `mixed` operand — and
-//!   [`identity`]'s docs own that choice too.
+//!   [`identity`]'s docs own that choice too;
+//! * the **allocator itself**. Every optimized binary that links this crate
+//!   runs on `alloc::Pooled`, a per-thread cache of small blocks in front of
+//!   [`System`](std::alloc::System) — a `#[global_allocator]` is chosen once
+//!   for a whole crate graph, so this crate choosing one chooses it for
+//!   `mwl-cli` and for anything embedding the runtime. **What it spends**, per
+//!   [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s *say what
+//!   you spend*: at most **~2 MB per thread** that has touched every size
+//!   class — 16 classes of 16 bytes up to 256, 512 blocks each — held until
+//!   the process exits and never returned to the platform. That is a
+//!   priority 5 cost bought with a priority 3 gain measured at 0.31× → 0.54×
+//!   of PHP on the userland suite, and it is **O(threads), never
+//!   O(requests served)**: the cache is not per request, does not grow with
+//!   traffic, and holds no request-owned bytes. A debug build is left on the
+//!   platform heap so valgrind still sees every free. That module's own doc
+//!   owns each of those decisions and is the only place they are argued.
 //!
 //! ## Known gaps
 //!
@@ -218,8 +233,9 @@
 
 mod abi;
 // Compiled where it is used: by the `#[global_allocator]` below in an
-// optimized build, and by its own tests in a test build. A debug build takes
-// the platform heap, for the reason that module's doc states.
+// optimized build, and in a test build by its own tests and by `counting_alloc`,
+// which wraps it. A debug build takes the platform heap, for the reason that
+// module's doc states.
 #[cfg(any(test, not(debug_assertions)))]
 mod alloc;
 pub mod array;
@@ -241,8 +257,10 @@ mod value;
 
 /// The leak guard in [`object`] measures the allocator rather than trusting a
 /// refcount to have reached zero, so this crate's own test binary counts live
-/// bytes per thread. See [`counting_alloc`] for why the counter is
-/// thread-local and why it costs nothing outside `cfg(test)`.
+/// bytes per thread, in front of [`alloc::Pooled`] rather than the platform
+/// heap. See [`counting_alloc`] for why the counter is thread-local, why it
+/// costs nothing outside `cfg(test)`, and why wrapping the shipped allocator
+/// leaves both counts meaning what they meant.
 #[cfg(test)]
 #[global_allocator]
 static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
