@@ -1,0 +1,86 @@
+--TEST--
+Core\Path::normalize answers a normal form, join and dirname re-render the same path, and no segment can move the base's root — spec § 8
+--FILE--
+<?mwl
+// The sibling cases pin § 8's members row by row. This one pins the three
+// properties the section is written around, over a sweep of the paths those
+// rows are drawn from — a member getting each row right and the property
+// wrong would pass there and fail here.
+array<string> $paths = [
+    "/var/www/../log/./app.log",
+    "a//b/./c/",
+    "/a/../..",
+    "a/../..",
+    "",
+    ".",
+    "..",
+    "/",
+    "C:/a/./b/..",
+    "a/b/../../../c",
+    "./x/",
+    "/a/b/c",
+];
+int $normal = 0;
+int $rendered = 0;
+int $neutral = 0;
+foreach ($paths as string $p) {
+    var $n = Core\Path::normalize($p);
+    // normalize answers a *normal form*: a path already in one comes back
+    // unchanged, so normalizing twice is normalizing once. A `..` that was
+    // kept because it could not be cancelled is the row this would catch.
+    $normal = $normal + ((Core\Path::normalize($n) == $n) ? 1 : 0);
+    // join with no segments and dirname at zero levels are the same
+    // re-rendering, reached from two members: both drop a repeated and a
+    // trailing separator, and neither resolves a `.` or a `..`.
+    $rendered = $rendered + ((Core\Path::join($p) == Core\Path::dirname($p, {levels: 0})) ? 1 : 0);
+    // An empty segment names nothing, so it contributes nothing rather than a
+    // separator — PHP's `$a . "/" . $b` writes a trailing one here.
+    $neutral = $neutral + ((Core\Path::join($p, "") == Core\Path::join($p)) ? 1 : 0);
+}
+echo "normal ", $normal, " rerender ", $rendered, " empty ", $neutral, " of ", Core\Arr::count($paths), "\n";
+
+// join only ever appends, which is what keeps a segment taken from a request
+// from escaping the base it was joined to. Stated as a property: whatever a
+// segment carries — a leading separator in either spelling, a drive, a
+// doubled separator — the base's own rendering is still a prefix of the
+// answer and the base's rootedness is unchanged. `PathBuf::push` and Python's
+// `os.path.join` both fail the second line for the first three segments.
+array<string> $segments = [
+    "/etc/passwd",
+    "\\etc\\passwd",
+    "C:/Windows",
+    "//double",
+    "",
+    ".",
+    "a/b",
+];
+string $root = "/var/www";
+int $kept = 0;
+int $relative = 0;
+foreach ($segments as string $seg) {
+    var $joined = Core\Path::join($root, $seg);
+    $kept = $kept + ((Core\Str::startsWith($joined, Core\Path::join($root)) && Core\Path::isAbsolute($joined)) ? 1 : 0);
+    $relative = $relative + (Core\Path::isAbsolute(Core\Path::join("var/www", $seg)) ? 0 : 1);
+}
+echo "rooted ", $kept, " relative ", $relative, " of ", Core\Arr::count($segments), "\n";
+
+// dirname and basename are one decomposition rather than two readings: what
+// they take apart, join puts back, for every path that names something inside
+// a directory.
+array<string> $files = ["/var/www/html/index.php", "a//b/./c", "C:/log/app.log", "/a", "x/y"];
+int $whole = 0;
+foreach ($files as string $f) {
+    $whole = $whole + ((Core\Path::join(Core\Path::dirname($f), Core\Path::basename($f)) == Core\Path::join($f)) ? 1 : 0);
+}
+echo "recomposed ", $whole, " of ", Core\Arr::count($files), "\n";
+
+// The one shape where it does not, and why it is right anyway: a bare name's
+// directory is `.` rather than the empty string, so recomposing re-attaches
+// it. Both spellings name the same file; only one of them is a path every
+// caller can use.
+echo Core\Path::dirname("report.tar.gz"), "|", Core\Str::replace(Core\Path::join(Core\Path::dirname("report.tar.gz"), Core\Path::basename("report.tar.gz")), Core\Path::SEPARATOR, "/"), "|\n";
+--EXPECT--
+normal 12 rerender 12 empty 12 of 12
+rooted 7 relative 7 of 7
+recomposed 5 of 5
+.|./report.tar.gz|

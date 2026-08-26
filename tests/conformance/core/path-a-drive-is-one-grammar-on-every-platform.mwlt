@@ -1,0 +1,59 @@
+--TEST--
+A drive is `C:` and a separator, read the same way on either leg, and only the base's drive ever survives a Core\Path::join — spec § 8
+--FILE--
+<?mwl
+// Spec § 8: the separator a member *emits* is the one platform-dependent
+// thing here, and what a member *accepts* is one grammar everywhere. A drive
+// is the half of that grammar the other leg has no filesystem for, so it is
+// pinned on both legs rather than on the Windows one.
+string $win = "C:/var/www/index.php";
+
+// A drive is recognized only when a separator follows it. `C:` alone, a
+// drive-relative `C:log` and an ordinary `a:b` are therefore components and
+// not roots — which is what keeps a relative path holding a colon from
+// silently becoming absolute.
+echo Core\Path::isAbsolute("C:") ? "absolute" : "relative", "|", Core\Path::isAbsolute("C:log") ? "absolute" : "relative", "|", Core\Path::isAbsolute("a:b") ? "absolute" : "relative", "|\n";
+echo Core\Str::join(Core\Path::split("C:log"), ","), "|", Core\Arr::count(Core\Path::split("C:")), "|\n";
+
+// split leads with the *whole* root, drive included, which is what makes the
+// decomposition lossless; and both separators are read wherever this runs.
+echo Core\Str::replace(Core\Str::join(Core\Path::split($win), ","), Core\Path::SEPARATOR, "/"), "|\n";
+echo Core\Str::replace(Core\Str::join(Core\Path::split("C:\\var\\www"), ","), Core\Path::SEPARATOR, "/"), "|\n";
+
+// A drive root has no name of its own, and walking past it — one level at a
+// time or by counting `..` — stops there with the drive still attached.
+echo Core\Path::basename("C:/"), "|", Core\Str::replace(Core\Path::dirname($win, {levels: 9}), Core\Path::SEPARATOR, "/"), "|", Core\Str::replace(Core\Path::normalize("C:/a/../.."), Core\Path::SEPARATOR, "/"), "|\n";
+
+// relativeTo compares a component byte for byte, because case-insensitivity
+// is a property of a filesystem and this member touches none. The drive
+// letter is the one exception, being ASCII-case-insensitive wherever drives
+// exist at all.
+echo Core\Path::relativeTo("C:/var/www/index.php", "c:/var/www") ?? "none", "|\n";
+
+// Two of the three shapes with no relative path at all: different drives are
+// different roots, and a drive against no drive is no common starting point.
+// (The third, one side absolute and the other not, is in the sibling case.)
+echo Core\Path::relativeTo("C:/a", "D:/a") ?? "none", "|", Core\Path::relativeTo("/a", "C:/a") ?? "none", "|\n";
+
+// Only the base decides the root, so a segment's own drive is dropped exactly
+// as its leading separator is: an absolute segment joined onto a relative base
+// leaves the result relative, rather than replacing what came before.
+string $rel = "a/b";
+echo Core\Str::replace(Core\Path::join($rel, "/etc/passwd"), Core\Path::SEPARATOR, "/"), "|", Core\Path::isAbsolute(Core\Path::join($rel, "/etc/passwd")) ? "absolute" : "relative", "|\n";
+echo Core\Str::replace(Core\Path::join("C:/base", "D:/etc", "x"), Core\Path::SEPARATOR, "/"), "|\n";
+
+// An empty segment names nothing and contributes nothing, and a base with no
+// components at all is `.` — every answer here is a path a program can use,
+// which the empty string is not.
+echo Core\Str::replace(Core\Path::join($rel, "", "c"), Core\Path::SEPARATOR, "/"), "|", Core\Path::join(""), "|\n";
+--EXPECT--
+relative|relative|relative|
+C:log|1|
+C:/,var,www,index.php|
+C:/,var,www|
+|C:/|C:/|
+index.php|
+none|none|
+a/b/etc/passwd|relative|
+C:/base/etc/x|
+a/b/c|.|
