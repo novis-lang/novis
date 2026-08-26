@@ -1426,8 +1426,10 @@ mwl_runtime::mwl_helper! {
     /// rather than returned, and it reads its two positional arguments through
     /// the same [`window`] — so `replaceRange($s, $o, $n, "")` removes exactly
     /// what `slice($s, $o, $n)` returns, for every sign of every argument.
-    /// PHP's own pair does not quite manage that, since its two functions
-    /// clamp a backwards window differently.
+    /// `substr` and `substr_replace` hold that identity too, on all ninety
+    /// windows `str-slice-and-replace-range-match-substr-and-substr_replace`
+    /// sweeps; what one shared reading buys is that the two members cannot
+    /// come apart later, not that PHP's pair got it wrong.
     ///
     /// `$length` is **required**, unlike `slice`'s: writing `null` for "to the
     /// end" is one character, and a default would put an optional parameter
