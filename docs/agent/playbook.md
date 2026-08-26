@@ -883,6 +883,25 @@ is why" — is this file.
   `Core\Random`'s two; a member whose size is a *product* reaches both sentences (past `isize::MAX` is
   `mwl_runtime::affordable`'s, below it the allocator's), while one whose size is its own `uint`
   argument — `fill` — can only ever reach the second.
+- **An agreement case gets its sweep from a `mixed`-taking helper and `Core\Json::encode`, not from
+  a closure.** The shape with the most room left is the one that asks one question of many members
+  and asserts they *agree*, and the obstacle is that each member answers a different type — a
+  `uint` from `count`, a `bool` from `isList`, a `?string` from `keyOf`, a nested `array` from
+  `chunk`. `Core\Json::encode` renders every one of them, including `null` and a float, so a
+  `public static function same(string $name, mixed $a, mixed $b, mixed $c): int` inside a
+  `final class` compares the three renderings, echoes a `DISAGREE` line naming the member when they
+  differ, and returns 0 or 1. The case then reads `$ok = $ok + Sweep::same("count", …);` per member
+  — one line each, no closure stored anywhere — and asserts `$ok` against a literal total, which is
+  the counting the shape asks for. `mixed` accepts every `Core` return type tried, nullable
+  included, and a multi-line call with a trailing comma parses.
+
+- **Do not put an append past `9223372036854775806` in a case: it kills the run.** A key of
+  `9223372036854775807` followed by `$a[] = v` trips `Table::append`'s
+  `"the append counter never names a live key"` `debug_assert` (`crates/mwl-runtime/src/array.rs:395`)
+  and `mwl run` dies mid-file, so every later row of the case is lost and the failure reads as the
+  harness rather than as the bound being probed. The last *accepted* append is the one after a key
+  of `9223372036854775806`, which lands at `9223372036854775807`; the plan's `Open now` owns why the
+  first refused one is a crash rather than PHP's `Error`.
 
 ## Splitting a file that got too big
 
