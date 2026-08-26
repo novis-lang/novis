@@ -952,6 +952,15 @@ is why" — is this file.
   dyadic fractions makes `$x * $x + $y * $y` exact, so both members are computing the correctly rounded
   square root of the *same* double and IEEE 754 requires them to agree — a property of the table, not of
   the host. The same test applies to any "these two spellings answer the same thing" float case.
+- **No `Core` member accepts a `tainted` or `secret` argument today, so a qualifier case is written out
+  of operators alone.** ADR 0088's classification is on no `mwl-stdlib` member row yet, so every
+  `string`/`bytes` parameter is a plain `CoreTy::Str`/`Bytes` and the one-directional widening in
+  `mwl_types::expr::assign` refuses the qualified form at the argument — `Core\Str::length($tainted)` is
+  `E0401: expected 'string', found 'tainted string'`, which reads like a bug in the case and is not one.
+  What a qualified value *can* be asked is concatenation, interpolation, `==`/`!=`, `echo`, and the `as`
+  conversions, and that is enough for the agreement shape: build the plain twin beside it and count the
+  rows where the two answered the same. When the classification lands this bullet stops being true for
+  the non-sink members, and only then.
 
 ## Splitting a file that got too big
 
