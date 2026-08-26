@@ -1,0 +1,86 @@
+--TEST--
+Core\Math::isNan and isFinite agree on a partition of every float a member can answer, spec § 3
+--FILE--
+<?mwl
+// Spec § 3's two predicates are the only members that ask *about* a float
+// rather than compute one, and they exist because a domain error here is
+// IEEE's answer and not a throw (`mwl_stdlib::math`'s module doc). Between
+// them they are supposed to carve every `float` into three classes — `NaN`,
+// finite, and an infinity — with no value in two of them and none in none.
+//
+// The table asks both predicates the same question about each row, so a
+// predicate that grew its own idea of where finite stops fails the count
+// rather than merely printing a different line. Each named constant is
+// paired with a value that arrives at the same class by arithmetic instead:
+// `FLOAT_MAX * 10.0` against `INFINITY`, `log(0.0)` against a negated one,
+// `sqrt(-1.0)` against `NAN`.
+array<float> $rows = [
+    0.0,
+    -0.0,
+    Core\Math::EPSILON,
+    Core\Math::FLOAT_MIN,
+    // The bound, on both sides and one row apart: the largest finite `float`
+    // is finite, and the product that steps past it is not.
+    Core\Math::FLOAT_MAX,
+    Core\Math::FLOAT_MAX * 10.0,
+    Core\Math::INFINITY,
+    0.0 - Core\Math::INFINITY,
+    Core\Math::log(0.0),
+    Core\Math::NAN,
+    Core\Math::sqrt(-1.0),
+];
+
+int $nan = 0;
+int $finite = 0;
+int $infinite = 0;
+int $exactlyOne = 0;
+foreach ($rows as float $x) {
+    bool $isNan = Core\Math::isNan($x);
+    bool $isFinite = Core\Math::isFinite($x);
+    // `infinite` is not its own member: § 3 leaves PHP's `is_infinite` to the
+    // two predicates negated together, which is exactly what makes the
+    // partition worth counting — a row neither predicate accepts must be an
+    // infinity, and a row *both* accept is a contradiction no float has.
+    int $held = 0;
+    string $class = "unclassified";
+    if ($isNan) {
+        $nan = $nan + 1;
+        $held = $held + 1;
+        $class = "nan";
+    }
+    if ($isFinite) {
+        $finite = $finite + 1;
+        $held = $held + 1;
+        $class = "finite";
+    }
+    if (!$isNan && !$isFinite) {
+        $infinite = $infinite + 1;
+        $held = $held + 1;
+        $class = "infinite";
+    }
+    if ($held == 1) {
+        $exactlyOne = $exactlyOne + 1;
+    }
+    echo $class, "\n";
+}
+
+// The three counts sum to the row count because each row landed in exactly
+// one class, and `partitioned` says so independently of how they split: a
+// value both predicates accepted would leave it short while every one of the
+// three tallies still looked plausible on its own.
+echo "nan ", $nan, ", finite ", $finite, ", infinite ", $infinite, "\n";
+echo "partitioned ", $exactlyOne, " of 11\n";
+--EXPECT--
+finite
+finite
+finite
+finite
+finite
+infinite
+infinite
+infinite
+infinite
+nan
+nan
+nan 2, finite 5, infinite 4
+partitioned 11 of 11
