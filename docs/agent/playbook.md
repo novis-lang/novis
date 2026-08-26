@@ -1087,6 +1087,18 @@ sibling in the same namespace unqualified.
   `i64::MAX` has to *compute* them rather than write them, and the multiplier is the second half of
   the trap: `$n * 2` over a `uint` is `E0407` and then `E0401`, the literal `2` being an `int` with
   no representable common type, so the case declares `uint $two = 2;` and multiplies by that.
+- **One `RuntimeSig` may name the signature two different runtime symbols are declared under, and
+  changing one symbol's Rust declaration then miscompiles the other in silence.** `mwl_array_unset`
+  was emitted through `RuntimeSig::ArrayAppend` because both happened to be two pointers in and one
+  pointer back; the moment `mwl_array_append` grew ADR 0002's `(ctx, …, out) -> status` shape, that
+  reuse would have declared `mwl_array_unset` to Cranelift with four parameters and an `i32` return
+  and nothing — not the Rust compiler, not `clippy`, not a codegen test — would have said so, because
+  `Linkage::Import` never checks a declaration against the definition. So before editing an
+  `extern "C"` in `mwl-runtime`, grep `crates/mwl-codegen/src/emit.rs` for its `RuntimeSig::` variant
+  and check whether a *second* `runtime_ref` call names it; if one does, give that symbol its own
+  entry in `Signatures` first. `mwl_str_concat`/`mwl_str_append`/`mwl_str_concat_n` and the
+  `mwl_throwable_*` pair are the other shared entries, and their doc comments say the sharing is
+  deliberate.
 
 ## Divergences and refusals already pinned
 

@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 509 of 600 and differential 151 of 150. **Nothing below them
+> Stage 4's two counts**, conformance 510 of 600 and differential 151 of 150. **Nothing below them
 > is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -69,7 +69,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 509 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 510 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 151, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -113,7 +113,7 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Stage 4's differential gate is met — 151 against the 150 it requires — so
-> conformance is the only frontier left, at 509 of the 600.** Both named guards
+> conformance is the only frontier left, at 510 of the 600.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
@@ -151,14 +151,7 @@
 > server's scope and its `[server]` block) and 0100 § 3 (a file opening `#!` starts in code mode
 > with no tag — one `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no parser or
 > runtime change). None invalidates built behaviour or a written fixture; their work is M1, M4, M6,
-> M7, M8 and M10. **Open beside the library** — `$a[] = v` after a key of `9223372036854775807`
-> crashes rather than refusing, and PHP 8.5 throws `Cannot add element to the array as the next
-> element is already occupied` there: `Table::note_index` saturates, so the append counter names a
-> live key, `Table::append`'s `debug_assert` fires (`crates/mwl-runtime/src/array.rs:395`) and a
-> release build silently overwrites the entry instead, which is the one place an array loses a
-> value; the refusal needs a fault channel `mwl_array_append`'s `extern "C"` signature does not have
-> (`array.rs:1341`, `RuntimeSig::ArrayAppend` at `crates/mwl-codegen/src/emit.rs:714`), so it is a
-> runtime-and-codegen slice rather than a case; a property's declared default runs and is
+> M7, M8 and M10. **Open beside the library** — a property's declared default runs and is
 > type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow
 > statement that does not lower; a closure cannot be called through the variable holding it and
 > `Class::method(...)` panics `mwl-ir` outright, so a case sweeps a table with `foreach` and reaches
@@ -184,7 +177,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: the differential gate is met at 151 of 150, conformance stands at 509 of 600, and the
+> decision: the differential gate is met at 151 of 150, conformance stands at 510 of 600, and the
 > remainder is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

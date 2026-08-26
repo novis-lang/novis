@@ -2,64 +2,60 @@
 
 ## State
 
-**Conformance is the only frontier left, at 509 of 600; the differential gate is met at 151 of
-the 150 it requires.** Verify is green (**1596** cargo tests, 74 suites, clippy and fmt clean) and
+**Conformance is the only frontier left, at 510 of 600; the differential gate is met at 151 of the
+150 it requires.** Verify is green (**1597** cargo tests, 74 suites, clippy and fmt clean) and
 executes both `.mwlt` trees itself, so after a green `verify.py` there is nothing else to run
 (playbook, *Running things*) — in particular no release rebuild.
 
-**The array representation is pinned at the library layer now.** ADR 0007 § 5's "a statement about
-keys, not about storage" is asserted by
-`tests/conformance/core/arr-readers-agree-across-both-array-shapes.mwlt`: 53 `Core\Arr` members, 16
-over the empty pair, 16 over a middle-hole subject and `foreach`, each asked of a packed list and of
-the same content forced into the hash form, counted rather than read off a line. The forcing keys
-are `"08"` and `"x"` because `integer_key` refuses both, so neither moves the append counter; the
-counter itself, and both sides of every bound it has, are
-`tests/conformance/array/unset-does-not-move-the-append-counter.mwlt`, every row of which was
-checked against PHP 8.5.9 and matches.
+**The `$a[]` crash is closed, and all three slices of the previous group landed.** `$a[] = v` onto an
+array whose append counter has saturated at `i64::MAX` now throws PHP 8.5's `Cannot add element to
+the array as the next element is already occupied` as a catchable `LogicError` instead of firing a
+`debug_assert` and silently overwriting a live entry in release. The decision — why
+`mwl_array_append` alone among the array primitives carries ADR 0002's `(ctx, array, value, out) ->
+status` shape, and why the occupancy test runs *before* the copy-on-write separation so a refusal
+leaves the caller's pointer live and owned — is `crates/mwl-runtime/src/array.rs`'s module doc
+§ *the append is the one array write with a fault channel*. Slice 3's audit was forced into slice 1
+rather than deferred: `mwl_array_unset` was emitted through `RuntimeSig::ArrayAppend` and now has
+its own `RuntimeSig::ArrayUnset`; the playbook's *Writing MWL itself* has the trap.
 
-**A crash was found on that path and is not fixed**: an append after a key of `i64::MAX` names a
-live key and dies on a `debug_assert`, silently overwriting in release. The plan's `Open now` states
-it with its anchors; it is the next group's first slice.
+**The new refcount edge is valgrind-clean.** `tools/leak-check.sh` over a fixture exercising the
+refusal three ways — a fresh string temporary, an aliasing read of a local, and an uncaught
+propagate out of a callee frame holding a shared (refcount-2) array — reports 0 failures.
 
-**`orient.py`'s `[context] modules` manifest is still wrong**, third session running: it names
-`registry.rs`, `json.rs`, `arr.rs` and `regex.rs`, and `crates/mwl-runtime/src/{array,string}.rs`
-should be in it. Separately, the pack truncates the rest-of-group items mid-sentence, so this
-session spent a `peek.py` re-reading this file for item 2 — printing each remaining bullet whole
-would be cheaper than the call it costs.
+**`orient.py`'s `[context] modules` manifest is still wrong, fourth session running.** It names
+`registry.rs`, `json.rs`, `arr.rs` and `regex.rs`; this session worked entirely in
+`crates/mwl-runtime/src/array.rs`, `crates/mwl-codegen/src/{emit,lib}.rs` and
+`crates/mwl-ir/src/{ir.rs,lower/}`, none of which the pack printed a map line for. The pack also
+still truncates the rest-of-group bullets mid-sentence, costing one `peek.py` back into this file.
 
 ## Next group
 
-Three slices over one crash, and the file set is `crates/mwl-runtime/src/array.rs`,
-`crates/mwl-codegen/src/emit.rs` and `tests/conformance/array/`. Take them in order; slice 2 needs
-slice 1.
+Four cases closing three of the eight members `python tools/gaps.py --differential` still lists,
+plus the conformance case the same file set is already open for. The file set is
+`crates/mwl-stdlib/src/path.rs`, `tests/differential/` and `tests/conformance/core/`; the first
+three are one shape each and share their reading.
 
-- [ ] **`$a[]` refuses an occupied next element instead of crashing** — `Table::append`
-      (`crates/mwl-runtime/src/array.rs:383`) reads a counter `Table::note_index`
-      (`array.rs:267`) saturated at `i64::MAX`, so its `debug_assert` at `array.rs:395` fires and a
-      release build overwrites a live entry. PHP 8.5 throws `Error: Cannot add element to the array
-      as the next element is already occupied`, and `Fault::thrown` (`crates/mwl-runtime/src/abi.rs:92`)
-      is the catchable shape to match it. The obstacle is the channel: `mwl_array_append`
-      (`array.rs:1341`) is an `extern "C"` returning `*mut ArrayHeader` with nowhere to put a
-      `Fault`, reached through `RuntimeSig::ArrayAppend` (`crates/mwl-codegen/src/emit.rs:714`).
-      Decide the signature there and record it in `mwl-runtime`'s module doc.
-- [ ] **Pin the bound on both sides** (conventions.md's *a bound asserted on both sides*) — a case
-      beside `unset-does-not-move-the-append-counter.mwlt` asserting that a key of
-      `9223372036854775806` still appends at `9223372036854775807` (verified) and that the next
-      append is refused and catchable. It cannot be written until slice 1 lands.
-- [ ] **Audit the other `RuntimeSig::ArrayAppend` users** — `mwl_array_unset` is emitted through
-      that same signature at `crates/mwl-codegen/src/emit.rs:727`; say in the doc whether that is
-      deliberate reuse or a name that has drifted.
+- [ ] **`Core\Path::basename` against PHP's `basename`** (`crates/mwl-stdlib/src/path.rs:447`) — a
+      `tests/differential/` oracle case, so PHP computes the expectation and nothing is frozen by
+      hand. Sweep the boundaries the twin is written around: a trailing separator, a bare name, a
+      root, an empty subject, a suffix argument that does and does not match.
+- [ ] **`Core\Path::dirname` against PHP's `dirname`** (`path.rs:478`) — same shape, same file, and
+      the two twins disagree with each other at the root, which is the row worth having.
+- [ ] **`Core\Path::normalize` against PHP's `realpath`** (`path.rs:664`) — the twin touches the
+      filesystem and MWL's does not, so pin the rows where they agree and say in the case comment
+      which rows are deliberately absent rather than asserting a divergence PHP cannot answer.
+- [ ] **One `tests/conformance/core/` case: the separator invariant, counted rather than read off a
+      line** (conventions.md's *invariance over a sweep*). Every `Core\Path` member that builds a
+      path emits `Path::SEPARATOR`, which differs between the native and WSL legs (loop-goal.md
+      § *Standing decisions*), so assert that a table of subjects round-trips through
+      `Core\Str::replace($p, Core\Path::SEPARATOR, "/")` identically on both — a member that grew
+      its own separator handling fails here while still looking right on its own line.
 
 ## Backlog
 
-- `python tools/gaps.py --errors` still holds nothing a case can take: 58 sites, 57 `fatal` and
-  unreachable by any handler, the one `thrown` left (`csv.rs:512`) unreachable from source. Plan,
-  `Open now`.
-- `docs/agent/loop-goal.toml`'s `[context] modules` needs `crates/mwl-runtime/src/{array,string}.rs`
-  and can drop `json.rs`/`regex.rs`. No session owns that file.
-- `Core\Json::decodeAs<T>` reads a scalar-fielded class only — no enum, `decimal`, `Instant`, array
-  or nested-class field. `mwl_stdlib::json` gap 2.
-- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row, so
-  `Core\Str::format` is not yet the sink that ADR makes it. `mwl_stdlib::hash`'s module doc.
-- `do`/`while` is the one M4 control-flow statement that does not lower. `mwl-ir` gap 1.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- Five members with a PHP twin and no oracle case remain after the group above — `Core\Arr::flattenDeep`, `Core\Math::gcd`/`lcm`, `Core\Json::decode`/`isValid` (`python tools/gaps.py --differential`).
+- `Core\Csv::format`'s `thrown` at `crates/mwl-stdlib/src/csv.rs:512` is the one catchable site `gaps.py --errors` lists among 58; the other 57 are `fatal` and unreachable by any case.
+- `MwlArray::append`'s 62 producers still call the panicking wrapper, which is sound only because each builds its array from index 0; the first `Core` member to append onto a *caller's* array wants `try_append` and a `Fault` (`crates/mwl-runtime/src/array.rs`).
+- `do`/`while` is the one M4 control-flow statement that does not lower (`mwl-ir` gap 1).
+- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row (`mwl_stdlib::hash`'s module doc).
