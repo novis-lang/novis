@@ -1,0 +1,206 @@
+--TEST--
+The eight count-shaped producers agree — each answers a size it can serve, and each refuses one it cannot in the same class, named for its own member and spelled by which of the two bounds the count crossed — spec §§ 1, 2, 7, ADR 0063 R4
+--FILE--
+<?mwl
+// Eight members take a count and turn it into one allocation whose size that
+// count decides. Two checks stand between the count and the allocator, and
+// they answer different questions: `mwl_runtime::affordable` is the policy
+// seam and refuses only a size past `isize::MAX`, while every size below it
+// that the machine cannot actually serve is the allocator refusing. Both are
+// throws. An infallible draw at either point is an abort instead, which takes
+// the process and every in-flight request with it — so what this case pins is
+// that the eight *agree*, rather than what each says on its own line.
+//
+// Two things are asserted by construction. The class is: every helper catches
+// `RuntimeError` and nothing wider, so a refusal raised in another class
+// leaves the case with an uncaught throw instead of an answer. And the abort
+// is: a member that draws infallibly kills the process, so the case has no
+// output at all rather than a wrong line.
+//
+// `Asked::of` is where both halves of a sentence are frozen. A message that
+// does not begin with the member's own name classifies as "unnamed" and a
+// member that grew its own wording as "other", so either one fails every
+// count below while still looking right beside its own arguments.
+final class Asked {
+    public static function of(string $member, string $message): string {
+        if (Core\Str::startsWith($message, $member)) {
+            if (Core\Str::endsWith($message, ": the requested allocation is larger than any this process could hold")) {
+                return "seam";
+            }
+            if (Core\Str::endsWith($message, ": the result is larger than any string this process could hold")) {
+                return "string";
+            }
+            if (Core\Str::endsWith($message, ": the result is larger than any buffer this process could hold")) {
+                return "buffer";
+            }
+            if (Core\Str::endsWith($message, ": the result is larger than any array this process could hold")) {
+                return "array";
+            }
+            return "other";
+        }
+        return "unnamed";
+    }
+
+    public static function strRepeat(string $unit, uint $n): string {
+        try {
+            Core\Str::repeat($unit, $n);
+            return "served";
+        } catch (RuntimeError $repeated) {
+            return Asked::of('Core\Str::repeat', $repeated->message);
+        }
+    }
+
+    public static function strPadStart(uint $n): string {
+        try {
+            Core\Str::padStart("x", $n, "ab");
+            return "served";
+        } catch (RuntimeError $before) {
+            return Asked::of('Core\Str::padStart', $before->message);
+        }
+    }
+
+    public static function strPadEnd(uint $n): string {
+        try {
+            Core\Str::padEnd("x", $n, "ab");
+            return "served";
+        } catch (RuntimeError $after) {
+            return Asked::of('Core\Str::padEnd', $after->message);
+        }
+    }
+
+    public static function bytesFill(uint $n): string {
+        try {
+            Core\Bytes::fill($n, 65);
+            return "served";
+        } catch (RuntimeError $filled) {
+            return Asked::of('Core\Bytes::fill', $filled->message);
+        }
+    }
+
+    public static function bytesRepeat(string $unit, uint $n): string {
+        try {
+            Core\Bytes::repeat($unit as bytes, $n);
+            return "served";
+        } catch (RuntimeError $copies) {
+            return Asked::of('Core\Bytes::repeat', $copies->message);
+        }
+    }
+
+    public static function arrFill(uint $n): string {
+        try {
+            Core\Arr::fill($n, 0);
+            return "served";
+        } catch (RuntimeError $entries) {
+            return Asked::of('Core\Arr::fill', $entries->message);
+        }
+    }
+
+    public static function arrPadStart(array<int> $a, uint $n): string {
+        try {
+            Core\Arr::padStart($a, $n, 0);
+            return "served";
+        } catch (RuntimeError $ahead) {
+            return Asked::of('Core\Arr::padStart', $ahead->message);
+        }
+    }
+
+    public static function arrPadEnd(array<int> $a, uint $n): string {
+        try {
+            Core\Arr::padEnd($a, $n, 0);
+            return "served";
+        } catch (RuntimeError $behind) {
+            return Asked::of('Core\Arr::padEnd', $behind->message);
+        }
+    }
+}
+
+array<int> $one = [1];
+
+// A count every one of them can serve. Nothing here is about the size — it is
+// what says the refusals below are the bound talking and not the member.
+array<string> $served = [
+    Asked::strRepeat("x", 3),
+    Asked::strPadStart(3),
+    Asked::strPadEnd(3),
+    Asked::bytesFill(3),
+    Asked::bytesRepeat("x", 3),
+    Asked::arrFill(3),
+    Asked::arrPadStart($one, 3),
+    Asked::arrPadEnd($one, 3),
+];
+
+// A count the seam allows and the machine cannot serve: a terabyte of octets,
+// and sixteen of them per array entry.
+array<string> $allocator = [
+    Asked::strRepeat("x", 1000000000000),
+    Asked::strPadStart(1000000000000),
+    Asked::strPadEnd(1000000000000),
+    Asked::bytesFill(1000000000000),
+    Asked::bytesRepeat("x", 1000000000000),
+    Asked::arrFill(1000000000000),
+    Asked::arrPadStart($one, 1000000000000),
+    Asked::arrPadEnd($one, 1000000000000),
+];
+
+// A count past the seam itself. Seven members and not eight: `Core\Bytes::fill`
+// takes its size as its count, and a `uint` argument cannot name one past
+// `isize::MAX` without being past the whole buffer the machine has — so a
+// product is what reaches this bound, and that member has none.
+array<string> $seam = [
+    Asked::strRepeat("xy", 5000000000000000000),
+    Asked::strPadStart(5000000000000000000),
+    Asked::strPadEnd(5000000000000000000),
+    Asked::bytesRepeat("xy", 5000000000000000000),
+    Asked::arrFill(1000000000000000000),
+    Asked::arrPadStart($one, 1000000000000000000),
+    Asked::arrPadEnd($one, 1000000000000000000),
+];
+
+int $answered = 0;
+foreach ($served as string $answer) {
+    if ($answer == "served") {
+        $answered = $answered + 1;
+    }
+}
+echo "answered a size they can serve: ", $answered, " of ", Core\Arr::count($served), "\n";
+
+// The policy seam's sentence is one sentence, word for word, at every member
+// that can reach it — the half that has nothing left to name, because no
+// allocation was attempted.
+int $refused = 0;
+foreach ($seam as string $policy) {
+    if ($policy == "seam") {
+        $refused = $refused + 1;
+    }
+}
+echo "one sentence past the seam: ", $refused, " of ", Core\Arr::count($seam), "\n";
+
+// The allocator's sentence names what could not be held, and that noun is the
+// only thing that varies across the eight. Asserted as a partition rather than
+// row by row: a member borrowing a sibling's noun still reads plausibly on its
+// own line and moves two of these three counts.
+int $strings = 0;
+int $buffers = 0;
+int $arrays = 0;
+foreach ($allocator as string $noun) {
+    if ($noun == "string") {
+        $strings = $strings + 1;
+    }
+    if ($noun == "buffer") {
+        $buffers = $buffers + 1;
+    }
+    if ($noun == "array") {
+        $arrays = $arrays + 1;
+    }
+}
+echo "each names what it could not hold: ", $strings, " string, ", $buffers, " buffer, ", $arrays, " array, of ", Core\Arr::count($allocator), "\n";
+
+// The bound chooses the sentence and the member does not: seven members appear
+// in both refusing tables and answer differently in each, which is what the
+// two counts above are worth together.
+echo "members reaching both bounds: ", Core\Arr::count($seam), " of ", Core\Arr::count($allocator), "\n";
+--EXPECT--
+answered a size they can serve: 8 of 8
+one sentence past the seam: 7 of 7
+each names what it could not hold: 3 string, 2 buffer, 3 array, of 8
+members reaching both bounds: 7 of 8
