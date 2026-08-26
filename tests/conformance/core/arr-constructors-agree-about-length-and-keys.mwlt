@@ -1,0 +1,151 @@
+--TEST--
+Core\Arr::fill, fillKeys, fromKeysAndValues, padStart and padEnd are asked for the same number of entries and agree about how many they build and which keys hold them — spec § 2, ADR 0069 § 3
+--FILE--
+<?mwl
+// Five members build an array whose *count* is stated by an argument rather
+// than by a subject, so spec § 2 asks all five one question: how many entries,
+// under which keys. The five spellings of "build n entries" are the count
+// itself, n keys, n keys against n values, and an empty subject padded to n on
+// either side — and what this case asserts is their agreement rather than the
+// five answers, each of which already has a case of its own.
+//
+// They split into two families by where the keys come from, and ADR 0069 § 3
+// is why the split is exactly there: `fill`, `padStart` and `padEnd` *invent*
+// keys, and the only non-arbitrary keys to invent are a list; `fillKeys` and
+// `fromKeysAndValues` are handed keys, so they answer whatever key shape the
+// argument named. Nothing in either family reads a key's *type* to choose.
+//
+// A closure cannot be called through the variable holding it (`mwl-ir` gap 1),
+// so each question is a static method called directly.
+class Ask {
+    // The two families' key shapes, side by side. A `?` is a member that broke
+    // ranks with its own family — a pad that kept a key, a `fromKeysAndValues`
+    // that renumbered — which would otherwise still print a plausible line.
+    public static function shape(array<string|int> $keys): string {
+        uint $n = Core\Arr::count($keys);
+        array<string> $empty = [];
+        string $list = Core\Str::join(Core\Arr::keys(Core\Arr::fill($n, "v")), ",");
+        string $invented = $list;
+        if (Core\Str::join(Core\Arr::keys(Core\Arr::padStart($empty, $n, "v")), ",") != $list) {
+            $invented = "?";
+        }
+        if (Core\Str::join(Core\Arr::keys(Core\Arr::padEnd($empty, $n, "v")), ",") != $list) {
+            $invented = "?";
+        }
+
+        string $named = Core\Str::join(Core\Arr::keys(Core\Arr::fillKeys($keys, "v")), ",");
+        string $borrowed = $named;
+        var $pair = Core\Arr::fromKeysAndValues($keys, Core\Arr::fill($n, "v"));
+        if (Core\Str::join(Core\Arr::keys($pair), ",") != $named) {
+            $borrowed = "?";
+        }
+
+        return ($n as int) . " [" . $invented . "] [" . $borrowed . "]";
+    }
+
+    // Whether the two families' key shapes coincide. They are different rules,
+    // so this is a property of the *argument* — it holds exactly where the keys
+    // named happen to spell the list the other three invent.
+    public static function sameShape(array<string|int> $keys): bool {
+        uint $n = Core\Arr::count($keys);
+        string $invented = Core\Str::join(Core\Arr::keys(Core\Arr::fill($n, "v")), ",");
+        string $borrowed = Core\Str::join(Core\Arr::keys(Core\Arr::fillKeys($keys, "v")), ",");
+        return $invented == $borrowed;
+    }
+
+    // How many entries the three key-inventing members built, or -1 if they
+    // did not all build the same number.
+    public static function invented(array<string|int> $keys): int {
+        uint $n = Core\Arr::count($keys);
+        array<string> $empty = [];
+        int $a = Core\Arr::count(Core\Arr::fill($n, "v")) as int;
+        int $b = Core\Arr::count(Core\Arr::padStart($empty, $n, "v")) as int;
+        int $c = Core\Arr::count(Core\Arr::padEnd($empty, $n, "v")) as int;
+        if ($a == $b && $a == $c) {
+            return $a;
+        }
+        return -1;
+    }
+
+    // The same for the two key-borrowing members. This one can legitimately be
+    // *less* than the count asked for: a key is normalized before it is stored
+    // (ADR 0007 § 5), so two spellings of one key are one entry in both.
+    public static function borrowed(array<string|int> $keys): int {
+        uint $n = Core\Arr::count($keys);
+        int $a = Core\Arr::count(Core\Arr::fillKeys($keys, "v")) as int;
+        int $b = Core\Arr::count(
+            Core\Arr::fromKeysAndValues($keys, Core\Arr::fill($n, "v"))
+        ) as int;
+        if ($a == $b) {
+            return $a;
+        }
+        return -1;
+    }
+}
+
+// The count argument at zero, at one, and past it; a table whose keys already
+// spell the list the inventors would have invented; and two whose keys collapse
+// — the same key twice, then an `int` against its own decimal spelling.
+array<array<string|int>> $tables = [
+    [],
+    ["a"],
+    ["a", "b", "c"],
+    [0, 1, 2],
+    ["k", "k"],
+    [1, "1"],
+];
+
+int $rows = 0;
+int $sameShape = 0;
+int $inventedExact = 0;
+int $borrowedExact = 0;
+foreach ($tables as array<string|int> $keys) {
+    int $n = Core\Arr::count($keys) as int;
+    int $i = Ask::invented($keys);
+    int $b = Ask::borrowed($keys);
+    echo Ask::shape($keys), " ", $i, " ", $b, "\n";
+    $rows = $rows + 1;
+    if ($i == $n) {
+        $inventedExact = $inventedExact + 1;
+    }
+    if ($b == $n) {
+        $borrowedExact = $borrowedExact + 1;
+    }
+    if (Ask::sameShape($keys)) {
+        $sameShape = $sameShape + 1;
+    }
+}
+
+// The whole tally. No row printed a `?`, so within each family the members are
+// interchangeable. The three inventors built exactly the count asked for on
+// every row, including the zero one, where all five answer an empty array
+// rather than throwing — the answer that lets a computed count through
+// unguarded. The two borrowers matched it on four: the last two rows asked for
+// two entries under one key and got one, which is the only way the count a
+// member builds can differ from the count it was told. The families' key
+// shapes coincided on two rows — the empty one and the one whose keys already
+// spelled "0,1,2" — which is the point: they are two rules, not one.
+echo $rows, " ", $sameShape, " ", $inventedExact, " ", $borrowedExact, "\n";
+
+// The one place the five genuinely part company, stated at zero and at one. A
+// pad's size argument is a *floor* under a subject the member already has, not
+// a count of what it builds, so over a two-entry subject both pads answer two
+// at either number — while `fill` asked for the same two numbers answers
+// exactly them. That is the bound the pads are written around: no member of
+// this group ever returns fewer entries than its count argument named.
+array<string> $two = ["x" => "one", "y" => "two"];
+echo Core\Arr::count(Core\Arr::padStart($two, 0, "v")),
+     Core\Arr::count(Core\Arr::padEnd($two, 0, "v")),
+     Core\Arr::count(Core\Arr::padStart($two, 1, "v")),
+     Core\Arr::count(Core\Arr::padEnd($two, 1, "v")),
+     Core\Arr::count(Core\Arr::fill(0, "v")),
+     Core\Arr::count(Core\Arr::fill(1, "v")), "\n";
+--EXPECT--
+0 [] [] 0 0
+1 [0] [a] 1 1
+3 [0,1,2] [a,b,c] 3 3
+3 [0,1,2] [0,1,2] 3 3
+2 [0,1] [k] 2 1
+2 [0,1] [1] 2 1
+6 2 6 4
+222201
