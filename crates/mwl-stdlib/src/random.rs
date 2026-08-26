@@ -308,10 +308,11 @@ mwl_runtime::mwl_helper! {
     /// rather than `""`.
     ///
     /// A count larger than this process can hold is an ordinary throw too, and
-    /// unlike `token` it is decided by `try_reserve` rather than by an
-    /// arithmetic bound: there is no doubling here to overflow, so the only
-    /// question left is whether the allocator has the buffer, and asking it is
-    /// both exact and the difference between a throw and an abort.
+    /// it is decided by `try_reserve` rather than by an arithmetic bound: there
+    /// is no doubling here to overflow the way [`mwl_core_random_token`]'s
+    /// does, so the only question left is whether the allocator has the buffer,
+    /// and asking it is both exact and the difference between a throw and an
+    /// abort.
     fn mwl_core_random_bytes(_ctx, args: [1]) {
         let count = count(&args[0], "bytes", "the byte count")?;
 
@@ -359,6 +360,17 @@ mwl_runtime::mwl_helper! {
     /// compares equal to every other empty token, so answering with it would
     /// turn an arithmetic slip into an authentication bypass; there is no
     /// reading of `token(0)` worth being total for.
+    ///
+    /// **A count too large refuses in two places, for the same reason
+    /// [`mwl_core_random_bytes`] does.** The arithmetic bound is this member's
+    /// own — a token is twice as long as its draw, so `2 * $bytes` is what the
+    /// seam is asked about, and the answer is that this member's bound sits at
+    /// exactly half of `bytes`'s. Everything the seam allows is then asked of
+    /// the allocator rather than assumed: `vec![0; n]` and
+    /// `String::with_capacity(n)` both *abort the process* when it refuses,
+    /// which in a server is every in-flight request paying for one argument,
+    /// so both buffers are reserved fallibly and report the same refusal
+    /// `bytes` reports.
     fn mwl_core_random_token(_ctx, args: [1]) {
         let bytes = count(&args[0], "token", "the byte count")?;
 
@@ -368,16 +380,29 @@ mwl_runtime::mwl_helper! {
                  token — draw at least one byte",
             ));
         }
-        // `vec![0; n]` aborts the process on an allocation this large rather
-        // than failing, so the size is checked first and reported as an
-        // ordinary throw — `Core\Str::repeat` takes the same shape for the same
-        // reason.
+        // Two checks, as in `bytes`, and they answer different questions. The
+        // seam is asked about the *answer's* width, since that is the larger of
+        // the two and the only one that can overflow — `Core\Str::repeat` takes
+        // the same shape for the same reason.
         let digits = mwl_runtime::affordable(bytes.checked_mul(2), "Core\\Random::token()")?;
 
-        let mut drawn = vec![0_u8; bytes];
+        // The allocator is then asked rather than assumed: `vec![0; n]` and
+        // `String::with_capacity(n)` abort the process on a refusal, and a
+        // count the seam allows can still be a draw this machine cannot serve.
+        let mut drawn: Vec<u8> = Vec::new();
+        let mut token = String::new();
+        drawn
+            .try_reserve_exact(bytes)
+            .and_then(|()| token.try_reserve_exact(digits))
+            .map_err(|_| {
+                Fault::thrown(
+                    "Core\\Random::token(): the requested draw is larger than any buffer this \
+                     process could hold",
+                )
+            })?;
+        drawn.resize(bytes, 0);
         rand::rng().fill_bytes(&mut drawn);
 
-        let mut token = String::with_capacity(digits);
         for byte in drawn {
             token.push(HEX_DIGITS[usize::from(byte >> 4)]);
             token.push(HEX_DIGITS[usize::from(byte & 0x0f)]);

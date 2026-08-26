@@ -1,0 +1,96 @@
+--TEST--
+Core\Random::bytes and ::token each name which of their two checks refused an oversized draw, and token's bound sits at exactly half of bytes's — spec § 11, ADR 0004, ADR 0063 R4
+--FILE--
+<?mwl
+// A draw too large is refused twice over, by checks that answer different
+// questions: `mwl_runtime::affordable` is the policy seam ADR 0004's
+// `[limits.hard]` ceiling will attach to, and the allocator is what refuses a
+// buffer this machine cannot serve today. Which sentence comes back is what
+// says which of the two stopped the call, so every row here reads the message
+// rather than only that something threw.
+//
+// `Which` exists because a case's own helper has to be a method (ADR 0011 § 1)
+// and every row below asks the same question of a different count.
+final class Which {
+    public static function bytes(uint $count): string {
+        try {
+            Core\Random::bytes($count);
+            return "served";
+        } catch (Throwable $drawn) {
+            return $drawn->message;
+        }
+    }
+
+    public static function token(uint $count): string {
+        try {
+            Core\Random::token($count);
+            return "served";
+        } catch (Throwable $rendered) {
+            return $rendered->message;
+        }
+    }
+
+    // Which check answered, with the member's own name off the front, so the
+    // two members' answers can be compared to each other.
+    public static function check(string $answer): string {
+        if ($answer == "served") {
+            return "served";
+        }
+        if (Core\Str::endsWith($answer, "the requested allocation is larger than any this process could hold")) {
+            return "seam";
+        }
+        if (Core\Str::endsWith($answer, "the requested draw is larger than any buffer this process could hold")) {
+            return "allocator";
+        }
+        return "some other refusal";
+    }
+}
+
+// The bound between the two checks, named on both sides. The seam refuses only
+// what cannot be allocated at all — a size past `isize::MAX` — so the last
+// count it lets through is `isize::MAX` itself, and there the answer comes from
+// the allocator instead. One count apart, and the sentences are different.
+echo Which::bytes(9223372036854775807), "\n";
+echo Which::bytes(9223372036854775808), "\n";
+
+// `token`'s seam is asked about the *answer*, which is twice as long as the
+// entropy drawn, so the same bound sits at exactly half. The count below it is
+// the allocator's refusal — which is a throw rather than a process abort only
+// because the draw is reserved fallibly, as `bytes`'s is.
+echo Which::token(4611686018427387903), "\n";
+echo Which::token(4611686018427387904), "\n";
+
+// Counted rather than read off a line: a member that dropped the doubling, or
+// asked the seam about its draw instead of about its answer, prints plausibly
+// on all four rows above and fails here.
+array<uint> $counts = [1, 1000, 1000000000000000, 4611686018427387903, 4611686018427387904, 9223372036854775807];
+uint $two = 2;
+int $agreed = 0;
+foreach ($counts as uint $count) {
+    if (Which::check(Which::token($count)) == Which::check(Which::bytes($count * $two))) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "token answers as bytes does at twice the count: ", $agreed, " of ", Core\Arr::count($counts), "\n";
+
+// The halving is quantitative as well as a bound: not one of these counts is
+// past `bytes`'s seam, and exactly the two whose double is past it are past
+// `token`'s. What the other four meet is the allocator, or nothing at all.
+int $seamForBytes = 0;
+int $seamForToken = 0;
+foreach ($counts as uint $each) {
+    if (Which::check(Which::bytes($each)) == "seam") {
+        $seamForBytes = $seamForBytes + 1;
+    }
+    if (Which::check(Which::token($each)) == "seam") {
+        $seamForToken = $seamForToken + 1;
+    }
+}
+echo "past the seam: bytes ", $seamForBytes, ", token ", $seamForToken, "\n";
+--EXPECT--
+Core\Random::bytes(): the requested draw is larger than any buffer this process could hold
+Core\Random::bytes(): the requested allocation is larger than any this process could hold
+Core\Random::token(): the requested draw is larger than any buffer this process could hold
+Core\Random::token(): the requested allocation is larger than any this process could hold
+token answers as bytes does at twice the count: 6 of 6
+past the seam: bytes 0, token 2
