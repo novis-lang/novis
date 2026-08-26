@@ -1,0 +1,161 @@
+--TEST--
+`Core\Uri`'s seven readers, `with` and `toString` are one parse: over a table of absolute URIs every reader answers the component `toString` writes back, and `with` on one component leaves the other six exactly as they were — spec § 12, RFC 3986 § 5.3
+--FILE--
+<?mwl
+// § 12: a `Uri` holds its whole text *and* its seven components, so the
+// question this case asks is whether those two halves ever disagree. Every
+// claim below is counted over the whole table rather than read off one line:
+// a member that answers plausibly row by row still has to make the totals.
+final class Read {
+    // The seven components in RFC 3986 § 5.3's order, rendered so an absent
+    // one (`null`) is not the empty string a present-but-empty one answers.
+    // § 12's readers are `?string` for six of the seven — `path` is the
+    // component every URI has — and that distinction is the whole point.
+    public static function at(Core\Uri $u, int $i): string {
+        if ($i == 0) {
+            if ($u->scheme() == null) { return "-"; }
+            return "=" . ($u->scheme() as string);
+        }
+        if ($i == 1) {
+            if ($u->userInfo() == null) { return "-"; }
+            return "=" . ($u->userInfo() as string);
+        }
+        if ($i == 2) {
+            if ($u->host() == null) { return "-"; }
+            return "=" . ($u->host() as string);
+        }
+        if ($i == 3) {
+            if ($u->port() == null) { return "-"; }
+            return "=" . ($u->port() as int);
+        }
+        if ($i == 4) { return "=" . $u->path(); }
+        if ($i == 5) {
+            if ($u->query() == null) { return "-"; }
+            return "=" . ($u->query() as string);
+        }
+        if ($u->fragment() == null) { return "-"; }
+        return "=" . ($u->fragment() as string);
+    }
+
+    // RFC 3986 § 5.3's recomposition, written out of the readers alone. It has
+    // to equal `toString()`, which is the text `parse` was handed: that is the
+    // sense in which the readers and the text are one parse rather than two.
+    public static function text(Core\Uri $u): string {
+        var $out = "";
+        if ($u->scheme() != null) { $out = $out . ($u->scheme() as string) . ":"; }
+        if ($u->host() != null) {
+            $out = $out . "//";
+            if ($u->userInfo() != null) { $out = $out . ($u->userInfo() as string) . "@"; }
+            $out = $out . ($u->host() as string);
+            if ($u->port() != null) { $out = $out . ":" . ($u->port() as int); }
+        }
+        $out = $out . $u->path();
+        if ($u->query() != null) { $out = $out . "?" . ($u->query() as string); }
+        if ($u->fragment() != null) { $out = $out . "#" . ($u->fragment() as string); }
+        return $out;
+    }
+
+    // How many of the six components `$changed` is not carried through
+    // untouched. `userInfo` is never `$changed` — it is the one component the
+    // options bag does not carry, so `with` can neither add nor drop a
+    // credential — which makes it part of every one of these six answers.
+    public static function carried(Core\Uri $before, Core\Uri $after, int $changed): int {
+        int $n = 0;
+        int $i = 0;
+        for ($i = 0; $i < 7; $i = $i + 1) {
+            if ($i != $changed) {
+                if (Read::at($after, $i) == Read::at($before, $i)) { $n = $n + 1; }
+            }
+        }
+        return $n;
+    }
+}
+
+// Absolute URIs, all with an authority, chosen so that between them every
+// component is present in some row and absent in another: a mixed-case host,
+// an empty path, a userinfo carrying a colon, an IPv6 literal with its
+// brackets on, an empty query and an empty fragment.
+array<string> $rows = [
+    "https://alice@example.COM:8443/a/b%20c?x=1&y=2#top",
+    "http://example.org/",
+    "http://example.org",
+    "ftp://user:pw@files.test:21/pub/a.txt",
+    "http://[::1]:8080/x?q=%2F#f",
+    "https://example.test/p?",
+    "https://example.test/p#",
+    "http://h/p?a=1#s",
+];
+int $trips = 0;
+int $recomposed = 0;
+int $carried = 0;
+int $replaced = 0;
+foreach ($rows as string $row) {
+    var $u = Core\Uri::parse($row);
+    // § 12: `parse` reports and does not normalize, so the text comes back
+    // byte for byte — the default port still there, the host still in the
+    // case it arrived in, the escapes still escaped.
+    if ($u->toString() == $row) { $trips = $trips + 1; }
+    if (Read::text($u) == $u->toString()) { $recomposed = $recomposed + 1; }
+
+    // Six `with` calls per row, one per option the bag carries. Each asserts
+    // three things: the other six components are unchanged, the named one is
+    // the value asked for, and the result is still a URI whose readers
+    // recompose to its own text.
+    var $scheme = $u->with({scheme: "ftp"});
+    $carried = $carried + Read::carried($u, $scheme, 0);
+    if (Read::at($scheme, 0) == "=ftp") { $replaced = $replaced + 1; }
+    if (Read::text($scheme) == $scheme->toString()) { $recomposed = $recomposed + 1; }
+
+    var $host = $u->with({host: "other.test"});
+    $carried = $carried + Read::carried($u, $host, 2);
+    if (Read::at($host, 2) == "=other.test") { $replaced = $replaced + 1; }
+    if (Read::text($host) == $host->toString()) { $recomposed = $recomposed + 1; }
+
+    var $port = $u->with({port: 8080});
+    $carried = $carried + Read::carried($u, $port, 3);
+    if (Read::at($port, 3) == "=8080") { $replaced = $replaced + 1; }
+    if (Read::text($port) == $port->toString()) { $recomposed = $recomposed + 1; }
+
+    var $path = $u->with({path: "/new/path"});
+    $carried = $carried + Read::carried($u, $path, 4);
+    if (Read::at($path, 4) == "=/new/path") { $replaced = $replaced + 1; }
+    if (Read::text($path) == $path->toString()) { $recomposed = $recomposed + 1; }
+
+    var $query = $u->with({query: "z=9"});
+    $carried = $carried + Read::carried($u, $query, 5);
+    if (Read::at($query, 5) == "=z=9") { $replaced = $replaced + 1; }
+    if (Read::text($query) == $query->toString()) { $recomposed = $recomposed + 1; }
+
+    var $fragment = $u->with({fragment: "frag"});
+    $carried = $carried + Read::carried($u, $fragment, 6);
+    if (Read::at($fragment, 6) == "=frag") { $replaced = $replaced + 1; }
+    if (Read::text($fragment) == $fragment->toString()) { $recomposed = $recomposed + 1; }
+}
+// 8 parses, and 48 `Uri`s built by `with` on top of them: 56 recompositions,
+// 288 components carried across a replacement, 48 components replaced.
+echo "round trips ", $trips, "/8\n";
+echo "recomposed ", $recomposed, "/56\n";
+echo "carried ", $carried, "/288\n";
+echo "replaced ", $replaced, "/48\n";
+
+// The one URI in RFC 3986's grammar for which the sweep's invariant does not
+// hold, asserted on both sides. A port component written empty is not a port
+// (§ 3.2.3), so `port()` is `null` and the readers recompose to text without
+// the `:` — while `toString()` still reports what was written, because `parse`
+// reports. `with` is where the difference becomes visible: it recomposes, so
+// the `:` a caller never mentioned disappears. `mwl_core_uri_with`'s own doc
+// comment names this as the one place a round trip through `with` is not the
+// identity; a port that is actually there survives untouched.
+var $empty = Core\Uri::parse("http://h:/p");
+echo $empty->toString(), " ", Read::at($empty, 3), " ", Read::text($empty), "\n";
+echo $empty->with({query: "a"})->toString(), "\n";
+var $held = Core\Uri::parse("http://h:8080/p");
+echo $held->with({query: "a"})->toString(), "\n";
+--EXPECT--
+round trips 8/8
+recomposed 56/56
+carried 288/288
+replaced 48/48
+http://h:/p - http://h/p
+http://h/p?a
+http://h:8080/p?a
