@@ -1,0 +1,134 @@
+--TEST--
+Core\Math::abs is max($x, -$x) and min's negation, and Core\Math::sign is what min and max say about $x against zero, on every row of both arms — each parting from its derivation only at the one value it refuses — docs/spec/01-core-library.md § 3
+--FILE--
+<?mwl
+// Neither `abs` nor `sign` needs a comparison of its own: both are already
+// expressible in the ordering trio the same class exports. So the question is
+// not what each answers on a chosen row — math-magnitude-sign-and-the-two-
+// extremes.mwlt reads those off a line — but whether either has grown a second
+// comparison that agrees with `min`/`max` on the rows someone would pick and
+// parts from them elsewhere. Counted over a swept table, so it cannot.
+//
+// `abs` is declared `int|float|decimal` in both directions, so every use of it
+// below carries an `as int`/`as float`: a binary operator over the tagged union
+// and a bare `int` is a representation mismatch that `mwl-codegen` refuses.
+
+// 1. `int`, both signs, both zeros of the arm there is only one of, and the
+//    largest magnitude that has an `int` answer at either end. `abs($x)` is the
+//    larger of the pair `($x, -$x)` and equally the negation of the smaller, so
+//    both derivations are asked; `sign($x)` is read off `max` and off `min`
+//    independently, and the two must land on the same integer as each other and
+//    as the member.
+array<int> $ints = [
+    -9223372036854775807, -1000000, -7, -1, 0, 1, 7, 1000000, 9223372036854775807,
+];
+int $rows = 0;
+int $absIsMax = 0;
+int $absIsNegatedMin = 0;
+int $signFromMax = 0;
+int $signFromMin = 0;
+foreach ($ints as int $x) {
+    $rows = $rows + 1;
+    if (Core\Math::abs($x) as int == Core\Math::max($x, 0 - $x)) {
+        $absIsMax = $absIsMax + 1;
+    }
+    if (Core\Math::abs($x) as int == 0 - Core\Math::min($x, 0 - $x)) {
+        $absIsNegatedMin = $absIsNegatedMin + 1;
+    }
+    int $byMax = 0;
+    if ($x == 0) { $byMax = 0; } else if (Core\Math::max($x, 0) == $x) { $byMax = 1; } else { $byMax = 0 - 1; }
+    int $byMin = 0;
+    if ($x == 0) { $byMin = 0; } else if (Core\Math::min($x, 0) == $x) { $byMin = 0 - 1; } else { $byMin = 1; }
+    if (Core\Math::sign($x) == $byMax) { $signFromMax = $signFromMax + 1; }
+    if (Core\Math::sign($x) == $byMin) { $signFromMin = $signFromMin + 1; }
+}
+echo "int: abs=max ", $absIsMax, "/", $rows, ", abs=-min ", $absIsNegatedMin, "/", $rows,
+     ", sign by max ", $signFromMax, "/", $rows, ", by min ", $signFromMin, "/", $rows, "\n";
+
+// 2. The same sweep on the `float` arm, where the table can reach values the
+//    `int` arm has no room for. `-0.0` is a row rather than a footnote: it is
+//    the one input on which the derivation and the member could disagree
+//    without `==` ever noticing, since `-0.0 == 0.0`.
+float $inf = 1.0 / 0.0;
+float $ninf = 0.0 - $inf;
+array<float> $floats = [
+    $ninf, -1.0e308, -7.5, -1.0, -0.0, 0.0, 1.0, 7.5, 1.0e308, $inf,
+];
+int $frows = 0;
+int $fAbsIsMax = 0;
+int $fAbsIsNegatedMin = 0;
+int $fSignFromMax = 0;
+int $fSignFromMin = 0;
+foreach ($floats as float $y) {
+    $frows = $frows + 1;
+    if (Core\Math::abs($y) as float == Core\Math::max($y, 0.0 - $y)) {
+        $fAbsIsMax = $fAbsIsMax + 1;
+    }
+    if (Core\Math::abs($y) as float == 0.0 - Core\Math::min($y, 0.0 - $y)) {
+        $fAbsIsNegatedMin = $fAbsIsNegatedMin + 1;
+    }
+    int $fByMax = 0;
+    if ($y == 0.0) { $fByMax = 0; } else if (Core\Math::max($y, 0.0) == $y) { $fByMax = 1; } else { $fByMax = 0 - 1; }
+    int $fByMin = 0;
+    if ($y == 0.0) { $fByMin = 0; } else if (Core\Math::min($y, 0.0) == $y) { $fByMin = 0 - 1; } else { $fByMin = 1; }
+    if (Core\Math::sign($y) == $fByMax) { $fSignFromMax = $fSignFromMax + 1; }
+    if (Core\Math::sign($y) == $fByMin) { $fSignFromMin = $fSignFromMin + 1; }
+}
+echo "float: abs=max ", $fAbsIsMax, "/", $frows, ", abs=-min ", $fAbsIsNegatedMin, "/", $frows,
+     ", sign by max ", $fSignFromMax, "/", $frows, ", by min ", $fSignFromMin, "/", $frows, "\n";
+
+// 3. What `==` could not have told us about that `-0.0` row: `abs` normalizes
+//    the sign of a zero rather than passing it through, which is the answer a
+//    magnitude owes and the opposite of what the four rounding members do with
+//    the same input. The reciprocal is what separates the two zeros.
+float $nz = -0.0;
+echo "abs(-0.0) reciprocal ", 1.0 / (Core\Math::abs($nz) as float),
+     ", and sign(-0.0) ", Core\Math::sign($nz), "\n";
+
+// 4. `abs` parts from its derivation at exactly one value, and it is the reason
+//    `abs` is a member rather than sugar for the two calls: at `int`'s smallest
+//    value the magnitude is one past the largest, so `0 - $x` has nowhere to
+//    land. The derivation stays total there — it is arithmetic, and it comes
+//    back with something — while `abs` refuses. Only the divergence is asserted,
+//    not what the arithmetic wrapped to, because that is the *other* member's
+//    question.
+int $min = 0 - 9223372036854775807 - 1;
+int $derivationAnswered = 0;
+int $absRefused = 0;
+try {
+    int $wrapped = Core\Math::max($min, 0 - $min);
+    if (Core\Math::sign($wrapped) == Core\Math::sign($wrapped)) { $derivationAnswered = 1; }
+} catch (Throwable $noRoom) {
+    $derivationAnswered = 0;
+}
+try {
+    echo Core\Math::abs($min);
+} catch (Throwable $noMagnitude) {
+    $absRefused = 1;
+}
+echo "int min: derivation answered ", $derivationAnswered, ", abs refused ", $absRefused,
+     ", sign still ", Core\Math::sign($min), "\n";
+
+// 5. `sign` parts from its derivation at exactly one value too, and for the
+//    mirror-image reason: `NaN` is on neither side of zero, so there is no
+//    integer to answer with. The derivation is total there as well and lands on
+//    -1, purely because `max` drops a NaN and the equality that would have
+//    caught it is false in both directions. `abs` has no such trouble and
+//    answers the NaN back.
+float $nan = Core\Math::sqrt(0.0 - 1.0);
+int $derived = 0;
+if ($nan == 0.0) { $derived = 0; } else if (Core\Math::max($nan, 0.0) == $nan) { $derived = 1; } else { $derived = 0 - 1; }
+int $signRefused = 0;
+try {
+    echo Core\Math::sign($nan);
+} catch (Throwable $neitherSide) {
+    $signRefused = 1;
+}
+echo "NaN: derivation said ", $derived, ", sign refused ", $signRefused, ", abs kept NaN ";
+if (Core\Math::isNan(Core\Math::abs($nan) as float)) { echo "yes\n"; } else { echo "no\n"; }
+--EXPECT--
+int: abs=max 9/9, abs=-min 9/9, sign by max 9/9, by min 9/9
+float: abs=max 10/10, abs=-min 10/10, sign by max 10/10, by min 10/10
+abs(-0.0) reciprocal INF, and sign(-0.0) 0
+int min: derivation answered 1, abs refused 1, sign still -1
+NaN: derivation said -1, sign refused 1, abs kept NaN yes
