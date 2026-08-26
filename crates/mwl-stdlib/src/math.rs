@@ -735,13 +735,33 @@ unary_float! {
 unary_float! {
     /// `Core\Math::toRadians(float $degrees): float` — replacing PHP's
     /// `deg2rad`.
-    mwl_core_math_to_radians, "toRadians", f64::to_radians
+    ///
+    /// Written as `($degrees / 180.0) * PI` rather than as `f64::to_radians`,
+    /// which multiplies by the correctly rounded constant `PI / 180.0`. The
+    /// two part by at most one ulp, and the std form is the more accurate of
+    /// them — over the 3,600 tenths of a degree in a turn it is closer to the
+    /// true value 851 times against 118 — but this is PHP's own expression,
+    /// and matching it is what makes the round trip below agree. AGENTS.md's
+    /// priority 2 is PHP-compatible *observable* behaviour, and the ulp is
+    /// observable: `==` over `float` is exact ([ADR
+    /// 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)),
+    /// so `toDegrees(toRadians(30.0)) == 30.0` answers `true` under PHP's
+    /// spelling and `false` under the std one. Nothing here promises an
+    /// accuracy the twin does not have; the round trip a ported program
+    /// already wrote is the thing worth keeping.
+    mwl_core_math_to_radians, "toRadians", |degrees| (degrees / 180.0) * std::f64::consts::PI
 }
 
 unary_float! {
     /// `Core\Math::toDegrees(float $radians): float` — replacing PHP's
     /// `rad2deg`.
-    mwl_core_math_to_degrees, "toDegrees", f64::to_degrees
+    ///
+    /// `($radians / PI) * 180.0`, PHP's expression, for the reason
+    /// `toRadians` above states in full. This is the half of the pair the
+    /// difference is visible through: `f64::to_degrees` and this form part
+    /// over a whole-degree angle's radians, which is exactly what a round
+    /// trip feeds it.
+    mwl_core_math_to_degrees, "toDegrees", |radians| (radians / std::f64::consts::PI) * 180.0
 }
 
 mwl_runtime::mwl_helper! {
