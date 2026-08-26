@@ -102,6 +102,7 @@ tools/
   brief.py          the one-call orientation digest every session starts with      exists
   loop.py           the unattended work-loop driver                                exists
   splice.py         exact-block file edit, for edits a shell would mangle          exists
+  gaps.py           the cases Part I's corpus does not ask for yet, as a worklist  exists
   check-links.py    advisory: markdown links that break, or that mis-match case    exists
   gen-attribution   generates THIRD-PARTY-LICENSES.txt from the dep graph          exists
   leak-check.sh     valgrind over named .mwl fixtures (WSL/Linux)                  exists
