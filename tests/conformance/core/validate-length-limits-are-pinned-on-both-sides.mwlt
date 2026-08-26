@@ -1,0 +1,79 @@
+--TEST--
+`Core\Validate`'s four length limits are RFC 5321 § 4.5.3.1's and RFC 1123 § 2.1's, and an empty label is one rule rather than three about dots
+--FILE--
+<?mwl
+// docs/spec/01-core-library.md § 12 states the roster;
+// `crates/mwl-stdlib/src/validate.rs`'s own module doc owns every limit
+// below — a label of 1 to 63 bytes, a hostname of 253, a dot-atom local part
+// of 64 and a whole address of 254. A limit is only pinned by a *pair*: the
+// longest subject that passes and the one byte that turns it away. Every
+// subject here is therefore built with `Core\Str::repeat` rather than pasted,
+// so the case asserts the boundary and not a constant that happens to sit
+// near it.
+
+var $l63 = Core\Str::repeat("a", 63);
+var $l64 = Core\Str::repeat("a", 64);
+
+// A label is 1 to 63 bytes. One byte is a label; sixty-four is not.
+echo "label ",
+     (Core\Validate::isDomain("a.test") ? "y" : "n"),
+     (Core\Validate::isDomain($l63 . ".test") ? "y" : "n"),
+     (Core\Validate::isDomain($l64 . ".test") ? "y" : "n"),
+     "\n";
+
+// A hostname is at most 253 bytes, and that is a limit of its own rather than
+// a consequence of the label rule: labels of 63, 63, 63 and 61 with their
+// three dots are exactly 253, and every label of `$d254` is still legal.
+var $d253 = $l63 . "." . $l63 . "." . $l63 . "." . Core\Str::repeat("a", 61);
+var $d254 = $l63 . "." . $l63 . "." . $l63 . "." . Core\Str::repeat("a", 62);
+echo "host ", Core\Str::length($d253), " ",
+     (Core\Validate::isDomain($d253) ? "y" : "n"),
+     (Core\Validate::isDomain($d254) ? "y" : "n"),
+     "\n";
+
+// The local part is a dot-atom of at most 64 bytes.
+echo "local ",
+     (Core\Validate::isEmail($l64 . "@ex.test") ? "y" : "n"),
+     (Core\Validate::isEmail(Core\Str::repeat("a", 65) . "@ex.test") ? "y" : "n"),
+     "\n";
+
+// The address is at most 254 bytes, and that too is its own limit: both
+// halves of `$a255` are inside their own, which the last row shows by asking
+// `isDomain` about the domain of the address that was just refused.
+var $a254 = "a@" . $l63 . "." . $l63 . "." . $l63 . "." . Core\Str::repeat("a", 60);
+var $a255 = "a@" . $l63 . "." . $l63 . "." . $l63 . "." . Core\Str::repeat("a", 61);
+echo "addr ", Core\Str::length($a255), " ",
+     (Core\Validate::isEmail($a254) ? "y" : "n"),
+     (Core\Validate::isEmail($a255) ? "y" : "n"),
+     (Core\Validate::isDomain(Core\Str::slice($a255, 2)) ? "y" : "n"),
+     "\n";
+
+// An empty label is refused wherever it falls, because the rule is "a label
+// has at least one byte" rather than three rules about a leading, a doubled
+// and a trailing dot. The root dot of `example.test.` is that same rule, and
+// so is the empty subject.
+echo "empty ",
+     (Core\Validate::isDomain("a..b.test") ? "y" : "n"),
+     (Core\Validate::isDomain(".example.test") ? "y" : "n"),
+     (Core\Validate::isDomain(".") ? "y" : "n"),
+     (Core\Validate::isDomain("") ? "y" : "n"),
+     (Core\Validate::isEmail("ada@example..test") ? "y" : "n"),
+     "\n";
+
+// A non-ASCII domain is refused as *not yet encoded*, not as unrepresentable:
+// `exämple.test` punycodes to `xn--exmple-cua.test`, which is LDH and passes
+// here. The local part has no such encoding without SMTPUTF8, which is a
+// delivery question rather than a syntax one.
+echo "idna ",
+     (Core\Validate::isDomain("exämple.test") ? "y" : "n"),
+     (Core\Validate::isDomain("xn--exmple-cua.test") ? "y" : "n"),
+     (Core\Validate::isEmail("ada@exämple.test") ? "y" : "n"),
+     (Core\Validate::isEmail("adá@example.test") ? "y" : "n"),
+     "\n";
+--EXPECT--
+label yyn
+host 253 yn
+local yn
+addr 255 yny
+empty nnnnn
+idna nynn

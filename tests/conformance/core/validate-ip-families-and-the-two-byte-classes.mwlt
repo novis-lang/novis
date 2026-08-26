@@ -1,0 +1,91 @@
+--TEST--
+`Core\Validate::isIp`'s `{version}` refuses the other family's spelling, and `isAscii` and `isPrintable` cross each other twice
+--FILE--
+<?mwl
+// docs/spec/01-core-library.md § 12 folds `FILTER_FLAG_IPV4`/`IPV6` into one
+// `{version?: 4|6}` option, so what the option is *for* is the row where the
+// two families disagree — the same subject answered differently by the two
+// versions. `crates/mwl-stdlib/src/validate.rs`'s module doc owns the reading;
+// the parser underneath is `std::net::IpAddr`'s.
+
+echo "family ",
+     (Core\Validate::isIp("192.0.2.1", {version: 4}) ? "y" : "n"),
+     (Core\Validate::isIp("192.0.2.1", {version: 6}) ? "y" : "n"),
+     (Core\Validate::isIp("2001:db8::1", {version: 6}) ? "y" : "n"),
+     (Core\Validate::isIp("2001:db8::1", {version: 4}) ? "y" : "n"),
+     "\n";
+
+// `::ffff:192.0.2.1` is the subject the option earns its place on: an IPv6
+// address whose low 32 bits are written in dotted quad. It is v6, it is not
+// v4, and a caller asking `{version: 4}` to keep a value out of a v6-shaped
+// code path gets `false` rather than the "it has dots in it" answer.
+echo "mapped ",
+     (Core\Validate::isIp("::ffff:192.0.2.1") ? "y" : "n"),
+     (Core\Validate::isIp("::ffff:192.0.2.1", {version: 6}) ? "y" : "n"),
+     (Core\Validate::isIp("::ffff:192.0.2.1", {version: 4}) ? "y" : "n"),
+     "\n";
+
+// A leading zero is refused in v4 — the octal reading that made `inet_aton`
+// an SSRF primitive — and is ordinary in v6, where a group is up to four hex
+// digits and `0db8` is `db8`. The asymmetry is each family's own grammar
+// rather than a rule this module applies to one and forgets on the other.
+echo "zeros ",
+     (Core\Validate::isIp("192.0.2.01") ? "y" : "n"),
+     (Core\Validate::isIp("010.0.0.1") ? "y" : "n"),
+     (Core\Validate::isIp("2001:0db8::1") ? "y" : "n"),
+     (Core\Validate::isIp("2001:0000:0000:0000:0000:0000:0000:0001") ? "y" : "n"),
+     "\n";
+
+// `::` elides one run of zero groups, so it is a whole address on its own and
+// may appear only once. An address carries no zone identifier, no surrounding
+// space and no fifth octet.
+echo "shape ",
+     (Core\Validate::isIp("::") ? "y" : "n"),
+     (Core\Validate::isIp("2001:db8::1::2") ? "y" : "n"),
+     (Core\Validate::isIp(" 192.0.2.1") ? "y" : "n"),
+     (Core\Validate::isIp("1.2.3.4.5") ? "y" : "n"),
+     "\n";
+
+// `isMac` counts groups as well as bytes: seven groups is not six, two groups
+// of four is not three, and a subject with no separator at all matches none
+// of the three spellings rather than falling back to a bare hex run.
+echo "mac ",
+     (Core\Validate::isMac("00:11:22:33:44:55:66") ? "y" : "n"),
+     (Core\Validate::isMac("0011.2233") ? "y" : "n"),
+     (Core\Validate::isMac("00:11:22:33:44:5g") ? "y" : "n"),
+     (Core\Validate::isMac("001122334455") ? "y" : "n"),
+     "\n";
+
+// The two byte-class members ask different questions, so they cross twice.
+// `DEL` is ASCII and is general category `Cc`; `é` is printable and is not
+// ASCII. A space is what `DEL` is measured against — `0x20` is the first
+// printable byte and `0x7F` the first unprintable one above it.
+echo "cross ",
+     (Core\Validate::isAscii("\x7f") ? "y" : "n"),
+     (Core\Validate::isPrintable("\x7f") ? "y" : "n"),
+     (Core\Validate::isAscii(" ") ? "y" : "n"),
+     (Core\Validate::isPrintable(" ") ? "y" : "n"),
+     (Core\Validate::isAscii("é") ? "y" : "n"),
+     (Core\Validate::isPrintable("é") ? "y" : "n"),
+     "\n";
+
+// The C1 range a UTF-8 decode can produce is `Cc` as well, so `U+0085` is
+// unprintable for the reason `DEL` is, and not ASCII for the unrelated reason
+// that it is two bytes. `U+202E` and `U+200D` are `Cf`, not `Cc`, and are
+// therefore printable here: this member is **not** a spoofing check, and the
+// module doc owns why answering that question under this name would be the
+// false confidence ADR 0024 exists to prevent.
+echo "c1 ",
+     (Core\Validate::isAscii("\u{85}") ? "y" : "n"),
+     (Core\Validate::isPrintable("\u{85}") ? "y" : "n"),
+     (Core\Validate::isPrintable("\u{202E}") ? "y" : "n"),
+     (Core\Validate::isPrintable("\u{200D}") ? "y" : "n"),
+     "\n";
+--EXPECT--
+family ynyn
+mapped yyn
+zeros nnyy
+shape ynnn
+mac nnnn
+cross ynyyny
+c1 nnyy
