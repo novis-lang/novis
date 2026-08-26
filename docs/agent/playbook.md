@@ -1077,6 +1077,16 @@ is why" — is this file.
   alone. The round trip is therefore an identity *through* the normal form (`normalize($rebuilt) ==
   normalize($p)` on every row) and exact only on a path that is already normal. A case asserting
   `join(split($p)) == normalize($p)` fails on 8 of 20 ordinary rows.
+- **A `!= null` guard does not re-type a nullable local for an *argument* position; `as string` inside
+  the guarded branch is what does.** ADR 0066's narrowing is what lets `->` reach a member of a `?Foo`,
+  and `tests/conformance/lang/a-null-test-narrows-a-nullable-local.mwlt` only ever pinned that shape —
+  so `Core\Str::replace($r, …)` inside `if ($r != null)`, where `$r` came from a `?string` member like
+  `Core\Path::relativeTo`, is `E0401: expected string, found string|null`, and declaring the local
+  `?string` instead of `var` changes nothing. Two spellings do work and both are worth preferring to a
+  narrowing that would silently start working later: `$r as string` inside the branch, a checked
+  conversion (ADR 0007 § 2) that would throw rather than lie if the guard above it were wrong, and
+  `$r ?? "<null>"` where the value is only being echoed — which is also how a case prints the refusal
+  itself, since `echo` has no `null` row.
 
 ## Splitting a file that got too big
 
