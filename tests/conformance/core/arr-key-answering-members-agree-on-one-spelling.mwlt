@@ -1,0 +1,153 @@
+--TEST--
+Every Core\Arr member that answers a key answers the same string, and the one that takes a key normalises an integer to it — ADR 0069 § 5 and ADR 0007 § 5
+--FILE--
+<?mwl
+// The depth claim is *agreement*. ADR 0069 § 5 names six members whose answer
+// is a key — `keys`, `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip` — and
+// says all of them return `string` because ADR 0007 § 5 stores every key as
+// one. So the question below is asked once per entry and put to every member
+// that can answer it, and what is asserted is that they agree: a member that
+// grew its own idea of a key — handing back an `int` for a numeric spelling, as
+// PHP's `array_keys` does, or repairing `"08"` to `"8"` — would still look
+// right on its own line and fails here. `keys` on its own is
+// arr-keys-are-always-strings.mwlt.
+class Ask {
+    // Every value of an array under a leading separator, so an empty array
+    // folds to "". Keys are not read: they are what is being compared.
+    public static function joined(array<string> $a): string {
+        return Core\Arr::reduce($a, fn(string $c, string $v): string => $c . "," . $v, "");
+    }
+
+    // A `bool` as a character. `bool as int` does not lower and `bool as string`
+    // renders `false` as nothing at all, so a case that wants to *show* a
+    // predicate's answer branches on it.
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+
+    // "y" when every key-answering member agrees about this subject, and
+    // otherwise the letter of the first that did not. The subject's values must
+    // be distinct: `keyOf`, `findKey` and `flip` all answer about the *first*
+    // entry holding a value, so a repeated value would be asking three members
+    // a question with two right answers.
+    public static function verdict(array<string> $a): string {
+        array<string> $keys = Core\Arr::keys($a);
+        array<string> $flipped = Core\Arr::flip($a);
+
+        var $walked = "";
+        foreach ($a as string $k => string $v) {
+            $walked = $walked . "," . $k;
+            // The same question from a value, from a predicate over one, and
+            // from the table read backwards.
+            if (Core\Arr::keyOf($a, $v) != $k) {
+                return "o";
+            }
+            if (Core\Arr::findKey($a, fn(string $e): bool => $e == $v) != $k) {
+                return "f";
+            }
+            if ($flipped[$v] != $k) {
+                return "p";
+            }
+            // And the member that takes a key accepts every key the members
+            // that answer one hand back, unrepaired.
+            if (!Core\Arr::hasKey($a, $k)) {
+                return "h";
+            }
+        }
+
+        // `keys` is the list `foreach` binds, in that order — ADR 0007 § 5's
+        // insertion order, and the same spellings.
+        if (Ask::joined($keys) != $walked) {
+            return "k";
+        }
+        // The two ends are the ends of that list, and `null` from both when
+        // there is no entry to have an end — which is how the empty row below
+        // is asked the same question as every other.
+        if (Core\Arr::firstKey($a) != Core\Arr::first($keys)) {
+            return "s";
+        }
+        if (Core\Arr::lastKey($a) != Core\Arr::last($keys)) {
+            return "e";
+        }
+        return "y";
+    }
+}
+
+// The key shapes are the point: non-numeric strings, integer keys written as
+// integers, the same table written as strings, a bare list, integer-like
+// spellings out of numeric order and one with a leading zero, a mixed table,
+// the empty key, one entry, no entries, and a negative index.
+array<array<string>> $tables = [
+    ["a" => "1", "b" => "2", "c" => "3"],
+    [0 => "z", 1 => "o", 2 => "t"],
+    ["0" => "z", "1" => "o", "2" => "t"],
+    ["z", "o", "t"],
+    ["10" => "a", "9" => "b", "08" => "c"],
+    [7 => "s", "x" => "e", "10" => "t"],
+    ["" => "n", "x" => "e"],
+    ["only" => "1"],
+    [],
+    [-1 => "m", 0 => "z"],
+];
+
+var $verdicts = "";
+var $held = 0;
+foreach ($tables as array<string> $row) {
+    var $v = Ask::verdict($row);
+    $verdicts = $verdicts . $v;
+    if ($v == "y") {
+        $held = $held + 1;
+    }
+}
+echo $verdicts, "\n";
+// Counted rather than read off a line: a letter anywhere is a member that
+// answered from its own rule, and the tally is what says every row was asked.
+echo $held, " of ", Core\Arr::count($tables), "\n";
+
+// Rows 2, 3 and 4 are one table written three ways, which is § 5's first
+// sentence with nothing else in it: there is no integer key to tell apart.
+echo Core\Json::encode($tables["1"]), "|",
+     Core\Json::encode($tables["2"]), "|",
+     Core\Json::encode($tables["3"]), "\n";
+
+// The spellings themselves, since agreement alone would also be satisfied by
+// six members that were wrong together. A key comes back as it was written —
+// "08" is not repaired to "8", and a list's keys are decimal strings.
+array<string> $mixed = [7 => "s", "08" => "z", "x" => "e"];
+echo Core\Str::join(Core\Arr::keys($mixed), "|"), "\n";
+echo Core\Arr::firstKey($mixed), "|", Core\Arr::lastKey($mixed), "|",
+     Core\Arr::keyOf($mixed, "z"), "|",
+     Core\Arr::findKey($mixed, fn(string $v): bool => $v == "e"), "\n";
+
+// § 5's other direction: a key *parameter* is `int|string` and is normalised at
+// the boundary, so `$a[7]` and `$a["7"]` are one key — while `"08"` stays the
+// distinct key PHP also keeps, and `hasKey` reports it under that spelling and
+// no other.
+echo $mixed[7], "|", $mixed["7"], "\n";
+echo Ask::yn(Core\Arr::hasKey($mixed, 7)),
+     Ask::yn(Core\Arr::hasKey($mixed, "7")),
+     Ask::yn(Core\Arr::hasKey($mixed, "08")),
+     Ask::yn(Core\Arr::hasKey($mixed, 8)),
+     Ask::yn(Core\Arr::hasKey($mixed, "x")),
+     Ask::yn(Core\Arr::hasKey($mixed, "nope")), "\n";
+
+// The absent answer is `null`, from all four members that can fail to find one
+// — the same shape the empty row above was asked in.
+array<string> $none = [];
+echo Ask::yn(Core\Arr::keyOf($mixed, "absent") == null),
+     Ask::yn(Core\Arr::findKey($mixed, fn(string $v): bool => $v == "absent") == null),
+     Ask::yn(Core\Arr::firstKey($none) == null),
+     Ask::yn(Core\Arr::lastKey($none) == null),
+     Ask::yn(Core\Arr::count(Core\Arr::keys($none)) == 0), "\n";
+--EXPECT--
+yyyyyyyyyy
+10 of 10
+["z","o","t"]|["z","o","t"]|["z","o","t"]
+7|08|x
+7|x|08|x
+s|s
+yyynyn
+yyyyy
