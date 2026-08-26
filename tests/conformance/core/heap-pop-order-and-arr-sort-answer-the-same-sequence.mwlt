@@ -1,0 +1,107 @@
+--TEST--
+A `Core\Heap<T>` drained by `pop` and the same table given to `Core\Arr::sort` answer the same sequence under every ordering both of them accept — natural, reversed, keyed and bytewise — docs/spec/01-core-library.md §§ 2 and 9, ADR 0013
+--FILE--
+<?mwl
+// Two members implement one rule: `mwl_stdlib::ordering::compare_values` is
+// what a comparator-less `Core\Heap` sifts by and what `Core\Arr::sort`
+// permutes by, and a user closure is threaded into both. So the question
+// worth asking is not what either one printed — the neighbouring cases read
+// a drained heap and a sorted array off their own lines already — but whether
+// the two **agree**, position for position. A member that grew its own
+// comparison still looks right on its own line and fails here.
+//
+// Values, not positions: `-1` appears twice, so the permutation is not
+// unique, but the sequence of values is. Comparing what came out is
+// therefore the assertion that survives a tie broken either way.
+final class Agree {
+    // Pushes the whole table, then walks the sorted answer popping once per
+    // entry, and counts the positions where the two say the same thing. A
+    // heap that drained short throws at `pop` rather than scoring low, which
+    // is `heap-holds-every-push-and-refuses-an-empty-read.mwlt`'s rule.
+    public static function ints(Core\Heap<int> $h, array<int> $table, array<int> $sorted): int {
+        foreach ($table as int $v) {
+            $h->push($v);
+        }
+        int $agreed = 0;
+        foreach ($sorted as int $want) {
+            int $got = $h->pop();
+            if ($got == $want) {
+                $agreed = $agreed + 1;
+            }
+        }
+        return $agreed;
+    }
+
+    public static function words(Core\Heap<string> $h, array<string> $table, array<string> $sorted): int {
+        foreach ($table as string $t) {
+            $h->push($t);
+        }
+        int $agreed = 0;
+        foreach ($sorted as string $want) {
+            string $got = $h->pop();
+            if ($got == $want) {
+                $agreed = $agreed + 1;
+            }
+        }
+        return $agreed;
+    }
+}
+
+// One rule written twice: the heap takes it as a comparator, `sort` takes it
+// as a `{by}` key function. Neither spelling may reorder the table
+// differently from the other.
+final class Key {
+    public static function magnitude(int $v): int {
+        if ($v < 0) {
+            return 0 - $v;
+        }
+        return $v;
+    }
+}
+
+// A duplicate, a negative and a zero, none of them in order.
+array<int> $table = [5, -1, 3, -1, 0, 9];
+
+// 1. The natural order, with no comparator anywhere: both members reach
+// `compare_values` and nothing else.
+var $natural = new Core\Heap<int>();
+echo "natural ", Agree::ints($natural, $table, Core\Arr::sort($table)), " of 6\n";
+
+// 2. Reversed. The heap says it with a comparator; `sort` says it with
+// ADR 0069's `{order}` option and a `Core\Order` case, so the two do not even
+// share a spelling — only an answer.
+var $reversed = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);
+echo "reversed ", Agree::ints($reversed, $table, Core\Arr::sort($table, {order: Core\Order::Desc})), " of 6\n";
+
+// 3. A key neither member computes itself. `magnitude` is chosen so no two
+// entries key alike — a tie here would make the value sequence ambiguous
+// again and the count would stop meaning anything.
+array<int> $spread = [-5, 2, -1, 4, -3];
+var $keyed = new Core\Heap<int>(fn (int $a, int $b): int => Key::magnitude($a) - Key::magnitude($b));
+echo "keyed ", Agree::ints($keyed, $spread, Core\Arr::sort($spread, {by: fn (int $v): int => Key::magnitude($v)})), " of 5\n";
+
+// 4. Strings, where `compare_values` is bytewise and case therefore sorts
+// before letters — the divergence from PHP's numeric-string comparison that
+// `Core\Arr::sort`'s own doc comment records. Both members take it or
+// neither does.
+array<string> $words = ["pear", "Fig", "apple", "fig"];
+var $lex = new Core\Heap<string>();
+echo "bytewise ", Agree::words($lex, $words, Core\Arr::sort($words)), " of 4\n";
+
+// Every heap drained to nothing: the agreement above is over whole
+// sequences, not over a prefix that happened to line up.
+echo "drained ", $natural->count(), $reversed->count(), $keyed->count(), $lex->count(), "\n";
+
+// The counter can say no. Draining a max-heap against the ascending answer
+// is the same code over a genuinely different sequence, and it agrees
+// nowhere — so a run that scores 6 above is scoring agreement rather than
+// counting the loop.
+var $crossed = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);
+echo "crossed ", Agree::ints($crossed, $table, Core\Arr::sort($table)), " of 6\n";
+--EXPECT--
+natural 6 of 6
+reversed 6 of 6
+keyed 5 of 5
+bytewise 4 of 4
+drained 0000
+crossed 0 of 6
