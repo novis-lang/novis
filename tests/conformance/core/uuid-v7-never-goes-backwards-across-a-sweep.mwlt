@@ -1,0 +1,64 @@
+--TEST--
+`Core\Uuid::v7`'s millisecond field never goes backwards across a sweep of consecutive draws — counted, contrasted against `v4`'s leading field, and bounded on both sides as a real Unix-epoch clock — spec § 11
+--FILE--
+<?mwl
+// A drawn UUID cannot be asserted, so v7's one behavioural claim — that it is
+// *time-ordered*, which is the whole reason to prefer it over v4 for a database
+// key — is pinned by counting a run of draws rather than by comparing two.
+// `uuid-every-draw-round-trips-and-a-refusal-quotes-boundedly.mwlt` sweeps the
+// shape, the round trip and the distinctness; nothing here repeats them, and
+// nothing there looks at the ordering at all.
+//
+// The field under test is the first twelve hex digits, which RFC 9562 § 5.7
+// fixes as a 48-bit big-endian millisecond count. Zero-padded fixed-width hex
+// orders the same way the number does, so `Core\Str::compare` bytewise is the
+// numeric comparison — and it is the only one available, because `<` over two
+// `string`s does not lower. The hyphen sits at index 8 of every rendering, so
+// slicing 13 characters rather than splicing the two groups together compares
+// the same positions on both sides.
+int $ordered = 0;
+int $i = 0;
+var $prev = Core\Str::slice(Core\Uuid::v7()->toString(), 0, 13);
+var $first = $prev;
+for ($i = 0; $i < 64; $i = $i + 1) {
+    var $next = Core\Str::slice(Core\Uuid::v7()->toString(), 0, 13);
+    $ordered = $ordered + ((Core\Str::compare($prev, $next) <= 0) ? 1 : 0);
+    $prev = $next;
+}
+echo "v7 ordered ", $ordered, " of 64\n";
+
+// Adjacent pairs holding is not the same claim as the run holding: a clock read
+// per draw could step forward 63 times and once backwards past its own start.
+// So the last stamp is compared against the first as well.
+echo "span ", (Core\Str::compare($first, $prev) <= 0) ? "monotone" : "backwards", "\n";
+
+// The same sweep over v4, whose leading field is 48 random bits. Its count is
+// what shows the counter above can say no: 65 uniform draws arriving already
+// sorted is a 1-in-65! event, so this line is an assertion and not a hope.
+int $scattered = 0;
+var $before = Core\Str::slice(Core\Uuid::v4()->toString(), 0, 13);
+for ($i = 0; $i < 64; $i = $i + 1) {
+    var $after = Core\Str::slice(Core\Uuid::v4()->toString(), 0, 13);
+    $scattered = $scattered + ((Core\Str::compare($before, $after) <= 0) ? 1 : 0);
+    $before = $after;
+}
+echo "v4 ", ($scattered < 64) ? "unordered" : "ordered", "\n";
+
+// Ordering alone would still hold for a counter that never restarts, so the
+// field is bounded on both sides against two dates written as the milliseconds
+// they are: `016f5e66-e800` is 2020-01-01 and `03bb2cc3-d800` is 2100-01-01.
+// That is what makes the leading bits the *clock* this module's doc says they
+// are — the one `Core\Time::now()` reads, since both go through `jiff` — rather
+// than a monotonic sequence of their own. The sibling case asserts two digits
+// of this prefix; these are the twelve it belongs to.
+var $now = Core\Str::slice(Core\Uuid::v7()->toString(), 0, 13);
+echo "clock ",
+     (Core\Str::compare("016f5e66-e800", $now) < 0) ? "after-2020" : "before-2020",
+     " ",
+     (Core\Str::compare($now, "03bb2cc3-d800") < 0) ? "before-2100" : "after-2100",
+     "\n";
+--EXPECT--
+v7 ordered 64 of 64
+span monotone
+v4 unordered
+clock after-2020 before-2100
