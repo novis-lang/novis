@@ -38,27 +38,14 @@ files = [
 # Modules whose map line a session needs, as globs under crates/. The file set the handoff's
 # `## Next group` names, plus anything those files call into.
 modules = [
+  # The work is `.mwlt` cases, so the file set is the two members' own implementations plus the
+  # table their signatures come from -- not the runtime and codegen files a Stage 0 slice needed.
+  # Everything dropped here was a module map printed unread every session: `mwl-runtime`'s
+  # `value`/`string`/`helpers`/`release`/`ctx`, `mwl-types`' `core_lib`/`ty`, `mwl-codegen`'s `ty`,
+  # `mwl-diagnostics`, and `encoding`/`math`/`hash`. Put one back the session a group needs it.
   "crates/mwl-stdlib/src/registry.rs",
-  "crates/mwl-stdlib/src/lib.rs",
-  "crates/mwl-stdlib/src/encoding.rs",
-  "crates/mwl-stdlib/src/math.rs",
-  # `Core\Str` is what `Core\Bytes` mirrors member for member (spec § 7, R6), and `Core\Hash` is the
-  # only worked example of a `Core`-owned enum -- the `CoreEnum` roster, the Rust mirror its members
-  # dispatch on, and the test pinning the two together. A slice adding either pays to rediscover them.
   "crates/mwl-stdlib/src/str.rs",
-  "crates/mwl-stdlib/src/hash.rs",
-  "crates/mwl-types/src/core_lib.rs",
-  "crates/mwl-types/src/ty.rs",
-  "crates/mwl-runtime/src/value.rs",
-  "crates/mwl-runtime/src/string.rs",
-  "crates/mwl-runtime/src/helpers.rs",
-  "crates/mwl-runtime/src/release.rs",
-  "crates/mwl-codegen/src/ty.rs",
-  "crates/mwl-diagnostics/src/lib.rs",
-  # Where `echo` and its sink live. Stage 3's one failing fixture stops at `Core\Out::capture`,
-  # whose whole difficulty is that it redirects the sink in force rather than a byte stream
-  # (ADR 0088 §§ 3, 5), so `Ctx` and its `OutputSink` are the file set that work shares.
-  "crates/mwl-runtime/src/ctx.rs",
+  "crates/mwl-stdlib/src/arr.rs",
   # Stage 0 is closed, and the reason it added nothing here is worth keeping because it applies to
   # any item list: a session takes ONE item, so the union of six items' file sets prints five unread
   # module maps every session. Measured at +1,715 tokens for items 10-15, and items 18-22 sat in
@@ -77,11 +64,9 @@ adrs = [
   "0009 §3",
   "0051 §4",
   "0007 §3",
-  # The two sections `Core\Out::capture` is specified by. Spec § 12 gives it one member and then
-  # spends a paragraph saying its return is not a `string` at all but the carrier of the sink in
-  # force -- so a session that reads only the signature table builds the wrong member.
-  "0088 §3",
-  "0088 §5",
+  # `Core\Out::capture` shipped and Stage 3 is green, so 0088 §§ 3 and 5 -- the two sections that
+  # member is specified by -- came out of this list. They were the per-item selector the block
+  # below warns against, kept one goal past the item that needed them.
   # Stage 0's items deliberately added NOTHING here, and the rule behind that still holds: a session
   # takes ONE item, so pre-printing every item's ADR prints five unread sections every session --
   # measured at +9,154 tokens of pack for a session that reads one of them. A selector belongs here
@@ -113,26 +98,23 @@ shapes = ["A diagnostic", "A `.mwlt` test case", "A commit message"]
 # how it ends, how it reads, what a commit may not carry, what to do when this pack is short -- so
 # they name no crate and no file and rank zero against any file set. They apply to every session.
 playbook = [
-  # matched against [context] modules, 19 bullets, 10,580 B
-  'Adding a `Core` member > a new domain',
-  'Adding a `Core` member > a member on',
-  'Adding a `Core` member > a core symbol',
-  'Adding a `Core` member > a new core',
-  'Adding a `Core` member > a spec',
-  'Adding a `Core` member > adding a',
-  "Adding a `Core` member > a core instance's",
-  'Writing a test case > registering a',
-  'Writing a test case > a rule',
+  # The traps of WRITING a case, 12 bullets. This block used to be the 19 that ranked against a
+  # `modules` list aimed at Stage 0, and seven of those were `Adding a `Core` member` -- the traps
+  # of *implementing* a member, which is not what this goal does any more. `never put` is the rule
+  # the whole group now sits on: an `--ORACLE--` section in `tests/conformance/` makes CI skip the
+  # whole case and subtract from the very count Stage 4 measures.
+  'Writing a test case > never put',
+  'Writing a test case > deepening a',
+  'Writing a test case > a case that',
+  'Writing a test case > a catch',
+  "Writing a test case > a .mwlt case's",
+  'Writing a test case > an array literal is',
   "Writing a test case > a property's",
-  'Writing a test case > a mwl-types',
   'Writing a test case > a named',
   'Writing a test case > "…" as',
-  'Tooling > a test failing',
-  'Tooling > mwl-ir cannot',
+  'Running things > target/release/mwl.exe is',
+  'Running things > verify.py never',
   'Tooling > a loop-goal.toml',
-  'Tooling > teaching mwl-ir',
-  'Running things > a leak',
-  'Splitting a file that got too big > a big',
 
   # The conformance-case traps, 12 bullets, 7,489 B. These arrived as a `python tools/playbook.py
   # --gap` block when the work in flight was mwl-ir/mwl-codegen; they are kept deliberately now that

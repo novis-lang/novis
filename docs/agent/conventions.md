@@ -59,10 +59,28 @@ the exact stdout, byte for byte
 
 - `--EXPECT--` is exact. `--EXPECTF-ERROR--` instead when the case must *fail* to compile, and it has to
   reproduce the diagnostic's own indentation, which widens with the line number.
-- **Never `--ORACLE--` in `tests/conformance/`** — the WSL leg has no PHP, so the runner skips the whole
-  case there. Oracle cases go in `tests/differential/`. The playbook says why this costs more than it
-  looks.
+- **Never `--ORACLE--` in `tests/conformance/`** — CI runs that suite on three hosted runners and none
+  of them has PHP, so an oracle section makes the runner skip the whole case and subtract from the very
+  count Stage 4 measures. Oracle cases go in `tests/differential/`, where the expectation is PHP's own
+  output and nothing has to be frozen by hand. The playbook bullet owns the rest, including how to check
+  against PHP while authoring; PHP is on `PATH` under Windows and inside the WSL distro alike, so the
+  local legs run an oracle case rather than skipping it.
 - A new file under `tests/conformance/` is picked up with no registration.
+
+**The four shapes a depth case takes.** Every section of Part I has had a pass, so a new case reaches
+for one of these rather than for a section, and what it adds is the boundary or the invariant the
+member is written around — never another row of the same shape. `python tools/gaps.py` finds the
+candidates; the playbook owns the spellings that will not compile.
+
+- *Edges* — the answer where the member stops accepting: an empty receiver, a name it cannot read, a
+  padding only wide enough to be used. `gaps.py --errors` lists the boundaries no case asks about.
+- *Invariance over a sweep* — a property that must hold across a whole table, asserted by **counting**
+  rather than read off a line, so a member answering plausibly row by row still fails.
+- *A bound asserted on both sides* — the last accepted value and the first refused one, named
+  together. A member that stops one entry early prints plausibly against either half alone.
+- *Agreement* — one question asked of every member that shares a rule, asserting that they **agree**
+  rather than what each answered, so a member that grew its own comparison fails here while still
+  looking right on its own line. The shape with the most room left.
 
 ## A `Core` member — the four edits
 
