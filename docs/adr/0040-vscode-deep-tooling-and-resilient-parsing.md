@@ -13,6 +13,9 @@
 - **Amends:** [docs/implementation-plan.md](../implementation-plan.md) M4/M5/M10 — inserts M4B between M4
   and M5, and narrows M10's remaining VS Code scope to what M4B does not cover.
 - **Relates to:** 0006, 0016, 0018, 0019, 0039
+- **Amended by:** [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) — the resilient tree's shape
+  (§ 2), the server's dependencies and the M4B request set (§ 1), `mwl ast --json` (§ 3), and both open
+  *Revisiting* items. Each fold is applied below; this body states the current rule.
 
 > **In short:** VS Code is the reference client, and it is getting real depth, not a thin LSP passthrough
 > with a grammar file. A **minimal `mwl-lsp`** (diagnostics, hover, go-to-definition, basic completion) and
@@ -23,11 +26,13 @@
 > refactorings, richer completion, a native Test Explorer with coverage, an AST/reflection panel, a
 > profiler view, and DAP editor wiring — each one named below against the specific milestone or ADR that
 > has to land first, so nothing here is a promise with no delivery date and nothing blocks on the hardest
-> piece. The one change that reaches back into the compiler: `mwl-syntax` gains a second, **error-recovering
-> parse mode** — a lossless tree that keeps a usable shape around a syntax error, the same design
-> rust-analyzer's `rowan` crate popularized for exactly this reason — because a document mid-keystroke is
+> piece. The one change that reaches back into the compiler: `mwl-syntax` gains a **lossless parse
+> result** — a tree that keeps a usable shape around a syntax error — because a document mid-keystroke is
 > syntactically invalid most of the time, and "keep completion working anyway" is not achievable by
-> layering something on top of an all-or-nothing parser afterward.
+> layering something on top of an all-or-nothing parser afterward. That was originally specified as a
+> second, `rowan`-shaped tree; [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 1 found
+> this parser already infallible and narrowed it to trivia plus an offset index over the one existing
+> grammar, which is what *Decision § 2* below now describes.
 
 ## Context
 
@@ -75,17 +80,27 @@ cross-references to M5 through M14 across other ADRs for a purely additive miles
 low-churn instinct [AGENTS.md](../../AGENTS.md) already applies to documentation. M4B pulls forward,
 **scoped down to a minimal subset**, work that M10 was going to do anyway:
 
-- `crates/mwl-lsp` — created here, not at M10 — implementing only: `textDocument/publishDiagnostics` (by
-  running the existing `mwl check` pipeline against the resilient parse tree from *Decision § 3*),
-  `textDocument/hover` (declared types, from `mwl-types`), `textDocument/definition`, and
-  `textDocument/completion` restricted to keyword completion and member completion off a resolved
-  receiver type (no cross-file symbol search yet — that needs the workspace-indexing work M10 still owns).
-  A `LanguageStatusItem` shows server health/version per the research above.
+- `crates/mwl-lsp` — created here, not at M10 — built on `lsp-server` and `lsp-types`, **synchronously and
+  with no async runtime** ([ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 2; `tower-lsp`,
+  which earlier drafts of this ADR and of M10 named, would put tokio into a workspace that has
+  deliberately never had one). Six requests, and the list is closed:
+  `textDocument/publishDiagnostics` (by running the existing `mwl check` pipeline against the resilient
+  parse of *Decision § 2*), `textDocument/hover` (declared types from `mwl-types`, a `Core` member's
+  registry signature, and a declaration's own doc comment out of the trivia layer),
+  `textDocument/definition`, `textDocument/completion` restricted to keywords, members off a resolved
+  receiver type and enum cases (no cross-file symbol search yet — that needs the workspace-indexing work
+  M10 still owns), `textDocument/semanticTokens/full`, and `textDocument/documentSymbol`. Plus **exactly
+  two code actions** — the casing fix and `(int)$x` → `$x as int` — admitted because their replacement
+  text already sits in `Diagnostic::suggestions`, which closes this ADR's own *Revisiting* question about
+  landing one or two cheap ones early. A `LanguageStatusItem` shows server health/version per the research
+  above.
 - `editors/vscode` — created here, not at M10 — the TextMate grammar, `.mwl` registration and
   `language-configuration.json` from ADR 0016 § 2, `mwl lsp` process spawning, and `mwl run`/`mwl test` as
-  VS Code Tasks. **Not yet included:** format-on-save (`mwl fmt` doesn't exist until M10 —
-  [ADR 0039](0039-canonical-code-formatting.md)), rename, code actions, and semantic tokens beyond what the
-  minimal completion/hover data already supports.
+  VS Code Tasks. Semantic tokens are **in** — [ADR 0099 § 4](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
+  owns the two-layer split and the token legend, whose `tainted`/`secret` modifiers are the point of the
+  layer rather than a detail of it. **Not yet included:** format-on-save (`mwl fmt` doesn't exist until
+  M10 — [ADR 0039](0039-canonical-code-formatting.md)), rename, and any code action beyond the two above —
+  the boundary is that M4B ships the fixes a diagnostic already computes and no others.
 - `mwl-lsp` and `editors/vscode` are **one crate/one package each across both milestones** — M10 extends
   the same crate and the same extension in place rather than standing up a second "real" implementation
   next to a throwaway M4B prototype. Building a disposable prototype and discarding it at M10 was
@@ -101,26 +116,35 @@ brace, a half-typed identifier. M4B's completion/hover cannot go dark every time
 happen on nearly every keystroke. `mwl-syntax`'s existing parser is built for whole-file compilation
 (`mwl check`/`mwl run`) and has no such mode today.
 
-The addition, modeled on rust-analyzer's `rowan`-based approach from *Context*:
+This was first specified as a second parse mode producing a `rowan`-shaped CST beside the AST, modeled on
+rust-analyzer's approach from *Context*. [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 1
+narrowed that after reading the parser: it is **already** infallible in the sense that matters — every
+`parse_*` method returns a node rather than a `Result`, a missing token is reported at the empty span
+where it should have been without consuming what follows, and `$u->` with nothing after it already parses
+to a property access whose name was synthesized at the cursor. `rowan` exists because a typed AST is
+*lossy by construction*; MWL's is not once trivia is retained beside it. So the addition is:
 
-- A **second parser entry point**, not a rewrite of the existing one: the same lexer and the same grammar
-  tables, run in a mode that never aborts on the first error. On a malformed construct it records an error
-  node in the tree, at the source-position range where the failure occurred, and resumes parsing from the
-  next syntactically recognizable point (the existing recursive-descent structure already tracks these
-  synchronization points for its normal diagnostics; the resilient mode's addition is *not stopping* there
-  instead of returning early).
-- The output is a **lossless tree** — every byte of the source, including whitespace/comments, is
-  recoverable from it — so `mwl-lsp` can map a cursor offset back to exactly the syntax node under it, even
-  inside a malformed region, without a second position-mapping mechanism.
-- `mwl check`, `mwl run`, and every other compile path are **unchanged**: they keep calling the existing
-  strict, all-or-nothing parse. The resilient mode is additive and reachable only through `mwl-lsp` (and,
-  later, `mwl fmt`/`mwl-ide`-adjacent tooling that wants the same tolerance) — one grammar, two entry
-  points, not two grammars to keep in sync.
-- **Where this lands relative to the priority ordering in [AGENTS.md](../../AGENTS.md):** this spends
-  simplicity (priority 4) — a second parser mode to build and keep in step with the grammar while M2–M4
-  still actively change it — and buys nothing on security, correctness, or the request path (priorities
-  1–3), because it is never linked into the compiled artifact `mwl run` produces; it exists only in
-  `mwl-lsp`'s process. That is a deliberate, bounded spend, not a trade against a higher priority.
+- **Trivia, from one site.** The lexer's `skip_trivia` — the single function that consumes whitespace,
+  `//`, `#` and `/* */` — records each as a `Trivia { kind, span }` instead of only advancing.
+  Concatenating tokens and trivia in offset order then reproduces the file byte-for-byte, which is the
+  losslessness `mwl fmt` needs at M10 to keep [ADR 0039](0039-canonical-code-formatting.md) § 4's promise
+  that comments survive formatting.
+- **Explicit recovery.** A node the parser synthesized says so (`MemberName::Missing`, a span on
+  `ExprKind::Error`) rather than being inferable from an empty span, because completion's whole behaviour
+  turns on telling a name the user wrote from one the parser invented at the cursor.
+- **An offset index.** One walk builds a `SyntaxIndex` answering "the innermost node at this offset, and
+  its ancestors", so `mwl-lsp` maps a cursor back to a syntax node — even inside a malformed region —
+  without a second position-mapping mechanism.
+- **One grammar and one tree.** `mwl check`, `mwl run` and every other compile path keep their behaviour
+  exactly, as that same parse followed by "refuse if anything was reported" — which is what they already
+  do. There is no second entry point to keep in step with the grammar, and `mwl fmt` reads the same tree
+  at M10.
+- **Where this lands relative to the priority ordering in [AGENTS.md](../../AGENTS.md):** it spends very
+  little simplicity — one lexer flag, two node kinds and an index — and buys nothing on security,
+  correctness or the request path (priorities 1–3), because none of it is linked into the compiled
+  artifact `mwl run` produces. What it *does* give up is `rowan`'s nearly-free incremental reparse, so
+  every analysis reparses the document; ADR 0099 § 6's latency guard is what keeps that a measured trade
+  rather than an assumption.
 
 This is scoped as a prerequisite for M4B's completion, and lands with it (not before it as separate
 milestone work, and not deferred past it — a minimal LSP without resilient parsing would ship completion
@@ -133,11 +157,16 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 
 **Available from M4B (minimal `mwl-lsp`, no further dependency):**
 
-- Syntax highlighting (TextMate baseline, semantic tokens once `mwl-lsp` responds), diagnostics, hover,
-  go-to-definition, keyword/member completion, `mwl run`/`mwl test` as Tasks, a `LanguageStatusItem`.
-- **An AST explorer panel**, backed by the CLI's existing `mwl ast` command (already shipped in M1 —
-  `crates/mwl-cli`) rather than waiting on anything: a tree view rendering `mwl ast --json`'s output for
-  the active file. This does not need `Core\Ast` ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md))
+- Syntax highlighting in both layers — TextMate baseline, then semantic tokens once `mwl-lsp` responds;
+  [ADR 0099 § 4](0099-the-resilient-tree-is-the-ast-plus-trivia.md) lists what each layer must colour and,
+  as importantly, the constructs MWL rejects that neither may colour as valid. Plus diagnostics, hover,
+  go-to-definition, keyword/member completion, document symbols, the two code actions of *Decision § 1*,
+  `mwl run`/`mwl test` as Tasks, and a `LanguageStatusItem`.
+- **An AST explorer panel**, backed by `mwl ast` in `crates/mwl-cli` — which ships the `--json` flag and a
+  frozen schema for it **at M4B**, since M1 shipped only the command and its `{stmts:#?}` debug output,
+  which has no stability contract ([ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7). A
+  tree view renders that output for the active file, resilient tree by default so the panel works on a
+  file that does not compile. This does not need `Core\Ast` ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md))
   at all — that's the *language-level* reflective parse a running MWL program calls; the *editor* panel is
   simpler and can shell out to the CLI the same way `mwl check` already backs diagnostics.
 
@@ -218,16 +247,21 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   open speedscope format for profiling, means MWL avoids building and maintaining four different pieces of
   UI infrastructure that already exist and are already maintained elsewhere — a direct instance of
   [AGENTS.md](../../AGENTS.md)'s simplicity priority.
-- The resilient parse mode in *Decision § 2* is additive to `mwl-syntax`, never touches the compiled
-  artifact's code path, and is exactly the design (`rowan`-style lossless CST) an existing, heavily-used
-  language tool (rust-analyzer) already validated at scale for the identical problem.
+- The resilient parse of *Decision § 2* is additive to `mwl-syntax` and never touches the compiled
+  artifact's code path. It reaches the same properties an existing, heavily-used language tool
+  (rust-analyzer's `rowan`) validated at scale for the identical problem — always a tree, every byte
+  recoverable, an offset maps to a node — without a second tree, because this parser was already
+  infallible.
 
 **Negative**
 
-- `mwl-syntax` now carries two parser entry points sharing one grammar, and the resilient one has to be
-  kept in step with every M2–M4 grammar change while the front end is still under active development —
-  real, ongoing maintenance cost, not a one-time addition. This is the cost named in *Decision § 2*'s
-  priority-ordering paragraph.
+- **Every analysis reparses the whole document.** This is what *Decision § 2* gave up by not adopting
+  `rowan`, whose red/green design makes incremental reparse nearly free, and ADR 0099 § 6's latency guard
+  is the only thing standing between it and a slow editor on a large file. If that guard ever fails, the
+  answer is real incremental work at M10 — item-level caching over the offset index first — and not a
+  smaller number in the test. What is *not* a cost any more, and was in this ADR's first draft: there is
+  no second parser entry point to keep in step with every M2–M4 grammar change, because there is only one
+  grammar and one tree.
 - M4B is new scope inserted into the plan, not free: a minimal `mwl-lsp` and `editors/vscode` have to be
   built, tested and kept working through M5–M9 even though nothing in those milestones depends on them —
   the same "keep it running" burden any early-shipped surface carries.
@@ -268,20 +302,28 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 - **A live, `Core\Reflect`-backed debug-time object inspector**, and **a request-tree visualization for
   `spawn`/isolates during a debug session** — both named in *Decision § 3*'s uncommitted list, pending the
   stdlib/DAP prerequisites they need and, for the request tree, a DAP protocol-extension design.
-- **Whether M4B's minimal `mwl-lsp` should also carry one or two cheap code actions early** (e.g., the
-  casing quick fix, since the diagnostic already exists in M2) if they turn out to be low-cost — left open
-  rather than decided now, so M4B doesn't scope-creep back toward M10's catalog.
-- **Whether the resilient parse mode's error-node recovery quality needs its own fuzz target** (feeding
-  deliberately-truncated/mid-edit inputs, distinct from the existing `parse` fuzz target's whole-file
-  inputs) — worth deciding once M4B's implementation starts, not before.
+- ~~**Whether M4B's minimal `mwl-lsp` should also carry one or two cheap code actions early.**~~
+  **Closed** by [ADR 0099 § 3](0099-the-resilient-tree-is-the-ast-plus-trivia.md): exactly two — casing
+  and `(int)$x` → `$x as int` — and the boundary that stops it creeping back toward M10's catalog is not
+  a judgement about cost but a fact about the code, namely that a M4B code action exists only where the
+  `Diagnostic` already carries the replacement text.
+- ~~**Whether the resilient parse mode's error-node recovery quality needs its own fuzz target.**~~
+  **Closed** by [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) *Verification*: it does,
+  and it is separate from the existing whole-file `parse` target because a truncated input is a different
+  shape of input. Beside it, and running where the fuzzer does not, is an in-tree sweep over every prefix
+  of every `examples/*.mwl` at a token boundary.
 
 Verification, in the order it becomes possible:
 
-- **M4B:** the VS Code extension activates on `.mwl`, shows TextMate colour immediately and semantic-token
-  colour once `mwl-lsp` responds; diagnostics/hover/go-to-definition/keyword-and-member-completion round
-  trip through `mwl-lsp`; the AST panel renders `mwl ast --json`'s tree for the active file; typing an
-  incomplete statement (unclosed brace, trailing `->`) does not stop completion from working on the
-  well-formed code around it — the resilient-parse mode's core claim, tested directly.
+- **M4B:** the VS Code extension activates on `.mwl` — and not on `.php` — shows TextMate colour
+  immediately and semantic-token colour once `mwl-lsp` responds; all six requests of *Decision § 1* and
+  both code actions round-trip through `mwl-lsp`; the AST panel renders `mwl ast --json`'s tree for the
+  active file, including while that file does not compile; typing an incomplete statement (unclosed brace,
+  trailing `->`) does not stop completion from working on the well-formed code around it — the resilient
+  parse's core claim, tested directly. [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
+  *Verification* is the full list, including the losslessness property, the prefix sweep, the grammar
+  snapshot and the latency bound; each of those is what makes one of the claims above checkable by exit
+  code rather than by looking at an editor.
 - **M10:** every inspection/quick-fix/refactoring in *Decision § 3* round-trips as an LSP code action or
   rename request with no logic duplicated into the extension; format-on-save matches `mwl fmt --check`
   byte-for-byte; the Test Explorer runs `.mwlt` cases and shows coverage sourced from the Clover/lcov

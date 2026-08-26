@@ -261,3 +261,7 @@ spellings rejected, and the reasoning.
   the nested call produces, and it is not PHP 8.5's callable-applying `|>`**
   ([0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md)); scalars still gain no methods
   ([0063](0063-core-api-conventions.md) R19).
+- **One grammar and one tree: the resilient parse is the AST plus a trivia layer and an offset index,
+  `mwl-lsp` is synchronous on `lsp-server`/`lsp-types` so no async runtime enters the workspace, an LSP
+  answer is frozen as a `.lspt` case, and syntax highlighting is two layers with two tests**
+  ([0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
