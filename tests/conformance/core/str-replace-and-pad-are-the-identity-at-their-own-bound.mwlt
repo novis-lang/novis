@@ -1,0 +1,51 @@
+--TEST--
+Spec § 1: `Core\Str::replace` and the two pad members each have a bound at which they do nothing, asserted there and at the first input past it
+--FILE--
+<?mwl
+// `replace`'s `{limit}` counts occurrences, and `0` means exactly what it says
+// — replace nothing — because a sentinel `0` for "no limit" would have been a
+// magic value. So the bound is the occurrence count: 3 `a`s in `banana`, and a
+// limit at or past 3 is the whole substitution.
+echo "[", Core\Str::replace("banana", "a", "-", {limit: 0}), "]\n";
+echo "[", Core\Str::replace("banana", "a", "-", {limit: 3}), "]\n";
+echo "[", Core\Str::replace("banana", "a", "-", {limit: 4}), "]\n";
+
+// An empty search is the other input that replaces nothing: not the
+// replacement inserted between every character, and not a loop that never
+// ends. PHP returns the subject unchanged too.
+echo "[", Core\Str::replace("banana", "", "-"), "]\n";
+
+// A pad's bound is the width the subject already has: at it and below it the
+// subject comes back untouched, and the first width above it is one piece of
+// padding. Neither member ever truncates, which is what makes the bound
+// one-sided in effect and two-sided in the argument.
+echo "[", Core\Str::padStart("abc", 2, "-"), "][", Core\Str::padStart("abc", 3, "-"), "][", Core\Str::padStart("abc", 4, "-"), "]\n";
+echo "[", Core\Str::padEnd("abc", 2, "-"), "][", Core\Str::padEnd("abc", 3, "-"), "][", Core\Str::padEnd("abc", 4, "-"), "]\n";
+
+// Empty padding is refused only where it would have to be *used*: a subject
+// already at the width never reaches the padding at all, and the width one
+// past it is the first that throws.
+echo "[", Core\Str::padStart("abc", 3, ""), "]\n";
+try {
+    echo Core\Str::padStart("abc", 4, ""), "\n";
+} catch (RuntimeError $unusable) {
+    echo $unusable->message, "\n";
+}
+
+// The width is counted in ADR 0009 § 2's unit, like every other length in this
+// class, so `cafe` + a combining acute is four wide and not five: padding it
+// to four is the identity and to five adds exactly one piece. A byte-counted
+// pad would have called it five already and added nothing.
+echo Core\Str::length("cafe\u{301}") as string, "|",
+     Core\Str::length(Core\Str::padStart("cafe\u{301}", 4, "-")) as string, "|",
+     Core\Str::length(Core\Str::padStart("cafe\u{301}", 5, "-")) as string, "\n";
+--EXPECT--
+[banana]
+[b-n-n-]
+[b-n-n-]
+[banana]
+[abc][abc][-abc]
+[abc][abc][abc-]
+[abc]
+Core\Str::padStart(): the padding is empty, so it can never reach the requested length
+4|4|5

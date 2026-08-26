@@ -2044,7 +2044,7 @@ fn padding_run(
     }
     if padding.is_empty() {
         return Err(Fault::thrown(format!(
-            "{member}: the padding is empty, so it can never reach the requested length"
+            "{member}(): the padding is empty, so it can never reach the requested length"
         )));
     }
     // The run is `length - have` pieces, each at most the whole padding, so

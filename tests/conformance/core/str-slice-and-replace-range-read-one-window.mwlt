@@ -1,0 +1,55 @@
+--TEST--
+Spec § 1: `Core\Str::slice` and `::replaceRange` read one window, so substituting a window with its own content is the identity for every sign of every argument
+--FILE--
+<?mwl
+// Both members read their `$offset` and `?int $length` through one shared
+// reading of ADR 0063 R8's sign rule, and the whole point of sharing it is
+// this invariant: `replaceRange` puts back exactly what `slice` takes out.
+// PHP's own `substr`/`substr_replace` pair does not manage it, because the
+// two clamp a backwards window differently.
+//
+// The sweep is every sign and both edges of each argument against a
+// six-character subject: offsets from two before the start to two past the
+// end, lengths from longer-than-the-subject backwards to longer forwards.
+string $subject = "abcdef";
+array<int> $offsets = [-8, -6, -3, 0, 3, 5, 6, 8];
+array<int> $lengths = [-8, -6, -3, -1, 0, 1, 3, 6, 8];
+int $tried = 0;
+int $restored = 0;
+foreach ($offsets as int $o) {
+    foreach ($lengths as int $n) {
+        $tried = $tried + 1;
+        if (Core\Str::replaceRange($subject, $o, $n, Core\Str::slice($subject, $o, $n)) == $subject) {
+            $restored = $restored + 1;
+        }
+    }
+}
+echo $tried as string, "|", $restored as string, "|\n";
+
+// The offset's own two edges: the last character, and the first offset with
+// nothing left to take. A negative offset one before the start clamps there
+// rather than wrapping, so it and `-length` are the same window.
+echo "[", Core\Str::slice($subject, 5), "][", Core\Str::slice($subject, 6), "]\n";
+echo "[", Core\Str::slice($subject, -6), "][", Core\Str::slice($subject, -7), "]\n";
+
+// The length's: exactly the rest of the subject, and one past it.
+echo "[", Core\Str::slice($subject, 0, 6), "][", Core\Str::slice($subject, 0, 7), "]\n";
+
+// A window that is empty — a zero length, or a negative one reaching back
+// past its own offset — is `""` to `slice` and a pure insertion to
+// `replaceRange`, which is the one place the two members read differently
+// *because* they agree on the window.
+echo "[", Core\Str::slice($subject, 2, 0), "][", Core\Str::replaceRange($subject, 2, 0, "-"), "]\n";
+echo "[", Core\Str::slice($subject, 3, -3), "][", Core\Str::replaceRange($subject, 3, -3, "-"), "]\n";
+
+// So an insertion at either end is an empty window at that end, and neither
+// offset is out of range.
+echo "[", Core\Str::replaceRange($subject, 6, 0, "-"), "][", Core\Str::replaceRange($subject, -6, 0, "-"), "]\n";
+--EXPECT--
+72|72|
+[f][]
+[abcdef][abcdef]
+[abcdef][abcdef]
+[][ab-cdef]
+[][abc-def]
+[abcdef-][-abcdef]

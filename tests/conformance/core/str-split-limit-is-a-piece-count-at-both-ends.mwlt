@@ -1,0 +1,53 @@
+--TEST--
+Spec § 1: `Core\Str::split`'s `{limit}` is a piece count asserted at both ends — the exact count, one past it, and the negative that drops every piece
+--FILE--
+<?mwl
+// Four pieces, so the limit's own boundary is 4: one below caps and leaves the
+// tail unsplit, exactly 4 is the whole split, and one past it can do no more.
+string $csv = "a,b,c,d";
+echo "[", Core\Str::join(Core\Str::split($csv, ",", {limit: 3}), "|"), "]\n";
+echo "[", Core\Str::join(Core\Str::split($csv, ",", {limit: 4}), "|"), "]\n";
+echo "[", Core\Str::join(Core\Str::split($csv, ",", {limit: 5}), "|"), "]\n";
+
+// A limit of `0` is **one** piece, not none: PHP's own reading, kept so that a
+// computed limit behaves the same here as it does there. It is therefore the
+// same answer as `1`, and the positive side has no spelling for "nothing".
+echo "[", Core\Str::join(Core\Str::split($csv, ",", {limit: 0}), "|"), "]\n";
+
+// A negative limit drops that many pieces from the end, so its boundary is the
+// same 4 read from the other side: one below leaves a single piece, exactly 4
+// leaves none, and one past it cannot drop more than there were.
+array<string> $dropThree = Core\Str::split($csv, ",", {limit: -3});
+array<string> $dropFour = Core\Str::split($csv, ",", {limit: -4});
+array<string> $dropFive = Core\Str::split($csv, ",", {limit: -5});
+echo "[", Core\Str::join($dropThree, "|"), "]", Core\Arr::count($dropThree) as string, "\n";
+echo "[", Core\Str::join($dropFour, "|"), "]", Core\Arr::count($dropFour) as string, "\n";
+echo "[", Core\Str::join($dropFive, "|"), "]", Core\Arr::count($dropFive) as string, "\n";
+
+// With no separator to find there is one piece, and an empty subject is one
+// empty piece — the region between no separators. `chunk` answers `[]` for the
+// same subject because it asks a different question.
+array<string> $none = Core\Str::split("abc", ",");
+array<string> $blank = Core\Str::split("", ",");
+echo "[", Core\Str::join($none, "|"), "]", Core\Arr::count($none) as string, "\n";
+echo "[", Core\Str::join($blank, "|"), "]", Core\Arr::count($blank) as string, "\n";
+
+// An empty separator has no piece boundary to answer with, so it throws rather
+// than returning the subject unsplit — which would hide a computed separator
+// that came out empty by mistake. PHP's `explode` refuses it too.
+try {
+    echo Core\Str::join(Core\Str::split($csv, ""), "|"), "\n";
+} catch (RuntimeError $blankSeparator) {
+    echo $blankSeparator->message, "\n";
+}
+--EXPECT--
+[a|b|c,d]
+[a|b|c|d]
+[a|b|c|d]
+[a,b,c,d]
+[a]1
+[]0
+[]0
+[abc]1
+[]1
+Core\Str::split(): the separator must not be empty
