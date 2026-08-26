@@ -117,6 +117,43 @@ bitflags::bitflags! {
     }
 }
 
+/// The `Core` class a captured terminal sink hands its bytes back as —
+/// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// § 3's default row, and § 5's carrier.
+///
+/// Named here rather than in `mwl-stdlib`, where the class itself is declared,
+/// because the *sink* is what decides the carrier and the sink lives in this
+/// crate. `mwl_stdlib::cli::TEXT` takes its `name` from this constant, so the
+/// class a program writes and the class [`crate::value_to_string`] renders
+/// cannot drift apart.
+pub const CARRIER_CLI_TEXT: &str = r"Core\Cli\Text";
+
+/// The carrier of the **HTML** sink — ADR 0088 § 3's HTTP-request row.
+///
+/// Declared beside [`CARRIER_CLI_TEXT`] and unreachable until M8 attaches that
+/// sink: no [`OutputSink`] variant selects it yet. It is here so the pair is
+/// one fact in one file, and so [`crate::value_to_string`]'s carrier row is
+/// written against the *set* of carriers rather than against the one that
+/// happens to exist.
+pub const CARRIER_HTML_MARKUP: &str = r"Core\Html\Markup";
+
+/// The field slot every sink carrier holds its already-escaped bytes in.
+///
+/// Both carriers declare exactly one slot and this is it, so
+/// [`crate::value_to_string`] can render either without asking `mwl-stdlib`
+/// anything — which it could not do anyway, the dependency running
+/// `mwl-stdlib` → `mwl-runtime` and not back. `mwl_stdlib::cli`'s
+/// `the_carrier_slot_matches_the_registered_layout` is the check that the
+/// class's own registered layout agrees with this number.
+pub const CARRIER_TEXT_SLOT: usize = 0;
+
+/// Whether `name` is a sink carrier — [`CARRIER_CLI_TEXT`] or
+/// [`CARRIER_HTML_MARKUP`].
+#[must_use]
+pub fn is_carrier(name: &str) -> bool {
+    name == CARRIER_CLI_TEXT || name == CARRIER_HTML_MARKUP
+}
+
 /// Where a request's `echo` output goes.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -157,6 +194,25 @@ pub struct Ctx {
     pending: Option<Pending>,
     /// Where `echo` writes.
     output: OutputSink,
+    /// `Core\Out::capture`'s buffers, innermost last —
+    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// § 5.
+    ///
+    /// A **stack**, because a capture is scoped to a closure and therefore
+    /// nests by call nesting; PHP's global `ob_*` stack, which can be started
+    /// in one function and ended in another, is exactly what
+    /// `docs/spec/01-core-library.md` § 12 removed. While it is non-empty
+    /// [`Self::write_output`] appends to its last entry and the sink below
+    /// sees nothing, which is that section's "`capture` always swallows".
+    ///
+    /// **What it spends:** nothing until a capture begins — an empty `Vec` is
+    /// three words in the [`Ctx`] and no allocation — then one buffer per
+    /// nesting level, holding what that level has captured, charged to the
+    /// request and freed when the level ends. The cost on the `echo` path is
+    /// one predictable not-taken branch, which is the priority-3 price of not
+    /// giving [`OutputSink`] a fourth variant that every other writer would
+    /// have to match on.
+    captures: Vec<Vec<u8>>,
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's statement-boundary hit counters, indexed by `mwl_ir::StmtId`.
     ///
@@ -424,6 +480,7 @@ impl Ctx {
             pending: None,
             runtime_error_class: None,
             output,
+            captures: Vec::new(),
             stmt_hits: Vec::new(),
             trace: Vec::new(),
             fault: None,
@@ -719,6 +776,12 @@ impl Ctx {
     /// Whatever the sink returns. [`OutputSink::Buffer`] and
     /// [`OutputSink::Sink`] never fail.
     pub fn write_output(&mut self, bytes: &[u8]) -> io::Result<()> {
+        // ADR 0088 § 5: while a `Core\Out::capture` is in force, the innermost
+        // one takes the bytes and the sink below sees nothing.
+        if let Some(capture) = self.captures.last_mut() {
+            capture.extend_from_slice(bytes);
+            return Ok(());
+        }
         match &mut self.output {
             OutputSink::Stdout => io::stdout().write_all(bytes),
             OutputSink::Buffer(buffer) => {
@@ -743,6 +806,45 @@ impl Ctx {
             OutputSink::Stdout => io::stdout().flush(),
             OutputSink::Buffer(_) | OutputSink::Sink => Ok(()),
         }
+    }
+
+    /// The `Core` class this request's sink hands captured bytes back as —
+    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// § 3's table, read as a class name.
+    ///
+    /// [`CARRIER_CLI_TEXT`] for every sink that exists today, because every
+    /// one of them is a terminal or a stand-in for one: `mwl run`'s stdout, a
+    /// test's buffer, a discarded run. [`CARRIER_HTML_MARKUP`] arrives with
+    /// M8's HTTP request, which is the only context that attaches the HTML
+    /// sink, and it is a new [`OutputSink`] variant plus one arm here rather
+    /// than a rule any call site states.
+    #[must_use]
+    pub fn carrier(&self) -> &'static str {
+        match &self.output {
+            OutputSink::Stdout | OutputSink::Buffer(_) | OutputSink::Sink => CARRIER_CLI_TEXT,
+        }
+    }
+
+    /// Opens a capture level: from here until the matching [`Self::end_capture`],
+    /// everything written to this request's output is buffered instead.
+    pub fn begin_capture(&mut self) {
+        self.captures.push(Vec::new());
+    }
+
+    /// Closes the innermost capture level and answers what it captured, or
+    /// `None` when none was open.
+    ///
+    /// A caller that opened one **must** close it on every edge, the throwing
+    /// one included — `mwl_stdlib::out` is the only such caller, and it does.
+    pub fn end_capture(&mut self) -> Option<Vec<u8>> {
+        self.captures.pop()
+    }
+
+    /// How many captures are open — a test's window onto the invariant that
+    /// [`Self::begin_capture`] and [`Self::end_capture`] pair on every edge.
+    #[must_use]
+    pub fn capture_depth(&self) -> usize {
+        self.captures.len()
     }
 
     /// Takes everything written so far, if this context buffers its output.
@@ -995,6 +1097,62 @@ pub unsafe extern "C" fn mwl_probe_call_exit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ADR 0088 § 5's "always swallows": while a capture is open the sink below
+    /// it sees nothing at all, and it sees everything again once it closes.
+    #[test]
+    fn a_capture_takes_the_output_and_the_sink_below_sees_none_of_it() {
+        let mut ctx = Ctx::buffered();
+        ctx.write_output(b"before").unwrap();
+        ctx.begin_capture();
+        ctx.write_output(b"inside").unwrap();
+        assert_eq!(ctx.end_capture().as_deref(), Some(&b"inside"[..]));
+        ctx.write_output(b"after").unwrap();
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(&b"beforeafter"[..])
+        );
+    }
+
+    /// A capture is scoped to a closure, so captures nest by call nesting: the
+    /// innermost one takes the bytes, and what it re-emits afterwards lands in
+    /// the one outside it.
+    #[test]
+    fn captures_nest_innermost_first() {
+        let mut ctx = Ctx::buffered();
+        ctx.begin_capture();
+        ctx.write_output(b"outer<").unwrap();
+        ctx.begin_capture();
+        ctx.write_output(b"inner").unwrap();
+        let inner = ctx.end_capture().expect("the inner capture was open");
+        assert_eq!(inner, b"inner");
+        assert_eq!(ctx.capture_depth(), 1);
+        ctx.write_output(&inner).unwrap();
+        ctx.write_output(b">").unwrap();
+        assert_eq!(ctx.end_capture().as_deref(), Some(&b"outer<inner>"[..]));
+        assert_eq!(ctx.capture_depth(), 0);
+        assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b""[..]));
+    }
+
+    /// Closing a capture nobody opened answers `None` rather than corrupting
+    /// the stack — the shape a helper's error edge relies on.
+    #[test]
+    fn ending_a_capture_that_was_never_begun_answers_nothing() {
+        let mut ctx = Ctx::buffered();
+        assert!(ctx.end_capture().is_none());
+        assert_eq!(ctx.capture_depth(), 0);
+    }
+
+    /// Every sink that exists today is a terminal or a stand-in for one, so
+    /// each names the same carrier — ADR 0088 § 3's default row.
+    #[test]
+    fn every_sink_today_carries_cli_text() {
+        assert_eq!(Ctx::stdout().carrier(), CARRIER_CLI_TEXT);
+        assert_eq!(Ctx::buffered().carrier(), CARRIER_CLI_TEXT);
+        assert_eq!(Ctx::new(OutputSink::Sink).carrier(), CARRIER_CLI_TEXT);
+        assert!(is_carrier(CARRIER_CLI_TEXT) && is_carrier(CARRIER_HTML_MARKUP));
+        assert!(!is_carrier(r"Core\Str"));
+    }
 
     #[test]
     fn the_hot_words_come_first_and_are_a_word_apart() {

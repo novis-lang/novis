@@ -453,13 +453,29 @@ impl<'a> Lowering<'a> {
             // read — the same answer every scalar row above gives.
             Ty::Object => match self.lower_to_string_call(expr, v, env, *cur) {
                 Some(s) => (s, false),
-                None => panic!(
-                    "mwl-ir stringifies an object operand through the `toString` \
-                     `mwl_types::expr::operators::require_stringable` resolved for it, and none \
-                     was recorded at this span — a value typed at `Stringable` itself, or a \
-                     `Core`-owned class, are the two shapes still outside it; see the crate \
-                     docs' known gaps"
-                ),
+                // No resolved `toString`: a value typed at `Stringable` itself,
+                // or a `Core`-owned class, which is where ADR 0088 § 5's sink
+                // carrier arrives. Both are decided by the value's *runtime*
+                // class rather than its static one, so this is the same
+                // tag-dispatched conversion a `Ty::Tagged` operand takes —
+                // `mwl_runtime::value_to_string` renders a carrier and throws
+                // on every other object, which is a diagnosable program rather
+                // than the compiler panic that used to be here.
+                None => {
+                    let (sv, _) = self.emit_fallible(
+                        *cur,
+                        Ty::Str,
+                        InstKind::HelperCall {
+                            helper: Helper::TaggedToString,
+                            args: vec![v],
+                        },
+                        env,
+                    );
+                    if !self.aliasing_read(expr) {
+                        self.emit_release(*cur, v);
+                    }
+                    (sv, false)
+                }
             },
             other => panic!(
                 "mwl-ir converts a scalar, an object or a `Ty::Tagged` operand to `string` for \

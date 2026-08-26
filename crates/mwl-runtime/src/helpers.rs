@@ -548,7 +548,9 @@ crate::mwl_helper! {
 /// today for a narrower reason — ADR 0028 makes `Stringable` the one way an
 /// object renders, and that interface still carries no member signature for a
 /// dispatch to reach, so an object arriving here is a program the checker let
-/// through on a union it could not narrow.
+/// through on a union it could not narrow. The one exception is a **sink
+/// carrier**, which renders as the bytes it carries; the row itself says why
+/// that is not `Stringable` in disguise.
 ///
 /// A `Tag::Str` operand is returned as itself with one **fresh** reference, so
 /// the caller owns the result exactly as it owns a converted one; every other
@@ -604,7 +606,47 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
         // letting an implicit `.` or `echo` do it silently would be exactly
         // the substitution that ADR exists to remove.
         Some(Tag::Bytes) => Err(refused("a `bytes` value")),
-        Some(Tag::Object) => Err(refused("an object")),
+        // ADR 0088 § 5's carrier is the one object that renders, and it renders
+        // as exactly the bytes it carries: they have *already* been through the
+        // sink, so anything else here would put them through it twice. This is
+        // not ADR 0028's `Stringable` and does not re-open it — a carrier is
+        // the sink's own value type, `crate::ctx::is_carrier` is the whole
+        // roster, and every other object still fails below.
+        Some(Tag::Object) => {
+            let ptr = value.obj_ptr().ok_or_else(|| refused("this value"))?;
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Object value's payload is a live allocation the \
+                          caller owns a reference to, so its class and its first \
+                          slot are readable for the length of this call"
+            )]
+            let carried = unsafe {
+                let name = (*crate::object::MwlObj::class_of(ptr)).name();
+                if crate::ctx::is_carrier(name) {
+                    Some(crate::object::mwl_object_field_get(
+                        ptr,
+                        crate::ctx::CARRIER_TEXT_SLOT,
+                    ))
+                } else {
+                    None
+                }
+            };
+            let Some(carried) = carried else {
+                return Err(refused("an object"));
+            };
+            let text = carried
+                .str_ptr()
+                .ok_or_else(|| Fault::fatal("a sink carrier holds no `string` in its text slot"))?;
+            #[expect(
+                unsafe_code,
+                reason = "the carrier's slot owns the reference this borrowed read \
+                          returned, so the caller needs one of its own"
+            )]
+            unsafe {
+                crate::string::mwl_str_retain(text);
+            }
+            Ok(carried)
+        }
         Some(Tag::Closure) => Err(refused("a closure")),
         Some(Tag::Resource) => Err(refused("a resource")),
     }

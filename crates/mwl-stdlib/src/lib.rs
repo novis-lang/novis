@@ -196,6 +196,7 @@
 pub mod arr;
 mod bytes;
 mod cldr;
+mod cli;
 mod csv;
 mod cursor;
 mod encoding;
@@ -211,6 +212,7 @@ pub mod math;
 mod objmap;
 mod objset;
 mod ordering;
+mod out;
 pub mod path;
 pub mod random;
 pub mod regex;
@@ -284,6 +286,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| math::address(symbol))
         .or_else(|| objmap::address(symbol))
         .or_else(|| objset::address(symbol))
+        .or_else(|| out::address(symbol))
         .or_else(|| path::address(symbol))
         .or_else(|| random::address(symbol))
         .or_else(|| regex::address(symbol))

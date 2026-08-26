@@ -734,6 +734,11 @@ pub const CLASSES: &[CoreClass] = &[
     crate::uri::CLASS,
     crate::csv::CLASS,
     crate::validate::CLASS,
+    crate::out::CLASS,
+    // § 13, and here only because § 12's `Core\Out::capture` answers with it —
+    // ADR 0088 § 5. [`crate::cli`]'s module docs own why the rest of
+    // `Core\Cli` is not here.
+    crate::cli::TEXT,
 ];
 
 /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
@@ -1921,13 +1926,16 @@ mod tests {
     /// member on a class with no slots would be a method with no receiver state
     /// — either is a half-written class rather than a design.
     ///
-    /// The one exception is a **handle**: a class whose slots another class's
-    /// members read, and which the spec writes no member *on*. Its state is
-    /// reachable, just not through itself, so it is listed here by name rather
-    /// than given a member the spec does not write.
+    /// The one exception is a **handle**: a class whose slots something other
+    /// than its own members read, and which the spec writes no member *on*.
+    /// Its state is reachable, just not through itself, so it is listed here
+    /// by name rather than given a member the spec does not write. Two are:
+    /// `Core\Regex\Pattern`, read by `Core\Regex`'s members, and
+    /// `Core\Cli\Text`, whose one slot `mwl_runtime::value_to_string` reads
+    /// when `echo` writes a captured carrier out ([`crate::cli`]).
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
-        const HANDLES: &[&str] = &[r"Core\Regex\Pattern"];
+        const HANDLES: &[&str] = &[r"Core\Regex\Pattern", mwl_runtime::CARRIER_CLI_TEXT];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {
                 assert!(
