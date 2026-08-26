@@ -15,27 +15,31 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 462 of 600 and differential 90 of 150, and nothing below them
-> is red. **The depth pass is section by section**, and thirteen have taken their turn — `encoding`,
+> Stage 4's two counts**, conformance 468 of 600 and differential 90 of 150, and nothing below them
+> is red. **The depth pass is section by section**, and fifteen have taken their turn — `encoding`,
 > `hash`, `csv`, `validate`, `out`, `heap`, `uuid`, `path`, `json`, `random`, `bytes`, § 9's two
-> collections and `regex` — each case's own `--TEST--` line stating what it pins. `Core\Hash` is
-> pinned against the documents that publish its vectors (FIPS 180-4, RFC 1321, RFC 4231), with
-> `Hash\Stream` pinned by *invariance* rather than by a vector; `Core\Uuid` by invariance over a
-> sweep of draws; `Core\Path` and `Core\Json` by the properties their sections are written around —
-> a re-render that only ever appends, and an encode that is decode's inverse — plus each section's
-> bound asserted on both sides; `Core\ObjectMap`/`ObjectSet` by ADR 0090 § 3's identity table read
-> one row per representation, and by the two lists staying paired through a sweep of writes; and
-> `Core\Regex` by its replacement grammar's accepted and rejected spellings and by `split`'s `limit`
-> at both ends of its range. The goal is unchanged: **M4S Part I in full plus the M4 surface it
-> cannot be written without**. Every representation that blocked a section is built and recorded in
-> the crate that owns it — `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict identity is
-> `mwl_runtime::identity`, `decimal` is `mwl_runtime::decimal`, a `Core`-owned instance is an
-> ordinary MWL object (`mwl_stdlib::instance`), a variadic tail is one `array<T>` argument, and a
-> sink's carrier is a `Core` instance whose one slot `mwl_runtime::value_to_string` renders (ADR
-> 0088 § 5). **Every M4 control-flow statement lowers but `do`/`while`**, and ADR 0070's duration
-> literal lexes, types and runs. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the one
-> predicate, `E0008` at the lexer, and a substitution at both sinks at M7/M8. **ADR 0090 §§ 1 and 2
-> are built**: `==`/`!=` are the only equality spellings, `===`/`!==` are `E0232`, and two
+> collections, `regex`, `math` and `uri` — each case's own `--TEST--` line stating what it pins.
+> `Core\Hash` is pinned against the documents that publish its vectors (FIPS 180-4, RFC 1321, RFC
+> 4231), with `Hash\Stream` pinned by *invariance* rather than by a vector; `Core\Uuid` by
+> invariance over a sweep of draws; `Core\Path` and `Core\Json` by the properties their sections are
+> written around — a re-render that only ever appends, and an encode that is decode's inverse — plus
+> each section's bound asserted on both sides; `Core\ObjectMap`/`ObjectSet` by ADR 0090 § 3's
+> identity table read one row per representation, and by the two lists staying paired through a
+> sweep of writes; `Core\Regex` by its replacement grammar's accepted and rejected spellings and by
+> `split`'s `limit` at both ends of its range; `Core\Math` by the bound each member is written
+> around, the exact tie being the only input its six `RoundMode`s answer differently; and `Core\Uri`
+> by RFC 3986 § 5.4.2's abnormal table run verbatim against the RFC's own base, by `parseQuery`
+> keeping a name it cannot read rather than repairing it, and by `with` refusing a component that
+> does not survive its own recomposition. The goal is unchanged: **M4S Part I in full plus the M4
+> surface it cannot be written without**. Every representation that blocked a section is built and
+> recorded in the crate that owns it — `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict
+> identity is `mwl_runtime::identity`, `decimal` is `mwl_runtime::decimal`, a `Core`-owned instance
+> is an ordinary MWL object (`mwl_stdlib::instance`), a variadic tail is one `array<T>` argument,
+> and a sink's carrier is a `Core` instance whose one slot `mwl_runtime::value_to_string` renders
+> (ADR 0088 § 5). **Every M4 control-flow statement lowers but `do`/`while`**, and ADR 0070's
+> duration literal lexes, types and runs. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is
+> the one predicate, `E0008` at the lexer, and a substitution at both sinks at M7/M8. **ADR 0090 §§
+> 1 and 2 are built**: `==`/`!=` are the only equality spellings, `===`/`!==` are `E0232`, and two
 > statically disjoint operands are `E0466`; § 3's string, array and object rows are one runtime
 > helper each and still owed. **ADR 0069's `+`/`+=` refusal is built**, `E0467` naming
 > `Core\Arr::underlay`. **ADR 0071's first compiler-recognized attribute is built** —
@@ -70,7 +74,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 462 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 468 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -113,56 +117,67 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 4's own two counts are the frontier: conformance is 462 of the 600 that gate
+> **Open now:** **Stage 4's own two counts are the frontier: conformance is 468 of the 600 that gate
 > requires and differential is 90 of 150.** Both of Stage 4's named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) exist
 > and pass, so the gap is behavioural *depth* per member rather than an unregistered member or an
 > uncovered one — every registered member has at least one case. **The depth pass runs a section at
 > a time, weakest first**, and what a pass adds is the *boundary or the invariant* the member is
-> written around, never another row of the same shape. Twelve sections have had theirs — `hash`,
-> `csv`, `validate`, `out`, `heap`, `uuid`, `path`, `json`, `random`, `bytes`, § 9's two collections
-> and `regex` — and each case's own `--TEST--` line states what it pins, so it is not restated here.
-> **Three shapes are established for the rest of the pass to reuse**: a section's *edges*
-> (`Core\Heap`'s empty read throwing under each member's own name; every `ObjectMap`/`ObjectSet`
-> member answering over an empty receiver, with the empty set asserted as `union`'s identity and
-> `intersect`'s annihilator from both sides); *invariance over a sweep* (`Core\Uuid`'s 48 draws;
-> `Core\Path`'s normal form, re-render and empty-segment neutrality over one table of twelve paths;
-> `Core\Json`'s decode-then-encode identity over twelve canonical documents, with `isValid` swept
-> beside `decode` so only their agreement is counted; `Core\Random`'s 200 die draws, where the
-> extremes of the sweep are the closed bounds themselves and `shuffle` is asserted to be a
-> permutation of a subject carrying duplicates rather than a fresh draw over its element set; and §
-> 9's twelve-tag sweep of scattered removals, whose invariant is *counted* rather than read off a
-> line — a tag is in the set exactly when it was not dropped, and the swept set is proved equal to
-> the directly-built one with `diff` in both directions, since `==` on two collections is identity);
+> written around, never another row of the same shape. Fourteen sections have had theirs — `hash`,
+> `csv`, `validate`, `out`, `heap`, `uuid`, `path`, `json`, `random`, `bytes`, § 9's two
+> collections, `regex`, `math` and `uri` — and each case's own `--TEST--` line states what it pins,
+> so it is not restated here. **Three shapes are established for the rest of the pass to reuse**: a
+> section's *edges* (`Core\Heap`'s empty read throwing under each member's own name; every
+> `ObjectMap`/`ObjectSet` member answering over an empty receiver, with the empty set asserted as
+> `union`'s identity and `intersect`'s annihilator from both sides; and `Core\Uri::parseQuery`'s
+> answer for a name it cannot read, which is the whole name as one literal key rather than PHP's
+> repaired one); *invariance over a sweep* (`Core\Uuid`'s 48 draws; `Core\Path`'s normal form,
+> re-render and empty-segment neutrality over one table of twelve paths; `Core\Json`'s
+> decode-then-encode identity over twelve canonical documents, with `isValid` swept beside `decode`
+> so only their agreement is counted; `Core\Random`'s 200 die draws, where the extremes of the sweep
+> are the closed bounds themselves and `shuffle` is asserted to be a permutation of a subject
+> carrying duplicates rather than a fresh draw over its element set; § 9's twelve-tag sweep of
+> scattered removals, whose invariant is *counted* rather than read off a line — a tag is in the set
+> exactly when it was not dropped, and the swept set is proved equal to the directly-built one with
+> `diff` in both directions, since `==` on two collections is identity; and `Core\Uri::resolve` over
+> RFC 3986 § 5.4.2's abnormal table run verbatim against the RFC's own base, where the invariant is
+> that dot-segment removal is over the *path* only and that an ascent past the root stops there);
 > and a *bound asserted on both sides* (ADR 0088's 48-character quote; `Core\Json`'s `maxDepth` —
 > the default holding at 512 and refused at 513, the ceiling accepted at 1024 and refused at 1025,
 > and a `maxDepth` outside `1..=1024` being a `LogicError` rather than a `ParseError`; every
 > `Core\Bytes::pack` integer width, whose accepted range is the union of its signed and unsigned
-> halves and whose two refusals sit one past each end; and `Core\Regex::split`'s `limit` at the
-> exact piece count, one past it, and a negative that drops every piece, beside `$10` against
-> `${1}0` as the two sides of the replacement grammar's group boundary). **The thinnest sections
-> that have not had a pass are now `math` at eight cases over 38 members, then `time` and `uri` at
-> seven each**, against `arr`'s 40 and `str`'s 28. **What is still unbuilt in the library**, none of
-> it a registration gap: `Core\Json::decodeAs<T>`'s decoder (`mwl_stdlib::json` gap 2); ADR 0071
-> decodes only a scalar-fielded class — no enum/`decimal`/`Instant`/`array`/nested-class field and
-> no optional key from a parameter default; ADR 0088's registry-wide item, that `mwl-stdlib`'s
-> member rows carry **no qualifier classification**, so `Core\Str::format`'s template is not yet the
-> sink that ADR makes it, neither the fail-closed default for an unclassified `string`/`bytes`
-> parameter nor the test refusing an unclassified member exists, and `Core\Hash::hmac`'s `secret
-> bytes $key` is a plain `CoreTy::Bytes` for the same reason (`mwl_stdlib::hash`'s own module doc);
-> and ADR 0086 § 1's substitution table, which is what makes the terminal sink neutralize a control
-> byte and `Cli\Text::plain` a constructor that cannot produce an injected escape — both M8, and
-> `crates/mwl-stdlib/src/cli.rs`'s gap 1. **Four ADRs are decided and unbuilt but are not catch-up**
-> — 0091 (the `development`/`production` run mode), 0092 (one diagnostic record rendered three ways
-> by the sink in force), 0093 (`mwl service`) and 0097 (the server's scope and its `[server]`
-> block). None invalidates built behaviour or a written fixture; their work is M4, M6, M7, M8 and
-> M10. **Still open beside the library** — a property's declared default runs and is type-checked
-> (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow statement that
-> does not lower; an abandoned generator never runs the `finally` it is suspended inside (`mwl-ir`
-> gap 18, a PHP divergence); ADR 0043's `by`-delegation is off path; and
-> `docs/spec/02-php-migration.md` is 31% classified, reported by `python tools/check-migration.py`.
-> **What has already landed is not restated here** — `git log` holds the session-by-session history
-> and each crate's own module doc holds its per-file gaps.
+> halves and whose two refusals sit one past each end; `Core\Regex::split`'s `limit` at the exact
+> piece count, one past it, and a negative that drops every piece, beside `$10` against `${1}0` as
+> the two sides of the replacement grammar's group boundary; `Core\Math::clamp`'s closed range,
+> where a one-point range is the last non-empty one and a `low` one above `high` is the first empty
+> one, `Core\Math::round`'s exact tie, which is the only input its six modes answer differently —
+> the two nearest floats either side of `2.5` agree under every one of them — and
+> `Core\Math::intDiv`'s `-1` divisor, which overflows for exactly one dividend; and
+> `Core\Uri::with`'s port, accepted at both ends of `0-65535` and refused one past it, beside an
+> absent component reading `null` where an empty one reads `""`). **The one section left with no
+> pass beside the two largest is `time`, at seven cases over 53 members**; after it, `str` at 28
+> cases over 39 members and `arr` at 40 over 36 are the whole remainder. **What is still unbuilt in
+> the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s decoder
+> (`mwl_stdlib::json` gap 2); ADR 0071 decodes only a scalar-fielded class — no
+> enum/`decimal`/`Instant`/`array`/nested-class field and no optional key from a parameter default;
+> ADR 0088's registry-wide item, that `mwl-stdlib`'s member rows carry **no qualifier
+> classification**, so `Core\Str::format`'s template is not yet the sink that ADR makes it, neither
+> the fail-closed default for an unclassified `string`/`bytes` parameter nor the test refusing an
+> unclassified member exists, and `Core\Hash::hmac`'s `secret bytes $key` is a plain `CoreTy::Bytes`
+> for the same reason (`mwl_stdlib::hash`'s own module doc); and ADR 0086 § 1's substitution table,
+> which is what makes the terminal sink neutralize a control byte and `Cli\Text::plain` a
+> constructor that cannot produce an injected escape — both M8, and `crates/mwl-stdlib/src/cli.rs`'s
+> gap 1. **Four ADRs are decided and unbuilt but are not catch-up** — 0091 (the
+> `development`/`production` run mode), 0092 (one diagnostic record rendered three ways by the sink
+> in force), 0093 (`mwl service`) and 0097 (the server's scope and its `[server]` block). None
+> invalidates built behaviour or a written fixture; their work is M4, M6, M7, M8 and M10. **Still
+> open beside the library** — a property's declared default runs and is type-checked (`E0472`),
+> limited to a literal or `[]`; `do`/`while` is the one M4 control-flow statement that does not
+> lower; an abandoned generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a
+> PHP divergence); ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is
+> 31% classified, reported by `python tools/check-migration.py`. **What has already landed is not
+> restated here** — `git log` holds the session-by-session history and each crate's own module doc
+> holds its per-file gaps.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
@@ -172,7 +187,7 @@
 > carrier being a `Core` instance rather than a `string` (settled under ADR 0088 § 5), and picking
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** now pass whole on both legs,
 > so any failure below Stage 4 is a regression rather than unfinished work. What Stage 4 needs is
-> not a decision: conformance stands at 462 of 600 and differential at 90 of 150, and the remainder
+> not a decision: conformance stands at 468 of 600 and differential at 90 of 150, and the remainder
 > is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

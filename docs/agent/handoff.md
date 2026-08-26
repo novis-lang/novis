@@ -2,48 +2,50 @@
 
 ## State
 
-**Stage 4's two counts are the frontier — conformance 462 of 600, differential 90 of 150** — and the
+**Stage 4's two counts are the frontier — conformance 468 of 600, differential 90 of 150** — and the
 gap is behavioural depth per member, not coverage: every registered member already has a case, and both
 of Stage 4's named guards pass. Verify is green (**1596** cargo tests, 74 suites, clippy and fmt clean)
-and `mwl test tests/conformance` is **462 passed, 0 failed** — run it as well as `verify.py`, which
+and `mwl test tests/conformance` is **468 passed, 0 failed** — run it as well as `verify.py`, which
 executes no `.mwlt` case at all (playbook, twice).
 
-**§ 9's two collections and `Core\Regex` are now done to depth**, at 10 and 8 cases, joining `hash`,
-`csv`, `validate`, `out`, `heap`, `uuid`, `path`, `json`, `random`, `bytes` and `encoding`. The
-collections are pinned by what identity *is* — ADR 0090 § 3's table read one row per representation, so
-`1`/`1 as uint`/`1.0` are one member while `"1"`, `true` and `null` are three more; an array is one
-member per content *in order*; a string is its bytes however it was built; and an object is only itself,
-so three same-named tags are three keys and a mutated key is still its own — by the map's two lists
-staying positionally paired through a re-`set` (replaces in place), a removal (closes the same gap in
-both) and a re-add (lands at the end), and by a twelve-tag sweep of scattered removals whose survivors
-are proved equal to the directly-built set with `diff` in both directions. Regex is pinned by the
-replacement grammar's accepted and rejected spellings — `$0`/`$1`/`${name}`/`$$` accepted, `\1` left
-literal, an unknown group empty, and `$10` against `${1}0` as the boundary — and by `split`'s `limit` at
-the exact piece count, one past it, and a negative that drops every piece, with `keepEmpty` proved to
-apply *after* the limit.
+**`Core\Math` and `Core\Uri` are now done to depth**, at 11 and 10 cases, joining `hash`, `csv`,
+`validate`, `out`, `heap`, `uuid`, `path`, `json`, `random`, `bytes`, `encoding`, § 9's two collections
+and `regex`. Math is pinned by the bound each member is written around: `clamp`'s range is closed at
+both ends, a one-point range is the last non-empty one and a `low` one above `high` is the first empty
+one; the exact tie is the only input the six `RoundMode`s answer differently, so the two nearest floats
+either side of `2.5` agree under every one of them and `precision` only moves the place that tie is
+looked for; and `intDiv`'s `-1` is the one divisor an overflow is possible at, overflowing for exactly
+one dividend, while `mod` keeps the dividend's sign even when the remainder is `-0`. Uri is pinned by
+RFC 3986 § 5.4.2's abnormal table run verbatim against the RFC's own base — an ascent past the root
+stops there, only a whole segment is a dot segment, and the identical text inside a query or a fragment
+is data — by `parseQuery` keeping a name it cannot read rather than repairing it (a malformed bracket
+is one literal key, a `.` or a space is never rewritten, a nameless pair is dropped), and by `with`
+refusing any component that does not survive its own recomposition, with the port accepted at both ends
+of `0-65535` and refused one past it and an absent component (`null`) told from an empty one (`""`).
 
 **Three case shapes are established** and named in the plan's *Open now*: a section's edges, invariance
 over a sweep, and a bound asserted on both sides. Reuse them rather than inventing a fourth.
 
 ## Next group
 
-The three sections that have not had a depth pass, weakest first. Each is its own domain module plus its
-`tests/conformance/core/<name>-*.mwlt`; the file set they share is
-`crates/mwl-stdlib/src/{math,uri,time}.rs` and `tests/conformance/core/`.
+`Core\Time` closes the group this session started; after it, only the two largest sections have never
+had a pass, and they are the whole remainder. The file set they share is
+`crates/mwl-stdlib/src/{time,str,arr}.rs` and `tests/conformance/core/`.
 
-- [ ] **`Core\Math` depth** — `crates/mwl-stdlib/src/math.rs:837` `clamp`, `:861` `round`, `:892` `mod`,
-      `:875` `intDiv`; spec § 3. Three `math-` cases. The shape is a bound on both sides: `clamp` at each
-      end and one past it, `round`'s `RoundMode` × a half-way value (the one input every mode answers
-      differently), `intDiv`/`mod` at zero and at `int`'s own extremes, where ADR 0007's overflow rule
-      makes the answer a throw rather than a wrap.
-- [ ] **`Core\Uri` depth** — `crates/mwl-stdlib/src/uri.rs:1769` `parseQuery`, `:1596` `resolve`,
-      `:1657` `compareTo`, `:1543` `with`; spec § 12. Three `uri-` cases. `parseQuery`'s bracket
-      convention is a sweep (`a[]=1&a[]=2`, `a[b]=c`, nesting), asserted with `Core\Json::encode` because
-      a case cannot index an `array<mixed>` (playbook); `resolve` is RFC 3986 § 5.4's own table of
-      normal and abnormal examples; `compareTo` is the content equality `==` refuses (ADR 0090 § 4).
 - [ ] **`Core\Time` depth** — `crates/mwl-stdlib/src/time.rs:473` `Duration::parse` and the eight
       component readers at `:405`-`:458`; spec § 4. Two `time-` cases. `parse` shares ADR 0070's literal
       grammar, so the case is that one grammar reached from two entry points, plus each unit's boundary.
+- [ ] **`Core\Str` depth** — `crates/mwl-stdlib/src/str.rs:1412` `slice`, `:901` `split`, `:1199`
+      `replace`, `:1997` `padStart`; spec § 1. Three `str-` cases. The shape is a bound on both sides:
+      `slice`'s offset and length at each end and one past it, including the negative spellings; `split`
+      with a limit at the exact piece count and one past it; and the pad members at a width the subject
+      already meets. The `mb_*` half of PHP has no oracle on the Windows leg (playbook), so a Unicode row
+      cites the UCD table instead.
+- [ ] **`Core\Arr` depth** — `crates/mwl-stdlib/src/arr.rs:1599` `slice`, `:1704` `chunk`, `:2765`
+      `sort`, `:3462` `unique`; spec § 2. Three `arr-` cases. `slice`/`chunk` are the same bound as
+      `Str`'s over a different subject, `sort` is an invariant (a permutation of its input, stable at
+      equal keys), and `unique` is ADR 0090 § 3's identity table read one row per representation, as
+      § 9's collections already are.
 
 ## Backlog
 
