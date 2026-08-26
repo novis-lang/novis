@@ -21,14 +21,20 @@ export PATH="$HOME/.cargo/bin:$PATH"
 cargo build --quiet -p mwl-cli || exit 1
 BIN=/tmp/mwl-linux/debug/mwl
 
+# 97 rather than 1, because the fixture's *own* exit status passes straight
+# through valgrind: `examples/uncaught.mwl` ends in an uncaught throw and so
+# exits 1 by design, which under `--error-exitcode=1` is indistinguishable from
+# a definite leak. 97 is a status no MWL program produces.
+VG_ERROR=97
+
 fails=0
 for f in "$@"; do
     echo "== $f"
-    valgrind --error-exitcode=1 --errors-for-leak-kinds=definite \
+    valgrind --error-exitcode=$VG_ERROR --errors-for-leak-kinds=definite \
         --leak-check=full "$BIN" run "$f" >/tmp/leak-out 2>/tmp/leak-err
     code=$?
     echo "   exit $code"
-    if [ "$code" -ne 0 ]; then
+    if [ "$code" -eq "$VG_ERROR" ]; then
         fails=$((fails + 1))
         grep -E "definitely lost|mwl_stdlib|mwl_ir|mwl_runtime::" /tmp/leak-err | head -12
     fi
