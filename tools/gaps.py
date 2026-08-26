@@ -15,6 +15,12 @@ them:
     member with a named twin and no case in `tests/differential/` is a case whose expected output
     nobody has to derive, because PHP computes it.
 
+*   **A thin class.** Every registered member has a case, so the ranking that picks a next group
+    is *cases per member*, and both halves of it are on the tree: the registry knows what a class
+    declares and the suite knows what names it. A session was deriving this by hand every time --
+    `ls tests/conformance/core/ | grep -i <family>` beside `grep -n 'name: "' <family>.rs`, about
+    ten times over one 19-session run, half of them in the tail.
+
 *   **An unasserted error path.** Every `Fault::` site in `mwl-stdlib` is a boundary the
     implementation is written around. A case that pins one catches it and echoes `$e->message`, so
     the message text lands in the case's `--EXPECT--` block -- and a message that appears in no case
@@ -25,7 +31,8 @@ no program can reach, and a member whose PHP twin diverges by decision wants `--
 and a reason rather than a twin. Judging that is the session's job, and it is the part worth its
 context. Finding the candidate is not.
 
-    python tools/gaps.py                          both lists, counts and a sample
+    python tools/gaps.py                          all three lists, counts and a sample
+    python tools/gaps.py --coverage               cases per member, per class, thinnest first
     python tools/gaps.py --differential           every member with a PHP twin and no oracle case
     python tools/gaps.py --errors                 every Fault site no case asserts
     python tools/gaps.py --member 'Core\\Arr::chunk'   what the corpus already asks of one member
@@ -77,7 +84,15 @@ def corpus(root: Path) -> str:
 #: literal carries exactly one of each, and `symbol` always follows `name` inside it.
 METHOD_RE = re.compile(r'CoreMethod\s*\{\s*name:\s*"([^"]+)"')
 SYMBOL_RE = re.compile(r'symbol:\s*"([^"]+)"')
-CLASS_RE = re.compile(r'CoreClass\s*\{\s*name:\s*r"([^"]+)"')
+#: A `CoreClass` names itself either inline (`name: r"Core\Arr"`) or through a file-level const
+#: (`name: NAME`), and the second spelling is the majority -- matching only the first found 7 of
+#: the 20 classes on the tree and silently shortened every list in this file to those 7.
+CLASS_RE = re.compile(r'CoreClass\s*\{\s*name:\s*(?:r"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))')
+
+#: `pub(crate) const NAME: &str = r"Core\Csv";` -- what the second spelling above resolves against.
+#: A const this does not match (`cli.rs` forwards one out of `mwl_runtime`) leaves its class
+#: unnamed, which suppresses that class's members rather than handing them to the class above it.
+NAME_CONST_RE = re.compile(r'const\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*&str\s*=\s*r"([^"]+)"')
 
 
 def registry() -> dict[tuple[str, str], tuple[Path, int, str]]:
@@ -87,11 +102,16 @@ def registry() -> dict[tuple[str, str], tuple[Path, int, str]]:
     positional rather than brace-matched on purpose: the alternative is a Rust parser, and the
     files this reads put one class's methods in one run, so position answers it exactly. A file
     holding several classes (`time.rs` holds seven) is the case this is written for.
+
+    A class whose name does not resolve still opens a run, under the empty name -- so its methods
+    are skipped rather than credited to whichever class happens to sit above it.
     """
     found: dict[tuple[str, str], tuple[Path, int, str]] = {}
     for path in sorted(STDLIB.rglob("*.rs")):
         text = read(path)
-        starts = [(m.start(), m.group(1)) for m in CLASS_RE.finditer(text)]
+        consts = dict(NAME_CONST_RE.findall(text))
+        starts = [(m.start(), m.group(1) or consts.get(m.group(2), ""))
+                  for m in CLASS_RE.finditer(text)]
         if not starts:
             continue
         for m in METHOD_RE.finditer(text):
@@ -249,6 +269,60 @@ def error_gaps() -> list[dict]:
     return out
 
 
+def coverage() -> list[dict]:
+    """Per `Core` class: registered members, the cases that call it, and which members none does.
+
+    Stage 4's question is *depth* -- every registered member has a case, so the useful ranking is
+    cases per member, and the thinnest class is the next group. Sessions were answering this by
+    hand: measured over one 19-session run, `ls tests/conformance/core/ | grep -i <family>` paired
+    with `grep -n 'name: "' crates/mwl-stdlib/src/<family>.rs` ran about ten times, half of them in
+    the tail where a call is most expensive, to arrive at a ranking the tree already holds.
+
+    A case *belongs* to a class when it names it at all -- `Core\\ObjectMap<Tag, int> $m = new
+    Core\\ObjectMap...` names no `::` and is still that class's case, and half the registry is
+    instance-shaped like that. The name has to end at a boundary or `Core\\Time` would collect
+    every `Core\\Time\\Duration` case as its own.
+
+    A member is *called* by `Core\\X::member`, or by `->member(` in a case that names the class --
+    which is `differential_gaps`' rule narrowed from the whole corpus to the class's own cases,
+    because corpus-wide every `->get(` marks every class's `get` as covered.
+    """
+    reg = registry()
+    syms = symbol_lines()
+    per_class: dict[str, list[str]] = {}
+    for owner, member in reg:
+        per_class.setdefault(owner, []).append(member)
+
+    texts = [read(p) for p in cases(CONFORMANCE)]
+    out = []
+    for owner, members in per_class.items():
+        # `(?![\w\\])`: `Core\Time` matches `Core\Time::now` and `Core\Time $t`, never
+        # `Core\Time\Duration`, which is a different class with its own row.
+        owns = re.compile(re.escape(owner) + r"(?![A-Za-z0-9_" + re.escape(BS) + r"])")
+        mine = [t for t in texts if owns.search(t)]
+        called = set()
+        for text in mine:
+            called.update(m.group(1) for m in
+                          re.finditer(re.escape(owner) + r"::([A-Za-z][A-Za-z0-9]*)", text))
+            called.update(m.group(1) for m in
+                          re.finditer(r"->([a-z][A-Za-z0-9]*)\s*\(", text))
+        missing = []
+        for member in sorted(set(members) - called):
+            path, line, sym = reg[(owner, member)]
+            impl = syms.get(sym)
+            anchor = f"{rel(impl[0])}:{impl[1]}" if impl else f"{rel(path)}:{line}"
+            missing.append({"member": member, "anchor": anchor})
+        out.append({
+            "class": owner,
+            "members": len(members),
+            "cases": len(mine),
+            "depth": len(mine) / len(members) if members else 0.0,
+            "uncalled": missing,
+        })
+    out.sort(key=lambda r: (r["depth"], -r["members"]))
+    return out
+
+
 def member_report(name: str) -> list[str]:
     """Which cases already call one member, so a session can see what is asked before adding."""
     lines = []
@@ -293,6 +367,8 @@ def main() -> int:
     )
     ap.add_argument("--differential", action="store_true", help="only the oracle-case gap")
     ap.add_argument("--errors", action="store_true", help="only the unasserted error paths")
+    ap.add_argument("--coverage", action="store_true",
+                    help="only the per-class depth table: which family is thinnest")
     ap.add_argument("--member", help="what the corpus already asks of one member")
     ap.add_argument("--limit", type=int, default=25, help="rows per list; 0 for all")
     ap.add_argument("--json", action="store_true", help="print one JSON object instead")
@@ -308,13 +384,29 @@ def main() -> int:
         print("\n".join(found) if found else "  no case calls it")
         return 0
 
-    both = not (opts.differential or opts.errors)
+    both = not (opts.differential or opts.errors or opts.coverage)
     diff = differential_gaps() if (both or opts.differential) else []
     errs = error_gaps() if (both or opts.errors) else []
+    cov = coverage() if (both or opts.coverage) else []
 
     if opts.json:
-        print(json.dumps({"differential": diff, "errors": errs}, indent=1))
+        print(json.dumps({"differential": diff, "errors": errs, "coverage": cov}, indent=1))
         return 0
+
+    if both or opts.coverage:
+        thin = [r for r in cov if r["uncalled"]]
+        print(f"== CONFORMANCE DEPTH BY CLASS  ({len(cov)} classes, thinnest first; "
+              f"{len(thin)} with a member no case calls)")
+        print("-- cases/member is DEPTH, which is Stage 4's frontier: coverage is already met, so")
+        print("-- the thinnest class is the candidate for the next group. This is the `ls tests/`")
+        print("-- plus `grep -n 'name: \"'` pair, answered off the tree instead of by hand.")
+        show(cov, opts.limit, lambda r: (
+            f"  {r['depth']:>5.2f}{r['cases']:>7}{r['members']:>9}   {r['class']:<26}"
+            + (" no case calls " + ", ".join(
+                f"{u['member']} {u['anchor']}" for u in r["uncalled"][:3]) if r["uncalled"] else "")
+        ))
+        print("     ^depth ^cases ^members")
+        print()
 
     if both or opts.differential:
         have = len(cases(DIFFERENTIAL))
