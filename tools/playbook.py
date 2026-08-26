@@ -46,6 +46,10 @@ import orient as orientmod  # noqa: E402  -- bullet parsing lives there and is n
 ROOT = Path(__file__).resolve().parent.parent
 PLAYBOOK = ROOT / "docs" / "agent" / "playbook.md"
 GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
+HANDOFF = ROOT / "docs" / "agent" / "handoff.md"
+
+#: A source path written into handoff prose, e.g. `crates/mwl-ir/src/lower/expr.rs:1876`.
+HANDOFF_PATH = re.compile(r"\b((?:crates|tools|tests|benches|examples|fuzz)/[\w./-]+\.\w+)")
 
 #: Directories a bullet names when it names a *tracked* path. Anything matching one of these is
 #: checked against the tree by `--check`; anything else in backticks is prose, a symbol or a
@@ -158,6 +162,24 @@ def goal_terms() -> list[str]:
     return [str(m).rstrip("*/") for m in ctx.get("modules", [])]
 
 
+def next_group_files() -> list[str]:
+    """The file set `handoff.md`'s `## Next group` names, as paths.
+
+    The manifest is goal-scoped and the handoff is session-scoped, so the two drift apart every
+    time the work moves to a different crate. That drift used to be invisible because naming
+    whole sections covered every file set by accident; a bullet-level manifest makes it bite."""
+    if not HANDOFF.exists():
+        return []
+    text = HANDOFF.read_text(encoding="utf-8")
+    m = re.search(r"^## Next group.*?(?=^## |\Z)", text, flags=re.M | re.S)
+    if not m:
+        return []
+    seen: dict[str, None] = {}
+    for path in HANDOFF_PATH.findall(m.group(0)):
+        seen.setdefault(path, None)
+    return list(seen)
+
+
 def current_manifest() -> list[str]:
     if not GOAL_TOML.exists():
         return []
@@ -196,6 +218,45 @@ def report_manifest(text: str, indent: str = "") -> None:
               "`--goal` proposes a bullet-level list.")
     for sel in dead:
         print(f"{indent}!! {sel!r} matches nothing -- orient.py will warn on it every session")
+
+
+def run_gap(text: str, every: list[dict], floor: int) -> int:
+    """Bullets the handoff's own next group implies that the manifest does not print.
+
+    This is the check a narrowed manifest cannot do without: ranking against `[context] modules`
+    answers "what does this GOAL touch", and the work in flight may have moved on. Measured the
+    first time this ran, the manifest missed twelve bullets the next group implied -- including
+    two on the exact `mwl-ir`/`mwl-codegen` path the handoff named -- because `modules` still
+    listed a closed stage's stdlib file set."""
+    files = next_group_files()
+    if not files:
+        print("playbook.py: handoff.md has no `## Next group` naming a path, so there is nothing "
+              "to compare the manifest against.")
+        return 0
+    have = set(current_manifest())
+    floor = max(1, min(floor, len(files)))
+    print(f"handoff.md `## Next group` names {len(files)} file(s):")
+    for f in files:
+        print(f"  {f}")
+
+    missing = []
+    for b in every:
+        n, hit = score(b, files)
+        if n >= floor and b["selector"] not in have:
+            missing.append((n, b))
+    missing.sort(key=lambda x: (-x[0], x[1]["bytes"]))
+
+    print(f"\nBullets those files imply ({floor}+ terms) that `[context] playbook` does NOT print:")
+    if not missing:
+        print("  none -- the manifest covers the work in flight")
+        return 0
+    for n, b in missing:
+        print(f"  {n} term(s)  {b['bytes']:>5} B  {toml_str(b['selector'])},")
+    print(f"\n  {len(missing)} bullet(s), {sum(b['bytes'] for _n, b in missing)} B. Add them to")
+    print("  `[context] playbook`, or -- better -- fix `[context] modules` if it no longer")
+    print("  describes the work, and re-run `--goal`. A manifest narrower than the work is")
+    print("  the one way this tool can cost a session quality rather than save it tokens.")
+    return 0
 
 
 def run_index(text: str, every: list[dict]) -> int:
@@ -349,6 +410,8 @@ def main() -> int:
                     help="--manifest over loop-goal.toml's [context] modules")
     ap.add_argument("--min", type=int, default=2, metavar="N", dest="floor",
                     help="how many query terms a bullet must mention to be listed (default 2)")
+    ap.add_argument("--gap", action="store_true",
+                    help="bullets the handoff's next group implies that the manifest omits")
     ap.add_argument("--check", action="store_true")
     opts = ap.parse_args()
 
@@ -366,6 +429,8 @@ def main() -> int:
 
     if opts.show:
         return run_show(text, opts.show)
+    if opts.gap:
+        return run_gap(text, every, opts.floor)
     if opts.check:
         return run_check(text, every)
     if opts.goal:

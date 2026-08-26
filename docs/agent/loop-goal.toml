@@ -123,6 +123,23 @@ playbook = [
   'Running things > a leak',
   'Splitting a file that got too big > a big',
 
+  # `python tools/playbook.py --gap`: bullets the handoff's `## Next group` file set implies that
+  # the block above misses, because `modules` still describes the closed Stage 0 stdlib work while
+  # the work in flight is mwl-ir/mwl-codegen. 12 bullets, 7,489 B. **Refresh `modules` above to the
+  # crates actually in play and re-run `--goal`** -- then this block collapses back into that one.
+  'Writing a test case > mwl-codegen has',
+  'Writing a test case > a row',
+  'Writing a test case > a case cannot',
+  'Writing a test case > a ?array<t>',
+  'Writing a test case > a multi-file',
+  "Writing a test case > emitbinop's ordering",
+  'Writing a test case > the php',
+  'Running things > a field',
+  'Running things > a scratch',
+  'Running things > mwl run printing',
+  'Tooling > a class',
+  'Tooling > a python str.index',
+
   # the process traps, by hand, 9 bullets, 4,764 B
   'Tooling > the end',
   'Tooling > one call reads',
