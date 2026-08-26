@@ -426,6 +426,41 @@ fn produced(octets: &[u8]) -> HelperResult {
     Ok(Value::bytes(MwlStr::new(octets)))
 }
 
+/// [`produced`], answering rather than aborting when the allocator refuses.
+///
+/// [`MwlStr::new`] aborts, so a member that built its octets fallibly would
+/// still die at the copy out — the second allocation is exactly as able to
+/// fail as the first was, and at that moment both are live.
+fn produced_fallibly(octets: &[u8], member: &str) -> HelperResult {
+    MwlStr::try_build(octets.len(), |out| out.push(octets))
+        .map(Value::bytes)
+        .ok_or_else(|| too_large(member))
+}
+
+/// The sentence a result the allocator will not serve refuses with.
+///
+/// [`affordable`] is the *policy* seam and refuses only a size past
+/// `isize::MAX`; this is the allocator itself refusing a size that seam
+/// allowed. They answer different questions, and the second is the difference
+/// between a throw and an abort that takes every in-flight request with it —
+/// `mwl_core_random_bytes` runs the same two for the same reason.
+fn too_large(member: &str) -> Fault {
+    Fault::thrown(format!(
+        "Core\\Bytes::{member}: the result is larger than any buffer this process could hold"
+    ))
+}
+
+/// Room in `out` for a result of `size` octets, or [`too_large`].
+///
+/// `try_reserve` and not `try_reserve_exact`: on the empty `Vec` that `fill`
+/// and `repeat` start from the two reserve the same thing, while
+/// `Core\Bytes::join` reaches here once per part, where an exact reservation
+/// would reallocate on every one of them.
+fn reserved(out: &mut Vec<u8>, size: usize, member: &str) -> Result<(), Fault> {
+    out.try_reserve(size.saturating_sub(out.len()))
+        .map_err(|_| too_large(member))
+}
+
 // ============================================================================
 // The members
 // ============================================================================
@@ -620,7 +655,10 @@ mwl_runtime::mwl_helper! {
             ))
         })?;
         affordable(Some(length), "fill")?;
-        produced(&vec![octet; length])
+        let mut octets: Vec<u8> = Vec::new();
+        reserved(&mut octets, length, "fill")?;
+        octets.resize(length, octet);
+        produced_fallibly(&octets, "fill")
     }
 }
 
@@ -631,8 +669,13 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_bytes_repeat(_ctx, args: [2]) {
         let subject = raw(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
-        affordable(subject.len().checked_mul(times), "repeat")?;
-        produced(&subject.repeat(times))
+        let size = affordable(subject.len().checked_mul(times), "repeat")?;
+        let mut octets: Vec<u8> = Vec::new();
+        reserved(&mut octets, size, "repeat")?;
+        for _ in 0..times {
+            octets.extend_from_slice(subject);
+        }
+        produced_fallibly(&octets, "repeat")
     }
 }
 
@@ -692,14 +735,17 @@ mwl_runtime::mwl_helper! {
                 .and_then(|size| {
                     size.checked_add(if written == 0 { 0 } else { separator.len() })
                 });
-            affordable(size, "join")?;
+            let size = affordable(size, "join")?;
+            // The seam allowed it; the allocator is the one that has to serve
+            // it, and `extend_from_slice` growing on its own would abort.
+            reserved(&mut out, size, "join")?;
             if written > 0 {
                 out.extend_from_slice(separator);
             }
             out.extend_from_slice(octets);
             written += 1;
         }
-        produced(&out)
+        produced_fallibly(&out, "join")
     }
 }
 
