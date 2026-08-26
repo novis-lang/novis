@@ -1,0 +1,117 @@
+--TEST--
+`Core\Hash::hmac` answers RFC 4231's vectors for a key shorter than the block, a binary key and a key longer than the block, and `Core\Hash::equals` answers over operands of unequal length — spec § 11, ADR 0009 §§ 1 and 3
+--FILE--
+<?mwl
+// RFC 2104's construction pads the key to the hash's block size, or hashes it
+// first when it is longer than one — so the key's *length relative to the
+// block* is the axis this member can get wrong, and it is the axis RFC 4231's
+// suite is built around. `hash-computes-every-digest-and-authenticates-with-hmac.mwlt`
+// writes only Case 2, whose key is four octets.
+
+// RFC 4231 Case 1: a 20-octet key, shorter than either block size, over eight
+// octets of text. All three `StrongDigest` cases, since the block size is 64
+// for SHA-256 and 128 for the other two and the padding differs with it.
+bytes $key20 = Core\Encoding::fromHex(Core\Str::repeat("0b", 20));
+echo Core\Encoding::toHex(Core\Hash::hmac("Hi There", $key20, Core\Digest::Sha256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::hmac("Hi There", $key20, Core\Digest::Sha384)), "\n";
+echo Core\Encoding::toHex(Core\Hash::hmac("Hi There", $key20, Core\Digest::Sha512)), "\n";
+
+// RFC 4231 Case 4: a 25-octet key of ascending octets and 50 octets of `cd`.
+// Neither is text — `secret bytes $key` is a `bytes` parameter and the data
+// side takes `bytes|string`, so a key that came out of a key-derivation and a
+// message that came off a socket both arrive without a UTF-8 detour (ADR 0009
+// §§ 1 and 3).
+bytes $key25 = Core\Encoding::fromHex("0102030405060708090a0b0c0d0e0f10111213141516171819");
+bytes $cd50 = Core\Encoding::fromHex(Core\Str::repeat("cd", 50));
+echo Core\Encoding::toHex(Core\Hash::hmac($cd50, $key25, Core\Digest::Sha256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::hmac($cd50, $key25, Core\Digest::Sha512)), "\n";
+
+// RFC 4231 Case 6: a 131-octet key, longer than both block sizes, so the
+// construction hashes it down before padding it.
+bytes $key131 = Core\Encoding::fromHex(Core\Str::repeat("aa", 131));
+echo Core\Encoding::toHex(Core\Hash::hmac(
+    "Test Using Larger Than Block-Size Key - Hash Key First", $key131, Core\Digest::Sha256
+)), "\n";
+echo Core\Encoding::toHex(Core\Hash::hmac(
+    "Test Using Larger Than Block-Size Key - Hash Key First", $key131, Core\Digest::Sha384
+)), "\n";
+
+// RFC 4231 Case 7: the same over-long key with data longer than a block too,
+// which is the row where a mistake in the key path and a mistake in the data
+// path would otherwise be able to hide behind each other.
+echo Core\Encoding::toHex(Core\Hash::hmac(
+    "This is a test using a larger than block-size key and a larger than block-size data. The key needs to be hashed before being used by the HMAC algorithm.",
+    $key131,
+    Core\Digest::Sha512
+)), "\n";
+
+// The two key rules RFC 2104 states, asserted as identities rather than as
+// pasted constants — an identity that holds is a stronger claim than a hex
+// string, because it stays true if the algorithm behind the case changes.
+//
+// A key longer than the block is exactly `Core\Hash::of` of that key, used as
+// the key. The digest that reduces it is the HMAC's own, so the SHA-256 row
+// reduces with SHA-256 and the SHA-512 row with SHA-512.
+if (Core\Hash::equals(
+    Core\Hash::hmac("Hi There", $key131, Core\Digest::Sha256),
+    Core\Hash::hmac("Hi There", Core\Hash::of($key131, Core\Digest::Sha256), Core\Digest::Sha256)
+)) {
+    echo "an over-long key is hashed first\n";
+}
+if (Core\Hash::equals(
+    Core\Hash::hmac("Hi There", $key131, Core\Digest::Sha512),
+    Core\Hash::hmac("Hi There", Core\Hash::of($key131, Core\Digest::Sha512), Core\Digest::Sha512)
+)) {
+    echo "and reduced with the HMAC's own digest\n";
+}
+
+// A key shorter than the block is zero-padded up to it, so the empty key —
+// which RFC 4231 does not publish and which a caller reaches by mistake rather
+// than on purpose — is the all-zero block. It is a real key to this member, not
+// an error: nothing in the construction is undefined for it, and refusing it
+// here would be a rule a program could not discover from § 11's signature.
+bytes $noKey = Core\Encoding::fromHex("");
+if (Core\Hash::equals(
+    Core\Hash::hmac("Hi There", $noKey, Core\Digest::Sha256),
+    Core\Hash::hmac("Hi There", Core\Encoding::fromHex(Core\Str::repeat("00", 64)), Core\Digest::Sha256)
+)) {
+    echo "an empty key is a zero block\n";
+}
+
+// § 11's `equals` is constant-time in *where* two equal-length operands
+// diverge and says nothing about their lengths — a digest's width is a
+// property of its algorithm and never a secret — so a length mismatch is
+// answered immediately and answered `false`. These are the rows that pin the
+// answer rather than the timing: a prefix is not a match, and two operands of
+// different algorithms are not either.
+if (!Core\Hash::equals(Core\Encoding::fromHex("00ff"), Core\Encoding::fromHex("00ff00"))) {
+    echo "a prefix is not equal\n";
+}
+if (!Core\Hash::equals(
+    Core\Hash::of("abc", Core\Digest::Sha256),
+    Core\Hash::of("abc", Core\Digest::Sha384)
+)) {
+    echo "nor is the same input under two algorithms\n";
+}
+if (Core\Hash::equals($noKey, Core\Encoding::fromHex(""))) {
+    echo "two empty operands are equal\n";
+}
+if (!Core\Hash::equals($noKey, Core\Encoding::fromHex("00"))) {
+    echo "and empty is not one zero octet\n";
+}
+--EXPECT--
+b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7
+afd03944d84895626b0825f4ab46907f15f9dadbe4101ec682aa034c7cebc59cfaea9ea9076ede7f4af152e8b2fa9cb6
+87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854
+82558a389a443c0ea4cc819899f2083a85f0faa3e578f8077a2e3ff46729665b
+b0ba465637458c6990e5a8c5f61d4af7e576d97ff94b872de76f8050361ee3dba91ca5c11aa25eb4d679275cc5788063a5f19741120c4f2de2adebeb10a298dd
+60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54
+4ece084485813e9088d2c63a041bc5b44f9ef1012a2b588f3cd11f05033ac4c60c2ef6ab4030fe8296248df163f44952
+e37b6a775dc87dbaa4dfa9f96e5e3ffddebd71f8867289865df5a32d20cdc944b6022cac3c4982b10d5eeb55c3e4de15134676fb6de0446065c97440fa8c6a58
+an over-long key is hashed first
+and reduced with the HMAC's own digest
+an empty key is a zero block
+a prefix is not equal
+nor is the same input under two algorithms
+two empty operands are equal
+and empty is not one zero octet
