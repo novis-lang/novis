@@ -1,0 +1,121 @@
+--TEST--
+`Core\Regex\Match::group` answers three different things over a pattern's whole group set and refuses everything outside it, quoting back the key it was handed — spec § 5, ADR 0063 R4 and R5
+--FILE--
+<?mwl
+// R3: the match *is* the return value, and `matchAll` binds a `Core\Regex\Match`
+// rather than the `?Match` `match` answers — which is what lets the sweep below
+// reach the members without a `?->` on every line conflating two kinds of null.
+//
+// The pattern declares one group of each kind this case is about: `kind` is
+// reached, `mark` participates and captures nothing, and `tail` is declared but
+// never reached because the subject has no `z`.
+foreach (Core\Regex::matchAll("order 4711 shipped", "(?<kind>[a-z]+) (\\d+)(?<mark>!*)(?<tail>z)?") as Core\Regex\Match $m) {
+    foreach ($m->groups() as string $shown => ?string $text) {
+        echo $shown, "=[", $text ?? "<null>", "] ";
+    }
+    echo "|\n";
+
+    // R5's `?T` and R4's throw answer two different questions — "this match has
+    // no such text" and "there is no such group to ask about" — and PHP answers
+    // both with an absent array entry. Counting the whole declared set is what
+    // separates them from the third answer, an empty capture: a member that
+    // folded any two of the three together still prints plausibly on the line
+    // above.
+    int $reached = 0;
+    int $empty = 0;
+    int $unreached = 0;
+    int $agreed = 0;
+    foreach ($m->groups() as string $key => ?string $value) {
+        var $answer = $m->group($key);
+        if ($answer == null) {
+            $unreached = $unreached + 1;
+        } else {
+            if ($answer == "") {
+                $empty = $empty + 1;
+            } else {
+                $reached = $reached + 1;
+            }
+        }
+        // Every key `groups()` reports is a key `group` accepts, and with the
+        // same answer — the two members read one capture set rather than each
+        // deciding for itself what the pattern declared.
+        if (($answer ?? "<null>") == ($value ?? "<null>")) {
+            $agreed = $agreed + 1;
+        }
+    }
+    echo "declared=", Core\Arr::count($m->groups()), "\n";
+    echo "reached=", $reached, " empty=", $empty, " unreached=", $unreached, "\n";
+    echo "agreed=", $agreed, "\n";
+
+    // A named group is one group under two keys, not two groups: the name and
+    // the number answer the same thing for every named group the pattern has,
+    // including the one that captured nothing and the one never reached.
+    array<string> $pairs = ["kind" => "1", "mark" => "3", "tail" => "4"];
+    int $same = 0;
+    foreach ($pairs as string $name => string $number) {
+        if (($m->group($name) ?? "<null>") == ($m->group($number) ?? "<null>")) {
+            $same = $same + 1;
+        }
+    }
+    echo "name-equals-number=", $same, " of ", Core\Arr::count($pairs), "\n";
+
+    // The key is an `int|string`, and the two spellings of one number reach one
+    // group rather than a numbered key and a string key of the same name.
+    echo "int-key=", $m->group(2) ?? "<null>", " string-key=", $m->group("2") ?? "<null>", "\n";
+
+    // Everything outside the declared set throws, and the sentence is rebuilt
+    // from the key it was *handed*: three keys, three sentences, so a member
+    // answering with a constant fails here while reading right on any one line.
+    array<string> $undeclared = ["5", "nope", ""];
+    int $threw = 0;
+    int $quoted = 0;
+    foreach ($undeclared as string $absent) {
+        try {
+            var $never = $m->group($absent);
+            echo "not refused=", $never ?? "<null>", "\n";
+        } catch (RuntimeError $no) {
+            $threw = $threw + 1;
+            if ($no->message == 'Core\Regex\Match::group(): the pattern declares no group `' . $absent . '`') {
+                $quoted = $quoted + 1;
+            }
+        }
+    }
+    echo "threw=", $threw, " of ", Core\Arr::count($undeclared), "\n";
+    echo "quoted=", $quoted, "\n";
+
+    // The bound, named on both sides and one number apart: group 4 is the last
+    // one the pattern declares and answers `null` because this match did not
+    // reach it, and group 5 is the first one it does not declare at all. R5
+    // versus R4 is exactly this one step.
+    echo "last-declared=", $m->group(4) ?? "null", "\n";
+    try {
+        var $past = $m->group(5);
+        echo "not refused=", $past ?? "<null>", "\n";
+    } catch (RuntimeError $beyond) {
+        echo "first-undeclared=refused\n";
+    }
+
+    // Which of § 10's branches the refusal is: a plain `Fault::thrown` and so a
+    // `RuntimeError`, which is the clause every refusal counted above went
+    // through.
+    try {
+        var $classed = $m->group("nope");
+        echo "not refused=", $classed ?? "<null>", "\n";
+    } catch (LogicError $logic) {
+        echo "class=logic\n";
+    } catch (RuntimeError $runtime) {
+        echo "class=runtime\n";
+    }
+}
+--EXPECT--
+0=[order 4711] kind=[order] 1=[order] 2=[4711] mark=[] 3=[] tail=[<null>] 4=[<null>] |
+declared=8
+reached=4 empty=2 unreached=2
+agreed=8
+name-equals-number=3 of 3
+int-key=4711 string-key=4711
+threw=3 of 3
+quoted=3
+last-declared=null
+first-undeclared=refused
+class=runtime
