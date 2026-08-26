@@ -1,0 +1,90 @@
+--TEST--
+Spec § 2: `Core\Arr::slice` and `::chunk` read one window, so an array's window agrees with a string's at every sign and every chunk is the slice at its own offset, per ADR 0063 R8
+--FILE--
+<?mwl
+// `slice` and `replaceRange` read their `$offset` and `?int $length` through
+// one routine, and that routine is deliberately `Core\Str`'s own sign rule one
+// unit up — entries where a string counts characters, and nothing else
+// different. Two invariants follow from sharing it, and this case is those two
+// rather than more rows of the shapes
+// `arr-slice-and-chunk-window-by-position` already pins.
+//
+// The first: `replaceRange` puts back exactly what `slice` takes out, for
+// every sign of every argument. The second: the array's window and the
+// string's are the *same* window, so joining the sliced entries is slicing the
+// joined characters. The sweep is both edges and both signs of each argument
+// against a six-entry subject, which is the same table
+// `str-slice-and-replace-range-read-one-window` sweeps one unit down.
+array<string> $subject = ["a", "b", "c", "d", "e", "f"];
+array<int> $offsets = [-8, -6, -3, 0, 3, 5, 6, 8];
+array<int> $lengths = [-8, -6, -3, -1, 0, 1, 3, 6, 8];
+int $tried = 0;
+int $restored = 0;
+int $agreed = 0;
+foreach ($offsets as int $o) {
+    foreach ($lengths as int $n) {
+        $tried = $tried + 1;
+        if (Core\Arr::replaceRange($subject, $o, $n, Core\Arr::slice($subject, $o, $n)) == $subject) {
+            $restored = $restored + 1;
+        }
+        if (Core\Str::join(Core\Arr::slice($subject, $o, $n), "") == Core\Str::slice("abcdef", $o, $n)) {
+            $agreed = $agreed + 1;
+        }
+    }
+}
+echo $tried as string, "|", $restored as string, "|", $agreed as string, "|\n";
+
+// `chunk` walks the same entries in fixed steps, so its runs are not merely
+// the right sizes — run `k` is `slice($a, k * $size, $size)`, the window at
+// its own offset. Swept over every size from the smallest that terminates to
+// one past the subject's own count: the run counts, that the runs concatenate
+// back to the subject, and that each run is its slice.
+array<int> $sizes = [1, 2, 3, 4, 5, 6, 7];
+array<string> $counts = [];
+int $whole = 0;
+int $seen = 0;
+int $windows = 0;
+foreach ($sizes as int $s) {
+    array<array<string>> $runs = Core\Arr::chunk($subject, $s as uint);
+    $counts = Core\Arr::append($counts, Core\Arr::count($runs) as string);
+    if (Core\Arr::flatten($runs) == $subject) {
+        $whole = $whole + 1;
+    }
+    int $k = 0;
+    foreach ($runs as array<string> $run) {
+        $seen = $seen + 1;
+        if ($run == Core\Arr::slice($subject, $k * $s, $s)) {
+            $windows = $windows + 1;
+        }
+        $k = $k + 1;
+    }
+}
+echo Core\Str::join($counts, ","), "|", $whole as string, "|", $windows as string, "/", $seen as string, "|\n";
+
+// The size's own bound, both sides. A `0` has no run length that would
+// terminate, so it throws rather than answering an empty array and turning a
+// caller's arithmetic bug into a loop that does nothing; `1` is the first size
+// that does terminate, and it is one run per entry.
+try {
+    array<array<string>> $none = Core\Arr::chunk($subject, 0);
+    echo "unreachable\n";
+} catch (RuntimeError $zero) {
+    echo "[", $zero->message, "]\n";
+}
+echo Core\Arr::count(Core\Arr::chunk($subject, 1)) as string, "|", Core\Str::join(Core\Arr::chunk($subject, 1)["0"], ","), "|\n";
+
+// The other side: a size at the subject's own count and one past it are the
+// same single run, so the bound that saturates does it without a throw.
+if (Core\Arr::chunk($subject, 6)["0"] == $subject) {
+    echo "at|";
+}
+if (Core\Arr::chunk($subject, 7)["0"] == $subject) {
+    echo "past|";
+}
+echo "\n";
+--EXPECT--
+72|72|72|
+6,3,2,2,2,1,1|7|17/17|
+[Core\Arr::chunk(): the `size` argument must be greater than 0, got 0]
+6|a|
+at|past|
