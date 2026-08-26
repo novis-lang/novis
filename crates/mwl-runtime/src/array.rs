@@ -398,6 +398,15 @@ impl Table {
         );
     }
 
+    /// Room for `additional` more entries in whichever form is held, or
+    /// `false` — [`MwlArray::try_reserve`] owns what the answer promises.
+    fn try_reserve(&mut self, additional: usize) -> bool {
+        match &mut self.shape {
+            Shape::Packed(values) => values.try_reserve(additional).is_ok(),
+            Shape::Hashed(hashed) => hashed.try_reserve(additional),
+        }
+    }
+
     /// Removes `key`, handing back the value for the caller to release.
     ///
     /// A packed array stays packed when the key removed is the last one, and
@@ -528,6 +537,12 @@ impl Hashed {
         self.entries.push(Some(Entry { key, value }));
         self.live += 1;
         None
+    }
+
+    /// Room for `additional` more entries in both of the vectors an insertion
+    /// grows — the order and the index — or `false` from whichever refused.
+    fn try_reserve(&mut self, additional: usize) -> bool {
+        self.entries.try_reserve(additional).is_ok() && self.index.try_reserve(additional).is_ok()
     }
 
     /// Removes `key`, handing back the value for the caller to release.
@@ -789,6 +804,30 @@ impl MwlArray {
     pub fn append(&mut self, value: Value) {
         self.make_unique();
         self.header().table.borrow_mut().append(value);
+    }
+
+    /// Room for `additional` more entries, answering `false` where the
+    /// allocator refuses rather than aborting.
+    ///
+    /// The fallible seam for a producer whose entry count is a **count off a
+    /// call site** — `Core\Arr::fill`'s is the whole of its first argument.
+    /// [`crate::affordable`] refuses only a size past `isize::MAX`, so every
+    /// count between that and what the machine can actually serve reaches the
+    /// allocator, and an allocator that refuses inside [`Vec::push`] is an
+    /// abort: the process and every in-flight request with it, for a refusal
+    /// the caller may well want to handle. This is
+    /// [`MwlStr::try_build`](crate::MwlStr::try_build)'s bargain over the entry
+    /// storage instead of over a payload.
+    ///
+    /// **What it makes infallible is the entry storage's growth and nothing
+    /// else.** A packed array's append allocates nothing but that, so
+    /// `additional` appends into a reserved list cannot abort; the hash form's
+    /// append also renders and allocates a key string, which this does not
+    /// cover, so a caller that needs the guarantee appends into a list.
+    #[must_use]
+    pub fn try_reserve(&mut self, additional: usize) -> bool {
+        self.make_unique();
+        self.header().table.borrow_mut().try_reserve(additional)
     }
 
     /// Removes `key` if present, separating first if this handle is not the

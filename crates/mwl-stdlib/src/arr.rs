@@ -1303,18 +1303,33 @@ fn store_at(out: &mut MwlArray, key: SlotKey, value: Value) {
 /// so every copy stored takes a reference of its own — the same rule
 /// [`copy_entry`] applies to an entry, over a value that is repeated rather
 /// than walked. `times` is a `u64` because it comes from a `uint` argument and
-/// the loop is what turns it into allocations; a count that will not fit in
-/// memory fails in [`MwlArray`], not by being truncated here.
-fn append_copies(out: &mut MwlArray, value: Value, times: u64) -> Result<(), Fault> {
-    // The one check every count-shaped argument goes through — see
-    // `mwl_runtime::affordable`. This loop had none, which made
-    // `Core\Arr::fill($n, 0)` an unbounded run for any `uint` a caller chose;
-    // a `Value` per entry is the floor on what that costs, and the entry and
-    // its key cost several times more.
+/// the loop is what turns it into allocations.
+///
+/// **Two checks, and they answer different questions** — `Core\Str`'s
+/// `built_fallibly` and `Core\Bytes`' `reserved` run the same pair for the same
+/// reason. `mwl_runtime::affordable` is the policy seam every count-shaped
+/// argument passes through and refuses only a size past `isize::MAX`; every
+/// count below it that the machine cannot serve used to reach an infallible
+/// `Vec::push` inside [`MwlArray`] and abort, which takes the process and every
+/// in-flight request with it for a refusal a caller may well want to handle.
+/// [`MwlArray::try_reserve`] asks the allocator instead, and because `out` is a
+/// list here — all three callers append into a fresh array — the reservation is
+/// the whole of what the loop below allocates.
+///
+/// `member` is the qualified name, because both sentences carry it and a
+/// padding member reaching here must not report `Core\Arr::fill`.
+fn append_copies(out: &mut MwlArray, value: Value, times: u64, member: &str) -> Result<(), Fault> {
     let entries = usize::try_from(times)
         .ok()
         .and_then(|count| count.checked_mul(std::mem::size_of::<Value>()));
-    mwl_runtime::affordable(entries, "Core\\Arr::fill")?;
+    // The byte size `affordable` accepted, back over the size of one entry —
+    // exactly, because that is how it was formed.
+    let count = mwl_runtime::affordable(entries, member)? / std::mem::size_of::<Value>();
+    if !out.try_reserve(count) {
+        return Err(Fault::thrown(format!(
+            "{member}: the result is larger than any array this process could hold"
+        )));
+    }
     for _ in 0..times {
         append_borrowed(out, value);
     }
@@ -1948,7 +1963,7 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_arr_pad_start(_ctx, args: [3]) {
         let (subject, missing, value) = padding(args, "padStart")?;
         let mut out = MwlArray::new();
-        append_copies(&mut out, value, missing)?;
+        append_copies(&mut out, value, missing, "Core\\Arr::padStart")?;
         append_values(&subject, &mut out);
         Ok(Value::array(out))
     }
@@ -1966,7 +1981,7 @@ mwl_runtime::mwl_helper! {
         let (subject, missing, value) = padding(args, "padEnd")?;
         let mut out = MwlArray::new();
         append_values(&subject, &mut out);
-        append_copies(&mut out, value, missing)?;
+        append_copies(&mut out, value, missing, "Core\\Arr::padEnd")?;
         Ok(Value::array(out))
     }
 }
@@ -2293,7 +2308,7 @@ mwl_runtime::mwl_helper! {
             ))
         })?;
         let mut out = MwlArray::new();
-        append_copies(&mut out, args[1], count)?;
+        append_copies(&mut out, args[1], count, "Core\\Arr::fill")?;
         Ok(Value::array(out))
     }
 }
