@@ -2,6 +2,10 @@
 Core\Math::clamp holds a closed range at both ends, and a one-point range is the last non-empty one, per spec § 3
 --FILE--
 <?mwl
+// That `clamp` is the composition `min(max($x, $lo), $hi)` on every row of a
+// non-empty range, and parts from it only where the range is empty, is
+// math-clamp-agrees-with-the-min-max-composition-until-the-range-is-empty.mwlt.
+//
 // The range is closed: a subject *at* either bound is already inside it, so it
 // is returned rather than moved, and one step past each end answers that bound.
 echo Core\Math::clamp(0, 0, 10), "|", Core\Math::clamp(10, 0, 10), "\n";

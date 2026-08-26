@@ -1,0 +1,130 @@
+--TEST--
+Core\Math::clamp answers exactly what min(max($x, $lo), $hi) answers on every row of a non-empty range, in either composition order, and parts from it only where the range is empty — docs/spec/01-core-library.md § 3
+--FILE--
+<?mwl
+// `clamp` is the one member of the ordering trio that is not a binary fold, so
+// the question worth asking is whether it is the *composition* of the other
+// two rather than a third comparison grown for itself. Asked of every row of a
+// swept table and counted, so a `clamp` that is right at the bounds and wrong
+// one step outside them still fails here. That the range is closed at both
+// ends, and that a `low` above its `high` throws, is
+// math-clamp-is-closed-at-both-ends.mwlt.
+
+// 1. `int`: every ordered pair drawn from four bounds, against nine subjects
+//    that sit below, on and above each of them — 90 rows. Both composition
+//    orders are asked, because over a non-empty range they must agree too.
+array<int> $bounds = [-5, 0, 3, 7];
+array<int> $subjects = [-9, -5, -1, 0, 2, 3, 5, 7, 9];
+int $rows = 0;
+int $agree = 0;
+int $agreeSwapped = 0;
+foreach ($bounds as int $lo) {
+    foreach ($bounds as int $hi) {
+        if ($lo <= $hi) {
+            foreach ($subjects as int $x) {
+                $rows = $rows + 1;
+                if (Core\Math::clamp($x, $lo, $hi) == Core\Math::min(Core\Math::max($x, $lo), $hi)) {
+                    $agree = $agree + 1;
+                }
+                if (Core\Math::clamp($x, $lo, $hi) == Core\Math::max(Core\Math::min($x, $hi), $lo)) {
+                    $agreeSwapped = $agreeSwapped + 1;
+                }
+            }
+        }
+    }
+}
+echo "int: ", $agree, "/", $rows, " and swapped ", $agreeSwapped, "/", $rows, "\n";
+
+// 2. `float`: the same sweep. `<=` over two `float`s does not lower, so the
+//    ordered pairs are selected with `min` itself — which is the trio's own
+//    ordering, and therefore the right one to select with.
+array<float> $fbounds = [-2.5, 0.0, 1.5];
+array<float> $fsubjects = [-9.5, -2.5, -1.0, 0.0, 0.5, 1.5, 4.0];
+int $frows = 0;
+int $fagree = 0;
+foreach ($fbounds as float $flo) {
+    foreach ($fbounds as float $fhi) {
+        if (Core\Math::min($flo, $fhi) == $flo) {
+            foreach ($fsubjects as float $y) {
+                $frows = $frows + 1;
+                if (Core\Math::clamp($y, $flo, $fhi) == Core\Math::min(Core\Math::max($y, $flo), $fhi)) {
+                    $fagree = $fagree + 1;
+                }
+            }
+        }
+    }
+}
+echo "float: ", $fagree, "/", $frows, "\n";
+
+// 3. `string`: all three parameters are one type variable, so the composition
+//    has to hold over the ordering `Core`'s comparison defines rather than
+//    only over the numeric ones.
+array<string> $sbounds = ["a", "m", "z"];
+array<string> $ssubjects = ["", "a", "c", "hello", "m", "z", "~"];
+int $srows = 0;
+int $sagree = 0;
+foreach ($sbounds as string $slo) {
+    foreach ($sbounds as string $shi) {
+        if (Core\Math::min($slo, $shi) == $slo) {
+            foreach ($ssubjects as string $s) {
+                $srows = $srows + 1;
+                if (Core\Math::clamp($s, $slo, $shi) == Core\Math::min(Core\Math::max($s, $slo), $shi)) {
+                    $sagree = $sagree + 1;
+                }
+            }
+        }
+    }
+}
+echo "string: ", $sagree, "/", $srows, "\n";
+
+// 4. NaN is where a hand-rolled `clamp` normally parts from the composition,
+//    because `min` and `max` do not treat it alike: `min` keeps it and `max`
+//    drops it, which is what a comparison that is false in both directions
+//    leaves behind. The composition therefore eats the NaN in its `max` step
+//    and answers `low`, and `clamp` answers `low` as well.
+float $nan = Core\Math::sqrt(0.0 - 1.0);
+if (Core\Math::isNan(Core\Math::min($nan, 1.0))) {
+    echo "min keeps NaN, ";
+} else {
+    echo "min drops NaN, ";
+}
+if (Core\Math::isNan(Core\Math::max($nan, 1.0))) {
+    echo "max keeps NaN\n";
+} else {
+    echo "max drops NaN\n";
+}
+echo "NaN clamped: ", Core\Math::clamp($nan, 0.0, 1.0), "|",
+     Core\Math::min(Core\Math::max($nan, 0.0), 1.0), "|",
+     Core\Math::max(Core\Math::min($nan, 1.0), 0.0), "\n";
+
+// 5. The one place the agreement stops, and it is not a row of the table: on an
+//    *empty* range the composition is still total and answers `high`, while
+//    `clamp` refuses. That difference is the whole reason `clamp` exists as its
+//    own member rather than as sugar for the two calls.
+int $refused = 0;
+int $composed = 0;
+int $emptyPairs = 0;
+foreach ($bounds as int $elo) {
+    foreach ($bounds as int $ehi) {
+        if ($elo > $ehi) {
+            $emptyPairs = $emptyPairs + 1;
+            if (Core\Math::min(Core\Math::max(0, $elo), $ehi) == $ehi) {
+                $composed = $composed + 1;
+            }
+            try {
+                echo Core\Math::clamp(0, $elo, $ehi);
+            } catch (Throwable $empty) {
+                $refused = $refused + 1;
+            }
+        }
+    }
+}
+echo "empty ranges: ", $emptyPairs, ", composition answered high ", $composed,
+     ", clamp refused ", $refused, "\n";
+--EXPECT--
+int: 90/90 and swapped 90/90
+float: 42/42
+string: 42/42
+min keeps NaN, max drops NaN
+NaN clamped: 0|0|0
+empty ranges: 6, composition answered high 6, clamp refused 6
