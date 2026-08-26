@@ -59,7 +59,11 @@
 //! outranks priority 3. The measurement above is a release-build number, the
 //! guard that holds it (`benches/abi-probe/tests/perf_guards.rs`) is a
 //! release-only test, and the `Pooled` type itself always pools, so this
-//! module's own tests exercise the free list in either profile.
+//! module's own tests exercise the free list in either profile. A `cfg(test)`
+//! build goes further: [`counting_alloc::Counting`](crate::counting_alloc) is
+//! registered there and forwards to this allocator, so every guard that
+//! measures bytes measures the shape the release build has. The counters sit
+//! outside the cache, so a leak is still a block that never reaches `dealloc`.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;

@@ -1,11 +1,25 @@
 //! A test-only global allocator that counts live — and, separately, total —
-//! bytes on the calling thread.
+//! bytes on the calling thread, in front of the allocator MWL actually ships.
 //!
 //! It exists for one guard: `object::tests::an_acyclic_object_graph_releases_
 //! every_allocation`, the leak check `docs/agent/loop-goal.md` Stage 5 names. A
 //! hand-written refcount protocol is exactly where a leak hides, and asserting
 //! that a refcount reached zero only proves the *bookkeeping* balanced — not
 //! that the allocation was handed back. Measuring the allocator proves both.
+//!
+//! # What it wraps, and why the counts still mean what they did
+//!
+//! Every method below forwards to [`Pooled`](crate::alloc::Pooled) rather than
+//! to the platform heap, so a test build measures the allocator an optimized
+//! build actually runs on instead of the one it replaced. `Counting` sits
+//! *outside* the size-class cache: a request served from a recycled block is
+//! still exactly one `alloc` here, and returning that block to the cache is
+//! still exactly one `dealloc`, so both counters carry the same meaning they
+//! carried over [`System`](std::alloc::System) — [`live_bytes`] a balance and
+//! [`allocated_bytes`] a monotonic total, both in *requested* bytes rather
+//! than in the class-rounded block a request lands in. What changes is the
+//! shape underneath them: a leak or a transient allocation is now caught
+//! against the code path the release binary takes.
 //!
 //! # Why the counter is thread-local
 //!
@@ -22,8 +36,10 @@
 //! wrapping: it stays a readable number instead of a huge one, and no guard
 //! here spans threads.
 
-use std::alloc::{GlobalAlloc, Layout, System};
+use std::alloc::{GlobalAlloc, Layout};
 use std::cell::Cell;
+
+use crate::alloc::Pooled;
 
 thread_local! {
     static LIVE: Cell<isize> = const { Cell::new(0) };
@@ -54,25 +70,25 @@ fn add(bytes: isize) {
     }
 }
 
-/// [`System`], plus the per-thread byte count above.
+/// [`Pooled`], plus the per-thread byte count above.
 #[derive(Debug)]
 pub(crate) struct Counting;
 
 #[expect(
     unsafe_code,
     reason = "a global allocator's contract is inherently unsafe to implement; \
-              every method below forwards to `System` unchanged and only adds \
+              every method below forwards to `Pooled` unchanged and only adds \
               arithmetic on a thread-local Cell"
 )]
 unsafe impl GlobalAlloc for Counting {
     #[expect(
         unsafe_code,
-        reason = "the caller's `layout` obligations are forwarded to `System` \
+        reason = "the caller's `layout` obligations are forwarded to `Pooled` \
                   verbatim"
     )]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
-        let ptr = unsafe { System.alloc(layout) };
+        let ptr = unsafe { Pooled.alloc(layout) };
         if !ptr.is_null() {
             add(isize::try_from(layout.size()).unwrap_or(isize::MAX));
         }
@@ -82,24 +98,24 @@ unsafe impl GlobalAlloc for Counting {
     #[expect(
         unsafe_code,
         reason = "the caller's `ptr`/`layout` obligations are forwarded to \
-                  `System` verbatim"
+                  `Pooled` verbatim"
     )]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         add(-isize::try_from(layout.size()).unwrap_or(isize::MAX));
         #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
         unsafe {
-            System.dealloc(ptr, layout);
+            Pooled.dealloc(ptr, layout);
         }
     }
 
     #[expect(
         unsafe_code,
-        reason = "the caller's `layout` obligations are forwarded to `System` \
+        reason = "the caller's `layout` obligations are forwarded to `Pooled` \
                   verbatim"
     )]
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
-        let ptr = unsafe { System.alloc_zeroed(layout) };
+        let ptr = unsafe { Pooled.alloc_zeroed(layout) };
         if !ptr.is_null() {
             add(isize::try_from(layout.size()).unwrap_or(isize::MAX));
         }
@@ -109,11 +125,11 @@ unsafe impl GlobalAlloc for Counting {
     #[expect(
         unsafe_code,
         reason = "the caller's `ptr`/`layout`/`new_size` obligations are \
-                  forwarded to `System` verbatim"
+                  forwarded to `Pooled` verbatim"
     )]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
-        let fresh = unsafe { System.realloc(ptr, layout, new_size) };
+        let fresh = unsafe { Pooled.realloc(ptr, layout, new_size) };
         if !fresh.is_null() {
             add(isize::try_from(new_size).unwrap_or(isize::MAX));
             add(-isize::try_from(layout.size()).unwrap_or(isize::MAX));
