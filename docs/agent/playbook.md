@@ -383,6 +383,12 @@ is why" — is this file.
   nothing in the session had touched. `git status --short` showing that file unmodified says the failure
   was not *caused* here, which is the neighbouring bullet's rule; only the rebuild says it is not real.
   The same tree, rebuilt, is 478 passed / 0 failed.
+- **A scratch `.mwl` still needs its `<?mwl` tag, and without one the panic names a construct you did
+  not write.** A file under `.agent-tmp/` that opens straight into `echo` lowers as a single
+  `InlineHtml(0:0..139)` statement and dies in `mwl-ir`'s control-flow slice listing every statement it
+  *does* lower — which reads as "`echo` is unsupported" rather than "this file is all text". The
+  `.mwlt` harness supplies the tag for you inside `--FILE--`, so the omission only ever bites on a
+  scratch run, which is exactly where a session is trying to find out whether a shape lowers.
 
 ## Adding a `Core` member
 

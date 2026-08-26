@@ -113,14 +113,14 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Stage 4's two counts are the frontier: conformance is 486 of the 600 the gate
-> requires and differential is 123 of 150.** Both named guards
+> requires and differential is 127 of 150.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
 > conventions.md rather than for a section, and lands its claim as its own file, because the gate
 > counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is the worklist and no
 > session should re-derive it**: `--differential` names every member whose spec **Replaces** column
-> gives it a PHP twin and which no oracle case calls — 38 left — and `--errors` every `Fault::` site
+> gives it a PHP twin and which no oracle case calls — 36 left — and `--errors` every `Fault::` site
 > in `mwl-stdlib` whose message no case asserts. **Differential is the half that comes first** — the
 > smaller of the two gaps, and an `--ORACLE--` case has no frozen output to derive at all, because
 > PHP computes it. Over `Core\Arr` the twin's key rule decides which kind of case it is: PHP
@@ -130,27 +130,33 @@
 > array has no key rule to diverge over at all**, which is why `min`/`max` and `reduce` match PHP
 > over a map as readily as over a list; what parts them from their twins is PHP's loose comparison —
 > `min([0, "a"])` is `0`, and two numeral strings compare numerically — and `array_reduce`'s
-> callback taking exactly two arguments where MWL's takes the key third. Two other twins sit outside
-> the key rule: `array_unique` renumbers nothing at all, so the divergence there is `SORT_STRING`'s
-> comparison by *spelling*, and `array_count_values` names a bucket through the same key
+> callback taking exactly two arguments where MWL's takes the key third. **Four other twins sit
+> outside the key rule**: `array_unique` renumbers nothing at all, so the divergence there is
+> `SORT_STRING`'s comparison by *spelling*; `array_count_values` names a bucket through the same key
 > normalization `countBy` uses, so that pair parts only where PHP warns-and-skips a value `countBy`
-> refuses. **Unbuilt in the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s
-> decoder, which ADR 0071 leaves reading a scalar-fielded class only — no enum, `decimal`,
-> `Instant`, `array` or nested-class field, and no optional key from a parameter default
-> (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing from every `mwl-stdlib`
-> member row, which is why `Core\Str::format`'s template is not yet the sink that ADR makes it, why
-> neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
-> refusing an unclassified member exists, and why `Core\Hash::hmac`'s `secret bytes $key` is a plain
-> `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's substitution table, which is
-> what would make the terminal sink neutralize a control byte and `Cli\Text::plain` a constructor
-> that cannot produce an injected escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
-> unbuilt, but not catch-up** — ADRs 0091 (the `development`/`production` run mode), 0092 (one
-> diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`), 0097 (the
-> server's scope and its `[server]` block) and 0100 § 3 (a file opening `#!` starts in code mode
-> with no tag — one `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no parser or
-> runtime change). None invalidates built behaviour or a written fixture; their work is M1, M4, M6,
-> M7, M8 and M10. **Open beside the library** — a property's declared default runs and is
-> type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow
+> refuses; `ksort` reads a numeral *key* as a number where ADR 0007 § 5 makes every stored key a
+> `string` compared bytewise, so `sortByKey` parts from it over a numeral or mixed-key subject and a
+> `comparator` is the way back; and `array_fill` takes a start index `fill` drops, so every non-zero
+> start is `Core\Arr::fillKeys` over the keys the caller wanted. **MWL's `float` rendering is
+> PHP's**, precision 14 with trailing zeros trimmed — `sqrt(2.0)` prints `1.4142135623731` and `0.1
+> + 0.2` prints `0.3` on both sides — so a `Core\Math` oracle case may echo a float directly and
+> needs no formatting. **Unbuilt in the library**, none of it a registration gap:
+> `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a scalar-fielded class only — no
+> enum, `decimal`, `Instant`, `array` or nested-class field, and no optional key from a parameter
+> default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing from every
+> `mwl-stdlib` member row, which is why `Core\Str::format`'s template is not yet the sink that ADR
+> makes it, why neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
+> the test refusing an unclassified member exists, and why `Core\Hash::hmac`'s `secret bytes $key`
+> is a plain `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's substitution
+> table, which is what would make the terminal sink neutralize a control byte and `Cli\Text::plain`
+> a constructor that cannot produce an injected escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1).
+> **Decided and unbuilt, but not catch-up** — ADRs 0091 (the `development`/`production` run mode),
+> 0092 (one diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`), 0097
+> (the server's scope and its `[server]` block) and 0100 § 3 (a file opening `#!` starts in code
+> mode with no tag — one `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no
+> parser or runtime change). None invalidates built behaviour or a written fixture; their work is
+> M1, M4, M6, M7, M8 and M10. **Open beside the library** — a property's declared default runs and
+> is type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow
 > statement that does not lower; a closure cannot be called through the variable holding it and
 > `Class::method(...)` panics `mwl-ir` outright, so a case sweeps a table with `foreach` and reaches
 > a helper through a `public static function` declared in the same file (`mwl-ir` gap 1); a `?bool`
@@ -170,7 +176,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: conformance stands at 486 of 600 and differential at 123 of 150, and the remainder is
+> decision: conformance stands at 486 of 600 and differential at 127 of 150, and the remainder is
 > written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
