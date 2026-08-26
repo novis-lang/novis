@@ -1,0 +1,91 @@
+--TEST--
+`Core\Arr::from`'s `{limit}` stops the drive rather than truncating the result, asserted at the exact element count and one past it — spec § 2, ADR 0053 § 1
+--FILE--
+<?mwl
+// Spec § 2 calls `{limit}` the only guard against materialising a sequence that
+// never ends, which is a claim about the *drive* and not about the answer: a
+// member that drained everything and then cut the result would give the same
+// array and would be no guard at all. The two are told apart by counting the
+// source's own `advance()` calls, so that is what this cursor does — ADR 0053
+// § 1 gives an `Iterator<T>` exactly `advance` and `current`, and the count of
+// the first is the only thing about the drive a program can observe.
+class Counted implements Iterator<int> {
+    private int $at;
+    public int $advances;
+
+    public function constructor() {
+        $this->at = 0;
+        $this->advances = 0;
+    }
+
+    // Four elements, 1 through 4. The fifth call is the one that reports
+    // exhaustion, and whether it happens is the whole question below.
+    public function advance(): bool {
+        $this->advances = $this->advances + 1;
+        $this->at = $this->at + 1;
+        return $this->at <= 4;
+    }
+
+    public function current(): int {
+        return $this->at;
+    }
+}
+
+// A cursor is spent once drained, so each question gets its own. A closure
+// cannot be called through the variable holding it (`mwl-ir` gap 1), so this is
+// a static method called directly.
+class Drive {
+    public static function at(uint $limit): string {
+        var $c = new Counted();
+        var $got = Core\Arr::from($c, {limit: $limit});
+        return Core\Json::encode($got) . " " . $c->advances;
+    }
+
+    public static function unbounded(): string {
+        var $c = new Counted();
+        var $got = Core\Arr::from($c);
+        return Core\Json::encode($got) . " " . $c->advances;
+    }
+}
+
+// The low side of the bound. A limit of zero is not an omitted limit: the
+// source is never touched at all, which is the difference between a guard and
+// a filter.
+echo Drive::at(0), "\n";
+echo Drive::at(1), "\n";
+echo Drive::at(3), "\n";
+
+// The exact element count, and the sharp half of the claim: four elements out
+// and *four* advances, not five. A member that truncated afterwards would have
+// asked a fifth time to discover the source was done, and would print `5` here
+// while printing the same array.
+echo Drive::at(4), "\n";
+
+// One past it. Now the fifth advance does happen — but it is the source
+// stopping the drive, not the limit, so an over-large limit saturates to what
+// there was rather than throwing or padding. That it agrees with the unbounded
+// drive on both halves is what says the limit had no effect once it was out of
+// reach.
+echo Drive::at(5), "\n";
+echo Drive::unbounded(), "\n";
+
+// The same bound over the third shape § 2 accepts. An array is already
+// materialised, so there is no drive to stop and `{limit}` is a plain prefix of
+// it — at zero, at the exact count and one past it, with the keys discarded
+// either way because the result is always a list whichever shape went in.
+array<int> $four = ["w" => 1, "x" => 2, "y" => 3, "z" => 4];
+echo Core\Json::encode(Core\Arr::from($four, {limit: 0})), "\n";
+echo Core\Json::encode(Core\Arr::from($four, {limit: 4})), "\n";
+echo Core\Json::encode(Core\Arr::from($four, {limit: 5})), "\n";
+echo Core\Json::encode(Core\Arr::from($four)), "\n";
+--EXPECT--
+[] 0
+[1] 1
+[1,2,3] 3
+[1,2,3,4] 4
+[1,2,3,4] 5
+[1,2,3,4] 5
+[]
+[1,2,3,4]
+[1,2,3,4]
+[1,2,3,4]
