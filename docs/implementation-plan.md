@@ -15,10 +15,10 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 439 of 600 and differential 90 of 150, and nothing below them
-> is red. **Cranelift's stack probe is emitted inline now** — the default `outline` strategy calls a
-> `__cranelift_probestack` symbol this JIT never registers, so a frame over 4 KiB panicked the
-> compiler rather than being protected by the probe `enable_probestack` was turned on for. The goal
+> Stage 4's two counts**, conformance 441 of 600 and differential 90 of 150, and nothing below them
+> is red. **The depth pass is section by section**: `encoding` and `hash` have each taken two cases,
+> and `Core\Hash`'s `of`, `hmac` and `equals` are now pinned against the documents that publish
+> their vectors — FIPS 180-4, RFC 1321 and RFC 4231 — rather than against one input each. The goal
 > is unchanged: **M4S Part I in full plus the M4 surface it cannot be written without**. Every
 > representation that blocked a section is built and recorded in the crate that owns it —
 > `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict identity is `mwl_runtime::identity`,
@@ -32,8 +32,10 @@
 > `E0466`; § 3's string, array and object rows are one runtime helper each and still owed. **ADR
 > 0069's `+`/`+=` refusal is built**, `E0467` naming `Core\Arr::underlay`. **ADR 0071's first
 > compiler-recognized attribute is built** — `#[Json\Derive]`, matched nominally in
-> `mwl_types::derive` — and `ParseError` carries § 10's `issues`. Dependencies: `regex` +
-> `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
+> `mwl_types::derive` — and `ParseError` carries § 10's `issues`. **Cranelift's stack probe is
+> emitted inline**, the default `outline` strategy having called a `__cranelift_probestack` symbol
+> this JIT never registers. Dependencies: `regex` + `fancy-regex` and `jiff` are named by the user;
+> the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -56,12 +58,13 @@
 > `regex`/`fancy-regex`, `Time` × 7 plus `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` ×
 > 19 and `Time\Zone` × 4 (+ `UTC`) over `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+
 > `SEPARATOR`) over nothing at all, `Random` × 6 over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`,
-> `Uri` × 4 over nothing at all, `Encoding` × 2 over nothing at all, `Out` × 1 answering the
-> `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over `identity_store`, all
-> three iterable through `cursor`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli`
-> (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 439 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
-> `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `Uri` × 4 over nothing at all, `Encoding` × 2 over nothing at all, `Hash` × 4 plus `Hash\Stream` ×
+> 2 over the RustCrypto family, `crc32fast` and `subtle`, `Out` × 1 answering the `Cli\Text`
+> carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over `identity_store`, all three iterable
+> through `cursor`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 441 (in
+> `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` ×
+> 90, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -103,37 +106,39 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 4's own two counts are the frontier: conformance is 439 of the 600 that gate
+> **Open now:** **Stage 4's own two counts are the frontier: conformance is 441 of the 600 that gate
 > requires and differential is 90 of 150.** Both of Stage 4's named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) exist
 > and pass, so the gap is behavioural *depth* per member rather than an unregistered member or an
-> uncovered one — every registered member has at least one case. The thinnest sections by case count
-> are `csv`, `out` and `validate` at one each, `path`, `heap` and `uuid` at two, and `json` and
-> `random` at three, against `arr`'s 40 and `str`'s 28; `encoding` took two this session and `hash`
-> is next. **A codegen hole those cases found is closed**: Cranelift's default probe *strategy* is
-> `outline`, which is a call to a `__cranelift_probestack` symbol `Jit::new`'s `builder.symbol` loop
-> never supplies, so a frame over `probestack_size_log2`'s 4 KiB — roughly fifty statements at a
-> script's file scope — panicked `cranelift-jit` instead of being protected by the probe. It is
-> `inline` now, and `crates/mwl-codegen/tests/backend_policy.rs` runs a 200-statement script rather
-> than grepping for the flag. **What is still unbuilt in the library**, none of it a registration
-> gap: `Core\Json::decodeAs<T>`'s decoder (`mwl_stdlib::json` gap 2); ADR 0071 decodes only a
+> uncovered one — every registered member has at least one case. **The depth pass runs a section at
+> a time, weakest first.** `hash` took two this session and is now 5 cases: `Core\Hash::of` is
+> pinned against each algorithm's own published vector, the empty input and a buffer no `string`
+> could hold, and `hmac`/`equals` against RFC 4231's four key shapes — shorter than the block,
+> binary, longer than the block and therefore reduced first, and empty — plus the two identities RFC
+> 2104 states, written as identities rather than as pasted constants. `Core\Hash\Stream` is the one
+> member of § 11 still at one chunking. The thinnest sections now are `csv`, `out` and `validate` at
+> one case each, `path`, `heap` and `uuid` at two, and `json` and `random` at three, against `arr`'s
+> 40 and `str`'s 28. **What is still unbuilt in the library**, none of it a registration gap:
+> `Core\Json::decodeAs<T>`'s decoder (`mwl_stdlib::json` gap 2); ADR 0071 decodes only a
 > scalar-fielded class — no enum/`decimal`/`Instant`/`array`/nested-class field and no optional key
 > from a parameter default; ADR 0088's registry-wide item, that `mwl-stdlib`'s member rows carry
 > **no qualifier classification**, so `Core\Str::format`'s template is not yet the sink that ADR
-> makes it and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
-> the test refusing an unclassified member exists; and ADR 0086 § 1's substitution table, which is
-> what makes the terminal sink neutralize a control byte and `Cli\Text::plain` a constructor that
-> cannot produce an injected escape — both M8, and `crates/mwl-stdlib/src/cli.rs`'s gap 1. **Four
-> ADRs are decided and unbuilt but are not catch-up** — 0091 (the `development`/`production` run
-> mode), 0092 (one diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`)
-> and 0097 (the server's scope and its `[server]` block). None invalidates built behaviour or a
-> written fixture; their work is M4, M6, M7, M8 and M10. **Still open beside the library** — a
-> property's declared default runs and is type-checked (`E0472`), limited to a literal or `[]`;
-> `do`/`while` is the one M4 control-flow statement that does not lower; an abandoned generator
-> never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a PHP divergence); ADR 0043's
-> `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31% classified, reported by
-> `python tools/check-migration.py`. **What has already landed is not restated here** — `git log`
-> holds the session-by-session history and each crate's own module doc holds its per-file gaps.
+> makes it, neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the
+> test refusing an unclassified member exists, and `Core\Hash::hmac`'s `secret bytes $key` is a
+> plain `CoreTy::Bytes` for the same reason (`mwl_stdlib::hash`'s own module doc); and ADR 0086 §
+> 1's substitution table, which is what makes the terminal sink neutralize a control byte and
+> `Cli\Text::plain` a constructor that cannot produce an injected escape — both M8, and
+> `crates/mwl-stdlib/src/cli.rs`'s gap 1. **Four ADRs are decided and unbuilt but are not catch-up**
+> — 0091 (the `development`/`production` run mode), 0092 (one diagnostic record rendered three ways
+> by the sink in force), 0093 (`mwl service`) and 0097 (the server's scope and its `[server]`
+> block). None invalidates built behaviour or a written fixture; their work is M4, M6, M7, M8 and
+> M10. **Still open beside the library** — a property's declared default runs and is type-checked
+> (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow statement that
+> does not lower; an abandoned generator never runs the `finally` it is suspended inside (`mwl-ir`
+> gap 18, a PHP divergence); ADR 0043's `by`-delegation is off path; and
+> `docs/spec/02-php-migration.md` is 31% classified, reported by `python tools/check-migration.py`.
+> **What has already landed is not restated here** — `git log` holds the session-by-session history
+> and each crate's own module doc holds its per-file gaps.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
@@ -143,7 +148,7 @@
 > carrier being a `Core` instance rather than a `string` (settled under ADR 0088 § 5), and picking
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** now pass whole on both legs,
 > so any failure below Stage 4 is a regression rather than unfinished work. What Stage 4 needs is
-> not a decision: 161 more conformance cases and 60 more differential ones, written a section at a
+> not a decision: 159 more conformance cases and 60 more differential ones, written a section at a
 > time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
