@@ -1,0 +1,146 @@
+--TEST--
+`Core\Json::encode` writes every value JSON has a spelling for and refuses the rest in `LogicError`, each refusal wrapped in its own name — spec § 6, ADR 0063 R4, ADR 0071 § 5, ADR 0009 § 1
+--FILE--
+<?mwl
+// ADR 0071 § 5: participation in a wire format is written, never inferred, so
+// the attribute is the whole difference between these two classes.
+#[Core\Json\Derive]
+final class Row {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+final class Plain {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+decimal $exact = 19.99;
+uint $width = Core\Str::length("ab");
+
+// One value per tag JSON has a spelling for, plus both array shapes: spec § 6
+// writes a list as an array and a string-keyed map as an object. A `decimal`
+// is written as the exact number ADR 0054 makes it rather than through a
+// `float`.
+array<mixed> $writable = [
+    null, true, false, 7, $width, 1.5, $exact, "text",
+    ["a", "b"], ["k" => "v"], new Row(1),
+];
+int $rendered = 0;
+foreach ($writable as mixed $value) {
+    echo "wrote=", Core\Json::encode($value), "\n";
+    $rendered = $rendered + 1;
+}
+echo "rendered=", $rendered, " of ", Core\Arr::count($writable), "\n";
+
+// The rest: values MWL holds and JSON has nowhere to put. Counting is the
+// assertion — a member that quietly grew a spelling of its own for any one of
+// them, the substituted `0` `json_encode` writes for a `NaN`, still looks
+// right on every line above.
+array<mixed> $unwritable = [
+    Core\Math::sqrt(-1.0), Core\Math::exp(710.0), Core\Math::log(0.0),
+    "text" as bytes, new Plain(1),
+];
+int $refused = 0;
+int $wrapped = 0;
+foreach ($unwritable as mixed $other) {
+    try {
+        var $written = Core\Json::encode($other);
+        echo "not refused=", $written, "\n";
+    } catch (LogicError $no) {
+        $refused = $refused + 1;
+        // ADR 0063 R4: the member that refused names itself, which is the half
+        // of the sentence the three tails below do not carry.
+        if (Core\Str::startsWith($no->message, 'Core\Json::encode(): ')) {
+            $wrapped = $wrapped + 1;
+        }
+    }
+}
+echo "refused=", $refused, " of ", Core\Arr::count($unwritable), "\n";
+echo "wrapped=", $wrapped, "\n";
+
+// The class is `LogicError` and not `RuntimeError` on purpose: an unencodable
+// value was built by the program, so it is a bug in the program rather than
+// something the world did. Every refusal counted above went through that same
+// clause, so this names which of § 10's two branches it was.
+try {
+    var $unreachable = Core\Json::encode(new Plain(1));
+    echo "not refused=", $unreachable, "\n";
+} catch (RuntimeError $runtime) {
+    echo "class=runtime\n";
+} catch (LogicError $logic) {
+    echo "class=logic\n";
+}
+
+// The three sentences, each naming what it could not write. The float is
+// spelled the way `echo` spells it, and the buffer is named by its type rather
+// than by a tag number only the engine can read.
+try {
+    var $writtenNan = Core\Json::encode(Core\Math::sqrt(-1.0));
+    echo "not refused=", $writtenNan, "\n";
+} catch (LogicError $nan) {
+    echo $nan->message, "\n";
+}
+try {
+    var $writtenBytes = Core\Json::encode("text" as bytes);
+    echo "not refused=", $writtenBytes, "\n";
+} catch (LogicError $binary) {
+    echo $binary->message, "\n";
+}
+try {
+    var $writtenPlain = Core\Json::encode(new Plain(1));
+    echo "not refused=", $writtenPlain, "\n";
+} catch (LogicError $undeclared) {
+    echo $undeclared->message, "\n";
+}
+
+// The float bound, named on both sides and one argument apart: `exp` answers a
+// finite value at 709 and an infinity at 710, and only the second has no JSON
+// spelling. The first is written like any other number.
+echo "finite=", Core\Json::encode(Core\Math::exp(709.0)), "\n";
+try {
+    var $writtenInf = Core\Json::encode(Core\Math::exp(710.0));
+    echo "not refused=", $writtenInf, "\n";
+} catch (LogicError $over) {
+    echo "over=refused\n";
+}
+
+// The text bound: the same four octets are a document as a `string` and are
+// nothing JSON can hold as `bytes`. ADR 0009 § 1 makes that a difference in
+// type rather than in content, so the conversion is where the answer changes.
+echo "text=", Core\Json::encode("text"), "\n";
+try {
+    var $writtenOctets = Core\Json::encode("text" as bytes);
+    echo "not refused=", $writtenOctets, "\n";
+} catch (LogicError $octets) {
+    echo "octets=refused\n";
+}
+--EXPECT--
+wrote=null
+wrote=true
+wrote=false
+wrote=7
+wrote=2
+wrote=1.5
+wrote=19.99
+wrote="text"
+wrote=["a","b"]
+wrote={"k":"v"}
+wrote={"n":1}
+rendered=11 of 11
+refused=5 of 5
+wrapped=5
+class=logic
+Core\Json::encode(): `NAN` has no JSON spelling — JSON has no `NaN` and no `Infinity`
+Core\Json::encode(): a `bytes` value has no JSON encoding
+Core\Json::encode(): an instance of `Plain` has no JSON encoding — a class participates by carrying `#[Json\Derive]`
+finite=8.218407461554972e+307
+over=refused
+text="text"
+octets=refused

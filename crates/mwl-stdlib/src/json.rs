@@ -288,8 +288,12 @@ impl Serialize for Encodable {
             Some(Tag::Float) => {
                 let number = self.value.as_float().unwrap_or(0.0);
                 if !number.is_finite() {
+                    // Spelled the way `echo` would spell it — `INF`, not
+                    // Rust's `inf` — so the value the message quotes back is
+                    // the one the program can see for itself.
                     return Err(S::Error::custom(format!(
-                        "`{number}` has no JSON spelling — JSON has no `NaN` and no `Infinity`"
+                        "`{}` has no JSON spelling — JSON has no `NaN` and no `Infinity`",
+                        mwl_runtime::php_float_to_string(number)
                     )));
                 }
                 ser.serialize_f64(number)
@@ -311,7 +315,15 @@ impl Serialize for Encodable {
             Some(Tag::Str) => ser.serialize_str(self.text()?),
             Some(Tag::Array) => self.serialize_array(ser),
             Some(Tag::Object) => self.serialize_object(ser),
-            _ => Err(S::Error::custom(format!(
+            // The tag is named rather than numbered: `bytes` is the arm a
+            // program actually reaches (see [`Self::text`]), and a caller who
+            // handed a buffer to a text format needs to be told *that* rather
+            // than told a number only this crate can read.
+            Some(tag) => Err(S::Error::custom(format!(
+                "a `{}` value has no JSON encoding",
+                tag.describe()
+            ))),
+            None => Err(S::Error::custom(format!(
                 "tag {} has no JSON encoding",
                 self.value.tag_byte()
             ))),

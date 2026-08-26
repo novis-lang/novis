@@ -1,0 +1,159 @@
+--TEST--
+`Core\Json::decodeAs<T>` reads a class only where its declaration says so, and the attribute decides both directions of the wire — ADR 0071 §§ 2 and 5, ADR 0063 R4
+--FILE--
+<?mwl
+// ADR 0071 § 5: a class participates in a wire format by carrying the
+// attribute. These three declare the same two fields; only the first line of
+// the first one differs, which is what makes the pair a bound rather than two
+// examples.
+#[Core\Json\Derive]
+final class Row {
+    public int $n;
+    public string $name;
+
+    public function constructor(int $n, string $name) {
+        $this->n = $n;
+        $this->name = $name;
+    }
+}
+
+final class Plain {
+    public int $n;
+    public string $name;
+
+    public function constructor(int $n, string $name) {
+        $this->n = $n;
+        $this->name = $name;
+    }
+}
+
+final class Legacy {
+    public int $n;
+    public string $name;
+
+    public function constructor(int $n, string $name) {
+        $this->n = $n;
+        $this->name = $name;
+    }
+}
+
+// § 2: the declared class decodes, and it is the constructor that built it.
+bool $rowDecodes = true;
+try {
+    var $row = Core\Json::decodeAs<Row>("{\"n\":1,\"name\":\"ada\"}");
+    echo "row-read=", $row->name, "\n";
+} catch (LogicError $rowNoDecode) {
+    $rowDecodes = false;
+    echo $rowNoDecode->message, "\n";
+}
+bool $rowEncodes = true;
+try {
+    echo "row-wrote=", Core\Json::encode(new Row(1, "ada")), "\n";
+} catch (LogicError $rowNoEncode) {
+    $rowEncodes = false;
+}
+
+// The undeclared pair. The refusal quotes back the class it was *handed*, so
+// the sentence is not a constant: two classes, two sentences, differing in the
+// one place the caller chose.
+bool $plainDecodes = true;
+try {
+    var $plain = Core\Json::decodeAs<Plain>("{\"n\":1,\"name\":\"ada\"}");
+    echo "plain-read=", $plain->name, "\n";
+} catch (LogicError $plainNoDecode) {
+    $plainDecodes = false;
+    echo $plainNoDecode->message, "\n";
+}
+bool $plainEncodes = true;
+try {
+    var $plainWritten = Core\Json::encode(new Plain(1, "ada"));
+    echo "plain-wrote=", $plainWritten, "\n";
+} catch (LogicError $plainNoEncode) {
+    $plainEncodes = false;
+}
+
+bool $legacyDecodes = true;
+try {
+    var $legacy = Core\Json::decodeAs<Legacy>("{\"n\":1,\"name\":\"ada\"}");
+    echo "legacy-read=", $legacy->name, "\n";
+} catch (LogicError $legacyNoDecode) {
+    $legacyDecodes = false;
+    echo $legacyNoDecode->message, "\n";
+}
+bool $legacyEncodes = true;
+try {
+    var $legacyWritten = Core\Json::encode(new Legacy(1, "ada"));
+    echo "legacy-wrote=", $legacyWritten, "\n";
+} catch (LogicError $legacyNoEncode) {
+    $legacyEncodes = false;
+}
+
+// One attribute decides both directions, so the two members have to *agree*
+// per class rather than each be right on its own line: a decoder that grew a
+// participation rule of its own — reading any class whose fields happen to be
+// scalars — still answers plausibly above and fails here.
+int $agreed = 0;
+if ($rowEncodes == $rowDecodes) {
+    $agreed = $agreed + 1;
+}
+if ($plainEncodes == $plainDecodes) {
+    $agreed = $agreed + 1;
+}
+if ($legacyEncodes == $legacyDecodes) {
+    $agreed = $agreed + 1;
+}
+int $participating = 0;
+if ($rowDecodes) {
+    $participating = $participating + 1;
+}
+if ($plainDecodes) {
+    $participating = $participating + 1;
+}
+if ($legacyDecodes) {
+    $participating = $participating + 1;
+}
+echo "agreed=", $agreed, " of 3\n";
+echo "participating=", $participating, " of 3\n";
+
+// § 10's two branches: the class was named by the call site, so a class that
+// cannot participate is a bug in the program rather than something the world
+// did, and the refusal is a `LogicError`.
+try {
+    var $unreachable = Core\Json::decodeAs<Plain>("{\"n\":1,\"name\":\"ada\"}");
+    echo "not refused\n";
+} catch (RuntimeError $runtime) {
+    echo "class=runtime\n";
+} catch (LogicError $logic) {
+    echo "class=logic\n";
+}
+
+// The codec is read before the document is, so one unreadable text is two
+// different failures decided only by the class asked for: the class that
+// cannot participate refuses first, and the one that can gets as far as the
+// syntax. A decoder that parsed first would answer `ParseError` to both.
+try {
+    var $neverPlain = Core\Json::decodeAs<Plain>("{oops}");
+    echo "not refused\n";
+} catch (ParseError $parsePlain) {
+    echo "malformed-plain=parse\n";
+} catch (LogicError $logicPlain) {
+    echo "malformed-plain=logic\n";
+}
+try {
+    var $neverRow = Core\Json::decodeAs<Row>("{oops}");
+    echo "not refused\n";
+} catch (ParseError $parseRow) {
+    echo "malformed-row=parse\n";
+} catch (LogicError $logicRow) {
+    echo "malformed-row=logic\n";
+}
+--EXPECT--
+row-read=ada
+row-wrote={"n":1,"name":"ada"}
+Core\Json::decodeAs(): `Plain` has no JSON codec — a class participates by carrying `#[Json\Derive]`
+Core\Json::decodeAs(): `Legacy` has no JSON codec — a class participates by carrying `#[Json\Derive]`
+agreed=3 of 3
+participating=1 of 3
+class=logic
+malformed-plain=logic
+malformed-row=parse
