@@ -1,0 +1,155 @@
+--TEST--
+`Core\Path::withExtension`'s four refusals name what stopped them, and the extension is checked before the path — spec § 8, ADR 0063 R4 and R20
+--FILE--
+<?mwl
+// Spec § 8's one member that refuses four different ways, none of which had a
+// case asserting its *message*. The neighbouring `Core\Path` cases pin what the
+// decomposition members answer; this one pins where the rewriting member stops
+// accepting, what it says there, and — because two of a call's arguments can be
+// wrong at once — which of the four reasons wins.
+// `crates/mwl-stdlib/src/path.rs` owns all four.
+//
+// Every answer below is either a refusal or a single-component relative path,
+// so nothing here has to normalize `Core\Path::SEPARATOR` — except the one row
+// that deliberately renders a root, which does.
+//
+// Each `catch` takes its own binding name: a binding is function-scoped, and
+// two clauses reusing one name is `E0406` even at file scope once a loop below
+// has declared it.
+
+// The accepted side of all four refusals, and the inverse the member exists
+// for: it takes exactly what `extension` answers — undotted — and `null` is the
+// one spelling of "no extension", which is what makes the empty string a
+// mistake rather than a second spelling of the same request.
+echo Core\Path::withExtension("report.txt", "md"), "\n";
+echo Core\Path::withExtension("report.txt", null), "\n";
+echo Core\Path::withExtension("report", "txt"), "\n";
+echo Core\Str::replace(Core\Path::withExtension("/a", "txt"), Core\Path::SEPARATOR, "/"), "\n";
+
+// 1. The empty extension is the one refusal that quotes nothing back, because
+// the operand is what is missing; it names the argument that would have worked.
+try { echo Core\Path::withExtension("report.txt", ""), "\n"; }
+catch (Throwable $noExtension) { echo $noExtension->message, "\n"; }
+
+// 2. A leading dot is refused rather than accepted as a second spelling (R20),
+// and the message names the extension the caller meant. The dot is refused at
+// exactly one position: an interior dot is a usable extension even though
+// `extension` would then answer only its tail, and a trailing dot is accepted
+// too — so the bound is stated on both sides at once.
+try { echo Core\Path::withExtension("report.txt", ".txt"), "\n"; }
+catch (Throwable $dotted) { echo $dotted->message, "\n"; }
+echo Core\Path::withExtension("archive.gz", "tar.gz"), "\n";
+echo Core\Path::withExtension("report.txt", "txt."), "\n";
+
+// The sharpest cell of that pair is the dot alone: it is not empty, so it
+// passes the first check, and the extension it names instead is the empty one
+// the first check refuses. A member folding the two tests into one would answer
+// either message here and look right.
+try { echo Core\Path::withExtension("report.txt", "."), "\n"; }
+catch (Throwable $bareDot) { echo $bareDot->message, "\n"; }
+
+// 3. A separator in the extension would silently make one component into two,
+// which is `join`'s job. Both separators are refused wherever this runs — the
+// acceptance grammar is one grammar on every platform, and only rendering
+// follows the host — so neither leg of the suite sees a different answer here.
+try { echo Core\Path::withExtension("report.txt", "a/b"), "\n"; }
+catch (Throwable $slashed) { echo $slashed->message, "\n"; }
+try { echo Core\Path::withExtension("report.txt", "a\\b"), "\n"; }
+catch (Throwable $backslashed) { echo $backslashed->message, "\n"; }
+
+// 4. A path with no last component has no name to rewrite, so it throws rather
+// than inventing one (R4). A root is nameless whichever way it is spelled, and
+// a *trailing* separator is not: it names nothing and is dropped, leaving the
+// component before it to be renamed.
+try { echo Core\Path::withExtension("/", "txt"), "\n"; }
+catch (Throwable $root) { echo $root->message, "\n"; }
+try { echo Core\Path::withExtension("C:\\", "txt"), "\n"; }
+catch (Throwable $driveRoot) { echo $driveRoot->message, "\n"; }
+try { echo Core\Path::withExtension("", "txt"), "\n"; }
+catch (Throwable $emptyPath) { echo $emptyPath->message, "\n"; }
+echo Core\Path::withExtension("a/", "txt"), "\n";
+
+// The order the four run in is itself observable, and it is what a caller with
+// two mistakes at once actually sees. The extension is checked before the path,
+// so a nameless path handed a bad extension reports the extension — every time,
+// and the empty extension beats the dot beats the separator.
+try { echo Core\Path::withExtension("/", ""), "\n"; }
+catch (Throwable $bothEmpty) { echo $bothEmpty->message, "\n"; }
+try { echo Core\Path::withExtension("/", ".txt"), "\n"; }
+catch (Throwable $bothDotted) { echo $bothDotted->message, "\n"; }
+try { echo Core\Path::withExtension("/", "a/b"), "\n"; }
+catch (Throwable $bothSlashed) { echo $bothSlashed->message, "\n"; }
+
+// The dot check running before the separator check is why this one message
+// suggests an extension the *next* check would refuse: `./a` undotted is `/a`.
+// That is the ordering stated where it costs something, rather than where it
+// happens to be free.
+try { echo Core\Path::withExtension("report.txt", "./a"), "\n"; }
+catch (Throwable $dottedSlash) { echo $dottedSlash->message, "\n"; }
+
+// Counted: over twelve extensions against one fixed path, exactly four are
+// accepted — the dot is refused only at position 0, and either separator at any
+// position — and every refusal but the empty one quotes the extension it was
+// actually handed. A member with a constant message, or one refusing an
+// interior dot as well, still prints plausibly against any single row above.
+array<string> $exts = ["", ".", ".txt", "..t", "a/b", "a\\b", "/", "\\", "txt", "tar.gz", "txt.", "t"];
+int $taken = 0;
+int $refused = 0;
+int $named = 0;
+foreach ($exts as string $ext) {
+    try {
+        Core\Path::withExtension("report.txt", $ext);
+        $taken = $taken + 1;
+    } catch (Throwable $sweptExt) {
+        $refused = $refused + 1;
+        if (Core\Str::contains($sweptExt->message, "`" . $ext . "`")) {
+            $named = $named + 1;
+        }
+    }
+}
+echo $taken, " taken, ", $refused, " refused, ", $named, " named\n";
+
+// Counted, on the other argument: over twelve paths against one good extension,
+// the nameless ones are exactly the six roots — a bare separator, a repeated
+// one, a drive's, and the empty path — and each names the path it was handed
+// rather than a constant. A trailing separator, a drive with a component after
+// it, and a relative name are all rewritable, which is the same bound from the
+// accepted side.
+array<string> $paths = ["", "/", "\\", "///", "C:/", "C:\\", "a", "/a", "a/b", "a/", "C:/a", "a.txt"];
+int $kept = 0;
+int $nameless = 0;
+int $quoted = 0;
+foreach ($paths as string $p) {
+    try {
+        Core\Path::withExtension($p, "txt");
+        $kept = $kept + 1;
+    } catch (Throwable $sweptPath) {
+        $nameless = $nameless + 1;
+        if (Core\Str::contains($sweptPath->message, "`" . $p . "` names no file")) {
+            $quoted = $quoted + 1;
+        }
+    }
+}
+echo $kept, " renamed, ", $nameless, " nameless, ", $quoted, " quoted\n";
+--EXPECT--
+report.md
+report
+report.txt
+/a.txt
+Core\Path::withExtension(): the extension must not be empty — pass `null` to remove one
+Core\Path::withExtension(): the extension is written without its dot, so `.txt` should be `txt`
+archive.tar.gz
+report.txt.
+Core\Path::withExtension(): the extension is written without its dot, so `.` should be ``
+Core\Path::withExtension(): `a/b` contains a path separator, which would make one component into two
+Core\Path::withExtension(): `a\b` contains a path separator, which would make one component into two
+Core\Path::withExtension(): `/` names no file, so there is no extension to set
+Core\Path::withExtension(): `C:\` names no file, so there is no extension to set
+Core\Path::withExtension(): `` names no file, so there is no extension to set
+a.txt
+Core\Path::withExtension(): the extension must not be empty — pass `null` to remove one
+Core\Path::withExtension(): the extension is written without its dot, so `.txt` should be `txt`
+Core\Path::withExtension(): `a/b` contains a path separator, which would make one component into two
+Core\Path::withExtension(): the extension is written without its dot, so `./a` should be `/a`
+4 taken, 8 refused, 7 named
+6 renamed, 6 nameless, 6 quoted
