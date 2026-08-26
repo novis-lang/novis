@@ -2,6 +2,10 @@
 Core\Math::intDiv, mod, gcd and lcm, and the zero divisor each of the first two throws on
 --FILE--
 <?mwl
+// Four answers read off a line. That the quotient and the remainder reconstruct
+// the dividend, and that gcd times lcm is the product's magnitude, are swept in
+// math-the-division-identity-and-the-gcd-lcm-identity-hold-on-every-row-that-has-one.mwlt.
+
 // Truncated toward zero, so a negative quotient is not `floor`'s.
 echo Core\Math::intDiv(17, 5), "|", Core\Math::intDiv(-17, 5), "\n";
 // Integer modulo is the `%` operator, so this member is the `float` case only,

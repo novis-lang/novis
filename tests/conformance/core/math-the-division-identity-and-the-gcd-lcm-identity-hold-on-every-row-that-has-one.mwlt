@@ -1,0 +1,187 @@
+--TEST--
+Core\Math::intDiv and mod satisfy the division identity on every row of a two-signed sweep, and Core\Math::gcd and lcm satisfy theirs, each pair naming the rows where one member has no answer — docs/spec/01-core-library.md § 3
+--FILE--
+<?mwl
+// Two members of a pair can each look right on a chosen row and still not be
+// the *same* division: math-integer-division-and-the-two-divisor-members.mwlt
+// reads four answers off a line and math-int-div-and-mod-at-the-edges-of-their-
+// arms.mwlt takes each member's own edges. What neither asks is whether the
+// quotient and the remainder reconstruct the dividend, which is the only thing
+// that makes them one operation. Counted over a swept table, so a member that
+// grew a `floor` somewhere agrees on the positive rows and fails here.
+
+// 1. `intDiv($a, $b) * $b + mod($a, $b) == $a`, over every combination of both
+//    signs. `mod` is declared over `float` — spec § 3 leaves integer modulo to
+//    the `%` operator — so the identity is asserted in `float`, and the table is
+//    bounded by that: `int as float` is exact-or-throw, so ±2^53 is the widest
+//    dividend the float leg can be asked about at all (part 3 pins that bound).
+//    Every intermediate here is an integer no larger than the dividend, so each
+//    conversion is exact and both sides are the same double.
+array<int> $dividends = [
+    -9007199254740992, -1000000, -17, -7, -1, 0, 1, 7, 17, 1000000, 9007199254740992,
+];
+array<int> $divisors = [-1000003, -5, -3, -1, 1, 3, 5, 1000003];
+int $rows = 0;
+int $reconstructs = 0;
+int $bounded = 0;
+int $signed = 0;
+int $agreesWithOperator = 0;
+foreach ($dividends as int $a) {
+    float $af = $a as float;
+    foreach ($divisors as int $b) {
+        $rows = $rows + 1;
+        float $bf = $b as float;
+        int $q = Core\Math::intDiv($a, $b);
+        float $r = Core\Math::mod($af, $bf);
+        // The identity itself.
+        if (($q * $b) as float + $r == $af) {
+            $reconstructs = $reconstructs + 1;
+        }
+        // The identity alone does not pin the pair: it holds for any quotient
+        // whose remainder is allowed to grow. These two conditions are what
+        // close it, and together with the identity they *are* truncated
+        // division — the remainder is smaller than the divisor and carries the
+        // dividend's sign, which is `floor`'s one point of difference.
+        if (Core\Math::abs($r) as float < Core\Math::abs($bf) as float) {
+            $bounded = $bounded + 1;
+        }
+        if (Core\Math::sign($r) * Core\Math::sign($a) >= 0) {
+            $signed = $signed + 1;
+        }
+        // And the spec's own division of labour: the member is the `float` case
+        // of exactly what `%` answers on the `int` case, not a second rule.
+        if ($r == ($a % $b) as float) {
+            $agreesWithOperator = $agreesWithOperator + 1;
+        }
+    }
+}
+echo "identity ", $reconstructs, "/", $rows, ", |r| < |b| ", $bounded, "/", $rows,
+     ", r has a's sign ", $signed, "/", $rows,
+     ", mod == % ", $agreesWithOperator, "/", $rows, "\n";
+
+// 2. The rows the pair has no identity on. A zero divisor is refused by both
+//    members, so neither side of the identity exists; the messages themselves
+//    are pinned by the two neighbouring cases.
+int $zeroRefusals = 0;
+try {
+    echo Core\Math::intDiv(1, 0);
+} catch (Throwable $noQuotient) {
+    $zeroRefusals = $zeroRefusals + 1;
+}
+try {
+    echo Core\Math::mod(1.0, 0.0);
+} catch (Throwable $noRemainder) {
+    $zeroRefusals = $zeroRefusals + 1;
+}
+echo "zero divisor: ", $zeroRefusals, " of 2 refused\n";
+
+// The one row where the pair parts: `int`'s smallest over -1 has a remainder
+// but no quotient, so the identity has a right-hand term and nothing to add it
+// to. The remainder is a zero carrying the dividend's sign, which is the answer
+// `mod`'s own rule owes and not a stand-in for the missing quotient.
+int $quotientRefused = 0;
+try {
+    echo Core\Math::intDiv(Core\Math::INT_MIN, -1);
+} catch (Throwable $noRoom) {
+    $quotientRefused = 1;
+}
+echo "int min over -1: quotient refused ", $quotientRefused,
+     ", remainder ", Core\Math::mod(0.0 - 9223372036854775808.0, -1.0), "\n";
+
+// 3. Why the table above stops where it does, named on both sides: `int as
+//    float` is one of ADR 0007 § 2's checked conversions and it admits exactly
+//    the magnitudes a `float` holds without rounding. 2^53 is the last dividend
+//    the float leg can be asked about; the next integer up has no `float` at
+//    all, so the identity is unaskable there rather than false.
+int $widest = 9007199254740992;
+int $converts = 0;
+int $onePastIt = 0;
+try {
+    float $exact = $widest as float;
+    if ($exact == $exact) { $converts = 1; }
+} catch (Throwable $noFloat) {
+    $converts = 0;
+}
+try {
+    float $inexact = ($widest + 1) as float;
+    if ($inexact == $inexact) { $onePastIt = 1; }
+} catch (Throwable $noFloatBeyond) {
+    $onePastIt = 0;
+}
+echo "widest dividend: 2^53 converts ", $converts, ", one past it ", $onePastIt, "\n";
+
+// 4. `gcd($a, $b) * lcm($a, $b) == abs($a * $b)`, swept over both signs and both
+//    zeros. All-integer, so nothing here is approximate — the only bound is that
+//    the product must fit an `int`, which part 5 takes from the other side. As
+//    with the pair above, the identity alone would not pin either member, so the
+//    three properties that define them are counted beside it: neither answer is
+//    ever negative, the divisor divides both arguments, and the multiple is a
+//    multiple of both. A zero argument is a row rather than an exclusion:
+//    `gcd($a, 0)` is `abs($a)` and `lcm($a, 0)` is 0, which is exactly what
+//    keeps the identity true there.
+array<int> $ns = [0, 1, -1, 6, -6, 7, 12, -84, 65536, 1000003];
+int $pairs = 0;
+int $product = 0;
+int $nonNegative = 0;
+int $divides = 0;
+int $multiple = 0;
+foreach ($ns as int $m) {
+    foreach ($ns as int $n) {
+        $pairs = $pairs + 1;
+        int $g = Core\Math::gcd($m, $n);
+        int $l = Core\Math::lcm($m, $n);
+        if ($g * $l == Core\Math::abs($m * $n) as int) {
+            $product = $product + 1;
+        }
+        if ($g >= 0 && $l >= 0) {
+            $nonNegative = $nonNegative + 1;
+        }
+        // `gcd(0, 0)` is 0, the one row with nothing to divide by.
+        if ($g == 0) {
+            if ($m == 0 && $n == 0) { $divides = $divides + 1; }
+        } else if ($m % $g == 0 && $n % $g == 0) {
+            $divides = $divides + 1;
+        }
+        if ($m == 0 || $n == 0) {
+            if ($l == 0) { $multiple = $multiple + 1; }
+        } else if ($l % $m == 0 && $l % $n == 0) {
+            $multiple = $multiple + 1;
+        }
+    }
+}
+echo "gcd*lcm == |a*b| ", $product, "/", $pairs,
+     ", non-negative ", $nonNegative, "/", $pairs,
+     ", gcd divides both ", $divides, "/", $pairs,
+     ", lcm is a multiple of both ", $multiple, "/", $pairs, "\n";
+
+// 5. Each of the two has one boundary, and both are named on both sides. `gcd`
+//    answers a magnitude, so the only argument it cannot answer for is `int`'s
+//    smallest paired with zero — one past `int`'s largest — and the value one
+//    above it answers with `int`'s largest exactly. `lcm` reaches further up and
+//    so stops sooner: `int`'s largest is odd, so doubling it is already past the
+//    end while multiplying it by 1 is the largest answer the member has.
+int $min = Core\Math::INT_MIN;
+int $gcdRefused = 0;
+try {
+    echo Core\Math::gcd($min, 0);
+} catch (Throwable $noMagnitude) {
+    $gcdRefused = 1;
+}
+echo "gcd: int min with zero refused ", $gcdRefused,
+     ", one above it ", Core\Math::gcd($min + 1, 0), "\n";
+int $lcmRefused = 0;
+try {
+    echo Core\Math::lcm(Core\Math::INT_MAX, 2);
+} catch (Throwable $noMultiple) {
+    $lcmRefused = 1;
+}
+echo "lcm: int max with 1 ", Core\Math::lcm(Core\Math::INT_MAX, 1),
+     ", with 2 refused ", $lcmRefused, "\n";
+--EXPECT--
+identity 88/88, |r| < |b| 88/88, r has a's sign 88/88, mod == % 88/88
+zero divisor: 2 of 2 refused
+int min over -1: quotient refused 1, remainder -0
+widest dividend: 2^53 converts 1, one past it 0
+gcd*lcm == |a*b| 100/100, non-negative 100/100, gcd divides both 100/100, lcm is a multiple of both 100/100
+gcd: int min with zero refused 1, one above it 9223372036854775807
+lcm: int max with 1 9223372036854775807, with 2 refused 1
