@@ -14,7 +14,9 @@
   output, and § 5's auto-escape exception gains its second instance, with the one difference between them
   stated there.
   [0033](0033-secret-qualifier-for-confidential-values.md) § 1 — the source roster gains `Cli::secret`, the
-  first `Core` member that *originates* a `secret` value rather than accepting one.
+  first `Core` member that *originates* a `secret` value rather than accepting one. § 4 — the refusing-sink
+  roster gains terminal output, per § 1's closing rule below; that fold is applied in 0033's own body,
+  which states the current rule and the reach the name understates.
   [0020](0020-error-escalation-ladder.md) § 4 — the engine-native floor gains a terminal-restoration
   obligation, because a ladder that leaves a terminal in raw mode has broken the shell it was protecting.
   [0051](0051-standard-library-tiers.md) § 3 — `Core\Cli`'s roster entry grows from `readline` to the
@@ -132,8 +134,11 @@ Three mechanisms keep the default from being a trap, and together they are why i
 the program that wants the neutralized form as a value — to put it in a `Core\Str::format` template, or to
 compare it — not because ordinary output needs it.
 
-A `secret`-qualified value is refused outright, with no `Text` bypass, exactly as
-[0033](0033-secret-qualifier-for-confidential-values.md) § 4 already refuses it at HTML output.
+A `secret`-qualified value is refused outright, with no `Text` bypass — the same shape
+[0033](0033-secret-qualifier-for-confidential-values.md) § 4 gives HTML output, and for the same reason:
+substituting a control byte does nothing for confidentiality. That section carries this row and the whole
+of its reasoning, including why the exemption it grants `Core\Db`, `Core\Process` and `Core\Http` does not
+reach here, and why the rule cannot land before `Core\Secret::reveal()` exists.
 
 ### 2. Styling is a value type, never a grammar
 

@@ -4,8 +4,8 @@
 - **Date:** 2026-08-21
 - **Scope:** a `secret` compile-time qualifier on `string`/`bytes`, independent of and composable with
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s `tainted`; how it enters, propagates, and is
-  removed; the sinks that refuse a `secret` value (HTML/response output, `Core\Log`, debug-dump output,
-  `Throwable` messages, `serialize()`/the isolate-crossing boundary, and — per
+  removed; the sinks that refuse a `secret` value (HTML/response output, terminal output, `Core\Log`,
+  debug-dump output, `Throwable` messages, `serialize()`/the isolate-crossing boundary, and — per
   [ADR 0046](0046-attributes-shape-literal-metadata.md) — an attribute payload position); the redaction
   `Core\Debug::dump` owes a `secret`-qualified property.
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — the conversion table's checked-conversion row now
@@ -36,7 +36,8 @@
   this ADR's call-site inspection rule.
 - **Amended by:** 0046, 0084, 0086, 0092 — each fold is applied below; this body states the current rule.
   0084 records that a durable job payload is an output, so a `secret` cannot enter one; 0086 adds
-  `Cli::secret` to § 1 as the one `Core` member that originates the qualifier; 0092 makes the redaction a
+  `Cli::secret` to § 1 as the one `Core` member that originates the qualifier **and terminal output to
+  § 4's refusing roster**; 0092 makes the redaction a
   node kind in its record model, so all three renderings inherit it rather than each implementing it.
 - **Relates to:** 0004, 0009, 0012, 0015, 0020, 0022, 0023, 0024, 0028
 
@@ -51,8 +52,9 @@
 > [ADR 0012](0012-no-superglobals.md)'s five accessor classes: nothing in MWL is host-populated
 > ([0012](0012-no-superglobals.md)), so a value becomes `secret` only where a developer spells it on a
 > declaration — a config-loading helper that reads a credential is expected to declare its own return type as
-> `secret string`. Five sinks refuse a `secret` value by default: HTML/response output (refused outright, not
-> auto-escaped — escaping doesn't restore confidentiality), `Core\Log` (the opposite of `tainted`'s "logging
+> `secret string`. Six sinks refuse a `secret` value by default: HTML/response output (refused outright, not
+> auto-escaped — escaping doesn't restore confidentiality), terminal output (the same refusal, and it covers
+> a scheduled run's and a job worker's captured output, not only a tty), `Core\Log` (the opposite of `tainted`'s "logging
 > it is the point" stance), debug-dump output and `Throwable` messages (a redaction placeholder, not the real
 > value), `serialize()`/the isolate-crossing boundary (one refusal for the one operation
 > [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already unified), and — per
@@ -162,6 +164,26 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   `Markup`-building interpolation position is therefore a compile-time diagnostic, full stop. (A `secret`
   variable can never separately reach `Markup` via `as Markup` either — that conversion already accepts only
   a source-literal token, per § 5's existing rule, which a `secret`-qualified binding never is.)
+- **Terminal output** — `echo` and `Core\Cli::write` refuse a `secret` value outright, with **no
+  `Core\Cli\Text` bypass**, the same shape as HTML output above and for the same reason: neutralizing a
+  control byte does nothing for confidentiality.
+  [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 1 owns the substitution table this sits beside, and
+  states the refusal there too.
+  **The name understates the reach, which is the whole argument for the row.**
+  [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3 routes a scheduled script, a job
+  worker, a `#[Test]` method and a `spawn script` isolate through this same sink, so "the terminal" means
+  every one of those captured outputs — a CI log, a job log, a test report — which is where a credential
+  in practice leaks. A tty-dependent version of this rule is not available: ADR 0086 § 1 already rejects
+  tty-dependent behaviour outright, because a pipe read by a human later is the common case rather than
+  the exception.
+  This sink is **not** an instance of the exemption below. `Core\Db`, `Core\Process` and `Core\Http` are
+  exempt because the credential must reach them to do the job it exists to do — that is the secret being
+  *used*. A terminal is the secret being *displayed to a person*, which is disclosure, not use, and the one
+  program whose purpose is disclosure (a `print-token` command) spells `Core\Secret::reveal()` with its
+  reason at the one line where that is the point. It is also the direction
+  [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 4 already takes on the way in: `Core\Cli::secret()`
+  reads a password with terminal echo *disabled*, so treating the same terminal as a free destination
+  would have the two directions disagree.
 - **`Core\Log`** — the opposite default from `tainted`, which ADR 0024 § 4 explicitly wants logged. A
   `secret`-qualified value passed at a `Core\Log::write()` call site — including inside a `fields` array
   literal, whose declared parameter type stays `array<string, mixed>` by design — is refused by `mwl check`
@@ -256,6 +278,14 @@ operator for everything — and it makes the qualifier awkward for a thing progr
   `tainted`, there is no [ADR 0012](0012-no-superglobals.md)-style enumeration of "every place a secret can
   enter" to lean on — this is a real usability gap relative to `tainted`'s coverage, not a design oversight;
   closing it further is stdlib work (see *Revisiting*).
+- **Refusing terminal output costs the cheapest debugging tool there is.** `echo $x` is how a developer
+  looks at a value, and this takes it away for exactly the values that are hardest to reason about when
+  something is wrong. It is survivable rather than free: `Core\Debug::dump` does not refuse — it prints
+  the redaction placeholder — so an inspect path still exists that shows a `secret` property's *presence*
+  and never its bytes, and `Core\Secret::reveal()` with a reason is one line for the case where the bytes
+  are genuinely what is being debugged. Named here because it is the one cost of this row a developer
+  meets daily, while the exposure it prevents is rare and catastrophic — which is the trade
+  [AGENTS.md](../../AGENTS.md)'s ordering makes, not one this ADR invents.
 - **`serialize()`/isolate-crossing refuses `secret` unconditionally**, which may add real friction to a
   legitimate pattern (a `spawn worker` that exists specifically to isolate credential handling) in exchange
   for keeping [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md)'s one-operation unification intact.
@@ -285,6 +315,12 @@ operator for everything — and it makes the qualifier awkward for a thing progr
   practice, reconsider the stricter alternative rejected above — likely by having the conversion preserve
   `secret` while still stripping `tainted`, since the two axes have no reason to share a removal rule once
   the inconsistency cost is judged worth paying.
+- **Whether the terminal refusal is too strict for CLI programs that legitimately print a credential.**
+  The trigger is a measurable one: if `Core\Secret::reveal()` call sites in real MWL CLI programs turn out
+  to be dominated by ones whose reason string is some spelling of *"this command prints a token"*, the
+  ceremony is buying nothing there and the answer is a narrow, named `Core\Cli` member that writes a
+  `secret` deliberately — never widening `echo` itself, since `echo`'s reach through
+  [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3 is what the refusal is for.
 - **Whether `serialize()`/the isolate boundary should split** into "refuse `secret` only when externalizing
   to bytes, allow it across a live `spawn worker`/`spawn script` arena." Revisit if the blanket refusal proves
   to be real friction for a credential-isolating worker pattern, weighed against reopening
@@ -320,6 +356,14 @@ Verification, in the order it becomes possible:
   `spawn worker`/`spawn script` boundary, or into `serialize()` directly, is refused at compile time with a
   diagnostic naming this ADR; the identical value wrapped through `Core\Secret::reveal()` first crosses
   successfully.
+- **M8** (the milestone that builds [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 1's substitution
+  table, and so the earliest the terminal sink exists to refuse anything): `echo $secret` and
+  `Core\Cli::write($secret)` are both refused at compile time with a diagnostic naming this section, while
+  the identical `tainted`-only value is written with its control bytes substituted; the same refusal holds
+  for a `#[Test]` method's `echo` and inside a `spawn script` isolate, which are the reach § 4's row is
+  about. **The refusal cannot land before `Core\Secret::reveal()` exists** — without it a `secret` would
+  have no way to reach a terminal at all — so the two are one slice, and a `reveal()`-derived value
+  echoing successfully is the case that proves it.
 - **M8**: a `secret`-qualified value passed into a `Core\Log::write()` `fields` array literal is refused by
   `mwl check` at that call site despite the parameter's declared `array<string, mixed>` type; a
   `Core\Secret::reveal()`-derived value is accepted there and everywhere else this ADR's sinks refuse the
