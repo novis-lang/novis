@@ -134,19 +134,20 @@
 > table, which is what would make the terminal sink neutralize a control byte and `Cli\Text::plain`
 > a constructor that cannot produce an injected escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1).
 > **Decided and unbuilt, but not catch-up** — ADRs 0091 (the `development`/`production` run mode),
-> 0092 (one diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`) and
-> 0097 (the server's scope and its `[server]` block). None invalidates built behaviour or a written
-> fixture; their work is M4, M6, M7, M8 and M10. **Open beside the library** — a property's declared
-> default runs and is type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one
-> M4 control-flow statement that does not lower; a closure cannot be called through the variable
-> holding it and `Class::method(...)` panics `mwl-ir` outright, so a case sweeps a table with
-> `foreach` and reaches a helper through a `public static function` declared in the same file
-> (`mwl-ir` gap 1); `bool as int` does not lower and `bool as string` renders `false` as nothing at
-> all; an abandoned generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a
-> deliberate PHP divergence); ADR 0043's `by`-delegation is off path; and
-> `docs/spec/02-php-migration.md` is 31% classified, reported by `python tools/check-migration.py`.
-> **What has landed is not restated here** — `git log` holds the session-by-session history and each
-> crate's own module doc holds its per-file gaps.
+> 0092 (one diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`), 0097
+> (the server's scope and its `[server]` block) and 0100 § 3 (a file opening `#!` starts in code
+> mode with no tag — one `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no
+> parser or runtime change). None invalidates built behaviour or a written fixture; their work is
+> M1, M4, M6, M7, M8 and M10. **Open beside the library** — a property's declared default runs and
+> is type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow
+> statement that does not lower; a closure cannot be called through the variable holding it and
+> `Class::method(...)` panics `mwl-ir` outright, so a case sweeps a table with `foreach` and reaches
+> a helper through a `public static function` declared in the same file (`mwl-ir` gap 1); `bool as
+> int` does not lower and `bool as string` renders `false` as nothing at all; an abandoned generator
+> never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a deliberate PHP divergence);
+> ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31% classified,
+> reported by `python tools/check-migration.py`. **What has landed is not restated here** — `git
+> log` holds the session-by-session history and each crate's own module doc holds its per-file gaps.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
