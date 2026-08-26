@@ -7,50 +7,30 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-26. **M3 is done, and Stage 0 has re-opened with a second catch-up batch.**
-> All seventeen original items of [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* are done
-> — 12 landed **twice**, its `$s as ?Uri` parse roster withdrawn by ADR 0066 § 3 in favour of
-> `Core\Uri::tryParse`/`Core\Uuid::tryParse`, so `as` now targets no class at all — and every one of
-> the 37 tests `loop-goal.toml`'s `stage = "0 catch-up"` block named for them exists and passes.
-> **Items 18–22 join them from a bench review**, so `python tools/loop.py --goal-only`
-> short-circuits at Stage 0 again and Stage 3 waits behind them; `Open now` says what they are and
-> [docs/perf/userland-gap.md](perf/userland-gap.md) holds every number. Behind them is Stage 3's
-> last fixture, `examples/collect.mwl`, itself past its parser hole: `new Core\ObjectSet<Tag>()`
-> parses, because `ExprKind::New` carries a `type_args` list read by the same checkpointed trial
-> parse a call site's own `<...>` goes through, and both lists now *bind*:
-> `registry::GENERIC_CLASSES` is the roster of `Core`-owned generic classes, so lines 13 and 19
-> resolve and the fixture's first report is `Core\Encoding`/`Core\Hash` at line 25 — spec § 7 is the
-> frontier, with § 9's three collections owning no members yet. Stage 4's own counts (conformance
-> 436 of 600, differential 90 of 150) are the wall after that. **ADR 0087's lexer half is built** —
-> `mwl_syntax::bidi` is the one predicate an unterminated directional control is rejected by,
-> `E0008` at the lexer and, at M7/M8, a substitution at both sinks. **ADR 0090 §§ 1 and 2 are
-> built**: `==`/`!=` are the only equality spellings, `===`/`!==` are `E0232` at the lexer (consumed
-> whole, reported, then lexed as the two-character operator so a file still reports its other
-> problems), `BinaryOp::Identical`/`NotIdentical` are gone from the AST, and two statically disjoint
-> operands are `E0466` — at `==`/`!=`, and at the `switch` label and `match` arm § 6 points at the
-> same rule. **What that ADR still owes** is § 3's string, array and object rows, one runtime helper
-> each (M3/M4). **ADR 0069's `+`/`+=` refusal is built too**, `E0467` naming `Core\Arr::underlay`.
-> **The goal behind the catch-up is unchanged: M4S Part I in full — spec §§ 1-12 — plus the M4
-> surface it cannot be written without.** Every representation that blocked a section is built and
-> recorded in the crate that owns it: `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict
-> identity is `mwl_runtime::identity`, `decimal` is `mwl_runtime::decimal`, a `Core`-owned instance
-> is an ordinary MWL object (`mwl_stdlib::instance`), and a variadic tail is one `array<T>` argument
-> (`registry::CoreTy::Variadic`) — so **every signature shape the spec writes can now be stated**,
-> and a section that is not built is only unwritten. **Every M4 control-flow statement lowers but
-> `do`/`while`**, and ADR 0070's duration literal lexes, types and runs. Sections whole or nearly:
-> **§ 3** (thirty-eight `Core\Math` rows plus eleven class constants), **§ 4** (over `jiff` and the
-> CLDR pattern grammar in `mwl_stdlib::cldr`; `Date`/`TimeOfDay` are that module's gap 1), **§ 5**
-> (both ADR 0056 tiers), and **§ 6** — `Core\Json::encode`/`decode`/`isValid` over `serde_json`,
-> driven through a visitor so a document becomes `MwlArray`s directly; `decodeAs<T>` is
-> `mwl_stdlib::json`'s gap 2. **A helper's failure names its own spec § 10 class**:
-> `mwl_runtime::ThrownClass` is the closed roster, `Fault::thrown_as` is how a member picks one, and
-> `catch (ParseError $e)` matches a bad JSON document or a bad `Core\Time::parse`. **A call site can
-> write its own type argument** — `decodeAs<User>($b)` parses, and a member declares which variables
-> are written rather than inferred. **ADR 0071's first compiler-recognized attribute is built**:
-> `#[Json\Derive]` is matched nominally in `mwl_types::derive`, and the field list it reads reaches
-> `Core\Json::encode` through `mwl_runtime::ClassDesc`, so a declared class encodes, and
-> **`ParseError` carries spec § 10's `issues`** — the one property any class in the exception tree
-> declares below the root, over ADR 0071 § 5's `Core\Issue` shape. Dependencies: `regex` +
+> **Status:** 2026-08-26. **M3 is done, spec §§ 1-12 is registered whole, and Stage 3 is green.**
+> `crates/mwl-stdlib/tests/spec-members-outstanding.txt` holds no keys: the ratchet
+> `spec_registry_coverage.rs` reads is empty, which is this project's own definition of Part I being
+> *registered*. All seven Stage 3 fixtures produce their frozen output, `examples/collect.mwl`
+> having landed with `Core\Out::capture` — and with two bugs a parse error had been masking in it
+> since it was written (`Core\Uuid::isValid`, which spec § 11 says does not exist, and an
+> `Arr::first` result indexed through the nullable-array hole the playbook names). All seventeen
+> original Stage 0 items and its bench-review batch 18-22 are done; **one Stage 0 check is still red
+> and it is now the frontier**, item 19's `mwl-codegen` half — see `Open now`. The goal is
+> unchanged: **M4S Part I in full plus the M4 surface it cannot be written without**. Every
+> representation that blocked a section is built and recorded in the crate that owns it —
+> `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict identity is `mwl_runtime::identity`,
+> `decimal` is `mwl_runtime::decimal`, a `Core`-owned instance is an ordinary MWL object
+> (`mwl_stdlib::instance`), a variadic tail is one `array<T>` argument, and a sink's carrier is a
+> `Core` instance whose one slot `mwl_runtime::value_to_string` renders (ADR 0088 § 5). **Every M4
+> control-flow statement lowers but `do`/`while`**, and ADR 0070's duration literal lexes, types and
+> runs. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the one predicate, `E0008` at the
+> lexer, and a substitution at both sinks at M7/M8. **ADR 0090 §§ 1 and 2 are built**: `==`/`!=` are
+> the only equality spellings, `===`/`!==` are `E0232`, and two statically disjoint operands are
+> `E0466`; § 3's string, array and object rows are one runtime helper each and still owed. **ADR
+> 0069's `+`/`+=` refusal is built**, `E0467` naming `Core\Arr::underlay`. **ADR 0071's first
+> compiler-recognized attribute is built** — `#[Json\Derive]`, matched nominally in
+> `mwl_types::derive` — and `ParseError` carries § 10's `issues`. Stage 4's counts (conformance 437
+> of 600, differential 90 of 150) are the wall behind all of it. Dependencies: `regex` +
 > `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
@@ -68,16 +48,17 @@
 > `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`, `derive`), `mwl-ir`, `mwl-runtime` (+ `alloc`, MWL's own
 > `#[global_allocator]` in an optimized build, `object`, `array`, `throwable`, `closure`,
-> `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 39, `Math` × 38, `format`,
-> `granularity`, `ordering`, `cldr`, `instance`, `issue`, `Order`, `NormalForm`, `RoundMode`, `Unit`
-> and `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, `Time` × 7 plus
-> `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
-> `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+ `SEPARATOR`) over nothing at all, `Random` × 6
-> over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`, `Uri` × 4 over nothing at all, `Encoding` × 2
-> over nothing at all, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over `identity_store`, all
+> `identity`, `decimal`, and `ctx`'s capture stack and carrier roster), `mwl-stdlib` (`Arr` × 36,
+> `Str` × 39, `Math` × 38, `format`, `granularity`, `ordering`, `cldr`, `instance`, `issue`,
+> `Order`, `NormalForm`, `RoundMode`, `Unit` and `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over
+> `regex`/`fancy-regex`, `Time` × 7 plus `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` ×
+> 19 and `Time\Zone` × 4 (+ `UTC`) over `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+
+> `SEPARATOR`) over nothing at all, `Random` × 6 over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`,
+> `Uri` × 4 over nothing at all, `Encoding` × 2 over nothing at all, `Out` × 1 answering the
+> `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over `identity_store`, all
 > three iterable through `cursor`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 436 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 437 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -120,129 +101,57 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 is done — its last item landed this session.** `python tools/bench.py`
-> puts MWL's median at **0.80×** PHP 8.5.9 with its JIT on, and docs/perf/userland-gap.md is the
-> ledger behind that number — the suite case by case, what one operation costs, and which item moves
-> it. Items **18**, **19**, **20** and **21** are **done**: MWL owns its allocator in every
-> optimized build and the test build's byte counters wrap it, an `int` subscript travels to
-> `mwl_array_get_index`/`mwl_array_set_index` unrendered — **6.3 ns against the rendered path's 28.5
-> ns** — a `string` carries a capacity so `$out .= $piece` appends into its own buffer,
-> `mwl_ir::ir::InstKind::Concat` is **n-ary**, a **string literal no longer allocates at all** — a
-> whole `StrHeader` with a pinned refcount goes into the compiled unit's data section — and, item
-> 21, **no `Core\Arr` callback member synthesizes a key nothing observes**: `map`, `filter`,
-> `reduce` and `sort` each read `mwl_runtime::closure_arity` once before their loop, and
-> `mwl_runtime::SlotKey` carries a preserved key in the shape the subject already holds it rather
-> than as a rendered decimal. The first three took `03-string-concat` from **0.03× to above 1.00×**
-> and `04-string-format` from **100.0 ms of work to 87.2 ms**; the fourth took `12-array-map-filter`
-> from **0.36× to 0.51×**, `10-array-sort` from **0.69× to 0.96×** and `11-array-sort-by-field` from
-> **3.98× to 5.12×**. The median went 0.31× to **0.69×** over the four. §§ B, C and D of the ledger
-> record them, what the third header word spends is stated in `crates/mwl-runtime/src/string.rs`'s
-> own module doc, why a pinned refcount keeps that module's plain `Cell` sound is its § *An immortal
-> string*, and the key rule is `crates/mwl-stdlib/src/arr.rs`'s § *A callback that does not want a
-> key is never handed one*. What item 19 still owes is the append-only `docs/perf/history.ndjson`
-> entry item 15 asked for, which does not exist yet. Item **22** — a `Core\Str` member writes its
-> result once, § E of the ledger — is **done**, and with it Stage 0. Reading a `string` argument is a
-> **tag check**: the unchecked read sits once behind `mwl_runtime::MwlStr::text_of`,
-> `mwl_runtime::Value::as_text` is the safe caller that discharges it, and a debug build
-> re-validates inside that one reader, so the O(n) `from_utf8` that ran at 56 call sites in `str.rs`
-> is gone. `crate::granularity`'s ASCII fast-path test is one branchless fold where it was an
-> `is_ascii` scan plus a separate search for `\r`. And a member now **writes its result into the
-> allocation it answers from** rather than into a `String` that is copied in afterwards:
-> `mwl_runtime::MwlStr::build` hands it a writer over that allocation, so `repeat`,
-> `padStart`/`padEnd` and `reverse`, whose lengths are exact, allocate exactly once, and `replace`
-> starts the writer at its subject's length and lets it `realloc` on `String`'s own doubling.
-> **`join` is deliberately unchanged**: its length costs a walk of the subject's array slots, which
-> is the expensive half of the member, and all three ways round that measured worse than the
-> `String` it builds. Buying an exact length with a second *read* is a loss too, and was measured as
-> one twice. Both findings are recorded in `crates/mwl-stdlib/src/str.rs`'s § *A result is written
-> once* so they are not tried a third time. Over the item's three slices the string rows went
-> `05-string-replace` 0.72× → **1.05×**, `07-string-normalize` 0.42× → **0.93×** and
-> `06-string-split-join` 0.78× → **0.91×**, and the suite median 0.69× → **0.80×**, this last slice
-> carrying it on its own. The same `produced` helper still sits in
-> `bytes.rs`, `path.rs`, `regex.rs` and `uri.rs`; carrying the pattern there is backlog, not Stage 0. **What has already landed is not restated here** — `git
-> log` holds the session-by-session history and the crate's own module doc holds its per-file gaps,
-> which is this field's contract in AGENTS.md § *Keep each slice small*. What follows is what is
-> **not** built. **Spec §§ 1-12, by section** — § 1 is **whole**, `normalize` having landed with
-> `Core\NormalForm` and a named binding to `unicode-normalization`; § 2 is **whole**, `from` having
-> landed over `registry::CoreTy::Iterated` — ADR 0069's four combination members, the
-> `diff`/`intersect` set half with `Core\SetOn`, the positional rows, the callback rows and both
-> sorts are all registered, which the ratchet below is the machine-readable statement of; § 4 is
-> **whole**, `withTime` having landed beside `Core\Time\Date`, `Core\Time\TimeOfDay` and the two
-> views that answer with them, and there is **no** `Core\Month` — § 4 writes no member that takes or
-> answers with one (`mwl_stdlib::time` gap 1); § 5 is **whole**, `replaceWith` having landed beside
-> `Core\Regex\Pattern` and `compile`, with the callback taking one `Match` rather than PHP's
-> positional array and the six pattern-taking rows all reading the `Pattern|string` the spec writes;
-> § 6 owes `decodeAs<T>` (`json` gap 2, which waited on a written type argument at a call site and
-> no longer does); § 7 is **whole** — `Core\Bytes`'s twelve members and the whole of
-> `Core\Encoding`, `pack`/`unpack` sharing one closed code table that
-> `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 is **whole**, its three collections
-> each answering a `foreach` — a `Core` receiver reaches ADR 0053's protocol through its
-> descriptor's own method table (`mwl_stdlib::cursor`, `mwl_stdlib::instance`'s dispatch roster),
-> and the spec's `Heap` row is amended to declare `Iterable` because a heap whose contents can only
-> be reached by emptying it is the PHP behaviour § 9 replaces; § 10 is **whole**, an `issues` entry
-> being readable now that a shape field resolves to a name the IR fetches by name
-> (`ExprInfo::ShapeProperty`, `InstKind::SlotGet`) — the constructor takes `{previous: $e}` and
-> `$e->location` is pinned as the throw site, both stated by `mwl_types::error_lib`'s own module
-> doc; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes `Out::capture`
-> alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every signature shape
-> the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`, `Union`, `Decimal` and
-> `Iterated`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only unwritten. **The
-> runtime hole that sat under four of those is closed** — `mwl_runtime::Tag` has a `Bytes` row of
-> its own over the existing `MwlStr` allocation, so a fresh `bytes` value now constructs, refcounts,
-> releases and round-trips through codegen; `mwl-runtime`'s module doc § *`bytes` is a tag, not a
-> second heap shape* owns that decision and what it spends. `Core\Hash\Stream` is the first
-> *mutable* `Core` instance and the honest return type of `Uri`'s two decoders is still unwritten
-> rather than blocked. **Stage 4's counts are their own work rather than a side effect of member
-> slices** — conformance is 436 of the 600 that gate requires, differential is 90 of 150, and
-> `every_part_one_spec_member_is_registered` — the loop's own definition of done, which reads the
-> spec's member rows and checks each against the registry — exists now, in
-> `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
-> `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its
-> own module doc states, and that file's **one remaining key — `§12 Out::capture` — is the whole
-> machine-readable work list for §§ 1-12**: when it holds none, Part I is registered whole. **ADR
-> 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no qualifier classification,
-> so `Core\Str::format`'s template is not yet the sink that ADR makes it, and neither the
-> fail-closed default for an unclassified `string`/`bytes` parameter nor the test that refuses an
-> unclassified member exists; it lands with M4S's remaining sections. **ADR 0071 is built end to end
-> for a scalar-fielded class**; its gaps are no enum/`decimal`/`Instant`/`array`/nested-class field
-> decode and no optional key from a parameter default. **Four ADRs are decided and unbuilt but are
-> not catch-up** — 0091 (the `development`/`production` run mode: a `[mode]` block, a `System`
-> ceiling, five governed directives plus § 3a's three startup defaults, `Core\Env::mode`), 0092 (one
-> diagnostic record rendered as plaintext, JSON or HTML by the sink in force — `Core\Log`'s
-> `Log\Level`, `Core\Debug::dump`, throwables, test results and compiler diagnostics), 0093 (`mwl
-> service`) and 0097 (the server's scope and its `[server]` block: mounts expanded from globs at
-> boot, the trusted-proxy walk, four idle waits, `max_in_flight`; and the removal of the inbound TLS
-> listener, h2c and the FastCGI transport, which deleted M13). None invalidates built behaviour or a
-> written fixture; their work is M4, M6, M7, M8 and M10 and lands with those milestones. **Still
-> open beside the library** — a property's **declared default runs now** and is type-checked
-> (`E0472`), a per-class image on `mwl_runtime::ClassDesc` that `MwlObj::new` writes, so
-> `NewDynamic` and ADR 0071's native decoder reach it too; what a default may be is still a literal
-> or `[]`, with `= null`, an enum case and a `decimal` refused for the reasons `mwl_types::defaults`
-> states. `do`/`while` is the one M4 control-flow statement that does not lower; an abandoned
-> generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a PHP divergence); ADR
-> 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31% classified, one
-> pass per PHP domain, reported by `python tools/check-migration.py`.
+> **Open now:** **Spec §§ 1-12 is registered whole and Stage 3 is green**, so the machine-readable
+> work list that drove the last forty sessions —
+> `crates/mwl-stdlib/tests/spec-members-outstanding.txt` — is empty. `Core\Out::capture` was its
+> last key: it runs its closure with `mwl_runtime::Ctx`'s capture stack in force, always swallows,
+> nests by call nesting, and answers **the carrier of the sink in force** rather than a `string`
+> (ADR 0088 § 5), because bytes that have already been through a sink would be escaped a second time
+> by the `echo` that re-emits them. That carrier is `Core\Cli\Text`, whose name and one-slot layout
+> are `mwl_runtime::CARRIER_CLI_TEXT`/`CARRIER_TEXT_SLOT` so the crate that *renders* one can find
+> it without naming `mwl-stdlib`; `crates/mwl-stdlib/src/cli.rs`'s own module doc owns why it
+> carries no member yet and what M8 adds. `echo` of a `Core` instance was a `mwl-ir` **panic** and
+> is now the same tag-dispatched conversion a union takes, so a non-carrier object is a diagnosable
+> throw instead. **The first red acceptance check is now Stage 0's item 19 second half** —
+> `loop-goal.toml`'s `mwl-codegen (packed subscript)` names a test,
+> `an_integer_subscript_reaches_the_packed_form_from_compiled_code`, that **does not exist anywhere
+> in the tree**. `mwl_runtime::array`'s `an_integer_subscript_allocates_no_key` holds the primitive;
+> what is unheld is the path *compiled code* takes to it, which is the half `lower_array_key` used
+> to render a decimal for. Item 19 also still owes the append-only `docs/perf/history.ndjson` entry
+> item 15 asked for, which does not exist. Behind those, **Stage 4 is the wall**: conformance is
+> **437** of the 600 that gate requires and differential is **90** of 150, and both are their own
+> work rather than a side effect of member slices. **What is still unbuilt in the library**, none of
+> it a registration gap: `Core\Json::decodeAs<T>`'s decoder (`mwl_stdlib::json` gap 2); ADR 0071
+> decodes only a scalar-fielded class — no enum/`decimal`/`Instant`/`array`/nested-class field and
+> no optional key from a parameter default; ADR 0088's registry-wide item, that `mwl-stdlib`'s
+> member rows carry **no qualifier classification**, so `Core\Str::format`'s template is not yet the
+> sink that ADR makes it and neither the fail-closed default for an unclassified `string`/`bytes`
+> parameter nor the test refusing an unclassified member exists; and ADR 0086 § 1's substitution
+> table, which is what makes the terminal sink neutralize a control byte and `Cli\Text::plain` a
+> constructor that cannot produce an injected escape — both M8, and `crates/mwl-stdlib/src/cli.rs`'s
+> gap 1. **Four ADRs are decided and unbuilt but are not catch-up** — 0091 (the
+> `development`/`production` run mode), 0092 (one diagnostic record rendered three ways by the sink
+> in force), 0093 (`mwl service`) and 0097 (the server's scope and its `[server]` block). None
+> invalidates built behaviour or a written fixture; their work is M4, M6, M7, M8 and M10. **Still
+> open beside the library** — a property's declared default runs and is type-checked (`E0472`),
+> limited to a literal or `[]`; `do`/`while` is the one M4 control-flow statement that does not
+> lower; an abandoned generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a
+> PHP divergence); ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is
+> 31% classified, reported by `python tools/check-migration.py`. **What has already landed is not
+> restated here** — `git log` holds the session-by-session history and each crate's own module doc
+> holds its per-file gaps.
 >
 > **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
-> `?T`/`mixed` representation (now settled and recorded in `mwl_ir::Ty::Tagged`), re-scoping a
-> `catch` binding to its own handler block, widening `array<T>` to element-covariant-on-read (now
-> settled and recorded in `mwl_types::expr::is_assignable`), object identity (now settled and
-> recorded in `mwl_runtime::identity`), and picking every dependency but the two the user named.
-> Stages 1 and 2 pass whole on both legs, so any failure below Stage 3 is a regression rather than
-> unfinished work. **Behind Stage 0's five reopened items** the loop resumes **Stage 3**, `Core`
-> Part I across all twelve spec sections: six of
-> its seven fixtures produce their frozen output — `examples/core.mwl`, `report.mwl`, `numbers.mwl`,
-> `text.mwl`, `dates.mwl` and `json.mwl` — and `collect.mwl` is the first that does not. That one
-> fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one: § 8's
-> `Core\Path`, § 11's `Core\Uuid` and § 12's `Core\Uri`, `Core\Csv` and `Core\Validate` are all
-> built and whole. **Every § 12 dependency is now picked** — `Uri`'s grammar half took `fluent-uri`
-> for RFC 3986 over `url`'s WHATWG reading, `Csv` took `csv-core` for its reader,
-> hex needed none, `Encoding`'s base64 and base32 pairs took `base64` and
-> `data-encoding`, its text trio `encoding_rs`, and `Hash` the RustCrypto family, while `Validate`
-> argued none at all; each module's own doc holds its reasoning. So the
-> fixture's first report has moved past all of them to `Core\Out::capture` at
-> `collect.mwl:47`, which lands with M4S's sink work rather than before it.
+> `?T`/`mixed` representation (settled, `mwl_ir::Ty::Tagged`), re-scoping a `catch` binding to its
+> own handler block, widening `array<T>` to element-covariant-on-read (settled,
+> `mwl_types::expr::is_assignable`), object identity (settled, `mwl_runtime::identity`), the sink's
+> carrier being a `Core` instance rather than a `string` (settled this session under ADR 0088 § 5,
+> `mwl_runtime::ctx`'s carrier constants and `mwl_stdlib::cli`), and picking every dependency but
+> the two the user named. Stages 1, 2 and **3** pass whole on both legs, so any failure below Stage
+> 4 is a regression rather than unfinished work — with one exception, which is not a regression but
+> a check that was never satisfied: Stage 0's `mwl-codegen (packed subscript)` names a test nobody
+> wrote. That is the first red check and `Open now` says what it has to hold.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in

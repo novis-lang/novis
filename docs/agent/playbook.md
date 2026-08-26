@@ -620,3 +620,17 @@ sibling in the same namespace unqualified.
   `[EMPTY; N]` — is refused, because a constant is *copied* at each use rather than referenced.
   The spelling that works is an inline const block in the repeat, `[const { … }; N]`, which is
   also a const-repeat of a non-`Copy` type and so still `const`-initializes the thread local.
+- **A block-bodied closure must write its return type, and `fn () => { … }` is `E0450`.** The
+  spelling is `fn (): void => { echo "x"; }` — an *expression*-bodied closure infers its type from
+  the expression, a block-bodied one cannot, and every `Core` member taking a `callable` whose
+  callback does work rather than computing a value meets this. `examples/collect.mwl`'s
+  `Core\Out::capture` line was written the short way and sat there uncompiled for several
+  sessions, which is the next bullet's fault as much as this one's.
+
+- **One compile error hides every later one, so "the first red fixture line" moves *backwards* as
+  you fix it.** `examples/collect.mwl` was recorded in three places as failing at line 47 on a
+  missing `Core\Out::capture`; the truth was a **parse** error at 47 that suppressed name
+  resolution entirely, and behind it sat a `Core\Uuid::isValid` at line 29 that the spec says does
+  not exist and an `Arr::first` subscript at 45 that panics `mwl-ir`. Budget a fixture as "run it
+  again after every fix until it exits 0", not as "one report, one slice" — and do not trust a
+  handoff's claim about which line a fixture stops at without running it.
