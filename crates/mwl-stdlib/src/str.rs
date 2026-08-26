@@ -5,14 +5,24 @@
 //! consuming it — see [`crate`]'s own docs for why that falls out of being a
 //! helper rather than being a rule this module states.
 //!
-//! # `string` is valid UTF-8, so this module decodes rather than validating
+//! # `string` is valid UTF-8, so this module never validates
 //!
 //! [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) guarantees a
 //! `string`'s bytes are valid UTF-8, which is what lets every member below
-//! reach for `&str` operations directly. [`text`] is the one place that
-//! guarantee is discharged, and it treats a violation as a contained `FATAL`
-//! rather than a `panic!`: a broken invariant is a compiler or runtime bug, and
-//! ADR 0020's ladder wants it reported, not left to take the process down.
+//! reach for `&str` operations directly. [`text`] is the one place an argument
+//! becomes one, and it checks the **tag** and nothing else: the guarantee is a
+//! property of that tag, discharged once behind one `unsafe` in
+//! `mwl_runtime`'s `string` module (its § *Reading the payload as text*).
+//! Re-deriving it here would be an O(n) pass per argument at every call site
+//! in this file, over a buffer the runtime already holds the answer for — and
+//! a debug build re-validates inside that one reader, so a producer that ever
+//! broke the invariant fails the suite rather than being caught a member at a
+//! time.
+//!
+//! The wrong *tag* is still reported, as a contained `FATAL` rather than a
+//! `panic!`: it means the checker let a call through it should have refused,
+//! and ADR 0020's ladder wants such a bug reported, not left to take the
+//! process down.
 //!
 //! # Granularity is decided elsewhere, and read from one place
 //!
@@ -561,22 +571,22 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 
 /// One `string` argument's text.
 ///
-/// Two failures, both `FATAL` rather than `THROWN`: a non-string argument
-/// means the checker let a call through it should have refused, and invalid
-/// UTF-8 means ADR 0009's own invariant is broken. Neither is something a
+/// One failure, `FATAL` rather than `THROWN`: a non-string argument means the
+/// checker let a call through it should have refused, which is not something a
 /// program can catch its way out of.
+///
+/// There is no *encoding* failure to report, and this is where that shows in
+/// the cost. The tag [`Value::as_text`] checks is itself ADR 0009's UTF-8
+/// guarantee — `mwl_runtime`'s `string` module owns the argument in its
+/// § *Reading the payload as text* — so re-deriving it here would be an O(n)
+/// pass per argument, at every call site in this file, over a buffer the
+/// runtime already knows the answer for.
 fn text<'a>(value: &'a Value, member: &str, position: &str) -> Result<&'a str, Fault> {
-    let bytes = value.as_str_bytes().ok_or_else(|| {
+    value.as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Str::{member} expected {:?} for {position}, got tag {}",
             Tag::Str,
             value.tag_byte()
-        ))
-    })?;
-    std::str::from_utf8(bytes).map_err(|_| {
-        Fault::fatal(format!(
-            "Core\\Str::{member} received a `string` that is not valid UTF-8, which ADR 0009 \
-             guarantees it cannot be"
         ))
     })
 }
@@ -639,8 +649,12 @@ mwl_runtime::mwl_helper! {
     /// PHP program being ported is the divergence row in that ADR's
     /// *Consequences*: `strlen("café")` is 5 and this is 4.
     ///
-    /// O(n) in the string's bytes, and `granularity`'s own known gap owns the
-    /// cached-count fix ADR 0009 names.
+    /// **One** pass over the string's bytes, which is the floor the unit sets
+    /// rather than a number worth improving: reading the argument is a tag
+    /// check ([`Value::as_text`]), and `granularity`'s fast-path test fuses
+    /// what used to be an `is_ascii` scan and a separate search for `\r`. An
+    /// ASCII subject's count is then `len`, in O(1). `granularity`'s own known
+    /// gap owns the cached-count fix ADR 0009 names.
     fn mwl_core_str_length(_ctx, args: [1]) {
         let subject = text(&args[0], "length", "the subject")?;
         // `try_from` rather than `as`: `usize` is no wider than `u64` on any

@@ -83,6 +83,29 @@
 //! in place either, because [`mwl_str_append`] takes its in-place path only at
 //! a refcount of exactly one, so it copies out of an immortal exactly as it
 //! copies out of a shared one.
+//!
+//! # Reading the payload as text
+//!
+//! [`MwlStr::text_of`] hands back a `&str` having validated nothing, and it is
+//! the one unchecked read this crate owns — every caller wanting text goes
+//! through it or through [`crate::Value::as_text`], rather than each running
+//! its own `from_utf8`.
+//!
+//! What discharges it is a property of the **tag**, not of this module: a
+//! `string` is well-formed UTF-8 by construction
+//! ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md)). Its § 3 makes
+//! `bytes as string` — the one conversion that could introduce arbitrary
+//! octets — checked and throwing, and every other producer either copies a
+//! payload whole or joins payloads end to end, neither of which can split a
+//! code point. So a `Tag::Str` value's buffer is text and a `Tag::Bytes`
+//! value's is not, which is exactly why [`crate::Value::as_text`] is safe and
+//! [`MwlStr::text_of`] is not: they share this allocation and the tag is the
+//! whole of the difference.
+//!
+//! A debug build re-validates on every call. A producer that ever broke the
+//! invariant therefore fails the test suite rather than reaching an optimized
+//! build, which is what keeps the paragraph above a checked claim rather than
+//! a remembered one.
 
 use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::cell::Cell;
@@ -415,6 +438,45 @@ impl MwlStr {
         unsafe {
             let len = (*ptr).len.get();
             std::slice::from_raw_parts(ptr.cast::<u8>().add(PAYLOAD_OFFSET), len)
+        }
+    }
+
+    /// The payload as text, validating nothing.
+    ///
+    /// The one unchecked read in this crate — this module's § *Reading the
+    /// payload as text* states what discharges it, and
+    /// [`crate::Value::as_text`] is the safe caller that does.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must refer to a live MWL string allocation that stays live for
+    /// the whole of `'a`, **and** its payload must be a `string`'s rather than
+    /// a `bytes`'s: the two share this allocation and only the former carries
+    /// ADR 0009's UTF-8 invariant.
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "both the pointee's liveness and its payload's encoding are \
+                  the caller's obligation to state"
+    )]
+    pub unsafe fn text_of<'a>(ptr: *const StrHeader) -> &'a str {
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees the allocation is live for 'a"
+        )]
+        let bytes = unsafe { Self::bytes_of(ptr) };
+        debug_assert!(
+            std::str::from_utf8(bytes).is_ok(),
+            "a `string` payload is well-formed UTF-8 by ADR 0009's construction"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees this payload is a `string`'s, which \
+                      ADR 0009 makes well-formed UTF-8; the assertion above is \
+                      the debug build's check of that"
+        )]
+        unsafe {
+            std::str::from_utf8_unchecked(bytes)
         }
     }
 

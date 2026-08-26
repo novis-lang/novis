@@ -375,6 +375,26 @@ impl Value {
         Some(unsafe { MwlStr::bytes_of(ptr) })
     }
 
+    /// The string payload as text, if this value is a string.
+    ///
+    /// This is the reader a caller that means text wants, and it costs the tag
+    /// check alone: no `from_utf8` pass, because the tag it checks **is** the
+    /// UTF-8 guarantee — see [`MwlStr::text_of`] and `string.rs`'s
+    /// § *Reading the payload as text*. A `Tag::Bytes` value answers `None`
+    /// here for the reason [`Self::as_bytes`] gives below.
+    #[must_use]
+    pub fn as_text(&self) -> Option<&str> {
+        let ptr = self.str_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Str value owns a reference to a live allocation \
+                      (see this type's Ownership section), so it is live for \
+                      at least this borrow — and the tag is what says the \
+                      payload is text rather than a `bytes`'s octets"
+        )]
+        Some(unsafe { MwlStr::text_of(ptr) })
+    }
+
     /// The `bytes` payload's octets, if this value is a `bytes`.
     ///
     /// Deliberately **not** the same reader as [`Self::as_str_bytes`], even
@@ -716,12 +736,16 @@ mod tests {
         assert_eq!(s.refcount(), 2);
         assert_eq!(value.as_bytes(), Some(&b"\xff\x00hi"[..]));
         assert_eq!(value.as_str_bytes(), None);
+        // The unchecked text reader is gated on the same tag, which is what
+        // keeps it sound: these octets are not UTF-8 and never reach it.
+        assert_eq!(value.as_text(), None);
         assert_eq!(value.str_ptr(), None);
         assert!(value.buffer_ptr().is_some());
         assert!(Tag::Bytes.is_refcounted());
 
         let text = Value::str(MwlStr::new(b"hi"));
         assert_eq!(text.as_bytes(), None);
+        assert_eq!(text.as_text(), Some("hi"));
         assert!(text.buffer_ptr().is_some());
 
         #[expect(
