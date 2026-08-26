@@ -745,6 +745,15 @@ is why" — is this file.
   and the same call becomes the runtime refusal the case is trying to pin. In the same family: a `float`
   parameter does not widen an `int` literal, so `Core\Math::mod(7, 2.0)` is `E0401` and `7 as float` or a
   `float` binding is the spelling.
+- **A PHP notice or deprecation lands on the oracle's *stdout*, so an `--ORACLE--` case that trips one
+  can never match.** PHP's base conversions are the sharpest instance — `hexdec("beefy")` and
+  `base_convert("-255", 10, 16)` each emit `Deprecated: Invalid characters passed for attempted
+  conversion, these have been ignored` before answering — but the rule is general: any input a twin
+  *repairs* rather than refuses is a candidate. That is usually the signal to split the case, putting
+  the repaired inputs in an `--ORACLE-DIVERGES--` file with a frozen `--EXPECT--` and leaving only the
+  quiet rows under `--ORACLE--`. Check by running the oracle body through `php -r` while authoring: a
+  notice is visible there and invisible in the `.mwlt` diff, which reports only that the two outputs
+  differ.
 
 ## Splitting a file that got too big
 
