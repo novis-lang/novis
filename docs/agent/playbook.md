@@ -938,6 +938,12 @@ is why" — is this file.
   (`THE INTEGER BAND:`) where a `**bold**` heading would otherwise have earned a paragraph break —
   `json-decode-refuses-the-number-band-json_decode-degrades.mwlt` is the worked shape. The `--TEST--`
   line has the same rule and always did; this is the block that looks like it does not.
+- **`Core\Str::length` counts characters, and a CRLF is one of them** — so it is the wrong ruler for
+  a round trip. A `Core\Csv` probe measuring `"a\r\nb"` read 3 on both sides and the obvious reading
+  was "the reader normalized the CRLF away"; it had not, and
+  `Core\Encoding::toHex($s as bytes)` says `610d0a62` before and after. Any claim about *which bytes*
+  survived a member is written with `toHex`, and `length` is kept for what it answers, a count of
+  characters.
 
 ## Splitting a file that got too big
 
