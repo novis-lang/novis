@@ -1,0 +1,52 @@
+--TEST--
+`Core\Regex::replace`'s replacement is `$1`/`${name}`/`$$` and nothing else — `\1` stays literal, a reference to a group that does not exist expands to empty, and `${1}` is how a digit follows a group — docs/spec/01-core-library.md § 4, ADR 0056 § 4
+--FILE--
+<?mwl
+// `$0` is the whole match and `$1`… are the numbered groups, counted in the
+// order the pattern opens them.
+echo Core\Regex::replace("2026-08-24", "(\\d+)-(\\d+)-(\\d+)", "[$0] $3/$2/$1"), "\n";
+
+// A named group is written `${name}`, whichever of the two spellings the
+// pattern declared it with.
+echo Core\Regex::replace("2026-08", "(?<year>\\d{4})-(?<month>\\d{2})", "${month}/${year}"), "\n";
+echo Core\Regex::replace("2026-08", "(?P<year>\\d{4})-(?P<month>\\d{2})", "${month}/${year}"), "\n";
+
+// `$$` is a literal `$`, which is the only way to write one before a digit.
+echo Core\Regex::replace("7", "(\\d)", "$$$1"), "\n";
+
+// PHP's `\1` is **not** a group reference here and stays exactly as written:
+// inside a double-quoted MWL string `\1` is already the lexer's escape, so
+// accepting it would make one replacement mean two things depending on the
+// quote it was written with (`crates/mwl-stdlib/src/regex.rs`).
+echo Core\Regex::replace("7", "(\\d)", "\\1"), "\n";
+
+// A reference that names no group expands to the empty string rather than
+// throwing — PHP's answer, and the one that keeps a template that outlives
+// its pattern from failing a request.
+echo "[", Core\Regex::replace("7", "(\\d)", "$9"), "]\n";
+echo "[", Core\Regex::replace("7", "(\\d)", "${nope}"), "]\n";
+
+// So `$10` is group *ten*, not group one followed by a `0`, and the two sides
+// of that boundary are `$10` and `${1}0`.
+echo "[", Core\Regex::replace("7", "(\\d)", "$10"), "]\n";
+echo "[", Core\Regex::replace("7", "(\\d)", "${1}0"), "]\n";
+
+// `limit` counts replacements: `0` replaces nothing, a limit past the number
+// of matches is every one of them, and a zero-width pattern matches at each
+// position between characters.
+echo Core\Regex::replace("aaa", "a", "b", {limit: 9}), "\n";
+echo Core\Regex::replace("abc", "x*", "-"), "\n";
+echo Core\Regex::replace("abc", "x*", "-", {limit: 2}), "\n";
+--EXPECT--
+[2026-08-24] 24/08/2026
+08/2026
+08/2026
+$7
+\1
+[]
+[]
+[]
+[70]
+bbb
+-a-b-c-
+-a-bc

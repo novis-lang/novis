@@ -1,0 +1,61 @@
+--TEST--
+`Core\Regex::split`'s `limit` is asserted at both ends of its range — the exact piece count, one past it, and a negative that drops every piece — and `keepEmpty` is applied after the limit, never before it — docs/spec/01-core-library.md § 4
+--FILE--
+<?mwl
+// "a1b2c3d" splits on a digit into exactly four pieces, so four is the bound
+// this member's `limit` is asserted against from both sides.
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d"), "|"), "\n";
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d", {limit: 1}), "|"), "\n";
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d", {limit: 3}), "|"), "\n";
+// At the count itself and past it the answer is the whole split, so a limit
+// larger than the subject can produce is not an error.
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d", {limit: 4}), "|"), "\n";
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d", {limit: 9}), "|"), "\n";
+
+// A negative limit drops that many pieces off the end — up to all of them,
+// and no further.
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d", {limit: -3}), "|"), "\n";
+echo Core\Arr::count(Core\Regex::split("a1b2c3d", "\\d", {limit: -4})), "\n";
+echo Core\Arr::count(Core\Regex::split("a1b2c3d", "\\d", {limit: -9})), "\n";
+
+// `keepEmpty` is applied **after** the limit, so the limit always counts the
+// pieces the split produced rather than the ones that survived: three pieces
+// of `,a,,b,` are "", "a" and the remainder, and dropping the empty one
+// leaves two rather than pulling a fourth piece in to replace it
+// (`crates/mwl-stdlib/src/regex.rs`).
+echo Core\Str::join(Core\Regex::split(",a,,b,", ",", {limit: 3}), "|"), "!\n";
+echo Core\Str::join(Core\Regex::split(",a,,b,", ",", {limit: 3, keepEmpty: false}), "|"), "!\n";
+
+// A zero-width pattern splits between every character, so the pieces at both
+// ends are empty and `keepEmpty` is the only thing that decides whether they
+// are reported.
+echo Core\Str::join(Core\Regex::split("abc", ""), "|"), "!\n";
+echo Core\Str::join(Core\Regex::split("abc", "", {keepEmpty: false}), "|"), "!\n";
+
+// The empty subject is one piece, not none — the same rule, since a split
+// that matched nothing yields the subject — and `keepEmpty: false` is what
+// turns it into the empty list.
+echo Core\Arr::count(Core\Regex::split("", ",")), "\n";
+echo Core\Arr::count(Core\Regex::split("", ",", {keepEmpty: false})), "\n";
+
+// `limit: 0` yields the subject unsplit. This is `Core\Str::split`'s reading
+// of the word rather than `preg_split`'s "no limit", and it is the one
+// deliberate divergence in this member — the alternative was two members
+// named `split` disagreeing about one option.
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d", {limit: 0}), "|"), "\n";
+--EXPECT--
+a|b|c|d
+a1b2c3d
+a|b|c3d
+a|b|c|d
+a|b|c|d
+a
+0
+0
+|a|,b,!
+a|,b,!
+|a|b|c|!
+a|b|c!
+1
+0
+a1b2c3d
