@@ -529,6 +529,50 @@ def check() -> int:
 # ---------------------------------------------------------------------------- main
 
 
+def template() -> int:
+    """A wrap file skeleton, with this tree's counts already in it, ready to fill in and apply.
+
+    Sessions were spending two tail calls -- `session.py --help` and `plan.py --help` -- recovering
+    this format at the point where context is most expensive. Inlining the format into orient.py's
+    pack instead would cost more than it saves: the help is 4 KB, and a pack is re-billed on every
+    one of a session's ~98 calls, against two calls paid once. So it lives here, reachable from a
+    call the tail already makes.
+
+    Every placeholder is the right *shape*, so `--wrap --dry-run` on the unedited skeleton reports
+    only the one thing a template cannot know -- that `## commit:`'s paths do not exist yet. Anything
+    else it reports is something the fill-in got wrong.
+    """
+    c = counts()
+    say("## plan: Open now")
+    say("REPLACE. The whole field as it should now read -- it is overwritten, not appended to.")
+    say(f"The tree's counts are {', '.join(f'{k} {v}' for k, v in c.items())}; a field naming a")
+    say("stale one is what `--check` reports.")
+    say("")
+    say("## playbook: Tooling")
+    say("- **DELETE THIS SECTION unless a trap cost you time.** A bullet is appended under the")
+    say("  heading, never rewritten, so only add one that is not already there.")
+    say("")
+    say("## handoff")
+    say("## State")
+    say("REPLACE. Where the work stands now -- not the path taken to get here.")
+    say("")
+    say("## Next group")
+    say("- [ ] **The claim** -- anchored, as `crates/mwl-stdlib/src/arr.rs:2084`, so the next")
+    say("      session does not re-derive what this one already had open.")
+    say("")
+    say("## Backlog")
+    say("- What this session did not take.")
+    say("")
+    say("## commit: path/one.rs path/two.rs")
+    say("test(stdlib): what is now true, lower case, no trailing period")
+    say("")
+    say("The body. No trailers of any kind -- they are stripped and counted.")
+    say("")
+    say("## status")
+    say("CONTINUE one line saying what landed")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -537,6 +581,8 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="validate and report, write nothing")
     ap.add_argument("--check", action="store_true", help="what step 4-5 still owes")
     ap.add_argument("--counts", action="store_true", help="conformance / differential / ADR counts")
+    ap.add_argument("--template", action="store_true",
+                    help="print a wrap file skeleton to fill in, with this tree's counts already in it")
     ap.add_argument("--scrub", action="store_true",
                     help="read a commit message on stdin, write it trailer-free on stdout")
     opts = ap.parse_args()
@@ -561,6 +607,8 @@ def main() -> int:
             for k, v in counts().items():
                 say(f"{k} {v}")
             return 0
+        if opts.template:
+            return template()
         if opts.check:
             return check()
         if opts.wrap:
