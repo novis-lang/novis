@@ -1,0 +1,85 @@
+--TEST--
+Core\Json::decode's maxDepth counts PHP's way, holds at 512 and refuses 513, and a maxDepth outside 1..=1024 is a LogicError rather than a ParseError — spec § 6
+--FILE--
+<?mwl
+// `maxDepth` is a bound on *stack*: the parse recurses one frame per nesting
+// level, so this option is the one place a document's own shape decides how
+// much of it is used. A cap is worth nothing asserted on one side only, so
+// every bound here is asserted on both.
+
+// Counted PHP's way — a scalar document is depth 1, so `[1]` is depth 2 —
+// which is the arithmetic a program migrating from json_decode already has.
+// Swept rather than written out: at a cap of 4, exactly the nestings 1, 2 and
+// 3 are accepted, and an off-by-one in either direction moves this count.
+int $accepted = 0;
+int $d = 1;
+for ($d = 1; $d <= 8; $d = $d + 1) {
+    var $doc = Core\Str::repeat("[", $d as uint) . "1" . Core\Str::repeat("]", $d as uint);
+    bool $ok = true;
+    try {
+        Core\Json::decode($doc, {maxDepth: 4});
+    } catch (ParseError $capped) {
+        $ok = false;
+    }
+    $accepted = $accepted + ($ok ? 1 : 0);
+}
+echo "accepted ", $accepted, " of 8\n";
+
+// The default is 512, spec § 6's and PHP's own, and it is a real number
+// rather than whatever the parser underneath happens to allow: serde_json's
+// own limit is 128, and this module turns it off precisely so the declared
+// default is reachable. 511 nestings around a scalar is depth 512 and holds;
+// one more is refused.
+var $at = Core\Str::repeat("[", 511) . "1" . Core\Str::repeat("]", 511);
+var $past = Core\Str::repeat("[", 512) . "1" . Core\Str::repeat("]", 512);
+try {
+    Core\Json::decode($at);
+    echo "default holds\n";
+} catch (ParseError $atbound) {
+    echo "default refused\n";
+}
+try {
+    Core\Json::decode($past);
+    echo "past accepted\n";
+} catch (ParseError $pastbound) {
+    echo "past refused\n";
+}
+
+// A document too deep for the default is invalid to `Core\Json::isValid`,
+// which takes no option: its answer is "decodes at the default depth", not
+// "is well-formed JSON somewhere".
+echo Core\Json::isValid(Core\Str::repeat("[", 900) . Core\Str::repeat("]", 900)) ? "valid" : "invalid", "\n";
+
+// A `maxDepth` outside 1..=1024 is a **LogicError**, not a ParseError: the
+// number came from the program rather than from the world, and a document
+// that would have decoded is not what failed. It throws rather than clamping,
+// because a clamp would make acceptance depend on a number no call site sees.
+try {
+    Core\Json::decode("1", {maxDepth: 0});
+    echo "not reached\n";
+} catch (LogicError $zero) {
+    echo $zero->message, "\n";
+}
+
+// Both sides of the ceiling, which is twice the default and is what makes
+// turning the parser's own recursion limit off safe.
+try {
+    Core\Json::decode("1", {maxDepth: 1024});
+    echo "ceiling accepted\n";
+} catch (LogicError $ceiling) {
+    echo "ceiling refused\n";
+}
+try {
+    Core\Json::decode("1", {maxDepth: 1025});
+    echo "past ceiling accepted\n";
+} catch (LogicError $beyond) {
+    echo "past ceiling refused\n";
+}
+--EXPECT--
+accepted 3 of 8
+default holds
+past refused
+invalid
+Core\Json::decode(): a `maxDepth` of 0 is outside 1..=1024
+ceiling accepted
+past ceiling refused
