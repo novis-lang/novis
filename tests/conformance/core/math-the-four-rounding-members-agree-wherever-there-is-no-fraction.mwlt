@@ -1,0 +1,137 @@
+--TEST--
+Core\Math::ceil, floor, truncate and round answer the row itself on every integer-valued float, keeping the sign of a zero, and part from one another only where a fraction is present — docs/spec/01-core-library.md § 3
+--FILE--
+<?mwl
+// Four members over one rule: each picks an integer-valued `float` at or near
+// its argument. Asked one at a time they all look right, so the question that
+// actually separates them is where they are *obliged* to agree and where they
+// are obliged to differ. Asked of a whole table and counted, so a member that
+// is right on the rows a hand-written case would pick and wrong one step out
+// still fails here. Which of the six modes `round` consults at an exact tie is
+// math-only-an-exact-tie-tells-the-round-modes-apart.mwlt; the modes are not
+// touched below, because a mode is only ever reached where there *is* a
+// fraction, and section 1 is the half where there is none.
+
+// 1. Every integer-valued float is a fixed point of all four, so on this table
+//    the members are not four rules but one. The two powers at the end are the
+//    interesting rows: 2^52 is where the spacing reaches 1.0 and 2^53 is where
+//    it reaches 2.0, magnitudes at which a member implemented by scaling into
+//    an integer and back has already lost the value it was handed.
+array<float> $whole = [
+    -9007199254740992.0, -4503599627370496.0, -1048576.0, -100.0, -3.0, -1.0,
+    -0.0, 0.0,
+    1.0, 3.0, 100.0, 1048576.0, 4503599627370496.0, 9007199254740992.0,
+];
+int $rows = 0;
+int $fixed = 0;
+int $agree = 0;
+foreach ($whole as float $x) {
+    $rows = $rows + 1;
+    if (Core\Math::ceil($x) == $x && Core\Math::floor($x) == $x
+        && Core\Math::truncate($x) == $x && Core\Math::round($x) == $x) {
+        $fixed = $fixed + 1;
+    }
+    if (Core\Math::ceil($x) == Core\Math::floor($x)
+        && Core\Math::floor($x) == Core\Math::truncate($x)
+        && Core\Math::truncate($x) == Core\Math::round($x)) {
+        $agree = $agree + 1;
+    }
+}
+echo "whole: fixed ", $fixed, "/", $rows, ", four agree ", $agree, "/", $rows, "\n";
+
+// 2. `==` cannot see the one thing a rounding member is most likely to drop:
+//    `-0.0 == 0.0` is true, so a member answering the wrong zero passes every
+//    row above. The reciprocal separates them — -INF against INF — and all
+//    four keep the sign they were handed.
+float $nz = -0.0;
+int $keptSign = 0;
+if (1.0 / Core\Math::ceil($nz) == 1.0 / $nz) { $keptSign = $keptSign + 1; }
+if (1.0 / Core\Math::floor($nz) == 1.0 / $nz) { $keptSign = $keptSign + 1; }
+if (1.0 / Core\Math::truncate($nz) == 1.0 / $nz) { $keptSign = $keptSign + 1; }
+if (1.0 / Core\Math::round($nz) == 1.0 / $nz) { $keptSign = $keptSign + 1; }
+echo "negative zero kept by ", $keptSign, "/4, reciprocal ", 1.0 / Core\Math::ceil($nz), "\n";
+
+// 3. Section 1 is not a table someone chose to be easy: past 2^52 the exponent
+//    makes the spacing 1.0, so no float above it *has* a fraction and the four
+//    members are the identity there for good. The bound named on both sides —
+//    2^52 - 0.5 is the last float with a fraction, and it straddles, while 2^52
+//    itself is the first that cannot and so does not.
+float $last = 4503599627370495.5;
+float $p52 = 4503599627370496.0;
+echo "last fractional straddles: ";
+if (Core\Math::ceil($last) - Core\Math::floor($last) == 1.0) { echo "yes"; } else { echo "no"; }
+echo ", and closes on 2^52: ";
+if (Core\Math::ceil($last) == $p52) { echo "yes"; } else { echo "no"; }
+echo ", 2^52 straddles: ";
+if (Core\Math::ceil($p52) == Core\Math::floor($p52)) { echo "no\n"; } else { echo "yes\n"; }
+
+// 4. Where a fraction *is* present the four stop being one rule. `ceil` and
+//    `floor` are the two integers either side, exactly one apart on every row;
+//    `truncate` is always one of them, and which one is the only thing that
+//    tells it from either — it follows `floor` on the positive rows and `ceil`
+//    on the negative ones. The sign test is `abs`, not `>`, because ordering
+//    two `float`s does not lower; the table has no zero, so it is a clean split.
+array<float> $frac = [
+    -3.75, -2.5, -1.5, -0.75, -0.5, -0.25,
+    0.25, 0.5, 0.75, 1.5, 2.5, 3.75,
+];
+int $fracRows = 0;
+int $straddle = 0;
+int $split = 0;
+int $truncIsFloor = 0;
+int $truncIsCeil = 0;
+int $truncTowardZero = 0;
+int $roundIsOneOfThem = 0;
+foreach ($frac as float $y) {
+    $fracRows = $fracRows + 1;
+    if (Core\Math::ceil($y) - Core\Math::floor($y) == 1.0) { $straddle = $straddle + 1; }
+    if (Core\Math::ceil($y) != Core\Math::floor($y)) { $split = $split + 1; }
+    if (Core\Math::truncate($y) == Core\Math::floor($y)) { $truncIsFloor = $truncIsFloor + 1; }
+    if (Core\Math::truncate($y) == Core\Math::ceil($y)) { $truncIsCeil = $truncIsCeil + 1; }
+    if (Core\Math::abs($y) == $y) {
+        if (Core\Math::truncate($y) == Core\Math::floor($y)) {
+            $truncTowardZero = $truncTowardZero + 1;
+        }
+    } else {
+        if (Core\Math::truncate($y) == Core\Math::ceil($y)) {
+            $truncTowardZero = $truncTowardZero + 1;
+        }
+    }
+    if (Core\Math::round($y) == Core\Math::floor($y) || Core\Math::round($y) == Core\Math::ceil($y)) {
+        $roundIsOneOfThem = $roundIsOneOfThem + 1;
+    }
+}
+echo "fractional: straddle ", $straddle, "/", $fracRows, ", split ", $split, "/", $fracRows, "\n";
+echo "truncate: floor on ", $truncIsFloor, ", ceil on ", $truncIsCeil,
+     ", toward zero on ", $truncTowardZero, "/", $fracRows, "\n";
+echo "round lands on one of the two: ", $roundIsOneOfThem, "/", $fracRows, "\n";
+
+// 5. The three floats that are not a number line position at all are back on
+//    section 1's side of the rule, for the same reason: there is no fraction to
+//    find, so no member has anything to decide. `NaN` is asserted with `isNan`
+//    rather than `==`, which is false of it in both directions.
+float $inf = 1.0 / 0.0;
+float $ninf = 0.0 - $inf;
+float $nan = Core\Math::sqrt(0.0 - 1.0);
+array<float> $ends = [$inf, $ninf];
+int $infFixed = 0;
+foreach ($ends as float $e) {
+    if (Core\Math::ceil($e) == $e && Core\Math::floor($e) == $e
+        && Core\Math::truncate($e) == $e && Core\Math::round($e) == $e) {
+        $infFixed = $infFixed + 1;
+    }
+}
+int $nanKept = 0;
+if (Core\Math::isNan(Core\Math::ceil($nan))) { $nanKept = $nanKept + 1; }
+if (Core\Math::isNan(Core\Math::floor($nan))) { $nanKept = $nanKept + 1; }
+if (Core\Math::isNan(Core\Math::truncate($nan))) { $nanKept = $nanKept + 1; }
+if (Core\Math::isNan(Core\Math::round($nan))) { $nanKept = $nanKept + 1; }
+echo "infinities fixed ", $infFixed, "/2, NaN kept by ", $nanKept, "/4\n";
+--EXPECT--
+whole: fixed 14/14, four agree 14/14
+negative zero kept by 4/4, reciprocal -INF
+last fractional straddles: yes, and closes on 2^52: yes, 2^52 straddles: no
+fractional: straddle 12/12, split 12/12
+truncate: floor on 6, ceil on 6, toward zero on 12/12
+round lands on one of the two: 12/12
+infinities fixed 2/2, NaN kept by 4/4
