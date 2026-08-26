@@ -840,6 +840,16 @@ is why" — is this file.
   answered. In the same family, a local declared in a case obeys `E0112`: `var $written_nan` is
   refused and `$writtenNan` is the spelling, which bites when a sweep needs one `var` per row and
   reaches for snake_case to keep them apart.
+- **Check a `gaps.py --errors` site's own parameter types before taking it as catchable.** A
+  `Fault::thrown` guarding an *element* of a typed parameter may have no program that can reach
+  it: `Core\Csv::format`'s "column N holds a value that is not a `string`" is guarded by an
+  `array<array<string>>` parameter and an `array<string>` `{header:}`, and all four ways round it
+  fail — `array<array<mixed>>` is `E0401` at the argument, a `mixed` cell is `E0401` inside the
+  literal, a whole `mixed` argument is `E0401` at the parameter, and the cast that would launder
+  it panics `mwl-ir` at `crates/mwl-ir/src/lower/expr.rs:877` (`array<T> as array<U>` is the
+  conversion row still missing). The tool's own header says an entry is a candidate rather than a
+  plan; this is the cheapest way to judge one, and it is four `mwl run` calls on a scratch file
+  rather than a written case that will not compile.
 
 ## Splitting a file that got too big
 
@@ -1007,3 +1017,13 @@ sibling in the same namespace unqualified.
   pairs each code with its own bounds carries them in a parallel `array<int>` and reads it by key —
   `foreach ($codes as string $k => string $c)` binds both, and `$high[$k]` indexes the sibling
   array — since there is no arithmetic on a format string to build one from.
+- **A closure held in an array can be handed to a `Core` member's `callable` option**, even
+  though calling one through the variable holding it panics `mwl-ir` outright. `array<callable>
+  $filters = [fn (Core\Cli\Text $c): int => 7, ...];` then `foreach ($filters as callable
+  $filter) { ... Core\Out::capture($body, {through: $filter}) ... }` lowers and runs, because the
+  call is the runtime's (`mwl_runtime::call_closure`) and not a lowered `Call` — which is what
+  turns a sweep over eight closures into a sweep rather than eight copies of one block. Two
+  spellings to get right on the way: a **block-bodied** `fn` must declare its return type
+  (`E0450`: `fn (): void => { ... }`), an expression-bodied one takes the expression's; and a
+  `mixed` is **not** implicitly assignable to a narrower type, so `array<string> $row = ["a",
+  $cell];` over a `mixed $cell` is `E0401` at the element.
