@@ -168,6 +168,9 @@ spellings rejected, and the reasoning.
   ([0074](0074-http-defaults-safe-and-finite.md)).
 - **`Core\RateLimit` limits what only the application knows** — per account, per tenant — while edge and
   flood limiting stay the proxy's ([0075](0075-core-ratelimit.md)).
+- **The built-in server is a development server and a proxied origin, and a URL selects a mount rather than
+  a path** — no TLS listener, no h2c, no FastCGI and no compression, and every executable path is enumerated
+  at boot ([0097](0097-development-server-and-proxied-origin.md)).
 
 ## Runtime, tooling and the standard library
 

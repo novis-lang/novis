@@ -58,6 +58,7 @@ so you never have to open this file to route a topic.
 | The config file's *format* — why TOML, how a list/boolean/hash-pin is spelled, whether `mwl.toml` is a project manifest | [0064](0064-configuration-file-format.md) |
 | Changing a running server — `mwl ctl reload`, the control socket, adding or replacing an extension without a restart, which directives still need one, why there is no control port | [0078](0078-config-reload-and-control-socket.md) |
 | Running MWL as a Windows service or a systemd unit — `mwl service install`, NSSM/WinSW, `sc create`, `ImagePath` quoting, which service account, a hardened unit file, `Type=notify`, `ExecReload`, why a bundle cannot install itself | [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) |
+| The built-in HTTP server — what `mwl serve` is for and what it is not, mount points and several entry points under one root, serving static files, why there is no TLS listener, h2c, FastCGI or compression, what a proxy in front is trusted to assert, `X-Forwarded-For` and the client IP, connection timeouts, the in-flight ceiling, a health endpoint | [0097](0097-development-server-and-proxied-origin.md) |
 | `spawn script`, isolates, the request boundary | [0006](0006-isolated-script-execution.md) |
 | Caching between requests, APCu, `Core\Cache`, why a cached value is copied | [0059](0059-cross-request-state-is-explicit.md) |
 | `include`/`require`, loading another file into the current frame | [0021](0021-single-file-inclusion-construct.md) |
@@ -66,7 +67,7 @@ so you never have to open this file to route a topic.
 | Uninitialized properties, `undefined`, why a typed property can't silently be `null`/zero | [0022](0022-definite-property-initialization.md) |
 | `lateinit`, deferring a property's first assignment past the constructor, DI/setter injection | [0038](0038-lateinit-property-modifier.md) |
 | `clone`, `serialize`/`unserialize`, `__clone`/`__sleep`/`__wakeup`, or how a value crosses a `spawn` boundary | [0023](0023-clone-serialize-and-cross-boundary-copy.md) |
-| The built-in HTTP server, live cache invalidation, picking up an edited `.mwl` file without a restart | [0017](0017-hot-reload-without-restart.md) |
+| Live cache invalidation, picking up an edited `.mwl` file without a restart | [0017](0017-hot-reload-without-restart.md) |
 | The on-disk compiled-artifact cache — file layout, header format, why a tampered file is a cache miss, eviction | [0042](0042-on-disk-artifact-cache-format.md) |
 | A portable single-file executable, `mwl build --compile`, bundling a CLI app's source | [0048](0048-portable-single-file-executables.md) |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys, arithmetic result types, user-defined generics | [0007](0007-explicit-type-system.md) |
@@ -264,6 +265,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0094](0094-visibility-is-written-at-every-member-declaration.md) | Every member declaration writes one of `public`/`protected`/`private` and an omission is a hard error — there is no implicit `public`, the asymmetric form is written as a pair, and a plain constructor parameter is exempt because visibility is what promotes one to a property | Accepted |
 | [0095](0095-ambiguous-input-is-refused-never-repaired.md) | A name that resolves to something other than what it spells is refused, never repaired — a closed ambiguity list rejects an HTTP message inbound and outbound alike, a cookie name is matched byte for byte with `__Host-`/`__Secure-` enforced by the runtime, multipart caps a part count, and `Core\IO::within` refuses a path component whose spelling and resolution differ | Accepted |
 | [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) | Every `#[Route]` method carries a required sibling `#[Access]` attribute whose omission is a compile error and whose meaning the compiler never asks about, and CSRF is on by default for unsafe methods with the opt-out named per route | Accepted |
+| [0097](0097-development-server-and-proxied-origin.md) | The built-in server is a development server and a proxied FastCGI replacement and nothing else, with every feature a proxy owns dropped by name; a filesystem path is never derived from a URL, so a request selects a mount from a table that globs expanded against disk at boot | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
