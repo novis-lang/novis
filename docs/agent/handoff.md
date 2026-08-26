@@ -2,53 +2,51 @@
 
 ## State
 
-**Conformance is at 516 of 600, and it is the only frontier left.** The differential gate is met at
+**Conformance is at 518 of 600, and it is the only frontier left.** The differential gate is met at
 **159** of the 150 it requires and `python tools/gaps.py --differential` is empty. Verify is green
 (1597 cargo tests, 74 suites, clippy and fmt clean) and runs both `.mwlt` trees itself, so after a
 green `verify.py` there is nothing else to run (playbook, *Running things*).
 
-**§ 12's `Core\Csv` is done — 5 cases for 2 members.** The two new ones are the *invariance* and
-*edges* shapes: `format` then `parse` is the identity over a table of awkward records (12 fields
-compared by counting, including a field holding the separator, the quote, a bare LF and a bare
-CRLF, plus an empty one and a space-padded one), the document is a fixed point of re-formatting,
-and the one record the identity fails for is named — a record of a *single* empty field writes a
-blank line and a blank line is not a record. The second pins that a trailing newline never changes
-what a document holds, under both `header` readings, by comparing whole re-formatted structures
-rather than record counts.
+**The § 9 leftover is landed and § 12's `Core\Validate` is at 5 cases.** The first is the
+*agreement* shape across two members implementing one rule: a heap drained by `pop` and the same
+table given to `Core\Arr::sort` are compared position for position under four orderings — natural,
+reversed (`{order: Core\Order::Desc}` against a comparator), a key written twice (`{by}` against a
+comparator over the same static helper), and bytewise over strings — with every heap asserted
+drained and one crossed pair scoring 0 of 6 so the counter is shown able to say no. The second asks
+one question of all six `Core\Validate` predicates at once: six degenerate subjects (empty, three
+whitespace, a NUL-holding one, a run of spaces) are refused unanimously by the four structural
+predicates (24 of 24), are all six ASCII, and split 3 of 6 on `isPrintable` — the count that says
+the two character-class predicates are not one predicate asked twice.
 
-**The § 9 leftover was not taken again** — it is item 1 below, unchanged and anchored. Context was
-never the reason; the two `Core\Csv` slices simply filled the group.
+**Item 3 below is the carried leftover this time**, and the group's second and third slices move on
+to `Core\Uuid`, which is 3 cases for 4 members plus `toString`.
 
 ## Next group
 
-Three slices. **Item 1 is the carried § 9 leftover** and reads `heap.rs` + `arr.rs`, so take it
-alone or first. **Items 2 and 3 share `crates/mwl-stdlib/src/validate.rs`** — 6 members over 3
-cases, the thinnest section left now that `Core\Csv` is 5 — plus new files under
-`tests/conformance/core/`; spec § 12's first table owns the rules and the crate's module doc owns
-every `filter_var` divergence. `validate-members.mwlt` is one broad 99-line case walking all six
-members' lines, so a new one takes a depth shape rather than another row of that.
+Three slices. **Item 1 is the carried § 12 leftover** and reads `crates/mwl-stdlib/src/validate.rs`
+alone, so take it first. **Items 2 and 3 share `crates/mwl-stdlib/src/uuid.rs`** — 4 members plus
+`toString` over 3 cases, the thinnest section left with more than one member — plus new files under
+`tests/conformance/core/`; spec § 11 owns the rules (and says there is no `isValid`) and the crate's
+module doc owns every divergence from PHP's `uniqid`/`random_bytes` idiom.
 
-- [ ] **`Core\Heap`'s pop order and `Core\Arr::sort` answer the same permutation** — the
-      *agreement* shape across two members implementing one rule (ADR 0013): drain a heap into an
-      array, sort the same table with `Core\Arr::sort`, and count the positions that agree rather
-      than printing either sequence. `heap.rs:589` (`pop`), `arr.rs:2790` (`sort`).
-- [ ] **`Core\Validate`'s six predicates agree about the subject no line accepts** — the
-      *agreement* shape, counted: the empty string, a string that is only whitespace, and one
-      holding a NUL are each asked of all six, asserting that they **agree** rather than what each
-      answered. `validate.rs:388` (`isEmail`), `:402` (`isDomain`), `:420` (`isIp`), `:436`
-      (`isMac`), `:450` (`isAscii`), `:465` (`isPrintable`).
 - [ ] **`isAscii` and `isPrintable` are bounds asserted on both sides** — the last code point each
       accepts and the first it refuses, named together in one case: `~` (7E) against DEL (7F) for
       `isPrintable`, DEL (7F) against U+0080 for `isAscii`, and where the two disagree in between.
-      `validate.rs:450`, `validate.rs:465`.
+      `validate.rs:450` (`isAscii`), `validate.rs:465` (`isPrintable`).
+- [ ] **`Core\Uuid::v7` is time-ordered across a sweep, not just across two draws** — the
+      *invariance* shape: draw a table of v7s in a loop, compare each against the one before by its
+      leading timestamp field, and **count** the non-decreasing pairs rather than printing any of
+      them. `uuid.rs:309` (`v7`), `uuid.rs:385` (`toString`).
+- [ ] **`parse` and `tryParse` agree about every subject, and disagree only in how they say no** —
+      the *agreement* shape over a table of canonical and malformed forms: `tryParse` answering
+      `null` exactly where `parse` throws, counted. `uuid.rs:334` (`parse`), `uuid.rs:362`
+      (`tryParse`).
 
 ## Backlog
 
-- `Core\Uuid` and `Core\Out` are 3 cases each — the thinnest sections after `Core\Validate`
-  (`python tools/gaps.py` is the worklist; do not re-derive it).
-- `Core\Json::decodeAs<T>`'s decoder reads scalar-fielded classes only — plan, *Open now*; ADR 0071.
-- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row —
-  `mwl_stdlib::hash`'s module doc.
-- `do`/`while` does not lower, and a closure cannot be called through the variable holding it —
-  `mwl-ir` gap 1.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- `Core\Csv` and `Core\Out` are the next-thinnest after `Core\Uuid` — 5 cases for 2 members and 3
+  for 1 — `docs/spec/01-core-library.md` § 12.
+- `Core\Json::decodeAs<T>`'s decoder reads a scalar-fielded class only (`mwl_stdlib::json` gap 2).
+- ADR 0088's qualifier classification is on no `mwl-stdlib` member row (`mwl_stdlib::hash` doc).
+- `do`/`while` is the one M4 control-flow statement that does not lower (`mwl-ir` gap 1).
+- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).

@@ -1141,6 +1141,16 @@ sibling in the same namespace unqualified.
   entry in `Signatures` first. `mwl_str_concat`/`mwl_str_append`/`mwl_str_concat_n` and the
   `mwl_throwable_*` pair are the other shared entries, and their doc comments say the sharing is
   deliberate.
+- **A closure passed to a `Core` member may call a static method in its body, and `"\u{0000}"` is
+  how a case writes a NUL.** Two spellings the neighbouring bullets make one doubt, both measured in
+  a scratch `.mwl` and both fine: the closure trap is only about calling a closure *through the
+  variable holding it*, so `fn (int $a, int $b): int => Key::magnitude($a) - Key::magnitude($b)`
+  handed to `new Core\Heap<int>(...)` — and the identical body handed to `Core\Arr::sort`'s `{by}` —
+  lowers and runs, which is what lets one rule be written twice and the two members asked to agree
+  about it. And the code-point escape is the only way to put a NUL in a case's subject (there is no
+  `\0`); `Core\Str::length("a\u{0000}b")` reads **3**, so it is a character in the string rather
+  than a terminator, which is the assertion a `Core\Validate` sweep over degenerate subjects rests
+  on.
 
 ## Divergences and refusals already pinned
 
