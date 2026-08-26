@@ -15,11 +15,12 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 441 of 600 and differential 90 of 150, and nothing below them
-> is red. **The depth pass is section by section**: `encoding` and `hash` have each taken two cases,
-> and `Core\Hash`'s `of`, `hmac` and `equals` are now pinned against the documents that publish
-> their vectors — FIPS 180-4, RFC 1321 and RFC 4231 — rather than against one input each. The goal
-> is unchanged: **M4S Part I in full plus the M4 surface it cannot be written without**. Every
+> Stage 4's two counts**, conformance 444 of 600 and differential 90 of 150, and nothing below them
+> is red. **The depth pass is section by section**: `encoding`, `hash` and `csv` have each taken
+> their turn, and `Core\Hash` is now pinned against the documents that publish its vectors — FIPS
+> 180-4, RFC 1321, RFC 4231 — with `Hash\Stream` pinned by *invariance* rather than by a vector,
+> every two-update split of a 130-byte subject answering what the one-shot member does. The goal is
+> unchanged: **M4S Part I in full plus the M4 surface it cannot be written without**. Every
 > representation that blocked a section is built and recorded in the crate that owns it —
 > `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict identity is `mwl_runtime::identity`,
 > `decimal` is `mwl_runtime::decimal`, a `Core`-owned instance is an ordinary MWL object
@@ -59,12 +60,12 @@
 > 19 and `Time\Zone` × 4 (+ `UTC`) over `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+
 > `SEPARATOR`) over nothing at all, `Random` × 6 over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`,
 > `Uri` × 4 over nothing at all, `Encoding` × 2 over nothing at all, `Hash` × 4 plus `Hash\Stream` ×
-> 2 over the RustCrypto family, `crc32fast` and `subtle`, `Out` × 1 answering the `Cli\Text`
-> carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over `identity_store`, all three iterable
-> through `cursor`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 441 (in
-> `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` ×
-> 90, `fuzz/`, `tools/`, `benches/abi-probe`.
+> 2 over the RustCrypto family, `crc32fast` and `subtle`, `Csv` × 2 over `csv-core`, `Out` × 1
+> answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
+> `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
+> `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
+> `run`), `tests/conformance` × 444 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -106,19 +107,23 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 4's own two counts are the frontier: conformance is 441 of the 600 that gate
+> **Open now:** **Stage 4's own two counts are the frontier: conformance is 444 of the 600 that gate
 > requires and differential is 90 of 150.** Both of Stage 4's named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) exist
 > and pass, so the gap is behavioural *depth* per member rather than an unregistered member or an
 > uncovered one — every registered member has at least one case. **The depth pass runs a section at
-> a time, weakest first.** `hash` took two this session and is now 5 cases: `Core\Hash::of` is
-> pinned against each algorithm's own published vector, the empty input and a buffer no `string`
-> could hold, and `hmac`/`equals` against RFC 4231's four key shapes — shorter than the block,
-> binary, longer than the block and therefore reduced first, and empty — plus the two identities RFC
-> 2104 states, written as identities rather than as pasted constants. `Core\Hash\Stream` is the one
-> member of § 11 still at one chunking. The thinnest sections now are `csv`, `out` and `validate` at
-> one case each, `path`, `heap` and `uuid` at two, and `json` and `random` at three, against `arr`'s
-> 40 and `str`'s 28. **What is still unbuilt in the library**, none of it a registration gap:
+> a time, weakest first.** `hash` is now 6 cases and `csv` 3. `Core\Hash::of` is pinned against each
+> algorithm's own published vector, the empty input and a buffer no `string` could hold,
+> `hmac`/`equals` against RFC 4231's four key shapes plus the two identities RFC 2104 states, and
+> `Hash\Stream` by **invariance** — every two-update split of a 130-byte subject, offsets 0 through
+> 130 inclusive, for SHA-256's 64-byte block and SHA-512's 128-byte one, plus three-update and
+> empty-chunk splittings and the zero-update stream written as the identity against
+> `Core\Hash::of("")`. `Core\Csv` now covers a non-default `separator`/`quote`/`escape` on both legs
+> with a round trip of each, the same document read with and without an escape character, an
+> embedded newline and a quoted quote, the three dialect refusals, and every ragged-record rule its
+> module doc states. The thinnest sections now are `out` and `validate` at one case each, `path`,
+> `heap` and `uuid` at two, and `json`, `random` and `csv` at three, against `arr`'s 40 and `str`'s
+> 28. **What is still unbuilt in the library**, none of it a registration gap:
 > `Core\Json::decodeAs<T>`'s decoder (`mwl_stdlib::json` gap 2); ADR 0071 decodes only a
 > scalar-fielded class — no enum/`decimal`/`Instant`/`array`/nested-class field and no optional key
 > from a parameter default; ADR 0088's registry-wide item, that `mwl-stdlib`'s member rows carry
@@ -148,8 +153,8 @@
 > carrier being a `Core` instance rather than a `string` (settled under ADR 0088 § 5), and picking
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** now pass whole on both legs,
 > so any failure below Stage 4 is a regression rather than unfinished work. What Stage 4 needs is
-> not a decision: 159 more conformance cases and 60 more differential ones, written a section at a
-> time.
+> not a decision: conformance stands at 444 of 600 and differential at 90 of 150, and the remainder
+> is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in
