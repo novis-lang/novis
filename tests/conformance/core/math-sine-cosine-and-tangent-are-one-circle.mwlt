@@ -1,0 +1,107 @@
+--TEST--
+Core\Math's sin, cos and tan are one circle: the Pythagorean identity and the quotient hold on every row, spec § 3
+--FILE--
+<?mwl
+// The *agreement* shape (conventions.md), asserted by *counting*: the question
+// is not what any one member answered on any one row, but whether the three
+// still describe the same circle across a whole table. A member that grew its
+// own argument reduction answers plausibly line by line and drops the count.
+//
+// Neither `sin` nor `cos` nor `tan` is required to be correctly rounded, so
+// every row is held to a rounding step rather than to equality — the tolerance
+// spelling is the playbook's, under *Writing a test case*.
+array<float> $angles = [
+    0.0, 0.125, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0,
+    4.0, 6.0, 10.0, 100.0, 1000.0,
+    -0.25, -0.5, -1.0, -2.5, -100.0,
+];
+
+int $rows = 0;
+int $identityHolds = 0;
+int $tanIsTheQuotient = 0;
+int $bothAreBounded = 0;
+foreach ($angles as float $x) {
+    $rows = $rows + 1;
+
+    // sin² + cos² is 1 everywhere on the circle, including at the arguments
+    // large enough that the member has to reduce them first.
+    float $s = Core\Math::sin($x);
+    float $c = Core\Math::cos($x);
+    float $unit = $s * $s + $c * $c;
+    float $off = $unit - 1.0;
+    if ($off < 0.0) {
+        $off = 0.0 - $off;
+    }
+    if ($off < 0.000000000002) {
+        $identityHolds = $identityHolds + 1;
+    }
+
+    // `tan` is the quotient of the other two, to a relative step: none of the
+    // rows above is near a pole, so the quotient is well conditioned and the
+    // two spellings have to land within a step of each other.
+    float $t = Core\Math::tan($x);
+    float $quotient = $s / $c;
+    float $mag = $t;
+    if ($mag < 0.0) {
+        $mag = 0.0 - $mag;
+    }
+    float $tol = 0.000000000001 * ($mag + 1.0);
+    float $gap = $t - $quotient;
+    if ($gap < 0.0) {
+        $gap = 0.0 - $gap;
+    }
+    if (($gap < $tol) && ($gap > 0.0 - $tol)) {
+        $tanIsTheQuotient = $tanIsTheQuotient + 1;
+    }
+
+    // Both circular members stay inside [-1, 1] however far out the argument
+    // is — the property a lost argument reduction breaks first.
+    if (($s <= 1.0) && ($s >= -1.0) && ($c <= 1.0) && ($c >= -1.0)) {
+        $bothAreBounded = $bothAreBounded + 1;
+    }
+}
+
+echo "rows: ", $rows, "\n";
+echo "sin^2 + cos^2 == 1: ", $identityHolds, " of ", $rows, "\n";
+echo "tan == sin / cos: ", $tanIsTheQuotient, " of ", $rows, "\n";
+echo "both within [-1, 1]: ", $bothAreBounded, " of ", $rows, "\n";
+
+// The three landmarks the table deliberately leaves out, because only there
+// are the answers exact: a full turn of the *rounded* PI is not a full turn of
+// the real one, so the quarter turns are where the constant's own rounding
+// shows through.
+echo "sin(0)=", Core\Math::sin(0.0) == 0.0 ? "0" : "other",
+     " cos(0)=", Core\Math::cos(0.0) == 1.0 ? "1" : "other",
+     " tan(0)=", Core\Math::tan(0.0) == 0.0 ? "0" : "other", "\n";
+
+// At the half turn the sine is not zero and must not be reported as zero: the
+// argument is PI rounded to a double, and its sine is the distance from the
+// real half turn. Small, positive, and nowhere near the tolerance above.
+float $sinHalfTurn = Core\Math::sin(Core\Math::PI);
+echo "sin(PI): zero=", $sinHalfTurn == 0.0 ? "y" : "n",
+     " tiny=", ($sinHalfTurn > 0.0) && ($sinHalfTurn < 0.000000000000001) ? "y" : "n",
+     " cos(PI)=", Core\Math::cos(Core\Math::PI) == -1.0 ? "-1" : "other", "\n";
+
+// The quarter turn is where `tan` has no answer at all, and it does not hand
+// back an infinity for one: the pole is between two doubles, so the member
+// answers the enormous *finite* value the rounded PI / 2.0 earns — the
+// reciprocal of that same residual. It agrees with the quotient there too,
+// which is the identity holding right up to the place it has no value.
+float $quarter = Core\Math::PI / 2.0;
+float $tanQuarter = Core\Math::tan($quarter);
+float $cosQuarter = Core\Math::cos($quarter);
+echo "tan(PI/2): finite=", Core\Math::isFinite($tanQuarter) ? "y" : "n",
+     " enormous=", $tanQuarter > 1000000000000000.0 ? "y" : "n",
+     " infinite=", $tanQuarter == Core\Math::INFINITY ? "y" : "n", "\n";
+echo "cos(PI/2): zero=", $cosQuarter == 0.0 ? "y" : "n",
+     " tiny=", ($cosQuarter > 0.0) && ($cosQuarter < 0.000000000000001) ? "y" : "n",
+     " sin(PI/2)=", Core\Math::sin($quarter) == 1.0 ? "1" : "other", "\n";
+--EXPECT--
+rows: 20
+sin^2 + cos^2 == 1: 20 of 20
+tan == sin / cos: 20 of 20
+both within [-1, 1]: 20 of 20
+sin(0)=0 cos(0)=1 tan(0)=0
+sin(PI): zero=n tiny=y cos(PI)=-1
+tan(PI/2): finite=y enormous=y infinite=n
+cos(PI/2): zero=n tiny=y sin(PI/2)=1
