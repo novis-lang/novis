@@ -1,0 +1,94 @@
+--TEST--
+A `Core\Heap<T>` interleaving pushes with pops still answers each `pop` with the element that sorts first among everything it then holds, and a sweep that never pushes below its last `pop` drains in non-decreasing order — docs/spec/01-core-library.md § 9, ADR 0013
+--FILE--
+<?mwl
+// § 9's heap is a priority queue, so its promise is not "the table sorted" —
+// a push after a pop may arrive below everything already there, and the next
+// pop is allowed to answer below the previous one. The invariant that does
+// hold at every step is local: whatever `pop` answers, nothing left behind
+// sorts before it. `heap-orders-by-comparable-or-by-its-comparator.mwlt`
+// reads a drained order off its own line; this asks the question of every
+// element still in the heap after every pop and **counts** the answers, so a
+// sift that goes wrong one position deep fails here rather than printing a
+// plausible-looking sequence.
+final class Order {
+    // A positive entry pushes; `0` pops, guarded, so a pop against the empty
+    // heap in the middle of the table is a step and not the throw
+    // `heap-holds-every-push-and-refuses-an-empty-read.mwlt` pins. Returns the
+    // number of (popped, still held) pairs found in order — a violation
+    // lowers it, and so does a sweep that quietly stopped popping.
+    public static function pairsInOrder(Core\Heap<int> $h, array<int> $ops, bool $ascending): int {
+        int $ordered = 0;
+        foreach ($ops as int $op) {
+            if ($op == 0) {
+                if (!$h->isEmpty()) {
+                    int $out = $h->pop();
+                    // ADR 0053 § 3's cursor is a read, so the heap is intact
+                    // for the next step of the table.
+                    foreach ($h as int $left) {
+                        if ($ascending) {
+                            if ($left >= $out) {
+                                $ordered = $ordered + 1;
+                            }
+                        } else {
+                            if ($left <= $out) {
+                                $ordered = $ordered + 1;
+                            }
+                        }
+                    }
+                }
+            } else {
+                $h->push($op);
+            }
+        }
+        return $ordered;
+    }
+
+    // The monotone half: how many adjacent pops came out in non-decreasing
+    // order. A table whose pushes never go below the last pop makes this the
+    // whole drained sequence.
+    public static function risingPairs(Core\Heap<int> $h, array<int> $ops): int {
+        int $rising = 0;
+        int $previous = 0;
+        bool $started = false;
+        foreach ($ops as int $op) {
+            if ($op == 0) {
+                if (!$h->isEmpty()) {
+                    int $out = $h->pop();
+                    if ($started) {
+                        if ($out >= $previous) {
+                            $rising = $rising + 1;
+                        }
+                    }
+                    $previous = $out;
+                    $started = true;
+                }
+            } else {
+                $h->push($op);
+            }
+        }
+        return $rising;
+    }
+}
+
+// Eight pops, one of them against the empty heap and so skipped, leaving
+// 2+2+1+2+2+1+0+0 = 10 pairs to ask about. The pushes of 1 and of 4 both
+// arrive below the element popped just before them, which is exactly the
+// interleaving a globally sorted reading would get wrong.
+array<int> $ops = [7, 2, 9, 0, 4, 0, 0, 1, 8, 0, 3, 0, 0, 0, 0, 5, 0];
+
+var $rising = new Core\Heap<int>();
+var $falling = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);
+echo "in order ", Order::pairsInOrder($rising, $ops, true), " ", Order::pairsInOrder($falling, $ops, false), " of 10\n";
+echo "spent ", $rising->count(), $falling->count(), "\n";
+
+// Monotone: 3 and 1 go in, 1 comes out, and every later push (2, 7, 5) is at
+// or above the last value popped. The drained sequence is then 1 2 3 5 7 —
+// non-decreasing across all four of its adjacent pairs, which is the promise
+// a scheduler actually leans on.
+array<int> $monotone = [3, 1, 0, 2, 7, 0, 5, 0, 0, 0];
+echo "non-decreasing ", Order::risingPairs(new Core\Heap<int>(), $monotone), " of 4\n";
+--EXPECT--
+in order 10 10 of 10
+spent 00
+non-decreasing 4 of 4
