@@ -909,6 +909,15 @@ is why" — is this file.
   harness rather than as the bound being probed. The last *accepted* append is the one after a key
   of `9223372036854775806`, which lands at `9223372036854775807`; the plan's `Open now` owns why the
   first refused one is a crash rather than PHP's `Error`.
+- **`php -m` before designing an oracle around an extension's function.** The `php` on the Windows
+  `PATH` is 8.5.9 with `json` and **no `gmp`**, so `Core\Math::gcd`/`lcm` — whose spec **Replaces**
+  column names `gmp_gcd`/`gmp_lcm` — cannot be asked their twin at all, and a case calling one would
+  die rather than disagree. The way through is the shape `Core\Path::normalize` already uses: write
+  the oracle as a **second implementation in PHP**, which for these two is four lines of Euclid and
+  is not the thing under test. That still closes the gap, because `gaps.py --differential` looks for
+  a call to the **MWL member** in `tests/differential/`, not for the twin's name in the oracle —
+  so the judgement about whether the twin is reachable is entirely the session's. The same check is
+  what the `mbstring` bullet above is a second instance of.
 
 ## Splitting a file that got too big
 
