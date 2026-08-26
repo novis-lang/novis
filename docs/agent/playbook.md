@@ -724,6 +724,27 @@ is why" — is this file.
   `yn` helper in `arr-any-and-all-match-array_any-and-array_all` takes a plain `bool` for this
   reason. Keep a `bool`-valued subject out of a case about a `?T`-answering member, or render it
   through a member that answers `string`.
+- **Neither leg's PHP has `gmp`**, so `Core\Math::gcd` and `::lcm` have no callable twin: `gmp_gcd`/`gmp_lcm`
+  die with *"Call to undefined function"* on the Windows `php` and inside WSL alike, exactly as `mb_*` does
+  on Windows. One `php -r 'echo function_exists("gmp_gcd");'` before designing the case is the check; when
+  the twin is missing, either compute the expectation with an explicit loop in the `--ORACLE--` block — PHP
+  still computes it, so the case is a real differential — or leave the member for a conformance case and say
+  so in its comment. `bcmath` *is* present on both legs.
+
+- **An `--ORACLE--` case must never `echo` a `NAN`.** PHP 8.4 and later emit *"Warning: unexpected NAN value
+  was coerced to string"* onto the same stream as the output, so the oracle's expectation carries a warning
+  MWL's side has no way to print and the case fails on a row that actually agrees. `INF` is fine. Render the
+  value through a guard instead — `$v == $v` is false for exactly one `float`, on both sides — and echo a
+  sentinel, which is what `math-int-div-and-mod-match-intdiv-and-fmod`'s `Show::real` does.
+
+- **A `CoreTy::Var("T")` signature binds `T` to the first argument, so a mixed-type pair does not reach the
+  runtime at all.** `Core\Math::min`, `max` and `clamp` declare every parameter and their return as one
+  `Var("T")`, so `Core\Math::min(0, "a")` and even `Core\Math::min(2, 1.5)` are `E0401` at the *second*
+  argument — which reads as "this member rejects the pair" when what is actually wanted is
+  `mwl_stdlib::ordering::compare_values`'s throw. Declare the union on the bindings (`int|string $zero = 0;`)
+  and the same call becomes the runtime refusal the case is trying to pin. In the same family: a `float`
+  parameter does not widen an `int` literal, so `Core\Math::mod(7, 2.0)` is `E0401` and `7 as float` or a
+  `float` binding is the spelling.
 
 ## Splitting a file that got too big
 
