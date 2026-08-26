@@ -706,3 +706,11 @@ sibling in the same namespace unqualified.
   The two spellings are `var $s = …` (inferred, and what every `.mwlt` case writes) and `string $s = …`
   (declared). The sentence to look for in the wall of output is the second `E0101`'s, "`var` infers its
   type from the initializer".
+- **`int`'s own minimum has no literal spelling, so a case pinning a 64-bit field's lower bound
+  cannot write it.** `-9223372036854775808` is a unary minus applied to a literal that is already
+  too large for `int`, so it is `E0429` (*"only legal where a `uint` is expected"*) rather than
+  `int::MIN`. That matters wherever a bound is being asserted on both sides: for `Core\Bytes::pack`'s
+  `J`/`P` the accepted range is the union of `int`'s and `uint`'s, so **neither** refusal has an
+  argument that can be written, and the honest row asserts the reach — `-9223372036854775807` and
+  `18446744073709551615` both landing in the field — instead of inventing a refusal that cannot
+  exist. Narrower widths (`C`, `n`, `v`, `N`, `V`) have both sides spellable and should assert them.

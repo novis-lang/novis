@@ -1,0 +1,124 @@
+--TEST--
+Every `Core\Bytes::pack` integer code accepts exactly the union of its width's signed and unsigned ranges and refuses the value one past each end, `unpack` reads that field back unsigned, and `slice`'s window clamps at both ends of the buffer — spec § 7, ADR 0063 R4 and R8
+--FILE--
+<?mwl
+// `crates/mwl-stdlib/src/bytes.rs`'s own docs state the rule these rows pin:
+// *an integer field accepts the union of its width's signed and unsigned
+// ranges and writes two's complement*. The sibling cases write one value per
+// code; this one writes each width's two accepted extremes and the two values
+// immediately outside them, so the range is asserted on **both** sides rather
+// than sampled in the middle.
+class Probe {
+    public static function fits(string $format, int $value): string {
+        try {
+            return Core\Encoding::toHex(Core\Bytes::pack($format, $value));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    // The same, for a value above `int`'s own ceiling — the top of a 64-bit
+    // field is only reachable as a `uint`.
+    public static function fitsUnsigned(string $format, uint $value): string {
+        try {
+            return Core\Encoding::toHex(Core\Bytes::pack($format, $value));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    public static function readUnsigned(bytes $b, string $format): string {
+        try {
+            array<mixed> $fields = Core\Bytes::unpack($b, $format);
+            return ($fields[0] as uint) as string;
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    public static function readSigned(bytes $b, string $format): string {
+        try {
+            array<mixed> $fields = Core\Bytes::unpack($b, $format);
+            return ($fields[0] as int) as string;
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+// One octet. `c` and `C` write the same octet and differ only in what `unpack`
+// reads back, so both take `[-128, 255]` — the union, not either half.
+echo "C ", Probe::fits("C", -128), " ", Probe::fits("C", 255), " ",
+    Probe::fits("C", -129), " ", Probe::fits("C", 256), "\n";
+echo "c ", Probe::fits("c", -128), " ", Probe::fits("c", 255), " ",
+    Probe::fits("c", -129), " ", Probe::fits("c", 256), "\n";
+
+// Two octets, both orders. The accepted pair is the same for `n` and `v`; only
+// the octets they write differ, which is what naming the order in the code is
+// for and is why `-32768` reads `8000` one way and `0080` the other.
+echo "n ", Probe::fits("n", -32768), " ", Probe::fits("n", 65535), " ",
+    Probe::fits("n", -32769), " ", Probe::fits("n", 65536), "\n";
+echo "v ", Probe::fits("v", -32768), " ", Probe::fits("v", 65535), " ",
+    Probe::fits("v", -32769), " ", Probe::fits("v", 65536), "\n";
+
+// Four octets. This is the width where PHP's own `pack` wraps silently, so the
+// two refusals are the whole point of the row: `4294967296` is not `0`.
+echo "N ", Probe::fits("N", -2147483648), " ", Probe::fits("N", 4294967295), " ",
+    Probe::fits("N", -2147483649), " ", Probe::fits("N", 4294967296), "\n";
+echo "V ", Probe::fits("V", -2147483648), " ", Probe::fits("V", 4294967295), " ",
+    Probe::fits("V", -2147483649), " ", Probe::fits("V", 4294967296), "\n";
+
+// Eight octets is the one width whose refusal **has no spelling**: the union
+// of `int` and `uint` is every integer either type can hold, so there is no
+// argument one past either end to write. `-9223372036854775808` is not a
+// literal at all — the lexer reads the minus as an operator and refuses the
+// digits as too large for `int` (E0429) — which is the same fact seen from the
+// language side. So this row asserts the reach instead: the bottom of `int`
+// and the top of `uint` both land in the field.
+echo "J ", Probe::fits("J", -9223372036854775807), " ",
+    Probe::fitsUnsigned("J", 18446744073709551615), "\n";
+echo "P ", Probe::fits("P", -1), " ",
+    Probe::fitsUnsigned("P", 18446744073709551615), "\n";
+
+// And back: these codes name a width, not a sign, so `unpack` reads every one
+// of them unsigned — `c` alone is read signed, which is the whole of the
+// difference between the pair. A field written from the signed end therefore
+// comes back as its two's-complement reading rather than as what was passed.
+echo "back ", Probe::readUnsigned(Core\Bytes::pack("N", -2147483648), "N"), " ",
+    Probe::readSigned(Core\Bytes::pack("c", -128), "c"), " ",
+    Probe::readUnsigned(Core\Bytes::pack("C", -128), "C"), " ",
+    Probe::readUnsigned(Core\Bytes::pack("n", -32768), "n"), "\n";
+
+// ADR 0063 R8's sign rule, at the ends of the buffer rather than inside it.
+// `slice` clamps rather than throwing — the sibling case pins an offset well
+// past the end; these are the offsets *at* the boundary, where an off-by-one
+// shows up and a far offset does not.
+bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");
+
+// Exactly at the end is the empty buffer; one before it is the last octet; and
+// a negative offset reaching past the start clamps to the whole buffer rather
+// than wrapping round it.
+echo "slice [", Core\Encoding::toHex(Core\Bytes::slice($png, 8)), "] [",
+    Core\Encoding::toHex(Core\Bytes::slice($png, 7)), "] [",
+    Core\Encoding::toHex(Core\Bytes::slice($png, -99)), "]\n";
+
+// A zero length is empty wherever it starts; a length past the end stops at
+// the end; an offset at the end takes nothing however long the window is; and
+// a negative length that lands on its own offset closes the window at the
+// point it opened.
+echo "window [", Core\Encoding::toHex(Core\Bytes::slice($png, 0, 0)), "] [",
+    Core\Encoding::toHex(Core\Bytes::slice($png, 6, 99)), "] [",
+    Core\Encoding::toHex(Core\Bytes::slice($png, 8, 4)), "] [",
+    Core\Encoding::toHex(Core\Bytes::slice($png, -8, -8)), "]\n";
+--EXPECT--
+C 80 ff threw threw
+c 80 ff threw threw
+n 8000 ffff threw threw
+v 0080 ffff threw threw
+N 80000000 ffffffff threw threw
+V 00000080 ffffffff threw threw
+J 8000000000000001 ffffffffffffffff
+P ffffffffffffffff ffffffffffffffff
+back 2147483648 -128 128 32768
+slice [] [0a] [89504e470d0a1a0a]
+window [] [1a0a] [] []
