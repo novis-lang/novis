@@ -834,3 +834,19 @@ sibling in the same namespace unqualified.
   flow-narrowing at all. `return $found as string;` compiles, and it is total in that branch and a
   throw in no other. A `?uint` needs the same cast for a different reason (there is no `uint` row in
   `echo`), so one `Show::render(?T $found): string` covers both and is worth copying between cases.
+- **A `--release` acceptance check costs a thin-LTO relink of every test binary in the package, not
+  just the one holding the guard.** Touching `crates/mwl-runtime/src/lib.rs` and rebuilding
+  `mwl-abi-probe` measured 200s for the package and 133s for `--test perf_guards` alone: five binaries
+  at ~17s of link each, over ~116s of compiling six crates at `codegen-units = 1`. So a `--release`
+  check in `loop-goal.toml` names its test *file*, and anything in the package that is not a cost
+  guard gets a second, debug check — 29s for all of `mwl-abi-probe`, with the guards skipping
+  themselves through `#[cfg_attr(debug_assertions, ignore)]`. Do not reach for a cheaper profile
+  instead: the cost class is a claim about the profile MWL ships, so `lto`/`codegen-units` are the
+  measurement and not overhead on it. What is left after narrowing is a build, and a build overlaps:
+  `loop.py` starts it before the native build and runs the check last, which took a cold sweep from
+  326s to 183s. Two cargos on one `target/` do not block each other — only the registry's package
+  cache is briefly contended, and the debug half finishes in its usual time.
+- **Measure a build with nothing else touching `target/`.** The same narrowed release build timed
+  133s alone and 260s with a `du -sh target` walking the tree beside it. On a link-heavy build the
+  disk is the contended resource, so a second reader of the same 1.7 GB doubles it — a timing run
+  that disagrees with an earlier one by 2x is usually this and not the change under test.

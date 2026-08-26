@@ -382,8 +382,10 @@ stage = "0 catch-up"
 name = "abi-probe (the allocator)"
 # `--release`, and the same invocation stage 5 uses so the two share one build rather than forcing a
 # second. A cost-class guard in a debug build measures the assertions and not the allocator, which is
-# the reason `tools/bench.py` refuses a `target/debug` binary by name.
-args = ["test", "--release", "-p", "mwl-abi-probe"]
+# the reason `tools/bench.py` refuses a `target/debug` binary by name. Word for word the same argv as
+# stage 5's `abi-probe`, `--test perf_guards` included -- the two are memoized onto one cargo run by
+# being identical, so a divergence here silently doubles the slowest check in the file.
+args = ["test", "--release", "-p", "mwl-abi-probe", "--test", "perf_guards"]
 tests = [
   # Item 18 -- MWL's own allocator, not the platform heap. A round trip is 28.7 ns here today; the
   # guard is a cost class rather than a number, the shape every other guard in this file uses.
@@ -714,17 +716,44 @@ tests = [
 # Stage 5 -- the named guard tests.
 # ---------------------------------------------------------------------------------------------------
 
+# `--test perf_guards` and not the whole package, which is a MEASUREMENT and not a narrowing. The
+# release profile is `lto = "thin"` with `codegen-units = 1`, so a one-line change to any crate this
+# reaches costs a thin-LTO relink of every binary the package holds -- measured on this tree, after
+# touching `mwl-runtime`: 200s for the package's five test binaries, 133s for this one. The other four
+# hold `tests/invariants.rs`, `tests/unwind_unavailable.rs` and the lib's own unit tests, none of which
+# is a cost guard and none of which the release profile changes the answer to; they are run below, in
+# debug, where they cost seconds. Nothing stopped running, and the cost classes are still measured
+# against the profile MWL ships. Every `#[test]` in `perf_guards.rs` carries
+# `#[cfg_attr(debug_assertions, ignore)]`, so the two halves partition the package exactly: this one
+# runs the guards and skips nothing, the debug one runs everything else and skips the guards.
 [[check]]
 kind = "cargo-named"
 stage = "5 guards"
 name = "abi-probe"
-args = ["test", "--release", "-p", "mwl-abi-probe"]
+args = ["test", "--release", "-p", "mwl-abi-probe", "--test", "perf_guards"]
 tests = [
   "a_typed_arithmetic_loop_contains_no_call",
   "a_typed_arithmetic_loop_stays_in_the_native_cost_class",
   "a_refcount_one_array_member_mutates_in_place",
   "a_class_without_a_property_observer_costs_nothing_extra",
   "a_grapheme_index_costs_more_than_a_code_point_index",
+]
+
+# The other half of that split: the architecture invariants ADR 0003 rests on -- a result and a throw
+# travelling up through many JIT frames, a runtime panic contained and reported, a helper suspending
+# with JIT frames live above it, and native unwinding through those frames still being unavailable.
+# Correctness, not cost, so debug is the right profile and not merely the cheap one: `overflow-checks`
+# and `debug_assert!` are on, which is strictly more checking than the release run gave them.
+[[check]]
+kind = "cargo-named"
+stage = "5 guards"
+name = "abi-probe (invariants)"
+args = ["test", "-p", "mwl-abi-probe"]
+tests = [
+  "a_throw_propagates_through_every_frame",
+  "a_runtime_panic_is_contained_and_reported",
+  "a_helper_can_suspend_with_jit_frames_live_above_it",
+  "native_unwinding_through_jit_frames_is_still_unavailable",
 ]
 
 [[check]]
