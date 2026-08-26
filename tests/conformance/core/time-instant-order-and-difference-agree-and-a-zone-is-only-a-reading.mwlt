@@ -1,0 +1,167 @@
+--TEST--
+Spec § 4: an `Instant`'s `compareTo` agrees with the sign of its `since`, `minus` undoes it, and `in` changes only the reading
+--FILE--
+<?mwl
+// § 4's `Instant` is a point on the line: it has no zone and no calendar, so
+// every question about *order* and every question about *distance* has to
+// answer the same way, and `in` — the one member that takes a `Zone` — has to
+// leave both alone. This case asserts that agreement over a whole table by
+// counting, rather than reading one pair off a line: a member that answers
+// plausibly row by row still fails here.
+//
+// The table spans the epoch in both directions, both sides of a nanosecond,
+// and two spellings of one instant against different offsets. It stops at
+// 1901..2100 on purpose: `since` answers a `Duration`, which is an exact
+// nanosecond count in an `int`, and a span wider than about 292 years has no
+// such count.
+array<string> $rows = [
+    "1901-01-01T00:00:00Z",
+    "1969-12-31T23:59:59.999999999Z",
+    "1970-01-01T00:00:00Z",
+    "1970-01-01T00:00:00.000000001Z",
+    "2000-01-01T00:00:00Z",
+    "2024-01-15T12:00:00Z",
+    "2024-01-15T13:00:00+01:00",
+    "2024-07-15T12:00:00Z",
+    "2038-01-19T03:14:08Z",
+    "2100-03-01T00:00:00Z",
+];
+
+// A `.mwlt` case's own helper is a `public static function` in a class
+// (ADR 0011 § 1); this one is the whole of what "agrees with the sign of"
+// means below.
+final class Sign {
+    public static function of(int $n): int {
+        if ($n < 0) {
+            return -1;
+        }
+        if ($n > 0) {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+int $pairs = 0;
+// `compareTo` and `since` are two readings of one fact.
+int $ordered = 0;
+// `$a->since($b)` is `0 - $b->since($a)`, which is what makes `since` a
+// difference rather than a distance.
+int $antisymmetric = 0;
+// `minus` and `plus` each undo it, from the end they are given.
+int $rebuiltByMinus = 0;
+int $rebuiltByPlus = 0;
+foreach ($rows as string $leftText) {
+    foreach ($rows as string $rightText) {
+        var $left = Core\Time::fromIso($leftText);
+        var $right = Core\Time::fromIso($rightText);
+        var $apart = $left->since($right);
+        $pairs = $pairs + 1;
+        if (Sign::of($left->compareTo($right)) == Sign::of($apart->toNanoseconds())) {
+            $ordered = $ordered + 1;
+        }
+        if ($apart->compareTo($right->since($left)->negated()) == 0) {
+            $antisymmetric = $antisymmetric + 1;
+        }
+        if ($left->minus($apart)->compareTo($right) == 0) {
+            $rebuiltByMinus = $rebuiltByMinus + 1;
+        }
+        if ($right->plus($apart)->compareTo($left) == 0) {
+            $rebuiltByPlus = $rebuiltByPlus + 1;
+        }
+    }
+}
+echo $pairs as string, "|", $ordered as string, "|", $antisymmetric as string, "|", $rebuiltByMinus as string, "|", $rebuiltByPlus as string, "|\n";
+
+// The two spellings of one instant are a pair that is equal without being the
+// same row, so `compareTo`'s zero above is not just the diagonal.
+echo Core\Time::fromIso("2024-01-15T13:00:00+01:00")->compareTo(Core\Time::fromIso("2024-01-15T12:00:00Z")) as string, "|\n";
+
+// `in` is the only member of `Instant` that takes a `Zone`, and what it
+// answers is a `DateTime` — a *reading* of the same point. Going back through
+// `toInstant` therefore lands on the instant it started from, whatever zone
+// was used to read it, including one that is not on a whole hour and one that
+// is east of the date line.
+array<string> $zones = ["UTC", "Europe/Berlin", "Asia/Tokyo", "Asia/Kathmandu", "Pacific/Kiritimati"];
+int $readings = 0;
+int $sameInstant = 0;
+int $sameIso = 0;
+foreach ($rows as string $rowText) {
+    foreach ($zones as string $zoneId) {
+        var $point = Core\Time::fromIso($rowText);
+        var $read = $point->in(Core\Time\Zone::of($zoneId));
+        $readings = $readings + 1;
+        if ($read->toInstant()->compareTo($point) == 0) {
+            $sameInstant = $sameInstant + 1;
+        }
+        if ($read->toInstant()->toIso() == $point->toIso()) {
+            $sameIso = $sameIso + 1;
+        }
+    }
+}
+echo $readings as string, "|", $sameInstant as string, "|", $sameIso as string, "|\n";
+
+// Neither does a zone change how two instants stand to each other — even when
+// each side is read in a different one. Order and difference are properties of
+// the points, so both survive the round trip through two calendars.
+var $tokyo = Core\Time\Zone::of("Asia/Tokyo");
+var $newYork = Core\Time\Zone::of("America/New_York");
+int $crossed = 0;
+int $orderKept = 0;
+int $differenceKept = 0;
+foreach ($rows as string $eastText) {
+    foreach ($rows as string $westText) {
+        var $east = Core\Time::fromIso($eastText);
+        var $west = Core\Time::fromIso($westText);
+        var $eastRead = $east->in($tokyo)->toInstant();
+        var $westRead = $west->in($newYork)->toInstant();
+        $crossed = $crossed + 1;
+        if ($eastRead->compareTo($westRead) == $east->compareTo($west)) {
+            $orderKept = $orderKept + 1;
+        }
+        if ($eastRead->since($westRead)->compareTo($east->since($west)) == 0) {
+            $differenceKept = $differenceKept + 1;
+        }
+    }
+}
+echo $crossed as string, "|", $orderKept as string, "|", $differenceKept as string, "|\n";
+
+// What `in` *does* change is the reading, which is the reason it exists: one
+// instant, five zones, five different civil times and offsets. The count is
+// how many of the five read as the UTC one does — exactly one, itself — so
+// the sweep asserts that a zone is not decorative as well as that it is not
+// part of the ordering.
+var $noon = Core\Time::fromIso("2024-01-15T12:00:00Z");
+var $utcReading = $noon->in(Core\Time\Zone::UTC)->format("yyyy-MM-dd HH:mm XXX");
+int $sameAsUtc = 0;
+foreach ($zones as string $renderId) {
+    var $reading = $noon->in(Core\Time\Zone::of($renderId));
+    echo $reading->format("yyyy-MM-dd HH:mm XXX VV"), "|\n";
+    if ($reading->format("yyyy-MM-dd HH:mm XXX") == $utcReading) {
+        $sameAsUtc = $sameAsUtc + 1;
+    }
+}
+echo $sameAsUtc as string, "|\n";
+
+// The sharpest case of that: one zone reads the same instant with two
+// different offsets across the year, and the ordering of the two instants is
+// still decided without asking any zone at all.
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $summer = Core\Time::fromIso("2024-07-15T12:00:00Z");
+echo $noon->in($berlin)->format("HH:mm XXX"), "|", $summer->in($berlin)->format("HH:mm XXX"), "|\n";
+echo $noon->compareTo($summer) as string, "|", $noon->in($berlin)->toInstant()->compareTo($summer->in($berlin)->toInstant()) as string, "|\n";
+echo $summer->since($noon)->toSeconds() as string, "|", $summer->in($berlin)->toInstant()->since($noon->in($berlin)->toInstant())->toSeconds() as string, "|\n";
+--EXPECT--
+100|100|100|100|100|
+0|
+50|50|50|
+100|100|100|
+2024-01-15 12:00 Z UTC|
+2024-01-15 13:00 +01:00 Europe/Berlin|
+2024-01-15 21:00 +09:00 Asia/Tokyo|
+2024-01-15 17:45 +05:45 Asia/Kathmandu|
+2024-01-16 02:00 +14:00 Pacific/Kiritimati|
+1|
+13:00 +01:00|14:00 +02:00|
+-1|-1|
+15724800|15724800|
