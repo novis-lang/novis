@@ -101,6 +101,7 @@ so you never have to open this file to route a topic.
 | `static`, `global`, scoping, where state may live at all | [0008](0008-static-and-global.md) |
 | Free functions, global constants, the `Core` namespace, where a built-in lives | [0011](0011-functions-and-constants-are-class-members.md) |
 | `callable`, first-class callable syntax (`Foo::bar(...)`), `__invoke`, calling an object with `()` | [0027](0027-callable-is-closures-only.md) |
+| The pipeline operator, `\|>`, the hole `$_`, method chaining, a fluent interface on a `string`/`array<T>`, why PHP 8.5's `\|>` spelling does not work here, `#[Fluentable]` | [0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md) for the operator; [0063](0063-core-api-conventions.md) R17-R19 for why there are no methods on scalars |
 | Anonymous functions, `fn`, arrow functions, closure capture, `use (...)`, recursive closures | [0031](0031-callable-is-the-only-closure-type.md) |
 | `__toString`/`Stringable`, `__destruct`, `__isset`/`__unset`, `unset()` on an object property, `__debugInfo`, `__set_state`, or "what happened to PHP magic method X" | [0028](0028-closing-the-remaining-magic-methods.md) |
 | `stdClass`, an anonymous object literal `{a: 1}`, the `object` type, an inline `{name: T}` shape type | [0036](0036-anonymous-object-shapes.md) |
@@ -266,6 +267,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0095](0095-ambiguous-input-is-refused-never-repaired.md) | A name that resolves to something other than what it spells is refused, never repaired — a closed ambiguity list rejects an HTTP message inbound and outbound alike, a cookie name is matched byte for byte with `__Host-`/`__Secure-` enforced by the runtime, multipart caps a part count, and `Core\IO::within` refuses a path component whose spelling and resolution differ | Accepted |
 | [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) | Every `#[Route]` method carries a required sibling `#[Access]` attribute whose omission is a compile error and whose meaning the compiler never asks about, and CSRF is on by default for unsafe methods with the opt-out named per route | Accepted |
 | [0097](0097-development-server-and-proxied-origin.md) | The built-in server is a development server and a proxied FastCGI replacement and nothing else, with every feature a proxy owns dropped by name; a filesystem path is never derived from a URL, so a request selects a mount from a table that globs expanded against disk at boot | Accepted |
+| [0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md) | `\|>` substitutes the hole `$_` — required exactly once on its right side — in the parser, so a pipeline is the same AST the nested call produces and no later pass changes; it is deliberately not PHP 8.5's callable-applying `\|>`, whose shape is rejected by name | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

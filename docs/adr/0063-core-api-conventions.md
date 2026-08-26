@@ -24,6 +24,8 @@
   every call site; § 4's relative-date resolution is rewritten below in consequence.
   0071 — § 4's JSON resolution is rewritten below: the rejection of *structural* encoding stands, and what
   an explicitly written `#[Json\Derive]` admits is now stated beside it.
+  0098 — R17's row states the operator carve-out as the rule it already was, rather than for `instanceof`
+  alone; applied below. R18, R19 and R20 are untouched, and nothing R17 forbids becomes permitted.
 - **Relates to:** 0004, 0024, 0033, 0036, 0047, 0053
 
 > **In short:** PHP's built-ins have no API. Argument order flips between neighbouring functions
@@ -94,7 +96,7 @@ the *library's structure*, not an individual signature.
 
 | # | Rule |
 |---|---|
-| **R17** | **One paradigm per operation.** A stateless operation is a static method on a domain class; anything with identity or lifetime is an object. **Nothing is reachable both ways** — no procedural twin of a class API, and no class wrapper around a static one. |
+| **R17** | **One paradigm per operation.** A stateless operation is a static method on a domain class; anything with identity or lifetime is an object. **Nothing is reachable both ways** — no procedural twin of a class API, and no class wrapper around a static one. **An operator is syntax, not a second API, and is never what this rule counts** — `instanceof` in the table below, `as ?T` in the one above it, and [ADR 0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md)'s `\|>`, which reaches the same member through the same call and adds no member to reach. |
 | **R18** | **A domain class's static members either operate on a scalar/array, or construct an object. They never mirror an object's own methods.** `Time::format($instant, $fmt)` may not exist beside `$instant->format($fmt)`. |
 | **R19** | **Scalars and `array<T>` never gain methods.** There is no `$s->length()` and no `$a->map()`; `Core\Str` and `Core\Arr` are the one spelling. This is what stops the twin problem regrowing after M4S. |
 | **R20** | **No mutable/immutable twin types.** Every `Core` value type is immutable — there is no `DateTime`/`DateTimeImmutable` pair to choose between. |

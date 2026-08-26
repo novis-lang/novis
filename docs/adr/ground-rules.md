@@ -257,3 +257,7 @@ spellings rejected, and the reasoning.
   ([0025](0025-wasm-browser-target.md)).
 - **Performance history is callgrind instruction counts on a dedicated Linux runner, never raw wall-clock
   across machines** ([0026](0026-performance-measurement-methodology.md)).
+- **`|>` substitutes the hole `$_`, required exactly once, in the parser — so a pipeline is the same AST
+  the nested call produces, and it is not PHP 8.5's callable-applying `|>`**
+  ([0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md)); scalars still gain no methods
+  ([0063](0063-core-api-conventions.md) R19).
