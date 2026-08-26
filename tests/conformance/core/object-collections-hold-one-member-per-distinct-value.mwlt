@@ -1,0 +1,72 @@
+--TEST--
+What counts as one member of a `Core\ObjectSet` is `==`'s own table, one row per representation: the numeric domain is one row, a string and an array compare by content, and an object only with itself — docs/spec/01-core-library.md § 9, ADR 0090 §§ 3, 4
+--FILE--
+<?mwl
+// § 9 says these collections "key on identity", and ADR 0090 § 3's table is
+// what identity means — `mwl_runtime::identity` answers `==`, `Core\Arr::
+// contains` and this store from one comparison, so a set's membership is
+// exactly the equality the rest of the language already has.
+
+// `int`, `uint` and `float` are one numeric domain, so all three spellings of
+// one are one member.
+Core\ObjectSet<mixed> $values = new Core\ObjectSet<mixed>();
+$values->add(1);
+$values->add(1 as uint);
+$values->add(1.0);
+echo $values->count(), "\n";
+
+// `==` never converts, so the string, the bool and `null` are three further
+// members rather than three more spellings of that one.
+$values->add("1");
+$values->add(true);
+$values->add(null);
+echo $values->count(), " ", $values->has(null) ? "yes" : "no", "\n";
+
+// A string compares by content and never by pointer, so a string built at run
+// time is the member a literal already put there.
+Core\ObjectSet<string> $names = new Core\ObjectSet<string>();
+$names->add("ab");
+$names->add(Core\Str::join(["a", "b"], ""));
+$names->add(Core\Str::lower("AB"));
+echo $names->count(), "\n";
+
+// An array compares entry by entry, in order — so two equal literals are one
+// member and a reordering is another.
+Core\ObjectSet<array<int>> $rows = new Core\ObjectSet<array<int>>();
+$rows->add([1, 2]);
+$rows->add([1, 2]);
+$rows->add([2, 1]);
+echo $rows->count(), " ", $rows->has([1, 2]) ? "yes" : "no", "\n";
+
+// An object is identical only to itself, whatever it holds: ADR 0090 § 4
+// leaves content equality to `Comparable::compareTo`, so three tags with one
+// name are three members and each keeps its own value.
+final class Tag {
+    public function constructor(public readonly string $name) {}
+}
+
+array<Tag> $tags = [new Tag("x"), new Tag("x"), new Tag("x")];
+Core\ObjectMap<Tag, int> $map = new Core\ObjectMap<Tag, int>();
+int $i = 0;
+foreach ($tags as Tag $tag) {
+    $map->set($tag, $i);
+    $i = $i + 1;
+}
+echo $map->count(), " ", $map->get($tags["1"]) ?? -1, " ", $map->get(new Tag("x")) ?? -1, "\n";
+
+// A closure is an object, so two identical `fn` literals are two members and
+// a copy of one closure value is not a second.
+Core\ObjectSet<callable> $callbacks = new Core\ObjectSet<callable>();
+callable $double = fn(int $n): int => $n * 2;
+callable $alias = $double;
+$callbacks->add($double);
+$callbacks->add($alias);
+$callbacks->add(fn(int $n): int => $n * 2);
+echo $callbacks->count(), "\n";
+--EXPECT--
+1
+4 yes
+1
+2 yes
+3 1 -1
+2

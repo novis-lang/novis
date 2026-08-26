@@ -1,0 +1,64 @@
+--TEST--
+Every `Core\ObjectMap` and `Core\ObjectSet` member answers over an empty receiver, and the empty set is `union`'s identity and `intersect`'s annihilator from both sides — docs/spec/01-core-library.md § 9
+--FILE--
+<?mwl
+final class Tag {
+    public function constructor(public readonly string $name) {}
+}
+
+Tag $red = new Tag("red");
+
+// § 9's edge: an empty collection answers every member rather than throwing.
+// `get` is `?V` precisely so the absent read has an answer, and `remove` has
+// no answer to give in either case, so it cannot report one.
+Core\ObjectMap<Tag, int> $map = new Core\ObjectMap<Tag, int>();
+echo $map->count(), " ", $map->isEmpty() ? "empty" : "filled", "\n";
+echo $map->has($red) ? "yes" : "no", " ", $map->get($red) ?? -1, "\n";
+echo Core\Arr::count($map->keys()), " ", Core\Arr::count($map->values()), "\n";
+
+// A `remove` of a key the map does not hold, and a `clear` of a map holding
+// nothing, are both silent no-ops rather than a `LogicError`.
+$map->remove($red);
+$map->clear();
+echo $map->count(), "\n";
+foreach ($map as Tag $never) {
+    echo "unreachable\n";
+}
+
+// The same edge on a map that holds something: removing an absent key leaves
+// the pair it does hold exactly where it was.
+$map->set($red, 3);
+$map->remove(new Tag("red"));
+echo $map->count(), " ", $map->get($red) ?? -1, "\n";
+
+Core\ObjectSet<Tag> $none = new Core\ObjectSet<Tag>();
+echo $none->count(), " ", $none->isEmpty() ? "empty" : "filled", " ", $none->has($red) ? "yes" : "no", "\n";
+$none->remove($red);
+$none->clear();
+echo $none->count(), "\n";
+
+Core\ObjectSet<Tag> $some = new Core\ObjectSet<Tag>();
+$some->add($red);
+$some->add(new Tag("blue"));
+
+// The empty set is the identity of `union` and of `diff`'s left operand, and
+// annihilates `intersect` — asserted from both sides, because none of the
+// three is symmetric in what it walks.
+echo $some->union($none)->count(), " ", $none->union($some)->count(), "\n";
+echo $some->intersect($none)->count(), " ", $none->intersect($some)->count(), "\n";
+echo $some->diff($none)->count(), " ", $none->diff($some)->count(), "\n";
+
+// And none of the six calls above touched either operand.
+echo $some->count(), " ", $none->count(), "\n";
+--EXPECT--
+0 empty
+no -1
+0 0
+0
+1 3
+0 empty no
+0
+2 2
+0 0
+2 0
+2 0

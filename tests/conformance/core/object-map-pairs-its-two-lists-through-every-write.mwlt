@@ -1,0 +1,93 @@
+--TEST--
+`Core\ObjectMap`'s `keys` and `values` stay positionally paired through a sweep of writes — a re-`set` replaces in place, a removal closes the same gap in both lists, and a re-added key lands at the end — docs/spec/01-core-library.md § 9
+--FILE--
+<?mwl
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+array<Tag> $tags = [
+    new Tag("t0"), new Tag("t1"), new Tag("t2"),
+    new Tag("t3"), new Tag("t4"), new Tag("t5"),
+    new Tag("t6"), new Tag("t7"), new Tag("t8"),
+];
+
+// § 9 pairs `keys` and `values` by position and by nothing else, so the one
+// thing this map can get wrong is the two lists drifting apart. Every step
+// below prints both.
+Core\ObjectMap<Tag, int> $map = new Core\ObjectMap<Tag, int>();
+int $i = 0;
+foreach ($tags as Tag $tag) {
+    $map->set($tag, $i * 10);
+    $i = $i + 1;
+}
+
+// The two lists, side by side, so that every step below prints both rather
+// than whichever one it is about. A free function has to be a method
+// (ADR 0011 § 1).
+final class Render {
+    public static function pairs(Core\ObjectMap<Tag, int> $map): string {
+        string $keys = Core\Str::join(Core\Arr::map($map->keys(), fn(Tag $t): string => $t->name), ",");
+        string $values = Core\Str::join(Core\Arr::map($map->values(), fn(int $n): string => $n as string), ",");
+        return $keys . " | " . $values;
+    }
+}
+
+echo Render::pairs($map), "\n";
+
+// A re-`set` of a key the map already holds replaces its value where it
+// stands: the pair count does not grow and the key does not move to the end.
+$map->set($tags["4"], 999);
+echo $map->count(), " ", Render::pairs($map), "\n";
+
+// Removing every third key closes the gap in both lists at once, and the
+// survivors keep the order they were inserted in.
+$i = 0;
+foreach ($tags as Tag $tag) {
+    if ($i % 3 == 0) {
+        $map->remove($tag);
+    }
+    $i = $i + 1;
+}
+echo $map->count(), " ", Render::pairs($map), "\n";
+
+// The sweep's invariant, counted rather than read: every key the map still
+// holds answers the value it was set with, and every key removed is gone.
+bool $paired = true;
+$i = 0;
+foreach ($tags as Tag $tag) {
+    if ($i % 3 == 0) {
+        if ($map->has($tag)) {
+            $paired = false;
+        }
+    } else {
+        int $want = $i == 4 ? 999 : $i * 10;
+        if ($map->get($tag) != $want) {
+            $paired = false;
+        }
+    }
+    $i = $i + 1;
+}
+echo $paired ? "paired" : "drifted", "\n";
+
+// A key that is removed and set again is a new key: it lands at the end
+// rather than back where it was, which is what makes insertion order a
+// property of the writes rather than of the objects.
+$map->set($tags["0"], 1);
+echo $map->count(), " ", Render::pairs($map), "\n";
+
+// The three counts agree at every point, since one store's keys are the
+// other's (`crates/mwl-stdlib/src/identity_store.rs`).
+echo Core\Arr::count($map->keys()) == $map->count() ? "same" : "differs", " ",
+     Core\Arr::count($map->values()) == $map->count() ? "same" : "differs", "\n";
+--EXPECT--
+t0,t1,t2,t3,t4,t5,t6,t7,t8 | 0,10,20,30,40,50,60,70,80
+9 t0,t1,t2,t3,t4,t5,t6,t7,t8 | 0,10,20,30,999,50,60,70,80
+6 t1,t2,t4,t5,t7,t8 | 10,20,999,50,70,80
+paired
+7 t1,t2,t4,t5,t7,t8,t0 | 10,20,999,50,70,80,1
+same same

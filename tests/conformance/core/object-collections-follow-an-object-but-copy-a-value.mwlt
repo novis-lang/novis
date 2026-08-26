@@ -1,0 +1,62 @@
+--TEST--
+A `Core\ObjectMap` key follows the object it is, so mutating that object does not lose its pair — while a value-typed member is fixed at the moment it is added — docs/spec/01-core-library.md § 9, ADR 0090 § 3
+--FILE--
+<?mwl
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+$weights->set($red, 3);
+$weights->set($blue, 7);
+
+// An object key is the object, not a picture of it: rewriting every property
+// it has moves nothing, because ADR 0090 § 3's object row never reads one.
+// This is the whole reason § 9's collections exist beside `array<T>`, whose
+// `int|string` key would have had to be derived from those properties.
+$red->name = "crimson";
+echo $weights->count(), " ", $weights->get($red) ?? -1, " ", $weights->has($red) ? "yes" : "no", "\n";
+
+// The same object under its new contents is still one key, not two.
+$weights->set($red, 4);
+echo $weights->count(), " ", $weights->get($red) ?? -1, "\n";
+echo Core\Str::join(Core\Arr::map($weights->keys(), fn(Tag $t): string => $t->name), ","), "\n";
+
+// A value-typed member is the opposite: an `array<T>` is a copy-on-write
+// value, so the set holds what was added and the variable moving on cannot
+// reach it.
+Core\ObjectSet<array<int>> $rows = new Core\ObjectSet<array<int>>();
+array<int> $row = [1, 2];
+$rows->add($row);
+$row = Core\Arr::append($row, 3);
+echo $rows->count(), " ", $rows->has([1, 2]) ? "yes" : "no", " ", $rows->has($row) ? "yes" : "no", "\n";
+
+// And a `string` member likewise, which is what makes a set of names answer
+// the same way however each name was built.
+Core\ObjectSet<string> $names = new Core\ObjectSet<string>();
+string $name = "ada";
+$names->add($name);
+$name = $name . "!";
+echo $names->has("ada") ? "yes" : "no", " ", $names->has($name) ? "yes" : "no", "\n";
+
+// Two objects that a `clone` made are two keys, however alike they are —
+// `clone` copies contents and ADR 0090 § 3 does not read contents.
+Tag $copy = clone $blue;
+echo $weights->has($blue) ? "yes" : "no", " ", $weights->has($copy) ? "yes" : "no", "\n";
+$weights->set($copy, 9);
+echo $weights->count(), " ", $weights->get($blue) ?? -1, " ", $weights->get($copy) ?? -1, "\n";
+--EXPECT--
+2 3 yes
+2 4
+crimson,blue
+1 yes no
+yes no
+yes no
+3 7 9

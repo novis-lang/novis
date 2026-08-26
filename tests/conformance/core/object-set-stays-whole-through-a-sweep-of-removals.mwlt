@@ -1,0 +1,97 @@
+--TEST--
+A `Core\ObjectSet` swept with scattered removals keeps every survivor findable and every removal absent, and its algebra agrees with the set built directly from the survivors — docs/spec/01-core-library.md § 9
+--FILE--
+<?mwl
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+array<Tag> $tags = [
+    new Tag("t0"), new Tag("t1"), new Tag("t2"), new Tag("t3"),
+    new Tag("t4"), new Tag("t5"), new Tag("t6"), new Tag("t7"),
+    new Tag("t8"), new Tag("t9"), new Tag("t10"), new Tag("t11"),
+];
+
+Core\ObjectSet<Tag> $set = new Core\ObjectSet<Tag>();
+foreach ($tags as Tag $tag) {
+    $set->add($tag);
+}
+echo $set->count(), "\n";
+
+// Removals in no particular order, and one of them is asked for twice: the
+// second `remove` of a value the set no longer holds is the same silent
+// no-op the first `remove` of one it never held is.
+array<int> $dropped = [7, 0, 11, 4, 7];
+foreach ($dropped as int $at) {
+    $set->remove($tags[$at as string]);
+}
+echo $set->count(), "\n";
+
+// The invariant, counted over the whole subject rather than read off one
+// line: a tag is in the set exactly when it was not dropped. A removal that
+// left the store's chain sparse would fail here and nowhere else, since it is
+// the *later* members of a chain that stop being reachable
+// (`crates/mwl-stdlib/src/identity_store.rs`).
+int $wrong = 0;
+int $i = 0;
+foreach ($tags as Tag $tag) {
+    bool $gone = $i == 0 || $i == 4 || $i == 7 || $i == 11;
+    if ($set->has($tag) == $gone) {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+echo $wrong, "\n";
+
+// The survivors, in the order they were added, with the four holes closed.
+string $order = "";
+foreach ($set as Tag $tag) {
+    $order = $order . $tag->name . ",";
+}
+echo $order, "\n";
+
+// Built directly rather than swept, the same eight tags are the same set —
+// and "the same set" is spelled with the algebra, because two collections are
+// two objects and `==` on them is identity (ADR 0090 § 4).
+Core\ObjectSet<Tag> $expected = new Core\ObjectSet<Tag>();
+$i = 0;
+foreach ($tags as Tag $tag) {
+    if (!($i == 0 || $i == 4 || $i == 7 || $i == 11)) {
+        $expected->add($tag);
+    }
+    $i = $i + 1;
+}
+echo $set->diff($expected)->count(), " ", $expected->diff($set)->count(), "\n";
+echo $set->intersect($expected)->count(), " ", $set->union($expected)->count(), "\n";
+
+// Re-adding what was dropped makes the set whole again, and the four land at
+// the end in the order they were re-added rather than back where they were.
+foreach ($dropped as int $at) {
+    $set->add($tags[$at as string]);
+}
+echo $set->count(), " ", $set->union($expected)->count(), "\n";
+$order = "";
+foreach ($set as Tag $tag) {
+    $order = $order . $tag->name . ",";
+}
+echo $order, "\n";
+
+// Emptying by removal, one at a time, ends where `clear` would.
+foreach ($tags as Tag $tag) {
+    $set->remove($tag);
+}
+echo $set->count(), " ", $set->isEmpty() ? "empty" : "filled", "\n";
+--EXPECT--
+12
+8
+0
+t1,t2,t3,t5,t6,t8,t9,t10,
+0 0
+8 8
+12 12
+t1,t2,t3,t5,t6,t8,t9,t10,t7,t0,t11,t4,
+0 empty
