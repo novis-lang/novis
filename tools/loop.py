@@ -136,6 +136,7 @@ class StatusLine:
         self.frames = self.ASCII
         self.sep = " | "
         self.cut = "..."
+        self.bar = "-"
         self.scope = ""
         self.phase = ""
         self.detail = ""
@@ -158,7 +159,7 @@ class StatusLine:
         # replacement characters: `main()` reconfigures stdout to UTF-8, but a legacy code page
         # is still what a raw `cmd.exe` hands back.
         if "utf" in (getattr(sys.stdout, "encoding", "") or "").lower():
-            self.frames, self.sep, self.cut = self.BRAILLE, " · ", "…"
+            self.frames, self.sep, self.cut, self.bar = self.BRAILLE, " · ", "…", "─"
         self.enabled = True
         self.since = time.monotonic()
         self._thread = threading.Thread(target=self._tick, daemon=True)
@@ -232,22 +233,37 @@ class StatusLine:
         body = self.sep.join(parts).replace("\n", " ")
         # One column short of the width on purpose: a line that exactly fills the terminal wraps,
         # and a wrapped status line is one the next erase only half removes.
-        room = max(18, shutil.get_terminal_size((100, 24)).columns - 3)  # the spinner and its space
+        room = max(18, self.width() - 3)  # the spinner and its space
         if len(body) > room:
             body = body[: room - len(self.cut)] + self.cut
         spin = self.frames[self._frame % len(self.frames)]
-        return C.paint(spin, C.CYAN) + " " + C.paint(body, C.GRAY)
+        return C.paint(spin, C.CYAN) + " " + C.paint(body, C.WHITE)
+
+    def width(self):
+        return shutil.get_terminal_size((100, 24)).columns
+
+    def divider(self):
+        """The rule above the status line.
+
+        The status line is repainted in place at the bottom of the scrollback, so it sits flush
+        against whatever the driver or the session printed last -- and both are indented, wrapped
+        prose. Watching a run, the live line and the dead one above it read as one paragraph, and
+        the eye has to parse the text to find out which is which. A rule makes the boundary a
+        shape rather than a colour, and the two of them are white against the scrollback's grey."""
+        return C.paint(self.bar * max(18, self.width() - 1), C.WHITE)
 
     def erase(self):
         if self._drawn:
-            sys.stdout.write("\r\033[2K")
+            # Up over the rule, clearing both rows. The cursor lands where the rule began, which
+            # is where the next line of output belongs.
+            sys.stdout.write("\r\033[2K\033[A\r\033[2K")
             sys.stdout.flush()
             self._drawn = False
 
     def draw(self):
         if not self.enabled:
             return
-        sys.stdout.write("\r\033[2K" + self.compose())
+        sys.stdout.write("\r\033[2K" + self.divider() + "\n\r\033[2K" + self.compose())
         sys.stdout.flush()
         self._drawn = True
 
@@ -255,8 +271,124 @@ class StatusLine:
 TICKER = StatusLine()
 
 
-def say(text="", colour=None):
+# --------------------------------------------------------------------------- the console log
+#
+# Two logs existed before this one and neither held a whole run. `.loop/logs/<run>-NNNN.log` is
+# the SESSION's NDJSON -- everything the agent did and nothing else -- and `.loop/log.md` is the
+# ledger, one line per session. The driver's own half went to the console and to nowhere: the
+# acceptance check is the slowest thing a run does, and when it failed after the fact the only
+# record of *why* was a single line in the ledger, with the build log, the fixture's real stdout
+# and the valgrind report already gone. Debugging it meant reproducing it.
+#
+# So every line the driver prints is teed here, stamped, and so is the full stdout and stderr of
+# every subprocess `capture()` runs -- the console still shows only the failure, because a green
+# `cargo test` on screen is noise and the same text on disk is the next bug report.
+#
+# Two destinations, on purpose:
+#
+#   <run>-console.log   the whole run, human-readable, every line stamped: the driver's steps,
+#                       the rendered session transcripts, every check's output, in the order it
+#                       happened. This is the file to open when a run went wrong.
+#   <run>-NNNN.log      the session's own NDJSON also gets the DRIVER lines that belong to that
+#                       session, as `loop_console` events, so one session's file is self-contained
+#                       -- its acceptance check included. The rendered transcript is deliberately
+#                       NOT mirrored: it is already in that file, as the events it was rendered
+#                       from, and echoing it back would double every session log.
+
+
+class ConsoleLog:
+    """The tee behind `say()` and `capture()`. Silent and harmless until `open_run()`."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.run = None
+        self.session = None
+
+    def open_run(self, path):
+        try:
+            self.run = path.open("a", encoding="utf-8", errors="replace", newline="\n")
+        except OSError:
+            self.run = None
+
+    def open_session(self, path):
+        self.close_session()
+        try:
+            self.session = path.open("a", encoding="utf-8", errors="replace", newline="\n")
+        except OSError:
+            self.session = None
+
+    def close_session(self):
+        with self.lock:
+            if self.session:
+                try:
+                    self.session.close()
+                except OSError:
+                    pass
+            self.session = None
+
+    def close(self):
+        self.close_session()
+        with self.lock:
+            if self.run:
+                try:
+                    self.run.close()
+                except OSError:
+                    pass
+            self.run = None
+
+    def line(self, text, driver=False):
+        """One line on the console. `driver` marks it as the driver's own rather than an echo of
+        the session, which is what decides whether the session's NDJSON gets it too."""
+        if not (self.run or (driver and self.session)):
+            return
+        stamp = f"{datetime.now():%H:%M:%S.%f}"[:-3]
+        with self.lock:
+            self._write(self.run, "".join(f"[{stamp}] {ln}\n" for ln in (text or "").split("\n")))
+            if driver:
+                self._event({"type": "loop_console", "ts": stamp, "text": text})
+
+    def block(self, title, body, driver=True):
+        """A subprocess's captured output: named, indented, and never shown on the console. The
+        indent is what keeps a `cargo test` summary from reading like the driver's own lines."""
+        if not (self.run or self.session):
+            return
+        stamp = f"{datetime.now():%H:%M:%S.%f}"[:-3]
+        text = (body or "").replace("\r\n", "\n").rstrip("\n")
+        with self.lock:
+            self._write(self.run, f"[{stamp}] {title}\n")
+            if text:
+                self._write(self.run, "".join(f"[{stamp}]   | {ln}\n" for ln in text.split("\n")))
+            if driver:
+                self._event({"type": "loop_output", "ts": stamp, "what": title, "text": text})
+
+    def raw(self, text):
+        """A line straight into the session's NDJSON, unstamped and unmirrored. This is the
+        harness's own event stream -- the one thing in that file no reader should find
+        reformatted -- and it goes through here so the file has exactly one open handle."""
+        with self.lock:
+            self._write(self.session, text)
+
+    # -- the two writes, both of which must never take a run down ------------------------
+
+    def _write(self, fh, text):
+        if not fh:
+            return
+        try:
+            fh.write(text)
+            fh.flush()
+        except (OSError, ValueError):
+            pass
+
+    def _event(self, obj):
+        self._write(self.session, json.dumps(obj) + "\n")
+
+
+CONSOLE = ConsoleLog()
+
+
+def say(text="", colour=None, driver=False):
     line = C.paint(text, colour) if colour else text
+    CONSOLE.line(text, driver=driver)
     with TICKER.lock:
         TICKER.erase()
         sys.stdout.write(line + "\n")
@@ -290,8 +422,11 @@ def step(text, colour=C.GRAY):
     two sessions used to print nothing at all -- and the driver's half is the slow half (a
     build, both suites, the WSL leg, the valgrind sweep, then `orient.py` for the next one).
     A run therefore looked stalled for minutes at a time with the last session's status line
-    sitting on screen. Every phase now names itself before it starts and says what it cost."""
-    say(f"   [{datetime.now():%H:%M:%S}] {text}", colour)
+    sitting on screen. Every phase now names itself before it starts and says what it cost.
+
+    `driver=True`: this is the driver talking, not an echo of the session, so it is mirrored into
+    the running session's own log as well as the run's. See `ConsoleLog`."""
+    say(f"   [{datetime.now():%H:%M:%S}] {text}", colour, driver=True)
 
 
 # --------------------------------------------------------------------- session transcript
@@ -471,8 +606,14 @@ def capture(exe, args, timeout=1800, cwd=None):
 
     `cwd` defaults to the repository root, which is what every cargo and `mwl` invocation wants. A
     `command` check names its own, because an `npm` script only finds its `package.json` from the
-    directory that holds it."""
+    directory that holds it.
+
+    Everything run through here -- the argv, what it cost, its exit code and BOTH streams whole --
+    goes to the console log, green or not. That is the acceptance check's entire record: the
+    console prints one line per check and the first line of a failure, which is the right amount to
+    watch and far too little to debug afterwards. See `ConsoleLog`."""
     path = shutil.which(exe) or exe
+    began = time.monotonic()
     try:
         p = subprocess.run(
             [path, *args],
@@ -483,10 +624,15 @@ def capture(exe, args, timeout=1800, cwd=None):
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        return Result(-1, "", f"timed out after {timeout}s")
+        r = Result(-1, "", f"timed out after {timeout}s")
     except OSError as exc:
-        return Result(-1, "", str(exc))
-    return Result(p.returncode, p.stdout or "", p.stderr or "")
+        r = Result(-1, "", str(exc))
+    else:
+        r = Result(p.returncode, p.stdout or "", p.stderr or "")
+    where = "" if cwd in (None, ROOT) else f" (in {cwd})"
+    head = f"$ {exe} {' '.join(args)}{where} -> exit {r.code} in {mmss(time.monotonic() - began)}"
+    CONSOLE.block(head, "\n".join(s for s in (r.out.rstrip("\n"), r.err.rstrip("\n")) if s.strip()))
+    return r
 
 
 def stdout_lines(text):
@@ -589,6 +735,9 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 # `Goal.remembered`.
 EXPENSIVE = {"abi-probe", "wsl leg", "valgrind sweep"}
 
+# Held by whatever background release build is in flight; see `Goal.prebuild`.
+PREBUILD_LOCK = threading.Lock()
+
 # A `command` check is an argv run in a directory, exit 0, with `want` as ordered substrings across
 # both streams. It exists because the acceptance test grew a leg that is neither `mwl run` stdout nor
 # `cargo test`: from M4B, `editors/vscode` is TypeScript and its suites are `npm` scripts. Kept
@@ -632,14 +781,22 @@ class Goal:
         self._tree = ""
         self._green = set()
         self._memoized = {c["name"] for c in self.checks if c.get("memoize") and "name" in c}
+        self._prebuild = None  # the thread warming the release profile
+        self._prebuilt = ()  # the args it is warming, so `cargo()` knows to wait for it
         cargo = [c for c in self.checks if c["kind"] not in PROGRAM_KINDS]
         # Stage 0 is catch-up: work a later ADR reopened inside a milestone that
         # was already reported done. It runs before everything else so the
         # ledger names it while it is unfinished -- a Stage 3 fixture failing is
         # not the thing the loop should be told about first. See loop-goal.md.
         catch_up = [str(c.get("stage", "")).startswith("0") for c in cargo]
-        self.catch_up_checks = [c for c, first in zip(cargo, catch_up) if first]
-        self.cargo_checks = [c for c, first in zip(cargo, catch_up) if not first]
+        # A `--release` check is held back to the end of the sweep whatever stage it is labelled
+        # with -- the one place the stage order above is not the run order, and `check()` says why.
+        self.release_checks = [c for c in cargo if "--release" in c.get("args", [])]
+        held = {id(c) for c in self.release_checks}
+        self.catch_up_checks = [c for c, first in zip(cargo, catch_up)
+                                if first and id(c) not in held]
+        self.cargo_checks = [c for c, first in zip(cargo, catch_up)
+                             if not first and id(c) not in held]
 
     # -- measuring, and the two memos --------------------------------------------------
 
@@ -672,9 +829,60 @@ class Goal:
     def cargo(self, args):
         """`cargo` with the result shared by every check that asks for the same argument list."""
         key = tuple(args)
+        if key == self._prebuilt and self._prebuild:
+            self.trace("waiting for the release build started at the top of the sweep")
+            self.timed("release prebuild (overlapped)", self._prebuild.join)
+            self._prebuild = None
         if key not in self._cargo:
             self._cargo[key] = capture("cargo", args)
         return self._cargo[key]
+
+    # -- the release build, moved off the critical path ---------------------------------
+
+    def release_args(self):
+        """The one check in the goal whose cost is a BUILD and not a test.
+
+        `--release` is a different profile from everything else here, so nothing it needs is on
+        disk when the sweep starts, and this workspace's release profile is `lto = "thin"` with
+        `codegen-units = 1` -- measured at 133s after a one-line change to `mwl-runtime`, against
+        the ~130s the whole rest of the sweep costs. Found by its `--release` rather than named,
+        so a goal that moves the guard to another crate does not have to come back here.
+
+        `None` when there is no such check, or when its verdict is already remembered against this
+        tree: `prebuild` would then be warming a profile nothing is going to ask about."""
+        for c in self.checks:
+            if c["kind"] in PROGRAM_KINDS or "--release" not in c.get("args", []):
+                continue
+            return None if self.remembered(c["name"]) else c["args"]
+        return None
+
+    def prebuild(self):
+        """Start that build now, in the background, and let the rest of the sweep run beside it.
+
+        The sweep was strictly serial, so the release build was ~60% of an acceptance check that a
+        session waits out before the next one can start. Nothing else in the sweep touches the
+        release profile, and two cargos on one `target/` were measured NOT to block each other --
+        a debug build finished in its usual 4.5s beside a release build that took its usual 129s.
+
+        `--no-run` on purpose, and this is the part that must not be traded away: the guards are
+        cost-class assertions, and a cost measured on a machine that is simultaneously linking is
+        not the cost. So the BUILD overlaps and the RUN does not -- `cargo()` joins this thread
+        before it starts the real invocation, which by then is a no-op build and a 3s test run."""
+        args = self.release_args()
+        if not args:
+            return
+        def build():
+            # One at a time across the whole run. A sweep that fails before it reaches the guard
+            # returns with this thread still building -- correctly, since the work is wanted either
+            # way -- and `load_goal()` hands the next session a fresh `Goal` that knows nothing
+            # about it. Without the lock those two cargos would build the same units at once.
+            with PREBUILD_LOCK:
+                capture("cargo", [*args, "--no-run"])
+
+        self._prebuilt = tuple(args)
+        self._prebuild = threading.Thread(target=build, daemon=True)
+        self._prebuild.start()
+        self.trace("release build started in the background")
 
     def tree_id(self):
         """HEAD, plus a hash of everything not committed. Two runs with the same id are two runs
@@ -865,6 +1073,7 @@ class Goal:
 
         n += 1 + len(self.catch_up_checks) + programs  # native build, catch-up, native fixtures
         n += sum(1 for c in self.cargo_checks if not self.remembered(c["name"]))
+        n += sum(1 for c in self.release_checks if not self.remembered(c["name"]))
         n += 1  # the wsl probe
         if wsl:
             n += 1 + (0 if self.remembered("wsl leg") else programs)
@@ -896,6 +1105,9 @@ class Goal:
         fail = self.begin("check")
         if fail:
             return fail
+
+        # Before anything else, because it is the longest pole and it is a build: see `prebuild`.
+        self.prebuild()
 
         # One build for every fixture that follows, and a broken tree is reported as a broken
         # build rather than as twenty-three fixtures with nothing on stdout.
@@ -950,6 +1162,30 @@ class Goal:
         fail = self.valgrind(leg)
         if fail:
             return fail
+
+        # The `--release` checks, held back from their stages to here. Two reasons, and the second
+        # is the one that must not be traded away:
+        #
+        # * `prebuild` has been building them since before the native build, and this is the point
+        #   at which it has had the whole sweep to finish in. Measured: reached in its stage-0
+        #   position, the sweep waited 1m50s for a build with 41s of work in front of it and 1m57s
+        #   behind it; from here the wait is nothing and the run is 3s.
+        # * They are cost-class guards, and a cost measured while a WSL build and a valgrind sweep
+        #   are running is not the cost. Here, everything else has finished and the machine is idle.
+        #
+        # What it costs is reporting order: a red guard is now named after a red fixture rather than
+        # before one. That is the smaller loss -- and a red guard is not reported LATER in wall-clock
+        # terms either, because the sweep it now runs behind is shorter than the build it used to
+        # wait on.
+        for c in self.release_checks:
+            if self.remembered(c["name"]):
+                trace(f"cargo {c['name']} (green on this tree already)")
+                continue
+            trace(f"cargo {c['name']}")
+            fail = self.cargo_check(c, native)
+            if fail:
+                return fail
+            self.remember(c["name"])
 
         # Last, because a corpus that is merely still growing is the one failure that must not hide
         # anything: everything above is a claim about whether the language is correct on both legs
@@ -1044,7 +1280,7 @@ def git(*args):
 def ledger(line):
     with LEDGER.open("a", encoding="utf-8", newline="\n") as fh:
         fh.write(line + "\n")
-    say(line)
+    say(line, driver=True)
 
 
 def orientation_pack():
@@ -1096,8 +1332,13 @@ def run_session(run_id, index, prompt_text, opts, renderer):
 
     The session id off the `system`/`init` event is kept, not just printed: it is the only
     handle on the harness's own transcript directory, and therefore on any subagent this
-    session spawned. Without it a delegated read is invisible to every measurement below."""
+    session spawned. Without it a delegated read is invisible to every measurement below.
+
+    The file is opened through `CONSOLE` rather than here, and stays open after this returns: the
+    acceptance check that judges this session runs next, and its lines belong in this session's
+    log. `drive()` closes it once that verdict is in."""
     log = LOGDIR / f"{run_id}-{index:04d}.log"
+    CONSOLE.open_session(log)
     exe = shutil.which("claude") or "claude"
     cmd = [
         exe,
@@ -1125,67 +1366,64 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         step(f"orientation pack: orient.py failed after {spent} -- "
              "the session will run it itself", C.YELLOW)
     session_id = ""
-    with log.open("a", encoding="utf-8", newline="\n") as fh:
-        # The pack's size, recorded beside the transcript that paid for it. Two sessions with
-        # different pack sizes are a two-point regression against their measured `ctx_start`,
-        # which is how `loop-stats.py --calibrate` derives bytes-per-token instead of assuming
-        # it. Nothing downstream needs this line; every reader skips a `type` it does not know.
-        fh.write(json.dumps({"type": "loop_pack", "bytes": len(pack.encode("utf-8"))}) + "\n")
-        fh.flush()
-        step(f"launching {exe} (--model {opts.model}, --permission-mode {opts.permission_mode})")
-        TICKER.set(phase="launching", detail=f"{exe} --model {opts.model}")
-        launched = time.monotonic()
-        proc = subprocess.Popen(
-            cmd,
-            cwd=ROOT,
-            stdin=subprocess.PIPE if pack else None,
-            stdout=subprocess.PIPE,
-            stderr=None,
-            encoding="utf-8",
-            errors="replace",
-            bufsize=1,
-        )
-        if pack:
-            threading.Thread(target=feed, args=(proc.stdin, pack), daemon=True).start()
-        assert proc.stdout is not None
+    # The pack's size, recorded beside the transcript that paid for it. Two sessions with
+    # different pack sizes are a two-point regression against their measured `ctx_start`,
+    # which is how `loop-stats.py --calibrate` derives bytes-per-token instead of assuming
+    # it. Nothing downstream needs this line; every reader skips a `type` it does not know.
+    CONSOLE.raw(json.dumps({"type": "loop_pack", "bytes": len(pack.encode("utf-8"))}) + "\n")
+    step(f"launching {exe} (--model {opts.model}, --permission-mode {opts.permission_mode})")
+    TICKER.set(phase="launching", detail=f"{exe} --model {opts.model}")
+    launched = time.monotonic()
+    proc = subprocess.Popen(
+        cmd,
+        cwd=ROOT,
+        stdin=subprocess.PIPE if pack else None,
+        stdout=subprocess.PIPE,
+        stderr=None,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+    )
+    if pack:
+        threading.Thread(target=feed, args=(proc.stdin, pack), daemon=True).start()
+    assert proc.stdout is not None
+    try:
+        for line in proc.stdout:
+            if launched:
+                # The CLI's own start-up -- config, MCP servers, the model handshake -- is
+                # dead air on the console, and it is charged to whatever ran just before it.
+                step(f"claude answered after {mmss(time.monotonic() - launched)}")
+                TICKER.set(phase="working")
+                launched = 0
+            CONSOLE.raw(line)
+            if not session_id and '"session_id"' in line:
+                try:
+                    e = json.loads(line)
+                    if e.get("type") == "system" and e.get("subtype") == "init":
+                        session_id = str(e.get("session_id") or "")
+                except json.JSONDecodeError:
+                    pass
+            renderer.event(line)
+        # Its stdout is closed but the process is not necessarily gone -- flushing its
+        # transcript, tearing down MCP servers. Named, because it is time the console
+        # would otherwise attribute to the driver's own work.
+        closed = time.monotonic()
+        TICKER.set(phase="closing the session", detail="flushing the transcript")
+        proc.wait()
+        if time.monotonic() - closed >= 1:
+            step(f"claude took {mmss(time.monotonic() - closed)} to exit after its last event")
+    except BaseException:
+        # The child does not outlive its supervisor. It is an autonomous agent writing
+        # this tree with permissions bypassed, and when the driver died on an encoding
+        # error its child kept going unwatched -- committing work the next session then
+        # found beside its own, which is what a `BLOCKED two writers` ledger line is
+        # made of. Ctrl-C reaches the child on its own; every other exit did not.
+        proc.kill()
         try:
-            for line in proc.stdout:
-                if launched:
-                    # The CLI's own start-up -- config, MCP servers, the model handshake -- is
-                    # dead air on the console, and it is charged to whatever ran just before it.
-                    step(f"claude answered after {mmss(time.monotonic() - launched)}")
-                    TICKER.set(phase="working")
-                    launched = 0
-                fh.write(line)
-                fh.flush()
-                if not session_id and '"session_id"' in line:
-                    try:
-                        e = json.loads(line)
-                        if e.get("type") == "system" and e.get("subtype") == "init":
-                            session_id = str(e.get("session_id") or "")
-                    except json.JSONDecodeError:
-                        pass
-                renderer.event(line)
-            # Its stdout is closed but the process is not necessarily gone -- flushing its
-            # transcript, tearing down MCP servers. Named, because it is time the console
-            # would otherwise attribute to the driver's own work.
-            closed = time.monotonic()
-            TICKER.set(phase="closing the session", detail="flushing the transcript")
-            proc.wait()
-            if time.monotonic() - closed >= 1:
-                step(f"claude took {mmss(time.monotonic() - closed)} to exit after its last event")
-        except BaseException:
-            # The child does not outlive its supervisor. It is an autonomous agent writing
-            # this tree with permissions bypassed, and when the driver died on an encoding
-            # error its child kept going unwatched -- committing work the next session then
-            # found beside its own, which is what a `BLOCKED two writers` ledger line is
-            # made of. Ctrl-C reaches the child on its own; every other exit did not.
-            proc.kill()
-            try:
-                proc.wait(timeout=30)
-            except subprocess.TimeoutExpired:
-                pass
-            raise
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            pass
+        raise
     return proc.returncode, log, session_id
 
 
@@ -1304,6 +1542,7 @@ def main():
         return run_cli()
     finally:
         TICKER.stop()
+        CONSOLE.close()
 
 
 def run_cli():
@@ -1385,6 +1624,14 @@ def run_cli():
     if opts.status:
         TICKER.start()
 
+    if opts.goal_only or opts.leg_only:
+        # By hand is exactly when the full output is wanted: `--goal-only` is what you run to
+        # find out why a check is red, and the console still prints only its first line.
+        LOGDIR.mkdir(parents=True, exist_ok=True)
+        path = LOGDIR / f"{datetime.now():%Y%m%d-%H%M%S}-console.log"
+        CONSOLE.open_run(path)
+        say(f"console log: {rel_to_root(path)}", C.GRAY)
+
     if opts.goal_only:
         say("running the acceptance test ...", C.CYAN)
         fail = goal.check(verbose=True)
@@ -1439,8 +1686,10 @@ def drive(opts, goal):
     fails = 0
     reason = f"hit --max-sessions ({opts.max_sessions})"
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}"
+    CONSOLE.open_run(LOGDIR / f"{run_id}-console.log")
     ledger("")
     ledger(f"## run started {datetime.now():%Y-%m-%d %H:%M} (max {opts.max_sessions}, logs {run_id}-*)")
+    say(f"console log: {rel_to_root(LOGDIR / f'{run_id}-console.log')}", C.GRAY, driver=True)
 
     for i in range(1, opts.max_sessions + 1):
         if STOP.exists():
@@ -1512,6 +1761,8 @@ def drive(opts, goal):
         fail = goal.check(verbose=True)
         step(f"acceptance check done in {mmss(time.monotonic() - checked)}", C.CYAN)
         ledger(f"       goal cost: {goal.summary()}")
+        # The verdict on session `i` is the last thing that belongs in session `i`'s log.
+        CONSOLE.close_session()
         if not fail:
             reason = "GOAL REACHED: every acceptance check in docs/agent/loop-goal.toml passes"
             break

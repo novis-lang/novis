@@ -454,7 +454,10 @@ def main():
     if not LOGDIR.is_dir():
         sys.exit(f"no {LOGDIR.relative_to(ROOT)} -- nothing has been measured yet")
     pattern = f"{opts.run}-*.log" if opts.run else "*.log"
-    paths = sorted(LOGDIR.glob(pattern))
+    # `<run>-console.log` is the driver's own record of the whole run -- stamped plain text, not
+    # NDJSON, and not one session. It lives in the same directory so a run prunes as a unit; it is
+    # not a transcript, so it is not measured as one.
+    paths = sorted(p for p in LOGDIR.glob(pattern) if not p.name.endswith("-console.log"))
     if not paths:
         sys.exit(f"no transcripts match {pattern} in {LOGDIR.relative_to(ROOT)}")
 

@@ -50,7 +50,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `docs/agent/conventions.md` | The shape of everything the repo writes, so no session re-derives it from an existing example. |
 | `.loop/status.txt` | One line written by each session: `CONTINUE …`, `DONE …`, or `BLOCKED …`. |
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
-| `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. |
+| `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. It also carries the **driver's** lines for that session — its `loop_console` and `loop_output` events are the acceptance check that judged it, verbatim — so one session's file answers both "what did the agent do" and "why was it not green". |
+| `.loop/logs/<run>-console.log` | The whole run as it appeared, plain text, **every line stamped to the millisecond**: driver phases, the rendered session transcripts, and the full stdout and stderr of every subprocess the driver ran. The console shows a green check as one line and a failed one as its first line; this file has all of it. Open this one first when a run went wrong. Not a transcript — `loop-stats.py` skips it. |
 | `.loop/logs/<run>-NNNN.subagents/` | Every subagent that session spawned, copied out of the harness's own transcript directory. A subagent's turns never appear in the parent's stream — only the call and the report it returned do — so without this a delegated read is a session that did a great deal with very few calls. Absent when nothing was delegated. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. |
 | `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
@@ -65,7 +66,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
     run: claude -p <docs/agent/session-prompt.md> --model opus --permission-mode <mode>
               --output-format stream-json --verbose
          (each NDJSON event is appended to .loop/logs/<run>-NNNN.log and rendered live to the console --
-          text, thinking, tool calls with their full input, tool results, and the turn/cost summary)
+          text, thinking, tool calls with their full input, tool results, and the turn/cost summary;
+          everything printed, and every subprocess's output, is teed to .loop/logs/<run>-console.log)
     if the CLI exited non-zero             -> exponential backoff, retry; give up after --max-retries
     copy this session's subagent transcripts into .loop/logs/<run>-NNNN.subagents/
     read .loop/status.txt, diff HEAD, append one ledger line
@@ -84,7 +86,13 @@ it happens, but the driver's own half between two sessions — the subagent swee
 the next one — used to print nothing, so a run that was working looked hung for minutes behind the last
 session's status line. It now prints a `[HH:MM:SS]` line entering each phase and what the phase cost, and
 the acceptance test always runs verbose here, naming each check as it starts and each one that took a
-second or more. The question "what is it doing right now" is answered by the last line on screen.
+second or more. The question "what is it doing right now" is answered by the last line on screen, which
+is the one under the white rule: the status line repaints in place at the bottom, and the rule above it is
+what separates the live line from the dead scrollback it would otherwise read as a paragraph with.
+
+**And all of it is on disk.** The console is for watching a run; `.loop/logs/<run>-console.log` is for
+reading one back — the same lines, stamped to the millisecond, plus the whole stdout and stderr of every
+subprocess. A check that took four minutes and then failed used to leave one ledger line and nothing else.
 
 ## The acceptance test
 
@@ -110,8 +118,19 @@ the WSL leg runs only once the native one is fully green, so a broken iteration 
 native leg already is that target, so there is one leg. The `cargo-*` checks run once, between the legs —
 except the ones whose `stage` starts `0`, which run **before** the native leg, so an unfinished catch-up
 item is what the ledger names rather than a later stage's fixture (`loop-goal.md` § *Stage 0*).
-Last comes the valgrind sweep: every fixture again under `--leak-check=full --errors-for-leak-kinds=definite`
+Then the valgrind sweep: every fixture again under `--leak-check=full --errors-for-leak-kinds=definite`
 (in WSL on Windows, directly on Linux; skipped entirely where `valgrind` is not installed).
+
+**A `--release` check is the one exception to that order, and it is a scheduling decision.** `--release`
+is a different profile from everything else in the sweep, so nothing it needs is on disk when the run
+starts, and this workspace ships `lto = "thin"` with `codegen-units = 1` — measured at 133s after a
+one-line change to `mwl-runtime`, against the ~120s the whole rest of the sweep costs. So the driver
+starts that build in the background before the native build and runs the check itself **last**, whatever
+stage it is labelled with. Two cargos on one `target/` do not block each other (measured: a debug build
+finished in its usual 4.5s beside it), so the build is nearly free by the time anything asks for it, and
+the guards — which are *cost-class assertions*, and would not be measuring cost on a machine that is
+simultaneously linking — run alone at the end. Whole cold sweep, before and after: **326s → 183s.**
+What it costs is that a red guard is named after a red fixture rather than before one.
 
 **A leg builds the CLI once and then invokes that binary**, rather than reaching for `cargo run` per
 fixture — twenty-three fixtures is twenty-three workspace fingerprint scans to start the same process,
