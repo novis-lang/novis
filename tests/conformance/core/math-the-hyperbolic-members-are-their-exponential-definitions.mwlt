@@ -1,0 +1,202 @@
+--TEST--
+Core\Math's six hyperbolic members are the exponential definitions they are named for, and the three inverses undo them, spec § 3
+--FILE--
+<?mwl
+// The *agreement* shape (conventions.md), asserted by *counting*: the question
+// is not what `sinh` answered on any one row, but whether all six members are
+// still describing `exp` across a whole table. A member that grew its own
+// series expansion answers plausibly line by line and drops the count.
+//
+// None of the six is required to be correctly rounded, so every row is held to
+// a relative step and never to equality — the tolerance spelling is the
+// playbook's, under *Writing a test case*. `0.0000000000001` is 1.0E-13, which
+// is thirteen digits of agreement and still leaves room for the cancellation
+// the definitions carry at the small end.
+array<float> $xs = [
+    0.0, 0.125, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0,
+    -0.125, -0.5, -1.0, -2.0, -3.5, -5.0,
+];
+
+int $rows = 0;
+int $sinhIsTheDefinition = 0;
+int $coshIsTheDefinition = 0;
+int $identityHolds = 0;
+int $tanhIsTheRatio = 0;
+int $tanhIsBounded = 0;
+int $asinhUndoesSinh = 0;
+int $acoshUndoesCosh = 0;
+foreach ($xs as float $x) {
+    $rows = $rows + 1;
+
+    // The table stops at ±5 on purpose: past there `exp($x)` and `exp(-$x)`
+    // are far enough apart that the definitions say nothing the member could
+    // disagree with, and `cosh * cosh` is large enough that subtracting 1 from
+    // it is below its own last digit. The large end is asserted as properties
+    // below instead.
+    float $ep = Core\Math::exp($x);
+    float $en = Core\Math::exp(0.0 - $x);
+
+    // sinh is the half difference of the two exponentials.
+    float $s = Core\Math::sinh($x);
+    float $sDef = ($ep - $en) / 2.0;
+    float $sMag = $sDef;
+    if ($sMag < 0.0) {
+        $sMag = 0.0 - $sMag;
+    }
+    float $sTol = 0.0000000000001 * ($sMag + 1.0);
+    float $sGap = $s - $sDef;
+    if ($sGap < 0.0) {
+        $sGap = 0.0 - $sGap;
+    }
+    if ($sGap < $sTol) {
+        $sinhIsTheDefinition = $sinhIsTheDefinition + 1;
+    }
+
+    // cosh is the half sum of the same two, which is what makes it the even
+    // member of the pair and `sinh` the odd one.
+    float $c = Core\Math::cosh($x);
+    float $cDef = ($ep + $en) / 2.0;
+    float $cTol = 0.0000000000001 * ($cDef + 1.0);
+    float $cGap = $c - $cDef;
+    if ($cGap < 0.0) {
+        $cGap = 0.0 - $cGap;
+    }
+    if ($cGap < $cTol) {
+        $coshIsTheDefinition = $coshIsTheDefinition + 1;
+    }
+
+    // The hyperbolic identity, and the one thing the two members owe each
+    // other rather than owing `exp`: cosh² - sinh² is 1 everywhere. The
+    // tolerance is relative to cosh² because that is the magnitude the
+    // subtraction is carried out at, not the magnitude of its answer.
+    float $unit = $c * $c - $s * $s;
+    float $off = $unit - 1.0;
+    if ($off < 0.0) {
+        $off = 0.0 - $off;
+    }
+    if ($off < 0.0000000000001 * ($c * $c + 1.0)) {
+        $identityHolds = $identityHolds + 1;
+    }
+
+    // tanh is the ratio of the other two, and unlike `tan` it has no pole to
+    // be near: cosh is never zero, so the quotient is well conditioned on
+    // every row and an absolute step is enough for an answer inside [-1, 1].
+    float $t = Core\Math::tanh($x);
+    float $ratio = $s / $c;
+    float $tGap = $t - $ratio;
+    if ($tGap < 0.0) {
+        $tGap = 0.0 - $tGap;
+    }
+    if ($tGap < 0.0000000000001) {
+        $tanhIsTheRatio = $tanhIsTheRatio + 1;
+    }
+    if (($t < 1.0) && ($t > -1.0)) {
+        $tanhIsBounded = $tanhIsBounded + 1;
+    }
+
+    float $xMag = $x;
+    if ($xMag < 0.0) {
+        $xMag = 0.0 - $xMag;
+    }
+    float $rTol = 0.0000000000001 * ($xMag + 1.0);
+
+    // asinh undoes sinh over the whole table, in the direction that loses
+    // nothing: sinh spreads its argument out and asinh contracts it back, so
+    // the round trip is a contraction and the step above is generous.
+    float $backS = Core\Math::asinh($s);
+    float $sBackGap = $backS - $x;
+    if ($sBackGap < 0.0) {
+        $sBackGap = 0.0 - $sBackGap;
+    }
+    if ($sBackGap < $rTol) {
+        $asinhUndoesSinh = $asinhUndoesSinh + 1;
+    }
+
+    // acosh undoes cosh only up to sign, because cosh is even and acosh
+    // answers from 1 upwards: the round trip recovers the *magnitude* of the
+    // argument, which is the strongest claim the pair supports at all.
+    float $backC = Core\Math::acosh($c);
+    float $cBackGap = $backC - $xMag;
+    if ($cBackGap < 0.0) {
+        $cBackGap = 0.0 - $cBackGap;
+    }
+    if ($cBackGap < $rTol) {
+        $acoshUndoesCosh = $acoshUndoesCosh + 1;
+    }
+}
+
+echo "rows: ", $rows, "\n";
+echo "sinh == (exp(x) - exp(-x)) / 2: ", $sinhIsTheDefinition, " of ", $rows, "\n";
+echo "cosh == (exp(x) + exp(-x)) / 2: ", $coshIsTheDefinition, " of ", $rows, "\n";
+echo "cosh^2 - sinh^2 == 1: ", $identityHolds, " of ", $rows, "\n";
+echo "tanh == sinh / cosh: ", $tanhIsTheRatio, " of ", $rows, "\n";
+echo "tanh within (-1, 1): ", $tanhIsBounded, " of ", $rows, "\n";
+echo "asinh(sinh(x)) == x: ", $asinhUndoesSinh, " of ", $rows, "\n";
+echo "acosh(cosh(x)) == |x|: ", $acoshUndoesCosh, " of ", $rows, "\n";
+
+// atanh gets its own table, and the round trip is written the other way round,
+// for the reason the playbook records under that member's name: atanh
+// amplifies its argument as it approaches ±1, so `atanh(tanh($x))` for a large
+// $x is asking the host's last digits a question rather than asking the pair
+// whether they are inverses. Composed in this direction the amplification is
+// undone by tanh's own contraction and the claim is host-independent.
+array<float> $ys = [
+    0.0, 0.125, 0.5, 0.75, 0.9, 0.99, 0.999, 0.9999,
+    -0.125, -0.5, -0.9, -0.999,
+];
+int $yRows = 0;
+int $tanhUndoesAtanh = 0;
+foreach ($ys as float $y) {
+    $yRows = $yRows + 1;
+    float $u = Core\Math::atanh($y);
+    float $back = Core\Math::tanh($u);
+    float $yMag = $y;
+    if ($yMag < 0.0) {
+        $yMag = 0.0 - $yMag;
+    }
+    float $yGap = $back - $y;
+    if ($yGap < 0.0) {
+        $yGap = 0.0 - $yGap;
+    }
+    if ($yGap < 0.0000000000001 * ($yMag + 1.0)) {
+        $tanhUndoesAtanh = $tanhUndoesAtanh + 1;
+    }
+}
+echo "tanh(atanh(y)) == y: ", $tanhUndoesAtanh, " of ", $yRows, "\n";
+
+// The one row the tables leave out, because only there is every answer exact —
+// and both legs agree on all six, measured through `php` rather than assumed.
+echo "sinh(0)=", Core\Math::sinh(0.0) == 0.0 ? "0" : "other",
+     " cosh(0)=", Core\Math::cosh(0.0) == 1.0 ? "1" : "other",
+     " tanh(0)=", Core\Math::tanh(0.0) == 0.0 ? "0" : "other", "\n";
+echo "asinh(0)=", Core\Math::asinh(0.0) == 0.0 ? "0" : "other",
+     " acosh(1)=", Core\Math::acosh(1.0) == 0.0 ? "0" : "other",
+     " atanh(0)=", Core\Math::atanh(0.0) == 0.0 ? "0" : "other", "\n";
+
+// Where the table stopped, asserted as properties instead of as digits. tanh
+// saturates: past about 19 the two exponentials are a double's whole precision
+// apart, so the ratio *is* 1 and the member says so rather than reporting
+// something merely close. The pair it is a ratio of has not overflowed there.
+echo "tanh(20)=", Core\Math::tanh(20.0) == 1.0 ? "1" : "other",
+     " cosh(20) finite=", Core\Math::isFinite(Core\Math::cosh(20.0)) ? "y" : "n", "\n";
+
+// And past the exponent range the two growing members overflow to an infinity
+// — an answer, not a refusal, since a hyperbolic member has no domain to leave
+// on this side — while the ratio of the two stays saturated at exactly 1.
+echo "cosh(1000) inf=", Core\Math::cosh(1000.0) == Core\Math::INFINITY ? "y" : "n",
+     " sinh(1000) inf=", Core\Math::sinh(1000.0) == Core\Math::INFINITY ? "y" : "n",
+     " tanh(1000)=", Core\Math::tanh(1000.0) == 1.0 ? "1" : "other", "\n";
+--EXPECT--
+rows: 18
+sinh == (exp(x) - exp(-x)) / 2: 18 of 18
+cosh == (exp(x) + exp(-x)) / 2: 18 of 18
+cosh^2 - sinh^2 == 1: 18 of 18
+tanh == sinh / cosh: 18 of 18
+tanh within (-1, 1): 18 of 18
+asinh(sinh(x)) == x: 18 of 18
+acosh(cosh(x)) == |x|: 18 of 18
+tanh(atanh(y)) == y: 12 of 12
+sinh(0)=0 cosh(0)=1 tanh(0)=0
+asinh(0)=0 acosh(1)=0 atanh(0)=0
+tanh(20)=1 cosh(20) finite=y
+cosh(1000) inf=y sinh(1000) inf=y tanh(1000)=1
