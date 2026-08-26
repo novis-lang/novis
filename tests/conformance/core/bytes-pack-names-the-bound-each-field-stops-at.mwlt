@@ -1,0 +1,128 @@
+--TEST--
+`Core\Bytes::pack` names the last value each field holds beside the first it refuses, and narrows precision where it refuses range — spec § 7, ADR 0009 § 3, ADR 0063 R4
+--FILE--
+<?mwl
+// Spec § 7's `pack(string $format, mixed ...$values): bytes`. ADR 0063 R4 makes
+// a value the field cannot hold a throw rather than a wrap, and ADR 0009 § 3 is
+// why there is no truncating third option — so every bound below is asserted on
+// both sides, the last accepted value named beside the first refused one.
+//
+// `bytes-pack-writes-explicit-width-fields.mwlt` pins one octet bound and
+// reports it as "threw"; this case pins each bound's own message, because a
+// field that stopped one value early prints plausibly against either half
+// alone. `crates/mwl-stdlib/src/bytes.rs` owns the three sites.
+
+final class Field {
+    public static function hex(string $format, mixed $a): string {
+        try {
+            return Core\Encoding::toHex(Core\Bytes::pack($format, $a));
+        } catch (Throwable $e) {
+            return "refused";
+        }
+    }
+
+    public static function why(string $format, mixed $a): string {
+        try {
+            Core\Bytes::pack($format, $a);
+            return "";
+        } catch (Throwable $b) {
+            return $b->message;
+        }
+    }
+
+    public static function ok(string $format, mixed $a): string {
+        if (Field::why($format, $a) == "") {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+// An integer field holds the **union** of its width's signed and unsigned
+// ranges, and the refusal names that union rather than one half of it.
+echo Field::hex("C", -128), " ", Field::hex("C", 255), "\n";
+echo Field::why("C", -129), "\n";
+echo Field::why("C", 256), "\n";
+echo Field::why("n", 65536), "\n";
+echo Field::why("N", -2147483649), "\n";
+
+// Counted over every width, which is the claim those four rows sample: the two
+// ends meet, so `-1` writes the octets the unsigned top writes and the signed
+// bottom writes the octets its own negation would — 10 agreements — and the
+// value one past either end is refused on both sides, 10 refusals. A field that
+// wrapped instead of throwing keeps the first count and loses the second.
+array<string> $codes = ["C", "n", "N", "v", "V"];
+array<int> $high = [255, 65535, 4294967295, 65535, 4294967295];
+array<int> $low = [-128, -32768, -2147483648, -32768, -2147483648];
+int $same = 0;
+int $refused = 0;
+foreach ($codes as string $k => string $c) {
+    if (Field::hex($c, -1) == Field::hex($c, $high[$k])) {
+        $same = $same + 1;
+    }
+    if (Field::hex($c, $low[$k]) == Field::hex($c, 0 - $low[$k])) {
+        $same = $same + 1;
+    }
+    if (Field::ok($c, $high[$k] + 1) == "n") {
+        $refused = $refused + 1;
+    }
+    if (Field::ok($c, $low[$k] - 1) == "n") {
+        $refused = $refused + 1;
+    }
+}
+echo $same, " ", $refused, " of ", Core\Arr::count($codes), "\n";
+
+// The 64-bit codes are the one width whose refusal is unreachable, and that is
+// not an omission: `int` and `uint` together are exactly the union `J` and `P`
+// accept, so the bound there is the compiler's — a literal past it is `E0429`
+// at the call and never becomes an argument at all.
+echo Field::hex("J", -9223372036854775807 - 1), " ", Field::hex("P", 18446744073709551615 as uint), "\n";
+
+// A 32-bit float field narrows **precision** silently and refuses **range**,
+// which is the one place `pack` accepts a lossy write: a caller who wrote a
+// 4-byte float asked for that precision, and refusing `0.1` would leave the
+// code unusable, but a finite value becoming an infinity is a different kind of
+// value rather than a nearer one. The same argument is an ordinary field under
+// the 8-byte code, so the bound belongs to the width and not to the value.
+echo Field::hex("G", 3.4028234663852886e38), " ", Field::hex("G", -3.4028234663852886e38), " ", Field::hex("g", 0.1), "\n";
+echo Field::why("g", 3.5e38), "\n";
+echo Field::why("g", -3.5e38), "\n";
+echo Field::hex("E", 3.5e38), "\n";
+
+// A buffer field pads up to its declared width and refuses an argument that
+// would have to be cut down to it, and `Z` reserves one octet of that width for
+// the NUL it always writes. The empty argument is the sharpest cell: `a0` is a
+// field of no octets holding nothing, while `Z0` has nowhere to put its NUL.
+echo Field::hex("a2", "Hi"), " ", Field::hex("Z3", "Hi"), "\n";
+echo Field::why("a1", "Hi"), "\n";
+echo Field::why("Z2", "Hi"), "\n";
+echo "[", Field::hex("a0", ""), "] ", Field::why("Z0", ""), "\n";
+
+// Counted: that reserved octet is the whole difference between the two codes,
+// so `Z` at any width accepts exactly what `a` accepts one octet narrower.
+array<string> $wide = ["Z1", "Z2", "Z3", "Z4", "Z5"];
+array<string> $narrow = ["a0", "a1", "a2", "a3", "a4"];
+int $agree = 0;
+foreach ($wide as string $j => string $z) {
+    if (Field::ok($z, "Hi") == Field::ok($narrow[$j], "Hi")) {
+        $agree = $agree + 1;
+    }
+}
+echo $agree, " of ", Core\Arr::count($wide), "\n";
+--EXPECT--
+80 ff
+Core\Bytes::pack: -129 does not fit `C`'s 8 bits, which hold -128 to 255
+Core\Bytes::pack: 256 does not fit `C`'s 8 bits, which hold -128 to 255
+Core\Bytes::pack: 65536 does not fit `n`'s 16 bits, which hold -32768 to 65535
+Core\Bytes::pack: -2147483649 does not fit `N`'s 32 bits, which hold -2147483648 to 4294967295
+10 10 of 5
+8000000000000000 ffffffffffffffff
+7f7fffff ff7fffff cdcccc3d
+Core\Bytes::pack: 350000000000000000000000000000000000000 is outside `g`'s 32-bit range, and rounding it would answer an infinity
+Core\Bytes::pack: -350000000000000000000000000000000000000 is outside `g`'s 32-bit range, and rounding it would answer an infinity
+47f074f8c4d3cd7b
+4869 486900
+Core\Bytes::pack: `a` was given a 1-octet field, and the argument needs 2
+Core\Bytes::pack: `Z` was given a 2-octet field, and the argument needs 3
+[] Core\Bytes::pack: `Z` was given a 0-octet field, and the argument needs 1
+5 of 5
