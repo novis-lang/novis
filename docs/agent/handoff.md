@@ -2,61 +2,50 @@
 
 ## State
 
-**Conformance is at 548 of 600, and it is the only frontier left.** Verify is green (1597 cargo
-tests, 74 suites, 548 conformance, 159 differential, clippy and fmt clean) and runs both `.mwlt`
-trees itself, so after a green `verify.py` there is nothing else to run (playbook, *Running
-things*).
+**Conformance is at 550 of 600 on disk and it is the only frontier left**, but two of those cases
+are **uncommitted** — see *Next group*. Verify is green (1597 cargo tests, 74 suites, 550
+conformance, 159 differential, clippy and fmt clean) and runs both `.mwlt` trees itself, so after a
+green `verify.py` there is nothing else to run (playbook, *Running things*).
 
-This session added no library code and took **one** slice, not two: the group's remaining slices
-are both on `crates/mwl-stdlib/src/uri.rs`, a file this session never opened, so AGENTS.md § 2's
-file-set test stopped it at one. It ended at roughly 40k of a 200k ceiling — the cheap pairing is
-[1] and [2] of the next group, which share `uri.rs` with each other.
+This session was **user-directed, not loop work**, and added no library code. It answered whether a
+corrupt request or an engine panic can take the server down, and landed the answer as
+[ADR 0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) — fourteen
+sections covering the paths that go *around* 0002's containment, 0020's ladder, 0095's refusals and
+0097's ceiling: `abort()`, a `SIGSEGV` from the engine's own recursion, a `SIGBUS`, an accept loop
+that spins, and a core that is alive and never returns. It folds into 0002 (§ *Corollary*), 0020
+(§§ 1 and 4), 0078 (the recompile wave) and 0097 (`max_in_flight`, the accept loop, the watchdog).
 
-What landed is `tests/conformance/core/time-duration-constructors-and-readers-are-one-scale.mwlt`,
-a counted sweep over `crates/mwl-stdlib/src/time.rs`'s `Duration` finishing `Core\Time`: one table
-of twelve counts spanning both signs and both ends of what `weeks` holds, over which each of the
-eight constructors is its own one-unit literal `multipliedBy` the count (96) and each reader
-inverts its own constructor (96); truncation toward zero stated as two properties of the remainder
-rather than a direction — shorter than one of its own units, and never crossing zero — over
-thirteen ragged counts and three readers (39 each); `multipliedBy` as iterated `plus`/`minus` over
-six bases × six factors (36) with negation commuting through it (36); and `parse`/`toString` as one
-grammar over eleven renderings, where every magnitude reads back but only the six non-negative ones
-render to text `parse` will accept. Its tail is the range's one-nanosecond asymmetry: `negated`
-is total everywhere except `i64::MIN` nanoseconds, asserted on both sides.
+**The process boundary was examined and rejected**, with a named revisit trigger at
+[0083](../adr/0083-persistent-connections-are-isolates.md); 0106 § *Alternatives rejected* holds the
+three findings and § *Revisiting* the two numbers that must exist before anyone reopens it. Do not
+re-derive that argument — it is written down.
 
-`orient.py`'s pack was complete for this work; nothing was fetched outside it beyond `time.rs`'s
-`Duration` block and `mwl-syntax`'s `duration::render`/`parse`.
-
-**A by-hand pass over `docs/adr/` is still in flight and is not loop work.** 103 modified ADRs plus
-`ground-rules.md` have been uncommitted for five sessions now. That is [doc-cleanup.md](doc-cleanup.md)'s
-pass, which AGENTS.md says the user fires and the loop never does. **Do not stage it and do not
-`git commit -a`**: stage your own paths, exactly as `session.py --wrap` already does.
+The earlier note here about 103 uncommitted ADRs is stale: that by-hand pass is committed.
 
 ## Next group
 
-Three slices, **all three on `crates/mwl-stdlib/src/uri.rs`** — so this is the cheap two-slice
-session, and [1] plus [2] is the pairing. `docs/spec/01-core-library.md` § 7 owns the `Uri` rules.
-`Core\Uri` is the thinnest real class at 0.53 (`Instant` 0.00 and `DateTime` 0.06 are the
-playbook's false alarm — a class whose values are never spelled out reads as zero).
+**Two of the previous group's three slices are already written and untracked in the tree** —
+`tests/conformance/core/uri-seven-readers-with-and-tostring-are-one-parse.mwlt` and
+`uri-percent-coders-are-two-inverse-pairs-over-a-byte-sweep.mwlt`. They pass under `verify.py` and
+they are why the on-disk count is 550 against the plan's 548. They were left by an earlier session
+and this one did not touch them. The file set is `crates/mwl-stdlib/src/uri.rs` plus those two
+cases; `docs/spec/01-core-library.md` § 7 owns the `Uri` rules.
 
-- [ ] **`Core\Uri`'s seven readers, `with` and `toString` are one parse** — over a table of absolute
-      URIs, each reader answers the component `toString` writes back, and `with` on one component
-      leaves the other six untouched. `crates/mwl-stdlib/src/uri.rs:347` (`parse`), `:405`–`:454`
-      (the seven readers and `toString`), `:461` (`with`, six named options).
-- [ ] **The four percent-coders are two inverse pairs over one byte sweep** —
-      `encodeComponent`/`decodeComponent` and `encodeFormValue`/`decodeFormValue` are the identity
-      over every byte, and the two pairs differ on exactly the bytes the form encoding spells
-      differently. `crates/mwl-stdlib/src/uri.rs:361`–`:382` (the four rows), `:603` (`encode`),
-      `:638` (`decode`).
+- [ ] **Check the two untracked `Uri` cases against the goal and commit them**, then reconcile the
+      plan's conformance count in the same wrap. Nothing else in the tree is uncommitted.
 - [ ] **`parseQuery` and `buildQuery` are one bracket convention** — the standing decision in
       `loop-goal.md` puts PHP's `a[]=1`/`a[b]=c` nesting in `parseQuery` in full; assert the round
       trip with `Core\Json::encode` on the parsed side (playbook: an `array<mixed>`'s elements
       cannot be indexed past the first level). `crates/mwl-stdlib/src/uri.rs:389`, `:396`.
+- [ ] **`Core\Uri::resolve` and `compareTo`** — RFC 3986 § 5 reference resolution and the normalized
+      order. `crates/mwl-stdlib/src/uri.rs:499`, `:506`.
 
 ## Backlog
 
-- `Core\Uri::resolve` and `compareTo` — RFC 3986 § 5 reference resolution and the normalized order;
-  `uri.rs:499`, `:506`. `docs/spec/01-core-library.md` § 7.
+- ADR 0106's M6 half — iterative teardown, `try_reserve` on input-sized buffers, per-decoder depth
+  limits, the deadline flag in `Ctx`'s hot line. 0106 §§ 3, 4, 5; guards named in its § *Verification*.
+- ADR 0106's M7 half — worker-root `catch_unwind`, accept-loop backoff, the watchdog, admission
+  arithmetic, the blocking-pool rule. 0106 §§ 2, 6, 7, 8, 13.
 - `Core\Time\Instant`'s and `DateTime`'s depth rows read low only because their values are never
   spelled; check with `gaps.py --member` before writing to them. `docs/agent/playbook.md`.
 - `Core\Json::decodeAs<T>` still reads a scalar-fielded class only — `mwl_stdlib::json` gap 2.

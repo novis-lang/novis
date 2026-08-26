@@ -351,6 +351,7 @@ is why" — is this file.
   program has to name — `Core\Time\Duration::ofSeconds`, `Core\Uri::parse`, `Core\Validate` — and
   is a floor, never a count, for the rest. Check with `python tools/gaps.py --member compareTo`
   before writing a case the ranking says is missing.
+- **An ADR index **Decision** cell is derived from the ADR's own title, not written.** `adr.py --check` reports the whole index table stale when a cell says anything else, and the message names `--index` without saying why the row you just added is the one it dislikes. `python tools/adr.py --index | grep NNNN` prints the row it wants; paste that. Writing a richer sentence there and letting the title stay short is the natural move and it fails every time.
 
 ## Running things
 

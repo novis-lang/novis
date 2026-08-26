@@ -126,16 +126,18 @@
 > scalar-fielded class only (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing
 > from every `mwl-stdlib` member row (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's
 > substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, but not
-> catch-up** — ADRs 0091, 0092, 0093, 0097 and 0100 § 3; none invalidates built behaviour or a
-> written fixture, and their work is M1, M4, M6, M7, M8 and M10. **Open beside the library** — a
-> property's declared default (`E0472`), `do`/`while`, a closure called through the variable holding
-> it, `?bool` tested for truth, `bool as int` and `bool as string`, an abandoned generator's
-> `finally` and ADR 0043's `by`-delegation (`mwl-ir` gaps 1 and 18); and
-> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`). **What has
-> landed is not restated here** — `git log` holds the session history, each crate's module doc its
-> per-file gaps, and what a session *found* pinning a member against its PHP twin is a bullet under
-> playbook § *Divergences and refusals already pinned*, selected into a goal with `python
-> tools/playbook.py --match <the group's paths>`.
+> catch-up** — ADRs 0091, 0092, 0093, 0097, 0100 § 3 and 0106; none invalidates built behaviour or a
+> written fixture, and their work is M1, M4, M6, M7, M8 and M10. 0106 is the only one of them that
+> adds a rule to code already written rather than only adding code — teardown stops recursing, and a
+> helper whose runtime scales with its input polls a deadline flag — so its M6 slice edits
+> `mwl-runtime` instead of extending it. **Open beside the library** — a property's declared default
+> (`E0472`), `do`/`while`, a closure called through the variable holding it, `?bool` tested for
+> truth, `bool as int` and `bool as string`, an abandoned generator's `finally` and ADR 0043's
+> `by`-delegation (`mwl-ir` gaps 1 and 18); and `docs/spec/02-php-migration.md` is 31% classified
+> (`python tools/check-migration.py`). **What has landed is not restated here** — `git log` holds
+> the session history, each crate's module doc its per-file gaps, and what a session *found* pinning
+> a member against its PHP twin is a bullet under playbook § *Divergences and refusals already
+> pinned*, selected into a goal with `python tools/playbook.py --match <the group's paths>`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
