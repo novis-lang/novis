@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/mwl-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, array) -> void {
@@ -9,15 +9,13 @@ fn m(object, array) -> void {
     v1 = param 1  ; array
     ; stmt s0 @4:5-4:15
     v2 = const.int 0  ; int
-    v3 = helper.int_to_string v2  ; string
-    v4 = const.int 5  ; int
-    v5 = array.set v1, v3, v4  ; array
+    v3 = const.int 5  ; int
+    v4 = array.set v1, v2, v3  ; array
     ; stmt s1 @5:5-5:15
-    v6 = const.int 1  ; int
-    v7 = helper.int_to_string v6  ; string
-    v8 = const.int 6  ; int
-    v9 = array.set v5, v7, v8  ; array
-    release v9
+    v5 = const.int 1  ; int
+    v6 = const.int 6  ; int
+    v7 = array.set v4, v5, v6  ; array
+    release v7
     release v0
     return
 }

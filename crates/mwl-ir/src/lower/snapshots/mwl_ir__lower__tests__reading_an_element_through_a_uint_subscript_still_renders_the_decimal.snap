@@ -1,0 +1,18 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, array, uint) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; array
+    v2 = param 2  ; uint
+    ; stmt s0 @4:5-4:19
+    v3 = helper.uint_to_string v2  ; string
+    v4 = array.get v1, v3  ; int
+    release v3
+    release v1
+    release v0
+    return v4
+}

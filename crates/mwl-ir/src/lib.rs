@@ -94,6 +94,27 @@
 //!   second entry. Cranelift accepts one, so M3's backend does not care — this
 //!   is a constraint on any later pass added here.
 //! - **Ids are stable, not global.** See [`ids`]'s own module docs.
+//! - **An array key is a `string`, and an `int` subscript no longer spells
+//!   it.** [`ir::InstKind::ArrayGet`]'s and [`ir::InstKind::ArraySet`]'s `key`
+//!   operand carries either [`ty::Ty::Str`] or [`ty::Ty::Int`], and codegen
+//!   picks the runtime primitive off the operand's own representation — there
+//!   is no second instruction, no key-kind field and no new [`ir::Helper`].
+//!   The alternative shapes were each worse for a reason worth recording: a
+//!   separate `ArrayGetIndex` doubles every array instruction and every match
+//!   arm over them for one operand's type, and a `key_is_int: bool` states
+//!   twice what `ty::Ty` already states once. The consequence a widening
+//!   contributor must hold: **a key operand's `Ty` is now load-bearing**, so
+//!   the refcount decision at each of `lower_array_key`'s call sites turns on
+//!   it — an `int` key owns nothing to retain or release. ADR 0007 § 5 is
+//!   untouched by any of this; every key still *is* a `string`, `"08"` is
+//!   still distinct from `"8"`, and `$a[8]` is still `$a["8"]`. What moved is
+//!   only where the decimal is produced, which is `mwl_runtime::array`'s
+//!   packed form deciding it never has to be. Two subscripts still render:
+//!   a `uint`, because the runtime's index ABI is an `i64` and a `uint` above
+//!   `i64::MAX` has no `i64` spelling naming the same key, and any key
+//!   reaching [`ir::InstKind::ArrayUnset`], which has no index-shaped
+//!   primitive beside it. `lower::Lowering::lower_array_key` and
+//!   `lower_rendered_array_key` own both exceptions.
 //!
 //! # Known gaps
 //!

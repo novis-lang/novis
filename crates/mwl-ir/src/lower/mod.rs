@@ -3685,12 +3685,12 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `[5 => "a"]` — an `int` literal key normalizes to its decimal string
-    /// via `Lowering::lower_array_key`'s existing `Helper::IntToString`
-    /// conversion, the exact same helper an `$arr[$i]` subscript already
-    /// reuses.
+    /// `[5 => "a"]` — an explicit `int` key travels to the `InstKind::ArraySet`
+    /// chain unrendered, exactly as an `$arr[$i]` subscript does: this is the
+    /// same `Lowering::lower_array_key` on both sides, which is why the two
+    /// can never drift.
     #[test]
-    fn an_int_literal_keyed_array_element_normalizes_the_key_to_a_string() {
+    fn an_int_literal_keyed_array_element_carries_the_integer_unrendered() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(): void {\n    array $a = [5 => \"a\"];\n  }\n}\n",
         );
@@ -3775,16 +3775,44 @@ class T {
 
     /// `$a[0]` through an `array<int>` parameter — the simplest array-access
     /// read: a fresh, non-refcounted `int` element, and a literal `int` key
-    /// normalized to its decimal-string form through
-    /// `Helper::IntToString` before `InstKind::ArrayGet` reads it. The
-    /// converted key is a fresh, non-aliasing buffer nothing else will ever
-    /// release, so `Lowering::lower_expr`'s `Index` arm releases it right
-    /// after the read — the same "release a fresh value once its one and
-    /// only use is done" policy `concat_operand`'s caller already applies.
+    /// that reaches `InstKind::ArrayGet` as the `int` it already was, with no
+    /// `helper.int_to_string` and therefore no key allocation and no release
+    /// of one either. ADR 0007 § 5 still says the key *is* `"0"`; `mwl-ir`'s
+    /// module doc § *an array key is a `string`, and an `int` subscript no
+    /// longer spells it* is why the decimal is no longer rendered to reach
+    /// it, and codegen picks `mwl_array_get_index` off this operand's `Ty`.
     #[test]
-    fn reading_an_int_element_through_a_literal_key_normalizes_it_to_a_string() {
+    fn reading_an_int_element_through_a_literal_key_carries_the_integer_unrendered() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(array<int> $a): int {\n    return $a[0];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$a[$i]` with a `uint` subscript — one of the two subscripts
+    /// `Lowering::lower_array_key` still renders, because the runtime's index
+    /// ABI is an `i64` and a `uint` above `i64::MAX` has no `i64` spelling
+    /// naming the same key. So `helper.uint_to_string` is still in this
+    /// output, and the fresh key it produces is still released right after
+    /// the borrow — the shape the `int` case above no longer has.
+    #[test]
+    fn reading_an_element_through_a_uint_subscript_still_renders_the_decimal() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<int> $a, uint $i): int {\n    return $a[$i];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `unset($a[0]);` — the other subscript that still renders.
+    /// `InstKind::ArrayUnset` has no index-shaped runtime primitive beside
+    /// it, so `Lowering::lower_rendered_array_key` forces the decimal here
+    /// rather than letting codegen discover it cannot. Contrast
+    /// `writing_an_int_element_through_a_literal_key_carries_the_integer_unrendered`,
+    /// which is the same literal key one instruction along.
+    #[test]
+    fn unsetting_an_element_through_an_int_key_still_renders_the_decimal() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<int> $a): void {\n    unset($a[0]);\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }
@@ -3823,13 +3851,13 @@ class T {
 
     /// `$a[0] = 5;` through an `array<int>` parameter — the simplest
     /// array-element write: a fresh, non-refcounted `int` value (no retain)
-    /// and a literal `int` key normalized the same way the read side is,
-    /// with no old-value get/release pair at all (`InstKind::ArraySet`'s own
-    /// doc comment explains why an ordinary new-or-existing-key write bundles
-    /// that into one instruction rather than splitting it like `FieldSet`
-    /// does).
+    /// and a literal `int` key carried unrendered exactly the way the read
+    /// side carries it, with no old-value get/release pair at all
+    /// (`InstKind::ArraySet`'s own doc comment explains why an ordinary
+    /// new-or-existing-key write bundles that into one instruction rather
+    /// than splitting it like `FieldSet` does).
     #[test]
-    fn writing_an_int_element_through_a_literal_key_normalizes_it_to_a_string() {
+    fn writing_an_int_element_through_a_literal_key_carries_the_integer_unrendered() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(array<int> $a): void {\n    $a[0] = 5;\n  }\n}\n",
         );
@@ -3852,9 +3880,9 @@ class T {
     /// `$a[] = 1;` — PHP's append syntax lowers to `InstKind::ArrayAppend`
     /// with no key at all, unlike every other `Index`-target write: a fresh,
     /// non-refcounted `int` value needs no retain, mirroring
-    /// `writing_an_int_element_through_a_literal_key_normalizes_it_to_a_string`
-    /// but with no `lower_array_key`/`helper.int_to_string` conversion in the
-    /// output at all, since there is no key to normalize.
+    /// `writing_an_int_element_through_a_literal_key_carries_the_integer_unrendered`
+    /// but with no `lower_array_key` call in the output at all, since there is
+    /// no key to lower.
     #[test]
     fn appending_a_fresh_int_value_needs_no_retain() {
         let (f, map, file) = lower_first_method(

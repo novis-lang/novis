@@ -1852,14 +1852,33 @@ impl<'a> Lowering<'a> {
         }
         (v, Ty::Str)
     }
-    /// Lowers `expr` — an `ExprKind::Index`'s subscript — and normalizes it
-    /// to a [`Ty::Str`] key: ADR 0007 § 5's "every key is a `string`" rule,
-    /// with an `int`/`uint` subscript normalized to its decimal-string form
-    /// (`$a[8]` is `$a["8"]`) via the exact [`Helper::IntToString`]/
-    /// [`Helper::UintToString`] conversion [`Self::concat_operand`] already
-    /// uses for `.`'s scalar operand — reused verbatim rather than a new
-    /// policy. Also used, identically, for an array literal's explicit
-    /// `key =>` element (see [`ir::InstKind::ArrayNew`]'s own doc comment). A
+    /// Lowers `expr` — an `ExprKind::Index`'s subscript — to a key operand
+    /// for [`ir::InstKind::ArrayGet`]/[`ir::InstKind::ArraySet`], in
+    /// whichever of the two representations the crate docs' *an array key is
+    /// a `string`, and an `int` subscript no longer spells it* allows.
+    ///
+    /// ADR 0007 § 5 is unchanged by this: every key still *is* a `string`
+    /// and `$a[8]` is still `$a["8"]`. What changed is that reaching it no
+    /// longer renders the decimal. A [`Ty::Int`] subscript is handed to the
+    /// instruction as the `int` it already was, and `mwl-codegen` calls
+    /// `mwl_array_get_index`/`mwl_array_set_index`, which answer from the
+    /// packed form with nothing rendered and nothing allocated and
+    /// synthesize a key only where the array is already `Hashed` — exactly
+    /// the case that was building one anyway (`mwl_runtime::array`'s module
+    /// doc, *the ABI was the part that expired*).
+    ///
+    /// A [`Ty::Uint`] subscript still renders, deliberately: that ABI's
+    /// index is an `i64`, and a `uint` above `i64::MAX` has no `i64`
+    /// spelling naming the same key, so passing one would silently read a
+    /// different element. Correctness before latency, AGENTS.md's priority
+    /// ordering. The conversion is the exact [`Helper::UintToString`]
+    /// [`Self::concat_operand`] already gives `.`'s scalar operand — reused
+    /// verbatim rather than a new policy. [`Self::lower_rendered_array_key`]
+    /// is this function for the one caller that still needs a `Ty::Str`
+    /// whatever the subscript was.
+    ///
+    /// Also used, identically, for an array literal's explicit `key =>`
+    /// element (see [`ir::InstKind::ArrayNew`]'s own doc comment). A
     /// `float`, `bool`, or `null` key is a compile-time rejection
     /// `mwl_types::expr::check_array_key_type` now enforces at both call
     /// sites (an `Index` subscript and an array-literal explicit key alike),
@@ -1867,36 +1886,34 @@ impl<'a> Lowering<'a> {
     /// for anything that already passed `mwl_types::check_program` — rather
     /// than a live known gap.
     ///
-    /// Returns the resulting `Ty::Str` value together with whether it
-    /// [`is_aliasing_read`]s storage a durable slot still owns — exactly the
-    /// same second half [`Self::concat_operand`] returns, for the same
+    /// Returns the key value, **the representation it is in** — `Ty::Str` or
+    /// `Ty::Int`, which is what every caller's refcount decision now turns
+    /// on, since an `int` owns nothing to retain or release — and whether it
+    /// [`is_aliasing_read`]s storage a durable slot still owns, exactly the
+    /// same second half [`Self::concat_operand`] returns and for the same
     /// reason: a plain `string` subscript passed through unchanged may still
-    /// be a bare local/property/array read, while a freshly converted
-    /// `int`/`uint` key is always a brand new buffer with exactly one owner.
+    /// be a bare local/property/array read, while a freshly converted key is
+    /// always a brand new buffer with exactly one owner.
     pub(super) fn lower_array_key(
         &mut self,
         expr: &Expr,
         env: &Env,
         cur: &mut BlockId,
-    ) -> (ValueId, bool) {
+    ) -> (ValueId, Ty, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
         match ty {
-            Ty::Str => (v, self.aliasing_read(expr)),
-            Ty::Int | Ty::Uint => {
-                let helper = if ty == Ty::Int {
-                    Helper::IntToString
-                } else {
-                    Helper::UintToString
-                };
+            Ty::Str => (v, Ty::Str, self.aliasing_read(expr)),
+            Ty::Int => (v, Ty::Int, false),
+            Ty::Uint => {
                 let (sv, _) = self.emit(
                     *cur,
                     Ty::Str,
                     InstKind::HelperCall {
-                        helper,
+                        helper: Helper::UintToString,
                         args: vec![v],
                     },
                 );
-                (sv, false)
+                (sv, Ty::Str, false)
             }
             other => panic!(
                 "mwl-ir: an array key lowered to {other:?} — mwl_types::check_program is trusted \
@@ -1904,6 +1921,36 @@ impl<'a> Lowering<'a> {
                  subscript and array-literal explicit-key sites, so this should be unreachable"
             ),
         }
+    }
+
+    /// [`Self::lower_array_key`], forced all the way to a [`Ty::Str`] key.
+    ///
+    /// [`ir::InstKind::ArrayUnset`] is the one key-taking array instruction
+    /// with no index-shaped runtime primitive beside it — `mwl-runtime`
+    /// added `mwl_array_get_index` and `mwl_array_set_index` and no third —
+    /// so `unset($a[$i])` renders the decimal here rather than having
+    /// codegen discover it cannot. Widening the runtime ABI to close that
+    /// is a separate decision, not a side effect of this one; ADR 0042's
+    /// artifacts and M9's WIT signatures are about to freeze that surface.
+    pub(super) fn lower_rendered_array_key(
+        &mut self,
+        expr: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, bool) {
+        let (v, ty, aliasing) = self.lower_array_key(expr, env, cur);
+        if ty != Ty::Int {
+            return (v, aliasing);
+        }
+        let (sv, _) = self.emit(
+            *cur,
+            Ty::Str,
+            InstKind::HelperCall {
+                helper: Helper::IntToString,
+                args: vec![v],
+            },
+        );
+        (sv, false)
     }
 
     /// ADR 0007 § 4, mirroring the checker's own rule: a bare integer
@@ -3269,13 +3316,13 @@ impl<'a> Lowering<'a> {
             // assumed so the one protocol has no exception.
             let mut array_v = array.0;
             for item in items {
-                let (key_v, key_aliasing) = match &item.key {
+                let (key_v, _key_ty, key_aliasing) = match &item.key {
                     Some(key) => self.lower_array_key(key, env, cur),
                     None => {
                         let key_str = next_index.to_string();
                         next_index += 1;
                         let (kv, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(key_str));
-                        (kv, false)
+                        (kv, Ty::Str, false)
                     }
                 };
                 if key_aliasing {
@@ -3336,7 +3383,7 @@ impl<'a> Lowering<'a> {
         if base_is_temporary {
             self.own_temporary(array_v);
         }
-        let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
+        let (key_v, key_ty, key_aliasing) = self.lower_array_key(index, env, cur);
         let result = self.emit(
             *cur,
             result_ty,
@@ -3345,7 +3392,9 @@ impl<'a> Lowering<'a> {
                 key: key_v,
             },
         );
-        if !key_aliasing {
+        // Only a rendered key is a reference this frame owns; an unrendered
+        // `int` subscript owns nothing at all.
+        if key_ty.is_refcounted() && !key_aliasing {
             self.emit_release(*cur, key_v);
         }
         if base_is_temporary {

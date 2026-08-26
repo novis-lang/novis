@@ -851,8 +851,8 @@ pub enum InstKind {
     /// [`InstKind::ArraySet`]s, one per element in source order, each writing
     /// into the value the last one defined —
     /// `crate::lower::Lowering::lower_array_key` gives every key (explicit or
-    /// positional alike) a real `Ty::Str` `ValueId` there, which this fixed-
-    /// entries shape has no field for. See
+    /// positional alike) a real `ValueId` there, which this fixed-entries
+    /// shape has no field for. See
     /// `crate::lower::Lowering::lower_expr`'s `ArrayLiteral` arm for exactly
     /// which of the two shapes a given literal takes, and its own doc comment
     /// for the one PHP behavior that split deliberately does not reproduce: a
@@ -891,14 +891,19 @@ pub enum InstKind {
     /// Reads the element at `key` off `array` — `$arr[$i]`, whose base
     /// statically resolved to a known `array<T>` element type (an
     /// `mwl_types::expr_table::ExprInfo::Index` entry exists for it; see
-    /// `crate::lower::Lowering::lower_expr`'s `Index` arm). `key` is already
-    /// [`crate::ty::Ty::Str`] by the time this instruction sees it —
-    /// `crate::lower::Lowering::lower_array_key` normalizes an `int`/`uint`
-    /// subscript to its decimal-string form first (ADR 0007 § 5's key
-    /// normalization, `$a[8]` is `$a["8"]`), reusing the exact
-    /// [`Helper::IntToString`]/[`Helper::UintToString`] conversion
+    /// `crate::lower::Lowering::lower_expr`'s `Index` arm). `key` is in one
+    /// of exactly two representations — [`crate::ty::Ty::Str`], or
+    /// [`crate::ty::Ty::Int`] for a subscript that was already an `int` and
+    /// therefore never rendered — which is the crate docs' *an array key is
+    /// a `string`, and an `int` subscript no longer spells it*. ADR 0007
+    /// § 5's key normalization is unchanged (`$a[8]` is still `$a["8"]`);
+    /// where the decimal is produced is what moved. A `uint` subscript is
+    /// still rendered by `crate::lower::Lowering::lower_array_key`, with the
+    /// exact [`Helper::UintToString`] conversion
     /// [`Lowering::concat_operand`](crate::lower::Lowering::concat_operand)
-    /// already gives `.`'s scalar operand rather than a new policy. Like
+    /// already gives `.`'s scalar operand rather than a new policy; that
+    /// function's own doc comment says why an `i64` index cannot carry it.
+    /// Like
     /// [`InstKind::FieldGet`], this does not model what happens when `key`
     /// isn't actually present at runtime — PHP's own warning-and-`null`
     /// read — since no `try`/`throw` lowering exists yet to express a checked
@@ -913,7 +918,7 @@ pub enum InstKind {
     ArrayGet {
         /// The array, already lowered.
         array: ValueId,
-        /// The lookup key, already lowered and already `Ty::Str`.
+        /// The lookup key, already lowered — `Ty::Str` or `Ty::Int`.
         key: ValueId,
     },
     /// Writes `value` at `key` into `array` — `$arr[$i] = expr;`, inserting a
@@ -929,7 +934,7 @@ pub enum InstKind {
     /// that split observable, and modeling a conditional get here would mean
     /// guessing at PHP's own missing-key behavior at the one place — an
     /// *ordinary* new-key insert — where nothing should be missing to begin
-    /// with. `key` is already `Ty::Str`, normalized the same way
+    /// with. `key` is `Ty::Str` or `Ty::Int`, the same two representations
     /// [`InstKind::ArrayGet`]'s own doc comment describes.
     /// `crate::lower::Lowering::lower_reassignment`'s `Index`-target arm
     /// retains `key`/`value` first when either is
@@ -953,7 +958,7 @@ pub enum InstKind {
     ArraySet {
         /// The array, already lowered.
         array: ValueId,
-        /// The key to write, already lowered and already `Ty::Str`.
+        /// The key to write, already lowered — `Ty::Str` or `Ty::Int`.
         key: ValueId,
         /// The new value, already lowered.
         value: ValueId,
@@ -1102,10 +1107,11 @@ pub enum InstKind {
 /// user-extensible, so a string name would only trade compile-time
 /// exhaustiveness for nothing. Two families exist so far: a scalar-to-
 /// [`crate::ty::Ty::Str`] conversion — for `.` concatenation
-/// (`crate::lower::Lowering::concat_operand`), with `IntToString`/
-/// `UintToString` reused verbatim by
-/// `crate::lower::Lowering::lower_array_key` to normalize an `int`/`uint`
-/// array subscript to its decimal-string key form (ADR 0007 § 5) — and a
+/// (`crate::lower::Lowering::concat_operand`), with `UintToString` reused
+/// verbatim by `crate::lower::Lowering::lower_array_key` to render the one
+/// array subscript that cannot travel unrendered, and `IntToString` by
+/// `crate::lower::Lowering::lower_rendered_array_key` for the one caller
+/// that still needs a `Ty::Str` key (ADR 0007 § 5) — and a
 /// scalar-or-`Ty::Array`-to-[`crate::ty::Ty::Bool`] truthiness test, ADR
 /// 0035's table, used by `crate::lower::Lowering::lower_truthy_cond` for an
 /// `if`/`while` condition whose static type isn't already `bool` (a

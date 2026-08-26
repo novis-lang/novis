@@ -560,7 +560,7 @@ impl<'a> Lowering<'a> {
                         self.emit_array_append(*cur, array_v, v)
                     }
                     Some(index) => {
-                        let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
+                        let (key_v, _key_ty, key_aliasing) = self.lower_array_key(index, env, cur);
                         if key_aliasing {
                             self.emit_retain(*cur, key_v);
                         }
@@ -621,7 +621,7 @@ impl<'a> Lowering<'a> {
              either it erased to `mixed`, which this crate does not yet lower, or \
              mwl_types::check_program accepted something it should not have"
         );
-        let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
+        let (key_v, key_aliasing) = self.lower_rendered_array_key(index, env, cur);
         let (written, _) = self.emit(
             *cur,
             Ty::Array,
