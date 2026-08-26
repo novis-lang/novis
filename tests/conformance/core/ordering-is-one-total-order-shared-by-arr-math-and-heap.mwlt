@@ -1,0 +1,173 @@
+--TEST--
+Core\Arr::sort/min/max, Core\Math::min/max/clamp and Core\Heap answer one total order, agreeing about the smaller of every pair and about both ends of a whole table — docs/spec/01-core-library.md §§ 2, 3 and 9 over the one helper `mwl_stdlib::ordering`'s module doc owns
+--FILE--
+<?mwl
+// Seven members reach the same `compare_values`, so none of them may have
+// grown an ordering of its own. This asks one question of all of them over
+// one table and counts the *agreements*: a member that answers plausibly on
+// its own line still fails here the moment its answer differs from the rest.
+//
+// Twelve agreements per ordered pair, and every one is a comparison between
+// two members rather than against a frozen expectation:
+//   1-3   `Core\Arr::sort`'s two ends are `Core\Math`'s two answers, and
+//         sorting the pair the other way round names the same smaller value
+//         (the order is a property of the values, not of the input order).
+//   4-5   `Core\Arr::min`/`max` name what `Core\Arr::sort` puts at the ends.
+//   6-7   `Core\Math::min`/`max` are antisymmetric: swapping the arguments
+//         cannot change which value is smaller.
+//   8-10  `Core\Math::clamp` uses the same order to decide "inside": each
+//         value of the pair is inside the pair's own interval, and each is
+//         pushed to the bound when the interval is the degenerate one at the
+//         other end.
+//   11-12 `Core\Heap`'s `peek` is the smallest under that same order, whichever
+//         way round the two were pushed (the module's own doc: `peek` answers
+//         the smallest, `SplMinHeap`'s reading).
+//
+// Two tables, because `compare_values` decides a pair by representation and
+// these are the two rows a program reaches without a comparator: `string`,
+// compared bytewise, and `int`, compared exactly. Both tables carry a
+// duplicate, so the tie rule — the first extreme wins — is asked of every
+// member as well.
+final class Agree {
+    public static function overStrings(array<string> $rows): int {
+        int $agreed = 0;
+        int $n = Core\Arr::count($rows) as int;
+        int $i = 0;
+        for (; $i < $n; ) {
+            int $j = 0;
+            for (; $j < $n; ) {
+                string $a = $rows[$i as string];
+                string $b = $rows[$j as string];
+                array<string> $pair = [$a, $b];
+                array<string> $flipped = [$b, $a];
+                array<string> $sorted = Core\Arr::sort($pair);
+                string $low = Core\Math::min($a, $b);
+                string $high = Core\Math::max($a, $b);
+                if ($sorted["0"] == $low) { $agreed = $agreed + 1; }
+                if ($sorted["1"] == $high) { $agreed = $agreed + 1; }
+                if (Core\Arr::sort($flipped)["0"] == $low) { $agreed = $agreed + 1; }
+                if (Core\Arr::min($pair) == $low) { $agreed = $agreed + 1; }
+                if (Core\Arr::max($pair) == $high) { $agreed = $agreed + 1; }
+                if (Core\Math::min($b, $a) == $low) { $agreed = $agreed + 1; }
+                if (Core\Math::max($b, $a) == $high) { $agreed = $agreed + 1; }
+                if (Core\Math::clamp($a, $low, $high) == $a) { $agreed = $agreed + 1; }
+                if (Core\Math::clamp($high, $low, $low) == $low) { $agreed = $agreed + 1; }
+                if (Core\Math::clamp($low, $high, $high) == $high) { $agreed = $agreed + 1; }
+                var $heap = new Core\Heap<string>();
+                $heap->push($a);
+                $heap->push($b);
+                if ($heap->peek() == $low) { $agreed = $agreed + 1; }
+                var $reversed = new Core\Heap<string>();
+                $reversed->push($b);
+                $reversed->push($a);
+                if ($reversed->peek() == $low) { $agreed = $agreed + 1; }
+                $j = $j + 1;
+            }
+            $i = $i + 1;
+        }
+        return $agreed;
+    }
+
+    public static function overInts(array<int> $rows): int {
+        int $agreed = 0;
+        int $n = Core\Arr::count($rows) as int;
+        int $i = 0;
+        for (; $i < $n; ) {
+            int $j = 0;
+            for (; $j < $n; ) {
+                int $a = $rows[$i as string];
+                int $b = $rows[$j as string];
+                array<int> $pair = [$a, $b];
+                array<int> $flipped = [$b, $a];
+                array<int> $sorted = Core\Arr::sort($pair);
+                int $low = Core\Math::min($a, $b);
+                int $high = Core\Math::max($a, $b);
+                if ($sorted["0"] == $low) { $agreed = $agreed + 1; }
+                if ($sorted["1"] == $high) { $agreed = $agreed + 1; }
+                if (Core\Arr::sort($flipped)["0"] == $low) { $agreed = $agreed + 1; }
+                if (Core\Arr::min($pair) == $low) { $agreed = $agreed + 1; }
+                if (Core\Arr::max($pair) == $high) { $agreed = $agreed + 1; }
+                if (Core\Math::min($b, $a) == $low) { $agreed = $agreed + 1; }
+                if (Core\Math::max($b, $a) == $high) { $agreed = $agreed + 1; }
+                if (Core\Math::clamp($a, $low, $high) == $a) { $agreed = $agreed + 1; }
+                if (Core\Math::clamp($high, $low, $low) == $low) { $agreed = $agreed + 1; }
+                if (Core\Math::clamp($low, $high, $high) == $high) { $agreed = $agreed + 1; }
+                var $heap = new Core\Heap<int>();
+                $heap->push($a);
+                $heap->push($b);
+                if ($heap->peek() == $low) { $agreed = $agreed + 1; }
+                var $reversed = new Core\Heap<int>();
+                $reversed->push($b);
+                $reversed->push($a);
+                if ($reversed->peek() == $low) { $agreed = $agreed + 1; }
+                $j = $j + 1;
+            }
+            $i = $i + 1;
+        }
+        return $agreed;
+    }
+
+    // The whole table at once: a heap drained by `pop` is `Core\Arr::sort`'s
+    // sequence entry for entry, and `Core\Arr::min`/`max` name its two ends.
+    // A pair only ever asks about one comparison; this asks whether the same
+    // order survives being applied n log n times.
+    public static function wholeTableOfStrings(array<string> $rows): int {
+        int $agreed = 0;
+        int $n = Core\Arr::count($rows) as int;
+        array<string> $sorted = Core\Arr::sort($rows);
+        var $heap = new Core\Heap<string>();
+        foreach ($rows as string $row) {
+            $heap->push($row);
+        }
+        int $k = 0;
+        for (; $k < $n; ) {
+            if ($heap->pop() == $sorted[$k as string]) { $agreed = $agreed + 1; }
+            $k = $k + 1;
+        }
+        if (Core\Arr::min($rows) == $sorted["0"]) { $agreed = $agreed + 1; }
+        if (Core\Arr::max($rows) == $sorted[($n - 1) as string]) { $agreed = $agreed + 1; }
+        return $agreed;
+    }
+
+    public static function wholeTableOfInts(array<int> $rows): int {
+        int $agreed = 0;
+        int $n = Core\Arr::count($rows) as int;
+        array<int> $sorted = Core\Arr::sort($rows);
+        var $heap = new Core\Heap<int>();
+        foreach ($rows as int $row) {
+            $heap->push($row);
+        }
+        int $k = 0;
+        for (; $k < $n; ) {
+            if ($heap->pop() == $sorted[$k as string]) { $agreed = $agreed + 1; }
+            $k = $k + 1;
+        }
+        if (Core\Arr::min($rows) == $sorted["0"]) { $agreed = $agreed + 1; }
+        if (Core\Arr::max($rows) == $sorted[($n - 1) as string]) { $agreed = $agreed + 1; }
+        return $agreed;
+    }
+}
+
+// Bytewise, so an upper-case letter sorts before every lower-case one and the
+// empty string sorts before everything; "apple" twice is the tie.
+array<string> $words = ["apple", "Apple", "banana", "", "b", "apple"];
+// Negative, zero and positive, with -1 twice for the same tie.
+array<int> $numbers = [3, -1, 0, 7, -1, 42];
+
+int $wordsN = Core\Arr::count($words) as int;
+int $numbersN = Core\Arr::count($numbers) as int;
+
+echo "strings: ", Agree::overStrings($words), " of ", $wordsN * $wordsN * 12,
+     " pairwise, ", Agree::wholeTableOfStrings($words), " of ", $wordsN + 2, " over the table\n";
+echo "integers: ", Agree::overInts($numbers), " of ", $numbersN * $numbersN * 12,
+     " pairwise, ", Agree::wholeTableOfInts($numbers), " of ", $numbersN + 2, " over the table\n";
+
+// The order the two tables agreed on, written out once so the case pins what
+// "smallest" means and not only that seven members say the same thing.
+echo "sorted: [", Core\Str::join(Core\Arr::sort($words), "|"), "]\n";
+echo "sorted: [", Core\Str::join(Core\Arr::map(Core\Arr::sort($numbers), fn (int $n) => $n as string), "|"), "]\n";
+--EXPECT--
+strings: 432 of 432 pairwise, 8 of 8 over the table
+integers: 432 of 432 pairwise, 8 of 8 over the table
+sorted: [|Apple|apple|apple|b|banana]
+sorted: [-1|-1|0|3|7|42]
