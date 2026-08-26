@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 486 of 600 and differential 136 of 150. **Nothing below them
+> Stage 4's two counts**, conformance 486 of 600 and differential 141 of 150. **Nothing below them
 > is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -70,7 +70,7 @@
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
 > `run`), `tests/conformance` × 486 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 136, `fuzz/`, `tools/`, `benches/abi-probe`.
+> and `reject`) and `tests/differential` × 141, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -113,7 +113,7 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Stage 4's two counts are the frontier: conformance is 486 of the 600 the gate
-> requires and differential is 139 of 150.** Both named guards
+> requires and differential is 141 of 150.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
@@ -202,33 +202,51 @@
 > holds that identity too**, which the `replaceRange` doc comment used to deny and no longer does.
 > **A frozen `--EXPECT--` must never render a decomposed cluster**: `e`+U+0301 and U+00E9 are
 > indistinguishable in an editor and are different strings, so a divergence case echoes
-> `Core\Encoding::toHex($s as bytes)` for those cells instead. **Unbuilt in the library**, none of
-> it a registration gap: `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a
-> scalar-fielded class only — no enum, `decimal`, `Instant`, `array` or nested-class field, and no
-> optional key from a parameter default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier
-> classification, missing from every `mwl-stdlib` member row, which is why `Core\Str::format`'s
-> template is not yet the sink that ADR makes it, why neither the fail-closed default for an
-> unclassified `string`/`bytes` parameter nor the test refusing an unclassified member exists, and
-> why `Core\Hash::hmac`'s `secret bytes $key` is a plain `CoreTy::Bytes` (`mwl_stdlib::hash`'s
-> module doc); and ADR 0086 § 1's substitution table, which is what would make the terminal sink
-> neutralize a control byte and `Cli\Text::plain` a constructor that cannot produce an injected
-> escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, but not catch-up** —
-> ADRs 0091 (the `development`/`production` run mode), 0092 (one diagnostic record rendered three
-> ways by the sink in force), 0093 (`mwl service`), 0097 (the server's scope and its `[server]`
-> block) and 0100 § 3 (a file opening `#!` starts in code mode with no tag — one `mwl-syntax` branch
-> at offset 0, `E0009` reserved in the registry, no parser or runtime change). None invalidates
-> built behaviour or a written fixture; their work is M1, M4, M6, M7, M8 and M10. **Open beside the
-> library** — a property's declared default runs and is type-checked (`E0472`), limited to a literal
-> or `[]`; `do`/`while` is the one M4 control-flow statement that does not lower; a closure cannot
-> be called through the variable holding it and `Class::method(...)` panics `mwl-ir` outright, so a
-> case sweeps a table with `foreach` and reaches a helper through a `public static function`
-> declared in the same file (`mwl-ir` gap 1); a `?bool` cannot be tested for truth at all, so a
-> member answering one has no `yn` rendering; `bool as int` does not lower and `bool as string`
-> renders `false` as nothing at all; an abandoned generator never runs the `finally` it is suspended
-> inside (`mwl-ir` gap 18, a deliberate PHP divergence); ADR 0043's `by`-delegation is off path; and
-> `docs/spec/02-php-migration.md` is 31% classified, reported by `python tools/check-migration.py`.
-> **What has landed is not restated here** — `git log` holds the session-by-session history and each
-> crate's own module doc holds its per-file gaps.
+> `Core\Encoding::toHex($s as bytes)` for those cells instead. **`Core\Str::before`/`::after` and
+> `::compare` are closed, and each parts from a *twin* rather than from a rule.** Both cut members
+> exclude the needle where `strstr` keeps it, so the port of a program that wanted PHP's shape is
+> `$needle . Str::after(...)`, and an absent needle is `null` where `strstr`, `stristr` and
+> `strrchr` all answer `false` — a difference in how "no answer" is spelled, folded to one sentinel
+> on both sides rather than a divergence. **`{last: true}` is `strrchr` only at a one-character
+> needle**: `strrchr` reads the needle's first character and nothing else, so `strrchr("a::b::c",
+> "::")` is `":c"` where the member answers `"c"`, and `strrchr("banana", "an")` answers `"a"` for a
+> needle that never occurs at all; at the empty needle `strrchr` fails outright where `strrpos`
+> answers the subject's length, which is the member's answer too. The honest twin past one character
+> is `strrpos` plus a `substr`, and both halves rejoin through the needle to the subject on every
+> cell where it occurs — counted, on both sides, under each occurrence rule. **`stristr` has no
+> twin**, because the pair's one option is `{last}`; the port is `Core\Str::indexOf($s, $n,
+> {caseInsensitive: true})` plus a `slice`, needle-inclusive. **`compare` folds four twins into two
+> independent options and the fold is exact over ASCII** — all 144 ordered pairs of a table, in all
+> four corners — but only after a *sign* normalization, because PHP's four disagree with each other
+> on magnitude: 8.2 narrowed `strcmp`, `strnatcmp`/`strnatcasecmp` were always -1/0/1, and
+> `strcasecmp` on 8.5.9 still returns the byte difference, in 84 of those 144 cells. `compare` is
+> always one of three literals, and it is the only ordering two strings have at all, since `<` over
+> two `string`s does not lower. **Unbuilt in the library**, none of it a registration gap:
+> `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a scalar-fielded class only — no
+> enum, `decimal`, `Instant`, `array` or nested-class field, and no optional key from a parameter
+> default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing from every
+> `mwl-stdlib` member row, which is why `Core\Str::format`'s template is not yet the sink that ADR
+> makes it, why neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
+> the test refusing an unclassified member exists, and why `Core\Hash::hmac`'s `secret bytes $key`
+> is a plain `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's substitution
+> table, which is what would make the terminal sink neutralize a control byte and `Cli\Text::plain`
+> a constructor that cannot produce an injected escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1).
+> **Decided and unbuilt, but not catch-up** — ADRs 0091 (the `development`/`production` run mode),
+> 0092 (one diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`), 0097
+> (the server's scope and its `[server]` block) and 0100 § 3 (a file opening `#!` starts in code
+> mode with no tag — one `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no
+> parser or runtime change). None invalidates built behaviour or a written fixture; their work is
+> M1, M4, M6, M7, M8 and M10. **Open beside the library** — a property's declared default runs and
+> is type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow
+> statement that does not lower; a closure cannot be called through the variable holding it and
+> `Class::method(...)` panics `mwl-ir` outright, so a case sweeps a table with `foreach` and reaches
+> a helper through a `public static function` declared in the same file (`mwl-ir` gap 1); a `?bool`
+> cannot be tested for truth at all, so a member answering one has no `yn` rendering; `bool as int`
+> does not lower and `bool as string` renders `false` as nothing at all; an abandoned generator
+> never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a deliberate PHP divergence);
+> ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31% classified,
+> reported by `python tools/check-migration.py`. **What has landed is not restated here** — `git
+> log` holds the session-by-session history and each crate's own module doc holds its per-file gaps.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
@@ -239,7 +257,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: conformance stands at 486 of 600 and differential at 139 of 150, and the remainder is
+> decision: conformance stands at 486 of 600 and differential at 141 of 150, and the remainder is
 > written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

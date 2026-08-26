@@ -755,6 +755,16 @@ is why" — is this file.
   notice is visible there and invisible in the `.mwlt` diff, which reports only that the two outputs
   differ.
 - **A frozen `--EXPECT--` cannot hold a decomposed grapheme cluster, and nothing warns you.** `"cafe\u{0301}"` sliced at its last cluster renders as `é` — byte-identical in a terminal to the precomposed `é` a keyboard types into the expectation block, and a different string. The case reads as passing-looking and fails with an "expected"/"actual" pair whose two halves are visually the same, which is a long minute to diagnose. Echo `Core\Encoding::toHex($s as bytes)` for any cell whose content is not plainly ASCII; the hex is also the thing a reader of a grapheme-versus-byte case wants to see. The neighbouring rule about a trailing space before a `\n` is the same class of trap.
+- **A `?string` does not narrow into a `string` return position, and the fix is `as` rather than a
+  different `if`.** A case rendering a nullable through a helper writes the obvious
+  `if ($v == null) { return "<none>"; } return $v;` and gets `E0403: this method declares `string` but
+  returns `string|null`` — and inverting the test to `if ($v != null) { return $v; }` reports the same
+  thing one line up, so the second attempt looks like the narrowing is simply absent. It is not: the
+  spelling that checks is `return $v as string;` after the null test, which is what
+  `str-last-index-of-matches-strrpos` already does for a `?uint` through `$found as string`. The same
+  `as` re-supplies the type inside an expression too — `Core\Str::join([$head as string, $tail as
+  string], $cut)` and `Core\Str::slice($s, ($at as uint) as int)` both check, so a nullable answer can
+  be fed straight into the next member without a local.
 
 ## Splitting a file that got too big
 
