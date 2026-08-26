@@ -326,6 +326,17 @@ is why" — is this file.
   **table in the owning ADR** plus a rule that amending ADRs say "joins the list" and state no
   number — 0071 § 1 is now that table, and it names `mwl_types::derive::ATTRIBUTES` as the registry
   it must agree with.
+- **A registry-reading tool can be blind to most of the registry and say so in a confident total.**
+  `gaps.py`'s `CLASS_RE` matched only the inline spelling `CoreClass { name: r"Core\Arr"`, and the
+  majority of the tree names its class through a file-level const instead (`name: NAME`, with
+  `pub(crate) const NAME: &str = r"Core\Csv";` above it). So the tool saw **7 of 27 classes and 164 of
+  318 members**, and every list it printed was silently that short — `--differential` reported the
+  oracle gap **closed** when 9 members of `Core\Time` and `Core\Encoding` had never been looked at, and
+  that empty list was copied into the plan and the handoff as a met gate. Nothing was wrong with the
+  count it printed; it was a true count of what it could see. When a tool reads Rust with a regex,
+  check what it found against the thing it is reading — `registry()` against `grep -c CoreClass` — before
+  believing a total, and give an unresolvable name an empty owner rather than letting its members fall
+  to the class above it.
 
 ## Running things
 

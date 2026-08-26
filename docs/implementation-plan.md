@@ -112,68 +112,30 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 4's differential gate is met — 159 against the 150 it requires, and `python
-> tools/gaps.py --differential` is now empty — so conformance is the only frontier left, at 538 of
-> the 600.** Both named guards (`every_part_one_member_has_a_conformance_case`,
-> `every_part_one_spec_member_is_registered`) pass, so the gap is behavioural *depth* per member
-> rather than an unregistered or uncovered one, and every section has now had its pass — a new case
-> therefore reaches for one of the four shapes in conventions.md rather than for a section, and
-> lands its claim as its own file, because the gate counts files (playbook, *Writing a test case*).
-> **`python tools/gaps.py` is the worklist and no session should re-derive it**: `--differential`
-> names every member whose spec **Replaces** column gives it a PHP twin and which no oracle case
-> calls — none left at all, `Core\Arr::flattenDeep` having been the last, with `Core\Arr`,
-> `Core\Path`, `Core\Math` and `Core\Json` all clear of them, and the match is textual enough that a
-> *twin* called in some other case's oracle drops a member that has no case of its own, which is how
-> `Core\Json::decode` left the list one slice early (playbook, *Tooling*) — and a named twin is only
-> usable where the host's `php` can run it, so `Core\Math::gcd`/`lcm` took a hand-written second
-> implementation in PHP instead of the absent `gmp`, which `gaps.py` counts as closed because it
-> looks for the *member*'s call rather than the twin's — and `--errors` every `Fault::` site in
-> `mwl-stdlib` whose message no case asserts, 58 of them — of which **57 are `Fault::fatal`,
-> unreachable by any handler and so by any case, and the one `thrown` left is unreachable from
-> source as well**, so the list holds nothing a case can take. A site leaves the list when the
-> literal run of its message *before the first format hole* appears anywhere in either suite, so a
-> case echoing `Core\Time\DateTime::format():` also silences every message spelled
-> `Core\Time\DateTime::{member}` — which is how closing seven sites once took twelve rows off the
-> list at once. Three sites are hidden that way today and none is owed a case: `time.rs:1968`'s
-> unknown zone, where `datetime_built` re-derives every stored zone id from the resolved zone so no
-> program can reach it and the invariant is what a case asserts in its place, and `json.rs:767` and
-> `json.rs:869`, both `fatal` and both hidden by the `Core\Json::decodeAs(): ` stem the codec case
-> asserts. The list is a worklist rather than a ledger, and the playbook's *Tooling* section owns
-> what to do when the drop is larger than the number of sites a session asserted. Over `Core\Arr`
-> the twin's key rule decides which kind of case it is: PHP renumbers a result's integer keys and
-> keeps its string ones, ADR 0069 § 3 refuses that, so a member matches its twin over a *list* and
-> diverges over a map, and both shapes exist now for the window, the ends, the padding pair and
-> `reverse`. **Unbuilt in the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s
-> decoder, which ADR 0071 leaves reading a scalar-fielded class only — no enum, `decimal`,
-> `Instant`, `array` or nested-class field, and no optional key from a parameter default
-> (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing from every `mwl-stdlib`
-> member row, which is why `Core\Str::format`'s template is not yet the sink that ADR makes it, why
-> neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
-> refusing an unclassified member exists, and why `Core\Hash::hmac`'s `secret bytes $key` is a plain
-> `CoreTy::Bytes` (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's substitution table, which is
-> what would make the terminal sink neutralize a control byte and `Cli\Text::plain` a constructor
-> that cannot produce an injected escape (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
-> unbuilt, but not catch-up** — ADRs 0091 (the `development`/`production` run mode), 0092 (one
-> diagnostic record rendered three ways by the sink in force), 0093 (`mwl service`), 0097 (the
-> server's scope and its `[server]` block) and 0100 § 3 (a file opening `#!` starts in code mode
-> with no tag — one `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no parser or
-> runtime change). None invalidates built behaviour or a written fixture; their work is M1, M4, M6,
-> M7, M8 and M10. **Open beside the library** — a property's declared default runs and is
-> type-checked (`E0472`), limited to a literal or `[]`; `do`/`while` is the one M4 control-flow
-> statement that does not lower; a closure cannot be called through the variable holding it and
-> `Class::method(...)` panics `mwl-ir` outright, so a case sweeps a table with `foreach` and reaches
-> a helper through a `public static function` declared in the same file (`mwl-ir` gap 1); a `?bool`
-> cannot be tested for truth at all, so a member answering one has no `yn` rendering; `bool as int`
-> does not lower and `bool as string` renders `false` as nothing at all; an abandoned generator
-> never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a deliberate PHP divergence);
-> ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31% classified,
-> reported by `python tools/check-migration.py`. **What has landed is not restated here** — `git
-> log` holds the session-by-session history, each crate's own module doc holds its per-file gaps,
-> and what a session *found* when it pinned a member against its PHP twin is a bullet under
-> `docs/agent/playbook.md` § *Divergences and refusals already pinned*. That section is 62 bullets
-> and no session is shipped it: `python tools/playbook.py --match <the group's paths> --min 1` names
-> the ones a file set implies, and a goal that needs them names those selectors in `[context]
-> playbook`. This field carried them until it was 44 KB and 48% of every orientation pack.
+> **Open now:** **Conformance is the only frontier left, at 538 of the 600**, and Stage 4's
+> differential gate is met at 159 against the 150 it requires. Both named guards
+> (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
+> so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and a
+> new case reaches for one of conventions.md's four shapes and lands its claim as its own file,
+> because the gate counts files. **`python tools/gaps.py` is the worklist and no session re-derives
+> it**: `--coverage` ranks every class by cases per member, `--differential` names the members whose
+> spec **Replaces** column gives them a PHP twin that no oracle case calls (9, all `Core\Time` and
+> `Core\Encoding`), and `--errors` the `Fault::` sites no case asserts (58, of which 57 are `fatal`
+> and unreachable by any handler, so by any case). **Unbuilt in the library**, none of it a
+> registration gap: `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a
+> scalar-fielded class only (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing
+> from every `mwl-stdlib` member row (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's
+> substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, but not
+> catch-up** — ADRs 0091, 0092, 0093, 0097 and 0100 § 3; none invalidates built behaviour or a
+> written fixture, and their work is M1, M4, M6, M7, M8 and M10. **Open beside the library** — a
+> property's declared default (`E0472`), `do`/`while`, a closure called through the variable holding
+> it, `?bool` tested for truth, `bool as int` and `bool as string`, an abandoned generator's
+> `finally` and ADR 0043's `by`-delegation (`mwl-ir` gaps 1 and 18); and
+> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`). **What has
+> landed is not restated here** — `git log` holds the session history, each crate's module doc its
+> per-file gaps, and what a session *found* pinning a member against its PHP twin is a bullet under
+> playbook § *Divergences and refusals already pinned*, selected into a goal with `python
+> tools/playbook.py --match <the group's paths>`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the

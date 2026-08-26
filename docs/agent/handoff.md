@@ -2,52 +2,42 @@
 
 ## State
 
-**Conformance is at 538 of 600, and it is the only frontier left.** The differential gate is met at
-**159** of the 150 it requires and `python tools/gaps.py --differential` is empty. Verify is green
-(1597 cargo tests, 74 suites, clippy and fmt clean) and runs both `.mwlt` trees itself, so after a
-green `verify.py` there is nothing else to run (playbook, *Running things*). The tree is clean.
+**Conformance is at 538 of 600, and it is the only frontier left.** Verify is green (1597 cargo tests,
+74 suites, 538 conformance, 159 differential, clippy and fmt clean) and runs both `.mwlt` trees itself,
+so after a green `verify.py` there is nothing else to run (playbook, *Running things*).
 
-**`Core\Math` is closed but for one pair, and `Core\Path` is the next thinnest area.** The three
-slices below are unchanged from the previous session and none of them has been taken — the two that
-landed since (`math-the-hyperbolic-members-are-their-exponential-definitions`,
-`math-the-inverse-circular-members-undo-the-circular-ones-only-on-their-own-branch`) were the ones
-above them in that list.
+**The differential gate is met at 159, but `gaps.py --differential` is NOT empty — it is 9**, and the
+claim that it was empty is withdrawn from the plan and from here. This session fixed `gaps.py`'s
+`CLASS_RE`, which matched only a class naming itself inline and so read **7 of the tree's 27 classes**;
+the 9 are `Core\Time::now`/`monotonic`/`sleep`/`fromIso`/`parse`/`at` and
+`Core\Encoding::encodeText`/`decodeText`/`isValidText`. They are candidates, not work: `now`, `sleep`
+and `monotonic` have no oracle a case could freeze, which is exactly the judgement gaps.py says is the
+session's job. The gate itself is unaffected — it counts cases, and 159 still clears 150.
 
-**This session added no code. It settled the routing surface end to end and landed
-[ADR 0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md),
-which repairs three defects that were already in the tree.** In order of how much they cost if
-missed: `#[Access]` was a compiler-recognized attribute that ADR 0096 never added to ADR 0071 § 1's
-closed list, so as written a userland `type Access = {...};` satisfied the mandatory-sibling check
-and the compile error passed on a decision nobody made; ADR 0096 § 4 and ADR 0097 § 7 flatly
-contradicted each other about whether the server holds the route table, which is what ADR 0096's
-CSRF check and ADR 0076 § 1's `route` label are both specified against; and ADR 0085 § 1 documented
-a query-parameter binding no ADR had ever defined. 0102 § 1 resolves the second by making the server
-match **once**, before the handler, with `Core\Request::route()` as that match — measured at
-**32.7 ns** against the **135.9 ns** the server already spends parsing the request line and ten
-headers, so it *removes* a match for any request that also runs CSRF or emits the `route` label
-rather than adding one. The bench that produced those numbers is not in the tree; it was a
-throwaway over `matchit` 0.8.6, the crate ADR 0077 § 2 names as its trie model, and the numbers are
-recorded in 0102 § 1 as an upper bound because `matchit` returns captures through a map where a
-compiled table writes fixed shape slots.
+**This session added no library code. It cut the loop's fixed cost, measured off
+`.loop/logs/20260826-205949-*`.** That run's sessions were 38 tool calls and 8.4 minutes each against
+98 and ~20 before the previous pass, so the earlier work held; what was left was rediscovery. Five
+changes, each removing a call the tail or head was spending on something the tree already knew:
+`session.py --wrap` now commits the docs it writes (**9 of 19 sessions** closed with a hand-rolled
+`git add docs/agent/handoff.md docs/agent/playbook.md docs/implementation-plan.md && git commit` after
+the wrap had already written all three); `--template` hands back every stale count as an applicable
+`## plan-edit:` and prints the playbook's headings (13 `grep -n "^## " playbook.md` and 12
+`grep -n "<count>" implementation-plan.md` calls between them); `gaps.py --coverage` ranks classes by
+cases per member, which is the `ls tests/` plus `grep -n 'name: "'` pair sessions ran ~10 times;
+`orient.py`'s closing block drops the `--dry-run` step and states the debug CLI is already built, and
+`loop.py` builds it before session 1 so that is true from the first one. Expected saving ~7 of 38 calls.
 
-**Nothing routing-related is built** — `grep -rn "Router" crates/ --include=*.rs` is empty, and M4S
-owns the table pass with M7 the matcher. The one already-built thing 0102 touches is
-`crates/mwl-types/src/derive.rs:72`'s `ATTRIBUTES` const, which gains `Core\Route`, `Core\Access` and
-`Core\Query` when M4S opens; it is already the right shape and needs no restructure. **ADR 0071 § 1
-is now the one home for that roster**, as a table naming the registry it must agree with, and the
-running count every amending ADR used to restate is deleted. **ADR 0077's claim that routing is a
-forcing case for typed `callable` is withdrawn** (0102 § 9): routes do not share a signature,
-handlers share no return type, and § 4's *boundary* ground survives the deferral either way — so the
-count is back to three, and a future ADR re-arguing it must not cite routing.
+**`loop-stats.py` was measuring batching wrongly.** It reported "NOTHING WAS EVER BATCHED" off
+calls-per-message, while 42% of shell calls chained 3.3 commands each — 1.91 commands per shell call
+over that run. It now reports both, so a goal author is not sent after a saving already taken.
 
 ## Next group
 
-The first slice closes `Core\Math` and reads `crates/mwl-stdlib/src/math.rs`; the other two are
-`Core\Path` and both read `crates/mwl-stdlib/src/path.rs`. All three add a new file under
-`tests/conformance/core/` and all three are the *agreement* shape from conventions.md.
-`docs/spec/01-core-library.md` §§ 3 and 7 own the rules. The tolerance spelling, the well-conditioned
-direction and the exact-on-both-legs rows are all playbook bullets under *Writing a test case* — do
-not re-derive any of them.
+Unchanged and untaken — the conformance slices below are the same three the previous session left, and
+`Core\Math` is closed but for the first of them. All three add a new file under `tests/conformance/core/`
+and all three are the *agreement* shape from conventions.md. `docs/spec/01-core-library.md` §§ 3 and 7
+own the rules. The tolerance spelling, the well-conditioned direction and the exact-on-both-legs rows are
+playbook bullets under *Writing a test case* — do not re-derive any of them.
 
 - [ ] **`format` and `round` agree wherever both name the same precision** — `Core\Math::format($n,
       {decimals: $d})` renders what `Core\Math::round($n, {precision: $d})` answers, on every row of
@@ -69,14 +59,21 @@ not re-derive any of them.
 
 ## Backlog
 
+- The 9 oracle gaps `gaps.py --differential` now names. `Core\Encoding::encodeText`/`decodeText`/
+  `isValidText` against `mb_convert_encoding` and `Core\Time::fromIso`/`parse`/`at` look takeable;
+  `now`/`monotonic`/`sleep` want `--ORACLE-DIVERGES--` and a reason, or nothing.
+- `Core\Time\Instant` is 9 members over 0 cases naming it and `Core\Time\DateTime` 17 over 1 —
+  the two thinnest classes on `python tools/gaps.py --coverage`, well below `Core\Path`.
 - `basename`/`dirname`/`extension`/`withExtension` agree on where the name ends — read
   `path-decomposes-a-path-without-touching-the-disk.mwlt` first; it may already own the claim.
-- `Core\Csv` is 2 members over 5 cases and `Core\Validate` 5 cases — the two thinnest areas after
-  `Core\Path`; `python tools/gaps.py` is the worklist (`docs/implementation-plan.md`, *Open now*).
+- The measured slice cap is now **4** where AGENTS.md § *Session workflow* step 2 says 2; sessions
+  end at 114k mean against the 200k ceiling. Raising it is the largest remaining clock lever and the
+  only one that can degrade a session, so it is the user's call, one step at a time, re-measured with
+  `python tools/loop-stats.py` after each run.
 - `Core\Json::decodeAs<T>`'s decoder reads scalar-fielded classes only — ADR 0071,
   `mwl_stdlib::json` gap 2.
 - ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row —
   `mwl_stdlib::hash`'s module doc.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
 - `docs/adr/0097-development-server-and-proxied-origin.md:47` links `../plan/m13.md`, which that ADR
-  itself deleted. Pre-existing and unrelated to routing; the link should go, not the sentence.
+  itself deleted. Pre-existing; the link should go, not the sentence.

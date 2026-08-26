@@ -126,11 +126,18 @@ run; a wider one does satisfy a narrower.
 ## Finishing a session: steps 4 and 5 in one call
 
 ```sh
-python tools/session.py --check                      # what steps 4-5 still owe, off the tree
+python tools/session.py --template                   # the format, with this tree's answers in it
 <Write one wrap file>                                # the whole tail as data
 python tools/session.py --wrap .agent-tmp/wrap.md    # apply it, or refuse and change nothing
+python tools/session.py --check                      # what steps 4-5 still owe, off the tree
 python tools/session.py --wrap .agent-tmp/wrap.md --dry-run   # say what it would do
 ```
+
+The first three are the tail. `--template` is the call to make: it carries every count the tree has moved
+past as a ready-to-apply `## plan-edit:`, the playbook's `## ` headings, and a `## commit:` naming the docs
+the wrap writes — the three things sessions were re-deriving with a `grep` each, measured at about 25 calls
+over one 19-session run. `--check` and `--dry-run` are the interactive pair, not tail steps: `--wrap`
+validates everything before writing a byte, so a dry run buys the same refusal one call earlier.
 
 The wrap file is markdown whose `## ` headings are instructions: `## plan: <Field>` rewrites one status
 field, `## playbook: <Heading>` appends a bullet, `## handoff` replaces the handoff, `## commit: <paths>`
@@ -142,6 +149,14 @@ anything is staged, and **nothing is applied unless every section validates**: a
 commit subject that is not `type(scope): subject`, a handoff missing `## Next group` or its `file.rs:NN`
 anchors, a status line that does not start `CONTINUE`/`DONE`/`BLOCKED`, all refuse the whole file and
 write nothing. A half-finished tail is the one failure mode worth designing out.
+
+That order is also why **one wrap writes the docs and commits them**: the handoff, the playbook and the plan
+are on disk before the first commit is staged, so a `## commit:` may name them in the same file that writes
+them. A wrap that writes a doc and has no `## commit:` at all is refused; one whose commits simply do not
+name a path it wrote appends that path to the last commit and reports it. Neither is a nicety — measured
+over one 19-session run, **9 sessions closed with a hand-rolled `git add docs/agent/handoff.md
+docs/agent/playbook.md docs/implementation-plan.md && git commit`** after this tool had already written all
+three, which is about two and a half calls each of exactly the hand-rolled git the wrap exists to remove.
 
 Why it exists: measured over a run, the tail of a session — first `verify.py` to last commit — was **33 of
 98 tool calls**, and since context peaks by then those turns carried **42% of the session's whole token

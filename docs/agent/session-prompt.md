@@ -45,13 +45,17 @@ added; that file is authoritative for steps 1–5.
    - `BLOCKED <the decision only the user can make>` — a real tradeoff. Use this sparingly: prefer the safe
      option and note it in the handoff. Reserve `BLOCKED` for a decision expensive to reverse.
 
-**Steps 4 to 6 are two calls, not thirty.** Write one wrap file — a `## plan: <Field>` per field you are
-changing, `## playbook: <Heading>` for a trap, `## handoff` for the whole handoff, a `## commit: <paths>`
-per slice, and `## status` — then `python tools/session.py --wrap <file>`. It validates every section
-before writing anything, so it either does the whole tail or does none of it and tells you why.
-`python tools/session.py --check` first, to see what the tree says is still owed; `--help` is the format.
-Measured before it existed, this tail was **33 of a session's 98 calls and 42% of its token bill**,
-because context is at its peak by the time you reach it.
+**Steps 4 to 6 are two calls, not thirty.** `python tools/session.py --template` prints the wrap file's
+format already carrying what the tail used to re-derive by hand — every count the tree has moved past as an
+applicable `## plan-edit:`, the playbook's headings, and the `## commit:` for the docs the wrap writes. Fill
+it in — `## playbook: <Heading>` for a trap, `## handoff` for the whole handoff, a `## commit: <paths>` per
+slice, `## status` — and apply it with `python tools/session.py --wrap <file>`. It validates every section
+before writing anything, so it either does the whole tail or does none of it and tells you why; a dry run
+buys only the same refusal a call earlier. **One wrap writes the docs and commits them** — they are on disk
+before any commit is staged, and anything it wrote that no `## commit:` names joins the last one, so there
+is never a second call or a hand-rolled `git add` for the docs. Measured before the tool existed, this tail
+was **33 of a session's 98 calls and 42% of its token bill**, because context is at its peak by the time you
+reach it.
 
 **After step 6 the session is over.** Do not re-run the verification, do not re-read the orientation, do
 not re-check any doc against a length. Prose cannot break a build, so a second verification pass can only
