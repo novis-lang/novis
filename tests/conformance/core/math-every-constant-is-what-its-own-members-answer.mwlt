@@ -1,0 +1,195 @@
+--TEST--
+Every Core\Math constant is what the class's own members answer at a landmark, spec § 3 and ADR 0011 § 1
+--FILE--
+<?mwl
+// The *agreement* shape (conventions.md): every constant is asked of the
+// members that share its rule, so a constant that drifted from the library it
+// belongs to fails here while still printing a plausible number on its own.
+// `math-constants-are-class-constants.mwlt` is the thin case that only pins
+// each one as a class constant; this is where each is pinned to a member.
+//
+// Every float row below is a landmark whose answer is exactly representable —
+// a domain endpoint, a halving, or an IEEE 754 tie — so both legs' libm must
+// agree on it (playbook, *Writing a test case*). Measured on MSVC and glibc
+// alike before being written down.
+int $confirmed = 0;
+
+// PI is the one constant four members answer independently: `acos` at both
+// ends of its own domain, `asin` at the top of its, and `atan` at its own
+// quarter turn. A half of PI is exact, so PI / 2.0 and PI / 4.0 are the
+// landmarks and not approximations of them.
+bool $piFromAcos = Core\Math::acos(-1.0) == Core\Math::PI;
+bool $piFromAsin = Core\Math::asin(1.0) == Core\Math::PI / 2.0;
+bool $piFromAtan = Core\Math::atan(1.0) == Core\Math::PI / 4.0;
+bool $piFromAcosZero = Core\Math::acos(0.0) == Core\Math::PI / 2.0;
+bool $piFromCos = Core\Math::cos(Core\Math::PI) == -1.0;
+echo "PI: acos(-1)=", $piFromAcos ? "y" : "n",
+     " asin(1)=", $piFromAsin ? "y" : "n",
+     " atan(1)=", $piFromAtan ? "y" : "n",
+     " acos(0)=", $piFromAcosZero ? "y" : "n",
+     " cos(PI)=", $piFromCos ? "y" : "n", "\n";
+if ($piFromAcos && $piFromAsin && $piFromAtan && $piFromAcosZero && $piFromCos) {
+    $confirmed = $confirmed + 1;
+}
+
+// TAU is PI doubled, and doubling a float is exact, so the two constants agree
+// on the nose in all three directions rather than nearly.
+bool $tauIsSum = Core\Math::TAU == Core\Math::PI + Core\Math::PI;
+bool $tauHalves = Core\Math::TAU / 2.0 == Core\Math::PI;
+bool $tauMinus = Core\Math::TAU - Core\Math::PI == Core\Math::PI;
+echo "TAU: PI+PI=", $tauIsSum ? "y" : "n",
+     " TAU/2=", $tauHalves ? "y" : "n",
+     " TAU-PI=", $tauMinus ? "y" : "n", "\n";
+if ($tauIsSum && $tauHalves && $tauMinus) {
+    $confirmed = $confirmed + 1;
+}
+
+// E is `exp` at one, and `log`'s default base is E, so the logarithm at the
+// constant is the exponent that produced it. Both directions are exact here:
+// the double nearest e is under half an ulp of 1.0 away from its own
+// logarithm, so a correctly rounded `log` lands on 1.0 and not beside it.
+bool $eFromExp = Core\Math::exp(1.0) == Core\Math::E;
+bool $eFromLog = Core\Math::log(Core\Math::E) == 1.0;
+echo "E: exp(1)=", $eFromExp ? "y" : "n",
+     " log(E)=", $eFromLog ? "y" : "n", "\n";
+if ($eFromExp && $eFromLog) {
+    $confirmed = $confirmed + 1;
+}
+
+// EPSILON is a *bound asserted on both sides*: it is the smallest float that
+// still moves 1.0, and half of it does not. The lower half is not an
+// approximation either — 1.0 + EPSILON / 2.0 is an exact tie, and IEEE 754
+// rounds it to the even neighbour, which is 1.0 itself.
+bool $epsMoves = 1.0 + Core\Math::EPSILON != 1.0;
+bool $halfDoesNot = 1.0 + Core\Math::EPSILON / 2.0 == 1.0;
+bool $epsSurvives = (1.0 + Core\Math::EPSILON) - 1.0 == Core\Math::EPSILON;
+echo "EPSILON: 1+eps moves=", $epsMoves ? "y" : "n",
+     " 1+eps/2 does not=", $halfDoesNot ? "y" : "n",
+     " round trip=", $epsSurvives ? "y" : "n", "\n";
+if ($epsMoves && $halfDoesNot && $epsSurvives) {
+    $confirmed = $confirmed + 1;
+}
+
+// FLOAT_MIN is the smallest positive *normal*, which is what makes EPSILON
+// its relative step: a value one step below it is subnormal and has already
+// lost that precision. Both sides of the same boundary, and the pair is why
+// FLOAT_MIN is PHP's `PHP_FLOAT_MIN` rather than the smallest positive float
+// (math.rs's own doc comment on the roster).
+float $subnormal = Core\Math::FLOAT_MIN / 2.0;
+bool $normalKeepsStep = Core\Math::FLOAT_MIN + Core\Math::FLOAT_MIN * Core\Math::EPSILON != Core\Math::FLOAT_MIN;
+bool $subnormalLostIt = $subnormal + $subnormal * Core\Math::EPSILON == $subnormal;
+bool $subnormalIsPositive = $subnormal > 0.0;
+echo "FLOAT_MIN: keeps its step=", $normalKeepsStep ? "y" : "n",
+     " half of it lost it=", $subnormalLostIt ? "y" : "n",
+     " and is still positive=", $subnormalIsPositive ? "y" : "n", "\n";
+if ($normalKeepsStep && $subnormalLostIt && $subnormalIsPositive) {
+    $confirmed = $confirmed + 1;
+}
+
+// FLOAT_MAX and INFINITY are one boundary read from both sides: `isFinite`
+// partitions them, and doubling the larger is exactly where the finite floats
+// stop.
+bool $maxIsFinite = Core\Math::isFinite(Core\Math::FLOAT_MAX);
+bool $doubledIsNot = Core\Math::isFinite(Core\Math::FLOAT_MAX * 2.0) == false;
+echo "FLOAT_MAX: finite=", $maxIsFinite ? "y" : "n",
+     " doubled=", $doubledIsNot ? "not finite" : "finite", "\n";
+if ($maxIsFinite && $doubledIsNot) {
+    $confirmed = $confirmed + 1;
+}
+
+bool $overflowIsInfinity = Core\Math::FLOAT_MAX * 2.0 == Core\Math::INFINITY;
+bool $logAtZero = Core\Math::log(0.0) == 0.0 - Core\Math::INFINITY;
+bool $infinityIsNotFinite = Core\Math::isFinite(Core\Math::INFINITY) == false;
+echo "INFINITY: overflow=", $overflowIsInfinity ? "y" : "n",
+     " log(0)=", $logAtZero ? "y" : "n",
+     " isFinite=", $infinityIsNotFinite ? "n" : "y", "\n";
+if ($overflowIsInfinity && $logAtZero && $infinityIsNotFinite) {
+    $confirmed = $confirmed + 1;
+}
+
+// NAN is the one constant that `==` cannot confirm, because IEEE 754 makes it
+// the only float unequal to itself — which is exactly why `isNan` is a member
+// at all (ADR 0090 § 1 leaves `==` a value comparison and gives it no escape).
+bool $nanIsNan = Core\Math::isNan(Core\Math::NAN);
+bool $nanEqualsItself = Core\Math::NAN == Core\Math::NAN;
+bool $rootOfNegative = Core\Math::isNan(Core\Math::sqrt(-1.0));
+echo "NAN: isNan=", $nanIsNan ? "y" : "n",
+     " == itself=", $nanEqualsItself ? "y" : "n",
+     " sqrt(-1)=", $rootOfNegative ? "y" : "n", "\n";
+if ($nanIsNan && ($nanEqualsItself == false) && $rootOfNegative) {
+    $confirmed = $confirmed + 1;
+}
+
+// INT_MAX and INT_MIN are where the integer members stop, and each is read
+// from both sides: the last argument that answers, then the first that
+// refuses. `intDiv(INT_MIN, -1)` and `gcd(INT_MIN, 0)` both have INT_MAX + 1
+// as their exact answer, and `abs` has the same one.
+bool $gcdReaches = Core\Math::gcd(Core\Math::INT_MAX, 0) == Core\Math::INT_MAX;
+bool $intDivReaches = Core\Math::intDiv(Core\Math::INT_MAX, -1) == Core\Math::INT_MIN + 1;
+bool $absReaches = Core\Math::abs(Core\Math::INT_MIN + 1) == Core\Math::INT_MAX;
+bool $extremesSum = Core\Math::INT_MIN + Core\Math::INT_MAX == -1;
+echo "INT_MAX: gcd=", $gcdReaches ? "y" : "n",
+     " intDiv=", $intDivReaches ? "y" : "n",
+     " abs=", $absReaches ? "y" : "n",
+     " INT_MIN+INT_MAX=", $extremesSum ? "-1" : "other", "\n";
+if ($gcdReaches && $intDivReaches && $absReaches && $extremesSum) {
+    $confirmed = $confirmed + 1;
+}
+
+int $refusals = 0;
+try {
+    echo Core\Math::intDiv(Core\Math::INT_MIN, -1), "\n";
+} catch (Throwable $div) {
+    $refusals = $refusals + 1;
+}
+try {
+    echo Core\Math::gcd(Core\Math::INT_MIN, 0), "\n";
+} catch (Throwable $common) {
+    $refusals = $refusals + 1;
+}
+try {
+    echo Core\Math::abs(Core\Math::INT_MIN), "\n";
+} catch (Throwable $magnitude) {
+    $refusals = $refusals + 1;
+}
+echo "INT_MIN: members with no answer one past it=", $refusals, " of 3\n";
+if ($refusals == 3) {
+    $confirmed = $confirmed + 1;
+}
+
+// UINT_MAX is the bit pattern one wider than the one `fromBase` accepts:
+// INT_MAX is 63 set bits, and the 64 set bits that make UINT_MAX are the
+// first argument the member has no `int` answer for.
+string $ones = Core\Math::toBase(Core\Math::INT_MAX, 2);
+bool $sixtyThree = Core\Str::length($ones) == 63;
+bool $roundTrips = Core\Math::fromBase($ones, 2) == Core\Math::INT_MAX;
+bool $refusedTheWiderOne = false;
+try {
+    echo Core\Math::fromBase($ones . "1", 2), "\n";
+} catch (Throwable $wider) {
+    $refusedTheWiderOne = true;
+}
+echo "UINT_MAX: INT_MAX is 63 bits=", $sixtyThree ? "y" : "n",
+     " round trip=", $roundTrips ? "y" : "n",
+     " 64 bits refused=", $refusedTheWiderOne ? "y" : "n", "\n";
+if ($sixtyThree && $roundTrips && $refusedTheWiderOne) {
+    $confirmed = $confirmed + 1;
+}
+
+// Counted rather than read off the lines above: a constant that no longer
+// agrees with the member that produces it drops the total, whatever its own
+// line printed.
+echo "confirmed by a member: ", $confirmed, " of 11\n";
+--EXPECT--
+PI: acos(-1)=y asin(1)=y atan(1)=y acos(0)=y cos(PI)=y
+TAU: PI+PI=y TAU/2=y TAU-PI=y
+E: exp(1)=y log(E)=y
+EPSILON: 1+eps moves=y 1+eps/2 does not=y round trip=y
+FLOAT_MIN: keeps its step=y half of it lost it=y and is still positive=y
+FLOAT_MAX: finite=y doubled=not finite
+INFINITY: overflow=y log(0)=y isFinite=n
+NAN: isNan=y == itself=n sqrt(-1)=y
+INT_MAX: gcd=y intDiv=y abs=y INT_MIN+INT_MAX=-1
+INT_MIN: members with no answer one past it=3 of 3
+UINT_MAX: INT_MAX is 63 bits=y round trip=y 64 bits refused=y
+confirmed by a member: 11 of 11

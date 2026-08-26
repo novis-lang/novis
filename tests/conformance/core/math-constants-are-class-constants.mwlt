@@ -3,7 +3,9 @@ Core\Math's eleven constants are class constants, inlined wherever a literal goe
 --FILE--
 <?mwl
 // ADR 0011: there is no global constant, so PHP's `M_PI`, `M_E` and
-// `PHP_INT_MAX` are members of the class they belong to.
+// `PHP_INT_MAX` are members of the class they belong to. What each constant's
+// *value* is, asked of the member that produces it, is
+// `math-every-constant-is-what-its-own-members-answer.mwlt`.
 echo Core\Math::PI, "|", Core\Math::TAU, "|", Core\Math::E, "\n";
 echo Core\Math::INT_MAX, "|", Core\Math::INT_MIN, "|", Core\Math::UINT_MAX, "\n";
 
