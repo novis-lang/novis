@@ -120,8 +120,8 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 holds one item, and two thirds of it are landed.** `python tools/bench.py`
-> puts MWL's median at **0.69×** PHP 8.5.9 with its JIT on, and docs/perf/userland-gap.md is the
+> **Open now:** **Stage 0 is done — its last item landed this session.** `python tools/bench.py`
+> puts MWL's median at **0.80×** PHP 8.5.9 with its JIT on, and docs/perf/userland-gap.md is the
 > ledger behind that number — the suite case by case, what one operation costs, and which item moves
 > it. Items **18**, **19**, **20** and **21** are **done**: MWL owns its allocator in every
 > optimized build and the test build's byte counters wrap it, an `int` subscript travels to
@@ -141,20 +141,25 @@
 > string*, and the key rule is `crates/mwl-stdlib/src/arr.rs`'s § *A callback that does not want a
 > key is never handed one*. What item 19 still owes is the append-only `docs/perf/history.ndjson`
 > entry item 15 asked for, which does not exist yet. Item **22** — a `Core\Str` member writes its
-> result once, § E of the ledger — is two of its three slices in. Reading a `string` argument is a
+> result once, § E of the ledger — is **done**, and with it Stage 0. Reading a `string` argument is a
 > **tag check**: the unchecked read sits once behind `mwl_runtime::MwlStr::text_of`,
 > `mwl_runtime::Value::as_text` is the safe caller that discharges it, and a debug build
 > re-validates inside that one reader, so the O(n) `from_utf8` that ran at 56 call sites in `str.rs`
 > is gone. `crate::granularity`'s ASCII fast-path test is one branchless fold where it was an
-> `is_ascii` scan plus a separate search for `\r`, so `Core\Str::length` makes one pass and then
-> `len`. Measured as an A/B against the commit before it: `05-string-replace` **0.72× → 0.91×**,
-> `06-string-split-join` **0.78× → 0.96×**, `07-string-normalize` **0.42× → 0.51×**,
-> `04-string-format`'s own work 92.9 ms → 82.0 ms. The median held at **0.69×** because those four
-> rows crossed *over* it rather than lifting it. Left from here is § E's other half: `produced`
-> allocates twice, and where the result length is known — `replace`, `padStart`/`padEnd`, `join` —
-> the member can write straight into one `MwlStr`; the same helper is in `bytes.rs`, `path.rs` and
-> `regex.rs`. It is not a JIT optimisation and does not belong to M12; it is the pattern every
-> `Core` member written after it would copy. **What has already landed is not restated here** — `git
+> `is_ascii` scan plus a separate search for `\r`. And a member now **writes its result into the
+> allocation it answers from** rather than into a `String` that is copied in afterwards:
+> `mwl_runtime::MwlStr::build` hands it a writer over that allocation, so `repeat`,
+> `padStart`/`padEnd` and `reverse`, whose lengths are exact, allocate exactly once, and `replace`
+> starts the writer at its subject's length and lets it `realloc` on `String`'s own doubling.
+> **`join` is deliberately unchanged**: its length costs a walk of the subject's array slots, which
+> is the expensive half of the member, and all three ways round that measured worse than the
+> `String` it builds. Buying an exact length with a second *read* is a loss too, and was measured as
+> one twice. Both findings are recorded in `crates/mwl-stdlib/src/str.rs`'s § *A result is written
+> once* so they are not tried a third time. Over the item's three slices the string rows went
+> `05-string-replace` 0.72× → **1.05×**, `07-string-normalize` 0.42× → **0.93×** and
+> `06-string-split-join` 0.78× → **0.91×**, and the suite median 0.69× → **0.80×**, this last slice
+> carrying it on its own. The same `produced` helper still sits in
+> `bytes.rs`, `path.rs`, `regex.rs` and `uri.rs`; carrying the pattern there is backlog, not Stage 0. **What has already landed is not restated here** — `git
 > log` holds the session-by-session history and the crate's own module doc holds its per-file gaps,
 > which is this field's contract in AGENTS.md § *Keep each slice small*. What follows is what is
 > **not** built. **Spec §§ 1-12, by section** — § 1 is **whole**, `normalize` having landed with

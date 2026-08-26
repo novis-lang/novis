@@ -31,27 +31,27 @@ is faster. Every row is one full sweep of the *current* build, not a mix of read
 
 | | today | before item A | closed by |
 |---|---|---|---|
-| median ratio | **0.69×** | 0.31× | A, B, C, D |
+| median ratio | **0.80×** | 0.31× | A, B, C, D, E |
+| 04-string-format | 0.20× | 0.07× | I |
 | 14-word-count | 0.20× | 0.13× | F |
-| 04-string-format | 0.21× | 0.07× | E, I |
-| 09-array-assoc-lookup | 0.43× | 0.25× | F |
-| 17-json-encode | 0.43× | 0.21× | E |
-| 13-array-contains | 0.49× | 0.12× | — |
-| 07-string-normalize | 0.50× | 0.17× | E |
-| 12-array-map-filter | 0.51× | 0.18× | — |
-| 15-regex-match | 0.52× | 0.25× | — |
-| 16-regex-replace | 0.57× | 0.44× | E |
+| 09-array-assoc-lookup | 0.41× | 0.25× | F |
+| 17-json-encode | 0.44× | 0.21× | — |
+| 13-array-contains | 0.50× | 0.12× | — |
+| 15-regex-match | 0.51× | 0.25× | — |
+| 12-array-map-filter | 0.52× | 0.18× | — |
+| 16-regex-replace | 0.56× | 0.44× | — |
 | 08-array-list-build | 0.66× | 0.59× | — |
-| 20-method-dispatch | 0.71× | 0.76× | **G** |
-| 05-string-replace | 0.89× | 0.32× | E |
+| 20-method-dispatch | 0.69× | 0.76× | **G** |
+| 06-string-split-join | 0.91× ◇ | 0.31× | — |
+| 07-string-normalize | 0.91× | 0.17× | E |
 | 10-array-sort | 0.94× | 0.68× | J |
-| 06-string-split-join | 0.97× | 0.31× | E |
-| 18-json-decode | 1.10× | 0.53× | — |
-| 03-string-concat | 1.56× † | 0.03× | — |
-| 01-arith-loop | 1.61× | 1.33× | — |
-| 02-fib-recursive | 2.47× | 2.25× | — |
-| 19-object-property | 3.29× | 1.05× | — |
-| 11-array-sort-by-field | 4.61× ‡ | 3.22× | — |
+| 05-string-replace | 1.00× ◇ | 0.32× | E |
+| 18-json-decode | 1.09× | 0.53× | — |
+| 01-arith-loop | 1.50× | 1.33× | — |
+| 03-string-concat | 1.51× † | 0.03× | — |
+| 02-fib-recursive | 2.53× | 2.25× | — |
+| 19-object-property | 3.38× | 1.05× | — |
+| 11-array-sort-by-field | 5.17× ‡ | 3.22× | — |
 
 † `03-string-concat` sits at the suite's noise floor: 3 ms of work behind a 7 ms process start, so
 its *ratio* swings between 1.2× and 1.5× from run to run — mostly on PHP's number — while its own
@@ -62,6 +62,13 @@ figure rather than as a ratio.
 1.5 s is PHP's, so its ratio moves with PHP's variance rather than with MWL's. Two full sweeps on
 the same build an hour apart read 5.21× and 4.61×; MWL's own work figure moved 234 ms to 263 ms
 across them. Read § D's paragraph for what actually changed there.
+
+◇ `05-string-replace` and `06-string-split-join` are the two rows this sweep read low. Both were
+re-run on this build against the commit before it, and the A/B is the number to trust: replace
+measures 1.05× and 1.07× in two focused runs of the same binary, and split-join's *code did not
+change at all* yet its work figure read 87.3 ms on the base build and 93.3 ms here. A release build
+that relinks the whole runtime moves code layout, and these two rows carry about ±6% of it. The
+median above is the honest statistic; a single row's third digit is not.
 
 Three rows moved on item D alone, and they are the last three the array members were holding down:
 `12-array-map-filter` 0.36× → **0.51×**, `10-array-sort` 0.69× → **0.96×** and
@@ -275,10 +282,10 @@ asking for the key as a string *does* allocate.
 Two patterns, both mechanical, both worth fixing before §§ 1–12 grow further, because every new
 member copies whichever one is there:
 
-- **`produced(&str)` allocates twice.** A member builds a `String`, then `produced` allocates an
+- ~~**`produced(&str)` allocates twice.** A member builds a `String`, then `produced` allocates an
   `MwlStr` and copies it. 56 call sites across `str`, `bytes`, `path`, `regex` and `uri`. Where the
   result length is known — `replace`, `padStart`/`padEnd`, `join` — the member can write straight
-  into one `MwlStr`.
+  into one `MwlStr`.~~ **Landed, for every member but `join`** — see below.
 - ~~**`text()` re-validates UTF-8 on every string argument.** 56 call sites in `str.rs` alone, each
   an O(n) pass over a string [ADR 0009](../adr/0009-string-and-bytes.md) already guarantees valid —
   the function's own error message says so. `Core\Str::length` then adds two more O(n) passes
@@ -303,13 +310,35 @@ the median rather than lifting it, so the statistic sat still while a fifth of t
 disappeared — which is the reading to keep, since nothing outside the string rows moved beyond the
 run-to-run noise the two footnotes above describe.
 
+The first bullet then landed as `mwl_runtime::MwlStr::build`: a producer is handed a writer over the
+allocation the value will be answered from, so the bytes are written there instead of into a
+`String` that is then copied in. A member whose length is exact (`repeat`, `padStart`/`padEnd`,
+`reverse`) allocates once; `replace` starts the writer at its subject's length and the writer
+`realloc`s on the same doubling `String` used, so a guess that falls short costs what it always cost
+and never the final copy. Measured as an A/B against the commit before it: `05-string-replace`
+**0.91× → 1.05×** (work 80.1 ms → 70.8 ms) and `07-string-normalize` **0.50× → 0.93×** (81.8 ms →
+44.5 ms). The suite median went **0.69× → 0.80×**.
+
+**Two things were measured and rejected, and they are the reason this bullet is worth a paragraph
+rather than a line.** Buying an *exact* length with a second read is a loss at these sizes: counting
+`replace`'s matches first took that row to 0.74×, and walking a cycle of `padEnd`'s padding to
+measure what a second walk then wrote took `07-string-normalize` to 0.45×. Both are arithmetic now.
+And **`join` is left as it was** — its length costs a walk of the subject's array slots, which is
+the expensive half of the member, and all three ways round that measured worse than the `String` it
+builds: a writer at a guessed capacity 90.0 ms against the base build's 87.3, a `Vec` of borrowed
+pieces 105.1 ms, a measuring walk 92.5 ms. Nothing about the pattern is wrong there; the length is
+just not cheap to learn.
+
 *Owner:* `crates/mwl-stdlib/src/str.rs`'s module doc §§ *`string` is valid UTF-8, so this module
-never validates* and — once the bullet above lands — its result-writing rule.
+never validates* and *A result is written once*, the second of which holds the rejected
+alternatives so they are not tried a third time.
 *Guard:* `the_fused_scan_agrees_with_the_two_pass_spelling` in
-`crates/mwl-stdlib/src/granularity.rs` holds the fold against the spelling it replaced, and
+`crates/mwl-stdlib/src/granularity.rs` holds the fold against the spelling it replaced;
 `a_bytes_value_is_a_string_allocation_under_a_tag_of_its_own` in `crates/mwl-runtime/src/value.rs`
-holds the one thing soundness rests on: the unchecked reader answers nothing for a `bytes`. Still
-owed by the bullet above: a `Core\Str` member allocates its result once.
+holds the one thing soundness rests on, that the unchecked reader answers nothing for a `bytes`; and
+`a_str_member_allocates_its_result_once` in
+`crates/mwl-stdlib/tests/allocation_policy.rs` counts the allocations four members make and holds
+each to one.
 
 ### F — a string carries its hash
 

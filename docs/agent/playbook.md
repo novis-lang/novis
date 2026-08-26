@@ -305,6 +305,19 @@ is why" — is this file.
   from every row, that run's ratios are all shifted — one such sweep read `20-method-dispatch`
   at 0.67× and the clean re-run put it back at 0.71×. Re-run before quoting, and do not reason
   about a 5% row move from a sweep carrying that note.
+- **A `#[global_allocator]` in a test target must be `#[cfg(debug_assertions)]`.** `mwl-runtime`
+  installs its pooled allocator under `all(not(test), not(debug_assertions))`, so a second one in a
+  `mwl-stdlib` test binary links fine under `cargo test` and fails to link under
+  `cargo test --release` with *"cannot define multiple global allocators"*. `verify.py` runs the
+  debug profile, so the guard runs; the release profile compiles it out.
+  `crates/mwl-stdlib/tests/allocation_policy.rs` is the worked example, and counting allocations is
+  worth the setup — it turned "I think this allocates once" into a test.
+
+- **A release build relinking the runtime moves a bench row by about ±6%, with no code change.**
+  `06-string-split-join`'s work figure read 87.3 ms and 93.3 ms across two builds whose `join` was
+  byte-identical, and `04-string-format` moved 82.4 to 86.9 with nothing of its own touched. So an
+  A/B on a single row is only worth reading when the delta is well past that, and the *median* is
+  the statistic to quote. Re-run the base binary once before believing a small regression.
 
 ## Adding a `Core` member
 
@@ -375,6 +388,15 @@ is why" — is this file.
   full roster a new § 10 class owes is: the `TREE` row, `mwl_runtime::ThrownClass`'s variant, its
   `name()` arm, its `ALL` entry, that assertion, and the spec's own tree drawing. Nothing else
   restates it — `mwl_types::error_lib` seeds whatever `TREE` holds.
+- **A second *read* is not cheaper than the `memcpy` it saves, at `Core\Str` sizes.** Both obvious
+  ways to make a result's length exact before writing it measured as losses, and each cost a full
+  release build plus a bench sweep to find out: counting `Core\Str::replace`'s matches with a second
+  `find_from` pass took `05-string-replace` from 0.92× to **0.74×**, and walking a cycle of
+  `padEnd`'s padding to measure what a second walk then wrote took `07-string-normalize` from 0.50×
+  to **0.45×**. Both are arithmetic now and both rows are far above where they started. The rule to
+  carry: reach for arithmetic or for a good capacity guess, never for "measure it first" — and if a
+  member's length genuinely costs a data-structure walk to learn, as `Core\Str::join`'s does, leave
+  it alone. `crates/mwl-stdlib/src/str.rs` § *A result is written once* holds all of it.
 
 ## Writing a test case
 
