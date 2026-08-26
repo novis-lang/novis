@@ -29,6 +29,7 @@ import subprocess
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -747,6 +748,28 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 # `Goal.remembered`.
 EXPENSIVE = {"abi-probe", "wsl leg", "valgrind sweep"}
 
+# What a memoizable check reads, and so what its verdict is keyed on -- see `Goal.inputs_id`.
+# `tests/` and `docs/` are deliberately absent: nothing keyed on this runs a `.mwlt` case.
+MEMO_DIRS = ("crates", "examples")
+MEMO_FILES = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "docs/agent/loop-goal.toml")
+MEMO_NOT_INPUTS = {"target", "node_modules", "out", ".vscode-test"}
+
+#: Valgrind fixtures at a time. The sweep was strictly serial and is 42% of an acceptance check --
+#: 21.3 of its 50.3 minutes over the 20260826-142040 run, 58s a session for 20 fixtures. Measured
+#: on a 16-core box, through the same separate `wsl.exe` calls the serial sweep makes: 67.8s at 1,
+#: 21.2s at 4, 16.0s at 8. Four takes the 3.2x and leaves the machine mostly idle.
+#:
+#: Nothing is traded for it. A leak verdict is per-process and deterministic, so concurrency
+#: cannot change one -- unlike the abi-probe cost guards, which are cost-class assertions and must
+#: have an idle machine. Those run strictly AFTER this sweep, which is why they still can.
+VALGRIND_JOBS = 4
+
+
+def rustc_version():
+    """The exact compiler, so a toolchain bump invalidates every memoized verdict."""
+    p = subprocess.run(["rustc", "-vV"], capture_output=True, encoding="utf-8", errors="replace")
+    return (p.stdout or "") + (p.stderr or "")
+
 # Held by whatever background release build is in flight; see `Goal.prebuild`.
 PREBUILD_LOCK = threading.Lock()
 
@@ -773,10 +796,13 @@ class Goal:
     * **Within one run**, an identical `args` list runs cargo once. The list holds `mwl-runtime`
       twice on purpose -- stage 0 and stage 5 name different guard tests on it -- and running the
       crate's suite a second time cannot answer differently.
-    * **Across runs**, the three checks in `EXPENSIVE` are remembered against the exact tree that
-      made them green (HEAD plus a hash of anything dirty). A tree that has not changed cannot
-      produce a different verdict, so the sweep is not re-derived; any change at all drops the
-      whole cache. This is what makes `--goal-only` cheap to iterate on by hand.
+    * **Across runs**, the three checks in `EXPENSIVE` are remembered against a content hash of
+      *the files they read* -- `crates/`, `examples/`, the manifests, the toolchain and the goal
+      file (`inputs_id`). Those inputs being bit-identical is the whole argument: a deterministic
+      check over identical bytes cannot reach a different verdict, which is `verify.py`'s rule for
+      its own green cache. It used to key on the tree instead, HEAD included, and every session
+      commits -- so the memo never once fired inside a run. `tests/` and `docs/` are not inputs to
+      any of the three, and 8 of 22 sessions of one measured run touched nothing else.
     """
 
     def __init__(self, spec):
@@ -791,7 +817,8 @@ class Goal:
         self._begun = 0.0  # monotonic start of the current check(), for the elapsed stamp
         self._cargo = {}  # args tuple -> Result, within one check() call
         self._tree = ""
-        self._green = set()
+        self._inputs = None  # content hash of what the memoizable checks read; see `inputs_id`
+        self._green = {}  # check name -> the `inputs_id` it was last green over
         self._memoized = {c["name"] for c in self.checks if c.get("memoize") and "name" in c}
         self._prebuild = None  # the thread warming the release profile
         self._prebuilt = ()  # the args it is warming, so `cargo()` knows to wait for it
@@ -898,11 +925,56 @@ class Goal:
 
     def tree_id(self):
         """HEAD, plus a hash of everything not committed. Two runs with the same id are two runs
-        over the same bytes, so a deterministic check cannot answer them differently."""
+        over the same bytes, so a deterministic check cannot answer them differently.
+
+        Kept for reporting. It is NOT what the memos key on any more, and `inputs_id` says why."""
         head = git("rev-parse", "HEAD") or "no-head"
         dirty = git("status", "--porcelain") + "\n" + git("diff", "HEAD")
         return head + ":" + hashlib.blake2b(dirty.encode("utf-8", "replace"),
                                             digest_size=8).hexdigest()
+
+    def inputs_id(self):
+        """A content hash of every file the memoizable checks READ, and the compiler that builds it.
+
+        This is the whole fix for a memo that never fired. It used to key on `tree_id` -- HEAD plus
+        the dirty tree -- and every session commits, so HEAD moved every session and all three
+        expensive verdicts were thrown away whatever had changed. Measured over the 21-session run
+        in `.loop/logs/20260826-142040-*`: 8 of 22 sessions changed nothing any of these three
+        checks reads, and NO session in the whole run touched `examples/` at all, yet the valgrind
+        sweep ran 22 times out of 22 at 58 seconds a time.
+
+        What they actually read is below, and it is deliberately a SUPERSET of what they need --
+        the whole of `crates/` for the binary they run, the whole of `examples/` for the programs,
+        every manifest, the toolchain, and the goal file whole (its `files`, `[valgrind] skip` and
+        `[[check]]` lists all steer the sweep, and hashing the whole file rather than those three
+        sections means a section added later cannot be missed). `tests/` and `docs/` are absent on
+        purpose: no check keyed on this executes a `.mwlt` case or reads a document.
+
+        Widening this is safe and narrowing it is not, so anything unreadable returns `None` and
+        every memo falls through to running for real, which is `verify.py`'s rule as well.
+        """
+        try:
+            h = hashlib.blake2b(digest_size=16)
+            h.update(rustc_version().encode("utf-8", "replace"))
+            for name in MEMO_FILES:
+                p = ROOT / name
+                h.update(name.encode("utf-8") + b"\0")
+                h.update(p.read_bytes() if p.is_file() else b"")
+                h.update(b"\0")
+            for top in MEMO_DIRS:
+                base = ROOT / top
+                if not base.is_dir():
+                    continue
+                for dirpath, dirnames, filenames in os.walk(base):
+                    dirnames[:] = sorted(d for d in dirnames if d not in MEMO_NOT_INPUTS)
+                    rel = Path(dirpath).relative_to(ROOT)
+                    for f in sorted(filenames):
+                        h.update((rel / f).as_posix().encode("utf-8") + b"\0")
+                        h.update((ROOT / rel / f).read_bytes())
+                        h.update(b"\0")
+            return h.hexdigest()
+        except OSError:
+            return None
 
     def memoizable(self, name):
         """Whether a green verdict on `name` may be remembered against the tree that produced it.
@@ -914,15 +986,20 @@ class Goal:
         return name in EXPENSIVE or name in self._memoized
 
     def remembered(self, name):
-        return self.memoizable(name) and name in self._green
+        """Was this check green over inputs bit-identical to the ones on disk right now?
+
+        `None` from `inputs_id` -- something unreadable -- is not a match, so the check runs."""
+        return (self.memoizable(name) and self._inputs is not None
+                and self._green.get(name) == self._inputs)
 
     def remember(self, name):
-        if self.memoizable(name):
-            self._green.add(name)
+        if self.memoizable(name) and self._inputs is not None:
+            self._green[name] = self._inputs
             try:
                 GOALCACHE.parent.mkdir(exist_ok=True)
                 GOALCACHE.write_text(
-                    json.dumps({"tree": self._tree, "green": sorted(self._green)}, indent=1),
+                    json.dumps({"tree": self._tree, "inputs": self._inputs,
+                                "green": dict(sorted(self._green.items()))}, indent=1),
                     encoding="utf-8", newline="\n",
                 )
             except OSError:
@@ -930,11 +1007,17 @@ class Goal:
 
     def load_green(self):
         self._tree = self.tree_id()
-        self._green = set()
+        self._inputs = self.inputs_id()
+        self._green = {}
         try:
             entry = json.loads(GOALCACHE.read_text(encoding="utf-8"))
-            if entry.get("tree") == self._tree:
-                self._green = set(entry.get("green", []))
+            green = entry.get("green")
+            if isinstance(green, dict):
+                self._green = {k: v for k, v in green.items() if isinstance(v, str)}
+            elif isinstance(green, list) and entry.get("tree") == self._tree:
+                # The old shape: a list of names under one whole-tree key. Honour it for this run
+                # rather than throwing a green verdict away on the version that changes the format.
+                self._green = {name: self._inputs for name in green}
         except (OSError, ValueError):
             pass
 
@@ -1034,27 +1117,44 @@ class Goal:
         """Every fixture under `valgrind --leak-check=full`, over the binary the leg already
         built. In WSL on Windows, directly on Linux."""
         if self.remembered("valgrind sweep"):
-            self.trace("valgrind sweep (green on this tree already)")
+            self.trace("valgrind sweep (green on these inputs already)")
             return ""
         if leg.name == "native" and shutil.which("valgrind") is None:
             self.trace("valgrind sweep skipped -- no valgrind on this platform")
             return ""  # not a failure: this platform simply has no valgrind leg
 
-        for f in self.files:
-            if f in self.valgrind_skip:
-                continue
+        targets = [f for f in self.files if f not in self.valgrind_skip]
+
+        def sweep(f):
+            # Four of these are in flight, so the ticker's detail is "one of the four running"
+            # rather than "the one running". `timed` advances the counter under the ticker's own
+            # lock, so the bar itself stays exact.
             self.trace(f"valgrind {f}")
             cmd = (
                 "valgrind --error-exitcode=1 --leak-check=full "
                 f"--errors-for-leak-kinds=definite -q {leg.binary} run {f}"
             )
-            r = self.timed(
+            return f, self.timed(
                 f"valgrind {f}",
                 lambda: (leg.bash(f"cd {leg.repo} && {cmd}") if leg.name == "wsl"
                          else capture("bash", ["-lc", cmd])),
             )
-            if r.code != 0:
-                return f"valgrind {f}: exit {r.code} -- {r.first_err_line}"
+
+        # `map` keeps input order, so the failure reported is the first fixture in the goal's own
+        # list however the four workers finished. It does not short-circuit, which is the one
+        # behaviour that changes: a red sweep now runs all of them and names EVERY leaking fixture
+        # instead of stopping at the first. That is worth the seconds -- "one fixture leaks" and
+        # "twelve do" are different bugs, and the parallel sweep pays about a third of what the
+        # serial one did to answer both.
+        fails = []
+        with ThreadPoolExecutor(max_workers=VALGRIND_JOBS) as pool:
+            for f, r in pool.map(sweep, targets):
+                if r.code != 0:
+                    fails.append(f"valgrind {f}: exit {r.code} -- {r.first_err_line}")
+        if fails:
+            return fails[0] + (f"  (and {len(fails) - 1} more: "
+                               f"{', '.join(x.split(':')[0] for x in fails[1:])})"
+                               if len(fails) > 1 else "")
         self.remember("valgrind sweep")
         return ""
 
@@ -1077,7 +1177,7 @@ class Goal:
         # when the platform has no valgrind, and counting it would strand the bar short of 100%.
         sweepable = not self.remembered("valgrind sweep") and bool(wsl or shutil.which("valgrind"))
 
-        n = 1  # the tree fingerprint, already spent by the time this is called
+        n = 1  # the input fingerprint, already spent by the time this is called
         if mode == "leg":
             n += 1 + programs  # the leg's build, then every fixture on it
             n += sum(1 for c in self.cargo_checks if c["kind"] == "mwl-suite")
@@ -1086,9 +1186,12 @@ class Goal:
         n += 1 + len(self.catch_up_checks) + programs  # native build, catch-up, native fixtures
         n += sum(1 for c in self.cargo_checks if not self.remembered(c["name"]))
         n += sum(1 for c in self.release_checks if not self.remembered(c["name"]))
-        n += 1  # the wsl probe
-        if wsl:
-            n += 1 + (0 if self.remembered("wsl leg") else programs)
+        # The whole Linux leg -- probe, build and fixtures -- is skipped when its two consumers are
+        # both green over these inputs, so none of the three is counted then either.
+        if not (self.remembered("wsl leg") and self.remembered("valgrind sweep")):
+            n += 1  # the wsl probe
+            if wsl:
+                n += 1 + (0 if self.remembered("wsl leg") else programs)
         return n + (sweep if sweepable else 0)
 
     def begin(self, mode="check"):
@@ -1099,10 +1202,11 @@ class Goal:
         self.short = []  # thresholds not met yet, judged after everything else
         self._begun = time.monotonic()
         TICKER.set(done=0, total=0)
-        # Hashing the dirty tree is a `git diff HEAD` over everything the session just wrote, so
-        # on a large working tree this is itself a visible pause before any check has started.
-        self.trace("fingerprinting the tree for the green-check memo")
-        self.timed("tree fingerprint", self.load_green)
+        # Two hashes: the `git diff HEAD` behind `tree_id`, and the content walk of `crates/` and
+        # `examples/` behind `inputs_id`. Both are a visible pause before any check has started, so
+        # the ticker is told what is happening rather than appearing to hang on nothing.
+        self.trace("fingerprinting what the memoizable checks read")
+        self.timed("input fingerprint", self.load_green)
         TICKER.set(total=self.plan_size(mode, wsl_available()))
         for f in self.files:
             if not (ROOT / f).exists():
@@ -1143,7 +1247,7 @@ class Goal:
 
         for c in self.cargo_checks:
             if self.remembered(c["name"]):
-                trace(f"cargo {c['name']} (green on this tree already)")
+                trace(f"cargo {c['name']} (green on these inputs already)")
                 continue
             trace(f"cargo {c['name']}")
             fail = self.cargo_check(c, native)
@@ -1152,16 +1256,25 @@ class Goal:
             self.remember(c["name"])
 
         # Windows is green, so now pay for the Linux leg.
+        #
+        # The build is skipped only when BOTH things that would use the binary are already green
+        # over these inputs -- the leg's own fixtures and the valgrind sweep behind it. That pairing
+        # is the safety: if either still has to run, the build runs, so nothing ever reaches a
+        # missing or stale binary. Skipping the build alone would be worse than useless, because
+        # `leg` would stay `native` and the sweep would quietly downgrade to a platform with no
+        # valgrind on it.
         leg = native
         trace("asking whether there is a wsl leg")
-        if self.timed("wsl probe", wsl_available):
+        if self.remembered("wsl leg") and self.remembered("valgrind sweep"):
+            trace("wsl leg and valgrind sweep both green on these inputs -- neither is rebuilt")
+        elif self.timed("wsl probe", wsl_available):
             leg = WslLeg(self.wsl_target)
             trace("building the wsl CLI")
             fail = self.timed("wsl build", leg.prepare)
             if fail:
                 return fail
             if self.remembered("wsl leg"):
-                trace("wsl fixtures (green on this tree already)")
+                trace("wsl fixtures (green on these inputs already)")
             else:
                 for c in self.program_checks:
                     trace(f"{leg.name} {c['file']}")
@@ -1191,7 +1304,7 @@ class Goal:
         # wait on.
         for c in self.release_checks:
             if self.remembered(c["name"]):
-                trace(f"cargo {c['name']} (green on this tree already)")
+                trace(f"cargo {c['name']} (green on these inputs already)")
                 continue
             trace(f"cargo {c['name']}")
             fail = self.cargo_check(c, native)
@@ -1252,13 +1365,19 @@ class Goal:
         return self.short[0] if self.short else ""
 
     def summary(self):
-        """One line: what this run cost, and the three checks that cost the most of it."""
+        """One line: what this run cost, and the three checks that cost the most of it.
+
+        The headline is WALL CLOCK, not the sum of the per-check timers. Those two stopped being
+        the same number when the valgrind sweep went four-wide: twenty fixtures each timed at 4-5s
+        add up to well over the twenty seconds the sweep actually took, and a cost line that
+        reported 311s for a 130s check would send the next person tuning the wrong thing. The sum
+        is still what ranks the slowest three, which is what it was always for."""
         if not self.ran:
             return "nothing ran"
-        total = sum(s for _, s in self.ran)
+        wall = time.monotonic() - self._begun
         worst = sorted(self.ran, key=lambda x: -x[1])[:3]
         slow = ", ".join(f"{label} {s:.0f}s" for label, s in worst if s >= 1)
-        return f"{total:.0f}s over {len(self.ran)} check(s)" + (f"; slowest: {slow}" if slow else "")
+        return f"{wall:.0f}s over {len(self.ran)} check(s)" + (f"; slowest: {slow}" if slow else "")
 
 
 def load_goal():

@@ -141,12 +141,26 @@ Nothing is skipped, but two results are remembered. Within one run, an identical
 once — the list names `mwl-runtime` twice on purpose, for different guard tests, and the second run
 cannot answer differently. Across runs, the three checks whose cost is *minutes* — the release-profile
 `abi-probe`, the whole WSL leg, and the valgrind sweep — are remembered in `.loop/goal-green.json`
-against the exact tree that made them green (HEAD plus a hash of anything dirty). Any change at all drops
-the cache. In a normal loop every session commits, so this almost never fires; what it buys is a
-`--goal-only` that is cheap to run twice by hand.
+against a content hash of **the files those checks read**: `crates/`, `examples/`, the manifests, the
+toolchain and `loop-goal.toml` itself. Identical bytes into a deterministic check cannot come out a
+different verdict, which is the same argument `verify.py` makes for its own green cache.
+
+This used to key on the tree instead, HEAD included — and in a normal loop every session commits, so it
+almost never fired. Measured over the 21-session run in `.loop/logs/20260826-142040-*`, **8 of 22
+sessions changed nothing any of the three reads** and no session touched `examples/` at all, yet the
+valgrind sweep ran 22 times out of 22 at 58 seconds each. `tests/` and `docs/` are deliberately not
+inputs: no memoized check runs a `.mwlt` case or reads a document. When both consumers of the Linux
+binary are green, the WSL build is skipped with them — never one without the other, or the sweep would
+silently fall back to a platform with no valgrind on it.
+
+The sweep itself runs four fixtures at a time. A leak verdict is per-process and deterministic, so
+concurrency cannot change one; the abi-probe **cost-class** guards are the opposite and still run last,
+alone, on an idle machine. Measured on 16 cores: 67.8s serial, 21.2s at four, 16.0s at eight.
 
 Every check is timed, and the driver writes a `goal cost:` line to the ledger each iteration naming the
-total and the three slowest checks. An acceptance test nobody has ever timed is one nobody can tune.
+wall clock and the three slowest checks. The headline is wall clock rather than the sum of the timers,
+which stopped being the same number when the sweep went parallel. An acceptance test nobody has ever
+timed is one nobody can tune.
 
 Inspect it without running it: `python tools/loop.py --list`. Run it once, without any session:
 `python tools/loop.py --goal-only`, which prints each check as it goes, names the first failure, and
