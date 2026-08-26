@@ -1,0 +1,55 @@
+--TEST--
+`$uri->with` accepts a port at both ends of the TCP range and refuses one past it, refuses any component that does not survive its own recomposition, and tells an empty component from an absent one — spec § 12
+--FILE--
+<?mwl
+// RFC 3986 § 3.2.3 admits any run of digits as a port, so the bound is the one
+// a TCP port actually has: both ends are inside it, and one past the top has no
+// `int` the reader could answer with.
+echo Core\Uri::parse("http://h/")->with({port: 0})->toString(), "|",
+     Core\Uri::parse("http://h/")->with({port: 65535})->toString(), "\n";
+try {
+    echo Core\Uri::parse("http://h/")->with({port: 65536})->toString(), "\n";
+} catch (Throwable $e) {
+    echo "port: ", $e->message, "\n";
+}
+
+// A component is written into the recomposed text and the result is read back,
+// so a component carrying a delimiter of its own lands somewhere else — and
+// that is refused rather than accepted quietly. This is the attack shape: a
+// `path` beginning `//` becomes an *authority*, which is a different host.
+try {
+    echo Core\Uri::parse("mailto:a@b")->with({path: "//evil.test/x"})->toString(), "\n";
+} catch (Throwable $e) {
+    echo "path: ", $e->message, "\n";
+}
+try {
+    echo Core\Uri::parse("http://h/p")->with({scheme: "http:"})->toString(), "\n";
+} catch (Throwable $e) {
+    echo "scheme: ", $e->message, "\n";
+}
+
+// The path is the one component every URI has, so emptying it is legal and the
+// result still recomposes — that is the accepted side of the same check.
+echo Core\Uri::parse("http://h/p")->with({path: ""})->toString(), "\n";
+
+// § 12: the readers are `?string`, so an absent query is `null` while an empty
+// one is `""` — two different URIs, told apart by the reader and by
+// `toString`. `with` has no removal spelling, so `{query: ""}` builds the
+// second of them and never the first.
+var $empty = Core\Uri::parse("http://h/p?#");
+var $absent = Core\Uri::parse("http://h/p");
+echo ($empty->query() == null) ? "null" : "empty", "|",
+     ($absent->query() == null) ? "null" : "empty", "\n";
+echo ($empty->fragment() == null) ? "null" : "empty", "|",
+     ($absent->fragment() == null) ? "null" : "empty", "\n";
+var $made = $absent->with({query: ""});
+echo $made->toString(), "|", ($made->query() == null) ? "null" : "empty", "\n";
+--EXPECT--
+http://h:0/|http://h:65535/
+port: Core\Uri::with(): the authority's port is not a TCP port number. RFC 3986 § 3.2.3 admits any run of digits and defines the component as a port, so a value outside 0-65535 has no `int` this member could answer with
+path: Core\Uri::with(): the components given do not recompose to a URI that still holds them — the `host` of the result is not the one asked for. A component that has to carry a delimiter must carry it: a `path` beside a `host` begins with `/`, and a `scheme` is not written into one
+scheme: Core\Uri::with(): the components given do not recompose to a URI that still holds them — the `scheme` of the result is not the one asked for. A component that has to carry a delimiter must carry it: a `path` beside a `host` begins with `/`, and a `scheme` is not written into one
+http://h
+empty|null
+empty|null
+http://h/p?|empty

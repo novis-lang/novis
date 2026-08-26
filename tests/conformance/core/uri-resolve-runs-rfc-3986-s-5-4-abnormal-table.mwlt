@@ -1,0 +1,65 @@
+--TEST--
+`$uri->resolve` answers RFC 3986 § 5.4.2's abnormal examples: an over-long ascent stops at the root, a dot segment is a whole segment, and one inside a query or fragment is data — spec § 12
+--FILE--
+<?mwl
+// The base is the RFC's own, so every row below is § 5.4's table verbatim
+// rather than a shape chosen here.
+var $b = Core\Uri::parse("http://a/b/c/d;p?q");
+
+// § 5.4.1's ascent ladder is the bound the abnormal rows sit past: an empty
+// reference is the base itself (without its fragment), `.` keeps the directory
+// and each `..` walks up one segment.
+echo $b->resolve("")->toString(), "|", $b->resolve(".")->toString(), "\n";
+echo $b->resolve("..")->toString(), "|", $b->resolve("../..")->toString(), "\n";
+
+// § 5.4.2: an ascent past the root is neither an error nor an escape — it
+// stops at the root, however many segments are left over. That is the other
+// side of the ladder above, and it is why a leading `/../` is harmless too.
+echo $b->resolve("../../../g")->toString(), "|",
+     $b->resolve("../../../../g")->toString(), "\n";
+echo $b->resolve("/./g")->toString(), "|", $b->resolve("/../g")->toString(), "\n";
+
+// § 5.4.2: only a *complete* segment is a dot segment, so a name that merely
+// begins or ends with a dot is an ordinary one and is kept.
+echo $b->resolve("g.")->toString(), "|", $b->resolve(".g")->toString(), "|",
+     $b->resolve("g..")->toString(), "|", $b->resolve("..g")->toString(), "\n";
+echo $b->resolve("./../g")->toString(), "|", $b->resolve("./g/.")->toString(), "\n";
+echo $b->resolve("g/./h")->toString(), "|", $b->resolve("g/../h")->toString(), "\n";
+echo $b->resolve("g;x=1/./y")->toString(), "|", $b->resolve("g;x=1/../y")->toString(), "\n";
+
+// § 5.4.2: the removal is over the *path* only, so the identical text inside a
+// query or a fragment is data and survives untouched.
+echo $b->resolve("g?y/./x")->toString(), "|", $b->resolve("g?y/../x")->toString(), "\n";
+echo $b->resolve("g#s/./x")->toString(), "|", $b->resolve("g#s/../x")->toString(), "\n";
+
+// § 5.4.2's last row is the one an implementation may answer two ways. This is
+// the strict reading § 5.2.2 asks for: a reference that names a scheme is its
+// own URI, and is not merged into the base whose scheme happens to match.
+echo $b->resolve("http:g")->toString(), "\n";
+
+// § 5.2.1 makes the receiver the base, so it has to be absolute; § 5.2.3 merges
+// a relative reference into a path, so an opaque base has nowhere to merge it.
+try {
+    echo Core\Uri::parse("/relative/base")->resolve("g")->toString(), "\n";
+} catch (Throwable $e) {
+    echo "relative: ", $e->message, "\n";
+}
+try {
+    echo Core\Uri::parse("mailto:a@b")->resolve("g")->toString(), "\n";
+} catch (Throwable $e) {
+    echo "opaque: ", $e->message, "\n";
+}
+--EXPECT--
+http://a/b/c/d;p?q|http://a/b/c/
+http://a/b/|http://a/
+http://a/g|http://a/g
+http://a/g|http://a/g
+http://a/b/c/g.|http://a/b/c/.g|http://a/b/c/g..|http://a/b/c/..g
+http://a/b/g|http://a/b/c/g/
+http://a/b/c/g/h|http://a/b/c/h
+http://a/b/c/g;x=1/y|http://a/b/c/y
+http://a/b/c/g?y/./x|http://a/b/c/g?y/../x
+http://a/b/c/g#s/./x|http://a/b/c/g#s/../x
+http:g
+relative: Core\Uri::resolve(): the receiver is a relative reference, and RFC 3986 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, or resolve against one that has one
+opaque: Core\Uri::resolve(): the base has no authority and a rootless path, so it is opaque and there is no path for a relative reference to be merged into

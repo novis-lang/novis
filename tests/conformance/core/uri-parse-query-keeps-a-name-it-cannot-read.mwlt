@@ -1,0 +1,49 @@
+--TEST--
+`Core\Uri::parseQuery` at the edges of a name: an empty pair contributes nothing, a valueless one contributes the empty string, and a malformed or unusual name is kept whole rather than repaired — spec § 12
+--FILE--
+<?mwl
+// The two ends of "is there a pair here at all": nothing at all, and a string
+// that is only separators, both answer the empty array. A pair with a name and
+// no `=` is a pair — its value is the empty string, exactly as `a=` is.
+echo Core\Json::encode(Core\Uri::parseQuery("")), "\n";
+echo Core\Json::encode(Core\Uri::parseQuery("&&a=1&")), "\n";
+echo Core\Json::encode(Core\Uri::parseQuery("a")), "|",
+     Core\Json::encode(Core\Uri::parseQuery("a=")), "\n";
+
+// A pair with no *name* is the one that is dropped: there is no key to file it
+// under, and inventing one would file two of them together.
+echo Core\Json::encode(Core\Uri::parseQuery("=1")), "\n";
+
+// `mwl_stdlib::uri`'s module doc: a name is a path only when it is a non-empty
+// base followed by complete `[…]` groups, so a name that is not becomes one
+// literal key. PHP repairs `a[b` into `a_b`; keeping it is what makes the
+// answer say what actually arrived.
+echo Core\Json::encode(Core\Uri::parseQuery("a[b=1")), "|",
+     Core\Json::encode(Core\Uri::parseQuery("a[]")), "\n";
+
+// The same rule, from the other side: a `.` or a space is a perfectly good key
+// here, since the answer is an array rather than the variables `parse_str` was
+// written to create. Rewriting them would merge `a.b` with `a_b`.
+echo Core\Json::encode(Core\Uri::parseQuery("a.b=1&c d=2")), "\n";
+
+// And the `?` is not part of the query component, so a caller that leaves it on
+// gets it as the first byte of the first name rather than a silent trim.
+echo Core\Json::encode(Core\Uri::parseQuery("?a=1")), "\n";
+
+// Depth is uniform: an append inside an append, and a list under a map key.
+// The last row is last-write-wins across two *shapes*, which is the case a
+// scalar-then-map ordering decides.
+echo Core\Json::encode(Core\Uri::parseQuery("a[][]=1")), "\n";
+echo Core\Json::encode(Core\Uri::parseQuery("a[b][]=1&a[b][]=2")), "\n";
+echo Core\Json::encode(Core\Uri::parseQuery("a=1&a[b]=2")), "\n";
+--EXPECT--
+[]
+{"a":"1"}
+{"a":""}|{"a":""}
+[]
+{"a[b":"1"}|{"a":[""]}
+{"a.b":"1","c d":"2"}
+{"?a":"1"}
+{"a":[["1"]]}
+{"a":{"b":["1","2"]}}
+{"a":{"b":"2"}}
