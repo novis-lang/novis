@@ -11,7 +11,4 @@
 # Grouped by section for reading; the test compares sets, so order means nothing
 # to it.
 
-# § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
-
-# § 12 `Core\Uri`, `Core\Out`
-§12 Out::capture
+# Empty. Spec §§ 1-12 is registered whole.

@@ -1,0 +1,61 @@
+--TEST--
+`Core\Out::capture` swallows what its closure echoes, nests by call nesting and answers the sink's carrier rather than a `string` — spec § 12, ADR 0088 §§ 3 and 5
+--FILE--
+<?mwl
+// § 12: the buffer is scoped to a closure, so `ob_start`/`ob_get_clean`'s
+// global stack has no equivalent and neither does implicit flushing.
+var $captured = Core\Out::capture(fn (): void => {
+    echo "a";
+    echo "b";
+});
+
+// ADR 0088 § 5: the return is the *carrier* of the sink in force — `Cli\Text`
+// outside an HTTP request — so re-emitting it is a visible `echo`, and the
+// bytes are written as they came out of the sink rather than through it twice.
+echo $captured, "\n";
+
+// `capture` always swallows: nothing above reached this program's own output,
+// which is why the line below is the first "a" a reader sees in order.
+echo "swallowed=", $captured, "\n";
+
+// Nesting is call nesting. The inner capture takes only what its own closure
+// wrote, and the outer one takes the inner's re-emission along with the rest.
+echo Core\Out::capture(fn (): void => {
+    echo "outer<";
+    echo Core\Out::capture(fn (): void => { echo "nested"; });
+    echo ">";
+}), "\n";
+
+// A closure that writes nothing answers an empty carrier, not `null`.
+echo "[", Core\Out::capture(fn (): void => {}), "]\n";
+
+// § 12's `{through: $filter}` transforms what was captured and takes and
+// answers the same carrier. `Core\Cli\Text` carries no member of its own until
+// ADR 0086 § 2's rest of `Core\Cli` lands, so the only filter writable today is
+// the identity — what this pins is that the option is read and its closure is
+// called on the captured value.
+echo Core\Out::capture(
+    fn (): void => { echo "filtered"; },
+    {through: fn (Core\Cli\Text $t): Core\Cli\Text => $t}
+), "\n";
+
+// The sink below a capture is untouched once it closes, on the throwing edge
+// as much as the ordinary one.
+try {
+    echo Core\Out::capture(fn (): void => {
+        echo "lost";
+        var $n = "abc" as int;
+        echo $n;
+    });
+} catch (Throwable $e) {
+    echo "threw\n";
+}
+echo "after\n";
+--EXPECT--
+ab
+swallowed=ab
+outer<nested>
+[]
+filtered
+threw
+after

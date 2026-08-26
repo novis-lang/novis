@@ -26,7 +26,10 @@ echo "sha256=" . Core\Encoding::toHex(Core\Hash::of("mwl", Core\Digest::Sha256))
 echo "base64=" . Core\Encoding::toBase64(Core\Encoding::encodeText("mwl", Core\Charset::Utf8)) . "\n";
 
 echo "dice=" . Core\Random::int(5, 5) . "\n";
-echo "uuid=" . (Core\Uuid::isValid("00000000-0000-4000-8000-000000000000") ? "valid" : "invalid") . "\n";
+// Spec § 11: there is no `Uuid::isValid` — asking whether text is a UUID is
+// `tryParse` compared against `null`, which is `parse` asked once rather than
+// twice.
+echo "uuid=" . (Core\Uuid::tryParse("00000000-0000-4000-8000-000000000000") != null ? "valid" : "invalid") . "\n";
 
 var $joined = Core\Path::join("srv", "app", "index.mwl");
 echo "path=" . Core\Str::replace($joined, Core\Path::SEPARATOR, "/") . "\n";
@@ -38,10 +41,12 @@ echo "queryKeys=" . Core\Str::join(Core\Arr::keys($query), ",") . "\n";
 
 var $rows = Core\Csv::parse("name,qty\nfig,2\npear,5\n", {header: true});
 echo "rows=" . Core\Arr::count($rows) . "\n";
-var $head = Core\Arr::first($rows);
-if ($head != null) {
-    echo "first=" . $head["name"] . "x" . $head["qty"] . "\n";
-}
+// `Core\Arr::first` answers a `?array<string>` here, and a narrowed nullable
+// array has lost its element type by the time `mwl-ir` lowers a subscript of
+// it (docs/agent/playbook.md). Binding the row first is one of the three
+// spellings that do lower, and it is the one that still reads as a row.
+var $head = $rows["0"];
+echo "first=" . $head["name"] . "x" . $head["qty"] . "\n";
 
 echo "email=" . (Core\Validate::isEmail("ada@example.test") ? "valid" : "invalid") . "\n";
-echo "captured=[" . Core\Out::capture(fn () => { echo "inner"; }) . "]\n";
+echo "captured=[" . Core\Out::capture(fn (): void => { echo "inner"; }) . "]\n";
