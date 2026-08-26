@@ -684,3 +684,10 @@ sibling in the same namespace unqualified.
   not exist and an `Arr::first` subscript at 45 that panics `mwl-ir`. Budget a fixture as "run it
   again after every fix until it exits 0", not as "one report, one slice" — and do not trust a
   handoff's claim about which line a fixture stops at without running it.
+- **`var` takes no type annotation, and writing one costs four diagnostics a line.** `var string $s = …`
+  is not a declaration with a redundant type: the parser reads `var`, expects a name, finds `string`, and
+  emits `E0101` twice, `E0102`, a third `E0101` and then an `E0406` claiming `$` is already declared — per
+  line, so a six-line scratch file came back with 24 errors and none of them said "a `var` has no type".
+  The two spellings are `var $s = …` (inferred, and what every `.mwlt` case writes) and `string $s = …`
+  (declared). The sentence to look for in the wall of output is the second `E0101`'s, "`var` infers its
+  type from the initializer".
