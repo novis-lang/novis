@@ -811,6 +811,14 @@ mwl_runtime::mwl_helper! {
     /// `Core\Arr::min` walks an array with, so `Math::min($a, $b)` and
     /// `Arr::min([$a, $b])` cannot answer differently. A tie answers `$a`.
     ///
+    /// PHP's two-argument `min` answers `$b` on a tie and its `max` answers
+    /// `$a`, so `min(1000000000000000000, 1.0e18)` hands back the `float`
+    /// there and the `int` here. Both members answering the same end is worth
+    /// more than matching that, since the alternative is `min` and `max`
+    /// disagreeing with each other about which of two equal values is meant;
+    /// `math-min-and-max-diverge-from-php-over-a-tie-a-numeral-string-or-an-unordered-pair`
+    /// pins it.
+    ///
     /// PHP's variadic `min(1, 2, 3)` has no member: the two-argument form
     /// nests, and the array form is `Core\Arr::min`.
     fn mwl_core_math_min(_ctx, args: [2]) {
