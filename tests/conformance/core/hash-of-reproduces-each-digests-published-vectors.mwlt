@@ -1,0 +1,94 @@
+--TEST--
+`Core\Hash::of` reproduces each `Core\Digest` case's own published vector, hashes the empty input and hashes a buffer no `string` could hold — spec § 11, ADR 0009 §§ 1 and 3
+--FILE--
+<?mwl
+// § 11: the algorithm is an argument, so this one member has to be right six
+// times over. `hash-computes-every-digest-and-authenticates-with-hmac.mwlt`
+// walks the roster once with "abc"; this case pins each case against the
+// specification that publishes it, plus the two inputs a per-algorithm
+// dispatch is most likely to get wrong — nothing at all, and octets that are
+// not text.
+
+// The empty input, every algorithm. Each of these is its own spec's published
+// vector for a zero-length message (FIPS 180-4 for the SHA family, RFC 1321
+// § A.5 for MD5), and it is the row that pins the *padding*: an empty message
+// still compresses one padded block, so a member that special-cased "no data
+// to feed" would answer the wrong thing here and nowhere else. CRC-32 has no
+// padding and starts and ends at zero.
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Crc32)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Md5)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha1)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha384)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha512)), "\n";
+
+// One published vector per case, taken from the document that defines that
+// algorithm rather than from this implementation's own output.
+//
+// CRC-32/ISO-HDLC's check value: the catalogue defines it as the checksum of
+// the nine ASCII digits, which is what makes `cbf43926` the one constant every
+// CRC implementation is compared against. `Core\Hash::of` answers the four
+// octets big-endian, so this reads as PHP's `hash("crc32b", …)` and not as its
+// `crc32()`, which returns an `int` — this module's own docs say why.
+echo Core\Encoding::toHex(Core\Hash::of("123456789", Core\Digest::Crc32)), "\n";
+
+// RFC 1321 § A.5's suite, the entry long enough to be interesting.
+echo Core\Encoding::toHex(Core\Hash::of("message digest", Core\Digest::Md5)), "\n";
+
+// FIPS 180-4's 448-bit message, for the two algorithms with a 512-bit block:
+// 56 octets, so the length field no longer fits behind the padding and the
+// message spills into a second block. A one-block-only implementation passes
+// every short vector above and fails exactly here.
+echo Core\Encoding::toHex(Core\Hash::of(
+    "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+    Core\Digest::Sha1
+)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of(
+    "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+    Core\Digest::Sha256
+)), "\n";
+
+// FIPS 180-4's 896-bit message, which is the same test for the 1024-bit block
+// SHA-384 and SHA-512 use: 112 octets against a 128-octet block.
+echo Core\Encoding::toHex(Core\Hash::of(
+    "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu",
+    Core\Digest::Sha384
+)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of(
+    "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu",
+    Core\Digest::Sha512
+)), "\n";
+
+// A `bytes` no `string` could hold: a lone `ff`, a continuation byte with no
+// lead and a truncated two-byte sequence. `"…" as bytes` cannot spell this —
+// it only reaches octets that are already valid UTF-8 (ADR 0009 §§ 1 and 3) —
+// so `Core\Encoding::fromHex` is where such a buffer comes from, and the
+// `bytes|string` parameter is what lets it arrive at all. Every algorithm
+// takes the same path over it, which is the property being pinned: a digest
+// is defined over octets and has no opinion about text.
+bytes $raw = Core\Encoding::fromHex("00ff80fe");
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Crc32)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Md5)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Sha1)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Sha256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Sha384)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Sha512)), "\n";
+--EXPECT--
+00000000
+d41d8cd98f00b204e9800998ecf8427e
+da39a3ee5e6b4b0d3255bfef95601890afd80709
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b
+cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e
+cbf43926
+f96b697d7cb7938d525a2f31aaf161d0
+84983e441c3bd26ebaae4aa1f95129e5e54670f1
+248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1
+09330c33f71147e83d192fc782cd1b4753111b173b3b05d22fa08086e3b0f712fcc7c71a557e2db966c3e9fa91746039
+8e959b75dae313da8cf4f72814fc143f8f7779c6eb9f7fa17299aeadb6889018501d289e4900f7e4331b99dec4b5433ac7d329eeb6dd26545e96e55b874be909
+fe5aaca1
+798a29c8faf85adbacf2169cd3134e82
+ef8d2cc8da7c30f9c63bb990bf1e9954a4910d46
+d418c80bd85084221f937a33476da0b5473a7257f2afab92aae137f12fd42df2
+1d9934cad49254b29054e1b7908f5ffb78198421679073d2df702aaf7c6628fb3882b07f27069df9156190b33a270a91
+f6af2eef9aa5357c64d5a3805b0d158f1cf35d080ee14bffe9eb28e3b37375ff9c8df9c32a353ab71165fa4681cca345520e9a832e5992ce06cb80d42e03e0e9
