@@ -1320,6 +1320,14 @@ sibling in the same namespace unqualified.
   `Core\Math::abs($x) as int` / `as float` at every use; the cast is free, and which arm to write is
   decided by the argument, since the member never crosses arms. `grep -n 'CoreTy::Union' <the module>`
   says in one call which members owe the cast.
+- **A counting sweep has all the shapes it needs, and none of them is the one that bites.** Two nested
+  `foreach`es over the same `array<string>` compile as long as the two bindings are named differently
+  (`$leftText`/`$rightText`); a `public static function of(int $n): int` in a `final class` may
+  `return -1;` — a unary minus on a literal lowers, so the `0 - 1` an older case writes is not required,
+  though `0 - $x` still is for a *variable*; and a `bool $flag = false;` declared **inside** a loop body
+  is fine, since the `E0406` that bites is a second declaration in the *source*, not a second execution.
+  So the shape of an agreement case is: typed array literals above, counters as `int` above, one
+  `if (…) { $n = $n + 1; }` per claim, and one `echo` of the counts against the sweep's own total.
 
 ## Divergences and refusals already pinned
 
