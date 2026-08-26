@@ -1,0 +1,145 @@
+--TEST--
+`Core\Time::parse` refuses in two of spec § 10's classes, and which one is decided by which of its arguments was wrong — spec §§ 4 and 10, ADR 0063 R20
+--FILE--
+<?mwl
+// `Core\Time::parse` is `DateTime::createFromFormat` and `strptime` over
+// `crates/mwl-stdlib/src/cldr.rs`'s patterns, and it is the one § 4 member that
+// throws two *different* § 10 classes. The split is deliberate and it is about
+// which argument is at fault: a pattern is written by the call site, so a bad
+// one is a bug in the program and a `LogicError`, while text arrives from
+// somewhere else, so text that does not match a well-formed pattern is exactly
+// "input did not match a format this code declared" and a `ParseError`. Both
+// sentences are wrapped in the member's own name — the half the neighbouring
+// `format` case cannot assert, because `format` compiles the same patterns
+// under a different name and never reads any text at all.
+//
+// Each `catch` takes its own binding name: a binding is function-scoped, so two
+// clauses reusing one is `E0406` once a loop below has declared it.
+
+// The accepted side, including the two things a pattern can do that a
+// zone-free reading cannot: place the result in the zone handed in as the third
+// argument, and read a 12-hour clock with its marker. A two-digit year lands in
+// the 1969–2068 window, which is POSIX's rule and the one PHP's `y` uses.
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+echo Core\Time::parse("2024-03-31 12:00", "yyyy-MM-dd HH:mm", $berlin)->format("yyyy-MM-dd HH:mm XXX VV"), "|\n";
+echo Core\Time::parse("31/12/2024 11:45:30 PM", "dd/MM/yyyy hh:mm:ss a", $berlin)->format("yyyy-MM-dd HH:mm:ss"), "|\n";
+echo Core\Time::parse("24-06-01", "yy-MM-dd", $berlin)->format("yyyy-MM-dd"), "|\n";
+
+// The pattern's three refusals, in full and under `parse`'s own name. The
+// compile step runs before any text is looked at, so a call with *both*
+// arguments wrong reports the pattern — which is what makes this the class a
+// caller sees first.
+try { Core\Time::parse("2024-03-31", "yyyy-MM-dd Q", $berlin); }
+catch (LogicError $unknownLetter) { echo $unknownLetter->message, "\n"; }
+try { Core\Time::parse("2024-03-31", "yyyy 'unterminated", $berlin); }
+catch (LogicError $unclosed) { echo $unclosed->message, "\n"; }
+try { Core\Time::parse("2024-03-31", "V", $berlin); }
+catch (LogicError $zoneCount) { echo $zoneCount->message, "\n"; }
+try { Core\Time::parse("nothing like a date", "yyyy-MM-dd Q", $berlin); }
+catch (LogicError $bothWrong) { echo $bothWrong->message, "\n"; }
+
+// The text's refusals say where they stopped, because a caller holding a
+// rejected line has an offset to look at and nothing else to look at. A literal
+// that does not match names the literal it wanted; a field that ran out of
+// digits names how many it needed; a name field says it was a name it wanted;
+// and text left over after the pattern is spent is counted rather than ignored,
+// since silently taking a prefix is how a mistyped format reads plausibly
+// forever.
+try { Core\Time::parse("2024-03-31T12:00", "yyyy-MM-dd HH:mm", $berlin); }
+catch (ParseError $literal) { echo $literal->message, "\n"; }
+try { Core\Time::parse("2024-3-31 12:00", "yyyy-MM-dd HH:mm", $berlin); }
+catch (ParseError $digits) { echo $digits->message, "\n"; }
+try { Core\Time::parse("2024-Xyz-01", "yyyy-MMM-dd", $berlin); }
+catch (ParseError $monthName) { echo $monthName->message, "\n"; }
+try { Core\Time::parse("2024-03-31 12:00 and more", "yyyy-MM-dd HH:mm", $berlin); }
+catch (ParseError $trailing) { echo $trailing->message, "\n"; }
+
+// The one refusal that is about the *pattern* and is still a `ParseError`, and
+// the reason is that it cannot live in the compile step: `format` accepts every
+// zonal field and shares that compiler, so a pattern naming a zone is only
+// wrong for the member that takes a `Zone` as its third argument (R20 — the
+// pattern and the argument would be two answers to one question), and it is the
+// reader that discovers it. The sentence says which of the two to keep.
+try { Core\Time::parse("2024-03-31 Europe/Berlin", "yyyy-MM-dd VV", $berlin); }
+catch (ParseError $zonal) { echo $zonal->message, "\n"; }
+
+// Counted, and the point of counting is that these two tables are a partition
+// rather than two lists: not one of seven bad patterns lands in `ParseError`,
+// not one of six bad texts lands in `LogicError`, and every sentence on either
+// side is wrapped in the member's own name. A member throwing one class for
+// everything, or wrapping only the half it wrote itself, still prints plausibly
+// against any single row above.
+array<string> $patterns = ["Q", "R", "yyyy-MM-dd Q", "yyyy 'unterminated", "yyyy-MM-dd 'x", "V", "VVV"];
+int $tookPattern = 0;
+int $patternLogic = 0;
+int $patternParse = 0;
+int $patternNamed = 0;
+foreach ($patterns as string $p) {
+    try {
+        Core\Time::parse("2024-03-31", $p, $berlin);
+        $tookPattern = $tookPattern + 1;
+    } catch (LogicError $sweptPattern) {
+        $patternLogic = $patternLogic + 1;
+        if (Core\Str::startsWith($sweptPattern->message, "Core\\Time::parse(): ")) {
+            $patternNamed = $patternNamed + 1;
+        }
+    } catch (ParseError $sweptPatternText) {
+        $patternParse = $patternParse + 1;
+    }
+}
+echo $tookPattern, " taken, ", $patternLogic, " logic, ", $patternParse, " parse, ", $patternNamed, " named\n";
+
+// The text table carries the row a frozen expectation cannot hold in full: an
+// impossible civil date and an out-of-range hour are refused by the calendar
+// itself, so those two sentences are `jiff`'s wording rather than this
+// repository's. They are asserted by class and by the name in front of them,
+// which is the half that is ours.
+array<string> $texts = ["2024-03-31 12:00", "2024-03-31T12:00", "2024-03-31 12:00 and more", "2024-3-31 12:00", "2024-02-30 12:00", "", "2024-03-31 25:00"];
+int $tookText = 0;
+int $textLogic = 0;
+int $textParse = 0;
+int $textNamed = 0;
+foreach ($texts as string $t) {
+    try {
+        Core\Time::parse($t, "yyyy-MM-dd HH:mm", $berlin);
+        $tookText = $tookText + 1;
+    } catch (LogicError $sweptTextPattern) {
+        $textLogic = $textLogic + 1;
+    } catch (ParseError $sweptText) {
+        $textParse = $textParse + 1;
+        if (Core\Str::startsWith($sweptText->message, "Core\\Time::parse(): ")) {
+            $textNamed = $textNamed + 1;
+        }
+    }
+}
+echo $tookText, " taken, ", $textLogic, " logic, ", $textParse, " parse, ", $textNamed, " named\n";
+
+// Both classes are `Throwable`, so a caller that does not care which argument
+// was wrong still writes one clause — the split costs nothing to ignore, which
+// is what makes it worth having.
+int $caught = 0;
+array<string> $either = ["Q", "yyyy-MM-dd HH:mm"];
+foreach ($either as string $mixed) {
+    try {
+        Core\Time::parse("nothing like a date", $mixed, $berlin);
+    } catch (Throwable $eitherWay) {
+        $caught = $caught + 1;
+    }
+}
+echo $caught, " caught either way\n";
+--EXPECT--
+2024-03-31 12:00 +02:00 Europe/Berlin|
+2024-12-31 23:45:30|
+2024-06-01|
+Core\Time::parse(): `Q` is not a pattern letter this library carries; quote it as `'Q'` to emit it literally
+Core\Time::parse(): a `'` opens a literal that nothing closes
+Core\Time::parse(): `V` names a zone only as `VV`, the IANA identifier
+Core\Time::parse(): `Q` is not a pattern letter this library carries; quote it as `'Q'` to emit it literally
+Core\Time::parse(): expected ` ` at offset 10
+Core\Time::parse(): expected 2 or more digits of month at offset 6
+Core\Time::parse(): expected a month name at offset 5
+Core\Time::parse(): 9 characters of trailing text
+Core\Time::parse(): a pattern that parses names no zone — `Core\Time::parse` takes one as its third argument
+0 taken, 7 logic, 0 parse, 7 named
+1 taken, 0 logic, 6 parse, 6 named
+2 caught either way
