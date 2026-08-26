@@ -2,18 +2,18 @@
 
 ## State
 
-**Stage 4's two counts are the frontier — conformance 486 of 600, differential 119 of 150** — and the
+**Stage 4's two counts are the frontier — conformance 486 of 600, differential 123 of 150** — and the
 gap is behavioural depth per member, not coverage: every registered member already has a case, and
 both of Stage 4's named guards pass. Verify is green (**1596** cargo tests, 74 suites, clippy and fmt
 clean), `mwl test tests/conformance` is **486 passed, 0 failed**, `mwl test tests/differential` is
-**119 passed, 0 failed** and `mwl test tests/` is **605 passed, 0 failed** — run those as well as
+**123 passed, 0 failed** and `mwl test tests/` is **609 passed, 0 failed** — run those as well as
 `verify.py`, which executes no `.mwlt` case at all (playbook, twice), and **rebuild
 `target/release/mwl.exe` first** if anything under `crates/` is newer than it (playbook, *Running
 things*).
 
 **Differential is the half that moves, and the reason is cost**: an `--ORACLE--` case has no frozen
 output to derive, because PHP computes it. `python tools/gaps.py --differential` is the worklist —
-**41 members** with a PHP twin and no oracle case, each with a `file:line` anchor — and `--errors` is
+**38 members** with a PHP twin and no oracle case, each with a `file:line` anchor — and `--errors` is
 the same list for the unasserted `Fault::` sites on the conformance side. Do not re-derive either.
 
 **Over `Core\Arr`, ask the key question before writing a twin, because it decides which kind of case
@@ -23,33 +23,28 @@ none. Over a list the two rules coincide and the case is an `--ORACLE--` one; ov
 mixed-key subject they part and the case is an `--ORACLE-DIVERGES--` one with MWL's own output frozen
 in `--EXPECT--`. Five pairs now exist to copy — the window (`arr-slice-*`), the padding pair, the
 `reverse` pair, `replaceRange` and `arr-unique-*`. Which way a member points is in its own doc
-comment in `crates/mwl-stdlib/src/arr.rs`; a twin that renumbers *nothing* (`array_unique`) or that
-normalizes a name the way MWL does (`array_count_values`) diverges for some other reason or not at
-all, so read the comment rather than assuming the key rule bites.
+comment in `crates/mwl-stdlib/src/arr.rs`; read the comment rather than assuming the key rule bites.
+**A member answering a value rather than an array escapes the rule entirely** — `min`/`max` and
+`reduce` all match PHP over a map — so for those the divergence, if there is one, is in the
+comparison or the callback protocol instead.
 
-**Rendering is what makes a `?T` or a `bool` comparable**, and both shapes are worked out now: a
-`?T` renders absence as `none` on both sides and returns `$found as string` in the guarded branch
-(`arr-find-and-find-key-match-array_find-and-array_find_key`, `str-index-of-matches-strpos`), and a
-`bool` goes through a two-branch `yn` helper, because `echo` writes `false` as nothing at all in
-*both* languages and an empty row cannot be told from a missing one
-(`arr-any-and-all-match-array_any-and-array_all`).
+**Two comparison facts are settled and pinned.** MWL orders by
+`mwl_stdlib::ordering::compare_values`, one row per representation with nothing crossing except the
+two numeric ones, where PHP's `<` converts: `min([0, "a"])` is `0` there (the `int` cast to a string)
+and a throw here, and two numeral strings compare *numerically* there and bytewise here, so
+`min(["1e2", "50"])` is `"50"` in PHP and `"1e2"` in MWL. That refusal is a `Fault::thrown` and a
+`catch (Throwable $e)` does reach it, unlike the `Fault::fatal` an argument-shape guard raises
+(playbook, *Writing a test case*, two adjacent bullets).
 
-**A second, unrelated divergence is settled and pinned**: PHP's next free integer key is a property
-of an array's *history* and MWL's is a property of its *entries*, because a pure member returns a
-fresh array with no counter to inherit. `mwl_core_arr_append`'s doc comment owns that fact and
-`arr-append-derives-the-next-free-key-where-php-remembers-it.mwlt` pins it. MWL's own `$a[] = $v`
-does match PHP.
-
-**Another agent is writing `benches/userland/`, `tools/bench.py`, `docs/perf/` and
-`crates/mwl-runtime/src/lib.rs` in this tree right now** — those paths were modified or untracked
-throughout this session and are none of this loop's work. Stage your own paths explicitly (playbook,
-*Tooling*); never `git commit -a`.
+**Rendering is what makes a `?T` comparable**: absence is `none` on both sides and the guarded branch
+returns `$found as string` (`arr-min-and-max-match-*`, `arr-find-and-find-key-match-*`). A `?bool`
+has no such shape — the truthy condition panics `mwl-ir` — so keep a `bool`-valued subject out of a
+case about a `?T`-answering member (playbook, same section).
 
 The spellings a case cannot use — a closure through the variable holding it, `Class::method(...)`,
 `bool as int`, an array literal wherever an `array<T>` is expected, a bare `function` at file scope,
-an `int` literal in an `array<float>`'s element position, `try`/`catch` around a `Core` member's
-`FATAL:` — are all in the playbook under *Writing a test case* and *Writing MWL itself*; do not
-re-discover them.
+an `int` literal in an `array<float>`'s element position — are all in the playbook under *Writing a
+test case* and *Writing MWL itself*; do not re-discover them.
 
 ## Next group
 
@@ -58,23 +53,24 @@ into `tests/differential/core/`, so a session that loads that file once can take
 family off `python tools/gaps.py --differential`, so no session re-derives the twin. Read the
 members' doc comments for the key rule first, per *State* above. PHP on this machine is 8.5.9.
 
-- [ ] **`Core\Arr::min`/`max` against PHP's `min`/`max`** — `arr.rs:4031`, `arr.rs:4043`, spec § 2.
-      PHP's `min`/`max` compare with `<`, which is the loose comparison, and answer the *first*
-      extreme over ties; an empty array is a `ValueError` there. Expect a matching case over a
-      single-typed list and a divergence over a mixed-type one, on the same reasoning
-      `arr-unique-on-mixed-types-diverges-from-array_unique` records.
-- [ ] **`Core\Arr::reduce` against `array_reduce`** — `arr.rs:2616`, spec § 2. The callback's
-      argument order and whether the key is offered is the question; `array_reduce`'s callback takes
-      `($carry, $item)` and never a key.
-- [ ] **`Core\Arr::sortByKey` against `ksort`/`krsort`/`uksort`** — `arr.rs:2940`, spec § 2. MWL
-      stores every key as a `string` (ADR 0007 § 5) where `ksort` compares an int key numerically,
-      so the mixed-key subject is where this one is likely to need the diverging half.
+- [ ] **`Core\Arr::sortByKey` against `ksort`/`krsort`/`uksort`** — `crates/mwl-stdlib/src/arr.rs:2940`,
+      spec § 2. MWL stores every key as a `string` (ADR 0007 § 5) where `ksort` compares an int key
+      numerically, so a mixed-key or numeral-key subject is where the diverging half lives; the
+      comparison itself is `ordering.rs:33`, the same one `min`/`max` just diverged over.
+- [ ] **`Core\Arr::fill` against `array_fill`** — `crates/mwl-stdlib/src/arr.rs:2287`, spec § 2.
+      `array_fill`'s start index may be negative, which in PHP 8 builds a list from that index; MWL's
+      keys are strings, so ask what a negative start means here before writing the rows.
+- [ ] **`Core\Arr::flattenDeep` against `iterator_to_array`** — `crates/mwl-stdlib/src/arr.rs:2135`,
+      spec § 2. The twin is only half a twin — PHP has no array flatten — so expect the matching half
+      to be narrow and the case to carry most of its weight in `--ORACLE-DIVERGES--` prose.
 
 ## Backlog
 
-- `Core\Arr::fill` (`arr.rs:2287`) and `flattenDeep` (`arr.rs:2135`) — the same worklist.
-- `Core\Math`'s eleven twins, `math.rs:144` onward — a different file, so a different group.
-- `Core\Str`'s eleven twins, `str.rs:951` onward — `mb_*` is absent from the Windows `php` (playbook).
-- `gaps.py --errors`: the unasserted `Fault::` sites, now that `--EXPECT-ERROR--` is a worked shape.
+- `Core\Str` has eleven differential gaps left (`gaps.py --differential`); `compare`, `slice` and
+  `chunk` are the largest.
+- `Core\Math` has eleven, all numeric and cheap to write once one of them settles float rendering.
+- `--errors`: the unasserted `Fault::` sites on the conformance side, which is the other half of
+  Stage 4's gap (`docs/implementation-plan.md`, *Open now*).
+- ADR 0088's qualifier classification is unbuilt across every `mwl-stdlib` member row
+  (`mwl_stdlib::hash`'s module doc).
 - `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
-- `mwl_stdlib::json` gap 2 — `decodeAs<T>` reads a scalar-fielded class only.

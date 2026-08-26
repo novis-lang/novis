@@ -701,6 +701,23 @@ is why" — is this file.
   sentence you wrote.
 - **An `int` literal does not reach an `array<float>`'s element type**, so a differential case about MWL's *one numeric domain* has to declare the subject `array<int|float>`. `Core\Arr::contains($floats, 1)` against an `array<float>` is `E0401: expected float, found int` at the argument — the needle is typed `T`, and the widening `1 == 1.0` gets in an expression is not one an argument position performs. Declaring `array<int|float> $numeric = [1.0, 2.5];` makes `T` the union, the literal fits, and `contains($numeric, 1)` then answers `true` — which is the ADR 0090 § 3 row worth pinning, since `in_array(1, [1.0], true)` is `false` and the loose `in_array(1, [1.0])` is `true`, so MWL matches neither of PHP's two modes.
 - **A `Core` member's refusal is a `FATAL:` line on standard error, not a `Throwable`, so `try`/`catch` cannot pin it.** `Fault::fatal` is what `key_bytes` and every argument-shape guard in `mwl-stdlib` raise, and it unwinds past `catch (Throwable $e)` untouched: a case wrapping `Core\Arr::countBy($floats)` in a `try` prints nothing from its handler and exits 1. Pin it with `--EXPECT-ERROR--` instead, whose presence is also what tells the runner this case's run is *meant* to fail — the stdout before the fatal still has to match `--EXPECT--`, so the agreeing rows can sit in the same case. Get the message by running the scratch under `2>` and `cat -A`: it is one line, `FATAL: ` then the member's own text, and it can carry an internal detail (`got tag 4`) that no other section would let you assert.
+- **A `Core` member's *ordering* refusal is the other kind of `Fault` and a `catch` does reach it.**
+  `Fault::thrown` — what `mwl_stdlib::ordering::compare_values` raises for a pair with no natural
+  order, and so what `Core\Arr::min`/`max`/`sort` raise over a mixed-type subject — unwinds as an
+  ordinary `Throwable`, so `try { … } catch (Throwable $e) { echo "refused\n"; }` at file scope
+  prints and the case carries on. That is the opposite of the neighbouring bullet's `Fault::fatal`,
+  which no handler sees, and it is what lets a divergence case render its refusals inline beside its
+  agreeing rows instead of ending at an `--EXPECT-ERROR--`. Which one a member raises is decided in
+  the helper, not by the member, so check the `Fault::` constructor at the site rather than assuming.
+
+- **A `?bool` cannot be tested for truth, so a member answering one has no `yn` rendering at all.**
+  `if ($found as bool)` on a `?bool` parameter panics `mwl-ir`'s truthy-condition slice at
+  `lower/expr.rs:1036` with *"got Tagged"* — the `as bool` does not narrow the binding out of
+  `Ty::Tagged`, and the guarded-branch conversion that works for `?int` and `?string`
+  (`return $found as string;`) has no counterpart here because the condition is what fails. The
+  `yn` helper in `arr-any-and-all-match-array_any-and-array_all` takes a plain `bool` for this
+  reason. Keep a `bool`-valued subject out of a case about a `?T`-answering member, or render it
+  through a member that answers `string`.
 
 ## Splitting a file that got too big
 
