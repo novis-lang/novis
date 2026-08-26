@@ -14,8 +14,8 @@
   § 9 hands back to [0007](0007-explicit-type-system.md) § 3 with a corrected count.
 - **Amends:** [0077](0077-compile-time-routing.md) — § 2 gains `{name?}`, § 3 gains literal-union and
   enum-case-subset capture types, § 4 gains `methodsFor`, `urlAbsolute` and the extras-become-a-query-string
-  rule, and its *Revisiting* loses the routing entry § 9 disproves. Its "list now holds five names" count is
-  removed per § 9.
+  rule, and its *Revisiting* loses the routing entry § 9 disproves, along with its count of the
+  compiler-recognized attribute list, which § 9 gives one home.
   [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) — § 2's unresolved "the M7
   server, or `Web\Auth`" is resolved in § 8; § 4's CSRF check is given the match § 1 makes; and its
   *Amends* line gains [0071](0071-derived-codecs.md) § 1, which it always owed and never wrote.
@@ -29,8 +29,6 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 13 and 15 — the `Core\Router` row and the
   `Core\Request` roster.
 - **Amended by:** none.
-- **Relates to:** 0004, 0005, 0007, 0024, 0029, 0031, 0046, 0047, 0061, 0063, 0072, 0074, 0076, 0078, 0080,
-  0082, 0095
 
 > **In short:** [ADR 0077](0077-compile-time-routing.md) stopped at matching and was right to. What it left
 > was not a boundary problem but a set of holes an application falls into on its first week: the match
@@ -299,8 +297,7 @@ one-home rule forbids, and nothing is built, so nothing migrates. `prefix` is wh
 section's glob captures — `{1}` is `captures[0]`. They are `tainted string` because they came off the wire,
 so feeding one to a query launders normally.
 
-**`#[Route]` gains no `host` field**, and [0077](0077-compile-time-routing.md)'s *Revisiting* entry
-proposing one is withdrawn. Host matching already exists one layer down, and putting a hostname in the
+**`#[Route]` gains no `host` field.** Host matching already exists one layer down, and putting a hostname in the
 compiled table would destroy the property [0097](0097-development-server-and-proxied-origin.md) § 3 bought:
 *"the same compiled route table serves at `/ModuleA`, at `/ModuleB` or at `/`, with no recompile."* It is
 also the same lifetime argument [0077](0077-compile-time-routing.md) already used to keep routes out of
@@ -336,10 +333,10 @@ decision nobody made — defeating the ADR's purpose. This is a repair, not a ne
 
 ### 9. Routing is not a forcing case for typed `callable`, and the attribute count gets one home
 
-[0077](0077-compile-time-routing.md) § 4 records that a `Match` carrying a callable reference would need
-typed `callable` signatures, and its *Revisiting* counts routing as **the fourth forcing case** for
-[0007](0007-explicit-type-system.md) § 3's deferral. **That is wrong and is corrected in both places.**
-Typed `callable` would not remove the `switch`, for three independent reasons:
+A `Match` carrying a callable reference would need typed `callable` signatures
+([0077](0077-compile-time-routing.md) § 4), which invites reading routing as a case that forces
+[0007](0007-explicit-type-system.md) § 3's deferral. **It is not one.** Typed `callable` would not remove
+the `switch`, for three independent reasons:
 
 - **Routes do not share a signature.** `show(uint $id)`, `index()` and `blog(uint $y, uint $m, string $slug)`
   cannot inhabit one `handler` field. The only way around it is pre-binding the converted parameters into a
@@ -352,10 +349,9 @@ Typed `callable` would not remove the `switch`, for three independent reasons:
   returns is between it and whoever called it."* A `callable(): Response` would force one, which is a
   framework opinion `Core` refuses to hold.
 
-So the count returns to **three** — [0061](0061-compile-time-autoload-and-program-discovery.md) § 3,
-[0031](0031-callable-is-the-only-closure-type.md)'s boxed-cell entry, and
-[0072](0072-core-task-structured-concurrency.md) § 1 — and a future ADR re-arguing the deferral must argue
-it on those plus the per-element dynamic-call cost in `Core\Arr`, not on routing.
+So a future ADR re-arguing the deferral argues it on the cases
+[0007](0007-explicit-type-system.md)'s *Revisiting* lists, plus the per-element dynamic-call cost in
+`Core\Arr` — not on routing.
 
 **The ergonomic cost is paid where [0082](0082-the-first-party-framework.md) already put the layer.**
 `Web\Controller` generates the dispatch `switch` from the route table **while compiling**, so an application
@@ -363,12 +359,10 @@ using the framework never writes one and receives typed, laundered parameters di
 declines the framework writes the `switch` itself — permanently, and typed `callable` was never going to
 change that.
 
-**The running count of compiler-recognized attributes is deleted everywhere it was restated.**
-[0071](0071-derived-codecs.md) § 1 opened with "exactly those four names";
-[0077](0077-compile-time-routing.md) § 1 said "that list now holds five names"; 0085 and 0086 each added
-more without updating either, and this ADR adds two. A total restated in seven places is guaranteed bit-rot.
-**0071 § 1 is the one home for the list**; every amending ADR says its attribute "joins the closed list" and
-states no number.
+**[0071](0071-derived-codecs.md) § 1 is the one home for the closed list of compiler-recognized
+attributes, and no ADR states its size.** Every ADR adding one says its attribute "joins the closed list"
+and stops there. A total restated in each amending ADR is a total that goes stale, which is what happened
+to this one before the rule was written down.
 
 ## Consequences
 
@@ -452,6 +446,22 @@ states no number.
 - **Blocking this ADR on typed `callable`.** Rejected in § 9: it would be waiting for a fix that does not
   arrive, since two of the three obstacles survive it.
 
+## Revisiting
+
+- **`#[Query]` is the entry that makes the closed list long.** If an eighth compiler-recognized attribute is
+  ever proposed, the question to ask first is whether the list should become a documented language surface
+  with its own reference page rather than a roster inside [0071](0071-derived-codecs.md) § 1.
+- **Typed `callable`** ([0007](0007-explicit-type-system.md) § 3) is now owed its own ADR, argued on three
+  forcing cases and the `Core\Arr` dispatch cost. § 9 removes routing from that argument; it does not weaken
+  the rest of it.
+- **`#[Access]` being written but not honoured** (§ 8) is the one gap this ADR names and does not close. If
+  the corpus imported in [M11](../implementation-plan.md) shows applications hand-rolling dispatch and
+  dropping the check, the answer is a lint in `Web\Controller`'s generator rather than a compiler rule.
+- **A shape constraint a type cannot express** — the `[a-z0-9-]+` slug — stays a handler-side
+  `Core\Validate` check. If it turns out to be the common case rather than the rare one, the answer is a
+  named, non-backtracking matcher in `Core\Validate` that the router may call, never an
+  application-authored regex on the request path.
+
 ## Verification
 
 - **M4S:** `#[Query]` is matched nominally, like `#[Route]` — a userland `type Query = {...};` binds
@@ -483,19 +493,3 @@ states no number.
   compile if the qualifier were wrong.
 - **Boot:** a mount whose unit contains a literal `urlAbsolute` call and resolves no `origin` is a boot
   error, and the check re-runs on `mwl ctl reload` with a newly scanned mount.
-
-## Revisiting
-
-- **`#[Query]` is the entry that makes the closed list long.** If an eighth compiler-recognized attribute is
-  ever proposed, the question to ask first is whether the list should become a documented language surface
-  with its own reference page rather than a roster inside [0071](0071-derived-codecs.md) § 1.
-- **Typed `callable`** ([0007](0007-explicit-type-system.md) § 3) is now owed its own ADR, argued on three
-  forcing cases and the `Core\Arr` dispatch cost. § 9 removes routing from that argument; it does not weaken
-  the rest of it.
-- **`#[Access]` being written but not honoured** (§ 8) is the one gap this ADR names and does not close. If
-  the corpus imported in [M11](../implementation-plan.md) shows applications hand-rolling dispatch and
-  dropping the check, the answer is a lint in `Web\Controller`'s generator rather than a compiler rule.
-- **A shape constraint a type cannot express** — the `[a-z0-9-]+` slug — stays a handler-side
-  `Core\Validate` check. If it turns out to be the common case rather than the rare one, the answer is a
-  named, non-backtracking matcher in `Core\Validate` that the router may call, never an
-  application-authored regex on the request path.

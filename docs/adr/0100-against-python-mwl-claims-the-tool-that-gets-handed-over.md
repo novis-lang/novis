@@ -19,7 +19,6 @@
   [benches/userland/README.md](../../benches/userland/README.md) — a case may carry a `.py` twin, and the
   fairness rule gains the one exception § 5 names.
 - **Amended by:** none.
-- **Relates to:** 0004, 0005, 0015, 0021, 0024, 0033, 0044, 0048, 0051, 0052, 0063, 0079, 0082, 0086, 0095
 
 > **In short:** Python's grip on the quick script rests on the REPL, on being allowed to be wrong and still
 > run, and on fifteen years of C-backed packages. MWL will take none of the three, **so it does not try**.
@@ -304,20 +303,6 @@ suffix; it is the strongest engine in the suite and is kept for exactly that rea
   this project's own claims. Measuring only engines MWL beats is how a benchmark suite stops being
   evidence.
 
-## Verification
-
-- **§ 3** is a lexer slice with its cases in `crates/mwl-syntax`: a shebang file whose first statement
-  parses; a shebang file containing `?>` followed by text and a reopening `<?mwl`; `#!` at offset 1 and
-  after a leading newline, both lexing as ordinary text; `E0009` on a `<?mwl` in a shebang file; and the
-  shebang line surviving a `mwl-fmt` round trip as trivia, which is the [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
-  half.
-- **§ 5** is verified by the suite itself: `python tools/bench.py --check` passes with three engines, which
-  is the byte-identical gate over every case, and `--engines mwl,php` reproduces the two-engine table
-  unchanged.
-- **§§ 1, 2 and 4** are rules about documents and are verified by reading, exactly as
-  [0080](0080-the-audience-mwl-is-built-for.md) § 3 is. No check enforces a forbidden phrasing and none
-  should; the rule exists so a reviewer has something to point at.
-
 ## Revisiting
 
 - **§ 4 reopens if `mwl test`'s loop turns out not to substitute for a REPL in practice** — the concrete
@@ -337,3 +322,17 @@ suffix; it is the strongest engine in the suite and is kept for exactly that rea
   median userland case today; what MWL still wins there is cold start, which is the CLI headline § 5
   names. If that stops being true, § 1's second audience loses its best evidence and this ADR is worth
   re-reading whole.
+
+## Verification
+
+- **§ 3** is a lexer slice with its cases in `crates/mwl-syntax`: a shebang file whose first statement
+  parses; a shebang file containing `?>` followed by text and a reopening `<?mwl`; `#!` at offset 1 and
+  after a leading newline, both lexing as ordinary text; `E0009` on a `<?mwl` in a shebang file; and the
+  shebang line surviving a `mwl-fmt` round trip as trivia, which is the [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
+  half.
+- **§ 5** is verified by the suite itself: `python tools/bench.py --check` passes with three engines, which
+  is the byte-identical gate over every case, and `--engines mwl,php` reproduces the two-engine table
+  unchanged.
+- **§§ 1, 2 and 4** are rules about documents and are verified by reading, exactly as
+  [0080](0080-the-audience-mwl-is-built-for.md) § 3 is. No check enforces a forbidden phrasing and none
+  should; the rule exists so a reviewer has something to point at.

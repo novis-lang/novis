@@ -25,10 +25,7 @@
   now-decided mechanism they were deferred pending — neither attribute itself is decided by this ADR.
   [docs/implementation-plan.md](../implementation-plan.md) M4 gains the `#[...]` grammar and its shape/
   compile-time-constant checks; M8 gains `Core\Attributes` alongside `Core\Reflect`/`Core\Ast`.
-- **Amended by:** 0071 — the *compiler-recognized* attributes this ADR's scope defers are matched
-  **nominally**, against a closed `Core`-owned list, and 0071 opens that list with four names. §4's
-  *structural, not nominal* rule governs `Core\Attributes::get<T>`/`::all<T>` retrieval and is unchanged.
-- **Relates to:** 0004, 0011, 0015, 0019, 0022, 0027, 0033, 0036, 0042
+- **Amended by:** 0071, 0077
 
 > **In short:** `#[Name(field: value, ...)]` (or bare `#[{field: value, ...}]`) attaches an object-shape
 > literal — exactly [ADR 0036](0036-anonymous-object-shapes.md)'s literal, not a new kind of value — to a

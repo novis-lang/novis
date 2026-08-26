@@ -14,7 +14,6 @@
   trait-contributed" property phrasing in its *Scope* line and § 2 no longer names a real case; a `by`-target
   field is an ordinary declared property, already covered by § 2's base rule with no special case needed.
 - **Amended by:** none.
-- **Relates to:** 0004, 0007, 0011, 0013, 0014, 0029, 0030, 0038
 
 > **In short:** PHP traits bundle two unrelated things — sharing *behavior* across otherwise-unrelated
 > classes, and sharing *state* — under one flattening-plus-`insteadof` mechanism. MWL already has the right
@@ -282,8 +281,7 @@ human decision, named honestly rather than silently attempted:
 
 **Negative**
 
-- **A structural break from PHP**, joining the divergence list [ADR 0007](0007-explicit-type-system.md) § 7
-  already carries: PHP source using `trait` does not convert unconverted, unlike the narrower change ADR
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: PHP source using `trait` does not convert unconverted, unlike the narrower change ADR
   0015 § 3 made (which kept traits, only dropping `as`).
 - **`by` delegation spends memory ADR 0004 requires naming**: one extra property (a pointer-sized reference)
   per delegated interface, per class instance — the cost of the delegate object itself, plus that one

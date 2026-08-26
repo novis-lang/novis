@@ -12,8 +12,7 @@
   values satisfy `callable` is unchanged; that ADR is spelled in `callable` terms throughout, and
   `Closure::fromCallable` is dropped since nothing is left to convert from). All three folds are applied in
   those files.
-- **Amended by:** 0063.
-- **Relates to:** 0011, 0015, 0029, 0030
+- **Amended by:** 0036, 0063
 
 > **In short:** PHP's anonymous-function surface collapses to one literal and one type. **`fn(...)` is the
 > only closure literal** — with or without a body (`fn($x) => $x + 1` and `fn($x) => { ...; return $x; }`
@@ -175,8 +174,7 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
 
 **Negative**
 
-- **A structural break from PHP**, joining the divergence list [ADR 0007](0007-explicit-type-system.md) § 7
-  already carries: `function(...) use (...) {...}` is common PHP, and every occurrence needs conversion.
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: `function(...) use (...) {...}` is common PHP, and every occurrence needs conversion.
   Mechanical for `mwl convert` in the overwhelming majority of cases — rewrite to `fn`, drop `use ($y)`
   entirely since capture is now automatic — except `use (&$y)`, which needs a human decision between the
   self-name rewrite (recursion) and the wrapper-object rewrite (shared mutable cell), since the converter

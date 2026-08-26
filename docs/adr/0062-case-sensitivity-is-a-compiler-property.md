@@ -14,7 +14,6 @@
   lowercases anything; it accepts the lower-case spelling and nothing else, which is a stronger statement
   than the note it replaces.
 - **Amended by:** none.
-- **Relates to:** 0015, 0029, 0034, 0045, 0049, 0061
 
 > **In short:** nothing in MWL's meaning depends on the operating system's filesystem or on the case a
 > reserved word was typed in. Names resolve case-sensitively (§ 1). Reserved spellings — keywords,

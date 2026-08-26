@@ -19,7 +19,6 @@
   literal (see *Decision § 2*). [docs/implementation-plan.md](../implementation-plan.md) M1 — gains a third
   pending grammar item (the literal and the shape-type syntax), M2 — gains the atom's real subtyping and the
   shape's structural check.
-- **Relates to:** 0002, 0004, 0013, 0015, 0020, 0022, 0023
 
 > **In short:** PHP's `stdClass` needs dynamic, undeclared properties — closed for good reason in
 > [ADR 0014](0014-property-observer.md) — so MWL cannot offer it directly. Instead: **`object` becomes the

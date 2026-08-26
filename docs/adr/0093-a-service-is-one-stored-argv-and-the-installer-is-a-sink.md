@@ -12,11 +12,9 @@
   [0073](0073-scheduled-work-is-config.md) and is not a service; and bundling a program into one file,
   which stays [0048](0048-portable-single-file-executables.md) — § 6 here is the boundary that ADR's § 1
   named and deferred.
-- **Amended by:** 0103 — § 2's closed subcommand list gains `config`, and its refusal table gains an argv
-  carrying no `--config`, so a service never derives its configuration from a working directory.
+- **Amended by:** 0097, 0103
 - **Amends:** [0048](0048-portable-single-file-executables.md) § 1 — its single-trust-domain argument now
   also refuses a bundle that would install *itself* as a service, § 6 below.
-- **Relates to:** 0004, 0005, 0033, 0044, 0051, 0078, 0080, 0088
 
 > **In short:** `mwl service install <name> [options] -- <args…>` registers this binary with the platform's
 > service manager and stores everything after `--` verbatim as the argv the service runs, which is what

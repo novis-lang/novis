@@ -6,9 +6,7 @@
   `Comparable` interface and its single method; what happens when a class does not implement it
 - **Amends:** [0007](0007-explicit-type-system.md) § 4 — adds the object-operand row *Decision § 4* gives
   below to the operator result table, which was previously silent on two object operands.
-- **Amended by:** 0090 — § 5 said equality kept "whatever PHP's default already gives it", which was the
-  absence of a decision; it now names the ADR that owns equality. The fold is applied below.
-- **Relates to:** 0002, 0004, 0008, 0011, 0012, 0090
+- **Amended by:** 0090
 
 > **In short:** PHP compares two objects of the same class with `<`/`>` by walking their declared
 > properties in order and comparing recursively, stopping at the first difference — a behaviour that exists
@@ -140,8 +138,7 @@ the content question explicitly, which is ADR 0090 § 4's answer to it.
 
 **Negative**
 
-- **A structural break from PHP**, joining the divergence lists in
-  [ADR 0007](0007-explicit-type-system.md) § 7, [ADR 0008](0008-static-and-global.md) and
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, [ADR 0008](0008-static-and-global.md) and
   [ADR 0010](0010-enums-are-a-value-type.md): PHP source ordering two objects of the same class with `<`/
   `>`, relying on the implicit property walk, does not convert unconverted. `mwl convert`
   ([M11](../implementation-plan.md)) can detect the pattern but must leave adding `Comparable` and writing

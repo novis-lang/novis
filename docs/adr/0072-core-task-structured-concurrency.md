@@ -16,9 +16,7 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) — a new § 19 holding the signatures.
   [docs/implementation-plan.md](../implementation-plan.md) — M5's `all`/`race`/`timeout`/`parallel_map`
   line is replaced by this roster.
-- **Amended by:** 0083 — § 6 of that ADR states the difference between `afterResponse` and a connection
-  isolate, the two things in MWL that outlive a response.
-- **Relates to:** 0002, 0004, 0007, 0020, 0031, 0053, 0063, 0067
+- **Amended by:** 0083
 
 > **In short:** the concurrency shape applications actually reach for is not a scope object — it is *"run
 > these four things, give me all four results, and if one fails give me the failure."* That is
@@ -92,9 +90,8 @@ container untypeable and got one rejected during the session this ADR came out o
   `callable`-typed variable rather than a literal is a compile error naming the field, because there is
   nothing to bind from — [ADR 0031](0031-callable-is-the-only-closure-type.md) leaves `callable` without a
   signature, and [ADR 0007](0007-explicit-type-system.md) § 3's deferred typed-`callable` signatures are
-  what would remove this restriction. This is the third forcing case for that deferral, after
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 3 and
-  [ADR 0031](0031-callable-is-the-only-closure-type.md)'s own *Revisiting*.
+  what would remove this restriction, and that ADR's *Revisiting* is where this case is counted with the
+  others.
 - The closures run as ordinary tasks on the calling core unless a body itself spawns elsewhere; each is a
   child of the calling task, so [ADR 0006](0006-isolated-script-execution.md)'s tree accounting applies with
   nothing added.

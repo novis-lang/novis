@@ -17,7 +17,6 @@
   payload is an output, so a `secret` cannot enter one.
   [docs/implementation-plan.md](../implementation-plan.md) — M8 gains the queue.
 - **Amended by:** none.
-- **Relates to:** 0004, 0005, 0006, 0017, 0020, 0023, 0024, 0041, 0042, 0063, 0071, 0072, 0076, 0080, 0082
 - **Depends on:** [0067](0067-core-db.md) — the queue has no storage engine of its own.
 
 > **In short:** a job is **a row in a table in a database `Core\Db` already talks to**. That single choice
@@ -228,6 +227,16 @@ guarantee it drops.
   plus deduplication, which is what `key` provides at enqueue and what an idempotent job provides at
   execution.
 
+## Revisiting
+
+- **If a user is genuinely bounded by database write throughput**, § 8 is what changes, and the new ADR must
+  state which guarantee the broker-backed path gives up.
+- **If non-transactional enqueues turn out to be common in practice** — visible in `Core\Queue::stats` —
+  that argues for making `push` on a foreign connection a compile-time warning, which needs the checker to
+  know the queue's connection name at compile time.
+- **If `key` dedupe proves insufficient** and applications ask for execution-time idempotency keys, that is
+  a real gap and a candidate addition — not a change to the at-least-once guarantee.
+
 ## Verification
 
 - **Transactional enqueue:** a transaction that pushes a job and then rolls back leaves no row in the jobs
@@ -251,13 +260,3 @@ guarantee it drops.
   [0041](0041-timeline-export-and-gc-spawn-trace-events.md) already emits for a spawn.
 - **No implicit DDL:** a server started against a database with no queue tables refuses to run workers and
   names `mwl queue migrate`, rather than creating them.
-
-## Revisiting
-
-- **If a user is genuinely bounded by database write throughput**, § 8 is what changes, and the new ADR must
-  state which guarantee the broker-backed path gives up.
-- **If non-transactional enqueues turn out to be common in practice** — visible in `Core\Queue::stats` —
-  that argues for making `push` on a foreign connection a compile-time warning, which needs the checker to
-  know the queue's connection name at compile time.
-- **If `key` dedupe proves insufficient** and applications ask for execution-time idempotency keys, that is
-  a real gap and a candidate addition — not a change to the at-least-once guarantee.

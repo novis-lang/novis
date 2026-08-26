@@ -7,8 +7,7 @@
   behaviour. Not in scope: general constant folding of arithmetic, which is an ordinary optimisation
   needing no ADR.
 - **Amends:** none.
-- **Amended by:** 0063 — each fold is applied below; this body states the current rule.
-- **Relates to:** 0018, 0042, 0046, 0056
+- **Amended by:** 0063, 0070
 
 > **In short:** a short, closed list of `Core` methods take an argument that is really a small program — a
 > regex pattern, a URI, a date-format string, a format string. When that argument is a compile-time

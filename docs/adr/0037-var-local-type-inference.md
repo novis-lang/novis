@@ -40,7 +40,7 @@ changes" is unaffected; `var` only changes how that first type gets there.**
   reference-typing, redeclaration diagnostics — applies to a `var` declaration unchanged, because by the
   time those checks run there is no distinction left: `var` has already resolved to a concrete type.
 
-## Why this fits without reopening ADR 0007
+### Why this fits without reopening ADR 0007
 
 ADR 0007 rejected general inference because it would mean two type systems (declared vs. inferred) that
 must agree, a soundness boundary between them, and a baseline backend that has to special-case whatever

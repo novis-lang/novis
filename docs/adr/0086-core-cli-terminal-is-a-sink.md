@@ -26,14 +26,7 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 13 and 15 — a `Core\Command` row, and the
   `Core\Cli` bullet replaced by this ADR's roster.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the command-table pass, M8 the rest.
-- **Amended by:** 0087, 0088, 0092 — each fold is applied below and this body states the current rule. 0087
-  adds § 1's unterminated-bidi row and withdraws § 7's refusal to address it; 0088 makes this sink the
-  **default** one every context without an HTTP request binds `echo` to, and separates `echo` from
-  `Core\Cli`'s members in § 8; 0092 makes § 1's substitution table a property of its record model as well,
-  so a log line, a dump and a stack trace carry the same answer into every rendering, and § 3's colour
-  resolution is what its plaintext rendering reads.
-- **Relates to:** 0004, 0006, 0007, 0009, 0010, 0025, 0031, 0036, 0048, 0049, 0052, 0063, 0072, 0077,
-  0079, 0080
+- **Amended by:** 0087, 0088, 0092
 
 > **In short:** `Core\Cli` is four members today and M4 is titled *a usable CLI language*. This ADR makes it
 > the surface a CLI program is actually written against, and takes five decisions. **The terminal is an

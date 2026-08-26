@@ -34,12 +34,7 @@
   situation [0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* already flagged once. M4 —
   the debug-dump line item gains this ADR's redaction rule. M8 — the `Core\Log` line item gains
   this ADR's call-site inspection rule.
-- **Amended by:** 0046, 0084, 0086, 0092 — each fold is applied below; this body states the current rule.
-  0084 records that a durable job payload is an output, so a `secret` cannot enter one; 0086 adds
-  `Cli::secret` to § 1 as the one `Core` member that originates the qualifier **and terminal output to
-  § 4's refusing roster**; 0092 makes the redaction a
-  node kind in its record model, so all three renderings inherit it rather than each implementing it.
-- **Relates to:** 0004, 0009, 0012, 0015, 0020, 0022, 0023, 0024, 0028
+- **Amended by:** 0046, 0055, 0084, 0086, 0092
 
 > **In short:** `secret string`/`secret bytes` join `tainted string`/`tainted bytes` as a second, independent
 > compile-time qualifier — `secret` and `tainted` answer different questions (*can I trust where this came

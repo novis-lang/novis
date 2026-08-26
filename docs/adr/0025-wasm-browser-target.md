@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
+- **Amended by:** 0097
 - **Scope:** a `wasm32` compile target for interactive client-side scripts running in a browser tab; its
   codegen backend and how it shares the CFG/SSA IR boundary from M2; the per-target capability matrix that
   excludes `spawn worker`/`spawn script`, coroutine-based suspension, and `.mwlx` wasm-component extensions
@@ -11,8 +12,6 @@
   sandboxing/per-instance-cost properties `benches/abi-probe/tests/wasm_sandbox.rs` already established
   under [0003](0003-extension-system.md); its own target-specific claims (the dropped coroutine, the
   capability matrix) get their own guard test when M14 starts, per the *Revisiting* section below.
-- **Relates to:** 0002, 0003, 0004, 0006, 0007, 0009, 0010, 0011, 0012, 0013, 0014, 0015, 0017,
-  0020, 0022, 0023, 0024
 
 > **In short:** MWL gains an optional `wasm32` compile target for running client-side in a browser tab,
 > implemented as a **second codegen backend consuming the same IR** M2 already produces — not a second

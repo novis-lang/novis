@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
+- **Amended by:** 0097
 - **Scope:** decides how MWL reads text whose *spelling* and whose *meaning* can come apart — an HTTP
   message's framing and headers, inbound and outbound alike; a cookie name and its `__Host-`/`__Secure-`
   prefix; a multipart body's part accounting; and a path component handed to `Core\IO::within`. Does **not**
@@ -14,6 +15,18 @@
 - **Amends:** [0074](0074-http-defaults-safe-and-finite.md) — its *Alternatives* entry pushing "edge
   concerns" to a proxy now says explicitly that the line covers **size and rate**, not **parsing**, and its
   § 3 gains the cookie-name rule below.
+
+> **In short:** where a name's *spelling* and its *resolution* can come apart, MWL refuses the input
+> rather than repairing it — never normalising, unfolding, mangling or truncating its way to an
+> interpretation. The list of what counts as ambiguous is **closed and written down** (§§ 2–5), which is
+> what stops "strict" from growing every time somebody reads a specification more carefully: everything
+> not on it is merely *unusual* and is accepted verbatim. It covers an HTTP message's framing and headers
+> **in both directions** — a remote server is an attacker too, and there is no per-call opt-out — a cookie
+> name matched byte for byte with `__Host-`/`__Secure-` enforced once by the runtime rather than at every
+> read site, a multipart **part count** cap beside the body-size cap it is not, and a path component handed
+> to `Core\IO::within`. The last of those refuses Windows device names, trailing dots and 8.3 short names
+> **on every platform**, because a rule that fires on one host and not another is a suite that passes in CI
+> and fails in production.
 
 ## Context
 

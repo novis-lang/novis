@@ -5,12 +5,7 @@
 - **Scope:** the type grammar; the declaration requirement at every binding site; `uint`; typed and
   nested arrays; string-only array keys; unions and `mixed`; the conversion operator; the result type of
   every arithmetic operator
-- **Amended by:** 0008, 0010, 0011, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036,
-  0037, 0047, 0053, 0054, 0066, 0069, 0090 — each fold is applied below, and each row another ADR owns outright names
-  it in place. This body states the current rule, never a prior one.
-- **Relates to:** [0002](0002-error-propagation.md) (a refused conversion throws, so it propagates as a
-  checked status), [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
-  [0006](0006-isolated-script-execution.md) (a value crossing an isolate boundary carries its element type)
+- **Amended by:** 0008, 0010, 0011, 0012, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036, 0037, 0047, 0053, 0054, 0063, 0066, 0069, 0090
 
 > **In short:** every binding — parameter, property, constant, local, loop variable, closure parameter,
 > return — declares a type, and **a binding's declared type never changes**. A *value's* type changes only
@@ -373,7 +368,12 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
 ## Revisiting
 
 - **User-defined generics, typed callables (`callable(int): string`), generic classes** — parked against a
-  stated test, not against taste. Application code does not reach for them: a typed collection is
+  stated test, not against taste. **This entry is the one home for what forces the typed-`callable` half**,
+  and three things do: [0061](0061-compile-time-autoload-and-program-discovery.md) § 3's
+  `implementing<T>()`, [0031](0031-callable-is-the-only-closure-type.md)'s boxed-cell entry, and
+  [0072](0072-core-task-structured-concurrency.md) § 1's `Task::all`. Routing is not one of them
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 9). An ADR
+  that adds a fourth adds it here and nowhere else — a count kept in two files is a count that goes stale. Application code does not reach for them: a typed collection is
   `array<T>` and `Core\Arr`, a `Result<T, E>` is `?T` and a throw, an envelope is a structurally checked
   `{items: array<User>, total: uint}` shape ([0036](0036-anonymous-object-shapes.md)), and the two
   boundaries where a caller's type genuinely cannot be inferred already write it —

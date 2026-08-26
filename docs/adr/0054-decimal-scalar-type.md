@@ -8,9 +8,7 @@
 - **Amends:** [0007](0007-explicit-type-system.md) — § 2's conversion table, § 3's type grammar and § 4's
   arithmetic result table each gain `decimal`; § 7's divergence list gains one entry. This ADR is the only
   home for those rows.
-- **Amended by:** 0090 — § 3's comparison row spells the one equality operator; the row itself is
-  unchanged.
-- **Relates to:** 0013, 0037, 0047, 0051
+- **Amended by:** 0090
 
 > **In short:** `decimal` joins `int`, `uint`, `float`, `bool` and `string` as a scalar — a 128-bit value
 > holding a 96-bit signed mantissa and a scale of 0 to 28, the layout .NET's `System.Decimal` has used for

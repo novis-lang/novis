@@ -5,14 +5,14 @@
 - **Scope:** the config snapshot and how it is replaced, the registry's reloadability field, the control
   socket and `mwl ctl`, and the environment component of both compiled-unit cache keys. Not in scope: any
   network-reachable control surface, which § 6 defers explicitly.
-- **Amends:** [0005](0005-config-changeability.md) § *What is `System`* — reloadability becomes a second,
+- **Amends:** [0017](0017-hot-reload-without-restart.md) § *Decision* — `UnitKey` gains the environment
+  digest, so an in-memory unit compiled against one extension set is never reused against another.
+  [0005](0005-config-changeability.md) § *What is `System`* — reloadability becomes a second,
   orthogonal field rather than a property of the `System` class; [0064](0064-configuration-file-format.md)
   §§ 1 and 6 — the file is no longer read only at boot;
   [0042](0042-on-disk-artifact-cache-format.md) §§ 2 and 6 — the key gains the extension set;
   [0003](0003-extension-system.md) § *Isolation, limits and loading* — the extension set is reloadable.
-- **Amended by:** 0103 — § 3 gains `mwl ctl config` as a second operation, and what `reload` re-reads is a
-  whole tree of files whose ownership is re-checked; the fold is applied below.
-- **Relates to:** 0017, 0052, 0055
+- **Amended by:** 0091, 0103
 
 > **In short:** the parsed config is one immutable `Arc<Config>`; a request clones it at start and is
 > unaffected by anything that happens afterwards. `mwl ctl reload` re-reads `mwl.toml` over a

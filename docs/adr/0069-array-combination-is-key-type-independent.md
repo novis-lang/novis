@@ -13,7 +13,6 @@
   removal item 4 gains `array_merge`, `array_merge_recursive`, `array_walk`, `array_pad`'s negative-size
   mode and the string-cast comparison in `array_unique`/`array_diff`/`array_intersect`.
 - **Amended by:** none.
-- **Relates to:** 0004, 0011, 0035, 0051, 0053
 
 > **In short:** `array_merge` does two different things depending on a key's *type* — integer keys are
 > renumbered and appended, string keys are overwritten — and `$a + $b` does a third thing (left wins) under

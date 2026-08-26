@@ -17,9 +17,7 @@
   refuse valid Arabic and Hebrew, which is true of a blanket ban and false of the balanced rule below.
   [docs/implementation-plan.md](../implementation-plan.md) — the lexer check is buildable now; the two sink
   halves land with the milestones that build those sinks.
-- **Amended by:** 0092 — the predicate gains a fourth caller, its record model; the rule itself is
-  unchanged.
-- **Relates to:** 0009, 0029, 0030, 0049, 0056, 0062, 0080
+- **Amended by:** 0092
 
 > **In short:** Trojan Source ([CVE-2021-42574](https://trojansource.codes/)) makes text render in an order
 > its bytes do not have, so a reviewer approves one program and the compiler builds another. MWL is already

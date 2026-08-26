@@ -11,7 +11,6 @@
   [ADR 0007](0007-explicit-type-system.md)'s checker debt owned by `mwl-types`; nor modifier *order*
   ([ADR 0039](0039-canonical-code-formatting.md) § 1); nor casing ([ADR 0029](0029-identifier-casing-is-checked.md));
   nor property-hook semantics ([ADR 0014](0014-property-observer.md)).
-- **Relates to:** 0007, 0014, 0019, 0028, 0029, 0030, 0037, 0039, 0043, 0089
 
 > **In short:** every member declaration in a class, interface or anonymous-class body writes exactly
 > one of `public`, `protected` or `private`. **There is no default, because there is nothing to default** —

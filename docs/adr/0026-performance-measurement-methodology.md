@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
+- **Amended by:** 0079, 0100
 - **Scope:** how MWL's *own implementation* is measured and compared over time and across contributor
   machines/OSes — a historical performance dashboard, distinct from the existing per-PR regression guards in
   `benches/abi-probe/tests/perf_guards.rs` (unchanged by this ADR) and from
@@ -12,7 +13,6 @@
   deterministic counters rather than callgrind, because callgrind has no native Windows build and cannot
   resolve symbols inside JIT frames. The two remain distinct measurements of distinct things — a counter
   falls between MWL releases as the optimiser improves, which is the very trend this ADR exists to track.
-- **Relates to:** 0002, 0004, 0006, 0018, 0079
 - **Validated by:** `benches/abi-probe/examples/callgrind_spike.rs`, run under `valgrind --tool=callgrind`
   3.22.0 in WSL (Ubuntu on the Windows host also used for `x86_64-pc-windows-msvc` CI), against a
   Cranelift 0.128.4 JIT-compiled 8-frame call chain (the same trampoline machinery

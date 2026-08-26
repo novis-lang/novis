@@ -8,9 +8,7 @@
   placement — that is [ADR 0039](0039-canonical-code-formatting.md)'s. Built-in type keywords (`int`,
   `uint`, `bytes`, …) and language keywords (`isset`, `require`, …) are reserved words the grammar already
   lowercases; this ADR does not add a rule for them.
-- **Amended by:** 0030, and the retired 0032 — both folded into the table and § 1 below, which is the rule
-  the checker enforces, with no exceptions of any kind.
-- **Relates to:** 0011, 0015, 0016, 0039, 0062
+- **Amended by:** 0030, 0032, 0062
 
 > **In short:** every user-written identifier's casing is checked at compile time and a mismatch is a hard
 > error — not a lint, not a warning, and **there is no suppression mechanism**. Types (`class`, `interface`,
@@ -108,7 +106,7 @@ re-join in the target convention) so the fix is always a one-line rename, never 
 
 **Negative**
 
-- **A structural break from PHP**, joining [ADR 0007](0007-explicit-type-system.md) § 7's divergence list:
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers:
   PHP source using `snake_case` identifiers does not compile unmodified. Mechanical for `mwl convert`
   except where a converted name collides with another after rewriting.
 - **Zero exceptions, forever.** Nothing generated, reflected into existence, or mirroring an external

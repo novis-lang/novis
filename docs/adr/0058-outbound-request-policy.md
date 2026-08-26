@@ -9,8 +9,7 @@
   and § 3's launderer roster gains `Core\Http::allowUrl`, which is the first launderer whose check is
   partly a *runtime* one. [0005](0005-config-changeability.md) — the `net.connect` grant gains an address
   policy, not just a host list.
-- **Amended by:** 0067, 0074 — each fold is applied below; this body states the current rule.
-- **Relates to:** 0051, 0055, 0057, 0067, 0074
+- **Amended by:** 0067, 0074
 
 > **In short:** SSRF is structurally an injection — untrusted data reaching a sink — but unlike the others
 > it cannot be settled at compile time alone, because the dangerous part is what a hostname *resolves to*

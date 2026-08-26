@@ -7,8 +7,7 @@
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — the paragraph accepting `(int)$x` as a second
   spelling of `$x as int` is withdrawn; § 7's divergence table entry 4 (`(int)"abc"`) is restated below,
   since the syntax no longer parses at all rather than parsing with changed semantics.
-- **Amended by:** none.
-- **Relates to:** 0015, 0021, 0035
+- **Amended by:** 0049
 
 > **In short:** `(int)$x`, `(string)$x`, and the rest of PHP's cast family no longer parse. Each is a
 > parse-time diagnostic (`E0225`) naming `$x as int` (etc.) as the replacement, the same shape ADR 0021
@@ -60,13 +59,12 @@ The type keyword itself (`int`, `string`, …) keeps its normal meaning everywhe
 fires only for the specific `(` *keyword* `)` shape in an operand position, the same 3-token lookahead ADR
 0007 § 2 already used to *accept* the syntax now used to *reject* it.
 
-### 3. ADR 0007 § 7's divergence table, restated
+### 3. The divergence this leaves
 
-Divergence entry 4 previously read "`(int)"abc"` is `0` [PHP] → throws [MWL], same syntax, checked
-semantics." It now reads: the syntax itself does not parse; converting a string to `int` is spelled
-`"abc" as int`, and that already throws on a non-numeric string per ADR 0007 § 2's conversion table. This is
-listed as a divergence-table update, not a new divergence — the throwing behavior was already divergence 4;
-only the surviving syntax changes.
+Converting a string to `int` is spelled `"abc" as int`, and that throws on a non-numeric string per
+[ADR 0007](0007-explicit-type-system.md) § 2's conversion table. What this ADR adds to the divergence is
+only that the `(int)` spelling no longer parses at all; the throwing behaviour was already there. Both
+facts are rows in [divergences.md](divergences.md), which is where the register lives.
 
 ## Consequences
 
@@ -88,8 +86,8 @@ only the surviving syntax changes.
 - **A further, small subtraction from the "pragmatic superset" promise.** Namable exactly: a PHP file with a
   legacy cast anywhere no longer parses without that one rewrite. Other kept-but-reinterpreted PHP syntax
   (`list(...)`) stays; this is the first case where keeping the spelling was deliberately un-done once its
-  only remaining argument was habit. (`<?php` itself was withdrawn later, by
-  [ADR 0049](0049-single-open-tag-and-single-exit-keyword.md), for the identical reason.)
+  only remaining argument was habit. `<?php` went the same way under
+  [ADR 0049](0049-single-open-tag-and-single-exit-keyword.md), for the identical reason.
 
 ## Alternatives rejected
 

@@ -1,14 +1,10 @@
 # ADR 0009 — `string` is text; binary data is a distinct `bytes` type
 
-- **Status:** Accepted, in full. §§ 1, 3 and 4 shipped first (`bytes` is `mwl_types::ty::Ty::Bytes`, the
-  lexer has the keyword, and [`docs/spec/00-overview.md`](../spec/00-overview.md) § 5 fixes its literal
-  spelling); § 2's default length/indexing **granularity** is now settled too — **grapheme clusters**, on
-  the measurement *Revisiting* asked for. Nothing here is provisional.
+- **Status:** Accepted
 - **Date:** 2026-08-20
 - **Scope:** the `string` and `bytes` primitive types; the UTF-8 invariant on `string`; the conversion
   between them; the default granularity of `string` length, indexing and iteration
-- **Relates to:** 0002, 0003, 0006, 0007
-- **Amended by:** 0024 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0012, 0024
 
 > **In short:** PHP has one type for "a piece of text" and "a buffer of bytes," and it never says which one
 > a given `string` is — that ambiguity is why PHP needs a whole parallel function set (`strlen` vs
@@ -138,9 +134,7 @@ per the plan's split, this ADR fixes the *semantics*, `docs/spec/00-overview.md`
 
 **Negative**
 
-- **A further deliberate divergence from PHP**, in the same family as [0007](0007-explicit-type-system.md)
-  § 7 but tracked here rather than added to that ADR's table, following the precedent
-  [0008](0008-static-and-global.md) set of keeping a decision's own divergence local to it:
+- **A further deliberate divergence from PHP**, one of the divergences [divergences.md](divergences.md) registers of keeping a decision's own divergence local to it:
 
   | # | PHP | MWL |
   |---|---|---|

@@ -2,10 +2,15 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
+- **Scope:** how third-party code is added to a running MWL without rebuilding it — the three tiers,
+  the `.mwlx` component format and its manifest, the WIT world, how a value crosses the guest
+  boundary, and the isolation, limits and loading rules a guest runs under. Not in scope: which
+  subsystem belongs at which tier, which is [0051](0051-standard-library-tiers.md); how a package is
+  named, resolved and granted, which is [0081](0081-packages-are-digests-resolution-is-a-maximum.md).
 - **Validated by:** [`benches/abi-probe`](../../benches/abi-probe/) — `tests/wasm_sandbox.rs` and the
   `wasm-probe` cost guards. Originally spike #4, on wasmtime 41 + cranelift 0.128,
   `x86_64-pc-windows-msvc`.
-- **Amended by:** 0011, 0064, 0078 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0011, 0051, 0052, 0055, 0064, 0078
 
 > **In short:** third-party extensions are sandboxed WebAssembly components (`.mwlx`), never
 > shared libraries loaded with `dlopen`. Three tiers: built-in (`mwl-stdlib`), wasm component, and
@@ -75,7 +80,7 @@ downloaded — which is exactly the right friction for code that runs unsandboxe
 
 `mwl-db` and `mwl-regex` are Tier 2. That is not a workaround; it is where the standard library lives.
 
-## Interface: WIT and the Component Model
+### Interface: WIT and the Component Model
 
 MWL publishes a versioned world, `mwl:ext@1.0.0`. An extension implements it.
 
@@ -84,7 +89,7 @@ resources — instead of marshalling everything through `i32`. Generated binding
 choice. And semantic versioning as part of the contract, which fixes the problem where a PHP extension must
 be recompiled for every minor engine release.
 
-### Values cross the boundary as handles, never pointers
+#### Values cross the boundary as handles, never pointers
 
 MWL values stay in the host heap. The guest receives an opaque `value` resource — an index into a
 per-call handle table that the host bounds-checks — and reads through host accessor functions.
@@ -95,7 +100,7 @@ per-call handle table that the host bounds-checks — and reads through host acc
 - For byte strings the guest may request a bulk copy into its own linear memory, measured at 11.7 ns per
   KiB — memcpy-bound, so effectively free.
 
-### Extension functions are statically typed
+#### Extension functions are statically typed
 
 At load time the host reads the manifest — declared classes, with their `static` methods and `const`
 members, and any `mwl.toml` directives the extension wants — and registers them into the compiler's symbol
@@ -104,7 +109,7 @@ class-only shape [ADR 0011](0011-functions-and-constants-are-class-members.md) r
 Consequently `mwl check` **type-checks calls into extensions at compile time**, and codegen emits a direct
 call to the extension trampoline rather than a dynamic dispatch. PHP cannot do either.
 
-## Isolation, limits and loading
+### Isolation, limits and loading
 
 **Loading is root-controlled.** An `[[extension]]` entry in the root-owned `mwl.toml`, consistent with
 [the server-level configuration decision](README.md):
@@ -154,7 +159,7 @@ the capability grants.
 mechanism as MWL's stackful coroutines ([ADR 0002 corollary](0002-error-propagation.md)). An extension doing
 I/O suspends the request's coroutine like any other MWL function — no async colouring, no special case.
 
-## Why wasmtime rather than our own engine
+### Why wasmtime rather than our own engine
 
 MWL already embeds Cranelift, so writing our own wasm engine is tempting and would share most of the
 backend. Rejected for the same reason MWL uses `hyper` instead of a hand-rolled protocol parser: the wasm
@@ -163,7 +168,7 @@ the most-audited wasm runtime available, and is built on the same Cranelift vers
 spike #4 established that the two coexist with no dependency conflict, and the paired bump to wasmtime 48
 + cranelift 0.135 re-confirmed it — both still resolve to one shared `cranelift-codegen`.
 
-## Measured cost, stated honestly
+### Measured cost, stated honestly
 
 From spike #4, release build:
 

@@ -23,9 +23,7 @@
   `Core\Response`'s roster replaces `write` with five typed members; `Str::format`'s template,
   `DateTime::format`'s pattern and `Bytes::pack`'s format become **sink**; `Out::capture`'s return becomes
   the sink's carrier.
-- **Amended by:** 0092 — § 3's table gains a **rendering** column, so the sink in force selects not only
-  where output goes but how a diagnostic record is drawn; § 5's carrier rule is reused unchanged.
-- **Relates to:** 0003, 0004, 0012, 0020, 0033, 0044, 0056, 0058, 0063, 0067, 0073, 0074, 0079, 0084
+- **Amended by:** 0092
 
 > **In short:** [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4 lists five sinks, and a list is a
 > deny-list wearing a type system's clothes: a `Core` member nobody thought about accepts tainted data

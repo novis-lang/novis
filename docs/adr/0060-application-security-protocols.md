@@ -8,7 +8,6 @@
 - **Amends:** [0051](0051-standard-library-tiers.md) — § 3's Core roster gains these entries and, in § 2
   below, the test that closes the list.
 - **Amended by:** none.
-- **Relates to:** 0012, 0024, 0033, 0055
 
 > **In short:** `Core` includes four protocols built on cryptographic primitives — **signed and encrypted
 > cookies, CSRF tokens, TOTP, and JWT signing and verification** — and the list is **closed**: adding to it

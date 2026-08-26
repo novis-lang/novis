@@ -23,11 +23,7 @@
   `ParseError`'s `issues` and the `Core\Issue` shape, § 18 gains the `Db` half.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the derive pass and its conformance
   cases.
-- **Amended by:** 0077, 0085, 0086, 0096, 0102 — each adds an entry to § 1's closed list of
-  compiler-recognized attributes, and § 1's table is that list's one home. 0102 § 9 additionally deletes the
-  running count of names those ADRs used to restate. The folds are applied there and this body states the
-  current rule.
-- **Relates to:** 0004, 0007, 0022, 0023, 0024, 0033, 0036, 0038, 0051, 0057, 0077
+- **Amended by:** 0077, 0085, 0086, 0096, 0102
 
 > **In short:** [ADR 0063](0063-core-api-conventions.md) § 4 rejected *structural* encoding of public
 > properties, because it makes a class's public shape an implicit wire contract that a refactor breaks

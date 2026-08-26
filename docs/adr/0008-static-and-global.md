@@ -4,11 +4,10 @@
 - **Date:** 2026-08-20
 - **Scope:** every meaning PHP gives the `static` keyword; the `global` keyword; the complete list of
   places a program may hold state that outlives a call
-- **Supersedes:** the *function `static`* row in [0007](0007-explicit-type-system.md) § 1 and the `static`
+- **Amends:** the *function `static`* row in [0007](0007-explicit-type-system.md) § 1 and the `static`
   entry in the M1 list of new declaration slots. MWL has no function-scope `static`, so there is no type
   slot to add to it.
-- **Relates to:** 0004, 0006, 0007, 0010
-- **Amended by:** 0011, 0012, 0031 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0010, 0011, 0012, 0031, 0046, 0052
 
 > **In short:** `static` is a **class-member modifier and a class-relative type**, nothing else. Static
 > methods, static properties, `static::`, `new static()` and `: static` all stay exactly as PHP has them —

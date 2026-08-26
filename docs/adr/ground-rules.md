@@ -17,6 +17,9 @@ spellings rejected, and the reasoning.
 - **MWL is built first for platforms that run code, and data, they do not control** — so the framework and
   the dependency story outrank new breadth, the pitch is isolation and qualifiers rather than speed, and no
   document may claim PHP compatibility ([0080](0080-the-audience-mwl-is-built-for.md)).
+- **Memory is spent to buy security, semantics, latency and simplicity, in that order** — and never to
+  buy a leak: what is spent stays attributable to a request, under an enforceable cap, and O(in-flight)
+  rather than O(requests served) ([0004](0004-memory-for-simplicity.md)).
 - **`unsafe` is forbidden workspace-wide**; only `mwl-runtime`, `mwl-codegen`, `mwl-stdlib` and
   `benches/abi-probe` opt down to `deny` with narrow, reasoned allows ([Cargo.toml](../../Cargo.toml)).
 - **Nothing unwinds through a JIT frame** — every call returns a checked status
@@ -54,6 +57,9 @@ spellings rejected, and the reasoning.
   ([0035](0035-truthy-boolean-context.md)).
 - **`string` is guaranteed-valid UTF-8 and counts grapheme clusters; binary data is the separate `bytes`
   type, counting bytes** ([0009](0009-string-and-bytes.md)).
+- **A duration is a literal — `30s`, `1h30m`** — typed `Core\Time\Duration`, folded to a constant, and
+  written in the one grammar `Duration::parse` and `mwl.toml` share
+  ([0070](0070-duration-literals.md)).
 - **`decimal` is a scalar, not a class**, and `decimal ⊕ float` is a compile error
   ([0054](0054-decimal-scalar-type.md)).
 - **Enums are a closed, named integer type**, never PHP's class-like construct

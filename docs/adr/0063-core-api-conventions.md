@@ -17,16 +17,7 @@
   `DateTime::format`, per R18; the folded argument is unchanged and so is everything else about it.
   [0051](0051-standard-library-tiers.md) § 3 — the Core roster gains `Core\Path`, `Core\Out`, `Core\Bytes`
   and `Core\Error`, all split out of entries it already lists.
-- **Amended by:** 0069 — § 3's removal item 4 gains the array-combining entries, applied below.
-  0066 § 3a — R5's `try…` ban admits `tryParse`, and only that spelling, for a class whose `parse` takes
-  exactly one `string` and can fail; applied in R5's own row.
-  0070 — a `Duration` constant is a literal, which is what makes R12's "units are types" affordable at
-  every call site; § 4's relative-date resolution is rewritten below in consequence.
-  0071 — § 4's JSON resolution is rewritten below: the rejection of *structural* encoding stands, and what
-  an explicitly written `#[Json\Derive]` admits is now stated beside it.
-  0098 — R17's row states the operator carve-out as the rule it already was, rather than for `instanceof`
-  alone; applied below. R18, R19 and R20 are untouched, and nothing R17 forbids becomes permitted.
-- **Relates to:** 0004, 0024, 0033, 0036, 0047, 0053
+- **Amended by:** 0066, 0069, 0070, 0071, 0098
 
 > **In short:** PHP's built-ins have no API. Argument order flips between neighbouring functions
 > (`array_map(f, a)` / `array_filter(a, f)`), failure is signalled four different ways in the same

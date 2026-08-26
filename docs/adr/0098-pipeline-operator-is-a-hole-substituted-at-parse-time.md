@@ -12,7 +12,6 @@
   carved out `instanceof` as *"syntax, not a second API"* in the same section's table, but the carve-out
   was stated for one operator by name rather than as the rule it is. R17's row now states the rule and
   names this ADR; nothing R17 forbids becomes permitted, and R18, R19 and R20 are untouched.
-- **Relates to:** 0011, 0027, 0030, 0031, 0034, 0045, 0057, 0063, 0080
 
 > **In short:** `$subject |> Str::trim($_) |> Str::lower($_)` — the right side of `|>` is an ordinary
 > expression containing the hole `$_` **exactly once**, and the operator replaces that hole with the left

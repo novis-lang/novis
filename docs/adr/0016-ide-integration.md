@@ -9,12 +9,7 @@
   PhpStorm both drive the LSP" undersold what each editor actually needs to feel first-class; this ADR
   replaces it with the concrete per-editor client scope in *Decision*, and *Consequences* names what M10's
   estimate now carries that it did not before.
-- **Relates to:** [0003](0003-extension-system.md) (the same phased shape: ship the portable, sandboxed
-  answer first, and name the deeper native investment as a later, explicit decision rather than build it
-  up front)
-- **Amended by:** 0040, 0099, 0101 — each fold is applied below; this body states the current rule. 0099
-  moves the extension itself to M4B and owns its contribution roster from there; 0101 adds § 2's
-  concealment bullet.
+- **Amended by:** 0040, 0099, 0101
 
 > **In short:** a language server is necessary but not sufficient in either editor. VS Code always needs a
 > thin client extension regardless of the server behind it — something has to spawn `mwl lsp`, register the

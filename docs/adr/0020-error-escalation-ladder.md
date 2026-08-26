@@ -6,11 +6,7 @@
   `THROWN` reaches an isolate/request root; what happens when a script or the entry file itself fails to
   compile; the guarantee that every one of those is logged somewhere, in one shared format, no matter how
   many of the handlers in between also fail
-- **Amended by:** 0033, 0076, 0086, 0092 — each fold is applied below; this body states the current rule.
-  0086 adds the terminal-restoration obligation to § 4's floor. 0092 makes § 6's level an enum and JSON
-  Lines the log sink's default *rendering* of one shared record rather than that record's only shape, and
-  names § 7's response-detail directive `[http.errors] detail`.
-- **Relates to:** 0002, 0005, 0006, 0007, 0011, 0012, 0072, 0073
+- **Amended by:** 0033, 0076, 0086, 0092
 
 > **In short:** nothing MWL runs is ever silently dropped, but not everything is *caught* — those are
 > different guarantees, and conflating them is what this ADR avoids. `FATAL` stays exactly what

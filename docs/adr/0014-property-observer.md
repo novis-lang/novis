@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
+- **Amended by:** 0036
 - **Scope:** what runs when a declared property is read or written beyond a plain field access — PHP
   8.4-style per-property hooks (already scoped for parsing in [M1](../implementation-plan.md)) and a new
   global `PropertyObserver` interface; what happens when the property named at a read or write site does
@@ -13,7 +14,6 @@
   rule [ADR 0011](0011-functions-and-constants-are-class-members.md) already gives method and constant
   resolution: naming a property that does not exist on the class is refused at the same point, never
   deferred to a magic method.
-- **Relates to:** 0002, 0004, 0007, 0008, 0011, 0013
 
 > **In short:** PHP has two disconnected ways to intercept property access — 8.4's per-property hooks, and
 > the ambient `__get`/`__set` pair, which fires only for a property that does not exist or is not
@@ -186,8 +186,7 @@ any other call.
 
 **Negative**
 
-- **A structural break from PHP**, joining the divergence list [ADR 0007](0007-explicit-type-system.md) § 7
-  already carries forward: PHP source relying on `__get`/`__set` firing for undefined access, or on
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: PHP source relying on `__get`/`__set` firing for undefined access, or on
   `__call`/`__callStatic`, does not convert unconverted. `mwl convert` ([M11](../implementation-plan.md))
   must flag these as a `TODO` for a human — see *Alternatives rejected* for why that flag belongs there and
   not in the compiler itself.

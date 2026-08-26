@@ -2,10 +2,10 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
-- **Scope:** `class_alias()`; the `use X as Y;` import form for classes, interfaces, traits and enums; and,
-  as the one thing this ADR *adds* rather than removes, a new `type Name = TypeExpr;` declaration. (§ 3's
-  original scope — the `as`-rename and `as`-visibility clauses of trait composition — is withdrawn; see
-  **Amended by**.)
+- **Scope:** `class_alias()`; the `use X as Y;` import form for classes, interfaces and enums; and, as the
+  one thing this ADR *adds* rather than removes, a new `type Name = TypeExpr;` declaration. Not in scope:
+  trait composition, which has no aliasing rule to state because
+  [0043](0043-interface-default-methods-and-delegation-replace-traits.md) leaves no trait.
 - **Amends:** [0007](0007-explicit-type-system.md) — the *Negative* bullet calling a `type` alias "the
   obvious relief… deliberately deferred" is resolved here rather than left in *Revisiting*; § 3's type
   grammar gains `type` alias names as a third kind of identifier atom, alongside `ClassName` and an enum's
@@ -13,8 +13,7 @@
   anything under it" no longer describes a real construct, since import aliasing is gone; see *Decision § 4*
   for the reworded rule, and any future `use function`/`use const`-shaped shorthand for `Core` members
   named in that ADR's *Revisiting* inherits the same no-renaming rule this ADR states.
-- **Amended by:** 0043 — each fold is applied below; this body states the current rule.
-- **Relates to:** 0004, 0006, 0008, 0011
+- **Amended by:** 0043
 
 > **In short:** a class, interface, enum, method or constant is reachable under **exactly the name it was
 > declared with** — its own short name, or a fully-qualified path to it — and under no other. PHP's relevant
@@ -81,28 +80,23 @@ the same cost PHP developers already pay when they choose not to alias: use the 
 call site. That is strictly more to type and strictly less to keep track of, which is the trade this whole
 ADR makes on purpose.
 
-### 3. Withdrawn — traits do not exist
+### 3. Trait composition has no aliasing rule, because there is no trait
 
-This section originally narrowed PHP trait composition (dropping the `as` rename/visibility clause, keeping
-`insteadof`). [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) goes further:
-`trait`, class-body `use Trait, ...;`, and `insteadof` are all removed from the grammar. There is no trait
-composition left for this section to narrow — see that ADR for what replaces it (interface default/private
-methods for shared behavior, explicit `implements Interface by $field;` delegation for shared state) and for
-why removing `insteadof` entirely, rather than keeping it as this section once did, needs no exception: every
-collision it used to arbitrate is now resolved the same way this ADR already resolves every other one — an
-explicit, ordinary override, callable by qualified name (`InterfaceName::method()`) exactly as this section's
-`TraitName::method()` example used to show.
+`trait`, class-body `use Trait, ...;` and `insteadof` are not in the grammar at all
+([ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)), so this ADR has no rename
+or visibility clause to narrow. Shared behaviour is an interface default or private method; shared state
+is `implements Interface by $field;`; and a collision between two of them is resolved by an ordinary
+override calling the source it wants by qualified name (`InterfaceName::method()`) — which is this ADR's
+answer to every other collision, reached with no exception of its own.
 
-### 4. `Core`-collision wording in ADR 0011 no longer needs the alias case
+### 4. Nothing may shadow a `Core` name, and no alias exists to try it with
 
-[ADR 0011](0011-functions-and-constants-are-class-members.md) § 2 refused "a `namespace` declaration, a
-class declaration, or a `use` alias that shadows anything under [`Core`]." The third case described a
-plain import being renamed to a name that collides with a `Core` class — e.g. `use My\Custom\Thing as Str;`
-making a bare `Str` inside that file resolve to an unrelated class. Since *Decision § 2* removes import
-aliasing outright, that specific spoofing shape is now structurally impossible rather than merely refused:
-there is no `as` left to rename anything to `Str` in the first place. The remaining, real case — a plain
-`use My\Custom\Str;` whose *own* declared short name happens to collide with `Core\Str` — was already an
-ordinary duplicate-import error before this ADR and needs no rule of its own here.
+[ADR 0011](0011-functions-and-constants-are-class-members.md) § 2 refuses a `namespace` declaration or a
+class declaration that shadows anything under `Core`. It needs no third case for a *renamed* import,
+because *Decision § 2* leaves no `as` to rename one with: `use My\Custom\Thing as Str;` does not parse, so
+making a bare `Str` resolve to an unrelated class is structurally unreachable rather than merely refused. A
+plain `use My\Custom\Str;` whose own short name collides with a `Core` class is an ordinary
+duplicate-import error and needs no rule here.
 
 ### 5. `type` aliases: a compile-time-only synonym for a type expression
 
@@ -164,8 +158,6 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 
 - `class_alias(...)` anywhere → *`class_alias` does not exist; a class has exactly one name*
 - `use Path\To\Name as Other;` → *imports cannot be renamed; use `Name`, or the fully-qualified path*
-- (trait-composition `as`/`insteadof` diagnostics formerly listed here are withdrawn — see
-  [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) § 7 for their replacements)
 - `type Id = SomeClass;` (a single bare class/interface/enum atom, nothing else) → *a `type` alias cannot
   name a single class on its own; refer to `SomeClass` directly, or alias a shape that includes it (e.g.
   `SomeClass|null`, `array<SomeClass>`)*
@@ -192,8 +184,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 
 **Negative**
 
-- **A structural break from PHP**, joining the divergence list [ADR 0007](0007-explicit-type-system.md) § 7
-  already carries forward, alongside [ADR 0010](0010-enums-are-a-value-type.md),
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, alongside [ADR 0010](0010-enums-are-a-value-type.md),
   [ADR 0011](0011-functions-and-constants-are-class-members.md) and
   [ADR 0012](0012-no-superglobals.md): PHP source calling `class_alias()` or importing with `as` does not
   convert unconverted. (Trait composition's own divergence and migration path now live entirely in

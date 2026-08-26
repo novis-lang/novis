@@ -9,7 +9,6 @@
   `textDocument/formatting` wiring or the editor clients, which [ADR 0016](0016-ide-integration.md) already
   settles; not the quick fixes themselves, which are
   [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3's; not the parser or checker.
-- **Relates to:** 0007, 0010, 0016, 0024, 0029, 0031, 0033, 0036, 0038, 0040, 0062, 0070, 0071, 0079, 0094
 
 > **In short:** `mwl fmt` rewrites a `.mwl` file into one canonical layout, deterministically — running it
 > twice produces byte-identical output the second time. The style is [PER](https://www.php-fig.org/per/coding-style/)

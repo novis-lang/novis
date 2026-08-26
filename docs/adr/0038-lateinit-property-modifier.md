@@ -7,7 +7,6 @@
   [ADR 0022](0022-definite-property-initialization.md) states keep working exactly as before.
 - **Amends:** [0022](0022-definite-property-initialization.md) — resolves the *Revisiting* entry "An opt-in
   `lateinit`-equivalent" that ADR left open, and reuses rather than replaces its § 3 runtime mechanism.
-- **Relates to:** 0002, 0004, 0014, 0017
 
 > **In short:** `lateinit` marks a non-nullable, object-typed property as exempt from
 > [ADR 0022](0022-definite-property-initialization.md) § 2's constructor-must-assign rule, for the case that

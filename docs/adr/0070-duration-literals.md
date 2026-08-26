@@ -13,7 +13,6 @@
   row `Core\Time\DateTime::shift` used to occupy.
   [0064](0064-configuration-file-format.md) — a duration-valued directive in `mwl.toml` is written in this
   grammar rather than as a bare integer of unstated units.
-- **Relates to:** 0007, 0009, 0037, 0054, 0062
 
 > **In short:** MWL declares durations as a type, never as an `int` of unstated units — which is right, and
 > which costs `Duration::seconds(30)` at every timeout, sleep, retry and cache TTL a program writes. That

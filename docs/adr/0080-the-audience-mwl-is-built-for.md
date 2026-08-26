@@ -10,11 +10,7 @@
   paragraph named PHP's execution model as the reason MWL exists; § 2 below replaces that framing, because
   two of its three premises have since been answered inside PHP itself. The plan's *Consequences to accept*
   keeps every entry it had; nothing there was wrong, and § 5 below adds the one it was missing.
-- **Amended by:** 0100 — § 1's table ranks first and is unchanged; that ADR adds a second audience beneath
-  it (internal and ops tooling written in Python today) and extends § 3's speech rule, unchanged in shape,
-  from PHP to Python. 0089 — the fold is applied below and this body states the current rule. § 3's porting-aid
-  bullet gains the two modes and the published share that make its honesty rule enforceable.
-- **Relates to:** 0003, 0004, 0005, 0006, 0024, 0033, 0051, 0052, 0055, 0059, 0081, 0082, 0089
+- **Amended by:** 0089, 0100
 
 > **In short:** MWL's first serious user is the **multi-tenant or regulated platform** — a team whose
 > process runs code, or holds data, that the team did not write and cannot fully trust: SaaS platforms with
@@ -203,6 +199,18 @@ When two slices compete for a session, the one serving § 1's user wins. Concret
   temptation to promise compatibility. Rejected: the syntax is genuinely good, it is implemented, and
   familiarity is a real if weak asset. § 3 removes the harm — the promise — while keeping the asset.
 
+## Revisiting
+
+- **If adoption arrives from a segment this ADR ranks second** — PHP teams, or general greenfield backends —
+  that is data beating reasoning, and § 1 should be rewritten around whoever actually showed up, with § 5's
+  ranking following.
+- **If PHP, Python or Node ships a credible taint or capability system in the language**, § 2's first and
+  strongest claim narrows sharply and the whole positioning needs re-argument. Watch for it explicitly; a
+  language-level qualifier is the only development that would falsify this ADR outright.
+- **If the framework ([0082](0082-the-first-party-framework.md)) proves to be the thing users want and the
+  language is incidental**, that is Rails' history repeating and it argues for the framework carrying the
+  project's identity — a naming and positioning change this ADR would then need to absorb.
+
 ## Verification
 
 An ADR about positioning has no unit test. These are the checkable statements it makes, and each is
@@ -218,15 +226,3 @@ falsifiable:
 - **M4S/M7 fixtures demonstrate § 1's table**, each already required by the ADR that owns it: an isolate
   that cannot widen its parent's grant (0006), a `tainted` value refused at a sink (0024), a `secret`
   refused by a log line (0033), a per-package capability refused at compile time (0081 § 4).
-
-## Revisiting
-
-- **If adoption arrives from a segment this ADR ranks second** — PHP teams, or general greenfield backends —
-  that is data beating reasoning, and § 1 should be rewritten around whoever actually showed up, with § 5's
-  ranking following.
-- **If PHP, Python or Node ships a credible taint or capability system in the language**, § 2's first and
-  strongest claim narrows sharply and the whole positioning needs re-argument. Watch for it explicitly; a
-  language-level qualifier is the only development that would falsify this ADR outright.
-- **If the framework ([0082](0082-the-first-party-framework.md)) proves to be the thing users want and the
-  language is incidental**, that is Rails' history repeating and it argues for the framework carrying the
-  project's identity — a naming and positioning change this ADR would then need to absorb.

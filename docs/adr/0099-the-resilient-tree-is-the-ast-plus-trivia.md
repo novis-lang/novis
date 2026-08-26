@@ -18,11 +18,7 @@
   each fold is applied in that ADR's own body, which states the current rule;
   [ADR 0016](0016-ide-integration.md) § 2's `mwl lsp` spelling is unchanged, only what is behind it.
   [docs/plan/m4b.md](../plan/m4b.md) and [docs/plan/m10.md](../plan/m10.md) are rewritten to match.
-- **Amended by:** 0101 — each fold is applied below; this body states the current rule. It adds
-  `mwl/redactions` to § 3's request set, two settings and two commands to § 6's frozen roster, and a
-  type-dependent placeholder to § 7's schema; § 4 is unchanged, and its "not MWL's call" rule is what
-  keeps `tainted` undecorated by default there.
-- **Relates to:** 0009, 0018, 0029, 0034, 0039, 0051, 0092
+- **Amended by:** 0101
 
 > **In short:** MWL's parser already does most of what "resilient parsing" names — every production returns
 > a node rather than a `Result`, a missing member name is already an `E_EXPECTED_TOKEN` plus a node, and

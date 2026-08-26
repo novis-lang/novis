@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
+- **Amended by:** 0005, 0059
 - **Scope:** project-wide; constrains every later design decision rather than one subsystem
 
 > **In short:** memory is the resource MWL spends to buy security, semantics, latency and
@@ -51,7 +52,7 @@ that trades semantics for size. "Uses less memory" is not on its own an argument
 memory and is no more complicated" is simply a better design, needs no appeal to this ADR, and is always
 welcome.
 
-## What this does not license
+### What this does not license
 
 Memory is a currency, not a landfill. Three bounds, and one review obligation.
 
@@ -83,7 +84,7 @@ future reader if the costs are written down as they are incurred; otherwise "a b
 becomes a number nobody chose. This is the same reflex as *architecture assumptions are tested, not
 remembered* ([the ADR index](README.md)), applied to cost instead of behaviour.
 
-## Where this already applies
+### Where this already applies
 
 Every row is a decision MWL has taken, not an aspiration. This ADR names what they have in common.
 

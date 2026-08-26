@@ -173,7 +173,8 @@ the arithmetic and what a mismatch looks like.
 
 Next free number: `python tools/brief.py` prints it, and re-check it immediately before creating the file
 — another agent derives the same answer from the same directory. Newest worked example:
-[0078](../adr/0078-config-reload-and-control-socket.md).
+[0104](../adr/0104-an-application-is-an-entry-file-path.md). **`python tools/adr.py` checks everything
+below**, so write it to the shape and let the tool say whether you did.
 
 ```markdown
 # ADR NNNN — <the decision as a statement, not a topic>
@@ -182,7 +183,14 @@ Next free number: `python tools/brief.py` prints it, and re-check it immediately
 - **Date:** YYYY-MM-DD
 - **Scope:** what this decides, then explicitly what it does *not* — with the file that owns each
   excluded thing.
-- **Amends:** (only if it does) the ADR whose text this changes, and what changed there.
+- **Depends on:** (only if it does) the ADR without which this one has nothing to decide.
+- **Amends:** (only if it does) the ADR whose text this changes, and what changed there — one clause
+  per target. Adding this obliges the same number in that ADR's `Amended by:`, in the same commit.
+- **Amended by:** (maintained by whoever amends you) bare numbers, comma-separated, nothing else.
+- **Validated by:** (only if a test holds a claim this ADR makes) the test, by path.
+
+> **In short:** the whole decision, in one blockquote. A reader who needs only the rule stops here, so
+> this paragraph is the ADR's front page and is worth more care than any section below it.
 
 ## Context
 ## Decision
@@ -190,6 +198,22 @@ Next free number: `python tools/brief.py` prints it, and re-check it immediately
 ## Alternatives rejected
 ## Verification
 ```
+
+**Six rules the tool enforces, so none of them is a matter of care:**
+
+- **The field set is closed** — the seven above and nothing else. There is no `Relates to:`; the
+  citation graph is derived, and `python tools/adr.py --graph NNNN` prints it.
+- **`Status:` is a bare value**, one of `Accepted`/`Proposed`/`Rejected`/`Superseded`/`Retired`. What
+  has shipped of a decision belongs in its body or in the plan, never in the status field.
+- **The heading set is closed and ordered**: `Context`, `Investigation`, `Options considered`,
+  `Decision`, `Diagnostics`, `Consequences`, `Alternatives rejected`, `Revisiting`, `Verification`.
+  Anything else is a `###` subsection under `Decision`.
+- **Sections are numbered `### N.` and never renumbered.** `0007 § 3` is cited from `crates/`, from
+  `docs/spec/` and from `docs/agent/loop-goal.toml`; a new section between two others is `§ 3a`.
+- **An `Amends:` is bidirectional** — the amended ADR gains your number in its `Amended by:` and its
+  body is edited to state the new rule, in the same commit.
+- **A body carries no history.** No "this previously said", no withdrawn-section tombstone, no running
+  total of anything. Git is the changelog, and a count kept in two files is wrong in one of them.
 
 `## Revisiting` is optional and only for a decision with a real trigger to reconsider it. **Fold, never
 overlay:** amending an ADR means editing that ADR's body so it reads as currently true, plus a one-line

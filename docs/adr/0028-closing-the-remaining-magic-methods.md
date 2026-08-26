@@ -10,10 +10,7 @@
   said "an object needs `__toString`, or it throws"; it now names `Stringable` instead. Also
   [implementation-plan.md](../implementation-plan.md) M4 — the debug-dump line item
   gains this ADR's citation for what a dump no longer does.
-- **Amended by:** 0030, 0033, 0061, 0092 — each fold is applied below; this body states the current rule.
-  0092 gives the dump a name and a surface — `Core\Debug::dump` — and § 4's rule is restated against it,
-  unchanged.
-- **Relates to:** 0002, 0004, 0006, 0011, 0013, 0014, 0019, 0022, 0023, 0027
+- **Amended by:** 0030, 0033, 0053, 0061, 0092
 
 > **In short:** `__toString` is replaced by a declared global `Stringable` interface
 > (`public function toString(): string`), the same treatment [0013](0013-comparable-interface.md) gave
@@ -212,8 +209,7 @@ declaration. That is a decision rather than a consequence, and it is
 
 **Negative**
 
-- **A structural break from PHP**, joining the divergence list [0007](0007-explicit-type-system.md) § 7
-  already carries forward: PHP source relying on `__toString` (mechanical rename to `Stringable`/`toString()`
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: PHP source relying on `__toString` (mechanical rename to `Stringable`/`toString()`
   for `mwl convert`, [M11](../implementation-plan.md)), `__destruct` (needs a human decision — an explicit
   cleanup method, called from every place the original relied on implicit timing), `__isset`/`__unset`
   (mechanical removal, since [0014](0014-property-observer.md) already made the fallback they served

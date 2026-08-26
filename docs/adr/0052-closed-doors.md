@@ -11,7 +11,6 @@
   [0008](0008-static-and-global.md) — its storage-class table is exhaustive for *language* constructs; § 3
   extends the same rule to library calls that mutate process-global state.
 - **Amended by:** none.
-- **Relates to:** 0006, 0019, 0025, 0048, 0051, 0059
 
 > **In short:** four doors stay shut. **No FFI** — it is `dlopen` with friendlier syntax, and ADR 0003
 > already rejected `dlopen` because it destroys the two claims the product rests on. **No stream wrappers

@@ -6,10 +6,7 @@
   removed; the sinks that refuse a tainted value (HTML output, SQL query text, process arguments, HTTP
   header values, filesystem paths); the `Core\Html\Markup` safe-markup type and the HTML output sink's
   auto-escape default.
-- **Amended by:** 0033, 0058, 0067, 0086, 0087, 0088 — each fold is applied below; this body states the
-  current rule. 0086 adds terminal output to § 4's sink roster and gives § 5's auto-escape exception its
-  second instance; 0087 adds the unterminated-bidi rule to § 5's escaper; 0088 turns § 4's roster into a
-  predicate with a fail-closed default and gives § 5 the rest of the response body.
+- **Amended by:** 0033, 0044, 0046, 0055, 0058, 0067, 0077, 0086, 0087, 0088
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — adds a `tainted` qualifier axis to the conversion
   table for `string`/`bytes`, following the same total/checked shape as every other conversion; every other
   row is unchanged.
@@ -19,7 +16,6 @@
   [0012](0012-no-superglobals.md) — every method on `Core\Request`/`Core\Server`/`Core\Session`/`Core\Env`/
   `Core\Cli`/`Core\Script::args()` returns the `tainted` variant of whatever it already returned; the
   mapping table and the method-signature deferral are otherwise unchanged.
-- **Relates to:** 0004, 0011, 0013, 0014, 0019, 0020
 
 > **In short:** [ADR 0012](0012-no-superglobals.md) already funnels every piece of untrusted input through
 > five `Core` accessor classes — unlike PHP, where untrusted data can enter through dozens of implicit

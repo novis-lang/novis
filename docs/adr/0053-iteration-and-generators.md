@@ -10,7 +10,6 @@
   [0028](0028-closing-the-remaining-magic-methods.md) — it closed the remaining magic *methods* and left
   SPL's magic *interfaces* undecided; § 3 closes `ArrayAccess` and `Countable` on the same reasoning.
 - **Amended by:** none.
-- **Relates to:** 0011, 0014, 0023, 0025, 0031
 
 > **In short:** exactly two iteration interfaces exist. `Iterator<T>` is a single-pass cursor —
 > `advance(): bool` then `current(): T` — and `Iterable<T>` is a thing that can produce a fresh one via

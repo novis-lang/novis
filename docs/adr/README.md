@@ -11,6 +11,18 @@ decision. If you only need the rule, stop there. `Context`, `Alternatives reject
 for when you intend to *change* the decision. Numbering starts at 0002 and has gaps where an ADR was folded
 into another; the project-start section below is what 0001 would have been.
 
+**The metadata block is a closed field set**, and every field in it is one of `Status`, `Date`,
+`Scope`, `Depends on`, `Amends`, `Amended by`, `Validated by`. `Status` is a bare value, never a
+paragraph. `Amends:` is one clause per target saying what changed there; `Amended by:` is bare numbers
+and nothing else, because README's own fold rule is what an explanation there would be repeating. There
+is no `Relates to:` — `python tools/adr.py --graph NNNN` derives the whole citation graph, which is
+what 743 hand-maintained numbers across 95 files were approximating.
+
+**A section number is a public identifier.** `0007 § 3` is cited from other ADRs, from `docs/spec/`,
+from `docs/agent/loop-goal.toml` and from doc comments in `crates/`. Renumbering a section silently
+breaks every one of them, so sections are appended (`§ 3a` beside `§ 3`) and never renumbered — and
+`tools/adr.py` checks that every citation still names a section that exists.
+
 **An ADR's body always states the current rule.** When a later decision changes an earlier one, the change
 is folded into the earlier ADR's text, and the two carry one-line cross-links — never a paragraph in one
 file describing what another file changed. So there is no patch to apply while reading, and no such thing
@@ -39,6 +51,8 @@ so you never have to open this file to route a topic.
 | Running the build, the tests, clippy and fmt; what "verified" means for a session; `splice.py`, `plan.py`, WSL, valgrind, and why a shell never writes a file here | [docs/agent/commands.md](../agent/commands.md) |
 | Setting up a new development machine — what to install, why Windows needs WSL, why PHP 8.5 goes on both sides at the same version, how to prove the machine is right | [docs/setup.md](../setup.md) |
 | What a decision has already settled — one sentence per rule, with its ADR | [ground-rules.md](ground-rules.md), or `python tools/brief.py --where <keyword>` to route straight past it |
+| Where MWL deliberately behaves differently from PHP — every divergence, with the ADR that owns it; what `mwl convert` can never tier **E**; why the `.phpt` pass rate is structurally lower | [divergences.md](divergences.md) |
+| Auditing the ADR set itself — a broken cross-link, a `§ N` citation into a section that no longer exists, an `Amends:` with no matching `Amended by:`, an ADR missing from an index, changelog prose in a body, what one ADR cites and is cited by, which files carry the most untrimmed rationale | `python tools/adr.py`, `--graph NNNN`, `--stats`, `--orphans` |
 | Writing anything under `docs/` — where a fact lives, folding a changed decision, the length targets nothing enforces | [docs/agent/doc-style.md](../agent/doc-style.md) |
 | What one loop session may read, and how a goal narrows it | `python tools/orient.py`, selected by `[context]` in [docs/agent/loop-goal.toml](../agent/loop-goal.toml) |
 | Setting a new loop goal; how many slices a session should take; why the context ceiling is 200k; what to pre-authorize so a run never halts on `BLOCKED` | [docs/agent/loop-authoring.md](../agent/loop-authoring.md), and `python tools/loop-stats.py` for the numbers it rests on |
@@ -159,10 +173,13 @@ so you never have to open this file to route a topic.
 
 **Adding a decision.** Touch exactly these, in order — nothing else should ever need its own copy:
 
-1. Write the ADR file, following the shape every other one has: metadata block, **In short**, then
+1. Write the ADR file, following the shape every other one has: the metadata block, **In short**, then
    `## Context` / `## Decision` / `## Consequences` / `## Alternatives rejected` / `## Revisiting` /
-   `## Verification` as needed.
-2. Add its row to the index below: number, one-line decision, status.
+   `## Verification` as needed — **in that order**, and using only those headings. The field set and
+   the section order are both closed and both checked by `python tools/adr.py`.
+2. Regenerate the index below with `python tools/adr.py --index` and paste it in. **The Decision cell
+   is your ADR's own title**, so it cannot drift and there is nothing to write twice; before this was
+   generated, 26 of the 102 cells had grown past 200 bytes and one had reached 836.
 3. **If it changes a prior ADR's rule, edit that ADR's body to state the new rule** — in the same commit,
    not as a note about what changed. Then add a one-line `Amends:` to yours naming the ADR and section, and
    add your number to that ADR's bare `Amended by:` list. Nothing else. If folding leaves the earlier ADR
@@ -170,8 +187,15 @@ so you never have to open this file to route a topic.
 4. If the topic is one an agent will search for by keyword, add one row to the *Where to look* table above —
    the only one there is, since [AGENTS.md](../../AGENTS.md) points here rather than keeping a copy — and,
    only if it is a hard invariant, one **sentence** to [ground-rules.md](ground-rules.md).
-5. If it changes what a milestone builds, update that milestone's paragraph in
+5. If the decision makes a ported PHP program behave differently, add one row to
+   [divergences.md](divergences.md). That register is the one home for the count, so your ADR states its
+   own divergence and never a running total.
+6. If it changes what a milestone builds, update that milestone's paragraph in
    [the plan](../implementation-plan.md) with a link and a headline, not a restatement.
+7. Run `python tools/adr.py`. It refuses an unknown metadata field, a non-canonical or out-of-order
+   heading, a broken link, a `§ N` citation into a section that does not exist, an `Amends:` with no
+   matching `Amended by:`, an ADR missing from either index, a stale index table, and changelog prose
+   in a body. All eight were real defects in this set before it existed.
 
 `tools/brief.py` needs no update: it slices this file's tables and the plan's status block live. Two things
 to get right in a new row, both for the reader rather than for a checker — nothing enforces either: keep the
@@ -181,7 +205,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 |---|---|---|
 | [0002](0002-error-propagation.md) | Exceptions propagate by checked return, not by unwinding | Accepted |
 | [0003](0003-extension-system.md) | Extensions are sandboxed WebAssembly components, not native shared libraries | Accepted |
-| [0004](0004-memory-for-simplicity.md) | Memory is spent for security, speed and simplicity, in that order | Accepted |
+| [0004](0004-memory-for-simplicity.md) | Memory is spent for security, speed and simplicity | Accepted |
 | [0005](0005-config-changeability.md) | `mwl.toml` states defaults, not ceilings | Accepted |
 | [0006](0006-isolated-script-execution.md) | Running another script is an in-process isolate, not a subprocess | Accepted |
 | [0007](0007-explicit-type-system.md) | Types are declared, checked, and never change by themselves | Accepted |
@@ -192,95 +216,95 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0012](0012-no-superglobals.md) | There are no superglobals; request, session, environment and CLI state are `Core` accessor classes | Accepted |
 | [0013](0013-comparable-interface.md) | Ordering two objects requires `Comparable`; PHP's property-walk fallback is rejected | Accepted |
 | [0014](0014-property-observer.md) | Property hooks feed a declared `PropertyObserver`; no undefined-property fallback, no `__call`/`__callStatic` | Accepted |
-| [0015](0015-no-name-aliasing.md) | No `class_alias` or import `as`; `type` aliases are the disciplined exception | Accepted |
+| [0015](0015-no-name-aliasing.md) | No PHP-style name aliasing; `type` aliases are the disciplined exception | Accepted |
 | [0016](0016-ide-integration.md) | IDE integration is a thin per-editor client over one language server; PhpStorm goes LSP-bridge before native | Accepted |
-| [0017](0017-hot-reload-without-restart.md) | The compiled-unit cache revalidates lazily and swaps a per-path pointer; no filesystem watcher, no restart | Accepted |
+| [0017](0017-hot-reload-without-restart.md) | The compiled-unit cache revalidates lazily and swaps one pointer, never a watcher or a restart | Accepted |
 | [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) | Coverage, tracing and profiling are safepoint-shaped probes, not a second compiled tier | Accepted |
 | [0019](0019-reflection-and-ast-parsing-are-core-features.md) | Reflection and AST/source parsing are first-class `Core` features, not aftermarket extensions | Accepted |
-| [0020](0020-error-escalation-ladder.md) | Fatal errors escalate through a reserved-budget handler ladder, never through `catch` | Accepted |
-| [0021](0021-single-file-inclusion-construct.md) | `require` is the only same-frame file-inclusion construct; `include`/`include_once`/`require_once` are rejected | Accepted |
-| [0022](0022-definite-property-initialization.md) | Properties are definitely initialized at compile time; no new `undefined` type, no silent defaults | Accepted |
-| [0023](0023-clone-serialize-and-cross-boundary-copy.md) | `clone` stays PHP-shallow; `serialize`/`unserialize` share one graph-copy operation with the isolate boundary; neither is hookable | Accepted |
+| [0020](0020-error-escalation-ladder.md) | Fatal errors reach user code through a reserved-budget ladder, never through `catch` | Accepted |
+| [0021](0021-single-file-inclusion-construct.md) | `require` is the only same-frame file-inclusion construct | Accepted |
+| [0022](0022-definite-property-initialization.md) | Properties are definitely initialized at compile time; no observable uninitialized state | Accepted |
+| [0023](0023-clone-serialize-and-cross-boundary-copy.md) | Two copy depths, neither customizable: `clone`, `serialize`, and the isolate boundary | Accepted |
 | [0024](0024-taint-tracking-for-injection-sinks.md) | Untrusted input is a distinct type; injection sinks demand laundering | Accepted |
 | [0025](0025-wasm-browser-target.md) | The browser is a second compile target, not a second language | Accepted |
 | [0026](0026-performance-measurement-methodology.md) | Performance history is tracked by callgrind instruction counts; wall-clock stays for CI regression guards | Accepted |
-| [0027](0027-callable-is-closures-only.md) | `callable` is satisfied only by a closure value; PHP's string/array callable spellings and `__invoke` are both rejected | Accepted |
-| [0028](0028-closing-the-remaining-magic-methods.md) | `Stringable` replaces `__toString`; no `__destruct`, `__debugInfo`, or `__set_state`; `unset()` is refused on an object property | Accepted |
-| [0029](0029-identifier-casing-is-checked.md) | Identifier casing is a hard compiler error, checked on the leading character only, with no suppression | Accepted |
+| [0027](0027-callable-is-closures-only.md) | `callable` is satisfied only by a closure; MWL has no `__invoke` | Accepted |
+| [0028](0028-closing-the-remaining-magic-methods.md) | Closing the remaining magic methods: `Stringable` replaces `__toString`; no `__destruct`, `__debugInfo`, or `__set_state`; `unset()` is refused on an object property | Accepted |
+| [0029](0029-identifier-casing-is-checked.md) | Identifier casing is a hard compiler error: `PascalCase` types, `camelCase` members, `SCREAMING_SNAKE_CASE` constants | Accepted |
 | [0030](0030-no-leading-underscores-constructor-spelling.md) | No leading underscores anywhere; the constructor is spelled `constructor`, not `__construct` | Accepted |
-| [0031](0031-callable-is-the-only-closure-type.md) | `fn` is the only closure literal, with no `use` clause; `callable` absorbs `Closure` as the one surviving type name | Accepted |
-| [0033](0033-secret-qualifier-for-confidential-values.md) | `secret` is a second compile-time qualifier alongside `tainted`; HTML output, `Core\Log`, debug dumps, exception messages and serialize all refuse it by default | Accepted |
+| [0031](0031-callable-is-the-only-closure-type.md) | `callable` is the only closure type; `fn` is the only closure literal | Accepted |
+| [0033](0033-secret-qualifier-for-confidential-values.md) | `secret`: a second compile-time qualifier for confidential values, composable with `tainted` | Accepted |
 | [0034](0034-legacy-cast-syntax-rejected.md) | PHP's legacy `(T)expr` cast syntax is rejected; `as` is the only conversion spelling | Accepted |
 | [0035](0035-truthy-boolean-context.md) | A condition is judged by PHP's full truthy table; every other `bool` position stays checked | Accepted |
-| [0036](0036-anonymous-object-shapes.md) | `object` is the opaque top of every class type; `{...}` builds an anonymous methodless instance, and `{name: T, ...}` is MWL's one structurally-checked type | Accepted |
-| [0037](0037-var-local-type-inference.md) | `var $name = expr;` infers a local's type from its initializer and fixes it forever; a bare array-literal initializer is the one shape it refuses | Accepted |
-| [0038](0038-lateinit-property-modifier.md) | `lateinit` defers a non-nullable object property's first assignment past the constructor, throwing on read-before-write; `?T` and `readonly` are refused | Accepted |
-| [0039](0039-canonical-code-formatting.md) | `mwl fmt` is one canonical, unconfigurable, PER-based formatting style with no reflow; it is never wired into the compiler | Accepted |
-| [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) | The VS Code extension goes deep (inspections, refactorings, Test Explorer, debugger UI) ahead of M10; `mwl-syntax` gains a resilient parse mode | Accepted |
-| [0041](0041-timeline-export-and-gc-spawn-trace-events.md) | Trace events gain a `call`/`gc`/`spawn` kind and a speedscope-evented export, so a request's timeline shows GC pauses and isolate boundaries, not just calls | Accepted |
+| [0036](0036-anonymous-object-shapes.md) | `object` is the opaque top of every class type; `{...}` builds an anonymous, methodless instance; an inline `{name: T, ...}` shape is MWL's one structurally-checked type | Accepted |
+| [0037](0037-var-local-type-inference.md) | `var` infers a local's type from its initializer | Accepted |
+| [0038](0038-lateinit-property-modifier.md) | `lateinit` defers a non-nullable object property's first assignment past the constructor | Accepted |
+| [0039](0039-canonical-code-formatting.md) | `mwl fmt` is the one canonical, unconfigurable formatting style, run on demand only | Accepted |
+| [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) | The VS Code extension is a deep, first-class client; `mwl-syntax` gains a resilient parse mode; a minimal `mwl-lsp` moves ahead of M10 | Accepted |
+| [0041](0041-timeline-export-and-gc-spawn-trace-events.md) | Trace/profile output gains a speedscope-evented timeline export, plus GC-pause and isolate-spawn trace events | Accepted |
 | [0042](0042-on-disk-artifact-cache-format.md) | The on-disk artifact cache is one immutable, self-describing file per compiled unit, verified before it is ever mapped executable | Accepted |
-| [0043](0043-interface-default-methods-and-delegation-replace-traits.md) | There is no `trait`; interface default/private methods share behavior and explicit `by` delegation shares state, with one conflict rule and no `insteadof` | Accepted |
-| [0044](0044-core-process-argv-only-no-shell.md) | `Core\Process` is the one argv-only way to run another program; there is no shell-string form, and a Windows batch/PowerShell target is refused outright | Accepted |
+| [0043](0043-interface-default-methods-and-delegation-replace-traits.md) | There is no `trait`; interface default/private methods plus explicit `by` delegation replace it | Accepted |
+| [0044](0044-core-process-argv-only-no-shell.md) | `Core\Process` is the one argv-only way to run another program; no shell, ever | Accepted |
 | [0045](0045-and-or-xor-keyword-operators-rejected.md) | PHP's `and`/`or`/`xor` keyword operators are rejected; `&&`/`\|\|` are the only logical connectives | Accepted |
-| [0046](0046-attributes-shape-literal-metadata.md) | `#[...]` attributes are shape-literal metadata, checked structurally, retrieved via `Core\Attributes::get<T>`/`::all<T>` | Accepted |
-| [0047](0047-literal-and-enum-case-types.md) | A scalar literal or a named enum case is itself a type; unioning them declares an explicit closed set, checked like any other conversion | Accepted |
+| [0046](0046-attributes-shape-literal-metadata.md) | Attributes are shape-literal metadata on declarations, retrieved structurally via `Core\Attributes` | Accepted |
+| [0047](0047-literal-and-enum-case-types.md) | A scalar literal or a named enum case is itself a type; unioning them declares a closed set | Accepted |
 | [0048](0048-portable-single-file-executables.md) | A portable single-file executable appends source to the host binary; rebundling is a build-time CLI step, not a runtime one | Accepted |
 | [0049](0049-single-open-tag-and-single-exit-keyword.md) | `<?php` and `die` are rejected; `<?mwl` and `exit` are the only spellings kept | Accepted |
 | [0050](0050-list-destructuring-spelling-rejected.md) | `list(...)` is rejected; `[...]` is the only destructuring spelling | Accepted |
-| [0051](0051-standard-library-tiers.md) | Six ordered tests place every stdlib candidate at Core, Native, Ext, dropped, or already-answered; PHP's extension partition is not inherited | Accepted |
+| [0051](0051-standard-library-tiers.md) | The standard library's tiers: what is `Core`, what ships native, what is an extension | Accepted |
 | [0052](0052-closed-doors.md) | Four closed doors: no FFI, no stream wrappers, no cross-request state, no `eval` | Accepted |
-| [0053](0053-iteration-and-generators.md) | `Iterable`/`Iterator` are the only iteration interfaces; generators exist and lower to state machines | Accepted |
+| [0053](0053-iteration-and-generators.md) | `Iterable`/`Iterator` are the only iteration interfaces; generators lower to state machines | Accepted |
 | [0054](0054-decimal-scalar-type.md) | `decimal` is a scalar type; `bcmath` and `gmp` are retired | Accepted |
-| [0055](0055-extension-qualifier-declarations.md) | Extension manifests carry `tainted`/`secret`; every declaration tightens, none loosens | Accepted |
+| [0055](0055-extension-qualifier-declarations.md) | Extension manifests carry `tainted` and `secret` qualifiers; an extension can only tighten | Accepted |
 | [0056](0056-regex-engine-policy.md) | Regex runs on a linear-time engine by default; backtracking is opt-in and budgeted | Accepted |
-| [0057](0057-intrinsic-literal-folding.md) | Literal arguments to a closed list of intrinsic `Core` calls are validated and prepared at compile time | Accepted |
+| [0057](0057-intrinsic-literal-folding.md) | Literal arguments to intrinsic `Core` calls are validated and prepared at compile time | Accepted |
 | [0058](0058-outbound-request-policy.md) | Outbound connections carry an address policy; a tainted URL must be laundered and pinned | Accepted |
-| [0059](0059-cross-request-state-is-explicit.md) | `Core\Cache` is per-core, copied in and out, and charged to the core rather than a request | Accepted |
+| [0059](0059-cross-request-state-is-explicit.md) | Cross-request state is explicit: `Core\Cache` is per-core, copied in and out, and capped | Accepted |
 | [0060](0060-application-security-protocols.md) | A closed roster of application-layer security protocols lives in `Core` | Accepted |
-| [0061](0061-compile-time-autoload-and-program-discovery.md) | `autoload` maps names to files at compile time; `Core\Program::implementing<T>()` enumerates classes nothing names | Accepted |
-| [0062](0062-case-sensitivity-is-a-compiler-property.md) | Names resolve case-sensitively, reserved spellings are lower case only, and a `require`/`autoload` path must match the on-disk entry exactly | Accepted |
-| [0063](0063-core-api-conventions.md) | Twenty rules fix every `Core` member's shape: subject first, options as one shape, nothing mutates, failure throws, no operation reachable two ways | Accepted |
-| [0064](0064-configuration-file-format.md) | Configuration is TOML in `mwl.toml`; `ini_set` becomes `Core\Config::set` | Accepted |
-| [0065](0065-third-party-attribution-and-mwl-info.md) | Third-party attribution is generated from the dependency graph, committed and embedded in the binary; `mwl info` prints it with the build facts | Accepted |
-| [0066](0066-nullable-conversion-operator.md) | `expr as ?T` converts without throwing, yielding `null` on failure; `Core\Validate`'s three numeric predicates go | Accepted |
-| [0067](0067-core-db.md) | One database API: connections are named in root-owned config, every statement is prepared, and a transaction is a closure | Accepted |
-| [0068](0068-dependency-currency-and-the-version-contract.md) | Dependencies stay current; a break in one is absorbed rather than forwarded, and only an enumerated user-facing surface can force a major | Accepted |
-| [0069](0069-array-combination-is-key-type-independent.md) | Arrays combine by the member's name, never by a key's type: `overlay`/`underlay`/`appendAll`, no `merge`, and `array + array` does not compile | Accepted |
-| [0070](0070-duration-literals.md) | A duration is a literal — `30s`, `1h30m` — typed `Duration` and folded to a constant, over one grammar shared with `Duration::parse` and `mwl.toml` | Accepted |
-| [0071](0071-derived-codecs.md) | `#[Json\Derive]`/`#[Db\Derive]` generate a codec from a class's declared properties, and a failed decode reports every bad field at once | Accepted |
-| [0072](0072-core-task-structured-concurrency.md) | `Core\Task::all`/`::map` return with nothing still running, cancellation runs no user code, and `afterResponse` keeps the request tree alive past the connection | Accepted |
-| [0073](0073-scheduled-work-is-config.md) | Scheduled work is a `[[schedule]]` block firing a `spawn script`, with no API surface and a mandatory `scope` of `"fleet"` or `"host"` | Accepted |
-| [0074](0074-http-defaults-safe-and-finite.md) | HTTP response defaults are secure with nothing configured, and an outbound call has no spelling for "wait forever"; retry is opt-in, jittered and deadline-covered | Accepted |
-| [0075](0075-core-ratelimit.md) | `Core\RateLimit` limits what only the application knows, over the shared store; the approximate per-core tier is a differently-named member, and edge limiting is the proxy's | Accepted |
-| [0076](0076-observability-export.md) | The runtime exports what ADRs 0018/0041 already measure, plus a three-member `Core\Metrics`; a label refuses `tainted`, and a full series registry refuses new series rather than evicting old ones | Accepted |
-| [0077](0077-compile-time-routing.md) | `#[Route]` builds a route table while compiling, making a duplicate route, an unbound placeholder and a stale `url()` name compile errors; the router stops at matching | Accepted |
-| [0078](0078-config-reload-and-control-socket.md) | `mwl.toml` reloads over a local-socket-only control API, validated whole before it is published; every directive says whether it needs a restart, and the extension set joins the key both compiled-unit caches share | Accepted |
-| [0079](0079-testing-is-a-language-feature.md) | `#[Test]` builds the runner's table while compiling and every test is its own isolate; assertions are generic, a failure is catchable but ledgered, and doubles are closure shapes checked against an interface | Accepted |
-| [0080](0080-the-audience-mwl-is-built-for.md) | MWL is built first for platforms running code or data they do not control; the pitch is isolation and qualifiers rather than speed, PHP syntax is an on-ramp and never a compatibility promise, and the framework and package story outrank new breadth | Accepted |
-| [0081](0081-packages-are-digests-resolution-is-a-maximum.md) | A package is a content-addressed source archive resolved by minimal version selection, git sources are root-only, no package code runs before the program does, and a dependency's capabilities are granted per package rather than inherited | Accepted |
-| [0082](0082-the-first-party-framework.md) | MWL ships a first-party framework split by ADR 0051's existing six tests — privileged halves in `Core`, the opinionated layer as the `mwl/web` package — with no ORM, no runtime container and the language itself as the view layer | Accepted |
-| [0083](0083-persistent-connections-are-isolates.md) | A WebSocket or SSE connection is its own root isolate opened by naming a file the way `spawn script` does, code inside it is an ordinary loop, and fan-out is a bounded `Core\Topic` that closes a slow subscriber rather than blocking the publisher | Accepted |
-| [0084](0084-durable-background-jobs.md) | A job is a row in a `Core\Db` table so an enqueue commits with the write that caused it, it runs as an isolate named by file, delivery is at-least-once with bounded retries, and a fleet claims safely with no protocol of ours | Accepted |
-| [0085](0085-openapi-is-generated-from-the-route-table.md) | An OpenAPI 3.1 document is generated while compiling from the route table and derived codecs, an `#[Api]` attribute that contradicts the code is a compile error, and `mwl api diff` fails a build on a breaking change | Accepted |
-| [0086](0086-core-cli-terminal-is-a-sink.md) | Terminal output is a sink that substitutes control bytes with visible glyphs, styling is the `Cli\Text` value type rather than a fifth grammar, prompts are `Core` members because raw mode is unreachable from userland, in-place output is a scoped live region, and `#[Command]` builds the argument table while compiling | Accepted |
-| [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) | A directional control that opens a scope and never closes it is a hard compile error in source and is substituted at both output sinks, by one predicate with four callers; balanced controls, invisibles and homoglyphs are each left alone with their reason | Accepted |
-| [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) | A parameter is a sink when its content becomes an instruction rather than data, an unclassified `string`/`bytes` parameter on a `Core` member refuses `tainted`, `echo` binds to the terminal sink in every context but an HTTP request, and each response-body shape gets its own typed member | Accepted |
-| [0089](0089-convert-is-one-rule-table-with-two-modes.md) | `mwl convert` is one deterministic rule table read through two modes — a default that emits only rewrites proven identical against the PHP oracle and comments out the rest with the idiomatic shape, and a `--mode=runnable` that also emits every rewrite with a mechanical destination under a `TODO` naming how it may differ | Accepted |
-| [0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) | `==` is the only equality operator and `===` does not parse; it never converts, refuses two statically disjoint types, takes the strict reading for strings, arrays and objects, and answers `false` rather than throwing when a `mixed` operand's runtime type does not match | Accepted |
-| [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) | `mwl service` registers this binary with the platform's service manager and stores one verbatim argv, and the installer is a sink that fails closed — a closed subcommand allowlist, quoted absolute paths, a per-service virtual account, and on Linux a printed unit rather than a written one | Accepted |
-| [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) | A run mode is two closed values defaulting to production, set in `mwl.toml` or by `--mode` and never by an environment variable, selecting the defaults of four named directives and governing nothing else, readable and flippable per request under a `System`-class ceiling that defaults to the mode the server started in | Accepted |
-| [0092](0092-one-diagnostic-record-three-renderings.md) | Logs, dumps, throwables, test results and compiler diagnostics are one closed record model rendered as plaintext, JSON or HTML by the sink already in force rather than by any call site, with redaction, control-byte and bidi substitution and elision decided once in the model, and a dump reaching a response body only in development mode | Accepted |
-| [0094](0094-visibility-is-written-at-every-member-declaration.md) | Every member declaration writes one of `public`/`protected`/`private` and an omission is a hard error — there is no implicit `public`, the asymmetric form is written as a pair, and a plain constructor parameter is exempt because visibility is what promotes one to a property | Accepted |
-| [0095](0095-ambiguous-input-is-refused-never-repaired.md) | A name that resolves to something other than what it spells is refused, never repaired — a closed ambiguity list rejects an HTTP message inbound and outbound alike, a cookie name is matched byte for byte with `__Host-`/`__Secure-` enforced by the runtime, multipart caps a part count, and `Core\IO::within` refuses a path component whose spelling and resolution differ | Accepted |
-| [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) | Every `#[Route]` method carries a required sibling `#[Access]` attribute whose omission is a compile error and whose meaning the compiler never asks about, and CSRF is on by default for unsafe methods with the opt-out named per route | Accepted |
-| [0097](0097-development-server-and-proxied-origin.md) | The built-in server is a development server and a proxied FastCGI replacement and nothing else, with every feature a proxy owns dropped by name; a filesystem path is never derived from a URL, so a request selects a mount from a table that globs expanded against disk at boot | Accepted |
-| [0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md) | `\|>` substitutes the hole `$_` — required exactly once on its right side — in the parser, so a pipeline is the same AST the nested call produces and no later pass changes; it is deliberately not PHP 8.5's callable-applying `\|>`, whose shape is rejected by name | Accepted |
-| [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) | The resilient tree is the one existing AST plus a trivia layer and an offset index rather than a second `rowan` CST, `mwl-lsp` is synchronous on `lsp-server`/`lsp-types` so no async runtime enters the workspace, an LSP answer is frozen as a `.lspt` case run by `mwl lsp-test`, and syntax highlighting is two layers each with its own test | Accepted |
-| [0100](0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) | MWL's claim against Python is the tool that gets handed over rather than the prototype — "faster than Python" and "replaces Python" are forbidden phrasings, a file whose first two bytes are `#!` starts in code mode with no open tag, there is no REPL and none is planned, and `tools/bench.py` grows Python as a third engine so the comparison is measured rather than asserted | Accepted |
-| [0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) | A `secret` value's bytes are concealed in the editor by default on ranges `mwl-lsp` computes and hands over through `mwl/redactions`, only a literal or interpolation slot is concealed and never an identifier, a reveal is per range and dies with the editor, and `tainted` gets no default decoration because how a construct looks is the user's theme's to decide | Accepted |
-| [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) | The server matches each request once before the handler and `Core\Request::route()` is that match — resolving the contradiction between 0096 § 4 and 0097 § 7 and removing a second match rather than adding one, measured at 32.7 ns against a 135.9 ns header parse; `methodsFor` tells a `404` from a `405`, `#[Query]` binds and launders a query parameter and fails `400` where a capture fails `404`, `{name?}` makes a trailing segment optional, a capture narrows through a literal-union type and **never** a regex, `url()` turns extra keys into a query string and `urlAbsolute` prepends a per-mount configured origin, `Core\Request::mount()` carries the glob captures so a host stays out of the route table, the server enforces CSRF while the dispatcher enforces `#[Access]`, and routing is withdrawn as a forcing case for typed `callable` | Accepted |
-| [0103](0103-configuration-is-a-tree-of-files.md) | The configuration is a tree of TOML files rather than one — a root named by repeatable `--config` or found as `./mwl.toml`, pulling in more with `[[include]]` by `path` or `dir` — resolved as one ordered stream where later wins and every override is reported with both origins, while a duplicate key *inside* one file is still refused; every file must be owned by the runtime account or root and be unwritable by anyone else, and because an absent `optional` include has no file to check that check falls on the directory that would hold it; a secret arrives as a file whose whole content is the value; and the flags that set a directive are a closed list at the global layer, with no `--set`, because argv is world-readable | Accepted |
-| [0104](0104-an-application-is-an-entry-file-path.md) | An application's identity is the path of its entry file, so `mwl run` has one as a served request does — `[[app]]` carries a `root` prefix or an exact `entry`, the entry path is canonicalized before matching so no `..` or symlink inherits an application's rights, every matching block applies least-specific first, and a block may widen a limit and grant a capability bounded by the global `[limits.hard]` while only `[app.limits.hard]` is narrowing-only; `[[server.mount]]` loses the `mode` key it carried only because this block did not exist | Accepted |
+| [0061](0061-compile-time-autoload-and-program-discovery.md) | `autoload` maps names to files at compile time; `Core\Program` enumerates what nothing names | Accepted |
+| [0062](0062-case-sensitivity-is-a-compiler-property.md) | Case sensitivity is a compiler property, never an OS property | Accepted |
+| [0063](0063-core-api-conventions.md) | `Core` API conventions: one shape for every built-in | Accepted |
+| [0064](0064-configuration-file-format.md) | Configuration is TOML, in `mwl.toml` | Accepted |
+| [0065](0065-third-party-attribution-and-mwl-info.md) | Attribution is generated, committed and embedded; `mwl info` is the one call | Accepted |
+| [0066](0066-nullable-conversion-operator.md) | `expr as ?T` converts without throwing, yielding `null` on failure | Accepted |
+| [0067](0067-core-db.md) | One database API: `Core\Db` is connection-named, prepared-only and capability-gated | Accepted |
+| [0068](0068-dependency-currency-and-the-version-contract.md) | Dependencies stay current; a dependency break is absorbed, never forwarded | Accepted |
+| [0069](0069-array-combination-is-key-type-independent.md) | Array combination is key-type-independent | Accepted |
+| [0070](0070-duration-literals.md) | A duration is a literal: `30s`, `1h30m` | Accepted |
+| [0071](0071-derived-codecs.md) | Derived codecs: an explicit attribute generates `Json\Codec`/`Db\Codec`, and a decode reports every failed field | Accepted |
+| [0072](0072-core-task-structured-concurrency.md) | `Core\Task`: concurrency is a call that returns with nothing still running | Accepted |
+| [0073](0073-scheduled-work-is-config.md) | Scheduled work is `mwl.toml` firing a `spawn script`, with a mandatory `scope` | Accepted |
+| [0074](0074-http-defaults-safe-and-finite.md) | HTTP defaults are safe inbound and finite outbound, by construction | Accepted |
+| [0075](0075-core-ratelimit.md) | `Core\RateLimit`: limit what only the application knows, and name the weak tier differently | Accepted |
+| [0076](0076-observability-export.md) | The runtime exports what it already measures, and a label may not be `tainted` | Accepted |
+| [0077](0077-compile-time-routing.md) | Routes are compiled, not registered, and the router stops at matching | Accepted |
+| [0078](0078-config-reload-and-control-socket.md) | `mwl.toml` reloads over a local control socket, and the extension set joins the compilation key | Accepted |
+| [0079](0079-testing-is-a-language-feature.md) | Testing is a language feature: `#[Test]` compiles to a table, every test is its own isolate, and `Core\Test` is typed | Accepted |
+| [0080](0080-the-audience-mwl-is-built-for.md) | MWL is built for platforms that run code, and data, they do not control | Accepted |
+| [0081](0081-packages-are-digests-resolution-is-a-maximum.md) | A dependency is a digest, resolution is a maximum, and a package's authority is granted one line at a time | Accepted |
+| [0082](0082-the-first-party-framework.md) | MWL ships the batteries: a first-party framework, split by ADR 0051's existing tests | Accepted |
+| [0083](0083-persistent-connections-are-isolates.md) | A persistent connection is an isolate, and it is opened the way a script is spawned | Accepted |
+| [0084](0084-durable-background-jobs.md) | A background job is a durable row, enqueued in your transaction and run as an isolate | Accepted |
+| [0085](0085-openapi-is-generated-from-the-route-table.md) | The API document is generated while compiling, so it cannot drift from the code | Accepted |
+| [0086](0086-core-cli-terminal-is-a-sink.md) | The terminal is a sink, styling is a value, and a CLI's commands are compiled | Accepted |
+| [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) | An unterminated bidirectional control is rejected at every boundary, by one predicate | Accepted |
+| [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) | A sink is a parameter that becomes an instruction, and an unclassified one refuses | Accepted |
+| [0089](0089-convert-is-one-rule-table-with-two-modes.md) | `mwl convert` is one rule table with two modes, and every emitted line is classified | Accepted |
+| [0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) | `==` is the only equality operator, and comparing two disjoint types does not compile | Accepted |
+| [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) | A run mode is two closed values, a ceiling, and a list of defaults | Accepted |
+| [0092](0092-one-diagnostic-record-three-renderings.md) | One diagnostic record, three renderings, and the sink in force picks | Accepted |
+| [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) | A service is one stored argv, and the installer that stores it is a sink | Accepted |
+| [0094](0094-visibility-is-written-at-every-member-declaration.md) | Visibility is written at every member declaration; there is no implicit `public` | Accepted |
+| [0095](0095-ambiguous-input-is-refused-never-repaired.md) | A name that resolves to something other than what it spells is refused, never repaired | Accepted |
+| [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) | A route without a declared access decision does not compile | Accepted |
+| [0097](0097-development-server-and-proxied-origin.md) | The built-in server is a development server and a proxied origin, and a URL never becomes a path | Accepted |
+| [0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md) | The pipeline operator is one hole substituted at parse time, never a callable applied at run time | Accepted |
+| [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) | The resilient tree is the AST plus a trivia layer, `mwl-lsp` is synchronous, and an LSP answer is frozen as a `.lspt` case | Accepted |
+| [0100](0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) | Against Python, MWL claims the tool that gets handed over, not the script that gets thrown away | Accepted |
+| [0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) | A `secret` value is concealed in the editor by default, the range comes from the server, and `tainted` gets no default decoration at all | Accepted |
+| [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) | A request is matched once, and the route table completes without crossing into dispatch | Accepted |
+| [0103](0103-configuration-is-a-tree-of-files.md) | Configuration is a tree of files, and file ownership is the trust anchor | Accepted |
+| [0104](0104-an-application-is-an-entry-file-path.md) | An application is an entry file path, and a per-app block is keyed on it | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

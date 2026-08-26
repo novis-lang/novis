@@ -23,11 +23,7 @@
   the class and leaves the roster to "the milestone that implements them", which is this one.
   [docs/implementation-plan.md](../implementation-plan.md) — M6 gains the directive and the ceiling, M7 the
   public-bind banner.
-- **Amended by:** 0103 — § 3's "ordinary CLI precedence" becomes that ADR's § 8 rule, stated once for
-  every directive-setting flag and placed at the global layer; 0104 — § 5's mixed-application host gains
-  the `[[app]]` block its third row assumed. 0097 — § 3 gains a `[log] access` row, § 3a carries the three `Boot`/`System` startup
-  defaults a mode selects, and § 5's mixed-application host gains its mechanism in a mount's `mode`.
-- **Relates to:** 0004, 0017, 0018, 0074, 0080, 0092, 0097
+- **Amended by:** 0097, 0103, 0104
 
 > **In short:** MWL has no notion of a development deployment versus a production one, and every ecosystem
 > that added one late added it as an **environment variable controlling an un-enumerable bundle** —

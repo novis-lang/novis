@@ -12,8 +12,7 @@
   [0051](0051-standard-library-tiers.md) § 3 — the Core roster gains `Core\RateLimit`.
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 16 — a row with the two signatures.
   [docs/implementation-plan.md](../implementation-plan.md) — M8 gains the class and the shared-store script.
-- **Amended by:** none.
-- **Relates to:** 0004, 0005, 0012, 0024, 0033, 0060, 0063, 0070, 0074
+- **Amended by:** 0097
 
 > **In short:** a proxy in front of MWL already limits per IP and per path, earlier and better, so **edge
 > and flood limiting are deliberately dropped**. What no proxy can do is limit on something only the

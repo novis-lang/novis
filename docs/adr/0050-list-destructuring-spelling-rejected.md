@@ -10,7 +10,6 @@
   [ADR 0021](0021-single-file-inclusion-construct.md) § 1's framing paragraph cited the same pair as live
   precedent and is corrected there.
 - **Amended by:** none.
-- **Relates to:** 0015, 0021, 0034, 0045, 0049
 
 > **In short:** `list($a, $b) = $pair;` no longer parses. It is a parse-time diagnostic (`E0230`) naming
 > `[...]`, whose element grammar is identical in every position — key, nesting depth, skipped slot,
@@ -67,9 +66,6 @@ question this ADR does not open, and keeping it reserved is what lets the diagno
   the language has one less exception to it.
 - The `[...]`-versus-array-literal backtracking in `parse_stmt_maybe_destructure` is now the *only* path
   into a destructuring statement, so the grammar has one entry point rather than two.
-- ADR 0021 § 1's framing argument is repaired rather than left citing two withdrawn examples, and the test
-  it states — reuse a spelling whose meaning has no other home — is now stated explicitly instead of being
-  carried implicitly by its examples.
 
 **Negative**
 

@@ -15,8 +15,7 @@
   [0019](0019-reflection-and-ast-parsing-are-core-features.md) — one more thing its *Consequences* named as
   a userland use of reflection is a compiler pass instead, for the same reason routing became one.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the emitter, M7 the serving.
-- **Amended by:** none.
-- **Relates to:** 0007, 0022, 0024, 0036, 0046, 0053, 0061, 0063, 0066, 0080, 0082
+- **Amended by:** 0102
 - **Depends on:** [0077](0077-compile-time-routing.md) and [0071](0071-derived-codecs.md) — with neither,
   there is nothing to generate from.
 

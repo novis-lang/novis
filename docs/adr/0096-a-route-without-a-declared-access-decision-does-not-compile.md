@@ -16,9 +16,19 @@
   the compile error would pass on a decision nobody made.
   [0077](0077-compile-time-routing.md) is otherwise extended by a **sibling attribute** precisely so its
   § 4 does not have to be reopened.
-- **Amended by:** [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-  — § 2's open "the M7 server, or `Web\Auth`" is resolved in favour of the dispatcher, and § 4's CSRF check
-  is given the once-per-request match that ADR's § 1 makes. Nothing about § 1 or § 3 changes.
+- **Amended by:** 0102
+
+> **In short:** every method carrying `#[Route]` must also carry `#[Access]`, and an omission is a
+> **compile error** — there is no implicit `Public` and no configuration that supplies one, for the reason
+> [0094](0094-visibility-is-written-at-every-member-declaration.md) gives about visibility: *the implicit
+> default is the one nobody chose*, and a route that is public because its author decided so is
+> indistinguishable from one that is public because its author forgot. `#[Route]` gains **no field** —
+> two attributes rather than one is the whole mechanism by which
+> [0077](0077-compile-time-routing.md) § 4's refusal to attach behaviour stays true. The compiler checks
+> only that the attribute is present and that the name inside it resolves; it never asks what the name
+> *means*. Separately, **CSRF enforcement is on by default** for `POST`/`PUT`/`PATCH`/`DELETE`, and a route
+> that legitimately needs no token says so in its own declaration. The limit is stated rather than implied:
+> the compiler guarantees the decision was **written**, not that it was **honoured**.
 
 ## Context
 

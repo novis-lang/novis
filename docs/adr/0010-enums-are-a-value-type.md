@@ -11,8 +11,7 @@
   *enum case* entry is gone from § 2's storage-class table: a case is a compile-time constant of its
   enum's underlying type and needs no runtime storage at all, which shortens that exhaustive list rather
   than adding to it.
-- **Amended by:** 0011, 0090 — each fold is applied below; this body states the current rule.
-- **Relates to:** 0002, 0004, 0006, 0007
+- **Amended by:** 0011, 0012, 0046, 0090
 
 > **In short:** MWL's `enum` ignores PHP's design and follows C#'s instead — an enum declares a new, closed,
 > named **integer** type. A case is a compile-time constant of that type, never a singleton object, so an
@@ -43,9 +42,8 @@
   [ADR 0007](0007-explicit-type-system.md) § 4 already spends on `uint` — this decision buys priorities 1
   and 4 for *less* memory than PHP's design, not more.
 - **Priority 2 is the one knowingly spent**: a ported `enum Suit: string { case Hearts = 'H'; }` with a
-  method does not run unconverted — the tenth deliberate divergence after
-  [ADR 0007](0007-explicit-type-system.md) § 7's nine, tracked locally per the precedent
-  [ADR 0008](0008-static-and-global.md)/[ADR 0009](0009-string-and-bytes.md) set.
+  method does not run unconverted. *7* below is this ADR's own divergence table;
+  [divergences.md](divergences.md) is the register every such table is indexed from.
 
 ## Decision
 

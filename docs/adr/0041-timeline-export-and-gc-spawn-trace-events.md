@@ -11,8 +11,7 @@
   0018 already committed to, and does not cover coroutine suspend/resume events, an external/live attach
   mechanism, or memory/allocation profiling — all named and deliberately deferred, see *Revisiting*.
 - **Amends:** [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-- **Amended by:** 0067, 0076 — each fold is applied below; this body states the current rule.
-- **Relates to:** 0002, 0006, 0040, 0067, 0076
+- **Amended by:** 0067, 0076
 
 > **In short:** ADR 0018's deterministic profiler exports aggregate Callgrind totals (whole-run self/inclusive
 > time per function, no per-instance timeline) and a per-instance trace only as MWL-native NDJSON, which no

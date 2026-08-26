@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-27
+- **Amended by:** 0097
 - **Scope:** what an *application* is for configuration purposes, how a per-app block is spelled and
   matched, which of several matching blocks wins, and whether such a block may widen a limit or grant a
   capability. It does **not** decide the directive registry or the changeability classes, which stay
@@ -16,7 +17,6 @@
   [0064](0064-configuration-file-format.md) § 2a — the block list gains `[[app]]`.
   [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 5 — its mixed-application host
   now has the mechanism its third row assumed.
-- **Relates to:** 0006, 0061, 0077
 
 > **In short:** an application's identity is the **path of its entry file**, so `mwl run` on the command
 > line has one exactly as a served request does. A per-app block is `[[app]]` carrying either a `root`

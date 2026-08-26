@@ -45,17 +45,9 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 15 — `Core\Request` gains `scheme`,
   `isHead`, `mount` and `bodyStream`, `clientIp` gains a defined source, and `Core\Server` gains
   `isDraining` and `traceId`.
-  [docs/plan/m7.md](../plan/m7.md) and [docs/plan/m13.md](../plan/m13.md) — M7 gains this ADR's surface and
-  loses TLS and h2c; M13 is deleted.
-- **Amended by:** [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-  — § 3's mount block gains `origin` and its `mountPrefix` becomes `mount()`, returning the prefix and the
-  glob captures together; § 7's sentence about the server having no route table is scoped to the CORS
-  preflight it was true of, which is what lets that ADR's § 1 match once. Nothing about the mount grammar,
-  the proxy trust rules or the three conventions changes.
-  [0104](0104-an-application-is-an-entry-file-path.md) — § 10's mount loses its `mode` key, the gap that
-  section recorded being closed there. [0103](0103-configuration-is-a-tree-of-files.md) — § 4's
-  `--listen`/`--port` precedence becomes that ADR's § 8 rule.
-- **Relates to:** 0004, 0005, 0006, 0012, 0024, 0042, 0059, 0061, 0072, 0079, 0080, 0092
+  [docs/plan/m7.md](../plan/m7.md) — M7 gains this ADR's surface and loses TLS and h2c. M13 is deleted
+  outright; § 1 is why there is no TLS-terminating milestone left to hold.
+- **Amended by:** 0102, 0103, 0104
 
 > **In short:** the server has exactly **two deployments** and no third — a **development server** that
 > serves static files beside `.mwl`, and a **proxied production origin** that replaces FastCGI. Everything a

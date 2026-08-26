@@ -2,7 +2,11 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
-- **Supersedes:** the "exceptions unwind through JIT frames" assumption in the original M3/M4 plan
+- **Scope:** how an MWL exception and a contained runtime panic cross a native
+  frame; the normative call ABI every compiled function and every runtime helper carries; and the
+  `catch_unwind` wrapper that keeps a panic inside one request. Not in scope: what happens *at* the
+  request boundary once a `FATAL` arrives there, which is [0020](0020-error-escalation-ladder.md).
+- **Amends:** the "exceptions unwind through JIT frames" assumption in the original M3/M4 plan
 - **Validated by:** [`benches/abi-probe`](../../benches/abi-probe/) — `tests/unwind_unavailable.rs`
   (the premise), `tests/invariants.rs` (propagation and containment), `tests/perf_guards.rs` (the
   cost). Originally spikes #1 and #2, on Rust 1.97.1 + Cranelift 0.128.4, `x86_64-pc-windows-msvc`.
@@ -59,7 +63,7 @@ error_block:                     ; drop this frame's locals, return status onwar
 `error_block` is where this frame's refcount decrements and `finally` blocks go — the explicit equivalent
 of a landing pad.
 
-## Measured cost
+### Measured cost
 
 Release build, `opt_level = "speed"`, on `x86_64-pc-windows-msvc`. The figure that matters is the
 **marginal** cost of one more frame, measured as the slope between a 2-frame and an 18-frame chain so that
@@ -88,6 +92,20 @@ These numbers are guarded continuously rather than measured once. `benches/abi-p
 criterion benchmarks that track them and loose threshold tests that fail the build on an
 order-of-magnitude regression.
 
+### Corollary: helper ABI and panic containment
+
+Because nothing may unwind through a JIT frame, runtime helpers are declared `extern "C"` — **never**
+`extern "C-unwind"` — and each wraps its body in `catch_unwind`, converting a panic into `FATAL` with the
+message recorded in `Ctx`. `catch_unwind` costs nothing when no panic occurs. A single macro
+(`mwl_helper!`) generates the wrapper so this cannot be forgotten per-helper.
+
+This makes `panic = "unwind"` load-bearing rather than a preference: `panic = "abort"` would convert every
+containable runtime bug into a process kill, destroying request isolation. It is set explicitly in every
+profile in the workspace `Cargo.toml`.
+
+A custom panic hook must be installed at startup so the message is routed to the request log with its
+request id, rather than to the process's stderr.
+
 ## Consequences
 
 **Positive**
@@ -112,20 +130,6 @@ order-of-magnitude regression.
   `call` instruction — plus an IR verifier pass asserting every call result is consumed by a branch.
 - Foreign code that genuinely unwinds (a C library compiled with exceptions) cannot be called directly and
   must be wrapped on the Rust side. Acceptable: the stdlib is pure Rust by policy.
-
-## Corollary: helper ABI and panic containment
-
-Because nothing may unwind through a JIT frame, runtime helpers are declared `extern "C"` — **never**
-`extern "C-unwind"` — and each wraps its body in `catch_unwind`, converting a panic into `FATAL` with the
-message recorded in `Ctx`. `catch_unwind` costs nothing when no panic occurs. A single macro
-(`mwl_helper!`) generates the wrapper so this cannot be forgotten per-helper.
-
-This makes `panic = "unwind"` load-bearing rather than a preference: `panic = "abort"` would convert every
-containable runtime bug into a process kill, destroying request isolation. It is set explicitly in every
-profile in the workspace `Cargo.toml`.
-
-A custom panic hook must be installed at startup so the message is routed to the request log with its
-request id, rather than to the process's stderr.
 
 ## Revisiting
 

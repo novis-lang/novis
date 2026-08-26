@@ -21,7 +21,6 @@
   [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) § 2 — `config` joins the
   namespace list and the non-hostable subcommands, and an install whose config comes from the working
   directory is refused.
-- **Relates to:** 0003, 0033, 0042, 0052, 0081, 0095, 0101
 
 > **In short:** the configuration is a **tree of TOML files**, not one file. A root file is named by
 > `--config` (repeatable) or found as `./mwl.toml`, and pulls in more with `[[include]]`, by `path` or by

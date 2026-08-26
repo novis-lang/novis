@@ -13,9 +13,7 @@
   it with. [0010](0010-enums-are-a-value-type.md) — the *standalone function* destination for a
   user-defined enum behaviour, in both *Consequences* and *Revisiting*, assumed a free-function concept
   this ADR removes; the only destination left is a static method.
-- **Relates to:** 0004, 0006
-- **Amended by:** 0012, 0015, 0063, 0082 — each fold is applied below; this body states the current rule.
-  0082 adds `Web` beside `Core` as a namespace whose members are all class members; no rule changes.
+- **Amended by:** 0012, 0014, 0015, 0051, 0063, 0082
 
 > **In short:** no `function` and no `const` may be declared outside a class body — a function is always a
 > `static` or instance method, and a constant is always a class constant, with no exception for built-ins.
@@ -130,14 +128,11 @@ Each rejection names its replacement, in the style [ADR 0008](0008-static-and-gl
 - `namespace Core;` / `namespace Core\Anything;`, or a class declared directly under it, in user or
   extension code → *`Core` is reserved for built-ins*
 
-### 5. A deliberate divergence, tracked here
+### 5. The divergence this creates
 
 PHP's global-function and global-constant declarations simply do not exist in MWL, at all — not "converted
-with different syntax," removed outright. Tracked locally, following the precedent
-[ADR 0008](0008-static-and-global.md) and [ADR 0010](0010-enums-are-a-value-type.md) set of keeping a
-decision's own divergence local to it rather than folding it into [ADR 0007](0007-explicit-type-system.md)
-§ 7's table: this is the eleventh, after that table's nine and [ADR 0010](0010-enums-are-a-value-type.md)'s
-tenth.
+with different syntax," removed outright. The table below is this decision's own; the register that indexes
+every one of them is [divergences.md](divergences.md).
 
 | # | PHP | MWL |
 |---|---|---|

@@ -13,7 +13,14 @@
   [0024](0024-taint-tracking-for-injection-sinks.md) § 5 and
   [0086](0086-core-cli-terminal-is-a-sink.md) § 1; and the per-mode defaults of `[log] format`/`level` and
   `[debug] inline`, which are [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 3's.
-- **Amends:** [0020](0020-error-escalation-ladder.md) § 6 — `Core\Log::write`'s `string $level` becomes the
+- **Amends:** [0064](0064-configuration-file-format.md) § 2a — the `[log]` block gains `format` and
+  `level`, whose values § 2 and § 3 below fix.
+  [0086](0086-core-cli-terminal-is-a-sink.md) § 1 — its substitution table becomes a property of § 1's
+  record model, so all three renderings inherit one answer; § 3's colour resolution is what the
+  plaintext rendering reads.
+  [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) — its predicate gains a fourth caller,
+  § 1's record model; the rule itself is unchanged.
+  [0020](0020-error-escalation-ladder.md) § 6 — `Core\Log::write`'s `string $level` becomes the
   `Log\Level` enum, and JSON Lines becomes the log sink's default *rendering* of the shared record rather
   than the record's only possible shape; the one-serialiser property that section exists to protect is
   strengthened rather than weakened, because the shared thing is now the record and not the bytes.
@@ -36,8 +43,6 @@
   sink"* — they are different axes, and that row gains `write`'s signature and the `Log\Level` enum.
   [docs/implementation-plan.md](../implementation-plan.md) — M4's `var_dump`/`print_r` line item is
   renamed to this model and its plaintext rendering.
-- **Relates to:** 0002, 0004, 0006, 0009, 0010, 0013, 0016, 0024, 0040, 0063, 0072, 0074, 0075, 0076,
-  0080, 0086, 0087, 0091
 
 > **In short:** every language has three or four half-answers to *show me this value* — PHP has
 > `var_dump`, `print_r`, `var_export` and `json_encode`, and each looks acceptable in exactly one output

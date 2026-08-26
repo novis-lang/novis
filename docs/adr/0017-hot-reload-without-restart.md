@@ -4,8 +4,7 @@
 - **Date:** 2026-08-20
 - **Scope:** `mwl-host`'s compiled-unit cache, the M7 HTTP server's requirement to pick up an edited source
   file with no restart and no dropped request
-- **Amended by:** 0078 — `UnitKey` gains the environment digest; the fold is applied below.
-- **Relates to:** 0002, 0004, 0005, 0006
+- **Amended by:** 0078, 0097
 
 > **In short:** the cache is keyed by content, not by path: `UnitKey { path, content_hash, env_hash } →
 > CompileState`, and a `Ready` entry is write-once — nothing already in the map is ever mutated or

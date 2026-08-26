@@ -13,7 +13,6 @@
   The rule itself is unchanged; this ADR is the stdlib design ADR 0024's own *Revisiting* section named as
   due at M8, now spelled out concretely enough for `mwl-runtime` to build.
 - **Amended by:** none.
-- **Relates to:** 0002, 0004, 0005, 0009, 0033
 
 > **In short:** PHP gives a script seven different ways to run another program, each with its own escaping
 > rules and its own history of injection bugs. MWL gives it one: `Core\Process::run()` (blocking, captures

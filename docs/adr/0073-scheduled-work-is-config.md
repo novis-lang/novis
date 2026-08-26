@@ -12,9 +12,7 @@
   inbound request already is, so its budget question is answered by that ADR's existing rule rather than by
   a new exception. [docs/implementation-plan.md](../implementation-plan.md) — M6 gains the block's parsing
   and validation, M7 the ticker that fires it.
-- **Amended by:** 0084 — § 7 of that ADR states the difference between scheduled work and queued work, and
-  reuses this ADR's fleet-lease reasoning rather than restating it.
-- **Relates to:** 0004, 0017, 0020, 0044, 0052, 0059, 0072
+- **Amended by:** 0084
 
 > **In short:** cron already exists, every deployment already runs it, and the only thing it does badly is
 > that its job definition lives somewhere other than the application. So MWL takes the *declaration* and

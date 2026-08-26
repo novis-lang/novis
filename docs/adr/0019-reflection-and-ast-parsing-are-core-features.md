@@ -5,9 +5,7 @@
 - **Scope:** whether a running MWL program can introspect its own compiled program (classes, methods,
   properties, constants, attributes) and whether it can parse MWL/PHP source text into a structured AST at
   runtime; the shape both take as `Core` domain classes; what each is and is not allowed to do
-- **Amended by:** 0077, 0085 — each fold is applied below; this body states the current rule. Both take a
-  thing this ADR's *Consequences* named as a userland use of reflection and make it a compiler pass.
-- **Relates to:** 0006, 0007, 0010, 0011, 0013, 0014, 0061, 0077
+- **Amended by:** 0033, 0077, 0085
 
 > **In short:** PHP ships reflection (`ReflectionClass` and friends) as a built-in extension, but has no
 > in-language AST facility at all — `token_get_all()` returns a flat token list, not a tree, and a real AST

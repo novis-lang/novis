@@ -8,7 +8,6 @@
   attempt to run one already panicked naming the gap (`mwl-ir`'s `lower_expr_top` doc comment and its crate
   doc's known-gaps list). This ADR closes that gap by removing the construct rather than implementing it.
 - **Amended by:** none.
-- **Relates to:** 0015, 0021, 0034, 0035
 
 > **In short:** `and`, `or`, and `xor` no longer parse as operators. Each is a parse-time diagnostic
 > (`E0226`) — `and`/`or` name `&&`/`||` as the exact replacement; `xor` has none, since MWL has no `^^`

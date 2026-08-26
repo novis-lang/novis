@@ -10,9 +10,7 @@
   `mwl-types`' `check_stmt` already passes `expected: None` for every condition, and nothing enforced or
   rejected any type there. This ADR is the first to say so on purpose, closing a gap ADR 0007 left open
   rather than reopening a decision it made.
-- **Amended by:** 0090 — the operator pair `==`/`===` is now the one operator `==`; nothing else about
-  this decision changed.
-- **Relates to:** 0007, 0010, 0034
+- **Amended by:** 0090
 
 > **In short:** a condition never needs an explicit `as bool` or comparison to be written just to express
 > "is this set/non-empty/non-zero." `if ($rows)`, `while ($line)`, `$s && $n`, and `!$user` all type-check

@@ -11,10 +11,7 @@
   is now only half the answer: this ADR states what replaces the mechanism PHP actually uses
   (`spl_autoload_register`), which § 6 never named. [`docs/spec/00-overview.md`](../spec/00-overview.md) § 2
   gains `autoload` beside `require`/`spawn script` — that document owns the grammar, this ADR owns why.
-- **Amended by:** 0077, 0081 — each fold is applied below; this body states the current rule. 0081 adds no
-  mechanism: a fetched package is reached by an ordinary generated `autoload` declaration, and its rejection
-  of a manifest file stands.
-- **Relates to:** 0008, 0017, 0021, 0025, 0029, 0042, 0046, 0048, 0052, 0077
+- **Amended by:** 0077, 0081
 
 > **In short:** PHP's autoloader does two jobs. *"Which file declares this name?"* becomes `autoload`, a
 > top-level declaration with literal paths resolved **relative to the file that declares it** — no manifest

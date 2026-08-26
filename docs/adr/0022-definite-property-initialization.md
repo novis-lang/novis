@@ -10,8 +10,7 @@
 - **Amends:** [ADR 0007](0007-explicit-type-system.md) § 1 — "definite assignment is checked" was written
   for local variables only; this ADR names properties as the second binding kind the same analysis covers,
   and is the decision that paragraph's scope was silently missing.
-- **Amended by:** 0038, 0043 — each fold is applied below; this body states the current rule.
-- **Relates to:** 0002, 0004, 0007, 0014, 0019, 0020, 0023
+- **Amended by:** 0038, 0043
 
 > **In short:** PHP's typed properties can exist in a third state, neither assigned nor `null`, and reading
 > one throws — a correct but purely runtime-discovered failure that surfaces far from the missing

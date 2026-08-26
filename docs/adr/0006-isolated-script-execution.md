@@ -6,9 +6,7 @@
   `script.spawn` capability, per-tree limit accounting
 - **Validated by:** `benches/abi-probe/src/process.rs` + `tests/perf_guards.rs`
   (`an_os_process_costs_orders_of_magnitude_more_than_a_task`)
-- **Amended by:** 0012, 0021, 0023, 0064, 0072, 0073, 0083, 0084, 0088 — each fold is applied below; this
-  body states the current rule.
-- **Relates to:** 0002, 0003, 0004, 0005, 0008
+- **Amended by:** 0012, 0021, 0023, 0064, 0072, 0073, 0083, 0088
 
 > **In short:** `spawn script 'file.mwl'` runs another file in-process as a child isolate —
 > fresh arena, fresh globals and statics, its own config overlay, sharing nothing but immutable

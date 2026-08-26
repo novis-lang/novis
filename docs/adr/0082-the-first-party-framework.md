@@ -18,8 +18,6 @@
   members are all class members; no rule changes, the roster does.
   [docs/implementation-plan.md](../implementation-plan.md) — a milestone for each half.
 - **Amended by:** none.
-- **Relates to:** 0005, 0012, 0019, 0022, 0024, 0033, 0038, 0043, 0053, 0059, 0060, 0061, 0063, 0067, 0071,
-  0072, 0073, 0075, 0076, 0079, 0080, 0083, 0084, 0085
 
 > **In short:** MWL ships a working web framework, because "a good language and an empty registry" is the
 > position every language that lost this fight occupied ([0080](0080-the-audience-mwl-is-built-for.md) § 4).
@@ -243,6 +241,19 @@ multi-tenant database. Every one of those interacts with [0024](0024-taint-track
   question; [0051](0051-standard-library-tiers.md)'s tests answered every case here without amendment,
   which is the argument for not having a second set.
 
+## Revisiting
+
+- **If the framework becomes the thing users talk about and the language incidental**, that is Rails'
+  history, and [0080](0080-the-audience-mwl-is-built-for.md)'s *Revisiting* already names the naming and
+  positioning consequence. `Web` would then likely want a real product name.
+- **If the `Core`/`mwl/web` boundary is crossed repeatedly** — a package member that keeps needing a
+  privileged escape hatch — the split is in the wrong place and
+  [0051](0051-standard-library-tiers.md) § 2 should be applied to that member again rather than an escape
+  hatch being added.
+- **If a credible third-party framework appears**, the laundering asymmetry in *Consequences* becomes a
+  fairness question worth re-arguing — though not at the price of
+  [0024](0024-taint-tracking-for-injection-sinks.md) § 3.
+
 ## Verification
 
 - **The split holds:** every member in § 2 has a test number in its row, and a reviewer applying
@@ -263,16 +274,3 @@ multi-tenant database. Every one of those interacts with [0024](0024-taint-track
   the constructor parameter, not a runtime failure — the assertion that § 4's wiring claim is true.
 - **`Web\Migration` ships nothing** until § 7's gap is closed by an ADR; a migration runner appearing in the
   package without one is a review failure.
-
-## Revisiting
-
-- **If the framework becomes the thing users talk about and the language incidental**, that is Rails'
-  history, and [0080](0080-the-audience-mwl-is-built-for.md)'s *Revisiting* already names the naming and
-  positioning consequence. `Web` would then likely want a real product name.
-- **If the `Core`/`mwl/web` boundary is crossed repeatedly** — a package member that keeps needing a
-  privileged escape hatch — the split is in the wrong place and
-  [0051](0051-standard-library-tiers.md) § 2 should be applied to that member again rather than an escape
-  hatch being added.
-- **If a credible third-party framework appears**, the laundering asymmetry in *Consequences* becomes a
-  fairness question worth re-arguing — though not at the price of
-  [0024](0024-taint-tracking-for-injection-sinks.md) § 3.

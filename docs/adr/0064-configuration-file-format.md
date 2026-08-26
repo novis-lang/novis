@@ -12,12 +12,7 @@
   entry carrying its own hash pin. [0006](0006-isolated-script-execution.md) — `script.spawn`'s
   `:`-joined root list becomes a TOML array. [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
   — `[debug] mode`'s comma-separated string becomes a TOML array.
-- **Amended by:** 0072, 0073, 0074, 0076, 0081, 0091, 0092 — each adds blocks, listed in § 2a; nothing about
-  the format changes. 0078 — the file is re-read on `mwl ctl reload`, not only at boot; each fold is applied
-  below. 0103 — the configuration is a *tree* of files rather than one: § 1 gains the resolution order,
-  § 3 gains its cross-file boundary, § 4's discovery rule is restated, and § 2a gains `[[include]]`.
-  0104 — § 2a gains `[[app]]`.
-- **Relates to:** 0007, 0011, 0052, 0061
+- **Amended by:** 0070, 0072, 0073, 0074, 0076, 0078, 0081, 0091, 0092, 0097, 0103, 0104
 
 > **In short:** MWL's server configuration is a TOML file named `mwl.toml`, read through the `toml` crate
 > and `serde` — at boot, and again on each `mwl ctl reload`
@@ -174,14 +169,12 @@ about discovery and lifetime rather than syntax. The file decided here is a root
 table is still refused for exactly the reason ADR 0061 gives. Sharing an extension with `Cargo.toml` is not
 a collision; the name, the location and the owner all differ.
 
-Where the file is *found* is [0103 § 1](0103-configuration-is-a-tree-of-files.md)'s, and one part of it
-changed what this section used to say. It read "at a path the operator hands the host … never placed inside
-or beside a document root"; 0103 § 1 adds `./mwl.toml`, exactly one directory and still never a walk
-upward. The objection that sentence carried was a configuration file *discovered* in a directory the
-serving account can write, and what answers it is 0103 § 6's ownership refusal, the resolved absolute path
+Where the file is *found* is [0103 § 1](0103-configuration-is-a-tree-of-files.md)'s: a path the operator
+hands the host, else `./mwl.toml` — exactly one directory, and never a walk upward. What makes a file in a
+working directory safe to read there is that ADR's § 6 ownership refusal, the resolved absolute path
 announced at boot, and [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)'s installer
 refusing a service whose config came from a working directory. The walking-up rejection this section rests
-on is untouched.
+on is untouched by any of it.
 
 ### 5. `ini_set` is `Core\Config::set`
 

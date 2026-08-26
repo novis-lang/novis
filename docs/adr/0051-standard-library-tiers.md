@@ -9,9 +9,7 @@
   *how to choose between them*; § 2 below is the missing procedure. Its "fine-grained primitives" rule for
   Tier 0 survives unchanged as test 4. [0011](0011-functions-and-constants-are-class-members.md) — the
   domain-class roster is extended, and § 5 adds a rule about what may claim the `Core` prefix at all.
-- **Amended by:** 0063, 0067, 0072, 0075, 0076, 0077, 0081, 0082, 0083, 0084, 0086 — each fold is applied
-  below; this body states the current rule.
-- **Relates to:** 0004, 0024, 0033, 0052, 0055
+- **Amended by:** 0060, 0063, 0067, 0072, 0074, 0075, 0076, 0077, 0081, 0082, 0083, 0084, 0086, 0097
 
 > **In short:** MWL does not inherit PHP's extension partition. That partition tracks 1997 C build
 > engineering — separate `.so` files, `dl()`, ini load order, per-module globals — not any property worth

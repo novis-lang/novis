@@ -8,8 +8,7 @@
   write/verify/evict mechanics, and the `opcache.*` directives that govern it. It does not touch the
   in-process `DashMap<UnitKey, CompileState>` cache or the hot-reload pointer swap — those stay exactly as
   [ADR 0017](0017-hot-reload-without-restart.md) defines them.
-- **Amended by:** 0078 — the fold is applied below; this body states the current rule.
-- **Relates to:** 0002, 0004, 0005, 0006, 0017
+- **Amended by:** 0078
 
 > **In short:** the disk cache is a directory of immutable files, one per compiled unit, addressed by
 > `BLAKE3(source content ‖ env_hash)`, where `env_hash` covers the target triple, the CPU feature bitset,

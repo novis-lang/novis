@@ -19,7 +19,6 @@
   no-colours rule and its "not MWL's call" sentence are what *Decision § 4* below applies rather than
   changes. [0016](0016-ide-integration.md) § 2 — the VS Code roster gains one bullet naming this ADR, and
   its verification line gains the extension-host case.
-- **Relates to:** 0004, 0016, 0024, 0033, 0040, 0092, 0099
 
 > **In short:** a `secret` value's *bytes* are concealed in the editor by default — blurred in place, not
 > deleted, not folded — because the threat this closes is an incidental viewer: a stream, a screen share, a

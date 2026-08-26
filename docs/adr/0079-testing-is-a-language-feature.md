@@ -14,10 +14,7 @@
   gain a **counting** mode beside the timing one, and the resulting counters are the shared stream
   §§ 15 and 21 consume. [0026](0026-performance-measurement-methodology.md) — its *Scope* now says
   explicitly that user-program benchmarking is this ADR's, not its.
-- **Amended by:** 0092 — a run's result is a record under its § 1 model, so a failure renders as a coloured
-  diff on a terminal, as JSON in CI and as HTML in a web runner with no reporter written for any of them.
-- **Relates to:** 0006, 0013, 0020, 0022, 0023, 0031, 0033, 0036, 0042, 0043, 0046, 0051, 0052, 0063,
-  0067, 0071, 0072, 0077
+- **Amended by:** 0092
 
 > **In short:** PHP has no built-in test framework, and the userland one everybody uses builds its mocks by
 > generating source and calling `eval`. MWL closed `eval` ([0052](0052-closed-doors.md)), so that road does
@@ -738,6 +735,23 @@ neither blocks anything else.
 - **Unifying `.mwlt` with `#[Test]`.** They answer different questions; § 23 says so once so that nobody
   re-opens it.
 
+## Revisiting
+
+- **The fluent matcher chain becomes worth reconsidering if, and only if, MWL gains member specialization
+  on a generic class** — matchers existing at some instantiations of `Assertion<T>` and not others. Roster
+  size is *not* the trigger, and neither is developer preference: without specialization a chain type-checks
+  strictly less than § 4's static roster, so a wider roster is an argument for better completion ranking,
+  never for the chain. If specialization never lands, this never reopens.
+- **If `#[Fixture]`'s graph copy becomes the dominant cost of real suites**, the answer is not to relax § 2
+  but to add a copy-on-write path for immutable fixtures — measured first, per
+  [README.md](README.md) § *Measured numbers*.
+- **If `assertEqualsDeep` turns out to be what people always reach for**, that is evidence
+  [0013](0013-comparable-interface.md)'s no-fallback rule is costing more than it buys in this one context,
+  and the tradeoff should be re-examined there rather than worked around here.
+- **If § 15's counters prove a poor proxy for real cost** on native-heavy code — measurable by correlating
+  them against callgrind counts on the Linux leg — the rejected per-member cost table becomes worth its
+  maintenance burden after all.
+
 ## Verification
 
 - **§ 1:** a fixture per compile error the section lists — duplicate name, `static`, non-`void` return,
@@ -780,20 +794,3 @@ neither blocks anything else.
   test that kills it; an assertion that every generated mutant compiles.
 - **§ 22:** the JSON output validated against its committed schema; the JUnit XML validated against the
   schema CI consumers use.
-
-## Revisiting
-
-- **The fluent matcher chain becomes worth reconsidering if, and only if, MWL gains member specialization
-  on a generic class** — matchers existing at some instantiations of `Assertion<T>` and not others. Roster
-  size is *not* the trigger, and neither is developer preference: without specialization a chain type-checks
-  strictly less than § 4's static roster, so a wider roster is an argument for better completion ranking,
-  never for the chain. If specialization never lands, this never reopens.
-- **If `#[Fixture]`'s graph copy becomes the dominant cost of real suites**, the answer is not to relax § 2
-  but to add a copy-on-write path for immutable fixtures — measured first, per
-  [README.md](README.md) § *Measured numbers*.
-- **If `assertEqualsDeep` turns out to be what people always reach for**, that is evidence
-  [0013](0013-comparable-interface.md)'s no-fallback rule is costing more than it buys in this one context,
-  and the tradeoff should be re-examined there rather than worked around here.
-- **If § 15's counters prove a poor proxy for real cost** on native-heavy code — measurable by correlating
-  them against callgrind counts on the Linux leg — the rejected per-member cost table becomes worth its
-  maintenance burden after all.

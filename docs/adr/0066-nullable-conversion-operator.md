@@ -14,7 +14,6 @@
   whose `parse` takes exactly one `string` and can fail; *3* below is why that is not the `from`/`tryFrom`
   pair R5 exists to prevent.
 - **Amended by:** none.
-- **Relates to:** 0010, 0022, 0024, 0033, 0035, 0063
 
 > **In short:** `$s as ?int` yields the converted value where `$s as int` would succeed and `null` where it
 > would throw, so a failed conversion becomes a value you test rather than control flow you catch. **The
@@ -99,15 +98,12 @@ is `null`; a conversion that does not exist is a diagnostic.** From `mixed` ever
 `$mixed as ?int` is `null` for a value holding an array — while a statically-known `array<int>` never
 compiles.
 
-**The class row is absolute, and that is a reversal.** This ADR first admitted a closed two-name *parse
-roster* — `$s as ?Core\Uri`, `$s as ?Core\Uuid` — defining those directly as "that type's `parse`, and
-`null` where it throws". It is withdrawn. The roster answered a real question and answered it in the wrong
-place: `as?` means a **downcast** in every language a reader arrives from, so spelling a *parse* that way
-inverted the one intuition the syntax carried, and it did so for exactly two class names a reader had to
-have memorized while every other class stayed a diagnostic. It also bought nothing it was justified by.
-R17 was said to forbid a second spelling of `parse` — but `Core\Uri::parse($s)` and `$s as ?Core\Uri`
-*both existed*, so the roster never removed a spelling; it relocated one from a member name to an
-operator, and to the harder of the two to read.
+**The class row is absolute, and it admits no roster of blessed class names.** `as?` spells a **downcast**
+in every language a reader arrives from, so spelling a *parse* that way would invert the one intuition the
+syntax carries — and it would do so for a handful of memorized class names while every other class stayed a
+diagnostic. It would also remove no spelling: `Core\Uri::parse($s)` exists either way, so an operator form
+relocates the parse rather than replacing it, onto the harder of the two to read. *3a* is where the
+non-throwing spelling lives instead.
 
 ### 3a. A failable single-`string` parse gets `tryParse`, and R5 admits it
 
@@ -118,8 +114,7 @@ still exactly one implementation of "is this text a `Uri`" — which was always 
 This amends [ADR 0063](0063-core-api-conventions.md) R5, whose ban on `try…` is justified there as "R4
 already covers them". For a class target R4 demonstrably did **not** cover it: R4 offers a throwing member
 or a `?T` that means *absence*, and a malformed string is neither an absence nor something a scalar
-operator can reach, which is why the withdrawn roster had to define itself outside R4's frame in the first
-place. So R5 admits **one** shape, under three conditions that keep it from regrowing into PHP's
+operator can reach — so it needs a spelling of its own. R5 admits **one** shape, under three conditions that keep it from regrowing into PHP's
 `from`/`tryFrom` habit:
 
 1. The class has a `parse` taking **exactly one `string`** that can fail. A parse taking a format or an

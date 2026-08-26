@@ -22,8 +22,7 @@
   [0051](0051-standard-library-tiers.md) § 3 — the Core roster gains `Core\Socket`, `Core\Sse` and
   `Core\Topic`.
   [docs/implementation-plan.md](../implementation-plan.md) — M7 gains the upgrade path and the topic bus.
-- **Amended by:** none.
-- **Relates to:** 0004, 0017, 0020, 0023, 0024, 0033, 0041, 0042, 0053, 0075, 0076, 0080, 0082
+- **Amended by:** 0084, 0097
 
 > **In short:** an upgraded connection is **its own root isolate** — the same `Isolate` a request and a
 > `spawn script` child already are, with its own memory, CPU and time budget, sharing nothing but compiled
@@ -251,6 +250,17 @@ place two spellings could appear for one job:
   capture the request's heap — destroying the isolation this ADR is about — or need a rule for what a
   closure may capture across an isolate boundary, which is a new language question asked to save a file.
 
+## Revisiting
+
+- **If per-connection memory proves to be the binding constraint** — the ten-thousand-idle-connections case
+  in *Consequences* — the thing to reconsider is whether an idle connection can release its arena and
+  restore it on the next frame, not whether it is an isolate.
+- **If applications routinely bridge `Core\Topic` to an external broker**, that pattern is a candidate for a
+  first-party package under [0082](0082-the-first-party-framework.md) § 3 — still not a runtime feature.
+- **If a third construct appears that outlives a response**, § 6's table is where it must be placed before
+  it is built, so the confusion this repository heads off between `require` and `spawn script` does not
+  reappear here.
+
 ## Verification
 
 - **Isolation:** a connection isolate cannot read a variable, a static or a session value from the request
@@ -273,14 +283,3 @@ place two spellings could appear for one job:
   drain period, and no connection isolate outlives the drain.
 - **Bounds:** every timeout and cap in § 7 has a default that applies with nothing configured, asserted the
   way [0074](0074-http-defaults-safe-and-finite.md)'s defaults already are.
-
-## Revisiting
-
-- **If per-connection memory proves to be the binding constraint** — the ten-thousand-idle-connections case
-  in *Consequences* — the thing to reconsider is whether an idle connection can release its arena and
-  restore it on the next frame, not whether it is an isolate.
-- **If applications routinely bridge `Core\Topic` to an external broker**, that pattern is a candidate for a
-  first-party package under [0082](0082-the-first-party-framework.md) § 3 — still not a runtime feature.
-- **If a third construct appears that outlives a response**, § 6's table is where it must be placed before
-  it is built, so the confusion this repository heads off between `require` and `spawn script` does not
-  reappear here.

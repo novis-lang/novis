@@ -11,8 +11,7 @@
 - **Amends:** [0007](0007-explicit-type-system.md) — § 3's atom grammar gains `StringLiteral`, `IntLiteral`,
   a class-constant reference, and an enum-case reference as four new atom productions, alongside the
   existing `true`/`false` literal atoms this ADR generalises.
-- **Amended by:** 0066, 0090 — each fold is applied below; this body states the current rule.
-- **Relates to:** 0002, 0010, 0024, 0033, 0036, 0046
+- **Amended by:** 0066, 0090
 
 > **In short:** `"a"|"b"|"c"` and `1|2` are now legal types, usable everywhere [ADR 0007](0007-explicit-type-system.md)
 > § 1 requires one — the same generalisation that ADR already made for `true`/`false`, extended to `string`

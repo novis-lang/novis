@@ -12,9 +12,7 @@
   versions, which live in [the plan](../implementation-plan.md)'s status block § *Toolchain* and in
   [Cargo.toml](../../Cargo.toml); and package management for MWL *user* code (`mwl pkg`, M10).
 - **Amends:** none.
-- **Amended by:** 0081 — its absorb-don't-forward discipline now governs MWL packages as well as MWL's own
-  Rust dependencies, which is what makes that ADR's major-version rule affordable.
-- **Relates to:** 0002, 0003, 0004, 0026, 0042, 0048, 0051, 0055, 0056, 0063, 0064, 0065, 0067
+- **Amended by:** 0081
 
 > **In short:** MWL runs on **current** dependencies — being behind is a defect with a date on it, not a
 > neutral state, because the alternative is one enormous forced migration under a security deadline. Until

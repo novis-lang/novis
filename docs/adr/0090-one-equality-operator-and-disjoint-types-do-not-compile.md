@@ -19,7 +19,6 @@
   spelled the operator pair `==`/`===`; each now spells the one operator, with no other change to what it
   said. [0089](0089-convert-is-one-rule-table-with-two-modes.md)'s worked `==` rule — its destination is
   `==`, and its tiering is re-stated against this ADR's table.
-- **Relates to:** 0004, 0009, 0011, 0014, 0015, 0023, 0028, 0031, 0045, 0049, 0050, 0053, 0079, 0080
 
 > **In short:** MWL has **one** equality operator, `==`, and its negation `!=`. `===` and `!==` do not
 > parse. There is nothing for a second spelling to distinguish, because MWL has no loose comparison to
@@ -256,6 +255,17 @@ and re-tiers against this table:
   problem in a new costume, and unnecessary: identity is the reading a reference type wants by default,
   and content comparison is the one that benefits from being visible.
 
+## Revisiting
+
+- **A named content-equality member in `Core`**, if § 4's `compareTo(…) == 0` turns out to be what every
+  value class writes. It would be a member under [0063](0063-core-api-conventions.md)'s conventions, not
+  an operator and not an interface, and the evidence for it is repetition in real programs rather than
+  argument.
+- **Whether `mixed == mixed` should throw** on a cross-row pair rather than answering `false`, matching
+  what `crates/mwl-stdlib/src/ordering.rs` already does for `Arr::min`. Deliberately not taken now, because
+  ordering has no correct answer for a mismatched pair while equality does; revisit if the silent `false`
+  in *5* turns out to hide real bugs.
+
 ## Verification
 
 - **Grammar.** A fixture per rejected spelling — `$a === $b` and `$a !== $b` — each a compile error whose
@@ -272,14 +282,3 @@ and re-tiers against this table:
   and never a throw — the one place a wrong answer would be silent.
 - **Nothing to measure.** No number here needs a guard test in `benches/abi-probe`: the typed path is the
   instruction it already was, and the `mixed` path is the tag dispatch ADR 0007 § 6 already priced.
-
-## Revisiting
-
-- **A named content-equality member in `Core`**, if § 4's `compareTo(…) == 0` turns out to be what every
-  value class writes. It would be a member under [0063](0063-core-api-conventions.md)'s conventions, not
-  an operator and not an interface, and the evidence for it is repetition in real programs rather than
-  argument.
-- **Whether `mixed == mixed` should throw** on a cross-row pair rather than answering `false`, matching
-  what `crates/mwl-stdlib/src/ordering.rs` already does for `Arr::min`. Deliberately not taken now, because
-  ordering has no correct answer for a mismatched pair while equality does; revisit if the silent `false`
-  in *5* turns out to hide real bugs.

@@ -2,11 +2,11 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
+- **Amended by:** 0093
 - **Scope:** a new `mwl-cli` subcommand that packages an entry `.mwl` file plus its statically-resolvable
   `require` graph into a single, self-contained, runnable executable — the Bun/`pkg`/`deno compile` shape —
   and the small addition to `mwl-host`'s startup path needed to run one. CLI programs only; `mwl serve` is
   explicitly out of scope (see *Decision* §1).
-- **Relates to:** 0003, 0005, 0021, 0025, 0042
 
 > **In short:** `mwl build --compile entry.mwl -o app` appends the entry file's statically-resolved source
 > tree, as plain bytes with a small footer, after the host `mwl` binary's own sections — the standard

@@ -25,8 +25,7 @@
   [0011](0011-functions-and-constants-are-class-members.md) — `Core\Server`, `Core\Request`, `Core\Session`,
   `Core\Cli` and `Core\Script` join the illustrative domain-class roster its *Revisiting* section already
   says is incomplete.
-- **Amended by:** 0024 — each fold is applied below; this body states the current rule.
-- **Relates to:** 0002, 0004, 0005
+- **Amended by:** 0023, 0024, 0046, 0091
 
 > **In short:** PHP populates `$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION`, `$_ENV` and
 > `$GLOBALS` ambiently — a script never declares them, they are simply present, and `$GLOBALS` additionally
@@ -192,13 +191,11 @@ Each rejection names its replacement, in the style [ADR 0008](0008-static-and-gl
 - `$argv` / `$argc` → *use `Core\Cli`*
 - `$_ARGS` → *use `Core\Script::args()`*
 
-### 9. A deliberate divergence, tracked here
+### 9. The divergence this creates
 
 MWL is a PHP-syntax superset that does not preserve PHP's superglobal *semantics* at all — a ported file
-reading `$_GET`, `$_SESSION` or `$GLOBALS` does not run unconverted, the same way
-[ADR 0007](0007-explicit-type-system.md) already accepts nine divergences, [ADR 0010](0010-enums-are-a-value-type.md) a tenth, and [ADR 0011](0011-functions-and-constants-are-class-members.md) an
-eleventh. This is the twelfth, tracked here rather than folded into ADR 0007's table, following the same
-precedent:
+reading `$_GET`, `$_SESSION` or `$GLOBALS` does not run unconverted. The table below is this decision's
+own; [divergences.md](divergences.md) is the register that indexes it beside every other:
 
 | # | PHP | MWL |
 |---|---|---|

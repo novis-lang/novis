@@ -10,12 +10,11 @@
   language/runtime feature it is staged behind; (3) a required addition to `mwl-syntax`: a second,
   error-recovering parse mode, alongside the existing strict one, needed for usable completion on a file
   that is mid-edit.
-- **Amends:** [docs/implementation-plan.md](../implementation-plan.md) M4/M5/M10 — inserts M4B between M4
+- **Amends:** [0016](0016-ide-integration.md) — § 3 below reverses its § 4 deferral of debugger-UI
+  wiring, for VS Code only; its PhpStorm half is untouched.
+  [docs/implementation-plan.md](../implementation-plan.md) M4/M5/M10 — inserts M4B between M4
   and M5, and narrows M10's remaining VS Code scope to what M4B does not cover.
-- **Relates to:** 0006, 0016, 0018, 0019, 0039
-- **Amended by:** [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) — the resilient tree's shape
-  (§ 2), the server's dependencies and the M4B request set (§ 1), `mwl ast --json` (§ 3), and both open
-  *Revisiting* items. Each fold is applied below; this body states the current rule.
+- **Amended by:** 0099
 
 > **In short:** VS Code is the reference client, and it is getting real depth, not a thin LSP passthrough
 > with a grammar file. A **minimal `mwl-lsp`** (diagnostics, hover, go-to-definition, basic completion) and

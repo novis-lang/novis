@@ -10,9 +10,7 @@
   construct, the same way ADR 0034 spent it on the legacy cast syntax. [0034](0034-legacy-cast-syntax-rejected.md)'s
   own *Consequences* section, which named `<?php` as an example of PHP syntax this project "kept but
   reinterpreted," is corrected below — it no longer does.
-- **Amended by:** 0100 — the fold is applied below and this body states the current rule. § 2 gains the one
-  file shape that reaches code mode without a tag.
-- **Relates to:** 0015, 0021, 0034, 0045, 0100
+- **Amended by:** 0100
 
 > **In short:** `<?php` no longer opens code mode, and `die` no longer terminates the process. Each is a
 > parse-time diagnostic (`E0229` and `E0228` respectively) naming the sole survivor — `<?mwl` for the tag,

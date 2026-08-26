@@ -10,7 +10,6 @@
 - **Amends:** none. It gives [deny.toml](../../deny.toml)'s existing `licenses.allow` list a second
   reader — `tools/gen-attribution.py` fails if the two disagree — but does not change what it allows.
 - **Amended by:** none.
-- **Relates to:** 0003, 0018, 0048, 0051
 
 > **In short:** MWL is MIT and links ~80 permissive components, every one of which asks the same thing
 > in return — reproduce the notice with the binary. That obligation is met by a **generated file**,

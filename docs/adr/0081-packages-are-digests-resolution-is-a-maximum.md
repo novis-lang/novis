@@ -23,7 +23,6 @@
   [docs/plan/design.md](../plan/design.md) — the *Tooling* row's "package manager" gains a
   milestone.
 - **Amended by:** none.
-- **Relates to:** 0003, 0004, 0005, 0019, 0024, 0033, 0042, 0052, 0062, 0079, 0080, 0082
 
 > **In short:** a package's **identity is its BLAKE3 digest**; a name is only a way to find one. Two kinds
 > of source produce that digest — the **registry** (a name, `acme/http`) and a **git URL** — and the second
@@ -328,6 +327,18 @@ that policy is an operational document, not an ADR.
   source distribution is what makes "the digest is the identity" a statement about code a human could read
   rather than about bytes nobody can.
 
+## Revisiting
+
+- **If library authors route around the rename rule** — shipping breaking changes under the same name and
+  breaking consumers — the rule is not holding and either enforcement (an API-diff check at publish) or a
+  ceiling mechanism becomes necessary. Watch the first ten popular packages.
+- **If `mwl audit` proves insufficient in practice** and users sit on known-vulnerable versions, MVS's
+  weakness is real and a narrowly scoped automatic-patch-floor mechanism should be argued — not a general
+  range system.
+- **If a legitimate need for a build step appears** that is not code generation a publisher could do
+  beforehand, § 5 is what would have to change, and it should be re-argued from scratch rather than
+  amended, because every exception in every other system began as a legitimate need.
+
 ## Verification
 
 - **Resolution:** a graph where two packages require different minimums of a third selects the higher, and
@@ -354,15 +365,3 @@ that policy is an operational document, not an ADR.
 - **Integration:** a fetched package's classes resolve through `vendor/packages.mwl` with no compiler change
   — asserted by the fact that `mwl-syntax` and `mwl-types` gain no package-aware code path for name
   resolution at all.
-
-## Revisiting
-
-- **If library authors route around the rename rule** — shipping breaking changes under the same name and
-  breaking consumers — the rule is not holding and either enforcement (an API-diff check at publish) or a
-  ceiling mechanism becomes necessary. Watch the first ten popular packages.
-- **If `mwl audit` proves insufficient in practice** and users sit on known-vulnerable versions, MVS's
-  weakness is real and a narrowly scoped automatic-patch-floor mechanism should be argued — not a general
-  range system.
-- **If a legitimate need for a build step appears** that is not code generation a publisher could do
-  beforehand, § 5 is what would have to change, and it should be re-argued from scratch rather than
-  amended, because every exception in every other system began as a legitimate need.

@@ -12,7 +12,6 @@
   exception is revoked because it no longer has anything left to except.
   [0028](0028-closing-the-remaining-magic-methods.md) — adds the `__construct`/`constructor` disposition row
   its own magic-method index never carried: kept, not closed, but respelled.
-- **Relates to:** 0013, 0015, 0022
 
 > **In short:** no property, parameter, or local variable name may begin with `_` — the leading-underscore
 > allowance [ADR 0029](0029-identifier-casing-is-checked.md) granted them is revoked, with no replacement.

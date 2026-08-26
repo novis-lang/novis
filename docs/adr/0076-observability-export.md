@@ -20,8 +20,7 @@
   blocks. [docs/spec/01-core-library.md](../spec/01-core-library.md) § 16 — a `Core\Metrics` row.
   [docs/implementation-plan.md](../implementation-plan.md) — M7 gains the default series and the exporter,
   M8 the outbound propagation.
-- **Amended by:** none.
-- **Relates to:** 0004, 0024, 0033, 0059, 0063, 0067, 0072, 0077
+- **Amended by:** 0097
 
 > **In short:** MWL already measures request duration, database query duration, GC pause and isolate spawn —
 > [ADRs 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) and

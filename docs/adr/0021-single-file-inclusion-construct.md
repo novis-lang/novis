@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
+- **Amended by:** 0049, 0050, 0062
 - **Scope:** PHP's four same-frame inclusion keywords (`include`, `include_once`, `require`,
   `require_once`); the corresponding AST shape and diagnostics
 - **Amends:** [0006](0006-isolated-script-execution.md) — every mention of "`include`/`require`" as the
@@ -9,9 +10,6 @@
   rejected* wording are updated, with no change to that ADR's actual decision. [`docs/spec/00-overview.md`
   § 2](../spec/00-overview.md) is rewritten to match — that document owns the surviving grammar, this ADR
   owns why the other three are gone.
-- **Relates to:** [0004](0004-memory-for-simplicity.md) (simplicity bought by refusing a second name for
-  one behaviour, the same trade [0015](0015-no-name-aliasing.md) already made), [0007](0007-explicit-type-system.md)
-  (the one place this decision touches the type system — see *Decision § 3*)
 
 > **In short:** MWL keeps exactly one same-frame inclusion keyword, spelled `require`, with its plain PHP
 > meaning unchanged — throws if the file cannot be found or fails to parse, and splices the target into the
@@ -53,10 +51,10 @@ PHP's plain `require` already means exactly this — throw, no repeat guard, sam
 was invented: reuse a PHP spelling verbatim when its existing meaning is exactly the one MWL wants, and
 spend the "pragmatic superset" budget on that instead of on novelty. Note the narrowness of that argument —
 it justifies keeping a spelling whose *meaning* MWL wants, never a second spelling of a meaning already
-covered. The two examples this section originally cited alongside `require` have both since been withdrawn
-on exactly that distinction ([ADR 0049](0049-single-open-tag-and-single-exit-keyword.md) for `<?php`,
-[ADR 0050](0050-list-destructuring-spelling-rejected.md) for `list(...)`); `require` is unaffected, because
-no other keyword spells what it means. The three rejected
+covered, which is the distinction that decided `<?php`
+([ADR 0049](0049-single-open-tag-and-single-exit-keyword.md)) and `list(...)`
+([ADR 0050](0050-list-destructuring-spelling-rejected.md)) the other way. `require` passes it, because no
+other keyword spells what it means. The three rejected
 spellings are not rejected for being PHP-shaped; they are rejected because each names a behaviour (warn-and-
 continue, or an implicit repeat guard) this project has already decided against having anywhere in the
 language.
@@ -109,8 +107,7 @@ of naming the replacement directly:
 
 **Negative**
 
-- **A structural break from PHP**, joining the divergence list [ADR 0007](0007-explicit-type-system.md) § 7
-  already carries forward: PHP source using `include`, `include_once`, or `require_once` does not convert
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: PHP source using `include`, `include_once`, or `require_once` does not convert
   unconverted. Mechanical for `mwl convert` ([M11](../implementation-plan.md)) in the common case (rewrite
   the keyword to `require`); a script that relied on `include`'s warn-and-continue behaviour — testing the
   expression's `false` result to decide whether the file loaded — needs a human decision, since that

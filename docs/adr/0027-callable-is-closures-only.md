@@ -8,8 +8,7 @@
   `$obj->method(...)`) produces one
 - **Amends:** [0007](0007-explicit-type-system.md) § 3 — `callable` was an opaque atom with no stated rule
   for *which values* satisfy it. Its opacity as to *signature* is unchanged and still deferred there.
-- **Amended by:** 0031, 0063 — each fold is applied below; this body states the current rule.
-- **Relates to:** 0011, 0013, 0014, 0031
+- **Amended by:** 0031, 0063
 
 > **In short:** `callable` means **a closure value — nothing else.** PHP's three dynamic spellings — a bare
 > string (`"strlen"`), an `"Class::method"` string, and a `[$obj, 'method']` array — are all rejected with a
@@ -111,7 +110,7 @@ answered and does not reopen it.
 
 **Negative**
 
-- **A structural break from PHP**, joining [0007](0007-explicit-type-system.md) § 7's divergence list.
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers.
   Mechanical for `mwl convert` in the string/array cases — rewrite to the equivalent first-class-callable
   expression — except where the string was itself dynamic. The `__invoke` case needs a human decision
   unconditionally: rename the method, and rewrite every `$obj(...)` call site.

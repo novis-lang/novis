@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
+- **Amended by:** 0090
 - **Scope:** what `mwl convert` promises and what it refuses — the two modes and the per-rule tier that
   produces them, what "equivalent" means and who proves it, the determinism contract, the
   nothing-is-dropped rule, the annotation and report format, where the three translation tables live, and
@@ -18,8 +19,6 @@
   [docs/implementation-plan.md](../implementation-plan.md) — M11's enumerated catalogue of rewrites moves
   into the rule table this ADR defines; the milestone keeps its schedule, its inference pass and its
   verification.
-- **Relates to:** 0004, 0007, 0008, 0009, 0011, 0014, 0015, 0019, 0021, 0031, 0034, 0037, 0039, 0043,
-  0049, 0050, 0051, 0052, 0061, 0062, 0063, 0065, 0068, 0069, 0071, 0079, 0081
 
 > **In short:** `mwl convert` is **one rule table read through two filters**, not two translators. Every
 > rule carries a **tier**: **E** — proven to behave identically, **D** — a mechanical MWL destination
@@ -362,6 +361,18 @@ a 7.2 codebase gets a bounded, honest answer rather than a silent misparse.
   outcome this ADR exists to prevent. A model may help a *human* write a rule for the table, where the
   differential case checks it.
 
+## Revisiting
+
+- **If `php-rs-parser` is abandoned** — 0.x with one maintainer is § 7's named risk — the order is: fork at
+  the pinned version under its BSD-3 licence, or swap to `mago-syntax` behind the facade and build the
+  dialect gating this ADR would then be missing. Only § 7 changes either way.
+- **If the published equivalent-mode share stays so low that nobody runs the default mode**, the thing to
+  revisit is the *definition* of E — for instance, admitting "equivalent under a stated, checked assumption
+  about the input" as a fourth tier with its own annotation — not the two-mode split, which is what makes
+  the claim auditable at all.
+- **If a dialect older than 7.4 is asked for**, it is a dialect value and a set of rule branches, and this
+  ADR does not need to change.
+
 ## Verification
 
 **Now, in CI: nothing.** `mwl-convert` does not exist; M11 is where this becomes code, and the crate is
@@ -391,15 +402,3 @@ it is disqualified if it cannot *report* what it could not parse, which is what 
   both byte-identical to what is committed (§ 6).
 - **The published number**: `--check` over a fixed corpus, tracked per release the way M11 already tracks
   its `.phpt` pass rate.
-
-## Revisiting
-
-- **If `php-rs-parser` is abandoned** — 0.x with one maintainer is § 7's named risk — the order is: fork at
-  the pinned version under its BSD-3 licence, or swap to `mago-syntax` behind the facade and build the
-  dialect gating this ADR would then be missing. Only § 7 changes either way.
-- **If the published equivalent-mode share stays so low that nobody runs the default mode**, the thing to
-  revisit is the *definition* of E — for instance, admitting "equivalent under a stated, checked assumption
-  about the input" as a fourth tier with its own annotation — not the two-mode split, which is what makes
-  the claim auditable at all.
-- **If a dialect older than 7.4 is asked for**, it is a dialect value and a set of rule branches, and this
-  ADR does not need to change.

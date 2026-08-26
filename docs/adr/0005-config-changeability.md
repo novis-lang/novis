@@ -5,9 +5,7 @@
 - **Scope:** the directive registry, `Core\Config::set`/`::get`, per-request limit enforcement
 - **Amends:** [0004](0004-memory-for-simplicity.md) — the enforceable per-request cap is now the *ceiling*
   directive, not the default one
-- **Amended by:** 0064, 0072, 0073, 0074, 0076, 0078, 0091, 0103, 0104 — each fold is applied below; this body states
-  the current rule. The registry's full block list, with the ADR that argues each block's directives, is
-  [0064 § 2a](0064-configuration-file-format.md).
+- **Amended by:** 0058, 0064, 0072, 0073, 0074, 0076, 0078, 0091, 0097, 0104
 
 > **In short:** `mwl.toml` states defaults, not ceilings. Every directive carries a changeability
 > class: `System` (settable in `mwl.toml` only), `Runtime` (`mwl.toml` gives the default and a request
@@ -93,9 +91,8 @@ Two things it settles belong here because they are this ADR's model: such a bloc
 value for its application, **wider or narrower**, bounded by the global `[limits.hard]` ceiling, and may
 grant a capability the global `[capabilities]` block withholds as well as drop one it holds — which is what
 keeps deny-by-default at the top workable. Only `[app.limits.hard]` is one-directional, lowering an
-application's own ceiling and never raising it. (This body previously said a per-app block "may override a
-ceiling downward the same way it overrides a capability grant", which read as narrowing-only for both;
-0104 § 3 argues why that inverts deny-by-default and states the rule above instead.)
+application's own ceiling and never raising it; [0104](0104-an-application-is-an-entry-file-path.md) § 3
+argues why the other direction would invert deny-by-default.
 
 **A refused `Core\Config::set` returns `false` and leaves the value unchanged**, with a `W`-class diagnostic naming
 the ceiling. It is not clamped to the ceiling: silently running with a different number than the one

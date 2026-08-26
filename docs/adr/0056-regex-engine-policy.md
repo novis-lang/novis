@@ -7,7 +7,6 @@
   method roster, which M8 designs.
 - **Amends:** none.
 - **Amended by:** none.
-- **Relates to:** 0009, 0020, 0024, 0051, 0057
 
 > **In short:** `Core\Regex` runs on a finite-automata engine with **guaranteed linear time**, which cannot
 > be made to backtrack exponentially. Patterns needing lookaround or backreferences — which that engine
