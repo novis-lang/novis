@@ -26,7 +26,11 @@ member it changes is being written *right now* — item 15 alone is the differen
 costing 9.4× what PHP's interpreter charges and roughly an eighth of it. **16 and 17 came from a second
 pass over the same ground and are already done**, both being small enough that queueing them would have
 cost more than doing them; they are listed so neither is re-opened and so the review's full output is in
-one place. Until this section is empty, **a session takes its group from here, in this
+one place. **Items 18–22 arrive from a third pass, which measured the suite rather than reading php-src**
+— `python tools/bench.py` puts MWL's median at 0.31× against PHP 8.5.9 with its JIT on, and
+[docs/perf/userland-gap.md](../perf/userland-gap.md) is the ledger of what every case's number is made of,
+what one operation costs, and which item moves it. **Read that file before opening one of them; none of
+the five restates it.** Until this section is empty, **a session takes its group from here, in this
 order, and does not open a Stage 3 `Core` slice.** The reason is compounding cost, not tidiness: the
 spelling ADR 0090 deletes had reached 48 files and 93 lines before item 1 rewrote them, and every fixture
 written while an item here is open is written against a rule that is about to change.
@@ -176,6 +180,54 @@ one is how an item finishes.
     so 100M entries is ~11 GB and about two minutes — and is now a catchable throw. The gate test is the
     invariant rather than the behaviour: it fails when someone writes copy number five.
 
+18. **MWL owns its allocator.** Every allocation goes to the platform heap — `mwl-runtime` registers a
+    `#[global_allocator]` only under `cfg(test)` — and one round trip costs 28.7 ns on the development
+    machine, against a bin allocator's small fraction of that. MWL also makes far more of them than PHP
+    does, which is items 20 to 22. **This is not a new decision and takes no ADR**:
+    [docs/plan/design.md](../plan/design.md) § *Per-request isolation* already settled that a request gets
+    an arena released wholesale at request end, and this is that decision landing early, in the half that
+    needs no `Ctx` — a thread-local size-class cache in front of `System`. The `[limits.hard]` ceiling
+    attaches to it at M6, where `mwl_runtime::affordable`'s own doc comment already says it does. Measured
+    on this tree with a throwaway build of exactly that cache: the suite's median goes **0.31× → 0.54×**
+    and nothing else changes. Say what it spends in `mwl-runtime`'s module doc, per
+    [ADR 0004](../adr/0004-memory-for-simplicity.md) § *Say what you spend*. One thing to get right:
+    `counting_alloc::Counting` must wrap the new allocator rather than `System`, or the leak guard
+    measures a path the release build does not take. **It is first because every number measured before
+    it is measured against the wrong baseline** — including the `docs/perf/history.ndjson` entry item 15
+    still owes, which is append-only and would record it permanently.
+19. **An integer subscript reaches the packed form from compiled code** — item 15's other half, and the
+    only item here that is already scoped to `file:line`: [handoff.md](handoff.md)'s `## Next group` owns
+    the four slices, `crates/mwl-runtime/src/array.rs`'s module doc § *the ABI was the part that expired*
+    owns the shape, and neither is restated here. It costs 82.4 ns today because
+    `Lowering::lower_array_key` renders the decimal before `mwl_array_get_index` — which exists, and which
+    nothing calls — can decline to.
+20. **A string has capacity, and `.=` appends into it.** `StrHeader` carries a refcount and a length and
+    nothing else, so `mwl_str_concat` always builds a fresh buffer and `$out .= $piece` copies the whole
+    accumulation every iteration: 50,000 appends take 238 ms and 100,000 take 1,386 ms, which is
+    `03-string-concat` at 0.03× and is the one case no allocator fixes. Three changes, one layout
+    revision: capacity plus an `mwl_str_append` on `mwl_array_set`'s own *consume one reference, return
+    one* protocol; an n-ary `InstKind::Concat`, since `MwlStr::from_pieces` already exists for it and
+    codegen never calls it; and a string literal that stops allocating, which `emit_const_str`'s own doc
+    comment already asks for and defers to this crate on layout grounds. **The part that must be written
+    down rather than re-derived** is that an immortal literal lives in the compiled unit — the one thing a
+    request *does* share with another — so `string.rs`'s "no `MwlStr` is ever reachable from two threads"
+    reasoning behind the plain `Cell` refcount stops being true as stated. It stays sound, because a
+    pinned refcount is never written; the module doc has to say so.
+21. **No key is synthesized for a callback that does not want one.** `Core\Arr::map`, `filter`, `reduce`
+    and `sort` all call `mwl_array_key_at` per element, which on a packed list renders a decimal and
+    allocates an `MwlStr` — and `call_closure` then slices the argument list to the closure's declared
+    arity and drops it. `12-array-map-filter` burns 400,000 of them a round for nothing. The arity is a
+    field on the closure object, readable once before the loop. `Core\Arr::sort` compounds it by building
+    a key per element even when `preserveKeys` is `false`.
+22. **A `Core\Str` member writes its result once.** Two mechanical patterns, and the reason they are here
+    rather than in the milestone is that every member §§ 1–12 still owes copies whichever one is in front
+    of it: `produced(&str)` allocates a `String` and then copies it into a fresh `MwlStr` (56 call sites
+    across `str`, `bytes`, `path`, `regex`, `uri`), and `text()` re-validates UTF-8 on every string
+    argument (56 in `str.rs` alone) — an O(n) pass over a string
+    [ADR 0009](../adr/0009-string-and-bytes.md) already guarantees valid, as that function's own error
+    message says. `Core\Str::length` adds two more passes on top; the grapheme unit makes one of them
+    unavoidable and does not make three.
+
 **Already done, and listed so it is not re-opened:** ADR 0087's lexer half is built — `mwl_syntax::bidi` is
 the one predicate, the lexer makes it `E0008` over comments, string literals and inline HTML per line, and
 seven `.mwlt` cases pin it. Its two sink halves are M7's and M8's, not catch-up.
@@ -191,6 +243,19 @@ and `[http.errors] detail` are M6; the HTML rendering and `[debug] inline` are M
 Lines are M8; the compiler-diagnostic rendering is M10. The two documentation corrections they *did* owe —
 the spec's mis-attributed `Core\Debug` row, and two ADR examples writing a `string` log level — landed with
 the ADRs themselves.
+
+**The other half of the bench review is deliberately not here**, and
+[docs/perf/userland-gap.md](../perf/userland-gap.md) says why per item rather than this file: a cached
+hash on `StrHeader`, a virtual call resolved to a slot instead of a name search, and `Core\Arr::sort`
+without its permutation indirection are all real and none is about to be frozen by an ABI, so they run
+after Stage 3 rather than in front of it. `Core\Str::format`'s ten allocations a call ride
+[ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)'s pass over that member,
+which M4S already owes. And the statement probes that are most of a tight loop's instructions stay:
+removing them trades
+[ADR 0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s "a probe can be
+switched on for a request already running", which is a decision to fold into that ADR at M6 behind
+[ADR 0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s production mode,
+not a defect to fix now.
 
 ## Acceptance
 

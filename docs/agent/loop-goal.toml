@@ -59,6 +59,11 @@ modules = [
   # gives: a session takes ONE item, and the six items share no files, so the union would print five
   # unread module maps every session. Measured: +1,715 tokens, most of it the two directory
   # selectors. Each item names its own file set in `loop-goal.md` instead.
+  #
+  # Items 18-22 add nothing for the same reason and it is even clearer there: the five sit in five
+  # different crates (abi-probe, mwl-codegen, mwl-runtime, mwl-stdlib twice) and share no file at
+  # all. `string.rs`, `helpers.rs` and `str.rs` are already above for other reasons, which covers
+  # three of them by accident and is not a reason to add the rest.
 ]
 
 # The decisions this goal's work sits inside, by ADR number. orient.py prints the one-sentence
@@ -369,6 +374,94 @@ tests = [
   # copies and three members with none. The test is the invariant, not the behaviour: it fails when
   # someone writes copy number five.
   "no_member_writes_its_own_allocation_guard",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0, items 18-22 -- the bench review. Same "now or never" test as 10-15 and the same source of
+# authority: `loop-goal.md` § *Stage 0* argues each one, and `docs/perf/userland-gap.md` holds every
+# number and the attribution behind it. Nothing here is restated in either direction.
+#
+# THE ORDER OF THESE FIVE BLOCKS IS THE ORDER OF THE WORK, and it is not the order of payoff. The
+# allocator is first because every measurement taken before it -- including the `history.ndjson`
+# entry item 15 still owes, which is append-only -- is taken against the wrong baseline.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "abi-probe (the allocator)"
+# `--release`, and the same invocation stage 5 uses so the two share one build rather than forcing a
+# second. A cost-class guard in a debug build measures the assertions and not the allocator, which is
+# the reason `tools/bench.py` refuses a `target/debug` binary by name.
+args = ["test", "--release", "-p", "mwl-abi-probe"]
+tests = [
+  # Item 18 -- MWL's own allocator, not the platform heap. A round trip is 28.7 ns here today; the
+  # guard is a cost class rather than a number, the shape every other guard in this file uses.
+  "an_allocation_round_trip_stays_in_the_pooled_cost_class",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-codegen (packed subscript)"
+args = ["test", "-p", "mwl-codegen"]
+tests = [
+  # Item 19 -- item 15's other half. `mwl-runtime`'s own `an_integer_subscript_allocates_no_key`
+  # already holds the primitive; this holds the path COMPILED CODE takes to it, which is the half
+  # `lower_array_key` still renders a decimal for.
+  "an_integer_subscript_reaches_the_packed_form_from_compiled_code",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-runtime (string capacity)"
+args = ["test", "-p", "mwl-runtime"]
+tests = [
+  # Item 20 -- the three halves of one layout revision, each measured through
+  # `counting_alloc::allocated_bytes`, which is the shape `an_integer_subscript_allocates_no_key`
+  # established: a transient allocation has a zero LIVE delta and a non-zero TOTAL one.
+  "appending_to_a_uniquely_owned_string_does_not_reallocate",
+  "a_concat_of_many_pieces_allocates_once",
+  "an_immortal_literal_is_never_retained_or_freed",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-codegen (immortal literals)"
+args = ["test", "-p", "mwl-codegen"]
+tests = [
+  # Item 20's codegen half -- `emit_const_str` calls `mwl_str_new` on every EVALUATION today, so a
+  # literal in a loop allocates once an iteration. Its own doc comment already asks for this.
+  "a_string_literal_allocates_nothing",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-stdlib (callback keys)"
+args = ["test", "-p", "mwl-stdlib"]
+tests = [
+  # Item 21 -- `map`/`filter`/`reduce`/`sort` render a decimal key per element and `call_closure`
+  # drops it again when the callback declares one parameter. The arity is readable once, before the
+  # loop. The second name covers `sort`'s own case: `preserveKeys = false` discards every key it built.
+  "a_one_parameter_callback_synthesizes_no_key",
+  "a_sort_that_renumbers_builds_no_keys",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-stdlib (one write per result)"
+args = ["test", "-p", "mwl-stdlib"]
+tests = [
+  # Item 22 -- `produced()` allocates a String and then copies it into an MwlStr, and `text()`
+  # re-validates UTF-8 that ADR 0009 already guarantees. Both are the pattern the NEXT member copies,
+  # which is the whole reason they are in this stage. Like item 17's, the second test is the
+  # invariant rather than the behaviour.
+  "a_str_member_allocates_its_result_once",
+  "no_member_revalidates_a_string_argument",
 ]
 
 
