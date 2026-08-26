@@ -793,3 +793,8 @@ sibling in the same namespace unqualified.
   the inner one is checked against, so the nesting the argument needs is one level short. Bind it
   first (`array<array<string>> $pair = [$s, $s];`) and pass the binding; the same literal in a
   `var`-free typed binding infers exactly what its declaration says.
+- **An option bag's value may be a variable, and a `uint` parameter accepts an integer literal at
+  the call site.** Both were unknowns worth one scratch run: `Core\Arr::from($c, {limit: $limit})`
+  lowers with `$limit` a `uint` parameter, so a swept bound does not need one call site per value,
+  and `Drive::at(0)` against `public static function at(uint $limit)` needs no `as uint`. The
+  brace literal is an expression like any other — only its *keys* are fixed by the member's row.
