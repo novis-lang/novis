@@ -10,8 +10,9 @@
   construct, the same way ADR 0034 spent it on the legacy cast syntax. [0034](0034-legacy-cast-syntax-rejected.md)'s
   own *Consequences* section, which named `<?php` as an example of PHP syntax this project "kept but
   reinterpreted," is corrected below — it no longer does.
-- **Amended by:** none.
-- **Relates to:** 0015, 0021, 0034, 0045
+- **Amended by:** 0100 — the fold is applied below and this body states the current rule. § 2 gains the one
+  file shape that reaches code mode without a tag.
+- **Relates to:** 0015, 0021, 0034, 0045, 0100
 
 > **In short:** `<?php` no longer opens code mode, and `die` no longer terminates the process. Each is a
 > parse-time diagnostic (`E0229` and `E0228` respectively) naming the sole survivor — `<?mwl` for the tag,
@@ -76,6 +77,14 @@ if ($x) { ?>html<?mwl }   // unaffected — <?mwl reopening mid-block was always
 
 Diagnostic: `E0229`. `<?=` (short-echo) is untouched — it was never a spelling of `<?mwl`, it is sugar for
 `<?mwl echo`.
+
+**One file shape reaches code mode without a tag, and it is not a second spelling of one.** A file whose
+first two bytes are `#!` is a script: line 1 is trivia and the file continues in code mode exactly as if
+`<?mwl` stood there, so a CLI program written for the shebang the operating system already requires does not
+also pay for a tag that has no surrounding template to delimit. `<?mwl` remains the only code-mode open
+*tag*, and writing one in a shebang file before any `?>` is `E0009`. The rule, its bounds and why the
+simplicity cost is accepted are [ADR 0100](0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md)
+§ 3.
 
 ## Consequences
 

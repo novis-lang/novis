@@ -83,6 +83,11 @@ pub mod code {
     /// § 2 — a comment, a string literal or an inline-HTML run, and each line
     /// of a multi-line one. There is no suppression.
     pub const E_UNBALANCED_BIDI: Code = Code::new("E0008");
+    /// An `<?mwl` open tag in a file that opens with `#!` and is therefore
+    /// already in code mode, before any `?>` has left it, per
+    /// [ADR 0100](../../../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md)
+    /// § 3. Reserved by that ADR and reported once its lexer slice lands.
+    pub const E_TAG_IN_SHEBANG_FILE: Code = Code::new("E0009");
 
     // --- E01xx parser ------------------------------------------------------
     /// A specific token was required here.

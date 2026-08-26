@@ -10,7 +10,9 @@
   paragraph named PHP's execution model as the reason MWL exists; § 2 below replaces that framing, because
   two of its three premises have since been answered inside PHP itself. The plan's *Consequences to accept*
   keeps every entry it had; nothing there was wrong, and § 5 below adds the one it was missing.
-- **Amended by:** 0089 — the fold is applied below and this body states the current rule. § 3's porting-aid
+- **Amended by:** 0100 — § 1's table ranks first and is unchanged; that ADR adds a second audience beneath
+  it (internal and ops tooling written in Python today) and extends § 3's speech rule, unchanged in shape,
+  from PHP to Python. 0089 — the fold is applied below and this body states the current rule. § 3's porting-aid
   bullet gains the two modes and the published share that make its honesty rule enforceable.
 - **Relates to:** 0003, 0004, 0005, 0006, 0024, 0033, 0051, 0052, 0055, 0059, 0081, 0082, 0089
 
@@ -82,6 +84,11 @@ MWL's first serious user runs, in one process, code or data with more than one t
 | Agencies and hosts running many clients on one fleet | Per-request isolation is the default rather than an achievement; a compromised tenant reaches nothing ([0017](0017-hot-reload-without-restart.md), [0059](0059-cross-request-state-is-explicit.md)) |
 | Fintech, health, public-sector backends | `secret` refused by output, logs, dumps, `Throwable` messages and serialization ([0033](0033-secret-qualifier-for-confidential-values.md)); injection is a compile error ([0024](0024-taint-tracking-for-injection-sinks.md)); `decimal` is a scalar ([0054](0054-decimal-scalar-type.md)) |
 | Plugin and marketplace hosts | Per-package capabilities ([0081](0081-packages-are-digests-resolution-is-a-maximum.md) § 4) plus sandboxed extensions — a dependency's authority is declared and narrowed, never ambient |
+
+**The list continues in [0100](0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 1 with
+one more row, ranked below every row here** — the internal and ops tooling those same teams write in Python
+today. It buys nothing new: it is this table's purchase spent on a program with no HTTP request in it, and
+where the two compete for a slice, the rows above win.
 
 Every one of these is **greenfield or new-service** work. That is not a coincidence to note in passing; it
 is the single property that makes an ecosystemless language viable at all, and it is why this audience is

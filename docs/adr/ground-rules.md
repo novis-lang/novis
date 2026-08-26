@@ -265,3 +265,6 @@ spellings rejected, and the reasoning.
   `mwl-lsp` is synchronous on `lsp-server`/`lsp-types` so no async runtime enters the workspace, an LSP
   answer is frozen as a `.lspt` case, and syntax highlighting is two layers with two tests**
   ([0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
+- **Against Python MWL claims the tool that gets handed over, never speed or replacement: a file opening
+  `#!` starts in code mode with no tag, there is no REPL, and the userland suite measures three engines**
+  ([0100](0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md)).
