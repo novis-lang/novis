@@ -930,3 +930,12 @@ sibling in the same namespace unqualified.
   133s alone and 260s with a `du -sh target` walking the tree beside it. On a link-heavy build the
   disk is the contended resource, so a second reader of the same 1.7 GB doubles it — a timing run
   that disagrees with an earlier one by 2x is usually this and not the change under test.
+- **A `?Instance` *does* narrow, at file scope, and a case reaching for a `?Match` needs no
+  helper class.** `var $found = Core\Regex::match($s, $p); if ($found == null) { … } else {
+  $found->groups() … }` compiles and runs, and inside the `else` the receiver is the class type,
+  so `foreach ($found->groups() as string $key => ?string $value)` and `$found->groups()["0"] ==
+  $found->text()` both lower. The neighbouring trap — a `?array<T>` that cannot be indexed even
+  after a `!= null` guard — is specifically about a narrowed nullable *array* losing its element
+  type, not about narrowing, so do not generalise it into wrapping every nullable in a
+  `public static function`. Narrowing a `?string` to compare it with `""` works in the same
+  place, which is what lets a case tell an absent group from one that captured nothing.
