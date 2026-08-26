@@ -1,0 +1,81 @@
+--TEST--
+`Core\Out::capture` accepts exactly one of the answers a `through` closure can give and names what each of the others was — spec § 12, ADR 0088 § 5 and ADR 0031
+--FILE--
+<?mwl
+// ADR 0088 § 5 makes `capture` answer the sink's *carrier*, and § 12's
+// `{through:}` a transform over it. A `callable` is opaque as to signature
+// (ADR 0031), so nothing static stands between that option and what the
+// closure actually answers: this check is the whole of the guarantee behind
+// the member's declared `Core\Cli\Text` return, and it is `Core\Out`'s only
+// refusal.
+final class Impostor {
+    public function constructor(public string $name) {}
+}
+
+array<string> $labels = ["a"];
+
+// Every shape a `through` can answer, the carrier first. A closure cannot be
+// *called* through the variable holding it, but handing one to a `Core`
+// member's `callable` option is the runtime's own call and does work — which
+// is what lets this be a sweep rather than eight copies of one block.
+array<callable> $filters = [
+    fn (Core\Cli\Text $c): Core\Cli\Text => $c,
+    fn (Core\Cli\Text $c): int => 7,
+    fn (Core\Cli\Text $c): string => "s",
+    fn (Core\Cli\Text $c): float => 1.5,
+    fn (Core\Cli\Text $c): bool => true,
+    fn (Core\Cli\Text $c): array<string> => $labels,
+    fn (Core\Cli\Text $c): ?Core\Cli\Text => null,
+    fn (Core\Cli\Text $c): Impostor => new Impostor("nope"),
+];
+
+// The claim is a partition, so it is counted rather than read off a line: of
+// the eight, exactly the identity answers and the other seven refuse. Every
+// refusal is wrapped in the member's own name, which is counted too — a
+// message that grew its own opening would still look right on its own line.
+// Nothing the refusing seven captured reaches this program's output either:
+// the capture level is closed on both edges, so "written" appears once, from
+// the one filter that answered a carrier for the `echo` to re-emit.
+int $answered = 0;
+int $refused = 0;
+int $named = 0;
+foreach ($filters as callable $filter) {
+    try {
+        echo Core\Out::capture(fn (): void => { echo "written"; }, {through: $filter});
+        $answered = $answered + 1;
+    } catch (Throwable $wrong) {
+        $refused = $refused + 1;
+        if (Core\Str::startsWith($wrong->message, '`Core\Out::capture`\'s `through` must answer a `Core\Cli\Text`, and this one answered ')) {
+            $named = $named + 1;
+        }
+    }
+}
+echo "\n", $answered, "|", $refused, "|", $named, "\n";
+
+// What each refusal names is what was actually answered, and the two kinds
+// are named differently on purpose: a value that is not an object by its type,
+// and an object by its class. Objecthood alone is not the test — a foreign
+// object would otherwise be handed back under the member's declared
+// `Core\Cli\Text`, a claim about the value that is not true, and the failure
+// would surface wherever the carrier was next read rather than here.
+try {
+    echo Core\Out::capture(fn (): void => { echo "x"; }, {through: fn (Core\Cli\Text $c): int => 7});
+} catch (Throwable $notAnObject) {
+    echo $notAnObject->message, "\n";
+}
+try {
+    echo Core\Out::capture(fn (): void => { echo "x"; }, {through: fn (Core\Cli\Text $c): Impostor => new Impostor("nope")});
+} catch (Throwable $wrongClass) {
+    echo $wrongClass->message, "\n";
+}
+
+// The sink below is untouched by any of it, and an omitted `through` is not a
+// refused one — the option defaults to `Const::Null` rather than to an
+// identity closure, and that arm never reaches the check at all.
+echo Core\Out::capture(fn (): void => { echo "no filter"; }), "\n";
+--EXPECT--
+written
+1|7|7
+`Core\Out::capture`'s `through` must answer a `Core\Cli\Text`, and this one answered a value of type `int`
+`Core\Out::capture`'s `through` must answer a `Core\Cli\Text`, and this one answered an instance of `Impostor`
+no filter

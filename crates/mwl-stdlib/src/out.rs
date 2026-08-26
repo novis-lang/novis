@@ -40,7 +40,7 @@
 //!    plumbing is complete and tested; what is missing is on the other side of
 //!    [`crate::cli`]'s own gap 2.
 
-use mwl_runtime::{Fault, MwlStr, Tag, Value};
+use mwl_runtime::{Fault, MwlObj, MwlStr, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
@@ -129,7 +129,7 @@ mwl_runtime::mwl_helper! {
             text.release();
         }
         let transformed = transformed?;
-        if transformed.obj_ptr().is_none() {
+        if let Some(answered) = not_the_carrier(transformed) {
             #[expect(
                 unsafe_code,
                 reason = "the closure's result is this frame's to drop before it \
@@ -139,13 +139,44 @@ mwl_runtime::mwl_helper! {
                 transformed.release();
             }
             return Err(Fault::thrown(format!(
-                "`Core\\Out::capture`'s `through` must answer a `{}`, and this one answered tag {}",
-                crate::cli::NAME,
-                transformed.tag_byte()
+                "`Core\\Out::capture`'s `through` must answer a `{}`, and this one answered \
+                 {answered}",
+                crate::cli::NAME
             )));
         }
         Ok(transformed)
     }
+}
+
+/// How to name what a `through` closure answered, or `None` where it answered
+/// the carrier this member is declared to hand back.
+///
+/// A `callable` is opaque as to signature ([ADR 0031](../../../../docs/adr/0031-callable-is-the-only-closure-type.md)),
+/// so nothing static stands between `{through:}` and this check — which is why
+/// it asks about the **class** and not merely about objecthood. Answering a
+/// foreign object used to be accepted here, and the member's registered
+/// `Core\Cli\Text` return type was then a claim about the value that was not
+/// true; the failure surfaced much later, wherever the carrier was next read.
+/// The comparison is by rendered class name, which is what a descriptor
+/// carries and what [`crate::cli::built`] is the one producer of.
+fn not_the_carrier(value: Value) -> Option<String> {
+    let Some(ptr) = value.obj_ptr() else {
+        return Some(value.tag().map_or_else(
+            || format!("a value carrying tag {}", value.tag_byte()),
+            |tag| format!("a value of type `{}`", tag.describe()),
+        ));
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the value owns a reference to a live allocation, so it is live \
+                  for this borrow; the handle is never dropped, so the reference \
+                  is not released twice"
+    )]
+    let object = std::mem::ManuallyDrop::new(unsafe { MwlObj::from_raw(ptr) });
+    (object.class_name() != crate::cli::NAME).then(|| {
+        let name = object.class_name();
+        format!("an instance of `{name}`")
+    })
 }
 
 #[cfg(test)]
