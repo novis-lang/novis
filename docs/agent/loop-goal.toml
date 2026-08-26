@@ -44,9 +44,13 @@ modules = [
   # `value`/`string`/`helpers`/`release`/`ctx`, `mwl-types`' `core_lib`/`ty`, `mwl-codegen`'s `ty`,
   # `mwl-diagnostics`, and `encoding`/`math`/`hash`. Put one back the session a group needs it.
   "crates/mwl-stdlib/src/registry.rs",
-  "crates/mwl-stdlib/src/str.rs",
-  "crates/mwl-stdlib/src/encoding.rs",
-  "crates/mwl-stdlib/src/path.rs",
+  # These three follow the `--errors` worklist rather than the spec's section order, because that is
+  # what the group is chosen from now. `str.rs`, `encoding.rs` and `path.rs` came out when their
+  # sections closed; put a module back the session a group needs it, and take one out the session
+  # its last assertable site is asserted.
+  "crates/mwl-stdlib/src/time.rs",
+  "crates/mwl-stdlib/src/math.rs",
+  "crates/mwl-stdlib/src/regex.rs",
   # Stage 0 is closed, and the reason it added nothing here is worth keeping because it applies to
   # any item list: a session takes ONE item, so the union of six items' file sets prints five unread
   # module maps every session. Measured at +1,715 tokens for items 10-15, and items 18-22 sat in

@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 494 of 600 and differential 151 of 150. **Nothing below them
+> Stage 4's two counts**, conformance 496 of 600 and differential 151 of 150. **Nothing below them
 > is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -69,7 +69,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 494 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 496 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 151, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -113,7 +113,7 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Stage 4's differential gate is met — 151 against the 150 it requires — so
-> conformance is the only frontier left, at 494 of the 600.** Both named guards
+> conformance is the only frontier left, at 496 of the 600.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
@@ -121,15 +121,16 @@
 > counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is the worklist and no
 > session should re-derive it**: `--differential` names every member whose spec **Replaces** column
 > gives it a PHP twin and which no oracle case calls — 8 left — and `--errors` every `Fault::` site
-> in `mwl-stdlib` whose message no case asserts, 72 of them — of which **59 are `Fault::fatal`,
-> unreachable by any handler and so by any case, leaving 13 a case can catch**. **Read that second
-> number as 14.** A site leaves the list when the literal run of its message *before the first
-> format hole* appears anywhere in either suite, so a case echoing `Core\Time\DateTime::format():`
-> also silences every message spelled `Core\Time\DateTime::{member}` — one real `thrown`
-> (`time.rs:1968`, an unknown zone) and four `fatal` among them, which is how closing seven sites
-> took twelve rows off the list. The list is a worklist rather than a ledger, and the playbook's
-> *Tooling* section owns what to do when the drop is larger than the number of sites a session
-> asserted. Over `Core\Arr` the twin's key rule decides which kind of case it is: PHP renumbers a
+> in `mwl-stdlib` whose message no case asserts, 69 of them — of which **59 are `Fault::fatal`,
+> unreachable by any handler and so by any case, leaving 10 a case can catch**. A site leaves the
+> list when the literal run of its message *before the first format hole* appears anywhere in either
+> suite, so a case echoing `Core\Time\DateTime::format():` also silences every message spelled
+> `Core\Time\DateTime::{member}` — which is how closing seven sites once took twelve rows off the
+> list at once. Exactly one site is hidden that way today, `time.rs:1968`'s unknown zone, and it is
+> **not** owed a case: `datetime_built` re-derives every stored zone id from the resolved zone, so no
+> program can reach it, and the invariant is what a case asserts in its place. The list is a worklist
+> rather than a ledger, and the playbook's *Tooling* section owns what to do when the drop is larger
+> than the number of sites a session asserted. Over `Core\Arr` the twin's key rule decides which kind of case it is: PHP renumbers a
 > result's integer keys and keeps its string ones, ADR 0069 § 3 refuses that, so a member matches
 > its twin over a *list* and diverges over a map, and both shapes exist now for the window, the
 > ends, the padding pair and `reverse`. **A member answering a value rather than an array has no key
@@ -385,10 +386,30 @@
 > 52 ASCII letters exactly 15 are fields and 36 of the 37 refusals quote the letter they were
 > handed, the odd one out being `V`, a pattern letter at the wrong count and saying so. The compile
 > step runs before either narrowing, so an unreadable letter beats a field the value cannot carry.
-> **What a case can still catch is `time.rs`'s four** — `fromIso`, `Zone::of` and
-> `Core\Time::parse`'s two, whose `{why}` is `mwl_stdlib::cldr::read`'s sentence rather than
-> `time.rs`'s own — plus the hidden `time.rs:1968` and one site each in `arr.rs`, `csv.rs`,
-> `math.rs` (two), `out.rs`, `random.rs` and `regex.rs`. **Unbuilt in the library**, none of it a
+> **The unknown-zone sentence is spelled three times, each behind the name of the member that would
+> speak it, and only `Zone::of`'s is reachable** — the other two read an id this crate wrote itself.
+> What that case adds past the sentence is counted twice. Over fourteen ids the six accepted are
+> exactly the region names: a sign at position 0 is refused whichever way it leans, because that is
+> `fixed`'s spelling and R20 leaves one way to build one value, while `Etc/GMT+5` is an ordinary name
+> whose sign means the *opposite* of what a sign means in an offset — and every refusal equals the
+> sentence rebuilt from the id it was **handed** rather than the canonical one, the lookup being
+> case-insensitive, so `europe/berlin` is accepted and stored as `Europe/Berlin`. The second count is
+> the premise the two unreachable siblings rest on: all seventeen `DateTime` members that read the
+> zone slot answer for every zone, and each fixed offset rebuilt out of the `DateTime` it was stored
+> in is worth what it went in as — which is where the round trip could actually break, a fixed zone's
+> id being rendered rather than looked up. **`Core\Time::parse` throws two of § 10's classes and
+> which one is decided by which argument was wrong**: a pattern is written by the call site, so a bad
+> one is a `LogicError`, while text arrives from elsewhere, so text that does not match a well-formed
+> pattern is a `ParseError`. The two tables are asserted as a *partition* — not one of seven bad
+> patterns lands in `ParseError`, not one of six bad texts in `LogicError`, and every sentence on
+> both sides is wrapped in the member's own name. **One refusal crosses that split, and it is the
+> pattern that names a zone**: `format` accepts every zonal field and shares the compiler, so only
+> the reader can refuse it, and a *pattern* mistake therefore arrives as a `ParseError`. The compile
+> step runs first, so a call with both arguments wrong reports the pattern. A calendar refusal — an
+> impossible date, an hour past 23 — is `jiff`'s own wording and is asserted by class and by the name
+> in front of it rather than frozen. **What a case can still catch is ten sites**: `time.rs:1715`'s
+> `fromIso`, `json.rs`'s two `thrown_as`, and one each in `arr.rs`, `csv.rs`, `out.rs`, `random.rs`
+> and `regex.rs`, with `math.rs`'s two the largest single-file block left. **Unbuilt in the library**, none of it a
 > registration gap: `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a
 > scalar-fielded class only — no enum, `decimal`, `Instant`, `array` or nested-class field, and no
 > optional key from a parameter default (`mwl_stdlib::json` gap 2); ADR 0088's qualifier
@@ -425,7 +446,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: the differential gate is met at 151 of 150, conformance stands at 494 of 600, and the
+> decision: the differential gate is met at 151 of 150, conformance stands at 496 of 600, and the
 > remainder is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

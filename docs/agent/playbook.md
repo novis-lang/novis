@@ -813,6 +813,17 @@ is why" — is this file.
   it and no editor shows it. Assert the printable half with
   `Core\Str::contains($e->message, "(U+0080) at offset 0 of")` and echo a `yes`, exactly as the
   neighbouring decomposed-cluster bullet does for the other kind of invisible.
+- **A `gaps.py --errors` row marked `thrown_as` carries a *class*, and asserting which one is the
+  whole point of the row.** `Fault::thrown_as(ThrownClass::Logic, …)` and `…::Parse` are ordinary
+  `Throwable`s, so a `catch (Throwable $e)` reaches both and says nothing about either; the clause
+  that discriminates is spelled with the bare class name — `catch (LogicError $e)`, `catch
+  (ParseError $e)` — and two such clauses on one `try` compile at file scope, each needing its own
+  binding name like any other. The roster of names is `mwl_runtime::throwable::ThrownClass`'s own
+  doc comment, one `///` line per class, which is cheaper to read than spec § 10's tree. What makes
+  this worth a case rather than a row is that one member throwing two classes is a *partition*:
+  `Core\Time::parse` answers `LogicError` for its pattern argument and `ParseError` for its text,
+  and counting each table into the other's class is what a member throwing one class for everything
+  fails.
 
 ## Splitting a file that got too big
 
