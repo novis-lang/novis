@@ -12,7 +12,7 @@
   §§ 1 and 6 — the file is no longer read only at boot;
   [0042](0042-on-disk-artifact-cache-format.md) §§ 2 and 6 — the key gains the extension set;
   [0003](0003-extension-system.md) § *Isolation, limits and loading* — the extension set is reloadable.
-- **Amended by:** 0091, 0103
+- **Amended by:** 0091, 0103, 0106
 
 > **In short:** the parsed config is one immutable `Arc<Config>`; a request clones it at start and is
 > unaffected by anything that happens afterwards. `mwl ctl reload` re-reads `mwl.toml` over a
@@ -201,7 +201,11 @@ would carry an authentication surface, and nothing yet needs one.
 - **After an extension change:** the first request to resolve each path pays a compile. The wave is lazy,
   spread across paths, and runs on the compile pool rather than a request-serving core. It is a real latency
   bump and is still strictly better than the restart it replaces, which pays the same compiles cold *and*
-  drops every in-flight request.
+  drops every in-flight request. **The wave is also staggered**: single-flight dedupes concurrent compiles
+  of one unit, but an `env_hash` change invalidates every unit at once, and a live server would otherwise
+  meet that as a recompile of its whole working set inside one moment. The compile pool bounds how much of
+  the wave is in flight together
+  ([0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 10).
 
 **Other consequences.**
 

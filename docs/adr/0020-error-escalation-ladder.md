@@ -6,7 +6,7 @@
   `THROWN` reaches an isolate/request root; what happens when a script or the entry file itself fails to
   compile; the guarantee that every one of those is logged somewhere, in one shared format, no matter how
   many of the handlers in between also fail
-- **Amended by:** 0033, 0076, 0086, 0092
+- **Amended by:** 0033, 0076, 0086, 0092, 0106
 
 > **In short:** nothing MWL runs is ever silently dropped, but not everything is *caught* — those are
 > different guarantees, and conflating them is what this ADR avoids. `FATAL` stays exactly what
@@ -113,6 +113,13 @@ ceiling actually sets is how deep a program may recurse and how much one runaway
 stopped, which at 1.32 ns per call is ≈86 µs either way. Stated as [ADR 0004](0004-memory-for-simplicity.md)
 requires: **8 MB of reserved address space per coroutine**, of which only the touched pages are resident.
 
+This bound is emitted at MWL function entry, so it reaches recursion through MWL frames and only those.
+Request data also recurses through *engine* frames — a nested document in a decoder, a nested expression
+in the parser, a nested value graph in teardown — where no MWL frame exists to carry the check.
+[0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) §§ 3 and 4 bound those separately,
+with an explicit depth counter per decoder and an iterative teardown, and the two mechanisms together are
+what make "a request cannot exhaust a stack" true rather than true of one stack.
+
 ### 2. `Core\Fatal::onUncaughtThrow(closure(Throwable): void $handler): void`
 
 Fires when an ordinary `THROWN` propagates through every frame uncaught and reaches the isolate/request
@@ -162,6 +169,14 @@ tier, because this is the floor. Writes to an operator-owned, `System`-class sin
 reason. If even this write fails — a full disk, a broken pipe — the failure is swallowed: there is nothing
 further to escalate to, and the request or isolate still tears down normally regardless. That is a boring,
 explicit answer on purpose: an undefined "what then" at the true floor is worse than a defined "give up."
+
+**The floor is bounded against the disk it writes to.** Because it writes unconditionally, a request
+faulting in a loop writes in a loop, and a log that fills a volume takes compilation down with it. A file
+target rotates under a retention bound, and repeated identical records inside a window coalesce into one
+record carrying a count —
+[0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 10, which adds the count to
+[0092](0092-one-diagnostic-record-three-renderings.md)'s record rather than introducing a second shape.
+Both bounds sit on the sink, so no caller has to be trusted to be rare.
 
 **The floor also restores the terminal**, before it writes and before it gives up. A CLI program holding
 raw mode, a hidden cursor or a live region ([ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 5) has put

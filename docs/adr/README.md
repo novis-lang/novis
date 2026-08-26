@@ -139,6 +139,7 @@ so you never have to open this file to route a topic.
 | A timeline/flame-chart view combining calls with GC pauses and isolate boundaries, exporting to speedscope | [0041](0041-timeline-export-and-gc-spawn-trace-events.md) |
 | `Core\Reflect`, `ReflectionClass`-equivalents, `Core\Ast`, runtime introspection or source parsing | [0019](0019-reflection-and-ast-parsing-are-core-features.md) |
 | Uncaught exceptions, memory/CPU-limit fatals, internal panics, `Core\Fatal`, `Core\Log` | [0020](0020-error-escalation-ladder.md) |
+| Whether one request can take the server down; a worker that panics outside a helper, aborts, or is alive but stuck; `abort()`, `SIGSEGV` from the engine's own recursion, `SIGBUS`, W^X; a decoder's depth limit; a helper that never yields a core; blocking syscalls and the blocking pool; what `max_in_flight` really admits; why there are no worker processes | [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) |
 | XSS, SQL injection, command/header/path injection, taint tracking, `tainted string`, `Core\Html\Markup` | [0024](0024-taint-tracking-for-injection-sinks.md) |
 | Whether a given parameter is a sink, what an unclassified one does, what `echo` writes to in a request / a CLI / an isolate / a scheduled run, how a JSON or plain-text response body is written, `Core\Response::json` | [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) |
 | A database — `Core\Db`, `PDO`/`mysqli`/`pgsql`/`sqlite3`, drivers, connections, prepared statements, transactions, result rows, an ORM | [0067](0067-core-db.md) — signatures in [spec § 18](../spec/01-core-library.md) |
@@ -307,6 +308,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0103](0103-configuration-is-a-tree-of-files.md) | Configuration is a tree of files, and file ownership is the trust anchor | Accepted |
 | [0104](0104-an-application-is-an-entry-file-path.md) | An application is an entry file path, and a per-app block is keyed on it | Accepted |
 | [0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) | An uploaded file is a stream, and there is one way to receive it | Accepted |
+| [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) | Nothing a request can send terminates or wedges a worker | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

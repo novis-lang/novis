@@ -47,7 +47,7 @@
   `isDraining` and `traceId`.
   [docs/plan/m7.md](../plan/m7.md) — M7 gains this ADR's surface and loses TLS and h2c. M13 is deleted
   outright; § 1 is why there is no TLS-terminating milestone left to hold.
-- **Amended by:** 0102, 0103, 0104, 0105
+- **Amended by:** 0102, 0103, 0104, 0105, 0106
 
 > **In short:** the server has exactly **two deployments** and no third — a **development server** that
 > serves static files beside `.mwl`, and a **proxied production origin** that replaces FastCGI. Everything a
@@ -246,7 +246,25 @@ keepalive_timeout  = "75s"
   relaxed atomic rather than per core, so one hot core cannot refuse while its neighbours idle; that counter
   is not on the value path the non-atomic-refcount decision protects. Not accepting at all was rejected:
   behind a proxy it surfaces as a 504 blamed on the wrong component, and gives the proxy no signal to fail
-  over on.
+  over on. **The effective ceiling is an arithmetic, not this number alone** — the smaller of what is
+  configured here and what the memory budget affords against the per-request cap, clamped and logged once
+  at boot when the two disagree. A concurrency ceiling and a per-request memory cap with no stated
+  relationship bound nothing together, and their product is what the machine is actually asked to hold;
+  [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 13 owns that rule and the reason
+  the alternative — the operating system's out-of-memory killer — is a worse admission controller than a
+  `503`.
+- **The accept loop backs off on descriptor exhaustion**, and logs once per window rather than once per
+  attempt. An `accept` failing with `EMFILE`/`ENFILE` returns immediately and fails again immediately,
+  which turns exhaustion into a fully utilised core and a log written at the speed of the loop
+  ([0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 8; descriptors are charged to a
+  request by [0095](0095-ambiguous-input-is-refused-never-repaired.md) § 4, which bounds the condition from
+  the other side).
+- **A core that stops making progress is reported and shed.** The four waits above bound a *connection*;
+  none of them notices a worker that is alive and never returns. A watchdog reads the in-flight deadline
+  each worker already maintains, so the worker pays nothing for being watched, and on firing the core stops
+  accepting while `max_in_flight` accounts for its share as unavailable
+  ([0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 7, which also says why it
+  reports rather than kills).
 - **`health_path` is off by default**, so no URL is silently reserved. When set it answers `200` while
   accepting and `503` while draining, with an empty body, and is skipped by the access log. It performs
   **no dependency checks** — a health endpoint that pings the database converts a slow database into a

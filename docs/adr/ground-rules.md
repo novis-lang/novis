@@ -183,6 +183,12 @@ spellings rejected, and the reasoning.
   lazily, a part is read into a bounded buffer or written straight to disk, and there is no temp file
   because the destination is the application's own call
   ([0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)).
+- **Nothing a request can send terminates or wedges a worker** — containment extends past the helper to the
+  worker task, no path reaches `abort()`, every depth and duration a request drives is bounded on the
+  engine's stack and inside a single helper, a core never blocks on a syscall, and admission is arithmetic
+  against the memory budget; the residue is one named class — a memory-safety fault or a miscompile — that
+  the process boundary was examined for and rejected
+  ([0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)).
 
 ## Runtime, tooling and the standard library
 

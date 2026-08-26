@@ -7,6 +7,7 @@
   `catch_unwind` wrapper that keeps a panic inside one request. Not in scope: what happens *at* the
   request boundary once a `FATAL` arrives there, which is [0020](0020-error-escalation-ladder.md).
 - **Amends:** the "exceptions unwind through JIT frames" assumption in the original M3/M4 plan
+- **Amended by:** 0106
 - **Validated by:** [`benches/abi-probe`](../../benches/abi-probe/) — `tests/unwind_unavailable.rs`
   (the premise), `tests/invariants.rs` (propagation and containment), `tests/perf_guards.rs` (the
   cost). Originally spikes #1 and #2, on Rust 1.97.1 + Cranelift 0.128.4, `x86_64-pc-windows-msvc`.
@@ -102,6 +103,14 @@ message recorded in `Ctx`. `catch_unwind` costs nothing when no panic occurs. A 
 This makes `panic = "unwind"` load-bearing rather than a preference: `panic = "abort"` would convert every
 containable runtime bug into a process kill, destroying request isolation. It is set explicitly in every
 profile in the workspace `Cargo.toml`.
+
+**The wrapper does not stop at the helper, and `panic = "unwind"` is necessary rather than sufficient.**
+Code running on a worker with no request beneath it — the accept loop, the HTTP reader, the compiled-unit
+cache index — is outside `mwl_helper!`, so the worker task's own root carries a `catch_unwind` as well;
+and a panic raised *while* a panic is unwinding aborts the process regardless of this profile setting, so
+nothing on a teardown path may panic and teardown does not recurse.
+[0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) §§ 2 and 3 hold both rules and the
+guards for them.
 
 A custom panic hook must be installed at startup so the message is routed to the request log with its
 request id, rather than to the process's stderr.
