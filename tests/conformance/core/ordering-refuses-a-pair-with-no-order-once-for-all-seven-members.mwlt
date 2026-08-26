@@ -1,0 +1,159 @@
+--TEST--
+Every member that orders through `mwl_stdlib::ordering`'s one helper refuses the same orderless pair and raises the same catchable throw, differing only in the member name it puts in front — docs/spec/01-core-library.md §§ 2, 3 and 9, ADR 0013 for the object case
+--FILE--
+<?mwl
+// The companion to the agreement case: seven members share one order, so they
+// must also share one *refusal*. A pair with no natural order — two different
+// representations, or anything that is not a scalar — raises `Fault::thrown`
+// from the helper itself, which unwinds as an ordinary `Throwable` and so is
+// visible to a `catch` here rather than ending the run.
+//
+// What is counted per row is agreement, not each member's own answer: all
+// seven behave the way the row says, and a member that grew a comparison of
+// its own — accepting a pair the others refuse, or refusing with a message of
+// its own wording — costs the row a point while still reading correctly on
+// its own line.
+final class Refusals {
+    // The one message, minus the member name in front of it and the two tag
+    // numbers in the middle. A refusal that does not end this way is a second
+    // wording, which is the thing this case exists to catch. Single-quoted so
+    // that every backslash and brace is literal.
+    private static function sharedTail(): string {
+        return 'two numbers, two strings, two bools or two nulls have one and no other pair does. '
+             . '`Core\Arr::sort` takes `{comparator: ...}`; for an object ADR 0013 makes '
+             . '`Comparable` the answer';
+    }
+
+    public static function names(string $message, string $member): bool {
+        return Core\Str::startsWith($message, $member . ' has no natural order for tag ')
+            && Core\Str::endsWith($message, Refusals::sharedTail());
+    }
+
+    // How many of the seven members did what `$expect` says — `"refuse"` with
+    // a message naming itself, or `"accept"` without throwing at all.
+    public static function agreeing(mixed $a, mixed $b, string $expect): int {
+        int $agreed = 0;
+        array<mixed> $pair = [$a, $b];
+
+        try {
+            Core\Arr::sort($pair);
+            if ($expect == "accept") { $agreed = $agreed + 1; }
+        } catch (Throwable $sortRefused) {
+            if ($expect == "refuse" && Refusals::names($sortRefused->message, 'Core\Arr::sort')) {
+                $agreed = $agreed + 1;
+            }
+        }
+
+        try {
+            Core\Arr::min($pair);
+            if ($expect == "accept") { $agreed = $agreed + 1; }
+        } catch (Throwable $minRefused) {
+            if ($expect == "refuse" && Refusals::names($minRefused->message, 'Core\Arr::min')) {
+                $agreed = $agreed + 1;
+            }
+        }
+
+        try {
+            Core\Arr::max($pair);
+            if ($expect == "accept") { $agreed = $agreed + 1; }
+        } catch (Throwable $maxRefused) {
+            if ($expect == "refuse" && Refusals::names($maxRefused->message, 'Core\Arr::max')) {
+                $agreed = $agreed + 1;
+            }
+        }
+
+        try {
+            Core\Math::min($a, $b);
+            if ($expect == "accept") { $agreed = $agreed + 1; }
+        } catch (Throwable $mathMinRefused) {
+            if ($expect == "refuse" && Refusals::names($mathMinRefused->message, 'Core\Math::min')) {
+                $agreed = $agreed + 1;
+            }
+        }
+
+        try {
+            Core\Math::max($a, $b);
+            if ($expect == "accept") { $agreed = $agreed + 1; }
+        } catch (Throwable $mathMaxRefused) {
+            if ($expect == "refuse" && Refusals::names($mathMaxRefused->message, 'Core\Math::max')) {
+                $agreed = $agreed + 1;
+            }
+        }
+
+        // `$a` is the interval's own low end, so the accepting rows below —
+        // where `$a` sorts at or before `$b` — are a well-formed interval and
+        // the only thing left for `clamp` to refuse is the ordering itself.
+        try {
+            Core\Math::clamp($a, $a, $b);
+            if ($expect == "accept") { $agreed = $agreed + 1; }
+        } catch (Throwable $clampRefused) {
+            if ($expect == "refuse" && Refusals::names($clampRefused->message, 'Core\Math::clamp')) {
+                $agreed = $agreed + 1;
+            }
+        }
+
+        // The first `push` never compares — a one-element heap is already a
+        // heap — so the second is where the sift asks the question.
+        var $heap = new Core\Heap<mixed>();
+        try {
+            $heap->push($a);
+            $heap->push($b);
+            if ($expect == "accept") { $agreed = $agreed + 1; }
+        } catch (Throwable $pushRefused) {
+            if ($expect == "refuse" && Refusals::names($pushRefused->message, 'Core\Heap::push')) {
+                $agreed = $agreed + 1;
+            }
+        }
+
+        return $agreed;
+    }
+}
+
+// Six pairs with no order and two with one. The refusing rows are every way
+// two scalars can fail to share a representation, plus the array the helper's
+// last row names; the accepting rows are there so that "refused" is a verdict
+// this case can tell apart from "always throws".
+array<string> $labels = [
+    "string against int",
+    "null against int",
+    "bool against int",
+    "null against string",
+    "bool against string",
+    "array against int",
+    "int against int",
+    "string against string",
+];
+array<mixed> $lefts = ["a", null, true, null, true, [1], 1, "a"];
+array<mixed> $rights = [1, 1, 1, "a", "a", 1, 2, "b"];
+array<string> $expects = [
+    "refuse",
+    "refuse",
+    "refuse",
+    "refuse",
+    "refuse",
+    "refuse",
+    "accept",
+    "accept",
+];
+
+int $rows = Core\Arr::count($labels) as int;
+int $total = 0;
+int $row = 0;
+for (; $row < $rows; ) {
+    string $key = $row as string;
+    int $agreed = Refusals::agreeing($lefts[$key], $rights[$key], $expects[$key]);
+    $total = $total + $agreed;
+    echo $labels[$key], ": 7 members ", $expects[$key], ", ", $agreed, " of 7 agreed\n";
+    $row = $row + 1;
+}
+echo "agreements ", $total, " of ", $rows * 7, "\n";
+--EXPECT--
+string against int: 7 members refuse, 7 of 7 agreed
+null against int: 7 members refuse, 7 of 7 agreed
+bool against int: 7 members refuse, 7 of 7 agreed
+null against string: 7 members refuse, 7 of 7 agreed
+bool against string: 7 members refuse, 7 of 7 agreed
+array against int: 7 members refuse, 7 of 7 agreed
+int against int: 7 members accept, 7 of 7 agreed
+string against string: 7 members accept, 7 of 7 agreed
+agreements 56 of 56
