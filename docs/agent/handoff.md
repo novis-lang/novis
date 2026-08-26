@@ -2,57 +2,58 @@
 
 ## State
 
-**Conformance is the only frontier left, at 512 of 600; the differential gate is met at 157 of the
-150 it requires, and `python tools/gaps.py --differential` is down to one member.** Verify is green
-(**1597** cargo tests, 74 suites, clippy and fmt clean) and runs both `.mwlt` trees itself, so after
-a green `verify.py` there is nothing else to run (playbook, *Running things*).
+**Conformance is the only frontier left, at 512 of 600.** The differential gate is met at **159** of
+the 150 it requires and `python tools/gaps.py --differential` is **empty** — every spec member with a
+PHP twin now has an oracle case. Verify is green (1597 cargo tests, 74 suites, clippy and fmt clean)
+and runs both `.mwlt` trees itself, so after a green `verify.py` there is nothing else to run
+(playbook, *Running things*).
 
-**`Core\Json`'s two readers are pinned against their PHP twins.** `isValid` agrees with
-`json_validate` over 57 grammar rows — bare scalars, commas, the number grammar, JavaScript's
-spellings, surrogates, containers — counted as well as printed, and on both sides of the 512-level
-depth bound reached four ways. `decode` round-trips through `Core\Json::encode` to the text
-`json_decode`/`json_encode` produce, refuses exactly what `json_last_error` reports, and its
-`maxDepth` counts `$depth`'s way on both sides of four bounds.
+**`Core\Arr::flattenDeep` was the last member on the differential list and it agrees with its twin
+outright** — `iterator_to_array(new RecursiveIteratorIterator(...), false)`, keys and all, because
+`false` discards every key alike and that is ADR 0069 § 3's rule. Not the divergence the previous
+handoff predicted; the playbook bullet says why.
 
-**Three number rows do not agree and are the next group's second slice**, with what each answers in
-the new *Divergences* playbook bullet and in
-`json-decode-matches-json_decode-and-json_last_error.mwlt`'s own header comment.
+**The three JSON number rows that do not agree now have their case.** The refusal band, its two
+bounds, the absent negative half, `1e999`, `-0`, and the writer's `.0` — all in the new
+`--ORACLE-DIVERGES--` case, with the same summary as a *Divergences* playbook bullet.
 
-**`gaps.py --differential` dropped two members for one case** — the `isValid` oracle's
-`json_decode` fallback silenced `Core\Json::decode` before it had a case. It has one now; the new
-*Tooling* bullet owns the rule.
+**The group's third slice turned out to be already done.** `Core\Json::isValid` and
+`Core\Json::decode` agreeing on every spelling is the second clause of
+`tests/conformance/core/json-a-decoded-document-re-encodes-byte-for-byte.mwlt`'s `--TEST--` line, so
+it was dropped rather than written twice. Read the `--TEST--` lines of a section's existing cases
+before scheduling one — `sed -n 2p` over the glob is one call.
 
-**`orient.py`'s rest-of-group bullets are still truncated mid-sentence**, so the two follow-on
-slices had to be read back out of `handoff.md`. Its `[context] modules` manifest was right this
-session — `json.rs` and `arr.rs` are both named.
+**`Core\Json` and `Core\Arr` are both deep now** (7 and 55 conformance cases), so the next group
+moves to `Core\Heap`, which has 3 cases for 6 members. **`orient.py`'s `[context] modules` manifest
+has no `heap.rs` selector** — add one, beside `arr.rs` and `json.rs`.
 
 ## Next group
 
-Three slices. The first closes the differential list and is `crates/mwl-stdlib/src/arr.rs` plus a
-new file under `tests/differential/core/`; the second and third share
-`crates/mwl-stdlib/src/json.rs` and the two cases just landed beside them.
+Three slices, all `crates/mwl-stdlib/src/heap.rs` plus new files under `tests/conformance/core/`;
+the third also reads `crates/mwl-stdlib/src/arr.rs`. Spec § 9 and ADR 0013 own the rules. The three
+existing `heap-*.mwlt` cases pin pop order, the empty-read refusal and `foreach`; none of the below
+is in them.
 
-- [ ] **`Core\Arr::flattenDeep` against `iterator_to_array`** (`crates/mwl-stdlib/src/arr.rs:2150`)
-      — the one member `gaps.py --differential` still lists. The twin is
-      `iterator_to_array(new RecursiveIteratorIterator(new RecursiveArrayIterator($a)), false)`;
-      ADR 0069 § 3 refuses PHP's key renumbering, so a list subject should agree and a string-keyed
-      one should diverge — run both before choosing `--ORACLE--` or `--ORACLE-DIVERGES--`, since
-      that decides which of the two files it is.
-- [ ] **The JSON number divergence, one `--ORACLE-DIVERGES--` case**
-      (`crates/mwl-stdlib/src/json.rs:685`, `:989`, the writer at `:294`) — the three reader rows
-      (`1e999`, `9223372036854775808`, `-0`) and the writer's whole-float rendering, all four
-      spelled out in the *Divergences* playbook bullet this session added.
-- [ ] **`Core\Json::isValid` and `Core\Json::decode` agree, as a conformance case**
-      (`crates/mwl-stdlib/src/json.rs:987`) — `isValid`'s doc says it answers exactly what `decode`
-      accepts, by doing it; that is the *agreement* shape over one table, counted, and the two
-      tables to sweep are already written in the differential cases. No oracle: this is
-      `tests/conformance/`.
+- [ ] **`count`, `isEmpty` and `peek` agree at every step of a push/pop sweep** — the *agreement*
+      shape, counted rather than printed, so a reader that grew its own idea of the size fails here
+      while still looking right on its own line. `heap.rs:617` (`count`), `heap.rs:629` (`isEmpty`),
+      `heap.rs:575` (`peek`), `heap.rs:551` (`push`).
+- [ ] **An interleaved push/pop sequence still pops in non-decreasing order** — the *invariance*
+      shape: pushing a smaller key after a larger one has already been popped must not produce a
+      pop that goes backwards, asserted by counting the non-decreasing steps over a table of
+      sequences. `heap.rs:589` (`pop`), `heap.rs:516` (the constructor's comparator argument).
+- [ ] **`Core\Heap`'s pop order and `Core\Arr::sort` answer the same permutation** — the
+      *agreement* shape across the two members that share ADR 0013's ordering, over a table
+      including ties and one comparator. `heap.rs:589`, `arr.rs:2790` (`mwl_core_arr_sort`).
 
 ## Backlog
 
-- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row — plan, *Open now*.
-- `Core\Json::decodeAs<T>` decodes scalar fields only — `mwl_stdlib::json` gap 2.
-- ADR 0086 § 1's substitution table for the terminal sink — `crates/mwl-stdlib/src/cli.rs` gap 1.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- `Core\Csv` (2 members, 3 cases), `Core\Uuid` (5, 3), `Core\Validate` (3), `Core\Out` (1, 3) are the
+  next-thinnest sections after `Core\Heap` — `docs/spec/01-core-library.md` §§ 7, 11, 12.
+- `Core\Json::decodeAs<T>`'s field roster is narrower than ADR 0071 § 2's — `mwl_stdlib::json` gap 2.
+- The `i64::MAX`..=`u64::MAX` refusal band's upper edge is a gap, not a rule — `mwl_stdlib::json`
+  gap 1; closing it now shows up as a diff in the new divergence case.
+- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row —
+  `mwl_stdlib::hash`'s module doc.
 - `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir` gap 1.
-- `orient.py` truncates its rest-of-group bullets mid-sentence — `tools/orient.py`.
+- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.

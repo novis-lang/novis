@@ -931,6 +931,13 @@ is why" — is this file.
   counter is worth the trouble whenever the total is compared against `Core\Arr::count`, which
   answers `uint`; the alternative is an `int` counter and `Core\Arr::count($rows) as int` at every
   use.
+- **An `--ORACLE-DIVERGES--` block is *one line*, however long the prose is.** The harness answers
+  `not a valid case: line 3: `--ORACLE-DIVERGES--` is one line` and refuses the whole file, so a
+  divergence written as the four paragraphs it wants to be has to be folded back into a single
+  paragraph before it will run. Write it as one line from the start and use a capitalised lead-in
+  (`THE INTEGER BAND:`) where a `**bold**` heading would otherwise have earned a paragraph break —
+  `json-decode-refuses-the-number-band-json_decode-degrades.mwlt` is the worked shape. The `--TEST--`
+  line has the same rule and always did; this is the block that looks like it does not.
 
 ## Splitting a file that got too big
 
@@ -1592,3 +1599,24 @@ every session. Nothing below was reworded on the way.
   float without its point (`0.0` → `0`, `100.0` → `100`) and `Core\Json::encode` keeps it, so a
   differential case comparing decoded *values* by re-encoding has to leave every whole float out or
   it measures the two writers instead of the reader.
+- **`Core\Json::decode` refuses a band of integers `json_decode` widens, and reads `-0` as a float
+  where PHP reads an integer** (`json-decode-refuses-the-number-band-json_decode-degrades`). The
+  refusal band is exactly `i64::MAX`+1 ..= `u64::MAX`: `9223372036854775807` is read exactly by both,
+  `9223372036854775808` and `18446744073709551615` throw here and become floats there, and
+  `18446744073709551616` is widened by *both* — that upper edge is `mwl_stdlib::json`'s gap 1 rather
+  than a rule, since `serde_json` has already made an `f64` of a longer literal before the visitor
+  sees it. There is no negative half of the band: `int`'s floor is read exactly and one below it is
+  widened by both, because the only refusing visitor arm is the unsigned one. `1e999` refuses here at
+  the read where PHP reads `INF` and then fails at the *write*. Separately, and not a reader question
+  at all, `Core\Json::encode` keeps a whole-valued float's fractional part — `0.0`, `100.0`,
+  `1e+308` — where `json_encode` writes `0`, `100`, `1.0e+308`, so a round-trip *text* comparison
+  between the two languages is measuring the writers unless every row carries a fraction.
+
+- **`Core\Arr::flattenDeep` agrees with `iterator_to_array` over a `RecursiveIteratorIterator`
+  outright, keys and all** (`arr-flatten-deep-matches-iterator_to_array-over-a-recursive-array-iterator`)
+  — the one `Core\Arr` member carrying a key rule that does *not* diverge, because the twin's second
+  argument is `false` and that discards every key alike, which is ADR 0069 § 3's rule exactly. The
+  twin's other setting is not a second answer to compare against: `true` re-keys each leaf by its own
+  level's key, so `[[1,2],[3,4]]` collapses to `[3,4]` and entries are lost. Both sides also agree
+  that an empty level contributes nothing and no hole, that `0`/`""`/`false`/`null` are leaves, and
+  at 300 levels of nesting.
