@@ -528,16 +528,30 @@
 > `[server]` block) and 0100 § 3 (a file opening `#!` starts in code mode with no tag — one
 > `mwl-syntax` branch at offset 0, `E0009` reserved in the registry, no parser or runtime change).
 > None invalidates built behaviour or a written fixture; their work is M1, M4, M6, M7, M8 and M10.
-> **Every other count-shaped allocator still aborts the process where `Core\Random`'s two now
-> throw**, and that is the largest thing open in the library: `mwl_runtime::affordable` refuses only
-> a size past `isize::MAX`, so a count it allows and the machine cannot serve reaches an infallible
-> `vec![…; n]`, `slice::repeat` or `String::with_capacity` at `Core\Bytes::fill` (`bytes.rs:623`),
-> `Core\Bytes::repeat` (`:635`), `Core\Bytes::join` (`:695`), `Core\Str::repeat` (`str.rs:2103`),
-> the padding pair (`str.rs:2060`) and `Core\Arr::fill` (`arr.rs:1317`). Measured, not deduced:
-> `Core\Str::repeat("x", 1000000000000)` prints `memory allocation of 1000000000024 bytes failed`
-> and exits 127, taking every in-flight request with it, where `Core\Random::bytes` at the same
-> count throws and is caught. The fix is the one `random.rs:331` now carries — reserve fallibly and
-> report the seam's own sentence. **Open beside the library** — a property's declared default runs and is type-checked (`E0472`),
+> **`Core\Str`'s three count-shaped producers and `Core\Bytes`' three draw fallibly now, and
+> `Core\Arr::fill` is the one allocator of that shape left that aborts** — `arr.rs:1317`, where
+> `append_borrowed` (`arr.rs:1332`) grows an `MwlArray` one `Value` at a time and that type has no
+> fallible growth at all, so it is a runtime seam to add rather than a call-site fix.
+> `mwl_runtime::affordable` refuses only a size past `isize::MAX`, so every count below it that the
+> machine cannot serve used to reach an infallible `MwlStr::build`, `vec![…; n]` or `slice::repeat`
+> and abort — exit 127, nothing on stderr, nothing catchable, every in-flight request with it.
+> Measured, not deduced: `Core\Str::repeat("x", 1000000000000)` printed `memory allocation of
+> 1000000000024 bytes failed` and now throws and is caught. **The fallible half of the string seam is
+> `MwlStr::try_build`** (`crates/mwl-runtime/src/string.rs:317`), which answers `None` where
+> `MwlStr::build` aborts and is **exact-capacity only**: a writer past its capacity still grows
+> through the aborting `StrWriter::grow`, which is why `built` stays the spelling for a member whose
+> capacity is a bound on a subject already in memory rather than a count off its own call site.
+> `Core\Str`'s three reach it through `built_fallibly` (`str.rs:707`) and `Core\Bytes`' three through
+> `reserved`/`produced_fallibly` (`bytes.rs:459`, `:434`) — the `Vec` reserved with `try_reserve`,
+> amortized because `join` reaches it once per part, and the copy out through `try_build` as well,
+> since that second allocation is as able to fail as the first and both are live at that moment.
+> **Two sentences, and which one a count gets is the bound**: the seam's own past `isize::MAX`, the
+> allocator's — `the result is larger than any string`/`buffer this process could hold` — below it.
+> Both are reachable for `Core\Str::repeat`, `Core\Bytes::repeat` and the padding pair, whose sizes
+> are products; `Core\Bytes::fill` reaches only the second, its length being the size; and
+> `Core\Bytes::join`'s is not reachable from source at all, its parts having to be in memory already
+> to sum past it. **No conformance case asserts any of this yet** — the agreement case over the six
+> members and `Core\Random`'s two is the next slice. **Open beside the library** — a property's declared default runs and is type-checked (`E0472`),
 > limited to a literal or `[]`; `do`/`while` is the one M4 control-flow statement that does not
 > lower; a closure cannot be called through the variable holding it and `Class::method(...)` panics
 > `mwl-ir` outright, so a case sweeps a table with `foreach` and reaches a helper through a `public

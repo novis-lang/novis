@@ -858,6 +858,15 @@ is why" — is this file.
   conversion row still missing). The tool's own header says an entry is a candidate rather than a
   plan; this is the cheapest way to judge one, and it is four `mwl run` calls on a scratch file
   rather than a written case that will not compile.
+- **`Core\Bytes::join`'s allocation refusal cannot be reached from source, and the obvious probe
+  reports the wrong member.** Its size is the sum of parts that must already be in memory, so a case
+  reaching for it by handing it a huge separator — `Core\Bytes::join($parts, Core\Bytes::fill(1e12,
+  44))` — is refused by `fill` while it builds the argument, and the message names `Core\Bytes::fill`.
+  The row looks like a `join` assertion and pins `fill` twice. The reachable count-shaped refusals are
+  `Core\Str::repeat`, `Core\Str::padStart`/`padEnd`, `Core\Bytes::repeat`, `Core\Bytes::fill` and
+  `Core\Random`'s two; a member whose size is a *product* reaches both sentences (past `isize::MAX` is
+  `mwl_runtime::affordable`'s, below it the allocator's), while one whose size is its own `uint`
+  argument — `fill` — can only ever reach the second.
 
 ## Splitting a file that got too big
 

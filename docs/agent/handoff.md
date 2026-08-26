@@ -9,61 +9,55 @@ failed** — run those as well as `verify.py`, which executes no `.mwlt` case at
 twice), and **rebuild `target/release/mwl.exe` first** if anything under `crates/` is newer than
 it (playbook, *Running things*).
 
-**`python tools/gaps.py --errors` holds nothing a case can take.** 58 sites, 57 of them `fatal`
-and unreachable by any handler, and the one `thrown` left (`csv.rs:512`) is unreachable from
-source — the plan's `Open now` says why. Every depth slice from here is a judgement call against
-conventions.md's four case shapes, not a tool's output.
+**`python tools/gaps.py --errors` holds nothing a case can take**, and has since the previous
+session: 58 sites, 57 `fatal` and unreachable by any handler, the one `thrown` left (`csv.rs:512`)
+unreachable from source. Every depth slice from here is a judgement call against conventions.md's
+four case shapes.
 
-**One behaviour changed this session, and the same defect is still live in six other members.**
-`Core\Random::token` reserved its draw through `vec![0; n]`/`String::with_capacity`, which *abort
-the process* when the allocator refuses; `mwl_runtime::affordable` only rejects a size past
-`isize::MAX`, so any count below that the machine cannot serve killed the process — exit 127,
-nothing catchable. It reserves through `try_reserve_exact` now. `Core\Str::repeat`, the padding
-pair, `Core\Bytes::fill`/`repeat`/`join` and `Core\Arr::fill` still abort, measured, and that is
-the next group; the plan's `Open now` carries the anchors.
+**Six members stopped aborting this session and none of them is asserted yet.**
+`Core\Str::repeat`, `::padStart`, `::padEnd`, `Core\Bytes::fill`, `::repeat` and `::join` all
+reserved infallibly after `mwl_runtime::affordable` had let a count through, so any size below
+`isize::MAX` the machine could not serve killed the process — exit 127, nothing catchable. The
+string half goes through the new `MwlStr::try_build` (`crates/mwl-runtime/src/string.rs:317`), the
+bytes half through `try_reserve`; the plan's `Open now` owns the shape, the two sentences and which
+member reaches which. **Measured after the change**: all six throw and are caught, exit 0.
 
-**`Core\Random` is closed** — the previous handoff's third slice (`int`'s inclusive ends) is
-already asserted by `random-every-draw-is-swept-for-its-invariants.mwlt`, so it is dropped rather
-than carried.
+**`Core\Arr::fill` is the last one, and it is a runtime seam rather than a call-site fix** —
+`MwlArray` has no fallible growth at all. That is item 1 below.
 
 **`orient.py`'s `[context] modules` manifest is still wrong.** It names `registry.rs`, `json.rs`,
-`arr.rs` and `regex.rs`; this session needed `random.rs` and `crates/mwl-runtime/src/abi.rs`, and
-the group below needs `str.rs`, `bytes.rs` and `arr.rs`. `json.rs` and `regex.rs` can come out.
+`arr.rs` and `regex.rs`; this session needed `str.rs`, `bytes.rs` and `crates/mwl-runtime/src/{string,abi}.rs`.
+`json.rs` and `regex.rs` can come out; `arr.rs` and `crates/mwl-runtime/src/array.rs` are what the
+next item needs.
 
 ## Next group
 
-One seam and its call sites: `mwl_runtime::affordable`
-(`crates/mwl-runtime/src/abi.rs:161`) refuses only what cannot be allocated *at all*, so every
-member that trusts it and then allocates infallibly aborts the process on a count between the two.
-The worked fix is `mwl_core_random_bytes` at `crates/mwl-stdlib/src/random.rs:315` — reserve
-fallibly, then `resize` — and the file set is `crates/mwl-stdlib/src/{str,bytes,arr}.rs` plus
-`tests/conformance/core/`. Take them in this order; the first is the one measured to abort.
+Two slices, and the second is what makes the first six changes visible to the gate. The file set is
+`crates/mwl-runtime/src/array.rs`, `crates/mwl-stdlib/src/arr.rs` and `tests/conformance/core/`.
+Take them in this order; the second stands alone if the first proves larger than it looks.
 
-- [ ] **`Core\Str::repeat` and the padding pair draw fallibly** — `crates/mwl-stdlib/src/str.rs:2099`
-      (`built(len, …)` is the infallible one) and `str.rs:2060`, whose run is measured for
-      `padStart`/`padEnd` alike. `Core\Str::repeat("x", 1000000000000)` prints *memory allocation
-      of 1000000000024 bytes failed* and exits 127 today.
-- [ ] **`Core\Bytes::fill`, `::repeat` and `::join`** — `crates/mwl-stdlib/src/bytes.rs:622`
-      (`vec![octet; length]`), `:634` (`subject.repeat(times)`) and `:695`. All three go through
-      that file's own `affordable` wrapper at `bytes.rs:356`, which is where their member name is
-      already formatted.
-- [ ] **`Core\Arr::fill`** — `crates/mwl-stdlib/src/arr.rs:1317`. An entry is a tagged value rather
-      than an octet, so what it reserves is `MwlArray`'s own capacity; check whether that path has a
-      fallible spelling before writing the guard, and say so in the plan if it does not.
-- [ ] **One conformance case for the agreement** — every count-shaped allocator refuses at the same
-      seam, in `RuntimeError`, naming its own member, counted over the whole set rather than row by
-      row. Model:
-      `tests/conformance/core/random-an-oversized-draw-names-the-check-that-refused-it.mwlt`.
+- [ ] **`Core\Arr::fill` draws fallibly** — `crates/mwl-stdlib/src/arr.rs:1317` (`append_copies`'s
+      `affordable` call) and `arr.rs:1332` (`append_borrowed`, the infallible push). Unlike the
+      string and bytes halves there is no fallible entry point to reach for: `MwlArray`'s growth in
+      `crates/mwl-runtime/src/array.rs` aborts, so the slice adds one there — `MwlStr::try_build`
+      (`crates/mwl-runtime/src/string.rs:317`) is the worked shape for splitting an aborting
+      allocation into a fallible half and an `unwrap_or_else(handle_alloc_error)` wrapper.
+      `Core\Arr::fill(1000000000000, 0)` aborts today; it must throw and be caught.
+- [ ] **One conformance case for the agreement** (conventions.md's fourth shape) —
+      `tests/conformance/core/` as its own new file, because the gate counts files. Every
+      count-shaped allocator refuses the same way: one step inside its bound it answers, one step
+      outside it throws in `RuntimeError` naming the member. The seven reachable members are
+      `Core\Str::repeat`/`padStart`/`padEnd`, `Core\Bytes::repeat`/`fill`, `Core\Random::bytes`/`token`,
+      the last two already asserted by `random-every-count-shaped-refusal-agrees.mwlt` — read that
+      case for the shape rather than inventing one. `Core\Bytes::join`'s refusal is not reachable;
+      the playbook's new bullet says why and how the obvious probe misreports.
 
 ## Backlog
 
-- The differential gap is 8 members and the gate is already met, so it is off the frontier;
-  `Core\Path`'s three are the largest block — `path.rs:447`, `:478`, `:664` — plan's `Open now`.
-- `Core\Math::gcd`/`lcm` have no callable twin on either leg (neither `php` has `gmp`) — plan's
-  `Open now` says what an oracle case would have to do instead.
-- `Core\Json::decodeAs` refuses a fieldless attributed class with a sentence that is wrong about
-  why — plan's `Open now`.
-- `Core\Regex\Match::group`'s out-of-set key throws `RuntimeError` where the call-site-argument rule
-  argues for `LogicError` — plan's `Open now`.
-- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir` gap 1.
+- `mwl_stdlib::json` gap 2: `decodeAs<T>`'s decoder reads a scalar-fielded class only (ADR 0071).
+- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row (plan, `Open now`).
+- A class carrying `#[Json]` and declaring no field refuses with the wrong reason (plan, `Open now`).
+- `Core\Regex\Match::group`'s bad-key refusal is `RuntimeError` where the call-site-argument rule
+  argues `LogicError` (plan, `Open now`).
+- `Core\Str::wrap`'s multibyte half is the last unwritten `--ORACLE-DIVERGES--` file (plan, `Open now`).
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
