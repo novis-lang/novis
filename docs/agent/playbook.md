@@ -604,6 +604,14 @@ is why" — is this file.
   an assertion of zero fails for the wrong reason. Assert the gap between two arities instead
   (`keyed >= quiet + entries`), and where there is no callback at all — `sort($list)` — assert the
   absolute bound, because nothing is left that could scale with the entry count.
+- **An array literal is `array<mixed>`, and a `var` is the function's, not the block's.** Two
+  spellings a depth case reaches for and neither is scoped the way it reads. `foreach (["a", "b"]
+  as string $t)` is `E0401: expected string, found mixed` — the literal carries no element type,
+  so a table sweep declares `array<string> $rows = [...]` on the line above and iterates *that*.
+  And a second `for` loop reusing the first loop's `var $t` is `E0406: already declared`, because
+  a `var` binding is function-scoped exactly as the `catch` binding the loop goal's standing
+  decisions name; give the second loop its own name. Separate `try` statements each binding `$e`
+  at file scope are fine — four in one case compile — so it is only `var` that bites.
 
 ## Splitting a file that got too big
 

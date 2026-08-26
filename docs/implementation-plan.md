@@ -64,7 +64,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 447 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 449 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -107,34 +107,25 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 4's own two counts are the frontier: conformance is 447 of the 600 that gate
+> **Open now:** **Stage 4's own two counts are the frontier: conformance is 449 of the 600 that gate
 > requires and differential is 90 of 150.** Both of Stage 4's named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) exist
 > and pass, so the gap is behavioural *depth* per member rather than an unregistered member or an
 > uncovered one — every registered member has at least one case. **The depth pass runs a section at
-> a time, weakest first.** `hash` is 6 cases, `csv` 3, `validate` 3 and `out` 2. `Core\Hash::of` is
-> pinned against each algorithm's own published vector, the empty input and a buffer no `string`
-> could hold, `hmac`/`equals` against RFC 4231's four key shapes plus the two identities RFC 2104
-> states, and `Hash\Stream` by **invariance** — every two-update split of a 130-byte subject,
-> offsets 0 through 130 inclusive, for SHA-256's 64-byte block and SHA-512's 128-byte one, plus
-> three-update and empty-chunk splittings and the zero-update stream written as the identity against
-> `Core\Hash::of("")`. `Core\Csv` covers a non-default `separator`/`quote`/`escape` on both legs
-> with a round trip of each, the same document read with and without an escape character, an
-> embedded newline and a quoted quote, the three dialect refusals, and every ragged-record rule its
-> module doc states. `Core\Validate` is pinned at the boundary each predicate is written around: its
-> four length limits — a label of 63, a hostname of 253, a dot-atom local part of 64 and an address
-> of 254 — each asserted on **both** sides and built with `Core\Str::repeat` rather than pasted, the
-> empty label as one rule wherever it falls, a non-ASCII domain refused as *not yet encoded* beside
-> the punycode that passes, `isIp`'s two families each refusing the other's spelling with
-> `::ffff:192.0.2.1` as the subject the option earns its place on, and `isAscii`/`isPrintable`
-> crossing at `DEL` and again at `é`. `Core\Out::capture` pins that the closure's *result* is
-> discarded, that a captured carrier outlives the next capture, that a throw caught inside an
-> enclosing capture leaves that level collecting, and that `{through:}` runs **after** the level has
-> closed — so a transform's own `echo` reaches the enclosing sink rather than the buffer. The
-> thinnest sections now are `heap`, `path` and `uuid` at two cases each and `json`, `random`, `csv`
-> and `validate` at three, against `arr`'s 40 and `str`'s 28; `out` is two as well but has had its
-> pass, its one member taking a closure so each property is a block rather than a file. **What is
-> still unbuilt in the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s decoder
+> a time, weakest first**, and what a pass adds is the *boundary or the invariant* the member is
+> written around, never another row of the same shape. Six sections have had theirs — `hash`, `csv`,
+> `validate`, `out`, `heap` and `uuid` — and each case's own `--TEST--` line states what it pins, so
+> it is not restated here. The two most recent name the two shapes the rest of the pass reuses:
+> `Core\Heap` is pinned at its *edges* (the empty read throwing under each member's own name, a
+> value pushed three times held three times, the same object pushed twice answered twice under ADR
+> 0090 § 4's identity `==`, equal `compareTo` keys all drawn with the order among them deliberately
+> left unasserted, and `count`/`peek` through interleaved push/pop), and `Core\Uuid` by *invariance
+> over a sweep* (48 draws, every one canonical, carrying its own version and RFC 9562's variant,
+> round-tripping through `parse`, none seen twice; `tryParse` agreeing with `parse` over one table
+> of eight spellings rather than over rows of its own; and ADR 0088's bounded quote asserted on both
+> sides of its 48-character limit). **The thinnest section that has not had a pass is now `path` at
+> two cases, then `json` and `random` at three**, against `arr`'s 40 and `str`'s 28. **What is still
+> unbuilt in the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s decoder
 > (`mwl_stdlib::json` gap 2); ADR 0071 decodes only a scalar-fielded class — no
 > enum/`decimal`/`Instant`/`array`/nested-class field and no optional key from a parameter default;
 > ADR 0088's registry-wide item, that `mwl-stdlib`'s member rows carry **no qualifier
@@ -164,7 +155,7 @@
 > carrier being a `Core` instance rather than a `string` (settled under ADR 0088 § 5), and picking
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** now pass whole on both legs,
 > so any failure below Stage 4 is a regression rather than unfinished work. What Stage 4 needs is
-> not a decision: conformance stands at 447 of 600 and differential at 90 of 150, and the remainder
+> not a decision: conformance stands at 449 of 600 and differential at 90 of 150, and the remainder
 > is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
