@@ -172,28 +172,35 @@ are [docs/plan/design.md](plan/design.md) § *Architecture*.
 Each milestone ends with something runnable and its own tests. Do not start the next until the current
 one's verification passes.
 
-| Milestone | What it builds |
-|---|---|
-| [M0](plan/m0.md) | Project setup (~3 days) — **done** |
-| [M1](plan/m1.md) | Front end (~3 weeks) |
-| [M2](plan/m2.md) | HIR, types, IR (~4 weeks) |
-| [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) |
-| [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) |
-| [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) |
-| [M4B](plan/m4b.md) | Minimal `mwl-lsp` and the VS Code extension (~3 weeks) |
-| [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) |
-| [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) |
-| [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) |
-| [M8](plan/m8.md) | Stdlib and databases (~16 weeks) |
-| [M9](plan/m9.md) | Extension system (~6 weeks) |
-| [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined) |
-| [M11](plan/m11.md) | PHP transpiler (~10 weeks) |
-| [M12](plan/m12.md) | Optimising JIT tier (ongoing) |
-| [M14](plan/m14.md) | Optional wasm32 browser target |
-| [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks; scheduled after M6) |
-| [M16](plan/m16.md) | `mwl/web`, `mwl new`, and the framework (~12 weeks; scheduled after M7 and M8) |
+| Milestone | What it builds | Loop-days |
+|---|---|---|
+| [M0](plan/m0.md) | Project setup (~3 days) — **done** | 0.3 |
+| [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
+| [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
+| [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
+| [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
+| [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
+| [M4B](plan/m4b.md) | Minimal `mwl-lsp` and the VS Code extension (~3 weeks) | ~1.5 |
+| [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
+| [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
+| [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
+| [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| [M9](plan/m9.md) | Extension system (~6 weeks) | ~2.5 |
+| [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined) | ~8 |
+| [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |
+| [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
+| [M14](plan/m14.md) | Optional wasm32 browser target | not estimated |
+| [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks; scheduled after M6) | ~3 + a calendar floor |
+| [M16](plan/m16.md) | `mwl/web`, `mwl new`, and the framework (~12 weeks; scheduled after M7 and M8) | ~4 |
 
 Each row is a file under [docs/plan/](plan/). `python tools/plan.py --show M8` prints one
 without you needing to know that, and `--show M8:verify` prints only its acceptance paragraph.
 The decisions those milestones sit inside, the architecture and the verification strategy are
 [docs/plan/design.md](plan/design.md).
+
+**The two columns are not the same unit.** The parenthesised weeks are the original estimate, written for
+a human team before any code existed; **Loop-days** is what this project's unattended loop actually spends,
+elapsed and continuous — M0–M3 are measured, the rest projected. The measured conversion is ~23×, it is
+not applied uniformly, and it carries a rework tax and four ways it breaks:
+[docs/plan/velocity.md](plan/velocity.md) is the one home for all of that. Summed, the milestones left
+come to **~7 weeks** against the ~99 the original column still shows. Neither figure gates anything.

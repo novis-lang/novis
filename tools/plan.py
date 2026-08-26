@@ -61,8 +61,14 @@ DESIGN = PLAN_DIR / "design.md"
 WIDTH = 100  # including the "> " prefix, matching what is already in the file
 FIELD_RE = re.compile(r"^> \*\*([^*:]+):\*\*\s*(.*)$")
 
-#: An index row: `| [M4S](plan/m4s.md) | The `Core` API contract … |`
-ROW_RE = re.compile(r"^\|\s*\[(M\d+[A-Z]?)\]\((plan/[^)]+)\)\s*\|\s*(.*?)\s*\|\s*$")
+#: An index row: `| [M4S](plan/m4s.md) | The `Core` API contract … | ~1.5 |`
+#: The third cell is the loop-day projection (docs/plan/velocity.md owns what it means) and is
+#: optional, so a row that predates it still parses. It is matched separately rather than swept into
+#: the title, because `--check` compares the title against the milestone file's H1 character for
+#: character and would otherwise report every row as drifted.
+ROW_RE = re.compile(
+    r"^\|\s*\[(M\d+[A-Z]?)\]\((plan/[^)]+)\)\s*\|\s*([^|]*?)\s*\|(?:\s*([^|]*?)\s*\|)?\s*$"
+)
 
 #: A milestone file's H1: `# M4S — The `Core` API contract and its pure half (~5 weeks)`
 H1_RE = re.compile(r"^#\s+(M\d+[A-Z]?)\s*—\s*(.*)$")
@@ -140,6 +146,7 @@ def milestones(lines=None):
                 {
                     "id": m.group(1),
                     "title": m.group(3),
+                    "loop_days": (m.group(4) or "").strip(),
                     "path": ROOT / "docs" / m.group(2),
                     "rel": "docs/" + m.group(2),
                     "line": i + 1,
