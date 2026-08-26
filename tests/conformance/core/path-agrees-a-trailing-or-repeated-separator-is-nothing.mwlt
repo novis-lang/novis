@@ -1,0 +1,70 @@
+--TEST--
+Core\Path's six parsing members agree that an empty component is nothing, so `/var/log`, `/var/log/` and `/var/log//` are one path to all of them — counted over a sweep, spec § 8
+--FILE--
+<?mwl
+// § 8 gives `Core\Path` one grammar and one parse, and `parse` in
+// `crates/mwl-stdlib/src/path.rs` filters every empty component out of it. So a
+// trailing separator, a doubled trailing separator and a doubled interior one
+// are three spellings of the same path, and the six members that read that
+// parse have to *agree* about them — which is what is asserted here, rather
+// than what each one answered, since that is a sibling case's question. A
+// member that grew its own split, or that read an empty component as a name of
+// its own, fails this count while still printing plausibly on its own row.
+
+array<string> $bare = ["/var/log", "a/b", "C:/tmp/x", "/", "x", "a/./b/.."];
+
+int $agreed = 0;
+foreach ($bare as string $b) {
+    // The three spellings. The third doubles *every* separator, which is the
+    // same empty component reached from the middle of the path rather than
+    // from its end — one rule, so one sweep.
+    array<string> $same = [$b . "/", $b . "//", Core\Str::replace($b, "/", "//")];
+    foreach ($same as string $d) {
+        $agreed = $agreed + ((Core\Path::basename($b) == Core\Path::basename($d)) ? 1 : 0);
+        $agreed = $agreed + ((Core\Path::dirname($b) == Core\Path::dirname($d)) ? 1 : 0);
+        $agreed = $agreed + ((Core\Path::extension($b) == Core\Path::extension($d)) ? 1 : 0);
+        $agreed = $agreed + ((Core\Path::normalize($b) == Core\Path::normalize($d)) ? 1 : 0);
+        $agreed = $agreed + ((Core\Path::isAbsolute($b) == Core\Path::isAbsolute($d)) ? 1 : 0);
+        $agreed = $agreed + ((Core\Path::split($b) == Core\Path::split($d)) ? 1 : 0);
+    }
+}
+echo "agreed ", $agreed, " of 6 members x 3 spellings x ", Core\Arr::count($bare), " paths\n";
+
+// The rule stated positively, where PHP states the opposite: `explode` answers
+// `['', 'a']` for `/a` and leaves the caller to know which empties meant
+// something. `Core\Path::split` has no empty element at all — not for a
+// trailing separator, not for a doubled one — so the decomposition is names
+// and a root and nothing else.
+int $empties = 0;
+int $elements = 0;
+foreach ($bare as string $p) {
+    array<string> $spellings = [$p, $p . "/", $p . "//", Core\Str::replace($p, "/", "//")];
+    foreach ($spellings as string $q) {
+        foreach (Core\Path::split($q) as string $element) {
+            $elements = $elements + 1;
+            $empties = $empties + (($element == "") ? 1 : 0);
+        }
+    }
+}
+echo "elements ", $elements, " empty ", $empties, "\n";
+
+// And the agreement is not vacuous: the four members that answer a path answer
+// a real one for the decorated spelling. Rendered with `/` because emission
+// follows the host (§ 8, and the loop goal's own note about the two legs).
+string $decorated = "/var/log//";
+echo "basename ", Core\Path::basename($decorated), "\n";
+echo "dirname ", Core\Str::replace(Core\Path::dirname($decorated), Core\Path::SEPARATOR, "/"), "\n";
+echo "normalize ", Core\Str::replace(Core\Path::normalize($decorated), Core\Path::SEPARATOR, "/"), "\n";
+echo "split ", Core\Arr::count(Core\Path::split($decorated)), " elements\n";
+
+// The one separator that is *not* nothing is the root's, which is why `'/'` and
+// `'//'` are the same absolute path rather than the same empty one.
+echo "root ", (Core\Path::isAbsolute("//") ? "absolute" : "relative"), " ", Core\Arr::count(Core\Path::split("//")), " element\n";
+--EXPECT--
+agreed 108 of 6 members x 3 spellings x 6 paths
+elements 56 empty 0
+basename log
+dirname /var
+normalize /var/log
+split 3 elements
+root absolute 1 element
