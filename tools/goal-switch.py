@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""Switch the loop to a new goal, carrying the old goal's checks in as the non-regression floor.
+
+    python tools/goal-switch.py docs/agent/next-goal-m4b.toml
+    python tools/goal-switch.py docs/agent/next-goal-m4b.toml --dry-run
+
+[loop-authoring.md](../docs/agent/loop-authoring.md) § 6 makes the previous goal's whole acceptance
+list the next goal's Stage 1 -- "a non-regression floor, never traded for anything above it." That is
+the sentence a hand-merge gets wrong, and it gets it wrong silently: a floor that is missing looks
+exactly like a floor that passes. Twenty-odd `[[check]]` blocks copied by hand at the moment a run is
+being handed over is the worst possible time to be careful.
+
+So this does it mechanically. It reads the live `docs/agent/loop-goal.toml`, takes every `[[check]]`
+block out of it *verbatim as text* -- comments, formatting and all, because a check's comment says
+what it guards and that is not the new goal's to rewrite -- relabels each one's `stage` to the floor
+stage, and inserts them into the new goal at its marker line:
+
+    # <<< goal-switch: floor checks are inserted below this line >>>
+
+The `files` lists are unioned, since a floor whose fixtures are missing fails before anything is
+built. `[valgrind] skip` is unioned for the same reason. Everything else in the new goal -- its
+`[context]` block, its own checks, its `[wsl]` target -- is left exactly as written: this script
+carries the floor across and nothing else.
+
+The result is written to the new goal's own path, not to `loop-goal.toml`. Renaming it is step 4 of
+the switch and stays a deliberate act, because that is the point where the run's target changes.
+
+This script judges nothing and runs nothing. It is text in, text out; `python tools/loop.py --list`
+against the result is what says whether the floor arrived.
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+import tomllib
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+LIVE = ROOT / "docs" / "agent" / "loop-goal.toml"
+MARKER = "# <<< goal-switch: floor checks are inserted below this line >>>"
+FLOOR_STAGE = "1 floor"
+
+# A `[[check]]` block starts at its own header line and runs to the next top-level table header or
+# the end of the file. Comments immediately above a header belong to that block, not to the one
+# before it -- a comment saying what a check guards is worthless attached to its neighbour.
+HEADER = re.compile(r"^\[\[?[A-Za-z_][A-Za-z0-9_.\-]*\]?\]\s*$")
+STAGE_LINE = re.compile(r'^(\s*stage\s*=\s*)"[^"]*"(.*)$')
+
+
+def die(message):
+    print(f"goal-switch: {message}", file=sys.stderr)
+    return 2
+
+
+def blocks(text):
+    """Every top-level table in `text`, as (header, lines-including-leading-comments).
+
+    The leading run of comment and blank lines above a header travels with it, so a block that is
+    moved keeps the sentence explaining why it exists.
+    """
+    out, header, body = [], None, []
+    for line in (ln.rstrip("\r\n") for ln in text.splitlines()):
+        if not HEADER.match(line):
+            body.append(line)
+            continue
+        # The run of comments and blanks at the tail of the block we are closing belongs to the
+        # header we have just met, not to the one before it.
+        lead = []
+        while body and (body[-1].strip().startswith("#") or not body[-1].strip()):
+            lead.insert(0, body.pop())
+        while lead and not lead[0].strip():
+            lead.pop(0)
+        while lead and not lead[-1].strip():
+            lead.pop()
+        out.append((header, body))
+        header, body = line, [*lead, line]
+    out.append((header, body))
+    return [(h, b) for h, b in out if h is not None or b]
+
+
+def check_blocks(text):
+    """Just the `[[check]]` blocks, in file order, as lists of lines."""
+    return [lines for header, lines in blocks(text) if header == "[[check]]"]
+
+
+def relabel(lines, stage):
+    """Rewrite this block's `stage = "..."`, adding one if it had none.
+
+    A block with no stage is a real possibility -- the field is optional and the driver prints `?`
+    for it -- and a floor check with no stage is a floor check the ledger cannot name.
+    """
+    out, seen = [], False
+    for line in lines:
+        m = STAGE_LINE.match(line)
+        if m:
+            out.append(f'{m.group(1)}"{stage}"{m.group(2)}')
+            seen = True
+        else:
+            out.append(line)
+    if not seen:
+        # After the header, which is the first non-comment line.
+        at = next(i for i, ln in enumerate(out) if HEADER.match(ln))
+        out.insert(at + 1, f'stage = "{stage}"')
+    return out
+
+
+def union_list(new_text, field, extra):
+    """Add every element of `extra` that `new_text`'s `field = [...]` does not already hold.
+
+    Written as a text edit rather than a re-serialization on purpose: re-emitting the whole TOML
+    from `tomllib`'s parse would throw away every comment in the file, and this repository's TOML is
+    more comment than data.
+    """
+    if not extra:
+        return new_text
+    m = re.search(rf'^{field}\s*=\s*\[(.*?)^\]', new_text, re.S | re.M)
+    if not m:
+        return new_text
+    body = m.group(1)
+    missing = [e for e in extra if f'"{e}"' not in body]
+    if not missing:
+        return new_text
+    added = "".join(f'  "{e}",\n' for e in missing)
+    tail = "  # carried from the previous goal by tools/goal-switch.py\n"
+    return new_text[:m.end(1)] + tail + added + new_text[m.end(1):]
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument("new_goal", help="the staged goal TOML to carry the floor into")
+    ap.add_argument("--live", default=str(LIVE), help="the goal being replaced")
+    ap.add_argument("--stage", default=FLOOR_STAGE, help=f"stage label for the floor (default {FLOOR_STAGE!r})")
+    ap.add_argument("--dry-run", action="store_true", help="say what would change, write nothing")
+    opts = ap.parse_args()
+
+    new_path = Path(opts.new_goal)
+    live_path = Path(opts.live)
+    if not new_path.is_file():
+        return die(f"{new_path} does not exist")
+    if not live_path.is_file():
+        return die(f"{live_path} does not exist -- there is no floor to carry")
+
+    new_text = new_path.read_text(encoding="utf-8")
+    live_text = live_path.read_text(encoding="utf-8")
+
+    if MARKER not in new_text:
+        return die(f"{new_path} has no marker line. Add it where the floor belongs:\n    {MARKER}")
+
+    floor = [relabel(b, opts.stage) for b in check_blocks(live_text)]
+    if not floor:
+        return die(f"{live_path} holds no [[check]] block -- refusing to write an empty floor")
+
+    live_spec = tomllib.loads(live_text)
+    new_text = union_list(new_text, "files", live_spec.get("files", []))
+    new_text = union_list(new_text, "skip", live_spec.get("valgrind", {}).get("skip", []))
+
+    banner = (
+        f"# {len(floor)} check(s) carried from {live_path.as_posix()} by tools/goal-switch.py.\n"
+        f"# They are the previous goal's acceptance list VERBATIM, relabelled to stage "
+        f'"{opts.stage}".\n'
+        "# Do not edit them to make something pass: a floor that has been adjusted is not a floor.\n"
+    )
+    body = banner + "\n" + "\n\n".join("\n".join(b) for b in floor) + "\n"
+    out = new_text.replace(MARKER, MARKER + "\n\n" + body, 1)
+
+    already = len(check_blocks(new_text))
+    print(f"goal-switch: {len(floor)} floor check(s) from {live_path.name} "
+          f"-> {new_path.name} (which already had {already})")
+    for b in floor:
+        def field(key, default="?"):
+            for line in b:
+                if line.strip().startswith(f"{key} ") or line.strip().startswith(f"{key}="):
+                    return line.split("=", 1)[1].strip().strip('"')
+            return default
+        # A program check names a fixture and a cargo one names a crate; both are how the ledger
+        # will refer to it, so print whichever this block has.
+        print(f"    [{opts.stage}] {field('kind'):<11} {field('name', field('file'))}")
+
+    if opts.dry_run:
+        print("goal-switch: --dry-run, nothing written")
+        return 0
+
+    new_path.write_text(out, encoding="utf-8", newline="\n")
+    print(f"goal-switch: wrote {new_path}")
+    print("goal-switch: next -- `python tools/loop.py --list` against it, then rename it to "
+          "docs/agent/loop-goal.toml")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
