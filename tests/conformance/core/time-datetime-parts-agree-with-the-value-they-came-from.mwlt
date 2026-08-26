@@ -1,0 +1,119 @@
+--TEST--
+Spec § 4: a `DateTime`'s component views, `dayOfYear` and `difference` all answer about the same civil time
+--FILE--
+<?mwl
+// § 4's `DateTime` is one civil time in one named zone, and half its members
+// are views of that: `date`, `timeOfDay` and `zone` each drop part of it, and
+// `dayOfYear`, `isLeapYear` and `difference` count over it. Each of those can
+// be answered on its own, which is exactly how they come to disagree — so
+// this case asks the same question of the view and of `format`, over a whole
+// table, and counts the agreements.
+//
+// The table crosses a leap day, both ends of a year, and the two instants
+// Europe/Berlin changes offset at, read in four zones including one on a half
+// hour and one whose summer is the other half of the year.
+array<string> $rows = [
+    "2023-01-01T00:00:00Z",
+    "2023-12-31T23:59:59.999999999Z",
+    "2024-02-29T12:00:00Z",
+    "2024-03-31T00:30:00Z",
+    "2024-10-27T00:30:00Z",
+    "2025-07-04T16:45:30.5Z",
+];
+array<string> $zones = ["UTC", "Europe/Berlin", "Asia/Kolkata", "Pacific/Auckland"];
+
+int $values = 0;
+// `date` and `timeOfDay` are the two halves of what the value renders as.
+int $dateAgrees = 0;
+int $timeAgrees = 0;
+// `zone` is the zone it reads in, so reading its own instant there again is
+// the value it started from.
+int $zoneAgrees = 0;
+// `dayOfYear` is one-based, so it is one more than the whole days since the
+// start of the year — which is a `difference` in the same calendar.
+int $dayOfYearAgrees = 0;
+// `isLeapYear` is a fact about that calendar year, so December's last day is
+// the 366th exactly when it holds.
+int $leapAgrees = 0;
+foreach ($rows as string $rowText) {
+    foreach ($zones as string $zoneId) {
+        var $d = Core\Time::fromIso($rowText)->in(Core\Time\Zone::of($zoneId));
+        $values = $values + 1;
+        if ($d->date()->format("yyyy-MM-dd") == $d->format("yyyy-MM-dd")) {
+            $dateAgrees = $dateAgrees + 1;
+        }
+        if ($d->timeOfDay()->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS")) {
+            $timeAgrees = $timeAgrees + 1;
+        }
+        if ($d->toInstant()->in($d->zone())->format("yyyy-MM-dd HH:mm:ss XXX") == $d->format("yyyy-MM-dd HH:mm:ss XXX")) {
+            $zoneAgrees = $zoneAgrees + 1;
+        }
+        if ($d->dayOfYear() as int == $d->startOf(Core\Unit::Year)->difference($d, Core\Unit::Day) + 1) {
+            $dayOfYearAgrees = $dayOfYearAgrees + 1;
+        }
+        bool $decemberEndsAt366 = false;
+        if ($d->with({month: 12, day: 31})->dayOfYear() as int == 366) {
+            $decemberEndsAt366 = true;
+        }
+        if ($d->isLeapYear() == $decemberEndsAt366) {
+            $leapAgrees = $leapAgrees + 1;
+        }
+    }
+}
+echo $values as string, "|", $dateAgrees as string, "|", $timeAgrees as string, "|", $zoneAgrees as string, "|", $dayOfYearAgrees as string, "|", $leapAgrees as string, "|\n";
+
+// `difference` counts from the receiver **to** its argument, which makes it
+// the calendar's spelling of `Instant::since` with the operands the other way
+// round. In an absolute unit the two must answer the same number, whatever
+// zones the two values are read in, because neither zone is on the timeline.
+int $pairs = 0;
+int $matchesSince = 0;
+int $antisymmetric = 0;
+foreach ($rows as string $fromText) {
+    foreach ($rows as string $toText) {
+        var $from = Core\Time::fromIso($fromText)->in(Core\Time\Zone::of("Europe/Berlin"));
+        var $to = Core\Time::fromIso($toText)->in(Core\Time\Zone::of("Pacific/Auckland"));
+        $pairs = $pairs + 1;
+        if ($from->difference($to, Core\Unit::Nanosecond) == $to->toInstant()->since($from->toInstant())->toNanoseconds()) {
+            $matchesSince = $matchesSince + 1;
+        }
+        if ($from->difference($to, Core\Unit::Nanosecond) == 0 - $to->difference($from, Core\Unit::Nanosecond)) {
+            $antisymmetric = $antisymmetric + 1;
+        }
+    }
+}
+echo $pairs as string, "|", $matchesSince as string, "|", $antisymmetric as string, "|\n";
+
+// A calendar unit is the other half of that member, and there the zone is the
+// whole question: these two instants are 23 hours apart, which is no whole
+// day in UTC and exactly one in Europe/Berlin, because the Berlin day that
+// starts between them is 23 hours long. `difference` counts in the
+// **receiver's** zone and moves its argument there first, which is what makes
+// that one answer rather than two.
+var $beforeClocksGoForward = Core\Time::fromIso("2024-03-30T23:30:00Z");
+var $afterClocksGoForward = Core\Time::fromIso("2024-03-31T22:30:00Z");
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+echo $beforeClocksGoForward->in(Core\Time\Zone::UTC)->difference($afterClocksGoForward->in(Core\Time\Zone::UTC), Core\Unit::Day) as string, "|\n";
+echo $beforeClocksGoForward->in($berlin)->difference($afterClocksGoForward->in($berlin), Core\Unit::Day) as string, "|\n";
+echo $beforeClocksGoForward->in($berlin)->format("yyyy-MM-dd HH:mm XXX"), "|", $afterClocksGoForward->in($berlin)->format("yyyy-MM-dd HH:mm XXX"), "|\n";
+echo $afterClocksGoForward->since($beforeClocksGoForward)->toSeconds() as string, "|\n";
+
+// The views themselves, read off one value, so the counts above are anchored
+// to output a reader can check: the leap day read in a zone half an hour off
+// the hour, where it is still the 29th, and `dayOfYear` counting it.
+var $leapDay = Core\Time::fromIso("2024-02-29T12:00:00Z")->in(Core\Time\Zone::of("Asia/Kolkata"));
+echo $leapDay->date()->format("yyyy-MM-dd"), "|", $leapDay->timeOfDay()->format("HH:mm:ss"), "|\n";
+echo $leapDay->dayOfYear() as string, "|", $leapDay->isLeapYear() as string, "|\n";
+echo $leapDay->zone()->offsetAt($leapDay->toInstant())->toSeconds() as string, "|\n";
+echo $leapDay->with({year: 2023, month: 2, day: 28})->dayOfYear() as string, "|", $leapDay->with({year: 2023, month: 2, day: 28})->isLeapYear() as string, "|\n";
+--EXPECT--
+24|24|24|24|24|24|
+36|36|36|
+0|
+1|
+2024-03-31 00:30 +01:00|2024-04-01 00:30 +02:00|
+82800|
+2024-02-29|17:30:00|
+60|1|
+19800|
+59||
