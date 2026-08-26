@@ -1,0 +1,133 @@
+--TEST--
+Core\Arr's five numeric folds give one answer over any one-entry subject and three over an empty one, where only sum's and product's answers are their own fold's identity — spec § 2, ADR 0063 R5
+--FILE--
+<?mwl
+// Spec § 2's five numeric folds -- min, max, sum, product, average -- are one
+// family, and this case asks all five the same question over one table of
+// subjects so that what is asserted is their *agreement* rather than five
+// separate answers. A member that grew its own empty case, or its own
+// ordering, would still answer plausibly on its own line and fails here.
+//
+// A closure cannot be called through the variable holding it (`mwl-ir` gap 1),
+// so each per-subject question is a static method called directly.
+class Fold {
+    // `min` and `max` answer `?T`, so absence is spelled out rather than
+    // coalesced to a number a subject could also hold (ADR 0063 R5).
+    public static function render(?int $v): string {
+        if ($v == null) {
+            return "null";
+        }
+        return $v as string;
+    }
+
+    // `average` answers `?(float|decimal)` -- a quotient is never an `int`,
+    // which is why its union differs from the one `sum` and `product` answer.
+    public static function renderQuotient(float|decimal|null $v): string {
+        if ($v == null) {
+            return "null";
+        }
+        return $v as string;
+    }
+
+    public static function answers(array<int> $a): array<string> {
+        return [
+            Fold::render(Core\Arr::min($a)),
+            Fold::render(Core\Arr::max($a)),
+            Core\Arr::sum($a) as string,
+            Core\Arr::product($a) as string,
+            Fold::renderQuotient(Core\Arr::average($a)),
+        ];
+    }
+
+    // How many *different* things the five said. This is the whole measure the
+    // case is built on: one means they agree, and the count rises with the
+    // subject rather than with the member.
+    public static function distinct(array<int> $a): int {
+        return Core\Arr::count(Core\Arr::unique(Fold::answers($a))) as int;
+    }
+
+    // `min` and `max` are `sort`'s two ends, over the empty subject as well,
+    // where the agreement is between two absences.
+    public static function endsAgreeWithSort(array<int> $a): int {
+        var $sorted = Core\Arr::sort($a);
+        int $ok = 0;
+        if (Fold::render(Core\Arr::min($a)) == Fold::render(Core\Arr::first($sorted))) {
+            $ok = $ok + 1;
+        }
+        if (Fold::render(Core\Arr::max($a)) == Fold::render(Core\Arr::last($sorted))) {
+            $ok = $ok + 1;
+        }
+        return $ok;
+    }
+}
+
+array<array<int>> $table = [[], [7], [0], [-4], [2, 7], [5, 5], [3, 1, 4], [-2, 6, -2, 9]];
+
+// The five answers per subject, then how many of them were different. The
+// empty row says three; every one-entry row says one; a two-entry row can
+// spread all the way to five.
+foreach ($table as array<int> $row) {
+    echo Core\Str::join(Fold::answers($row), " "), " -> ", Fold::distinct($row), "\n";
+}
+
+// Two sweeps over the same table. The first is the ordering claim: `min` and
+// `max` name exactly what `sort` puts at the ends, so there is one ordering in
+// the class and not three. The second is why `sum` and `product` have an empty
+// answer at all -- `0` and `1` are their folds' *identities*, and appending one
+// to any subject leaves that subject's fold alone.
+int $ends = 0;
+int $identities = 0;
+foreach ($table as array<int> $row) {
+    $ends = $ends + Fold::endsAgreeWithSort($row);
+    if (Core\Arr::sum(Core\Arr::append($row, 0)) == Core\Arr::sum($row)) {
+        $identities = $identities + 1;
+    }
+    if (Core\Arr::product(Core\Arr::append($row, 1)) == Core\Arr::product($row)) {
+        $identities = $identities + 1;
+    }
+}
+int $rows = Core\Arr::count($table) as int;
+echo $ends, "/", $rows * 2, " ", $identities, "/", $rows * 2, "\n";
+
+// ... and those two identities are exactly what the empty subject answers, so
+// the line above is about these two members and not about two constants.
+// `min`, `max` and `average` have no such element to answer with, which is the
+// whole reason the empty subject parts the family three ways.
+array<int> $empty = [];
+echo (Core\Arr::sum($empty) == 0) as string, (Core\Arr::product($empty) == 1) as string, "\n";
+
+// A one-entry subject is the last input on which all five agree, and it agrees
+// for *every* value: `[$v]` is `$v` five times over -- the extremes because it
+// is the only entry, the two folds because it is folded with their identity,
+// and the average because it is divided by one.
+//
+// At two entries that stops being a law. `[$v, $v]` needs `$v + $v` and
+// `$v * $v` to both be `$v` again, which only `0` manages, so the doubled
+// sweep answers one rather than none: the agreement survives at a fixed point
+// and nowhere else.
+array<int> $values = [0, 1, -4, 7, 100];
+int $single = 0;
+int $doubled = 0;
+string $who = "";
+foreach ($values as int $v) {
+    if (Fold::distinct([$v]) == 1) {
+        $single = $single + 1;
+    }
+    if (Fold::distinct([$v, $v]) == 1) {
+        $doubled = $doubled + 1;
+        $who = $who . " " . ($v as string);
+    }
+}
+echo $single, "/", Core\Arr::count($values), " ", $doubled, "/", Core\Arr::count($values), $who, "\n";
+--EXPECT--
+null null 0 1 null -> 3
+7 7 7 7 7 -> 1
+0 0 0 0 0 -> 1
+-4 -4 -4 -4 -4 -> 1
+2 7 9 14 4.5 -> 5
+5 5 10 25 5 -> 3
+1 4 8 12 2.6666666666667 -> 5
+-2 9 11 216 2.75 -> 5
+16/16 16/16
+11
+5/5 1/5 0
