@@ -63,7 +63,7 @@
 |---|---|
 | Path, method, operation id | `#[Route]`'s `path`, `method` and `name` ([0077](0077-compile-time-routing.md)) |
 | Path parameters and their schemas | the handler's own parameters, by declared type — the same binding [0077](0077-compile-time-routing.md) § 3 already makes |
-| Query parameters | parameters bound from the query string, by declared type |
+| Query parameters | `#[Query]` parameters, by declared type, with a parameter default making one optional ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 3) |
 | Request body schema | the `#[Json\Derive]` codec of the body parameter's class ([0071](0071-derived-codecs.md)) |
 | Response body schema | the handler's declared return type, through the same codec |
 | Required vs optional | definite initialization ([0022](0022-definite-property-initialization.md)) and parameter defaults — decidable, never guessed |

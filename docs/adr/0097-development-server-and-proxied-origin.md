@@ -42,10 +42,15 @@
   [0095](0095-ambiguous-input-is-refused-never-repaired.md) — its closed list gains two rows (§ 6), and its
   *Context* no longer argues from a deployment with no proxy.
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 15 — `Core\Request` gains `scheme`,
-  `isHead`, `mountPrefix` and `bodyStream`, `clientIp` gains a defined source, and `Core\Server` gains
+  `isHead`, `mount` and `bodyStream`, `clientIp` gains a defined source, and `Core\Server` gains
   `isDraining` and `traceId`.
   [docs/plan/m7.md](../plan/m7.md) and [docs/plan/m13.md](../plan/m13.md) — M7 gains this ADR's surface and
   loses TLS and h2c; M13 is deleted.
+- **Amended by:** [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+  — § 3's mount block gains `origin` and its `mountPrefix` becomes `mount()`, returning the prefix and the
+  glob captures together; § 7's sentence about the server having no route table is scoped to the CORS
+  preflight it was true of, which is what lets that ADR's § 1 match once. Nothing about the mount grammar,
+  the proxy trust rules or the three conventions changes.
 - **Relates to:** 0004, 0005, 0006, 0012, 0024, 0042, 0059, 0061, 0072, 0079, 0080, 0092
 
 > **In short:** the server has exactly **two deployments** and no third — a **development server** that
@@ -130,6 +135,7 @@ root = "/www"                             # every mount path must resolve inside
 [[server.mount]]                          # one rule, every module present and future
 scan   = "*/public/index.mwl"             # a glob under [server] root; * captures one path segment
 prefix = "/{1}"                           # or host = "{1}.example.com"
+origin = "https://{1}.example.com"        # optional — what `Core\Router::urlAbsolute` prepends
 mode   = "production"                     # optional, § 10
 
 [[server.mount]]                          # an irregular module, overriding the scan at its key
@@ -154,10 +160,24 @@ entry  = "Backoffice/public/index.mwl"
 - **With no `[[server.mount]]` written at all**, there is one implicit mount:
   `{ prefix = "/", entry = "public/index.mwl" }`.
 
-**The matched prefix is stripped.** `Core\Request::path()` is the remainder, `Core\Request::mountPrefix()`
-is what was removed, and `Core\Router::url` prepends it. A module is therefore **relocatable**: the same
-compiled [0077](0077-compile-time-routing.md) route table declaring `#[Route(path: "/users/{id}")]` serves
-at `/ModuleA`, at `/ModuleB` or at `/`, with no recompile and no base-path setting. Because `url` is already
+**The matched prefix is stripped.** `Core\Request::path()` is the remainder, and
+**`Core\Request::mount()`** returns `{prefix: string, captures: array<tainted string>}` — what was removed,
+and this section's glob captures, so `{1}` is `captures[0]`. `Core\Router::url` prepends the prefix. The
+captures are `tainted` because they came off the wire, and they are how a multi-tenant application learns
+which tenant it is serving without the route table ever naming a host
+([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 7). A module
+is therefore **relocatable**: the same compiled [0077](0077-compile-time-routing.md) route table declaring
+`#[Route(path: "/users/{id}")]` serves at `/ModuleA`, at `/ModuleB` or at `/`, with no recompile and no
+base-path setting.
+
+**`origin` is what `Core\Router::urlAbsolute` prepends**, falling back to `[app] origin`. It is
+`System`-class in [0005](0005-config-changeability.md)'s classification — a request may not set it, because
+a value a request can choose is one an attacker can influence and this one ends up in outbound mail — and
+`Reload`-able in [0078](0078-config-reload-and-control-socket.md)'s orthogonal field, so onboarding a tenant
+needs no restart. A single global origin would be **wrong** for a host-mounted deployment, emitting one
+tenant's origin in another's email, which is why it lives here rather than only under `[app]`. **A mount
+whose unit contains a literal `urlAbsolute` call and resolves no origin is a boot error** — checked at
+expansion, per resolved mount, and re-checked when expansion re-runs on reload. Because `url` is already
 that ADR's launderer for the URL-path sink, an application is already required to route link generation
 through it rather than concatenating strings, so nothing new is asked of anyone.
 
@@ -304,10 +324,16 @@ one mount's prefix being confused for another's.
   itself, so reporting `Head` would fail the match against a `Get` route and produce the 404 the feature
   exists to prevent. `Core\Request::isHead()` exposes the truth for the rare caller that wants it.
 - **A CORS preflight is answered, and nothing else about `OPTIONS` is.** A preflight — `OPTIONS` carrying
-  `Origin` and `Access-Control-Request-Method` — is answered from `[http.cors]` before any application code,
-  because [0074](0074-http-defaults-safe-and-finite.md) already owns that policy and it is closed by
-  default. A plain `OPTIONS` is passed through: answering it means emitting `Allow:` for that path, and in
-  entry dispatch the server has no route table to ask.
+  `Origin` and `Access-Control-Request-Method` — is answered from `[http.cors]` **before any application
+  code and therefore before the compiled unit is loaded**, because
+  [0074](0074-http-defaults-safe-and-finite.md) already owns that policy and it is closed by default. That
+  is the one point in a request's life at which the server genuinely has no route table to ask: everything
+  afterwards runs with the unit in hand, and the unit carries the table, which is what lets the server match
+  once ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 1) and
+  what [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) § 4's CSRF check reads.
+  A plain `OPTIONS` is still **passed through** rather than answered — an application that wants to answer
+  one has `Core\Router::methodsFor` for the `Allow:` header, and which convention to adopt stays its choice
+  rather than the server's.
 - **A trailing slash is never normalised.** `/users` and `/users/` are different URIs and whether they name
   one resource is application knowledge. It is also the only one of the three a proxy does trivially, and
   the one [0095](0095-ambiguous-input-is-refused-never-repaired.md)'s never-repair instinct argues hardest
