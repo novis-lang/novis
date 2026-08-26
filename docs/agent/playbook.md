@@ -1846,3 +1846,15 @@ every session. Nothing below was reworded on the way.
   arithmetic wrapped to — the overflow policy is a different member's question and pinning it here would
   make this case fail for the wrong reason. `math-abs-and-sign-are-the-ordering-trio-and-part-from-it-only-where-they-refuse.mwlt`
   is the shape.
+- **`Core\Uri`'s four percent-coders are inverse in three of their four cross-directions, and the
+  fourth is the space.** `decodeFormValue` reads `%20` as well as `+`, so it undoes
+  `encodeComponent` over the whole ASCII sweep; `decodeComponent` reads only `%20`, so
+  `decodeComponent(encodeFormValue(" "))` is `"+"` and every other byte round-trips. The two
+  encoders disagree on exactly two bytes — the space and `~` — and above `U+007F` they are one
+  encoding, because no octet of a multi-byte sequence is in either unreserved set. A sweep is
+  written with `Core\Str::fromCodePoint($b as uint)` over `0..127`; past that a *lone* octet is not
+  a `string`, so `decodeComponent("%FF")` throws (`uri.rs`'s gap 2). In the same family, the one
+  `Uri` for which the seven readers do not recompose to `toString()` is one whose port was written
+  empty: `http://h:/p` reports `port()` of `null` because § 3.2.3's empty port is not a port, so a
+  `with` that never mentions the port drops the `:` — `mwl_core_uri_with`'s own doc comment names
+  this as the single place a round trip through `with` is not the identity. Both are pinned now.
