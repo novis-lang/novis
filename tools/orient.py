@@ -28,6 +28,7 @@ naming something that no longer exists, and that prints as a loud warning rather
     python tools/orient.py --audit      # + what each section cost, in bytes and approximate tokens
     python tools/orient.py --item N     # pin a specific checklist item instead of the first unticked
     python tools/orient.py --full       # ignore the manifest and print everything it could select
+    python tools/orient.py --goal docs/agent/next-goal-m4b.toml --audit   # price a STAGED manifest
 
 `--audit` reports. It never exits non-zero over a size, and nothing in this repository does:
 see docs/agent/doc-style.md on why a length tripwire costs more than it saves.
@@ -722,15 +723,22 @@ def main() -> int:
     ap.add_argument("--audit", action="store_true", help="report what each section cost")
     ap.add_argument("--item", type=int, help="pin a checklist item instead of the first unticked")
     ap.add_argument("--full", action="store_true", help="ignore the manifest's narrowing")
+    ap.add_argument(
+        "--goal", metavar="TOML",
+        help="read the [context] manifest from this file instead of the live goal -- for pricing a "
+             "STAGED goal's manifest with --audit before switching to it, which is when "
+             "loop-authoring.md § 2 says to look at that number",
+    )
     opts = ap.parse_args()
 
-    if not GOAL_TOML.exists():
+    goal_toml = Path(opts.goal) if opts.goal else GOAL_TOML
+    if not goal_toml.exists():
         sys.stdout.write(
-            f"orient.py: {rel(GOAL_TOML)} is missing, so there is no goal to narrow to.\n"
+            f"orient.py: {rel(goal_toml)} is missing, so there is no goal to narrow to.\n"
             "Run `python tools/brief.py` for the unscoped orientation.\n"
         )
         return 2
-    m = Manifest(tomllib.loads(read(GOAL_TOML)))
+    m = Manifest(tomllib.loads(read(goal_toml)))
     if opts.full:
         m.modules = ["crates/**", "editors/**"]
 
