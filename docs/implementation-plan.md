@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 480 of 600 and differential 90 of 150. **Nothing below them is
+> Stage 4's two counts**, conformance 482 of 600 and differential 90 of 150. **Nothing below them is
 > red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -69,7 +69,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 480 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 482 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -112,7 +112,7 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 4's own two counts are the frontier: conformance is 480 of the 600 that gate
+> **Open now:** **Stage 4's own two counts are the frontier: conformance is 482 of the 600 that gate
 > requires and differential is 90 of 150.** Both of Stage 4's named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) exist
 > and pass, so the gap is behavioural *depth* per member rather than an unregistered member or an
@@ -122,82 +122,95 @@
 > `hash`, `csv`, `validate`, `out`, `heap`, `uuid`, `path`, `json`, `random`, `bytes`, § 9's two
 > collections, `regex`, `math`, `uri`, `time`, `str` and finally `arr`, whose own slices were the
 > window pair (`slice`/`chunk`), `sort`, `unique`, the callback protocol, the combination trio,
-> `reduce`'s carry and the key-answering members' agreement — and each case's own `--TEST--` line
-> states what it pins, so it is not restated here. **A pass lands its claim as a new case file**:
-> the gate counts files, so deepening an existing one in place is progress the count cannot see.
-> **The remaining count therefore comes from members whose section has already had one, and four
-> shapes are established for it to reuse**: a section's *edges* (`Core\Heap`'s empty read throwing
-> under each member's own name; every `ObjectMap`/`ObjectSet` member answering over an empty
-> receiver, with the empty set asserted as `union`'s identity and `intersect`'s annihilator from
-> both sides; `Core\Uri::parseQuery`'s answer for a name it cannot read, which is the whole name as
-> one literal key rather than PHP's repaired one; and `Core\Str::padStart`'s empty padding, refused
-> only at the width where it would have to be *used*); *invariance over a sweep* (`Core\Uuid`'s 48
-> draws; `Core\Path`'s normal form, re-render and empty-segment neutrality over one table of twelve
-> paths; `Core\Json`'s decode-then-encode identity over twelve canonical documents, with `isValid`
-> swept beside `decode` so only their agreement is counted; `Core\Random`'s 200 die draws, where the
-> extremes of the sweep are the closed bounds themselves and `shuffle` is asserted to be a
-> permutation of a subject carrying duplicates rather than a fresh draw over its element set; § 9's
-> twelve-tag sweep of scattered removals, whose invariant is *counted* rather than read off a line —
-> a tag is in the set exactly when it was not dropped, and the swept set is proved equal to the
-> directly-built one with `diff` in both directions, since `==` on two collections is identity;
-> `Core\Uri::resolve` over RFC 3986 § 5.4.2's abnormal table run verbatim against the RFC's own
-> base, where the invariant is that dot-segment removal is over the *path* only and that an ascent
-> past the root stops there; `Core\Str::slice` and `::replaceRange` reading one window, proved by
-> substituting a window with its own content over all 72 sign combinations of offset and length,
-> which is the agreement PHP's own `substr`/`substr_replace` pair does not manage; the same 72
-> combinations over an *array*, where the added claim is cross-unit — joining the sliced entries is
-> slicing the joined characters, so `Core\Arr`'s window and `Core\Str`'s are one window — beside
-> `chunk`'s run `k` being `slice($a, k * $size, $size)` over every size from 1 to one past the
-> subject's own count; `Core\Arr::sort` answering a *permutation* of its subject under all ten
-> combinations of its four options, counted by multiplicity so a member answering the set of its
-> entries would fail, with equal keys keeping their input order across five more, which is what
-> makes `Core\Order::Desc` reverse the comparison rather than the result — the descending answer is
-> provably not the ascending one read backwards; and `Core\Arr::reduce`'s direction, where the three
-> answers asserted are the ones a right fold could not produce and the fold's answer type is the
-> seed's rather than the element's); a *bound asserted on both sides* (ADR 0088's 48-character
-> quote; `Core\Json`'s `maxDepth` — the default holding at 512 and refused at 513, the ceiling
-> accepted at 1024 and refused at 1025, and a `maxDepth` outside `1..=1024` being a `LogicError`
-> rather than a `ParseError`; every `Core\Bytes::pack` integer width, whose accepted range is the
-> union of its signed and unsigned halves and whose two refusals sit one past each end;
-> `Core\Regex::split`'s `limit` at the exact piece count, one past it, and a negative that drops
-> every piece, beside `$10` against `${1}0` as the two sides of the replacement grammar's group
-> boundary; `Core\Math::clamp`'s closed range, where a one-point range is the last non-empty one and
-> a `low` one above `high` is the first empty one, `Core\Math::round`'s exact tie, which is the only
-> input its six modes answer differently — the two nearest floats either side of `2.5` agree under
-> every one of them — and `Core\Math::intDiv`'s `-1` divisor, which overflows for exactly one
-> dividend; `Core\Uri::with`'s port, accepted at both ends of `0-65535` and refused one past it,
-> beside an absent component reading `null` where an empty one reads `""`; `Core\Time\Duration`'s
-> seven carries, each asserted one count below the next unit's length and at it, with the type's own
-> range at `i64::MAX` nanoseconds accepted and one nanosecond past it refused — a `ParseError` from
-> `parse` and a `RuntimeError` from a constructor, since one is a text that will not read and the
-> other a value that will not fit; `Core\Str::split`'s `limit` at the exact piece count, one past it
-> and the negative that drops every piece, beside `replace`'s at zero and at the occurrence count;
+> `reduce`'s carry, the key-answering members' agreement, the numeric folds' edges and the search
+> members' agreement — and each case's own `--TEST--` line states what it pins, so it is not
+> restated here. **A pass lands its claim as a new case file**: the gate counts files, so deepening
+> an existing one in place is progress the count cannot see. **The remaining count therefore comes
+> from members whose section has already had one, and four shapes are established for it to reuse**:
+> a section's *edges* (`Core\Heap`'s empty read throwing under each member's own name; every
+> `ObjectMap`/`ObjectSet` member answering over an empty receiver, with the empty set asserted as
+> `union`'s identity and `intersect`'s annihilator from both sides; `Core\Uri::parseQuery`'s answer
+> for a name it cannot read, which is the whole name as one literal key rather than PHP's repaired
+> one; and `Core\Str::padStart`'s empty padding, refused only at the width where it would have to be
+> *used*); *invariance over a sweep* (`Core\Uuid`'s 48 draws; `Core\Path`'s normal form, re-render
+> and empty-segment neutrality over one table of twelve paths; `Core\Json`'s decode-then-encode
+> identity over twelve canonical documents, with `isValid` swept beside `decode` so only their
+> agreement is counted; `Core\Random`'s 200 die draws, where the extremes of the sweep are the
+> closed bounds themselves and `shuffle` is asserted to be a permutation of a subject carrying
+> duplicates rather than a fresh draw over its element set; § 9's twelve-tag sweep of scattered
+> removals, whose invariant is *counted* rather than read off a line — a tag is in the set exactly
+> when it was not dropped, and the swept set is proved equal to the directly-built one with `diff`
+> in both directions, since `==` on two collections is identity; `Core\Uri::resolve` over RFC 3986 §
+> 5.4.2's abnormal table run verbatim against the RFC's own base, where the invariant is that
+> dot-segment removal is over the *path* only and that an ascent past the root stops there;
+> `Core\Str::slice` and `::replaceRange` reading one window, proved by substituting a window with
+> its own content over all 72 sign combinations of offset and length, which is the agreement PHP's
+> own `substr`/`substr_replace` pair does not manage; the same 72 combinations over an *array*,
+> where the added claim is cross-unit — joining the sliced entries is slicing the joined characters,
+> so `Core\Arr`'s window and `Core\Str`'s are one window — beside `chunk`'s run `k` being `slice($a,
+> k * $size, $size)` over every size from 1 to one past the subject's own count; `Core\Arr::sort`
+> answering a *permutation* of its subject under all ten combinations of its four options, counted
+> by multiplicity so a member answering the set of its entries would fail, with equal keys keeping
+> their input order across five more, which is what makes `Core\Order::Desc` reverse the comparison
+> rather than the result — the descending answer is provably not the ascending one read backwards;
+> and `Core\Arr::reduce`'s direction, where the three answers asserted are the ones a right fold
+> could not produce and the fold's answer type is the seed's rather than the element's); a *bound
+> asserted on both sides* (ADR 0088's 48-character quote; `Core\Json`'s `maxDepth` — the default
+> holding at 512 and refused at 513, the ceiling accepted at 1024 and refused at 1025, and a
+> `maxDepth` outside `1..=1024` being a `LogicError` rather than a `ParseError`; every
+> `Core\Bytes::pack` integer width, whose accepted range is the union of its signed and unsigned
+> halves and whose two refusals sit one past each end; `Core\Regex::split`'s `limit` at the exact
+> piece count, one past it, and a negative that drops every piece, beside `$10` against `${1}0` as
+> the two sides of the replacement grammar's group boundary; `Core\Math::clamp`'s closed range,
+> where a one-point range is the last non-empty one and a `low` one above `high` is the first empty
+> one, `Core\Math::round`'s exact tie, which is the only input its six modes answer differently —
+> the two nearest floats either side of `2.5` agree under every one of them — and
+> `Core\Math::intDiv`'s `-1` divisor, which overflows for exactly one dividend; `Core\Uri::with`'s
+> port, accepted at both ends of `0-65535` and refused one past it, beside an absent component
+> reading `null` where an empty one reads `""`; `Core\Time\Duration`'s seven carries, each asserted
+> one count below the next unit's length and at it, with the type's own range at `i64::MAX`
+> nanoseconds accepted and one nanosecond past it refused — a `ParseError` from `parse` and a
+> `RuntimeError` from a constructor, since one is a text that will not read and the other a value
+> that will not fit; `Core\Str::split`'s `limit` at the exact piece count, one past it and the
+> negative that drops every piece, beside `replace`'s at zero and at the occurrence count;
 > `Core\Arr::chunk`'s `size` of `0` against `1`, the first that would not terminate against the
 > first that does, with a size at and one past the subject's own count saturating to one run without
 > a throw; and `Core\Arr::reduce`'s empty subject, where the seed of each of three types comes back
 > past a callback that throws on sight — the zero-call side of a bound whose one-call side is a
 > one-entry subject, and the only way "no call made" is assertable at all); and — the one to reach
 > for wherever several members share a rule — *one question asked of every member that shares it*,
-> where the assertion is their **agreement** rather than their answers, which now carries four cases
-> and is the shape with the most room left: `Core\Arr::unique`, `contains`, `diff` and `intersect`
-> are put to all 29 rows of ADR 0090 § 3's identity table plus § 5's cross-type pairs, each row's
-> four verdicts collapsed to one character and the tally of rows where all four agreed asserted
-> against the row count, so a member that grew its own comparison — a string cast, a loose `==`, a
-> hash over raw bits — would still answer plausibly on its own line and fails here; every `Core\Arr`
-> member taking a callback is asked its own question twice, once from a closure declaring `($value)`
-> and once from one declaring `($value, $key)`, so fourteen rows assert that spec § 2's trimming is
-> one rule rather than four arity-reading members and ten always-offering ones, with a second sweep
-> recovering from each member's own answer the keys it was offered and proving those nine reports
-> one list, and the `comparator` pinned as the one callback in the class that is not `($value,
-> $key)`; `overlay`, `underlay` and `appendAll` are put to eight tables mixing string, integer,
-> integer-like-string and empty sides, five claims per row — the key order is the left argument's
-> rather than the winner's, it is ADR 0069 § 1's rule spelled out without either member, one member
-> with its sides swapped holds the other's entries, the variadic tail is a left fold for all three,
-> and `appendAll` is the one that renumbers; and ADR 0069 § 5's six key-*answering* members —
+> where the assertion is their **agreement** rather than their answers, which now carries six cases
+> and is still the shape with the most room left: `Core\Arr::unique`, `contains`, `diff` and
+> `intersect` are put to all 29 rows of ADR 0090 § 3's identity table plus § 5's cross-type pairs,
+> each row's four verdicts collapsed to one character and the tally of rows where all four agreed
+> asserted against the row count, so a member that grew its own comparison — a string cast, a loose
+> `==`, a hash over raw bits — would still answer plausibly on its own line and fails here; every
+> `Core\Arr` member taking a callback is asked its own question twice, once from a closure declaring
+> `($value)` and once from one declaring `($value, $key)`, so fourteen rows assert that spec § 2's
+> trimming is one rule rather than four arity-reading members and ten always-offering ones, with a
+> second sweep recovering from each member's own answer the keys it was offered and proving those
+> nine reports one list, and the `comparator` pinned as the one callback in the class that is not
+> `($value, $key)`; `overlay`, `underlay` and `appendAll` are put to eight tables mixing string,
+> integer, integer-like-string and empty sides, five claims per row — the key order is the left
+> argument's rather than the winner's, it is ADR 0069 § 1's rule spelled out without either member,
+> one member with its sides swapped holds the other's entries, the variadic tail is a left fold for
+> all three, and `appendAll` is the one that renumbers; ADR 0069 § 5's six key-*answering* members —
 > `keys`, `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip` — are asked which key holds each
 > entry of ten tables mixing every key shape there is, with `hasKey` asked from the other direction
 > so an integer subscript and its decimal spelling are one key while `"08"` stays the distinct key
-> PHP also keeps. **What is still unbuilt in the library**, none of it a registration gap:
+> PHP also keeps; spec § 2's five numeric folds — `min`, `max`, `sum`, `product` and `average` — are
+> asked one table of subjects and the assertion is how many *different* things the five said, which
+> is three over the empty subject (`0`, `1` and absence), one over `[$v]` for every value, and up to
+> five over two entries, with an appended-identity sweep proving `sum`'s and `product`'s empty
+> answers are their fold's identity rather than a chosen constant, `min`/`max` agreeing with
+> `sort`'s two ends over every subject including the empty one, and the doubled subject `[$v, $v]`
+> agreeing only at `0`, the one fixed point both folds share; and the five search members —
+> `contains`, `keyOf`, `find`, `findKey` and `any` — are asked "is there an entry equal to this, and
+> where" over a fifteen-cell grid, each cell's five verdicts collapsed to one character and every
+> match required to hand the needle back, so ADR 0090 § 3's one comparison is what all five ask
+> rather than five comparisons that happen to agree, and `array_search`'s `=== false` trap has
+> nothing to catch because a key of `"0"` and an absent answer are different values in both members
+> that answer *where*. **What is still unbuilt in the library**, none of it a registration gap:
 > `Core\Json::decodeAs<T>`'s decoder (`mwl_stdlib::json` gap 2); ADR 0071 decodes only a
 > scalar-fielded class — no enum/`decimal`/`Instant`/`array`/nested-class field and no optional key
 > from a parameter default; ADR 0088's registry-wide item, that `mwl-stdlib`'s member rows carry
@@ -234,7 +247,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: conformance stands at 480 of 600 and differential at 90 of 150, and the remainder is
+> decision: conformance stands at 482 of 600 and differential at 90 of 150, and the remainder is
 > written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

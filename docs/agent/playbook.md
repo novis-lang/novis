@@ -778,3 +778,11 @@ sibling in the same namespace unqualified.
   predicates silently loses its false columns and still looks like a shorter tally. `bool as int` does not
   lower at all, so the way to *show* a predicate's answer is a two-line helper that branches and returns a
   character.
+- **A `Core` member answering a union cannot be handed straight back to a parameter declared `T`.**
+  `Core\Arr::append($a, Core\Arr::sum($empty))` is `E0401: expected int, found int|float|decimal`,
+  because `sum`/`product`/`average` answer spec § 2's whole union whatever their subject's element type
+  was, and `array<int>`'s `T` is `int`. There is no narrowing spelling for it either — `as int` over a
+  union does not lower. So a case that wants to feed a fold's answer back into the array writes the
+  literal (`0`, `1`) and asserts *separately* that the member answers it, which is two claims where one
+  was wanted but is the only pair available. Rendering the union is fine: `echo` takes it, and so does
+  `as string`.
