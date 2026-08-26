@@ -22,11 +22,22 @@ Plain markdown. Every `## ` heading is an instruction; the text under it is that
 payload. Order in the file does not matter -- the order of *application* is fixed below, so the
 docs are on disk before anything is staged.
 
-    ## plan: Open now
-    What the plan's `Open now` field should now say. One paragraph; it is re-wrapped.
+    ## plan-edit: Open now
+    --- old
+    conformance is 506 of the 600
+    --- new
+    conformance is 512 of the 600
+
+    Change one run of words inside a field and leave the rest alone. Repeat the `--- old` /
+    `--- new` pair as many times as the field moved. Each `--- old` must match the field
+    exactly once -- quote it as the field READS, which is one single-spaced paragraph
+    (`python tools/plan.py --get "Open now"` prints it). THIS IS THE USUAL ONE: a session
+    changes a sentence of a field, not a field.
 
     ## plan: On disk
-    Same, for another field. Name as many `## plan:` sections as you changed, no more.
+    What that field should now say, whole -- it is overwritten, not appended to. For a field
+    you are genuinely rewriting. A big replacement that is mostly already on disk word for
+    word is refused as a retype, and names `## plan-edit:` instead.
 
     ## milestone: M4S
     The whole body of docs/plan/m4s.md below its heading, replacing what is there. For the
@@ -52,7 +63,8 @@ docs are on disk before anything is staged.
     CONTINUE one line saying what landed
 
 Applied in this order, and **nothing is applied until every section validates**: plan fields,
-milestones, playbook, handoff, commits in the order written, then `status.txt`. A `## commit:`
+plan edits, milestones, playbook, handoff, commits in the order written, then `status.txt`. A
+`## commit:`
 whose paths match nothing staged is an error before the first field is touched, not a
 half-finished tail.
 
@@ -91,6 +103,10 @@ HANDOFF = AGENT / "handoff.md"
 RUNDIR = ROOT / ".loop"
 STATUS = RUNDIR / "status.txt"
 TMP = ROOT / ".agent-tmp"
+
+#: conventions.md § *A commit message* is the home of this; it is named here so the refusal can
+#: say how far over a subject is rather than only how long it is.
+SUBJECT_MAX = 120
 
 HANDOFF_REQUIRED = ["## State", "## Next group", "## Backlog"]
 HANDOFF_TARGET_LINES = 60
@@ -136,7 +152,7 @@ def parse_wrap(text: str) -> tuple[list[Section], list[str]]:
     The handoff body is markdown containing its own `## ` headings, so the parser has to stop
     treating `## ` as a directive once it is inside `## handoff` -- otherwise the handoff's own
     `## State` would read as an unknown instruction. It resumes at the next *known* directive."""
-    known = ("plan", "milestone", "playbook", "handoff", "commit", "status")
+    known = ("plan", "plan-edit", "milestone", "playbook", "handoff", "commit", "status")
     lines = text.split("\n")
     sections: list[Section] = []
     errors: list[str] = []
@@ -151,7 +167,7 @@ def parse_wrap(text: str) -> tuple[list[Section], list[str]]:
         cur, buf = None, []
 
     for i, raw in enumerate(lines, 1):
-        m = re.match(r"^##\s+([A-Za-z]+)\s*:?\s*(.*)$", raw)
+        m = re.match(r"^##\s+([A-Za-z][A-Za-z-]*)\s*:?\s*(.*)$", raw)
         directive = m and m.group(1).lower() in known
         # Inside a `## handoff` body, only a *new known directive* ends it. `## State` does not.
         if directive and cur is not None and cur.kind == "handoff":
@@ -169,7 +185,7 @@ def parse_wrap(text: str) -> tuple[list[Section], list[str]]:
     flush()
 
     for s in sections:
-        if s.kind in ("plan", "milestone", "playbook", "commit") and not s.arg:
+        if s.kind in ("plan", "plan-edit", "milestone", "playbook", "commit") and not s.arg:
             errors.append(f"line {s.line}: `## {s.kind}:` needs an argument")
         if s.kind in ("handoff", "status") and s.arg:
             errors.append(f"line {s.line}: `## {s.kind}` takes no argument, got {s.arg!r}")
@@ -181,6 +197,85 @@ def parse_wrap(text: str) -> tuple[list[Section], list[str]]:
 # ------------------------------------------------------------------------ validation
 
 
+def normalize(text: str) -> str:
+    """A field's text as `plan.py` stores it: one paragraph, single-spaced.
+
+    A status field is hard-wrapped on disk and joined back into one line by `find_fields`, so a
+    fragment quoted out of a session's own context has to be compared the same way -- otherwise a
+    quote that is correct to the word fails to match because the author's line breaks fell
+    somewhere else."""
+    return " ".join(text.split())
+
+
+def parse_edits(body: str) -> tuple[list[tuple[str, str]], list[str]]:
+    """`--- old` / `--- new` fragment pairs out of a `## plan-edit:` body, plus what was malformed.
+
+    Deliberately the same shape as an editor's find-and-replace, because that is the operation:
+    the field stays where it is and one run of words inside it moves."""
+    pairs: list[tuple[str, str]] = []
+    errors: list[str] = []
+    slot: str | None = None
+    buf: dict[str, list[str]] = {"old": [], "new": []}
+
+    def flush() -> None:
+        if buf["old"] or buf["new"]:
+            pairs.append((normalize("\n".join(buf["old"])), normalize("\n".join(buf["new"]))))
+        buf["old"], buf["new"] = [], []
+
+    for raw in body.split("\n"):
+        m = re.match(r"^---\s*(old|new)\s*$", raw.strip(), flags=re.I)
+        if m:
+            nxt = m.group(1).lower()
+            if nxt == "old":
+                flush()
+            elif not buf["old"]:
+                errors.append("a `--- new` fragment with no `--- old` in front of it")
+            slot = nxt
+            continue
+        if slot is None:
+            if raw.strip():
+                errors.append(f"text before the first `--- old`: {raw.strip()[:60]!r}")
+            continue
+        buf[slot].append(raw)
+    flush()
+
+    if not pairs:
+        errors.append("no `--- old` / `--- new` fragment pair")
+    for old, _new in pairs:
+        if not old:
+            errors.append("an empty `--- old` fragment -- it must quote what is there now")
+    return pairs, errors
+
+
+#: A `## plan:` section replaces a field whole. Past this size a hand-typed replacement is a
+#: RETYPE -- the author re-emitted a field to change a sentence in it -- and the overlap test
+#: below is what tells the two apart.
+RETYPE_BYTES = 1_500
+
+#: How much of a replacement may already be on disk, word for word, before it is a retype rather
+#: than a rewrite. Measured over one 21-session run: `Open now` grew 4,106 -> 43,418 B and was
+#: re-emitted whole ten times, 160,388 B of wrap payload in all, 45% of everything those sessions
+#: wrote into a wrap file. A 33 KB one cost a single Write 189 seconds. Nothing about that is a
+#: decision being made; it is a paragraph being carried across a copy, which is also where a
+#: paragraph gets silently dropped.
+RETYPE_OVERLAP = 0.70
+
+
+def verbatim_overlap(new: str, old: str) -> float:
+    """The fraction of `new`'s 8-word runs that appear verbatim in `old`.
+
+    Not a similarity score -- the question is one-directional and specific: *how much of what
+    you just typed was already there?* Cheap (two set builds) where a real diff over a 43 KB
+    field is not, and it does not confuse two documents that merely share a vocabulary, because
+    an 8-word run repeats by accident about never."""
+    wn, wo = new.split(), old.split()
+    if len(wn) < 8:
+        return 0.0
+    gn = {tuple(wn[i:i + 8]) for i in range(len(wn) - 7)}
+    go = {tuple(wo[i:i + 8]) for i in range(len(wo) - 7)}
+    return len(gn & go) / len(gn)
+
+
 def plan_fields() -> list[tuple[str, int, int, str]]:
     _text, lines = planmod.load()
     return planmod.find_fields(lines)
@@ -190,13 +285,54 @@ def validate(sections: list[Section]) -> list[str]:
     """Everything that could refuse, refusing here -- before a single byte is written."""
     errors: list[str] = []
     names = {n.lower(): n for n, _a, _b, _t in plan_fields()}
+    # The plan sections are checked against a *simulated* field, advanced in apply order, so a
+    # second `## plan-edit:` on the same field quotes the text the first one will have left --
+    # which is the text its author was looking at -- rather than the text on disk right now.
+    working = {n.lower(): t for n, _a, _b, t in plan_fields()}
+    aim = planmod.field_aim()
 
-    for s in sections:
+    for s in [x for kind in ORDER for x in sections if x.kind == kind]:
         if s.kind == "plan":
             if s.arg.lower() not in names:
                 errors.append(
                     f"`## plan: {s.arg}` -- no such field, and this tool does not add one. "
                     f"The block has: {', '.join(names.values())}")
+                continue
+            new = normalize(s.body)
+            old = working[s.arg.lower()]
+            share = verbatim_overlap(new, old)
+            if len(new) > RETYPE_BYTES and share >= RETYPE_OVERLAP:
+                errors.append(
+                    f"`## plan: {s.arg}` -- {len(new):,} B, and {share * 100:.0f}% of it is already "
+                    f"on disk word for word. That is a retype, not a rewrite: use "
+                    f"`## plan-edit: {s.arg}` with `--- old` / `--- new` fragments and send only "
+                    f"the sentence that moved. (A real rewrite overlaps less than "
+                    f"{RETYPE_OVERLAP * 100:.0f}% and is taken as it stands.)")
+                continue
+            working[s.arg.lower()] = new
+        elif s.kind == "plan-edit":
+            if s.arg.lower() not in names:
+                errors.append(
+                    f"`## plan-edit: {s.arg}` -- no such field, and this tool does not add one. "
+                    f"The block has: {', '.join(names.values())}")
+                continue
+            pairs, bad = parse_edits(s.body)
+            errors += [f"`## plan-edit: {s.arg}` -- {b}" for b in bad]
+            text = working[s.arg.lower()]
+            for old, new in pairs:
+                if not old:
+                    continue
+                hits = text.count(old)
+                if hits != 1:
+                    where = "is not in that field" if hits == 0 else f"appears {hits} times in it"
+                    errors.append(
+                        f"`## plan-edit: {s.arg}` -- the `--- old` fragment {where}, so nothing "
+                        f"was changed. Quote a longer run, exactly as the field reads (it is one "
+                        f"paragraph, single-spaced; `python tools/plan.py --get {s.arg!r}` prints "
+                        f"it): {old[:70]!r}")
+                    continue
+                text = text.replace(old, new, 1)
+            working[s.arg.lower()] = text
         elif s.kind == "milestone":
             entry = planmod.resolve(s.arg)
             if entry is None:
@@ -235,8 +371,14 @@ def validate_commit(s: Section) -> list[str]:
                     r"(\([a-z0-9-]+\))?: .+", subject):
         errors.append(f"`## commit:` line {s.line} -- subject is not "
                       f"`type(scope): subject`: {subject[:60]!r}")
-    if len(subject) > 120:
-        errors.append(f"`## commit:` line {s.line} -- subject is {len(subject)} chars")
+    if len(subject) > SUBJECT_MAX:
+        # Quote it. This one rule produced EVERY wrap refusal of one 21-session run -- 13 of them
+        # -- and the message said only which line, so a session with two commits in the file
+        # shortened the wrong subject, got the identical refusal back, and spent a third call on
+        # `sed -n` to find out which one it had missed. The subject is the whole answer.
+        errors.append(
+            f"`## commit:` line {s.line} -- subject is {len(subject)} chars, "
+            f"{len(subject) - SUBJECT_MAX} over the {SUBJECT_MAX} limit: {subject!r}")
     for path in s.arg.split():
         target = ROOT / path
         if not target.exists() and "*" not in path:
@@ -289,6 +431,31 @@ def apply_plan(s: Section, dry: bool) -> str:
     rewritten = lines[:start] + ["> " + ln for ln in planmod.render(name, new)] + lines[end:]
     PLAN.write_text("\n".join(rewritten), encoding="utf-8", newline="")
     return f"plan: {name}  {len(old)} -> {len(new)} bytes"
+
+
+def apply_plan_edit(s: Section, dry: bool) -> str:
+    """One field, with the fragments `## plan-edit:` names replaced and nothing else touched.
+
+    `validate()` has already proved every `--- old` matches exactly once, against the field as
+    the sections ahead of this one will have left it, so the replacements here cannot miss."""
+    text, lines = planmod.load()
+    fields = planmod.find_fields(lines)
+    name, start, end, old = next(f for f in fields if f[0].lower() == s.arg.lower())
+    pairs, _ = parse_edits(s.body)
+    new = old
+    for was, now in pairs:
+        new = new.replace(was, now, 1)
+    aim = planmod.field_aim(text)
+    note = f"plan-edit: {name}  {len(pairs)} fragment(s), {len(old)} -> {len(new)} bytes"
+    if len(new) > aim * 4:
+        note += (f"  (the field is {len(new) / aim:.0f}x the ~{aim} B aim -- what is in it that is"
+                 " not status? per-member findings belong in the playbook, per-file gaps in that"
+                 " crate's module doc, what landed in `git log`)")
+    if dry:
+        return note
+    rewritten = lines[:start] + ["> " + ln for ln in planmod.render(name, new)] + lines[end:]
+    PLAN.write_text("\n".join(rewritten), encoding="utf-8", newline="")
+    return note
 
 
 def apply_milestone(s: Section, dry: bool) -> str:
@@ -416,9 +583,12 @@ def apply_status(s: Section, dry: bool) -> str:
     return f"status: {line[:80]}"
 
 
-APPLY = {"plan": apply_plan, "milestone": apply_milestone, "playbook": apply_playbook,
-         "handoff": apply_handoff, "commit": apply_commit, "status": apply_status}
-ORDER = ["plan", "milestone", "playbook", "handoff", "commit", "status"]
+APPLY = {"plan": apply_plan, "plan-edit": apply_plan_edit, "milestone": apply_milestone,
+         "playbook": apply_playbook, "handoff": apply_handoff, "commit": apply_commit,
+         "status": apply_status}
+#: `plan-edit` after `plan` so a session may do both to one field in one wrap -- replace it, then
+#: patch the replacement -- and so `validate()`'s simulation and this agree on what each sees.
+ORDER = ["plan", "plan-edit", "milestone", "playbook", "handoff", "commit", "status"]
 
 
 def wrap(path: Path, dry: bool) -> int:
@@ -442,11 +612,25 @@ def wrap(path: Path, dry: bool) -> int:
     for s in ordered:
         say(f"  {APPLY[s.kind](s, dry)}")
     if not dry:
+        # Everything a session would otherwise go and look up, printed here. Measured over one
+        # 21-session run, 13 of them closed with a `git log --oneline`/`git status` AFTER this
+        # tool had already committed -- a call spent confirming what the tool just did, at the
+        # point in a session where a call is most expensive. AGENTS.md § *Session workflow* ends
+        # with "After step 5, stop"; this is what makes stopping the cheaper of the two.
         left = _checked(["git", "status", "--short"]).stdout.strip()
         if left:
             say(f"  uncommitted after the wrap ({len(left.split(chr(10)))} path(s)):")
             for ln in left.split("\n")[:12]:
                 say(f"    {ln}")
+        n = len([s for s in ordered if s.kind == "commit"])
+        if n:
+            say()
+            say(f"== HEAD  (the {n} commit(s) this wrap made, newest first)")
+            for ln in _checked(["git", "log", f"-{n}", "--oneline"]).stdout.strip().split("\n"):
+                say(f"  {ln}")
+        say()
+        say("That is step 5. The tree is committed and the handoff is written -- there is nothing")
+        say("a `git log`, a `git status` or a second `verify.py` can add. Stop here.")
     return 0
 
 
@@ -543,10 +727,19 @@ def template() -> int:
     else it reports is something the fill-in got wrong.
     """
     c = counts()
-    say("## plan: Open now")
-    say("REPLACE. The whole field as it should now read -- it is overwritten, not appended to.")
+    # The `--- old` below is a real run of words out of the live field, so the unedited skeleton
+    # validates -- and so the shape of a quote is shown rather than described. Replace both
+    # fragments; keep quoting the field as it READS, one single-spaced paragraph.
+    field = next((t for n, _a, _b, t in plan_fields() if n == "Open now"), "")
+    sample = " ".join(field.split()[:9]) or "the run of words that is now wrong"
+    say("## plan-edit: Open now")
+    say("--- old")
+    say(sample)
+    say("--- new")
+    say(f"{sample}   <- REPLACE both fragments. Repeat the pair per place the field moved.")
     say(f"The tree's counts are {', '.join(f'{k} {v}' for k, v in c.items())}; a field naming a")
-    say("stale one is what `--check` reports.")
+    say("stale one is what `--check` reports. `## plan: <Field>` replaces a field WHOLE instead,")
+    say("for a real rewrite -- a big replacement mostly already on disk is refused as a retype.")
     say("")
     say("## playbook: Tooling")
     say("- **DELETE THIS SECTION unless a trap cost you time.** A bullet is appended under the")
