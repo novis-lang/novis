@@ -1,0 +1,165 @@
+--TEST--
+`Core\Time`'s unknown-zone refusal names the member that was handed the id, and a zone it accepted is never refused again — spec § 4, ADR 0063 R20
+--FILE--
+<?mwl
+// One sentence — "unknown time zone `id`" — is spelled three times in
+// `crates/mwl-stdlib/src/time.rs`, each with the name of the member that would
+// speak it in front of it. Exactly one of the three is reachable from a
+// program: `Zone::of` is the only member that reads a zone id a *program*
+// wrote. The other two read an id this crate wrote itself — into a `Zone`'s
+// slot and into a `DateTime`'s — so what a case can assert about them is the
+// invariant that keeps them silent, which is that every spelling either value
+// stores is one the resolver reads back. Both halves are below, and the second
+// is the one that would go red first.
+//
+// Each `catch` takes its own binding name: a binding is function-scoped, so two
+// clauses reusing one is `E0406` once a loop below has declared it.
+
+// The accepted side. `Zone::UTC` is `Zone::of("UTC")` inlined (ADR 0011), and
+// an IANA identifier is the only spelling `of` takes at all.
+var $winter = Core\Time::fromIso("2024-01-15T12:00:00Z");
+var $utc = Core\Time\Zone::UTC;
+echo $utc->offsetAt($winter)->toSeconds() as string, "|", Core\Time\Zone::of("Europe/Berlin")->offsetAt($winter)->toSeconds() as string, "|\n";
+
+// The refusal, in full. The neighbouring § 4 cases assert that *something* was
+// said here; what the member owes past that is its own name and the id it was
+// handed, because a caller reading this has a typo to find and nothing else to
+// find it with. The empty id is the sharpest of the two: there is no argument
+// to look at, so a member that quoted nothing back would still read as a
+// sentence.
+try { echo Core\Time\Zone::of("Europe/Berln")->offsetAt($winter)->toSeconds() as string, "\n"; }
+catch (Throwable $misspelt) { echo $misspelt->message, "\n"; }
+try { echo Core\Time\Zone::of("")->offsetAt($winter)->toSeconds() as string, "\n"; }
+catch (Throwable $empty) { echo $empty->message, "\n"; }
+
+// The bound is the id's *first byte*, and it is stated on both sides here. A
+// sign-leading id is `fixed`'s spelling, so `of` refuses it (R20: one way to
+// build one value) even though the resolver behind both reads it happily — the
+// id refused on this line is exactly the id that same zone stores and renders
+// on the next one.
+try { echo Core\Time\Zone::of("+05:30")->offsetAt($winter)->toSeconds() as string, "\n"; }
+catch (Throwable $signed) { echo $signed->message, "\n"; }
+var $fixed = Core\Time\Zone::fixed((5h)->plus(30m));
+echo Core\Time::at(2024, 1, 15, $fixed, {hour: 12})->format("yyyy-MM-dd HH:mm XXX"), "|\n";
+
+// A sign anywhere else is an ordinary IANA name — and there it means the
+// opposite of what it means in an offset: `Etc/GMT+5` is five hours *behind*
+// UTC where `fixed(5h)` is five ahead. Two spellings that disagree about the
+// meaning of a sign is why there is one way to write each.
+echo Core\Time\Zone::of("Etc/GMT+5")->offsetAt($winter)->toSeconds() as string, "|", Core\Time\Zone::fixed(5h)->offsetAt($winter)->toSeconds() as string, "|\n";
+
+// The id a program hands in is not the id the value keeps: the lookup is
+// case-insensitive and the name is canonicalized on the way in. That is what
+// makes the round trip below a claim about the *stored* spelling rather than
+// about the argument, and it is the one observable difference between the two.
+echo Core\Time::at(2024, 3, 31, Core\Time\Zone::of("europe/berlin"), {hour: 12})->format("VV XXX"), "|\n";
+
+// Counted, on the argument: over fourteen ids, the six accepted are exactly the
+// region names — a sign at position 0 refused whichever way it leans, a
+// trailing separator, a leading space and RFC 3339's `Z` designator all being
+// ids and none of them being a region — and every one of the eight refusals is
+// the whole sentence, its own name in front and the id it was handed quoted
+// back. It is asserted by equality against the sentence rebuilt from the id, so
+// a member with a constant message, or one quoting the canonical name instead
+// of the argument, fails here while still printing plausibly on any row above.
+array<string> $ids = ["UTC", "Europe/Berlin", "America/New_York", "Asia/Kolkata", "Etc/GMT+5", "europe/berlin", "Europe/Berln", "", " UTC", "UTC/", "+05:30", "-08:00", "Z", "Mars/Olympus"];
+int $accepted = 0;
+int $refused = 0;
+int $named = 0;
+foreach ($ids as string $id) {
+    try {
+        Core\Time\Zone::of($id);
+        $accepted = $accepted + 1;
+    } catch (Throwable $sweptId) {
+        $refused = $refused + 1;
+        if ($sweptId->message == "Core\\Time\\Zone::of(): unknown time zone `" . $id . "`") {
+            $named = $named + 1;
+        }
+    }
+}
+echo $accepted, " accepted, ", $refused, " refused, ", $named, " named\n";
+
+// The sibling sentence, and why no program reaches it. A `DateTime` re-derives
+// its zone id from the resolved zone rather than carrying the caller's spelling
+// through, so every id in a slot is one the resolver reads — which is the
+// premise the seventeen members that read that slot all rest on, each of them
+// holding its own name ready in front of the same sentence. Counted over all
+// seventeen against six zones, none of them says it. A build that stored a
+// spelling the reader cannot read back would fail here rather than at whichever
+// member a program happened to call next.
+array<string> $zones = ["UTC", "Europe/Berlin", "America/New_York", "Asia/Kolkata", "Pacific/Chatham", "Australia/Lord_Howe"];
+int $answered = 0;
+int $stopped = 0;
+foreach ($zones as string $name) {
+    var $moment = Core\Time::at(2024, 3, 31, Core\Time\Zone::of($name), {hour: 12});
+    try {
+        $moment->format("yyyy");
+        $answered = $answered + 1;
+        $moment->plus(1, Core\Unit::Day);
+        $answered = $answered + 1;
+        $moment->minus(1, Core\Unit::Month);
+        $answered = $answered + 1;
+        $moment->next(Core\Weekday::Monday);
+        $answered = $answered + 1;
+        $moment->previous(Core\Weekday::Friday);
+        $answered = $answered + 1;
+        $moment->with({hour: 3});
+        $answered = $answered + 1;
+        $moment->withTime(Core\Time\TimeOfDay::at(6, 15));
+        $answered = $answered + 1;
+        $moment->startOf(Core\Unit::Month);
+        $answered = $answered + 1;
+        $moment->endOf(Core\Unit::Year);
+        $answered = $answered + 1;
+        $moment->difference($moment, Core\Unit::Day);
+        $answered = $answered + 1;
+        $moment->toInstant();
+        $answered = $answered + 1;
+        $moment->date();
+        $answered = $answered + 1;
+        $moment->timeOfDay();
+        $answered = $answered + 1;
+        $moment->zone();
+        $answered = $answered + 1;
+        $moment->weekday();
+        $answered = $answered + 1;
+        $moment->dayOfYear();
+        $answered = $answered + 1;
+        $moment->isLeapYear();
+        $answered = $answered + 1;
+    } catch (Throwable $unreachable) {
+        $stopped = $stopped + 1;
+        echo $unreachable->message, "\n";
+    }
+}
+echo $answered, " answered, ", $stopped, " stopped\n";
+
+// The same round trip where it could actually break. A region name is looked
+// up, but a fixed zone's id is *rendered*, so the reader and the writer are two
+// pieces of code that have to agree about a format rather than one table
+// consulted twice — the half hour, the three quarter hour and both signs are
+// where they would stop agreeing. Each zone is rebuilt out of the `DateTime` it
+// was stored in and asked what it is worth, so the claim is the stored id's and
+// not the argument's.
+array<int> $offsets = [0, 3600, -18000, 19800, 45900, 37800, -34200];
+int $round = 0;
+foreach ($offsets as int $secs) {
+    var $built = Core\Time::at(2024, 3, 31, Core\Time\Zone::fixed(Core\Time\Duration::seconds($secs)), {hour: 12});
+    if ($built->zone()->offsetAt($built->toInstant())->toSeconds() == $secs) {
+        $round = $round + 1;
+    }
+    echo $built->format("XXX"), "|";
+}
+echo "\n", $round, " round trips\n";
+--EXPECT--
+0|3600|
+Core\Time\Zone::of(): unknown time zone `Europe/Berln`
+Core\Time\Zone::of(): unknown time zone ``
+Core\Time\Zone::of(): unknown time zone `+05:30`
+2024-01-15 12:00 +05:30|
+-18000|18000|
+Europe/Berlin +02:00|
+6 accepted, 8 refused, 8 named
+102 answered, 0 stopped
+Z|+01:00|-05:00|+05:30|+12:45|+10:30|-09:30|
+7 round trips
