@@ -23,7 +23,9 @@
   the class and leaves the roster to "the milestone that implements them", which is this one.
   [docs/implementation-plan.md](../implementation-plan.md) — M6 gains the directive and the ceiling, M7 the
   public-bind banner.
-- **Relates to:** 0004, 0017, 0018, 0074, 0080, 0092
+- **Amended by:** 0097 — § 3 gains a `[log] access` row, § 3a carries the three `Boot`/`System` startup
+  defaults a mode selects, and § 5's mixed-application host gains its mechanism in a mount's `mode`.
+- **Relates to:** 0004, 0017, 0018, 0074, 0080, 0092, 0097
 
 > **In short:** MWL has no notion of a development deployment versus a production one, and every ecosystem
 > that added one late added it as an **environment variable controlling an un-enumerable bundle** —
@@ -31,7 +33,7 @@
 > Laravel's CVE-2021-3129, and it produced them because nobody could answer *what exactly does this
 > change?* This ADR takes the opposite shape at every point. There are exactly **two** modes,
 > `development` and `production`, they are a closed enum, and the value with nothing configured is
-> **production**. A mode is a **shorthand for the defaults of four named directives** and nothing else —
+> **production**. A mode is a **shorthand for the defaults of eight named directives** and nothing else —
 > each stays individually settable, so `mwl info --config` prints every resolved value and the mode hides
 > no behaviour. It is set in root-owned `mwl.toml` and by `mwl serve --mode=`, never by an environment
 > variable, because [0012](0012-no-superglobals.md) already says no variable is populated by the host. A
@@ -119,7 +121,7 @@ ceiling = "development"     # System  — the most permissive mode any code may 
   snapshot over a local socket with no restart and no control port — strictly more capable than editing an
   environment variable, and root-owned.
 
-### 3. A mode selects defaults for four directives, and governs nothing else
+### 3. A mode selects defaults for five `Runtime` directives, and governs nothing else
 
 **The mode is a shorthand. It changes only the *default* of directives that are each individually settable
 anyway**, which is exactly what [0005](0005-config-changeability.md) says `mwl.toml` states. The complete
@@ -131,6 +133,7 @@ list, and it is complete:
 | `[log] format` | `Runtime` | `"json"` | `"text"` | [0092](0092-one-diagnostic-record-three-renderings.md) § 3 |
 | `[log] level` | `Runtime` | `Info` | `Debug` | [0092](0092-one-diagnostic-record-three-renderings.md) § 2 |
 | `[http.errors] detail` | `Runtime` | `"generic"` | `"full"` | [0020](0020-error-escalation-ladder.md) § 7 |
+| `[log] access` | `Runtime` | `false` | `true` | [0097](0097-development-server-and-proxied-origin.md) § 9 |
 
 Three properties follow, and together they are the whole reason this is a table rather than a bundle:
 
@@ -139,8 +142,33 @@ Three properties follow, and together they are the whole reason this is a table 
 2. **`mwl info --config` prints the resolved value of every directive**, so *what exactly does development
    mode change?* has a complete, mechanical answer at any moment. This is the property `NODE_ENV` cannot
    offer and the reason a closed list was chosen over a behaviour flag.
-3. **No row is `System`-class**, which is what makes § 4's runtime flip coherent: everything the mode
-   governs is something a request could already have set for itself, one directive at a time.
+3. **No row in *this* table is `System`-class**, which is what makes § 4's runtime flip coherent:
+   everything this table governs is something a request could already have set for itself, one directive at
+   a time. § 3a is the other half, and it is a separate table precisely so that stays true.
+
+### 3a. A mode also selects three startup defaults that no code may ever flip
+
+Three directives have a right value that differs between the two modes and cannot be `Runtime`-class,
+because each is read before there is any request to change it. They get a table of their own:
+
+| Directive | Class | `production` | `development` | Owner |
+|---|---|---|---|---|
+| `[server] dispatch` | `Boot` | `"entry"` | `"path"` | [0097](0097-development-server-and-proxied-origin.md) § 3 |
+| `[server] static` | `Boot` | `false` | `true` | [0097](0097-development-server-and-proxied-origin.md) § 4 |
+| `opcache.validate` | `System` | `never` | on | [0017](0017-hot-reload-without-restart.md) |
+
+**The rule that keeps § 3's property intact: a § 3a row is fixed at startup, is never re-derived, and is
+never flippable.** `Core\Config::set` refuses it exactly as it refuses any `Boot` or `System` directive, and
+§ 4's runtime mode flip re-derives **only § 3's rows**. Without that separation a flip would appear to
+change `dispatch` for a request that had already been dispatched.
+
+The objection recorded against `opcache.validate` below was always about the *flip*, never the *default* —
+a request that could set `validate = never` for itself would pin a version of the code past a shipped fix,
+and a startup value chosen by a root-owned mode does none of that.
+
+Everything § 3 exists to protect survives: the list is still closed, still eight rows, and
+`mwl info --config` still prints every resolved value. The cost is that a future directive now has to answer
+which of the two tables it belongs in, and the ADR says which by the directive's changeability class alone.
 
 **What a mode deliberately does not govern**, each with the reason:
 
@@ -149,10 +177,10 @@ Three properties follow, and together they are the whole reason this is a table 
   `[]`, a development or CI host sets a wider ceiling), and its directive is `RuntimeTighten` where the
   configured value is the default *and* the bound — so a mode that widened it would turn probes on for
   every request rather than making them available, spending priority-3 latency nobody asked for.
-- **`opcache.validate` and its rate cap** — [0017](0017-hot-reload-without-restart.md) § makes both
-  `System`-class with a stated reason: a request that could set `validate = never` for itself would pin a
-  version of the code past a shipped fix. A mode entry would have to carve an exception into that, and
-  hot reload is the operator's question rather than the application's.
+- **`opcache.validate`'s rate cap** — [0017](0017-hot-reload-without-restart.md) makes `revalidate_freq`
+  `System`-class with a stated reason: a request that could lower it would be able to force a `stat`/hash
+  storm on a hot file. `validate` itself is a § 3a row; the rate cap is not, because there is no value of it
+  a developer's machine needs that an operator's does not.
 - **Anything with no directive.** A mode never gates a *behaviour* — no dev toolbar, no source-context
   injection, no watcher. If a future feature should differ between modes, it gets a directive first and a
   row here second, in that order. This is the rule that keeps the list enumerable forever.
@@ -177,7 +205,7 @@ Core\Config::set("mode", "development"): bool               // flip, per ADR 000
   application flipping itself is never observable to another request on the same server, and cannot outlive
   the request that did it. **That request-locality is what makes allowing this safe at all**, and it is the
   same property that lets a request raise its own memory limit.
-- **Setting `mode` re-derives § 3's four directives into the request's overlay, except any the request has
+- **Setting `mode` re-derives § 3's five directives into the request's overlay, except any the request has
   already set explicitly.** Without the re-derivation the flip does nothing; without the exception it
   silently stomps a deliberate choice made three lines earlier.
 
@@ -192,7 +220,7 @@ That default gets every case right with no ceremony:
 |---|---|---|
 | Production host | nothing | Started in `production`, ceiling is `production`. **No code path anywhere can reach development mode.** |
 | Developer's machine | `mwl serve --mode=development` | Ceiling is `development`. Flips are free; nothing to configure. |
-| One host, mixed applications | `[mode] default = "production"`, `[mode] ceiling = "development"` | The host is production by default and each application selects its own, in code or in its per-app block. |
+| One host, mixed applications | `[mode] default = "production"`, `[mode] ceiling = "development"` | The host is production by default and each application selects its own — in code, or on its mount ([0097](0097-development-server-and-proxied-origin.md) § 10). |
 
 **The ceiling bounds a runtime flip, not the startup value.** `mwl serve --mode=development` in a directory
 with no `mwl.toml` still simply works — the flag sets the startup mode, and the ceiling follows it. A

@@ -208,9 +208,10 @@ implementation of somebody else's specification, and it is a few dozen lines wit
   more typing than a member that decided for you.
 - **GCRA is unfamiliar.** "Sliding window" is what people think they want, and explaining why the stored
   state is a single timestamp is a documentation cost the algorithm's exactness has to earn back.
-- **No IP limiting is a gap on paper.** A deployment with no proxy in front of it has nothing at the edge,
-  and MWL's answer is "put a proxy in front of it" — correct, and not what somebody deploying a single
-  binary wants to hear.
+- **No IP limiting is a deployment requirement, not a gap.** A production deployment runs behind a proxy by
+  design ([0097](0097-development-server-and-proxied-origin.md) § 1), and that proxy is where per-IP and
+  flood limiting live. A deployment that puts nothing in front of MWL has nothing at the edge, and the
+  answer is the same one 0097 gives for TLS: put a proxy in front of it.
 - **`shed` ships without a caller.** It exists so the naming works and so load shedding has a home; the
   first real use of it will probably reshape its options, and shipping both now is a bet that the naming is
   worth more than the churn.

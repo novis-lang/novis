@@ -187,7 +187,8 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 SystemCallFilter=@system-service
 ```
 
-`AmbientCapabilities` is emitted **only** when the configured listen addresses include a privileged port, so
+`AmbientCapabilities` is emitted **only** when the configured listen addresses
+([0097](0097-development-server-and-proxied-origin.md) § 5's `[server] listen`) include a privileged port, so
 the ordinary case grants nothing at all. `MemoryMax` is derived from the config's `[limits]` rather than
 invented. `Type=notify` means `READY=1` after the listener binds — so `systemctl start` does not return
 before the port accepts — plus `RELOADING=1`/`STOPPING=1` at the transitions and a watchdog ping from the

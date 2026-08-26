@@ -95,8 +95,10 @@
 (`iconv`, over `encoding_rs`, sited at the `bytes`/`string` boundary where conversion is naturally
 failable). `Core\Xml`, one API replacing six extensions, and `Core\Html`, whose escaper and sanitizer are
 ADR 0024 launderers. `Core\Uri` (PHP 8.5's `uri`). `Core\Mime` (`fileinfo`, by magic bytes rather than
-libmagic's rule interpreter). `Core\Compress` (`zlib`, plus brotli and zstd, because all three are HTTP
-`Content-Encoding` values the built-in server needs on the request path). `Core\Zip`. `Core\Decimal` and
+libmagic's rule interpreter). `Core\Compress` (`zlib`, plus brotli and zstd — Tier 0 for the same
+reason `Core\Zip` is, that a decompression bomb is *policy* and policy must be non-optional; the built-in
+server compresses nothing itself, per [ADR 0097](0097-development-server-and-proxied-origin.md) § 1).
+`Core\Zip`. `Core\Decimal` and
 `Core\BigInt` ([ADR 0054](0054-decimal-scalar-type.md)). `Core\Os` (`posix`, minus fork). `Core\Cli`
 and `Core\Command` (`readline`, and the argument parser every other ecosystem leaves to a package —
 [ADR 0086](0086-core-cli-terminal-is-a-sink.md), admitted by test 2 as an output sink and by test 1 for

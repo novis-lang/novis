@@ -6,7 +6,9 @@
   opened, how code inside it is written, how many connections talk to each other (`Core\Topic`), what
   bounds them, and what crosses the boundary. Not in scope: the wire protocols themselves (RFC 6455 framing
   and the SSE format are implementation, carried by the same `hyper` stack M7 already builds), and
-  cross-*machine* fan-out, which § 4 places outside the runtime deliberately.
+  cross-*machine* fan-out, which § 4 places outside the runtime deliberately. The upgrade is **HTTP/1.1
+  only**, where it is native — [0097](0097-development-server-and-proxied-origin.md) § 1 removes h2c, so
+  RFC 8441 extended `CONNECT` is neither reachable nor needed.
 - **Amends:** [0006](0006-isolated-script-execution.md) — `spawn script`'s `with(...)` clause gains a second
   caller in § 2 below, with identical grant, limit and argument rules; the isolate itself is the same
   `Isolate`, not a second isolation path.

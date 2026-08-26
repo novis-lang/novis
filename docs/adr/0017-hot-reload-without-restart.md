@@ -112,6 +112,18 @@ cannot loosen how often, or whether, the process re-checks source files. Letting
 letting it lower `revalidate_freq` would be a way to force a `stat`/hash storm on a hot file. Neither is a
 request-local decision.
 
+**`validate`'s *startup default* is selected by the run mode** — off in `production`, on in `development` —
+as a [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 3a row. That is not a
+loosening of the paragraph above: a § 3a row is chosen by root-owned configuration before any request
+exists, is never re-derived by a runtime mode flip, and stays unflippable from code. `revalidate_freq` is
+not a § 3a row, because no value of it a developer's machine needs differs from an operator's.
+
+**The directory listings this ADR revalidates have a second consumer.** Besides
+[0061](0061-compile-time-autoload-and-program-discovery.md)'s discovery globs, a
+[0097](0097-development-server-and-proxied-origin.md) § 3 mount scan is expanded from a listing, so in
+development a newly created module becomes reachable through the same revalidation rather than through a
+mechanism of its own.
+
 ## Consequences
 
 **Positive**

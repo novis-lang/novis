@@ -38,16 +38,17 @@ by design: `foo.` opens `foo`, `CON` is a device in every directory, `file.txt::
 stream, and `PROGRA~1` aliases a long name. A component can pass a lexical containment check and resolve
 outside the base.
 
-Two arguments say this is MWL's problem rather than a deployment's.
+One argument says this is MWL's problem rather than a deployment's, and a proxy in front makes it stronger
+rather than weaker.
 
 **"A proxy does it earlier and better" is true for limits and false for parsing.** Request smuggling *is* a
 proxy/origin parser differential: it exists precisely because two parsers read one byte stream differently.
 Delegating leniency to the proxy is not a mitigation, it is the mechanism. [0074](0074-http-defaults-safe-and-finite.md)
 drew that line for size and rate, where it is correct, and the wording did not distinguish the two.
 
-**MWL is frequently deployed with no proxy at all.** [0048](0048-portable-single-file-executables.md)'s
-single-file executable and [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)'s
-`mwl service` both describe an origin server facing the network directly.
+**A production deployment always has a proxy in front of it**
+([0097](0097-development-server-and-proxied-origin.md) § 1), which is exactly the deployment a lenient
+origin parser is dangerous in — the differential needs two parsers to exist, and there they both are.
 
 ## Decision
 
@@ -80,6 +81,8 @@ Refused, on a request MWL receives **and on a response MWL's outbound client rec
 | `Content-Length` together with `Transfer-Encoding` | the classic smuggling pair |
 | NUL anywhere in a hostname | the name resolved is not the name written |
 | a `Location`, hostname or URI longer than its configured maximum | truncating produces a *different, valid* value, which is worse than an error |
+| a request path containing a dot-segment or an encoded separator (`%2f`) | the path a mount is selected by and the path a reader sees come apart ([0097](0097-development-server-and-proxied-origin.md) § 6) |
+| an `X-Forwarded-For` token in the trusted-walk position that does not parse as an IP address | the value was about to be used as the client's address and cannot be read as one ([0097](0097-development-server-and-proxied-origin.md) § 6) |
 
 **No opt-out on the outbound half.** A remote server is an attacker — php-src CVE-2024-8929 had a hostile
 MySQL server read one client's heap containing another user's query — and a response's body flows straight

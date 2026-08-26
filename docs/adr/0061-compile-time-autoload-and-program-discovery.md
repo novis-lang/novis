@@ -296,7 +296,9 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
   the cache key; a test asserts that adding a shadowing file misses the cache with no source file modified.
 - **M7** ([ADR 0017](0017-hot-reload-without-restart.md)) — directory listings join the revalidation set; a
   test asserts a new module file is picked up without a restart, that a listing change not affecting the
-  discovered set recompiles nothing, and that `validate = never` performs no directory stats at all.
+  discovered set recompiles nothing, and that `validate = never` performs no directory stats at all. The
+  same revalidated listings are what re-expand a [0097](0097-development-server-and-proxied-origin.md) § 3
+  mount scan in development.
 - **M8** — `Core\Program::implementing<T>()` lands with the `Core` roster
   ([ADR 0051](0051-standard-library-tiers.md)); the expansion is checker work that may land earlier, the
   same split [ADR 0046](0046-attributes-shape-literal-metadata.md) has between attribute grammar and

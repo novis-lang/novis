@@ -106,6 +106,12 @@ histogram in § 1, not a span — a collection pause is not a unit of work in a 
   its sampled flag is honoured. A malformed header **starts a new trace** rather than throwing — it arrived
   from outside, it is `tainted`, and refusing a request over a bad tracing header would make an
   observability feature into an availability one.
+- **A trace id exists for every request, whatever the sampling decision.** Sampling governs whether a trace
+  is *exported*, never whether an id is generated, and that is what lets the same id be MWL's only request
+  identifier: `Core\Server::traceId()` reads it, every `[log]` record and every error rendering carries it,
+  and it is emitted on the response so a proxy can log it with one `log_format` line. There is deliberately
+  no second identifier and no inbound `X-Request-ID`
+  ([0097](0097-development-server-and-proxied-origin.md) § 9).
 - `Core\Http\Client` **propagates** `traceparent` outward when `[trace] propagate` is on, which is what makes
   a trace cross a service boundary at all.
 - Sampling is **head-based** at the root: `[trace] sample` is the probability a *new* trace is recorded. An

@@ -81,6 +81,10 @@ max_tasks  = 4096
 max_output = "512M"
 ```
 
+`request_body` joins both blocks ([0097](0097-development-server-and-proxied-origin.md) § 8) — an inbound
+body is per-request memory, so it belongs to the pair that already governs per-request memory rather than to
+a third one of its own.
+
 A size or a duration stays a **quoted string carrying its suffix** (`"128M"`, `"5s"`) rather than becoming
 a bare integer of implied units: the suffix is what makes the file readable at a glance, and the parser for
 it has to exist anyway for `Core\Config::set("memory", "512M")` (§ 5). A count is an ordinary integer.
@@ -131,6 +135,7 @@ that a reader of `mwl.toml` has one place to start:
 | `[[schedule]]` | [0073](0073-scheduled-work-is-config.md) |
 | `[http.headers]`, `[http.cors]`, `[http.cookies]`, `[http.client]` | [0074](0074-http-defaults-safe-and-finite.md) |
 | `[metrics]`, `[trace]` | [0076](0076-observability-export.md) |
+| `[server]`, `[[server.mount]]` | [0097](0097-development-server-and-proxied-origin.md) |
 
 `[[schedule]]` is an array-of-tables for § 2's stated reason — a repeated record with several fields — and
 is the second such block after `[[extension]]`.

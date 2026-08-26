@@ -178,7 +178,10 @@ Core\Router\Match — readonly name: ?string, params: {…}, method: Http\Method
 - **`url` is a launderer for the URL-path sink** in
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3's existing shape: it percent-encodes each
   substituted value, so a `tainted` parameter produces a plain `string` path that is safe *as a path* and
-  for nothing else. A literal `$name` that is not a declared route, and a `$params` array that does not
+  for nothing else. It also **prepends the request's mount prefix**
+  ([0097](0097-development-server-and-proxied-origin.md) § 3), which is what lets one compiled table serve
+  the same module at `/ModuleA`, at `/ModuleB` or at `/` — and is why link generation must go through this
+  member rather than concatenating a declared path. A literal `$name` that is not a declared route, and a `$params` array that does not
   cover the route's captures, are **compile errors**; a computed `$name` throws.
 
 **What it deliberately does not do**, because each is a framework opinion and the user confirmed the point
@@ -191,8 +194,11 @@ of stopping short:
 - **No middleware, no filters, no groups, no route-level rate limit** — the last one specifically, because
   [ADR 0075](0075-core-ratelimit.md) § 4 declines to decide what a limit *does* for the same reason.
 - **No `HEAD`-implies-`GET`, no automatic `OPTIONS`, no trailing-slash normalisation.** Each is a real
-  convention and each is somebody's wrong default; the M7 server may implement whichever of them it wants
-  above this table, visibly.
+  convention and each is somebody's wrong default. The M7 server decides them above this table, visibly, and
+  [0097](0097-development-server-and-proxied-origin.md) § 7 is where it did: `HEAD` runs as `GET` with the
+  body discarded — and `Core\Request::method()` reports `Get`, so a `Get`-only table still matches — a CORS
+  preflight is answered from `[http.cors]` before any handler runs, and a trailing slash is never
+  normalised.
 
 ### 5. The table is built by the same scan `implementing<T>()` uses
 

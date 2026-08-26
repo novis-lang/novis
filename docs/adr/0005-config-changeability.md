@@ -85,9 +85,14 @@ max_output = "512M"
 The shipped ceilings are deliberately generous: they are sized to stop a runaway, not to shape ordinary
 code. A script that raises its own `memory` to 512M for an import is doing something the operator has
 already permitted; a script that asks for 8G is refused. `[limits.hard] memory = false` removes the ceiling
-entirely, giving literal PHP behaviour on a trusted single-tenant host, and per-app blocks may override a
-ceiling downward the same way they override a capability grant, since those blocks already live in the root
-config.
+entirely, giving literal PHP behaviour on a trusted single-tenant host, and a per-app block may override a
+ceiling downward the same way it overrides a capability grant. **What a per-app block is keyed on, and how
+one is spelled, is not stated anywhere yet** — this ADR, [0064](0064-configuration-file-format.md)
+§ *Revisiting* and [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 5 all build on
+them and none defines them. [0097](0097-development-server-and-proxied-origin.md) § 10 records the gap and
+the constraint that resolving it must satisfy: an application's identity should be its **entry file path**,
+so that `mwl run` on the CLI has one too and per-app configuration does not become reachable only once a
+server exists.
 
 **A refused `Core\Config::set` returns `false` and leaves the value unchanged**, with a `W`-class diagnostic naming
 the ceiling. It is not clamped to the ceiling: silently running with a different number than the one

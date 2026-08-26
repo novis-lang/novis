@@ -5,7 +5,9 @@
 - **Scope:** the response-policy blocks `[http.headers]`, `[http.cors]` and `[http.cookies]` enforced by the
   M7 server, their directives and their changeability class; and `[http.client]` plus `Core\Http\Client`'s
   options shape, in which there is no spelling for *wait forever* and retry is opt-in, jittered and
-  deadline-covered. Not in scope: `Core\Request`'s full surface (M7's own design), the TLS configuration,
+  deadline-covered. Not in scope: `Core\Request`'s full surface and the server itself, both
+  [0097](0097-development-server-and-proxied-origin.md)'s (which also removes the inbound TLS listener this
+  ADR left out of scope),
   and [ADR 0058](0058-outbound-request-policy.md)'s address policy, which is unchanged and enforced under
   everything here.
 - **Amends:** [0064](0064-configuration-file-format.md) — four new blocks.
@@ -22,7 +24,7 @@
 
 > **In short:** one decision with two subsystems — **a default that is unsafe or unbounded is a defect, not
 > a neutral starting point**. Inbound: a deployment with **no HTTP configuration written at all** already
-> sends `nosniff`, `frame-ancestors 'none'`, a referrer policy and HSTS over TLS, and every cookie is
+> sends `nosniff`, `frame-ancestors 'none'`, a referrer policy and HSTS on `https`, and every cookie is
 > `Secure; HttpOnly; SameSite=Lax`. CORS stays **closed** until origins are named, and
 > `origins = ["*"]` together with `credentials = true` is **refused at boot and at runtime alike**. Every
 > directive is **`Runtime`** class, so a request may change or disable any of it *for itself* and the change
@@ -82,11 +84,13 @@ permissions_policy      = ""      # empty: nothing emitted
 Applied to every response the M7 server writes, with no configuration present. Three details are decisions
 rather than transcription:
 
-- **HSTS is emitted only over TLS.** A browser ignores it on a plaintext connection anyway, so emitting it
-  there would be noise; more importantly, a deployment that terminates TLS at a proxy and speaks plaintext
-  to MWL must set the header at the proxy, and pretending otherwise would hide that. `localhost`,
-  `127.0.0.1` and `::1` are secure contexts in every current browser, so local development over plain HTTP
-  is unaffected by anything in this section.
+- **HSTS is emitted when the effective scheme is `https`, and not otherwise.** A browser ignores it on a
+  plaintext connection anyway, so emitting it there would be noise. MWL never terminates TLS itself
+  ([0097](0097-development-server-and-proxied-origin.md) § 1), so in practice the effective scheme is the
+  one a **trusted** proxy asserts through `X-Forwarded-Proto` (0097 § 6) — with `trusted_proxies` empty the
+  scheme is `http` and no HSTS is sent, which is the safe direction for a header that cannot be revoked from
+  a client. `localhost`, `127.0.0.1` and `::1` are secure contexts in every current browser, so local
+  development over plain HTTP is unaffected by anything in this section.
 - **`hsts_subdomains` defaults to `false`.** `includeSubDomains` is the HSTS setting that has actually taken
   deployments down — a sibling subdomain on plain HTTP becomes unreachable, for a year, with no way to
   revoke it from the client. Whether a domain's subdomains are all TLS-only is knowledge MWL does not have.
@@ -285,13 +289,15 @@ regardless, and refusing it would buy nothing.
 - **Edge concerns in `mwl.toml` too** — request-size caps, per-IP connection limits, slow-loris timeouts.
   Rejected as this ADR's business: a proxy in front of MWL does those earlier and better, which is the same
   line [ADR 0075](0075-core-ratelimit.md) draws for flood limiting. M7 still caps a request body, because
-  that is memory it allocates itself. **That line covers size and rate, and explicitly not parsing** —
-  request smuggling *is* a proxy/origin parser differential, so delegating leniency to the proxy is the
-  mechanism rather than a mitigation, and [ADR 0048](0048-portable-single-file-executables.md) and
-  [ADR 0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) both describe deployments
-  with no proxy at all. How a message is read is
-  [ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md)'s, which also caps a multipart **part
-  count** — a cost in bookkeeping and temp files that no body-size cap bounds.
+  that is memory it allocates itself ([ADR 0097](0097-development-server-and-proxied-origin.md) § 8, where
+  the cap is `[limits] request_body` rather than a directive of its own). **That line covers size and rate,
+  and explicitly not two other things.** It does not cover **parsing** — request smuggling *is* a
+  proxy/origin parser differential, so delegating leniency to the proxy is the mechanism rather than a
+  mitigation; how a message is read is [ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md)'s,
+  which also caps a multipart **part count**, a cost in bookkeeping that no body-size cap bounds. And it
+  does not cover **waiting**: this ADR's own rule that an unbounded default is a defect applies to a
+  connection too, so the four idle timeouts in
+  [ADR 0097](0097-development-server-and-proxied-origin.md) § 5 are MWL's, not a proxy's.
 - **A per-attempt timeout instead of one covering deadline.** What most HTTP clients offer. Rejected: three
   attempts at a "5-second timeout" is a fifteen-second call, and the caller reasoned about five.
 - **Configurable jitter, including off.** Rejected: the one setting whose wrong value harms a service that
@@ -320,7 +326,7 @@ regardless, and refusing it would buy nothing.
 ## Verification
 
 - **M7:** a deployment with no `[http.*]` block at all sends `nosniff`, `frame-ancestors 'none'` and a
-  referrer policy on every response, and sends HSTS over TLS and not over plaintext.
+  referrer policy on every response, and sends HSTS when a trusted proxy asserts `https` and not otherwise.
 - **M7:** `Core\Response::addCookie` with no options produces `Secure; HttpOnly; SameSite=Lax; Path=/`; a
   cookie explicitly marked script-readable omits `HttpOnly` and nothing else.
 - **M7:** with `origins = []`, no CORS header is emitted and a preflight is answered `403`; with an origin

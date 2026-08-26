@@ -140,9 +140,9 @@ language underneath it.
 
 - **A second full codegen backend is real, ongoing cost**: instruction selection and calling-convention
   lowering happen twice from here on for every codegen feature. Accepted under priority 4 (simplicity of the
-  implementation, spent last, per AGENTS.md's priority ordering) because the target is optional — M14,
-  contingent, the same status M13 already gives the FastCGI transport — and shares everything upstream of
-  codegen.
+  implementation, spent last, per AGENTS.md's priority ordering) because the target is optional — M14 is
+  contingent on an embedding actually wanting it, and is the only contingent milestone left — and shares
+  everything upstream of codegen.
 - **The `Core` surface genuinely differs by target.** Code that spawns, suspends on I/O, or loads a `.mwlx`
   extension does not port to the browser silently; it is a compile-time diagnostic, not a runtime surprise,
   but "write once, target anywhere" now has three named exceptions instead of zero.
