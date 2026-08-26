@@ -581,6 +581,10 @@ impl Emitter<'_, '_> {
                 let value = self.emit_concat(*lhs, *rhs)?;
                 self.define(inst, value)?;
             }
+            InstKind::StrAppend { target, suffix } => {
+                let value = self.emit_str_append(*target, *suffix)?;
+                self.define(inst, value)?;
+            }
             InstKind::Clone { object } => {
                 let (object, _) = self.value(*object)?;
                 let callee = self.runtime_ref("mwl_object_clone", RuntimeSig::PtrToPtr)?;
@@ -1780,6 +1784,31 @@ impl Emitter<'_, '_> {
         }
         let callee = self.runtime_ref("mwl_str_concat", RuntimeSig::StrConcat)?;
         let call = self.b.ins().call(callee, &[l, r]);
+        Ok(self.b.inst_results(call)[0])
+    }
+
+    /// `.=` on a `string` local: one call to `mwl_str_append`, which writes
+    /// into the target's own buffer whenever it is solely owned and has the
+    /// room, and separates copy-on-write when it is not.
+    ///
+    /// The same non-helper memory primitive [`Self::emit_concat`] calls, and
+    /// the same two-pointers-to-a-pointer signature, so it shares
+    /// [`RuntimeSig::StrConcat`]. What it does *not* share is ownership: this
+    /// call consumes the reference `target` arrived with and produces the one
+    /// the result carries, which is `mwl_ir::ir::InstKind::StrAppend`'s
+    /// protocol and why nothing is retained or released around it here either.
+    fn emit_str_append(&mut self, target: ValueId, suffix: ValueId) -> Result<Value, CodegenError> {
+        let (t, tty) = self.value(target)?;
+        let (s, sty) = self.value(suffix)?;
+        for ty in [tty, sty] {
+            if !matches!(ty, Ty::Str | Ty::Bytes) {
+                return Err(internal(
+                    "a string-append operand that lowering left unconverted",
+                ));
+            }
+        }
+        let callee = self.runtime_ref("mwl_str_append", RuntimeSig::StrConcat)?;
+        let call = self.b.ins().call(callee, &[t, s]);
         Ok(self.b.inst_results(call)[0])
     }
 

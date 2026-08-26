@@ -311,7 +311,9 @@
 //!     [`ir::BinOp`] variant at all, and a compound assignment inherits both
 //!     holes.** [`lower::Lowering::lower_compound_assignment`] rewrites
 //!     `$x op= e` into the `$x = $x op e` it means, so an operator gains its
-//!     compound form exactly when its binary form lowers — which leaves
+//!     compound form exactly when its binary form lowers (`.=` on a plain
+//!     `string` local is the one exception, and it takes
+//!     [`ir::InstKind::StrAppend`] instead) — which leaves
 //!     `&=`, `|=`, `^=`, `<<=`, `>>=` and `**=` out for the same reason `&`
 //!     and `**` themselves are out: [`ir::BinOp`] stops at the arithmetic,
 //!     equality and ordering rows, so [`lower::Lowering::lower_expr`] panics

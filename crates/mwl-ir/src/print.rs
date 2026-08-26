@@ -219,6 +219,9 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             format!("instanceof v{}, {class}", value.index())
         }
         InstKind::Concat { lhs, rhs } => format!("concat v{}, v{}", lhs.index(), rhs.index()),
+        InstKind::StrAppend { target, suffix } => {
+            format!("str.append v{}, v{}", target.index(), suffix.index())
+        }
         InstKind::Reinterpret { operand } => format!("reinterpret v{}", operand.index()),
         InstKind::Tag { operand } => format!("tag v{}", operand.index()),
         InstKind::Untag { operand } => format!("untag v{}", operand.index()),

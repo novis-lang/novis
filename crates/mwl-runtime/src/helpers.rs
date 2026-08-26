@@ -1088,6 +1088,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::string::mwl_str_concat as *const ()).cast::<u8>(),
         ),
         (
+            "mwl_str_append",
+            (crate::string::mwl_str_append as *const ()).cast::<u8>(),
+        ),
+        (
             "mwl_str_eq",
             (crate::string::mwl_str_eq as *const ()).cast::<u8>(),
         ),

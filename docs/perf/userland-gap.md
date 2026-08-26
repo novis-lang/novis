@@ -30,7 +30,7 @@ is faster.
 | | today | with a pooled allocator | closed by |
 |---|---|---|---|
 | median ratio | **0.31×** | **0.54×** | A |
-| 03-string-concat | 0.03× | 0.01× | **B** |
+| 03-string-concat | **1.19×** † | — | B, two thirds open |
 | 04-string-format | 0.07× | 0.18× | A, E, I |
 | 14-word-count | 0.13× | 0.20× | A, F |
 | 12-array-map-filter | 0.18× | 0.34× | A, D |
@@ -50,6 +50,11 @@ is faster.
 | 02-fib-recursive | 2.25× | 2.09× | — |
 | 19-object-property | 1.05× | **3.39×** | — |
 | 11-array-sort-by-field | 3.22× | **3.47×** | — |
+
+† `03-string-concat` is re-measured, 15 reps, after § B's first change landed; it was 0.03× in the
+sweep above. Its second column is struck rather than updated, because that column measured a build
+from before the append existed and re-running it would answer a question nobody is asking any more.
+Every other row is the original sweep, so the median is stale by one row until the next full run.
 
 The second column is not a projection. It is the same suite re-run against a build carrying a
 90-line thread-local size-class free list in front of `System` — item A's cheap half, built to
@@ -142,15 +147,25 @@ class, in `benches/abi-probe/tests/perf_guards.rs`.
 
 ### B — a string has capacity, and `.=` appends into it
 
-`StrHeader` carries a refcount and a length and nothing else, and `mwl_str_concat` always builds a
-fresh allocation, so `$out .= $piece` copies the whole accumulated string every iteration.
-Measured: 50 000 appends take 238 ms and 100 000 take 1 386 ms — 5.8× for twice the work. This is
-the whole of `03-string-concat`, and no allocator fixes it.
+`StrHeader` carried a refcount and a length and nothing else, and `mwl_str_concat` always builds a
+fresh allocation, so `$out .= $piece` copied the whole accumulated string every iteration.
+Measured then: 50 000 appends took 238 ms and 100 000 took 1 386 ms — 5.8× for twice the work, the
+super-linear shape being the tell. This was the whole of `03-string-concat`, and no allocator fixed
+it.
 
-Three changes, one layout revision:
+Three changes, one layout revision. **The first has landed**: the same two runs now take **15.3 ms
+and 20.6 ms** — 1.65× for twice the work, against 5.8× — and `03-string-concat` is **1.19×**
+against PHP where it was 0.03×. The other two are still open, and both are still worth having: the
+row this case builds is four `Concat` allocations before the append ever sees it.
 
-- **Capacity in the header**, and an `mwl_str_append` taking the same *consume one reference,
-  return one* protocol `mwl_array_set` already uses — so an append at refcount 1 is in place.
+- ~~**Capacity in the header**, and an `mwl_str_append` taking the same *consume one reference,
+  return one* protocol `mwl_array_set` already uses — so an append at refcount 1 is in place.~~
+  **Landed.** `StrHeader`'s third word is a capacity, `mwl_str_append` doubles when it has to and
+  writes in place when it does not, and `mwl_ir::ir::InstKind::StrAppend` carries `.=` on a plain
+  `string` local to it with no retain and no release. What it spends — 8 bytes per string
+  allocation, and up to twice the payload for a string that has been appended to — is stated in
+  `crates/mwl-runtime/src/string.rs`'s module doc § *Capacity, and what it spends*, which is where
+  that fact lives rather than here.
 - **`.` becomes n-ary.** `InstKind::Concat` is strictly binary, so `"a" . $i . "b" . $i . "c"` is
   four allocations of a growing prefix. `MwlStr::from_pieces` already exists for exactly this and
   nothing calls it from codegen.
@@ -167,9 +182,10 @@ ever reachable from two threads" reasoning behind the plain `Cell` refcount stop
 stated. It stays *sound*, because a pinned refcount is never written; the reasoning has to say so
 rather than leave the next reader to re-derive it.
 
-*Owner:* `crates/mwl-runtime/src/string.rs`'s module doc. *Guards:* a string literal allocates
-nothing, and appending to a uniquely owned string does not reallocate — both measurable through
-`counting_alloc::allocated_bytes`, the shape `an_integer_subscript_allocates_no_key` already uses.
+*Owner:* `crates/mwl-runtime/src/string.rs`'s module doc. *Guards:*
+`appending_into_spare_capacity_allocates_nothing` holds the append half — it reads
+`counting_alloc::allocated_bytes`, the shape `an_integer_subscript_allocates_no_key` already uses;
+a string literal allocating nothing is still owed by the third change.
 
 ### C — an integer subscript reaches the packed form from compiled code
 

@@ -643,6 +643,42 @@ pub enum InstKind {
         /// The right operand, already lowered and already [`Ty::Str`].
         rhs: ValueId,
     },
+    /// `$s .= e` where `$s` is a plain [`Ty::Str`] local — the one compound
+    /// assignment `crate::lower::Lowering::lower_compound_assignment` does not
+    /// rewrite to `$x = $x op e`, because the rewrite's
+    /// [`InstKind::Concat`] can only ever build a *fresh* buffer and copy the
+    /// whole accumulation into it. In a loop that is quadratic, which is what
+    /// this instruction exists to stop being.
+    ///
+    /// **Defines a fresh [`crate::ty::Ty::Str`] value on exactly
+    /// [`InstKind::ArraySet`]'s consume-one-reference-yield-one protocol** —
+    /// see that variant's own doc comment, which is the one home for it. The
+    /// consequence for lowering is the same one: the *holder* of `target` — a
+    /// local's `Env` binding — is re-pointed at the result, with no retain and
+    /// no release of either, because the consumed reference and the produced
+    /// one are that same one slot's. `mwl_runtime`'s `mwl_str_append` owns
+    /// when the two are the same pointer (solely owned, and enough room) and
+    /// when a copy-on-write separation makes them different ones.
+    ///
+    /// `suffix` is only *read*, exactly as [`InstKind::Concat`] reads both of
+    /// its operands, so it is not retained here — and a `suffix` that no
+    /// durable slot owns (a literal, a `Concat` result, a freshly converted
+    /// [`HelperCall`](InstKind::HelperCall)) is released right after this
+    /// instruction reads it, by the same
+    /// `crate::lower::Lowering::owned_temporaries` staging `Concat`'s own
+    /// operands go through.
+    ///
+    /// Restricted to a plain local target on purpose. A property or element
+    /// target would have to write the result back through a `FieldSet` or an
+    /// `ArraySet`, which is the write-back `Concat`'s rewrite already gets for
+    /// free; those keep the rewrite.
+    StrAppend {
+        /// The string appended to, already lowered and already [`Ty::Str`].
+        /// One reference to it is consumed.
+        target: ValueId,
+        /// The bytes to append, already lowered and already [`Ty::Str`].
+        suffix: ValueId,
+    },
     /// Takes the pending exception out of the request context, transferring
     /// ownership of one reference to the [`crate::ty::Ty::Object`] this
     /// defines — the first instruction of a `catch`'s dispatch block, and the

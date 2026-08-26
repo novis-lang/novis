@@ -315,6 +315,15 @@ impl<'a> Lowering<'a> {
     /// evaluation is the same load and observes the same value, but
     /// `f()->count += 1` would call `f()` twice where PHP calls it once.
     ///
+    /// **`.=` on a plain `string` local is the one exception**, and it takes
+    /// [`Self::lower_string_append`] instead. The rewrite is correct for it —
+    /// it is what this function did until the append existed — but its
+    /// `InstKind::Concat` can only build a fresh buffer and copy the whole
+    /// accumulation into it, so `$out .= $piece` in a loop is quadratic in the
+    /// number of appends. Every other target keeps the rewrite, because a
+    /// property or an element already needs the write-back the rewrite
+    /// performs; see [`InstKind::StrAppend`].
+    ///
     /// # Panics
     ///
     /// Panics naming the target when it is not one [`is_reevaluable_target`]
@@ -328,6 +337,18 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) {
+        if op == BinaryOp::Concat
+            && let ExprKind::Variable(name_span) = &target.kind
+        {
+            let name = strip_sigil(span_text(self.src, *name_span)).to_owned();
+            // A `Ty::Ref` binding (`&$x`) names the caller's slot rather than
+            // an SSA value, so it is not a holder this can re-point; it falls
+            // through to the rewrite, which stores through the address.
+            if let Some(&(current, Ty::Str)) = env.get(&name) {
+                self.lower_string_append(name, current, value, env, cur);
+                return;
+            }
+        }
         assert!(
             is_reevaluable_target(&target.kind),
             "mwl-ir lowers a compound assignment by rewriting it to `$x = $x op e`, which reads \
@@ -353,6 +374,40 @@ impl<'a> Lowering<'a> {
             span: e.span,
         };
         self.lower_reassignment(&desugared, env, cur);
+    }
+
+    /// `$s .= e;` where `$s` is a plain `Ty::Str` local — one
+    /// [`InstKind::StrAppend`] that appends into `$s`'s own buffer whenever
+    /// nothing else holds it, rather than the rewrite's `Concat` copying the
+    /// whole accumulation into a fresh one.
+    ///
+    /// **No retain and no release of either operand**, which is
+    /// [`Self::write_back_array`]'s bookkeeping exactly: the instruction
+    /// consumes the local's one reference and yields the one that replaces it
+    /// in the same `Env` slot, so `env.insert` is the entire write-back.
+    /// [`InstKind::StrAppend`]'s own doc comment owns that protocol.
+    ///
+    /// The suffix goes through [`Self::concat_operand`], so a scalar is
+    /// converted to a `string` first and staged on
+    /// [`Self::owned_temporaries`] when no durable slot owns it — the same
+    /// treatment, and the same throwing-edge safety, [`Self::lower_concat`]
+    /// gives its two operands.
+    fn lower_string_append(
+        &mut self,
+        name: String,
+        target: ValueId,
+        value: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
+        let mark = self.temporaries_mark();
+        let (suffix, aliasing) = self.concat_operand(value, env, cur);
+        if !aliasing {
+            self.own_temporary(suffix);
+        }
+        let (appended, _) = self.emit(*cur, Ty::Str, InstKind::StrAppend { target, suffix });
+        self.release_temporaries_since(mark, *cur);
+        env.insert(name, (appended, Ty::Str));
     }
     /// `$x = expr;` or `$obj->prop = expr;` as a bare expression statement —
     /// SSA renaming needs no join logic here, only a fresh binding in `env`

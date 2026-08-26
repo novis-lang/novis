@@ -3803,6 +3803,36 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
+    /// `$out .= $piece;` on a plain `string` local — one `str.append` and
+    /// nothing else. No `concat`, because there is no fresh buffer to build;
+    /// no retain of the suffix, which `$piece`'s own slot still owns; and no
+    /// release of the old `$out`, because `InstKind::StrAppend` consumes that
+    /// reference and yields the one the binding is re-pointed at. That is
+    /// `InstKind::ArraySet`'s protocol, which that variant's doc comment owns.
+    #[test]
+    fn appending_to_a_string_local_appends_in_place_rather_than_concatenating() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(string $piece): string {\n    var $out = \"\";\n    \
+             $out .= $piece;\n    return $out;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$this->p .= "x";` keeps the `$x = $x . e` rewrite: a property target
+    /// already needs the `FieldSet` write-back the rewrite performs, so
+    /// `Lowering::lower_string_append`'s one-slot bookkeeping does not reach
+    /// it and `concat` is still what runs. An `int` suffix on a `string`
+    /// local is the same story one operand along — it is converted through
+    /// `helper.int_to_string` first, then appended.
+    #[test]
+    fn appending_to_a_property_keeps_the_concat_rewrite() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  public string $p = \"\";\n  function m(): void {\n    \
+             $this->p .= \"x\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
     /// `unset($a[0]);` — the other subscript that still renders.
     /// `InstKind::ArrayUnset` has no index-shaped runtime primitive beside
     /// it, so `Lowering::lower_rendered_array_key` forces the decimal here

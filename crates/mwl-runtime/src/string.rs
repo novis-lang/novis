@@ -1,4 +1,4 @@
-//! MWL's refcounted string: one heap allocation, a two-word header, and the
+//! MWL's refcounted string: one heap allocation, a three-word header, and the
 //! bytes inline behind it.
 //!
 //! This is the first non-scalar representation the runtime owns, and the one
@@ -12,10 +12,10 @@
 //! # Layout
 //!
 //! ```text
-//! offset 0                    offset size_of::<StrHeader>()
-//! +-------------+-----------+ +----------------------------+
-//! | refcount    | len       | | len bytes of payload       |
-//! +-------------+-----------+ +----------------------------+
+//! offset 0                              offset size_of::<StrHeader>()
+//! +-------------+-----------+---------+ +------------------------------+
+//! | refcount    | len       | cap     | | cap bytes, the first len live |
+//! +-------------+-----------+---------+ +------------------------------+
 //! ```
 //!
 //! One allocation, not two. A `Box<StrData>` holding a `Box<[u8]>` would be
@@ -23,9 +23,26 @@
 //! on every string produced, which is a latency question (priority 3 in
 //! [AGENTS.md](../../../AGENTS.md)) rather than a footprint one. Codegen will
 //! eventually inline the refcount increment/decrement using
-//! [`REFCOUNT_OFFSET`]/[`LEN_OFFSET`]/[`PAYLOAD_OFFSET`] rather than calling
-//! [`mwl_str_retain`]/[`mwl_str_release`]; those constants exist so the layout
-//! is queried, never restated.
+//! [`REFCOUNT_OFFSET`]/[`LEN_OFFSET`]/[`CAP_OFFSET`]/[`PAYLOAD_OFFSET`] rather
+//! than calling [`mwl_str_retain`]/[`mwl_str_release`]; those constants exist
+//! so the layout is queried, never restated.
+//!
+//! # Capacity, and what it spends
+//!
+//! `cap` is how many payload bytes the allocation has room for; `len` is how
+//! many are live. **Every constructor here sets the two equal**, so the only
+//! way a string ever holds an unused byte is [`mwl_str_append`] growing one.
+//!
+//! What the third word costs is **8 bytes per string allocation**, a 16-byte
+//! header becoming 24. What it buys is that `$out .= $piece` stops being
+//! quadratic: without a capacity there is nowhere to append *into*, so every
+//! iteration allocated a fresh buffer and copied the whole accumulation into
+//! it — 50,000 appends took 238 ms and 100,000 took 1,386 ms, the
+//! super-linear shape being the tell. A string that is appended to holds up
+//! to **twice its payload**, which is [`grown_capacity`]'s doubling; a string
+//! that is never appended to holds exactly its payload. That is priority 5
+//! spent on priority 3, which is the direction [AGENTS.md](../../../AGENTS.md)
+//! asks for, and it is the whole of what this word spends.
 //!
 //! # Why the refcount is a plain `Cell`
 //!
@@ -54,8 +71,14 @@ use std::ptr::NonNull;
 pub struct StrHeader {
     /// How many owners hold this allocation. Reaching `0` frees it.
     refcount: Cell<usize>,
-    /// Payload length in bytes. Immutable for the allocation's lifetime.
-    len: usize,
+    /// Payload length in bytes. Written only by [`mwl_str_append`], and only
+    /// while this allocation has exactly one owner.
+    len: Cell<usize>,
+    /// How many payload bytes the allocation has room for — what the layout
+    /// this header was allocated with, and will be freed with, is computed
+    /// from. Immutable for the allocation's lifetime: growing means a new
+    /// allocation, never a bigger `cap` on this one.
+    cap: usize,
 }
 
 /// Byte offset of the reference count within [`StrHeader`].
@@ -64,16 +87,34 @@ pub const REFCOUNT_OFFSET: usize = std::mem::offset_of!(StrHeader, refcount);
 /// Byte offset of the payload length within [`StrHeader`].
 pub const LEN_OFFSET: usize = std::mem::offset_of!(StrHeader, len);
 
+/// Byte offset of the payload capacity within [`StrHeader`].
+pub const CAP_OFFSET: usize = std::mem::offset_of!(StrHeader, cap);
+
 /// Byte offset of the payload itself, relative to the [`StrHeader`] pointer.
 pub const PAYLOAD_OFFSET: usize = std::mem::size_of::<StrHeader>();
 
-/// The allocation shape for a string of `len` payload bytes.
-fn str_layout(len: usize) -> Layout {
+/// The allocation shape for a string with room for `cap` payload bytes.
+///
+/// Takes the *capacity*, never the length: this is the layout an allocation is
+/// both made and freed with, and those two must be the same one.
+fn str_layout(cap: usize) -> Layout {
     let size = PAYLOAD_OFFSET
-        .checked_add(len)
-        .expect("string length overflows the address space");
+        .checked_add(cap)
+        .expect("string capacity overflows the address space");
     Layout::from_size_align(size, std::mem::align_of::<StrHeader>())
         .expect("string layout is always valid: alignment is a power of two")
+}
+
+/// How much room a string of `len` bytes takes when it has to grow to hold
+/// `needed` — doubling, floored at what is actually asked for.
+///
+/// Doubling is what makes a loop of appends linear overall rather than
+/// quadratic: each reallocation copies `len` bytes but at least doubles the
+/// room, so the copies sum to under twice the final length however many
+/// appends there were. The cost is that an appended-to string holds up to
+/// twice its payload, which this module's docs state as what capacity spends.
+fn grown_capacity(len: usize, needed: usize) -> usize {
+    needed.max(len.saturating_mul(2))
 }
 
 /// An owning handle to one reference of an MWL string.
@@ -117,7 +158,42 @@ impl MwlStr {
             .iter()
             .try_fold(0_usize, |total, piece| total.checked_add(piece.len()))
             .expect("an MWL string's length cannot overflow a usize");
-        let layout = str_layout(len);
+        let ptr = Self::alloc_uninit(len, len);
+        #[expect(
+            unsafe_code,
+            reason = "`alloc_uninit` returned an allocation with room for \
+                      `len` payload bytes, so writing them stays inside it; \
+                      the regions cannot overlap because each piece borrows a \
+                      different allocation, and the running offset never \
+                      exceeds `len` because that is their summed length"
+        )]
+        unsafe {
+            let mut at = ptr.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
+            for piece in pieces {
+                std::ptr::copy_nonoverlapping(piece.as_ptr(), at, piece.len());
+                at = at.add(piece.len());
+            }
+        }
+        Self { ptr }
+    }
+
+    /// A fresh allocation with room for `cap` payload bytes, a reference count
+    /// of one, and a length of `len` whose bytes are **left uninitialized**.
+    ///
+    /// The one place an MWL string allocation is made, so [`str_layout`] is
+    /// called with a capacity here and in [`Drop`] and nowhere else. The
+    /// caller must write all `len` payload bytes before the handle escapes.
+    ///
+    /// # Panics
+    ///
+    /// Debug-asserts `len <= cap`; aborts through [`handle_alloc_error`] if
+    /// the allocator fails, per [`MwlStr::new`].
+    fn alloc_uninit(len: usize, cap: usize) -> NonNull<StrHeader> {
+        debug_assert!(
+            len <= cap,
+            "an MWL string's length never exceeds its capacity"
+        );
+        let layout = str_layout(cap);
         #[expect(
             unsafe_code,
             reason = "a flexible-array-member allocation cannot be expressed \
@@ -130,25 +206,17 @@ impl MwlStr {
         };
         #[expect(
             unsafe_code,
-            reason = "`ptr` is a fresh, uninitialized, correctly aligned \
-                      allocation of exactly `layout`, so writing the header \
-                      and then `len` payload bytes behind it stays inside it; \
-                      the regions cannot overlap because each piece borrows a \
-                      different allocation, and the running offset never \
-                      exceeds `len` because that is their summed length"
+            reason = "`ptr` is a fresh, correctly aligned allocation of exactly \
+                      `layout`, which begins with room for the header"
         )]
         unsafe {
             ptr.as_ptr().write(StrHeader {
                 refcount: Cell::new(1),
-                len,
+                len: Cell::new(len),
+                cap,
             });
-            let mut at = raw.add(PAYLOAD_OFFSET);
-            for piece in pieces {
-                std::ptr::copy_nonoverlapping(piece.as_ptr(), at, piece.len());
-                at = at.add(piece.len());
-            }
         }
-        Self { ptr }
+        ptr
     }
 
     /// The payload.
@@ -167,7 +235,18 @@ impl MwlStr {
     /// The payload length in bytes.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.header().len
+        self.header().len.get()
+    }
+
+    /// How many payload bytes the allocation has room for.
+    ///
+    /// Equal to [`MwlStr::len`] for every string this module constructs; only
+    /// [`mwl_str_append`] ever leaves the two apart. Exposed for the same
+    /// reason [`MwlStr::refcount`] is: the growth policy is only checkable by
+    /// observing it.
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.header().cap
     }
 
     /// Whether the payload is empty.
@@ -255,7 +334,7 @@ impl MwlStr {
                       and nothing ever writes them again"
         )]
         unsafe {
-            let len = (*ptr).len;
+            let len = (*ptr).len.get();
             std::slice::from_raw_parts(ptr.cast::<u8>().add(PAYLOAD_OFFSET), len)
         }
     }
@@ -299,12 +378,14 @@ impl Drop for MwlStr {
             self.header().refcount.set(remaining);
             return;
         }
-        let layout = str_layout(self.len());
+        let layout = str_layout(self.capacity());
         #[expect(
             unsafe_code,
             reason = "this handle held the last reference, so nothing else can \
                       observe the allocation; `layout` is recomputed from the \
-                      same `len` `new` allocated with, before the header is freed"
+                      same `cap` `alloc_uninit` allocated with — never from \
+                      `len`, which `mwl_str_append` may have left smaller — \
+                      before the header is freed"
         )]
         unsafe {
             dealloc(self.ptr.as_ptr().cast::<u8>(), layout);
@@ -422,6 +503,85 @@ pub unsafe extern "C" fn mwl_str_concat(
     )]
     let (left, right) = unsafe { (MwlStr::bytes_of(lhs), MwlStr::bytes_of(rhs)) };
     MwlStr::from_pieces(&[left, right]).into_raw()
+}
+
+/// Appends `suffix`'s bytes to `target`'s — `mwl_ir::InstKind::StrAppend`'s
+/// entry point, and the reason [`StrHeader`] carries a capacity at all.
+///
+/// **Consumes one reference to `target` and yields one to the result**, which
+/// is `mwl_array_set`'s protocol verbatim: the reference consumed is the
+/// holder's, the one yielded replaces it in that same slot, and the caller
+/// therefore retains nothing and releases nothing.
+/// `mwl_ir::ir::InstKind::ArraySet`'s own doc comment is the worked statement
+/// of that protocol and the one home for it. `suffix` is only *read*, exactly
+/// as [`mwl_str_concat`] reads both of its operands — neither retained nor
+/// released here.
+///
+/// Whenever `target` was solely owned and already had the room, the pointer
+/// returned **is** the pointer given and not one byte of the accumulation
+/// moves. That is the whole point: `$out .= $piece` copied the entire
+/// accumulation every iteration before this existed, which is quadratic in
+/// the number of appends.
+///
+/// Exactly two things force a fresh allocation instead:
+///
+/// - **A reference count above one.** A second owner can see these bytes, and
+///   an append is a write; ADR 0007 § 5's copy-on-write value semantics do not
+///   let that owner observe it. This is the same separation `mwl_array_set`
+///   performs for the same reason, and it is what keeps the in-place path
+///   sound rather than merely fast.
+/// - **Too little room**, in which case [`grown_capacity`] decides how much to
+///   ask for and the payload moves once.
+///
+/// # Safety
+///
+/// `target` must refer to a live MWL string allocation whose reference this
+/// caller owns and does not release again; `suffix` must refer to a live one.
+/// They may be the same allocation — `$s .= $s` — which is why the in-place
+/// path's two byte ranges are argued disjoint rather than assumed so.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes two raw string pointers whose liveness and \
+              ownership the signature cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_str_append(
+    target: *mut StrHeader,
+    suffix: *const StrHeader,
+) -> *mut StrHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees both pointees are live; every read and \
+                  write below stays within one of the two allocations' own \
+                  payload regions, bounded by the `cap` each was made with"
+    )]
+    unsafe {
+        let header = &*target;
+        let len = header.len.get();
+        let added = (*suffix).len.get();
+        let needed = len
+            .checked_add(added)
+            .expect("an MWL string's length cannot overflow a usize");
+        let src = suffix.cast::<u8>().add(PAYLOAD_OFFSET);
+        if header.refcount.get() == 1 && header.cap >= needed {
+            // The two ranges cannot overlap even when `suffix == target`: the
+            // source is the first `added` bytes of the payload and the
+            // destination begins at `len`, which is `added` when they are the
+            // same allocation and irrelevant when they are not.
+            let dst = target.cast::<u8>().add(PAYLOAD_OFFSET + len);
+            std::ptr::copy_nonoverlapping(src, dst, added);
+            header.len.set(needed);
+            return target;
+        }
+        let grown = MwlStr::alloc_uninit(needed, grown_capacity(len, needed));
+        let dst = grown.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
+        std::ptr::copy_nonoverlapping(target.cast::<u8>().add(PAYLOAD_OFFSET), dst, len);
+        std::ptr::copy_nonoverlapping(src, dst.add(len), added);
+        // Last, so that `suffix`'s bytes are read before a `suffix == target`
+        // release can free them.
+        mwl_str_release(target);
+        grown.as_ptr()
+    }
 }
 
 /// Whether two strings hold the same bytes — `mwl_ir::ir::BinOp::Eq` over a
@@ -627,8 +787,154 @@ mod tests {
 
     #[test]
     fn the_layout_constants_describe_the_real_header() {
+        let word = std::mem::size_of::<usize>();
         assert_eq!(REFCOUNT_OFFSET, 0);
-        assert_eq!(LEN_OFFSET, std::mem::size_of::<usize>());
-        assert_eq!(PAYLOAD_OFFSET, 2 * std::mem::size_of::<usize>());
+        assert_eq!(LEN_OFFSET, word);
+        assert_eq!(CAP_OFFSET, 2 * word);
+        assert_eq!(PAYLOAD_OFFSET, 3 * word);
+    }
+
+    #[test]
+    fn a_constructed_string_has_no_spare_capacity() {
+        assert_eq!(MwlStr::new(b"abc").capacity(), 3);
+        assert_eq!(MwlStr::new(b"").capacity(), 0);
+        assert_eq!(MwlStr::from_pieces(&[b"ab", b"cd"]).capacity(), 4);
+    }
+
+    #[test]
+    fn appending_into_spare_capacity_keeps_the_same_allocation() {
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            // The first append has nothing to double, so it grows exactly;
+            // the second doubles and leaves room the third appends into.
+            let (b, c, d) = (
+                MwlStr::new(b"b").into_raw(),
+                MwlStr::new(b"c").into_raw(),
+                MwlStr::new(b"d").into_raw(),
+            );
+            let acc = mwl_str_append(MwlStr::new(b"a").into_raw(), b);
+            let grown = mwl_str_append(acc, c);
+            assert_eq!(MwlStr::bytes_of(grown), b"abc");
+            let same = mwl_str_append(grown, d);
+            assert_eq!(
+                same, grown,
+                "the fourth byte fit in the room the third made"
+            );
+            assert_eq!(MwlStr::bytes_of(same), b"abcd");
+            assert_eq!(MwlStr::refcount_of(same), 1);
+            for ptr in [same, b, c, d] {
+                mwl_str_release(ptr);
+            }
+        }
+    }
+
+    #[test]
+    fn appending_to_a_shared_string_separates_rather_than_writing_it() {
+        let held = MwlStr::new(b"abc");
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            // One reference for `held`, one for the append to consume.
+            let target = held.clone().into_raw();
+            let suffix = MwlStr::new(b"def").into_raw();
+            let appended = mwl_str_append(target, suffix);
+            assert_ne!(
+                appended, target,
+                "a second owner forbids the in-place write"
+            );
+            assert_eq!(MwlStr::bytes_of(appended), b"abcdef");
+            assert_eq!(MwlStr::refcount_of(appended), 1);
+            mwl_str_release(appended);
+            mwl_str_release(suffix);
+        }
+        assert_eq!(held.as_bytes(), b"abc");
+        assert_eq!(held.refcount(), 1);
+    }
+
+    #[test]
+    fn appending_a_string_to_itself_reads_before_it_writes() {
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            // Always the grow path: a self-append needs twice the payload and
+            // doubling never leaves that much room, so both operands are the
+            // one allocation the append then releases — after reading it.
+            let s = MwlStr::new(b"xy").into_raw();
+            let doubled = mwl_str_append(s, s);
+            assert_eq!(MwlStr::bytes_of(doubled), b"xyxy");
+            let quadrupled = mwl_str_append(doubled, doubled);
+            assert_eq!(MwlStr::bytes_of(quadrupled), b"xyxyxyxy");
+            assert_eq!(MwlStr::refcount_of(quadrupled), 1);
+            mwl_str_release(quadrupled);
+        }
+    }
+
+    /// The claim § B of `docs/perf/userland-gap.md` asks for, measured rather
+    /// than asserted about: an append a solely-owned string has the room for
+    /// allocates nothing at all, and a run of them allocates a multiple of the
+    /// *final* length rather than of the accumulation copied each time.
+    ///
+    /// Bytes-ever-allocated is the only reading that shows it — a `live_bytes`
+    /// delta cannot tell a copy that was freed again from no copy at all,
+    /// which is the same reason `array::tests::an_integer_subscript_allocates_no_key`
+    /// reads this counter.
+    #[test]
+    fn appending_into_spare_capacity_allocates_nothing() {
+        use crate::counting_alloc::allocated_bytes;
+
+        const RUN: usize = 1_000;
+        const PIECE: usize = 10;
+
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let piece = MwlStr::new(b"0123456789").into_raw();
+            let mut acc = MwlStr::new(b"").into_raw();
+
+            let before = allocated_bytes();
+            for _ in 0..RUN {
+                acc = mwl_str_append(acc, piece);
+            }
+            let spent = allocated_bytes() - before;
+
+            assert_eq!(MwlStr::bytes_of(acc).len(), RUN * PIECE);
+            // Copying the accumulation every iteration would be quadratic —
+            // 5 MB for this run. Doubling makes the reallocations sum to under
+            // four times the final length, headers included.
+            assert!(
+                spent < 4 * RUN * PIECE,
+                "{RUN} appends allocated {spent} bytes for a {}-byte result: the \
+                 accumulation is being copied rather than appended into",
+                RUN * PIECE
+            );
+
+            // And the last doubling left room, so one more append allocates
+            // nothing at all and answers with the pointer it was given.
+            let quiet = allocated_bytes();
+            let same = mwl_str_append(acc, piece);
+            assert_eq!(same, acc, "the append had the room to write into");
+            assert_eq!(
+                allocated_bytes() - quiet,
+                0,
+                "an in-place append allocated something"
+            );
+            mwl_str_release(same);
+            mwl_str_release(piece);
+        }
+    }
+
+    #[test]
+    fn appending_stays_linear_because_capacity_doubles() {
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let piece = MwlStr::new(b"0123456789").into_raw();
+            let mut acc = MwlStr::new(b"").into_raw();
+            for _ in 0..1_000 {
+                acc = mwl_str_append(acc, piece);
+            }
+            assert_eq!(MwlStr::bytes_of(acc).len(), 10_000);
+            // Doubling caps the room at under twice the payload, which is what
+            // this module's docs state capacity spends.
+            let owned = MwlStr::from_raw(acc);
+            assert!(owned.capacity() < 2 * owned.len());
+            mwl_str_release(piece);
+        }
     }
 }

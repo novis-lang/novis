@@ -554,7 +554,10 @@ struct Signatures {
     probe_call_exit: Signature,
     /// `mwl_str_new(ptr, len) -> *mut StrHeader`.
     str_new: Signature,
-    /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`.
+    /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`, and
+    /// `mwl_str_append(target, suffix) -> *mut StrHeader`, which is the same
+    /// shape. The two differ in ownership, not in ABI — see
+    /// `mwl_ir::ir::InstKind::StrAppend` — so one signature serves both.
     str_concat: Signature,
     /// `mwl_str_eq(lhs, rhs) -> bool` and `mwl_array_eq(lhs, rhs) -> bool`,
     /// which share one shape: two raw pointers to an `I8`, like
