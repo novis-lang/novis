@@ -2,6 +2,9 @@
 Core\Math::sqrt, cbrt, hypot, exp and log answer IEEE's value for a domain error, which isNan and isFinite then ask about
 --FILE--
 <?mwl
+// `hypot` against the naive `sqrt($x * $x + $y * $y)`, over a table and at both
+// ends of the exponent range, is
+// math-hypot-agrees-with-the-naive-form-until-the-naive-form-overflows.mwlt.
 echo Core\Math::sqrt(2.25), "|", Core\Math::cbrt(-8.0), "|", Core\Math::hypot(3.0, 4.0), "\n";
 echo Core\Math::exp(0.0), "|", Core\Math::exp(1.0), "\n";
 

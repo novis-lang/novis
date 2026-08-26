@@ -1,0 +1,97 @@
+--TEST--
+Core\Math::hypot answers exactly what sqrt($x * $x + $y * $y) answers on every row whose square sum is representable, and stays finite on the row where the naive form is an infinity — docs/spec/01-core-library.md § 3
+--FILE--
+<?mwl
+// § 3 gives `hypot` its own row rather than leaving it to `sqrt`, and the whole
+// reason for that is the last two blocks: the naive form loses to the exponent
+// range long before the answer does. The sweep is what makes those two blocks a
+// boundary rather than two samples — it asserts the two forms agree everywhere
+// *else*, by counting, so a `hypot` that had grown its own arithmetic fails here
+// while still printing plausibly on any single line.
+//
+// Every row's $x * $x + $y * $y is exactly representable — Pythagorean triples,
+// zeros, and dyadic fractions — so the naive form's only rounding is the `sqrt`
+// itself, which IEEE 754 requires to be correctly rounded. That is what makes
+// "the two forms agree" a property of this table and not of one libm: on these
+// rows both members are computing the same correctly rounded square root.
+array<array<float>> $pairs = [
+    [3.0, 4.0],
+    [5.0, 12.0],
+    [8.0, 15.0],
+    [7.0, 24.0],
+    [20.0, 21.0],
+    [9.0, 12.0],
+    [1.0, 0.0],
+    [0.0, 1.0],
+    [0.0, 0.0],
+    // Sign is not part of the answer: a leg is squared before it is summed.
+    [-3.0, 4.0],
+    [3.0, -4.0],
+    [-3.0, -4.0],
+    // Irrational answers, exact sums: 2, 8, 72, 8.5, 1.8125, 0.3125.
+    [1.0, 1.0],
+    [2.0, 2.0],
+    [6.0, 6.0],
+    [1.5, 2.5],
+    [0.5, 1.25],
+    [0.25, 0.5],
+    // 3 * 2^52 and 4 * 2^52 — large, and still nowhere near the exponent range,
+    // which is what says the two blocks below are about overflow and not size.
+    [13510798882111488.0, 18014398509481984.0],
+];
+int $rows = 0;
+int $agreed = 0;
+int $finite = 0;
+foreach ($pairs as array<float> $p) {
+    float $x = $p["0"];
+    float $y = $p["1"];
+    float $h = Core\Math::hypot($x, $y);
+    float $naive = Core\Math::sqrt($x * $x + $y * $y);
+    $rows = $rows + 1;
+    if ($h == $naive) {
+        $agreed = $agreed + 1;
+    }
+    if (Core\Math::isFinite($h)) {
+        $finite = $finite + 1;
+    }
+}
+echo "rows=", $rows, " agreed=", $agreed, " finite=", $finite, "\n";
+
+// Three of those rows read off the sweep, so a count of 19 cannot be reached by
+// a member that answers a constant.
+echo Core\Math::hypot(3.0, 4.0), "|", Core\Math::hypot(-3.0, -4.0), "|",
+     Core\Math::hypot(13510798882111488.0, 18014398509481984.0), "\n";
+
+// The overflow row. 3e200 and 4e200 are ordinary finite floats and so is 5e200,
+// but their squares are not — 9e400 is past FLOAT_MAX, so the naive form has
+// already thrown the answer away by the time `sqrt` sees it. § 3's domain rule
+// is IEEE's value rather than a throw, so the failure is silent: an infinity,
+// which `isFinite` is then the member that asks about.
+float $bigX = 3.0e200;
+float $bigY = 4.0e200;
+float $bigH = Core\Math::hypot($bigX, $bigY);
+float $bigNaive = Core\Math::sqrt($bigX * $bigX + $bigY * $bigY);
+echo "over hypot=", $bigH, " finite=", Core\Math::isFinite($bigH) as string, "|\n";
+echo "over naive=", $bigNaive, " finite=", Core\Math::isFinite($bigNaive) as string,
+     " nan=", Core\Math::isNan($bigNaive) as string, "|\n";
+echo "over square=", $bigX * $bigX, "\n";
+
+// And the same loss at the other end, where it does not even leave an infinity
+// behind to notice: 9e-400 underflows to zero, so the naive form answers a
+// finite, plausible, wrong 0 while `hypot` still answers 5e-200.
+float $tinyX = 3.0e-200;
+float $tinyY = 4.0e-200;
+float $tinyH = Core\Math::hypot($tinyX, $tinyY);
+float $tinyNaive = Core\Math::sqrt($tinyX * $tinyX + $tinyY * $tinyY);
+echo "under hypot=", $tinyH, " zero=", ($tinyH == 0.0) as string, "|\n";
+echo "under naive=", $tinyNaive, " zero=", ($tinyNaive == 0.0) as string, "|\n";
+echo "under square=", $tinyX * $tinyX, "\n";
+--EXPECT--
+rows=19 agreed=19 finite=19
+5|5|2.2517998136852E+16
+over hypot=5.0E+200 finite=1|
+over naive=INF finite= nan=|
+over square=INF
+under hypot=5.0E-200 zero=|
+under naive=0 zero=1|
+under square=0
