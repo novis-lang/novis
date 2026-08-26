@@ -121,47 +121,50 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 holds three items, and they are what the loop runs next.** `python
-> tools/bench.py` puts MWL's median at 0.31× PHP 8.5.9 with its JIT on, and
+> **Open now:** **Stage 0 holds two items, and they are what the loop runs next.** `python
+> tools/bench.py` puts MWL's median at 0.66× PHP 8.5.9 with its JIT on, and
 > docs/perf/userland-gap.md is the ledger behind that number — the suite case by case, what one
-> operation costs, and which item moves it. Items **18** and **19** are **done**, and **20 is two
-> thirds done**: MWL owns its allocator in every optimized build and the test build's byte counters
-> wrap it, an `int` subscript now travels to `mwl_array_get_index`/`mwl_array_set_index` unrendered
-> — **6.3 ns against the rendered path's 28.5 ns** — a `string` now carries a capacity, so `$out .=
-> $piece` appends into its own buffer instead of copying the accumulation, and
-> `mwl_ir::ir::InstKind::Concat` is **n-ary**, so `"<tr><td>" . $i . "</td>"` is one allocation
-> rather than a fold of growing prefixes. Together those two took `03-string-concat` from **0.03× to
-> 1.39×**: 50,000 appends were 238 ms and are 15.3 ms, 100,000 were 1,386 ms and are 20.6 ms, and
-> the n-ary change then cut this case's own work from 3.5 ms to 2.8 ms measured against the commit
-> before it. § B of the ledger records both, and what the third header word spends is stated in
-> `crates/mwl-runtime/src/string.rs`'s own module doc. What item 19 still owes is the append-only
+> operation costs, and which item moves it. Items **18**, **19** and **20** are **done**: MWL owns
+> its allocator in every optimized build and the test build's byte counters wrap it, an `int`
+> subscript now travels to `mwl_array_get_index`/`mwl_array_set_index` unrendered — **6.3 ns against
+> the rendered path's 28.5 ns** — a `string` now carries a capacity, so `$out .= $piece` appends
+> into its own buffer instead of copying the accumulation, `mwl_ir::ir::InstKind::Concat` is
+> **n-ary**, so `"<tr><td>" . $i . "</td>"` is one allocation rather than a fold of growing
+> prefixes, and a **string literal no longer allocates at all** — a whole `StrHeader` with a pinned
+> refcount goes into the compiled unit's data section and `emit_const_str` materializes its address,
+> no call and no allocation, an array literal's keys taking the same path. Together those took
+> `03-string-concat` from **0.03× to above 1.00×** — 50,000 appends were 238 ms and are 15.3 ms,
+> 100,000 were 1,386 ms and are 20.6 ms — and the literal change then took `04-string-format` from
+> **100.0 ms of work to 87.2 ms**, `$a["beta"]` from 26.6 ns to **21.3 ns**, and about 5% off each
+> of `05`, `06`, `07`, `15` and `17`; the median went 0.31× to 0.66× over the three items. §§ B and
+> C of the ledger record them, what the third header word spends is stated in
+> `crates/mwl-runtime/src/string.rs`'s own module doc, and why a pinned refcount keeps that module's
+> plain `Cell` sound is its § *An immortal string*. What item 19 still owes is the append-only
 > `docs/perf/history.ndjson` entry item 15 asked for, which does not exist yet. In order from here:
-> the **last third of 20** — a string literal stops allocating, `emit_const_str` calling
-> `mwl_str_new` on every evaluation; then **21** no key is synthesized for a callback that does not
-> want one; **22** a `Core\Str` member writes its result once. None is a JIT optimisation and none
-> belongs to M12 — one changes an ABI that ADR 0042's artifacts and M9's WIT signatures are about to
-> freeze, and two are the pattern every `Core` member written after them would copy. **What has
-> already landed is not restated here** — `git log` holds the session-by-session history and the
-> crate's own module doc holds its per-file gaps, which is this field's contract in AGENTS.md §
-> *Keep each slice small*. What follows is what is **not** built. **Spec §§ 1-12, by section** — § 1
-> is **whole**, `normalize` having landed with `Core\NormalForm` and a named binding to
-> `unicode-normalization`; § 2 is **whole**, `from` having landed over `registry::CoreTy::Iterated`
-> — ADR 0069's four combination members, the `diff`/`intersect` set half with `Core\SetOn`, the
-> positional rows, the callback rows and both sorts are all registered, which the ratchet below is
-> the machine-readable statement of; § 4 is **whole**, `withTime` having landed beside
-> `Core\Time\Date`, `Core\Time\TimeOfDay` and the two views that answer with them, and there is
-> **no** `Core\Month` — § 4 writes no member that takes or answers with one (`mwl_stdlib::time` gap
-> 1); § 5 is **whole**, `replaceWith` having landed beside `Core\Regex\Pattern` and `compile`, with
-> the callback taking one `Match` rather than PHP's positional array and the six pattern-taking rows
-> all reading the `Pattern|string` the spec writes; § 6 owes `decodeAs<T>` (`json` gap 2, which
-> waited on a written type argument at a call site and no longer does); § 7 is **whole** —
-> `Core\Bytes`'s twelve members and the whole of `Core\Encoding`, `pack`/`unpack` sharing one closed
-> code table that `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 is **whole**, its
-> three collections each answering a `foreach` — a `Core` receiver reaches ADR 0053's protocol
-> through its descriptor's own method table (`mwl_stdlib::cursor`, `mwl_stdlib::instance`'s dispatch
-> roster), and the spec's `Heap` row is amended to declare `Iterable` because a heap whose contents
-> can only be reached by emptying it is the PHP behaviour § 9 replaces; § 10 is **whole**, an
-> `issues` entry being readable now that a shape field resolves to a name the IR fetches by name
+> **21** no key is synthesized for a callback that does not want one; then **22** a `Core\Str`
+> member writes its result once. Neither is a JIT optimisation and neither belongs to M12 — both are
+> the pattern every `Core` member written after them would copy. **What has already landed is not
+> restated here** — `git log` holds the session-by-session history and the crate's own module doc
+> holds its per-file gaps, which is this field's contract in AGENTS.md § *Keep each slice small*.
+> What follows is what is **not** built. **Spec §§ 1-12, by section** — § 1 is **whole**,
+> `normalize` having landed with `Core\NormalForm` and a named binding to `unicode-normalization`; §
+> 2 is **whole**, `from` having landed over `registry::CoreTy::Iterated` — ADR 0069's four
+> combination members, the `diff`/`intersect` set half with `Core\SetOn`, the positional rows, the
+> callback rows and both sorts are all registered, which the ratchet below is the machine-readable
+> statement of; § 4 is **whole**, `withTime` having landed beside `Core\Time\Date`,
+> `Core\Time\TimeOfDay` and the two views that answer with them, and there is **no** `Core\Month` —
+> § 4 writes no member that takes or answers with one (`mwl_stdlib::time` gap 1); § 5 is **whole**,
+> `replaceWith` having landed beside `Core\Regex\Pattern` and `compile`, with the callback taking
+> one `Match` rather than PHP's positional array and the six pattern-taking rows all reading the
+> `Pattern|string` the spec writes; § 6 owes `decodeAs<T>` (`json` gap 2, which waited on a written
+> type argument at a call site and no longer does); § 7 is **whole** — `Core\Bytes`'s twelve members
+> and the whole of `Core\Encoding`, `pack`/`unpack` sharing one closed code table that
+> `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 is **whole**, its three collections
+> each answering a `foreach` — a `Core` receiver reaches ADR 0053's protocol through its
+> descriptor's own method table (`mwl_stdlib::cursor`, `mwl_stdlib::instance`'s dispatch roster),
+> and the spec's `Heap` row is amended to declare `Iterable` because a heap whose contents can only
+> be reached by emptying it is the PHP behaviour § 9 replaces; § 10 is **whole**, an `issues` entry
+> being readable now that a shape field resolves to a name the IR fetches by name
 > (`ExprInfo::ShapeProperty`, `InstKind::SlotGet`) — the constructor takes `{previous: $e}` and
 > `$e->location` is pinned as the throw site, both stated by `mwl_types::error_lib`'s own module
 > doc; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes `Out::capture`

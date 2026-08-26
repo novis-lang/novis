@@ -489,6 +489,14 @@ is why" — is this file.
   apart, and any measured claim about a *transient* cost needs it rather than `live_bytes`. The
   control matters as much as the claim: assert the old spelling **does** allocate in the same test,
   or a broken counter reads as a passing guard.
+- **A compiled function called with an empty argument slice faults.** `mwl_runtime::call(f, &mut
+  ctx, &[])` on a *method* looked like the obvious way to observe a return value, and it is an
+  access violation (`0xc0000005`, a bare `STATUS_ACCESS_VIOLATION` from `cargo test` with no test
+  name attached) — the callee reads its argument slot whether or not it declared one, and `&[]`
+  hands it a dangling pointer. Give the fixture's method one parameter it ignores and pass
+  `Value::int(0)`; `mwl-codegen`'s `stack_limit.rs` fixtures all declare one, which is why nothing
+  had hit this. `run_with`/`output_of` are unaffected — the script frame is entered the same way but
+  never faulted, so the crash arrives only when a test reaches for `unit.function("Class::member")`.
 
 ## Splitting a file that got too big
 

@@ -8,9 +8,11 @@ does: why a given number is what it is, and which piece of work moves it.**
 
 > **In short:** the compiler is not the problem. A static call is 2.7 ns, a `foreach` step 3.4 ns
 > and an object property beats PHP by 3.4× — all faster than the engine MWL is measured against.
-> Every case that loses, loses on the **heap**: MWL allocates far more often than PHP and each
-> allocation costs six to ten times as much, because MWL has no allocator of its own yet.
-> Six pieces of work, none of them a JIT optimisation, account for the whole of the gap.
+> Every case that loses, loses on the **heap**: MWL allocates far more often than PHP. Items A, B
+> and C have landed since that was first written — MWL owns its allocator, a string has capacity
+> and n-ary concatenation, and neither an integer subscript nor a string literal allocates at all —
+> and the median went 0.31× to 0.66× for it. What is left is still allocation *count*, not the
+> compiler, and none of the work below is a JIT optimisation.
 
 ## This file has a lifetime
 
@@ -24,44 +26,42 @@ file.
 ## Where the suite stands
 
 Measured 2026-08-26 on the Windows development machine, release against PHP 8.5.9 with opcache and
-the tracing JIT, 7 reps, `work` figures (`00-baseline` subtracted). `php/mwl` above 1.00 means MWL
-is faster.
+the tracing JIT, 9 reps, `work` figures (`00-baseline` subtracted). `php/mwl` above 1.00 means MWL
+is faster. Every row is one full sweep of the *current* build, not a mix of readings.
 
-| | today | with a pooled allocator | closed by |
+| | today | before item A | closed by |
 |---|---|---|---|
-| median ratio | **0.31×** | **0.54×** | A |
-| 03-string-concat | **1.39×** † | — | B, one third open |
-| 04-string-format | 0.07× | 0.18× | A, E, I |
-| 14-word-count | 0.13× | 0.20× | A, F |
-| 12-array-map-filter | 0.18× | 0.34× | A, D |
-| 07-string-normalize | 0.17× | 0.32× | A, E |
-| 09-array-assoc-lookup | 0.25× | 0.39× | A, B, F |
-| 15-regex-match | 0.25× | 0.46× | A |
-| 05-string-replace | 0.32× | 0.55× | A, E |
-| 13-array-contains | 0.12× | 0.49× | A |
-| 17-json-encode | 0.21× | 0.39× | A, E |
-| 16-regex-replace | 0.44× | 0.53× | A, E |
-| 18-json-decode | 0.53× | 0.99× | A |
-| 08-array-list-build | 0.59× | 0.65× | A |
-| 10-array-sort | 0.68× | 0.66× | J |
-| 20-method-dispatch | 0.76× | 0.68× | **G** |
-| 06-string-split-join | 0.31× | 0.70× | A, E |
-| 01-arith-loop | 1.33× | 1.34× | — |
-| 02-fib-recursive | 2.25× | 2.09× | — |
-| 19-object-property | 1.05× | **3.39×** | — |
-| 11-array-sort-by-field | 3.22× | **3.47×** | — |
+| median ratio | **0.66×** | 0.31× | A, B, C |
+| 04-string-format | 0.20× | 0.07× | E, I |
+| 14-word-count | 0.20× | 0.13× | F |
+| 12-array-map-filter | 0.36× | 0.18× | D |
+| 07-string-normalize | 0.41× | 0.17× | E |
+| 09-array-assoc-lookup | 0.42× | 0.25× | F |
+| 17-json-encode | 0.44× | 0.21× | E |
+| 13-array-contains | 0.50× | 0.12× | — |
+| 15-regex-match | 0.51× | 0.25× | — |
+| 16-regex-replace | 0.56× | 0.44× | E |
+| 08-array-list-build | 0.64× | 0.59× | — |
+| 20-method-dispatch | 0.68× | 0.76× | **G** |
+| 10-array-sort | 0.69× | 0.68× | J |
+| 05-string-replace | 0.71× | 0.32× | E |
+| 06-string-split-join | 0.82× | 0.31× | E |
+| 18-json-decode | 1.06× | 0.53× | — |
+| 03-string-concat | 1.24× † | 0.03× | — |
+| 01-arith-loop | 1.48× | 1.33× | — |
+| 02-fib-recursive | 2.57× | 2.25× | — |
+| 19-object-property | 3.39× | 1.05× | — |
+| 11-array-sort-by-field | 3.98× | 3.22× | — |
 
-† `03-string-concat` is re-measured, 21 reps, after § B's first two changes landed; it was 0.03× in
-the sweep above. The two builds were benchmarked back to back on the same quiet machine, the
-n-ary one against the commit before it — 1.23× against 1.39×, so this row's own protocol is a
-paired comparison rather than a reading against the sweep. Its second column is struck rather than
-updated, because that column measured a build from before the append existed and re-running it
-would answer a question nobody is asking any more. Every other row is the original sweep, so the
-median is stale by one row until the next full run.
+† `03-string-concat` sits at the suite's noise floor: 3 ms of work behind a 7 ms process start, so
+its *ratio* swings between 1.2× and 1.5× from run to run — mostly on PHP's number — while its own
+work figure holds at 3.0 ms. § B is where its history is, and it is the one row to read as a work
+figure rather than as a ratio.
 
-The second column is not a projection. It is the same suite re-run against a build carrying a
-90-line thread-local size-class free list in front of `System` — item A's cheap half, built to
-measure it and then removed. Nothing else changed.
+The second column is the original sweep, taken before item A. The middle column this table used to
+carry — the same suite against a 90-line thread-local size-class free list built to price A and
+then removed — is gone now that today's column measures the real thing: that prototype predicted a
+0.54× median, and what landed measures 0.66×, the difference being B and C landing with it.
 
 **Two cases already win by a wide margin and it is worth knowing why, because neither is a runtime
 win.** `19-object-property` wins because a property is a fixed offset into an `MwlObj` where PHP's
@@ -84,12 +84,17 @@ and the process start are already subtracted.
 | array append `$a[] = $i` (packed) | 15.7 ns | 15.3 ns |
 | `Core\Str::length` on a 10-byte string | 14.1 ns | 15.6 ns |
 | `$a . $b` | 36.2 ns | **14.8 ns** |
-| `$a["beta"]` — a constant string key | 54.3 ns | **28.2 ns** |
+| `$a["beta"]` — a constant string key | 54.3 ns | **21.3 ns** ‡ |
 | `$a[$i]` — an integer subscript | 82.4 ns | **27.7 ns** |
 | `"x" . $i` | 106.2 ns | **33.2 ns** |
 
 The control is exact: the two operations that allocate nothing did not move, and every one that
 allocates fell by half or better.
+
+‡ The constant-key row moved once more when § B's last change landed and a literal stopped
+allocating: 26.6 ns to **21.3 ns**, paired against the commit before it, so a literal's own cost in
+this shape was **5.3 ns**. The `after A` heading is kept for the other rows rather than a third
+column being added for one of them.
 
 **Item 19 has landed, and the `$a[$i]` row is measured rather than projected now.** The A/B is
 inside one release binary — the same 20 M subscripts over the same packed array, indexed once by an
@@ -156,9 +161,9 @@ Measured then: 50 000 appends took 238 ms and 100 000 took 1 386 ms — 5.8× fo
 super-linear shape being the tell. This was the whole of `03-string-concat`, and no allocator fixed
 it.
 
-Three changes, one layout revision. **Two have landed**: the same two runs now take **15.3 ms
-and 20.6 ms** — 1.65× for twice the work, against 5.8× — and `03-string-concat` is **1.39×**
-against PHP where it was 0.03×. The third is still open and still worth having.
+Three changes, one layout revision, and **all three have landed**: the same two runs now take
+**15.3 ms and 20.6 ms** — 1.65× for twice the work, against 5.8× — and `03-string-concat` is above
+1.00× against PHP where it was 0.03×.
 
 - ~~**Capacity in the header**, and an `mwl_str_append` taking the same *consume one reference,
   return one* protocol `mwl_array_set` already uses — so an append at refcount 1 is in place.~~
@@ -176,24 +181,34 @@ against PHP where it was 0.03×. The third is still open and still worth having.
   and its ratio from **1.23× to 1.39×** — the work figure being the firmer of the two, since PHP's
   own number moved between the runs. What is left in the row it builds is the three string
   literals, which is the bullet below.
-- **A string literal stops allocating.** `mwl_codegen::emit`'s `emit_const_str` calls `mwl_str_new`
-  on every *evaluation*, so `$a["beta"]` inside a loop allocates `"beta"` two million times. Its
-  own doc comment already names this and defers it to `mwl-runtime` on layout grounds; a whole
-  `StrHeader` written into the data section with a pinned refcount makes it an address and no call
-  at all.
+- ~~**A string literal stops allocating.** `mwl_codegen::emit`'s `emit_const_str` calls
+  `mwl_str_new` on every *evaluation*, so `$a["beta"]` inside a loop allocates `"beta"` two million
+  times.~~ **Landed.** A whole `StrHeader` goes into the unit's data section in front of the bytes
+  and `emit_const_str` materializes its address — no call, no allocation — with the refcount pinned
+  at `mwl_runtime::IMMORTAL_REFCOUNT`, which every retain and release compares against and steps
+  over. An array literal's keys take the same path. Measured paired against the commit before it:
+  `$a["beta"]` costs **26.6 ns → 21.3 ns**, and `04-string-format`, which evaluates three literals
+  per iteration 300 000 times, went from **100.0 ms of work to 87.2 ms** (21 reps) — about 14 ns a
+  literal where one is an argument that is also released. `05`, `06`, `07`, `15` and `17` each fell
+  about 5%; `03-string-concat` did not move at this resolution, its three literals per row being
+  small beside the append they feed.
 
-**The non-obvious part is the last one, and it must be written down where `MwlStr` is.** An
-immortal literal lives in the compiled unit, which is the one thing a request *does* share with
-another request — so a literal is reachable from two threads, and `string.rs`'s "no `MwlStr` is
-ever reachable from two threads" reasoning behind the plain `Cell` refcount stops being true as
-stated. It stays *sound*, because a pinned refcount is never written; the reasoning has to say so
-rather than leave the next reader to re-derive it.
+**The non-obvious part was the last one, and it is written down where `MwlStr` is.** An immortal
+literal lives in the compiled unit, which is the one thing a request *does* share with another
+request — so a literal is reachable from two threads, and `string.rs`'s "no `MwlStr` is ever
+reachable from two threads" reasoning behind the plain `Cell` refcount stopped being true as
+stated. It stays *sound* because no refcount two threads can reach is ever written, and that
+module's docs § *An immortal string, and why the `Cell` survives it* is where the narrowed claim
+now lives.
 
 *Owner:* `crates/mwl-runtime/src/string.rs`'s module doc. *Guards:*
-`appending_into_spare_capacity_allocates_nothing` holds the append half and
-`an_n_ary_concatenation_allocates_one_buffer` the concatenation half — both read
-`counting_alloc::allocated_bytes`, the shape `an_integer_subscript_allocates_no_key` already uses;
-a string literal allocating nothing is still owed by the third change.
+`appending_into_spare_capacity_allocates_nothing` holds the append half,
+`an_n_ary_concatenation_allocates_one_buffer` the concatenation half and
+`an_immortal_string_is_never_written_freed_or_allocated_for` the literal's runtime half — all three
+read `counting_alloc::allocated_bytes`, the shape `an_integer_subscript_allocates_no_key` already
+uses. The emission half is `mwl-codegen`'s
+`a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation`, which compares the
+address two evaluations answer with, that crate having no allocation counter to read.
 
 ### C — an integer subscript reaches the packed form from compiled code
 
