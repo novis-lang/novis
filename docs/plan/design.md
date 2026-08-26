@@ -23,7 +23,8 @@ The goal is a new programming language for web servers and CLI, written in Rust,
 - can run another `.mwl` file as a fully isolated unit of work **inside the same process**, so a script
   never has to spawn an interpreter to get isolation ([ADR 0006](../adr/0006-isolated-script-execution.md)),
 - is memory-safe and hard to attack,
-- serves HTTP from a **single process** handling unlimited concurrent, fully isolated requests while
+- serves HTTP from a **single process** with **no worker-pool ceiling** — fully isolated requests bounded
+  only by a safety valve, never by a `pm.max_children` — while
   sharing one compiled-code cache across all of them,
 - and is fast, safe and simple *first* — spending memory to stay that way rather than the reverse
   ([ADR 0004](../adr/0004-memory-for-simplicity.md)).
@@ -75,7 +76,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Request state | Strict shared-nothing: only compiled code survives a request; no connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
 | Security | Server-level `mwl.toml`, root-owned, TOML ([ADR 0064](../adr/0064-configuration-file-format.md)), deny-by-default capabilities + hard per-request limits ([ADR 0005](../adr/0005-config-changeability.md)) |
-| Serving | Built-in HTTP/1.1 + h2c server. FastCGI deferred to optional transport. HTTP/3 out of scope |
+| Serving | Built-in **HTTP/1.1** server, scoped to a development server and a proxied origin; no TLS listener, no h2c, no HTTP/3, no FastCGI, no compression ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md)) |
 | Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes ([ADR 0009](../adr/0009-string-and-bytes.md)) |
 | Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure ([ADR 0067](../adr/0067-core-db.md)) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
@@ -95,16 +96,21 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 
 **Built-in HTTP server over FastCGI.** FastCGI's worst vulnerability class — the
 `SCRIPT_FILENAME`/`PATH_INFO`/`cgi.fix_pathinfo` RCE family — exists *because* the decision of which file
-to execute is split between web server and runtime. A native server keeps that decision in one place.
-Throughput over loopback/UDS differs by single-digit microseconds per request, irrelevant beside script
-execution. A bespoke FCGI record parser would be attack surface we own; `hyper` is memory-safe and among
-the most-fuzzed HTTP stacks in existence. Isolation guarantees live in the host, not the protocol, so
-transports sit behind a trait and FCGI can be added later for shared hosting/IIS.
+to execute is **derived from the URL by one process and trusted by another**. A native server keeps that
+derivation from happening at all, which is
+[ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 2's governing rule. Throughput over
+loopback/UDS differs by single-digit microseconds per request, irrelevant beside script execution. A bespoke
+FCGI record parser would be attack surface we own; `hyper` is memory-safe and among the most-fuzzed HTTP
+stacks in existence. FastCGI is closed rather than deferred: HTTP over a Unix socket already serves every
+deployment it was reserved for.
 
-**HTTP/1.1 + h2c, no HTTP/3.** nginx `proxy_pass` speaks HTTP/1.1 upstream only → h1 keep-alive is
-mandatory. Caddy/Traefik/HAProxy/Envoy support cleartext h2 upstream, and `hyper` provides h1+h2 in one
-crate → h2c is nearly free. No production proxy speaks HTTP/3 to an origin; the edge terminates QUIC and
-talks h1/h2 upstream → h3 is pure cost.
+**HTTP/1.1 only.** nginx `proxy_pass` speaks HTTP/1.1 upstream, so h1 keep-alive is mandatory either way.
+h2c is not taken even though `hyper` would give it nearly free: a multiplexing proxy concentrates many
+streams onto one connection and therefore onto **one core**, which defeats the connection-level balancing
+thread-per-core depends on and cannot be rebalanced, since a request never migrates. It also buys the Rapid
+Reset and `CONTINUATION`-flood classes. No production proxy speaks HTTP/3 to an origin; the edge terminates
+QUIC and talks h1 upstream → h3 is pure cost. TLS is terminated by the proxy, so there is no inbound
+listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 1).
 
 ### Consequences to accept
 
@@ -220,9 +226,11 @@ drift. Deferring it to M9 would mean retrofitting.
             │                               │
     ┌───────▼───────┐               ┌───────▼───────┐
     │ mwl-http      │               │ mwl-cli       │
-    │ h1 + h2c      │               │ run / test    │
+    │ h1, TCP + UDS │               │ run / test    │
     └───────────────┘               └───────────────┘
-            (mwl-fcgi later, same Transport trait)
+       one handle(Request) -> Response seam; ADR 0079's
+       synthetic request and #[Test(server: true)] are its
+       other callers. No transport trait, no FCGI.
 ```
 
 ### Thread-per-core, shared-nothing runtime

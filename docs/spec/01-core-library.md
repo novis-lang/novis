@@ -984,8 +984,16 @@ No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
 These replace PHP's superglobals ([ADR 0012](../adr/0012-no-superglobals.md)); every value they return that
 originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)).
 
-- `Core\Request`: `method`, `path`, `query`, `body`, `header`, `headers`, `cookie`, `files`, `clientIp` —
-  replacing `$_GET`, `$_POST`, `$_FILES`, `$_COOKIE`, `$_REQUEST`, `filter_input`.
+- `Core\Request`: `method`, `path`, `query`, `body`, `bodyStream`, `header`, `headers`, `cookie`, `files`,
+  `clientIp`, `scheme`, `host`, `mountPrefix`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
+  `$_COOKIE`, `$_REQUEST`, `filter_input`. `path` is the request path with the matched mount's prefix
+  **removed** and `mountPrefix` is what was removed; `method` reports `Get` for a `HEAD` request so a
+  `Get`-only route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` are
+  resolved from the socket peer unless a peer in `[server] trusted_proxies` asserted otherwise; `files`
+  entries carry `name`, `contentType` and `content` as `tainted bytes` — there is no temp path and no
+  `move_uploaded_file`; and `bodyStream(): Iterable<bytes>` is the streaming alternative to `body`,
+  exclusive with it on one request
+  ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) §§ 3, 6, 7, 8).
 - `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the five body members
   `html(Core\Html\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`,
   `sendFile(…)` — replacing `header`, `headers_sent`, `setcookie`, `setrawcookie`, `http_response_code`.
@@ -997,7 +1005,10 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   safe, `text` accepts tainted because `nosniff` is on by default, and `bytes`' content type is a sink.
   `echo` is the sixth, HTML-only path, and mixing it with any of the five on one response is a compile
   error ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 4).
-- `Core\Server`: the request's own environment — replacing `$_SERVER`.
+- `Core\Server`: the request's own environment — replacing `$_SERVER` — plus `traceId(): string`, which is
+  present on every request whether or not the trace is sampled and is MWL's only request identifier
+  ([ADR 0076](../adr/0076-observability-export.md)), and `isDraining(): bool`, true once graceful shutdown
+  has begun ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 5).
 - `Core\Session`: `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25 `session_*`
   functions. May not use `Core\Cache` ([ADR 0059](../adr/0059-cross-request-state-is-explicit.md)).
 - `Core\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env\Mode`, and the constants `EOL`, `OS`,

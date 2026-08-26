@@ -181,11 +181,14 @@
 > that refuses an unclassified member exists; it lands with M4S's remaining sections. **ADR 0071 is
 > built end to end for a scalar-fielded class**; its gaps are no
 > enum/`decimal`/`Instant`/`array`/nested-class field decode and no optional key from a parameter
-> default. **Three ADRs are decided and unbuilt but are not catch-up** — 0091 (the
-> `development`/`production` run mode: a `[mode]` block, a `System` ceiling, four governed
-> directives, `Core\Env::mode`), 0092 (one diagnostic record rendered as plaintext, JSON or HTML by
-> the sink in force — `Core\Log`'s `Log\Level`, `Core\Debug::dump`, throwables, test results and
-> compiler diagnostics) and 0093 (`mwl service`). None invalidates built behaviour or a written
+> default. **Four ADRs are decided and unbuilt but are not catch-up** — 0091 (the
+> `development`/`production` run mode: a `[mode]` block, a `System` ceiling, five governed
+> directives plus § 3a's three startup defaults, `Core\Env::mode`), 0092 (one diagnostic record
+> rendered as plaintext, JSON or HTML by the sink in force — `Core\Log`'s `Log\Level`,
+> `Core\Debug::dump`, throwables, test results and compiler diagnostics), 0093 (`mwl service`) and
+> 0097 (the server's scope and its `[server]` block: mounts expanded from globs at boot, the
+> trusted-proxy walk, four idle waits, `max_in_flight`; and the removal of the inbound TLS listener,
+> h2c and the FastCGI transport, which deleted M13). None invalidates built behaviour or a written
 > fixture; their work is M4, M6, M7, M8 and M10 and lands with those milestones. **Still open beside
 > the library** — a property's **declared default runs now** and is type-checked (`E0472`), a
 > per-class image on `mwl_runtime::ClassDesc` that `MwlObj::new` writes, so `NewDynamic` and
@@ -246,7 +249,6 @@ one's verification passes.
 | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined) |
 | [M11](plan/m11.md) | PHP transpiler (~10 weeks) |
 | [M12](plan/m12.md) | Optimising JIT tier (ongoing) |
-| [M13](plan/m13.md) | Optional FastCGI transport |
 | [M14](plan/m14.md) | Optional wasm32 browser target |
 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks; scheduled after M6) |
 | [M16](plan/m16.md) | `mwl/web`, `mwl new`, and the framework (~12 weeks; scheduled after M7 and M8) |
