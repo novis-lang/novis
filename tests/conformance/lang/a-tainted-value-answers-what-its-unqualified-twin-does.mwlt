@@ -1,0 +1,102 @@
+--TEST--
+`tainted` is erased before codegen, so a qualified value answers exactly what its unqualified twin answers on every question it can be asked — ADR 0024 §§ 1-2 and ADR 0033 §§ 1-2
+--FILE--
+<?mwl
+// ADR 0024 § 1: the qualifier is "checked exactly once, by `mwl check`, and
+// carries no representation at all past that point". A case can only see the
+// second half of that, so this one asks a *tainted* value and its plain twin
+// the same question on every row and **counts** the rows where the two
+// agreed. A lowering that grew a representation for the qualifier -- a header
+// bit, a wrapper, a second concatenation path -- fails the count while every
+// individual line still prints something plausible.
+//
+// The refusals are the other half of this claim and are their own file:
+// tests/conformance/reject/tainted-and-secret-widen-but-never-narrow.mwlt.
+
+// Content chosen so a divergence has somewhere to hide: empty, a byte a
+// naive escaper would touch, a multibyte run, a numeric string, and one long
+// enough not to fit an inline representation.
+array<tainted string> $rows = ["", "a", "<&\">", "grüße", "42", "the quick brown fox jumps over it"];
+array<string> $twin = ["", "a", "<&\">", "grüße", "42", "the quick brown fox jumps over it"];
+
+int $rowCount = 0;
+int $sameValue = 0;
+int $sameConcat = 0;
+int $sameInterp = 0;
+int $sameRoundTrip = 0;
+
+foreach ($rows as tainted string $t) {
+    string $p = $twin[$rowCount];
+
+    // ADR 0024 § 2's poisoning is a *type* rule: it says nothing about the
+    // answer, and this row is what says the answer did not move.
+    if ($t == $p) { $sameValue = $sameValue + 1; }
+
+    // Concatenation is the operation § 2 names first, so it is the one most
+    // likely to have grown a second path.
+    tainted string $tc = $t . "|end";
+    string $pc = $p . "|end";
+    if ($tc == $pc) { $sameConcat = $sameConcat + 1; }
+
+    // Interpolation is the same rule reached through the lexer's other door.
+    tainted string $ti = "[{$t}]";
+    string $pi = "[{$p}]";
+    if ($ti == $pi) { $sameInterp = $sameInterp + 1; }
+
+    // ADR 0009 § 3 / ADR 0024 § 2: `bytes`/`string` preserve the qualifier
+    // across either direction, so the round trip stays tainted the whole way
+    // and must still land on the byte-identical value.
+    tainted bytes $tb = $t as bytes;
+    tainted string $back = $tb as string;
+    if ($back == $p) { $sameRoundTrip = $sameRoundTrip + 1; }
+
+    $rowCount = $rowCount + 1;
+}
+
+echo "rows=", $rowCount, "\n";
+echo "value=", $sameValue, " concat=", $sameConcat, " interp=", $sameInterp, " roundtrip=", $sameRoundTrip, "\n";
+
+// ADR 0033 § 2: the two axes poison independently. Every binding below is a
+// compile-time assertion that this file's compiling *is* the claim -- there is
+// no runtime witness for a qualifier that was erased -- so each names the
+// exact atom the checker must have produced.
+string $plain = "p";
+tainted string $widenedTainted = $plain;
+secret string $widenedSecret = $plain;
+secret tainted string $widenedBoth = $widenedTainted;
+echo "widened=", $widenedBoth, "\n";
+
+tainted string $onlyTainted = "t";
+secret string $onlySecret = "s";
+// One operand carries each bit; § 2 says the result carries both, in either
+// operand order.
+secret tainted string $mixLeft = $onlyTainted . $onlySecret;
+secret tainted string $mixRight = $onlySecret . $onlyTainted;
+if ($mixLeft == "ts") { echo "poisoned both ways\n"; } else { echo "BAD\n"; }
+if ($mixRight == "st") { echo "poisoned both ways\n"; } else { echo "BAD\n"; }
+
+// ADR 0024 § 2: a checked conversion to a type that already throws on a
+// malformed shape removes the qualifier on success, with no new syntax -- the
+// plain `uint`/`int`/`bool` slots are what assert it.
+tainted string $digits = "17";
+uint $laundered = $digits as uint;
+int $signed = $digits as int;
+tainted string $flag = "1";
+bool $truth = $flag as bool;
+echo "laundered=", $laundered, " signed=", $signed, "\n";
+if ($truth) { echo "bool laundered\n"; } else { echo "BAD\n"; }
+
+// ADR 0033 § 2 again: the conversion strips *both* bits at once, which is the
+// known, accepted gap that ADR's own Alternatives-rejected section names.
+secret tainted string $both = "8";
+uint $stripped = $both as uint;
+echo "stripped=", $stripped, "\n";
+--EXPECT--
+rows=6
+value=6 concat=6 interp=6 roundtrip=6
+widened=p
+poisoned both ways
+poisoned both ways
+laundered=17 signed=17
+bool laundered
+stripped=8
