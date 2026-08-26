@@ -12,7 +12,9 @@
 - **Relates to:** [0003](0003-extension-system.md) (the same phased shape: ship the portable, sandboxed
   answer first, and name the deeper native investment as a later, explicit decision rather than build it
   up front)
-- **Amended by:** 0040 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0040, 0099, 0101 — each fold is applied below; this body states the current rule. 0099
+  moves the extension itself to M4B and owns its contribution roster from there; 0101 adds § 2's
+  concealment bullet.
 
 > **In short:** a language server is necessary but not sufficient in either editor. VS Code always needs a
 > thin client extension regardless of the server behind it — something has to spawn `mwl lsp`, register the
@@ -75,6 +77,16 @@ A standard `vscode-languageclient` extension:
   of its own.
 - Surfaces `mwl run`/`mwl test` as VS Code Tasks and a "Run File" command. A full custom Test Explorer
   provider is not in this ADR's scope — see *Revisiting*.
+- **Conceals a `secret` value's bytes by default**, on ranges the server computes and hands over through
+  `mwl/redactions` — the client draws a decoration and decides nothing, per *Decision § 1*. `tainted` gets
+  no default decoration at all, for a reason that is this ADR's own split rather than a preference: the
+  server knows which is which and the client would have to guess.
+  [ADR 0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) owns the rule,
+  the reveal, and the list of leak surfaces VS Code gives no way to close.
+
+**The concrete contribution roster for all of the above is [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
+§ 6**, which moves the extension to M4B and freezes its setting and command identifiers; this section is the
+shape, that one is the list.
 
 ### 3. PhpStorm plugin — LSP-bridge now, native PSI later
 

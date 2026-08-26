@@ -24,7 +24,14 @@ projections of data the tree already holds rather than features built on it: `se
 `SyntaxIndex`'s ancestor list *is* the response), `foldingRange` and `documentLink`. Plus exactly **two
 code actions**, admitted because their replacement text already sits in `Diagnostic::suggestions`: the
 casing fix ([0029](../adr/0029-identifier-casing-is-checked.md)/[0030](../adr/0030-no-leading-underscores-constructor-spelling.md))
-and `(int)$x` → `$x as int` ([0034](../adr/0034-legacy-cast-syntax-rejected.md)).
+and `(int)$x` → `$x as int` ([0034](../adr/0034-legacy-cast-syntax-rejected.md)). Beside the nine standard
+requests sits exactly **one of MWL's own**, `mwl/redactions`, answering the ranges the editor conceals —
+a literal or interpolation slot whose static type carries `secret`
+([0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) §§ 1–2). It is
+not a token modifier: that channel degrades to "whatever the theme thinks", and a security default may not
+have becoming-visible as its failure mode. Its fail direction is named — a range whose expression cannot be
+typed but whose binding declares `secret` is answered anyway, so a value does not flash on every keystroke
+while its literal is being typed.
 
 **Diagnostics are phase-gated**, which is the one rule an editor needs and a compiler does not: the front
 end runs parse → resolve → types with no gate, so today one typo yields a *spurious* `E0301` reported
@@ -68,9 +75,16 @@ and an AST explorer panel backed by **`mwl ast --json --resilient`** — which i
 `--json` does not exist today and `{stmts:#?}` has no stability contract. The extension refuses a binary
 whose version it does not understand rather than answering confusingly, and holds **no language logic**,
 enforced by a dependency-allowlist test rather than by review. The setting and command identifiers
-(`mwl.path`, `mwl.lsp.enable`, `mwl.lsp.debounce`, `mwl.lsp.trace.server`; `mwl.run`, `mwl.test`,
-`mwl.showAst`, `mwl.restartServer`) are frozen at M4B because they are public API — a rename breaks a
-user's `settings.json` silently. Extension id `mwl-lang.mwl`; `package-lock.json` is committed because
+(`mwl.path`, `mwl.lsp.enable`, `mwl.lsp.debounce`, `mwl.lsp.trace.server`, `mwl.secrets.redact`,
+`mwl.taint.mark`; `mwl.run`, `mwl.test`, `mwl.showAst`, `mwl.restartServer`, `mwl.revealSecret`,
+`mwl.hideSecrets`) are frozen at M4B because they are public API — a rename breaks a user's
+`settings.json` silently. **A `secret` literal is concealed by default** — blurred in place, the character
+cells kept, so every edit still addresses the real text — and a reveal is per range and dies when the
+editor closes, because the threat is an unattended screen and no API reports one
+([0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md)). `tainted`
+is decorated only if the user asks (`mwl.taint.mark`, default `off`): a glyph is *added content*, and how
+a construct looks stays the theme's call. The AST panel inherits the same placeholder in
+`mwl ast --json` itself, or it prints in a webview the credential the buffer behind it is hiding. Extension id `mwl-lang.mwl`; `package-lock.json` is committed because
 `npm ci` needs it; CI produces an installable `.vsix`; **nothing is published** —
 [ADR 0016](../adr/0016-ide-integration.md) *Revisiting* keeps that open.
 
@@ -107,7 +121,9 @@ through both encodings on a multi-byte line, a BOM document answers correct offs
 columns match an LF one's; `println!` appears in no crate the server links; editing a required file
 re-publishes the requiring document's diagnostics untouched. The extension activates on `.mwl` and not on
 `.php`, shows TextMate colour before the server answers and semantic colour after, registers a legend
-equal to the one the server declares, round-trips all nine requests and both code actions with no language
-logic in its own source, exposes `mwl run`/`mwl test` as Tasks whose failures populate the Problems panel,
+equal to the one the server declares, round-trips all nine standard requests and both code actions with no
+language logic in its own source, conceals a `secret` literal on open and reveals exactly the one range
+`mwl.revealSecret` is fired on while a second secret in the same file stays hidden, decorates nothing for
+`tainted` at the default setting, prints the placeholder rather than the literal in `mwl ast --json`, exposes `mwl run`/`mwl test` as Tasks whose failures populate the Problems panel,
 selects `$total` whole on a double-click, opens a `.mwlt` case coloured, and renders the AST panel for a
 file that does not compile. `tokio` appears in neither `Cargo.toml` nor `Cargo.lock`.

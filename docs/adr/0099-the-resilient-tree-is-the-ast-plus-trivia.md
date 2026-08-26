@@ -18,6 +18,10 @@
   each fold is applied in that ADR's own body, which states the current rule;
   [ADR 0016](0016-ide-integration.md) § 2's `mwl lsp` spelling is unchanged, only what is behind it.
   [docs/plan/m4b.md](../plan/m4b.md) and [docs/plan/m10.md](../plan/m10.md) are rewritten to match.
+- **Amended by:** 0101 — each fold is applied below; this body states the current rule. It adds
+  `mwl/redactions` to § 3's request set, two settings and two commands to § 6's frozen roster, and a
+  type-dependent placeholder to § 7's schema; § 4 is unchanged, and its "not MWL's call" rule is what
+  keeps `tainted` undecorated by default there.
 - **Relates to:** 0009, 0018, 0029, 0034, 0039, 0051, 0092
 
 > **In short:** MWL's parser already does most of what "resilient parsing" names — every production returns
@@ -179,10 +183,10 @@ what the `SyntaxIndex`'s ancestor paths already make expressible.
 
 ### 3. The M4B request set
 
-Nine, and no more. Each is named here because "minimal" without a list is how scope grows. The last three
-are admitted on one test — the data structure M4B already builds *is* the answer, so not exposing them
-would mean building it and hiding it — and that test is what keeps the list from drifting back toward
-M10's catalog.
+Nine standard requests, and no more, plus **exactly one of MWL's own**. Each is named here because
+"minimal" without a list is how scope grows. The last three standard ones are admitted on one test — the
+data structure M4B already builds *is* the answer, so not exposing them would mean building it and hiding
+it — and that test is what keeps the list from drifting back toward M10's catalog.
 
 | Request | What M4B answers |
 |---|---|
@@ -195,6 +199,7 @@ M10's catalog.
 | `textDocument/selectionRange` | expand-selection. `SyntaxIndex.at(offset)` returns the innermost node **and its ancestors**, and that ancestor list is the response — the request is a projection of the index, not a feature built on top of it |
 | `textDocument/foldingRange` | from the same walk `documentSymbol` does, plus comment blocks out of the trivia layer, which nothing else can see |
 | `textDocument/documentLink` | the path literal in `require './foo.mwl'` and in an `autoload` declaration, made clickable. The graph is already resolved for `definition`; this is that resolution pointed at the literal rather than at a name |
+| `mwl/redactions` | the ranges the client conceals — a literal token or interpolation slot whose static type carries `secret` ([ADR 0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) §§ 1–2). The one non-standard request here, and it is non-standard because LSP has no shape for "do not show this to the room" |
 
 Plus **two code actions**, and only two, closing ADR 0040 *Revisiting*'s "one or two cheap ones early"
 question: the casing fix ([ADR 0029](0029-identifier-casing-is-checked.md)/[0030](0030-no-leading-underscores-constructor-spelling.md))
@@ -404,9 +409,12 @@ showing server health and version; `mwl run`/`mwl test` as Tasks; and the AST pa
   `settings.json` and a command id in their keybindings, so renaming one later breaks a user's
   configuration silently — which makes this the cheapest thing on this page to get right and among the
   more annoying to get wrong. Settings: `mwl.path` (the binary, falling back to `PATH`), `mwl.lsp.enable`,
-  `mwl.lsp.debounce`, `mwl.lsp.trace.server`. Commands: `mwl.run`, `mwl.test`, `mwl.showAst`,
-  `mwl.restartServer`. Nothing else is contributed at M4B, and anything added later is added, never
-  renamed.
+  `mwl.lsp.debounce`, `mwl.lsp.trace.server`, and — added by
+  [ADR 0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) §§ 3–4 —
+  `mwl.secrets.redact` (default `true`) and `mwl.taint.mark` (default `off`). Commands: `mwl.run`,
+  `mwl.test`, `mwl.showAst`, `mwl.restartServer`, and from the same source `mwl.revealSecret` and
+  `mwl.hideSecrets`. Nothing else is contributed at M4B, and anything added later is added, never
+  renamed — which is the rule ADR 0101 was applied under, not an exception to it.
 - **`language-configuration.json` is content, not a checkbox.** Comments (`//`, `#`, `/* */`), brackets,
   auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `/** */` block, and
   folding markers. The one that is MWL-specific and that a borrowed PHP file gets wrong is **`wordPattern`
@@ -442,6 +450,14 @@ node object of `kind`, `span` as `[start, end]`, the node's own scalar fields, a
 recovery nodes are included, because a panel that hides them is least useful on exactly the file the
 developer is looking at the panel to understand. It is frozen by a snapshot test over `examples/`, and
 `--resilient` is the default: the panel's whole value is on a file that does not compile.
+
+**One scalar field is not the source text**, and it is the only place this output depends on anything past
+the parse: a literal node whose static type carries `secret` emits the fixed placeholder
+[ADR 0033](0033-secret-qualifier-for-confidential-values.md) § 4 gives a dumped property, rather than its
+own bytes — [ADR 0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) § 5.
+Without it the AST panel prints in a webview exactly the credential the buffer behind it is concealing, and
+putting the rule in the JSON rather than in the panel is what stops `--json` and the webview from
+disagreeing about it.
 
 ### 8. Testing the extension: headless gates the loop, the host run gates the milestone
 
