@@ -980,6 +980,26 @@ is why" — is this file.
   though -2^63 is exactly representable as a double. A case sweeping a `float`-typed member over an
   `int` table is therefore bounded at ±9007199254740992, and reaching `int`'s own extremes on the
   float side needs a `float` *literal* — `0.0 - 9223372036854775808.0` — rather than a conversion.
+- **`Core\Math::cbrt` is not one of IEEE 754's correctly rounded operations and the two legs
+  disagree, so an *irrational* cube root's round trip cannot be frozen either way.**
+  `Core\Math::cbrt(2.0)` cubed is exactly `2.0` under glibc on the WSL leg and
+  `-1.1102230246252E-15` short of it under MSVC natively — measured, in the session that wrote
+  `math-a-root-and-a-logarithm-undo-themselves-only-where-the-answer-is-exact.mwlt`. `sqrt` is the
+  only root member the standard requires to be correctly rounded, which makes it the only one whose
+  inexact rows are the same on every conforming platform: `sqrt(2.0)` squared is
+  `4.4408920985006E-16` over 2 everywhere. A *perfect* cube does round trip on both legs — 18 rows
+  of both signs, including the dyadic ones — because the answer is representable and every libm's
+  final refinement lands on it; that half is safe to assert, the irrational half is not. Same
+  reading as the `hypot` and `atanh` bullets beside this one: pick the rows, not the member.
+
+- **Float `<`, `>`, `&&` and `||` all lower, and `0.0 / 0.0` answers `NAN` rather than throwing** —
+  which together are what let a case assert "near, not equal" without a member. The neighbouring
+  bullet about `emit_binop`'s ordering rows being `Int | Uint | Bool` is about *strings*; two
+  `float`s compare for order fine. So the tolerance spelling a float agreement case wants is
+  `float $tol = 0.000000000001 * ($mag + 1.0);` then `if (($d < $tol) && ($d > 0.0 - $tol))`, with
+  the magnitude taken by hand (`if ($mag < 0.0) { $mag = 0.0 - $mag; }`) because
+  `Core\Math::abs` answers the `int|float` union and not a `float`. `-0.0` echoes as `-0` and is
+  read through `1.0 / $x` when it has to be told from `0.0`, as the parity case does.
 
 ## Splitting a file that got too big
 
