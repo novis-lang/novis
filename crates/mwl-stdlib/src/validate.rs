@@ -246,19 +246,15 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 ///
 /// A [`Fault::fatal`] for a value that is not a `string`, which the checker
 /// has already refused — this is the ABI's own assertion, not a
-/// program-visible outcome.
+/// program-visible outcome. It is the only failure: the tag
+/// [`Value::as_text`] checks is itself ADR 0009's UTF-8 guarantee, so there is
+/// no encoding outcome left to report.
 fn subject<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
-    let bytes = value.as_str_bytes().ok_or_else(|| {
+    value.as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Validate::{member} expected {:?} for the subject, got tag {}",
             Tag::Str,
             value.tag_byte()
-        ))
-    })?;
-    std::str::from_utf8(bytes).map_err(|_| {
-        Fault::fatal(format!(
-            "Core\\Validate::{member} received a `string` that is not valid UTF-8, which ADR 0009 \
-             guarantees it cannot be"
         ))
     })
 }

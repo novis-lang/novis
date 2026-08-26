@@ -1,5 +1,9 @@
-//! Every count-shaped argument goes through one check, and only one — and a
-//! member that knows how long its result is allocates it once.
+//! Every argument goes through one check, and only one — and a member that
+//! knows how long its result is allocates it once.
+//!
+//! Three guards, one rule each: a size becomes a refusal in exactly one place,
+//! a `string` argument's UTF-8 is established by its tag and never re-derived,
+//! and a result is written into the allocation it is answered from.
 //!
 //! The guard this pins was four hand-written copies of the same three lines,
 //! and the members with the largest appetite had none at all — which is the
@@ -49,6 +53,64 @@ fn no_member_writes_its_own_allocation_guard() {
         "these files hand-write an allocation guard instead of calling \
          `mwl_runtime::affordable`: {offenders:?}. That function is the one seam the per-request \
          ceiling attaches to; a private copy silently opts its member out of it."
+    );
+}
+
+// ============================================================================
+// One check per `string` argument
+// ============================================================================
+
+/// A `string`'s tag **is** ADR 0009's UTF-8 guarantee, so a reader that has
+/// already checked the tag may not then walk the payload to re-derive it.
+///
+/// The banned shape is one chain: [`mwl_runtime::Value::as_str_bytes`], which
+/// answers only for a `Tag::Str`, feeding `std::str::from_utf8`.
+/// `Value::as_text` is the same tag check and none of the walk —
+/// `mwl_runtime`'s `string` module owns the argument in its § *Reading the
+/// payload as text*, and a debug build still re-validates inside that one
+/// reader, so the check is not lost, only paid once and in one place.
+///
+/// This scans the source rather than measuring, because what it pins is the
+/// shape the *next* argument reader will be copied from: the pair sat in nine
+/// sibling modules at once, each a faithful copy of the one before it, and no
+/// measurement of any single member would have said so.
+///
+/// `Value::as_bytes` is deliberately untouched. A `bytes` carries no encoding
+/// guarantee at all, so `Core\Encoding`'s `Utf8` scheme validating one is the
+/// real check rather than a repeat of it.
+#[test]
+fn no_member_revalidates_a_string_argument() {
+    /// How many lines after an `as_str_bytes` still count as the same chain.
+    /// Wide enough to span a `ok_or_else` closure formatting a message, which
+    /// is what every one of the nine put between the two halves.
+    const WINDOW: usize = 12;
+
+    let mut offenders: Vec<String> = Vec::new();
+    for (name, text) in sources() {
+        // A `#[cfg(test)]` module may hold either spelling for its own
+        // reasons: building a `String` out of a member's *result* to assert on
+        // it is not an argument reader re-validating anything.
+        let source = text
+            .split_once("\n#[cfg(test)]")
+            .map_or(text.as_str(), |(head, _)| head);
+        let lines: Vec<&str> = source.lines().collect();
+        for (index, line) in lines.iter().enumerate() {
+            if !line.contains("as_str_bytes") {
+                continue;
+            }
+            let end = lines.len().min(index + WINDOW);
+            if lines[index..end].iter().any(|l| l.contains("from_utf8")) {
+                offenders.push(format!("{name}:{}", index + 1));
+            }
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "these sites read a `string`'s bytes and then re-validate them as UTF-8: {offenders:?}. \
+         The tag already is that guarantee (ADR 0009 § 3), so `Value::as_text` is the whole read \
+         — `crates/mwl-stdlib/src/str.rs`'s `text` is the shape to copy, and it states why the \
+         O(n) pass is not worth keeping `for safety`."
     );
 }
 

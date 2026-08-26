@@ -322,21 +322,15 @@ impl Serialize for Encodable {
 impl Encodable {
     /// This value's string payload as UTF-8.
     ///
-    /// ADR 0009 makes a `string` guaranteed-valid UTF-8, but a `bytes` value
-    /// carries the same [`Tag::Str`] — so this is where "the caller passed
-    /// binary data into a text format" is caught rather than left to produce a
-    /// document nothing can read.
+    /// ADR 0009 makes a `string` guaranteed-valid UTF-8 and [`Tag::Bytes`] is
+    /// its own tag over the shared allocation, so "the caller passed binary
+    /// data into a text format" is caught one level up — a `bytes` value never
+    /// reaches here, it falls into the `_` arm of the match above. What is left
+    /// is the tag check itself, which is exactly what [`Value::as_text`] is.
     fn text<E: serde::ser::Error>(&self) -> Result<&str, E> {
-        let bytes = self
-            .value
-            .as_str_bytes()
-            .ok_or_else(|| E::custom("a `Tag::Str` value always has bytes"))?;
-        std::str::from_utf8(bytes).map_err(|_| {
-            E::custom(
-                "a `bytes` value is not text and has no JSON encoding — encode it with \
-                 `Core\\Encoding::toBase64` first",
-            )
-        })
+        self.value
+            .as_text()
+            .ok_or_else(|| E::custom("a `Tag::Str` value always has text"))
     }
 
     /// An object, as the document its class's
@@ -1006,17 +1000,17 @@ mwl_runtime::mwl_helper! {
 const DEFAULT_MAX_DEPTH_U32: u32 = DEFAULT_MAX_DEPTH as u32;
 
 /// One `string` argument, as text.
+///
+/// One failure, the wrong tag: the tag [`Value::as_text`] checks is itself
+/// ADR 0009's UTF-8 guarantee, so there is no encoding outcome left to report.
+/// `crate::str`'s own `text` states why re-deriving it would be an O(n) pass
+/// per argument.
 fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
-    let bytes = value.as_str_bytes().ok_or_else(|| {
+    value.as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Json::{member} expected {:?}, got tag {}",
             Tag::Str,
             value.tag_byte()
-        ))
-    })?;
-    std::str::from_utf8(bytes).map_err(|_| {
-        Fault::fatal(format!(
-            "Core\\Json::{member} was given a `string` that is not UTF-8"
         ))
     })
 }

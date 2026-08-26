@@ -443,17 +443,18 @@ fn bytes_of<'a>(args: &'a [Value], member: &str) -> Result<&'a [u8], Fault> {
 }
 
 /// The `string` in argument slot 0, for [`bytes_of`]'s reason.
+///
+/// One failure, the wrong tag. A `string` is guaranteed-valid UTF-8 (ADR 0009
+/// § 2), and the tag [`Value::as_text`] checks *is* that guarantee, so there is
+/// nothing left here to re-derive — `crate::str`'s own `text` states the cost
+/// of doing it anyway.
 fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
-    let bytes = args[0].as_str_bytes().ok_or_else(|| {
+    args[0].as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Encoding::{member} expected a `string`, got tag {}",
             args[0].tag_byte()
         ))
-    })?;
-    // A `string` is guaranteed-valid UTF-8 (ADR 0009 § 2), so this cannot fail
-    // for anything compiled code produced.
-    std::str::from_utf8(bytes)
-        .map_err(|_| Fault::fatal(format!("Core\\Encoding::{member} got invalid UTF-8")))
+    })
 }
 
 /// One [`CHARSET`] case, as the two things a conversion needs from it.

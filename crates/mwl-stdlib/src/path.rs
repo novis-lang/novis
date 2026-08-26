@@ -376,19 +376,15 @@ fn relative(components: &[&str]) -> String {
 // Argument decoding — the same shape as `crate::str`'s, naming this class
 // ============================================================================
 
-/// One `string` argument as text.
+/// One `string` argument as text, with `crate::str`'s `text` as the shape —
+/// including its one failure, since the tag [`Value::as_text`] checks is
+/// itself ADR 0009's UTF-8 guarantee.
 fn text<'a>(value: &'a Value, member: &str, position: &str) -> Result<&'a str, Fault> {
-    let bytes = value.as_str_bytes().ok_or_else(|| {
+    value.as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Path::{member} expected {:?} for {position}, got tag {}",
             Tag::Str,
             value.tag_byte()
-        ))
-    })?;
-    std::str::from_utf8(bytes).map_err(|_| {
-        Fault::fatal(format!(
-            "Core\\Path::{member} received a `string` that is not valid UTF-8, which ADR 0009 \
-             guarantees it cannot be"
         ))
     })
 }

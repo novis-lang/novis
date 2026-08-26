@@ -677,18 +677,15 @@ fn decode(text: &str, form: Form) -> Vec<u8> {
 /// `mwl_types` already checked the declared type, so a slot holding anything
 /// else is a runtime-contract violation rather than anything a program can
 /// cause — the same treatment [`crate::path`] gives its own arguments.
+///
+/// That is the only failure. The tag [`Value::as_text`] checks is itself
+/// ADR 0009's UTF-8 guarantee, so no encoding outcome is left to report.
 fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
-    let bytes = args[0].as_str_bytes().ok_or_else(|| {
+    args[0].as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Uri::{member} expected {:?}, got tag {}",
             Tag::Str,
             args[0].tag_byte()
-        ))
-    })?;
-    std::str::from_utf8(bytes).map_err(|_| {
-        Fault::fatal(format!(
-            "Core\\Uri::{member} received a `string` that is not valid UTF-8, which ADR 0009 \
-             guarantees it cannot be"
         ))
     })
 }
@@ -856,15 +853,10 @@ fn held<'a>(slots: &'a [Value], index: usize, member: &str) -> Result<Option<&'a
     if matches!(value.tag(), Some(Tag::Null)) {
         return Ok(None);
     }
-    let bytes = value.as_str_bytes().ok_or_else(|| {
+    value.as_text().map(Some).ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Uri::{member} found tag {} in slot {index}",
             value.tag_byte()
-        ))
-    })?;
-    std::str::from_utf8(bytes).map(Some).map_err(|_| {
-        Fault::fatal(format!(
-            "Core\\Uri::{member} found a non-UTF-8 slot {index}"
         ))
     })
 }
@@ -887,16 +879,10 @@ fn written<'a>(value: &'a Value, option: &str) -> Result<Option<&'a str>, Fault>
     if matches!(value.tag(), Some(Tag::Null)) {
         return Ok(None);
     }
-    let bytes = value.as_str_bytes().ok_or_else(|| {
+    value.as_text().map(Some).ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Uri::with expected a `string` for its `{option}` option, got tag {}",
             value.tag_byte()
-        ))
-    })?;
-    std::str::from_utf8(bytes).map(Some).map_err(|_| {
-        Fault::fatal(format!(
-            "Core\\Uri::with received a `{option}` that is not valid UTF-8, which ADR 0009 \
-             guarantees it cannot be"
         ))
     })
 }
@@ -1621,19 +1607,12 @@ mwl_runtime::mwl_helper! {
                     .to_owned(),
             )
         })?;
-        let text = args[1].as_str_bytes().ok_or_else(|| {
+        let text = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Uri::resolve expected {:?}, got tag {}",
                 Tag::Str,
                 args[1].tag_byte()
             ))
-        })?;
-        let text = std::str::from_utf8(text).map_err(|_| {
-            Fault::fatal(
-                "Core\\Uri::resolve received a `string` that is not valid UTF-8, which ADR 0009 \
-                 guarantees it cannot be"
-                    .to_owned(),
-            )
         })?;
         let reference = read(text, "resolve")?;
         let resolved = reference

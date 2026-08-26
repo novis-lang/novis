@@ -234,21 +234,19 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] for a value that is not a `string` at all, which the
-/// checker has already refused — this is the ABI's own assertion, not a
-/// program-visible outcome.
+/// One failure, and it is a [`Fault::fatal`]: a value that is not a `string`
+/// at all, which the checker has already refused — this is the ABI's own
+/// assertion, not a program-visible outcome. There is no *encoding* failure to
+/// report, because the tag [`Value::as_text`] checks is itself ADR 0009's
+/// UTF-8 guarantee; `crate::str`'s own `text` states why re-deriving it here
+/// would be an O(n) pass over a buffer the runtime already knows the answer
+/// for.
 fn text_of<'a>(value: &'a Value, member: &str, position: &str) -> Result<&'a str, Fault> {
-    let bytes = value.as_str_bytes().ok_or_else(|| {
+    value.as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Csv::{member} expected {:?} for {position}, got tag {}",
             Tag::Str,
             value.tag_byte()
-        ))
-    })?;
-    std::str::from_utf8(bytes).map_err(|_| {
-        Fault::fatal(format!(
-            "Core\\Csv::{member} received a `string` that is not valid UTF-8, which ADR 0009 \
-             guarantees it cannot be"
         ))
     })
 }

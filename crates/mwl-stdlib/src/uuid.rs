@@ -202,18 +202,16 @@ fn read(text: &str) -> Option<Uuid> {
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] naming the member, for [`uuid_of`]'s reason.
+/// A [`Fault::fatal`] naming the member, for [`uuid_of`]'s reason — and only
+/// that one: a `string` is guaranteed-valid UTF-8 (ADR 0009), and the tag
+/// [`Value::as_text`] checks *is* that guarantee, so nothing here re-derives it.
 fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
-    let bytes = args[0].as_str_bytes().ok_or_else(|| {
+    args[0].as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Uuid::{member} expected a `string`, got tag {}",
             args[0].tag_byte()
         ))
-    })?;
-    // A `string` is guaranteed-valid UTF-8 (ADR 0009), so this cannot fail for
-    // anything compiled code produced.
-    std::str::from_utf8(bytes)
-        .map_err(|_| Fault::fatal(format!("Core\\Uuid::{member} got invalid UTF-8")))
+    })
 }
 
 /// `text` as it may be quoted back inside a throw message: the first

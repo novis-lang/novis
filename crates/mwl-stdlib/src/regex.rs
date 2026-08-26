@@ -570,20 +570,16 @@ fn budget_exhausted(member: &str, pattern: &str, err: &fancy_regex::Error) -> Fa
 // Argument decoding
 // ============================================================================
 
-/// One `string` argument's text. Both failures are `FATAL` for
-/// `Core\Str`'s reasons, which that module's own `text` states.
+/// One `string` argument's text. The one failure is `FATAL` for `Core\Str`'s
+/// reasons, which that module's own `text` states — including why there is no
+/// second, encoding one: the tag [`Value::as_text`] checks is ADR 0009's UTF-8
+/// guarantee itself.
 fn text<'a>(value: &'a Value, member: &str, position: &str) -> Result<&'a str, Fault> {
-    let bytes = value.as_str_bytes().ok_or_else(|| {
+    value.as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Regex::{member} expected {:?} for {position}, got tag {}",
             Tag::Str,
             value.tag_byte()
-        ))
-    })?;
-    std::str::from_utf8(bytes).map_err(|_| {
-        Fault::fatal(format!(
-            "Core\\Regex::{member} received a `string` that is not valid UTF-8, which ADR 0009 \
-             guarantees it cannot be"
         ))
     })
 }

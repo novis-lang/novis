@@ -334,23 +334,23 @@ impl Spec {
 /// borrowed text has been copied out.
 fn rendered(argument: &Value) -> Result<String, Fault> {
     let value = mwl_runtime::value_to_string(*argument)?;
-    let ptr = value
-        .str_ptr()
-        .ok_or_else(|| Fault::fatal("`value_to_string` answered something that is not a string"))?;
+    // The tag is ADR 0009's UTF-8 guarantee, so reading the payload as text is
+    // the same check as reading it at all — `mwl_runtime`'s `string` module owns
+    // that argument in its § *Reading the payload as text*. Re-deriving it here
+    // was an O(n) pass per rendered argument, on `format`'s own hot path.
+    let (Some(ptr), Some(text)) = (value.str_ptr(), value.as_text()) else {
+        return Err(Fault::fatal(
+            "`value_to_string` answered something that is not a string",
+        ));
+    };
+    let text = text.to_owned();
     #[expect(
         unsafe_code,
         reason = "`value_to_string` hands back exactly one fresh reference, and this handle is \
                   the thing that releases it"
     )]
-    let owned = unsafe { MwlStr::from_raw(ptr) };
-    std::str::from_utf8(owned.as_bytes())
-        .map(str::to_owned)
-        .map_err(|_| {
-            Fault::fatal(
-                "Core\\Str::format() received a `string` that is not valid UTF-8, which ADR 0009 \
-                 guarantees it cannot be",
-            )
-        })
+    let _owned = unsafe { MwlStr::from_raw(ptr) };
+    Ok(text)
 }
 
 /// One argument as the `int` an integer conversion needs.

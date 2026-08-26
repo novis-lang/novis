@@ -1501,17 +1501,17 @@ fn out_of_range(member: &str, why: &str) -> Fault {
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] naming the member, for the reason [`count`] gives.
+/// A [`Fault::fatal`] naming the member, for the reason [`count`] gives, and
+/// only that one: a `string` is guaranteed-valid UTF-8 (ADR 0009), and the tag
+/// [`Value::as_text`] checks *is* that guarantee, so there is nothing to
+/// re-derive here — `crate::str`'s own `text` states what doing it anyway costs.
 fn text_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fault> {
-    let bytes = args[at].as_str_bytes().ok_or_else(|| {
+    args[at].as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "{member} expected a `string`, got tag {}",
             args[at].tag_byte()
         ))
-    })?;
-    // A `string` is guaranteed-valid UTF-8 (ADR 0009), so this cannot fail for
-    // anything compiled code produced.
-    std::str::from_utf8(bytes).map_err(|_| Fault::fatal(format!("{member} got invalid UTF-8")))
+    })
 }
 
 /// The exact number of nanoseconds from `earlier` to `later`, which is what
@@ -1552,15 +1552,13 @@ fn zone_built(id: &str) -> Value {
 fn zone_of(args: &[Value], at: usize, member: &str) -> Result<TimeZone, Fault> {
     let object = crate::instance::receiver(args[at], &ZONE, member)?;
     let held = crate::instance::slot(object, ZONE_ID_SLOT);
-    let bytes = held.as_str_bytes().ok_or_else(|| {
+    // A `string` is guaranteed-valid UTF-8 (ADR 0009) and the tag is what says
+    // so, and this crate wrote this slot — so the tag check is the whole read.
+    let id = held.as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Time\\Zone::{member} found a non-`string` `id` slot"
         ))
     })?;
-    // A `string` is guaranteed-valid UTF-8 (ADR 0009), and this crate wrote
-    // this slot, so neither step can fail for anything a program can build.
-    let id = std::str::from_utf8(bytes)
-        .map_err(|_| Fault::fatal(format!("Core\\Time\\Zone::{member} found invalid UTF-8")))?;
     resolve_zone(id).ok_or_else(|| {
         Fault::thrown(format!(
             "Core\\Time\\Zone::{member}(): unknown time zone `{id}`"
@@ -1961,14 +1959,11 @@ fn zoned_of(args: &[Value], at: usize, member: &str) -> Result<Zoned, Fault> {
         ))
     })?;
     let held = crate::instance::slot(object, DATETIME_ZONE_SLOT);
-    let id = held
-        .as_str_bytes()
-        .and_then(|bytes| std::str::from_utf8(bytes).ok())
-        .ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Time\\DateTime::{member} found a non-`string` `zone` slot"
-            ))
-        })?;
+    let id = held.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Time\\DateTime::{member} found a non-`string` `zone` slot"
+        ))
+    })?;
     let zone = resolve_zone(id).ok_or_else(|| {
         Fault::thrown(format!(
             "Core\\Time\\DateTime::{member}(): unknown time zone `{id}`"

@@ -1047,17 +1047,12 @@ mwl_runtime::mwl_helper! {
     /// a qualifier classification yet, so half of one here would be a lie
     /// about what is enforced.
     fn mwl_core_bytes_pack(_ctx, args: [2]) {
-        let format = std::str::from_utf8(
-            args[0].as_str_bytes().ok_or_else(|| {
-                Fault::fatal(format!(
-                    "Core\\Bytes::pack expected {:?} for the format, got tag {}",
-                    Tag::Str,
-                    args[0].tag_byte()
-                ))
-            })?,
-        )
-        .map_err(|_| {
-            Fault::fatal("Core\\Bytes::pack: the format is not UTF-8".to_owned())
+        let format = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Bytes::pack expected {:?} for the format, got tag {}",
+                Tag::Str,
+                args[0].tag_byte()
+            ))
         })?;
         let values = args[1].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
@@ -1279,16 +1274,13 @@ mwl_runtime::mwl_helper! {
     /// [`mwl_core_bytes_pack`]'s is, and both classifications are owed there.
     fn mwl_core_bytes_unpack(_ctx, args: [2]) {
         let subject = raw(&args[0], "unpack", "the subject")?;
-        let format = std::str::from_utf8(
-            args[1].as_str_bytes().ok_or_else(|| {
-                Fault::fatal(format!(
-                    "Core\\Bytes::unpack expected {:?} for the format, got tag {}",
-                    Tag::Str,
-                    args[1].tag_byte()
-                ))
-            })?,
-        )
-        .map_err(|_| Fault::fatal("Core\\Bytes::unpack: the format is not UTF-8".to_owned()))?;
+        let format = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Bytes::unpack expected {:?} for the format, got tag {}",
+                Tag::Str,
+                args[1].tag_byte()
+            ))
+        })?;
 
         let mut out = MwlArray::new();
         for field in unpacked(subject, format)? {
