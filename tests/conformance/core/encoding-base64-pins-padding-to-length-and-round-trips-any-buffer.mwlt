@@ -1,0 +1,104 @@
+--TEST--
+`Core\Encoding`'s base64 pair pins padding to the operand's length, refuses a symbol neither alphabet admits, and round-trips a buffer no `string` could hold — spec § 7, ADR 0009 §§ 1 and 3
+--FILE--
+<?mwl
+class B64 {
+    // Both spellings of one buffer on one line, so the row itself shows what
+    // differs: § 4's alphabet padded, § 5's alphabet unpadded.
+    public static function both(string $hex): string {
+        bytes $raw = Core\Encoding::fromHex($hex);
+        return Core\Encoding::toBase64($raw) . " " . Core\Encoding::toBase64Url($raw);
+    }
+
+    // ADR 0009 § 3: decoding is the checked direction, so a spelling that is
+    // not exactly what the member writes throws rather than losing octets.
+    public static function standard(string $text): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromBase64($text));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    public static function url(string $text): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromBase64Url($text));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+// Padding is a function of the operand's length alone: `==` for one octet
+// left over, `=` for two, none for a whole triple. Seven lengths walk the
+// cycle twice, and the empty operand is the length that produces no symbols
+// at all rather than a failure.
+echo "[", B64::both(""), "]\n";
+echo B64::both("6d"), "\n";
+echo B64::both("6d77"), "\n";
+echo B64::both("6d776c"), "\n";
+echo B64::both("6d776c21"), "\n";
+echo B64::both("6d776c2121"), "\n";
+echo B64::both("6d776c212121"), "\n";
+
+// The empty operand decodes as well as it encodes, in both directions.
+echo "[", B64::standard(""), "]\n";
+echo "[", B64::url(""), "]\n";
+
+// Each padding length reads back to the octets it was written from.
+echo B64::standard("bQ=="), "\n";
+echo B64::standard("bXc="), "\n";
+echo B64::standard("bXds"), "\n";
+echo B64::url("bQ"), "\n";
+echo B64::url("bXc"), "\n";
+
+// Padding that is short of the group, and padding on a group that is already
+// whole: neither is the canonical spelling, so neither is read.
+echo B64::standard("bQ="), "\n";
+echo B64::standard("bXds="), "\n";
+
+// A symbol in neither alphabet — `*` and `.` are outside RFC 4648 §§ 4 and 5
+// alike, unlike `+`/`/` and `-`/`_`, which are each in exactly one.
+echo B64::standard("bX*s"), "\n";
+echo B64::url("bX*s"), "\n";
+echo B64::standard("bX.s"), "\n";
+echo B64::url("bX.s"), "\n";
+
+// The round trip that matters: 0xff, 0x80 and 0xfe are not UTF-8, so this
+// buffer has no `"…" as bytes` spelling (ADR 0009 § 1) and only `fromHex`
+// can produce it. Both variants carry it out and back unchanged.
+echo B64::both("00ff80fe"), "\n";
+echo B64::standard("AP+A/g=="), "\n";
+echo B64::url("AP-A_g"), "\n";
+
+// And a buffer that does have one: `as bytes` is total and free (§ 3), so a
+// `string` reaches the same pair through the same two members.
+bytes $text = "mwl" as bytes;
+echo Core\Encoding::toBase64($text), "\n";
+echo Core\Encoding::toHex(Core\Encoding::fromBase64Url(Core\Encoding::toBase64Url($text))), "\n";
+--EXPECT--
+[ ]
+bQ== bQ
+bXc= bXc
+bXds bXds
+bXdsIQ== bXdsIQ
+bXdsISE= bXdsISE
+bXdsISEh bXdsISEh
+[]
+[]
+6d
+6d77
+6d776c
+6d
+6d77
+threw
+threw
+threw
+threw
+threw
+threw
+AP+A/g== AP-A_g
+00ff80fe
+00ff80fe
+bXds
+6d776c
