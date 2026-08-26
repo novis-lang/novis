@@ -1,0 +1,163 @@
+--TEST--
+Core\Path::dirname and Core\Path::basename cut every path in exactly one place — join puts the two halves back through the normal form on every row, a name never holds a separator, and {levels:}/{withoutExtension:} are the only things that move either cut — docs/spec/01-core-library.md § 8
+--FILE--
+<?mwl
+// `dirname` and `basename` are one cut read from its two sides, not two
+// independent readings of a path: whatever one drops, the other keeps, so
+// joining them back is the path again. Asked one row at a time both look
+// right for free — `dirname("a/b/c")` is obviously `"a/b"` — and the rows
+// where a cut has nowhere obvious to fall are the ones nobody writes by hand:
+// a bare name with no directory, a root with no name, the empty path, a
+// trailing separator, a `.` or `..` that neither member resolves.
+//
+// The recomposition here is *total*, over every row — which is what this adds
+// to path-normalize-has-a-normal-form-and-join-never-replaces-its-base.mwlt,
+// where the same pair is recomposed with `==` over the five paths that name
+// something inside a directory. Through `normalize`, the rows that case
+// excludes stop being exceptions: a bare name's directory is `.` and rejoining
+// re-attaches it, a root's name is `""` and rejoining appends nothing.
+//
+// Every literal below is written with `/` and no drive letter except where the
+// point is that `\` is accepted too, and every path printed goes through
+// `Core\Path::SEPARATOR`, because the native Windows leg and the WSL leg do
+// not spell a separator the same way.
+array<string> $paths = [
+    "a/b/c", "a", "a/b/", "a//b", "/a/b/c", "/a", "/", "", ".", "..",
+    "a/..", "/..", "a/./b", "x/y/z/w", "/x/y/", "report.tar.gz", "/report.tar.gz",
+    "a/b/index.php", "/var/log/app.log", ".hidden",
+];
+
+// 1. The partition, counted. `join` of the two halves is the path on every
+//    row — through the normal form, because `join` only ever appends and it is
+//    `normalize` that resolves, so a `.` either half kept is still there in
+//    the rebuild.
+int $n = Core\Arr::count($paths) as int;
+int $rows = 0;
+int $whole = 0;
+int $nameless = 0;
+int $bareName = 0;
+foreach ($paths as string $p) {
+    $rows = $rows + 1;
+    string $dir = Core\Path::dirname($p);
+    string $name = Core\Path::basename($p);
+    if (Core\Path::normalize(Core\Path::join($dir, $name)) == Core\Path::normalize($p)) {
+        $whole = $whole + 1;
+    }
+    // Not a vacuous sweep. These are the two rows where one half of the cut is
+    // empty and the recomposition is carried entirely by the other: a root has
+    // no name, and a bare name has no directory but `.`. A member that
+    // answered `""` for either would still look right on every row above.
+    if ($name == "") {
+        $nameless = $nameless + 1;
+    }
+    if ($dir == ".") {
+        $bareName = $bareName + 1;
+    }
+}
+echo "recomposed ", $whole, "/", $rows, ", rootless names ", $bareName, ", nameless roots ", $nameless, "\n";
+
+// 2. A name is one component and never holds a separator, whichever separator
+//    the path was written with — spec § 8 accepts `/` and `\` alike on every
+//    platform, so a `basename` that cut on the emitted separator alone would
+//    hand back `a\b\c.txt` whole on the WSL leg and pass every row above.
+array<string> $spelled = ["a\\b\\c.txt", "/a\\b", "a/b\\c", "a\\b/c"];
+int $atomic = 0;
+foreach ($paths as string $q) {
+    string $one = Core\Path::basename($q);
+    if (Core\Str::contains($one, "/") == false && Core\Str::contains($one, "\\") == false) {
+        $atomic = $atomic + 1;
+    }
+}
+int $mixed = 0;
+int $mixedAtomic = 0;
+foreach ($spelled as string $r) {
+    $mixed = $mixed + 1;
+    string $two = Core\Path::basename($r);
+    if (Core\Str::contains($two, "/") == false && Core\Str::contains($two, "\\") == false) {
+        $mixedAtomic = $mixedAtomic + 1;
+    }
+}
+echo "atomic names ", $atomic, "/", $rows, ", written with both separators ", $mixedAtomic, "/", $mixed, "\n";
+
+// 3. `{levels:}` is the only thing that moves the directory cut, and it moves
+//    it exactly one component per level: asking for `$k` levels is walking up
+//    one level `$k` times. Counted over the table at every depth, because a
+//    member that miscounted only past the second level would still answer the
+//    depth every caller writes.
+int $stepped = 0;
+int $steps = 0;
+foreach ($paths as string $s) {
+    string $walk = Core\Path::join($s);
+    int $k = 0;
+    for (; $k < 4; $k = $k + 1) {
+        $steps = $steps + 1;
+        if (Core\Path::dirname($s, {levels: $k as uint}) == $walk) {
+            $stepped = $stepped + 1;
+        }
+        $walk = Core\Path::dirname($walk);
+    }
+}
+echo "levels agrees with walking ", $stepped, "/", $steps, "\n";
+
+// 4. Both ends of what `{levels:}` accepts, named together, and PHP throws at
+//    each of them. `levels: 0` is the path itself with its separators
+//    normalized rather than a `ValueError`, because the option is a `uint` and
+//    is routinely a computed depth. Past the last component it saturates at a
+//    directory a program can still use — the root for an absolute path, `.`
+//    for a relative one — rather than running off the end.
+int $atZero = 0;
+int $saturated = 0;
+foreach ($paths as string $t) {
+    int $c = (Core\Arr::count(Core\Path::split($t)) as int) - (Core\Path::isAbsolute($t) ? 1 : 0);
+    if (Core\Path::dirname($t, {levels: 0}) == Core\Path::join($t)) {
+        $atZero = $atZero + 1;
+    }
+    string $floor = Core\Path::isAbsolute($t) ? Core\Path::SEPARATOR : ".";
+    if (Core\Path::dirname($t, {levels: $c as uint}) == $floor
+        && Core\Path::dirname($t, {levels: ($c + 5) as uint}) == $floor) {
+        $saturated = $saturated + 1;
+    }
+}
+echo "levels 0 is the path ", $atZero, "/", $rows, ", past the last component it stops ", $saturated, "/", $rows, "\n";
+
+// 5. `{withoutExtension:}` moves the other cut, and it is the only thing that
+//    does: it splits inside the name at exactly the dot `Core\Path::extension`
+//    reads, so the option's answer and the extension put the name back
+//    wherever there is one, and are the name itself wherever there is not.
+int $named = 0;
+int $bare = 0;
+foreach ($paths as string $u) {
+    string $whole2 = Core\Path::basename($u);
+    string $stem = Core\Path::basename($u, {withoutExtension: true});
+    var $ext = Core\Path::extension($u);
+    if ($ext != null) {
+        if ($whole2 == $stem . "." . ($ext as string)) {
+            $named = $named + 1;
+        }
+    } else {
+        if ($whole2 == $stem) {
+            $bare = $bare + 1;
+        }
+    }
+}
+echo "name rebuilt from stem and extension ", $named, ", name is its own stem ", $bare, ", of ", $rows, "\n";
+
+// 6. The three answers PHP spells differently, on one line each, because they
+//    are what makes every count above total rather than nearly so.
+echo "levels 0: ", Core\Str::replace(Core\Path::dirname("a/b/c", {levels: 0}), Core\Path::SEPARATOR, "/"),
+     ", dirname of the empty path: ", Core\Path::dirname(""),
+     ", basename of the root: [", Core\Path::basename("/"), "]\n";
+echo "name ", Core\Path::basename("a/report.tar.gz"), " splits at ",
+     Core\Path::basename("a/report.tar.gz", {withoutExtension: true}), " + ",
+     Core\Path::extension("a/report.tar.gz") ?? "<null>", "\n";
+echo "dotfile ", Core\Path::basename("a/.hidden", {withoutExtension: true}), " + ",
+     Core\Path::extension("a/.hidden") ?? "<null>", "\n";
+--EXPECT--
+recomposed 20/20, rootless names 6, nameless roots 2
+atomic names 20/20, written with both separators 4/4
+levels agrees with walking 80/80
+levels 0 is the path 20/20, past the last component it stops 20/20
+name rebuilt from stem and extension 4, name is its own stem 16, of 20
+levels 0: a/b/c, dirname of the empty path: ., basename of the root: []
+name report.tar.gz splits at report.tar + gz
+dotfile .hidden + <null>
