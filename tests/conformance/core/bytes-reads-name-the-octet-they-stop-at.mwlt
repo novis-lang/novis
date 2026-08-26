@@ -1,0 +1,151 @@
+--TEST--
+`Core\Bytes::unpack`, `::at` and `::fill` each name the last octet they read beside the first they cannot — spec § 7, ADR 0009 § 1, ADR 0063 R4 and R8
+--FILE--
+<?mwl
+// Spec § 7's three reading boundaries, each asserted on both sides and by the
+// *message* it names rather than by the fact that something threw: a member
+// that stops one octet early prints plausibly against either half alone.
+//
+// `bytes-unpack-reads-back-what-pack-wrote.mwlt` pins the round trip and
+// `bytes-indexes-and-orders-by-byte-offset.mwlt` the in-range answers; this
+// case pins where each stops. `crates/mwl-stdlib/src/bytes.rs` owns the four
+// sites — `advanced`, the leftover check at the foot of `unpacked`,
+// `mwl_core_bytes_at` and `mwl_core_bytes_fill`.
+
+final class Buf {
+    public static function why(bytes $b, string $format): string {
+        try {
+            Core\Bytes::unpack($b, $format);
+            return "";
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+
+    public static function ok(bytes $b, string $format): string {
+        if (Buf::why($b, $format) == "") {
+            return "y";
+        }
+        return "n";
+    }
+
+    public static function fields(bytes $b, string $format): string {
+        try {
+            return Core\Json::encode(Core\Bytes::unpack($b, $format));
+        } catch (Throwable $e) {
+            return "refused";
+        }
+    }
+
+    public static function at(bytes $b, int $index): string {
+        try {
+            return Core\Bytes::at($b, $index) as string;
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+
+    public static function fill(uint $length, uint $byte): string {
+        try {
+            return Core\Encoding::toHex(Core\Bytes::fill($length, $byte));
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+}
+
+var $quad = Core\Encoding::fromHex("00112233");
+
+// A code reads its whole width or none of it, and the refusal names the code,
+// that width, the offset it was reading at and what the buffer actually holds
+// — the four things a caller needs to see which field of a record ran out.
+echo Buf::fields($quad, "N"), "\n";
+echo Buf::why(Core\Bytes::slice($quad, 0, 3), "N"), "\n";
+
+// Counted over every width in the table: a buffer of exactly the code's width
+// is one field, and one octet short is refused. A code that read what was there
+// and zero-extended the rest keeps the first count and loses the second.
+array<string> $codes = ["C", "n", "N", "J", "G", "E"];
+array<int> $widths = [1, 2, 4, 8, 4, 8];
+int $fits = 0;
+int $short = 0;
+foreach ($codes as string $k => string $c) {
+    var $w = $widths[$k];
+    if (Buf::ok(Core\Bytes::fill($w as uint, 0), $c) == "y") {
+        $fits = $fits + 1;
+    }
+    if (Buf::ok(Core\Bytes::fill(($w - 1) as uint, 0), $c) == "n") {
+        $short = $short + 1;
+    }
+}
+echo $fits, " ", $short, " of ", Core\Arr::count($codes), "\n";
+
+// The same bound read along the buffer rather than across one field: `x` skips
+// octets, so `x3C` reads at the last offset a one-octet code has and `x4C` at
+// the first it does not. The message counts the offset, not the field.
+echo Buf::fields($quad, "x3C"), " ", Buf::why($quad, "x4C"), "\n";
+
+// Octets the format never reads are a throw and not a silence, because a format
+// is a description of the buffer (the member's own doc comment, against PHP's
+// `unpack`, which ignores them). The message names the remedy, and the remedy
+// works: slicing the header off first is one of the three ways to describe the
+// whole of a five-octet packet, and all three read the same header.
+var $packet = Core\Encoding::fromHex("0000002a99");
+echo Buf::why($packet, "N"), "\n";
+echo Buf::fields(Core\Bytes::slice($packet, 0, 4), "N"), " ", Buf::fields($packet, "Nx"), " ", Buf::fields($packet, "NC"), "\n";
+echo Buf::why(Core\Encoding::fromHex("0102"), ""), "\n";
+
+// `Core\Bytes::at` asks the strict question ADR 0063 R8's range rule leaves the
+// window members answering leniently: the last index each way is an octet and
+// the first past it is a throw, on both signs, and an empty buffer has no index
+// at all rather than a sentinel one.
+echo Buf::at($quad, 3), " ", Buf::at($quad, -4), "\n";
+echo Buf::at($quad, 4), "\n";
+echo Buf::at($quad, -5), "\n";
+echo Buf::at(Core\Encoding::fromHex(""), 0), "\n";
+
+// Counted: what makes those two ends the same bound is that the two spellings
+// name one octet, so all four indices agree with their negatives.
+int $same = 0;
+int $i = 0;
+for ($i = 0; $i < 4; $i = $i + 1) {
+    if (Core\Bytes::at($quad, $i) == Core\Bytes::at($quad, $i - 4)) {
+        $same = $same + 1;
+    }
+}
+echo $same, " of 4\n";
+
+// `Core\Bytes::fill`'s byte is a `uint`, so only its top end is a runtime
+// bound: 255 is the last octet and 256 is a caller's bug rather than `chr()`'s
+// wrap to `"\0"` (ADR 0063 R4). The low end never becomes an argument — a
+// negative literal is `E0401` at the call, exactly as `pack`'s 64-bit codes
+// leave their range to the compiler.
+echo Buf::fill(2, 255), "\n";
+echo Buf::fill(2, 256), "\n";
+
+// Counted: every value the bound admits is one octet `Core\Bytes::at` reads
+// back, which is what makes 255 the last one rather than an arbitrary cut.
+int $held = 0;
+int $v = 0;
+for ($v = 0; $v < 256; $v = $v + 1) {
+    if (Core\Bytes::at(Core\Bytes::fill(1, $v as uint), 0) == $v as uint) {
+        $held = $held + 1;
+    }
+}
+echo $held, " of 256\n";
+--EXPECT--
+[1122867]
+Core\Bytes::unpack: `N` reads 4 octets at offset 0, and the buffer holds 3
+6 6 of 6
+[51] Core\Bytes::unpack: `C` reads 1 octets at offset 4, and the buffer holds 4
+Core\Bytes::unpack: the format reads 4 of the buffer's 5 octets — a header read off a longer buffer is `Core\Bytes::slice` and then this
+[42] [42] [42,153]
+Core\Bytes::unpack: the format reads 0 of the buffer's 2 octets — a header read off a longer buffer is `Core\Bytes::slice` and then this
+51 0
+Core\Bytes::at: index 4 is outside a buffer of 4 bytes
+Core\Bytes::at: index -5 is outside a buffer of 4 bytes
+Core\Bytes::at: index 0 is outside a buffer of 0 bytes
+4 of 4
+ffff
+Core\Bytes::fill: 256 is not one octet — a byte is 0 to 255
+256 of 256
