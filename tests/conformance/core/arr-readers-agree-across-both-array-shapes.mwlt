@@ -1,0 +1,281 @@
+--TEST--
+Every Core\Arr reader answers the packed form and the same content in the hash form alike — ADR 0007 § 5's "which subscripts collide" is about keys, not storage
+--FILE--
+<?mwl
+// ADR 0007 § 5 says the array type is a statement about *keys*. The runtime
+// still holds one array two ways — `mwl_runtime::array`'s `Shape::Packed`, the
+// list whose keys are exactly "0".."n-1" and are therefore not stored at all,
+// and `Shape::Hashed`, the ordered hash every other array degrades into — and
+// no program is supposed to be able to tell which one it holds.
+//
+// So this case does not read one shape's answers off a line. It builds the same
+// content three ways, asks every `Core\Arr` reader of all three, and *counts*
+// the members that agree: a member that grew its own packed-only fast path
+// still looks right on its own row and fails here.
+//
+// The two degradations both go through `Table::hashed_mut`, which is the one
+// place the packed invariant is given up. Neither is reversed by the `unset`
+// that follows — `Table::remove` leaves a hash a hash — and neither key is a
+// canonical decimal, so neither moves the append counter `next_index` holds:
+// "08" has a leading zero and "x" is not a number at all, which is exactly the
+// pair `integer_key` refuses. A numeric key past the end degrades too, but it
+// *does* move the counter, so it is not a same-content twin and is pinned in
+// tests/conformance/array/unset-does-not-move-the-append-counter.mwlt. That the write
+// degrades at all is not observable from a program, by design; it is asserted
+// in the module's own a_non_sequential_key_degrades_the_packed_array.
+//
+// The primitive layer under `Core\Arr` is already pinned there too: that
+// module's `agree` helper walks count, keys, the cursor, `get` and `has_key`
+// over exactly this pair of shapes. What a conformance case can add is the
+// library on top of it, where a member reading the storage rather than the
+// keys would still look right on every row of its own case.
+
+final class Sweep {
+    // One question, asked of all three shapes; the answers are compared as
+    // `Core\Json::encode` renders them, which is the one spelling that covers
+    // an int, a bool, a null, a float and a nested array alike.
+    public static function same(string $name, mixed $packed, mixed $digits, mixed $named): int {
+        string $a = Core\Json::encode($packed);
+        string $b = Core\Json::encode($digits);
+        string $c = Core\Json::encode($named);
+        if ($a == $b && $a == $c) {
+            return 1;
+        }
+        echo "DISAGREE ", $name, ": ", $a, " | ", $b, " | ", $c, "\n";
+        return 0;
+    }
+
+    public static function pair(string $name, mixed $packed, mixed $hashed): int {
+        string $a = Core\Json::encode($packed);
+        string $b = Core\Json::encode($hashed);
+        if ($a == $b) {
+            return 1;
+        }
+        echo "DISAGREE ", $name, ": ", $a, " | ", $b, "\n";
+        return 0;
+    }
+}
+
+array<int> $packed = [3, 1, 4, 1, 5];
+
+// A copy-on-write copy, then one write the packed invariant forbids, then the
+// key taken straight back out. Same content, hash form.
+array<int> $viaDigits = $packed;
+$viaDigits["08"] = 0;
+unset($viaDigits["08"]);
+
+array<int> $viaName = $packed;
+$viaName["x"] = 0;
+unset($viaName["x"]);
+
+// The premise, stated once: three subjects, one content.
+echo Core\Json::encode($packed), "\n";
+echo Core\Json::encode($viaDigits), "\n";
+echo Core\Json::encode($viaName), "\n";
+
+array<int> $one = [1];
+array<int> $seven = [7];
+array<int> $nine = [9, 9];
+
+int $ok = 0;
+$ok = $ok + Sweep::same("count", Core\Arr::count($packed), Core\Arr::count($viaDigits), Core\Arr::count($viaName));
+$ok = $ok + Sweep::same("isEmpty", Core\Arr::isEmpty($packed), Core\Arr::isEmpty($viaDigits), Core\Arr::isEmpty($viaName));
+$ok = $ok + Sweep::same("isList", Core\Arr::isList($packed), Core\Arr::isList($viaDigits), Core\Arr::isList($viaName));
+$ok = $ok + Sweep::same("hasKey-present", Core\Arr::hasKey($packed, "3"), Core\Arr::hasKey($viaDigits, "3"), Core\Arr::hasKey($viaName, "3"));
+$ok = $ok + Sweep::same("hasKey-forcing", Core\Arr::hasKey($packed, "08"), Core\Arr::hasKey($viaDigits, "08"), Core\Arr::hasKey($viaName, "08"));
+$ok = $ok + Sweep::same("hasKey-past-end", Core\Arr::hasKey($packed, "5"), Core\Arr::hasKey($viaDigits, "5"), Core\Arr::hasKey($viaName, "5"));
+$ok = $ok + Sweep::same("contains", Core\Arr::contains($packed, 4), Core\Arr::contains($viaDigits, 4), Core\Arr::contains($viaName, 4));
+$ok = $ok + Sweep::same("keyOf", Core\Arr::keyOf($packed, 1), Core\Arr::keyOf($viaDigits, 1), Core\Arr::keyOf($viaName, 1));
+$ok = $ok + Sweep::same("keyOf-absent", Core\Arr::keyOf($packed, 9), Core\Arr::keyOf($viaDigits, 9), Core\Arr::keyOf($viaName, 9));
+$ok = $ok + Sweep::same("keys", Core\Arr::keys($packed), Core\Arr::keys($viaDigits), Core\Arr::keys($viaName));
+$ok = $ok + Sweep::same("values", Core\Arr::values($packed), Core\Arr::values($viaDigits), Core\Arr::values($viaName));
+$ok = $ok + Sweep::same("first", Core\Arr::first($packed), Core\Arr::first($viaDigits), Core\Arr::first($viaName));
+$ok = $ok + Sweep::same("last", Core\Arr::last($packed), Core\Arr::last($viaDigits), Core\Arr::last($viaName));
+$ok = $ok + Sweep::same("firstKey", Core\Arr::firstKey($packed), Core\Arr::firstKey($viaDigits), Core\Arr::firstKey($viaName));
+$ok = $ok + Sweep::same("lastKey", Core\Arr::lastKey($packed), Core\Arr::lastKey($viaDigits), Core\Arr::lastKey($viaName));
+$ok = $ok + Sweep::same("min", Core\Arr::min($packed), Core\Arr::min($viaDigits), Core\Arr::min($viaName));
+$ok = $ok + Sweep::same("max", Core\Arr::max($packed), Core\Arr::max($viaDigits), Core\Arr::max($viaName));
+$ok = $ok + Sweep::same("sum", Core\Arr::sum($packed), Core\Arr::sum($viaDigits), Core\Arr::sum($viaName));
+$ok = $ok + Sweep::same("product", Core\Arr::product($packed), Core\Arr::product($viaDigits), Core\Arr::product($viaName));
+$ok = $ok + Sweep::same("average", Core\Arr::average($packed), Core\Arr::average($viaDigits), Core\Arr::average($viaName));
+$ok = $ok + Sweep::same("slice", Core\Arr::slice($packed, 1, 3), Core\Arr::slice($viaDigits, 1, 3), Core\Arr::slice($viaName, 1, 3));
+$ok = $ok + Sweep::same("slice-keyed", Core\Arr::slice($packed, 1, 3, {preserveKeys: true}), Core\Arr::slice($viaDigits, 1, 3, {preserveKeys: true}), Core\Arr::slice($viaName, 1, 3, {preserveKeys: true}));
+$ok = $ok + Sweep::same("chunk", Core\Arr::chunk($packed, 2), Core\Arr::chunk($viaDigits, 2), Core\Arr::chunk($viaName, 2));
+$ok = $ok + Sweep::same("replaceRange", Core\Arr::replaceRange($packed, 1, 2, $seven), Core\Arr::replaceRange($viaDigits, 1, 2, $seven), Core\Arr::replaceRange($viaName, 1, 2, $seven));
+$ok = $ok + Sweep::same("append", Core\Arr::append($packed, 9), Core\Arr::append($viaDigits, 9), Core\Arr::append($viaName, 9));
+$ok = $ok + Sweep::same("prepend", Core\Arr::prepend($packed, 9), Core\Arr::prepend($viaDigits, 9), Core\Arr::prepend($viaName, 9));
+$ok = $ok + Sweep::same("withoutFirst", Core\Arr::withoutFirst($packed), Core\Arr::withoutFirst($viaDigits), Core\Arr::withoutFirst($viaName));
+$ok = $ok + Sweep::same("withoutLast", Core\Arr::withoutLast($packed), Core\Arr::withoutLast($viaDigits), Core\Arr::withoutLast($viaName));
+$ok = $ok + Sweep::same("padStart", Core\Arr::padStart($packed, 7, 0), Core\Arr::padStart($viaDigits, 7, 0), Core\Arr::padStart($viaName, 7, 0));
+$ok = $ok + Sweep::same("padEnd", Core\Arr::padEnd($packed, 7, 0), Core\Arr::padEnd($viaDigits, 7, 0), Core\Arr::padEnd($viaName, 7, 0));
+$ok = $ok + Sweep::same("reverse", Core\Arr::reverse($packed), Core\Arr::reverse($viaDigits), Core\Arr::reverse($viaName));
+$ok = $ok + Sweep::same("reverse-keyed", Core\Arr::reverse($packed, {preserveKeys: true}), Core\Arr::reverse($viaDigits, {preserveKeys: true}), Core\Arr::reverse($viaName, {preserveKeys: true}));
+$ok = $ok + Sweep::same("flip", Core\Arr::flip($packed), Core\Arr::flip($viaDigits), Core\Arr::flip($viaName));
+$ok = $ok + Sweep::same("sort", Core\Arr::sort($packed), Core\Arr::sort($viaDigits), Core\Arr::sort($viaName));
+$ok = $ok + Sweep::same("sort-keyed", Core\Arr::sort($packed, {preserveKeys: true}), Core\Arr::sort($viaDigits, {preserveKeys: true}), Core\Arr::sort($viaName, {preserveKeys: true}));
+$ok = $ok + Sweep::same("sortByKey", Core\Arr::sortByKey($packed), Core\Arr::sortByKey($viaDigits), Core\Arr::sortByKey($viaName));
+$ok = $ok + Sweep::same("unique", Core\Arr::unique($packed), Core\Arr::unique($viaDigits), Core\Arr::unique($viaName));
+$ok = $ok + Sweep::same("countBy", Core\Arr::countBy($packed), Core\Arr::countBy($viaDigits), Core\Arr::countBy($viaName));
+$ok = $ok + Sweep::same("diff", Core\Arr::diff($packed, $one), Core\Arr::diff($viaDigits, $one), Core\Arr::diff($viaName, $one));
+$ok = $ok + Sweep::same("intersect", Core\Arr::intersect($packed, $one), Core\Arr::intersect($viaDigits, $one), Core\Arr::intersect($viaName, $one));
+$ok = $ok + Sweep::same("overlay", Core\Arr::overlay($packed, $nine), Core\Arr::overlay($viaDigits, $nine), Core\Arr::overlay($viaName, $nine));
+$ok = $ok + Sweep::same("underlay", Core\Arr::underlay($packed, $nine), Core\Arr::underlay($viaDigits, $nine), Core\Arr::underlay($viaName, $nine));
+$ok = $ok + Sweep::same("appendAll", Core\Arr::appendAll($packed, $nine), Core\Arr::appendAll($viaDigits, $nine), Core\Arr::appendAll($viaName, $nine));
+$ok = $ok + Sweep::same("from", Core\Arr::from($packed), Core\Arr::from($viaDigits), Core\Arr::from($viaName));
+
+// The callback-taking half. Each one is offered ($value, $key), so a member
+// that rendered a packed array's key from its position rather than from the
+// key the shape reports would show up here and nowhere else.
+$ok = $ok + Sweep::same(
+    "map",
+    Core\Arr::map($packed, fn(int $v): int => $v * 2),
+    Core\Arr::map($viaDigits, fn(int $v): int => $v * 2),
+    Core\Arr::map($viaName, fn(int $v): int => $v * 2),
+);
+$ok = $ok + Sweep::same(
+    "filter",
+    Core\Arr::filter($packed, fn(int $v): bool => $v > 1),
+    Core\Arr::filter($viaDigits, fn(int $v): bool => $v > 1),
+    Core\Arr::filter($viaName, fn(int $v): bool => $v > 1),
+);
+$ok = $ok + Sweep::same(
+    "mapKeys",
+    Core\Arr::mapKeys($packed, fn(int $v, string $k): string => "k" . $k),
+    Core\Arr::mapKeys($viaDigits, fn(int $v, string $k): string => "k" . $k),
+    Core\Arr::mapKeys($viaName, fn(int $v, string $k): string => "k" . $k),
+);
+$ok = $ok + Sweep::same(
+    "groupBy",
+    Core\Arr::groupBy($packed, fn(int $v): string => $v % 2 == 0 ? "even" : "odd"),
+    Core\Arr::groupBy($viaDigits, fn(int $v): string => $v % 2 == 0 ? "even" : "odd"),
+    Core\Arr::groupBy($viaName, fn(int $v): string => $v % 2 == 0 ? "even" : "odd"),
+);
+$ok = $ok + Sweep::same(
+    "reduce",
+    Core\Arr::reduce($packed, fn(string $c, int $v, string $k): string => $c . $k . "=" . ($v as string) . ";", ""),
+    Core\Arr::reduce($viaDigits, fn(string $c, int $v, string $k): string => $c . $k . "=" . ($v as string) . ";", ""),
+    Core\Arr::reduce($viaName, fn(string $c, int $v, string $k): string => $c . $k . "=" . ($v as string) . ";", ""),
+);
+$ok = $ok + Sweep::same(
+    "find",
+    Core\Arr::find($packed, fn(int $v): bool => $v > 3),
+    Core\Arr::find($viaDigits, fn(int $v): bool => $v > 3),
+    Core\Arr::find($viaName, fn(int $v): bool => $v > 3),
+);
+$ok = $ok + Sweep::same(
+    "findKey",
+    Core\Arr::findKey($packed, fn(int $v): bool => $v > 3),
+    Core\Arr::findKey($viaDigits, fn(int $v): bool => $v > 3),
+    Core\Arr::findKey($viaName, fn(int $v): bool => $v > 3),
+);
+$ok = $ok + Sweep::same(
+    "any",
+    Core\Arr::any($packed, fn(int $v): bool => $v == 5),
+    Core\Arr::any($viaDigits, fn(int $v): bool => $v == 5),
+    Core\Arr::any($viaName, fn(int $v): bool => $v == 5),
+);
+$ok = $ok + Sweep::same(
+    "all",
+    Core\Arr::all($packed, fn(int $v): bool => $v > 0),
+    Core\Arr::all($viaDigits, fn(int $v): bool => $v > 0),
+    Core\Arr::all($viaName, fn(int $v): bool => $v > 0),
+);
+
+echo "populated ", $ok, "/53\n";
+
+// The empty array is where a shape difference would most plausibly leak: the
+// packed form is a zero-length vector and the hash form is an index with no
+// live entries, and the two have nothing in common but their answers.
+array<int> $emptyPacked = [];
+array<int> $emptyHashed = [];
+$emptyHashed["08"] = 0;
+unset($emptyHashed["08"]);
+
+int $empty = 0;
+$empty = $empty + Sweep::pair("count", Core\Arr::count($emptyPacked), Core\Arr::count($emptyHashed));
+$empty = $empty + Sweep::pair("isEmpty", Core\Arr::isEmpty($emptyPacked), Core\Arr::isEmpty($emptyHashed));
+$empty = $empty + Sweep::pair("isList", Core\Arr::isList($emptyPacked), Core\Arr::isList($emptyHashed));
+$empty = $empty + Sweep::pair("keys", Core\Arr::keys($emptyPacked), Core\Arr::keys($emptyHashed));
+$empty = $empty + Sweep::pair("values", Core\Arr::values($emptyPacked), Core\Arr::values($emptyHashed));
+$empty = $empty + Sweep::pair("first", Core\Arr::first($emptyPacked), Core\Arr::first($emptyHashed));
+$empty = $empty + Sweep::pair("last", Core\Arr::last($emptyPacked), Core\Arr::last($emptyHashed));
+$empty = $empty + Sweep::pair("firstKey", Core\Arr::firstKey($emptyPacked), Core\Arr::firstKey($emptyHashed));
+$empty = $empty + Sweep::pair("lastKey", Core\Arr::lastKey($emptyPacked), Core\Arr::lastKey($emptyHashed));
+$empty = $empty + Sweep::pair("min", Core\Arr::min($emptyPacked), Core\Arr::min($emptyHashed));
+$empty = $empty + Sweep::pair("max", Core\Arr::max($emptyPacked), Core\Arr::max($emptyHashed));
+$empty = $empty + Sweep::pair("sum", Core\Arr::sum($emptyPacked), Core\Arr::sum($emptyHashed));
+$empty = $empty + Sweep::pair("average", Core\Arr::average($emptyPacked), Core\Arr::average($emptyHashed));
+$empty = $empty + Sweep::pair("reverse", Core\Arr::reverse($emptyPacked), Core\Arr::reverse($emptyHashed));
+$empty = $empty + Sweep::pair("unique", Core\Arr::unique($emptyPacked), Core\Arr::unique($emptyHashed));
+
+// The append counter is the one piece of state neither forcing key touched, so
+// an empty array that has been through the hash form still appends at "0".
+$empty = $empty + Sweep::pair("append", Core\Arr::append($emptyPacked, 9), Core\Arr::append($emptyHashed, 9));
+
+echo "empty ", $empty, "/16\n";
+
+// The other way into the hash form is `Table::remove` from the middle, which
+// is the one that leaves a hole `Table::next_slot` has to step over rather
+// than a trailing one. A gap cannot be held by the packed form at all, so this
+// subject has no same-content twin — what it has is the same *values* in the
+// same order, and that is the line the shapes are supposed to fall on: every
+// reader that answers from values agrees with the list, and only the readers
+// that answer about keys are allowed to differ.
+array<int> $holed = [3, 1, 99, 4, 1, 5];
+unset($holed["2"]);
+
+int $holes = 0;
+$holes = $holes + Sweep::pair("count", Core\Arr::count($packed), Core\Arr::count($holed));
+$holes = $holes + Sweep::pair("isEmpty", Core\Arr::isEmpty($packed), Core\Arr::isEmpty($holed));
+$holes = $holes + Sweep::pair("values", Core\Arr::values($packed), Core\Arr::values($holed));
+$holes = $holes + Sweep::pair("sum", Core\Arr::sum($packed), Core\Arr::sum($holed));
+$holes = $holes + Sweep::pair("product", Core\Arr::product($packed), Core\Arr::product($holed));
+$holes = $holes + Sweep::pair("average", Core\Arr::average($packed), Core\Arr::average($holed));
+$holes = $holes + Sweep::pair("min", Core\Arr::min($packed), Core\Arr::min($holed));
+$holes = $holes + Sweep::pair("max", Core\Arr::max($packed), Core\Arr::max($holed));
+$holes = $holes + Sweep::pair("contains", Core\Arr::contains($packed, 4), Core\Arr::contains($holed, 4));
+$holes = $holes + Sweep::pair("first", Core\Arr::first($packed), Core\Arr::first($holed));
+$holes = $holes + Sweep::pair("last", Core\Arr::last($packed), Core\Arr::last($holed));
+$holes = $holes + Sweep::pair("firstKey", Core\Arr::firstKey($packed), Core\Arr::firstKey($holed));
+$holes = $holes + Sweep::pair("sort", Core\Arr::sort($packed), Core\Arr::sort($holed));
+$holes = $holes + Sweep::pair("reverse", Core\Arr::reverse($packed), Core\Arr::reverse($holed));
+$holes = $holes + Sweep::pair("slice", Core\Arr::slice($packed, 1, 3), Core\Arr::slice($holed, 1, 3));
+$holes = $holes + Sweep::pair("chunk", Core\Arr::chunk($packed, 2), Core\Arr::chunk($holed, 2));
+echo "holed ", $holes, "/16\n";
+
+// And the four that are allowed to differ, named rather than left implicit:
+// the gap is a key question and every one of these is asking a key question.
+echo Core\Json::encode(Core\Arr::keys($holed)), "\n";
+echo Core\Json::encode(Core\Arr::isList($holed)), "\n";
+echo Core\Json::encode(Core\Arr::lastKey($holed)), "\n";
+echo Core\Json::encode(Core\Arr::hasKey($holed, "2")), "\n";
+
+// `foreach` is the reader that does not go through `Core\Arr` at all, and it is
+// the one place `Table::next_slot` has to skip the holes the hash form keeps.
+string $walkPacked = "";
+foreach ($packed as string $k => int $v) {
+    $walkPacked = $walkPacked . $k . "=" . $v . ";";
+}
+string $walkDigits = "";
+foreach ($viaDigits as string $k => int $v) {
+    $walkDigits = $walkDigits . $k . "=" . $v . ";";
+}
+string $walkName = "";
+foreach ($viaName as string $k => int $v) {
+    $walkName = $walkName . $k . "=" . $v . ";";
+}
+echo "foreach ", Sweep::same("foreach", $walkPacked, $walkDigits, $walkName), "/1\n";
+echo $walkPacked, "\n";
+--EXPECT--
+[3,1,4,1,5]
+[3,1,4,1,5]
+[3,1,4,1,5]
+populated 53/53
+empty 16/16
+holed 16/16
+["0","1","3","4","5"]
+false
+"5"
+false
+foreach 1/1
+0=3;1=1;2=4;3=1;4=5;
