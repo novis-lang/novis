@@ -519,3 +519,16 @@ sibling in the same namespace unqualified.
   reached 20 GB and zero free disk on 2026-08-25. You do not need to do anything about it in a session —
   the driver refuses to *start* a run under 10 GB free and says what to run — but if you are the one who
   hits it, `python tools/disk.py --clean` is the answer, not `cargo clean`.
+- **A `#[global_allocator]` declared in a *library* crate is only picked up by a binary that
+  actually links that crate.** `mwl_runtime::alloc::Pooled` is registered from `mwl-runtime`'s
+  own `lib.rs`, so every binary in the workspace gets it — except one whose sources never name
+  `mwl_runtime`, because rustc links an `--extern` crate lazily and an unlinked crate is not in
+  the graph the allocator is chosen from. `benches/abi-probe/tests/perf_guards.rs` happens to
+  name it; a *new* test binary measuring allocation might not, and would then silently measure
+  the platform heap. `an_allocation_round_trip_stays_in_the_pooled_cost_class` is written to fail
+  loudly in exactly that case — its two sides become the same code, so the ratio goes to 1.
+- **A named `const` holding a `Cell` is `clippy::declare_interior_mutable_const`, which is denied
+  here.** The obvious way to build a `thread_local!` array — `const EMPTY: Class = …;` then
+  `[EMPTY; N]` — is refused, because a constant is *copied* at each use rather than referenced.
+  The spelling that works is an inline const block in the repeat, `[const { … }; N]`, which is
+  also a const-repeat of a non-`Copy` type and so still `const`-initializes the thread local.

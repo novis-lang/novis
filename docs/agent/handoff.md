@@ -2,65 +2,47 @@
 
 ## State
 
-**Stage 0 re-opened with five more items, and they run before Stage 3.** All seventeen original
-items of [loop-goal.md](loop-goal.md) § *Stage 0* are done and every test named for them passes,
-but **items 18–22 joined from a bench review** and none of their guards exists yet, so `loop.py`
-short-circuits at Stage 0 again. [docs/perf/userland-gap.md](../perf/userland-gap.md) holds every
-number behind them and the attribution per case; `loop-goal.md` § *Stage 0* argues each one.
-Neither is restated here.
+**Stage 0 item 18 is two slices from done, and the loop still short-circuits at Stage 0.** MWL owns
+its allocator in every optimized build: `crates/mwl-runtime/src/alloc.rs` is a per-thread
+size-class free list — 16 classes of 16 bytes up to 256, 512 blocks each, everything else
+forwarded — registered as the `#[global_allocator]` at `crates/mwl-runtime/src/lib.rs:255`. That
+module's own doc owns every decision it took, including the one this session made and nothing else
+records: **pooling is compiled in only where `debug_assertions` is off**, so both valgrind legs,
+which build `-p mwl-cli` in debug, keep full use-after-free fidelity. Nothing about it is restated
+here.
 
-**Item 15's last named test landed with the ABI it waited on.**
-`mwl_array_get_index(array, i64, out)` and `mwl_array_set_index(array, i64, value) -> *mut
-ArrayHeader` now sit beside the key-taking pair, answering from `Shape::Packed` with no decimal
-rendered and nothing allocated, and synthesizing a key only where the shape is already `Hashed`.
-`crates/mwl-runtime/src/array.rs`'s module doc owns the decision and what it spends; nothing about it
-is restated here.
+`an_allocation_round_trip_stays_in_the_pooled_cost_class` is green and self-relative, the shape
+`loop-goal.toml`'s check for item 18 asks for: **1.14 ns against the platform heap's 27.18 ns on
+this machine, a ratio of 0.042× under a 0.5× bound.** Items 19–22 are untouched.
 
-**One half of item 15's measured claim is still unbanked, and it is now Stage 0 item 19.** `$a[] = $v`
-and `foreach` reach the packed form from compiled code today; `$a[$i]` does not, because
-`mwl_ir::lower::Lowering::lower_array_key` normalizes an `int` subscript to a decimal string through
-`Helper::IntToString` before `InstKind::ArrayGet`/`ArraySet` ever reaches codegen. The key's
-representation at the emit site is therefore already `Ty::Str` and the allocation has already
-happened, so routing it is an `mwl-ir` change, not a codegen-local one. It is scoped to `file:line`
-below, and it runs **after** item 18 rather than first — see that section.
+Verify is green (**1566** tests, 74 suites, clippy and fmt clean) — +6 over last session, all of
+them `alloc`'s own. Conformance **435**, differential **90**, untouched. The end-to-end check a new
+global allocator warrants is `./target/release/mwl.exe test tests/`: **519 passed / 6 failed**,
+identical to the debug binary's, so the whole corpus already runs on it. No valgrind run — a debug
+build does not take the pooled path, by construction.
 
-Verify is green (**1560** tests, 74 suites, clippy and fmt clean) — +2 over last session, the new
-guard and one for the allocator counter it needed. Conformance **435**, differential **90**,
-untouched: no `.mwlt` case was added or edited, so `mwl test tests/` is unmoved at 519 passed /
-6 failed (the PHP-on-Windows oracle set). No valgrind run: the new primitives are not reachable from
-compiled code yet, and their refcount protocol is `mwl_array_set`'s unchanged.
+**`orient.py` did not print `docs/perf/userland-gap.md` § A**, which is item 18's whole argument and
+its numbers; `[context]` in `loop-goal.toml` has no field that selects a perf doc at all, and items
+19–22 each cite a section of that file. It is the one selector worth adding.
 
-**A second writer held this tree at the same time, and `git log` reads oddly because of it.** The
-whole `crates/mwl-runtime/src/array.rs` change above is in **`cd6a37c`**, that writer's commit, which
-swept it in flight and says so; `3a96655` carries only the three files around it, so its message
-describes more than it contains. `docs/adr/0051-standard-library-tiers.md` and
-`docs/adr/ground-rules.md` are theirs (`bce6f6f`), and `docs/implementation-plan.md`'s M10 paragraph
-rode along in `fda43eb`. Nothing is lost and the tree is internally consistent; history was not
-rewritten, because the other writer may already be building on it.
+## Next group — item 18's last two slices
 
-## Next group — item 18, MWL owns its allocator
+One file set and both are small: `crates/mwl-runtime/src/counting_alloc.rs` and
+`crates/mwl-runtime/src/lib.rs`. `loop-goal.md` § *Stage 0* item 18 argues them.
 
-One file set, and it is small: a new `crates/mwl-runtime/src/alloc.rs`, its registration and module-doc
-paragraph in `crates/mwl-runtime/src/lib.rs:242` (where `counting_alloc` is registered today under
-`cfg(test)`), and a guard in `benches/abi-probe/tests/perf_guards.rs`. `loop-goal.md` § *Stage 0*
-item 18 argues it and `docs/perf/userland-gap.md` § A holds the numbers; neither is restated here.
-
-- [ ] **A thread-local size-class free list in front of `System`**, registered as the
-      `#[global_allocator]` for non-test builds. Pure Rust, no dependency: the probe that measured
-      0.31× → 0.54× was 16 classes of 16 bytes up to 256, a `Cell`-based intrusive free list per
-      class capped at 512 blocks, and everything else forwarded. A `thread_local!` here **must** be
-      `const`-initialized and hold no `Drop` type, or the allocator allocates from inside itself —
-      `counting_alloc.rs`'s own header says why, and it is the one trap in this slice.
-- [ ] **`counting_alloc::Counting` wraps the new allocator, not `System`.** Otherwise the leak guard
-      and `allocated_bytes` measure a path the release build never takes, which silently weakens
-      every allocation-counting guard in the tree — including item 15's.
-- [ ] **State what it spends** in `mwl-runtime`'s module doc, per ADR 0004 § *Say what you spend*:
-      a bounded per-thread cache, never per request and never growing with requests served. Say that
-      the `[limits.hard]` ceiling attaches here at M6, which `mwl_runtime::affordable`'s own doc
-      comment already promises, and link `docs/plan/design.md` § *Per-request isolation* rather than
-      restating that this is its early half.
-- [ ] **The guard**, `an_allocation_round_trip_stays_in_the_pooled_cost_class` — a cost class, the
-      shape every other guard in `perf_guards.rs` uses, not a wall-clock number.
+- [ ] **`counting_alloc::Counting` wraps `alloc::Pooled`, not `System`** — the four call sites are
+      `crates/mwl-runtime/src/counting_alloc.rs:75`, `:91`, `:102` and `:116`. `Counting` is
+      registered under `cfg(test)` and `alloc` is compiled under
+      `cfg(any(test, not(debug_assertions)))`, so the module is there to name from a test build.
+      The counters keep their meaning either way — `Counting` sits *outside* the cache, so a
+      recycled block is still one `alloc` and one `dealloc` — but `live_bytes` then measures the
+      shape the release build has rather than the platform heap's.
+- [ ] **State what the allocator spends in `mwl-runtime`'s own module doc**
+      (`crates/mwl-runtime/src/lib.rs:1`), per ADR 0004 § *Say what you spend*: a bounded
+      per-thread cache, never per request and never growing with requests served, with the
+      `[limits.hard]` ceiling attaching at M6. One paragraph in the crate's `//!` header that
+      links `alloc`'s module doc and `docs/plan/design.md` § *Per-request isolation* rather than
+      restating either.
 
 ## The group after — item 19, routing `$a[$i]` through the new pair
 
@@ -98,8 +80,9 @@ part that expired*.
 - [ ] **The first `docs/perf/history.ndjson` entry**, with a `php_ratio`, per
       [ADR 0026](../adr/0026-performance-measurement-methodology.md) §§ at `:100` (schema and where
       it is appended) and `:190` (what M3 owes it). Only `docs/perf/userland.ndjson` exists today.
-      Do this **last of all**, after item 18 as well as the three above: the file is append-only, so
-      an entry written before either records a `php_ratio` that is permanently about the wrong build.
+      Do this **last of all**, after the rest of item 18 as well as the three above: the file is
+      append-only, so an entry written before either records a `php_ratio` that is permanently
+      about the wrong build.
 
 ## Backlog
 
@@ -108,7 +91,6 @@ part that expired*.
 - `Core\Json::decodeAs<T>` — spec § 6's one gap, `mwl_stdlib::json` gap 2.
 - ADR 0088's qualifier classification on every `mwl-stdlib` member row — plan `Open now`.
 - `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s module doc.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
 - The bench review's other half, after Stage 3 rather than in front of it: a cached hash on
   `StrHeader`, a virtual call resolved to a slot instead of a name search, and `Core\Arr::sort`
   without its permutation indirection — `docs/perf/userland-gap.md` §§ F, G, J, which also says

@@ -67,17 +67,16 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax` (+ `duration`, ADR 0070's one grammar, and `bidi`, ADR 0087's one predicate),
 > `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
-> `conformance`, `defaults`, `derive`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`,
-> `closure`, `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 39, `Math` × 38, `format`,
+> `conformance`, `defaults`, `derive`), `mwl-ir`, `mwl-runtime` (+ `alloc`, MWL's own
+> `#[global_allocator]` in an optimized build, `object`, `array`, `throwable`, `closure`,
+> `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 39, `Math` × 38, `format`,
 > `granularity`, `ordering`, `cldr`, `instance`, `issue`, `Order`, `NormalForm`, `RoundMode`, `Unit`
 > and `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, `Time` × 7 plus
 > `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
 > `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+ `SEPARATOR`) over nothing at all, `Random` × 6
 > over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`, `Uri` × 4 over nothing at all, `Encoding` × 2
-> over nothing at all, `ObjectMap` × 9,
-> `ObjectSet` × 9 and `Heap` × 5 over `identity_store`, all three iterable through `cursor`, and the
-> conformance-coverage gate), `mwl-codegen`,
-> `mwl-cli`
+> over nothing at all, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over `identity_store`, all
+> three iterable through `cursor`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
 > `tests/conformance` × 435 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
