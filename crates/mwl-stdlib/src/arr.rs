@@ -1743,8 +1743,18 @@ mwl_runtime::mwl_helper! {
     /// `array_push` and giving `$a[] = $v` a form that is an expression.
     ///
     /// **Every key of the subject is kept**, and each added value lands under
-    /// the next free integer key — which is exactly what `$a[] = $v` does, and
-    /// is the whole reason this member can claim to replace it. That is not a
+    /// the next free integer key — which is what `$a[] = $v` does, and is the
+    /// whole reason this member can claim to replace it. The two part in
+    /// exactly one place, and it is R3's purity rather than a different rule
+    /// about keys: `$a[] = $v` mutates one array and inherits its counter,
+    /// which survives an `unset` exactly as PHP's does, while this member
+    /// returns a *fresh* array whose counter is derived from the entries
+    /// copied into it — one past the largest integer key actually present. So
+    /// after `unset($a["9"])` the statement lands on 10 and the member on 6.
+    /// `tests/differential/core/arr-append-derives-the-next-free-key-where-php-remembers-it.mwlt`
+    /// pins both halves against PHP, including `array_pop` *lowering* the
+    /// counter to the key it removed, which nothing here reproduces. That is
+    /// not a
     /// key-type-dependent rule of the kind
     /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
     /// § 3 removes: the key chosen is one counter's next value whatever the
