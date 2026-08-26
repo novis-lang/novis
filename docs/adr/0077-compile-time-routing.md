@@ -7,7 +7,7 @@
   qualifier and type are resolved. Not in scope: dispatch, a controller convention, a middleware pipeline
   and any rule mapping a return value to a response — § 4 says why none of those is here.
 - **Amends:** [0071](0071-derived-codecs.md) § 1 — `Core\Route` joins the closed, `Core`-owned list of
-  **compiler-recognized** attributes, which that ADR opened with four names; nothing else about it or about
+  **compiler-recognized** attributes; nothing else about it or about
   [ADR 0046](0046-attributes-shape-literal-metadata.md) changes.
   [0061](0061-compile-time-autoload-and-program-discovery.md) § 3 — the program-wide scan it built for
   `implementing<T>()` gains a second caller, with the identical opt-in rule and the identical cache
@@ -24,6 +24,11 @@
 - **Amended by:** 0082, 0085 — the framework that § 4 deliberately stopped short of is now named, and the
   route table gains a second consumer in the OpenAPI emitter. Nothing about matching, the pattern grammar or
   the three compile errors changes.
+  [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) — the match is
+  made once by the server and read from the request; § 2 gains `{name?}`; § 3 gains literal-union and
+  enum-case-subset capture types; § 4 gains `methodsFor` and `urlAbsolute` and decides what `url()` does with
+  a key that is not a capture. **The boundary is unchanged**: § 4's refusal list stands word for word, and
+  that ADR's § 9 withdraws this one's claim that routing is a forcing case for typed `callable`.
 - **Relates to:** 0004, 0007, 0011, 0022, 0027, 0031, 0036, 0042, 0052, 0062, 0076
 
 > **In short:** `#[Route(path: "/users/{id}", method: Http\Method::Get, name: "user.show")]` on a method is
@@ -93,7 +98,9 @@ An ordinary [ADR 0046](0046-attributes-shape-literal-metadata.md) `type` alias a
 nothing about the mechanism is new. What is new is one entry on
 [ADR 0071](0071-derived-codecs.md) § 1's closed list: the compiler acts on the attribute only when its name
 **resolves** to `Core\Route`, so a userland `type Route = {...};` is not it however it is spelled, and a
-framework carrying its own `Route`-shaped literal is not it either. That list now holds five names.
+framework carrying its own `Route`-shaped literal is not it either. That list's roster lives in
+[ADR 0071](0071-derived-codecs.md) § 1 and is not restated here — a count kept in two places is a count that
+goes stale ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 9).
 
 - **`method` is an enum case** ([ADR 0063](0063-core-api-conventions.md) R11), not a string, and an enum
   case is one of the three things an attribute payload may contain
@@ -114,6 +121,14 @@ framework carrying its own `Route`-shaped literal is not it either. That list no
 A path is a literal `string`, and it is validated during checking:
 
 - **`{name}`** captures one whole segment.
+- **`{name?}`** captures one whole segment **or none**, is permitted **only in the last position**, at most
+  once, and never in the same path as a `{name...}`. **Its method parameter must have a default**, which is
+  what makes the absent case well-typed rather than nullable by accident; a `{name?}` bound to a parameter
+  without one is a compile error naming both. `/posts/` does **not** match `/posts/{page?}` — an empty final
+  segment is not an absent one, which is
+  [ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md)'s never-repair rule and the same reading
+  [0097](0097-development-server-and-proxied-origin.md) § 7 gives the trailing slash
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 4).
 - **`{name...}`** captures every remaining segment as one `tainted string`, is permitted **only in the last
   position**, and at most once.
 - Everything else is a literal segment, compared byte for byte and case-sensitively
@@ -125,9 +140,11 @@ is what OpenAPI, Laravel, Symfony, axum and ASP.NET all use, so it is the spelli
 and it leaves room for an inline constraint later (`{id:uint}`) with no ambiguity, should one ever be wanted.
 
 **Precedence is structural, not declaration-ordered**: within one method, a literal segment beats a
-`{name}` capture, which beats a `{name...}` catch-all. So `/users/new` and `/users/{id}` coexist with no
-ordering rule to remember, and moving a declaration between files cannot change which route wins. That is
-the radix-trie rule `matchit` implements and it is the reason a route table is order-independent at all.
+`{name}` capture, which beats a `{name?}`, which beats a `{name...}` catch-all. So `/users/new` and
+`/users/{id}` coexist with no ordering rule to remember, and moving a declaration between files cannot change
+which route wins. That is the radix-trie rule `matchit` implements and it is the reason a route table is
+order-independent at all. A `{name?}` is one node marked terminal, so it costs a static hit's walk rather
+than a second one.
 
 ### 3. A parameter's type comes from the method, and that is what launders it
 
@@ -137,9 +154,16 @@ Every `{name}` in a path must correspond to a parameter of the same name on the 
 parameter the path does not name is simply not the router's.
 
 The parameter's declared type is what the segment is converted to during matching, and the conversion must
-be one of: `string`, `uint`, `int`, `decimal`, `Core\Uuid`, or an enum
-([ADR 0010](0010-enums-are-a-value-type.md), matched on its case names). Anything else is a compile error at
-the parameter. Two consequences fall out, and both are the good kind:
+be one of: `string`, `uint`, `int`, `decimal`, `Core\Uuid`, an enum
+([ADR 0010](0010-enums-are-a-value-type.md), matched on its case names), a **union of `string` or `int`
+literal types**, or a **subset of an enum's cases** ([ADR 0047](0047-literal-and-enum-case-types.md) — so
+`show("en"|"de"|"fr" $lang)` narrows a capture to a closed set with no grammar of its own, and
+`/xx/…` simply does not match). Anything else is a compile error at the parameter. **A regex constraint is
+not among them and never will be**: an application-authored pattern over the request path runs before any
+rate limiting, which makes catastrophic backtracking an unauthenticated denial of service, and
+[0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 5 records the
+three ecosystems that shipped it and the CVEs they got. Two consequences fall out, and both are the good
+kind:
 
 - **A failed conversion is not a match.** `/users/abc` against `show(uint $id)` does not match that route;
   matching continues, and if nothing else matches the result is a `404`. This is the correct behaviour and
@@ -158,20 +182,37 @@ all. Duplicate `name` values are a compile error the same way.
 ### 4. The API, and where it stops
 
 ```php
+Core\Request::route(): ?Router\Match;                                   // the match the server made
 Core\Router::match(Http\Method $method, tainted string $path): ?Router\Match;
-Core\Router::url(string $name, array<string, mixed> $params): string;   // launder (URL path)
+Core\Router::methodsFor(tainted string $path): array<Http\Method>;      // [] ⇒ 404, else 405 + Allow:
+Core\Router::url(string $name, array<string, mixed> $params): string;         // launder (URL path)
+Core\Router::urlAbsolute(string $name, array<string, mixed> $params): string; // launder (URL)
 ```
 
 ```php
-Core\Router\Match — readonly name: ?string, params: {…}, method: Http\Method
+Core\Router\Match — readonly name: ?string, params: {…}, method: Http\Method, access: {…}
 ```
 
+- **The server matches once, before the handler, and `Core\Request::route()` is that match**
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 1). It is
+  what [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) § 4's CSRF check and
+  [0076](0076-observability-export.md) § 1's `route` label read, so a request makes one match rather than
+  two. `match` remains for matching some *other* path. **Matching is still not dispatching** — the refusal
+  list below is unchanged.
 - **`match` returns a name and typed parameters, and nothing invocable.** No `->invoke()`, no callable, no
   class-and-method strings. Invoking would be dispatch, which is § 4's whole boundary; and a first-class
   reference to the matched method would need `callable` to carry a signature, which
-  [ADR 0007](0007-explicit-type-system.md) § 3 defers — the same blocker
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 3 hit when it wanted to return
-  constructor references. This is the fourth forcing case for that deferral.
+  [ADR 0007](0007-explicit-type-system.md) § 3 defers. **Only the second of those two grounds would fall to
+  typed `callable`, so routing is not a forcing case for that deferral** — routes do not share a signature,
+  handlers share no return type, and the boundary ground survives regardless
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 9, which
+  withdraws the claim this ADR originally made here).
+- **`methodsFor` tells a missing path from a refused verb.** Empty means no route claims the path — `404`.
+  Non-empty means it is claimed under other verbs — `405`, and the list is the `Allow:` header RFC 9110
+  requires. It is called only after `match` has returned `null`, so a served request pays nothing, and it is
+  what lets an application answer a plain `OPTIONS` that
+  [0097](0097-development-server-and-proxied-origin.md) § 7 had to pass through. Where a `{name?}` makes a
+  node terminal, both forms report the same verbs.
 - `params` is a shape typed from the matched route's declared parameters. Because `match` may return any
   route in the table, reading a field is guarded by `name` — an ordinary discriminated read, and the reason
   a framework built on this writes one `switch` and not several.
@@ -183,6 +224,17 @@ Core\Router\Match — readonly name: ?string, params: {…}, method: Http\Method
   the same module at `/ModuleA`, at `/ModuleB` or at `/` — and is why link generation must go through this
   member rather than concatenating a declared path. A literal `$name` that is not a declared route, and a `$params` array that does not
   cover the route's captures, are **compile errors**; a computed `$name` throws.
+- **A key that is not a capture becomes a percent-encoded query string**, so a link with `?page=2` has a
+  laundered spelling instead of driving the caller to concatenate. A literal key that is neither a capture
+  nor one of the route's declared `#[Query]` parameters is a **compile error** in the same shape as the
+  unknown-name one, so a typo cannot silently become a query parameter.
+- **`urlAbsolute` prepends a configured origin, never a sniffed one** — per mount, falling back to
+  `[app] origin`, `System`-class and `Reload`-able
+  ([0097](0097-development-server-and-proxied-origin.md) § 3). It exists because
+  [0097](0097-development-server-and-proxied-origin.md) § 6 refuses to derive an origin from `Host` or
+  `X-Forwarded-Host` — that is host-header injection, and an emailed link is where it lands — so the only
+  safe absolute URL is a configured one. A unit calling it under a mount that resolves no origin is a boot
+  error.
 
 **What it deliberately does not do**, because each is a framework opinion and the user confirmed the point
 of stopping short:
@@ -307,17 +359,21 @@ without one gets no `route` label rather than a cardinality bomb.
 
 ## Revisiting
 
-- **Typed `callable` signatures** ([ADR 0007](0007-explicit-type-system.md) § 3) would let `Match` carry a
-  callable reference and remove § 4's `switch`. This is the fourth feature blocked on that deferral, after
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 3,
-  [ADR 0031](0031-callable-is-the-only-closure-type.md)'s *Revisiting* and
-  [ADR 0072](0072-core-task-structured-concurrency.md) § 1 — which is now enough forcing cases that the
-  deferral itself should be re-argued rather than re-deferred.
-- **An inline constraint** (`{id:uint}`) if a case appears where the method's parameter type is the wrong
-  place for it. § 2 kept the grammar room deliberately; nothing needs it yet.
-- **Host and scheme matching** — routing by subdomain — is a real multi-tenant need and is genuinely absent.
-  It is additive (a `host?` field on the attribute) and should wait for a use case rather than being
-  guessed at.
+- **Typed `callable` signatures** ([ADR 0007](0007-explicit-type-system.md) § 3) would *not* remove § 4's
+  `switch`, and this ADR's earlier claim that they would is withdrawn: routes do not share a signature,
+  handlers share no return type, and § 4's boundary ground is untouched by the deferral either way. The
+  `switch` is generated by `Web\Controller` instead ([0082](0082-the-first-party-framework.md) § 3), and the
+  deferral is owed its own ADR argued on the three cases that do force it
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 9).
+- **An inline constraint** (`{id:uint}`) is **not** taken, and the grammar room § 2 reserved stays reserved.
+  A capture's closed set is spelled as a literal-union type on the parameter (§ 3), which states the fact
+  once rather than in two places that can disagree.
+- **Host and scheme matching** is answered one layer down, at
+  [0097](0097-development-server-and-proxied-origin.md) § 3's mount table, and the `host?` field this ADR
+  once proposed is **withdrawn** — a hostname in the compiled table would end the relocatability that
+  section bought. `Core\Request::mount()` exposes the matched mount's glob captures, which is what a
+  multi-tenant application actually needs
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 7).
 - **A second selector for [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)'s scan** — that
   ADR's *Revisiting* says a selector beyond `implementing<T>` should wait for a second real use case. This
   is that second case, and it argues for the scan's filter becoming a shared, named mechanism rather than
