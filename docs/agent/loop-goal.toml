@@ -429,9 +429,15 @@ tests = [
   # Item 20 -- the three halves of one layout revision, each measured through
   # `counting_alloc::allocated_bytes`, which is the shape `an_integer_subscript_allocates_no_key`
   # established: a transient allocation has a zero LIVE delta and a non-zero TOTAL one.
-  "appending_to_a_uniquely_owned_string_does_not_reallocate",
-  "a_concat_of_many_pieces_allocates_once",
-  "an_immortal_literal_is_never_retained_or_freed",
+  #
+  # These are the names the tests landed under, and they are NOT the ones this list first
+  # predicted. Each was renamed here rather than in `string.rs` because the tree's name states the
+  # narrower, true claim: a uniquely owned string with no room left DOES reallocate, so
+  # "does_not_reallocate" would have named something the doubling never promises. Spare capacity,
+  # not unique ownership, is what makes an append free. See the handoff's own note.
+  "appending_into_spare_capacity_allocates_nothing",
+  "an_n_ary_concatenation_allocates_one_buffer",
+  "an_immortal_string_is_never_written_freed_or_allocated_for",
 ]
 
 [[check]]
@@ -440,9 +446,12 @@ stage = "0 catch-up"
 name = "mwl-codegen (immortal literals)"
 args = ["test", "-p", "mwl-codegen"]
 tests = [
-  # Item 20's codegen half -- `emit_const_str` calls `mwl_str_new` on every EVALUATION today, so a
-  # literal in a loop allocates once an iteration. Its own doc comment already asks for this.
-  "a_string_literal_allocates_nothing",
+  # Item 20's codegen half -- `emit_const_str` used to call `mwl_str_new` on every EVALUATION, so a
+  # literal in a loop allocated once an iteration. It is an address in the unit's data section now.
+  # The name is the tree's: `mwl_runtime::counting_alloc` is that crate's own test build, so this
+  # crate cannot count bytes at all and asserts POINTER IDENTITY instead -- which is the stronger
+  # reading anyway, since two allocations cannot share an address.
+  "a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation",
 ]
 
 [[check]]

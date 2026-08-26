@@ -200,24 +200,26 @@ one is how an item finishes.
     renders), and `mwl-codegen`'s `an_integer_subscript_reaches_the_packed_form_from_compiled_code`
     measures it from compiled code: the accesses in a loop cost the same number of allocations however
     many times it goes round, while the rendered-key spelling beside it costs one per access.
-20. **A string has capacity, and `.=` appends into it.** `StrHeader` carries a refcount and a length and
-    nothing else, so `mwl_str_concat` always builds a fresh buffer and `$out .= $piece` copies the whole
-    accumulation every iteration: 50,000 appends take 238 ms and 100,000 take 1,386 ms, which is
-    `03-string-concat` at 0.03× and is the one case no allocator fixes. Three changes, one layout
-    revision: capacity plus an `mwl_str_append` on `mwl_array_set`'s own *consume one reference, return
-    one* protocol; an n-ary `InstKind::Concat`, since `MwlStr::from_pieces` already exists for it and
-    codegen never calls it; and a string literal that stops allocating, which `emit_const_str`'s own doc
-    comment already asks for and defers to this crate on layout grounds. **The part that must be written
-    down rather than re-derived** is that an immortal literal lives in the compiled unit — the one thing a
-    request *does* share with another — so `string.rs`'s "no `MwlStr` is ever reachable from two threads"
-    reasoning behind the plain `Cell` refcount stops being true as stated. It stays sound, because a
-    pinned refcount is never written; the module doc has to say so.
-21. **No key is synthesized for a callback that does not want one.** `Core\Arr::map`, `filter`, `reduce`
-    and `sort` all call `mwl_array_key_at` per element, which on a packed list renders a decimal and
-    allocates an `MwlStr` — and `call_closure` then slices the argument list to the closure's declared
-    arity and drops it. `12-array-map-filter` burns 400,000 of them a round for nothing. The arity is a
-    field on the closure object, readable once before the loop. `Core\Arr::sort` compounds it by building
-    a key per element even when `preserveKeys` is `false`.
+20. ~~**A string has capacity, and `.=` appends into it.**~~ **Done**, all three halves.
+    `StrHeader` carries a capacity beside its refcount and length and `mwl_str_append` writes into it;
+    `InstKind::Concat` is n-ary; and `emit_const_str` hands out the address of a header in the compiled
+    unit's data section. The fact that had to be **written down rather than re-derived** is in
+    `string.rs`'s own module doc, § *An immortal string, and why the `Cell` survives it*: an immortal
+    literal lives in the compiled unit — the one thing a request *does* share — so the plain `Cell`
+    refcount rests on the narrower claim that no refcount two threads can reach is ever *written*.
+    The measurements landed under names this file's acceptance list did not predict, and the list was
+    corrected rather than the tests: `appending_into_spare_capacity_allocates_nothing`,
+    `an_n_ary_concatenation_allocates_one_buffer`,
+    `an_immortal_string_is_never_written_freed_or_allocated_for`, and `mwl-codegen`'s
+    `a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation`. `loop-goal.toml`'s
+    comments say why each name is the truer one.
+21. ~~**No key is synthesized for a callback that does not want one.**~~ **Done.** `Core\Arr::map`,
+    `filter`, `reduce` and `sort` each read `mwl_runtime::closure_arity` once before their walk and build
+    `$key` only for a callback that declared somewhere to put it; `sort` skips collecting keys entirely
+    when it renumbers and its `by` wants none. `crates/mwl-stdlib/tests/allocation_policy.rs` measures
+    both halves. **One premise of this item was wrong and the test says so**: preserving keys is not what
+    cost anything on a list — `MwlArray::slot_key` answers a `SlotKey::Index` while the array is packed
+    and renders nothing, so the one place a sort *renders* a key is a two-parameter `by`.
 22. **A `Core\Str` member writes its result once.** Two mechanical patterns, and the reason they are here
     rather than in the milestone is that every member §§ 1–12 still owes copies whichever one is in front
     of it: `produced(&str)` allocates a `String` and then copies it into a fresh `MwlStr` (56 call sites
