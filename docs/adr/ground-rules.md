@@ -125,7 +125,9 @@ spellings rejected, and the reasoning.
   part count, and path components that do not spell what they open
   ([0095](0095-ambiguous-input-is-refused-never-repaired.md)).
 - **A `#[Route]` without a sibling `#[Access]` does not compile**, and CSRF is on by default for unsafe
-  methods ([0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md)).
+  methods ([0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md)); the server
+  enforces the CSRF check and the **dispatcher** enforces the access decision, never both
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 8).
 - **A bidirectional control that opens a scope and never closes it is a compile error in source and is
   substituted at both output sinks** ([0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md)).
 
@@ -225,6 +227,14 @@ spellings rejected, and the reasoning.
   ([0073](0073-scheduled-work-is-config.md)).
 - **`#[Route]` builds the route table while compiling, and the router stops at matching**
   ([0077](0077-compile-time-routing.md)).
+- **The server matches each request once before the handler, and `Core\Request::route()` is that match**
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)).
+- **A capture narrows to a closed set with a type and never with a regex**, because a pattern over the
+  request path runs before rate limiting
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 5).
+- **A link is built through `url`/`urlAbsolute`, and an absolute one's origin is configured per mount,
+  never read from a header**
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 6).
 - **The terminal is a sink that substitutes control bytes visibly, styling is the `Cli\Text` value type,
   and `#[Command]` builds the argument table while compiling**
   ([0086](0086-core-cli-terminal-is-a-sink.md)).
