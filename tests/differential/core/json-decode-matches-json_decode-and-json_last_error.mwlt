@@ -17,11 +17,12 @@ Core\Json::decode round-trips every JSON value to the same text json_decode and 
 // this case is actually about, which is what the *reader* built.
 //
 // Two number rows are deliberately absent because they do not agree, and both
-// belong to a divergence case rather than here: `1e999`, which PHP reads as
-// `INF` and this refuses, and `9223372036854775808`, which fits `uint` but not
-// `int` — PHP widens it to a `float`, this refuses it. An integer past *every*
-// integer type is not that row and is not a divergence: both readers take
-// `12345678901234567890123` as a `float`. The scalar table names one more.
+// are `json-decode-refuses-the-number-band-json_decode-degrades`'s rather than
+// here: `1e999`, which PHP reads as `INF` and this refuses, and
+// `9223372036854775808`, which fits `uint` but not `int` — PHP widens it to a
+// `float`, this refuses it. An integer past *every* integer type is not that
+// row and is not a divergence: both readers take `12345678901234567890123` as
+// a `float`. The scalar table names one more.
 
 final class Show {
     // The round trip. A failure is the word rather than the message: PHP's
@@ -57,7 +58,8 @@ final class Show {
 // and `100.0` as `100`, so `0.0` and `1e2` would be measuring the two
 // *writers* against each other and not the reader. `-0` is a reader row and it
 // also disagrees — PHP reads it as the integer `0`, this reads it as `-0.0`.
-// All three belong to the same divergence and are its case, not rows here.
+// All three are rows of
+// `json-decode-refuses-the-number-band-json_decode-degrades`, not of this case.
 array<string> $scalars = ["1", "-2.5", "\"x\"", "true", "false", "null", "9223372036854775807"];
 foreach ($scalars as string $scalar) {
     echo $scalar, " -> ", Show::round($scalar), "\n";
