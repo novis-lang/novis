@@ -1,0 +1,140 @@
+--TEST--
+Core\Math::format renders exactly what Core\Math::round answers at the same precision, over a whole table and at every mode, and parts from it only where round has no opinion — the separators and the precisions below zero — docs/spec/01-core-library.md § 3
+--FILE--
+<?mwl
+// Two members carrying one rounding rule between them. `round` answers a
+// `float` and `format` answers digits, so nothing forces them to share the
+// rule: `format` could grow its own tie-break and still look right on every
+// line a hand-written case prints, because a rendered "3" says nothing about
+// which of the six modes produced it. The question that separates them is
+// asked here as an agreement — `format($n, {decimals: $d})` against
+// `format(round($n, {precision: $d}), {decimals: $d})` — and counted over a
+// table, so a member right on the rows someone would pick and wrong one row
+// out still fails. What `round` alone can say is section 4's precision below
+// zero and section 3's `mode`; what `format` alone can say is section 2's
+// separators, and neither is a disagreement.
+
+// 1. The sweep. Rounding to `$d` places and then rendering `$d` places is
+//    rendering `$d` places: on every row, at every precision both members can
+//    name. The table is chosen for the rows where a second rounding rule would
+//    show — exact binary ties (0.5, 0.125), decimal literals that are not
+//    exactly representable and so are *not* ties however they look (1.005,
+//    2.675, 99.995), both signs of each, and the negative row that rounds to a
+//    negative zero.
+array<float> $rows = [
+    0.0, -0.0,
+    0.5, -0.5, 1.5, 2.5,
+    0.125, 0.375, -0.125,
+    0.05, 0.15, 0.25, 0.35,
+    1.005, 2.675, -2.675,
+    -0.4, 0.4999999999999999,
+    99.995, -99.995,
+    1234567.891, -1234567.891,
+];
+int $pairs = 0;
+int $agree = 0;
+int $moved = 0;
+foreach ($rows as float $x) {
+    int $d = 0;
+    for (; $d <= 6; $d = $d + 1) {
+        $pairs = $pairs + 1;
+        if (Core\Math::format($x, {decimals: $d as uint})
+            == Core\Math::format(Core\Math::round($x, {precision: $d}), {decimals: $d as uint})) {
+            $agree = $agree + 1;
+        }
+        // Not a vacuous sweep: on this many of the pairs the rounding actually
+        // changed the value, so the two members had something to disagree
+        // about and did not.
+        if (Core\Math::round($x, {precision: $d}) != $x) {
+            $moved = $moved + 1;
+        }
+    }
+}
+echo "agree ", $agree, "/", $pairs, ", rounding moved the value on ", $moved, "\n";
+
+// 2. The separators are `format`'s alone — `round` has no opinion about them,
+//    and asking for them does not change a digit. Undoing them recovers the
+//    default rendering, and the composition with `round` survives them, which
+//    is the same agreement as section 1 wearing punctuation.
+int $sameDigits = 0;
+int $punctuated = 0;
+int $stillAgrees = 0;
+foreach ($rows as float $y) {
+    string $plain = Core\Math::format($y, {decimals: 3});
+    string $fancy = Core\Math::format($y, {decimals: 3, groupSeparator: "_", decimalSeparator: ","});
+    if (Core\Str::replace(Core\Str::replace($fancy, "_", ""), ",", ".") == $plain) {
+        $sameDigits = $sameDigits + 1;
+    }
+    if ($fancy != $plain) {
+        $punctuated = $punctuated + 1;
+    }
+    if (Core\Math::format(Core\Math::round($y, {precision: 3}),
+            {decimals: 3, groupSeparator: "_", decimalSeparator: ","}) == $fancy) {
+        $stillAgrees = $stillAgrees + 1;
+    }
+}
+echo "separators: same digits ", $sameDigits, "/", $punctuated,
+     " punctuated rows, and round still agrees ", $stillAgrees, "\n";
+// MWL has no ambient locale, so the group separator defaults to empty where
+// number_format's is a comma; that default is the only reason section 1's
+// comparison is over bare digits at all.
+echo "default rendering: ", Core\Math::format(1234567.891, {decimals: 2}), "\n";
+
+// 3. `mode` is what `round` can say and `format` cannot, so the agreement
+//    holds at exactly one of the six and the tie table says which. Every row
+//    here is an exact binary tie, where the six modes are obliged to part.
+array<float> $ties = [0.5, 1.5, 2.5, 3.5, -0.5, -1.5, -2.5, -3.5];
+int $halfUp = 0;
+int $halfDown = 0;
+int $halfEven = 0;
+int $halfOdd = 0;
+int $up = 0;
+int $down = 0;
+foreach ($ties as float $t) {
+    string $written = Core\Math::format($t);
+    if (Core\Math::format(Core\Math::round($t, {mode: Core\RoundMode::HalfUp})) == $written) {
+        $halfUp = $halfUp + 1;
+    }
+    if (Core\Math::format(Core\Math::round($t, {mode: Core\RoundMode::HalfDown})) == $written) {
+        $halfDown = $halfDown + 1;
+    }
+    if (Core\Math::format(Core\Math::round($t, {mode: Core\RoundMode::HalfEven})) == $written) {
+        $halfEven = $halfEven + 1;
+    }
+    if (Core\Math::format(Core\Math::round($t, {mode: Core\RoundMode::HalfOdd})) == $written) {
+        $halfOdd = $halfOdd + 1;
+    }
+    if (Core\Math::format(Core\Math::round($t, {mode: Core\RoundMode::Up})) == $written) {
+        $up = $up + 1;
+    }
+    if (Core\Math::format(Core\Math::round($t, {mode: Core\RoundMode::Down})) == $written) {
+        $down = $down + 1;
+    }
+}
+echo "ties: HalfUp ", $halfUp, "/8, HalfDown ", $halfDown, ", HalfEven ", $halfEven,
+     ", HalfOdd ", $halfOdd, ", Up ", $up, ", Down ", $down, "\n";
+// A tie cannot tell `HalfUp` from `Up`: both leave a tie away from zero, so
+// `Up` scores a full eight above without being the rule. One row that is not a
+// tie separates them, and it is the row that names `format`'s mode outright.
+echo "off a tie: ", Core\Math::format(0.1), "|",
+     Core\Math::format(Core\Math::round(0.1, {mode: Core\RoundMode::HalfUp})), "|",
+     Core\Math::format(Core\Math::round(0.1, {mode: Core\RoundMode::Up})), "\n";
+
+// 4. The bound, on both sides. `decimals` is a `uint` and `precision` is an
+//    `int`, so zero is the last precision both members can name: at zero they
+//    agree as section 1 has it, and below it only `round` has an opinion —
+//    rendering a value rounded to hundreds is the composition, never an
+//    argument to `format`.
+float $wide = 12345.678;
+echo "at 0: ", Core\Math::format($wide), "|",
+     Core\Math::format(Core\Math::round($wide, {precision: 0})), "\n";
+echo "below 0, round only: ", Core\Math::format(Core\Math::round($wide, {precision: -2})), "|",
+     Core\Math::format(Core\Math::round($wide, {precision: -5})), "\n";
+--EXPECT--
+agree 154/154, rounding moved the value on 50
+separators: same digits 22/22 punctuated rows, and round still agrees 22
+default rendering: 1234567.89
+ties: HalfUp 8/8, HalfDown 0, HalfEven 4, HalfOdd 4, Up 8, Down 0
+off a tie: 0|0|1
+at 0: 12346|12346
+below 0, round only: 12300|0
