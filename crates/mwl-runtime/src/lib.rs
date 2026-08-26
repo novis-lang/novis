@@ -190,30 +190,26 @@
 //!    anything. They exist in [`Tag`] because the plan's § *Value
 //!    representation* names them; nothing constructs one. `Object` and `Array`
 //!    no longer belong on this list — see [`object`] and [`mod@array`].
-//! 2. **A string is refcounted but never mutated in place.** [`MwlArray`]
-//!    implements copy-on-write in full, including the `refcount == 1` in-place
-//!    fast path; [`MwlStr`] is immutable instead, so every producer allocates.
-//!    Nothing in the language mutates a string in place yet, so there is no
-//!    observable difference; the same fast path is a widening of [`MwlStr`],
-//!    not a redesign.
-//! 3. **A string literal allocates on every evaluation.** An immortal,
-//!    statically-allocated header (refcount pinned, never freed) would let
-//!    `ConstStr` be a constant pointer with no call at all. It needs codegen
-//!    to emit the header into the unit's data section, so it lands with the
-//!    backend, not here.
-//! 4. **`Ctx` carries no coroutine yielder and no request arena.** Both are
+//! 2. **Appending is the only string operation with an in-place fast path.**
+//!    [`mwl_str_append`] writes into its target's spare capacity at a
+//!    `refcount == 1`, so `$out .= $piece` is linear; every other producer —
+//!    [`mwl_str_concat`], [`mwl_str_concat_n`], every `Core\Str` member —
+//!    allocates its result. That is a widening of [`MwlStr`] wherever a
+//!    producer can prove sole ownership, not a redesign, and [`MwlArray`]'s
+//!    copy-on-write is the shape it would take.
+//! 3. **`Ctx` carries no coroutine yielder and no request arena.** Both are
 //!    M4/M5 (`benches/abi-probe`'s own `Ctx` shows the yielder shape ADR 0002
 //!    § *Consequences* commits to). A helper cannot suspend yet.
-//! 5. **No custom panic hook is installed.** ADR 0002 § *Corollary* wants the
+//! 4. **No custom panic hook is installed.** ADR 0002 § *Corollary* wants the
 //!    panic message routed to the request log with its request id; there is
 //!    no request log until M5, and the default hook's stderr output is the
 //!    right destination for a CLI script until then. [`mwl_helper!`] already
 //!    captures the message into [`Ctx`], so the hook is presentation, not
 //!    containment.
-//! 6. **`mwl_safepoint` acts on two of its four flags.** `CPU_LIMIT` and
+//! 5. **`mwl_safepoint` acts on two of its four flags.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; `COLLECT` and `DEBUG_BREAK` are cleared and
 //!    ignored, since neither the cycle collector nor `mwl dap` exists.
-//! 7. **An exception *this crate* builds carries a message and nothing
+//! 6. **An exception *this crate* builds carries a message and nothing
 //!    else.** [`Thrown::new`] — reached from [`mwl_raise_new`] and from a
 //!    helper's bare-message [`Fault`] — fills `message`, empties `backtrace`
 //!    and `location`, and leaves `previous` null, because none of the three
@@ -223,7 +219,7 @@
 //!    `previous` cannot be set *at all* yet is a different gap, owned by
 //!    `mwl_types::error_lib`, which explains why the synthesized constructor
 //!    takes only a message.
-//! 8. **There is no cycle collector, by decision rather than by omission.** A
+//! 7. **There is no cycle collector, by decision rather than by omission.** A
 //!    cyclic object or array graph is retained until the process exits. The wholesale
 //!    request-heap drop makes cycles structurally unable to accumulate in the
 //!    server (`docs/implementation-plan.md` § *Architecture*), so the optional
@@ -301,8 +297,9 @@ pub use object::{
     mwl_object_release, mwl_object_retain, mwl_object_slot_get, mwl_object_slot_set,
 };
 pub use string::{
-    CAP_OFFSET, LEN_OFFSET, MwlStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, mwl_str_append,
-    mwl_str_concat, mwl_str_concat_n, mwl_str_eq, mwl_str_new, mwl_str_release, mwl_str_retain,
+    CAP_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET, MwlStr, PAYLOAD_OFFSET,
+    REFCOUNT_OFFSET, StrHeader, immortal_header_bytes, mwl_str_append, mwl_str_concat,
+    mwl_str_concat_n, mwl_str_eq, mwl_str_new, mwl_str_release, mwl_str_retain,
 };
 pub use throwable::{
     BACKTRACE_SLOT, ISSUES_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT, Thrown,

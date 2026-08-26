@@ -50,10 +50,39 @@
 //! (`docs/adr/README.md`'s project-start decisions), and a value crossing a
 //! `spawn`/`spawn worker`/`spawn script` boundary is deep-copied rather than
 //! shared ([ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)).
-//! No `MwlStr` is ever reachable from two threads, so an atomic increment
-//! would buy nothing and cost a locked instruction on the hottest operation
-//! in the runtime. [`MwlStr`] is correspondingly neither `Send` nor `Sync`,
-//! which is what makes that reasoning checkable rather than remembered.
+//! No `MwlStr` a request *allocates* is ever reachable from two threads, so
+//! an atomic increment would buy nothing and cost a locked instruction on the
+//! hottest operation in the runtime. [`MwlStr`] is correspondingly neither
+//! `Send` nor `Sync`, which is what makes that reasoning checkable rather than
+//! remembered.
+//!
+//! # An immortal string, and why the `Cell` survives it
+//!
+//! A string literal is not allocated at all. `mwl-codegen` writes a whole
+//! [`StrHeader`] into the compiled unit's data section in front of the bytes
+//! and hands out its address, so `$a["beta"]` in a loop is one constant rather
+//! than an [`mwl_str_new`] per evaluation. That header's refcount word is
+//! [`IMMORTAL_REFCOUNT`], and the three operations that touch a refcount —
+//! [`MwlStr`]'s `Clone` and `Drop`, and [`mwl_str_retain`] — compare against
+//! it first and return without writing.
+//!
+//! The pin is not an optimization the release path may skip; it is what keeps
+//! the paragraph above sound. A compiled unit **is** shared between requests
+//! (`docs/adr/README.md`'s project-start decisions say it is the one thing
+//! that is), so an immortal header is reachable from two threads and the
+//! sentence "no `MwlStr` is ever reachable from two threads" stops being true
+//! as stated. What the `Cell` actually needs is narrower and does still hold:
+//! **no refcount two threads can reach is ever written.** A word that is only
+//! ever read races with nothing whatever its type, and every word that *is*
+//! written belongs to an allocation [`MwlStr::alloc_uninit`] made on the
+//! request's own thread and reachable from nowhere else.
+//!
+//! What it costs is one compare and a not-taken branch per release — the
+//! hottest operation in the runtime — against a sentinel every allocated
+//! string misses. Nothing else changes: an immortal string is never mutated
+//! in place either, because [`mwl_str_append`] takes its in-place path only at
+//! a refcount of exactly one, so it copies out of an immortal exactly as it
+//! copies out of a shared one.
 
 use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::cell::Cell;
@@ -92,6 +121,56 @@ pub const CAP_OFFSET: usize = std::mem::offset_of!(StrHeader, cap);
 
 /// Byte offset of the payload itself, relative to the [`StrHeader`] pointer.
 pub const PAYLOAD_OFFSET: usize = std::mem::size_of::<StrHeader>();
+
+/// The alignment a [`StrHeader`] must be written at.
+///
+/// Published for `mwl-codegen`, which places one in a data section rather than
+/// in an allocation and so has to state the alignment [`str_layout`] would
+/// otherwise have handed to `alloc`.
+pub const HEADER_ALIGN: usize = std::mem::align_of::<StrHeader>();
+
+/// The reference count carried by a string that must never be freed.
+///
+/// A literal's header lives in the compiled unit's data section rather than in
+/// an allocation, so there is nothing to hand back — and because the unit is
+/// shared between requests, the word must never be *written* either. Every
+/// operation that touches a refcount compares against this first; this
+/// module's docs § *An immortal string* is why that compare is load-bearing
+/// rather than an optimization.
+///
+/// `usize::MAX` is the sentinel because it is the one count a real string
+/// cannot reach: every reference costs at least a machine word to hold, so a
+/// count that high would need more memory than the address space holding it.
+pub const IMMORTAL_REFCOUNT: usize = usize::MAX;
+
+/// The header bytes a compiled unit writes in front of a string literal's
+/// payload, in the host's byte order.
+///
+/// This is the whole of what `mwl-codegen` needs to know about [`StrHeader`]:
+/// it emits these bytes, then the `len` payload bytes, and hands out the
+/// address of the first — which is from then on an ordinary `*mut StrHeader`
+/// that every primitive here reads exactly as it reads an allocated one. The
+/// field order stays this module's secret, which is what the emitting side
+/// asked for when it declined to write a header of its own.
+///
+/// Host order rather than the target's: this JIT compiles for the machine it
+/// runs on, the same assumption `mwl_codegen::emit`'s 64-bit `POINTER_SIZE`
+/// already makes. An ahead-of-time backend targeting another byte order would
+/// take the target's endianness here.
+#[must_use]
+pub fn immortal_header_bytes(len: usize) -> [u8; PAYLOAD_OFFSET] {
+    let mut header = [0_u8; PAYLOAD_OFFSET];
+    // `cap` equals `len`, as it does for every string this module builds: an
+    // immortal one has no spare room to append into and could not use it.
+    for (offset, word) in [
+        (REFCOUNT_OFFSET, IMMORTAL_REFCOUNT),
+        (LEN_OFFSET, len),
+        (CAP_OFFSET, len),
+    ] {
+        header[offset..offset + std::mem::size_of::<usize>()].copy_from_slice(&word.to_ne_bytes());
+    }
+    header
+}
 
 /// The allocation shape for a string with room for `cap` payload bytes.
 ///
@@ -140,7 +219,7 @@ impl MwlStr {
     /// fails. A request-attributable out-of-memory is
     /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)'s
     /// resource-limit tier and belongs to the per-request arena that does not
-    /// exist yet (known gap 4 in the crate docs); until it does, the global
+    /// exist yet (known gap 3 in the crate docs); until it does, the global
     /// allocator's own behaviour is the honest one.
     #[must_use]
     pub fn new(bytes: &[u8]) -> Self {
@@ -360,20 +439,30 @@ impl MwlStr {
 impl Clone for MwlStr {
     fn clone(&self) -> Self {
         let header = self.header();
-        header.refcount.set(
-            header
-                .refcount
-                .get()
-                .checked_add(1)
-                .expect("an MWL string's reference count cannot overflow a usize"),
-        );
+        let count = header.refcount.get();
+        // An immortal header is shared between requests and read-only — see
+        // this module's docs § *An immortal string*.
+        if count != IMMORTAL_REFCOUNT {
+            header.refcount.set(
+                count
+                    .checked_add(1)
+                    .expect("an MWL string's reference count cannot overflow a usize"),
+            );
+        }
         Self { ptr: self.ptr }
     }
 }
 
 impl Drop for MwlStr {
     fn drop(&mut self) {
-        let remaining = self.header().refcount.get() - 1;
+        let count = self.header().refcount.get();
+        // The one compare an immortal literal costs the release path, and the
+        // reason it is not optional: this header may be in another request's
+        // hands too, and freeing or writing it would be wrong twice over.
+        if count == IMMORTAL_REFCOUNT {
+            return;
+        }
+        let remaining = count - 1;
         if remaining > 0 {
             self.header().refcount.set(remaining);
             return;
@@ -679,7 +768,8 @@ pub unsafe extern "C" fn mwl_str_eq(lhs: *const StrHeader, rhs: *const StrHeader
 /// Adds a reference — `mwl_ir::InstKind::Retain` for a `Ty::Str` operand.
 ///
 /// A null `ptr` is a no-op: see [`crate::object`]'s *A null payload is `null`*
-/// for why that is the rule rather than a defensive check.
+/// for why that is the rule rather than a defensive check. A string literal's
+/// header is a no-op too, for the reason [`IMMORTAL_REFCOUNT`] states.
 ///
 /// # Safety
 ///
@@ -701,19 +791,24 @@ pub unsafe extern "C" fn mwl_str_retain(ptr: *mut StrHeader) {
                   a later drop could double-release"
     )]
     let header = unsafe { &*ptr };
-    header.refcount.set(
-        header
-            .refcount
-            .get()
-            .checked_add(1)
-            .expect("an MWL string's reference count cannot overflow a usize"),
-    );
+    let count = header.refcount.get();
+    // See [`IMMORTAL_REFCOUNT`]: a literal's header is not ours to write.
+    if count != IMMORTAL_REFCOUNT {
+        header.refcount.set(
+            count
+                .checked_add(1)
+                .expect("an MWL string's reference count cannot overflow a usize"),
+        );
+    }
 }
 
 /// Drops a reference, freeing the allocation if it was the last —
 /// `mwl_ir::InstKind::Release` for a `Ty::Str` operand.
 ///
-/// A null `ptr` is a no-op — see [`mwl_str_retain`].
+/// A null `ptr` is a no-op, and so is a string literal's immortal header —
+/// see [`mwl_str_retain`]. Releasing one is therefore always sound however
+/// many times it happens, which is what lets compiled code transfer a literal
+/// into an array or a `Value` without a special case.
 ///
 /// # Safety
 ///
@@ -1089,6 +1184,82 @@ mod tests {
             let owned = MwlStr::from_raw(acc);
             assert!(owned.capacity() < 2 * owned.len());
             mwl_str_release(piece);
+        }
+    }
+
+    /// The bytes `mwl-codegen` puts in a unit's data section for one string
+    /// literal, in a `Vec<u64>` so the header lands at the alignment it has
+    /// there — this is the only way this crate's own tests can hold an
+    /// immortal string, since nothing here constructs one.
+    fn immortal_unit(bytes: &[u8]) -> Vec<u64> {
+        assert!(HEADER_ALIGN <= std::mem::size_of::<u64>());
+        let total = PAYLOAD_OFFSET + bytes.len();
+        let mut words = vec![0_u64; total.div_ceil(std::mem::size_of::<u64>())];
+        #[expect(
+            unsafe_code,
+            reason = "`words` owns `total` bytes at a u64's alignment, which is \
+                      the whole point of allocating it as one; the view ends \
+                      with this function"
+        )]
+        let view =
+            unsafe { std::slice::from_raw_parts_mut(words.as_mut_ptr().cast::<u8>(), total) };
+        view[..PAYLOAD_OFFSET].copy_from_slice(&immortal_header_bytes(bytes.len()));
+        view[PAYLOAD_OFFSET..].copy_from_slice(bytes);
+        words
+    }
+
+    /// The claim § B of `docs/perf/userland-gap.md` makes for a string
+    /// literal, from the side this crate owns: an immortal header costs
+    /// nothing to retain or release, is never freed however many times it is
+    /// released, and — the half that keeps the plain `Cell` sound — is never
+    /// *written*.
+    ///
+    /// The zero here is `allocated_bytes`, for the reason
+    /// [`an_n_ary_concatenation_allocates_one_buffer`] reads the same counter:
+    /// what a literal used to cost was one `mwl_str_new` per evaluation, freed
+    /// again straight away, which a `live_bytes` delta cannot see at all.
+    #[test]
+    fn an_immortal_string_is_never_written_freed_or_allocated_for() {
+        use crate::counting_alloc::allocated_bytes;
+
+        let mut unit = immortal_unit(b"beta");
+        let ptr = unit.as_mut_ptr().cast::<StrHeader>();
+
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            assert_eq!(MwlStr::bytes_of(ptr), b"beta");
+            assert_eq!(MwlStr::refcount_of(ptr), IMMORTAL_REFCOUNT);
+
+            let before = allocated_bytes();
+            mwl_str_retain(ptr);
+            mwl_str_release(ptr);
+            mwl_str_release(ptr);
+            // One more release than there were references: an immortal cannot
+            // be over-released, which is what lets compiled code transfer one
+            // into an array or a `Value` with no special case.
+            mwl_str_release(ptr);
+            assert_eq!(allocated_bytes() - before, 0);
+            assert_eq!(MwlStr::refcount_of(ptr), IMMORTAL_REFCOUNT);
+
+            // `Clone` and `Drop` take the same two paths as the primitives.
+            let handle = MwlStr::from_raw(ptr);
+            let second = handle.clone();
+            assert_eq!(second.refcount(), IMMORTAL_REFCOUNT);
+            drop(second);
+            drop(handle);
+            assert_eq!(MwlStr::refcount_of(ptr), IMMORTAL_REFCOUNT);
+
+            // `$s .= "!"` where `$s` holds a literal: the in-place path wants a
+            // refcount of exactly one, so an immortal target copies out instead
+            // of writing into a word two requests share.
+            let suffix = MwlStr::new(b"!").into_raw();
+            let grown = mwl_str_append(ptr, suffix.cast_const());
+            assert_ne!(grown.cast_const(), ptr.cast_const());
+            assert_eq!(MwlStr::bytes_of(grown), b"beta!");
+            assert_eq!(MwlStr::bytes_of(ptr), b"beta");
+            assert_eq!(MwlStr::refcount_of(ptr), IMMORTAL_REFCOUNT);
+            mwl_str_release(grown);
+            mwl_str_release(suffix);
         }
     }
 }

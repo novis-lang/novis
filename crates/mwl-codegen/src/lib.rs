@@ -147,11 +147,13 @@
 //!    asymmetry is `mwl_ir`'s, not this crate's — see
 //!    [`mwl_ir::ir::Inst::on_error`], which explains why an outcome no
 //!    cleanup path and no `catch` can act on gets no landing block at all.
-//! 4. **A string literal still allocates on every evaluation.** The literal's
-//!    bytes are emitted into the unit's data section, but
-//!    `InstKind::ConstStr` calls `mwl_str_new` over them rather than pointing
-//!    at a pinned-refcount immortal header — `mwl-runtime`'s known gap 3,
-//!    which named codegen as the missing half.
+//! 4. **Two identical string literals are two data objects.** Each
+//!    `InstKind::ConstStr` emits its own immortal header and payload under its
+//!    own name, so a unit that writes `"id"` in forty places holds forty
+//!    copies of it. Nothing on the request path pays — each site materializes
+//!    one address either way — so what this costs is unit bytes and some
+//!    instruction-cache locality, and closing it means keying a map on the
+//!    literal's bytes beside `emit::Emitter::define_literal`'s counter.
 //! 5. **Integer `/` does not compile.**
 //!    [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 types
 //!    `int / int` as `int|float` — PHP-exact, so `6/3` is an integer and `7/2`
@@ -530,8 +532,8 @@ impl Classes {
 /// The signatures the runtime exports, beyond the helper ABI itself.
 ///
 /// `mwl-runtime`'s entry points are deliberately not all the same shape:
-/// `mwl_str_new`/`mwl_str_concat`/`mwl_str_concat_n`/`mwl_str_retain`/
-/// `mwl_str_release` operate on
+/// `mwl_str_concat`/`mwl_str_concat_n`/`mwl_str_retain`/`mwl_str_release`
+/// operate on
 /// raw `StrHeader` pointers with no context and no `Value`, because they are
 /// memory primitives rather than language operations, and `mwl_probe_stmt`
 /// returns nothing because a coverage probe cannot fail. Each therefore gets
@@ -553,16 +555,14 @@ struct Signatures {
     probe_call: Signature,
     /// `mwl_probe_call_exit(ctx, name, len, status)`.
     probe_call_exit: Signature,
-    /// `mwl_str_new(ptr, len) -> *mut StrHeader`.
-    str_new: Signature,
     /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`,
     /// `mwl_str_append(target, suffix) -> *mut StrHeader` and
     /// `mwl_str_concat_n(pieces, count) -> *mut StrHeader`, which are all the
     /// same shape: two pointer-width parameters, one pointer back. The three
     /// differ in ownership and in what the second parameter *means*, not in
     /// ABI — see `mwl_ir::ir::InstKind::StrAppend` and `InstKind::Concat` — so
-    /// one signature serves all of them, exactly as `str_new` already declares
-    /// its `usize` length with `AbiParam::new(ptr)`.
+    /// one signature serves all of them, and a count declares itself with
+    /// `AbiParam::new(ptr)` because a `usize` is pointer-width.
     str_concat: Signature,
     /// `mwl_str_eq(lhs, rhs) -> bool` and `mwl_array_eq(lhs, rhs) -> bool`,
     /// which share one shape: two raw pointers to an `I8`, like
@@ -891,11 +891,6 @@ impl Signatures {
         let mut probe_call_exit = probe_call.clone();
         probe_call_exit.params.push(AbiParam::new(types::I32));
 
-        let mut str_new = module.make_signature();
-        str_new.params.push(AbiParam::new(ptr));
-        str_new.params.push(AbiParam::new(ptr));
-        str_new.returns.push(AbiParam::new(ptr));
-
         let mut str_concat = module.make_signature();
         str_concat.params.push(AbiParam::new(ptr));
         str_concat.params.push(AbiParam::new(ptr));
@@ -1007,7 +1002,6 @@ impl Signatures {
             probe,
             probe_call,
             probe_call_exit,
-            str_new,
             str_concat,
             ptr_eq,
             refcount,

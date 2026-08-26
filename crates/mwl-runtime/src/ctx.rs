@@ -769,7 +769,7 @@ impl Default for Ctx {
 /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) makes it not
 /// a `Throwable` at the type level, so no MWL `catch` can see it.
 ///
-/// Two of the four flags act; see the crate docs' known gap 6.
+/// Two of the four flags act; see the crate docs' known gap 5.
 ///
 /// # Safety
 ///

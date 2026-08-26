@@ -913,29 +913,53 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// A string literal: its bytes go into the unit's data section, and
-    /// `mwl_str_new` copies them into a fresh refcounted allocation.
+    /// A string literal: **one address, no call and no allocation**, whatever
+    /// it costs to reach the expression it sits in.
     ///
-    /// The copy is the crate docs' known gap 4 — an immortal header with a
-    /// pinned refcount would make this a constant with no call at all — and it
-    /// is deliberately not fixed here: `mwl-runtime` owns `StrHeader`'s
-    /// layout, so pinning a refcount is that crate's decision to make, not a
-    /// pattern this one should start writing into a data section on its own.
+    /// The whole string — a `mwl_runtime::StrHeader` and then the payload —
+    /// goes into the unit's data section, so `$a["beta"]` inside a loop
+    /// materializes a constant pointer rather than an `mwl_str_new` per
+    /// evaluation. The header's refcount is
+    /// [`mwl_runtime::IMMORTAL_REFCOUNT`], which every retain and release
+    /// compares against and steps over; the data object is declared
+    /// **not writable**, so a lapse in that protocol faults here instead of
+    /// silently corrupting a word two requests share.
+    ///
+    /// The layout stays `mwl-runtime`'s: this function asks
+    /// [`mwl_runtime::immortal_header_bytes`] for the bytes and does not know
+    /// what is in them. What it does own is the *alignment* — a data section
+    /// object has no allocator to pick one, so the header's own
+    /// [`mwl_runtime::HEADER_ALIGN`] is stated here.
     fn emit_const_str(&mut self, cur: Block, bytes: &[u8]) -> Result<(Value, Block), CodegenError> {
-        let (address, len) = self.emit_bytes(bytes)?;
-        let callee = self.runtime_ref("mwl_str_new", RuntimeSig::StrNew)?;
-        let call = self.b.ins().call(callee, &[address, len]);
-        let value = self.b.inst_results(call)[0];
+        let value = self.emit_immortal_str(bytes)?;
         Ok((value, cur))
+    }
+
+    /// Puts a whole immortal string — header and payload — in the unit's data
+    /// section and materializes its address.
+    ///
+    /// Every call site gets its own data object: identical literals are not
+    /// shared, which is the crate docs' known gap 4 and costs a few bytes of
+    /// unit rather than anything on the request path.
+    fn emit_immortal_str(&mut self, bytes: &[u8]) -> Result<Value, CodegenError> {
+        let mut object =
+            Vec::with_capacity(mwl_runtime::PAYLOAD_OFFSET.saturating_add(bytes.len()));
+        object.extend_from_slice(&mwl_runtime::immortal_header_bytes(bytes.len()));
+        object.extend_from_slice(bytes);
+
+        let mut desc = DataDescription::new();
+        desc.define(object.into_boxed_slice());
+        desc.set_align(
+            u64::try_from(mwl_runtime::HEADER_ALIGN)
+                .map_err(|_| internal("a string header's alignment past u64"))?,
+        );
+        self.define_literal(&desc)
     }
 
     /// Puts `bytes` in the unit's data section and materializes its address
     /// and length as two values — the shape every runtime primitive taking
     /// static bytes wants (`mwl_str_new`, and ADR 0018's call-site probes).
     fn emit_bytes(&mut self, bytes: &[u8]) -> Result<(Value, Value), CodegenError> {
-        let name = format!("mwl_bytes_{}", *self.literals);
-        *self.literals += 1;
-
         let mut desc = DataDescription::new();
         // A zero-length literal still needs a real address to hand to its
         // consumer, which ignores the pointer when the length is zero but is
@@ -946,6 +970,26 @@ impl Emitter<'_, '_> {
         } else {
             bytes.to_vec().into_boxed_slice()
         });
+        let address = self.define_literal(&desc)?;
+        let len = self.b.ins().iconst(
+            types::I64,
+            i64::try_from(bytes.len()).map_err(|_| internal("a literal past i64 bytes"))?,
+        );
+        Ok((address, len))
+    }
+
+    /// Defines one read-only data object in the unit under a fresh name and
+    /// materializes its address.
+    ///
+    /// Read-only because nothing this crate emits into a data section is ever
+    /// written: a probe's bytes, a field name, and — since a literal became an
+    /// immortal string — a `StrHeader` whose refcount is pinned exactly so it
+    /// stays that way. Anything that did write one would be a bug in two
+    /// requests at once, so the mapping is the place to catch it.
+    fn define_literal(&mut self, desc: &DataDescription) -> Result<Value, CodegenError> {
+        let name = format!("mwl_bytes_{}", *self.literals);
+        *self.literals += 1;
+
         let data = self
             .module
             .declare_data(&name, Linkage::Local, false, false)
@@ -954,19 +998,14 @@ impl Emitter<'_, '_> {
                 source: Box::new(source),
             })?;
         self.module
-            .define_data(data, &desc)
+            .define_data(data, desc)
             .map_err(|source| CodegenError::Cranelift {
                 function: self.f.name.clone(),
                 source: Box::new(source),
             })?;
 
         let global = self.module.declare_data_in_func(data, self.b.func);
-        let address = self.b.ins().symbol_value(types::I64, global);
-        let len = self.b.ins().iconst(
-            types::I64,
-            i64::try_from(bytes.len()).map_err(|_| internal("a literal past i64 bytes"))?,
-        );
-        Ok((address, len))
+        Ok(self.b.ins().symbol_value(types::I64, global))
     }
 
     /// Emits one [`InstKind::BinOp`], returning both its value and the block
@@ -1883,9 +1922,12 @@ impl Emitter<'_, '_> {
     ///
     /// `mwl_ir::ir::InstKind::ArrayNew` carries each key as a decimal string
     /// computed at lowering time, so each one is emitted here exactly like a
-    /// `ConstStr` — a fresh allocation whose single reference transfers
-    /// straight into the array, which is why no retain accompanies it. Each
-    /// write yields the array the next one writes into, per that instruction's
+    /// `ConstStr` — an immortal header in the data section whose reference
+    /// transfers straight into the array, which is why no retain accompanies
+    /// it. The transfer is what it always was: the array owns a reference and
+    /// releases it when it is freed, and that release happens to be the no-op
+    /// [`mwl_runtime::IMMORTAL_REFCOUNT`] describes. Each write yields the
+    /// array the next one writes into, per that instruction's
     /// consume-one-reference-yield-one protocol; the pointer never actually
     /// changes here, because a literal under construction is solely owned, but
     /// threading it is what keeps this on the one protocol rather than beside
@@ -1896,10 +1938,7 @@ impl Emitter<'_, '_> {
         let mut array = self.b.inst_results(call)[0];
 
         for (key, value) in entries {
-            let (address, len) = self.emit_bytes(key.as_bytes())?;
-            let new_str = self.runtime_ref("mwl_str_new", RuntimeSig::StrNew)?;
-            let call = self.b.ins().call(new_str, &[address, len]);
-            let key = self.b.inst_results(call)[0];
+            let key = self.emit_immortal_str(key.as_bytes())?;
 
             let slot = self.value_slot();
             let (value, ty) = self.value(*value)?;
@@ -2373,7 +2412,6 @@ impl Emitter<'_, '_> {
             RuntimeSig::Probe => &self.sigs.probe,
             RuntimeSig::ProbeCall => &self.sigs.probe_call,
             RuntimeSig::ProbeCallExit => &self.sigs.probe_call_exit,
-            RuntimeSig::StrNew => &self.sigs.str_new,
             RuntimeSig::StrConcat => &self.sigs.str_concat,
             RuntimeSig::PtrEq => &self.sigs.ptr_eq,
             RuntimeSig::Refcount => &self.sigs.refcount,
@@ -2430,7 +2468,6 @@ enum RuntimeSig {
     Probe,
     ProbeCall,
     ProbeCallExit,
-    StrNew,
     StrConcat,
     PtrEq,
     Refcount,

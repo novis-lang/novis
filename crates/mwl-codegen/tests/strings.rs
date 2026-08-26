@@ -38,6 +38,60 @@ echo \"<\" . $tag . \">$i</\" . $tag . \">\", \"\\n\";
     assert_eq!(output_of(source), "<tr><td>7</td>\nabcd\n<td>7</td>\n");
 }
 
+/// `docs/perf/userland-gap.md` § B's third change, from the side this crate
+/// owns: a string literal is an address in the unit's data section, so
+/// evaluating one twice yields the *same* address rather than two
+/// allocations.
+///
+/// Pointer identity is the assertion because it is the only observation this
+/// crate can make — `mwl_runtime::counting_alloc` is that crate's own test
+/// build — and it is a stronger one anyway: two allocations cannot share an
+/// address. `made` is the control, and the reason the test can fail at all:
+/// `"be" . "ta"` is a genuine `mwl_str_concat_n` per call, and its two answers
+/// land at different addresses.
+#[test]
+fn a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation() {
+    // Both methods take a parameter they ignore: a compiled function called
+    // with an empty argument slice faults, so a fixture reached through
+    // `call` rather than through the script frame declares at least one.
+    let source = "<?mwl
+class Label {
+    public static function pinned(int $ignored): string {
+        return \"beta\";
+    }
+
+    public static function made(int $ignored): string {
+        return \"be\" . \"ta\";
+    }
+}
+";
+    let unit = compile(source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+
+    let pinned = unit
+        .function("Label::pinned")
+        .expect("`pinned` was compiled");
+    let first = call(pinned, &mut ctx, &[Value::int(0)]).expect("the method ran");
+    let second = call(pinned, &mut ctx, &[Value::int(0)]).expect("the method ran");
+    assert_eq!(first.as_str_bytes(), Some(&b"beta"[..]));
+    assert_eq!(second.as_str_bytes(), Some(&b"beta"[..]));
+    assert_eq!(
+        first.as_str_bytes().map(<[u8]>::as_ptr),
+        second.as_str_bytes().map(<[u8]>::as_ptr),
+        "the literal was allocated rather than pointed at"
+    );
+
+    let made = unit.function("Label::made").expect("`made` was compiled");
+    let one = call(made, &mut ctx, &[Value::int(0)]).expect("the method ran");
+    let two = call(made, &mut ctx, &[Value::int(0)]).expect("the method ran");
+    assert_eq!(one.as_str_bytes(), Some(&b"beta"[..]));
+    assert_ne!(
+        one.as_str_bytes().map(<[u8]>::as_ptr),
+        two.as_str_bytes().map(<[u8]>::as_ptr),
+        "a concatenation is still a fresh allocation per call"
+    );
+}
+
 #[test]
 fn a_concatenation_in_a_loop_keeps_producing_the_right_bytes() {
     // Each iteration's result is released once the local it was assigned to is
