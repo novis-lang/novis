@@ -950,6 +950,19 @@ mwl_runtime::mwl_helper! {
 mwl_runtime::mwl_helper! {
     /// `$match->groups(): array<?string>` — every group at once, in
     /// `preg_match`'s own order and shape ([`built_match`]).
+    ///
+    /// **The shape is `$matches` under `PREG_UNMATCHED_AS_NULL`, not under
+    /// PHP's default**, and ADR 0063 R11 is why that is a decision rather than
+    /// a default: there are no `PREG_*` constants, so one of the two readings
+    /// has to be the only one. PHP's default trims *trailing* unmatched groups
+    /// out of the array and writes `""` for the ones in the middle, conflating
+    /// "not declared", "declared and did not participate" and "participated
+    /// and captured nothing" — the first two are exactly what
+    /// [`mwl_core_regex_match_group`]'s throw-versus-`null` split is built on,
+    /// so the flagged reading is the only one that can carry it.
+    /// `tests/differential/core/regex-match-groups-is-preg_match-s-matches-under-unmatched-as-null.mwlt`
+    /// counts the difference: over twelve rows the two readings part on six of
+    /// them, six entries short in total.
     fn mwl_core_regex_match_groups(_ctx, args: [1]) {
         let receiver = crate::instance::receiver(args[0], &MATCH, "groups")?;
         let groups = crate::instance::slot(receiver, GROUPS_SLOT);
@@ -1229,6 +1242,19 @@ mwl_runtime::mwl_helper! {
     /// argument has no equivalent, because ADR 0056 § 5 removed the
     /// `/…/` delimiter syntax it existed for: a pattern here is a pattern, not
     /// a pattern wrapped in punctuation.
+    ///
+    /// **The escaped set is not `preg_quote`'s and a port must not compare the
+    /// two outputs.** Over printable ASCII this escapes 18 characters,
+    /// `#$&()*+-.?[\]^{|}~`, where `preg_quote($c, "/")` escapes 22,
+    /// `!#$()*+-./:<=>?[\]^{|}`. `&` and `~` are meta here because the Rust
+    /// engine reads `&&` and `~~` as character-class set operators and PCRE
+    /// does not; `!:<=>` are meta to neither engine and PCRE's launderer
+    /// escapes them anyway; `/` is escaped there only because a delimiter was
+    /// handed in. What the two do agree on is the property both are for — the
+    /// result matches its own literal, matches it inside a larger subject, and
+    /// matches nothing else — which
+    /// `tests/differential/core/regex-quote-and-preg_quote-escape-different-sets-and-match-the-same-literals.mwlt`
+    /// counts over the whole ASCII table rather than comparing row by row.
     fn mwl_core_regex_quote(_ctx, args: [1]) {
         let literal = text(&args[0], "quote", "the literal")?;
         produced(&regex::escape(literal))
