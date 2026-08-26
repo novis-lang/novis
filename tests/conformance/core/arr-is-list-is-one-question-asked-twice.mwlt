@@ -1,0 +1,102 @@
+--TEST--
+Core\Arr::isList and Core\Json::encode's array test are one predicate, so the members that renumber answer a list from any subject while a chunk run that keeps its keys answers one only where it was given one — ADR 0007 § 5, ADR 0069 §§ 3, 5, spec § 2
+--FILE--
+<?mwl
+// "Are these keys exactly "0" ... "n-1", in that order?" is ADR 0007 § 5's list
+// test, and it is asked in two places that share no code: `Core\Arr::isList`,
+// and `Core\Json::encode`'s choice between a JSON array and a JSON object
+// (`mwl_stdlib::json`'s `serialize_array`, which states the rule again rather
+// than calling the member). So every array below is asked once and answered
+// twice, and what this case asserts is the agreement -- a member that grew a
+// list test of its own would still answer plausibly on its own line and shows
+// up here as a `!` that no row is allowed to print.
+//
+// A closure cannot be called through the variable holding it (`mwl-ir` gap 1),
+// so the question is a static method called directly.
+class Ask {
+    // `L` when both say list, `m` when both say map, `!` when they parted.
+    public static function of(array<mixed> $a): string {
+        bool $said = Core\Arr::isList($a);
+        bool $shown = Core\Str::startsWith(Core\Json::encode($a), "[");
+        if ($said != $shown) {
+            return "!";
+        }
+        if ($said) {
+            return "L";
+        }
+        return "m";
+    }
+
+    // The same question of every run of a chunked subject, in run order. An
+    // empty subject chunks to no runs at all, so its answer is the empty
+    // string rather than a character -- which is the one row where the runs
+    // have nothing to say and the outer array still does.
+    public static function ofEvery(array<array<mixed>> $runs): string {
+        string $out = "";
+        foreach ($runs as array<mixed> $run) {
+            $out = $out . Ask::of($run);
+        }
+        return $out;
+    }
+}
+
+// The empty array (vacuously a list), a plain list, a map whose *values* spell
+// a list, a subject holding both list keys but out of order, one with a hole
+// where "1" would be, and the one subject that is a list and whose values are
+// one too -- the only row where `flip` can answer a list.
+array<array<string>> $subjects = [
+    [],
+    ["a", "b", "c"],
+    ["x" => "0", "y" => "1"],
+    ["1" => "a", "0" => "b"],
+    ["0" => "a", "2" => "b"],
+    ["0" => "0", "1" => "1", "2" => "2"],
+];
+
+string $verdicts = "";
+foreach ($subjects as array<string> $s) {
+    // `flatten` takes its pair as a binding: an inner array literal written
+    // straight into an `array<array<mixed>>` element reads as `array<mixed>`
+    // and then does not satisfy `array<array<T>>`.
+    array<array<string>> $pair = [$s, $s];
+
+    // The subject, then the five members that renumber -- `values`, `keys`,
+    // `chunk`'s outer array, `flatten` and `appendAll`, each of which invents
+    // its own keys and so answers a list from any subject at all -- and
+    // `flip`, which renumbers nothing: its answer's keys are the subject's
+    // *values*, so it is a list exactly where those values spelled one
+    // (ADR 0069 § 5's key-answering members).
+    array<array<mixed>> $answers = [
+        $s,
+        Core\Arr::values($s),
+        Core\Arr::keys($s),
+        Core\Arr::flip($s),
+        Core\Arr::chunk($s, 2),
+        Core\Arr::flatten($pair),
+        Core\Arr::appendAll($s, $s),
+    ];
+    string $row = "";
+    foreach ($answers as array<mixed> $a) {
+        $row = $row . Ask::of($a);
+    }
+    // ADR 0069 § 3's key rule one level down: a run renumbers by default and
+    // keeps the subject's keys on request, so a kept-key run is a list only
+    // where the subject was one -- and then only the run that starts at "0".
+    string $fresh = Ask::ofEvery(Core\Arr::chunk($s, 2));
+    string $kept = Ask::ofEvery(Core\Arr::chunk($s, 2, {preserveKeys: true}));
+    echo $row, "|", $fresh, "|", $kept, "\n";
+    $verdicts = $verdicts . $row . $fresh . $kept;
+}
+
+// One tally over every question asked: how many, how many said list, how many
+// said map, and how many parted -- which has to be none.
+echo Core\Str::length($verdicts), ";", Core\Str::countOf($verdicts, "L"), ";",
+    Core\Str::countOf($verdicts, "m"), ";", Core\Str::countOf($verdicts, "!"), "\n";
+--EXPECT--
+LLLLLLL||
+LLLmLLL|LL|Lm
+mLLLLLL|L|m
+mLLmLLL|L|m
+mLLmLLL|L|m
+LLLLLLL|LL|Lm
+56;45;11;0
