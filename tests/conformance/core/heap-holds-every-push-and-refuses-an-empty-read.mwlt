@@ -1,0 +1,101 @@
+--TEST--
+A `Core\Heap<T>` holds one entry per `push` — duplicates and equal keys included — and `peek`/`pop` on an empty one throw rather than answering `null` — docs/spec/01-core-library.md § 9, ADR 0063 R5, ADR 0090 § 4
+--FILE--
+<?mwl
+class Task implements Comparable {
+    public string $name;
+    public int $cost;
+
+    public function constructor(string $name, int $cost) {
+        $this->name = $name;
+        $this->cost = $cost;
+    }
+
+    public function compareTo(Task $other): int {
+        return $this->cost - $other->cost;
+    }
+}
+
+// § 9 gives the class an `isEmpty`, and ADR 0063 R5 bans the `peekOrNull`
+// twin a `?T` return would invite — so the empty heap is a throw, and the
+// message names the member that asked. `pop`'s spelling of it is pinned by
+// `heap-orders-by-comparable-or-by-its-comparator.mwlt`; this is `peek`'s.
+var $h = new Core\Heap<int>();
+echo "fresh ", $h->count(), " [", $h->isEmpty(), "]\n";
+try {
+    $h->peek();
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+
+// A heap is a priority queue, not a set: three pushes of one value are three
+// entries, and all three come back out.
+$h->push(5);
+$h->push(5);
+$h->push(5);
+echo "duplicates ", $h->count(), " -> ", $h->pop(), $h->pop(), $h->pop(), "\n";
+
+// Draining restores the empty state rather than leaving a heap that merely
+// counts zero: the same throw, and then the same heap takes a push again.
+echo "drained ", $h->count(), " [", $h->isEmpty(), "]\n";
+try {
+    $h->pop();
+} catch (Throwable $e) {
+    echo "empty again\n";
+}
+$h->push(2);
+echo "reused ", $h->count(), " ", $h->peek(), "\n";
+
+// The *same object* pushed twice is held twice, not deduplicated — ADR 0090
+// § 4 makes `==` over two objects identity, so this asks whether both pops
+// answer the one object that went in.
+var $tasks = new Core\Heap<Task>();
+var $once = new Task("solo", 2);
+$tasks->push($once);
+$tasks->push($once);
+echo "held ", $tasks->count(), "\n";
+var $first = $tasks->pop();
+var $second = $tasks->pop();
+echo "identity ", $first == $once, $second == $once, $first == $second, "\n";
+
+// Equal keys: `compareTo` answering 0 orders neither before the other, so the
+// order among the three is not something a binary heap promises. What § 9
+// does promise is that every one of them comes out — asserted as the key each
+// carries and the count, never as the names' order.
+var $ties = new Core\Heap<Task>();
+$ties->push(new Task("a", 3));
+$ties->push(new Task("b", 3));
+$ties->push(new Task("c", 3));
+int $costs = 0;
+int $drawn = 0;
+while (!$ties->isEmpty()) {
+    var $each = $ties->pop();
+    $costs = $costs + $each->cost;
+    $drawn = $drawn + 1;
+}
+echo "ties ", $drawn, " x ", $costs, "\n";
+
+// `count` is the entries array's own — there is no second size to fall out of
+// step — so it survives interleaving, and `peek` tracks the smallest as
+// elements arrive under and over the current root.
+var $mix = new Core\Heap<int>();
+$mix->push(4);
+$mix->push(9);
+echo "mix ", $mix->count(), "/", $mix->peek(), " ";
+echo "pop=", $mix->pop(), " ";
+$mix->push(1);
+echo $mix->count(), "/", $mix->peek(), " ";
+$mix->push(7);
+echo $mix->count(), "/", $mix->peek(), " ";
+echo "rest=", $mix->pop(), $mix->pop(), $mix->pop(), " ", $mix->count(), " [", $mix->isEmpty(), "]\n";
+--EXPECT--
+fresh 0 [1]
+Core\Heap::peek() on an empty heap; `isEmpty()` is the question that has an answer for one
+duplicates 3 -> 555
+drained 0 [1]
+empty again
+reused 1 2
+held 2
+identity 111
+ties 3 x 9
+mix 2/4 pop=4 2/1 3/1 rest=179 0 [1]
