@@ -14,6 +14,8 @@ machine gets wrong. The rest is a Rust toolchain that installs itself.
 | Rust, the version pinned in [rust-toolchain.toml](../rust-toolchain.toml) | `rustup` installs it on the first `cargo` command inside the tree — nothing to do by hand. Never a different channel: the pin is what makes three platforms the same compiler. | `cargo --version` |
 | Python 3.11+ | Everything in `tools/`. No third-party package is ever required. | `python --version` |
 | PHP on `PATH`, at the version in [the plan](implementation-plan.md)'s status block § *Toolchain* — that field is the version's one home, and it reads 8.5 today | The differential oracle. A `tests/differential/` case runs its `--ORACLE--` twin under real PHP and compares stdout, so a machine without it **skips** those cases instead of failing them. It is also the fastest way to settle a semantics question while authoring: `php -r '…'`. | `php -v` |
+| Node.js 20 LTS or newer, with `npm` — **from M4B onward** | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `mwl lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
+| VS Code — **from M4B onward** | Two different things. `@vscode/test-electron` downloads its **own** pinned build into `editors/vscode/.vscode-test/` for the extension-host tier, so a system install is not what that test runs against; the system install is what you drive the extension in by hand, which is the entire point of pulling M4B ahead of M10. Fetch the test build once (below) and nothing afterwards touches the network. | `code --version` |
 
 MWL generates native code, so "it compiles here" is a weaker claim in this repository than in most. CI
 builds all three supported targets — `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu`,
@@ -71,9 +73,17 @@ machine's job.
 ## Proving the machine is set up
 
 ```sh
-python tools/verify.py                                   # build, test, clippy, fmt
+python tools/verify.py                                   # build, test, clippy, fmt, the extension
 cargo run -q -p mwl-cli -- test tests/differential/       # must report 0 skipped
 python tools/loop.py --leg-only                          # the whole Linux leg; drives WSL on Windows
+```
+
+From M4B onward, one more one-time step, because the extension-host tier downloads a VS Code build and
+the acceptance run must never go to the network:
+
+```sh
+cd editors/vscode && npm ci && npm run test:prepare       # fetches the pinned VS Code into .vscode-test/
+npm run test:headless                                     # grammar, contributions, protocol -- no editor
 ```
 
 The middle one is the check that actually catches a missing PHP: what matters is **`0 skipped`**. A suite

@@ -82,6 +82,42 @@ candidates; the playbook owns the spellings that will not compile.
   rather than what each answered, so a member that grew its own comparison fails here while still
   looking right on its own line. The shape with the most room left.
 
+## An `.lspt` case
+
+An LSP answer, frozen the way the section above freezes stdout. Sibling of `.mwlt` and deliberately a
+separate suite: `mwl test`'s `N passed` is a number the loop gates on, and it must keep meaning one thing.
+The format is `crates/mwl-lsp`'s module doc; the section lexer is the same one `.mwlt` uses. Lands at
+M4B — [ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 5.
+
+```
+--TEST--
+One sentence saying what is being pinned, ending with the ADR §§ it comes from
+--FILE--
+<?mwl
+class User { public string $name; }
+$u = new User();
+$u-><|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+name    property  string
+```
+
+- **`<|>` is the cursor**, exactly one per case, removed before analysis. A request that needs none
+  (`diagnostics`, `semanticTokens`, `documentSymbol`) writes none.
+- **`--REQUEST--`** is one line: the request name, then optional `key=value` arguments.
+- **`--EXPECT--` is exact and frozen**, on the same terms as `.mwlt`'s. The rendering it compares against
+  is canonical and lives in `mwl_lsp::render` — a case never invents a spelling, and a case that seems to
+  need one has found a gap in that module.
+- `--FILE <relative/path>--` works exactly as it does for `.mwlt`, which is how a go-to-definition case
+  reaches across a `require`.
+- **The document usually does not parse, and that is the point.** A case that only ever asks about valid
+  code is not testing what the resilient tree exists for.
+- A new file under `tests/lsp/` is picked up with no registration, and its coverage is **inferred** from
+  the node the cursor resolved to — `mwl lsp-test --coverage` prints the matrix and
+  `every_request_answers_every_construct` fails naming each empty cell.
+
 ## A `Core` member — the four edits
 
 All four in the module that owns the class; `python tools/brief.py`'s *anchors* block resolves each
