@@ -178,6 +178,17 @@ def slice_section(text: str, wanted: str) -> str | None:
     return None
 
 
+def mask_code(line: str) -> str:
+    """The line with every `code span` blanked to same-length filler.
+
+    A code span cannot contain emphasis, so the `**` inside one is text. Without this, a bullet
+    that *quotes* a bold phrase -- "A `**Bold phrase:**` inside a field body silently becomes an
+    eighth status field." -- has its lead-in cut at the quoted `**`, leaving the two characters
+    "A `" as its name. That bullet then matches 35 others as a selector, which is a bullet no
+    `[context] playbook` entry can name."""
+    return re.sub(r"`[^`]*`", lambda m: " " * len(m.group(0)), line)
+
+
 def bullets(text: str, within: str | None = None) -> list[tuple[str, str]]:
     """Every `- ` bullet in the file, as (its bold lead-in, its whole text).
 
@@ -191,8 +202,8 @@ def bullets(text: str, within: str | None = None) -> list[tuple[str, str]]:
             if cur:
                 found.append((lead or cur[0][2:80], "\n".join(cur).rstrip()))
             cur = [line]
-            m = re.match(r"^- \*\*(.+?)\*\*", line)
-            lead = m.group(1) if m else line[2:80]
+            m = re.match(r"^- \*\*(.+?)\*\*", mask_code(line))
+            lead = line[m.start(1):m.end(1)] if m else line[2:80]
         elif re.match(r"^#{1,6}\s", line):
             if cur:
                 found.append((lead or cur[0][2:80], "\n".join(cur).rstrip()))

@@ -273,13 +273,13 @@ is why" — is this file.
 
 - **A new `Core` member owes four things**, and the third is the one that bites: the registry row, the
   `mwl_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
-  symbol, not a link error), and a `.mwlt` case that calls it — `tests/conformance_coverage.rs` fails
+  symbol, not a link error), and a `.mwlt` case that calls it — `crates/mwl-stdlib/tests/conformance_coverage.rs` fails
   `cargo test -p mwl-stdlib` without one. An instance member is covered by a case writing `->name(`.
   [conventions.md](conventions.md) writes all four out; `python tools/brief.py`'s *anchors* block
   resolves each spelling to a file and line.
 - **A spec §§ 1-12 member owes a *fifth* thing: striking its line from
   `crates/mwl-stdlib/tests/spec-members-outstanding.txt`.** That file is the outstanding-member ratchet
-  `tests/spec_registry_coverage.rs` reads, and the test fails on a **stale** line — one naming a member
+  `crates/mwl-stdlib/tests/spec_registry_coverage.rs` reads, and the test fails on a **stale** line — one naming a member
   that is registered now — exactly as loudly as on an unregistered member the file does not list. So the
   failure you see after landing a member is not a regression; it is the list telling you it did not
   shrink. Its keys are `§<section> <the spec's own Member-cell spelling>`, which is why `§1 chunk` and
@@ -312,7 +312,7 @@ is why" — is this file.
   an index-out-of-bounds panic at the first call.
 - **A member on `registry::WRITTEN_CLASS_MEMBERS` takes one argument its row does not declare** — the
   class its call site wrote, in slot 0 — so its helper's `args: [N]` is `params` + 1 (+ the options bag's
-  flattening). `tests/conformance_coverage.rs` looks for such a member spelled `Class::name<`, not
+  flattening). `crates/mwl-stdlib/tests/conformance_coverage.rs` looks for such a member spelled `Class::name<`, not
   `Class::name(`, because that is what every call site writes.
 - **Registering a `Core` class narrows `Core`'s blanket trust for that name.** An unregistered
   `Core\X::y()` is waved through by `mwl_hir::members`; once `X` is in `registry::CLASSES`, an unknown
@@ -372,7 +372,7 @@ is why" — is this file.
   (nested indexing, no nullable in the path), `foreach ($rows as array<string> $row)` — the binding's
   declared type is what re-supplies the element type — and binding `var $row = $rows["0"];` first.
 - **Registering a `Core` member and writing its conformance case are one slice, not two.**
-  `mwl-stdlib`'s `tests/conformance_coverage.rs` fails the moment a registry row has no `.mwlt` case
+  `crates/mwl-stdlib/tests/conformance_coverage.rs` fails the moment a registry row has no `.mwlt` case
   calling it, so a plan that lands the rows in one session and the cases in another leaves the tree red
   in between — and `verify.py` reports it as a `-p mwl-stdlib` test failure with nothing about the
   member in the message. A class constant counts too: `Core\Path::SEPARATOR` needs a case that writes it.
