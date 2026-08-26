@@ -1,0 +1,81 @@
+--TEST--
+`Core\Validate`'s four structural predicates agree, over a sweep of degenerate subjects, that none of them is anything — while `isAscii` and `isPrintable` are a different question and split the same sweep — docs/spec/01-core-library.md § 12
+--FILE--
+<?mwl
+// § 12's first table is six predicates that never throw: a malformed subject
+// is answered `false`, not raised. `validate-members.mwlt` walks each
+// member's own line. This asks one question of all six at once and
+// **counts** the answers, so a member that grew its own idea of "empty" —
+// PHP's `filter_var` returning the subject rather than a bool, a `ctype_*`
+// answering `false` for the empty string — fails here while still looking
+// right on its own row.
+final class Ask {
+    // How many of the four *structural* predicates refuse `$s`. Four is
+    // unanimous refusal; anything less names a shape one of them accepts.
+    public static function refusals(string $s): int {
+        int $no = 0;
+        if (!Core\Validate::isEmail($s)) {
+            $no = $no + 1;
+        }
+        if (!Core\Validate::isDomain($s)) {
+            $no = $no + 1;
+        }
+        if (!Core\Validate::isIp($s)) {
+            $no = $no + 1;
+        }
+        if (!Core\Validate::isMac($s)) {
+            $no = $no + 1;
+        }
+        return $no;
+    }
+}
+
+// Nothing here is an address, a name, an IP or a MAC under any reading: the
+// empty string, three subjects that are only whitespace, one holding a NUL,
+// and a run of spaces. There is no string literal for a NUL byte other than
+// the code-point escape, and `Core\Str::length` reads 3 for that subject, so
+// it is genuinely a character in the string rather than a terminator.
+array<string> $subjects = ["", " ", "\t", "\n", "a\u{0000}b", "   "];
+
+int $refused = 0;
+int $ascii = 0;
+int $printable = 0;
+foreach ($subjects as string $s) {
+    $refused = $refused + Ask::refusals($s);
+    if (Core\Validate::isAscii($s)) {
+        $ascii = $ascii + 1;
+    }
+    if (Core\Validate::isPrintable($s)) {
+        $printable = $printable + 1;
+    }
+}
+
+// Unanimous: 6 subjects x 4 predicates.
+echo "refused ", $refused, " of 24\n";
+
+// The other two are the *encoding* and the *rendering* question, and the
+// module's own docs own why the empty string answers `true` to both where
+// every `ctype_*` answers `false`. Every subject above is ASCII — a NUL and
+// a tab are ASCII bytes — so `isAscii` cannot be the same question as either
+// the four above or as `isPrintable`.
+echo "ascii ", $ascii, " of 6\n";
+
+// And `isPrintable` splits the same sweep down the middle: the empty string,
+// one space and three spaces have no character in general category `Cc`,
+// while a tab, a LF and a NUL each do. Three is the count that says the two
+// character-class predicates are not one predicate asked twice.
+echo "printable ", $printable, " of 6\n";
+
+// The counter can say less than four, so the unanimity above is an answer
+// rather than a loop that never looked. Each of these is accepted by the one
+// predicate it is written for — except an all-numeric name, which `isDomain`
+// accepts as a hostname where PHP's email filter refuses it (this module's
+// own docs own that divergence), so a dotted-quad is the one subject two
+// structural predicates agree *to* accept.
+echo "email ", Ask::refusals("user@example.com"), " ip ", Ask::refusals("192.0.2.1"),
+     " mac ", Ask::refusals("00:11:22:33:44:55"), "\n";
+--EXPECT--
+refused 24 of 24
+ascii 6 of 6
+printable 3 of 6
+email 3 ip 2 mac 3
