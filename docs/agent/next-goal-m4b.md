@@ -19,7 +19,9 @@ case and `mwl lsp-test`, and it lands in Stage 2 **before any request handler do
 built before its case format exists is a request nobody can prove.
 
 Three things this goal is *not*: it is not M10's deep half (no rename, no extract, no workspace symbol
-search, no inlay hints, no signature help, no Test Explorer, no profiler, no debugger UI), it is not
+search, no inlay hints, no signature help, no `documentHighlight`, no Test Explorer, no profiler, no
+debugger UI — the first two and `documentHighlight` look adjacent to what M4B does build and are not, for
+the reason [ADR 0099 § 3](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) gives), it is not
 `mwl fmt` (M10, [ADR 0039](../adr/0039-canonical-code-formatting.md)), and it is not PhpStorm (M10,
 [ADR 0016](../adr/0016-ide-integration.md)). A slice that reaches for one of those is off path: it goes in
 `## Backlog` in the handoff and the session moves on.
@@ -102,16 +104,29 @@ format is what proves any of it. **No request handler is written until both are 
 handler landing without them is not a finished slice.
 
 10. **The crate, the subcommand and the handshake.** `lsp-server` + `lsp-types`, synchronous, stdio,
-    behind `mwl lsp`. `initialize` declares exactly the capabilities of *Stage 3*'s items and no others.
-    Position encoding is negotiated per LSP 3.17 — offer `utf-8` and `utf-16`, take `utf-8` when the
-    client offers it — which needs `utf16_col` and `offset_of` beside
-    [line_col](../../crates/mwl-diagnostics/src/source.rs) at `source.rs:95`, whose column counts `char`s
-    and is therefore neither encoding. **Position arithmetic has one home and it is `mwl-diagnostics`.**
+    behind `mwl lsp`. `initialize` declares exactly the capabilities of *Stage 3*'s items and no others,
+    and reports the binary's version so the client can refuse a mismatch. Position encoding is negotiated
+    per LSP 3.17 — offer `utf-8` and `utf-16`, take `utf-8` when the client offers it — which needs
+    `utf16_col` and `offset_of` beside [line_col](../../crates/mwl-diagnostics/src/source.rs) at
+    `source.rs:95`, whose column counts `char`s and is therefore neither encoding. **Position arithmetic
+    has one home and it is `mwl-diagnostics`.** This slice also lands the rule that costs nothing now and
+    a day later: **nothing but the protocol writes to stdout**, `mwl-lsp` does not take `mwl-cli`'s
+    `clippy::print_stdout` allowance, and a test asserts no crate the server links calls `println!`.
 11. **The document store.** `Full` sync, open buffers overlaid on the `require`/`autoload` graph the
-    document is the entry point of, a debounce (150 ms, `mwl.lsp.debounce`) and cancellation of an
-    analysis whose document version nobody is looking at any more. Same file set as item 10: **one group.**
-12. **`publishDiagnostics`** — the existing `mwl check` pipeline, at the negotiated encoding, with `code`
-    and `codeDescription` filled from `Code`. Published for **open documents only**.
+    document is the entry point of, a debounce (150 ms, `mwl.lsp.debounce`), `$/cancelRequest`, and
+    cancellation of an analysis whose document version nobody is looking at any more. Two things here are
+    invisible when they work and confusing when they do not: editing `B.mwl` must re-analyse an open
+    `A.mwl` that requires it, and a BOM or a CRLF document must answer the same offsets an LF one does —
+    spans are byte offsets, so normalizing line endings in this file shifts every column in the editor.
+    Same file set as item 10: **one group.**
+12. **`publishDiagnostics`, phase-gated** — the existing `mwl check` pipeline, at the negotiated
+    encoding, with `code` from `Code` and **no `codeDescription`** (it needs a URL and there is no docs
+    site; a link to a Rust constant is worse than none). Published for **open documents only**. The gate
+    is the content of this slice, not a detail of it:
+    [ADR 0099 § 3](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) has the worked example, where
+    one typo yields a spurious `E0301` *above* the `E0102` that caused it. A file that produced an `E00xx`
+    or `E01xx` diagnostic suppresses `E03xx` and `E04xx` **for that file only**. Both directions are
+    cases: gated, and `phase=all`.
 13. **`hover`** — the declared type under the cursor from `mwl_types::ExprTypeTable`
     ([expr_table.rs:433](../../crates/mwl-types/src/expr_table.rs)); for a `Core` member its
     `mwl_stdlib::registry` signature row ([registry.rs:637](../../crates/mwl-stdlib/src/registry.rs)); for
@@ -124,8 +139,12 @@ handler landing without them is not a finished slice.
 16. **`semanticTokens/full`** — the legend of [ADR 0099 § 4](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md),
     `defaultLibrary` on a `Core` class and the `tainted`/`secret` modifiers included. That pair is the
     point of this item, not a detail of it.
-17. **`documentSymbol`** — namespace, class, interface, enum, method, property, class constant, type
-    alias. One walk of the tree item 13 already needs: **group with item 16.**
+17. **`documentSymbol`, `foldingRange`, `selectionRange` and `documentLink`** — namespace, class,
+    interface, enum, method, property, class constant, type alias for the first; the same walk plus
+    trivia's comment blocks for the second; the `SyntaxIndex` ancestor list *unchanged* for the third,
+    which is why it is here rather than at M10; and the path literal in a `require`/`autoload` for the
+    fourth, resolved by the graph item 14 already walks. Four requests, one walk each, no new analysis in
+    any of them: **group with item 16.**
 18. **The two code actions** — casing and `(int)$x` → `$x as int`, both translations of a `Suggestion` the
     `Diagnostic` already carries, registered under `source.fixAll.mwl`. **A code action whose fix the
     checker would have to compute is off path**; that boundary is the whole content of this item.
@@ -146,26 +165,51 @@ handler landing without them is not a finished slice.
 `editors/vscode`. TypeScript, outside the Cargo workspace, exactly where
 [ADR 0016 § 5](../adr/0016-ide-integration.md) puts it.
 
-21. **The package.** `.mwl` registration (**and not `.php`**), `language-configuration.json`, `tsconfig`,
-    lint, npm scripts, and its own test asserting `package.json` declares what the extension claims **and
-    depends only on the allowlist** — that test is how "the extension holds no language logic" stops being
-    a promise and starts being a check.
+21. **The package.** `.mwl` registration (**and not `.php`**), `tsconfig`, lint, npm scripts, a committed
+    `package-lock.json` (`npm ci` needs one, and an unpinned tree makes the grammar snapshots reproducible
+    only by luck), the four `.gitignore` lines (`node_modules/`, `out/`, `.vscode-test/`, `*.vsix` — a
+    session that commits `node_modules` is a session whose commit nobody can review), and its own test
+    asserting `package.json` declares what the extension claims, **depends only on the allowlist**, and
+    contributes no colour-customization defaults. That test is how "the extension holds no language logic"
+    stops being a promise and becomes a check.
+
+    `language-configuration.json` is content rather than a checkbox: comments, brackets, auto-closing and
+    surrounding pairs, indentation and on-enter rules, folding markers — and **`wordPattern` must include
+    `$`**, which is the one a borrowed PHP config gets wrong and which makes double-clicking `$total`
+    select `total`.
+
+    The **identifiers are frozen here**, because a setting lives in someone's `settings.json` and a command
+    id in their keybindings: `mwl.path`, `mwl.lsp.enable`, `mwl.lsp.debounce`, `mwl.lsp.trace.server`;
+    `mwl.run`, `mwl.test`, `mwl.showAst`, `mwl.restartServer`. Add later, never rename.
 22. **The TextMate grammar**, and its headless snapshot test through `vscode-textmate` +
-    `vscode-oniguruma` — plain Node, no editor, no display, so it runs on both legs. Everything it must
-    colour, and the four constructs it must **not** colour as valid, is
+    `vscode-oniguruma` — plain Node, no editor, no display. Everything it must colour, and the four
+    constructs it must **not** colour as valid, is
     [ADR 0099 § 4](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s list; do not re-derive it
-    and do not shorten it. This is the largest single item in the goal and it is expected to take more
-    than one session — split it by construct family, not by file.
+    and do not shorten it. **MWL ships no colours**: every scope comes from the standard TextMate
+    vocabulary, and the snapshot test asserts that against an allowlist, because an invented scope no
+    theme recognises renders as unstyled body text — a grammar that is technically correct and visibly
+    broken. This is the largest single item in the goal and is expected to take more than one session —
+    split it by construct family, not by file.
+22b. **The `.mwlt`/`.lspt` grammar** — sections, with item 22's grammar `include`d inside `--FILE--` and
+    PHP's inside `--ORACLE--`. Nearly free, and the one grammar whose audience is this loop rather than
+    MWL's users: sessions write hundreds of those files and read them as flat grey text today. **Group
+    with item 22** — same directory, same snapshot harness, and it is the cheapest possible check that
+    item 22's grammar is embeddable at all.
 23. **The client** — spawning `mwl lsp` via `vscode-languageclient` with a configurable path falling back
     to `PATH`, the `LanguageStatusItem` for health and version, and the settings block. Plus the headless
     **protocol round-trip** that drives the real binary from Node.
-24. **Tasks** for `mwl run` and `mwl test`, and **the AST panel** over `mwl ast --json --resilient`.
-    Group with item 23: same `src/`, same test harness.
+24. **Tasks** for `mwl run` and `mwl test` **with a `problemMatcher`**, and **the AST panel** over
+    `mwl ast --json --resilient`. The matcher is two regexes over the renderer's existing format
+    (`error[E0301]: message`, then `  --> file:line:col`) and is the difference between the Tasks being
+    useful and being decorative — without it a failure is terminal text nobody can click. Group with item
+    23: same `src/`, same test harness.
 25. **The extension host and the artifact** — the `@vscode/test-electron` suite (activation on `.mwl` and
     not `.php`, Tasks present, status item rendering, panel populating, and **the semantic-token legend
     the client registers equal to the one the server declares**, which no unit test on either side alone
-    can see), `.vsix` packaging, and the CI job. Memoized against the green tree the way the valgrind
-    sweep already is; **not** on the per-iteration path.
+    can see), `.vsix` packaging, and **two** CI jobs beside the existing nine: the headless suites on all
+    three platforms, since a `.vsix` is cross-platform and a path bug is not, and the extension-host run
+    on Linux under `xvfb-run`. Memoized against the green tree the way the valgrind sweep already is;
+    **not** on the per-iteration path.
 
 ## Acceptance
 
@@ -210,8 +254,12 @@ Every one was settled with the user before the run. Implement it; do not re-open
   fight is with every PHP extension a user already has, and losing it silently looks like MWL being broken.
 - **Nothing is published.** `.vsix` as a CI artifact; no Marketplace publisher, no listing, no icon or
   branding work. ADR 0016 *Revisiting* keeps that open and this goal does not close it.
-- **Six requests and two code actions, and that list is closed.** Anything else from ADR 0040 § 3's
-  catalog is M10's. A session that finds a seventh request "would be easy" puts it in Backlog.
+- **Nine requests and two code actions, and that list is closed.** The three beyond the original six —
+  `selectionRange`, `foldingRange`, `documentLink` — are in on one test, and it is the test to apply to
+  any tenth: the data structure M4B already builds *is* the answer, so the request is a projection rather
+  than a feature. A session that finds another one "would be easy" applies that test honestly and, when it
+  fails, puts the request in Backlog. `documentHighlight` is the worked example of a request that fails
+  it.
 - **Colour is specified, not designed.** ADR 0099 § 4 lists what the grammar must colour and what it must
   refuse to colour, and lists the semantic token types and modifiers. Neither list is a starting point to
   improve on during the run; a gap in it is a handoff note.

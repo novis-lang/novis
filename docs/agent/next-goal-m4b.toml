@@ -195,7 +195,7 @@ name = "lsp cases"
 args = ["lsp-test", "tests/lsp/"]
 # A floor, not the gate. The gate is `every_request_answers_every_construct` below: a count can be
 # satisfied by six hundred cases about one construct, and that test cannot.
-min_passing = 120
+min_passing = 160
 
 [[check]]
 kind = "cargo-named"
@@ -206,9 +206,20 @@ tests = [
   # Item 10 -- the one that is invisible on ASCII and wrong on every other file.
   "a_position_round_trips_through_utf16_and_utf8",
   "the_negotiated_encoding_is_the_one_the_client_offered",
-  # Item 11 -- an unsaved buffer is what the graph resolves against, and a stale analysis is dropped.
+  # Item 10 -- stdio IS the wire. Holds today only because nothing happens to print; this is what
+  # makes it hold on purpose, and a failure here presents as the server dying for no reason.
+  "no_crate_the_server_links_writes_to_stdout",
+  # Item 11 -- an unsaved buffer is what the graph resolves against, a stale analysis is dropped,
+  # and the two document-shape traps that are invisible on every fixture in this repository because
+  # every one of them is LF-only ASCII.
   "an_unsaved_buffer_shadows_the_file_on_disk",
   "an_analysis_for_a_superseded_version_is_cancelled",
+  "editing_a_required_file_republishes_the_requiring_document",
+  "a_bom_and_a_crlf_document_answer_the_same_offsets_as_an_lf_one",
+  # Item 12 -- the gate, in both directions. Without it one typo publishes a wall of red whose top
+  # entry is wrong; with it suppressing too much, a real type error goes missing. ADR 0099 § 3.
+  "a_parse_error_suppresses_the_type_diagnostics_of_that_file_only",
+  "a_resolution_error_does_not_suppress_a_type_error",
   # Item 18 -- the boundary: a code action exists only where the diagnostic already carries the fix.
   "a_code_action_comes_from_a_suggestion_the_diagnostic_already_carried",
   # Item 9's guard, and this goal's real definition of done.
@@ -252,6 +263,10 @@ argv = ["npm", "run", "--silent", "test:headless"]
 # and the protocol round-trip against the real `mwl lsp` binary. Each names itself so a ledger line
 # says which one broke.
 want = ["grammar:", "contributions:", "protocol:", "0 failing"]
+# `contributions:` covers more than it sounds like: the dependency allowlist, the absence of any
+# colour-customization default, `wordPattern` matching `$total` whole, and the frozen setting and
+# command ids -- all four are assertions over package.json and language-configuration.json, and all
+# four are things that break a user's config silently rather than loudly.
 
 [[check]]
 kind = "command"

@@ -9,9 +9,11 @@
   — `lsp-server`/`lsp-types`, synchronously, not `tower-lsp` and therefore not tokio; (3) **how an LSP
   answer is frozen and diffed by exit code** — a `.lspt` case, sibling to `.mwlt`, run by `mwl lsp-test`;
   (4) **what "syntax highlighting" means concretely** — the two layers, what each must colour, and the
-  test each answers to. It also closes ADR 0040's two open *Revisiting* items that said to decide "once
-  M4B's implementation starts". It does **not** touch M10's deep half, PhpStorm, `mwl fmt`'s style, or
-  `mwl dap`.
+  test each answers to. Beside those, the operational rules that are cheap to state and expensive to
+  discover: **diagnostic phase gating** (§ 3), stdout belonging to the protocol, document encoding, the
+  frozen setting and command identifiers, and what `language-configuration.json` actually contains (§ 6).
+  It also closes ADR 0040's two open *Revisiting* items that said to decide "once M4B's implementation
+  starts". It does **not** touch M10's deep half, PhpStorm, `mwl fmt`'s style, or `mwl dap`.
 - **Amends:** [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) §§ 1, 2, 3 and *Revisiting* —
   each fold is applied in that ADR's own body, which states the current rule;
   [ADR 0016](0016-ide-integration.md) § 2's `mwl lsp` spelling is unchanged, only what is behind it.
@@ -157,20 +159,42 @@ what the `SyntaxIndex`'s ancestor paths already make expressible.
   **open** documents — publishing for a file nobody opened is workspace-wide analysis, which is M10's.
   Go-to-definition may still *land* in a closed file; VS Code opens it.
 - **Analysis is debounced** (150 ms, `mwl.lsp.debounce` in the extension's settings) and cancelled on the
-  next keystroke.
+  next keystroke, and `$/cancelRequest` cancels an in-flight request the same way.
+- **Editing one document re-analyses every open document whose graph contains it.** Edit `B.mwl` and an
+  open `A.mwl` that requires it is stale until it is touched, which reads as the server being wrong. The
+  resolved graph is already in hand from the analysis that produced `A`'s diagnostics, so this is a
+  reverse index rather than new work.
+- **Nothing but the protocol may write to stdout.** stdio *is* the wire: one stray `println!` anywhere
+  under the analysis and the framing is corrupt, which presents as the server dying for no reason. Today
+  no library crate writes there — `println!`/`print!` appears nowhere in `crates/` outside `mwl-cli`,
+  whose whole job is terminal output — so this is an invariant to *keep*, not one to establish, and it is
+  kept by a test rather than by care. The server logs to **stderr** and, for anything a user should see,
+  `window/logMessage`; `mwl-lsp` does not carry `mwl-cli`'s `clippy::print_stdout` allowance.
+- **Documents are UTF-8, and that is already the language's rule** ([ADR 0009](0009-string-and-bytes.md)):
+  a buffer that is not valid UTF-8 gets one diagnostic and no further analysis, rather than a panic
+  somewhere further in. A leading BOM is skipped and counted, so every offset after it still lands. CRLF
+  is preserved exactly as the document sent it — spans are byte offsets, so stripping or normalizing line
+  endings server-side shifts every column in the file, and the one place that could happen is the
+  document store.
 
 ### 3. The M4B request set
 
-Six, and no more. Each is named here because "minimal" without a list is how scope grows.
+Nine, and no more. Each is named here because "minimal" without a list is how scope grows. The last three
+are admitted on one test — the data structure M4B already builds *is* the answer, so not exposing them
+would mean building it and hiding it — and that test is what keeps the list from drifting back toward
+M10's catalog.
 
 | Request | What M4B answers |
 |---|---|
-| `textDocument/publishDiagnostics` | every diagnostic the existing `mwl check` pipeline produces, at negotiated encoding, with `code` and `codeDescription` set from `Code` |
+| `textDocument/publishDiagnostics` | every diagnostic the existing `mwl check` pipeline produces, at negotiated encoding, with `code` set from `Code`, **phase-gated** per below |
 | `textDocument/hover` | the declared type of the symbol under the cursor; for a `Core` member, its `mwl_stdlib::registry` signature row rendered as [ADR 0088 § 5](0088-a-sink-is-an-instruction-and-the-default-refuses.md) writes it; for a declaration, its own doc comment out of the trivia layer |
 | `textDocument/definition` | the declaring span, within the document or anywhere in its resolved `require`/`autoload` graph |
 | `textDocument/completion` | keywords filtered by position; members off a resolved receiver, instance and static, user classes and `Core` registry classes alike; enum cases after `Type::`; in-scope variables. **No workspace symbol search** — that needs M10's indexing |
 | `textDocument/semanticTokens/full` | *Decision § 4* |
 | `textDocument/documentSymbol` | the outline: namespace, class, interface, enum, method, property, class constant, type alias. One walk of the tree hover already needs, and it is what makes a file navigable at all |
+| `textDocument/selectionRange` | expand-selection. `SyntaxIndex.at(offset)` returns the innermost node **and its ancestors**, and that ancestor list is the response — the request is a projection of the index, not a feature built on top of it |
+| `textDocument/foldingRange` | from the same walk `documentSymbol` does, plus comment blocks out of the trivia layer, which nothing else can see |
+| `textDocument/documentLink` | the path literal in `require './foo.mwl'` and in an `autoload` declaration, made clickable. The graph is already resolved for `definition`; this is that resolution pointed at the literal rather than at a name |
 
 Plus **two code actions**, and only two, closing ADR 0040 *Revisiting*'s "one or two cheap ones early"
 question: the casing fix ([ADR 0029](0029-identifier-casing-is-checked.md)/[0030](0030-no-leading-underscores-constructor-spelling.md))
@@ -183,7 +207,43 @@ that: **M4B ships the code actions whose fix a diagnostic already knows, and no 
 registered under `source.fixAll.mwl` so `editor.codeActionsOnSave` composes them with format-on-save when
 that arrives, per [ADR 0039](0039-canonical-code-formatting.md) § 9.
 
-Everything else in ADR 0040 § 3's catalog stays at M10, unchanged.
+**Diagnostics are phase-gated, and this is the one rule an editor needs that a compiler does not.** The
+front end runs parse → declarations → resolution → types with **no gate between the phases**
+(`front_end` in `crates/mwl-cli/src/main.rs`), bailing only after the type check. In batch mode that is
+right: you read the first error and the process exits. In an editor it is not. One typo produces this
+today —
+
+```
+error[E0301]: `$x` is assigned to but was never declared     <- spurious, and reported first
+  --> bad.mwl:2:1
+error[E0102]: expected an expression                          <- the actual cause
+  --> bad.mwl:2:6
+```
+
+— because resolution ran over an `ExprKind::Error` node and drew the obvious wrong conclusion. On every
+keystroke mid-statement that becomes a wall of red whose topmost entry is wrong, which teaches a developer
+to stop reading the squiggles.
+
+The rule, and it is expressible because [the code bands are already allocated by phase](../../crates/mwl-diagnostics/src/lib.rs):
+**a file that has produced a lexer (`E00xx`) or parser (`E01xx`) diagnostic publishes those and its
+declaration diagnostics, and suppresses resolution (`E03xx`) and type (`E04xx`) diagnostics for that file
+only.** Not for the workspace, and not for the phases *below* the failure. The other files in the graph
+keep their own diagnostics, because a broken buffer in one tab is not a reason to go dark in another.
+
+Two things follow that are worth stating so they are not re-litigated. This is **presentation, not
+analysis** — the checker still runs, and `mwl check` is untouched, so no diagnostic is lost anywhere a
+diagnostic was reaching a human before. And the suppression is one-directional: a *resolution* error never
+suppresses a *type* error, because those two do not cascade the way a parse failure into everything below
+it does.
+
+`codeDescription` is **not** set. It takes a URL per code and there is no documentation site to point one
+at; a link into the repository would be a link to a Rust constant, which is worse than none. When there is
+a site, this is the one field that has to change.
+
+Everything else in ADR 0040 § 3's catalog stays at M10, unchanged — explicitly including
+`documentHighlight` and inlay hints, which look adjacent to the three additions above and are not: the
+first needs resolution applied to *every* occurrence, which is a different walk from resolving one, and
+the second wants a settings story and encodes idioms that are still moving through M5–M9.
 
 ### 4. Syntax highlighting is two layers, and each has a test
 
@@ -223,6 +283,14 @@ PHP and a borrowed PHP grammar therefore gets wrong:
 Its test needs **no editor**: `vscode-textmate` plus `vscode-oniguruma` are plain Node libraries, so a
 snapshot test tokenizes a fixture and freezes the scope name assigned to every span. That runs on both
 legs, in CI, and inside the loop.
+
+**A second grammar, for `.mwlt` and `.lspt` themselves.** Section headers, with the MWL grammar embedded
+inside `--FILE--` and PHP's inside `--ORACLE--`. It is here rather than in the "nice later" pile because
+of who reads those files: this repository's own loop writes hundreds of them and every session reads them
+as flat grey text, so the grammar that helps most per byte written is the one for the format this project
+authors most. It is also nearly free — a thin wrapper whose bodies `include` the grammar M4B is building
+anyway — and it is the only grammar here whose audience is the people working on MWL rather than the
+people using it.
 
 **Layer two — semantic tokens**, which is where a *compiler* colours what a regex cannot know. The token
 types M4B emits, each chosen because the grammar structurally cannot answer it:
@@ -297,7 +365,14 @@ name    property  string
   `require`.
 - **`<|>` is the cursor**, removed from the text before analysis and reported as an offset. Exactly one
   per case; a case that needs none (`diagnostics`, `semanticTokens`, `documentSymbol`) writes none.
-- **`--REQUEST--`** is one line: the request name, then optional `key=value` arguments.
+- **`--REQUEST--`** is one line: the request name, then optional `key=value` arguments. The argument set
+  is closed per request and lives beside the renderer, so a case cannot ask for something no runner
+  implements: `completion` takes `prefix=` (filter the labels, which is how a case about `->` avoids
+  freezing the whole keyword list) and `limit=`; `diagnostics` takes `phase=all` to defeat *Decision
+  § 3*'s gating, which is how the gating itself gets a case; `semanticTokens` takes `types=` to restrict
+  the rendering to the token types under test; the rest take none. An unknown request or argument fails
+  the case loudly rather than being ignored — a silently-dropped argument is a case that passes while
+  testing something else.
 - **`--EXPECT--` is exact and frozen**, on the same terms as `.mwlt`'s: the case's *source* may be
   corrected freely, its expectation may not be edited to make it pass. The rendering is canonical and
   has one home — `mwl_lsp::render` — so no case invents its own spelling: diagnostics as
@@ -325,6 +400,27 @@ showing server health and version; `mwl run`/`mwl test` as Tasks; and the AST pa
 - **`.mwl` only.** The extension does not claim `.php`, even though `mwl-syntax` parses it — claiming it
   would fight every PHP extension a user already has, and losing that fight silently looks like MWL being
   broken. An opt-in setting is M10's if anyone asks.
+- **The identifiers are frozen here, because they are public API.** A setting name lives in somebody's
+  `settings.json` and a command id in their keybindings, so renaming one later breaks a user's
+  configuration silently — which makes this the cheapest thing on this page to get right and among the
+  more annoying to get wrong. Settings: `mwl.path` (the binary, falling back to `PATH`), `mwl.lsp.enable`,
+  `mwl.lsp.debounce`, `mwl.lsp.trace.server`. Commands: `mwl.run`, `mwl.test`, `mwl.showAst`,
+  `mwl.restartServer`. Nothing else is contributed at M4B, and anything added later is added, never
+  renamed.
+- **`language-configuration.json` is content, not a checkbox.** Comments (`//`, `#`, `/* */`), brackets,
+  auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `/** */` block, and
+  folding markers. The one that is MWL-specific and that a borrowed PHP file gets wrong is **`wordPattern`
+  must include `$`**: without it, double-clicking `$total` selects `total`, every rename-adjacent
+  interaction is off by one character, and word-based completion suggests the wrong token.
+- **The Tasks carry a `problemMatcher`.** `mwl run`/`mwl test` as Tasks without one print text into a
+  terminal; with one, every diagnostic is a clickable entry in the Problems panel. It is a two-line regex
+  over the renderer's existing format (`error[E0301]: message`, then `  --> file:line:col`) and it is the
+  difference between the Tasks being useful and being decorative.
+- **The extension refuses a binary it does not understand.** `mwl lsp` reports its version at
+  `initialize`; on a mismatch with the extension's own the `LanguageStatusItem` says so and the client
+  does not start, rather than running and producing confusing answers. An old `mwl` earlier on `PATH` than
+  the intended one is the single most likely support question this extension will ever get, and it costs
+  one comparison to answer it out loud.
 - **The extension may hold no language logic**, per [ADR 0016 § 1](0016-ide-integration.md), and this is
   enforced rather than intended: its `package.json` `dependencies` are checked against an allowlist by its
   own test suite, so a parser, a formatter or a type table cannot arrive as a dependency, and the
@@ -363,6 +459,15 @@ Two tiers, because they answer different questions and cost two orders of magnit
   against the exact tree the way the valgrind sweep and the WSL leg already are
   ([coordinator.md](../agent/coordinator.md) § *The acceptance test*), and the download is a `docs/setup.md`
   step rather than something an iteration does.
+
+**And the repository plumbing, which is invisible until it is missing.** `.gitignore` gains
+`node_modules/`, `out/`, `.vscode-test/` and `*.vsix` — a session that commits `node_modules` is a session
+whose commit nobody can review. `package-lock.json` **is** committed, because `npm ci` is what the
+acceptance run uses and it requires one, and because an unpinned dependency tree makes the grammar
+snapshots reproducible only by luck. CI grows two jobs beside its existing nine: the headless suites on
+all three platforms, since a `.vsix` is cross-platform and a path bug is not, and the extension-host run
+on Linux under `xvfb-run` — which is the one place the display requirement is a real cost, and the reason
+that tier is memoized rather than run per iteration locally.
 
 ## Consequences
 
@@ -450,6 +555,13 @@ Two tiers, because they answer different questions and cost two orders of magnit
   unclosed brace, a trailing `->` — leaves diagnostics, hover, completion and semantic tokens working on
   the well-formed code around it, which is ADR 0040's core claim and is a `.lspt` case per request rather
   than a claim. A full re-analysis of a 1,000-line document stays under the guard's bound.
+- **The rules that are invisible when they hold:** the worked example in *Decision § 3* is a `.lspt` case
+  in both directions — gated, it publishes `E0102` and not `E0301`; with `phase=all`, both — so the gate
+  is pinned rather than believed. `println!`/`print!` appears in no crate the server links, asserted by a
+  test rather than by review. A position round-trips through both encodings on a line holding a multi-byte
+  character, a document with a BOM answers correct offsets, and a CRLF document's columns match an LF
+  one's. Editing a required file re-publishes the requiring document's diagnostics without it being
+  touched. And a client reporting a mismatched version gets a refusal and a status item, not a session.
 - **Colour:** the grammar snapshot test assigns the expected scope to every construct in *Decision § 4*'s
   list, including a `#[Route]` attribute that is not a comment, a nowdoc that does not interpolate, inline
   HTML outside `<?mwl`, and `===` receiving no operator scope — and every scope it produces is on the
@@ -459,10 +571,12 @@ Two tiers, because they answer different questions and cost two orders of magnit
   extension contributes no `configurationDefaults` for either colour-customization setting, asserted by
   the same contributions test that holds the dependency allowlist.
 - **The extension:** activates on `.mwl` and not on `.php`; shows TextMate colour before the server has
-  answered and semantic colour after; diagnostics, hover, go-to-definition, completion, document symbols
-  and the two code actions round-trip through `mwl lsp` with no language logic in the extension's own
-  source, evidenced by the dependency-allowlist test; `mwl run`/`mwl test` appear as Tasks; the AST panel
-  renders `mwl ast --json --resilient` for the active file, including while that file does not compile.
+  answered and semantic colour after; all nine requests and the two code actions round-trip through
+  `mwl lsp` with no language logic in the extension's own source, evidenced by the dependency-allowlist
+  test; `mwl run`/`mwl test` appear as Tasks and a failing one populates the Problems panel through the
+  matcher; the AST panel renders `mwl ast --json --resilient` for the active file, including while that
+  file does not compile. Double-clicking `$total` selects `$total`. A `.mwlt` case opens with its sections
+  coloured and MWL highlighted inside `--FILE--`.
 - **No async runtime:** `tokio` appears in neither `Cargo.toml` nor `Cargo.lock`, asserted by the same
   manifest-policy test shape `crates/mwl-runtime/tests/manifest_policy.rs` already uses for
   `overflow-checks`.
