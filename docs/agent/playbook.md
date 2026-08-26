@@ -685,6 +685,13 @@ is why" — is this file.
   `mwl test tests/conformance` read 478 both before and after two sessions' worth of work. Land the new
   claim as its **own file**, named for the claim, and leave the thin case where it is with a one-line
   comment pointing at the deep one. Splitting after the fact is free; noticing after the run is not.
+- **An `--ORACLE--` helper must not be named after a PHP built-in, and the failure does not say so.**
+  `pos` is an alias of `current()`, so a case whose oracle declared `function pos(int|false $f)` failed
+  with `--ORACLE--: PHP exited 255` and **`php stderr: <empty>`** — PHP writes *Cannot redeclare
+  function* to stdout, which the runner is comparing rather than reporting. The MWL half compiles and
+  runs, so the failure reads as a broken PHP install. Name an oracle helper for what it renders
+  (`render`, `show`) and check `php -r 'var_dump(function_exists("<name>"));'` if in doubt; `key`,
+  `next`, `end`, `reset`, `current` and `compact` are the other easy collisions.
 
 ## Splitting a file that got too big
 
@@ -810,3 +817,11 @@ sibling in the same namespace unqualified.
   lowers with `$limit` a `uint` parameter, so a swept bound does not need one call site per value,
   and `Drive::at(0)` against `public static function at(uint $limit)` needs no `as uint`. The
   brace literal is an expression like any other — only its *keys* are fixed by the member's row.
+- **A `== null` guard does not narrow a `?T` binding — `as T` is what states the narrowing.** The
+  shape every `?T` differential case needs is a helper that renders absence beside PHP's `false`, and
+  the obvious spelling does not compile: `if ($found == null) { return "none"; } return $found;` is
+  `E0403: this method declares `string` but returns `string|null``, and inverting it to
+  `if ($found != null) { return $found; }` fails identically at the same line, so the guard is not
+  flow-narrowing at all. `return $found as string;` compiles, and it is total in that branch and a
+  throw in no other. A `?uint` needs the same cast for a different reason (there is no `uint` row in
+  `echo`), so one `Show::render(?T $found): string` covers both and is worth copying between cases.

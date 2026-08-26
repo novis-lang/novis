@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 486 of 600 and differential 90 of 150. **Nothing below them is
+> Stage 4's two counts**, conformance 486 of 600 and differential 97 of 150. **Nothing below them is
 > red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -70,7 +70,7 @@
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
 > `run`), `tests/conformance` × 486 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 90, `fuzz/`, `tools/`, `benches/abi-probe`.
+> and `reject`) and `tests/differential` × 97, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -113,7 +113,7 @@
 > says what its slice covers, not this field.
 >
 > **Open now:** **Stage 4's two counts are the frontier: conformance is 486 of the 600 the gate
-> requires and differential is 90 of 150.** Both named guards
+> requires and differential is 97 of 150.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
 > every section has now had its pass — a new case therefore reaches for one of the four shapes in
@@ -157,7 +157,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: conformance stands at 486 of 600 and differential at 90 of 150, and the remainder is
+> decision: conformance stands at 486 of 600 and differential at 97 of 150, and the remainder is
 > written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how

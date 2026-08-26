@@ -2,82 +2,76 @@
 
 ## State
 
-**Stage 4's two counts are the frontier — conformance 486 of 600, differential 90 of 150** — and
-the gap is behavioural depth per member, not coverage: every registered member already has a case,
-and both of Stage 4's named guards pass. Verify is green (**1596** cargo tests, 74 suites, clippy
-and fmt clean), `mwl test tests/conformance` is **486 passed, 0 failed** and `mwl test tests/` is
-**576 passed, 0 failed** — run those as well as `verify.py`, which executes no `.mwlt` case at all
-(playbook, twice), and **rebuild `target/release/mwl.exe` first** if anything under `crates/` is
-newer than it (playbook, *Running things*).
+**Stage 4's two counts are the frontier — conformance 486 of 600, differential 97 of 150** — and the
+gap is behavioural depth per member, not coverage: every registered member already has a case, and
+both of Stage 4's named guards pass. Verify is green (**1596** cargo tests, 74 suites, clippy and fmt
+clean), `mwl test tests/conformance` is **486 passed, 0 failed**, `mwl test tests/differential` is
+**97 passed, 0 failed** and `mwl test tests/` is **583 passed, 0 failed** — run those as well as
+`verify.py`, which executes no `.mwlt` case at all (playbook, twice), and **rebuild
+`target/release/mwl.exe` first** if anything under `crates/` is newer than it (playbook, *Running
+things*).
 
-**The work is now differential, and the reason is cost.** A conformance case has to derive its own
-`--EXPECT--`: the session writes a scratch program, runs it, reads the output and transcribes it.
-An `--ORACLE--` case has no frozen output at all — PHP computes it and the runner compares — so
-that whole phase does not exist. Measured over sessions 0014–0030 the loop wrote conformance
-exclusively, at 2.9 cases a session, and touched differential not once. Differential is 60 short
-and conformance 114, so the cheap 60 come first.
+**Differential is the half that moves, and the reason is cost**: an `--ORACLE--` case has no frozen
+output to derive, because PHP computes it. `python tools/gaps.py --differential` is the worklist —
+**59 members** with a PHP twin and no oracle case, each with a `file:line` anchor — and
+`--errors` is the same list for the 109 unasserted `Fault::` sites on the conformance side. Do not
+re-derive either.
 
-**`python tools/gaps.py` is the worklist; do not re-derive it.** `--differential` lists every member
-whose spec **Replaces** column names a PHP built-in and which no oracle case calls — 67 of them,
-each with the twin and a `file:line` anchor into its implementation. `--errors` lists the 109
-`Fault::` sites in `mwl-stdlib` whose message no case asserts, which is the *edges* shape ready
-made, `thrown` rows first because most `fatal` rows are argument type-guards the checker already
-refuses. `--member 'Core\Arr::chunk'` says what the corpus already asks of one member. Both lists
-are candidates, not a plan: judging which is a real claim is the session's job and is the part
-worth its context.
+**The shape a `?T` twin takes is settled, and the seven cases below share it.** A member answering
+`?T` has no PHP counterpart that can be compared directly — `strpos` answers `false`, `reset` answers
+`false`, `array_key_first` answers `null` — so both sides render absence as `none` first and the case
+compares the *answer*, never the representation. In MWL that is a `class Show` with a
+`public static function render(?T $found): string`, and its body must end `return $found as string;`
+because a `== null` guard does not narrow the binding (playbook, *Writing MWL itself*). In the oracle
+it is a plain PHP function that must not be named after a built-in (playbook, *Writing a test case*).
+`str-index-of-matches-strpos.mwlt` is the worked one.
 
 **A twin is a claim, not a transliteration.** Check the spec row before assuming agreement: `Core\Str`
-counts grapheme clusters where PHP counts bytes, and the corpus already carries four
-`--ORACLE-DIVERGES--` cases saying so (`str-length-diverges-from-strlen.mwlt` is the worked one).
-Where a member is deliberately unlike its twin, the case names the reason and stops — that is a
-case, not a failure. Where the two agree only on ASCII, the existing convention is a case named
-`…-on-ascii-matches-…`. File names are `<class>-<member>-matches-<php-fn>.mwlt` under
-`tests/differential/core/`, and a case there **may** use `--ORACLE--`; one under
-`tests/conformance/` may never (conventions).
+counts grapheme clusters where PHP counts bytes, and the corpus carries five `--ORACLE-DIVERGES--`
+cases saying where the two part — the newest,
+`str-index-of-out-of-range-from-diverges-from-strpos.mwlt`, is the shape to copy when a member
+saturates a position PHP raises a `ValueError` for. Where the two agree only on ASCII, the convention
+is a case named `…-on-ascii-matches-…`. File names are `<class>-<member>-matches-<php-fn>.mwlt` under
+`tests/differential/core/`, and a case there **may** use `--ORACLE--`; one under `tests/conformance/`
+may never (conventions).
 
-Four spellings a case cannot use: a closure called through the variable holding it, the
-first-class callable `Class::method(...)` (both `mwl-ir` gap 1 — declare a `class` with a `public
-static function` and call it *directly*), `bool as int`, and an array literal written straight into
-an `array<array<mixed>>` element, which reads as `array<mixed>` and then will not satisfy
-`array<array<T>>`. What a case *can* do: an option bag as a brace literal argument, whose values may
-be *variables*; `catch (RuntimeError $e) { … $e->message … }` at file scope; and
-`Core\Arr::count($a) as int` wherever a `uint` meets an `int` (playbook has the `E0407`).
+The spellings a case cannot use — a closure through the variable holding it, `Class::method(...)`,
+`bool as int`, an array literal in an `array<array<mixed>>` element, a bare `function` at file
+scope — are all in the playbook under *Writing a test case* and *Writing MWL itself*; do not
+re-discover them.
 
 ## Next group
 
-All three are differential, share `tests/differential/core/`, and each takes one family off
-`python tools/gaps.py --differential` so no session re-derives the twin. Take them in this order.
+All three are differential, and they share `tests/differential/core/` and one region of
+`crates/mwl-stdlib/src/arr.rs` (1599-1980), so a session that loads it once can take two. Each is a
+family off `python tools/gaps.py --differential`, so no session re-derives the twin.
 
-- [ ] **`Core\Str`'s search family against the `strpos` family** — `indexOf` (`str.rs:1504`),
-      `lastIndexOf` (`str.rs:1531`), `countOf` (`str.rs:1563`), spec § 1: `strpos`/`stripos`,
-      `strrpos`/`strripos` and `substr_count`. The claim worth pinning is the **not-found answer** —
-      MWL returns `?uint`, PHP returns `false`, and `false` is not `0` — so the twin has to render
-      both sides the same way before comparing them; that rendering *is* the case. Sweep the
-      `{from}`/`{before}` and `{caseInsensitive}` options, and keep the subject ASCII so the
-      grapheme rule is not what is being tested here.
-- [ ] **`Core\Arr`'s ends against `reset`/`end`/`array_key_first`/`array_key_last`** — `first`
-      (`arr.rs:3256`), `last` (`arr.rs:3275`), `firstKey` (`arr.rs:3298`), `lastKey`
-      (`arr.rs:3313`), spec § 2. Same shape, and the edge is the **empty array**, where PHP's
-      `reset`/`end` answer `false` and its `array_key_*` answer `null` while MWL answers `?T` for
-      all four — one of these four may well want `--ORACLE-DIVERGES--` rather than a twin, and
-      deciding which is the slice. PHP's internal array pointer has no MWL equivalent (spec § 2),
-      so the twin must not depend on where `reset` leaves it.
-- [ ] **`Core\Arr`'s window against `array_slice`/`array_splice`** — `slice` (`arr.rs:1599`),
-      `replaceRange` (`arr.rs:1650`), `chunk` (`arr.rs:1704`), spec § 2. The conformance suite
-      already proves these three agree with each other over all 72 sign combinations of offset and
-      length; this asks the different question of whether **PHP** agrees, and the key-preservation
-      flag is where it is most likely not to.
+- [ ] **`Core\Arr`'s window against `array_slice`/`array_splice`/`array_chunk`** — `slice`
+      (`crates/mwl-stdlib/src/arr.rs:1599`), `replaceRange` (`arr.rs:1650`), `chunk` (`arr.rs:1704`),
+      spec § 2. The conformance suite already proves these three agree with each other over all 72
+      sign combinations of offset and length; this asks whether **PHP** agrees, and
+      `array_slice`'s/`array_chunk`'s key-preservation flag is where it is least likely to. Render an
+      array with the `Render::of` helper `arr-values-after-unset-matches-array_values.mwlt` already
+      carries, so keys are compared and not just values.
+- [ ] **`Core\Arr`'s ends-as-values against `array_push`/`array_unshift`/`array_shift`/`array_pop`** —
+      `append` (`arr.rs:1757`), `prepend` (`arr.rs:1792`), `withoutFirst` (`arr.rs:1826`),
+      `withoutLast` (`arr.rs:1862`), spec § 2. MWL's four are pure and answer the new array where
+      PHP's mutate in place and answer a count or the removed entry, so the twin compares the PHP
+      array *after* the call against MWL's result — and `withoutFirst`'s renumbering of a list is the
+      row `array_shift` is most likely to differ on.
+- [ ] **`Core\Arr`'s pad and reverse against `array_pad`/`array_reverse`** — `padStart`
+      (`arr.rs:1938`), `padEnd` (`arr.rs:1955`), `reverse` (`arr.rs:1977`), spec § 2. One PHP
+      function covers both pad members by the sign of its length, which makes the pair an *agreement*
+      case; `array_reverse`'s `$preserve_keys` is the flag to sweep on both settings.
 
 ## Backlog
 
-- Conformance is 114 short and every section has had a depth pass, so what is left is the shape a
-  case takes rather than the section: `python tools/gaps.py --errors` is the readiest supply.
-- The three conformance slices this group displaced, all in `crates/mwl-stdlib/src/arr.rs`:
-  `flattenDeep` as the fixpoint of `flatten` (`arr.rs:2084`, `arr.rs:2125`); `groupBy`
-  (`arr.rs:1139`) and `countBy` (`arr.rs:2515`) as one partition; `Core\Arr::column`
-  (`arr.rs:2182`) over a row that does not have the cell.
-- `Core\Json::decodeAs<T>`'s decoder is unbuilt — `mwl_stdlib::json` gap 2.
-- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row — that module's doc.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
-- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir` gap 1.
-- ADR 0086 § 1's substitution table — `crates/mwl-stdlib/src/cli.rs` gap 1.
+- `Core\Str`'s remaining twins — `compare`, `slice`, `before`, `after`, `chunk`, `replaceAll`,
+  `replaceRange`, `reverse`, `wrap` (`gaps.py --differential`, `str.rs:1412`-`1899`).
+- Conformance is the larger gap at 486 of 600, and `gaps.py --errors` is its ready-made worklist
+  (`docs/implementation-plan.md`, *Open now*).
+- `Core\Json::decodeAs<T>` reads a scalar-fielded class only (`mwl_stdlib::json` gap 2).
+- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row
+  (`mwl_stdlib::hash`'s module doc).
+- `do`/`while` is the one M4 control-flow statement that does not lower (`mwl-ir` gap 1).
+- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
