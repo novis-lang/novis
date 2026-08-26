@@ -310,6 +310,12 @@ is why" — is this file.
   them" — took the list from 8 members to 5, which reads exactly like a session that closed three.
   Name a neighbour without its class (`normalize`), or cite the case *file* that owns it, and re-run
   `--differential` after writing a case so the drop you see is the one you earned.
+- **`gaps.py --differential` matches text, so a member can leave the list without a case of its
+  own.** The `Core\Json::isValid` oracle's fallback calls `json_decode` — `json_validate` is PHP
+  8.3+ and the other leg's version is unknown — and that one call dropped **`Core\Json::decode`**
+  from the list too, in the same run, before anything pinned it. The list is a worklist and not a
+  ledger (the plan's *Open now* says so for the `--errors` half as well): when the drop is larger
+  than the number of members the session actually asked about, the extra one is still owed a case.
 
 ## Running things
 
@@ -918,6 +924,13 @@ is why" — is this file.
   a call to the **MWL member** in `tests/differential/`, not for the twin's name in the oracle —
   so the judgement about whether the twin is reachable is entirely the session's. The same check is
   what the `mbstring` bullet above is a second instance of.
+- **A counter declared `uint` cannot be incremented by a literal**: `uint $n = 0; $n = $n + 1;` is
+  `E0407: int and uint have no representable common type in arithmetic`, because the literal is an
+  `int`, followed by an `E0401` on the same line reporting the result as `mixed`. The spelling that
+  compiles is `$n = $n + (1 as uint);` — parenthesised, since `as` binds looser than `+`. A `uint`
+  counter is worth the trouble whenever the total is compared against `Core\Arr::count`, which
+  answers `uint`; the alternative is an `int` counter and `Core\Arr::count($rows) as int` at every
+  use.
 
 ## Splitting a file that got too big
 
@@ -1569,3 +1582,13 @@ every session. Nothing below was reworded on the way.
   plausibly beside its own arguments. Both halves are asserted by construction as well: every
   helper catches `RuntimeError` and nothing wider, and a member that drew infallibly would leave
   the case with no output at all.
+- **JSON numbers are where `Core\Json` and PHP part, in three places, and none is yet a case.**
+  `1e999` is `INF` to `json_decode` and accepted by `json_validate`; both `Core\Json` readers refuse
+  it, because `serde_json` will not produce an infinite `float`. `9223372036854775808` fits `uint`
+  but not `int`, so it is refused here — *"the integer … is too large for `int`"* — where PHP widens
+  it to a `float`; an integer past **every** integer type (`12345678901234567890123`) is not that
+  row and does agree, both reading it as a `float`. And `-0` is the integer `0` to PHP where it is
+  `-0.0` here. The writer belongs to the same family: PHP's `json_encode` prints a whole-numbered
+  float without its point (`0.0` → `0`, `100.0` → `100`) and `Core\Json::encode` keeps it, so a
+  differential case comparing decoded *values* by re-encoding has to leave every whole float out or
+  it measures the two writers instead of the reader.

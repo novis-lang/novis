@@ -15,7 +15,7 @@
 > had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
 > exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
 > seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 511 of 600 and differential 154 of 150. **Nothing below them
+> Stage 4's two counts**, conformance 512 of 600 and differential 157 of 150. **Nothing below them
 > is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
 > object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
 > while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
@@ -69,8 +69,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 511 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 154, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 512 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 157, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -112,7 +112,7 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 4's differential gate is met — 155 against the 150 it requires — so
+> **Open now:** **Stage 4's differential gate is met — 157 against the 150 it requires — so
 > conformance is the only frontier left, at 512 of the 600.** Both named guards
 > (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
 > so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and
@@ -120,16 +120,18 @@
 > conventions.md rather than for a section, and lands its claim as its own file, because the gate
 > counts files (playbook, *Writing a test case*). **`python tools/gaps.py` is the worklist and no
 > session should re-derive it**: `--differential` names every member whose spec **Replaces** column
-> gives it a PHP twin and which no oracle case calls — 3 left, `Core\Json::decode`,
-> `Core\Json::isValid` and `Core\Arr::flattenDeep`, with `Core\Path` and `Core\Math` clear of them —
-> and a named twin is only usable where the host's `php` can run it, so `Core\Math::gcd`/`lcm` took
-> a hand-written second implementation in PHP instead of the absent `gmp`, which `gaps.py` counts as
-> closed because it looks for the *member*'s call rather than the twin's — and `--errors` every
-> `Fault::` site in `mwl-stdlib` whose message no case asserts, 58 of them — of which **57 are
-> `Fault::fatal`, unreachable by any handler and so by any case, and the one `thrown` left is
-> unreachable from source as well**, so the list holds nothing a case can take. A site leaves the
-> list when the literal run of its message *before the first format hole* appears anywhere in either
-> suite, so a case echoing `Core\Time\DateTime::format():` also silences every message spelled
+> gives it a PHP twin and which no oracle case calls — one left, `Core\Arr::flattenDeep`, with
+> `Core\Path`, `Core\Math` and `Core\Json` clear of them, and the match is textual enough that a
+> *twin* called in some other case's oracle drops a member that has no case of its own, which is how
+> `Core\Json::decode` left the list one slice early (playbook, *Tooling*) — and a named twin is only
+> usable where the host's `php` can run it, so `Core\Math::gcd`/`lcm` took a hand-written second
+> implementation in PHP instead of the absent `gmp`, which `gaps.py` counts as closed because it
+> looks for the *member*'s call rather than the twin's — and `--errors` every `Fault::` site in
+> `mwl-stdlib` whose message no case asserts, 58 of them — of which **57 are `Fault::fatal`,
+> unreachable by any handler and so by any case, and the one `thrown` left is unreachable from
+> source as well**, so the list holds nothing a case can take. A site leaves the list when the
+> literal run of its message *before the first format hole* appears anywhere in either suite, so a
+> case echoing `Core\Time\DateTime::format():` also silences every message spelled
 > `Core\Time\DateTime::{member}` — which is how closing seven sites once took twelve rows off the
 > list at once. Three sites are hidden that way today and none is owed a case: `time.rs:1968`'s
 > unknown zone, where `datetime_built` re-derives every stored zone id from the resolved zone so no
@@ -181,7 +183,7 @@
 > every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
 > with no intermittently red test left: the uncaught-throw use-after-free is fixed and
 > `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: the differential gate is met at 155 of 150, conformance stands at 512 of 600, and the
+> decision: the differential gate is met at 157 of 150, conformance stands at 512 of 600, and the
 > remainder is written a section at a time.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
