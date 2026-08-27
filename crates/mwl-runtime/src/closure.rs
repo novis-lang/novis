@@ -213,18 +213,7 @@ pub unsafe extern "C" fn mwl_call_closure(
                 "internal error: a closure call reached the runtime with no closure at all",
             ));
         };
-        let arity = closure_arity(*closure)?;
-        if passed.len() < arity {
-            return Err(Fault::thrown_as(
-                crate::ThrownClass::Logic,
-                format!(
-                    "too few arguments to a `callable`: it declares {arity} parameter(s), \
-                     {} given",
-                    passed.len()
-                ),
-            ));
-        }
-        call_closure(ctx, *closure, passed)
+        call_closure_from_mwl(ctx, *closure, passed)
     };
     #[expect(
         unsafe_code,
@@ -233,6 +222,80 @@ pub unsafe extern "C" fn mwl_call_closure(
     unsafe {
         crate::run_helper(ctx, args, argc, out, body)
     }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::CallClosureArray` — ADR 0031's `$fn(...)` where the
+    /// call site wrote a `...` argument, so how many arguments there are is the
+    /// spread subject's own run-time length rather than the site's own count.
+    ///
+    /// `args[0]` is the closure and `args[1]` **one array** holding every
+    /// argument in call order: the array `mwl_ir::lower::call` already builds
+    /// for a variadic parameter's tail, with each spread flattened into it by
+    /// [`crate::mwl_array_spread`]. That is the whole reason this is a second
+    /// helper rather than a wider [`mwl_call_closure`] — that one's argument
+    /// count is a literal in the emitted call, which is exactly the fact a `...`
+    /// does not have.
+    ///
+    /// Everything after the unpacking is [`mwl_call_closure`]'s, through the
+    /// one [`call_closure_from_mwl`] they share: entries are passed positionally
+    /// in key order, extra ones are trimmed by [`call_closure`], and too few is
+    /// the same catchable `LogicError`. The entries are **borrowed** from an
+    /// array the caller owns for the length of this call, and `call_closure`
+    /// retains each one it actually passes.
+    fn mwl_call_closure_array(ctx, args: [2]) {
+        let array = args[1].array_ptr().ok_or_else(|| {
+            crate::helpers::wrong_tag("mwl_call_closure_array", Tag::Array, args[1])
+        })?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live \
+                      allocation, so it is live for this read"
+        )]
+        // The caller's reference is the caller's: this handle reads the table
+        // and must not run its own drop, exactly as `mwl_array_spread`'s
+        // subject handle does.
+        let entries = unsafe {
+            let source = std::mem::ManuallyDrop::new(crate::array::MwlArray::from_raw(array));
+            let mut entries = Vec::new();
+            let mut from = 0;
+            while let Some(slot) = source.next_slot(from) {
+                from = slot + 1;
+                entries.push(source.value_at(slot).expect("next_slot names a live entry"));
+            }
+            entries
+        };
+        call_closure_from_mwl(ctx, args[0], &entries)
+    }
+}
+
+/// [`call_closure`] under the one check a *program* can reach, shared by the
+/// two helpers compiled MWL code calls a closure through.
+///
+/// A native caller has no arity mistake to make — a `Core` member offers every
+/// argument the spec says it does, so [`call_closure`] answers it with an
+/// engine fault. An MWL call site's list is whatever was written there, and
+/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+/// gives the checker no parameter list to count it against, so too few is
+/// program-reachable and therefore a throw
+/// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)).
+///
+/// # Errors
+///
+/// The catchable `LogicError` above, plus everything [`call_closure`] itself
+/// answers with.
+fn call_closure_from_mwl(ctx: &mut Ctx, closure: Value, passed: &[Value]) -> Result<Value, Fault> {
+    let arity = closure_arity(closure)?;
+    if passed.len() < arity {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!(
+                "too few arguments to a `callable`: it declares {arity} parameter(s), {} given",
+                passed.len()
+            ),
+        ));
+    }
+    call_closure(ctx, closure, passed)
 }
 
 /// How many parameters `closure` declares — [`CLOSURE_ARITY_SLOT`], read

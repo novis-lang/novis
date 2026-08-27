@@ -42,7 +42,7 @@ use crate::value::{Tag, Value};
 
 /// The `FATAL` a tag mismatch produces — see this module's docs for why it is
 /// checked at all.
-fn wrong_tag(helper: &'static str, expected: Tag, actual: Value) -> Fault {
+pub(crate) fn wrong_tag(helper: &'static str, expected: Tag, actual: Value) -> Fault {
     Fault::fatal(format!(
         "internal error: {helper} expected a {expected:?} argument, got tag {}",
         actual.tag_byte()
@@ -1812,6 +1812,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         (
             "mwl_call_closure",
             (crate::closure::mwl_call_closure as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_call_closure_array",
+            (crate::closure::mwl_call_closure_array as *const ()).cast::<u8>(),
         ),
         (
             "mwl_str_concat",

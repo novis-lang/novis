@@ -128,9 +128,11 @@
 //!    `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
 //!    `Arr::prepend` and `Path::join` need only writing.
 //!
-//!    What is left is not a *type* but a call shape: `mwl-ir`'s gap 8 still
-//!    refuses a **named** or `...spread` argument, which no `Core` signature
-//!    needs and every one of those members can be called without.
+//!    A **named** or `...spread` argument at such a call is no longer a gap
+//!    either: both lower, and a name is refused only where a signature carries
+//!    none — which every `Core` member's does
+//!    (`registry::MethodSig::param_names`), so a `Core` call is positional or
+//!    spread and never by name.
 //!
 //!    A **`Core`-owned instance** is no longer one: [`instance`] is the value
 //!    behind [`registry::CoreTy::Instance`], and that module's own docs own

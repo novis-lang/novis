@@ -1293,6 +1293,23 @@ pub mod code {
     /// it does not.
     pub const E_UNTESTABLE_CONVERSION_TARGET: Code = Code::new("E0711");
 
+    /// A `name:` argument at a call through a `callable`.
+    ///
+    /// ADR 0031 § 1 gives `callable` no parameter list — it is one opaque type
+    /// whatever closure a variable holds — so there is no parameter for a name
+    /// to fill, at the site or below it: a closure value records its arity and
+    /// its parameter *tags*, never their names, so nothing at run time could
+    /// resolve one either. PHP can only allow it because a `Closure` there
+    /// carries its declaration.
+    ///
+    /// The same rule as [`E_CLOSURE_BY_REF_PARAM`], read from the call site's
+    /// end rather than the literal's, and the sibling of
+    /// [`E_NAMED_ARG_NO_PARAM_NAMES`], which refuses the same spelling at a
+    /// resolved target whose signature happens to carry no names. A `...`
+    /// argument is not refused here: how many arguments it hands over is its
+    /// own run-time length, which needs no parameter list to be meaningful.
+    pub const E_NAMED_ARG_THROUGH_CALLABLE: Code = Code::new("E0712");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

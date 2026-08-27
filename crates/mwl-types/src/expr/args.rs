@@ -236,8 +236,11 @@ fn map_arguments(
     slots
 }
 
-/// Rule 1 of [`map_arguments`].
-fn report_positional_after_named(arg: &Arg, first: Span, env: &mut Env<'_>) {
+/// Rule 1 of [`map_arguments`], and the one rule of the five that survives
+/// having no signature at all: which parameter a positional argument fills is
+/// its own place in the list either way, so [`super::calls`] reports it for a
+/// call through a `callable` too.
+pub(super) fn report_positional_after_named(arg: &Arg, first: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_POSITIONAL_AFTER_NAMED,

@@ -450,6 +450,52 @@ pub(super) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
     );
 }
 
+/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+/// § 1's opaque `callable`, refused from the call site's end rather than the
+/// literal's ([`report_by_reference_parameter`] is the other end of the same
+/// rule): a call through one may not write a `name:` argument.
+///
+/// `callable` is one type whatever closure the variable holds, so this site has
+/// no parameter list to resolve a name against — and neither has the run time,
+/// a closure object recording its arity and its parameter *tags* and never
+/// their names (`mwl_runtime::closure`). PHP allows the spelling only because a
+/// `Closure` there carries its whole declaration.
+///
+/// A `...` argument is left alone and lowers: how many arguments it hands over
+/// is its own run-time length, which needs no parameter list to mean something
+/// (`mwl_ir::Helper::CallClosureArray`). What still applies is rule 1 of
+/// [`super::args::map_arguments`] — a positional argument cannot follow a `...`
+/// — for the same reason it applies at a resolved call, so the two refusals are
+/// one walk.
+pub(super) fn report_named_args_through_callable(args: &CallArgs, env: &mut Env<'_>) {
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    let mut positional_ends: Option<Span> = None;
+    for arg in list {
+        if let Some(name) = arg.name {
+            positional_ends.get_or_insert(arg.span);
+            let name = span_text(env.src, name).to_owned();
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_NAMED_ARG_THROUGH_CALLABLE,
+                    format!("`{name}:` names no parameter of a `callable`"),
+                )
+                .with_primary(arg.span, "written by name here")
+                .with_help(
+                    "ADR 0031 § 1: `callable` is one opaque type whatever closure the variable \
+                     holds, so neither this call site nor the closure it reaches carries a \
+                     parameter name to fill — pass the argument positionally",
+                ),
+            );
+        } else if arg.spread {
+            positional_ends.get_or_insert(arg.span);
+        } else if let Some(first) = positional_ends {
+            super::args::report_positional_after_named(arg, first, env);
+        }
+    }
+}
+
 /// A method called on a receiver whose type names no class — a plain
 /// `object`, or an ADR 0036 shape.
 ///

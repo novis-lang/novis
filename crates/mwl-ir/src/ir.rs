@@ -1852,6 +1852,26 @@ pub enum Helper {
     /// edge: the closure's own throw or fault travels back as
     /// `Fault::Pending`, unchanged.
     CallClosure,
+    /// `$fn(...$args)` — [`CallClosure`](Self::CallClosure) for a call site
+    /// that wrote a `...` argument, where how many arguments there are is the
+    /// spread subject's own run-time length.
+    ///
+    /// `args[0]` is the closure and `args[1]` one array holding every argument
+    /// in call order — the array `crate::lower::Lowering::lower_args_as_array`
+    /// already builds for a variadic parameter's tail, each `...` flattened
+    /// into it by `mwl_runtime::mwl_array_spread`. It is a second row rather
+    /// than a wider [`CallClosure`](Self::CallClosure) because that one's
+    /// argument count is a literal in the emitted call — `mwl-codegen` writes
+    /// it beside the argument slot — and a `...` is precisely the shape with no
+    /// such count, so this one is an ordinary fixed-arity helper taking two
+    /// values.
+    ///
+    /// Ownership, the result and the error edge are all
+    /// [`CallClosure`](Self::CallClosure)'s: the array is borrowed like every
+    /// other helper argument, the result is a fresh
+    /// [`crate::ty::Ty::Tagged`] the callee transferred, and the callee's own
+    /// throw travels back as `Fault::Pending`.
+    CallClosureArray,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single

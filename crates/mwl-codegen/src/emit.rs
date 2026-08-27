@@ -3237,6 +3237,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::NumericLtEq => "mwl_numeric_lt_eq",
         Helper::SecretEq => "mwl_secret_eq",
         Helper::CallClosure => "mwl_call_closure",
+        Helper::CallClosureArray => "mwl_call_closure_array",
         Helper::BytesTruthy => "mwl_bytes_truthy",
         Helper::ArrayTruthy => "mwl_array_truthy",
         Helper::ValueTruthy => "mwl_value_truthy",

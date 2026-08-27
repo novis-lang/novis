@@ -315,25 +315,17 @@
 //!    method table [`ir::Class::methods`] carries. A real vtable would index
 //!    that table by slot instead, which is the remaining half — a lookup
 //!    cost, not a correctness gap.
-//! 8. **No named or spread call argument.** The array-literal half is closed:
-//!    a `...spread` element is one [`ir::InstKind::ArraySpread`], and a
-//!    `&value` element is not a shape the language has at all — `mwl_types`
-//!    refuses one as `E0483`, ADR 0031 § 2 and ADR 0023 leaving an aliasing
-//!    element no owner. What is left is the *call* argument: `mwl_types` does
-//!    not fully positionally type-check a named or spread one, so there is no
-//!    resolved per-argument type to lower against. A **variadic** signature is no
-//!    longer among them: `lower::Lowering::lower_variadic_tail` collects every
-//!    argument from that parameter's position into one fresh array, which is
-//!    the single value the parameter receives — see
-//!    `mwl_stdlib::registry::CoreTy::Variadic` for why that shape rather than a
-//!    second, count-carrying calling convention.
 //! 9. **A closure literal lowers, and so does `$f(...)`; what nothing checks
 //!    is the argument *types*.** The call is one [`ir::Helper::CallClosure`]
 //!    — `mwl_runtime::call_closure`, the same entry point native `Core` code
 //!    reaches a callback through, so there is one body and not a second
 //!    convention beside it ([`lower::Lowering::lower_closure_call`]). ADR 0031
-//!    § 3's self-name is still parsed and ignored, and a `name:` or `...`
-//!    argument panics here for gap 8's reason. The type gap is **not** this
+//!    § 3's self-name is still parsed and ignored. A `...` argument goes
+//!    through [`ir::Helper::CallClosureArray`] instead — the whole list built
+//!    into one array, because `CallClosure`'s own argument count is a literal
+//!    in the emitted call and a spread's is not — and a `name:` one is refused
+//!    where it is written (`E0712`), § 1 leaving no parameter for a name to
+//!    fill at either end. The type gap is **not** this
 //!    crate's to close and is older than this lowering — a `callable` carries
 //!    no parameter list (§ 1), so a closure declaring `string $s` reads a
 //!    caller's `int` payload as a pointer whether that caller is `$f(1)` or

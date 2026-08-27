@@ -333,6 +333,7 @@ pub(super) fn infer(
         ExprKind::Call { callee, args } => {
             let callee_ty = check_expr(callee, None, live, scope, ctx, env);
             check_args(args, live, scope, ctx, env);
+            report_named_args_through_callable(args, env);
             if matches!(args, CallArgs::FirstClassCallable) {
                 return env.interner.callable();
             }

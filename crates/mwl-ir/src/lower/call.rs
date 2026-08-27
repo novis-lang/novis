@@ -341,6 +341,34 @@ impl<'a> Lowering<'a> {
         out: &mut LoweredArgs,
     ) {
         let expected = sig.expectation(fixed, self.checked_types);
+        let array = self.lower_args_as_array(rest, expected, env, cur);
+        self.account_for_arg(array, Ty::Array, ownership, false, *cur);
+        out.values.push(array);
+    }
+
+    /// A run of written arguments, built into one `array<T>` keyed `"0"`,
+    /// `"1"`, … in written order, with each `...` argument's own entries
+    /// flattened in at the position it was written.
+    ///
+    /// The shape both variadic call sites share: a resolved call's variadic
+    /// tail ([`Self::lower_variadic_tail`], which owns what the array *means*
+    /// there) and a call through a `callable` that wrote a `...`
+    /// ([`Self::lower_closure_call`], where it is the whole argument list).
+    /// `expected` is the element type to widen each written-out entry into, and
+    /// is `None` at the second site: ADR 0031 § 1 gives `callable` no parameter
+    /// list, so there is nothing to widen towards.
+    ///
+    /// The returned array is a **fresh producer** and is left accounted to
+    /// nobody: each caller decides whether it is an argument
+    /// ([`Self::account_for_arg`]) or its own temporary, and one of the two has
+    /// to happen or the allocation leaks.
+    fn lower_args_as_array(
+        &mut self,
+        rest: &[&mwl_syntax::ast::Arg],
+        expected: Option<Ty>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
         // Every argument written out one by one is a prefix of the tail: a
         // positional argument cannot follow a `...` (`mwl_types`' E0488) and a
         // `name:` never reaches the variadic parameter at all, so the first
@@ -362,7 +390,7 @@ impl<'a> Lowering<'a> {
             };
             entries.push((index.to_string(), v));
         }
-        let (mut array, ty) = self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries });
+        let (mut array, _) = self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries });
         if spread_from < rest.len() {
             // The tail array is named by no local while the copies run, and
             // `ArraySpread` can throw, so it is this frame's temporary and is
@@ -394,12 +422,11 @@ impl<'a> Lowering<'a> {
                 self.retarget_temporary(slot, array);
                 self.release_temporaries_since(mark, *cur);
             }
-            // The finished array is `account_for_arg`'s from here, exactly as
-            // the no-spread one beside it is.
+            // The finished array is the caller's from here, exactly as the
+            // no-spread one beside it is.
             self.forget_temporary(slot);
         }
-        self.account_for_arg(array, ty, ownership, false, *cur);
-        out.values.push(array);
+        array
     }
 
     /// Which frame owes a release for one lowered argument, and whether it has
@@ -633,13 +660,24 @@ impl<'a> Lowering<'a> {
     /// call, and on the error edge by the landing block — the shape a `Core`
     /// member's arguments already have.
     ///
+    /// # A `...` argument
+    ///
+    /// A spread makes the argument *count* the subject's own run-time length,
+    /// and [`Helper::CallClosure`]'s count is a literal in the emitted call —
+    /// `mwl-codegen` writes it beside the argument slot. So a call site that
+    /// wrote one goes through [`Helper::CallClosureArray`] instead, with the
+    /// whole list built into one array by [`Self::lower_args_as_array`], which
+    /// is the same array a resolved call's variadic tail already is. That
+    /// array is one more borrowed argument, so this frame releases it on both
+    /// edges exactly as it releases everything else it built here.
+    ///
     /// # Panics
     ///
-    /// Panics for a `name:`, `...` or first-class-callable argument list, the
-    /// way [`Self::lower_call_args`] does for a resolved call: there is no
-    /// signature to map one against here at all, so the checker's own gap
-    /// (see the crate docs' known gaps) is not something this can lower
-    /// around.
+    /// Panics for a first-class-callable argument list, the way
+    /// [`Self::lower_call_args`] does for a resolved call, and for a `name:`
+    /// argument — [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// § 1 gives `callable` no parameter list, so there is no parameter for a
+    /// name to fill and `mwl_types` refuses one where it is written (`E0712`).
     pub(super) fn lower_closure_call(
         &mut self,
         callee: &Expr,
@@ -661,17 +699,33 @@ impl<'a> Lowering<'a> {
         let aliasing = self.aliasing_read(callee);
         self.account_for_arg(closure, closure_ty, ArgOwnership::Borrowed, aliasing, *cur);
         let mut values = vec![closure];
-        for arg in list {
-            assert!(
-                arg.name.is_none() && !arg.spread,
-                "mwl-ir does not yet lower a named or spread argument to a call through a \
-                 `callable`; see the crate docs' known gaps"
-            );
-            let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
-            let aliasing = self.aliasing_read(&arg.value);
-            self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
-            values.push(v);
-        }
+        assert!(
+            list.iter().all(|arg| arg.name.is_none()),
+            "mwl-ir: a `name:` argument reached a call through a `callable` — this crate trusts \
+             mwl_types::check_program already reported it as E0712"
+        );
+        // A `...` makes the argument *count* a run-time fact, which the one
+        // helper whose count is a literal in the emitted call cannot carry. So
+        // the whole list becomes one array instead, and the other helper reads
+        // its length — see `Helper::CallClosureArray`.
+        let helper = match list.iter().any(|arg| arg.spread) {
+            true => {
+                let rest: Vec<&mwl_syntax::ast::Arg> = list.iter().collect();
+                let array = self.lower_args_as_array(&rest, None, env, cur);
+                self.account_for_arg(array, Ty::Array, ArgOwnership::Borrowed, false, *cur);
+                values.push(array);
+                Helper::CallClosureArray
+            }
+            false => {
+                for arg in list {
+                    let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
+                    let aliasing = self.aliasing_read(&arg.value);
+                    self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+                    values.push(v);
+                }
+                Helper::CallClosure
+            }
+        };
         // `Ty::Tagged` because `mixed` is the only answer the checker has for
         // a call whose target it cannot name — `mwl_types::expr`'s own
         // `ExprKind::Call` arm.
@@ -679,7 +733,7 @@ impl<'a> Lowering<'a> {
             *cur,
             Ty::Tagged,
             InstKind::HelperCall {
-                helper: Helper::CallClosure,
+                helper,
                 args: values,
             },
             env,
