@@ -107,6 +107,11 @@ pub(super) fn drain_closures(
 /// Panics naming the shape for a `fn` literal the checker recorded no
 /// [`ExprInfo::Closure`] for, and for a parameter with no declared type.
 ///
+/// The assert on a `&$x` parameter is an internal-consistency check rather
+/// than a gap: `callable` carries no parameter list for a call site to read
+/// (ADR 0031 § 4), so `mwl_types::expr::calls` refuses one as `E0493` and
+/// nothing that reaches here declares one.
+///
 /// # Returns
 ///
 /// The environment class first, then one per ADR 0036 § 2 shape literal the
@@ -157,9 +162,10 @@ pub(super) fn lower_closure(
     for (i, p) in fn_expr.params.iter().enumerate() {
         assert!(
             !p.by_ref,
-            "mwl-ir does not lower a closure with a `&$x` parameter: nothing calls a closure \
-             through a signature yet, so there is no call site to stage the cell at; see the \
-             crate docs' known gaps"
+            "a closure with a `&$x` parameter reached lowering: a closure's type is \
+             `callable` and carries no parameter list, so there is no call site that could \
+             know to stage the cell — `mwl_types::expr::calls` refuses this where it is \
+             written, as `E0493`"
         );
         let decl_ty =
             p.ty.as_ref()

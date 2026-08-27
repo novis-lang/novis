@@ -622,6 +622,9 @@ pub(super) fn check_fn_literal(
     for param in &f.params {
         let ty = lower_optional_type(param.ty.as_ref(), ctx, env);
         let name = strip_sigil(span_text(env.src, param.name)).to_owned();
+        if param.by_ref {
+            report_by_reference_parameter(param, env);
+        }
         inner.declare_param(name.clone(), ty, param.name);
         inner_live.insert(name);
     }
@@ -706,4 +709,35 @@ pub(super) fn check_fn_literal(
         },
     );
     env.interner.callable()
+}
+
+/// ADR 0031 § 4's opaque `callable`, as a refusal: a closure declares no `&$x`
+/// parameter.
+///
+/// A by-reference parameter is a contract between a *call site* and a
+/// declaration — the site stages the cell, hands over its address and copies
+/// back afterwards (`mwl_ir::lower::call`). A closure's type is `callable` and
+/// nothing else (§ 4), carrying no parameter list for a site to read, so there
+/// is no site that could know to stage anything; and § 2's by-value capture
+/// lets a closure outlive every frame in scope where it was written, so even
+/// naming one would not make the cell outlast it. The by-reference half of § 2
+/// was removed for the same reason it is refused here.
+///
+/// Reported once per by-reference parameter, and the parameter is then bound
+/// as an ordinary one so the body checks against its declared type instead of
+/// reporting an undefined name at every use.
+fn report_by_reference_parameter(param: &mwl_syntax::ast::Param, env: &mut Env<'_>) {
+    let name = span_text(env.src, param.name).to_owned();
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CLOSURE_BY_REF_PARAM,
+            format!("a closure cannot take `{name}` by reference"),
+        )
+        .with_primary(param.name, "declared by reference here")
+        .with_help(
+            "ADR 0031 § 4: a closure's type is `callable`, which carries no parameter list, so \
+             no call site knows to stage a cell — take the value and `return` the result, or \
+             pass an object, whose fields a closure shares by capturing it",
+        ),
+    );
 }

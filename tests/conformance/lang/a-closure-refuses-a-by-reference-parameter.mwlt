@@ -1,0 +1,38 @@
+--TEST--
+A `fn` literal may not declare a `&$x` parameter, in either body form — ADR 0031 § 2, § 4
+--FILE--
+<?mwl
+// A by-reference parameter is a contract between a *call site* and a
+// declaration: the site stages the cell, hands over its address and copies
+// back afterwards. A closure's type is `callable` and nothing else (ADR 0031
+// § 4), so it carries no parameter list for a site to read and no site can
+// know to stage anything — and § 2's by-value capture lets the closure outlive
+// every frame in scope where it was written, so naming a cell would not make
+// one outlast it. That is the same reason § 2 has no `use (&$y)`.
+callable $bump = fn (int &$n): int => $n + 1;
+
+// The block body reaches the same rule, and each parameter is its own report.
+callable $pair = fn (int &$a, int &$b): int => {
+    return $a + $b;
+};
+
+// Sharing a mutable cell is § 2's own answer: an object, captured by value.
+final class Counter {
+    public int $value = 0;
+}
+Counter $c = new Counter();
+callable $step = fn (): int => $c->value + 1;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0493]: a closure cannot take `$n` by reference
+  --> case.mwl:9:27
+%A
+error[E0493]: a closure cannot take `$a` by reference
+   --> case.mwl:12:27
+%A
+error[E0493]: a closure cannot take `$b` by reference
+   --> case.mwl:12:36
+%A
+error: aborting due to 3 errors
