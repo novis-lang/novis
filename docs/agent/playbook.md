@@ -1633,6 +1633,14 @@ sibling in the same namespace unqualified.
   happens, not to delete it. `cargo insta test -p <crate> --lib` then writes the `.snap.new` files
   (plain `cargo test` stops at the first one), and `git status --short | grep pending-snap` immediately
   before `cargo insta accept` is what keeps a previous session's orphan out of the commit.
+- **An increment in *value* position runs the write where its own branch runs, and `echo` prints
+  operand by operand.** Both bit a case that read plausibly and printed something else. `if ($no &&
+  ($k++ > 0))` leaves `$k` at `0`, `$absent ?? $s++` runs the increment only when the left side is
+  `null`, and a `match` arm's increment runs only for the arm that matched — all PHP-identical, all
+  easy to write an expectation against as though the operand were evaluated unconditionally. And
+  `echo "made: ", Cell::make()->count++, "\n";` prints `made: ` *before* `make`, because `echo`
+  writes each operand as it reaches it rather than evaluating the whole list first; a case whose
+  operand has a side effect has to expect the interleaving.
 
 ## Divergences and refusals already pinned
 

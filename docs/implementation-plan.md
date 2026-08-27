@@ -65,8 +65,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 605 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 167, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 606 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 168, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -496,7 +496,7 @@
 > edges with a fresh refcounted operand live. `python tools/holes.py` still reads **24 sites, 6
 > items**: `convert_or_null`'s catch-all is unchanged, `$b as ?string` and `$m as ?array<T>` still
 > reaching it, and this slice widened neither. **M4S Part I is the floor, not the frontier**:
-> conformance is at 605 of the goal's new 750 and differential at 167 of 165, `python tools/gaps.py`
+> conformance is at 606 of the goal's new 750 and differential at 168 of 165, `python tools/gaps.py`
 > still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a group is
 > blocked — never a reason to leave a language item unfinished. **A bare name in value position is a
 > diagnostic now**, which is the cheap half of `lower_expr`'s own dispatch catch-all rather than a
@@ -513,7 +513,28 @@
 > already refused by the parser (E0215/E0216), so its use site is skipped rather than cascading a
 > second error onto the same edit. `python tools/holes.py` still reads **24 sites** — the dispatch
 > catch-all is one site whichever shapes reach it, and what still reaches it is enumerated in the
-> handoff. `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+> handoff. **Item 7 is closed, and closing it widened `lower_expr` to an `&mut Env`.** `$x++` and
+> `--$x` answer a number now — the prefix form the one just written, the postfix form the one that
+> was there — through the very read-modify-write the statement form and `$x += 1;` already took, so
+> the target's address is still computed once however the increment was written and no new ownership
+> rule arrives with it (every target ADR 0007 § 4 leaves is `int`, `uint`, `float` or `decimal`,
+> none of them refcounted). What the feature actually cost is the two halves the crate's own module
+> doc had already named as the price. **Expression lowering holds an `&mut Env`**, because a
+> value-position rebinding has a binding to re-point and had nowhere to put it; every
+> conditionally-evaluated operand therefore rebinds into its own copy and the edges are reconciled
+> at the join by the same `Lowering::merge_envs` an `if` uses — `&&`/`||`'s right operand, a
+> ternary's two branches, `??`'s default, a `match`'s labels and arms, and the whole member side of
+> a `?->`. That costs nothing where nothing was written: `merge_envs` emits no phi when every edge
+> agrees. And **the loop-header phi scan is a full walk now**: the two shapes that re-point a local
+> used to *be* the whole expression, so `collect_reassigned_in_expr` looked at one node, and `int $c
+> = $b++ + $b++;` puts one arbitrarily deep. It recurses into every sub-expression (never into a
+> closure body — ADR 0031 § 2 captures by value, so the write lands in the environment object's own
+> copy) and every statement clause that holds an expression, and the loop's **own condition** joins
+> its body in the scan, which is what `while ($i++ < 3)` needs: without it the header carries no phi
+> for `$i` and the increment reads the pre-loop value forever — an infinite loop rather than a
+> diagnostic, which is exactly how it first showed. `python tools/holes.py` still reads **24
+> sites**: item 7's remaining five are other items' panics that share `lower/stmt.rs`.
+> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones
