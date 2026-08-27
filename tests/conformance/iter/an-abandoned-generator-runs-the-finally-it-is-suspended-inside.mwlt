@@ -1,0 +1,97 @@
+--TEST--
+A generator abandoned mid-sequence runs every `finally` it is suspended inside, innermost first, at the moment it is dropped — ADR 0053 § 4, and ADR 0028 § 2 for why that is not a destructor
+--FILE--
+<?mwl
+class G {
+    // The whole body is guarded, so every suspension in it owes the `finally`.
+    public static function guarded(int $n): Iterator<int> {
+        try {
+            int $i = 0;
+            while ($i < $n) {
+                yield $i;
+                $i = $i + 1;
+            }
+        } finally {
+            echo "[f]";
+        }
+    }
+
+    // Two regions, so an abandonment inside both runs them innermost first.
+    public static function nested(): Iterator<int> {
+        try {
+            try {
+                yield 1;
+            } finally {
+                echo "[inner]";
+            }
+            yield 2;
+        } finally {
+            echo "[outer]";
+        }
+    }
+
+    // The first suspension owes nothing and the second owes the `finally`:
+    // only a `yield` inside the region grows the branch at all.
+    public static function partly(): Iterator<int> {
+        yield 0;
+        try {
+            yield 1;
+        } finally {
+            echo "[g]";
+        }
+    }
+}
+
+// Abandoned by `break`, suspended inside the region.
+foreach (G::guarded(5) as int $v) {
+    echo $v;
+    if ($v == 1) {
+        break;
+    }
+}
+echo "\n";
+
+// Drained to the end: the `finally` ran on the way out, and the release that
+// follows does not run it a second time — a finished generator names no
+// suspension point to resume into.
+foreach (G::guarded(2) as int $v) {
+    echo $v;
+}
+echo "\n";
+
+// Never resumed at all. State `0` is "never entered", so no `try` was entered
+// either and nothing runs — PHP answers the same for a generator whose body
+// never started.
+Iterator<int> $idle = G::guarded(3);
+echo "-";
+echo "\n";
+
+// Innermost first, then the enclosing one.
+foreach (G::nested() as int $v) {
+    echo $v;
+    break;
+}
+echo "\n";
+
+// Abandoned at a suspension the region does not cover: nothing is owed.
+foreach (G::partly() as int $v) {
+    echo $v;
+    break;
+}
+echo "\n";
+
+// Abandoned one `yield` later, inside the region this time.
+foreach (G::partly() as int $v) {
+    echo $v;
+    if ($v == 1) {
+        break;
+    }
+}
+echo "\n";
+--EXPECT--
+01[f]
+01[f]
+-
+1[inner][outer]
+0
+01[g]
