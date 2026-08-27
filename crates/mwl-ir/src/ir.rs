@@ -1547,6 +1547,17 @@ pub enum Helper {
     /// program's own and reaches the request unchanged. `mwl_runtime`'s
     /// `stringify_or_null` is where that line is drawn.
     ToStringOrNull,
+    /// `$x as ?bytes` — [`Self::TaggedToBytes`]'s two rows in ADR 0066 § 1's
+    /// non-throwing form, sharing that helper's one implementation of them for
+    /// the reason [`Self::ToStringOrNull`] shares its own.
+    ///
+    /// The one `?` twin whose *checked* spelling is the only one that ever runs
+    /// anything: `string as bytes` is total and free wherever the static type
+    /// says so, so this helper exists exclusively for the tagged operand —
+    /// which is also why ADR 0066 § 3's "yields `null` exactly where `as T`
+    /// would throw" leaves the statically typed `$s as ?bytes` refused
+    /// (`E0709`) rather than lowered here.
+    ToBytesOrNull,
     /// `$x as decimal` — ADR 0054 § 4's four `→ decimal` rows, chosen by the
     /// operand's runtime tag the way [`Self::ToIntOrNull`] chooses, so one
     /// helper covers `int`, `uint`, `float`, `string` and `mixed` alike.
@@ -1613,6 +1624,19 @@ pub enum Helper {
     TaggedToUint,
     /// [`Self::TaggedToInt`]'s row set, landing on `float`.
     TaggedToFloat,
+    /// A [`crate::ty::Ty::Tagged`] operand to `bytes` — ADR 0009 § 3's
+    /// `string as bytes` row chosen by the operand's **runtime** tag, plus the
+    /// identical-type row a value that is already a `bytes` takes.
+    ///
+    /// **This is the whole of that row that runs a call.** The statically typed
+    /// spelling is total and free — one [`InstKind::Reinterpret`] over the same
+    /// allocation, see [`Self::BytesToString`] — so, unlike every other
+    /// conversion helper here, this one has no static sibling: a tagged operand
+    /// is the only shape whose row nothing before run time can name. Fallible
+    /// for the same reason [`Self::TaggedToInt`] is: a tag with no row at all
+    /// throws, which is ADR 0007 § 6's answer for `mixed` and a compile error
+    /// (`E0708`) for anything the checker can name.
+    TaggedToBytes,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
     /// effect under `mwl run`, decided in `docs/agent/loop-goal.md`. Defines no

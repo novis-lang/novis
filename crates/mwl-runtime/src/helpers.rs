@@ -1101,6 +1101,68 @@ crate::mwl_helper! {
     }
 }
 
+/// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 3's pair the other
+/// way, applied to a value whose representation is `mwl_ir::ty::Ty::Tagged` — a
+/// `mixed`, a `?T`, or any other union.
+///
+/// The *statically* typed half of `string as bytes` never reaches a helper at
+/// all: it is total and free, so `mwl-ir` lowers it to an
+/// `InstKind::Reinterpret` and emits no call ([`bytes_to_string`] says so from
+/// the other side). What is left is the operand whose static type names no row,
+/// where the tag the `Value` already carries is the only thing that does — the
+/// same "one tag per target" arrangement [`to_int`] and [`value_to_string`]
+/// already follow.
+///
+/// Exactly two tags have a row, and both are free. A [`Tag::Str`] *is* the
+/// buffer a `bytes` is, minus the UTF-8 promise, so it is handed back under the
+/// other tag over the same allocation; a [`Tag::Bytes`] is ADR 0007 § 2's
+/// identical-type row, which converts nothing anywhere it is written. Both
+/// answer with one **fresh** reference, so the caller owns the result exactly as
+/// it owns a converted one, and neither copies an octet.
+///
+/// `None` for every other tag — ADR 0007 § 2's table produces a `bytes` from a
+/// `string` and from nothing else, so an `int`, an array or an object has no
+/// answer here rather than a lossy one. Rendering one through
+/// [`value_to_string`] on the way would be exactly the implicit conversion that
+/// ADR exists to remove.
+fn to_bytes(value: Value) -> Option<Value> {
+    let ptr = match value.tag() {
+        Some(Tag::Str | Tag::Bytes) => value.buffer_ptr()?,
+        _ => return None,
+    };
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Str or Tag::Bytes value's payload is a live allocation \
+                  the caller owns a reference to, and the result carries a \
+                  second one the caller will release"
+    )]
+    let retagged = unsafe {
+        crate::string::mwl_str_retain(ptr);
+        MwlStr::from_raw(ptr)
+    };
+    Some(Value::bytes(retagged))
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::TaggedToBytes` — ADR 0007 § 2's checked `as bytes` over
+    /// a tagged operand, so [`to_bytes`]'s `None` is the throw rather than a
+    /// `null`.
+    fn mwl_tagged_to_bytes(_ctx, args: [1]) {
+        to_bytes(args[0]).ok_or_else(|| does_not_fit("this value", "bytes"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ToBytesOrNull` — ADR 0066 § 1's non-throwing form of
+    /// [`mwl_tagged_to_bytes`], sharing [`to_bytes`]'s one implementation of
+    /// both rows. Nothing here can fault on the way, so unlike
+    /// [`stringify_or_null`] there is no exception of the program's own to keep
+    /// out of the `null`.
+    fn mwl_to_bytes_or_null(_ctx, args: [1]) {
+        Ok(to_bytes(args[0]).unwrap_or_else(Value::null))
+    }
+}
+
 /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 3's
 /// `ArithmeticError`: an overflow of either kind, or a zero divisor.
 ///
@@ -1560,6 +1622,8 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_to_string_or_null", address(mwl_to_string_or_null)),
         ("mwl_tagged_to_string", address(mwl_tagged_to_string)),
         ("mwl_bytes_to_string", address(mwl_bytes_to_string)),
+        ("mwl_tagged_to_bytes", address(mwl_tagged_to_bytes)),
+        ("mwl_to_bytes_or_null", address(mwl_to_bytes_or_null)),
         ("mwl_decimal_add", address(mwl_decimal_add)),
         ("mwl_decimal_sub", address(mwl_decimal_sub)),
         ("mwl_decimal_mul", address(mwl_decimal_mul)),

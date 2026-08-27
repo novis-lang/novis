@@ -1258,21 +1258,47 @@ impl<'a> Lowering<'a> {
                 }
                 out
             }
-            // Three shapes reach here, all of them a missing *lowering*:
+            // ADR 0009 § 3's row the other way, from an operand whose static
+            // type names no row — a `mixed`, a `?T`, any other union. The
+            // statically typed spelling is the free `Reinterpret` above and
+            // reaches no helper at all, so this is the only shape of
+            // `as bytes` that runs anything: `Helper::TaggedToBytes` reads the
+            // tag the value already carries, hands back the same allocation
+            // under the other tag for a `string` or a `bytes`, and throws for
+            // every tag § 2's table gives no row.
+            //
+            // Its operand's ownership is the numeric rows' — `Ty::Tagged` may
+            // hold a refcounted payload, so it is released once the helper has
+            // read it unless a durable slot still owns it.
+            (Ty::Tagged, Ty::Bytes) => {
+                let out = self.emit_fallible(
+                    cur,
+                    Ty::Bytes,
+                    InstKind::HelperCall {
+                        helper: Helper::TaggedToBytes,
+                        args: vec![v],
+                    },
+                    env,
+                );
+                if !self.aliasing_read(operand) {
+                    self.emit_release(cur, v);
+                }
+                out
+            }
+            // Two shapes reach here, both of them a missing *lowering*:
             // `mwl_types`' `reject_unconvertible` refuses every pair ADR 0007
             // § 2's closed table has no row for (`E0708`), so this is no
             // longer where a missing rule is discovered.
             _ => panic!(
                 "mwl-ir lowers ADR 0007 § 2's scalar conversion rows, ADR 0009 § 3's `string` ↔ \
                  `bytes` pair, both of ADR 0010 § 5's enum ones, a `Ty::Tagged` operand into \
-                 every scalar target among them, and every operand into a tagged target — got \
-                 `{from:?} as {to:?}`. Three rows are still missing, and they are the whole of \
-                 what can arrive here, every other pair being `E0708` a phase up: ADR 0007 § 2's \
-                 `array<T> as array<U>`, whose O(n) element walk is no single helper; a \
-                 `Ty::Tagged` operand converted to `bytes`, whose runtime-tag row has no helper; \
-                 and a `Ty::Tagged` operand converted to an object — the checked downcast out of \
-                 ADR 0007 § 6's `mixed`, which needs a class identity this representation does \
-                 not carry. See the crate docs' known gaps"
+                 every scalar target among them and into `bytes`, and every operand into a \
+                 tagged target — got `{from:?} as {to:?}`. Two rows are still missing, and they \
+                 are the whole of what can arrive here, every other pair being `E0708` a phase \
+                 up: ADR 0007 § 2's `array<T> as array<U>`, whose O(n) element walk is no single \
+                 helper; and a `Ty::Tagged` operand converted to an object — the checked \
+                 downcast out of ADR 0007 § 6's `mixed`, which needs a class identity this \
+                 representation does not carry. See the crate docs' known gaps"
             ),
         }
     }
@@ -1298,21 +1324,21 @@ impl<'a> Lowering<'a> {
     /// Ownership matches the checked rows exactly: a refcounted operand this
     /// conversion consumed is released once the helper has read it, unless a
     /// durable slot still owns it ([`is_aliasing_read`]). Nothing is retained
-    /// here either — [`Helper::ToStringOrNull`]'s result is the one that
-    /// carries a refcounted payload, and it arrives with the single reference
-    /// every helper that builds a `string` hands back.
+    /// here either — [`Helper::ToStringOrNull`] and [`Helper::ToBytesOrNull`]
+    /// are the two whose result carries a refcounted payload, and each arrives
+    /// with the single reference every helper that hands back a buffer owes.
     ///
     /// # Panics
     ///
     /// Panics for a row ADR 0066 § 3 calls **available** and this crate has no
-    /// `?` helper to run — `$m as ?bytes`, `$m as ?array<T>`.
+    /// `?` helper to run — `$m as ?array<T>`.
     /// Both of that section's *refusals* are `mwl_types`' now, so neither
     /// reaches here: a conversion that cannot fail is `E0709` and a pair
     /// naming no row is `E0708`, both where the conversion is written. The
-    /// remaining targets are the same missing lowerings [`Self::convert`]'s
-    /// own catch-all names, plus the `string` one this form adds — a row that
-    /// throws in the checked spelling and so needs a null-answering twin
-    /// rather than the same helper.
+    /// remaining target is the same missing lowering [`Self::convert`]'s own
+    /// catch-all names, minus the two this form adds — `string` and `bytes`,
+    /// each a row that throws in the checked spelling and so needs a
+    /// null-answering twin rather than the same helper.
     pub(super) fn convert_or_null(
         &mut self,
         v: ValueId,
@@ -1336,14 +1362,15 @@ impl<'a> Lowering<'a> {
             Ty::Float => Helper::ToFloatOrNull,
             Ty::Decimal => Helper::ToDecimalOrNull,
             Ty::Str => Helper::ToStringOrNull,
+            Ty::Bytes => Helper::ToBytesOrNull,
             other => panic!(
-                "mwl-ir lowers ADR 0066's `as ?T` for the checked scalar targets, and through \
-                 `Self::lower_nullable_membership` for ADR 0047's literal and enum-case ones — \
-                 got `{from:?} as ?{other:?}`. Both of § 3's refusals are `mwl_types`' now \
-                 (`E0709` for a row that cannot fail, `E0708` for a pair naming no row), so what \
-                 reaches here is a row that exists, can fail, and has no `?` helper to run it: \
-                 the `bytes`, `array<T>` and object targets `Lowering::convert`'s own catch-all \
-                 already names. See the crate docs' known gaps"
+                "mwl-ir lowers ADR 0066's `as ?T` for the checked scalar targets and for \
+                 `bytes`, and through `Self::lower_nullable_membership` for ADR 0047's literal \
+                 and enum-case ones — got `{from:?} as ?{other:?}`. Both of § 3's refusals are \
+                 `mwl_types`' now (`E0709` for a row that cannot fail, `E0708` for a pair naming \
+                 no row), so what reaches here is a row that exists, can fail, and has no `?` \
+                 helper to run it: the `array<T>` and object targets `Lowering::convert`'s own \
+                 catch-all already names. See the crate docs' known gaps"
             ),
         };
         let call = InstKind::HelperCall {
@@ -1354,9 +1381,10 @@ impl<'a> Lowering<'a> {
         // conversion failing: a `string` target may run the operand's own
         // `toString()`, whose exception is the *program's* and propagates
         // unchanged — `null` here means "this conversion had no answer" and
-        // nothing else (`Helper::ToStringOrNull`). The numeric rows cannot
-        // fault at all and are emitted plainly, so none of them pays for a
-        // landing block.
+        // nothing else (`Helper::ToStringOrNull`). The numeric rows and the
+        // `bytes` one cannot fault at all and are emitted plainly, so none of
+        // them pays for a landing block — a `bytes` target runs no user code,
+        // its two rows being one retag over the allocation already there.
         let out = if to == Ty::Str {
             self.emit_fallible(cur, Ty::Tagged, call, env)
         } else {
