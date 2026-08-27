@@ -1,0 +1,78 @@
+--TEST--
+`**` answers every numeric row ADR 0007 § 4 gives it, throwing where that row has no integer to return (ADR 0007 §§ 2, 4; ADR 0054 § 3)
+--FILE--
+<?mwl
+// ADR 0007 § 4's `int ⊕ int` row: the operand type, exactly, over the whole
+// range of it. Square-and-multiply is what lowers this, so the interesting
+// exponents are the ones whose bit pattern makes it square one time too many
+// if the loop is written naively.
+int $two = 2;
+echo $two ** 10, " ", $two ** 62, " ", $two ** 0, "\n";
+int $base = 3037000499;
+echo $base ** 2, "\n";
+int $neg = 0 - 2;
+echo $neg ** 3, " ", $neg ** 63, "\n";
+
+// `0 ** 0` is `1`, as it is in PHP: the exponent is exhausted before the base
+// is ever consulted.
+echo 0 ** 0, " ", 0 ** 5, "\n";
+
+// The `uint` row is the same shape over the unsigned range, so it answers
+// exactly where PHP's own `int` has already fallen off into a `float`.
+uint $ten = 10;
+uint $nineteen = 19;
+echo $ten ** $nineteen, "\n";
+
+// ADR 0007 § 4's "either operand a `float`" row, and § 2's implicit widening
+// of an `int` into a `float` position — `9 ** 0.5` is the second, since the
+// literal `9` is an `int` and the exponent forces the pair to `float`.
+float $x = 2.0;
+echo $x ** 0.5, " ", $x ** 10, " ", 9 ** 0.5, "\n";
+
+// `**=` has no lowering of its own: `$x op= e` is `$x = $x op e`, so the
+// compound form arrives through the same rows above.
+int $p = 2;
+$p **= 8;
+echo $p, "\n";
+
+// ADR 0007 § 4 lists `**` beside `+`, `-` and `*`: "no wrap, no promotion to
+// `float`". So a result past the operand type throws rather than becoming a
+// `float`, which is the divergence from PHP that row is spelling out.
+try {
+    echo $two ** 63, "\n";
+} catch (Throwable $over) {
+    echo "over: ", $over->message, "\n";
+}
+uint $fourGig = 4294967296;
+uint $square = 2;
+try {
+    echo $fourGig ** $square, "\n";
+} catch (Throwable $uover) {
+    echo "uover: ", $uover->message, "\n";
+}
+
+// A negative exponent is the same rule read from the other end: PHP answers
+// `0.5` for `2 ** -1`, and that is precisely the promotion to `float` the row
+// refuses. Where the answer *is* an integer — a base of `1` or `-1` — it is
+// returned rather than thrown, so the refusal is the missing value and not the
+// sign.
+int $minusOne = 0 - 1;
+int $one = 1;
+echo $one ** $minusOne, " ", $minusOne ** $minusOne, " ", $minusOne ** ($minusOne - 1), "\n";
+try {
+    echo $two ** $minusOne, "\n";
+} catch (Throwable $fraction) {
+    echo "fraction: ", $fraction->message, "\n";
+}
+--EXPECT--
+1024 4611686018427387904 1
+9223372030926249001
+-8 -9223372036854775808
+1 0
+10000000000000000000
+1.4142135623731 1024 3
+256
+over: Integer exponentiation overflowed
+uover: Integer exponentiation overflowed
+1 -1 1
+fraction: Negative exponent has no integer result

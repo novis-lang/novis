@@ -2720,6 +2720,46 @@ class T {
         }
     }
 
+    /// ADR 0007 § 4 gives `**` a row for every numeric representation but the
+    /// `decimal` [ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md)
+    /// § 3 refuses, and lists it beside `+`, `-` and `*` — so the two integer
+    /// rows throw and the `float` one, being `f64::powf`, cannot.
+    ///
+    /// Counted rather than snapshotted, and for the reason
+    /// [`every_bitwise_operator_lowers`] gives: what is pinned is *which* rows
+    /// carry ADR 0002's edge, and a snapshot would go red for a renumbering
+    /// while saying nothing about that. `**=` is in the same body because it
+    /// has no lowering of its own — `lower_compound_assignment`'s rewrite is
+    /// what gives it one — so the count is what says it arrived.
+    #[test]
+    fn a_power_operator_lowers_over_every_numeric_row() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\nclass T {\n",
+            "  function rows(int $i, uint $u, float $x): float {\n",
+            "    int $a = $i ** 3;\n",
+            "    uint $b = $u ** $u;\n",
+            "    float $c = $x ** 2.0;\n",
+            "    $a **= 2;\n",
+            "    return $c;\n",
+            "  }\n}\n",
+        ));
+        let text = print_function(&f, map.file(file));
+        let powers: Vec<&str> = text
+            .lines()
+            .filter(|line| line.contains("= pow "))
+            .collect();
+        assert_eq!(
+            powers.len(),
+            4,
+            "one `pow` per row and one for `**=`: {text}"
+        );
+        let fallible = powers.iter().filter(|line| line.contains(" ! bb")).count();
+        assert_eq!(
+            fallible, 3,
+            "the two `int` rows and the `uint` one throw, the `float` one does not: {text}"
+        );
+    }
+
     /// A plain local reassignment gets a fresh SSA value rather than mutating
     /// the one already bound to `$n` — the point of routing even
     /// straight-line reassignment through `lower_reassignment`.

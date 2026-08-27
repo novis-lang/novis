@@ -399,6 +399,7 @@ fn bin_op_name(op: BinOp) -> &'static str {
         BinOp::Mul => "mul",
         BinOp::Div => "div",
         BinOp::Mod => "mod",
+        BinOp::Pow => "pow",
         BinOp::BitAnd => "band",
         BinOp::BitOr => "bor",
         BinOp::BitXor => "bxor",
@@ -410,6 +411,7 @@ fn bin_op_name(op: BinOp) -> &'static str {
         BinOp::LtEq => "le",
         BinOp::Gt => "gt",
         BinOp::GtEq => "ge",
+        BinOp::Cmp => "cmp",
     }
 }
 
@@ -442,6 +444,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::DecimalEq => "decimal_eq",
         Helper::DecimalLt => "decimal_lt",
         Helper::DecimalLtEq => "decimal_lt_eq",
+        Helper::DecimalCmp => "decimal_cmp",
         Helper::IntToUint => "int_to_uint",
         Helper::UintToInt => "uint_to_int",
         Helper::IntToFloat => "int_to_float",
@@ -470,6 +473,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::Identical => "identical",
         Helper::NumericEq => "numeric_eq",
         Helper::NumericLt => "numeric_lt",
+        Helper::NumericCmp => "numeric_cmp",
         Helper::NumericLtEq => "numeric_lt_eq",
         Helper::SecretEq => "secret_eq",
     }

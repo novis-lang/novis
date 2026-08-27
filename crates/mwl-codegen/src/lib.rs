@@ -593,6 +593,11 @@ struct Signatures {
     /// which share one shape: two raw pointers to an `I8`, like
     /// `Sigs::instanceof`.
     ptr_eq: Signature,
+    /// `mwl_float_pow(base, exponent) -> f64` — ADR 0007 § 4's `**` over two
+    /// `float`s, which has no machine instruction and no `LibCall` either. See
+    /// [`crate::emit`]'s module doc for why it is a direct call of this shape
+    /// rather than one more [`Signatures::helper`].
+    float_pow: Signature,
     /// `mwl_str_retain(ptr)` / `mwl_str_release(ptr)`, and the two
     /// `mwl_throwable_*` counterparts.
     refcount: Signature,
@@ -950,6 +955,11 @@ impl Signatures {
         ptr_eq.params.push(AbiParam::new(ptr));
         ptr_eq.returns.push(AbiParam::new(types::I8));
 
+        let mut float_pow = module.make_signature();
+        float_pow.params.push(AbiParam::new(types::F64));
+        float_pow.params.push(AbiParam::new(types::F64));
+        float_pow.returns.push(AbiParam::new(types::F64));
+
         let mut refcount = module.make_signature();
         refcount.params.push(AbiParam::new(ptr));
 
@@ -1060,6 +1070,7 @@ impl Signatures {
             probe_call_exit,
             str_concat,
             ptr_eq,
+            float_pow,
             refcount,
             value_refcount,
             ptr_to_ptr,

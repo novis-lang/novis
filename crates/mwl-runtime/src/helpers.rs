@@ -197,6 +197,17 @@ crate::mwl_helper! {
 }
 
 crate::mwl_helper! {
+    /// `mwl_ir::Helper::NumericCmp` — `<=>` over a mixed numeric pair, which
+    /// is [`mwl_numeric_lt`]'s row read whole rather than asked one question.
+    ///
+    /// Total, so no error edge. See [`spaceship`] for the `NaN` row, which is
+    /// the one place the three `<=>` helpers had a choice to make.
+    fn mwl_numeric_cmp(_ctx, args: [2]) {
+        Ok(Value::int(spaceship(crate::numeric_ordering(args[0], args[1]))))
+    }
+}
+
+crate::mwl_helper! {
     /// `mwl_ir::Helper::SecretEq` — `==` where the checker typed at least one
     /// operand `secret`, which
     /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
@@ -882,6 +893,31 @@ crate::mwl_helper! {
 }
 
 crate::mwl_helper! {
+    /// `mwl_ir::Helper::DecimalCmp` — `<=>` with a `decimal` operand, which is
+    /// [`mwl_decimal_lt`]'s row read whole. ADR 0054 § 3 grants it across
+    /// every pairing, including the `decimal`/`float` one arithmetic refuses.
+    fn mwl_decimal_cmp(_ctx, args: [2]) {
+        Ok(Value::int(spaceship(decimal_ordering(args[0], args[1]))))
+    }
+}
+
+/// The `int` an ordering answers `<=>` with, shared by the two helpers above
+/// and matching what `mwl_ir::BinOp::Cmp` emits inline for a matched pair.
+///
+/// [`None`] — an unordered pair, which means a `NaN` on one side — is **`1`**,
+/// not `0`. That is PHP's own answer, and it is the whole reason this is a
+/// three-way match rather than the arithmetic `(a > b) - (a < b)`: the latter
+/// reads an unordered pair as *equal*, which is the one thing it certainly is
+/// not.
+fn spaceship(ordering: Option<core::cmp::Ordering>) -> i64 {
+    match ordering {
+        Some(core::cmp::Ordering::Less) => -1,
+        Some(core::cmp::Ordering::Equal) => 0,
+        _ => 1,
+    }
+}
+
+crate::mwl_helper! {
     /// `mwl_ir::Helper::DecimalTruthy` — ADR 0035's numeric row: falsy iff
     /// zero, at any scale.
     fn mwl_decimal_truthy(_ctx, args: [1]) {
@@ -1118,6 +1154,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_value_identical", address(mwl_value_identical)),
         ("mwl_numeric_eq", address(mwl_numeric_eq)),
         ("mwl_numeric_lt", address(mwl_numeric_lt)),
+        ("mwl_numeric_cmp", address(mwl_numeric_cmp)),
         ("mwl_numeric_lt_eq", address(mwl_numeric_lt_eq)),
         ("mwl_secret_eq", address(mwl_secret_eq)),
         ("mwl_int_to_uint", address(mwl_int_to_uint)),
@@ -1146,6 +1183,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_decimal_eq", address(mwl_decimal_eq)),
         ("mwl_decimal_lt", address(mwl_decimal_lt)),
         ("mwl_decimal_lt_eq", address(mwl_decimal_lt_eq)),
+        ("mwl_decimal_cmp", address(mwl_decimal_cmp)),
         ("mwl_decimal_truthy", address(mwl_decimal_truthy)),
         ("mwl_to_decimal", address(mwl_to_decimal)),
         ("mwl_to_decimal_or_null", address(mwl_to_decimal_or_null)),
@@ -1178,6 +1216,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         (
             "mwl_array_eq",
             (crate::identity::mwl_array_eq as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_float_pow",
+            (crate::arith::mwl_float_pow as *const ()).cast::<u8>(),
         ),
         (
             "mwl_str_retain",

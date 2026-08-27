@@ -237,6 +237,7 @@ mod abi;
 // module's doc states.
 #[cfg(any(test, not(debug_assertions)))]
 mod alloc;
+pub mod arith;
 pub mod array;
 pub mod closure;
 #[cfg(test)]
@@ -279,6 +280,7 @@ static POOLED_ALLOCATOR: alloc::Pooled = alloc::Pooled;
 pub use abi::{
     FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, affordable, call, run_helper,
 };
+pub use arith::mwl_float_pow;
 pub use array::{
     ARRAY_REFCOUNT_OFFSET, ArrayHeader, MwlArray, SlotKey, mwl_array_append, mwl_array_count,
     mwl_array_get, mwl_array_get_index, mwl_array_has_key, mwl_array_key_at, mwl_array_new,

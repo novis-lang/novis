@@ -345,9 +345,17 @@ impl<'a> Lowering<'a> {
             BinaryOp::Gt => (Helper::DecimalLt, Ty::Bool, vec![rhs, lhs], false),
             BinaryOp::LtEq => (Helper::DecimalLtEq, Ty::Bool, vec![lhs, rhs], false),
             BinaryOp::GtEq => (Helper::DecimalLtEq, Ty::Bool, vec![rhs, lhs], false),
+            // The one row here whose answer is neither a `bool` nor a
+            // `decimal`: `<=>` is the ordering the four above each ask one
+            // question of, returned whole. ADR 0054 § 3 grants it on the same
+            // grounds it grants them — an exact comparison is computable
+            // across every pairing, including the `decimal`/`float` one
+            // arithmetic refuses.
+            BinaryOp::Cmp => (Helper::DecimalCmp, Ty::Int, vec![lhs, rhs], false),
             other => panic!(
                 "mwl-ir lowers ADR 0054 § 3's arithmetic, equality and ordering operators over \
-                 `decimal` — got {other:?}; `**` and `<=>` have no row there"
+                 `decimal` — got {other:?}; `**` has no row there, and is the \
+                 diagnostic `mwl_types::expr::operators::power_result` reports"
             ),
         };
         let inst = InstKind::HelperCall { helper, args };
@@ -2439,6 +2447,26 @@ impl<'a> Lowering<'a> {
         // where PHP answers an ordering. `>`/`>=` are the same two helpers
         // with their operands swapped, the arrangement `lower_decimal_binary`
         // already uses. See `Helper::NumericLt`.
+        // `<=>` over a mixed numeric pair, by the same route and for the same
+        // reason as the four ordering operators below — one exact answer over
+        // the whole domain, where the widening past this point would raise
+        // `ArithmeticError` above 2^53 for a pair that orders perfectly well.
+        // Split out rather than folded in with them because its result is an
+        // `int` and theirs is a `bool`. See `Helper::NumericCmp`.
+        if op == BinaryOp::Cmp
+            && lty != rty
+            && matches!(lty, Ty::Int | Ty::Uint | Ty::Float)
+            && matches!(rty, Ty::Int | Ty::Uint | Ty::Float)
+        {
+            return self.emit(
+                *cur,
+                Ty::Int,
+                InstKind::HelperCall {
+                    helper: Helper::NumericCmp,
+                    args: vec![lv, rv],
+                },
+            );
+        }
         if matches!(
             op,
             BinaryOp::Lt | BinaryOp::LtEq | BinaryOp::Gt | BinaryOp::GtEq
@@ -2492,6 +2520,12 @@ impl<'a> Lowering<'a> {
             BinaryOp::Div if matches!(lty, Ty::Int | Ty::Uint) => (BinOp::Div, Ty::Tagged),
             BinaryOp::Div => (BinOp::Div, lty),
             BinaryOp::Mod => (BinOp::Mod, lty),
+            // ADR 0007 § 4 puts `**` in the same row as `+`, `-` and `*` — the
+            // operand type, and a throw rather than a wrap — so it needs no
+            // arm of its own here beyond this one. What is not shared is the
+            // *emission*: see `BinOp::Pow`, which is a loop over an integer
+            // pair and a call over a float one.
+            BinaryOp::Pow => (BinOp::Pow, lty),
             // ADR 0007 § 4's bitwise rows, all five of which preserve the
             // operand type. `>>` is the one that reads its operand's
             // signedness rather than only its width — arithmetic on an `int`,
@@ -2508,6 +2542,13 @@ impl<'a> Lowering<'a> {
             BinaryOp::LtEq => (BinOp::LtEq, Ty::Bool),
             BinaryOp::Gt => (BinOp::Gt, Ty::Bool),
             BinaryOp::GtEq => (BinOp::GtEq, Ty::Bool),
+            // ADR 0013 § 2's `<=>` over a *scalar*: the object form never
+            // reaches here (`lower_expr`'s guarded arm takes it), and a mixed
+            // numeric or `decimal` pair has already returned above — so what
+            // is left is one representation and one `BinOp` over it. The
+            // result is an `int` whatever the operands hold, which alongside
+            // `Div` makes it the second row whose type is not `lty`.
+            BinaryOp::Cmp => (BinOp::Cmp, Ty::Int),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers arithmetic/equality/ordering \
                  operators — got {other:?}; see the crate docs' known gaps"
@@ -2520,9 +2561,10 @@ impl<'a> Lowering<'a> {
         // `Concat` arm above applies to its own fresh operands.
         //
         // Every *integer* arithmetic operator here can fail, and ADR 0007 § 4
-        // is why: `+`, `-` and `*` throw `ArithmeticError` on overflow rather
-        // than wrapping, and `%` and `/` throw it on a zero divisor.
-        // `mwl-codegen` raises all five inline rather than through a helper,
+        // is why: `+`, `-`, `*` and `**` throw `ArithmeticError` on overflow
+        // rather than wrapping, `%` and `/` throw it on a zero divisor, and
+        // `**` throws it on a negative exponent as well.
+        // `mwl-codegen` raises all six inline rather than through a helper,
         // so each needs an error edge exactly the way a call does. `/` is
         // recognised by its *result* rather than by its operands, since the
         // integer row is the one that produces a `Ty::Tagged`. Every other
@@ -2534,7 +2576,9 @@ impl<'a> Lowering<'a> {
             rhs: rv,
         };
         let fallible = match bop {
-            BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Mod => matches!(ty, Ty::Int | Ty::Uint),
+            BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Mod | BinOp::Pow => {
+                matches!(ty, Ty::Int | Ty::Uint)
+            }
             BinOp::Div => ty == Ty::Tagged,
             // A shift throws only on a *negative* count, which is PHP's rule
             // and which a `uint` count cannot produce — so the unsigned row is

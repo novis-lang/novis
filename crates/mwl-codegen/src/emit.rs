@@ -24,6 +24,28 @@
 //! puts in place of a landing pad, and a non-`OK` status returns onward
 //! unchanged. `mwl_probe_stmt` and the refcount primitives are the exceptions,
 //! and only because they return no status at all: neither can fail.
+//!
+//! # A runtime call that is not a helper
+//!
+//! Four symbols this file calls take neither ADR 0002's helper convention nor
+//! the status check above: `mwl_str_eq`, `mwl_array_eq`, `mwl_float_pow` and
+//! the refcount primitives. The rule they share is that the operand
+//! *representation* is already statically known at the emit site and the
+//! operation is total, so the convention's price — marshalling each argument
+//! into a stack slot of tagged `mwl_runtime::Value`s, reading the result back
+//! out of an out-slot, and branching on a status that is always `OK` — would
+//! buy nothing. Each gets a two-argument signature of its own in
+//! `crate::Signatures` instead.
+//!
+//! `mwl_float_pow` is the one of those that had a real alternative, so it is
+//! worth naming: ADR 0007 § 4's `**` over two `float`s could have been one
+//! more `mwl_ir::Helper`. It is not, because Cranelift has no `fpow`
+//! instruction and no `LibCall::Pow` either — the row has to be *some* call,
+//! and given that, the cheap shape is the honest one. AGENTS.md's priority
+//! ordering puts latency (3) above simplicity (4), and the cost is one
+//! `Signature`, one `RuntimeSig` arm and a thirty-line runtime module. The
+//! integer row of the same operator stays inline as a square-and-multiply
+//! loop; see `Emitter::emit_int_pow`.
 
 use cranelift::prelude::*;
 use cranelift_jit::JITModule;
@@ -1095,12 +1117,30 @@ impl Emitter<'_, '_> {
         if matches!(op, BinOp::Shl | BinOp::Shr) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_shift(cur, inst, op, l, r, signed);
         }
+        // And `**`, the one row in this table that is not a bounded run of
+        // instructions at all. See `Self::emit_int_pow`.
+        if matches!(op, BinOp::Pow) && matches!(ty, Ty::Int | Ty::Uint) {
+            return self.emit_int_pow(inst, l, r, signed);
+        }
 
         let value = match op {
             BinOp::Add if float => self.b.ins().fadd(l, r),
             BinOp::Sub if float => self.b.ins().fsub(l, r),
             BinOp::Mul if float => self.b.ins().fmul(l, r),
             BinOp::Div if float => self.b.ins().fdiv(l, r),
+            // The one arm here that is a *call*: there is no `fpow`
+            // instruction on any target Cranelift supports and no
+            // `LibCall::Pow` to defer to, so ADR 0007 § 4's float `**` row has
+            // to leave the compiled function. It goes direct rather than
+            // through ADR 0002's helper convention for the reason this
+            // module's docs give — the row's representation is already known
+            // here and `f64::powf` raises nothing — which is the same trade
+            // the `mwl_str_eq` arm above makes.
+            BinOp::Pow if float => {
+                let callee = self.runtime_ref("mwl_float_pow", RuntimeSig::FloatPow)?;
+                let call = self.b.ins().call(callee, &[l, r]);
+                self.b.inst_results(call)[0]
+            }
             // Reached only by `Ty::Bool`, the third member of `integral`
             // above: every `Ty::Int`/`Ty::Uint` pair has already gone to
             // `Self::emit_checked_int_arith`, which is where ADR 0007 § 4's
@@ -1143,6 +1183,35 @@ impl Emitter<'_, '_> {
                     };
                     self.b.ins().icmp(cc, l, r)
                 }
+            }
+            // `<=>`, spelled "less, else equal, else 1" rather than as the
+            // tidier `(a > b) - (a < b)`. The two agree everywhere except on a
+            // `NaN` operand, where every float comparison is false: the second
+            // formula would answer `0` — "equal" — for a pair that is not, and
+            // PHP answers `1`. Two `select`s and no branch, which is why the
+            // spelling that is correct is also the one that is cheap.
+            BinOp::Cmp => {
+                let (less, equal) = if float {
+                    (
+                        self.b.ins().fcmp(FloatCC::LessThan, l, r),
+                        self.b.ins().fcmp(FloatCC::Equal, l, r),
+                    )
+                } else {
+                    let cc = if signed {
+                        IntCC::SignedLessThan
+                    } else {
+                        IntCC::UnsignedLessThan
+                    };
+                    (
+                        self.b.ins().icmp(cc, l, r),
+                        self.b.ins().icmp(IntCC::Equal, l, r),
+                    )
+                };
+                let below = self.b.ins().iconst(types::I64, -1);
+                let same = self.b.ins().iconst(types::I64, 0);
+                let above = self.b.ins().iconst(types::I64, 1);
+                let not_below = self.b.ins().select(equal, same, above);
+                self.b.ins().select(less, below, not_below)
             }
             other => {
                 return Err(CodegenError::Unsupported(format!(
@@ -1420,6 +1489,166 @@ impl Emitter<'_, '_> {
             self.b.ins().iconst(types::I64, 0)
         };
         Ok((self.b.ins().select(past_width, saturated, shifted), cur))
+    }
+
+    /// Integer `**` — square-and-multiply, with ADR 0007 § 4's overflow throw
+    /// checked at **every** step rather than only on the result.
+    ///
+    /// This is the only operator in the table whose emission is a *loop*, and
+    /// it is one because no target has an integer power instruction: the
+    /// exponent's bits are walked low to high, the accumulator taking a factor
+    /// on each set bit and the running square doubling its exponent on each
+    /// step. At most 64 iterations, and the usual small exponent leaves after
+    /// two or three.
+    ///
+    /// Three details are load-bearing:
+    ///
+    /// * **The square is not taken after the last set bit.** `2 ** 62` would
+    ///   otherwise overflow on a `base` nothing then multiplies by, reporting
+    ///   a failure for a representable answer. So the exhaustion test happens
+    ///   between the multiply and the square, not at the top of the loop only.
+    /// * **The product's overflow flag is masked by the bit.** The multiply is
+    ///   computed unconditionally — `smul_overflow` cannot straddle two blocks,
+    ///   the same constraint [`Self::emit_overflow_guard`] documents — and a
+    ///   `select` keeps it or drops it, so its overflow is only a throw on the
+    ///   step that actually wanted the factor.
+    /// * **A negative exponent throws**, except over a base of `1` or `-1`.
+    ///   ADR 0007 § 4's row is "the same type … no wrap, no promotion to
+    ///   `float`", so `2 ** -1` has no `int` to answer and PHP's `0.5` is
+    ///   exactly the promotion that row refuses; `1 ** -1` and `(-1) ** -3` do
+    ///   have one, and answering it costs nothing on the hot path because the
+    ///   whole decision sits behind the sign test. A `uint` exponent cannot be
+    ///   negative, so the unsigned row carries no guard at all — which is why
+    ///   `mwl_ir::lower` marks `**` fallible on both, and only this function
+    ///   knows the two rows raise for different reasons.
+    fn emit_int_pow(
+        &mut self,
+        inst: &Inst,
+        base: Value,
+        exponent: Value,
+        signed: bool,
+    ) -> Result<(Value, Block), CodegenError> {
+        let done = self.b.create_block();
+        self.b.append_block_param(done, types::I64);
+        let overflow = self.b.create_block();
+        // The accumulator, the running square, and what is left of the
+        // exponent — carried as block parameters because this is a loop and
+        // `FunctionBuilder` has no other way to phi them.
+        let header = self.b.create_block();
+        for _ in 0..3 {
+            self.b.append_block_param(header, types::I64);
+        }
+        let one = self.b.ins().iconst(types::I64, 1);
+
+        if signed {
+            let negative_exponent = self.b.create_block();
+            let start = self.b.create_block();
+            let negative = self.b.ins().icmp_imm_s(IntCC::SignedLessThan, exponent, 0);
+            self.b
+                .ins()
+                .brif(negative, negative_exponent, &[], start, &[]);
+
+            self.b.switch_to_block(negative_exponent);
+            let reciprocal = self.b.create_block();
+            let raise = self.b.create_block();
+            let is_one = self.b.ins().icmp_imm_s(IntCC::Equal, base, 1);
+            let is_minus_one = self.b.ins().icmp_imm_s(IntCC::Equal, base, -1);
+            let unit = self.b.ins().bor(is_one, is_minus_one);
+            self.b.ins().brif(unit, reciprocal, &[], raise, &[]);
+
+            self.b.switch_to_block(raise);
+            self.raise_arithmetic_error(inst, b"Negative exponent has no integer result")?;
+
+            // `base` is `1` or `-1` here, so `1/base` is `base` — and the
+            // answer alternates with the exponent's parity for the second and
+            // is constantly `1` for the first, which `select` gives at once.
+            self.b.switch_to_block(reciprocal);
+            let bit = self.b.ins().band_imm_u(exponent, 1);
+            let odd = self.b.ins().icmp_imm_u(IntCC::NotEqual, bit, 0);
+            let value = self.b.ins().select(odd, base, one);
+            self.b
+                .ins()
+                .jump(done, &[codegen::ir::BlockArg::Value(value)]);
+
+            self.b.switch_to_block(start);
+        }
+        self.b.ins().jump(
+            header,
+            &[
+                codegen::ir::BlockArg::Value(one),
+                codegen::ir::BlockArg::Value(base),
+                codegen::ir::BlockArg::Value(exponent),
+            ],
+        );
+
+        self.b.switch_to_block(header);
+        let accumulator = self.b.block_params(header)[0];
+        let square = self.b.block_params(header)[1];
+        let remaining = self.b.block_params(header)[2];
+        let body = self.b.create_block();
+        let exhausted = self.b.ins().icmp_imm_u(IntCC::Equal, remaining, 0);
+        self.b.ins().brif(
+            exhausted,
+            done,
+            &[codegen::ir::BlockArg::Value(accumulator)],
+            body,
+            &[],
+        );
+
+        self.b.switch_to_block(body);
+        let bit = self.b.ins().band_imm_u(remaining, 1);
+        let odd = self.b.ins().icmp_imm_u(IntCC::NotEqual, bit, 0);
+        let (product, product_overflowed) = if signed {
+            self.b.ins().smul_overflow(accumulator, square)
+        } else {
+            self.b.ins().umul_overflow(accumulator, square)
+        };
+        let wanted = self.b.ins().band(odd, product_overflowed);
+        let multiplied = self.b.create_block();
+        self.b.ins().brif(wanted, overflow, &[], multiplied, &[]);
+
+        self.b.switch_to_block(multiplied);
+        let next_accumulator = self.b.ins().select(odd, product, accumulator);
+        // Logical, on both rows: the signed one refused every negative
+        // exponent above, so what is left here is a magnitude either way.
+        let next_remaining = self.b.ins().ushr_imm_u(remaining, 1);
+        let squaring = self.b.create_block();
+        let last = self.b.ins().icmp_imm_u(IntCC::Equal, next_remaining, 0);
+        self.b.ins().brif(
+            last,
+            done,
+            &[codegen::ir::BlockArg::Value(next_accumulator)],
+            squaring,
+            &[],
+        );
+
+        self.b.switch_to_block(squaring);
+        let (next_square, square_overflowed) = if signed {
+            self.b.ins().smul_overflow(square, square)
+        } else {
+            self.b.ins().umul_overflow(square, square)
+        };
+        let again = self.b.create_block();
+        self.b
+            .ins()
+            .brif(square_overflowed, overflow, &[], again, &[]);
+
+        self.b.switch_to_block(again);
+        self.b.ins().jump(
+            header,
+            &[
+                codegen::ir::BlockArg::Value(next_accumulator),
+                codegen::ir::BlockArg::Value(next_square),
+                codegen::ir::BlockArg::Value(next_remaining),
+            ],
+        );
+
+        self.b.switch_to_block(overflow);
+        self.raise_arithmetic_error(inst, b"Integer exponentiation overflowed")?;
+
+        self.b.switch_to_block(done);
+        let value = self.b.block_params(done)[0];
+        Ok((value, done))
     }
 
     /// The branch shared by every overflow row: throw where `overflowed` is
@@ -2740,6 +2969,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::ProbeCallExit => &self.sigs.probe_call_exit,
             RuntimeSig::StrConcat => &self.sigs.str_concat,
             RuntimeSig::PtrEq => &self.sigs.ptr_eq,
+            RuntimeSig::FloatPow => &self.sigs.float_pow,
             RuntimeSig::Refcount => &self.sigs.refcount,
             RuntimeSig::ValueRefcount => &self.sigs.value_refcount,
             RuntimeSig::PtrToPtr => &self.sigs.ptr_to_ptr,
@@ -2797,6 +3027,7 @@ enum RuntimeSig {
     ProbeCallExit,
     StrConcat,
     PtrEq,
+    FloatPow,
     Refcount,
     ValueRefcount,
     PtrToPtr,
@@ -2838,6 +3069,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::Identical => "mwl_value_identical",
         Helper::NumericEq => "mwl_numeric_eq",
         Helper::NumericLt => "mwl_numeric_lt",
+        Helper::NumericCmp => "mwl_numeric_cmp",
         Helper::NumericLtEq => "mwl_numeric_lt_eq",
         Helper::SecretEq => "mwl_secret_eq",
         Helper::ArrayTruthy => "mwl_array_truthy",
@@ -2868,6 +3100,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::DecimalEq => "mwl_decimal_eq",
         Helper::DecimalLt => "mwl_decimal_lt",
         Helper::DecimalLtEq => "mwl_decimal_lt_eq",
+        Helper::DecimalCmp => "mwl_decimal_cmp",
         Helper::ToDecimal => "mwl_to_decimal",
         Helper::ToDecimalOrNull => "mwl_to_decimal_or_null",
         Helper::DecimalToInt => "mwl_decimal_to_int",

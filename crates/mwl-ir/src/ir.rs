@@ -1244,6 +1244,13 @@ pub enum Helper {
     DecimalLt,
     /// `a <= b` with a `decimal` operand; `>=` is this one swapped.
     DecimalLtEq,
+    /// `a <=> b` with a `decimal` operand — the ordering [`Self::DecimalLt`]
+    /// asks one question of, answered whole as an `int`. ADR 0054 § 3 grants
+    /// this row for the reason [`Self::DecimalEq`] states: an exact comparison
+    /// is computable across every pairing, including the `decimal`/`float` one
+    /// arithmetic refuses. An unordered pair is `1`, as it is for
+    /// [`Self::NumericCmp`] and [`BinOp::Cmp`].
+    DecimalCmp,
     /// `$n as uint` — ADR 0007 § 2's `int` ↔ `uint` row. Exact, or **throws**
     /// on a negative value. The first of nine helpers that can fail rather
     /// than convert, so each is emitted through
@@ -1460,6 +1467,12 @@ pub enum Helper {
     /// `a <= b` over a mixed numeric pair — [`Self::NumericLt`]'s row
     /// inclusive, and `>=` is this one swapped.
     NumericLtEq,
+    /// `a <=> b` over a mixed numeric pair — [`Self::NumericLt`]'s row, read
+    /// as an ordering rather than as one question about it, and answered as an
+    /// `int`. The `None` that row returns for a `NaN` operand becomes `1`,
+    /// which is PHP's answer for an unordered pair and the same convention
+    /// [`BinOp::Cmp`] follows for a matched one.
+    NumericCmp,
     /// `a == b` over two operands at least one of which the checker typed
     /// `secret` —
     /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
@@ -1507,6 +1520,15 @@ pub enum BinOp {
     Div,
     /// `%`
     Mod,
+    /// `**`. ADR 0007 § 4 lists this beside `+`, `-` and `*`, so the integer
+    /// row **throws** rather than wrapping and it carries [`Inst::on_error`]
+    /// too — including for a *negative* exponent, which that row's "no
+    /// promotion to `float`" leaves with no `int` to answer except where the
+    /// base is `1` or `-1`. Neither representation is one instruction:
+    /// `mwl-codegen` emits a square-and-multiply loop for the integer row and
+    /// calls `mwl_runtime::mwl_float_pow` for the float one, there being no
+    /// `fpow` on any target and no `LibCall` for it either.
+    Pow,
     /// `&` — ADR 0007 § 4 preserves the operand type, and this and the two
     /// below are total: no pair of `int`s or `uint`s has an unrepresentable
     /// bitwise combination, so none of the three carries [`Inst::on_error`].
@@ -1544,6 +1566,21 @@ pub enum BinOp {
     Gt,
     /// `>=`
     GtEq,
+    /// `<=>`, over a **matched** scalar representation — `-1`, `0` or `1` as
+    /// an [`crate::ty::Ty::Int`], never the operands' own type.
+    ///
+    /// PHP's own answer for an unordered pair is `1` rather than `0`, so this
+    /// is emitted as "less, else equal, else `1`" and not as the tidier
+    /// `(a > b) - (a < b)`: the two differ on exactly the `NaN` rows, where
+    /// every float comparison is false and the second formula would answer
+    /// `0` — that is, "equal" — for a pair that is not.
+    ///
+    /// A pairing with two representations does not reach here, the same way it
+    /// does not for [`Self::Eq`]: a mixed numeric pair takes
+    /// [`Helper::NumericCmp`], a `decimal` one [`Helper::DecimalCmp`], and two
+    /// objects are ADR 0013's `Comparable::compareTo` call, whose `int` result
+    /// already *is* this operator's answer.
+    Cmp,
 }
 
 /// A unary operator.

@@ -1,0 +1,74 @@
+--TEST--
+`<=>` answers -1, 0 or 1 for every scalar `<` already orders, and `1` for an unordered pair (ADR 0013 § 2; ADR 0007 § 4; ADR 0054 § 3)
+--FILE--
+<?mwl
+// ADR 0013 § 2 gave `<=>` an *object* row — `Comparable::compareTo`, whose
+// `int` already is this operator's answer. Every scalar row is the same three
+// values, and the result is an `int` whatever the operands are.
+int $small = 2;
+int $large = 3;
+echo $small <=> $large, " ", $large <=> $small, " ", $small <=> $small, "\n";
+
+// The `uint` row is unsigned throughout, and the `int` one signed: a negative
+// operand is *below* a positive one and not above it, which is exactly what an
+// unsigned comparison on the same bits would get wrong.
+uint $seven = 7;
+uint $nine = 9;
+echo $seven <=> $nine, " ", $nine <=> $seven, " ", $seven <=> $seven, "\n";
+int $verySmall = 0 - 9223372036854775807;
+echo $verySmall <=> $small, "\n";
+
+// `false < true`, so `true <=> false` is `1` — PHP's own answer for the row.
+bool $yes = true;
+bool $no = false;
+echo $yes <=> $no, " ", $no <=> $yes, " ", $yes <=> $yes, "\n";
+
+float $lower = 1.5;
+float $upper = 2.5;
+echo $lower <=> $upper, " ", $upper <=> $lower, " ", $lower <=> $lower, "\n";
+
+// A mixed numeric pair is ADR 0007 § 4's "exact answer in the mathematical
+// integers": it is settled by the same helper `<` uses rather than by § 2's
+// implicit widening, which throws above 2^53 for a pair that still orders.
+echo 1 <=> 1.5, " ", 2.5 <=> 2, "\n";
+
+// ADR 0054 § 3 grants `decimal` every comparison, including the
+// `decimal`/`float` pairing arithmetic refuses, because an exact comparison is
+// computable where a common arithmetic type is not.
+decimal $quarter = 1.25;
+decimal $half = 2.50;
+echo $quarter <=> $half, " ", $half <=> $quarter, " ", $quarter <=> $quarter, "\n";
+echo $quarter <=> 1.25, "\n";
+
+// An unordered pair answers `1`, not `0`. This is the row that decides the
+// spelling: `NAN` is neither below, equal to nor above anything — including
+// itself — and reading "neither less nor greater" as "equal" would be the one
+// answer that is certainly wrong.
+float $nan = 0.0 / 0.0;
+echo $nan <=> $lower, " ", $lower <=> $nan, " ", $nan <=> $nan, "\n";
+
+// `<=>` agrees with the relational operators wherever they have an answer, so
+// the ordering is one ordering and not two. Counted rather than read off a
+// line: a row that grew its own comparison fails here while still printing
+// plausibly on its own.
+int $agreements = 0;
+if (($small <=> $large) == (0 - 1)) { $agreements = $agreements + 1; }
+if ($small < $large) { $agreements = $agreements + 1; }
+if (($lower <=> $upper) == (0 - 1)) { $agreements = $agreements + 1; }
+if ($lower < $upper) { $agreements = $agreements + 1; }
+if (($seven <=> $nine) == (0 - 1)) { $agreements = $agreements + 1; }
+if ($seven < $nine) { $agreements = $agreements + 1; }
+if (($quarter <=> $half) == (0 - 1)) { $agreements = $agreements + 1; }
+if ($quarter < $half) { $agreements = $agreements + 1; }
+echo $agreements, "\n";
+--EXPECT--
+-1 1 0
+-1 1 0
+-1
+1 -1 0
+-1 1 0
+-1 1
+-1 1 0
+0
+1 1 1
+8

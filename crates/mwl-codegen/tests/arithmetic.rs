@@ -253,3 +253,52 @@ echo $a * $b;
         "9223372036854775806"
     );
 }
+
+/// ADR 0013 § 2's `<=>` over a *scalar*, which until now had only an object
+/// row: `-1`, `0` or `1` as an `int`, never the operands' own type, over every
+/// representation the relational operators already order.
+///
+/// Swept rather than spot-checked, because what is being pinned is that the
+/// three routes into this operator — the inline `BinOp::Cmp` for a matched
+/// pair, `Helper::NumericCmp` for a mixed numeric one and `Helper::DecimalCmp`
+/// for a `decimal` — **agree**, rather than what any one of them answered.
+///
+/// The `NaN` row is the one that had a choice to make, and it is why the
+/// emission is a three-way "less, else equal, else 1" and not the tidier
+/// `(a > b) - (a < b)`: PHP answers `1` for an unordered pair, and the
+/// arithmetic formula would answer `0` — that is, "equal" — for two values
+/// that are not.
+#[test]
+fn a_spaceship_answers_minus_one_zero_or_one_for_a_scalar() {
+    for (declared, less, more) in [
+        ("int", "2", "3"),
+        ("uint", "7", "9"),
+        ("float", "1.5", "2.5"),
+        ("decimal", "1.25", "2.50"),
+    ] {
+        let source = format!(
+            "<?mwl\n{declared} $a = {less};\n{declared} $b = {more};\n\
+             echo $a <=> $b, $b <=> $a, $a <=> $a;\n"
+        );
+        assert_eq!(output_of(&source), "-110", "{declared}");
+    }
+    // A `bool` orders `false < true`, so `true <=> false` is `1` — PHP's own
+    // answer, and the row that reaches `emit_binop`'s unsigned comparison.
+    assert_eq!(
+        output_of(
+            "<?mwl\nbool $t = true;\nbool $f = false;\necho $t <=> $f, $f <=> $t, $t <=> $t;\n"
+        ),
+        "1-10"
+    );
+    // A mixed numeric pair does not widen: ADR 0007 § 2's implicit `int` into
+    // `float` throws above 2^53, and a pair that far apart still orders.
+    assert_eq!(output_of("<?mwl\necho 1 <=> 1.5, 2.5 <=> 2;\n"), "-11");
+    // Unordered, in both directions and against itself.
+    assert_eq!(
+        output_of(
+            "<?mwl\nfloat $n = 0.0 / 0.0;\nfloat $x = 1.5;\n\
+             echo $n <=> $x, $x <=> $n, $n <=> $n;\n"
+        ),
+        "111"
+    );
+}
