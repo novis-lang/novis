@@ -2,62 +2,61 @@
 
 ## State
 
-**M4 — language completeness.** An increment is a **write**, which is the half
-`mwl_types::expr`'s `PreIncDec`/`PostIncDec` arm used to leave out: it now marks its target's
-subscript levels and runs `assign::check_write_target`, so `$a?->b++`, `$g->hooked["0"]++` and
-`$erased->rows["0"]++` take the same `E0479`/`E0478`/`E0480` the `=` and `⊕=` spellings have taken
-since `c5a8761`, instead of two `mwl-ir` panics and one `E0482` blaming the subscript for the
-`?->` above it. The numeric refusal is skipped when the write refusal fired, so a refused target
-is one diagnostic and not two. Item 29's remaining half — the `mwl-ir` assert at
-`lower/stmt.rs`'s `PropertyAccess` target arm — no longer advertises a gap it does not have; it
-asserts the checker's answer and names `E0479`.
+**M4 — language completeness.** Two of the three shapes that reached `mwl-ir`'s statement
+catch-all are gone, and they went out opposite doors.
 
-`mwl-ir`'s statement slice also lowers **a typed declaration with no initializer** (`int $x;`) and
-**the empty statement** `;`. The declaration binds nothing — `mwl_types::locals`' definite
-assignment is what makes that safe — but it does fix the representation, in the new
-`Lowering::declared_tys`, which the reassignment arm reads when `Env` has no entry yet. Without
-that the *first* assignment would take its representation from the right-hand side, and
-`?string $s;` assigned a string on one branch and `null` on the other would merge two shapes.
-Nothing that compiles today can reach the new map, since every program that fills it panicked
-before.
+**Inline HTML lowers.** A run of text between `?>` and the next `<?mwl` is
+`Lowering::lower_inline_html` (`crates/mwl-ir/src/lower/expr.rs:374`) — the same
+`Helper::EchoStr` write `lower_echo` emits, over the span's raw source bytes, with the
+`ConstStr` owned as a temporary so both edges release it. Nothing had to be cooked or
+escaped, and nothing is file-scope-specific: the lexer already swallows the one newline
+after `?>` and pushes no token for an empty run, and a run inside a loop body lowers into
+that body. Byte-identical to PHP over the same file, checked by hand; `tools/leak-check.sh`
+clean.
 
-Two conformance cases under `tests/conformance/lang/`; `tools/leak-check.sh` clean over both new
-paths; `verify.py` green — conformance 626, differential 173. `python tools/holes.py` is at 25
-sites.
+**A `class`, `interface` or `enum` declared anywhere but file scope is `E0233`** — a decision
+this session took and recorded in `docs/adr/README.md` § *Decisions taken at project start*:
+a name whose existence depends on control flow has no reading MWL's static class table can
+give it. It is reported by `mwl_types::locals`' per-body walk
+(`crates/mwl-types/src/locals.rs:940`, `nested_type_declaration`), which is reached *only*
+from inside a body — `check::check_stmts` matches all three at file scope itself and never
+forwards one — so arriving is the nesting test and no flag is threaded. Covers a method body,
+a property hook, a closure body and a block at file scope.
 
-**Gap in the pack:** the item's own prose was stale (see the playbook bullet), and `orient.py`
-printed no map line or window for `crates/mwl-types/src/expr/assign.rs`, which is where the three
-write-target refusals actually live. `[context] modules` wants an `mwl-types/src/expr/assign.rs`
-pattern on any item about an assignment target.
+`mwl-ir`'s known-gaps list gained a rule it was already following by accident: **a number
+there is a stable identifier and a closed gap leaves a hole**, never a renumber, because
+`loop-goal.md` and `playbook.md` cite them. Gap 13 is retired.
+
+Two conformance cases under `tests/conformance/lang/`; `verify.py` green — conformance 628,
+differential 173. `python tools/holes.py` is at 25 sites.
+
+**Gap in the pack:** `orient.py` printed no map line for `crates/mwl-types/src/check.rs`,
+which is what proves the `locals.rs` walk is nested-only. `[context] modules` wants an
+`mwl-types/src/check.rs` pattern on any item about where a statement is checked.
 
 ## Next group
 
-**The three shapes still reaching the statement slice's catch-all.** The file set:
-`crates/mwl-ir/src/lower/stmt.rs`, `crates/mwl-syntax/src/parser/stmt.rs`,
-`crates/mwl-diagnostics/src/lib.rs`, `tests/conformance/lang/`. All three panic at the one site
-`crates/mwl-ir/src/lower/stmt.rs:230`, and a scratch `.mwl` per shape reproduces each in one call.
+**What still reaches a catch-all in the statement slice, all in one file.** The file set:
+`crates/mwl-ir/src/lower/stmt.rs`, `crates/mwl-types/src/locals.rs`,
+`tests/conformance/lang/`. A scratch `.mwl` under `.agent-tmp/` reproduces each in one call.
 
-- [ ] **Inline HTML at file scope lowers** — `docs/agent/loop-goal.md` item 34, which already names
-      the lowering: the `Helper::EchoStr` call `echo` emits, at `crates/mwl-ir/src/lower/expr.rs:351`
-      (`lower_echo`). `StmtKind::InlineHtml` carries the span of the text after `?>`; the run is a
-      string literal like any other.
-- [ ] **A class, interface or enum declared inside a function body is refused by name.** No item
-      owns it and no decision has been taken: PHP declares such a class when the statement *runs*,
-      and a static class table has no reading of that, so the choice is a diagnostic rather than a
-      silent hoist. Next free `E02xx` is **E0233**; its siblings are at
-      `crates/mwl-diagnostics/src/lib.rs:297` and the refusal that reads most like it is
-      `E_LIST_DESTRUCTURING_UNSUPPORTED` at `crates/mwl-syntax/src/parser/stmt.rs:773`. Take the
-      decision in `docs/agent/loop-goal.md` § *Standing decisions* in the same session.
-- [ ] **ADR 0050's `[$a, $b] = $pair` destructuring lowers.** The largest of the three and the one
-      that is a feature rather than a decision — `StmtKind::Destructure` carries a
-      `DestructureTarget` of typed leaves, each of which is a `bind_local` against the element the
-      key names. `E0230` already refuses the `list(...)` spelling, so `[...]` is the only one.
+- [ ] **ADR 0050's `[$a, $b] = $pair` destructuring lowers** — the *last* shape reaching the
+      dispatch catch-all at `crates/mwl-ir/src/lower/stmt.rs:230`. The checker half is already
+      there: `mwl_types::locals::walk_destructure_target`, `crates/mwl-types/src/locals.rs:934`.
+      The largest of the three.
+- [ ] **The reassignment catch-all** at `crates/mwl-ir/src/lower/stmt.rs:1170` — `holes.py`
+      item 7's remaining sites. Each shape it names is either a lowering to write or a
+      checker refusal to move up, the way the increment's three were.
+- [ ] **An `unset` target whose base is not an array** at
+      `crates/mwl-ir/src/lower/stmt.rs:1243` — the message already names the two ways in
+      (erased to `mixed`, or a `?T` never narrowed), so it is a refusal-or-lower judgement.
 
 ## Backlog
 
-- `Core\Reflect::typeOf` does not exist yet (`E0405`), so no case can assert a binding's *type* by
-  observation — `docs/spec/01-core-library.md` owns when it arrives.
-- Item 7's four remaining sites in `lower/stmt.rs` are the nested-index and `unset` internal
-  asserts, not increment work — `python tools/holes.py --item 7`.
-- Items 1, 4, 6, 16 and 25 still hold refusal sites; `python tools/holes.py` ranks them.
-- 14 of 32 named `.mwlt` cases still to write — `python tools/holes.py --cases`.
+- `mwl-ir` known-gaps entries 1 (`do`/`while`) and 16 (`$x++`/`--$x`) have stale headlines —
+  both lower now. `crates/mwl-ir/src/lib.rs:150`, `:380`.
+- Two refusal sites no item anchors: `crates/mwl-codegen/src/ty.rs:116` and `:121` —
+  `python tools/holes.py`.
+- `docs/agent/loop-goal.md:203` cites `mwl-ir` gap 13, now retired.
+- ADR 0007 § 4's promotion table — `holes.py` item 1, 11 sites, the largest left.
+- 14 named `.mwlt` cases still owed — `python tools/holes.py --cases`.

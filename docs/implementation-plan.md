@@ -44,10 +44,12 @@
 > An increment is a write like any other, so `$a?->b++`, `$g->hooked["0"]++` and
 > `$erased->rows["0"]++` now take the same `E0479`/`E0478`/`E0480` the plain assignment already did,
 > in place of three panics; a typed declaration with no initializer (`int $x;`) and the empty
-> statement `;` both lower. Three live tools **are** the worklist and no session re-derives one:
-> `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes
-> each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
-> `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
+> statement `;` both lower. Inline HTML lowers as the write `echo` already emits, over its raw span,
+> and a `class`, `interface` or `enum` declared anywhere but file scope is `E0233` rather than a
+> panic. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
+> cases each stage still owes, and `python tools/check-migration.py` scores
 > `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop

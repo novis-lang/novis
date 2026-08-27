@@ -1757,6 +1757,13 @@ sibling in the same namespace unqualified.
   rather than as the missing feature it is. Declare the field (`public string $name = "m";`) when
   the case only needs an object with a field; `tests/conformance/core/out-capture-refuses-a-through-that-answers-anything-but-the-carrier.mwlt`'s
   `Impostor` has a promoted one and gets away with it only because it never reads it.
+- **An MWL enum case carries no `case` keyword**, so PHP's `enum Colour: int { case Red = 1; }`
+  is `enum Colour: int { Red = 1, }` here — commas, not semicolons. Getting it wrong does not
+  say so: the parser reports `E0220` *"an enum declares only cases and an optional backing
+  type"* pointing at the `{`, then `E0101` *"expected a class member"* at the `case`, then one
+  more pair per line, which reads like the enum is in a position that does not accept a
+  declaration rather than like a spelling error. Check the spelling against a case under
+  `tests/conformance/lang/` before concluding the *position* is what failed.
 
 ## Divergences and refusals already pinned
 
