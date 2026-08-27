@@ -219,8 +219,8 @@ jobs:
         run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=60
 
   # ---------------------------------------------------------------------------
-  # Miri validates the safe subset; the audited unsafe modules get ASAN/TSAN
-  # jobs added in M3 and M5, when there is unsafe code to validate.
+  # Miri validates the safe subset; the audited unsafe modules get the ASAN job
+  # below. TSAN is still owed, and arrives with M5's concurrency.
   # ---------------------------------------------------------------------------
   miri:
     name: miri
@@ -244,3 +244,49 @@ jobs:
             -p mwl-hir \
             -p mwl-types \
             -p mwl-ir
+
+  # ---------------------------------------------------------------------------
+  # The half Miri cannot reach: the crates that execute generated machine code,
+  # where the refcount and COW protocols compiled code manipulates by raw
+  # pointer actually run. Nothing here overlaps the valgrind sweep in
+  # `tools/loop.py` — that runs the `examples/` fixtures end to end through the
+  # release binary, and never runs a crate's own tests.
+  #
+  # `mwl-codegen` and `mwl-stdlib` link `mwl-runtime` as an ordinary dependency,
+  # so it compiles with `debug_assertions` on and `cfg(test)` off and takes the
+  # platform heap — which is what ASAN has to interpose on to see anything.
+  # `mwl-runtime`'s own test binary is the one build that does not: `cfg(test)`
+  # installs `counting_alloc` over the size-class cache, and a recycled block is
+  # never freed, so ASAN cannot poison it and a use-after-free reads live
+  # memory. Hence `--features mwl-runtime/sanitizer`, which swaps that cache
+  # back out for the platform heap. `counting_alloc`'s module doc is the home of
+  # the reasoning; without the feature this job is silently weaker than it looks
+  # on exactly the crate holding most of the unsafe.
+  #
+  # `--target` is load-bearing: without it, build scripts and proc macros are
+  # instrumented too and the run dies before a test starts.
+  #
+  # Leak detection is off on purpose. LSAN is not what this job is for, the
+  # valgrind sweep already owns leaks, and a JIT that holds its compiled code
+  # for the life of the process reports as a leak either way — that noise would
+  # bury the use-after-free signal this job exists for.
+  # ---------------------------------------------------------------------------
+  asan:
+    name: asan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: asan
+      - name: ASAN test (runtime, backend and library)
+        env:
+          RUSTFLAGS: -Zsanitizer=address
+          ASAN_OPTIONS: detect_leaks=0:detect_stack_use_after_return=1
+        run: |
+          cargo +nightly test --target x86_64-unknown-linux-gnu \
+            --features mwl-runtime/sanitizer \
+            -p mwl-runtime \
+            -p mwl-codegen \
+            -p mwl-stdlib
