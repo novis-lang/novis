@@ -645,6 +645,12 @@ is why" — is this file.
   feature), and `$x as ?"a"` in `convert_or_null`. Four scratch files under `.agent-tmp/`
   cost less than reading either function, so run the item's spellings **before** designing
   anything — the panic a worklist item names is often not the one that fires.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from a POSIX shell**, with
+  *"bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory"* —
+  Git Bash rewrites a lone `/mnt/...` argument into a Windows path before `wsl.exe` ever sees
+  it, and the error names bash rather than the translation, so it reads as a missing file. The
+  script's own header spells the command for a Windows shell; run it from one (PowerShell, or
+  `MSYS_NO_PATHCONV=1` in front of it), not from the Bash tool.
 
 ## Adding a `Core` member
 

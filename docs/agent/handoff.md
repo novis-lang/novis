@@ -2,58 +2,62 @@
 
 ## State
 
-**M4 — language completeness.** `isset(...)` runs end to end. ADR 0028 § 3's `!= null` over a
-local, a `mixed`, a property, an element, a chain and a `?array<T>` no test narrowed, with a
-list of operands as a left-to-right short-circuiting conjunction, in both value and statement
-position. The checker half is the new `mwl_types::expr::presence`
-(`crates/mwl-types/src/expr/presence.rs:44`), which marks every `Index` level of every operand
-in `Env::coalesce_guarded` — the same set `??` fills — so an absent key answers `false`
-instead of taking ADR 0007 § 7 row 11's throw. The lowering is
-`Lowering::lower_isset`/`lower_isset_operand` (`crates/mwl-ir/src/lower/expr.rs:1573`, `:1640`).
-An operand that names no storage is **E0498**.
+**M4 — language completeness.** `empty(...)` runs end to end, in value and statement
+position, as ADR 0035 § 2's truthy table negated over any expression. The checker half is
+`mwl_types::expr::presence::check_empty_operand`
+(`crates/mwl-types/src/expr/presence.rs:75`), which shares `isset`'s guarded-subscript
+marking (`mark_guarded_subscripts`, `:99`) and none of its E0498 shape check; the lowering
+is one line per position calling `Lowering::lower_not`
+(`crates/mwl-ir/src/lower/expr.rs:295`, `crates/mwl-ir/src/lower/stmt.rs:311`).
+`truthy_convert` gained the `Ty::Null` row it had asserted was unreachable, which also
+closed `!null` and `if (null)`.
 
-**`empty(...)` is untouched and is the next slice.** `ExprKind::Empty(_)` still answers `bool`
-with its operand unchecked, at `crates/mwl-types/src/expr/mod.rs:459`; it is `isset`'s operand
-handling with ADR 0035's truthy table negated in place of the null test.
+**The language frontier is now two slices, both with file sets of their own**, and neither
+is the one-liner `empty` was. `exit` needs a distinguished unwind; a static property has no
+storage anywhere below the checker.
 
-`verify.py` 6 of 6 green — conformance **609**, differential **171**, 1632 unit tests.
-`python tools/holes.py` reads **24 sites, 6 items**; both dispatch catch-alls stay one site
-each whatever still reaches them.
+`verify.py` 6 of 6 green — conformance **610**, differential **172**, 1632 unit tests.
+`python tools/holes.py` reads **24 sites, 6 items**, unchanged: every remaining site is a
+catch-all, and `empty` was never one of them.
 
 ## Next group
 
-**`empty(...)` first, then `exit`.** The first shares this session's whole file set —
-`crates/mwl-types/src/expr/presence.rs` with `crates/mwl-types/src/expr/mod.rs` and
-`crates/mwl-ir/src/lower/expr.rs` — and is the cheapest thing on the frontier because both
-halves already exist one function away. The other two have file sets of their own.
+**The static property first, then `exit`.** They share no files with each other and none
+with this session; the static property is picked first because it is a *hole* (the checker
+accepts a shape nothing below it lowers) while `exit` is a feature that was never built.
+Read `crates/mwl-ir/src/ir.rs:290-320` (the `InstKind` neighbourhood a new pair joins)
+before either.
 
-- [ ] **`empty(...)`** — ADR 0035 § 2's truthy table, negated. PHP's `empty($x)` is `!$x` and
-      accepts *any* expression (unlike `isset`, since PHP 5.5), so the E0498 shape check does
-      **not** apply and only the guarded-subscript half carries over: factor the marking loop
-      out of `check_isset_operand` (`crates/mwl-types/src/expr/presence.rs:44`) and give
-      `ExprKind::Empty(_)` (`crates/mwl-types/src/expr/mod.rs:459`) its own arm calling it plus
-      `check_expr`. The lowering is `Lowering::truthy_value`
-      (`crates/mwl-ir/src/lower/expr.rs:1180`) then `UnOp::Not`, which is exactly `lower_not`
-      (`:1673`) — so the arm may be one line beside the `Isset` one at `:291`, plus the
-      statement-position twin at `crates/mwl-ir/src/lower/stmt.rs:225`. Watch the release: an
-      operand that is a fresh producer owes one, and `truthy_value` already takes the
-      `aliasing_read` answer as a parameter.
+- [ ] **A static property lowers nowhere, read or write** — the read falls through
+      `lower_expr`'s dispatch catch-all (`crates/mwl-ir/src/lower/expr.rs:300`) and the
+      write through `lower_stmt`'s reassignment arm
+      (`crates/mwl-ir/src/lower/stmt.rs:1065`); `ExprKind::StaticPropertyAccess` is
+      `crates/mwl-syntax/src/ast.rs:775`. **There is no storage for one anywhere**: `grep`
+      finds no static slot in `crates/mwl-ir/src/ir.rs`, no `Class` field holding one and
+      no runtime home, so this is an `InstKind` pair plus a codegen data slot plus a
+      runtime table, not a lowering arm. **Decide the lifetime before writing any of it**
+      and record it in `docs/adr/README.md` § *Decisions taken at project start*: priority
+      1 makes state request-scoped, so a process-global static is the wrong default under
+      `mwl serve` at M7 even though it is what a single `mwl run` cannot tell apart. No
+      worklist item names this, so `holes.py` does not count it.
 - [ ] **`exit` and `exit(...)`** — its own file set (`crates/mwl-runtime/src/abi.rs:53`'s
-      `Fault`, `mwl-cli`'s exit status). There is no `process::exit` in this tree and there must
-      not be one in a helper: priority 1 makes termination request-scoped, so under `mwl serve`
-      at M7 a helper ending the process ends every other in-flight request with it. It wants a
+      `Fault`, `mwl-cli`'s exit status). There is no `process::exit` in this tree and there
+      must not be one in a helper, for the same priority-1 reason: under `mwl serve` a
+      helper ending the process ends every other in-flight request with it. It wants a
       distinguished unwind carried to `mwl-cli`'s exit status.
-- [ ] **A static property lowers nowhere, read or write** — the read panics `lower_expr`'s
-      dispatch catch-all (`crates/mwl-ir/src/lower/expr.rs:291`) and the write
-      `lower_stmt`'s reassignment arm (`crates/mwl-ir/src/lower/stmt.rs:1065`). The checker
-      accepts both. No worklist item names it, so it is a hole `holes.py` does not count.
 
 ## Backlog
 
-- An enum case tagged into a `mixed` reads as its backing integer, so a case backed by `0` is
-  falsy where ADR 0035 § 4 makes every statically-typed case truthy — `mwl_codegen::ty::tag_of`.
-- `Class::method(...)`, the first-class callable spelling, panics `mwl-ir` — gap 1.
-- `array<T> as array<U>` does not lower (`crates/mwl-ir/src/lower/expr.rs:877`) — ADR 0007 § 2.
-- `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing rows —
-  `mwl_stdlib::json` gaps.
-- M4S Part I depth: conformance 609 of 750, `python tools/gaps.py` ranks the thin classes.
+- An enum case tagged into a `mixed` reads as its backing integer, so a case backed by `0`
+  is falsy where ADR 0035 § 4 makes every statically typed one truthy —
+  `mwl_codegen::ty::tag_of` reserves no enum tag. `Core\Reflect::typeOf` is the same gap by
+  a second route.
+- `array<T> as array<U>` does not lower (`crates/mwl-ir/src/lower/expr.rs:877`), which is
+  what keeps several `gaps.py --errors` sites unreachable from source — ADR 0007 § 2.
+- The value form of `require` (`$c = require 'config.mwl';`, ADR 0021 § 3) lowers nowhere —
+  `mwl-ir`'s crate doc owns the gap.
+- `Class::method(...)`, the first-class callable spelling, panics `mwl-ir` — gap 1 in that
+  crate's own doc.
+- 17 of the 32 named `.mwlt` cases `python tools/loop.py --list` schedules are still to
+  write; conformance is 610 against the goal's 750.
+- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).

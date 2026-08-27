@@ -65,8 +65,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 609 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 171, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 610 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 172, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -496,7 +496,7 @@
 > edges with a fresh refcounted operand live. `python tools/holes.py` still reads **24 sites, 6
 > items**: `convert_or_null`'s catch-all is unchanged, `$b as ?string` and `$m as ?array<T>` still
 > reaching it, and this slice widened neither. **M4S Part I is the floor, not the frontier**:
-> conformance is at 609 of the goal's new 750 and differential at 171 of 165, `python tools/gaps.py`
+> conformance is at 610 of the goal's new 750 and differential at 172 of 165, `python tools/gaps.py`
 > still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a group is
 > blocked — never a reason to leave a language item unfinished. **A bare name in value position is a
 > diagnostic now**, which is the cheap half of `lower_expr`'s own dispatch catch-all rather than a
@@ -595,8 +595,31 @@
 > position too, where the answer goes unread and the operands still run. **`mwl-ir` lowers no static
 > property at all**, read or write, which the conformance case found on its way past and which no
 > worklist item names; the handoff's backlog carries it. `python tools/holes.py` still reads **24
-> sites, 6 items**: both dispatch catch-alls are one site whatever shapes reach them.
-> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+> sites, 6 items**: both dispatch catch-alls are one site whatever shapes reach them. **`empty(...)`
+> runs, and it is `!$x` with nothing else added.** ADR 0035 § 2's truthy table negated, over *any*
+> expression — PHP has accepted one there since 5.5, so `isset`'s E0498 shape check does not carry
+> over and only its guarded-subscript half does. That half is now
+> `presence::mark_guarded_subscripts`, called by both entry points, so an absent key under an
+> `empty` answers `true` rather than taking ADR 0007 § 7 row 11's throw and `empty($q["k"])` over an
+> untested `?array<string>` needs no `!= null` first — the same position `isset` and `??` already
+> had. The lowering is one line in each position: `Lowering::lower_not` is already `truthy_value`
+> plus `UnOp::Not`, and it already takes the `aliasing_read` answer that decides whether a fresh
+> operand owes a release, so a producer nothing else names (a call's return read only by the test)
+> is released once the test has read it and `tools/leak-check.sh` is green over one. **One row of
+> that table was missing and it was not `empty`'s alone**: `truthy_convert` had no `Ty::Null` arm,
+> so the *literal* `null` — the only thing that reaches it, a `?T` being one `Ty::Tagged` slot —
+> aborted the process in `empty(null)`, `!null` and `if (null)` alike, behind a panic message
+> asserting the case could not arise. It is one `ConstBool(false)`, ADR 0035 § 2's first row. Every
+> row is byte-identical to PHP, including the two falsy strings (`""` and `"0"`, but not `" "` or
+> `"0.0"`), an absent element, a present `"0"` element indistinguishable from it, an enum case
+> backed by `0` that is still truthy (ADR 0035 § 4), and when the operand runs in each position, and
+> is pinned that way in `tests/differential/lang/empty-matches-phps-falsy-table.mwlt`; the four rows
+> PHP cannot spell — `bytes` falsy iff **empty** so a one-octet `"0"` is truthy, `uint`, `decimal`
+> and an ADR 0036 § 2 shape literal — are in
+> `tests/conformance/lang/empty-answers-the-truthy-table-for-every-mwl-type.mwlt`. `python
+> tools/holes.py` still reads **24 sites, 6 items**: `empty` was never a refusal site, having fallen
+> through both dispatch catch-alls. `docs/spec/02-php-migration.md` is 31% classified (`python
+> tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones
