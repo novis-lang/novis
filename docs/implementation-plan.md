@@ -81,8 +81,8 @@
 > a `callable`. That correction is folded into § *Verification*'s own body. The `.nvst` prose caught
 > up with the source items 44–45 had already moved, so nothing in `tests/` outside a PHP oracle half
 > and the two deliberate refusal cases spells `&$` any more, and neither does `docs/`: item 47b
-> renamed every site that named Novis's own by-reference parameter — an alias's type rule (ADR 0007 §
-> 1), what cannot cross a `spawn` or a copy boundary (0006, 0023), what `class_alias` does not
+> renamed every site that named Novis's own by-reference parameter — an alias's type rule (ADR 0007
+> § 1), what cannot cross a `spawn` or a copy boundary (0006, 0023), what `class_alias` does not
 > affect (0015), R3's banned out-parameter (0063), the `foreach` line in the spec's overview, M4's
 > own feature list and four playbook bullets — and deleted `docs/agent/loop-goal.md` § *Stage 0a*,
 > whose checks stay in `loop-goal.toml` as guards under names that now cite the ADR rather than a
@@ -442,13 +442,35 @@
 > objects behind two `mixed`s throw, `Comparable::compareTo` being dispatched from the class the
 > *site* named, and an enum case orders as the integer ADR 0047 § 5 spends no representation on
 > hiding, the written spelling still being refused. Valgrind-clean over a fixture that throws two
-> hundred times with a freshly built operand in flight. What still reaches that catch-all is a
-> `Ty::Tagged` under an **arithmetic** operator — item 24's other half — and the three
-> representations no source expression has. Three live tools **are** the worklist and no session
-> re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
-> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
-> the named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> hundred times with a freshly built operand in flight. **Item 24's other half is closed, and with
+> it every `Ty::Tagged` target `emit_binop`'s representation catch-all had.** An operand whose
+> static type names no *arithmetic* row either — `mixed`, a union, the `int|float` a division
+> returns — is answered from its runtime **tag** by an eleven-member `Helper::ValueAdd` family, one
+> helper per operator over one table (`nvs_runtime::helpers::value_arith`) rather than eleven copies
+> of the dispatch. The rows are § 4's own: `int ⊕ int` and `uint ⊕ uint` checked at every step,
+> overflow throwing rather than wrapping; `/` answering the `int|float` union PHP is exact about, so
+> the *answer*'s tag is still a runtime question once the operands' are known; "either operand a
+> `float`" widening the integer side through the very helper `$n as float` emits, exact or throwing
+> above 2^53, rather than through a silent `as f64` one representation down; and ADR 0054 § 3's five
+> `decimal` rows over the same `Decimal` methods the statically typed helpers call, so the two ends
+> of a row cannot answer differently. Three refusals arrive as catchable throws where only the tags
+> can make them, each carrying the wording `nvs_types` uses where the static types show it: a pair
+> the closed table names no row for, `int ⊕ uint`'s absent common type (`E0407`'s own sentence), and
+> the overflow itself. Two rows are deliberately narrower than "the operands are numbers": a
+> `decimal` under `**` or a bit operator is `E0455`/`E0706` where it is written and a throw here,
+> and `float` `%` is refused at **both** ends — `nvs-codegen` lowers no static one either — because
+> PHP's `%` converts to an integer where § 4's float row would not, and no ADR settles which of the
+> two it is. All eleven answer `Ty::Tagged`, which `Lowering::coerce` absorbs into a declared type
+> by the rows it already absorbs integer `/`'s union with. The catch-all's roster comment is
+> corrected to what is actually left: the three representations no source expression has
+> (`ClassDesc`, `Ref`, `Void`), the `float` rows never reaching it at all. Valgrind-clean over a
+> fixture that abandons a freshly built `string` operand on the refusal's error edge two hundred
+> times, and `tests/conformance/lang/arithmetic-over-a-mixed-operand-is-decided-by-its-tag.nvst`
+> pins sixteen lines of the table, the six throws among them. Three live tools **are** the worklist
+> and no session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
+> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.nvst` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

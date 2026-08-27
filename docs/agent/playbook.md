@@ -1995,6 +1995,13 @@ sibling in the same namespace unqualified.
   `public static function many(inout int ...$xs)` compiles and runs with no diagnostic at all,
   though nothing is written back. So `E0714`'s "a spread's entries" half is reachable only through
   a *fixed* `inout` parameter, and a case that wants the variadic row has to wait for that hole.
+- **A new `nvs_ir::Helper` needs a *fourth* edit, and the three obvious ones build without it.**
+  The variant, `nvs_ir::print`'s name and `nvs_codegen::emit`'s `helper_symbol` row all compile
+  happily; what fails is at run time, `cranelift-jit` panicking with `can't resolve symbol
+  nvs_value_add` from inside `JITModule`. The missing edit is `nvs_runtime::helpers::symbols()`,
+  the `(name, address)` table `nvs-codegen` registers with `JITBuilder::symbol` — a `#[no_mangle]`
+  helper is *not* found by name in the host process, it is found in that vector. Grep it for a
+  neighbouring helper rather than trusting the compiler to notice.
 
 ## Divergences and refusals already pinned
 
