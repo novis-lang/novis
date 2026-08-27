@@ -15,11 +15,13 @@
 set -u
 
 cd /mnt/<drive>/<repo> || exit 1
-export CARGO_TARGET_DIR=/tmp/mwl-linux
+# /var/tmp, not /tmp: systemd clears /tmp at every WSL boot, and WSL boots again
+# after every idle gap -- a target directory there costs a cold build every run.
+export CARGO_TARGET_DIR=/var/tmp/mwl-linux
 export PATH="$HOME/.cargo/bin:$PATH"
 
 cargo build --quiet -p mwl-cli || exit 1
-BIN=/tmp/mwl-linux/debug/mwl
+BIN=/var/tmp/mwl-linux/debug/mwl
 
 # 97 rather than 1, because the fixture's *own* exit status passes straight
 # through valgrind: `examples/uncaught.mwl` ends in an uncaught throw and so

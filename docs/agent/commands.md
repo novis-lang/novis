@@ -298,11 +298,12 @@ linked object into each binary's PDB, so cranelift and wasmtime were being writt
 binaries at once. MWL's own crates keep full debug info; only the dependency wall lost it, and a session's
 own `verify.py` got *faster* (51s → 43s) because there is less to link and to load.
 
-Three things live outside this repository and `disk.py` reports them without ever deleting them — another
-tool's state is not a repo script's to remove. The WSL leg's `/tmp/mwl-linux` is a second full target
-directory; deleting it frees ext4 space but **not** Windows space, because the vhdx never shrinks on its
-own (`wsl --shutdown`, then compact it, if C: is what is short). `~/.claude/projects/` keeps one JSONL per
-session forever. `~/.cargo/registry/src` is re-extracted on demand and safe to delete.
+Four things live outside this repository and `disk.py` reports them without ever deleting them — another
+tool's state is not a repo script's to remove. `/var/tmp/mwl-linux` and `/var/tmp/mwl-target-wsl` are the
+valgrind leg's and the WSL leg's own target directories, each a full one; deleting either frees ext4 space
+but **not** Windows space, because the vhdx never shrinks on its own (`wsl --shutdown`, then compact it,
+if C: is what is short). `~/.claude/projects/` keeps one JSONL per session forever.
+`~/.cargo/registry/src` is re-extracted on demand and safe to delete.
 
 ## Fuzzing and callgrind on Windows: use WSL
 
@@ -311,6 +312,19 @@ session forever. `~/.cargo/registry/src` is re-extracted on demand and safe to d
 both in WSL. From a Windows shell, `wsl.exe -- bash -lc "<command>"` runs a command in the default WSL
 distro, which mounts the repo at `/mnt/<drive>/<repo>`. What that distro must have installed — and why PHP goes in
 it as well, at the same version as the Windows one — is [docs/setup.md](../setup.md).
+
+**Build from `/mnt/d`; do not clone into the distro to "fix" the 9p mount.** Per file operation 9p is
+50–100× slower, but the base is too small to show: the workspace is 1,412 files, 190 of them `.rs`,
+dependencies compile out of `~/.cargo` on ext4 either way, and the target directory is already off the
+mount. Measured on this workspace — a cold `cargo build -p mwl-cli` is 31.6s from `/mnt/d` against 32.2s
+from an ext4 copy of the same tree, a no-op rebuild is 0.31s, and one touched file rebuilds in 0.75s. A
+synced Linux-side clone buys under a second per acceptance check and costs a stale-copy failure mode.
+
+**Both Linux target directories are under `/var/tmp`, and that is not cosmetic.** `D /tmp` in the distro's
+`tmpfiles.d` clears `/tmp` at every boot; WSL stops the VM as soon as the last process exits and boots
+again on the next call, so a target directory in `/tmp` is gone after any idle gap and the leg silently
+pays 32s of cold build instead of 0.31s. Nothing ages `/var/tmp` out — Ubuntu 24.04 ships its
+`q /var/tmp` line commented out.
 
 From `/mnt/<drive>/<repo>` (not `fuzz/` itself — cargo-fuzz expects the parent directory):
 `cargo +nightly fuzz run lex -- -max_total_time=300` (and `parse` likewise). CI's `fuzz-smoke` job runs both

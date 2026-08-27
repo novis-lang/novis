@@ -192,7 +192,12 @@ skip = ["examples/fatal.mwl", "examples/uncaught.mwl"]
 # On Windows the second leg runs through WSL, because a JIT is exactly where a calling-convention
 # divergence between two targets hides. On Linux the native leg already is that target, so there is no
 # second leg -- only the valgrind sweep, run directly.
-target_dir = "/tmp/mwl-target-wsl"
+#
+# `/var/tmp`, not `/tmp`: `D /tmp` in the distro's tmpfiles.d clears `/tmp` at every boot, and WSL boots
+# again after every idle gap, so a target directory there is gone by the next run and the leg pays a cold
+# build -- 32s measured, against 0.31s for the no-op rebuild it should have been. commands.md § *Fuzzing
+# and callgrind on Windows* holds the measurement.
+target_dir = "/var/tmp/mwl-target-wsl"
 
 
 # ---------------------------------------------------------------------------------------------------

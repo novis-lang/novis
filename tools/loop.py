@@ -701,8 +701,10 @@ class NativeLeg:
 class WslLeg(NativeLeg):
     """Windows only: the same fixtures against a Linux build, through the default WSL distro.
 
-    Building once matters more here than on the native leg: every cargo invocation crosses the
-    9p mount at `/mnt/<drive>`, so the fingerprint scan it opens with is the expensive part.
+    Building once matters here for the reason it does natively, plus a `wsl.exe` round trip per
+    invocation. The 9p mount at `/mnt/<drive>` is *not* what makes it expensive -- the workspace is
+    1,412 files, 190 of them `.rs`, and a no-op build across it costs 0.31s. Where the *target*
+    directory lives is what matters: see `Goal.wsl_target`, and commands.md for the measurement.
     """
 
     name = "wsl"
@@ -809,7 +811,7 @@ class Goal:
         self.files = spec.get("files", [])
         self.checks = spec.get("check", [])
         self.valgrind_skip = set(spec.get("valgrind", {}).get("skip", []))
-        self.wsl_target = spec.get("wsl", {}).get("target_dir", "/tmp/mwl-target-wsl")
+        self.wsl_target = spec.get("wsl", {}).get("target_dir", "/var/tmp/mwl-target-wsl")
         self.program_checks = [c for c in self.checks if c["kind"] in PROGRAM_KINDS]
         self.ran = []  # (label, seconds) for every check this run actually paid for
         self.short = []  # `min_passing` thresholds not met; see `check()`

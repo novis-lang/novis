@@ -112,7 +112,9 @@ milestones = ["M4B"]
 skip = ["examples/fatal.mwl", "examples/uncaught.mwl"]
 
 [wsl]
-target_dir = "/tmp/mwl-target-wsl"
+# `/var/tmp`, not `/tmp`, which the distro clears at every WSL boot -- see loop-goal.toml's own [wsl]
+# block, and commands.md § *Fuzzing and callgrind on Windows* for what a target directory there costs.
+target_dir = "/var/tmp/mwl-target-wsl"
 
 
 # ---------------------------------------------------------------------------------------------------

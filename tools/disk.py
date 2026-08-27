@@ -4,7 +4,7 @@
     python tools/disk.py               # what is on disk, what is reclaimable, what is free
     python tools/disk.py --clean       # sweep it
     python tools/disk.py --clean -n    # say what --clean would delete; delete nothing
-    python tools/disk.py --deep        # also size the three places outside this repository
+    python tools/disk.py --deep        # also size the four places outside this repository
 
 Nothing here runs on the session path. `tools/loop.py` calls `prune_logs` and `prune_scratch`
 once per *run* -- each is one directory listing, so a run pays milliseconds and a session pays
@@ -39,9 +39,9 @@ Nothing here can produce a wrong build. Cargo re-checks every fingerprint agains
 that are really on disk, so the worst a mistake costs is rebuilding something that was still
 wanted.
 
-Everything outside this repository is *reported* and never touched. The WSL target directory,
-the harness's transcripts and the cargo registry are other tools' state, and a repo script that
-silently deletes another tool's state is a bug however much space it frees.
+Everything outside this repository is *reported* and never touched. The two WSL target
+directories, the harness's transcripts and the cargo registry are other tools' state, and a repo
+script that silently deletes another tool's state is a bug however much space it frees.
 """
 
 from __future__ import annotations
@@ -80,7 +80,13 @@ ELSEWHERE = [
         "WSL Linux target",
         "{tmp}/mwl-linux",
         "the valgrind leg's own target dir, inside the ext4 vhdx",
-        "wsl.exe -- rm -rf /tmp/mwl-linux    # frees ext4 space; see commands.md for the vhdx",
+        "wsl.exe -- rm -rf /var/tmp/mwl-linux    # frees ext4 space; see commands.md for the vhdx",
+    ),
+    (
+        "WSL loop target",
+        "{tmp}/mwl-target-wsl",
+        "the loop's WSL leg target dir, beside it and just as large",
+        "wsl.exe -- rm -rf /var/tmp/mwl-target-wsl    # the next leg pays a 32s cold build",
     ),
     (
         "harness transcripts",
@@ -350,7 +356,7 @@ def report(deep=False):
 
     print("outside this repository -- reported, never touched by this script")
     home = Path.home().as_posix()
-    tmp = "/tmp" if os.name != "nt" else "(WSL) /tmp"
+    tmp = "/var/tmp" if os.name != "nt" else "(WSL) /var/tmp"
     for name, path, what, how in ELSEWHERE:
         shown = path.format(home=home, tmp=tmp)
         size = f"{human(walk(Path(shown))[0]):>8}" if deep and Path(shown).is_dir() else "       ?"
@@ -358,7 +364,7 @@ def report(deep=False):
         print(f"  {'':<20} {'':>8}  {what}")
         print(f"  {'':<20} {'':>8}  $ {how}")
     if not deep:
-        print("  (sizes: --deep, which walks all three and is slow)")
+        print(f"  (sizes: --deep, which walks all {len(ELSEWHERE)} and is slow)")
 
 
 # ---------------------------------------------------------------------------------- main
