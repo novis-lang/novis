@@ -71,9 +71,11 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
    a heredoc, a `>` redirect or a `sed -i`, because the shell parses your apostrophes and backticks before
    it runs anything. An edit those tools cannot express goes through `python tools/splice.py`.
 2. **One shell call runs one command** — a `;`-chain reports only the last one's exit status. Independent
-   calls may go out together in one message, but measured sessions never do it, so **read with
-   `python tools/peek.py A.rs:120-160 B.rs:@sym C.md:"## 4"` instead** — as many targets as you have
-   questions, one call, and `--locate <symbol> ...` for `file:line` anchors alone.
+   calls may go out together in one message, but measured sessions never do it, so use the two tools that
+   batch for you instead. **Read with `python tools/peek.py A.rs:120-160 B.rs:@sym C.md:"## 4"`** — as
+   many targets as you have questions, one call, and `--locate <symbol> ...` for `file:line` anchors
+   alone. **Write a run of three or more edits with `python tools/splice.py --patch <file>`** — one patch,
+   any number of files, all of it or none of it.
 3. **Read a big file in the region you need.** Whole file under ~400 lines; past that, `grep -n` for the
    anchor and read around it. Context, not the clock, is what caps a session.
 4. **Verify with one call, once, at the end:** `python tools/verify.py` — build, fmt, test, the `.mwlt` trees and clippy in

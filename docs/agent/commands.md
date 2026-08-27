@@ -34,14 +34,21 @@ Use a shell for what it is for — `cargo`, `git`, `python tools/orient.py`, `ws
 needs a multi-line argument, put the text in a file with the Write tool and pass the path: `git commit -F
 <file>`, never an inline heredoc or a `-m` string spanning lines.
 
-**An Edit the tool cannot express goes through `python tools/splice.py <target> --patch <file>`** — write
-one patch file under `.agent-tmp/` (gitignored; create it if it is not there) with the Write tool, holding
-the old and new blocks between `<<<<<<< OLD` / `=======` / `>>>>>>> NEW` markers, and let that script swap
-them. It refuses anything but exactly one match per block, so a stale anchor is an error rather than a
-silent wrong edit, and a multi-block patch that half-matches leaves the file untouched. Never reach for a
+**An Edit the tool cannot express — and any run of three or more edits — goes through `python
+tools/splice.py --patch <file>`.** Write one patch file under `.agent-tmp/` (gitignored; create it if it
+is not there) with the Write tool: a `--- <path>` line, then that file's blocks between `<<<<<<< OLD` /
+`=======` / `>>>>>>> NEW` markers, then the next `--- <path>`, for as many files as the edit spans. It
+refuses anything but exactly one match per block, and **the whole patch applies or none of it does**, so a
+stale anchor in the last file cannot leave the first one half-edited. Never reach for a
 `sed`/`python - <<'PY'`/`cat > f <<'EOF'` one-liner instead: a heredoc is a shell string, so it eats the
 backslashes and apostrophes this repository's Rust and prose are full of. The exact format is in
 [conventions.md](conventions.md).
+
+**The count is the point, not the difficulty.** One or two edits are cheaper as plain `Edit` calls — a
+patch costs a Write plus a call, so it only wins from three. Past that it wins by a lot: measured over a
+33-session run, 10.3 turns a session went on `Edit` calls issued **back to back with nothing read between
+them**, in runs of up to 17, and each of those runs was one decision the model had already made, spent one
+round trip at a time. That is the same saving `peek.py` takes on the read side, for the same reason.
 
 **The plan's status block is edited with `python tools/plan.py --set "<field>" --from <file>`**, not by
 hand — locating a field's exact bytes and splicing them was the single most expensive repeated action a
@@ -72,16 +79,18 @@ a `&&` between steps that genuinely depend on each other.
 whose input does not depend on another's result as several tool calls *in the same message*: four greps
 locating a symbol, a Read of two files you already know you need, `git status` beside `cargo --version`.
 They run concurrently and each keeps its own exit status, so nothing about the rule above is weakened.
-This matters more than it looks: a session's wall clock is very nearly its number of turns times a
-constant, and read-only probing is where the turns go — an unbatched orientation pass has cost this
-repository a quarter of a session's clock, one `grep` at a time. Serialize only what genuinely depends on
-a previous answer.
+This matters more than it looks. A turn's **time-to-first-token is ~80% of its clock and does not depend
+on what the turn does** — median 3.7s, and it climbs with context, 3.4s at 50k to 5.3s at 200k. So a
+session's wall clock is very nearly its turn count times a constant, and merging two calls into one
+message is a saving taken whether or not either call was expensive.
 
-**And when it is reading you are batching, use the tool instead of remembering to.** Over a measured run
-of 39 sessions, **0 of 3,647** tool-call messages carried more than one call — against the rule in the
+**But do not rely on remembering to: reach for the tool that batches for you.** Over one measured run of
+39 sessions, **0 of 3,647** tool-call messages carried more than one call — against the rule in the
 paragraph above, which every one of those sessions had in its context, and including runs of 52 and 57
-consecutive `grep`/`sed` calls. A rule that loses 3,647 times is not a rule anyone is going to start
-following. `tools/peek.py` takes as many targets as you have questions and answers them in one call:
+consecutive `grep`/`sed` calls. A later 33-session run measured the same 1.00 calls per message. A rule
+that loses 3,647 times is not a rule anyone is going to start following, so both sides of the work have a
+tool instead: `tools/splice.py` for a run of edits, and `tools/peek.py`, which takes as many targets as
+you have questions and answers them in one call:
 
 ```sh
 python tools/peek.py crates/mwl-ir/src/lower/expr.rs:3065-3120 \

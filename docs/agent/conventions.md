@@ -230,17 +230,19 @@ siblings — that file is the whole registry, so a code declared anywhere else d
 Never reuse a retired number; the next free one is the band's highest plus one, deliberately not the
 lowest hole.
 
-## An edit the Edit tool cannot express
+## An edit the Edit tool cannot express, or a run of three or more edits
 
 ```
-python tools/splice.py <target> --patch <patch-file>
-python tools/splice.py <target> --patch <patch-file> --dry-run
+python tools/splice.py --patch <patch-file>
+python tools/splice.py --patch <patch-file> --dry-run
 ```
 
-The patch file holds both blocks, written with the **Write tool** — never a heredoc, which eats exactly
-the backslashes this repository's Rust is full of:
+The patch file names each file it edits with a `--- <path>` line and holds that file's blocks under it,
+written with the **Write tool** — never a heredoc, which eats exactly the backslashes this repository's
+Rust is full of:
 
 ```
+--- crates/mwl-ir/src/lower/expr.rs
 <<<<<<< OLD
 the exact text to find
 =======
@@ -248,9 +250,17 @@ the text to put there instead
 >>>>>>> NEW
 ```
 
-Several blocks in one file are applied in order, and if any one fails to match the target is left
-untouched. A failed match reports the line where the anchor stopped matching and what the file has
+A second `--- <path>` starts the next file's blocks. Blocks apply in order and **the whole patch applies
+or none of it does**, across every file it names — a stale anchor in the last file cannot leave the first
+one half-edited. A failed match reports the line where the anchor stopped matching and what the file has
 there instead.
+
+`splice.py <target> --patch <f>` is the older one-file form, whose blocks carry no `--- <path>` line;
+naming a target *and* using headers is refused rather than guessed at. Reach for a patch from three edits
+up — one or two are cheaper as plain `Edit` calls, and [commands.md](commands.md) § *One shell call runs
+one command* has the measurement. **A patch cannot carry a patch**: a block whose text contains the
+markers themselves ends at the first `=======` inside it, so an edit to prose *about* this format is one
+the `Edit` tool has to make.
 
 ## A status-block field
 
