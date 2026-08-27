@@ -435,6 +435,25 @@ is why" — is this file.
   were reworded: state what reached lowering and name the code that refuses it ("… reached
   lowering: … refuses this where it is written, as `E0494`"). Skip it and the worklist you quote in
   the plan is one higher than the tree.
+- **`Lowering::untag_receiver` is unchecked, so a *new* erased receiver may not go through it.**
+  Every tagged receiver that reached a member used to arrive with a tag `mwl_types` had already
+  proved — a narrowed `?T`, a `?->`'s non-`null` arm — so the untag compares nothing and
+  `open_nullsafe` does it for its caller without being asked. A `mixed` receiver is the first with
+  no such proof, and the failure mode is not a panic you would see in a test log: `Untag` over an
+  `int` payload is a pointer the next instruction dereferences. `ReceiverProof` in
+  `crates/mwl-ir/src/lower/expr.rs` is the switch, and the check belongs in the runtime helper that
+  already checks the *name* rather than in a fallible untag of its own — a throwing untag would
+  have to have the receiver staged as an owned temporary before it, which is an ordering nothing
+  else in that file has.
+
+- **A panic's own message names one route to it, and there is usually a second.**
+  `lower_property_access`'s catch-all said "erased to a plain `object` or to a shape that does not
+  name this field", and the worklist recorded the one live route as a `mixed` receiver — but
+  `int $i = 5; echo $i->name;` reached the identical line, because *every* receiver
+  `class_qname_of` cannot resolve falls through the same hole. Three `mwl run` calls on scratch
+  files, one per receiver family, cost less than the fix did and are what turned a one-answer slice
+  into two: a lowering for the case that must be deferred, a diagnostic for the ones a declared
+  type already answers. Do that sweep before deciding what a refusal site owes.
 
 ## Running things
 

@@ -2,54 +2,51 @@
 
 ## State
 
-**M4 — language completeness.** Item 19 is **closed outright**: the lowering it still owed —
-a closure capturing an enclosing `&$x` parameter — is one `InstKind::RefLoad` at the literal,
-at the pointee type, plus the retain the capture loop already emitted, which is ADR 0031 § 2's
-capture-by-value and is what makes the closure safe to outlive the caller-staged cell. An object
-literal writing one field name twice is **E0494** at the checker rather than a panic in `mwl-ir`.
-`python tools/holes.py` is at **27 sites, 7 items**.
+**M4 — language completeness.** The property-access half of item 17's shared file is closed. A
+`mixed` receiver is ADR 0036 § 4's fourth erased shape — read and write alike are the name-keyed
+fetch — and every receiver whose declared type can hold no object at all is **E0495** where it is
+written (ADR 0007 § 7 **row 13**, new). `python tools/holes.py` is at **24 sites, 7 items**.
 
-`verify.py` 6 of 6 green — conformance **593**, differential **166**, 1630 unit tests.
-`tools/leak-check.sh` green over a fixture that returns the closure and invokes it after the
-staging frame is gone (the capture's retain is the one new refcount edge).
+The one fact worth carrying: `mwl_object_slot_get`/`mwl_object_slot_set` now take the receiver as a
+whole `Value` **by address** rather than as an `ObjHeader` pointer, and check its tag where they
+already check the name. `ReceiverProof` in `crates/mwl-ir/src/lower/expr.rs` is what selects that —
+`Erased` emits no `Untag`, `Proven` still does — and the playbook bullet above says why an
+unchecked untag over a `mixed` is a segfault rather than a panic.
 
-Facts recorded where they belong rather than here: `mwl-ir`'s gap 9 (`crates/mwl-ir/src/lib.rs`)
-now says both halves of `&$x` are answered; E0494's reasoning is its own `Code::new` doc comment
-in `mwl-diagnostics`; the shape-fields-are-a-set rule is
-`mwl_types::expr::literals::check_object_literal`'s doc comment; and `lower_object_literal`'s
-assert says in its own `# Panics` that it is an internal-consistency check now.
+`verify.py` 6 of 6 green — conformance **595**, differential **166**, 1630 unit tests.
+`tools/leak-check.sh` green over fixtures exercising both new throw edges with a freshly-built
+receiver live.
 
-`[context] adrs` gained `0036 §2` and `0036 §4` this session — both slices rest on them and the
-pack printed neither.
+Facts recorded where they belong rather than here: ADR 0007 § 7 row 13 owns the divergence; ADR
+0036 § 4 owns the `mixed` trigger; `mwl_runtime::mwl_object_slot_get`'s own doc comment owns the
+by-address receiver; `mwl-ir`'s crate doc (`crates/mwl-ir/src/lib.rs`) says all four § 4 receivers
+lower; `E0495`'s reasoning is its own `Code::new` doc comment.
 
 ## Next group
 
-**The last three refusals in `crates/mwl-ir/src/lower/expr.rs`**, which `holes.py` files under
-item 17 because they share the file. One file set: `crates/mwl-ir/src/lower/expr.rs`, with
-`crates/mwl-types/src/expr/members.rs` and `crates/mwl-diagnostics/src/lib.rs` (next free code is
-**E0495**) for the first slice.
+**The last two refusals in `crates/mwl-ir/src/lower/expr.rs`** — the file this session already had
+open, with `crates/mwl-types/src/expr/members.rs` (where `instanceof` is checked and recorded) and
+`crates/mwl-diagnostics/src/lib.rs` (next free code is **E0496**).
 
-- [ ] **A property access through a `mixed` receiver** — `crates/mwl-ir/src/lower/expr.rs:3351`,
-      the `_ =>` arm of `lower_property_access`'s `ExprInfo` match (`:3342`). **Measured this
-      session: the assert's own message is stale.** A plain `object` receiver
-      (`object $o = new Box(); echo $o->name;`) and a shape receiver naming a field it does not
-      have (`var $s = {a: 1}; echo $s->b;` — an uncaught throw, not a panic) both lower and run
-      today through ADR 0036 § 4's name-keyed fetch. The one route that still reaches the panic is
-      `mixed $m = new Box(); echo $m->name;`. Decide between reusing that § 4 fetch behind an
-      untag — a `mixed` is `Ty::Tagged` — and refusing with E0495 naming ADR 0007 § 2's "`mixed` is
-      the one unchecked position"; PHP accepts the read, which argues for the lowering.
 - [ ] **An `instanceof` whose right-hand side resolved to no class** —
-      `crates/mwl-ir/src/lower/expr.rs:3872`. Same shape of question: find the source spelling that
-      reaches it before deciding whether it is a lowering or a diagnostic.
+      `crates/mwl-ir/src/lower/expr.rs:3898`, the `ExprInfo::InstanceOf` lookup, against
+      `crates/mwl-types/src/expr/members.rs:154-180`, which records one only for a written class
+      name. The remaining route is the dynamic `$x instanceof $name` form; MWL has no dynamic class
+      names (`$$var` and `eval` are already rejected, ADR 0007 § 2), so this is almost certainly a
+      diagnostic naming that rule rather than a lowering — measure which spellings reach it first,
+      the way this session's second playbook bullet says to.
 - [ ] **An `as` whose target `closed_literal_set` cannot build** —
-      `crates/mwl-ir/src/lower/expr.rs:4119`, ADR 0047's literal atoms. This one still says "does
-      not lower", so it is a real hole rather than a stale message.
+      `crates/mwl-ir/src/lower/expr.rs:4146`, the `other =>` arm of the match inside
+      `closed_literal_set` (`:4092`). ADR 0047 names three atoms; what a union may also contain is
+      what decides between widening the set and refusing the conversion target by name.
 
 ## Backlog
 
-- Item 7's five sites in `crates/mwl-ir/src/lower/stmt.rs` (a nullsafe property assignment target,
-  an unset base that erased) — `python tools/holes.py --item 7`.
-- Item 1's 11 sites are catch-alls reachable only by a pair no widening exists for — plan, *Open now*.
-- Two unattributed sites in `crates/mwl-codegen/src/ty.rs` that no item anchors — `holes.py`.
-- 17 of the 32 named `.mwlt` cases are still to write — `python tools/loop.py --list`.
+- Item 1's 11 sites are catch-alls only (`mwl-codegen`'s mismatched-representation refusal) —
+  `docs/implementation-plan.md` § *Open now*.
+- The 2 unattributed sites in `crates/mwl-codegen/src/ty.rs` belong to no item —
+  `python tools/holes.py`.
+- Item 25's 2 sites are `lower_decl_type`/`lower_checked_ty` catch-alls for `decimal`, `never`,
+  `iterable`, `self`/`static`/`parent` as *declared* types — `docs/implementation-plan.md`.
+- 17 named `.mwlt` cases still to write — `python tools/holes.py --cases`.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.

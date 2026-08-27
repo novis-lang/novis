@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 593 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 595 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 166, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -376,10 +376,29 @@
 > own initializer is still checked so its errors arrive in the same run, and ADR 0063 R2's options
 > bag — written with the same braces — keeps its own `E0304` at the argument checker, so one
 > spelling has two owners and neither reports twice. `python tools/holes.py` is down to **27 sites
-> and 7 items**. **M4S Part I is the floor, not the frontier**: conformance is at 593 of the goal's
-> new 750 and differential at 166 of 165, `python tools/gaps.py` still ranks the thin classes, and a
-> `Core` depth slice is a legitimate slice when a group is blocked — never a reason to leave a
-> language item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
+> and 7 items**. **A property access through a `mixed` receiver is ADR 0036 § 4's name-keyed
+> fetch**, read and write alike, rather than the panic that stood at `lower_property_access`'s
+> catch-all arm: `mixed` is ADR 0007 § 2's one unchecked position, PHP accepts the read, and
+> deferring every question it raises — is this an object, does that object carry this name — is what
+> the position is for. What it could not reuse unchanged is the *untag*. Every other tagged receiver
+> reaching a member arrives with a tag `mwl_types` already proved, so `Lowering::untag_receiver`
+> compares nothing, and an unchecked untag over a `mixed` holding an `int` is a pointer the next
+> instruction dereferences. `ReceiverProof::Erased` therefore emits no untag at all: the whole
+> tagged value travels to `InstKind::SlotGet`/`SlotSet`, whose runtime helpers now take the receiver
+> as one 16-byte `Value` **by address** and check its tag where they already check its name. That
+> costs two stores on a path that was already one call, and priority 1 buys them outright. A
+> receiver that turns out not to be an object is then a catchable throw in PHP's own wording —
+> *"attempt to read property `name` on int"*. **Every receiver whose declared type can hold no
+> object at all is `E0495` instead**, where it is written: a scalar, an `array<T>`, and a union
+> naming no single class, which was the same panic by a second route the worklist item had not
+> measured. That is ADR 0007 § 7 **row 13**, row 8's rule ("nothing makes an absent thing read as a
+> zero value") at the one storage kind a *declared* type already answers before the program runs,
+> and `mixed` is the exception that keeps PHP's timing. A nullable receiver keeps its own `E0459`
+> and is never reported twice. `python tools/holes.py` is down to **24 sites**, still 7 items. **M4S
+> Part I is the floor, not the frontier**: conformance is at 595 of the goal's new 750 and
+> differential at 166 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
+> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
+> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
 > tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
