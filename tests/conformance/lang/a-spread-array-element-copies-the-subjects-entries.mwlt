@@ -1,0 +1,87 @@
+--TEST--
+`[...$a]` copies every entry of its subject, and the copy is an independent array — ADR 0007 §§ 5, 7
+--FILE--
+<?mwl
+// Agreement, over a whole table rather than one line: for a subject whose
+// keys are already `"0" … "n−1"`, spreading it into an empty literal
+// renumbers each key onto the one it already had, so `[...$s]` and `$s`
+// render identically. A copy that dropped an entry, reordered two or
+// renumbered from the wrong base fails here while still looking plausible on
+// any single row.
+array<array<string>> $lists = [
+    [],
+    ["only"],
+    ["a", "b"],
+    ["a", "b", "c", "d", "e"],
+];
+int $same = 0;
+foreach ($lists as array<string> $list) {
+    if (Core\Json::encode([...$list]) == Core\Json::encode($list)) {
+        $same = $same + 1;
+    }
+}
+echo "lists agreeing: ", $same, " of ", Core\Arr::count($lists), "\n";
+
+// The same question of a keyed subject, where the answer is the identity for
+// a different reason: no key here reads as a canonical decimal integer, so
+// every one is preserved in place and the insertion order comes with it.
+array<array<string>> $maps = [
+    ["k" => "v"],
+    ["b" => "2", "a" => "1"],
+    ["08" => "p", "-x" => "q"],
+];
+int $kept = 0;
+foreach ($maps as array<string> $map) {
+    if (Core\Json::encode([...$map]) == Core\Json::encode($map)) {
+        $kept = $kept + 1;
+    }
+}
+echo "maps agreeing: ", $kept, " of ", Core\Arr::count($maps), "\n";
+
+// The copy is a separate array, not a second name for the subject: ADR 0007
+// § 5's copy-on-write value semantics hold across a spread in both
+// directions, which is what the per-entry retain buys.
+array<string> $source = ["x", "y"];
+array<string> $copy = [...$source];
+$source["0"] = "changed";
+$copy["1"] = "also changed";
+echo "source: ", Core\Json::encode($source), "\n";
+echo "copy:   ", Core\Json::encode($copy), "\n";
+
+// One level down, the entries themselves are arrays, and the same rule holds
+// of a row: the copy shares it until one side writes.
+array<array<string>> $grid = [["a"], ["b"]];
+array<array<string>> $twin = [...$grid];
+$twin["0"]["0"] = "w";
+echo "grid: ", Core\Json::encode($grid), "\n";
+echo "twin: ", Core\Json::encode($twin), "\n";
+
+// A spread is an element like any other, so it composes with the two writes
+// beside it and nests to any depth.
+array<string> $head = ["h"];
+array<array<string>> $nested = [[...$head, "t"], [...$head]];
+echo "nested: ", Core\Json::encode($nested), "\n";
+
+// The subject may be a fresh producer rather than a binding — the copy
+// borrows it, and nothing outside the literal is left holding it.
+array<string> $keys = [...Core\Arr::keys($maps["1"]), "end"];
+echo "keys: ", Core\Json::encode($keys), "\n";
+
+// An element after a spread is evaluated after it, so a throw leaves the
+// literal unbuilt and the subject untouched.
+try {
+    array<string> $partial = [...$source, "no" as int as string];
+    echo "unreachable: ", Core\Json::encode($partial), "\n";
+} catch (Throwable $lossy) {
+    echo "threw, source intact: ", Core\Json::encode($source), "\n";
+}
+--EXPECT--
+lists agreeing: 4 of 4
+maps agreeing: 3 of 3
+source: ["changed","y"]
+copy:   ["x","also changed"]
+grid: [["a"],["b"]]
+twin: [["w"],["b"]]
+nested: [["h","t"],["h"]]
+keys: ["b","a","end"]
+threw, source intact: ["changed","y"]
