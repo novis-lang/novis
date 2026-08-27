@@ -1,0 +1,30 @@
+{
+  "$comment": [
+    "The manifest of published documentation versions.",
+    "",
+    "Each entry is a git ref that CI checks out and builds as its own copy of",
+    "this site, at its own base path. Nothing about a version is stored twice in",
+    "the repository: v0.3's documentation is whatever v0.3's tree says, because",
+    "that is literally what gets built.",
+    "",
+    "  label     shown in the switcher",
+    "  ref       git ref to check out (tag or branch)",
+    "  base      URL prefix it is served under, leading and trailing slash",
+    "  preview   true for a development line; the switcher marks it",
+    "",
+    "`default` names the version ALSO published at the site root, so that",
+    "https://novis-lang.org/docs/ is always the current stable documentation.",
+    "",
+    "Today there is one entry, because Novis has no releases yet. Cut a tag, add",
+    "a line, and the switcher grows a option. That is the whole procedure."
+  ],
+  "default": "main",
+  "versions": [
+    {
+      "label": "main",
+      "ref": "main",
+      "base": "/",
+      "preview": true
+    }
+  ]
+}

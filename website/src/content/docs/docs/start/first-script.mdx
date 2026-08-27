@@ -1,0 +1,27 @@
+---
+title: Your first script
+description: What a Novis program looks like, from the open tag to the first line of output.
+edit: open
+sources:
+  - adr/0049-single-open-tag-and-single-exit-keyword.md@60a32d201c78
+---
+
+import Lead from '~/components/Lead.astro';
+import Unwritten from '~/components/Unwritten.astro';
+import Snippet from '~/components/Snippet.astro';
+
+<Lead>
+  A Novis file starts with one tag and runs from the top. There is no build step and no project
+  layout to learn first: you write a file, and you run it.
+</Lead>
+
+<Snippet file="examples/hello.nvs" title="hello.nvs" />
+
+## The rest of this page
+
+<Unwritten
+  adrs={[
+    { id: '0049-single-open-tag-and-single-exit-keyword', title: 'Why there is exactly one open tag' },
+    { id: '0011-functions-and-constants-are-class-members', title: 'Why every function is a class member' },
+  ]}
+/>

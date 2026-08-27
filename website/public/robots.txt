@@ -1,0 +1,9 @@
+# Everything is public. The one thing worth steering: the development line and
+# any archived version should not compete with the current documentation in
+# search results — a reader who lands on a year-old page from a search does not
+# know they have.
+User-agent: *
+Allow: /
+Disallow: /main/
+
+Sitemap: https://novis-lang.org/sitemap-index.xml

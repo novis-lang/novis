@@ -1,0 +1,17 @@
+---
+/**
+ * The lead paragraph — one or two sentences saying what the page is about,
+ * placed directly under the title and before anything else.
+ *
+ * It exists as a component rather than a plain paragraph for two reasons: it
+ * is styled larger so a reader can see the easy part, and `site.py check`
+ * enforces that every authored documentation page has exactly one, at the top.
+ * A page whose first screen does not explain itself loses the reader who does
+ * not read English comfortably, and that reader is most of the audience.
+ *
+ * Keep it under about 40 words. Say what the thing *is* and what it is *for*.
+ * Do not name a mechanism, a milestone or an ADR here — those come later.
+ */
+---
+
+<p class="nv-lead"><slot /></p>

@@ -1,0 +1,23 @@
+{
+  "name": "novis-website",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The public website and documentation for Novis (novis-lang.org). Driven by `python site.py`, not by these scripts directly.",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^7.0.8",
+    "@astrojs/sitemap": "^3.7.3",
+    "@astrojs/starlight": "^0.41.9",
+    "astro": "^7.2.9",
+    "starlight-links-validator": "^0.25.3"
+  }
+}

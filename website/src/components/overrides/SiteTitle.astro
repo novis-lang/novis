@@ -1,0 +1,50 @@
+---
+/**
+ * The header's left-hand side: wordmark plus version switcher.
+ *
+ * Deliberately typographic — no logo mark. A language that does not run yet
+ * has not earned a logo, and a placeholder one would be the first piece of
+ * decoration on a site whose whole design argument is that it has none.
+ */
+import { site } from '../../site.config';
+import VersionSwitcher from '../VersionSwitcher.astro';
+
+const href = import.meta.env.BASE_URL;
+---
+
+<div class="nv-site-title">
+  <a href={href} class="nv-wordmark">
+    {site.name}
+  </a>
+  <VersionSwitcher />
+</div>
+
+<style>
+  .nv-site-title {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-width: 0;
+  }
+
+  .nv-wordmark {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--nv-ink);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .nv-wordmark:hover {
+    color: var(--nv-accent-strong);
+  }
+
+  /* On narrow screens the switcher would crowd the search box out. The header
+     still has it in the mobile menu via the sidebar, so drop it here. */
+  @media (max-width: 50rem) {
+    .nv-site-title :global(.nv-versions) {
+      display: none;
+    }
+  }
+</style>

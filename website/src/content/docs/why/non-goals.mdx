@@ -1,0 +1,25 @@
+---
+title: What Novis refuses to do
+description: The features Novis has deliberately closed the door on, and the reasoning behind each closure.
+edit: open
+sources:
+  - adr/0052-closed-doors.md@4e3193e7c741
+---
+
+import Lead from '~/components/Lead.astro';
+import Unwritten from '~/components/Unwritten.astro';
+
+<Lead>
+  A language is shaped as much by what it will not do as by what it will. This page lists the things
+  Novis has decided against on purpose — so you can find out early whether one of them is something
+  you need.
+</Lead>
+
+<Unwritten
+  adrs={[
+    { id: '0052-closed-doors', title: 'The closed doors' },
+    { id: '0012-no-superglobals', title: 'No superglobals' },
+    { id: '0028-closing-the-remaining-magic-methods', title: 'No magic methods' },
+    { id: '0015-no-name-aliasing', title: 'No name aliasing' },
+  ]}
+/>

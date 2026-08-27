@@ -1,0 +1,188 @@
+/*
+ * Design tokens.
+ *
+ * Two jobs: define the Novis palette once, and map Starlight's own variables
+ * onto it so the framework chrome (sidebar, header, search, asides, tables)
+ * follows without any per-component overrides.
+ *
+ * Rules this palette is built to, in priority order:
+ *
+ * 1. Light is the resting state. Dark is a switch, and it is a real design
+ *    rather than an inversion — the surfaces move, the accent moves with them.
+ * 2. Body text clears WCAG AAA (7:1) on its surface. Every other text token
+ *    clears AA (4.5:1). Non-text borders that carry meaning clear 3:1.
+ * 3. Hue is never the only channel. Every semantic colour is paired with an
+ *    icon and a written label at the component level — `--nv-danger` and
+ *    `--nv-success` sit at almost the same lightness on purpose, because a
+ *    reader with deuteranopia must be reading the word, not the colour.
+ * 4. No gradients, no glow, no shadow as decoration. Structure is carried by
+ *    hairlines and whitespace, which survive being printed and being zoomed.
+ *
+ * Measured contrast ratios are in the comments. If you change a value, change
+ * the comment — or the number becomes a claim nothing backs.
+ */
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* --- surfaces ------------------------------------------------------- */
+  --nv-bg: #ffffff;
+  --nv-bg-subtle: #f7f8fa; /* sidebar, table stripes, inline code */
+  --nv-bg-sunken: #eef0f4; /* the one recessed surface: code frames  */
+
+  /* --- ink ------------------------------------------------------------ */
+  --nv-ink: #14161a; /* 17.4:1 on --nv-bg   AAA */
+  --nv-ink-muted: #545c69; /*  6.4:1 on --nv-bg   AA  */
+  --nv-ink-faint: #6d7684; /*  4.6:1 on --nv-bg   AA  (metadata only) */
+
+  /* --- rules ---------------------------------------------------------- */
+  --nv-rule: #e2e5ea; /* decorative separation            */
+  --nv-rule-strong: #8c95a3; /*  3.0:1 — borders that mean something */
+
+  /* --- accent --------------------------------------------------------- */
+  --nv-accent: #0b5fd8; /*  5.8:1 on --nv-bg   AA  */
+  --nv-accent-strong: #084bad; /*  8.1:1 — hover, active nav */
+  --nv-accent-wash: #eaf1fd; /* the only tinted surface we use */
+
+  /* --- semantics: icon + label always accompany these ----------------- */
+  --nv-info: #0b5fd8; /* 5.8:1 */
+  --nv-info-wash: #eaf1fd;
+  --nv-success: #0a6b45; /* 6.6:1 */
+  --nv-success-wash: #e6f4ee;
+  --nv-warning: #8a5300; /* 6.3:1 */
+  --nv-warning-wash: #fbf0e2;
+  --nv-danger: #b3261e; /* 6.5:1 */
+  --nv-danger-wash: #fdecea;
+
+  /* --- typography ----------------------------------------------------- */
+  --nv-font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  --nv-font-mono:
+    ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+
+  /* --- measure -------------------------------------------------------- */
+  --nv-measure: 68ch; /* prose line length ceiling */
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --nv-bg: #0f1115;
+  --nv-bg-subtle: #161920;
+  --nv-bg-sunken: #1b1f27;
+
+  --nv-ink: #e9ebef; /* 15.2:1 on --nv-bg   AAA */
+  --nv-ink-muted: #a3acb9; /*  8.3:1 on --nv-bg   AAA */
+  --nv-ink-faint: #838d9c; /*  5.5:1 on --nv-bg   AA  */
+
+  --nv-rule: #262b34;
+  --nv-rule-strong: #566072; /*  3.2:1 */
+
+  --nv-accent: #7aacff; /*  8.3:1 */
+  --nv-accent-strong: #a3c6ff; /* 11.2:1 */
+  --nv-accent-wash: #14243d;
+
+  --nv-info: #7aacff;
+  --nv-info-wash: #14243d;
+  --nv-success: #5cd39d; /* 10.4:1 */
+  --nv-success-wash: #0f2a20;
+  --nv-warning: #e2a75c; /*  9.4:1 */
+  --nv-warning-wash: #2b2013;
+  --nv-danger: #ff9b91; /*  9.0:1 */
+  --nv-danger-wash: #2e1614;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Starlight variable mapping.
+ *
+ * Starlight names its scale from `white` to `black` in whichever direction the
+ * theme runs, so the light and dark blocks are not mirror images — each maps
+ * onto our surfaces in the direction that theme actually reads.
+ * ---------------------------------------------------------------------- */
+
+:root,
+:root[data-theme='light'] {
+  --sl-color-white: var(--nv-ink);
+  --sl-color-gray-1: #1f232a;
+  --sl-color-gray-2: #3b414b;
+  --sl-color-gray-3: var(--nv-ink-muted);
+  --sl-color-gray-4: #97a0ad;
+  --sl-color-gray-5: var(--nv-rule);
+  --sl-color-gray-6: var(--nv-bg-subtle);
+  --sl-color-gray-7: #fafbfc;
+  --sl-color-black: var(--nv-bg);
+
+  --sl-color-accent-low: var(--nv-accent-wash);
+  --sl-color-accent: var(--nv-accent);
+  --sl-color-accent-high: var(--nv-accent-strong);
+
+  --sl-color-text: var(--nv-ink);
+  --sl-color-text-accent: var(--nv-accent);
+  --sl-color-text-invert: var(--nv-bg);
+  --sl-color-bg: var(--nv-bg);
+  --sl-color-bg-nav: var(--nv-bg);
+  --sl-color-bg-sidebar: var(--nv-bg);
+  --sl-color-bg-inline-code: var(--nv-bg-subtle);
+  --sl-color-bg-accent: var(--nv-accent);
+  --sl-color-hairline: var(--nv-rule);
+  --sl-color-hairline-light: var(--nv-rule);
+  --sl-color-hairline-shade: var(--nv-rule);
+  --sl-color-backdrop-overlay: rgb(20 22 26 / 60%);
+
+  --sl-shadow-sm: none;
+  --sl-shadow-md: none;
+  --sl-shadow-lg: 0 0 0 1px var(--nv-rule);
+}
+
+:root[data-theme='dark'] {
+  --sl-color-white: var(--nv-ink);
+  --sl-color-gray-1: #d3d8e0;
+  --sl-color-gray-2: #b9c0ca;
+  --sl-color-gray-3: var(--nv-ink-muted);
+  --sl-color-gray-4: #6c7686;
+  --sl-color-gray-5: var(--nv-rule);
+  --sl-color-gray-6: var(--nv-bg-subtle);
+  --sl-color-gray-7: #12151b;
+  --sl-color-black: var(--nv-bg);
+
+  --sl-color-accent-low: var(--nv-accent-wash);
+  --sl-color-accent: var(--nv-accent);
+  --sl-color-accent-high: var(--nv-accent-strong);
+
+  --sl-color-text: var(--nv-ink);
+  --sl-color-text-accent: var(--nv-accent);
+  --sl-color-text-invert: var(--nv-bg);
+  --sl-color-bg: var(--nv-bg);
+  --sl-color-bg-nav: var(--nv-bg);
+  --sl-color-bg-sidebar: var(--nv-bg);
+  --sl-color-bg-inline-code: var(--nv-bg-subtle);
+  --sl-color-bg-accent: var(--nv-accent);
+  --sl-color-hairline: var(--nv-rule);
+  --sl-color-hairline-light: var(--nv-rule);
+  --sl-color-hairline-shade: var(--nv-rule);
+  --sl-color-backdrop-overlay: rgb(0 0 0 / 70%);
+
+  --sl-shadow-sm: none;
+  --sl-shadow-md: none;
+  --sl-shadow-lg: 0 0 0 1px var(--nv-rule);
+}
+
+/* Type scale. Starlight's defaults are fine in proportion but a shade large
+   for a spec-shaped site; these tighten the headings and leave body alone. */
+:root {
+  --sl-font: var(--nv-font-sans);
+  --sl-font-mono: var(--nv-font-mono);
+
+  --sl-text-h1: 2.25rem;
+  --sl-text-h2: 1.5rem;
+  --sl-text-h3: 1.175rem;
+  --sl-text-h4: 1rem;
+
+  --sl-line-height: 1.7;
+  --sl-content-width: 48rem;
+  --sl-sidebar-width: 17.5rem;
+  --sl-nav-height: 3.75rem;
+}

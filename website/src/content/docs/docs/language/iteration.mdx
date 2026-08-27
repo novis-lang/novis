@@ -1,0 +1,22 @@
+---
+title: Iteration and generators
+description: How foreach works, what it accepts, and how a generator hands back one value at a time without holding the whole sequence in memory.
+edit: open
+sources:
+  - adr/0053-iteration-and-generators.md@64c4ffb3770b
+---
+
+import Lead from '~/components/Lead.astro';
+import Unwritten from '~/components/Unwritten.astro';
+
+<Lead>
+  A `foreach` loop walks an array, or anything that can hand out values one at a time. A generator
+  is a function that produces those values as they are asked for, so a million-row file never has to
+  be a million-row array.
+</Lead>
+
+<Unwritten
+  adrs={[
+    { id: '0053-iteration-and-generators', title: 'Iteration, generators, and why they compile to state machines' },
+  ]}
+/>

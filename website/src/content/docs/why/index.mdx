@@ -1,0 +1,140 @@
+---
+title: Who Novis is for
+description: Novis is built for teams whose process runs code, or holds data, that the team did not write and cannot fully trust. This page says who that is, what the language gives them, and what it does not claim.
+edit: review
+sources:
+  - adr/0080-the-audience-nvs-is-built-for.md@697b6af8f171
+  - adr/0024-taint-tracking-for-injection-sinks.md@dee8c76876f5
+  - adr/0033-secret-qualifier-for-confidential-values.md@883c9edebebe
+  - adr/0006-isolated-script-execution.md@1a3fd78cd2e3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Lead from '~/components/Lead.astro';
+import Sources from '~/components/Sources.astro';
+
+<Lead>
+  Novis is built for one kind of team: the team whose servers run code, or hold data, that the team
+  did not write and cannot fully trust. If that is not you, most languages will serve you as well or
+  better, and this page will tell you so honestly.
+</Lead>
+
+## The team it is built for
+
+You are probably in this group if one of these is true:
+
+- **You run code your customers wrote.** A SaaS platform with customer scripts,
+  workflow rules, formulas, or webhooks that execute on your machines.
+- **You host many clients in one fleet.** An agency or a platform where forty
+  sites share infrastructure and one of them being compromised must not reach
+  the other thirty-nine.
+- **You run plugins or a marketplace.** Third-party code, installed by users,
+  running next to your own.
+- **A leaked value is a reportable event.** Finance, health, or anything under a
+  regime where "the token ended up in a log file" is an incident with a form to
+  fill in.
+
+What those have in common is not scale and not speed. It is that **the code you
+must protect against is code you cannot read**, and the data you must protect
+belongs to someone who will be told if you lose it.
+
+## What most languages ask of you
+
+In every mainstream language, the three defences that matter here are things you
+have to remember:
+
+| The risk | The usual answer | What it depends on |
+|---|---|---|
+| Untrusted code doing damage | Start a separate process, or a container | Somebody sets it up correctly, and pays for the process |
+| A secret reaching a log or an error page | Do not log it | Every developer, every day, forever |
+| Untrusted input reaching a query | Escape it, or use a prepared statement | Remembering, on every one of hundreds of call sites |
+
+Each answer works. Each fails silently the first time somebody forgets — and
+"somebody forgot" is the actual cause of most of the incidents these defences
+exist to prevent.
+
+## What Novis does instead
+
+Novis moves all three from *discipline* to *the compiler*.
+
+### Isolation is a language construct
+
+`spawn script 'job.nvs'` runs another file inside the same process with a fresh
+heap, fresh globals, its own configuration, and only the permissions the caller
+hands it. It shares nothing with the caller except compiled machine code, which
+cannot be modified.
+
+That is the isolation you would otherwise start a second process to get, without
+starting a second process — so it is cheap enough to use per job, per plugin,
+per request, rather than only at the boundaries where the cost was worth it.
+
+<p>[How isolated scripts work →](../docs/safety/isolated-scripts/)</p>
+
+### Secrets cannot leak by accident
+
+A value declared `secret` is tracked by the type system. It cannot be printed,
+logged, serialised into an error page, or written into a trace. Not "should not"
+— the program does not compile.
+
+<p>[Secret values →](../docs/safety/secret/)</p>
+
+### Untrusted input cannot reach a sink
+
+Data arriving from outside is `tainted`. A tainted value cannot be used to build
+a database query, a shell command, an HTML page or a file path until it has
+passed through something that clears the taint for that specific use. The check
+happens when the code compiles, so the failure is a build error on a developer's
+machine rather than a breach in production.
+
+<p>[Taint tracking →](../docs/safety/taint/)</p>
+
+## What Novis does not claim
+
+This section exists because a project that only lists its strengths is not
+telling you enough to decide.
+
+<Aside type="caution" title="It is not a faster PHP">
+Novis does not claim to be faster than PHP, and you should be suspicious of any
+document that says it is. PHP has spent the last several years answering exactly
+the performance questions that would have made that claim interesting. Speed is
+not why Novis exists.
+</Aside>
+
+<Aside type="caution" title="It is not PHP-compatible">
+The syntax starts from PHP 8.5 so that the language is quick to read and quick
+to learn. That is an on-ramp, not a promise. Novis has a different type
+discipline, no free functions, no superglobals, and different rules for
+conversion and equality. Existing PHP is **converted**, with types inferred and
+written into the output for you to review — it is not dropped in and run.
+</Aside>
+
+<Aside type="caution" title="It has no ecosystem yet">
+Fifteen years of libraries exist for the languages you are already using, and
+none of them exist here. That is the honest cost, and it is why Novis is aimed
+at greenfield work: a new service, a new platform, a rewrite that was going to
+happen anyway. Retrofitting it under an existing dependency tree is not a thing
+it can do for you today.
+</Aside>
+
+## What is still missing
+
+Two things stand between Novis and the team described at the top of this page,
+and neither is a language feature:
+
+1. **A dependency story** — how packages are named, resolved and trusted.
+2. **A framework** — the first-party answer to routing, requests, sessions and
+   background work, so that starting a project does not mean assembling one.
+
+Both are decided and neither is finished. They were prioritised ahead of adding
+more language surface for the reason this whole page describes: more features do
+not help a team that cannot start a project.
+
+## If you are deciding right now
+
+Novis is pre-alpha. It does not yet run a program end to end. **Nobody should be
+choosing it for production work today**, and the fair question is whether to
+follow it, not whether to adopt it.
+
+[What works today, milestone by milestone →](../status/)
+
+<Sources sources={frontmatter.sources} />

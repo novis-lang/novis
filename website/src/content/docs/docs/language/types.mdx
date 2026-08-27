@@ -1,0 +1,24 @@
+---
+title: Types
+description: Every variable, parameter and property in Novis declares its type, and no value changes type behind your back.
+edit: open
+sources:
+  - adr/0007-explicit-type-system.md@1ee7ba162904
+---
+
+import Lead from '~/components/Lead.astro';
+import Unwritten from '~/components/Unwritten.astro';
+
+<Lead>
+  Everything in Novis has a written type: every variable, every parameter, every property. Nothing
+  converts itself quietly — a conversion that cannot succeed raises an error instead of producing
+  `0` and carrying on.
+</Lead>
+
+<Unwritten
+  adrs={[
+    { id: '0007-explicit-type-system', title: 'The explicit type system' },
+    { id: '0037-var-local-type-inference', title: 'Local type inference with `var`' },
+    { id: '0047-literal-and-enum-case-types', title: 'Literal and enum case types' },
+  ]}
+/>

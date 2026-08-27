@@ -1,0 +1,84 @@
+---
+/**
+ * The provenance footer.
+ *
+ * Every authored page declares in its frontmatter which repository files it was
+ * written from:
+ *
+ *   sources:
+ *     - adr/0006-isolated-script-execution.md@a1b2c3d
+ *     - docs/spec/00-overview.md@e4f5g6h
+ *
+ * The part after `@` is the git blob hash of that file when the page was last
+ * reviewed. `python site.py check` recomputes them and reports any page whose
+ * source has changed since — that is how one fact stays in one place while
+ * being *said* two different ways. `python site.py bless <page>` re-stamps a
+ * page once a human has reread it.
+ *
+ * This component renders the same list for the reader, so anyone can go from a
+ * friendly page to the authoritative decision in one click.
+ */
+import { repoFile, site } from '../site.config';
+
+interface Props {
+  sources?: string[];
+}
+
+const { sources = [] } = Astro.props;
+
+// Every version of this site is built under its own base path, so an
+// unprefixed `/design/…` would send the reader out of the version they chose.
+const RAW_BASE = import.meta.env.BASE_URL || '/';
+const BASE = RAW_BASE.endsWith('/') ? RAW_BASE : RAW_BASE + '/';
+
+type Link = { label: string; href: string; kind: 'adr' | 'repo' };
+
+function toLink(entry: string): Link {
+  const path = entry.split('@')[0]!.trim();
+
+  // ADRs are published on this site, so link to the local mirror.
+  const adr = path.match(/^(?:docs\/)?adr\/(\d{4}-[a-z0-9-]+)\.md$/);
+  if (adr) {
+    return {
+      label: `ADR ${adr[1]!.slice(0, 4)}`,
+      href: `${BASE}design/adr/${adr[1]}/`,
+      kind: 'adr',
+    };
+  }
+  if (/^(?:docs\/)?adr\/ground-rules\.md$/.test(path)) {
+    return { label: 'Ground rules', href: `${BASE}design/ground-rules/`, kind: 'adr' };
+  }
+  if (/^(?:docs\/)?adr\/divergences\.md$/.test(path)) {
+    return { label: 'Divergences', href: `${BASE}design/divergences/`, kind: 'adr' };
+  }
+
+  // Everything else is a repository file that is deliberately not published.
+  return { label: path, href: repoFile(path), kind: 'repo' };
+}
+
+const links = sources.map(toLink);
+---
+
+{
+  links.length > 0 && (
+    <aside class="nv-sources" aria-label="Sources">
+      <span>
+        Written from these {site.name} sources. The linked file is authoritative; this page restates
+        it in plainer language.
+      </span>
+      <ul>
+        {links.map((l) => (
+          <li>
+            {l.kind === 'adr' ? (
+              <a href={l.href}>{l.label}</a>
+            ) : (
+              <a href={l.href} rel="noopener">
+                <code>{l.label}</code>
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+    </aside>
+  )
+}

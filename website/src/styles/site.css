@@ -1,0 +1,443 @@
+/*
+ * Site styles.
+ *
+ * Everything here is either (a) a correction to a Starlight default that does
+ * not suit a spec-shaped site, or (b) a component this project owns. There is
+ * no third category — if a rule is neither, it is decoration and it should not
+ * be here.
+ */
+
+/* ---------------------------------------------------------------------- *
+ * Base
+ * ---------------------------------------------------------------------- */
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--nv-font-sans);
+  font-synthesis-weight: none;
+  text-rendering: optimizeLegibility;
+}
+
+/* One focus treatment everywhere, visible on both surfaces, never removed. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--nv-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Starlight underlines links on hover only; a link that is only blue is a link
+   only to people who see blue. Underline always, in the content area. */
+.sl-markdown-content a:not(:where(.not-content *, .card *, .nv-cta, .nv-pillar *)) {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 0.06em;
+  text-decoration-color: color-mix(in srgb, var(--nv-accent) 45%, transparent);
+}
+
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+  text-decoration-color: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------- *
+ * Content rhythm
+ *
+ * The documentation shape is: title, lead, quick start, detail, depth. The
+ * styles below make the first two visibly different from the rest, so a reader
+ * can see where the easy part ends without being told.
+ * ---------------------------------------------------------------------- */
+
+.sl-markdown-content {
+  max-width: var(--nv-measure);
+}
+
+.sl-markdown-content h2 {
+  margin-block-start: 2.75rem;
+  padding-block-start: 1.25rem;
+  border-block-start: 1px solid var(--nv-rule);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.sl-markdown-content h3 {
+  margin-block-start: 2rem;
+  font-weight: 650;
+}
+
+/* The lead. One or two sentences under the title, before anything else.
+   Authored as `<p class="nv-lead">` or via the `<Lead>` component. */
+.nv-lead {
+  font-size: 1.175rem;
+  line-height: 1.6;
+  color: var(--nv-ink);
+  margin-block: 0 1.75rem;
+  max-width: 60ch;
+}
+
+.nv-lead strong {
+  font-weight: 650;
+}
+
+/* Inline code: readable, not shouty. */
+.sl-markdown-content :not(pre) > code {
+  font-family: var(--nv-font-mono);
+  font-size: 0.875em;
+  background: var(--nv-bg-subtle);
+  border: 1px solid var(--nv-rule);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+}
+
+/* Tables: hairlines, not boxes. */
+.sl-markdown-content table {
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  width: 100%;
+}
+
+.sl-markdown-content :is(th, td) {
+  border: 0;
+  border-block-end: 1px solid var(--nv-rule);
+  padding: 0.55rem 0.75rem 0.55rem 0;
+  text-align: start;
+  vertical-align: top;
+}
+
+.sl-markdown-content th {
+  font-weight: 650;
+  border-block-end-color: var(--nv-rule-strong);
+  white-space: nowrap;
+}
+
+/* A wide table scrolls inside itself rather than pushing the page sideways. */
+.sl-markdown-content .nv-scroll,
+.sl-markdown-content table {
+  overflow-x: auto;
+  display: block;
+}
+
+.sl-markdown-content blockquote {
+  border-inline-start: 3px solid var(--nv-rule-strong);
+  padding-inline-start: 1rem;
+  color: var(--nv-ink);
+  font-style: normal;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Header, sidebar, chrome
+ * ---------------------------------------------------------------------- */
+
+.header {
+  border-block-end: 1px solid var(--nv-rule);
+}
+
+/* Starlight's sidebar links are low-contrast by default. Raise them, and make
+   the current page unmistakable with weight and a rule, not just colour. */
+.sidebar-content a {
+  color: var(--nv-ink-muted);
+}
+
+.sidebar-content a:hover {
+  color: var(--nv-ink);
+}
+
+.sidebar-content a[aria-current='page'] {
+  color: var(--nv-accent-strong);
+  background: transparent;
+  font-weight: 650;
+  box-shadow: inset 2px 0 0 var(--nv-accent);
+}
+
+.sidebar-content summary,
+.sidebar-content .group-label span {
+  color: var(--nv-ink);
+  font-weight: 650;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Version switcher
+ * ---------------------------------------------------------------------- */
+
+.nv-versions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nv-versions select {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-family: var(--nv-font-mono);
+  color: var(--nv-ink);
+  background: var(--nv-bg-subtle);
+  border: 1px solid var(--nv-rule-strong);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
+}
+
+.nv-versions[data-preview='true'] select {
+  border-color: var(--nv-warning);
+  color: var(--nv-warning);
+}
+
+/* ---------------------------------------------------------------------- *
+ * Status banner — pre-alpha honesty, sitewide
+ * ---------------------------------------------------------------------- */
+
+.nv-status-banner {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 0.6rem 1.25rem;
+  background: var(--nv-warning-wash);
+  border-block-end: 1px solid color-mix(in srgb, var(--nv-warning) 40%, transparent);
+  color: var(--nv-ink);
+  font-size: 0.875rem;
+}
+
+.nv-status-banner b {
+  color: var(--nv-warning);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Landing page
+ * ---------------------------------------------------------------------- */
+
+.nv-hero {
+  padding-block: 3.5rem 3rem;
+  border-block-end: 1px solid var(--nv-rule);
+}
+
+.nv-hero h1 {
+  font-size: clamp(2.1rem, 1.4rem + 2.6vw, 3.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  max-width: 20ch;
+}
+
+.nv-hero p {
+  font-size: 1.175rem;
+  line-height: 1.6;
+  color: var(--nv-ink);
+  max-width: 58ch;
+  margin: 0 0 1rem;
+}
+
+.nv-hero .nv-hero-sub {
+  color: var(--nv-ink-muted);
+  font-size: 1rem;
+  max-width: 62ch;
+}
+
+.nv-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block-start: 1.75rem;
+}
+
+.nv-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+
+.nv-cta-primary {
+  background: var(--nv-accent);
+  color: #fff;
+  border-color: var(--nv-accent);
+}
+
+:root[data-theme='dark'] .nv-cta-primary {
+  color: var(--nv-bg);
+}
+
+.nv-cta-primary:hover {
+  background: var(--nv-accent-strong);
+  border-color: var(--nv-accent-strong);
+}
+
+.nv-cta-secondary {
+  color: var(--nv-ink);
+  border-color: var(--nv-rule-strong);
+}
+
+.nv-cta-secondary:hover {
+  border-color: var(--nv-ink);
+}
+
+/* Pillars — the three things ADR 0080 says are the pitch. */
+.nv-pillars {
+  display: grid;
+  gap: 1px;
+  background: var(--nv-rule);
+  border: 1px solid var(--nv-rule);
+  border-radius: 6px;
+  overflow: hidden;
+  grid-template-columns: 1fr;
+  margin-block: 2.5rem;
+}
+
+@media (min-width: 46rem) {
+  .nv-pillars[data-cols='3'] {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .nv-pillars[data-cols='2'] {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.nv-pillar {
+  background: var(--nv-bg);
+  padding: 1.35rem 1.35rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nv-pillar h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
+
+.nv-pillar p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--nv-ink-muted);
+}
+
+.nv-pillar .nv-pillar-kicker {
+  font-family: var(--nv-font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nv-ink-faint);
+}
+
+.nv-pillar a {
+  margin-block-start: auto;
+  padding-block-start: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--nv-accent);
+  text-decoration: none;
+}
+
+.nv-pillar a:hover {
+  text-decoration: underline;
+}
+
+.nv-section {
+  padding-block: 2.75rem;
+  border-block-start: 1px solid var(--nv-rule);
+}
+
+.nv-section > h2 {
+  font-size: 1.375rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.5rem;
+}
+
+.nv-section > .nv-section-lead {
+  color: var(--nv-ink-muted);
+  max-width: 62ch;
+  margin: 0 0 1.5rem;
+}
+
+/* A splash page still wants a readable measure. */
+.sl-container > .nv-landing {
+  max-width: 62rem;
+  margin-inline: auto;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Provenance note — where a page's facts come from
+ * ---------------------------------------------------------------------- */
+
+.nv-sources {
+  margin-block-start: 3rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--nv-rule);
+  font-size: 0.8125rem;
+  color: var(--nv-ink-faint);
+}
+
+.nv-sources ul {
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
+.nv-sources li::before {
+  content: '';
+  display: inline-block;
+  width: 0.35em;
+  height: 0.35em;
+  margin-inline-end: 0.45em;
+  vertical-align: 0.15em;
+  background: var(--nv-rule-strong);
+  border-radius: 50%;
+}
+
+.nv-sources code {
+  font-size: 0.9em;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Generated-file notice, used on mirrored ADR pages
+ * ---------------------------------------------------------------------- */
+
+.nv-mirror-note {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.7rem 0.9rem;
+  margin-block-end: 1.5rem;
+  background: var(--nv-bg-subtle);
+  border: 1px solid var(--nv-rule);
+  border-inline-start: 3px solid var(--nv-rule-strong);
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  color: var(--nv-ink-muted);
+}
+
+.nv-mirror-note strong {
+  color: var(--nv-ink);
+}

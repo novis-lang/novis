@@ -1,0 +1,46 @@
+---
+title: Status and roadmap
+description: What works in Novis today, what is being built now, and what each milestone delivers. Generated from the plan the team actually works against.
+edit: review
+tableOfContents: false
+sources:
+  - docs/implementation-plan.md@d65a4c4a2446
+---
+
+import Lead from '~/components/Lead.astro';
+import StatusTable from '~/components/StatusTable.astro';
+import Sources from '~/components/Sources.astro';
+
+<Lead>
+  Novis is pre-alpha and does not yet run a program end to end. This page is generated from the
+  implementation plan the team works against, so it says what is true this week rather than what was
+  true when somebody last remembered to update a roadmap.
+</Lead>
+
+## Should you use it?
+
+Not for anything real, not yet. There is no release, no stable syntax and no
+dependency story. **The useful question today is whether to follow the project,
+not whether to adopt it.**
+
+If you are evaluating it for a future project, the two things to watch are the
+package story and the first-party framework — those, rather than more language
+features, are what stand between Novis and being usable.
+
+{/* keep: hand-written; the generated table below can change freely, this cannot */}
+If something on this page contradicts something elsewhere on the site, believe
+this page. Everything here is read straight out of the repository at build time.
+{/* /keep */}
+
+## Where the work stands
+
+<StatusTable fields={['Status', 'Done', 'On disk', 'Toolchain', 'Open now', 'Blocking']} />
+
+## The milestones
+
+Each milestone has its own acceptance criteria in the repository; the titles
+below are theirs.
+
+<StatusTable fields={[]} milestones={true} />
+
+<Sources sources={frontmatter.sources} />

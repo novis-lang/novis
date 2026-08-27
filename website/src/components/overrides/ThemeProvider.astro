@@ -1,0 +1,67 @@
+---
+/**
+ * Starlight's ThemeProvider, with one change: **light is the default.**
+ *
+ * Starlight ships dark-first and falls back to `prefers-color-scheme`. This
+ * site is designed light-first, so a visitor with no stored preference gets
+ * light regardless of their OS setting. A visitor who *chooses* dark, or who
+ * chooses `auto`, still gets exactly what they chose — the toggle in the header
+ * is Starlight's own and is untouched.
+ *
+ * KNOWN COUPLING. This file reimplements a Starlight internal contract: the
+ * `window.StarlightThemeProvider.updatePickers()` function that
+ * `<ThemeSelect>` calls, and the `#theme-icons` template it reads. If a
+ * Starlight upgrade breaks the theme toggle, this file is the first place to
+ * look — diff it against
+ * `node_modules/@astrojs/starlight/components/ThemeProvider.astro`.
+ * `python site.py check` warns when the upstream file's shape has drifted.
+ */
+---
+
+<script is:inline>
+  window.StarlightThemeProvider = (() => {
+    const KEY = 'starlight-theme';
+
+    /** What the visitor explicitly chose, or null if they never did. */
+    function storedTheme() {
+      try {
+        const v = localStorage.getItem(KEY);
+        return v === 'light' || v === 'dark' || v === 'auto' ? v : null;
+      } catch {
+        // Private mode, disabled storage, embedded webview. Light it is.
+        return null;
+      }
+    }
+
+    /** Resolve a choice (or the absence of one) to an actual theme. */
+    function resolve(choice) {
+      if (choice === 'dark') return 'dark';
+      if (choice === 'light') return 'light';
+      if (choice === 'auto') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      // No stored choice. This is the line that differs from upstream.
+      return 'light';
+    }
+
+    const choice = storedTheme();
+    document.documentElement.dataset.theme = resolve(choice);
+
+    return {
+      updatePickers(theme = storedTheme() ?? 'light') {
+        document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+          const select = picker.querySelector('select');
+          if (select) select.value = theme;
+          const tmpl = document.querySelector('#theme-icons');
+          const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+          if (newIcon) {
+            const oldIcon = picker.querySelector('svg.label-icon');
+            if (oldIcon) {
+              oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+            }
+          }
+        });
+      },
+    };
+  })();
+</script>

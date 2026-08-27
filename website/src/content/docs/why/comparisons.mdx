@@ -1,0 +1,29 @@
+---
+title: Compared to PHP and Python
+description: An honest comparison — where Novis differs, where it does not compete, and where the incumbent is the better choice.
+edit: open
+sources:
+  - adr/0080-the-audience-nvs-is-built-for.md@697b6af8f171
+  - adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md@5967cf655b13
+  - adr/divergences.md@298e7f587555
+---
+
+import Lead from '~/components/Lead.astro';
+import Unwritten from '~/components/Unwritten.astro';
+
+<Lead>
+  Novis reads like PHP and competes with neither PHP nor Python on the grounds you would expect.
+  This page sets out where the differences actually are, including the cases where you should keep
+  using what you already have.
+</Lead>
+
+<Unwritten
+  adrs={[
+    { id: '0080-the-audience-nvs-is-built-for', title: 'Who Novis is built for, and what it does not claim' },
+    { id: '0100-against-python-nvs-claims-the-tool-that-gets-handed-over', title: 'Against Python: the tool that gets handed over' },
+  ]}
+/>
+
+Until this page is written, the complete list of places Novis deliberately
+behaves differently from PHP — every one, with the decision that owns it — is
+published as [Divergences](../../design/divergences/).
