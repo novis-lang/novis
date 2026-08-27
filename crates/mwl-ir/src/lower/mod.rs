@@ -1179,29 +1179,46 @@ struct Lowering<'a> {
     /// every frame that has no such loop open and the write-through hook
     /// costs one `is_empty` there.
     by_ref_elements: Vec<ByRefElement>,
-    /// By-reference arguments staged for the call currently being lowered,
+    /// By-reference arguments staged for the calls currently being lowered,
     /// awaiting their copy-back — see [`Ty::Ref`] and
     /// [`Self::flush_ref_writebacks`].
     ///
     /// # Why this is a frame field rather than a return value
     ///
     /// The copy-back re-points the argument's *holder*, which for a local
-    /// means rebinding it in [`Env`]. The staging is parked here and drained
-    /// at the enclosing statement, so every argument of one call is written
-    /// back at one point rather than at whichever operand happened to be
-    /// lowered last.
+    /// means rebinding it in [`Env`], and [`Self::lower_call_args`] hands its
+    /// caller a `LoweredArgs` with nowhere to carry one. So the staging is
+    /// parked here and drained by the call site itself, once, immediately
+    /// after the call has returned — every argument of one call written back
+    /// at one point rather than at whichever operand happened to be lowered
+    /// last.
     ///
-    /// **Known gap.** A read of the holder that is sequenced *after* the call
-    /// but still inside the same statement (`$n + Adder::bump($n)`) therefore
-    /// sees the pre-call value, where PHP would see the written-back one.
-    /// [`Self::lower_stmt`] asserts this list is empty once a statement has
-    /// been lowered, so such a program panics naming the shape rather than
-    /// silently losing the write. This used to be a *scoping* limit —
-    /// [`Self::lower_expr`] held an `&Env` and had no binding it could
-    /// re-point — and is not any more: it holds an `&mut Env` since an
-    /// increment started lowering in value position. What closing it now
-    /// needs is a rule for *where* the copy-back lands, which is the
-    /// sequence-point question this list currently answers by deferring.
+    /// **A stack, because calls nest.** `Foo::a($n, Bar::b($n))` stages `$n`
+    /// for `a` before `b`'s argument list is lowered at all, so a call site
+    /// takes [`Self::pending_refs_mark`] before it lowers its arguments and
+    /// hands that mark back to [`Self::flush_ref_writebacks`] after it has
+    /// emitted its call: the inner call writes back only what *it* staged, and
+    /// the outer one's staging is still standing when its own call is emitted.
+    ///
+    /// That mark is the rule for *where* a copy-back lands, and it is where
+    /// PHP puts it — at the call. So a read of the holder sequenced after the
+    /// call and still inside the same statement
+    /// (`Adder::bump($n) . " then " . $n`) sees the written-back value, and a
+    /// call with a `&$x` argument lowers in any expression position at all
+    /// rather than only as a bare statement or a plain assignment's right-hand
+    /// side. [`Self::lower_stmts`] still asserts this list is empty once a
+    /// statement has been lowered, which is now an internal-consistency check
+    /// on the call sites rather than a refusal of the program.
+    ///
+    /// **What that does not buy is PHP's operand order**, and it is not meant
+    /// to. MWL evaluates a binary operator's operands strictly left to right,
+    /// so `$n + Adder::bump($n)` reads the left `$n` *before* the call and
+    /// answers `5 + 7`; PHP compiles that left operand to a CV read at the
+    /// `ADD` itself, after the call, and answers `7 + 7`. PHP's own manual
+    /// leaves the evaluation order of an expression's operands undefined, so
+    /// there is no specified behaviour here to be compatible with, and
+    /// left-to-right is the order every other side effect in an MWL expression
+    /// already happens in.
     pending_refs: Vec<StagedRef>,
     /// ADR 0053 § 4's state class, while this frame is a generator's
     /// `advance()` — `None` for every other function there is. See
@@ -2071,16 +2088,28 @@ impl<'a> Lowering<'a> {
             )
         })
     }
-    /// Emits every staged by-reference argument's copy-back, in staging order,
-    /// and clears the list.
+    /// The top of [`Self::pending_refs`], taken by a call site before it
+    /// lowers its argument list and handed back to
+    /// [`Self::flush_ref_writebacks`] once its call has returned.
+    ///
+    /// See [`Self::pending_refs`] for why a call site needs a mark rather than
+    /// draining the whole list: an enclosing call's arguments are already
+    /// staged by the time a nested one is lowered.
+    pub(super) fn pending_refs_mark(&self) -> usize {
+        self.pending_refs.len()
+    }
+    /// Emits the copy-back of every by-reference argument staged since `mark`,
+    /// in staging order, and pops those entries off [`Self::pending_refs`].
     ///
     /// Each one is an [`InstKind::RefLoad`] out of the slot the call may have
     /// written, then a re-point of the holder ([`Self::write_back_holder`]).
-    /// Called at the end of the *statement* that contained the call, which is
-    /// where an `&mut Env` exists at all — see [`Self::pending_refs`] for what
-    /// that costs and [`Ty::Ref`] for the whole representation.
-    pub(super) fn flush_ref_writebacks(&mut self, env: &mut Env, cur: BlockId) {
-        for staged in std::mem::take(&mut self.pending_refs) {
+    /// Called by the call site itself, into the block the call returned into,
+    /// so the write lands where PHP's does — at the call, not at the enclosing
+    /// statement. See [`Self::pending_refs`] for why `mark` is what keeps a
+    /// nested call from flushing its caller's staging, and [`Ty::Ref`] for the
+    /// whole representation.
+    pub(super) fn flush_ref_writebacks(&mut self, mark: usize, env: &mut Env, cur: BlockId) {
+        for staged in self.pending_refs.split_off(mark) {
             let (v, _) = self.emit(cur, staged.ty, InstKind::RefLoad { slot: staged.slot });
             self.write_back_holder(&staged.holder, v, staged.ty, env, cur);
         }
@@ -4550,7 +4579,7 @@ class T {
     /// the copy: what the destination ends up owning is a fresh reference per
     /// entry, and the runtime takes it.
     #[test]
-    fn a_spread_element_copies_the_subject_into_the_literal() {
+    fn a_spread_array_element_lowers() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(): void {\n    array $a = [1];\n    array $b = [...$a];\n  }\n}\n",
         );
@@ -5498,7 +5527,7 @@ class T {
     /// subject's own binding carrying a header phi over what the last
     /// iteration wrote.
     #[test]
-    fn a_by_reference_foreach_writes_through_to_the_array_it_walks() {
+    fn a_foreach_by_reference_writes_through_to_its_array() {
         let (f, map, file) = lower_first_method(
             "<?mwl
 class T {
@@ -5659,6 +5688,31 @@ class T {
             "  function m(callable $f, array<int> $extra): void {\n",
             "    echo $f(1, ...$extra) as string;\n",
             "    echo $f(1) as string;\n",
+            "  }\n",
+            "}\n",
+        ));
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// The whole path in one fixture: an ADR 0031 `fn` literal bound to a
+    /// local, then *called* through the variable holding it — which is what
+    /// `examples/callable.mwl`'s `direct` line runs and what used to panic.
+    ///
+    /// The call is the runtime's (`Helper::CallClosure` into
+    /// `mwl_runtime::call_closure`) rather than a lowered `Call` to a label,
+    /// because a `callable` names no compiled function; the environment object
+    /// the literal built is the receiver. The neighbouring fixture asks the
+    /// same question of a `callable` *parameter*, where there is no literal in
+    /// the frame at all — the pair is what separates "the closure lowers" from
+    /// "the variable holding one is callable".
+    #[test]
+    fn a_closure_is_called_through_the_variable_holding_it() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\n",
+            "class T {\n",
+            "  function m(): void {\n",
+            "    callable $f = fn (int $a, int $b): int => $a + $b;\n",
+            "    echo $f(6, 7) as string;\n",
             "  }\n",
             "}\n",
         ));
@@ -6073,6 +6127,77 @@ echo $msg;
 ",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// The copy-back lands **where the call is**, not at the enclosing
+    /// statement — so a call with a `&$x` argument lowers in an operand
+    /// position like any other expression, and a read of the holder to the
+    /// right of it inside the *same* statement sees the written-back value.
+    ///
+    /// Asserted structurally rather than left to the snapshot, because the
+    /// snapshot alone would still look plausible if the copy-back had drifted
+    /// back to the statement boundary: a `ref.load` is emitted once per
+    /// staged argument at its own call, so what pins the rule is that the
+    /// *second* one sits before the last `concat` rather than after every one
+    /// of them. See `Lowering::pending_refs` for the rule, and for the one
+    /// thing it does not buy — PHP's own operand order.
+    #[test]
+    fn a_reference_argument_lowers_in_any_expression_position() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+class Adder {
+               public static function bump(int &$slot): int { $slot = $slot + 5; return $slot; }
+}
+             int $n = 1;
+echo \"a=\" . Adder::bump($n) . \" then \" . $n . \" and \" . Adder::bump($n) . \" then \" . $n;
+",
+        );
+        let text = print_function(&f, map.file(file));
+        assert_eq!(text.matches("ref.slot").count(), 2, "{text}");
+        let loads: Vec<usize> = text.match_indices("ref.load").map(|(i, _)| i).collect();
+        let concats: Vec<usize> = text.match_indices("concat").map(|(i, _)| i).collect();
+        assert_eq!(loads.len(), 2, "{text}");
+        assert!(
+            loads[1] < concats[concats.len() - 1],
+            "the second copy-back must precede the last concat, not follow the whole \
+             statement: {text}"
+        );
+        assert_snapshot!(text);
+    }
+
+    /// The same rule at its nesting edge: `Adder::sum(Adder::bump($n), $n)`
+    /// stages `$n` for the *outer* call before the inner one's argument list
+    /// is lowered at all, so two stagings are live at once and each is
+    /// written back at its own call.
+    ///
+    /// This is what `Lowering::pending_refs_mark` exists for. A flush that
+    /// drained the whole list would write the outer call's staged slot back
+    /// when the *inner* call returned — before the outer call had run, so its
+    /// own write would then be lost. The assertion is that the copy-back sits
+    /// between the two calls, which no such lowering can satisfy.
+    #[test]
+    fn a_nested_reference_argument_is_written_back_at_its_own_call() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+class Adder {
+               public static function bump(int &$slot): int { $slot = $slot + 5; return $slot; }
+               public static function sum(int $a, int $b): int { return $a + $b; }
+}
+             int $n = 1;
+echo Adder::sum(Adder::bump($n), $n);
+",
+        );
+        let text = print_function(&f, map.file(file));
+        assert_eq!(text.matches("ref.slot").count(), 1, "{text}");
+        let load = text.find("ref.load").expect("the copy-back is emitted");
+        let inner = text
+            .find("call Adder::bump")
+            .expect("the inner call is emitted");
+        let outer = text
+            .find("call Adder::sum")
+            .expect("the outer call is emitted");
+        assert!(inner < load && load < outer, "{text}");
+        assert_snapshot!(text);
     }
 
     /// ADR 0033 § 5: `==` over two `secret` operands is the constant-time

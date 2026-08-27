@@ -2289,9 +2289,10 @@ impl<'a> Lowering<'a> {
     ///
     /// Node-local: it asks only about `e`'s *own* argument list, because
     /// [`Self::collect_reassigned_in_children`] is what descends. A nested
-    /// call (`Foo::a(Bar::b($n))`) is therefore still found — both stagings
-    /// are flushed by the same [`Self::flush_ref_writebacks`] call, so both
-    /// owe a header phi — but it is found once rather than once per level.
+    /// call (`Foo::a(Bar::b($n))`) is therefore still found — each call writes
+    /// its own staging back at its own site ([`Self::flush_ref_writebacks`]),
+    /// so both owe a header phi — but it is found once rather than once per
+    /// level.
     pub(super) fn collect_by_ref_holders(
         &self,
         e: &Expr,

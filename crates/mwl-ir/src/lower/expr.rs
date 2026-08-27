@@ -3659,6 +3659,9 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
             return built;
         }
+        // A constructor may declare `&$x` like any other method, so this site
+        // owns its own staging window — see `Lowering::pending_refs`.
+        let staged_refs = self.pending_refs_mark();
         let arg_values = match ctor {
             Some(call) => {
                 let sig = ArgSig::of(call);
@@ -3710,7 +3713,9 @@ impl<'a> Lowering<'a> {
                 args: arg_values,
             }
         };
-        self.emit_fallible(*cur, Ty::Object, kind, env)
+        let built = self.emit_fallible(*cur, Ty::Object, kind, env);
+        self.flush_ref_writebacks(staged_refs, env, *cur);
+        built
     }
 
     /// `$obj->method(...)`/`$this->method(...)` — the receiver is
@@ -3814,6 +3819,11 @@ impl<'a> Lowering<'a> {
             }
             object_v
         };
+        // Every `&$x` this call stages is written back below, in the block the
+        // call returns into — inside the `?->` guard when there is one, since
+        // a receiver that was `null` ran no callee and wrote nothing back. See
+        // `Lowering::pending_refs`.
+        let staged_refs = self.pending_refs_mark();
         let arg_values = self
             .lower_call_args(
                 args,
@@ -3863,6 +3873,7 @@ impl<'a> Lowering<'a> {
             }
         };
         let (v, ty) = self.emit_fallible(*cur, return_ty, kind, env);
+        self.flush_ref_writebacks(staged_refs, env, *cur);
         self.close_nullsafe(guard, v, ty, env, cur)
     }
 
@@ -4001,6 +4012,9 @@ impl<'a> Lowering<'a> {
             }
             Some(this_v)
         };
+        // As for an instance call: this site's own staging window, flushed
+        // below once the call has returned. See `Lowering::pending_refs`.
+        let staged_refs = self.pending_refs_mark();
         let arg_values = self
             .lower_call_args(
                 args,
@@ -4033,7 +4047,9 @@ impl<'a> Lowering<'a> {
                 args: arg_values,
             }
         };
-        self.emit_fallible(*cur, return_ty, kind, env)
+        let result = self.emit_fallible(*cur, return_ty, kind, env);
+        self.flush_ref_writebacks(staged_refs, env, *cur);
+        result
     }
 
     /// `Class::$prop` — one [`InstKind::StaticGet`] against the slot the

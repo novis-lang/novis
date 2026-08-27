@@ -338,12 +338,6 @@
 //!    cell — and a `&$x` parameter on the closure *itself* is `E0493`,
 //!    `callable` carrying no parameter list for a call site to stage a cell
 //!    against.
-//! 10. **A `&$x` argument's copy-back is emitted at the enclosing statement**,
-//!     so a read of the holder sequenced after the call but inside the same
-//!     statement (`$n + Adder::bump($n)`) sees the pre-call value. This is no
-//!     longer a scoping limit — [`lower::Lowering::lower_expr`] holds an
-//!     `&mut Env` now — but the staging list is still drained at the
-//!     statement. [`lower::Lowering::pending_refs`] owns it.
 //! 11. **A `secret` value compared against a `mixed` one is not compared in
 //!     constant time.** The qualifiers themselves are no longer a gap: all
 //!     six of ADR 0024/0033's atoms erase to the plain `string`/`bytes` they

@@ -58,18 +58,17 @@ impl<'a> Lowering<'a> {
                 break;
             }
             self.lower_stmt(stmt, cur, env);
-            // A by-reference argument staged inside this statement must have
-            // been copied back by now — a leftover means the call appeared in
-            // an expression position no `flush_ref_writebacks` call site
-            // covers, and silently dropping the write-back would be a wrong
-            // program rather than an unsupported one. See
-            // `Self::pending_refs`' known gap.
+            // Every `&$x` argument is copied back at its own call now, so the
+            // list is empty again by the time the statement ends. A leftover
+            // means some call site lowered an argument list without flushing
+            // its own `pending_refs_mark` — an internal inconsistency rather
+            // than an unsupported program. See `Self::pending_refs`.
             assert!(
                 self.pending_refs.is_empty(),
-                "mwl-ir lowers a call with a `&$x` argument only as a bare expression \
-                 statement or as a plain assignment's right-hand side — the one at {:?} is in \
-                 neither position, and its write-back has nowhere to land; see the crate \
-                 docs' known gaps",
+                "mwl-ir: a `&$x` argument staged inside the statement at {:?} was never \
+                 copied back — every site that lowers an argument list is expected to flush \
+                 its own staging mark once its call has returned; see \
+                 `lower::Lowering::pending_refs`",
                 stmt.span
             );
         }
@@ -161,9 +160,22 @@ impl<'a> Lowering<'a> {
                 }
             }
             StmtKind::Return(value) => {
+                // `return $local;` hands the binding's own reference straight
+                // out rather than retaining it here and releasing it below —
+                // `release_all_locals` skips the name instead. A `&$x`
+                // parameter is the one binding that cannot play: it is a
+                // `Ty::Ref` cell, so `release_all_locals` was never going to
+                // release it (the caller's copy-back owns that reference), and
+                // exempting it would only lose the retain the read below owes,
+                // handing the caller a value with no owner at all. See
+                // `Ty::Ref` and `Lowering::pending_refs`.
                 let except = value.as_ref().and_then(|v| {
                     if let ExprKind::Variable(span) = &v.kind {
-                        Some(strip_sigil(span_text(self.src, *span)).to_owned())
+                        let name = strip_sigil(span_text(self.src, *span)).to_owned();
+                        match env.get(&name) {
+                            Some(&(_, Ty::Ref)) => None,
+                            _ => Some(name),
+                        }
                     } else {
                         None
                     }
@@ -302,10 +314,6 @@ impl<'a> Lowering<'a> {
                 if ty.is_refcounted() {
                     self.emit_release(*cur, v);
                 }
-                // Every `&$x` argument the call staged is copied back here —
-                // the statement boundary is where an `&mut Env` exists at all.
-                // See `Self::pending_refs`.
-                self.flush_ref_writebacks(env, *cur);
             }
             // PHP 8 makes `throw` an expression, and MWL keeps that grammar in
             // both positions: this arm is the statement one, where the sealed
@@ -416,10 +424,6 @@ impl<'a> Lowering<'a> {
                 if ty.is_refcounted() && !self.aliasing_read(e) {
                     self.emit_release(*cur, v);
                 }
-                // A `&$x` argument staged by a call buried in the discarded
-                // expression is copied back at the same statement boundary
-                // the bare-call arm above uses. See `Self::pending_refs`.
-                self.flush_ref_writebacks(env, *cur);
             }
         }
     }
@@ -621,10 +625,6 @@ impl<'a> Lowering<'a> {
             self.lower_store(target, &Stored::Value(new, new_ty), extra_owner, env, cur);
         self.unstage_to(addresses);
         self.release_temporaries_since(temporaries, *cur);
-        // `$x += Foo::bar($n);` — the right-hand side may have staged a `&$n`
-        // argument, exactly as a plain assignment's does. See
-        // `Self::pending_refs`.
-        self.flush_ref_writebacks(env, *cur);
         (old, old_ty, new, new_ty)
     }
     /// The `1` an increment adds or subtracts, at the target's own
@@ -758,10 +758,6 @@ impl<'a> Lowering<'a> {
             unreachable!("Self::lower_expr_stmt only routes a plain `AssignOp::Assign` here");
         };
         self.lower_store(target, &Stored::Expr(value), false, env, cur);
-        // `$x = Foo::bar($n);` — the right-hand side may have staged a `&$n`
-        // argument, whose copy-back belongs to this statement. See
-        // `Self::pending_refs`.
-        self.flush_ref_writebacks(env, *cur);
     }
     /// The same assignment in **value** position — `int $b = ($a = 2);`, and
     /// the right-associative chain `$a = $b = 0;` where the inner one is the
@@ -796,9 +792,9 @@ impl<'a> Lowering<'a> {
     /// `lower_store`'s `extra_owner` and not a retain emitted here; that
     /// function's doc comment owns why the difference matters.
     ///
-    /// No [`Self::flush_ref_writebacks`] call: a `&$n` argument staged inside
-    /// the right-hand side is copied back at the enclosing *statement's*
-    /// boundary, which is the only place an assignment in value position has.
+    /// No [`Self::flush_ref_writebacks`] call, and none is owed: a `&$n`
+    /// argument staged inside the right-hand side is copied back at its own
+    /// call, before this assignment's value is even in hand.
     ///
     /// # Panics
     ///
