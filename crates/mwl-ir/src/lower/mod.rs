@@ -1833,7 +1833,14 @@ impl<'a> Lowering<'a> {
                 };
                 let class_label = class.to_string();
                 let field_name = name.clone();
-                let (object_v, _) = self.lower_expr(object, None, env, cur);
+                let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+                // A narrowed `?T` receiver is still one tagged slot wide, so it
+                // arrives here as a `Ty::Tagged` — see
+                // `Lowering::untag_receiver`, which every other write through a
+                // property already goes through. Without it the `FieldSet`
+                // below stores through a 128-bit "pointer" and cranelift
+                // rejects the function rather than anything panicking here.
+                let (object_v, _) = self.untag_receiver(object_v, receiver_ty, *cur);
                 self.emit_field_set(*cur, object_v, class_label, field_name, written);
             }
             other => panic!(
