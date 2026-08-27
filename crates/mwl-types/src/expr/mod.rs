@@ -202,13 +202,18 @@ pub(super) fn infer(
             inner_ty
         }
         ExprKind::Binary { op, lhs, rhs } => {
-            // PHP's `??` is "absent or `null`, without the warning", so the
-            // subscript directly under one must not take ADR 0007 § 7 row 11's
-            // throw. Marked before the operand is checked, because the arm that
-            // reads it is inside that check — see `Env::coalesce_guarded`, which
-            // also owns why only the immediate operand is marked.
-            if *op == BinaryOp::Coalesce && matches!(lhs.kind, ExprKind::Index { .. }) {
-                env.coalesce_guarded.insert(lhs.span);
+            // PHP's `??` is "absent or `null`, without the warning", so no
+            // subscript under one takes ADR 0007 § 7 row 11's throw — and that
+            // is the whole chain, not only the outermost level: PHP reads
+            // `$a["k"]["j"] ?? "d"` as "`"d"` unless every level is there".
+            // Marked before the operand is checked, because the arm that reads
+            // it is inside that check — see `Env::coalesce_guarded`.
+            if *op == BinaryOp::Coalesce {
+                let mut level = &**lhs;
+                while let ExprKind::Index { base, .. } = &level.kind {
+                    env.coalesce_guarded.insert(level.span);
+                    level = base;
+                }
             }
             let lhs_ty = check_expr(lhs, None, live, scope, ctx, env);
             let rhs_ty = check_expr(rhs, None, live, scope, ctx, env);
@@ -344,6 +349,20 @@ pub(super) fn infer(
                 }
                 None => {}
             }
+            let guarded = env.coalesce_guarded.contains(&expr.span);
+            // A guarded level's *base* may itself be a guarded read, and one of
+            // those answers `?array<T>` — so under a `??`, and only there, the
+            // `null` is dropped before the element type is read off the base.
+            // That is not the narrowing `E0482` asks an untested nullable for:
+            // a `null` base under a `??` has an answer (`null`, and then the
+            // right operand), which is exactly what PHP does with the whole
+            // chain. `mwl_array_optional_get` is where the runtime half of it
+            // lives.
+            let base_ty = if guarded {
+                env.interner.without_null(base_ty)
+            } else {
+                base_ty
+            };
             let elem_ty = match env.interner.get(base_ty) {
                 Ty::Array(elem) => Some(*elem),
                 _ => None,
@@ -356,7 +375,6 @@ pub(super) fn infer(
                     // it leaves in the operand's type is what keeps `mwl-ir`'s
                     // `lower_coalesce` from short-circuiting a `??` whose left
                     // operand looked statically non-nullable.
-                    let guarded = env.coalesce_guarded.contains(&expr.span);
                     env.exprs
                         .record(expr.span, ExprInfo::Index { elem_ty, guarded });
                     if guarded {

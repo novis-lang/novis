@@ -3709,8 +3709,11 @@ impl<'a> Lowering<'a> {
     /// refuses it as `E0481` where it is written, so the arm here is
     /// an invariant check that no source file can reach.
     ///
-    /// A read the checker marked **coalesce-guarded** — the left operand of a
-    /// `??` — takes [`AbsentKey::Null`] instead of the throwing answer ADR
+    /// A read the checker marked **coalesce-guarded** — any level of the
+    /// subscript chain under a `??`, so a guarded read's own base may be
+    /// another one and may therefore be `null` at run time, which
+    /// `mwl_array_optional_get` answers with `null` again — takes
+    /// [`AbsentKey::Null`] instead of the throwing answer ADR
     /// 0007 § 7 row 11 gives every other read, and is therefore infallible and
     /// [`Ty::Tagged`]. That representation is not a widening for its own sake:
     /// `??` tests its left operand for `null` and needs a tag to test, and

@@ -375,12 +375,18 @@ pub(crate) struct Env<'a> {
     /// [`crate::expr_table::ExprInfo::Index`] entry, which is what makes an
     /// absent key `null` rather than a throw down in `mwl-ir`.
     ///
+    /// **Every level of the chain is marked, not just the outermost one.**
+    /// PHP reads `$a["k"]["j"] ?? "d"` as "`"d"` unless every level is there",
+    /// so marking only the `??`'s immediate operand left the inner read
+    /// throwing where PHP yields the default. What that costs is one extra
+    /// shape the `ExprKind::Index` arm has to accept: a guarded read answers
+    /// `?elem_ty`, so a guarded level's base may be a `?array<T>`, and the arm
+    /// drops the `null` before reading the element type off it — under a `??`
+    /// only, because there a `null` base has an answer rather than being the
+    /// untested nullable `E0482` refuses.
+    ///
     /// A span rather than a parameter threaded through `check_expr` for
-    /// [`Self::write_target_levels`]'s reason, and it is deliberately *only*
-    /// the `??`'s immediate left operand: a nested chain (`$a["k"]["j"] ?? …`)
-    /// still throws at the inner level, since a guarded read whose base is
-    /// itself guarded would have a `?array<T>` base and no element type to
-    /// resolve against.
+    /// [`Self::write_target_levels`]'s reason.
     pub coalesce_guarded: FxHashSet<Span>,
 }
 

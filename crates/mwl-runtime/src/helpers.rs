@@ -285,6 +285,15 @@ crate::mwl_helper! {
     /// the only status it ever returns is `OK`, so `mwl-ir` emits it with no
     /// error edge.
     fn mwl_array_optional_get(_ctx, args: [2]) {
+        // A `null` *array* is the nested chain: `$a["k"]["j"] ?? "d"` marks
+        // every level guarded, so this read's own base is the previous level's
+        // answer and that answer is `null` when its key was absent. PHP reads
+        // the whole chain as one guarded lookup, so the answer here is `null`
+        // again rather than the tag mismatch a well-typed program otherwise
+        // cannot produce — `mwl_types::Env::coalesce_guarded` owns the marking.
+        if args[0].tag() == Some(Tag::Null) {
+            return Ok(Value::null());
+        }
         let array = args[0]
             .array_ptr()
             .ok_or_else(|| wrong_tag("mwl_array_optional_get", Tag::Array, args[0]))?;

@@ -1,0 +1,47 @@
+--TEST--
+`??` guards every subscript level under it, not only the outermost one, so an absent key at any depth yields the default (ADR 0007 § 7 row 11)
+--FILE--
+<?mwl
+// ADR 0007 § 7 row 11: reading an absent key throws, and `??` is the one
+// carve-out — "absent or `null`, without the warning". PHP reads the whole
+// chain that way, so every level below a `??` takes the guarded read.
+array<array<string>> $a = ["k" => ["j" => "deep"]];
+echo $a["k"]["j"] ?? "d1", "\n";
+echo $a["k"]["nope"] ?? "d2", "\n";
+// The *inner* key is the one missing here: without the chain-wide guard this
+// throws before the `??` ever runs.
+echo $a["nope"]["j"] ?? "d3", "\n";
+
+// Three levels deep, off an entirely empty array.
+array<array<array<string>>> $t = [];
+echo $t["a"]["b"]["c"] ?? "d4", "\n";
+
+// A `null` base is the same answer: under a `??` a nullable array has an
+// answer for the read, which is why it needs no `!= null` test here (the
+// untested nullable `E0482` refuses is the one in every *other* position).
+?array<string> $m = null;
+echo $m["k"] ?? "d5", "\n";
+
+?array<string> $p = ["k" => "here"];
+echo $p["k"] ?? "d6", "\n";
+
+// A stored `null` and an absent key are deliberately not told apart under a
+// `??` — PHP yields the right operand for both.
+array<array<?string>> $n = ["k" => ["j" => null]];
+echo $n["k"]["j"] ?? "d7", "\n";
+
+// The guard ends at the `??`: a read written outside one still throws.
+try {
+    echo $a["nope"]["j"], "\n";
+} catch (Throwable $absent) {
+    echo "throws: outside the guard\n";
+}
+--EXPECT--
+deep
+d2
+d3
+d4
+d5
+here
+d7
+throws: outside the guard
