@@ -419,6 +419,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         check_block(&body.stmts, &mut live, &mut scope, return_ty, ctx, env);
         return;
     };
+    check_generator_by_ref_params(m, env);
     let inner = Ctx {
         namespace: ctx.namespace,
         imports: ctx.imports,
@@ -433,6 +434,41 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // the `Iterator<T>` the *declaration* names.
     let void = env.interner.void();
     check_block(&body.stmts, &mut live, &mut scope, void, &inner, env);
+}
+
+/// ADR 0053 § 4's frame lifetime, as a refusal: a generator declares no `&$x`
+/// parameter.
+///
+/// A by-reference parameter addresses a cell the **call site** stages, writes
+/// back from and then drops — `mwl_ir::lower::call` owns that staging, and
+/// what makes it sound is that the callee's frame dies first. A generator
+/// inverts exactly that: calling one runs none of the body, it allocates the
+/// state object and returns, so the staged cell is gone before the first
+/// `advance()` and the parked frame would be addressing a slot of a call that
+/// has already returned. There is no representation for it to keep instead —
+/// copying the value in would silently stop being a reference, and the whole
+/// observable point of `&$x` is that the caller sees the writes.
+///
+/// So it is a shape the language does not have, refused where it is written.
+/// Reported once per by-reference parameter, and only for a body that already
+/// established itself as a generator, so an ordinary method's `&$x` — which
+/// lowers — is untouched.
+fn check_generator_by_ref_params(m: &MethodMember, env: &mut Env<'_>) {
+    for param in m.params.iter().filter(|p| p.by_ref) {
+        let name = span_text(env.src, param.name).to_owned();
+        env.diags.report(
+            Diagnostic::error(
+                code::E_GENERATOR_BY_REF_PARAM,
+                format!("a generator cannot take `{name}` by reference"),
+            )
+            .with_primary(param.name, "declared by reference here")
+            .with_help(
+                "ADR 0053 § 4: calling a generator returns the state object without running \
+                 the body, so the caller's cell is gone before the first `advance()` — take \
+                 the value by copy and `yield` what the body computes from it",
+            ),
+        );
+    }
 }
 
 /// ADR 0053 § 4's `T`, for a method whose body makes it a generator —

@@ -929,6 +929,22 @@ pub mod code {
     /// `Animal` into an `array<Dog>` is not. The two directions meet only at
     /// the element type itself.
     pub const E_FOREACH_BY_REF_ELEMENT_TY: Code = Code::new("E0491");
+    /// A method whose body contains `yield` declaring a `&$x` parameter.
+    ///
+    /// A by-reference parameter addresses a cell the *call site* stages for
+    /// the duration of the call. Calling a generator runs none of its body —
+    /// it allocates the state object and returns (ADR 0053 § 4) — so that cell
+    /// is gone before the first `advance()`, and there is nothing sound for
+    /// the suspended frame to keep addressing.
+    pub const E_GENERATOR_BY_REF_PARAM: Code = Code::new("E0492");
+    /// A `fn` closure literal declaring a `&$x` parameter.
+    ///
+    /// A by-reference parameter is a contract between a call site and a
+    /// declaration, and a closure's type is `callable` — ADR 0031 § 4 keeps it
+    /// opaque, carrying no parameter list at all, so no call site can know to
+    /// stage a cell. The closure may also outlive every frame in scope where
+    /// it was written.
+    pub const E_CLOSURE_BY_REF_PARAM: Code = Code::new("E0493");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

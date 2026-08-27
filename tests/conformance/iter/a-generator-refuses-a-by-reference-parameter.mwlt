@@ -1,0 +1,41 @@
+--TEST--
+A method whose body contains `yield` may not declare a `&$x` parameter, while an ordinary method beside it still may — ADR 0053 § 4
+--FILE--
+<?mwl
+// A `&$x` parameter addresses a cell the *call site* stages for the duration
+// of the call, and what makes that sound is that the callee's frame dies
+// first. A generator inverts it: calling one runs none of the body, it
+// allocates the state object and returns (ADR 0053 § 4), so the staged cell is
+// gone before the first `advance()` while the parked frame would still be
+// addressing it. There is no representation to keep instead — copying the
+// value in would stop being a reference, which is the whole observable point.
+final class Feed {
+    // Reported once per by-reference parameter, not once per method.
+    public static function walk(int &$seen, int &$last): Iterator<int> {
+        $seen = 1;
+        yield 1;
+        $last = 2;
+        yield 2;
+    }
+
+    // No `yield`, so this frame *is* the call — unaffected, and it is what a
+    // by-reference parameter still lowers to.
+    public static function bump(int &$n): void {
+        $n = $n + 1;
+    }
+}
+
+int $seen = 0;
+foreach (Feed::walk($seen, $seen) as int $v) {
+    echo $v, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0492]: a generator cannot take `$seen` by reference
+   --> case.mwl:11:38
+%A
+error[E0492]: a generator cannot take `$last` by reference
+   --> case.mwl:11:50
+%A
+error: aborting due to 2 errors

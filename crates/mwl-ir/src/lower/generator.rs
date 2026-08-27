@@ -94,8 +94,12 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics outside a generator body (`mwl_types` reports E0445), and for a
-    /// [`Ty::Ref`] binding live at the suspension — see [`lower_generator`].
+    /// Panics outside a generator body (`mwl_types` reports E0445).
+    ///
+    /// The assert on a [`Ty::Ref`] binding live at the suspension is an
+    /// internal-consistency check, not a gap: the only thing that ever binds
+    /// one is [`super::lower_method`]'s parameter loop, and a generator
+    /// declaring a `&$x` parameter is `E0492` — see [`lower_generator`].
     pub(super) fn lower_yield(&mut self, value: &Expr, env: &mut Env, cur: &mut BlockId) {
         let elem = self
             .generator
@@ -152,9 +156,11 @@ impl<'a> Lowering<'a> {
             let &(lv, lty) = &env[&name];
             assert!(
                 lty != Ty::Ref,
-                "mwl-ir does not lower a `yield` with the `&$x` binding `{name}` live across \
-                 it: the cell it addresses is the caller's, and the caller is gone by the time \
-                 the generator resumes; see the crate docs' known gaps"
+                "mwl-ir: the `&$x` binding `{name}` is live across a `yield` — the cell it \
+                 addresses is the caller's, and the caller is gone by the time the generator \
+                 resumes. Only `lower_method`'s parameter loop ever binds a `Ty::Ref`, and \
+                 `mwl_types::check` refuses a generator that declares one as `E0492`, so no \
+                 program reaches this"
             );
             self.spill_field(*cur, &name, lv, lty);
             spilled.push((name, lty));
@@ -305,10 +311,13 @@ impl GenFrame {
 /// # Panics
 ///
 /// Panics naming the shape for a generator whose declared return type is not
-/// an `Iterator<T>` the checker resolved (E0446 has already reported one), and
-/// for a `&$x` parameter — a by-reference binding is the address of a
-/// caller-staged cell (see [`Ty::Ref`]), which stops existing the moment the
-/// factory returns, so there is nothing sound to park in a field.
+/// an `Iterator<T>` the checker resolved (E0446 has already reported one).
+///
+/// The assert on a `&$x` parameter is an internal-consistency check rather
+/// than a gap: a by-reference binding is the address of a caller-staged cell
+/// (see [`Ty::Ref`]), which stops existing the moment the factory returns, so
+/// `mwl_types::check::check_generator_by_ref_params` refuses the shape where
+/// it is written, as `E0492`, and nothing that reaches here declares one.
 pub(super) fn lower_generator(
     name: &str,
     m: &MethodMember,
@@ -467,9 +476,10 @@ pub(super) fn lower_generator_factory(
     for (i, p) in m.params.iter().enumerate() {
         assert!(
             !p.by_ref,
-            "mwl-ir does not lower a generator with a `&$x` parameter: the slot it binds is a \
+            "a generator with a `&$x` parameter reached lowering: the slot it binds is a \
              caller-staged cell that stops existing when the factory returns, so there is \
-             nothing sound to park in the state object; see the crate docs' known gaps"
+             nothing sound to park in the state object — `mwl_types::check` refuses this \
+             where it is written, as `E0492`"
         );
         let decl_ty =
             p.ty.as_ref()
