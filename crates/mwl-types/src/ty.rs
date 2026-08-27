@@ -70,9 +70,16 @@ pub enum Ty {
     Void,
     /// `never` — return-position only.
     Never,
-    /// `true`
+    /// `true` — ADR 0007 § 3's atom, and `bool`'s half of ADR 0047 § 1: the
+    /// type inhabited by exactly one value, which is what
+    /// [`Self::StringLiteral`] generalises to `string`'s. It is placed the
+    /// same way ([`crate::expr::literals::placed_literal`]) — a `true`
+    /// expression is an ordinary [`Self::Bool`] unless the position names
+    /// this type — widens the same way ([`TypeInterner::literal_base`]), and
+    /// erases the same way, to [`Self::Bool`]'s own representation
+    /// (§ 5, `mwl_ir::lower::erase_checked_ty`).
     True,
-    /// `false`
+    /// `false` — [`Self::True`]'s other half, in every respect.
     False,
     /// `"a"` — ADR 0047 § 1: the type inhabited by exactly one string, the
     /// generalisation of [`Self::True`]/[`Self::False`] from `bool`'s two
@@ -569,6 +576,11 @@ impl TypeInterner {
         match self.get(id).clone() {
             Ty::StringLiteral(_) => self.string(),
             Ty::IntLiteral(_) => self.int(),
+            // ADR 0007 § 3's two `bool` singletons are literal types under
+            // ADR 0047 § 1's own reading of them (see [`Ty::True`]), so they
+            // widen here rather than anywhere of their own — which is what
+            // makes `bool $b = $x as true;` an ordinary assignment.
+            Ty::True | Ty::False => self.bool_ty(),
             Ty::EnumCase(q, backing, _) => self.enum_(q, backing),
             Ty::Union(members) => {
                 let widened: Vec<TypeId> = members.iter().map(|m| self.literal_base(*m)).collect();

@@ -1,0 +1,49 @@
+--TEST--
+A closed set whose members share no one representation erases to a tagged value, so the operand is widened and the membership test runs on tags — ADR 0047 §§ 4 and 5
+--FILE--
+<?mwl
+class Pick {
+    // The set's members are a `string` and an `int`, so § 5's "shares its
+    // base type's tag and payload" has two bases to share and the target is
+    // a tagged value. A statically typed operand is widened into one first
+    // and compared afterwards, which is the same order every other set uses.
+    public static function either(string $raw): string {
+        try {
+            1|"alpha" $picked = $raw as 1|"alpha";
+            return "picked " . ($picked as string) . "|";
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+
+    // The other member of the same set, reached from the other base. A tag
+    // is part of the comparison, so this is a hit on `1` and never on the
+    // string that renders the same way.
+    public static function counted(int $n): string {
+        try {
+            1|"alpha" $picked = $n as 1|"alpha";
+            return "counted " . ($picked as string) . "|";
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+
+    // The same widening written plainly: `mixed` admits every shape, so
+    // there is no set to test and the conversion is the tag alone.
+    public static function widened(string $raw): string {
+        mixed $any = $raw as mixed;
+        return "widened " . ($any as string) . "|";
+    }
+}
+
+echo Pick::either("alpha"), "\n";
+echo Pick::either("1"), "\n";
+echo Pick::counted(1), "\n";
+echo Pick::counted(2), "\n";
+echo Pick::widened("beta"), "\n";
+--EXPECT--
+picked alpha|
+threw: `"1"` is not one of `1`, `"alpha"`
+counted 1|
+threw: `2` is not one of `1`, `"alpha"`
+widened beta|

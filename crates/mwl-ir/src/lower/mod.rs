@@ -2291,6 +2291,11 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
         // or it is a bug.
         TypeKind::Atom(TypeAtom::StringLiteral(_)) => Ty::Str,
         TypeKind::Atom(TypeAtom::IntLiteral(_)) => Ty::Int,
+        // ADR 0007 § 3's two `bool` singletons, which `mwl_types::ty::Ty::True`
+        // records are that same rule read on `bool`'s two values — so they
+        // erase to `bool`'s representation exactly as the two atoms above
+        // erase to theirs.
+        TypeKind::Atom(TypeAtom::True | TypeAtom::False) => Ty::Bool,
         // `object` — ADR 0007 § 3's opaque top of every class type, which is
         // the same pointer a named class is. See `erase_checked_ty`, which is
         // the arm this annotation actually takes whenever the checker visited
@@ -2348,9 +2353,9 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
 ///
 /// Panics naming the unsupported shape for anything outside this slice's
 /// scope: either qualified (`tainted`/`secret`) string or bytes variant,
-/// `object`, an intersection, or any of
-/// `never`/`true`/`false`/`iterable` — none of these
-/// have an IR representation yet (see the crate docs' known gaps). `mixed`
+/// `object`, an intersection, or either of
+/// `never`/`iterable` — neither of these
+/// has an IR representation yet (see the crate docs' known gaps). `mixed`
 /// erases to [`Ty::Tagged`] — see that variant's own doc comment for exactly
 /// how much this boundary does and doesn't do with one yet. A **union** never
 /// panics: it is [`Ty::Tagged`] unless every member erases to one and the same
@@ -2466,6 +2471,11 @@ fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
         // that section promises.
         CheckedTy::StringLiteral(_) => Ty::Str,
         CheckedTy::IntLiteral(_) => Ty::Int,
+        // `true` and `false` are the same rule on `bool`'s two values (ADR
+        // 0007 § 3's atoms, read by `mwl_types::ty::Ty::True`), so they erase
+        // to `bool`. The union arm below then folds `true|false` back to one
+        // `Ty::Bool` for free.
+        CheckedTy::True | CheckedTy::False => Ty::Bool,
         CheckedTy::Enum(_, backing) | CheckedTy::EnumCase(_, backing, _) => {
             Ty::Enum(match backing {
                 mwl_types::EnumBacking::Int => EnumRepr::Int,

@@ -1213,6 +1213,12 @@ fn rendered_operand(value: Value) -> String {
         ),
         Some(Tag::Int) => value.as_int().map_or_else(String::new, |n| n.to_string()),
         Some(Tag::Uint) => value.as_uint().map_or_else(String::new, |n| n.to_string()),
+        // ADR 0007 § 3's two `bool` singletons name a value each, so a miss
+        // against one has a value to name back — `false`, spelled as the type
+        // `true` is spelled, not "a `Bool` value".
+        Some(Tag::Bool) => value
+            .as_bool()
+            .map_or_else(String::new, |b| if b { "true" } else { "false" }.to_owned()),
         Some(Tag::Null) | None => "null".to_owned(),
         Some(other) => format!("a `{other:?}` value"),
     }

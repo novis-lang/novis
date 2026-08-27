@@ -83,6 +83,31 @@ fn placed_string_literal(span: Span, expected: Option<TypeId>, env: &Env<'_>) ->
     )
 }
 
+/// [`placed_literal`] for ADR 0007 § 3's two `bool` singletons, which
+/// [`Ty::True`] records are ADR 0047 § 1's rule read on `bool`'s two values.
+///
+/// One pass, unlike [`placed_string_literal`]: the value is the token itself,
+/// already decoded by the parser, so there is nothing to cook and no reason to
+/// ask the cheap question first.
+fn placed_bool_literal(value: bool, expected: Option<TypeId>, env: &Env<'_>) -> Option<TypeId> {
+    placed_literal(expected, env.interner, |ty| {
+        matches!((ty, value), (Ty::True, true) | (Ty::False, false))
+    })
+}
+
+/// `true`/`false` — [`super::infer`]'s `ExprKind::Bool` arm.
+///
+/// A bare `bool` everywhere but a position that names this exact value, which
+/// is ADR 0047 § 4's placement rule and the reason `var $b = true;` still
+/// infers `bool` rather than a type only `true` could ever satisfy.
+pub(super) fn infer_bool_literal(
+    value: bool,
+    expected: Option<TypeId>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    placed_bool_literal(value, expected, env).unwrap_or_else(|| env.interner.bool_ty())
+}
+
 /// The singleton type this expression names *on its own* — the placement rule
 /// read backwards, for the one caller that needs the value the author wrote
 /// rather than the type the position gave it.
@@ -90,12 +115,16 @@ fn placed_string_literal(span: Span, expected: Option<TypeId>, env: &Env<'_>) ->
 /// [`super::operators::infer_conversion`]'s § 6 refusal is that caller: by the
 /// time it runs, a literal the target does not accept has already widened back
 /// to its base, taking the only record of which value it was with it. `None`
-/// for every expression that is not one of § 1's two literals, including a
-/// malformed one — a literal that does not survive its own text has no
-/// singleton to be, exactly as [`infer_str_literal`] and [`infer_int_literal`]
-/// already decide.
+/// for every expression that is not one of § 1's two literals or ADR 0007
+/// § 3's two `bool` ones, including a malformed one — a literal that does not
+/// survive its own text has no singleton to be, exactly as
+/// [`infer_str_literal`] and [`infer_int_literal`] already decide.
 pub(super) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId> {
     match expr.kind {
+        // No text to decode and no range to fail: the token *is* the value, so
+        // this arm cannot answer `None` the way the two below can.
+        ExprKind::Bool(true) => Some(env.interner.true_ty()),
+        ExprKind::Bool(false) => Some(env.interner.false_ty()),
         ExprKind::Str(span) => {
             let value = crate::string_lit::cook_string_literal(env.src, span);
             Some(env.interner.string_literal(value))

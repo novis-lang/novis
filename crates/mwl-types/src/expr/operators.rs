@@ -886,7 +886,7 @@ fn closed_set_atoms(to: TypeId, interner: &TypeInterner) -> Option<Vec<TypeId>> 
         .all(|id| {
             matches!(
                 interner.get(*id),
-                Ty::StringLiteral(_) | Ty::IntLiteral(_) | Ty::EnumCase(..)
+                Ty::StringLiteral(_) | Ty::IntLiteral(_) | Ty::EnumCase(..) | Ty::True | Ty::False
             )
         })
         .then_some(atoms)
@@ -912,7 +912,7 @@ fn conversion_operand_singleton(
 ) -> Option<TypeId> {
     if matches!(
         env.interner.get(inner_ty),
-        Ty::StringLiteral(_) | Ty::IntLiteral(_) | Ty::EnumCase(..)
+        Ty::StringLiteral(_) | Ty::IntLiteral(_) | Ty::EnumCase(..) | Ty::True | Ty::False
     ) {
         return Some(inner_ty);
     }

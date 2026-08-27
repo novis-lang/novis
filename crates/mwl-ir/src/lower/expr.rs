@@ -657,6 +657,9 @@ impl<'a> Lowering<'a> {
     ///   truthy table ([`Self::truthy_convert`]) — `as bool` is the explicit
     ///   spelling of exactly the test a condition applies implicitly, so
     ///   giving it a second table would be two answers to one question.
+    /// * **Widening.** The target admits more than one runtime shape and is
+    ///   therefore [`Ty::Tagged`], so the value travels unchanged under a tag
+    ///   — one [`InstKind::Tag`], free in the same sense the free rows are.
     /// * **Checked.** `int` ↔ `uint`, `float` → an integer, `string` → a
     ///   number and ADR 0009 § 3's `bytes as string` each go through a
     ///   [`Helper`] that either produces the value or throws, emitted through
@@ -752,6 +755,26 @@ impl<'a> Lowering<'a> {
                     self.emit_retain(cur, v);
                 }
                 self.emit(cur, to, InstKind::Reinterpret { operand: v })
+            }
+            // **Widening.** The target admits more than one runtime shape, so
+            // it is `Ty::Tagged` and the value keeps the payload it already
+            // has under a tag — one `InstKind::Tag`, the same instruction
+            // `Self::coerce` emits where a *declaration* is the wider side.
+            // ADR 0047 § 5's heterogeneous set is the shape that needs it
+            // (`$s as 1|"a"`: the set is closed, its members share no one
+            // representation, so the whole target erases to a tagged value
+            // and the membership test below runs on tags), and `as mixed` is
+            // the same row written plainly.
+            //
+            // The ownership is the `from == to` branch's, for its reason:
+            // `Tag` transfers its operand's reference to its result, so
+            // borrowed storage handed through it owes the one retain that
+            // makes this row honour the contract every helper row does.
+            (_, Ty::Tagged) => {
+                if from.is_refcounted() && self.aliasing_read(operand) {
+                    self.emit_retain(cur, v);
+                }
+                self.emit(cur, to, InstKind::Tag { operand: v })
             }
             (_, Ty::Bool) => {
                 let b = self.truthy_convert(v, from, cur);
@@ -897,8 +920,9 @@ impl<'a> Lowering<'a> {
             }
             _ => panic!(
                 "mwl-ir lowers ADR 0007 § 2's scalar conversion rows, ADR 0009 § 3's `string` ↔ \
-                 `bytes` pair, both of ADR 0010 § 5's enum ones, and a `Ty::Tagged` operand into \
-                 every target among them — got `{from:?} as {to:?}`. ADR 0007 § 2's \
+                 `bytes` pair, both of ADR 0010 § 5's enum ones, a `Ty::Tagged` operand into \
+                 every target among them, and every operand into a tagged target — got \
+                 `{from:?} as {to:?}`. ADR 0007 § 2's \
                  `array<T> as array<U>` is the shape still missing, along with a `Ty::Tagged` \
                  operand converted to `bytes`, whose runtime-tag row has no helper. See the \
                  crate docs' known gaps"
@@ -4057,6 +4081,31 @@ impl<'a> Lowering<'a> {
                 // `string`.
                 if from == Ty::Tagged && !matches!(to, Ty::Enum(_)) {
                     self.lower_literal_membership(v, from, &accepted, ty.span, env, cur);
+                    // A `bool` set is the one target with no conversion left
+                    // to run. Every other base is reached by a row that
+                    // happens to be an identity once the test above has
+                    // passed (`Helper::TaggedToString` over a tag proved to
+                    // be a string), but `as bool`'s row is ADR 0035's truthy
+                    // table — and running it here would answer `true` for a
+                    // `mixed` holding `1` that the test has just refused, or
+                    // rather could not, since `Helper::Identical` compared
+                    // tags first. The test *is* the check, so what is left is
+                    // one unchecked `Untag`: the same shape
+                    // `Self::untag_narrowed` emits over a tag `mwl_types`
+                    // proved, on a tag this chain proved instead.
+                    if to == Ty::Bool {
+                        let (out, _) = self.emit(*cur, Ty::Bool, InstKind::Untag { operand: v });
+                        // The proof says the payload is a `bool` and so owns
+                        // nothing — but a fresh tagged operand is released
+                        // anyway, exactly as every row of `Self::convert`
+                        // releases one, because the consumer of a `Ty::Bool`
+                        // never will and a release over a tag that owns
+                        // nothing is a no-op the runtime already handles.
+                        if !self.aliasing_read(inner) {
+                            self.emit_release(*cur, v);
+                        }
+                        return (out, Ty::Bool);
+                    }
                     return self.convert(v, from, to, inner, env, *cur);
                 }
                 let (converted, converted_ty) = self.convert(v, from, to, inner, env, *cur);
@@ -4134,20 +4183,26 @@ impl<'a> Lowering<'a> {
             CheckedTy::Union(members) => members.clone(),
             _ => vec![target],
         };
-        let closed = atoms.iter().all(|id| {
-            matches!(
-                types.get(*id),
-                CheckedTy::StringLiteral(_) | CheckedTy::IntLiteral(_) | CheckedTy::EnumCase(..)
-            )
-        });
-        if !closed || self.operand_names_one_value(inner) {
+        if self.operand_names_one_value(inner) {
             return None;
         }
-        let members = atoms
+        // One pass, not a `closed` predicate and then a map over the same
+        // atoms: two matches over one list is two places to add an atom kind
+        // to, and the second one's catch-all was a panic no program could
+        // reach — an internal-consistency check between a list and itself.
+        // `collect::<Option<_>>` makes "this target is not a closed set" the
+        // same answer here as it is above.
+        let members: Vec<LiteralAtom> = atoms
             .iter()
             .map(|id| match types.get(*id) {
-                CheckedTy::StringLiteral(text) => LiteralAtom::Str(text.clone()),
-                CheckedTy::IntLiteral(value) => LiteralAtom::Int(*value),
+                CheckedTy::StringLiteral(text) => Some(LiteralAtom::Str(text.clone())),
+                CheckedTy::IntLiteral(value) => Some(LiteralAtom::Int(*value)),
+                // ADR 0007 § 3's two `bool` singletons — one value each, so a
+                // closed set of exactly the kind § 5 tests, and the reason
+                // `$m as true` is `as bool` plus a membership test rather than
+                // a target the language parses and cannot lower.
+                CheckedTy::True => Some(LiteralAtom::Bool(true)),
+                CheckedTy::False => Some(LiteralAtom::Bool(false)),
                 // § 3's enum-case subset. The checked type names the enum and
                 // the case but deliberately not the value (see
                 // `mwl_types::ty::Ty::EnumCase`'s own doc comment for why
@@ -4162,15 +4217,15 @@ impl<'a> Lowering<'a> {
                              case it resolved, so the two tables disagree"
                         )
                     });
-                    LiteralAtom::EnumCase(value)
+                    Some(LiteralAtom::EnumCase(value))
                 }
-                other => panic!(
-                    "mwl-ir does not lower a closed conversion target containing {other:?}; \
-                     `closed_literal_set` only builds a set out of the three atoms ADR 0047 \
-                     names. See the crate docs' known gaps"
-                ),
+                // One wider atom and the target is not a closed set at all —
+                // `string`, or the `null` an `as ?T` adds. See this function's
+                // own doc comment: that is one of its three `None`s, not a
+                // shape it declines to lower.
+                _ => None,
             })
-            .collect();
+            .collect::<Option<_>>()?;
         // § 6: the accepted set is generated from the type, never written per
         // site — the same rendering `reject_impossible_literal_conversion`
         // produces for the compile-time half, so the two messages read alike.
@@ -4193,7 +4248,7 @@ impl<'a> Lowering<'a> {
     /// arrives here is in the set by construction.
     fn operand_names_one_value(&self, inner: &Expr) -> bool {
         match &inner.kind {
-            ExprKind::Str(_) | ExprKind::Int(_) => true,
+            ExprKind::Str(_) | ExprKind::Int(_) | ExprKind::Bool(_) => true,
             ExprKind::Paren(nested) => self.operand_names_one_value(nested),
             ExprKind::ClassConstAccess { .. } => {
                 matches!(
@@ -4273,6 +4328,7 @@ impl<'a> Lowering<'a> {
             let (kind, ty) = match member {
                 LiteralAtom::Str(text) => (InstKind::ConstStr(text.clone()), Ty::Str),
                 LiteralAtom::Int(number) => (InstKind::ConstInt(*number), Ty::Int),
+                LiteralAtom::Bool(value) => (InstKind::ConstBool(*value), Ty::Bool),
                 // At the enum's *backing* scalar, not at `Ty::Enum` — see
                 // the reinterpret above for why the comparison happens one
                 // representation down.
@@ -4445,6 +4501,9 @@ struct AcceptedSet {
 enum LiteralAtom {
     Str(String),
     Int(i64),
+    /// `true` or `false` — ADR 0007 § 3's two `bool` singletons, whose
+    /// closed set is the smallest one this crate builds.
+    Bool(bool),
     EnumCase(mwl_types::EnumValue),
 }
 

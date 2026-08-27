@@ -128,7 +128,7 @@ pub(super) fn infer(
 ) -> TypeId {
     match &expr.kind {
         ExprKind::Null => env.interner.null(),
-        ExprKind::Bool(_) => env.interner.bool_ty(),
+        ExprKind::Bool(value) => infer_bool_literal(*value, expected, env),
         ExprKind::Int(span) => infer_int_literal(*span, expr.span, expected, env),
         ExprKind::Float(span) => infer_float_literal(*span, expr.span, expected, env),
         // ADR 0070 § 2: a duration literal is `Core\Time\Duration` and nothing
