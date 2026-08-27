@@ -581,6 +581,14 @@ is why" — is this file.
   are joined, and `mwl-types` has no `mwl-runtime` dependency to reach the second
   directly. The general shape: a rule stated over `registry.rs`'s rows is not the whole
   rule wherever `mwl_runtime` answers for a class on its own.
+- **A diagnostic constant named in a doc comment may not exist**, so a `grep` for the name is not
+  evidence that the rule behind it is future work. `reject_unrelated_class_conversion`'s own comment
+  named `E_MARKUP_NOT_LITERAL`; the code is `E_MARKUP_REQUIRES_LITERAL`, it lives in
+  `mwl_types::expr::quals`, and ADR 0024 § 5's `"lit" as Core\Html\Markup` is a **checked row
+  today** — even though `Core\Html` declares no class and the conversion still panics one crate
+  down, which is what makes it look unimplemented from `mwl run`. Grep
+  `crates/mwl-diagnostics/src/lib.rs` for the band's `Code::new` rows, or the crate's own `tests/`
+  for the behaviour: a name in prose is a pointer somebody wrote, not a fact the tree holds.
 
 ## Running things
 

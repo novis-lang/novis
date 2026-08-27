@@ -112,80 +112,98 @@
 > Core\Html\Markup`, whose own `E0417` wants a source literal), and the identical type. What is left
 > is the one that is no downcast: `$foo as Bar` between two unrelated classes, which was worse than
 > a panic — both erase to one pointer, so it took the free `from == to` row, nothing ran, and
-> `Bar`'s slot list was then read off a `Foo`'s allocation. `mwl-ir`'s own catch-all now has exactly
-> the two targets its message names, both of them a missing *lowering* rather than a missing rule:
-> `array<T> as array<U>`, and a tagged operand into an object — ADR 0007 § 6's checked way out of
-> `mixed`, which wants a class identity `Ty::Object` deliberately does not carry. The third was a
-> tagged operand into `bytes` and it is a row now: ADR 0009 § 3's pair is the operand's own *tag*'s
-> wherever its static type names neither side of it, so `Helper::TaggedToBytes` hands the same
-> allocation back under the other tag for a `string` or a `bytes` and throws for every tag § 2's
-> table gives no row. It is the only shape of `as bytes` that reaches a call at all, the statically
-> typed spelling being a free `Reinterpret` over that same allocation. `lower_expr`'s dispatch
-> message is the assertion its roster already proved. One level *up* from all of it, **a digit run
-> beside a `uint` is now placed at `uint`** rather than defaulting to `int` — ADR 0007 § 2's
-> "untyped until placed" applied to the one placement a binary operator offers, its other operand —
-> so `$u + 1`, `$u & 3` and `$u << 1` compile at all, where each of them used to be § 4's
-> mixed-signedness refusal and a `uint` could meet only a `uint`-declared local; a digit run above
-> `i64::MAX`, which § 4 admits "only where a `uint` is expected", has an operand position for the
-> first time, and `mwl-ir` makes the same placement on the left-hand operand so that it does not
-> then panic on a value that never fit an `int`. What stays refused is the pair with no digit run in
-> it: a shift's *count* is an operand of the operator rather than a bare width, judged by the row
-> its left operand takes, which is exactly what makes `mwl-codegen`'s `emit_shift` sound in reading
-> one signedness for both the negative-count guard and the arithmetic-versus-logical choice. One
-> level up from the `as` table, **ADR 0066 § 3's own table is closed at both ends too**. `as ?T`
-> "yields `null` exactly where `as T` would throw", so a row that never throws promises a `null` no
-> run can produce and forces a check on every reader after it: `$i as ?int`, `$i as ?string`, `$xs
-> as ?bool`, `$mode as ?int`, `$s as ?mixed` and `Mode::Read as ?Mode` are now `E0709`, each help
-> naming `as T`, and that is the one judgement the plain form never has to make. The other end is
-> shared: § 2's closure is asked of the `T` *inside* the sugar rather than of the `Union([Null, T])`
-> it interns as, so `array<int> as ?int`, `$flag as ?int`, `$i as ?bytes` and `null as ?int` take
-> the same `E0708` their unsugared spellings already did — they reached a lowering and panicked
-> before, the checker having skipped the table for every written `?T`. The class row was already
-> absolute and is untouched (`E0473`), and the three never fire on one expression. What is left
-> under `as ?T` is the opposite direction, a row § 3 calls **available** with no `?` helper to run
-> it, and it is now `$m as ?array<T>` alone, `Lowering::convert`'s own missing row in its
-> null-answering spelling, so the two close together. The `bytes` target closed with its checked
-> twin: `Helper::ToBytesOrNull` shares `Helper::TaggedToBytes`'s one implementation of the two rows
-> a tag can take into a `bytes`, and neither can fault at all, so unlike the text target neither
-> pays for a landing block. The **text** target is closed: `Helper::ToStringOrNull` is
-> `Helper::TaggedToString`'s twin over one implementation of § 2's rows rather than a second copy of
-> them, answering `null` exactly where that one throws, and it takes `$b as ?string` with it — ADR
-> 0009 § 3's UTF-8 validation is a row that can fail, so the `bytes` source has a `null` answer of
-> its own rather than a helper of its own. What `null` does **not** stand for is an exception the
-> operand raised on the way, which is why this is the one `?` row emitted with ADR 0002's error
-> edge: a `toString()` body that throws propagates through both spellings alike, and a `catch`
-> around either sees it. One level under that, **an object whose static type names no class now
-> renders through its runtime one** rather than panicking below. `require_stringable` resolves a
-> `toString` wherever the operand's type names a class and `mwl-ir` calls it, unchanged; where it
-> names none — an erased `object`, a `mixed`, any other union — `mwl_runtime::stringify` asks the
-> concrete instance's class for the same member, which is ADR 0036 § 4's deferral applied to the
-> member access ADR 0028 § 1 says the conversion *is*. So `echo $o`, `"" . $o` and `$o as string`
-> are one answer for one value where they used to be a rendering, a throw and a panic, and a class
-> that declares no `toString` throws catchably, naming itself and the interface. The `Core`-owned
-> half is now the rendering half alone. Its *refusal* is where it is written: `require_stringable`
-> asks `mwl_stdlib::registry::class_renders`, and a class it answers `false` for is `E0710` at the
-> site rather than a throw below it — `echo`, an interpolated piece, a `.` operand and `as string`
-> agreeing because they are one check. Two rosters answer, and they are two rules: `Core\Uri`,
-> `Core\Uuid` and `Core\Time\Duration` have a `toString` row, and the two sink carriers render
-> through ADR 0088 § 5 with no member at all, which is `mwl_runtime::is_carrier`'s list read rather
-> than copied. The class that *does* render now renders. `require_stringable` records the same
-> resolved `toString` target for a `Core` class that a declared one gets — a `Core` member resolves
-> out of the seeded signature table like any other — and `mwl-ir` asks `core_symbol_of` which of the
-> two calls to emit, so it takes the native `InstKind::CoreCall` the member written out takes rather
-> than a `CallVirtual` into a method table a `Core` class has no entry in. All four rendering
-> spellings therefore agree with `$uri->toString()` for each of the three classes the spec gives
-> one, and the receiver's ownership inverts with the call: a native member *borrows* argument 0, so
-> a fresh receiver (`echo Core\Uri::parse(…)`) is the rendering site's to release rather than the
-> callee's, which is valgrind-clean over a fixture that renders in a loop. What is left of that row
-> is the same class reached through an **erased** operand — a `Core` object behind a `mixed`
-> dispatches through `mwl_runtime::stringify`, which reads a compiled method table and so throws for
-> a value the static spelling renders. That one is not this crate's: `mwl-runtime` sits below
-> `mwl-stdlib` and cannot read the registry, so closing it is a question of what the two share, and
-> `mwl-ir`'s known gap 12 owns the two candidate shapes. Three live tools **are** the worklist and
-> no session re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and
-> `mwl-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.mwlt` cases each stage still owes, and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> `Bar`'s slot list was then read off a `Foo`'s allocation. `mwl-ir`'s own catch-all still has
+> exactly the two targets its message names, and neither of them is an object any more: `array<T> as
+> array<U>`, and ADR 0024 § 5's `string as Core\Html\Markup`, which is a *rule* rather than a test —
+> a source-literal string and nothing else — and waits on `Core\Html` existing at all (M7). The
+> tagged operand into an object closed, and it closed as two answers rather than one. A **declared
+> class** target is ADR 0007 § 6's checked way out of `mixed`, and it needed nothing new:
+> `InstKind::InstanceOf` already takes a `Ty::Tagged` subject and already answers `false` for a tag
+> that is not an object, so the row is that test, a `Terminator::Throw` on the false edge and one
+> free `InstKind::Untag` on the true one — a `Helper` could not have carried it in any case, helper
+> arguments being stored as `Value`s that a class descriptor is not. `$m as Plain`, `$m as Shape`
+> through an interface and `?Plain as Plain` all agree with `$m instanceof Plain` for every tag a
+> `mixed` can hold, and the ownership is `convert`'s own free row split across the two edges:
+> `Untag` is a relabelling, so a borrowed operand is retained on the way out and a fresh one
+> transfers instead, and the false edge releases a fresh one before it throws rather than abandoning
+> it on the edge — valgrind-clean over a fixture that converts, and fails to convert, two hundred
+> times. Every **other** object target names no class to test against — plain `object`, a shape, a
+> `callable`, and a `Core` class, which has no descriptor in the unit for the same reason
+> `instanceof Core\Uri` is `E0496` — so from an operand that is not already an object the conversion
+> could only assert a tag it cannot verify, which is `$foo as Bar`'s type confusion one step
+> earlier, and `mwl_types` refuses it where it is written (`E0711`). `$plain as object` stays the
+> free widening row it always was, and `Core\Html\Markup` is the one `Core` exemption, its own row
+> being `mwl_types::expr::quals`' to own. The third was a tagged operand into `bytes` and it is a
+> row now: ADR 0009 § 3's pair is the operand's own *tag*'s wherever its static type names neither
+> side of it, so `Helper::TaggedToBytes` hands the same allocation back under the other tag for a
+> `string` or a `bytes` and throws for every tag § 2's table gives no row. It is the only shape of
+> `as bytes` that reaches a call at all, the statically typed spelling being a free `Reinterpret`
+> over that same allocation. `lower_expr`'s dispatch message is the assertion its roster already
+> proved. One level *up* from all of it, **a digit run beside a `uint` is now placed at `uint`**
+> rather than defaulting to `int` — ADR 0007 § 2's "untyped until placed" applied to the one
+> placement a binary operator offers, its other operand — so `$u + 1`, `$u & 3` and `$u << 1`
+> compile at all, where each of them used to be § 4's mixed-signedness refusal and a `uint` could
+> meet only a `uint`-declared local; a digit run above `i64::MAX`, which § 4 admits "only where a
+> `uint` is expected", has an operand position for the first time, and `mwl-ir` makes the same
+> placement on the left-hand operand so that it does not then panic on a value that never fit an
+> `int`. What stays refused is the pair with no digit run in it: a shift's *count* is an operand of
+> the operator rather than a bare width, judged by the row its left operand takes, which is exactly
+> what makes `mwl-codegen`'s `emit_shift` sound in reading one signedness for both the
+> negative-count guard and the arithmetic-versus-logical choice. One level up from the `as` table,
+> **ADR 0066 § 3's own table is closed at both ends too**. `as ?T` "yields `null` exactly where `as
+> T` would throw", so a row that never throws promises a `null` no run can produce and forces a
+> check on every reader after it: `$i as ?int`, `$i as ?string`, `$xs as ?bool`, `$mode as ?int`,
+> `$s as ?mixed` and `Mode::Read as ?Mode` are now `E0709`, each help naming `as T`, and that is the
+> one judgement the plain form never has to make. The other end is shared: § 2's closure is asked of
+> the `T` *inside* the sugar rather than of the `Union([Null, T])` it interns as, so `array<int> as
+> ?int`, `$flag as ?int`, `$i as ?bytes` and `null as ?int` take the same `E0708` their unsugared
+> spellings already did — they reached a lowering and panicked before, the checker having skipped
+> the table for every written `?T`. The class row was already absolute and is untouched (`E0473`),
+> and the three never fire on one expression. What is left under `as ?T` is the opposite direction,
+> a row § 3 calls **available** with no `?` helper to run it, and it is now `$m as ?array<T>` alone,
+> `Lowering::convert`'s own missing row in its null-answering spelling, so the two close together.
+> The `bytes` target closed with its checked twin: `Helper::ToBytesOrNull` shares
+> `Helper::TaggedToBytes`'s one implementation of the two rows a tag can take into a `bytes`, and
+> neither can fault at all, so unlike the text target neither pays for a landing block. The **text**
+> target is closed: `Helper::ToStringOrNull` is `Helper::TaggedToString`'s twin over one
+> implementation of § 2's rows rather than a second copy of them, answering `null` exactly where
+> that one throws, and it takes `$b as ?string` with it — ADR 0009 § 3's UTF-8 validation is a row
+> that can fail, so the `bytes` source has a `null` answer of its own rather than a helper of its
+> own. What `null` does **not** stand for is an exception the operand raised on the way, which is
+> why this is the one `?` row emitted with ADR 0002's error edge: a `toString()` body that throws
+> propagates through both spellings alike, and a `catch` around either sees it. One level under
+> that, **an object whose static type names no class now renders through its runtime one** rather
+> than panicking below. `require_stringable` resolves a `toString` wherever the operand's type names
+> a class and `mwl-ir` calls it, unchanged; where it names none — an erased `object`, a `mixed`, any
+> other union — `mwl_runtime::stringify` asks the concrete instance's class for the same member,
+> which is ADR 0036 § 4's deferral applied to the member access ADR 0028 § 1 says the conversion
+> *is*. So `echo $o`, `"" . $o` and `$o as string` are one answer for one value where they used to
+> be a rendering, a throw and a panic, and a class that declares no `toString` throws catchably,
+> naming itself and the interface. The `Core`-owned half is now the rendering half alone. Its
+> *refusal* is where it is written: `require_stringable` asks `mwl_stdlib::registry::class_renders`,
+> and a class it answers `false` for is `E0710` at the site rather than a throw below it — `echo`,
+> an interpolated piece, a `.` operand and `as string` agreeing because they are one check. Two
+> rosters answer, and they are two rules: `Core\Uri`, `Core\Uuid` and `Core\Time\Duration` have a
+> `toString` row, and the two sink carriers render through ADR 0088 § 5 with no member at all, which
+> is `mwl_runtime::is_carrier`'s list read rather than copied. The class that *does* render now
+> renders. `require_stringable` records the same resolved `toString` target for a `Core` class that
+> a declared one gets — a `Core` member resolves out of the seeded signature table like any other —
+> and `mwl-ir` asks `core_symbol_of` which of the two calls to emit, so it takes the native
+> `InstKind::CoreCall` the member written out takes rather than a `CallVirtual` into a method table
+> a `Core` class has no entry in. All four rendering spellings therefore agree with
+> `$uri->toString()` for each of the three classes the spec gives one, and the receiver's ownership
+> inverts with the call: a native member *borrows* argument 0, so a fresh receiver (`echo
+> Core\Uri::parse(…)`) is the rendering site's to release rather than the callee's, which is
+> valgrind-clean over a fixture that renders in a loop. What is left of that row is the same class
+> reached through an **erased** operand — a `Core` object behind a `mixed` dispatches through
+> `mwl_runtime::stringify`, which reads a compiled method table and so throws for a value the static
+> spelling renders. That one is not this crate's: `mwl-runtime` sits below `mwl-stdlib` and cannot
+> read the registry, so closing it is a question of what the two share, and `mwl-ir`'s known gap 12
+> owns the two candidate shapes. Three live tools **are** the worklist and no session re-derives
+> one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and
+> attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the
+> named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
