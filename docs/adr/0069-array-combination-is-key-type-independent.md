@@ -139,6 +139,17 @@ every key-valued **return** in the spec is `string`: `keys`, `keyOf`, `firstKey`
 `flip`. A key **parameter** stays `int|string` — that is the subscript
 normalisation rule of the same section, where `$a[8]` and `$a["8"]` are one key.
 
+**The `$key` a callback is handed is a return, not a parameter**, so it is a `string` too — in every member
+that offers one, over every array shape. A packed list holds its key as a position rather than as a string,
+so this is the one place the rule costs something: the decimal is rendered per entry, and only where the
+callback declared a parameter to receive it (`Core\Arr`'s own module doc owns that mechanism). Handing the
+position on in its native form instead would make a callback's `$key` type depend on how the subject
+happens to be stored — PHP's integer-key/string-key split, arriving through the back door of the one
+construct § 1 removed it from. It is refused for that reason and not on the rendering's cost. The
+observable consequence is that `fn($v, int $k)` throws `LogicError` where `fn($v, string $k)` runs, on a
+list exactly as on a map, since [ADR 0007](0007-explicit-type-system.md) § 2 has no implicit `string` → `int`
+conversion to soften it.
+
 ## Consequences
 
 **Positive**

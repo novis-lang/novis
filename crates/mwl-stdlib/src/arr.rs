@@ -48,6 +48,17 @@
 //! `mwl_runtime::closure_arity` **once before the loop** and builds the key
 //! only where the callback declared a parameter to receive it.
 //!
+//! Rendering it *where it is wanted* is a rule and not a convenience: ADR 0069
+//! § 5 makes the `$key` a callback receives a `string` over every array shape,
+//! so a packed list's `SlotKey::Index` becomes a decimal here even though
+//! [`store_at`] just below would take the position as it stands. Handing the
+//! position on unrendered is what that section refuses, since it would make a
+//! callback's `$key` type depend on how the subject is stored. It is visible
+//! now that `mwl_runtime::call_closure` checks each argument against the
+//! parameter tags the closure declared: a callback writing `int $k` throws
+//! `LogicError` at the call, on a list exactly as on a map, rather than
+//! reading a string's payload as an integer.
+//!
 //! Preserving a key is not the same as rendering one, which is the other half:
 //! [`store_at`] writes an entry back under `mwl_runtime::SlotKey`, the key in
 //! whichever form the subject's own shape already holds it, so a `map` over a
