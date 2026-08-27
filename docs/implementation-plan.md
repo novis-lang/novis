@@ -276,11 +276,33 @@
 > own staged slot still owned. `mwl run` printed the right answer and exited 127. The exemption is
 > decided by the binding's representation now, and the pair is valgrind-clean over a fixture that
 > grows a borrowed and a freshly built string through a `&$x` parameter, and writes back through a
-> property holder, two hundred times. Three live tools **are** the worklist and no session
-> re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen`
-> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
-> the named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> property holder, two hundred times. **A `finally` now runs when its own `catch` clause's body
+> throws**, which is item 12 and the last exit out of a protected region that did not run one. The
+> clause body is lowered under a frame whose handler is that region's own finally-and-re-raise block
+> rather than the dispatch that selected the clause — a clause does not catch what its own body
+> raises — so the `finally` runs, the clause binding is released there exactly as the completing
+> path already released it before lowering its own copy, and the new exception is handed on to the
+> enclosing region carrying the same reference it arrived with. A `finally` that throws on its own
+> way out therefore **replaces** the exception in flight, which is PHP's answer and falls out of the
+> ordering rather than being written down anywhere: the re-raise's own `Terminator::Throw` is simply
+> never reached. Where the region has no `finally` the frame names no handler at all and such a
+> throw still reaches the enclosing region directly, so nothing is spent on a `try`/`catch` that
+> owes nothing. Valgrind-clean over a fixture that wraps, re-raises through the same object, catches
+> unbound and crosses a frame, two hundred times each.
+> `tests/conformance/error/a-finally-runs-when-its-catch-body-throws.mwlt` pins six shapes
+> byte-for-byte against PHP 8.5.9's own output, an unbound clause, nested regions running innermost
+> first and the replacing `finally` among them; `mwl-ir`'s known gap 2 loses its first half and
+> `mwl-codegen`'s gap 0 is deleted outright, its two still-true sentences folded into the paragraph
+> above that list. Item 18's two named cases land with it —
+> `tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.mwlt` over the
+> seven positions a staged call takes, and the oracle twin
+> `tests/differential/lang/a-reference-argument-matches-phps.mwlt`, which deliberately writes no
+> read to the *left* of such a call: that is the operand-order divergence `Lowering::pending_refs`
+> owns, PHP's manual leaves it undefined, and it is not a difference to pin. Three live tools
+> **are** the worklist and no session re-derives one: `python tools/holes.py` reads the refusal
+> sites out of `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item N` for one in
+> full), `python tools/loop.py --list` prints the named `.mwlt` cases each stage still owes, and
+> `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

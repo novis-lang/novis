@@ -1473,6 +1473,15 @@ is why" — is this file.
   wrong function, because a `static function m(): void { }` lowers to exactly a `safepoint`, a
   `param` per declaration and a `return`. Recognizing it costs one `cargo insta` cycle;
   reordering the two members is the whole fix.
+- **A named case a stage owes may be pinning a hole rather than a landed feature, and the
+  failure mode is a *missing* line rather than a wrong one.**
+  `a-finally-runs-when-its-catch-body-throws` was handed over as the group's easy third
+  slice — no Rust — and the shapes ran, exited 0 and printed something plausible: the
+  `finally;` marker was simply absent from every line. Freezing what `mwl run` printed
+  would have pinned the divergence as the expectation. So run a new case's shapes in a
+  scratch `.agent-tmp/*.mwl`, write the same program as `.php`, and **diff the two** before
+  filling in `--EXPECT--` — a conformance case takes no `--ORACLE--`, which is exactly why
+  its expectation is the one nothing else checks against PHP.
 
 ## Splitting a file that got too big
 

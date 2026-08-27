@@ -2,67 +2,63 @@
 
 ## State
 
-**M4 — item 18 is closed: a `&$x` argument's copy-back lands at the call, so
-such a call lowers in any expression position.** `mwl-ir`'s known gap 10 is
-deleted rather than reworded, and `examples/callable.mwl` prints all seven of
-its stage-3 acceptance lines, `byref=7 then 7` included. The `mwl-ir (calls)`
-acceptance list is complete: all eight names now exist.
+**M4 — item 12 is closed: a `finally` runs when its own `catch` clause's body
+throws**, which was the last exit out of a protected region that did not run
+one. `mwl-ir`'s known gap 2 keeps only its throw-path-temporaries half, and
+`mwl-codegen`'s gap 0 is deleted. Item 18's two owed `.mwlt` cases are on disk
+with it, so `python tools/loop.py --list` is down to **10** unwritten
+conformance cases and **1** differential.
 
-- **The rule is a mark, not a boundary.** A call site takes
-  `Lowering::pending_refs_mark` before it lowers its argument list
-  (`crates/mwl-ir/src/lower/mod.rs:2074`) and hands it back to
-  `flush_ref_writebacks` (`:2091`) after emitting its call, at the three sites
-  that can stage one — `lower_new`, `lower_method_call`, `lower_static_call`
-  (`crates/mwl-ir/src/lower/expr.rs:3664`, `:3819`, `:4008`). ADR 0063 R7
-  leaves nothing by-reference in `Core`, so the three `CoreCall` sites need no
-  mark. `pending_refs`' own doc comment (`mod.rs:1182`) is the rule's one home,
-  including the one thing it does not buy — PHP's *operand* order, which the
-  manual leaves undefined and which MWL takes left to right.
-- **Subtracting the deferral uncovered an older leak**, fixed in the same
-  slice: `return $s;` over a `&$x` parameter took `lower_stmt`'s `except`
-  exemption and so retained nothing, while `release_all_locals` was never going
-  to release a `Ty::Ref` cell anyway. The playbook's "Running things" bullet
-  owns the recognition test. Valgrind-clean over fixtures that grow a borrowed
-  and a freshly built string through a `&$x` parameter, and write back through
-  a property holder, two hundred times.
-- **The four statement-level flush sites in `stmt.rs` are gone.**
-  `lower_stmts`' assertion stays as an internal-consistency check on the call
-  sites (`crates/mwl-ir/src/lower/stmt.rs:61`), not as a refusal.
+- **The clause body is a protected region of its own.** `lower_catch_clauses`
+  pushes a frame whose handler is a fresh finally-and-re-raise block
+  (`crates/mwl-ir/src/lower/exception.rs:304`, `lower_finally_and_reraise`),
+  built after the body is lowered from that frame's own landing edges: phis,
+  `TakeThrown`, the clause binding released, the `finally` body, then
+  `Terminator::Throw` of the taken reference. With no `finally` the frame still
+  names no handler and the throw goes straight out, unchanged from before.
+- **Two behaviours fall out rather than being written down.** A `finally` that
+  throws replaces the exception in flight (its re-raise is never reached), and
+  a `finally` cannot read the clause binding — the completing path has always
+  released `$e` before lowering its copy, and the throwing path now matches it.
+- Valgrind-clean over a fixture doing all four shapes two hundred times.
+  `TryFrame::handler`'s doc (`crates/mwl-ir/src/lower/mod.rs:236`) is the one
+  home for which block a frame's handler is and why.
 
 ## Next group
 
-**The two named `.mwlt` cases item 18 owes, and the divergence one of them must
-not write.** The file set: `tests/conformance/lang/`, `tests/differential/lang/`
-— no Rust. The rule they pin lives at `crates/mwl-ir/src/lower/mod.rs:1182`.
+**Three of stage 8's unwritten conformance cases, none of which needs Rust —
+unless one of them turns out to pin a hole, which is exactly what happened to
+this session's third slice.** The file set: `tests/conformance/lang/`. Check
+each shape against `php` in a scratch file before freezing `--EXPECT--`.
 
-- [ ] **`tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.mwlt`**
-      — `python tools/loop.py --list` names it and stage 8 owes it. The shapes
-      that run today, all checked by hand this session: a read to the right of
-      the call in one statement, two calls in one statement where the second
-      sees the first's write, a nested call
-      (`Adder::sum(Adder::bump($n), $n)` answers `12`), a call in a condition,
-      in an array-literal element, in a `while` body, and a property holder
-      (`Box::grow($b->tag, "z")`). `crates/mwl-ir/src/lower/call.rs:846`
-      (`stage_ref_arg`) is what the two holder kinds are.
-- [ ] **`tests/differential/lang/a-reference-argument-matches-phps.mwlt`** — the
-      oracle half. **Do not write `$n + Adder::bump($n)` into it**: PHP answers
-      `7 + 7` and MWL answers `5 + 7`, PHP reading its left operand at the
-      `ADD` after the call. Every other shape in the list above was checked
-      against `php` this session and agrees. `mod.rs:1182` says why that one is
-      not a divergence to pin.
-- [ ] **`tests/conformance/error/a-finally-runs-when-its-catch-body-throws.mwlt`**
-      — stage 8's next unwritten case, and the one nearest these two in the
-      tree. `crates/mwl-ir/src/lower/exception.rs` owns the ladder.
+- [ ] **`tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.mwlt`**
+      — the `mixed` operand rows the plan's `Open now` says all lower now.
+      `crates/mwl-ir/src/lower/convert.rs:60` (`convert`) and
+      `crates/mwl-ir/src/lower/expr.rs:3142` (`lower_index`) are what a
+      subscript through a tagged value reaches; ADR 0007 § 2's table is the
+      arithmetic half, ADR 0035 the truth half.
+- [ ] **`tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.mwlt`**
+      — ADR 0007 § 2's grid, both directions, plus the `E0708` refusals the
+      plan lists for the pairs that name no row. Same `convert.rs:60`.
+      `a-lossy-conversion-throws.mwlt` already owns the throwing scalar rows,
+      so what this adds is the rows those do not reach.
+- [ ] **`tests/conformance/lang/inline-html-at-file-scope-is-echoed-in-place.mwlt`**
+      — `crates/mwl-ir/src/lower/expr.rs:467` (`lower_inline_html`), which
+      lowers over the raw span. A multi-file case is fine but only the entry
+      file's statements run (playbook).
 
 ## Backlog
 
+- An abandoned generator's `finally` — goal item 13, pre-authorized in
+  `docs/agent/loop-goal.md` § *Standing decisions*; two named cases owed, and
+  `crates/mwl-ir/src/lower/generator.rs:99` is the anchor.
 - First-class callable syntax (`Class::method(...)`) still panics — `mwl-ir` gap
-  1, at `lower/call.rs:85` and `:652`. Both are `CallArgs::FirstClassCallable`.
+  1, at `lower/call.rs:85` and `:652`.
 - ADR 0007 § 4's promotion table has 9 refusal sites left (`python
   tools/holes.py --item 1`), the largest remaining group.
 - `crates/mwl-codegen/src/ty.rs:116` and `:121` are the two refusal sites no
   item anchors (`holes.py`'s UNATTRIBUTED section).
-- An abandoned generator's `finally` — pre-authorized in
-  `docs/agent/loop-goal.md` § *Standing decisions*, two named cases owed.
 - Item 25: `object` as a declared type has 2 refusal sites left.
-- `holes.py` counts 14 named cases still to write across stages 8 and 9.
+- `tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.mwlt`
+  is owed but blocked on `mwl-ir` gap 22 (a `require`d file's own statements do
+  not run).
