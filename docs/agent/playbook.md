@@ -1961,3 +1961,14 @@ every session. Nothing below was reworded on the way.
   null/int, bool/int, null/string, bool/string and array/int, and about accepting an ordered pair.
   Pinned by
   `tests/conformance/core/ordering-refuses-a-pair-with-no-order-once-for-all-seven-members.mwlt`.
+- **`continue 2` inside a `switch` is PHP's *idiomatic* spelling, not an exotic one, so counting
+  `continue N` over loops alone silently breaks ported code.** MWL already reads a bare `continue`
+  inside a `switch` as continuing the enclosing loop (docs/adr/README.md), and the obvious
+  generalization — count loop frames and skip `switch` frames — compiles, passes every existing test,
+  and then rejects `foreach { switch { case: continue 2; } }` outright with "names more than the 1
+  enclosing loop". Worse, with two nested loops it silently retargets PHP's *inner* loop to the outer
+  one. The rule that is PHP-identical everywhere PHP accepts the level: count **every** frame the way
+  PHP does, then walk *outward* from the frame the level lands on to the nearest loop — level 1
+  reduces to the bare-`continue` rule already decided, and nothing new is invented. One
+  `.agent-tmp/*.mwl` scratch run beside `php` on the same file is what found it; the checker alone
+  would have shipped the divergence.
