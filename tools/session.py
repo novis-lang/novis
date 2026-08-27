@@ -96,6 +96,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import json
 import re
 import subprocess
 import sys
@@ -118,6 +119,15 @@ SUBJECT_MAX = 120
 HANDOFF_REQUIRED = ["## State", "## Next group", "## Backlog"]
 HANDOFF_TARGET_LINES = 60
 STATUS_WORDS = ("CONTINUE", "DONE", "BLOCKED")
+
+#: Every session's pack size, one JSON object per wrap. See `record_pack`.
+PACK_LOG = RUNDIR / "pack-size.jsonl"
+
+#: Growth in one session, in bytes, past which `record_pack` says so. Deliberately NOT a check:
+#: doc-style.md § *Length targets* records that a hard size gate cost five and ten iterations a
+#: session shaving prose to clear it, which is far more than the bytes were ever worth. This
+#: number only decides whether one line is printed.
+PACK_NOTE_AT = 1_500
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import plan as planmod  # noqa: E402  -- the status block's one home; never reimplemented here
@@ -725,7 +735,68 @@ def wrap(path: Path, dry: bool) -> int:
             say()
             say("That is step 5. The tree is committed and the handoff is written -- there is")
             say("nothing a `git log`, a `git status` or a second `verify.py` can add. Stop here.")
+        record_pack()
     return 0
+
+
+def record_pack() -> None:
+    """Measure the orientation pack this wrap leaves behind, and say if the session grew it.
+
+    The pack is the one cost every session pays on every turn, and it leaks the way an
+    append-mostly file always does: measured over 59 sessions it went 59,033 -> 117,617 B at
+    +907 B a session, and every one of those bytes was re-billed on all ~98 of a session's calls.
+    Nothing noticed, because the only thing that measured it -- `orient.py --audit` -- is read
+    when a goal is *written* and never after.
+
+    This is a **report, not a gate**, and the distinction is the whole design. `doc-style.md`
+    § *Length targets* records what the gate version cost: a session at the end of its tail,
+    context at its peak, shaving prose to clear a tripwire. So this refuses nothing and changes
+    no exit code. It writes one line to `.loop/pack-size.jsonl` and, when the session grew the
+    pack past `PACK_NOTE_AT`, prints one line naming the growth -- addressed to whoever writes
+    the next goal, which is the only moment the manifest can be narrowed cheaply.
+
+    `python tools/loop-stats.py` turns the log into a slope. A failure here is silent on purpose:
+    a missing `orient.py`, an unparseable goal or an unwritable `.loop` must never be the reason
+    a wrap that already committed reports failure."""
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "orient.py")],
+            capture_output=True, text=True, cwd=ROOT, timeout=60,
+        )
+        if proc.returncode != 0:
+            return
+        size = len(proc.stdout.encode("utf-8"))
+    except (OSError, subprocess.SubprocessError):
+        return
+
+    previous = None
+    try:
+        if PACK_LOG.exists():
+            for line in PACK_LOG.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    previous = json.loads(line).get("bytes")
+    except (OSError, ValueError):
+        previous = None
+
+    try:
+        RUNDIR.mkdir(parents=True, exist_ok=True)
+        head = _checked(["git", "rev-parse", "--short", "HEAD"]).stdout.strip()
+        with PACK_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"bytes": size, "head": head}) + "\n")
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+    if previous is None:
+        return
+    grew = size - previous
+    if grew < PACK_NOTE_AT:
+        return
+    say()
+    say(f"== PACK  {previous:,} -> {size:,} B  (+{grew:,} this session)")
+    say("  Every byte of that is re-billed on every turn of every session after this one.")
+    say("  It is not a problem to fix now and NOT something to shave prose against -- it is a")
+    say("  number for whoever writes the next goal: `python tools/orient.py --audit` says which")
+    say("  section carries it, and a `[context]` entry may name one bullet, not a whole section.")
 
 
 # --------------------------------------------------------------------------- check

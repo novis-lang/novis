@@ -12,13 +12,21 @@ So this script prints the same kinds of thing, selected by the goal's own `[cont
 
     the run marker and the next free numbers        always
     the handoff's state and the current item        always
+    the code at every `path:line` the item names    always -- see `run_anchors`
     the goal's standing decisions                   always -- this is what keeps a run off BLOCKED
     the ground-rule bullets for the named ADRs      [context] rules
     the named ADR sections, sliced live             [context] adrs
     the map lines for the named modules             [context] modules
     the convention shapes the goal will write       [context] shapes
-    the playbook sections that apply here           [context] playbook
+    the playbook traps, narrowed twice              [context] playbook, then the item's own paths
     the milestone this goal builds inside           [context] milestones
+
+The pack exists to buy **turns**, not bytes. A session's wall clock is very nearly its turn count
+times a constant -- measured over one 33-session run, time-to-first-token was ~80% of a turn and
+did not depend on what the turn fetched -- so a section here earns its place by removing a call a
+session would otherwise make, not by being short. That is why the item's anchors are expanded
+inline (they replace one `peek.py` call each) while the traps are narrowed to the item (a trap for
+a file the item never opens removes no call at all).
 
 Every one of those is sliced out of the live file at run time. **Nothing here is a copy**, so a
 manifest cannot go stale in the way a frozen context pack would -- it can only go *wrong*, by
@@ -46,6 +54,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import brief  # noqa: E402  -- same directory, reused rather than reimplemented
+import playbook  # noqa: E402  -- its `score`/`expand` decide which traps this item earns
 
 try:
     import tomllib
@@ -75,6 +84,20 @@ RUNNING = ROOT / ".loop" / "running"
 out: list[str] = []
 ledger: list[tuple[str, int]] = []
 problems: list[str] = []
+
+# The current item's own text, filled by `run_state` and read by `run_playbook`. The manifest is
+# goal-scoped and an item is one file set inside it, so the goal decides which traps *could* apply
+# and the item decides which of them are printed whole -- see `run_playbook`.
+current_item: str = ""
+
+#: A `path:line` anchor in a checklist item, which `run_state` expands into a window of the file.
+ANCHOR_RE = re.compile(
+    r"\b((?:crates|tools|tests|benches|examples|fuzz)/[\w./-]+\.\w+):(\d+)\b"
+)
+
+#: Lines of a file printed either side of an anchor. Wide enough to hold a signature and the top
+#: of a body, narrow enough that six anchors cost less than the six `peek.py` calls they replace.
+ANCHOR_CONTEXT = 12
 
 
 def emit(line: str = "") -> None:
@@ -310,7 +333,62 @@ def run_numbers() -> None:
         emit(line)
 
 
+def run_anchors(item: str) -> None:
+    """The code at every `path:line` the current item names, inline.
+
+    An item is written with anchors precisely so that a session does not have to re-derive them,
+    and then every session spends one `peek.py` call per anchor arriving at what the anchor
+    already identified. Those are the same bytes either way -- but a call is a *turn*, and a
+    turn's time-to-first-token is ~80% of its clock and independent of what it fetches. Measured
+    over one 33-session run, `head` (the calls before the first edit) was 12 a session against an
+    orientation that had already been piped in.
+
+    So the pack pays the bytes here and the session keeps the turns. Anchors that resolve to the
+    same window are printed once; one that no longer resolves is a loud warning, because a stale
+    anchor is a handoff bug and the next session is the cheapest place to catch it."""
+    seen: dict[tuple[str, int], None] = {}
+    for path, line in ANCHOR_RE.findall(item):
+        seen.setdefault((path.replace("\\", "/"), int(line)), None)
+    if not seen:
+        return
+
+    windows, missing = [], []
+    for path, line in seen:
+        body = read(ROOT / path)
+        if not body:
+            missing.append(f"{path}:{line}")
+            continue
+        lines = body.split("\n")
+        if line > len(lines):
+            missing.append(f"{path}:{line} (the file has {len(lines)} lines)")
+            continue
+        lo = max(1, line - ANCHOR_CONTEXT)
+        hi = min(len(lines), line + ANCHOR_CONTEXT)
+        # Overlapping anchors in one file collapse, so two anchors twenty lines apart cost one
+        # window rather than two nearly identical ones.
+        if windows and windows[-1][0] == path and lo <= windows[-1][2] + 1:
+            windows[-1][2] = max(windows[-1][2], hi)
+            continue
+        windows.append([path, lo, hi])
+
+    if not windows and not missing:
+        return
+    section(
+        "THE CODE YOUR ITEM ANCHORS",
+        f"{len(windows)} window(s) at the `path:line` the item names -- do not peek these again",
+    )
+    for path, lo, hi in sorted(windows):
+        lines = (read(ROOT / path) or "").split("\n")
+        emit(f"----- {path}:{lo}-{hi}")
+        for n in range(lo, hi + 1):
+            emit(f"{n:>5}  {lines[n - 1]}")
+        emit()
+    for gone in missing:
+        warn(f"{rel(HANDOFF)}'s item anchors {gone}, which does not resolve -- the anchor is stale")
+
+
 def run_state(item_index: int | None) -> None:
+    global current_item
     text = read(HANDOFF)
     if not text:
         warn(f"{rel(HANDOFF)} is missing or empty -- there is no state to hand over")
@@ -369,7 +447,8 @@ def run_state(item_index: int | None) -> None:
     emit()
     emit(f"-- YOUR ITEM ({pick + 1} of {len(items)}), in full:")
     emit()
-    emit("\n".join(items[pick]).rstrip())
+    current_item = "\n".join(items[pick]).rstrip()
+    emit(current_item)
 
     rest = [i for i in unticked if i != pick]
     if rest:
@@ -541,14 +620,27 @@ def run_named_sections(title: str, source: Path, wanted: list[str], field: str) 
 
 
 def run_playbook(wanted: list[str]) -> None:
-    """The traps, sliced by section OR by bullet -- see `slice_bullets` for why both."""
+    """The traps, sliced by section OR by bullet -- see `slice_bullets` for why both -- and then
+    narrowed a second time, to the item actually being taken.
+
+    The manifest is *goal*-scoped: it names every trap any of the goal's items could hit, which on
+    the current goal is 46 selectors and 33 KB a session, against an item that touches two files.
+    A session reads a handful of them. So the goal still decides which traps are in scope, and the
+    item decides which are printed **whole**: a bullet that mentions a path the item names, or the
+    crate one lives in, is printed; the rest are listed by their lead-in with the `--show` that
+    fetches one.
+
+    Nothing becomes unreachable this way, which is the property that matters -- a trap you cannot
+    see is a trap you pay for twice. An item that names no path at all falls back to printing
+    every selected bullet, because then there is nothing to narrow against."""
     if not wanted:
         return
     text = read(PLAYBOOK)
     if not text:
         warn(f"{rel(PLAYBOOK)} is missing")
         return
-    section("THE TRAPS THAT APPLY HERE", f"{rel(PLAYBOOK)}, filtered to [context] playbook")
+
+    picked: list[tuple[str, str]] = []          # (selector, body), deduplicated
     seen: set[str] = set()
     for name in wanted:
         found, complaint = slice_bullets(text, name)
@@ -561,8 +653,37 @@ def run_playbook(wanted: list[str]) -> None:
             if key in seen:
                 continue
             seen.add(key)
-            emit()
-            emit(body)
+            picked.append((name, body))
+
+    terms = [p for p, _ in ANCHOR_RE.findall(current_item)]
+    terms += playbook.HANDOFF_PATH.findall(current_item)
+    terms = list(dict.fromkeys(terms))
+
+    if terms:
+        whole = [(n, b) for n, b in picked if playbook.score({"body": b, "section": n}, terms)[0]]
+        listed = [(n, b) for n, b in picked if (n, b) not in whole]
+    else:
+        whole, listed = picked, []
+
+    section(
+        "THE TRAPS THAT APPLY HERE",
+        f"{rel(PLAYBOOK)}, filtered to [context] playbook"
+        + (f", then to the {len(terms)} path(s) your item names" if terms else ""),
+    )
+    for _, body in whole:
+        emit()
+        emit(body)
+
+    if listed:
+        emit()
+        emit(f"-- {len(listed)} more trap(s) this GOAL names that your ITEM does not touch. One line")
+        emit("   each; `python tools/playbook.py --show '<selector>'` prints one in full:")
+        for name, body in listed:
+            head = body.split("\n")[0]
+            # `mask_code` preserves length, so a match on the masked line indexes the raw one.
+            lead = re.match(r"^- \*\*(.+?)\*\*", mask_code(head))
+            label = head[lead.start(1):lead.end(1)] if lead else head[2:]
+            emit(f"   {name}  --  {brief.strip_links(label).strip('* ')[:110]}")
 
 
 def run_plan(m: Manifest) -> None:
@@ -760,6 +881,7 @@ def main() -> int:
 
     run_marker()
     run_state(opts.item)
+    run_anchors(current_item)
     run_standing_decisions()
     run_rules(m)
     run_adrs(m)
