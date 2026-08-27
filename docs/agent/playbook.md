@@ -386,6 +386,16 @@ is why" — is this file.
   costs two more calls. That is AGENTS.md rule 1 collecting its price: use Edit for anything
   whose anchor is prose. A heredoc is still fine when every matched byte is ASCII, which is
   what the `Helper::X => "symbol"` table edits in this session were.
+- **`mwl-ir` cannot synthesize a local**, so "evaluate the base into a temporary and rewrite the
+  target over that" is not a move a lowering has. `ExprKind::Variable` holds a `Span` and
+  `lower_expr` reads the name back out of `self.src`, so a name no source file spells has no
+  representation at all — and `ExprKind::Int` is a span too, which is the same wall an increment's
+  implicit `1` hits. What replaces it is `Lowering::staged_targets`: lower the sub-expression once,
+  record `(span, value, ty)`, and let `lower_expr` answer from that table *before* it looks at the
+  expression's kind. Two halves make it safe and neither is optional — `aliasing_read` must answer
+  `true` for a staged span, or the second read releases a base the first one still needs, and the
+  stager must `own_temporary` a refcounted staged value, because it is a fresh producer precisely
+  when it could not be re-read.
 
 ## Running things
 
