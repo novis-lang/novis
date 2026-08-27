@@ -3804,10 +3804,12 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// Panics when the typed-expression table holds neither entry for this
-    /// access. That is an internal-consistency check rather than a hole: a
-    /// receiver whose type can hold no object at all is `E0495` at the
-    /// checker (ADR 0007 § 7 row 13), so a body that reaches here was
-    /// checked against a different table.
+    /// access. That is an internal-consistency check with no reachable
+    /// target rather than a hole:
+    /// `mwl_types::expr::members::check_property_member` records an entry for
+    /// every access it returns from and refuses the rest, and its own doc
+    /// comment is that proof's only home. `lower_store`'s `PropertyAccess`
+    /// arm asserts the same thing from the write side.
     fn lower_property_access(
         &mut self,
         object: &Expr,
@@ -3848,9 +3850,11 @@ impl<'a> Lowering<'a> {
             }) => (class, name, *ty, get.clone()),
             _ => panic!(
                 "mwl-ir: a property access at {:?} has neither a resolved declaring class \
-                 nor an ADR 0036 § 4 erased entry recorded in the typed-expression table, \
-                 so it was not checked with the same table — every erased receiver records \
-                 one and every receiver that can hold no object at all is `E0495`",
+                  nor an ADR 0036 § 4 erased entry recorded in the typed-expression table, \
+                  so it was not checked with the same table — \
+                  `mwl_types::expr::members::check_property_member` records one for every \
+                  access it returns from and refuses the rest, and its own doc comment \
+                  carries that proof",
                 expr.span
             ),
         };

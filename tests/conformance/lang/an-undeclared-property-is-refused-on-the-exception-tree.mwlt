@@ -1,0 +1,31 @@
+--TEST--
+An undeclared property is `E0405` on a reserved exception class exactly as on a user class, read and write alike — ADR 0014 § 5 makes the declared list exhaustive for every class kind
+--FILE--
+<?mwl
+try {
+    throw new LogicError("x");
+} catch (Throwable $e) {
+    // `message` is declared, so this resolves like any other property —
+    // the exception tree's own members are in the signature table.
+    echo $e->message, "\n";
+    // A name that tree does not declare was excused from `E0405` by the
+    // *class kind* rather than by the name, which left the access with no
+    // typed-expression entry and nothing in front of `mwl-ir`'s panic.
+    echo $e->nope, "\n";
+    // The write half asks the same question and now gets the same answer.
+    $e->nope = "y";
+}
+--EXPECTF-ERROR--
+error[E0405]: `Throwable` has no property named `nope`
+   --> %s:11:10
+   |
+11 |     echo $e->nope, "\n";
+   |          ^^ referenced here
+
+error[E0405]: `Throwable` has no property named `nope`
+   --> %s:13:5
+   |
+13 |     $e->nope = "y";
+   |     ^^ referenced here
+
+error: aborting due to 2 errors

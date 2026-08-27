@@ -906,7 +906,11 @@ impl<'a> Lowering<'a> {
                 // An ADR 0036 § 4 shape target is neither: it has no
                 // declaring class to name and no hook to call, so it takes
                 // the name-keyed write its own read mirrors and leaves before
-                // the class machinery below.
+                // the class machinery below. That arm is also the erased
+                // receiver's — a plain `object` and a `mixed` both record the
+                // same variant — so § 4's write half, incoming-value check
+                // included, is here rather than in the `panic!` below, which
+                // now has no reachable target at all.
                 if let Some(ExprInfo::ShapeProperty { name, slot, ty }) =
                     self.exprs.lookup(target.span)
                 {
@@ -934,11 +938,11 @@ impl<'a> Lowering<'a> {
                         ..
                     }) => (class, name, *ty, set.clone()),
                     _ => panic!(
-                        "mwl-ir: a property assignment target at {:?} has no resolved declaring \
-                         class recorded in the typed-expression table — either it wasn't checked \
-                         with the same table, or its receiver erased to a plain `object`, which \
-                         ADR 0036 § 4's erased half still does not lower (see the crate docs' \
-                         known gaps)",
+                        "mwl-ir: a property assignment target at {:?} has no entry in the \
+                          typed-expression table, so it was not checked with the same table — \
+                          `mwl_types::expr::members::check_property_member` records one for every \
+                          access it returns from and refuses the rest, and its own doc comment \
+                          carries that proof",
                         target.span
                     ),
                 };

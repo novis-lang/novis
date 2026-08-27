@@ -140,11 +140,24 @@ not on the list:
 - is a **compile-time diagnostic** when the property name is a literal identifier (`$obj->typo`) — the same
   point in the pipeline that already refuses an undeclared local, an unresolvable method or an unresolvable
   constant ([ADR 0007](0007-explicit-type-system.md), [ADR 0011](0011-functions-and-constants-are-class-members.md));
-- is a **checked runtime throw** when the property name is only known at runtime (a computed property-access
-  expression, or a reflection-based get/set) — the compiler cannot refuse it statically, but the set of valid
-  names is still exactly the class's declared properties, and a name outside it throws rather than silently
-  creating a new property the way PHP does (deprecated, but still permitted, before 8.2's opt-in
-  `#[AllowDynamicProperties]`).
+- is a **checked runtime throw** when the property name is only known at runtime — the compiler cannot refuse
+  it statically, but the set of valid names is still exactly the class's declared properties, and a name
+  outside it throws rather than silently creating a new property the way PHP does (deprecated, but still
+  permitted, before 8.2's opt-in `#[AllowDynamicProperties]`).
+
+A name arrives late in exactly two ways, and a *computed property-access expression* is not one of them.
+`$obj->$name` and `$obj->{$expr}` are refused where they are written, `E0235`, in front of the parentheses of
+a call as much as on a property — the sibling of `$$name`'s own refusal one level in, and the access-side
+twin of the computed shape key [ADR 0036](0036-anonymous-object-shapes.md) § 2 already refuses. MWL has no
+spelling that computes which member is meant: a name only known when the statement runs defeats the
+resolution every access below the checker is built on, and it is the one construct that would let a
+request-controlled string pick which field to read or write, which priority 1 does not trade.
+
+What is left, and what the runtime throw above is *for*, is the pair where the name is written out and
+something else is unknown: a **reflection-based get/set**, whose name is a `string` by construction, and
+[ADR 0036](0036-anonymous-object-shapes.md) § 4's **erased receiver**, where the class behind the handle is
+what the compiler cannot see. Both throw for a name the concrete class does not declare, and § 4's write half
+additionally checks the incoming value against the field's real declared type.
 
 Either way, `PropertyObserver` is never consulted for a name that does not exist — unlike PHP, where
 `__get`/`__set` exist *specifically* for that case. There is no path in MWL from "the name is wrong" to any
@@ -259,9 +272,10 @@ Verification, in the order it becomes possible:
   `a_class_without_a_property_observer_costs_nothing_extra`, which holds that three more unhooked accesses
   emit no machine-code call beyond the probe sites they add, and cost a fraction of the same accesses behind
   the ADR's other opt-in, a per-property hook; that test's own comment carries the figures and the threshold.
-  A runtime-computed
-  property-access expression naming an undeclared property throws rather than creating one; calling an
-  undeclared method still fails even when the class defines `__call`.
+  A computed
+  property-access expression is `E0235` where it is written, and a property access through § 4's erased
+  receiver naming an undeclared property throws rather than creating one; calling an undeclared method still
+  fails even when the class defines `__call`.
 - **M11**: the converter flags PHP source that declares `__get`/`__set` as needing human review (observation
   → `PropertyObserver`, computation → a per-property hook) and PHP source that declares `__call`/
   `__callStatic` as a `TODO` with no mechanical destination, per *Consequences*' negative list.

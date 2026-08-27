@@ -786,24 +786,54 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// keyword spelling accepted too, matching PHP's own allowance of
     /// keyword-named methods), `$name` (a dynamic member name) or `{expr}`
     /// (a fully computed one).
+    ///
+    /// The last two parse and are then refused as `E0235`, here rather than in
+    /// the checker, for the reason [`code::E_VARIABLE_VARIABLE`] is refused
+    /// here: the spelling is what is rejected, so the earliest place that can
+    /// see it is the one that should say so. The node is still built out of
+    /// the expression it wrote, so the operand is checked for its own mistakes
+    /// and the access above it reports nothing further — a computed name has
+    /// no member to resolve, and one error per spelling is the whole point.
     pub(super) fn parse_member_name(&mut self) -> MemberName {
         match self.peek().kind {
             TokenKind::Variable => {
                 let span = self.bump().span;
+                self.report_dynamic_member_name(span);
                 MemberName::Variable(Box::new(Expr {
                     span,
                     kind: ExprKind::Variable(span),
                 }))
             }
             TokenKind::LBrace => {
-                self.bump();
+                let open = self.bump().span;
                 let inner = self.parse_expr();
-                self.expect(TokenKind::RBrace, "`}`");
+                let close = self.expect(TokenKind::RBrace, "`}`");
+                self.report_dynamic_member_name(open.to(close));
                 MemberName::Expr(Box::new(inner))
             }
             TokenKind::Ident | TokenKind::Keyword(_) => MemberName::Ident(self.bump().span),
             _ => MemberName::Ident(self.error_expected("a member name")),
         }
+    }
+
+    /// ADR 0014 § 5's compile-time half, over the *spelling* rather than over
+    /// the name: MWL has no way to compute which member is meant. The rule's
+    /// runtime-throw half is unaffected — it belongs to the two ways a name
+    /// still arrives late, a reflection-based get/set and ADR 0036 § 4's
+    /// erased receiver, and neither is spelled with one of these.
+    fn report_dynamic_member_name(&mut self, span: Span) {
+        self.diags.report(
+            Diagnostic::error(
+                code::E_DYNAMIC_MEMBER_NAME,
+                "a member name cannot be computed (`->$name` / `->{expr}`)",
+            )
+            .with_primary(span, "this names a member only when the statement runs")
+            .with_help(
+                "ADR 0014 § 5 makes every property a declared name, so there is nothing for a \
+                 computed one to resolve against — write the member out, or hold data whose \
+                 keys are only known at run time in an `array<string, T>`",
+            ),
+        );
     }
 
     pub(super) fn parse_call_args(&mut self) -> CallArgs {

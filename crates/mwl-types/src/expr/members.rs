@@ -460,6 +460,34 @@ pub(super) fn strip_nullsafe_receiver(
 
 /// [`check_property_access`]'s member half: everything after the receiver's
 /// own type is known, so that `?->` and `->` reach it identically.
+///
+/// # Every access this returns from records an entry, or is refused
+///
+/// `mwl_ir::lower` reads a `PropertyAccess` back out of
+/// [`crate::expr_table`] and has no fallback for a span with no entry — its
+/// read arm (`lower_property_access`) and its write arm (`lower_store`'s
+/// `PropertyAccess`) both panic there. This is the only function that decides,
+/// so the proof that neither panic has a reachable target is here and nowhere
+/// else. The split is exhaustive over the two questions an access asks:
+///
+/// - **The member name.** A computed one (`->$name`, `->{expr}`) never reaches
+///   lowering: `mwl_syntax`'s `Parser::parse_member_name` refuses the spelling
+///   itself as `E0235`, so the [`MemberName::Ident`] arm below is the only one
+///   a compiled program takes. ADR 0014 § 5 owns why.
+/// - **The receiver's type.** A [`Ty::Shape`] records [`ExprInfo::ShapeProperty`]
+///   with the field's slot; [`Ty::Object`] and [`Ty::Mixed`] record the same
+///   variant erased, ADR 0036 § 4's name-keyed half. A type naming a class
+///   records [`ExprInfo::Property`] or [`ExprInfo::HookedProperty`] when the
+///   name resolves, and is `E_UNKNOWN_MEMBER` when it does not — on **every**
+///   class kind, the `Core` namespace and the reserved exception tree
+///   included, which is the hole this paragraph was written for. Everything
+///   else — a scalar, an `array<T>`, an enum, a union naming no single class —
+///   is `E_RECEIVER_HAS_NO_PROPERTIES`, and a nullable receiver is
+///   `E_NULLABLE_RECEIVER` on the way in.
+///
+/// The one return with no entry and no diagnostic of its own is `$this->name`
+/// for a name the class does not declare, which `mwl_hir::members` already
+/// refused as `E_UNDEFINED_PROPERTY` before this ran.
 #[expect(
     clippy::too_many_arguments,
     reason = "the four-part checking context every function in this module \
@@ -628,10 +656,20 @@ pub(super) fn check_property_member(
                 // `$this->missing` is already `E_UNDEFINED_PROPERTY`
                 // from `mwl_hir::members` — every other receiver
                 // shape has never been checked before this.
-                if !qname.is_core()
-                    && !qname.is_reserved_global_class()
-                    && !is_this_receiver(object, env.src)
-                {
+                //
+                // A `Core` class and the reserved exception tree used to be
+                // excused here alongside it, and that was the one shape a
+                // property write had no refusal in front of: nothing was
+                // diagnosed and nothing was recorded, so `mwl_ir::lower`
+                // reached a `PropertyAccess` with no table entry and panicked.
+                // Neither excuse survives inspection — the exception tree's
+                // own properties *are* in `env.signatures` (`$e->message`
+                // resolves through this same call), and no `Core` class
+                // declares an instance property at all
+                // (`mwl_stdlib::registry` is the whole surface, and it is
+                // members-only), so `None` on either means exactly what it
+                // means on a user class: the name is not declared.
+                if !is_this_receiver(object, env.src) {
                     report_unknown_member(object.span, &qname, &name, "property", env);
                 }
                 env.interner.mixed()

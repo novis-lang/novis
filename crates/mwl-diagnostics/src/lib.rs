@@ -314,6 +314,21 @@ pub mod code {
     /// a *declared* property is [`E_UNSET_ON_PROPERTY`] instead, which owns
     /// that half of the same section.
     pub const E_UNSET_TARGET_NOT_AN_ELEMENT: Code = Code::new("E0234");
+    /// A member name that is computed rather than written out — `$obj->$name`,
+    /// `$obj->{$expr}`, and the same two spellings in front of a call's
+    /// parentheses. The sibling of [`E_VARIABLE_VARIABLE`] one level in: a
+    /// name only known when the statement runs defeats the resolution every
+    /// property access below the checker is built on, and it is the one
+    /// spelling that would let a request-controlled string pick which field
+    /// to read or write.
+    ///
+    /// ADR 0014 § 5 keeps its runtime-throw half for the two ways a name
+    /// genuinely arrives late — a reflection-based get/set, and ADR 0036 § 4's
+    /// erased receiver, where the name *is* written out and only the class
+    /// behind the handle is unknown. Neither needs this spelling, and ADR 0036
+    /// § 2 already refuses its literal-side twin, the computed shape key
+    /// `{[$expr]: 1}`.
+    pub const E_DYNAMIC_MEMBER_NAME: Code = Code::new("E0235");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
