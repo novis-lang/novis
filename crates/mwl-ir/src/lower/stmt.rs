@@ -1219,14 +1219,26 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_reassignment`]'s `Index`-target retain: an aliasing key
     /// needs nothing, and a freshly converted one (an `int` subscript's
     /// decimal-string form) is this frame's own single-owner temporary and is
-    /// released once the removal has read it.
+    /// released once the removal has read it. A level's key on a *nested*
+    /// target is the other way round again, because the climb stores it.
+    ///
+    /// **A nested target flattens exactly as a nested write does**
+    /// ([`Self::lower_store`]'s `Index` arm), down to the one root that has a
+    /// holder and back up storing each separated level into the one above it.
+    /// The descent differs in a single decision and it is the whole reason
+    /// this walk is written out rather than shared: a level is read with
+    /// [`AbsentKey::Throws`] rather than vivified, since a removal that first
+    /// creates the row it removes from is an entry neither PHP nor MWL puts
+    /// there.
     ///
     /// # Panics
     ///
-    /// Panics naming the shape for any other `unset` operand. A declared
-    /// property is already a `mwl_types` diagnostic (ADR 0028 § 3), and a bare
-    /// local has no meaning in MWL at all — every binding is typed and
-    /// definitely assigned, so there is no "make this name undefined again".
+    /// Panics naming the shape for any other `unset` operand, which is a
+    /// checker bug rather than a gap: `mwl_types::expr::check_unset_target` is
+    /// the one home of what an operand may be, and it refuses every other
+    /// spelling where it is written — a declared property as `E0413`
+    /// (ADR 0028 § 3), and everything from a bare local to a subscript of a
+    /// temporary as `E0234`.
     pub(super) fn lower_unset(&mut self, target: &Expr, env: &mut Env, cur: &mut BlockId) {
         let ExprKind::Index {
             base,
@@ -1235,30 +1247,103 @@ impl<'a> Lowering<'a> {
         else {
             panic!(
                 "mwl-ir lowers `unset` only on an array element with an explicit subscript — \
-                 got {:?}; see the crate docs' known gaps",
+                 got {:?}, which `mwl_types::expr::check_unset_target` is supposed to have \
+                 refused as `E0234`",
                 target.kind
             );
         };
-        let (array_v, array_ty) = self.lower_expr(base, None, env, cur);
+        // `$grid["r"]["1"]` flattens to the root `$grid` and the levels
+        // `$grid["r"]` (whose key is `"r"`) and the target itself (whose key
+        // is `"1"`, and which is not in `levels`) — the same flatten
+        // [`Self::lower_store`]'s `Index` arm does, and for the same reason:
+        // only the root has a holder to be written back to.
+        let mut levels: Vec<&Expr> = Vec::new();
+        let mut root = base;
+        while let ExprKind::Index { base: inner, .. } = &root.kind {
+            levels.push(root);
+            root = inner;
+        }
+        levels.reverse();
+        let (root_v, root_ty) = self.lower_expr(root, None, env, cur);
         assert!(
-            array_ty == Ty::Array,
-            "mwl-ir: an `unset` target's base lowered to {array_ty:?} rather than an array — \
-             either it erased to `mixed`, which this crate does not yet lower, or \
-             mwl_types::check_program accepted something it should not have"
+            root_ty == Ty::Array,
+            "mwl-ir: an `unset` target's root lowered to {root_ty:?} rather than an array — \
+             `mwl_types` refuses a base that declares no element type as `E0482`, so this body \
+             was not checked with the same table"
         );
+        // Every key, left to right and each exactly once, before anything is
+        // retained or descended into.
+        let mut inner_keys: Vec<(ValueId, bool)> = Vec::with_capacity(levels.len());
+        for level in &levels {
+            let ExprKind::Index {
+                index: Some(key), ..
+            } = &level.kind
+            else {
+                panic!(
+                    "mwl-ir: an `unset` target's level at {:?} is the append spelling `$a[]`, \
+                     which `mwl_types` reports as `E0481` wherever it is not a plain `=`'s own \
+                     target",
+                    level.span
+                );
+            };
+            let (key_v, _key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
+            inner_keys.push((key_v, key_aliasing));
+        }
         let (key_v, key_aliasing) = self.lower_rendered_array_key(index, env, cur);
-        let (written, _) = self.emit(
+        // Down the chain, borrowing each row. A level is an ordinary element
+        // *read* — [`AbsentKey::Throws`], so `unset($g["nope"]["1"])` throws
+        // exactly as `$g["nope"]["1"]` would (ADR 0007 § 7 row 11, PHP being
+        // silent there instead). Deliberately **not**
+        // [`Helper::ArrayRowForWrite`], whose absent-key answer is to
+        // vivify: a removal that first creates the row it is removing from
+        // would leave an entry behind that neither language puts there.
+        // Nothing is retained yet, so a throw out of any level drops nothing.
+        let mut arrays: Vec<ValueId> = Vec::with_capacity(levels.len() + 1);
+        arrays.push(root_v);
+        for (level, (level_key, _)) in levels.iter().zip(&inner_keys) {
+            let row_ty = self.row_ty_of(level);
+            let array = *arrays.last().expect("pushed the root above");
+            let (row, _) = self.emit_fallible(
+                *cur,
+                row_ty,
+                InstKind::ArrayGet {
+                    array,
+                    key: *level_key,
+                    absent: AbsentKey::Throws,
+                },
+                env,
+            );
+            arrays.push(row);
+        }
+        // Nothing below throws, which is what makes this the first safe place
+        // to own anything: one reference per row, because the removal and
+        // every store on the climb each consume one.
+        for row in arrays.iter().skip(1) {
+            self.emit_retain(*cur, *row);
+        }
+        let innermost = *arrays.last().expect("pushed the root above");
+        let (mut written, _) = self.emit(
             *cur,
             Ty::Array,
             InstKind::ArrayUnset {
-                array: array_v,
+                array: innermost,
                 key: key_v,
             },
         );
         if !key_aliasing {
             self.emit_release(*cur, key_v);
         }
-        self.write_back_array(base, written, env, cur);
+        // And back up, innermost first, so each level is handed the separated
+        // array the level below just produced. A level's key is *stored* by
+        // the [`InstKind::ArraySet`] here, unlike the borrow the removal above
+        // took, so an aliasing one is retained for the slot it lands in.
+        for (i, (level_key, level_aliasing)) in inner_keys.iter().enumerate().rev() {
+            if *level_aliasing {
+                self.emit_retain(*cur, *level_key);
+            }
+            written = self.emit_array_set(*cur, arrays[i], *level_key, written);
+        }
+        self.write_back_array(root, written, env, cur);
     }
     /// ADR 0007 § 3.3's `[int $a, string $b] = $pair;` — a run of element
     /// reads off one subject, and nothing else at all.

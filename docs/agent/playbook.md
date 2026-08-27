@@ -1770,6 +1770,12 @@ sibling in the same namespace unqualified.
   more pair per line, which reads like the enum is in a position that does not accept a
   declaration rather than like a spelling error. Check the spelling against a case under
   `tests/conformance/lang/` before concluding the *position* is what failed.
+- **A property default may not be an array with entries in it** — `public array<string> $rows =
+  ["a" => "x"];` is `E0472` (*"a property default must be a `array<string>` literal"*, which reads
+  as if the literal were mistyped), and `[]` is the only array a declaration may carry. So a scratch
+  file or a `.mwlt` case that wants a pre-filled array property fills it with element writes after
+  the `new`, or in `constructor` — and the same rule bites a `public static` one, where there is no
+  constructor to fall back on and the writes have to be top-level statements.
 
 ## Divergences and refusals already pinned
 

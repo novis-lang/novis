@@ -45,11 +45,13 @@
 > string $b] = $pair;` lowers as the subscripts it is spelled out of and refuses what one refuses
 > (`E0482`/`E0401`/`E0483`), inline HTML lowers over its raw span, a nested
 > `class`/`interface`/`enum` is `E0233`, an increment takes its write target's own
-> `E0479`/`E0478`/`E0480`, and `int $x;` and `;` both lower. Three live tools **are** the worklist
-> and no session re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and
-> `mwl-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.mwlt` cases each stage still owes, and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> `E0479`/`E0478`/`E0480`, `unset()` is narrowed to an array element of a named holder and refuses
+> every other operand (`E0234`, plus `E0413` for a static property), and `int $x;` and `;` both
+> lower. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
+> cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

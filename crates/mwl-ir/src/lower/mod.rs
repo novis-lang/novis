@@ -1941,9 +1941,13 @@ impl<'a> Lowering<'a> {
     /// with no runtime cost at all — which is the whole point of ADR 0007
     /// § 5's copy-on-write being a *write*-side cost.
     ///
-    /// Exactly two holders can be written back to today, which are the two
+    /// Exactly three holders can be written back to, which are the three
     /// [`is_aliasing_read`] already recognises as durable storage: a bare
-    /// local, and a compile-time-known property. A nested subscript
+    /// local, a compile-time-known property, and a static property. That the
+    /// list is the same list is the whole reason the paragraph above holds —
+    /// a durable slot's read hands over no reference of its own, so the one
+    /// the array instruction consumed was the holder's and the one it produced
+    /// belongs back in the same place. A nested subscript
     /// (`$grid[0][1] = 5`) never reaches here as `base` at all:
     /// [`Self::lower_reassignment`] flattens the whole chain first and hands
     /// this its *root*, having already separated and re-pointed every level
@@ -2012,11 +2016,20 @@ impl<'a> Lowering<'a> {
                 let (object_v, _) = self.untag_receiver(object_v, receiver_ty, *cur);
                 self.emit_field_set(*cur, object_v, class_label, field_name, written);
             }
+            // `Class::$prop[k] = v` — `Self::static_property_of` answers the
+            // slot's whole identity out of the typed-expression table, so
+            // there is no receiver to evaluate and nothing that could run user
+            // code a second time; the store is the field arm above minus every
+            // step that needs one.
+            ExprKind::StaticPropertyAccess { .. } => {
+                let (class, name, _) = self.static_property_of(base);
+                self.emit_static_set(*cur, class, name, written);
+            }
             other => panic!(
-                "mwl-ir lowers an array-element write only through a bare local or a \
-                 compile-time-known property, because ADR 0007 § 5's copy-on-write separation \
-                 has to be written back to whatever holds the array — not through {other:?}; \
-                 see the crate docs' known gaps"
+                "mwl-ir lowers an array-element write only through a bare local, a \
+                 compile-time-known property or a static property, because ADR 0007 § 5's \
+                 copy-on-write separation has to be written back to whatever holds the array — \
+                 not through {other:?}; see the crate docs' known gaps"
             ),
         }
     }

@@ -1,0 +1,65 @@
+--TEST--
+`unset()` reaches an element through each of the three holders a separated array can be written back into, and through a nested chain — ADR 0007 § 5, ADR 0028 § 3
+--FILE--
+<?mwl
+class Holder {
+    public static array<string> $rows = [];
+    public array<string> $own = [];
+}
+
+// A bare local: the holder every other spelling is compared against.
+array<string> $a = ["k" => "1", "j" => "2"];
+unset($a["k"]);
+echo Core\Arr::count($a), " ", $a["j"], "\n";
+
+// A static property. ADR 0007 § 5 separates the array before the entry
+// goes, so the copy has to land back in the same slot — the one thing this
+// case is asserting for all three holders at once.
+Holder::$rows["a"] = "x";
+Holder::$rows["b"] = "y";
+unset(Holder::$rows["a"]);
+echo Core\Arr::count(Holder::$rows), " ", Holder::$rows["b"], "\n";
+
+// An instance property.
+Holder $h = new Holder();
+$h->own["p"] = "1";
+$h->own["q"] = "2";
+unset($h->own["p"]);
+echo Core\Arr::count($h->own), " ", $h->own["q"], "\n";
+
+// A nested chain flattens to its root and climbs back storing each
+// separated level into the one above it, exactly as a nested write does.
+array<array<string>> $grid = ["r" => ["0" => "z", "1" => "w"]];
+unset($grid["r"]["1"]);
+echo Core\Arr::count($grid), " ", Core\Arr::count($grid["r"]), " ", $grid["r"]["0"], "\n";
+
+// Removing a key that is not there is a no-op, at one level...
+unset($a["gone"]);
+echo Core\Arr::count($a), "\n";
+
+// ...but an absent *level* of a chain is an ordinary element read, and ADR
+// 0007 § 7 row 11 makes that throw rather than warn. A removal is never
+// allowed to vivify the row it is removing from, so the count is unmoved.
+try {
+    unset($grid["nope"]["0"]);
+    echo "unreached\n";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+echo Core\Arr::count($grid), "\n";
+
+// An `int` subscript is ADR 0007 § 5's key normalisation, here and at a
+// read alike.
+int $i = 1;
+array<string> $nums = ["0" => "zero", "1" => "one"];
+unset($nums[$i]);
+echo Core\Arr::count($nums), " ", $nums["0"], "\n";
+--EXPECT--
+1 2
+1 y
+1 2
+1 1 z
+1
+undefined array key `nope`
+1
+1 zero

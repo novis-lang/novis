@@ -2,69 +2,61 @@
 
 ## State
 
-**M4 — language completeness.** `mwl-ir`'s statement dispatch now reaches its catch-all for
-**nothing the checker accepts**: ADR 0007 § 3.3's destructuring was the last shape, and it
-lowers.
+**M4 — language completeness.** `unset()` now has exactly one shape that lowers and no shape that
+panics, and `mwl_types::expr::members::check_unset_target`
+(`crates/mwl-types/src/expr/members.rs:676`) is that rule's only home.
 
-**`[int $a, string $b] = $pair;` is the subscripts it is spelled out of.**
-`Lowering::lower_destructure` (`crates/mwl-ir/src/lower/stmt.rs:1291`) lowers the subject
-once, then emits one `ArrayGet` per element — `AbsentKey::Throws`, so a missing key throws
-exactly as `$pair["2"]` would — keyed by the element's own `key =>` where it writes one and
-by its position in the pattern otherwise, a skipped slot included. A nested target reads
-*through* the borrowed element rather than copying it, and a subject nothing else owns is
-staged on the owned-temporaries stack for the whole statement, so a throw out of any element
-read drops it. Positional, keyed, skipped, nested, widened (`array<int>` into `float $f`) and
-a temporary subject all run; `tools/leak-check.sh` clean, exit 0.
+**The rule is "an array element of a named holder", and ADR 0028 § 3 states it.** A declared
+property, static or instance, is `E0413` — the static half is new, and it names the class that
+*declares* the slot, out of the `ExprInfo::StaticProperty` entry the check itself recorded. Every
+other operand is the new `E0234`, whose two halves are the same rule from either side: a bare local
+has no "undefined again" state to return to (ADR 0007 § 1), and a subscript of a temporary has no
+slot for ADR 0007 § 5's separated array to land in. A subscript chain is additionally run through
+`check_write_target`, so `unset($obj->hooked[0])` and `unset($shape->rows[0])` take the same
+`E0478`/`E0480` the assignments already take.
 
-**The read is at the element's representation, not the leaf's.** `mwl_types::locals`
-records an `ExprInfo::Index` entry under each accepted leaf's own span — the same entry a
-subscript gets, and the second and only other caller of `ExprTypeTable::record` — and
-`Lowering::coerce` takes it from there to the declared type. That is what makes
-`[float $f] = $ints;` ADR 0007 § 2's widening rather than a float-shaped `int`.
+**Two lowering gaps closed with it, both in the holder half.** A static property is now the *third*
+root `write_back_array` (`crates/mwl-ir/src/lower/mod.rs:1960`) can re-point — it is already durable
+storage by `is_aliasing_read`, so the "no retain and no release" paragraph holds unchanged — which
+also makes `Holder::$rows["a"] = "y";` lower. And `lower_unset`
+(`crates/mwl-ir/src/lower/stmt.rs:1232`) flattens a nested target the way `lower_store` does, with
+one deliberate difference: a level is read with `AbsentKey::Throws` rather than vivified through
+`Helper::ArrayRowForWrite`, because a removal that first creates the row it removes from leaves an
+entry neither language puts there. `unset($g["nope"]["0"])` therefore throws (ADR 0007 § 7 row 11)
+and leaves the count unmoved. `tools/leak-check.sh` clean over both, exit 0.
 
-**The checker half was empty and is not any more.** `walk_destructure_target`
-(`crates/mwl-types/src/locals.rs:1005`) declared bindings and asked nothing: a leaf's type,
-the value's type and `&$x` were all unchecked. It now refuses a value with no element type
-(`E0482`, that code's own rule verbatim), an element type the leaf does not declare
-(`E0401`, `check_foreach_value`'s direction and covariance), and a by-reference leaf
-(`E0483` — an aliasing element has no owner, the array literal's rule from the other side).
-Both codes' doc comments in `mwl-diagnostics` now name the destructuring site, so neither
-rule has a second home. No new `E`-code: the `E04xx` band is full at `E0499` and `E0501` is
-already `mwl-ir`'s, so a genuinely new types diagnostic has only `E0500` left and the band
-needs a decision before the one after that.
-
-**Measured for the next group, so it is not re-derived**: a static property write
-(`Box::$count = 5;`), a write through a `mixed` receiver and a shape-literal field write
-(`$point->x = 9;`) *all* lower today. Whatever still reaches `lower_reassignment`'s
-catch-all, it is none of those three.
+**Measured, so it is not re-derived**: what still reaches `write_back_array`'s catch-all
+(`crates/mwl-ir/src/lower/mod.rs:2028`) is exactly *a root that is not a place* —
+`Holder::rows()["a"] = "y";` — and nothing else. `check_write_target` has no fourth entry for it,
+and adding one needs a code the types band cannot supply: `E04xx` is full at `E0499`, `E0500` is the
+last number the max+1 rule yields, and `E0501` is already `mwl-ir`'s. **The band needs a decision
+before a second new types diagnostic**, and the slice below is where it falls due.
 
 ## Next group
 
-**What is left in the statement slice, all in one file.** The file set:
-`crates/mwl-ir/src/lower/stmt.rs`, `crates/mwl-types/src/expr/assign.rs`,
-`tests/conformance/lang/`. A scratch `.mwl` under `.agent-tmp/` reproduces each in one call.
+**The write-target half, all in files this session had open.** The file set:
+`crates/mwl-ir/src/lower/stmt.rs`, `crates/mwl-ir/src/lower/mod.rs`,
+`crates/mwl-types/src/expr/assign.rs`, `tests/conformance/`.
 
-- [ ] **An `unset` target whose base is not an array** — `crates/mwl-ir/src/lower/stmt.rs:1236`
-      panics for every target but an element with an explicit subscript, so `unset($local)` is
-      the shape to place. ADR 0007 § 5 and `E0413`'s doc comment own what a non-element target
-      means; the answer is a diagnostic or a lowering, never the panic.
-- [ ] **Prove `lower_reassignment`'s catch-all dead, or find what reaches it** —
-      `crates/mwl-ir/src/lower/stmt.rs:1171`, the arm itself, with `lower_reassignment` at
-      `:666` and `mwl_types`' `check_write_target` in `crates/mwl-types/src/expr/assign.rs`
-      naming every target the checker accepts. The three obvious candidates are ruled out
-      above; if the list is exhausted, the arm says so instead of listing three shapes.
-- [ ] **Goal item 7 — `$x++` / `--$x` in both positions** (`mwl-ir` gap 16), the same file:
-      `lower_incdec` at `:435` and `is_reevaluable_target` at `:1261`. The largest of the
-      three and the one with a written plan in `docs/agent/loop-goal.md`.
+- [ ] **An element write whose root is not a place** — `Holder::rows()["a"] = "y";` panics at
+      `crates/mwl-ir/src/lower/mod.rs:2028`. It is `check_write_target`'s missing fourth entry
+      (`crates/mwl-types/src/expr/assign.rs:432`), PHP refusing the same spelling as "temporary
+      expression in write context". Take the `E04xx` band decision in the same slice — a paragraph
+      in `docs/adr/README.md` § *Decisions taken at project start*, per the goal's standing
+      decisions — since this is the diagnostic that spends `E0500`.
+- [ ] **Prove `lower_store`'s catch-all dead, or find what reaches it** —
+      `crates/mwl-ir/src/lower/stmt.rs:1171`. The three arms above it are a local, a
+      compile-time-known property and an element; a static property already lowers, so what is left
+      is whatever the slice above refuses, plus anything the reassignment path reaches that `unset`
+      does not.
+- [ ] **Goal item 7 — `$x++` / `--$x` in both positions** (`mwl-ir` gap 16) —
+      `crates/mwl-ir/src/lower/stmt.rs:435` (`lower_incdec_stmt`), `:454` (`lower_incdec`),
+      `:494` (`lower_read_modify_write`).
 
 ## Backlog
 
-- A pattern mixing `k =>` and positional elements is accepted; PHP refuses one outright. The
-  rule this gives it (a keyed element still occupies its position) is in
-  `Lowering::lower_destructure`'s doc comment — `docs/spec/00-overview.md` § 3 is where it
-  belongs if it ever needs to be user-visible.
-- 14 of 32 named `.mwlt` cases still unwritten — `python tools/holes.py --cases`.
-- `orient.py` printed no map line for `crates/mwl-types/src/expr/assign.rs` or
-  `crates/mwl-types/src/expr_table.rs`, both of which any item about a *checker* refusal
-  needs; `[context] modules` wants patterns for them, alongside the `check.rs` one the last
-  session asked for.
+- The `E04xx` band is full at `E0499`; `E0500` is the last number and the band needs a successor —
+  `crates/mwl-diagnostics/src/lib.rs`'s own table is the legend to extend.
+- `holes.py` lists 2 unattributed refusal sites in `crates/mwl-codegen/src/ty.rs:116,121` — no item
+  anchors that file (`docs/agent/loop-goal.md`).
+- 14 of 32 named `.mwlt` cases still to write (`python tools/loop.py --list`).
