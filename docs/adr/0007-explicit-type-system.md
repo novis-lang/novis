@@ -209,7 +209,7 @@ they do not, carrying the diagnostic's own wording. That is
 throw, never a silent value — applied to this table rather than to a member access, and
 `nvs_ir::ir::Helper::ValueLt` is its one home. Two consequences fall out of the tag being all there is: two
 objects behind two `mixed`s throw, because `Comparable::compareTo` is dispatched from the class the *site*
-named, and an enum case orders as the integer [ADR 0047](0047-literal-and-union-types.md) § 5 spends no
+named, and an enum case orders as the integer [ADR 0047](0047-literal-and-enum-case-types.md) § 5 spends no
 representation on hiding — the written spelling is still refused, which is where the author is told to say
 `as int`.
 
