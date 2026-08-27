@@ -80,6 +80,9 @@ fn corpus_parses_without_panicking() {
     );
 
     let mut panicked = Vec::new();
+    // A corpus file `SourceMap` cannot read at all, which is a property of the corpus rather
+    // than of the parser -- see the loop below for why it is counted instead of fatal.
+    let mut unreadable = Vec::new();
     let mut clean = 0usize;
     let mut with_diagnostics = 0usize;
     // Which diagnostic code the corpus tripped, how often, and one example
@@ -94,9 +97,19 @@ fn corpus_parses_without_panicking() {
     panic::set_hook(Box::new(|_| {}));
     for path in &files {
         let mut map = SourceMap::new();
-        let id = map
-            .load(path)
-            .unwrap_or_else(|err| panic!("could not read {}: {err}", path.display()));
+        // Real-world PHP is not always UTF-8 -- Symfony alone ships a class named with the
+        // latin-1 byte 0xA9 and a deliberately binary string fixture -- while `SourceMap::load`
+        // reads UTF-8 only. A file that cannot be read is not a parser panic, which is the one
+        // thing this test exists to catch, so count it and carry on. Panicking here instead
+        // failed the whole run on the first such file, and the hook silenced just above ate the
+        // message: a bare `FAILED` with no summary and no filename to chase.
+        let id = match map.load(path) {
+            Ok(id) => id,
+            Err(err) => {
+                unreadable.push(format!("{}: {err}", path.display()));
+                continue;
+            }
+        };
         let result = panic::catch_unwind(AssertUnwindSafe(|| {
             let mut diags = Diagnostics::new();
             let _ = parse_file(map.file(id), &mut diags);
@@ -133,10 +146,15 @@ fn corpus_parses_without_panicking() {
     panic::set_hook(prev_hook);
 
     eprintln!(
-        "corpus-parse: {} files, {clean} parsed clean, {with_diagnostics} produced diagnostics, {} panicked",
+        "corpus-parse: {} files, {clean} parsed clean, {with_diagnostics} produced diagnostics, \
+         {} unreadable, {} panicked",
         files.len(),
+        unreadable.len(),
         panicked.len()
     );
+    for entry in &unreadable {
+        eprintln!("  unreadable: {entry}");
+    }
     let mut by_code: Vec<(String, usize, String)> = by_code
         .into_iter()
         .map(|(code, (count, message))| (code, count, message))
