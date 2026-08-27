@@ -2014,3 +2014,23 @@ every session. Nothing below was reworded on the way.
   reduces to the bare-`continue` rule already decided, and nothing new is invented. One
   `.agent-tmp/*.mwl` scratch run beside `php` on the same file is what found it; the checker alone
   would have shipped the divergence.
+- **Check every spelling against `php -r` before deciding a family is refused, because PHP does
+  not always agree with itself.** `echo $a[];` is *"Cannot use [] for reading"* and `unset($a[])`
+  is *"Cannot use [] for unsetting"*, both compile errors — but `$a[] .= "x"` **appends**, silently,
+  with no notice even at `error_reporting=-1`, because the element that is not there yet reads as
+  `""`. So refusing that third one is a divergence and needed a row of its own (ADR 0007 § 7 row
+  10), not a sentence in a doc comment. Three `php -r` calls settled what an hour of reasoning from
+  the first two would have got wrong.
+- **Turning a panic into a diagnostic breaks the tests that pinned the panic, and they do not look
+  like your change.** `mwl-ir`'s `#[should_panic(expected = "known gaps")]` guard failed with
+  *"panic did not contain expected string"* while printing the new diagnostic, and
+  `mwl-types`' `expr_table` fixture failed at its own `assert!(!diags.has_errors())` helper —
+  neither names the feature. Delete the guard (the `.mwlt` case is its replacement) and split the
+  fixture helper so the one test whose point *is* the diagnostic gets the `Diagnostics` back.
+- **A new refusal in `check_expr` fires before `check_write_target`, so it double-reports every
+  receiver that already has a better code.** `$erased->rows["0"] = "z"` printed E0482 *and* E0480;
+  `$maybe?->rows["0"] = "z"` printed E0482 *and* E0479. The ordering is fixed — `check_write_target`
+  reads the `ExprInfo` the target's own check records — so the suppression has to be a lookup the
+  early arm can already do: the chain root's recorded `HookedProperty`/`ShapeProperty`, or a
+  syntactic `nullsafe: true`, gated on the level being an assignment target at all so a plain *read*
+  through the same receiver keeps its only diagnostic.

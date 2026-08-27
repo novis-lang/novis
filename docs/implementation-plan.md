@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 574 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 576 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 162, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -164,21 +164,31 @@
 > fresh row and write into it", so the flatten walks every `Index` level rather than only the
 > subscripted ones, an append level's row is an empty `InstKind::ArrayNew` because it has nothing to
 > descend into, and the climb back out stores it with an `InstKind::ArrayAppend` — which is why the
-> fresh row's key is never named anywhere in the target. What is left of that gap is the *read*
-> spelling: `$a[]` in a read position still panics in `mwl-ir` where PHP refuses it at compile time,
-> and the refusal belongs in `mwl_types`, which is `mwl-ir` gap 23 now. **One live bug went with
-> it**, found by the same file set and not on the worklist because it was never a panic: an element
-> write through a *narrowed nullable* receiver (`?Box $m = new Box(); if ($m != null) {
-> $m->rows["0"] = "w"; }`) was rejected by cranelift, because `write_back_array`'s property arm
-> lowered the receiver and stored through it without the `untag_receiver` every other write through
-> a property already goes through — a `?T` local being one tagged slot wide however narrow a
+> fresh row's key is never named anywhere in the target. **Gap 23 is closed, and it took the whole
+> `Index` arm with it.** `$a[]` anywhere but a level of a plain `=`'s target chain is **E0481** —
+> `echo $a[];`, `unset($a[])` and `$a[] .= "x"` alike — with the legal spans marked by a walk down
+> the target chain before the target is checked, since the arm that reports is inside that check.
+> `$a[] .= "x"` is the one spelling PHP *accepts*, appending because the element that is not there
+> yet reads as `""`; declining that coercion is now ADR 0007 § 7 **row 10**, the § 7 table's first
+> new row in a long while. And a subscript whose base declares no element type at all is **E0482** —
+> a `mixed`, a scalar, a `string` (ADR 0009 § 2 indexes one through `Core\Str`, not through a
+> subscript), or a `?array<T>` no test narrowed — which is the `mixed $m; $m["0"] = 1;` slice of the
+> previous group and closes both of `lower_index`'s panics plus the assignment arm's matching one.
+> Two suppressions keep it from double-reporting: a base that already reported its own error, and a
+> write-target level whose chain root `check_write_target` is about to refuse by name
+> (E0478/E0479/E0480). `python tools/holes.py` is down to **35 sites**, still 9 items. **One live
+> bug went with it**, found by the same file set and not on the worklist because it was never a
+> panic: an element write through a *narrowed nullable* receiver (`?Box $m = new Box(); if ($m !=
+> null) { $m->rows["0"] = "w"; }`) was rejected by cranelift, because `write_back_array`'s property
+> arm lowered the receiver and stored through it without the `untag_receiver` every other write
+> through a property already goes through — a `?T` local being one tagged slot wide however narrow a
 > condition proves it. **Unbuilt in the library**, none of it a registration gap:
 > `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing rows
 > (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification (`mwl_stdlib::hash`'s module doc),
 > and ADR 0086 § 1's substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
 > unbuilt, and out of this goal's scope** — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 §
 > 3; their work is M6, M7, M8 and M10. **M4S Part I is the floor, not the frontier**: conformance is
-> at 574 of the goal's new 750 and differential at 162 of 165, `python tools/gaps.py` still ranks
+> at 576 of the goal's new 750 and differential at 162 of 165, `python tools/gaps.py` still ranks
 > the thin classes, and a `Core` depth slice is a legitimate slice when a group is blocked — never a
 > reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is 31% classified
 > (`python tools/check-migration.py`).
