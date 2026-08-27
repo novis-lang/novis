@@ -20,8 +20,18 @@ green verification is one call and about ten lines.
     python tools/verify.py                  # every step
     python tools/verify.py -p mwl-ir        # scope build/test/clippy to one package
     python tools/verify.py --fast           # build and test only, for a mid-work check
+    python tools/verify.py --start          # run it detached and return at once
+    python tools/verify.py --wait           # collect what --start left, with its exit status
     python tools/verify.py --full           # do not truncate the failing step's output
     python tools/verify.py --no-cache       # re-run even if the tree is provably unchanged
+
+`--start` / `--wait` exist because verification is 63.6% of a session's tool-execution time and
+the tail that follows it -- the wrap file -- is prose the session already knows and that cannot
+fail. The two do not depend on each other until the wrap is applied, so start the run, write the
+wrap, then collect: it is the same steps, the same green cache and the same exit status, with the
+seconds overlapped instead of queued. `--fast` and `-p` are the other half of the same point and
+were measured at 0 and 3 uses across 108 verifications: a mid-work check does not owe the full
+gate, and the run at the end of the group always does.
 
 Full output of every step is always written to `.agent-tmp/verify-<step>.log`, whether it
 passed or not, so a truncated failure is one Read away from complete.
@@ -371,6 +381,72 @@ def hooks_note():
     print("        (it rejects attribution trailers; docs/agent/conventions.md says why)\n")
 
 
+#: Where a `--start` run leaves its output for the matching `--wait`, and the file it writes its
+#: exit status into when it is done.
+BACKGROUND = ROOT / ".agent-tmp" / "verify-background.log"
+DONE = ROOT / ".agent-tmp" / "verify-background.done"
+
+#: How long `--wait` will hold before reporting that something is wrong rather than blocking a
+#: session forever. A full run is ~42s; this is generous by an order of magnitude on purpose.
+BACKGROUND_TIMEOUT = 600.0
+
+
+def start_background(argv):
+    """Kick the same verification off detached, and return at once.
+
+    Verification is 63.6% of a session's tool-execution time -- 41.9 seconds a run, and a session
+    makes 1.9 of them -- while the tail that follows it is the session writing prose it already
+    knows. Those two do not depend on each other until the wrap is applied, so the seconds only
+    cost anything because they are spent in series.
+
+    `--start` then `--wait` is the harness-neutral way to overlap them: start the run, write the
+    wrap file, collect. By the time the wrap is written the verdict is usually already on disk and
+    `--wait` returns in the time it takes to read a file. It is the same verification either way --
+    the same steps, the same green cache, the same exit status -- so nothing is traded for it."""
+    passthrough = [a for a in argv if a not in ("--start", "--wait")]
+    BACKGROUND.parent.mkdir(parents=True, exist_ok=True)
+    DONE.unlink(missing_ok=True)
+    handle = BACKGROUND.open("w", encoding="utf-8", newline="\n")
+    proc = subprocess.Popen(
+        [sys.executable, str(Path(__file__).resolve()), "--_detached", *passthrough],
+        stdout=handle, stderr=subprocess.STDOUT, cwd=ROOT,
+    )
+    print(f"verify: started in the background (pid {proc.pid}).")
+    print("        Write the wrap file now, then `python tools/verify.py --wait` to collect it.")
+    return 0
+
+
+def wait_background():
+    """Collect a `--start` run: its whole output, and its own exit status as this call's.
+
+    The child announces itself finished by writing `DONE`, rather than the parent watching a pid.
+    A pid is the obvious way and the wrong one here: the process that started the child has long
+    since exited, so there is no handle left, and asking the OS whether a bare number is still
+    alive is a different question on every platform -- and answers *yes* for a recycled pid."""
+    if not DONE.exists() and not BACKGROUND.exists():
+        print("verify: nothing was started. `python tools/verify.py --start` first, or just run")
+        print("        `python tools/verify.py` -- there is no state to recover here.")
+        return 2
+    waited = 0.0
+    while not DONE.exists():
+        time.sleep(0.4)
+        waited += 0.4
+        if waited > BACKGROUND_TIMEOUT:
+            print(f"verify: the background run has not finished after {BACKGROUND_TIMEOUT:.0f}s.")
+            print(f"        Its output so far is in {BACKGROUND.relative_to(ROOT)}.")
+            return 2
+    body = BACKGROUND.read_text(encoding="utf-8") if BACKGROUND.exists() else ""
+    sys.stdout.write(body if body.endswith("\n") or not body else body + "\n")
+    if waited:
+        print(f"-- collected after a further {waited:.0f}s; the rest of the run overlapped "
+              "whatever you did in between.")
+    try:
+        code = int(DONE.read_text(encoding="utf-8").strip() or 0)
+    except (OSError, ValueError):
+        code = 0
+    return code
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -379,12 +455,25 @@ def main():
     ap.add_argument("--full", action="store_true", help="do not truncate the failing step")
     ap.add_argument("--no-cache", action="store_true",
                     help="re-run the steps even if the tree is provably unchanged")
+    ap.add_argument("--start", action="store_true",
+                    help="run detached and return at once; collect it with --wait")
+    ap.add_argument("--wait", action="store_true",
+                    help="collect the run --start left, with its exit status")
+    ap.add_argument("--_detached", action="store_true", help=argparse.SUPPRESS)
     opts = ap.parse_args()
 
     try:
         sys.stdout.reconfigure(encoding="utf-8", newline="\n")
     except AttributeError:
         pass
+
+    if opts.start and opts.wait:
+        print("verify: --start and --wait are two calls, not one flag pair.")
+        return 2
+    if opts.start:
+        return start_background(sys.argv[1:])
+    if opts.wait:
+        return wait_background()
 
     steps = steps_for(opts)
     scope = f" (-p {opts.package})" if opts.package else ""
@@ -434,5 +523,23 @@ def main():
     return 1
 
 
+def detached() -> int:
+    """`main`, plus the sentinel that tells a waiting `--wait` the run is over.
+
+    The status is written whatever happens, an unhandled exception included -- a `--wait` that
+    blocks for ten minutes because the child died on line one is a far worse failure than a
+    verification that reports red."""
+    code = 1
+    try:
+        code = main()
+    finally:
+        try:
+            DONE.parent.mkdir(parents=True, exist_ok=True)
+            DONE.write_text(str(code), encoding="utf-8")
+        except OSError:
+            pass
+    return code
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(detached() if "--_detached" in sys.argv else main())

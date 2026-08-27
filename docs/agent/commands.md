@@ -118,11 +118,35 @@ reached into the same one three times.
 
 ```sh
 python tools/verify.py                                         # build + fmt + test + clippy, one call
+python tools/verify.py --fast                                  # build + test only, for a mid-work check
 python tools/verify.py -p mwl-ir                               # the same, scoped to one package
+python tools/verify.py --start   ... --wait                    # run it while you write the wrap file
 python tools/verify.py --no-cache                              # re-run even on an unchanged tree
 cargo test --release -p mwl-abi-probe                          # cost guards (skipped in debug)
 cargo test --release -p mwl-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
+
+**Two of those are for the run that is not the final one, and both are measured as unused.** Over a
+33-session run there were 108 verifications and **`--fast` was chosen 0 times**, `-p` three times — every
+mid-work check paid the whole gate. Verification is 63.6% of a session's tool-execution time, 41.9s a run
+at 1.9 runs a session, so a mid-work check that only needs to know whether the code compiles and its tests
+pass should say so: `--fast` for build and test, `-p <crate>` when the change cannot reach further. The
+run at the **end of the group** is always the full one — that is step 3, and it is not negotiable.
+
+**And the last one need not be spent in series.** `--start` runs the whole verification detached and
+returns at once; `--wait` collects it, with its exit status, and prints how much of it overlapped. Start
+it, write the wrap file — which is prose you already know and cannot fail — then collect:
+
+```sh
+python tools/verify.py --start
+<Write the wrap file>
+python tools/verify.py --wait
+python tools/session.py --wrap .agent-tmp/wrap.md
+```
+
+It is the same verification: the same steps in the same order, the same green cache, the same exit status.
+Nothing is traded for the overlap, which is why this is the shape to use for step 3 whenever the wrap is
+the next thing you were going to do anyway.
 
 `verify.py` runs `cargo build`, `fmt --check`, `test` and `clippy --all-targets -- -D warnings` in that
 order, stops at the first failure, and prints about ten lines when green — the four separately are four
