@@ -51,11 +51,13 @@
 > — an increment's own target passes the parser's `E0105` gate like every other write spelling, the
 > read-modify-write rewrite's own assertion has no reachable target left — its doc comment carries
 > the proof, and `mwl_types`' two write-target refusals are two thirds of it — an element write
-> evaluates the receiver under its root holder exactly once, PHP 8.5.9's own count, and `int $x;`
-> and `;` both lower. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
-> cases each stage still owes, and `python tools/check-migration.py` scores
+> evaluates the receiver under its root holder exactly once, PHP 8.5.9's own count, a computed
+> member name (`->$name` / `->{expr}`) is `E0235` where it is written and an undeclared property is
+> `E0405` on every class kind, which together leave the property-write panic no reachable target,
+> and `int $x;` and `;` both lower. Three live tools **are** the worklist and no session re-derives
+> one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and
+> attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the
+> named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
 > `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop

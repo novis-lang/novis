@@ -1797,6 +1797,16 @@ sibling in the same namespace unqualified.
   file or a `.mwlt` case that wants a pre-filled array property fills it with element writes after
   the `new`, or in `constructor` — and the same rule bites a `public static` one, where there is no
   constructor to fall back on and the writes have to be top-level statements.
+- **A panic's message names the shape it was written for, not the shape that reaches it.**
+  `stmt.rs`'s property-write panic said "its receiver erased to a plain `object`, which ADR
+  0036 § 4's erased half still does not lower", and the erased half had landed sessions
+  earlier — `$o->name = "z"` through a plain `object`, a `mixed` and a shape all run, and
+  both of § 4's write throws (missing name, wrong type for the field's *real* declared type)
+  fire correctly. What actually reached it was a **computed member name** and an undeclared
+  property on a class kind the checker excused. Four scratch `.mwl` files under `.agent-tmp/`
+  found that in one call each; reading the message and believing it would have rebuilt a
+  feature that was already there. Enumerate the arms of whatever *records* the table entry
+  and probe one program per arm, before taking the panic's own account of itself.
 
 ## Divergences and refusals already pinned
 

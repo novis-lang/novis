@@ -2,67 +2,58 @@
 
 ## State
 
-**M4 — language completeness.** The write path's two evaluation questions are both closed, and
-measured against PHP 8.5.9 rather than reasoned about. `lower_read_modify_write`'s assertion
-(`crates/mwl-ir/src/lower/stmt.rs:517`) has **no reachable target**: the parser's
-`Parser::require_write_target` admits four kinds, `mwl_types::expr::assign::check_write_target`
-then refuses the nullsafe one (`E0479`) and the element write whose root is not a place (`E0700`),
-and `Self::stage_target_address` stages the one level each surviving composite shape carries that
-is not re-readable. That function's own doc comment is the proof's only home; the assert now reads
-as a gate-admitted-something-it-does-not-model tripwire rather than a known gap.
+**M4 — language completeness.** The property-write panic (`crates/mwl-ir/src/lower/stmt.rs`,
+the `PropertyAccess` arm of `lower_store`) and its read-side twin
+(`crates/mwl-ir/src/lower/expr.rs`, `lower_property_access`) both have **no reachable target
+left**. The proof's only home is `mwl_types::expr::members::check_property_member`'s doc
+comment: that function is the sole decider of what goes in the typed-expression table, and it
+now records an entry for every access it returns from and refuses the rest.
 
-**An element write evaluates the receiver under its root holder exactly once.** It used to run it
-twice — `write_back_array` re-points the holder by lowering that receiver again — so
-`$b->self()->rows["k"] = "z"` printed `self()` twice, the nested
-`$b->self()->grid["r"]["k"] .= "b"` three times, and `(new Box())->rows["k"] .= "b"` constructed
-two objects. `lower_store`'s element arm now stages the root's address itself, and
-`stage_address_of` descends a property or element level instead of staging that level's *value*,
-which is what left the slot visible to the write-back at all. `mwl-ir`'s gap 16 records the whole
-shape and now names only `**=` as open.
+Two shapes reached those panics and neither does now:
 
-**One direction of ADR 0007 § 7 row 15 runs the other way, and the row says so now**: 8.5.9
-refuses `(new Box())->rows["k"] = "z"` at compile time (*"Cannot use temporary expression in write
-context"*) while accepting `make()->rows["k"] = "z"`. MWL accepts both — the field is a slot in a
-heap object either way — and `is_a_place`'s doc comment no longer claims PHP agrees.
+- **A computed member name** — `$obj->$name`, `$obj->{$expr}`, and both spellings in front of
+  a call's parentheses — is `E0235` at `Parser::parse_member_name`, the same place and the same
+  band `$$name`'s `E0202` is refused in. ADR 0014 § 5's body now carries the decision: the
+  runtime-throw half survives for the two ways a name genuinely arrives late (a reflection
+  get/set, and ADR 0036 § 4's erased receiver, where the name *is* written out), and a computed
+  expression is not one of them.
+- **An undeclared property on a `Core` class or the reserved exception tree** was excused from
+  `E0405` by the class *kind*: nothing diagnosed and nothing recorded. Both excuses are gone —
+  the exception tree's own properties are in `env.signatures` (`$e->message` resolves through
+  the same call) and no `Core` class declares an instance property at all.
 
-Two conformance cases pin the counts (`a-compound-assignments-target-is-evaluated-once.mwlt`,
-`an-element-writes-holder-is-evaluated-once.mwlt`), and `tools/leak-check.sh` is clean over five
-scratch shapes covering both fixes.
+The item's stated gap — "ADR 0036 § 4's erased half still does not lower" — **did not exist**;
+that half landed earlier and is verified working. The playbook bullet this session added is
+about believing a panic's own account of itself.
 
 ## Next group
 
-**The three erased-or-unrecorded receiver panics left in the write path, all in one pair of
-files.** The file set: `crates/mwl-ir/src/lower/stmt.rs`, `crates/mwl-ir/src/lower/mod.rs`,
+**The two remaining write-path panics that name an erased or unrecorded receiver.** The file
+set: `crates/mwl-ir/src/lower/mod.rs`, `crates/mwl-ir/src/lower/stmt.rs`,
 `crates/mwl-types/src/expr/assign.rs`, `tests/conformance/lang/`.
 
-- [ ] **`stmt.rs:933` — a property assignment target with no declaring class recorded.** The
-      panic names an ADR 0036 § 4 erased receiver (a shape's field, a plain `object`), and
-      `check_write_target` (`crates/mwl-types/src/expr/assign.rs:443`) refuses only the *element*
-      write through one (`E0480`) — a plain `$o->p = v` through an erased receiver has no refusal
-      in front of it. ADR 0036 § 4 says a write through an erased view is a checked, catchable
-      throw whose incoming value is checked against the field's real type, so the decision is
-      lower-it-by-name or take a new `E07xx` code; either way it stops being a panic. Anchors:
-      `crates/mwl-ir/src/lower/stmt.rs:933`, `crates/mwl-types/src/expr/assign.rs:443`.
-- [ ] **`mod.rs:2004` — the same question inside `write_back_array`.** Its message already
-      argues it is unreachable (`check_write_target` refusing the erased root as `E0480`), so this
-      is today's item one file over: prove it dead in its own doc comment, or find the program
-      that reaches it. Anchors: `crates/mwl-ir/src/lower/mod.rs:1964` (the function),
-      `crates/mwl-ir/src/lower/mod.rs:2004` (the panic).
-- [ ] **`stmt.rs:1238` — an intermediate level of a nested element write with no element type.**
-      `row_ty_of`'s panic blames a base that erased to `mixed`; `E0482` refuses a base declaring no
-      element type, so the open question is whether a `mixed` level can still arrive. Anchors:
-      `crates/mwl-ir/src/lower/stmt.rs:1231` (the function), `:1238`, `:1248` (the not-an-array
-      assert beside it).
+- [ ] **`mod.rs:2002` — an array-index assignment whose base is a property with no recorded
+      declaring class.** Its message already argues an erased receiver cannot be what put it
+      there (`check_write_target` refuses that as `E0480`,
+      `crates/mwl-types/src/expr/assign.rs:501`), so the open question is what *else* can: the
+      `let Some(ExprInfo::Property { .. })` binding takes neither `HookedProperty` (`E0478`,
+      `assign.rs:484`) nor `ShapeProperty`. Enumerate the arms rather than trusting the
+      message — see this session's playbook bullet. Anchors:
+      `crates/mwl-ir/src/lower/mod.rs:1999`, `crates/mwl-types/src/expr/assign.rs:483`.
+- [ ] **`stmt.rs:1245` — an intermediate level of a nested element write with no recorded
+      element type** (`Lowering::row_ty_of`). Its message names a base erased to `mixed`, an
+      unresolved array; ADR 0007 § 5 owns the separation the level is being asked for. Same
+      two exits as the slice above: a diagnostic that names the rule, or the lowering. Anchors:
+      `crates/mwl-ir/src/lower/stmt.rs:1243`, and the `assert!` on `row_ty == Ty::Array` at
+      `crates/mwl-ir/src/lower/stmt.rs:1255` is the second half of the same question.
 
 ## Backlog
 
-- `**=` does not lower — `ir::BinOp` has no `**` row (`mwl-ir` gap 16).
-- `array<T> as array<U>` does not lower (`crates/mwl-ir/src/lower/expr.rs:877`), which is what
-  blocks a case from indexing past the first level of an `array<mixed>` (playbook).
-- An abandoned generator's `finally` never runs (`mwl-ir` gap 18; pre-authorized in
-  `docs/agent/loop-goal.md` § *Standing decisions*).
-- A named or spread call argument does not lower (`crates/mwl-ir/src/lower/call.rs:75`).
-- `Class::method(...)` as a first-class callable panics `mwl-ir` (gap 1).
-- **`orient.py` printed no section of ADR 0007 § 5 or § 7**, and both were needed: § 5 owns the
-  copy-on-write separation this group's every slice is about, § 7 row 15 the divergence it edits.
-  Add `0007:5` and `0007:7` to `[context] adrs` in `docs/agent/loop-goal.toml`.
+- `mwl-ir` gap 21 (`crates/mwl-ir/src/lib.rs:535`) reads stale: `object $o = $obj;` lowers and
+  runs today, so the gap text and its "one line arm" plan need re-checking or deleting.
+- `crates/mwl-ir/src/lower/expr.rs:3441` — the instance-call panic still names "a `mixed`, a
+  union or a scalar receiver, which the checker does not yet refuse". `E0235` closed only its
+  computed-name half.
+- ADR 0007 § 2's `array<T> as array<U>` conversion row still panics `mwl-ir`
+  (`lower/expr.rs:877`), which is what keeps several `Core` refusals unreachable from source —
+  `docs/agent/playbook.md` § *Writing a test case* carries the worked cases.
