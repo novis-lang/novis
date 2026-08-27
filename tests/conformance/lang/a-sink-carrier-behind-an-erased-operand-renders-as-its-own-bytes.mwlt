@@ -1,0 +1,60 @@
+--TEST--
+A sink carrier reached through an operand whose static type names no class renders as exactly the bytes it carries, agreeing with the declared binding rather than asking for a `toString` it has none of — ADR 0088 § 5, ADR 0036 § 4
+--FILE--
+<?mwl
+// `mwl_stdlib::registry::class_renders` has two rows and this is the second:
+// a carrier is the sink's own value type, holding bytes that have *already*
+// been through the sink, so it renders as precisely those bytes and asks for
+// no member at all. The first row — a `Core` class the spec gives a
+// `toString` — is the sibling case
+// `a-core-object-behind-an-erased-operand-renders-through-the-same-member`,
+// and the two rows reaching two different renderings is what keeps a carrier
+// from being put through its own sink twice.
+//
+// ADR 0036 § 4 is why the erased spelling has to answer at all: a `mixed`
+// defers which class is behind the handle to the concrete instance, so the
+// rendering is decided at run time and cannot be refused where it is written.
+//
+// `Core\Html\Markup` is the other carrier and is not reachable from source
+// yet — `Core\Html` arrives at M7 — so `Core\Cli\Text` is the whole of what
+// this can ask today.
+class Carried {
+    // Every rendering spelling there is, over one `mixed`, counted against the
+    // same carrier read through its own declared type.
+    public static function agrees(mixed $m, Core\Cli\Text $t): int {
+        string $direct = $t as string;
+        int $agree = 0;
+        if ("$m" == $direct) { $agree = $agree + 1; }
+        if (("" . $m) == $direct) { $agree = $agree + 1; }
+        if (($m as string) == $direct) { $agree = $agree + 1; }
+        string $echoed = Core\Out::capture(fn (): void => { echo $m; }) as string;
+        if ($echoed == $direct) { $agree = $agree + 1; }
+        return $agree;
+    }
+}
+
+// Bytes a sink applied twice would have had a second go at: `<`, `&` and a
+// newline all survive as themselves, because the capture already put them
+// through the CLI sink once.
+Core\Cli\Text $t = Core\Out::capture(fn (): void => {
+    echo "a<b&c";
+    echo "\n";
+    echo "d";
+});
+mixed $m = $t;
+
+echo Carried::agrees($m, $t), "\n";
+echo $m, "\n";
+echo "[" . $m . "]\n";
+
+// A carrier with nothing in it is an empty rendering, not a `null` and not the
+// class name — the boundary the roster's other row answers with a throw.
+mixed $empty = Core\Out::capture(fn (): void => {});
+echo "[", $empty, "]\n";
+--EXPECT--
+4
+a<b&c
+d
+[a<b&c
+d]
+[]
