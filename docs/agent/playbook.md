@@ -597,6 +597,12 @@ is why" — is this file.
   the invocation and cannot show this, since it is the *caller's* shell that mangles it. Prefix the
   call with `MSYS_NO_PATHCONV=1` and it runs unchanged; the fixture paths after it are relative and
   survive either way.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works from
+  PowerShell.** Git Bash rewrites a lone `/mnt/...` argument into `C:/Program Files/Git/mnt/...`
+  before `wsl.exe` ever sees it, so the run dies with *"No such file or directory"* naming a path
+  nothing wrote — which reads as a missing script rather than as path translation. `commands.md`'s
+  spelling is right; run it through the PowerShell tool, where the argument is passed through
+  untouched.
 
 ## Adding a `Core` member
 
@@ -1578,6 +1584,14 @@ sibling in the same namespace unqualified.
   silently un-updated outer array. `grep -n "env.insert(" crates/mwl-ir/src/lower/` is the
   whole check, and it is worth doing for any rule phrased as "whenever this name is
   rebound".
+- **A `holes.py` site's panic message names one route, and the `assert!` four lines below it is
+  often the bigger one.** `lower_instanceof` had two: the missing-`ExprInfo` panic the worklist item
+  quoted (the dynamic `$x instanceof $name` form — genuinely a diagnostic) and, right after it,
+  `assert!(matches!(ty, Ty::Object))`, which aborted `$m instanceof Box` over a `mixed` — the shape
+  the operator exists for. Only a `panic!`/`todo!`/`unimplemented!` is *counted* as a site, so the
+  item's prose ("almost certainly a diagnostic rather than a lowering") was written from an
+  inventory that could not see the assert. Read the whole function, and spend one scratch
+  `.agent-tmp/*.mwl` per operand shape before believing an item that predicts its own answer.
 
 ## Divergences and refusals already pinned
 

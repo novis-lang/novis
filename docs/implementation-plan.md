@@ -65,8 +65,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 595 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 166, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 598 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 167, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -394,11 +394,35 @@
 > measured. That is ADR 0007 § 7 **row 13**, row 8's rule ("nothing makes an absent thing read as a
 > zero value") at the one storage kind a *declared* type already answers before the program runs,
 > and `mixed` is the exception that keeps PHP's timing. A nullable receiver keeps its own `E0459`
-> and is never reported twice. `python tools/holes.py` is down to **24 sites**, still 7 items. **M4S
-> Part I is the floor, not the frontier**: conformance is at 595 of the goal's new 750 and
-> differential at 166 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
-> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
-> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
+> and is never reported twice. `python tools/holes.py` is down to **24 sites**, still 7 items.
+> **`instanceof` answers through an erased subject now, and both of its sides are checked.** A
+> `mixed`, or a `?Box` no test narrowed, is the shape the operator exists for and was the one shape
+> it could not lower: `mwl-ir` asserted a `Ty::Object` subject, so `$m instanceof Box` aborted the
+> process rather than answering. Such a subject travels as a whole `Value` **by address** — the
+> shape ADR 0036 § 4's name-keyed access already takes, `mwl_codegen::emit::materialize_receiver` —
+> and `mwl_runtime::mwl_value_instanceof` reads its tag, answering `false` for every non-object
+> exactly as PHP does. The proven `Ty::Object` path is untouched and pays nothing: the branch is in
+> `emit_instanceof`, which already had a pointer in hand. **Every subject whose declared type can
+> hold no object is `E0497` instead**, where it is written — a scalar, an `array<T>`, an enum, a
+> union naming no class — which is ADR 0007 § 7 **row 14**, the same call ADR 0090 makes for two
+> statically disjoint types under `==`, and `mixed`/`object`/a shape/any union holding a class all
+> keep the run-time test. **The right-hand side is `E0496` unless it names a class this program
+> declares**: the dynamic `$x instanceof $name` form (ADR 0007 § 2 has no computed class names, the
+> line `$$var` and `eval` are already on), an enum (ADR 0010 makes a case a named integer, so no
+> value is ever an instance of one) and a `Core` class (a registry signature, which
+> `build_class_layouts` lays no descriptor out for); a name resolving to nothing at all takes the
+> ordinary `E0303`, exactly as `new Undeclared()` reports it, one mistake being one code wherever
+> the name is written. **One live leak went with it**, off the worklist because nothing panicked:
+> `lower_instanceof` never released a subject nothing names, so `(new Dog()) instanceof Animal` lost
+> the object every run — the test only *reads* its subject and answers a `Ty::Bool`, so a fresh one
+> is released once it has answered, the same rule `lower_clone_expr` already applies to its own
+> operand. `tools/leak-check.sh` is green over fixtures exercising both paths with a refcounted
+> `mixed` live. `python tools/holes.py` is at **25 sites**, still 7 items — it read **26** at this
+> session's head, so the 24 quoted above predates a change in the tool's own inventory rather than
+> this slice. **M4S Part I is the floor, not the frontier**: conformance is at 598 of the goal's new
+> 750 and differential at 167 of 165, `python tools/gaps.py` still ranks the thin classes, and a
+> `Core` depth slice is a legitimate slice when a group is blocked — never a reason to leave a
+> language item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
 > tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
