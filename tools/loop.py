@@ -46,6 +46,7 @@ except ModuleNotFoundError:  # Python < 3.11
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import disk  # noqa: E402  -- same directory; the retention policy has one home and it is there
+import machine  # noqa: E402  -- same directory; how wide anything runs has one home too
 
 ROOT = Path(__file__).resolve().parent.parent
 PROMPT = ROOT / "docs" / "agent" / "session-prompt.md"
@@ -756,15 +757,16 @@ MEMO_DIRS = ("crates", "examples")
 MEMO_FILES = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "docs/agent/loop-goal.toml")
 MEMO_NOT_INPUTS = {"target", "node_modules", "out", ".vscode-test"}
 
-#: Valgrind fixtures at a time. The sweep was strictly serial and is 42% of an acceptance check --
-#: 21.3 of its 50.3 minutes over the 20260826-142040 run, 58s a session for 20 fixtures. Measured
-#: on a 16-core box, through the same separate `wsl.exe` calls the serial sweep makes: 67.8s at 1,
-#: 21.2s at 4, 16.0s at 8. Four takes the 3.2x and leaves the machine mostly idle.
+#: The sweep runs several fixtures at once. It was strictly serial once, and is 42% of an
+#: acceptance check -- 21.3 of its 50.3 minutes over the 20260826-142040 run, 58s a session for 20
+#: fixtures -- so how wide it runs matters. **How wide is `tools/machine.py`'s decision, not this
+#: file's**: it is a property of the box, measured there once and cached, and a constant here was
+#: a property of the box it was measured on.
 #:
-#: Nothing is traded for it. A leak verdict is per-process and deterministic, so concurrency
-#: cannot change one -- unlike the abi-probe cost guards, which are cost-class assertions and must
-#: have an idle machine. Those run strictly AFTER this sweep, which is why they still can.
-VALGRIND_JOBS = 4
+#: Nothing is traded for the concurrency. A leak verdict is per-process and deterministic, so
+#: concurrency cannot change one -- unlike the abi-probe cost guards, which are cost-class
+#: assertions and must have an idle machine. Those run strictly AFTER this sweep, which is why
+#: they still can, and it is why `machine.py` hands out half a box and not all of it.
 
 
 def rustc_version():
@@ -1141,33 +1143,60 @@ class Goal:
             return ""  # not a failure: this platform simply has no valgrind leg
 
         targets = [f for f in self.files if f not in self.valgrind_skip]
+        if not targets:
+            return ""
 
-        def sweep(f):
-            # Four of these are in flight, so the ticker's detail is "one of the four running"
-            # rather than "the one running". `timed` advances the counter under the ticker's own
-            # lock, so the bar itself stays exact.
-            self.trace(f"valgrind {f}")
-            cmd = (
+        def cmd_for(f):
+            return (f"cd {leg.repo} && " if leg.name == "wsl" else "") + (
                 "valgrind --error-exitcode=1 --leak-check=full "
                 f"--errors-for-leak-kinds=definite -q {leg.binary} run {f}"
             )
-            return f, self.timed(
-                f"valgrind {f}",
-                lambda: (leg.bash(f"cd {leg.repo} && {cmd}") if leg.name == "wsl"
-                         else capture("bash", ["-lc", cmd])),
-            )
+
+        def shell(line):
+            """One command where this leg runs it."""
+            return leg.bash(line) if leg.name == "wsl" else capture("bash", ["-lc", line])
+
+        def probe():
+            # Once per machine, and only where the work actually runs -- on Windows that is inside
+            # WSL, whose core count and memory come from `.wslconfig` and not from the host. The
+            # sample is one real fixture, so the baseline it records is this box's serial cost for
+            # exactly the work about to be run wide.
+            self.trace("probing this machine (once) -- cores, free memory, one fixture serially")
+            def out(line):
+                r = shell(line)
+                return r.code, r.out + r.err
+            return machine.posix_probe(out, sample=cmd_for(targets[0]))
+
+        prof = machine.profile(leg.name, probe=probe)
+        jobs = machine.jobs(leg.name, ceiling=len(targets), envs=("MWL_VALGRIND_JOBS",))
+        self.trace(f"valgrind sweep: {len(targets)} fixtures, {jobs} at a time "
+                   f"({prof.get('cores', '?')} cores on the {leg.name} leg)")
+
+        def sweep(f):
+            # Several of these are in flight, so the ticker's detail is "one of the running ones"
+            # rather than "the one running". `timed` advances the counter under the ticker's own
+            # lock, so the bar itself stays exact.
+            self.trace(f"valgrind {f}")
+            return f, self.timed(f"valgrind {f}", lambda: shell(cmd_for(f)))
 
         # `map` keeps input order, so the failure reported is the first fixture in the goal's own
-        # list however the four workers finished. It does not short-circuit, which is the one
-        # behaviour that changes: a red sweep now runs all of them and names EVERY leaking fixture
-        # instead of stopping at the first. That is worth the seconds -- "one fixture leaks" and
-        # "twelve do" are different bugs, and the parallel sweep pays about a third of what the
-        # serial one did to answer both.
-        fails = []
-        with ThreadPoolExecutor(max_workers=VALGRIND_JOBS) as pool:
+        # list however the workers finished. It does not short-circuit, which is the one behaviour
+        # that changes: a red sweep runs all of them and names EVERY leaking fixture instead of
+        # stopping at the first. That is worth the seconds -- "one fixture leaks" and "twelve do"
+        # are different bugs, and the parallel sweep pays a fraction of what the serial one did to
+        # answer both.
+        fails, began = [], time.monotonic()
+        with ThreadPoolExecutor(max_workers=jobs) as pool:
             for f, r in pool.map(sweep, targets):
                 if r.code != 0:
                     fails.append(f"valgrind {f}: exit {r.code} -- {r.first_err_line}")
+        # What the width bought, against the serial cost measured on this same box. Recorded rather
+        # than printed: it is how a later run says whether the policy is still right here, and it
+        # costs nothing to keep.
+        spent = time.monotonic() - began
+        if prof.get("sample_s") and spent > 0:
+            machine.remember(leg.name, sweep_s=round(spent, 1),
+                             sweep_speedup=round(prof["sample_s"] * len(targets) / spent, 2))
         if fails:
             return fails[0] + (f"  (and {len(fails) - 1} more: "
                                f"{', '.join(x.split(':')[0] for x in fails[1:])})"
