@@ -2,63 +2,73 @@
 
 ## State
 
-**ADR 0007 § 4's ordering row is closed at both ends.** `<`/`<=`/`>`/`>=`/`<=>`
-over an operand that table gives no row for is `E0715` where it is written
-(`mwl_types::expr::operators::reject_unordered_operand`), `bool` and
-`null == null` are rows rather than refusals, and the object family keeps
-`E0411`. The rule's one home is ADR 0007 § 4's own table plus the closure
-paragraph under it; the code's is `code::E_ORDERING_HAS_NO_ROW`'s doc comment.
+**A tagged operand orders now, and `object` as a declared type is checked at
+both ends.** `<`/`<=`/`>`/`>=`/`<=>` over a `mixed`, a union or the `int|float`
+a division returns dispatch on the operands' runtime tags
+(`mwl_ir::ir::Helper::ValueLt` and its two siblings, whose doc comment is that
+design's home), answering ADR 0007 § 4's rows the tags name and throwing
+catchably where that closed table names none. The rule's one home is ADR 0007
+§ 4's closure paragraph, which now carries the deferral, the object row and the
+enum row.
 
-- **Items 4, 1 and 8 of the goal's Stage 0 were already landed when this session
-  opened** — the bitwise operators, the promotion table and enum `==` all run,
-  and `holes.py` attributes their remaining "refusal sites" to catch-alls the
-  plan has already proved unreachable. What was genuinely open behind item 1 was
-  `emit_binop`'s *representation* catch-all, and that is what this session took.
-- **`emit_binop`'s catch-all now carries its own roster**, the way the statement
-  and expression dispatches do: what is left is `Ty::Tagged` (item 24) and the
-  three representations no source expression has. A future session that wants to
-  delete the site itself needs item 24 first.
-- **`orient.py`'s pack was complete for this item.** The two gaps the previous
-  handoff named are still open: `[context] modules` has no `mwl-runtime` entry,
-  and it has no `mwl-diagnostics` one either — this session read
-  `crates/mwl-diagnostics/src/lib.rs` around the `E07xx` band to claim `E0715`.
+- **Item 25 needed no code**: `erase_checked_ty` already had its `object` arm
+  and `object-is-a-declared-type-in-every-position.mwlt` already ran, so what
+  the slice owed was the descriptor check. Both fields a release or a rendering
+  reads are found from the instance, and the `unwind` half is now pinned —
+  `an-abandoned-generator-runs-the-finally-it-is-suspended-inside.mwlt` grows a
+  seventh shape where the last reference goes away through an `object` binding.
+- **`emit_binop`'s catch-all has one target left**, a `Ty::Tagged` under an
+  arithmetic operator, and its roster comment says so. `mwl-ir`'s known gap 3
+  was two thirds stale and is corrected: ADR 0035's truthy table and the tagged
+  subscript both left it long ago, the subscript as `E0482` rather than as a
+  lowering.
+- **`orient.py`'s pack was complete for both items.** The two standing gaps are
+  unchanged: `[context] modules` has no `mwl-runtime` entry — this session read
+  `crates/mwl-runtime/src/helpers.rs` and `identity.rs` to write the helper —
+  and none for `mwl-diagnostics`.
 
 ## Next group
 
-**The remaining representation catch-alls, which is `mwl-codegen`'s `emit.rs`
-one more time, then `mwl-ir`'s erasure map.** The file set:
-`crates/mwl-codegen/src/emit.rs`, then `crates/mwl-ir/src/lower/mod.rs`.
+**Item 24's other half, over the file set this session already opened.** The
+files: `crates/mwl-ir/src/lower/operator.rs`, `crates/mwl-ir/src/ir.rs`,
+`crates/mwl-runtime/src/helpers.rs`, `crates/mwl-codegen/src/emit.rs`.
 `python tools/holes.py --item N` prints any of these in full.
 
-- [ ] **Item 25, `object` as a declared type** — `erase_checked_ty` reaches no
-      arm for ADR 0007 § 3's `object` top, so `object $o = $obj;` panics.
-      `crates/mwl-ir/src/lower/mod.rs:2206`. The arm is one line; what the slice
-      owes is the check that nothing below reads a class *label* off an operand
-      it would now receive without one — `ClassDesc::renderer` and
-      `ClassDesc::unwind` are the two descriptor fields a release or a rendering
-      already reads, and both are found from the instance rather than from the
-      static type, which is the argument to write down.
-- [ ] **Item 24's first half, a tagged operand under a comparison** — the one
-      target `emit_binop`'s catch-all has left. `mwl_runtime::value_truthy` is
-      the precedent for the shape: an `ir::Helper` variant dispatching on the
-      tag, never a second representation. `crates/mwl-ir/src/ir.rs:1180`
-      (`Helper`), `crates/mwl-codegen/src/emit.rs:1134` (the catch-all's roster).
+- [ ] **Item 24's second half, arithmetic on a tagged operand** — the one
+      target `emit_binop`'s catch-all has left
+      (`crates/mwl-codegen/src/emit.rs:1151`). The shape is this session's:
+      a `Helper` per operator dispatching on the two tags, emitted from
+      `lower_binary`'s tagged arm at
+      `crates/mwl-ir/src/lower/operator.rs:567`, beside
+      `crates/mwl-runtime/src/helpers.rs:446` (`value_ordering`), which is the
+      model for the tag table and for the throw a pair with no row takes.
+      Unlike ordering, § 4's arithmetic rows **throw on overflow** and refuse
+      `int ⊕ uint` outright, so the helper owes two error kinds rather than
+      one, and `mwl_runtime::arith` already holds both.
 - [ ] **`emit.rs`'s six remaining internal panics** — `reinterpret`, the tagged
       widen/narrow pair, the unary catch-all, the refcount one, the terminator
       one and the runtime-helper one. Each is an internal-consistency check
-      rather than a hole; what a session owes is the roster comment, in the shape
-      `emit_binop`'s now has. `crates/mwl-codegen/src/emit.rs:660`, `:690`,
-      `:721`, `:1795`, `:2787`, `:2938`, `:3295`.
+      rather than a hole; what a session owes is the roster comment, in the
+      shape `emit_binop`'s now has. `crates/mwl-codegen/src/emit.rs:660`,
+      `:690`, `:721`, `:1795`, `:2787`, `:2938`, `:3298`.
+- [ ] **Item 26, `bool as int` and `bool as string`** —
+      `crates/mwl-ir/src/lower/convert.rs:60`. The playbook records that
+      `bool as string` renders `false` as the empty string and that
+      `bool as int` does not lower at all; ADR 0007 § 2's grid is what decides
+      whether either is a row.
 
 ## Backlog
 
-- A throw escaping an abandoned generator's `finally` is discarded — ADR 0028 § 2,
-  behind ADR 0020's ladder.
-- `[context] modules` has no `mwl-runtime` or `mwl-diagnostics` entry —
-  `docs/agent/loop-goal.toml`.
-- `string as Core\Html\Markup` is `mwl-ir`'s one remaining conversion catch-all
-  target and waits on `Core\Html` at M7 — ADR 0024 § 5.
-- Item 17's `&value` array element still owes its refusal —
-  `docs/agent/loop-goal.md` § *Standing decisions*.
-- `void` on either side of a comparison fails in `mwl-ir` with "an operand used
-  before it is defined" rather than a diagnostic — `mwl-ir`'s known gaps.
+- A `mixed` against a `decimal` still takes `lower_decimal_binary` rather than
+  the tagged arm, so a non-numeric tag there answers `false` instead of
+  throwing — `crates/mwl-ir/src/lower/operator.rs`, the `decimal` guard that
+  runs first.
+- Ordering two objects behind two `mixed`s throws; dispatching
+  `Comparable::compareTo` from the runtime would be `mwl_runtime::stringify`'s
+  shape one method further — ADR 0013, and not this milestone's.
+- `docs/agent/loop-goal.toml`'s `[context] modules` has no `mwl-runtime` or
+  `mwl-diagnostics` entry.
+- `array<T> as array<U>` inside a `.mwlt` case still has the shapes the
+  playbook names — `docs/agent/playbook.md`.
+- `tools/holes.py`'s item 25 anchor points at `lower/mod.rs:2206`, which is
+  `aliasing_read` rather than the erasure map — `docs/agent/loop-goal.md`.

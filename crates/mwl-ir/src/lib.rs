@@ -195,11 +195,20 @@
 //!    argument all see the narrow representation with no site to forget;
 //!    [`lower::Lowering::untag_receiver`] is the same move for the one
 //!    consumer that predates it.
-//!    What does not: reading a tagged value *without* a checker-proven
-//!    narrowing — arithmetic on a `mixed`, ADR 0035's truthy table, an array
-//!    access through a tagged base. Each panics naming itself, and closing
-//!    them adds [`ir::Helper`] variants dispatching on the tag, not a second
-//!    representation.
+//!    ADR 0035's truthy table is read from the tag the same way
+//!    ([`ir::Helper::ValueTruthy`]), and so is ADR 0007 § 4's **ordering**
+//!    table: `<`/`<=`/`>`/`>=`/`<=>` with a tagged operand take
+//!    [`ir::Helper::ValueLt`] and its two siblings, which answer the rows the
+//!    tags name and *throw* where that closed table names none — the one
+//!    comparison helper family carrying ADR 0002's error edge, and its own doc
+//!    comment is that decision's home. A subscript through a tagged base is no
+//!    longer here either: `mwl_types` refuses it where it is written
+//!    (`E0482`), an `array<T>` binding being what has an element type to check
+//!    a read against.
+//!    What does not: **arithmetic** on a `mixed`, which is the one reading of
+//!    a tagged value without a checker-proven narrowing that still panics
+//!    naming itself. Closing it adds [`ir::Helper`] variants dispatching on
+//!    the tag, not a second representation.
 //! 4. **One conversion row is missing, and ADR 0066's `as ?T` has no helper
 //!    for the one target that produces a container.**
 //!    ADR 0007 § 2's free, total and checked scalar rows all lower, in both

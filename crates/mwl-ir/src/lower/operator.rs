@@ -547,6 +547,43 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
+        // ADR 0007 § 4's ordering rows for the same operand shape the arm
+        // above answers for equality: a `mixed` or a union names no row, so
+        // the tag names it at run time. `>`/`>=` are the two `<` helpers with
+        // their operands swapped, the arrangement `lower_decimal_binary` and
+        // the `NumericLt` pair above both use, which is what gives a `NaN`
+        // operand PHP's `false` for all four at once.
+        //
+        // The one comparison in this function emitted with ADR 0002's error
+        // edge, and `Helper::ValueLt`'s own doc comment is that decision's
+        // home: § 4's ordering table is closed, so a tag pair it names no row
+        // for is `E0715`'s refusal made at the first moment it is answerable.
+        // Each operand therefore goes on the owned-temporaries stack rather
+        // than being released inline — a throw here has an edge to leave by,
+        // and a fresh operand abandoned on it is exactly the leak
+        // `Lowering::owned_temporaries` exists to stop.
+        if matches!(
+            op,
+            BinaryOp::Lt | BinaryOp::LtEq | BinaryOp::Gt | BinaryOp::GtEq | BinaryOp::Cmp
+        ) && (lty == Ty::Tagged || rty == Ty::Tagged)
+        {
+            let mark = self.temporaries_mark();
+            for (operand, value, ty) in [(lhs, lv, lty), (rhs, rv, rty)] {
+                let aliasing = self.aliasing_read(operand);
+                self.account_for_arg(value, ty, ArgOwnership::Borrowed, aliasing, *cur);
+            }
+            let (helper, ty, args) = match op {
+                BinaryOp::Lt => (Helper::ValueLt, Ty::Bool, vec![lv, rv]),
+                BinaryOp::Gt => (Helper::ValueLt, Ty::Bool, vec![rv, lv]),
+                BinaryOp::LtEq => (Helper::ValueLtEq, Ty::Bool, vec![lv, rv]),
+                BinaryOp::GtEq => (Helper::ValueLtEq, Ty::Bool, vec![rv, lv]),
+                _ => (Helper::ValueCmp, Ty::Int, vec![lv, rv]),
+            };
+            let (answer, _) =
+                self.emit_fallible(*cur, ty, InstKind::HelperCall { helper, args }, env);
+            self.release_temporaries_since(mark, *cur);
+            return (answer, ty);
+        }
         // ADR 0090 § 2's enum row: an enum is its own equality domain — a
         // case against its underlying integer is a compile error and two
         // different enums are disjoint, so a pair that reaches here is one

@@ -1140,10 +1140,13 @@ impl Emitter<'_, '_> {
             // for every representation that is not a number or a `bool`
             // (`E0715`, and `E0411` for the object family), and `decimal`'s own
             // twelve rows never arrive here at all — `lower_decimal_binary`
-            // rewrites each into a helper call. What is left is `Ty::Tagged`,
-            // whose arithmetic and ordering are the loop goal's item 24, and
-            // the three representations no source expression has
-            // (`ClassDesc`, `Ref`, `Void`).
+            // rewrites each into a helper call.
+            // A `Ty::Tagged` *ordering* has left too: it is the tag-dispatched
+            // `Helper::ValueLt` family, the equality row's twin. What is left
+            // is a `Ty::Tagged` under an **arithmetic** operator, which is the
+            // second half of the loop goal's item 24, and the three
+            // representations no source expression has (`ClassDesc`, `Ref`,
+            // `Void`).
             return Err(CodegenError::Unsupported(format!(
                 "a `{op:?}` over representation {ty:?}"
             )));
@@ -3258,6 +3261,9 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::NumericLt => "mwl_numeric_lt",
         Helper::NumericCmp => "mwl_numeric_cmp",
         Helper::NumericLtEq => "mwl_numeric_lt_eq",
+        Helper::ValueLt => "mwl_value_lt",
+        Helper::ValueLtEq => "mwl_value_lt_eq",
+        Helper::ValueCmp => "mwl_value_cmp",
         Helper::SecretEq => "mwl_secret_eq",
         Helper::CallClosure => "mwl_call_closure",
         Helper::CallClosureArray => "mwl_call_closure_array",

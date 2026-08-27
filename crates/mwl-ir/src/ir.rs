@@ -1791,6 +1791,47 @@ pub enum Helper {
     /// which is PHP's answer for an unordered pair and the same convention
     /// [`BinOp::Cmp`] follows for a matched one.
     NumericCmp,
+    /// `a < b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
+    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's
+    /// ordering row chosen from the operands' runtime **tags**, because a
+    /// `mixed` or a union no longer names one.
+    ///
+    /// It is the ordering twin of [`Self::Identical`], reached by the same
+    /// reasoning and from the same place in `crate::lower::Lowering::lower_binary`:
+    /// where the static types answer the row, `mwl-codegen` emits the machine
+    /// comparison; where they do not, the tag answers it and the operand pair
+    /// is settled here rather than in a `BinOp` over a representation neither
+    /// side has. `>` is this helper with its operands swapped, the arrangement
+    /// [`Self::NumericLt`] and [`Self::DecimalLt`] already use.
+    ///
+    /// **Unlike every other comparison helper this one carries
+    /// [`Inst::on_error`]**, and that is the whole design decision in it. § 4's
+    /// ordering table is a *closed* list, so a pair it names no row for — two
+    /// strings, an `array<T>`, `null`, an enum case, a `bytes`, a `callable` —
+    /// has no ordering at all. Where the static types show it,
+    /// `mwl_types::expr::operators::reject_unordered_operand` refuses it where
+    /// it is written (`E0715`); where they do not, the refusal is exactly as
+    /// real and can only be made when the tags arrive, so it becomes a
+    /// catchable throw carrying that diagnostic's own wording. That is ADR 0036
+    /// § 4's deferral — the checked answer of an erased operand is a throw, not
+    /// a silent value — applied to the operator table instead of to a member
+    /// access.
+    ///
+    /// Two objects behind two `mixed`s throw here as well, and deliberately:
+    /// ADR 0013 orders them through a `Comparable::compareTo` **call**, which
+    /// `crate::lower::Lowering::lower_object_comparison` emits from the class
+    /// the site named. A helper that has only the tag names none.
+    ValueLt,
+    /// `a <= b` over a tagged pair — [`Self::ValueLt`]'s row inclusive, and
+    /// `>=` is this one swapped. Carries the same error edge, for the same
+    /// reason.
+    ValueLtEq,
+    /// `a <=> b` over a tagged pair — [`Self::ValueLt`]'s row read whole
+    /// rather than asked one question, answered as an `int`. A `NaN` operand
+    /// becomes `1`, the convention [`Self::NumericCmp`] and [`BinOp::Cmp`]
+    /// already follow; a pair with no row throws, exactly as it does for the
+    /// four ordering operators.
+    ValueCmp,
     /// `a == b` over two operands at least one of which the checker typed
     /// `secret` —
     /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)

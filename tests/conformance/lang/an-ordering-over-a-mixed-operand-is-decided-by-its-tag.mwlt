@@ -1,0 +1,160 @@
+--TEST--
+An ordering whose operand the checker could not type is decided by that operand's runtime tag — ADR 0007 § 4's rows where the table has one, and a catchable throw carrying `E0715`'s own wording where it has none (ADR 0007 § 4, ADR 0036 § 4)
+--FILE--
+<?mwl
+// ADR 0007 § 4's ordering table is closed, and where the static types name a
+// row `mwl-codegen` emits the machine comparison. A `mixed` or a union names
+// none, so the *tag* names it instead — `mwl_ir::Helper::ValueLt` and its two
+// siblings — and the same table's closure becomes a throw rather than a
+// diagnostic, because the tags are where it first became answerable.
+final class Ask {
+    // One place where both operands are `mixed`, so every row below is the
+    // tag-dispatched one and not a statically typed comparison in disguise.
+    public static function lt(mixed $a, mixed $b): string {
+        try {
+            if ($a < $b) {
+                return "lt";
+            }
+            return "no";
+        } catch (Throwable $e) {
+            return "throws: " . $e->message;
+        }
+    }
+
+    public static function ltEq(mixed $a, mixed $b): string {
+        try {
+            if ($a <= $b) {
+                return "le";
+            }
+            return "no";
+        } catch (Throwable $e) {
+            return "throws";
+        }
+    }
+
+    public static function gt(mixed $a, mixed $b): string {
+        try {
+            if ($a > $b) {
+                return "gt";
+            }
+            return "no";
+        } catch (Throwable $e) {
+            return "throws";
+        }
+    }
+
+    public static function gtEq(mixed $a, mixed $b): string {
+        try {
+            if ($a >= $b) {
+                return "ge";
+            }
+            return "no";
+        } catch (Throwable $e) {
+            return "throws";
+        }
+    }
+
+    public static function cmp(mixed $a, mixed $b): string {
+        try {
+            return ($a <=> $b) as string;
+        } catch (Throwable $e) {
+            return "throws";
+        }
+    }
+}
+
+final class Point {
+    public int $x = 1;
+}
+
+// The numeric rows, across the three representations the table spans. Each is
+// exact over the whole range of both operands, which is why an integer beside
+// a `float` is a comparison rather than a widening: § 4's own closing
+// paragraph says so, and the widening would throw above 2^53.
+echo Ask::lt(5, 7), " ", Ask::lt(7, 5), " ", Ask::lt(5, 5), "\n";
+echo Ask::lt(2.5, 5), " ", Ask::gt(2.5, 5), "\n";
+uint $big = 18446744073709551615;
+// The second pair is the one a widening would get wrong: `2^53 + 1` and the
+// `float` `2^53` are two different numbers, and reading the integer as an
+// `f64` first would round them together and answer `le`.
+echo Ask::lt(9223372036854775807, $big), " ", Ask::ltEq(9007199254740993, 9007199254740992.0), "\n";
+
+// ADR 0007 § 4's `bool` row: the ordering of the one bit it already is.
+echo Ask::lt(false, true), " ", Ask::lt(true, false), " ", Ask::ltEq(true, true), "\n";
+
+// `<=>` is the same row read whole rather than asked one question.
+echo Ask::cmp(5, 7), Ask::cmp(7, 5), Ask::cmp(5, 5), Ask::cmp(2.5, 5), "\n";
+
+// A `NaN` operand is unordered against everything including itself, so all
+// four ordering operators are false and `<=>` is `1` — PHP's answers, and the
+// reason these helpers take an ordering rather than a `bool` from the row.
+float $nan = 0.0 / 0.0;
+echo Ask::lt($nan, 1), Ask::gt($nan, 1), Ask::ltEq($nan, $nan), Ask::gtEq($nan, 1), "\n";
+echo Ask::cmp($nan, 1), " ", Ask::cmp(1, $nan), "\n";
+
+// The union a division produces is the shape that reaches this without any
+// `mixed` written at all: `int / int` is `int|float` (§ 4), which erases to the
+// same tagged representation and takes the same helper.
+int $n = 7;
+int $d = 2;
+if (($n / $d) < 4) {
+    echo "division orders\n";
+}
+
+// The other end of the closed table. Each of these is refused where it is
+// *written* when the static types show it (`E0715`); behind a `mixed` the
+// refusal is exactly as real and arrives as a catchable throw instead.
+echo Ask::lt("a", "b"), "\n";
+echo Ask::lt(1, "b"), "\n";
+echo Ask::lt(null, 1), "\n";
+echo Ask::lt(new Point(), new Point()), "\n";
+array<int> $xs = [1, 2];
+echo Ask::lt($xs, $xs), "\n";
+
+// The refusal is the operator's, not the operand's: the same two strings
+// compare for equality with no throw at all (ADR 0090 § 3), and `<=`, `>`,
+// `>=` and `<=>` agree with `<` about having no row.
+mixed $s = "a";
+mixed $t = "b";
+if ($s == $t) {
+    echo "BAD\n";
+} else {
+    echo "equality still answers\n";
+}
+echo Ask::ltEq($s, $t), Ask::gt($s, $t), Ask::gtEq($s, $t), " ", Ask::cmp($s, $t), "\n";
+
+// Agreement: the tag-dispatched answer is the statically typed one, asked of
+// the same values through both spellings. Counted rather than read off a line,
+// so a row that grew its own comparison fails here.
+int $agreed = 0;
+int $i = 0;
+while ($i < 4) {
+    if (Ask::lt($i, 2) == "lt") {
+        if ($i < 2) {
+            $agreed = $agreed + 1;
+        }
+    } else {
+        if ($i >= 2) {
+            $agreed = $agreed + 1;
+        }
+    }
+    $i = $i + 1;
+}
+echo "agreed ", $agreed as string, "/4\n";
+--EXPECT--
+lt no no
+lt no
+lt no
+lt no le
+-110-1
+nononono
+1 1
+division orders
+throws: no ordering for a `string` against a `string` — `Core\Str::compare` is the ordering two strings have
+throws: no ordering for a `int` against a `string`
+throws: no ordering for a `null` against a `int`
+throws: no ordering for a `object` against a `object` — ordering two objects needs the `Comparable` class named where the comparison is written (ADR 0013)
+throws: no ordering for a `array<T>` against a `array<T>`
+equality still answers
+throwsthrowsthrows throws
+agreed 4/4

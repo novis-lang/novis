@@ -627,6 +627,13 @@ is why" — is this file.
   insta strips. `diff` each pair first: that is the review the tool would have shown you, and the
   neighbouring bullet's warning about accepting a *previous* session's leftovers applies to a
   by-hand sweep exactly as much.
+- **A new `mwl_ir::Helper` variant is four edits and the fourth one is not a `match`.** Three are
+  exhaustive matches the compiler makes you write — the variant itself, `mwl-ir`'s `print.rs` name and
+  `mwl-codegen`'s symbol name — and the fourth is a row in `mwl_runtime::helpers::symbols()`, a hand-kept
+  `Vec` nothing checks. Miss it and the workspace builds clean, every unit test passes, and the first
+  program that reaches the helper dies inside `cranelift-jit` with *"can't resolve symbol
+  mwl_your_helper"*, which reads like a linker problem rather than a missing line. Grep the symbol name
+  you just added and expect **three** hits outside the runtime's own definition.
 
 ## Running things
 

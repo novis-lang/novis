@@ -422,11 +422,33 @@
 > happened to know. What still reaches that catch-all is `Ty::Tagged`, whose arithmetic and ordering
 > are item 24, and the three representations no source expression has — the site's own comment
 > carries that roster, as the statement and expression dispatches' do. ADR 0007 § 4's table gains
-> the two rows and the closure sentence rather than being left to disagree with the tree. Three live
-> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
-> refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item N` for
-> one in full), `python tools/loop.py --list` prints the named `.mwlt` cases each stage still owes,
-> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> the two rows and the closure sentence rather than being left to disagree with the tree. **Item 25
+> was already landed and what it owed was the check**, which is now made and pinned: `object` erases
+> to the pointer a named class does, and the two descriptor fields anything below that erasure reads
+> — `ClassDesc::renderer` for a rendering and `ClassDesc::unwind` for an abandoned generator's
+> `finally` — are both found from the *instance* rather than from the static type, so a suspended
+> generator dropped through an `object`-typed binding runs the same `finally` a `foreach` temporary
+> does. **The ordering half of item 24 is closed**, which is `emit_binop`'s representation catch-all
+> subtracted a second time and from the same end. An operand whose static type names no ordering row
+> at all — `mixed`, a union, the `int|float` a division returns — cannot be judged where it is
+> written, so it is judged from its runtime **tag**: `Helper::ValueLt`, `ValueLtEq` and `ValueCmp`
+> answer § 4's rows the tags name, `>`/`>=` being the first two with their operands swapped so that
+> a `NaN` operand is false for all four at once and `1` under `<=>`, which is PHP's answer. Where
+> the tags name none the *same* refusal `E0715` makes statically arrives as a catchable throw
+> carrying that diagnostic's own wording — the one comparison helper family with ADR 0002's error
+> edge, which is why each operand goes on the owned-temporaries stack rather than being released
+> inline: a throw here has an edge to leave by. Two consequences fall out of the tag being all there
+> is, and both are recorded in ADR 0007 § 4's own closure rather than left to be rediscovered: two
+> objects behind two `mixed`s throw, `Comparable::compareTo` being dispatched from the class the
+> *site* named, and an enum case orders as the integer ADR 0047 § 5 spends no representation on
+> hiding, the written spelling still being refused. Valgrind-clean over a fixture that throws two
+> hundred times with a freshly built operand in flight. What still reaches that catch-all is a
+> `Ty::Tagged` under an **arithmetic** operator — item 24's other half — and the three
+> representations no source expression has. Three live tools **are** the worklist and no session
+> re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen`
+> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
+> the named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

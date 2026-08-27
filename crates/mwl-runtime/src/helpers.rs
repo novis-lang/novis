@@ -423,6 +423,113 @@ crate::mwl_helper! {
     }
 }
 
+/// ADR 0007 § 4's ordering table, chosen from two runtime **tags** rather than
+/// from two static types — the row a `mixed` or a union operand defers, and the
+/// one `mwl_ir::Helper::ValueLt` and its two siblings are all reading.
+///
+/// `Ok(None)` is the unordered answer a `NaN` operand gives, exactly as
+/// [`crate::numeric_ordering`] and [`decimal_ordering`] give it, and it makes
+/// all four ordering operators false and `<=>` answer `1`.
+///
+/// `Err` is the other end of the same table, and the reason this helper family
+/// carries an error edge where every other comparison helper does not: § 4's
+/// ordering row is a **closed** list, so a pair it names none for has no
+/// ordering at all rather than a plausible one. The wording is
+/// `mwl_types::expr::operators::reject_unordered_operand`'s, because it is the
+/// same refusal — made here only because the tags are where it first became
+/// answerable.
+///
+/// An enum case is deliberately *not* one of those pairs: ADR 0047 § 5 spends
+/// no representation on one, so behind a `mixed` it is the `int` or `uint` its
+/// cases are, and it orders as one. The static spelling still refuses it
+/// (`E0715`), which is where an author is told to say `as int` out loud.
+fn value_ordering(left: Value, right: Value) -> Result<Option<std::cmp::Ordering>, Fault> {
+    match (left.tag(), right.tag()) {
+        // ADR 0007 § 4's `bool` row: the ordering of the one bit it already
+        // is, `false < true`.
+        (Some(Tag::Bool), Some(Tag::Bool)) => Ok(Some(left.bits().cmp(&right.bits()))),
+        // ADR 0054 § 3's comparison row spans every pairing one side of which
+        // is a `decimal`, the `decimal`/`float` one included.
+        (Some(Tag::Decimal), Some(Tag::Decimal | Tag::Int | Tag::Uint | Tag::Float))
+        | (Some(Tag::Int | Tag::Uint | Tag::Float), Some(Tag::Decimal)) => {
+            Ok(decimal_ordering(left, right))
+        }
+        (Some(Tag::Int | Tag::Uint | Tag::Float), Some(Tag::Int | Tag::Uint | Tag::Float)) => {
+            Ok(crate::numeric_ordering(left, right))
+        }
+        _ => Err(no_ordering(left, right)),
+    }
+}
+
+/// The catchable throw [`value_ordering`] raises for a pair ADR 0007 § 4
+/// tabulates no row for, naming the spelling that says what was meant wherever
+/// there is one — the same three wordings `E0715` carries.
+fn no_ordering(left: Value, right: Value) -> Fault {
+    let name = |value: Value| match value.tag() {
+        Some(Tag::Null) => "null",
+        Some(Tag::Bool) => "bool",
+        Some(Tag::Int) => "int",
+        Some(Tag::Uint) => "uint",
+        Some(Tag::Float) => "float",
+        Some(Tag::Str) => "string",
+        Some(Tag::Array) => "array<T>",
+        Some(Tag::Object | Tag::Closure) => "object",
+        Some(Tag::Decimal) => "decimal",
+        Some(Tag::Bytes) => "bytes",
+        _ => "value",
+    };
+    let (left_name, right_name) = (name(left), name(right));
+    let hint = match (left.tag(), right.tag()) {
+        (Some(Tag::Str), Some(Tag::Str)) => {
+            " — `Core\\Str::compare` is the ordering two strings have"
+        }
+        (Some(Tag::Object | Tag::Closure), Some(Tag::Object | Tag::Closure)) => {
+            " — ordering two objects needs the `Comparable` class named where the comparison is \
+             written (ADR 0013)"
+        }
+        _ => "",
+    };
+    Fault::thrown(format!(
+        "no ordering for a `{left_name}` against a `{right_name}`{hint}"
+    ))
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ValueLt` — `<` where at least one operand's static
+    /// type named no row, so the tag names it instead. The row is
+    /// [`value_ordering`], and `>` is this helper with its operands swapped.
+    ///
+    /// An unordered pair — a `NaN` on either side — is `false`, which is PHP's
+    /// answer for all four ordering operators against one, and is why this
+    /// takes the ordering rather than a `bool` from the row.
+    fn mwl_value_lt(_ctx, args: [2]) {
+        Ok(Value::bool(matches!(
+            value_ordering(args[0], args[1])?,
+            Some(core::cmp::Ordering::Less)
+        )))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ValueLtEq` — [`mwl_value_lt`]'s row inclusive, and
+    /// `>=` is this helper with its operands swapped.
+    fn mwl_value_lt_eq(_ctx, args: [2]) {
+        Ok(Value::bool(matches!(
+            value_ordering(args[0], args[1])?,
+            Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+        )))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ValueCmp` — `<=>` over a tagged pair, which is
+    /// [`mwl_value_lt`]'s row read whole rather than asked one question. See
+    /// [`spaceship`] for the `NaN` row.
+    fn mwl_value_cmp(_ctx, args: [2]) {
+        Ok(Value::int(spaceship(value_ordering(args[0], args[1])?)))
+    }
+}
+
 crate::mwl_helper! {
     /// `mwl_ir::Helper::SecretEq` — `==` where the checker typed at least one
     /// operand `secret`, which
@@ -1761,6 +1868,9 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_numeric_eq", address(mwl_numeric_eq)),
         ("mwl_numeric_lt", address(mwl_numeric_lt)),
         ("mwl_numeric_cmp", address(mwl_numeric_cmp)),
+        ("mwl_value_lt", address(mwl_value_lt)),
+        ("mwl_value_lt_eq", address(mwl_value_lt_eq)),
+        ("mwl_value_cmp", address(mwl_value_cmp)),
         ("mwl_numeric_lt_eq", address(mwl_numeric_lt_eq)),
         ("mwl_secret_eq", address(mwl_secret_eq)),
         ("mwl_int_to_uint", address(mwl_int_to_uint)),

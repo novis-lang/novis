@@ -201,6 +201,18 @@ and an `array<T>`, a `callable` and `null` not at all. Each is refused where it 
 answered plausibly below it, and the object family keeps ADR 0013's own diagnostic however the receiver was
 spelled, an erased `object` and a shape included.
 
+An operand whose static type names no row **at all** — `mixed`, a union, the `int|float` a division returns —
+is the one case that cannot be answered where it is written, so it is answered from the operand's runtime
+**tag** instead: the rows above where the tags name one, and the same refusal as a *catchable throw* where
+they do not, carrying the diagnostic's own wording. That is
+[ADR 0036](0036-anonymous-object-shapes.md) § 4's deferral — the checked answer of an erased operand is a
+throw, never a silent value — applied to this table rather than to a member access, and
+`mwl_ir::ir::Helper::ValueLt` is its one home. Two consequences fall out of the tag being all there is: two
+objects behind two `mixed`s throw, because `Comparable::compareTo` is dispatched from the class the *site*
+named, and an enum case orders as the integer [ADR 0047](0047-literal-and-union-types.md) § 5 spends no
+representation on hiding — the written spelling is still refused, which is where the author is told to say
+`as int`.
+
 Rejecting mixed-signedness arithmetic while allowing mixed-signedness comparison is the line C gets wrong
 and pays for: a comparison has an exact answer in the mathematical integers and can be lowered as one,
 while `int + uint` has no type to return. The division rows return unions rather than diverge from PHP, and
