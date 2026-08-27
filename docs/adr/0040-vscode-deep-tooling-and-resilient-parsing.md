@@ -14,7 +14,7 @@
   wiring, for VS Code only; its PhpStorm half is untouched.
   [docs/implementation-plan.md](../implementation-plan.md) M4/M5/M10 — inserts M4B between M4
   and M5, and narrows M10's remaining VS Code scope to what M4B does not cover.
-- **Amended by:** 0099
+- **Amended by:** 0099, 0108
 
 > **In short:** VS Code is the reference client, and it is getting real depth, not a thin LSP passthrough
 > with a grammar file. A **minimal `mwl-lsp`** (diagnostics, hover, go-to-definition, basic completion) and
@@ -215,6 +215,38 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   for, and "staged behind its dependency" means once `mwl dap` exists in the same milestone, wiring it up
   is the small remaining step, not a separate fast-follow. **PhpStorm's debugger UI wiring stays deferred**
   exactly as ADR 0016 states — this ADR does not reach into the PhpStorm side at all.
+- **Finding a symbol's other uses, and the four features that are the same index**:
+  `textDocument/references`, `documentHighlight`, CodeLens (references, implementors, overrides),
+  `typeHierarchy`, and unused-member dimming — one workspace index answering five requests, never five
+  walks ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 1).
+  `references` is in this list because it was missing from it, not because it was deferred.
+- **Completion from the tables the compiler already builds** — route names and their parameters, `mwl.toml`
+  directives, `#[Api]` fields — under one closed rule: the server offers a value only where the compiler
+  already derives that value for another reason, and never from a convention scan, an annotation dialect or
+  a network request
+  ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 2).
+  That rule is MWL's whole answer to "framework support", and it is why no per-framework module enters
+  `mwl-lsp`.
+- **HTML, CSS and JavaScript services inside an inline-HTML region**, forwarded to VS Code's own language
+  services across region boundaries the server reports (`mwl/regions`) — Emmet, tag closing and renaming,
+  the colour picker, validation. **Formatting is excluded**, so `mwl fmt` stays the only formatter that
+  touches a `.mwl` file
+  ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 3,
+  [ADR 0039](0039-canonical-code-formatting.md) § 9). This is not a small addition for MWL specifically:
+  [ADR 0082](0082-the-first-party-framework.md) makes inline HTML the template engine, so this region is
+  where an application's markup is written.
+- **Three code actions that generate rather than fix** — implement missing members, override a method,
+  declare the function you just called — each bounded to text a declaration already determines
+  ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 4).
+- **The DAP capabilities the wired-up UI is only as deep as** — conditional breakpoints, hit counts,
+  logpoints, exception filters, stepping exclusions, path mappings, the value returned after a step out,
+  and a `spawn`ed isolate presented as a thread
+  ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 5).
+  Those are `mwl dap`'s work rather than the extension's; the editor renders each for free once the adapter
+  reports it.
+- **`mwl check --json`**, and a `mwl.check.scope` of `"workspace"` — which is what the unused-member
+  dimming above needs in order to be correct rather than merely quiet
+  ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 6).
 
 **Gated on M9 (`.mwlx` extensions exist):**
 

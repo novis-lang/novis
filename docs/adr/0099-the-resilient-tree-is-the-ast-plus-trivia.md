@@ -18,7 +18,7 @@
   each fold is applied in that ADR's own body, which states the current rule;
   [ADR 0016](0016-ide-integration.md) § 2's `mwl lsp` spelling is unchanged, only what is behind it.
   [docs/plan/m4b.md](../plan/m4b.md) and [docs/plan/m10.md](../plan/m10.md) are rewritten to match.
-- **Amended by:** 0101
+- **Amended by:** 0101, 0108
 
 > **In short:** MWL's parser already does most of what "resilient parsing" names — every production returns
 > a node rather than a `Result`, a missing member name is already an `E_EXPECTED_TOKEN` plus a node, and
@@ -410,7 +410,10 @@ showing server health and version; `mwl run`/`mwl test` as Tasks; and the AST pa
   `mwl.secrets.redact` (default `true`) and `mwl.taint.mark` (default `off`). Commands: `mwl.run`,
   `mwl.test`, `mwl.showAst`, `mwl.restartServer`, and from the same source `mwl.revealSecret` and
   `mwl.hideSecrets`. Nothing else is contributed at M4B, and anything added later is added, never
-  renamed — which is the rule ADR 0101 was applied under, not an exception to it.
+  renamed — which is the rule ADR 0101 was applied under, not an exception to it, and the rule under which
+  [ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 6
+  adds, at M10, the settings `mwl.check.scope`, `mwl.codeLens.enable` and `mwl.template.services`, the
+  command `mwl.checkWorkspace`, and a second request of MWL's own, `mwl/regions`.
 - **`language-configuration.json` is content, not a checkbox.** Comments (`//`, `#`, `/* */`), brackets,
   auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `/** */` block, and
   folding markers. The one that is MWL-specific and that a borrowed PHP file gets wrong is **`wordPattern`
@@ -429,8 +432,10 @@ showing server health and version; `mwl run`/`mwl test` as Tasks; and the AST pa
   enforced rather than intended: its `package.json` `dependencies` are checked against an allowlist by its
   own test suite, so a parser, a formatter or a type table cannot arrive as a dependency, and the
   reviewer is not the only thing standing between the repo and a second implementation.
-- **Identity and packaging:** extension id `mwl-lang.mwl`, language id `mwl`. CI produces an installable
-  `.vsix` artifact. **Nothing is published** — no Marketplace publisher, no listing, no branding;
+- **Identity and packaging:** extension id `mwl-lang.mwl`, language id `mwl`, and
+  `extensionKind: ["workspace"]` — the client spawns `mwl lsp`, which has to be the binary next to the
+  code, so a WSL distro, an SSH host and a devcontainer all get the remote's toolchain rather than a
+  missing one. CI produces an installable `.vsix` artifact. **Nothing is published** — no Marketplace publisher, no listing, no branding;
   [ADR 0016 *Revisiting*](0016-ide-integration.md) keeps that open and M4B does not close it.
 - **A latency guard**, in the shape `benches/abi-probe/tests/perf_guards.rs` already uses: a full
   re-analysis of a ~1,000-line document stays under a named bound. *Decision § 1* traded incremental

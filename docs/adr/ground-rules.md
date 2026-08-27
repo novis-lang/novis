@@ -295,6 +295,12 @@ spellings rejected, and the reasoning.
   `mwl-lsp` is synchronous on `lsp-server`/`lsp-types` so no async runtime enters the workspace, an LSP
   answer is frozen as a `.lspt` case, and syntax highlighting is two layers with two tests**
   ([0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
+- **The editor offers a value only where the compiler already derived it for another reason** — a route
+  name, a config directive, an `#[Api]` field — never from a convention scan, an annotation dialect or a
+  network request, which is the whole of MWL's framework support; one workspace index answers references,
+  occurrence highlight, CodeLens, type hierarchy and unused-member dimming; and an inline-HTML region gets
+  the editor's own HTML/CSS/JS services but **no** formatter beside `mwl fmt`
+  ([0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md)).
 - **A `secret` value's bytes are concealed in the editor by default, on ranges the server computes and the
   client only draws; `tainted` gets no default decoration, because how a construct looks is the user's
   theme's to decide** ([0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md);

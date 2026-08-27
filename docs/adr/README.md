@@ -156,6 +156,7 @@ so you never have to open this file to route a topic.
 | The VS Code extension's feature catalog, why a minimal `mwl-lsp` ships in M4B, `mwl-syntax`'s resilient parse mode | [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) |
 | What the resilient tree *is* (trivia + an offset index, not a second CST), what `mwl-lsp` is built on and why not `tower-lsp`, the M4B request set, syntax highlighting's two layers and what each must colour, the `.lspt` case format | [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) |
 | Hiding a credential on a shared screen, blurring a `secret` literal in the editor, `mwl/redactions`, marking a `tainted` value with a glyph, and what a decoration still leaks (Search, diffs, the clipboard) | [0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) |
+| Find-all-references, occurrence highlight, CodeLens, type hierarchy, dimming an unused member; whether the editor completes a route name, a config directive or a framework's conventions; Emmet and HTML/CSS/JS editing inside a template region; generating a missing member or override; what `mwl dap` must report for the debugger UI to be deep; `mwl check --json` | [0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) |
 | Writing a test case — the `.mwlt` sections, `--EXPECTF--`'s escapes, `--ORACLE--`/`--ORACLE-DIVERGES--`, how `mwl test` decides pass or fail, importing a `.phpt` | [crates/mwl-test/src/lib.rs](../../crates/mwl-test/src/lib.rs)'s module doc — the one home for the format |
 | Testing a program *written in* MWL — `#[Test]`, `Core\Test`, assertions, doubles, fixtures, parameterized cases, property testing, snapshots, `#[Bench]`, mutation testing, why PHPUnit's mechanism does not port | [0079](0079-testing-is-a-language-feature.md) — distinct from the `.mwlt` row above, which is MWL's own conformance suite |
 | Third-party licenses, attribution, what `mwl info` prints, whether a new dependency's license may ship | [0065](0065-third-party-attribution-and-mwl-info.md) |
@@ -312,6 +313,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) | An uploaded file is a stream, and there is one way to receive it | Accepted |
 | [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) | Nothing a request can send terminates or wedges a worker | Accepted |
 | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) | A by-reference binding is spelled `inout`, at the declaration and at the call | Accepted |
+| [0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) | One reference index answers five features, editor completion may only offer what the compiler already derived, and a template region gets services but no second formatter | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
