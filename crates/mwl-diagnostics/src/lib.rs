@@ -945,6 +945,18 @@ pub mod code {
     /// stage a cell. The closure may also outlive every frame in scope where
     /// it was written.
     pub const E_CLOSURE_BY_REF_PARAM: Code = Code::new("E0493");
+    /// An ADR 0036 § 2 object literal writing one field name twice —
+    /// `{a: 1, a: 2}`.
+    ///
+    /// A shape's fields are a set: the type `{a: int}` names one slot `a`,
+    /// and there is no layout under which a literal's two `a`s are both
+    /// reachable. PHP's nearest neighbour is a duplicate *array* key, where
+    /// the last write wins silently, but an array is a map and a shape is a
+    /// record — and the two sides here would not even agree on which write
+    /// survives: the interned shape reads the first of the pair while a
+    /// class carries one slot per name. Refusing where it is written is the
+    /// only answer that keeps both readings out of the language.
+    pub const E_DUPLICATE_SHAPE_FIELD: Code = Code::new("E0494");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

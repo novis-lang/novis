@@ -42,7 +42,7 @@ use mwl_diagnostics::{Diagnostic, SourceFile, Span, code};
 use mwl_hir::{ClassGraph, QName, SymbolKind};
 use mwl_syntax::ast::{
     Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
-    MemberName, NewTarget, StringPart, Type, TypeKind, UnaryOp,
+    MemberName, NewTarget, ObjectLiteralField, StringPart, Type, TypeKind, UnaryOp,
 };
 use rustc_hash::FxHashSet;
 
@@ -160,20 +160,7 @@ pub(super) fn infer(
         ExprKind::ArrayLiteral(items) => {
             check_array_literal(items, expected, live, scope, ctx, env)
         }
-        // ADR 0036 § 2: each field's type is inferred from its own
-        // initializer (same idea as an `array<T>` literal's element type),
-        // and the literal's precise type is the exact-fields shape those
-        // infer to — `is_assignable`'s width subtyping is what lets it flow
-        // into a narrower shape or plain `object` target on its own.
-        ExprKind::ObjectLiteral(fields) => {
-            let mut out = Vec::with_capacity(fields.len());
-            for field in fields {
-                let name = span_text(env.src, field.name).to_owned();
-                let field_ty = check_expr(&field.value, None, live, scope, ctx, env);
-                out.push((name, field_ty));
-            }
-            env.interner.shape(out)
-        }
+        ExprKind::ObjectLiteral(fields) => check_object_literal(fields, live, scope, ctx, env),
         ExprKind::Unary { op, expr: inner } => {
             // `infer`, not `check_expr`: the operand inherits an *expectation*
             // rather than a position it has to satisfy, so a `-$n` under a

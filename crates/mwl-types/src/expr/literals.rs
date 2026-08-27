@@ -593,6 +593,61 @@ pub(super) fn check_heredoc_run_issues(
     }
 }
 
+/// `{a: 1, b: $x}` — ADR 0036 § 2's object literal, whose type is the
+/// exact-fields shape its own initializers infer to.
+///
+/// Each field's type is inferred from its initializer with no expectation
+/// pushed in, the same way an `array<T>` literal's elements infer their own
+/// type when the position names none: a shape target's width subtyping
+/// ([`super::assign::is_assignable`]) is what lets the precise literal flow
+/// into a narrower shape or a plain `object`, so there is nothing for an
+/// expectation to place here.
+///
+/// **A field name written twice is `E0494`.** A shape's fields are a set —
+/// `{a: int}` names one slot `a` — and the two sides of a repeated name would
+/// not even agree on which write survives: the interned shape reads the first
+/// of the pair, while the class `mwl_ir::lower` synthesizes carries one slot
+/// per name and would keep the last. PHP's nearest neighbour is a duplicate
+/// *array* key, where the last write wins silently, and that reading is not
+/// carried over: an array is a map and a shape is a record. The duplicate's
+/// own initializer is still checked, so its errors are reported in the same
+/// run, and only the repeat is dropped from the interned shape — which keeps
+/// what flows onward a genuine set rather than a shape no reader agrees on.
+pub(super) fn check_object_literal(
+    fields: &[ObjectLiteralField],
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let mut out: Vec<(String, TypeId)> = Vec::with_capacity(fields.len());
+    for field in fields {
+        let name = span_text(env.src, field.name).to_owned();
+        let field_ty = check_expr(&field.value, None, live, scope, ctx, env);
+        if out.iter().any(|(seen, _)| *seen == name) {
+            report_duplicate_shape_field(field, &name, env);
+            continue;
+        }
+        out.push((name, field_ty));
+    }
+    env.interner.shape(out)
+}
+
+/// The `E0494` half of [`check_object_literal`], which owns why.
+fn report_duplicate_shape_field(field: &ObjectLiteralField, name: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_DUPLICATE_SHAPE_FIELD,
+            format!("the field `{name}` is written twice in this object literal"),
+        )
+        .with_primary(field.name, "already given a value above")
+        .with_help(
+            "a shape's fields are a set, so there is one slot per name — drop one of the two, \
+             or give the second field its own name",
+        ),
+    );
+}
+
 pub(super) fn check_array_literal(
     items: &[ArrayItem],
     expected: Option<TypeId>,
