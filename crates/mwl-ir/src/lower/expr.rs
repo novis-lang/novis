@@ -626,10 +626,33 @@ impl<'a> Lowering<'a> {
             // across every pairing, including the `decimal`/`float` one
             // arithmetic refuses.
             BinaryOp::Cmp => (Helper::DecimalCmp, Ty::Int, vec![lhs, rhs], false),
+            // `BinaryOp`'s roster is 22 and this arm has no reachable target
+            // left. Twelve are the rows above, which is exactly what ADR 0054
+            // § 3 grants a `decimal`: the five arithmetic operators, `==`/`!=`,
+            // the four orderings and `<=>`. Of the ten it does not grant, six
+            // are refused a phase up and four never arrive at all.
+            //
+            // The six: `**` by
+            // `mwl_types::expr::operators::power_result`, which names
+            // `Core\Decimal::pow` and the rounding it does; and `&`, `|`, `^`,
+            // `<<` and `>>` by `reject_bitwise_operand`, ADR 0007 § 4's
+            // bitwise row being over `int` and `uint` alone — a `decimal` is a
+            // coefficient and a scale, so there is no bit pattern for them to
+            // read, and until that refusal existed a `decimal` operand landed
+            // here rather than anywhere it could be answered.
+            //
+            // The four: `.`, `&&`, `||` and `??` are taken by
+            // `Self::lower_expr` before the general `Binary` arm that is
+            // `Self::lower_binary`'s only caller, and `lower_binary` is this
+            // function's only caller in turn — so they cannot reach a
+            // `decimal` row any more than they reach the scalar one. A
+            // compound assignment arrives the same way, `AssignOp::to_binary_op`
+            // handing back an ordinary `BinaryOp` that re-enters `lower_expr`.
+            //
+            // That subtraction is the proof; the message below is not.
             other => panic!(
-                "mwl-ir lowers ADR 0054 § 3's arithmetic, equality and ordering operators over \
-                 `decimal` — got {other:?}; `**` has no row there, and is the \
-                 diagnostic `mwl_types::expr::operators::power_result` reports"
+                "mwl-ir: unreachable — `BinaryOp::{other:?}` reached the `decimal` operator \
+                 table; see this arm's own comment for the roster it subtracts"
             ),
         };
         let inst = InstKind::HelperCall { helper, args };
@@ -709,6 +732,19 @@ impl<'a> Lowering<'a> {
                 );
                 (sv, false)
             }
+            // ADR 0007 § 2's row for `null`, which PHP answers with the empty
+            // string and which `Helper::TaggedToString` already answers that
+            // way for the `?string` holding one. A *statically* `null`
+            // operand is the same value one type earlier, so it renders the
+            // same rather than being refused a phase up — the checker's
+            // `require_stringable` names the four types that are refused, and
+            // this is not one of them. The operand itself is lowered for its
+            // effects and then unused; `Ty::Null` is not refcounted, so there
+            // is nothing to release.
+            Ty::Null => {
+                let (sv, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(String::new()));
+                (sv, false)
+            }
             // A union operand — `mixed`, a `?T`, a `Core` member's
             // `int|float`. The row is picked at runtime from the tag the
             // value already carries, and it can fail, so this is the one
@@ -759,9 +795,31 @@ impl<'a> Lowering<'a> {
                     (sv, false)
                 }
             },
+            // [`crate::ty::Ty`]'s roster is fifteen and this arm has no
+            // reachable target left. Nine are the rows above: `Ty::Str`, the
+            // five scalars each through their own helper, `Ty::Null` as the
+            // empty string, `Ty::Tagged` through the runtime tag and
+            // `Ty::Object` through ADR 0028 § 1's `toString`.
+            //
+            // Four are refused a phase up by
+            // `mwl_types::expr::operators::require_stringable`, the one check
+            // every implicit site goes through, each naming the spelling that
+            // says what was meant: `Ty::Bytes` (ADR 0009 § 3 grants
+            // `as string` and nothing implicit), `Ty::Array` (PHP prints
+            // `"Array"` and a notice; MWL names `Core\Json::encode`),
+            // `Ty::Enum` (ADR 0010 § 3's named integer, `$case as int`) and
+            // `Ty::Void` (a call with no value at all).
+            //
+            // The last two are not types a *source expression* ever has.
+            // `Ty::ClassDesc` is produced only as a static call's receiver
+            // slot, by `InstKind::ClassDescOf`/`ClassDescConst` — never
+            // `Self::lower_expr`'s answer, `Foo::class` folding to a `string`
+            // constant instead — and `Ty::Ref` only by `InstKind::RefSlot`
+            // staging a `&$x` argument, which goes straight to the callee.
+            // That subtraction is the proof; the message below is not.
             other => panic!(
-                "mwl-ir converts a scalar, an object or a `Ty::Tagged` operand to `string` for \
-                 `.` — got {other:?}, which `mwl_types` should already have refused"
+                "mwl-ir: unreachable — a `{other:?}` operand reached the implicit `string` \
+                 conversion; see this arm's own comment for the roster it subtracts"
             ),
         }
     }

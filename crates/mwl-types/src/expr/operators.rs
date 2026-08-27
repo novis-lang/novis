@@ -5,10 +5,13 @@
 //! ADR 0013's `Comparable` requirement is the amendment for the five ordering
 //! operators when both operands are objects ([`object_comparison_result`]),
 //! with no property-walk fallback. ADR 0028 § 1's sibling is
-//! [`require_stringable`], which refuses an object at every *implicit*
-//! string-conversion site — interpolation, concatenation, `echo`/`print`,
-//! `as string` — unless it provably implements the reserved global
-//! `Stringable` interface. ADR 0054 § 3 refuses `decimal ⊕ float` outright
+//! [`require_stringable`], which is what ADR 0007 § 2's "anything → `string`"
+//! row is worth at an *implicit* site — interpolation, concatenation,
+//! `echo`/`print`: a scalar, and an object that provably implements the
+//! reserved global `Stringable` interface ([`require_stringable_object`],
+//! which the explicit `as string` calls on its own, since that conversion is
+//! the one ADR 0009 § 3 grants a `bytes` operand). ADR 0054 § 3 refuses
+//! `decimal ⊕ float` outright
 //! ([`reject_decimal_float_operands`]), and ADR 0010 refuses arithmetic on an
 //! enum and a conversion between two of them.
 //!
@@ -87,7 +90,10 @@ pub(super) fn infer_conversion(
         check_expr(inner, None, live, scope, ctx, env)
     };
     if matches!(env.interner.get(result), Ty::String) {
-        require_stringable(inner_ty, inner.span, env);
+        // The *object* half only: `as string` is the explicit conversion, and
+        // ADR 0007 § 2's table grants it rows — `bytes` among them — that no
+        // implicit site gets.
+        require_stringable_object(inner_ty, inner.span, env);
     }
     check_class_target_conversion(ty, result, expr.span, env);
     reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
@@ -126,7 +132,7 @@ pub(super) fn binary_result(
         BinaryOp::Pow => power_result(lhs, rhs, span, env),
         BinaryOp::Div => division_result(lhs, rhs, span, env),
         BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor | BinaryOp::Shl | BinaryOp::Shr => {
-            bitwise_result(lhs, rhs, span, env)
+            bitwise_result(op, lhs, rhs, span, env)
         }
         BinaryOp::Cmp => {
             object_comparison_result(op, lhs, rhs, span, env).unwrap_or_else(|| env.interner.int())
@@ -538,8 +544,17 @@ pub(super) fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut En
     }
 }
 
-pub(super) fn bitwise_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
+pub(super) fn bitwise_result(
+    op: BinaryOp,
+    lhs: TypeId,
+    rhs: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> TypeId {
     if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
+        return mixed;
+    }
+    if let Some(mixed) = reject_bitwise_operand(op, lhs, rhs, span, env) {
         return mixed;
     }
     match (env.interner.get(lhs).clone(), env.interner.get(rhs).clone()) {
@@ -549,8 +564,86 @@ pub(super) fn bitwise_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env
             report_int_uint(span, env);
             env.interner.mixed()
         }
+        // Only an operand whose type is not yet known reaches here now — a
+        // `mixed`, a union, a type variable — because every *known* type but
+        // the three integer spellings above has been refused two lines up.
         _ => env.interner.mixed(),
     }
+}
+
+/// ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint`, and this is what
+/// makes that a rule rather than a table the checker happened not to model.
+///
+/// Every other operand PHP answers by *converting* first — `1.5 & 1.5` is
+/// `1 & 1` there, `"ab" & "cd"` is bytewise, `true & true` is `1` — and
+/// ADR 0007 § 2 has no implicit conversion for any of them to be. Left
+/// unmodelled they reached [`bitwise_result`]'s `_ => mixed` arm with nothing
+/// reported, and what happened below was worse than a refusal in every
+/// direction: a `float` pair became a bit-and over the `f64`'s own bits and
+/// answered `1.5`, a `decimal` pair panicked `mwl_ir::lower::expr`'s ADR 0054
+/// § 3 table, and a `string` pair reached `mwl-codegen`'s "no `BinOp` over
+/// this representation".
+///
+/// A `decimal` is the operand worth naming twice: it is a number, so it
+/// passes every "is this arithmetic" guard around it, and it is a coefficient
+/// and a scale rather than a bit pattern, so ADR 0054 § 3 grants it
+/// arithmetic, equality and ordering and stops. The refusal here is the one
+/// that leaves that table's own catch-all no reachable target.
+///
+/// Scoped like the refusals around it: an operand whose type is not yet known
+/// ([`equality_domain`] answering `None` — `mixed`, a union, a type variable)
+/// passes through, and so does an integer *literal* type, which is the same
+/// integer one placement later. Returns `Some(mixed)` once diagnosed, `None`
+/// for every pair the table below should answer itself.
+fn reject_bitwise_operand(
+    op: BinaryOp,
+    lhs: TypeId,
+    rhs: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let spelling = match op {
+        BinaryOp::BitAnd => "&",
+        BinaryOp::BitOr => "|",
+        BinaryOp::BitXor => "^",
+        BinaryOp::Shl => "<<",
+        _ => ">>",
+    };
+    // The left operand first, so a pair that is wrong on both sides reports
+    // once and names the side written first.
+    let offender = [lhs, rhs]
+        .into_iter()
+        .find(|ty| bitwise_operand_is_refused(env.interner.get(*ty)))?;
+    report_bitwise_operand(spelling, offender, span, env);
+    Some(env.interner.mixed())
+}
+
+/// Whether one operand of a bitwise operator is refused outright — the
+/// predicate [`reject_bitwise_operand`]'s doc comment explains.
+fn bitwise_operand_is_refused(ty: &Ty) -> bool {
+    if matches!(ty, Ty::Int | Ty::Uint | Ty::IntLiteral(_)) {
+        return false;
+    }
+    equality_domain(ty).is_some()
+}
+
+/// The one diagnostic both bitwise spellings report — the five binary
+/// operators through [`reject_bitwise_operand`] and `~` through
+/// [`reject_unary_arith_operand`], so that the six agree on their wording as
+/// well as on their rule.
+fn report_bitwise_operand(spelling: &str, ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let described = env.interner.describe(ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_BITWISE_NOT_INTEGER,
+            format!("`{spelling}` has no meaning for `{described}`"),
+        )
+        .with_primary(span, "a bitwise operator is over integers")
+        .with_help(
+            "ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this \
+             operand first and MWL never converts by itself, so say it — `$x as int`",
+        ),
+    );
 }
 
 /// ADR 0054 § 3: `decimal ⊕ float` is a compile error, on the same grounds
@@ -669,6 +762,17 @@ pub(super) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
                  `Core\\Time\\Duration` negates with `->negated()` and subtracts with `->minus(…)`",
             ),
         );
+        return;
+    }
+    // `~` parts from `-` and `+` on the numeric row, and this is the whole of
+    // the difference: ADR 0007 § 4 grants arithmetic over four numeric types
+    // and bit operations over two, so a `float` or a `decimal` operand is a
+    // number with no bit pattern to complement. It takes the *bitwise* code,
+    // because the rule that author needs is that row's rather than "this is
+    // not a number" — every other operand of `~` is refused below, with the
+    // sentence its two siblings use.
+    if op == UnaryOp::BitNot && matches!(env.interner.get(ty), Ty::Float | Ty::Decimal) {
+        report_bitwise_operand("~", ty, span, env);
         return;
     }
     let refused = {
@@ -972,7 +1076,63 @@ fn conversion_operand_singleton(
     Some(env.interner.enum_case(qname, backing, case))
 }
 
+/// ADR 0007 § 2's "anything → `string`" row, at the four sites that take it
+/// *implicitly*: `.`, `.=`, an interpolated piece and `echo`/`print`. The row
+/// reads "total for scalars; an object needs `Stringable`", and this is both
+/// halves of it — [`require_stringable_object`] for the object one, and the
+/// refusal below for the four types the row does not reach at all.
+///
+/// Those four are `bytes`, `array<T>`, an enum case and a `void` call, and
+/// each has a spelling that says what was meant. They are refused here rather
+/// than below because `mwl_ir::lower::expr`'s `concat_operand` has no row for
+/// any of them and could only panic — this refusal is what leaves that
+/// function's catch-all no reachable target.
+///
+/// A `null` operand is **not** refused: it renders as the empty string, which
+/// is both PHP's answer and the one a `?string` holding `null` already gets
+/// from `Helper::TaggedToString` at run time. Refusing the static case while
+/// the dynamic one prints nothing would be a divergence from PHP *and* from
+/// MWL's own behaviour on the same value.
 pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    require_stringable_object(ty, span, env);
+    let help = match env.interner.get(ty) {
+        Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => {
+            "ADR 0009 § 3 makes that conversion explicit, because which encoding the octets \
+             are in is a decision — `$b as string`"
+        }
+        Ty::Array(_) => {
+            "an `array<T>` has no text of its own; render it — `Core\\Json::encode($a)` — or \
+             build the string from its elements"
+        }
+        Ty::Enum(..) | Ty::EnumCase(..) => {
+            "an enum case is a named integer (ADR 0010 § 3), not text — `$case as int`, or a \
+             member of your own that names it"
+        }
+        Ty::Void => {
+            "a call that returns `void` has no value at all, so there is nothing here to \
+             print"
+        }
+        _ => return,
+    };
+    let described = env.interner.describe(ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_NO_STRING_FORM,
+            format!("`{described}` has no string form"),
+        )
+        .with_primary(span, "converted to `string` here")
+        .with_help(help),
+    );
+}
+
+/// ADR 0028 § 1's half of the row above: an object is stringifiable exactly
+/// where it provably implements the reserved global `Stringable`, with no
+/// property-walk fallback and no `__toString`. A `Core`-owned class is
+/// exempted here and decided by its own registry row at run time.
+///
+/// Called on its own by the `as string` conversion, which is why it is a
+/// function rather than a branch of [`require_stringable`].
+fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
     let Ty::Class(qname, _) = env.interner.get(ty).clone() else {
         return;
     };

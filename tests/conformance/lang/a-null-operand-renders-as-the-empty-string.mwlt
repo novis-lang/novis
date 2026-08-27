@@ -1,0 +1,23 @@
+--TEST--
+A statically `null` operand renders as the empty string at every implicit string site, agreeing with the `?string` holding one — ADR 0007 § 2
+--FILE--
+<?mwl
+// The row the four refusals beside this case do *not* include. `null` has an
+// answer in PHP — the empty string — and MWL already gives that answer for a
+// `?string` holding one, which is the same value one type wider: the
+// conversion is picked from the tag at run time there and from the static
+// type here. What this asserts is that the two **agree**, so that narrowing a
+// binding from `?string` to `null` never changes what a line prints.
+?string $held = null;
+echo "[", null, "]", "[", $held, "]\n";
+
+// The same agreement at the other three sites: `.`, an interpolated piece and
+// `.=`.
+string $joined = "a" . null;
+string $interpolated = "x{$held}y";
+string $appended = "b";
+$appended .= null;
+echo "[", $joined, "][", $interpolated, "][", $appended, "]\n";
+--EXPECT--
+[][]
+[a][xy][b]

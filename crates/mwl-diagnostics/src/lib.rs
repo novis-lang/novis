@@ -1189,6 +1189,39 @@ pub mod code {
     /// operator overloading" is the sentence that author needs, not "convert
     /// it first".
     pub const E_UNARY_ARITH_NOT_NUMERIC: Code = Code::new("E0705");
+    /// `&`, `|`, `^`, `<<`, `>>` or `~` over an operand ADR 0007 § 4's bitwise
+    /// row has no entry for — that row is `int` and `uint` and nothing else,
+    /// so a `float`, a `decimal`, a `string`, a `bool`, `null`, an `array<T>`,
+    /// a `callable` or an object all take this code.
+    ///
+    /// The sibling of [`E_UNARY_ARITH_NOT_NUMERIC`] one row over, and the
+    /// division of labour between them is the *numeric* operands: `-1.5` is
+    /// arithmetic ADR 0007 § 4 grants and `~1.5` is not, because a `float` and
+    /// a `decimal` are numbers with no bit pattern to complement. A
+    /// non-numeric operand of `~` keeps the unary code, whose sentence — "PHP
+    /// converts this operand first" — is the one that author needs.
+    ///
+    /// What it replaces is worse than a refusal: `1.5 & 1.5` used to answer
+    /// `1.5`, a bit-and over the `f64`'s own representation, where PHP answers
+    /// the `int` `1`; a `decimal` operand panicked `mwl-ir`'s ADR 0054 § 3
+    /// table instead.
+    pub const E_BITWISE_NOT_INTEGER: Code = Code::new("E0706");
+    /// A `bytes`, an `array<T>`, an enum case or a `void` call used where a
+    /// `string` is produced *implicitly* — `.`, `.=`, an interpolated piece,
+    /// `echo`/`print`. ADR 0007 § 2's "anything → `string`" row is "total for
+    /// scalars; an object needs `Stringable`", and these four are the types it
+    /// does not reach at all.
+    ///
+    /// The explicit `as string` is deliberately not this code's business:
+    /// ADR 0009 § 3 grants `bytes as string`, and the whole of the difference
+    /// is an encoding decision made out loud rather than by a `.` operator. An
+    /// object with no `toString` keeps [`E_STRINGABLE_REQUIRED`], whose
+    /// sentence names the interface to implement.
+    ///
+    /// `null` is **not** here: it renders as the empty string, which is both
+    /// PHP's answer and the one a `?string` holding `null` already gets at run
+    /// time — `mwl_ir::lower::expr`'s `concat_operand` owns that row.
+    pub const E_NO_STRING_FORM: Code = Code::new("E0707");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
