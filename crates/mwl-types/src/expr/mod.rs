@@ -274,8 +274,22 @@ pub(super) fn infer(
                     level = base;
                 }
             }
-            let lhs_ty = check_expr(lhs, None, live, scope, ctx, env);
-            let rhs_ty = check_expr(rhs, None, live, scope, ctx, env);
+            // The literal side is checked *second*, so the type it takes its
+            // placement from is already in hand — see
+            // [`uint_operand_expectation`] for why `uint` is the only type
+            // that placement changes anything for. When both sides are digit
+            // runs neither places the other and the source order stands, which
+            // is also the order every diagnostic below is reported in.
+            let (lhs_ty, rhs_ty) =
+                if matches!(lhs.kind, ExprKind::Int(_)) && !matches!(rhs.kind, ExprKind::Int(_)) {
+                    let rhs_ty = check_expr(rhs, None, live, scope, ctx, env);
+                    let placed = uint_operand_expectation(lhs, rhs_ty, env.interner);
+                    (check_expr(lhs, placed, live, scope, ctx, env), rhs_ty)
+                } else {
+                    let lhs_ty = check_expr(lhs, None, live, scope, ctx, env);
+                    let placed = uint_operand_expectation(rhs, lhs_ty, env.interner);
+                    (lhs_ty, check_expr(rhs, placed, live, scope, ctx, env))
+                };
             if *op == BinaryOp::Concat {
                 require_stringable(lhs_ty, lhs.span, env);
                 require_stringable(rhs_ty, rhs.span, env);

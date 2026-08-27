@@ -1,0 +1,59 @@
+--TEST--
+An integer literal beside a `uint` operand is placed at `uint` rather than defaulting to `int`, on every row of the operator table — ADR 0007 §§ 2 and 4
+--FILE--
+<?mwl
+// ADR 0007 § 2: "a numeric literal is untyped until placed, so it takes
+// `int`, `uint`, `float` or `decimal` from its target rather than
+// converting." A binary operator's other operand is one of those placements,
+// and `uint` is the only type it changes anything for — an unplaced digit run
+// defaults to `int`, so without it every row below is § 4's mixed-signedness
+// refusal and a `uint` can meet only a `uint`-declared local.
+
+// 1. Agreement rather than a value: every row is asked twice, once of a bare
+//    digit run and once of the identical value declared `uint`, and what is
+//    counted is that the two answered the same thing. A digit run that still
+//    defaulted to `int` does not reach this line at all — it is a compile
+//    error one phase up — and one placed at some other width answers here.
+uint $u = 6;
+uint $one = 1;
+uint $two = 2;
+uint $three = 3;
+int $agrees = 0;
+if (($u + 1) == ($u + $one)) { $agrees = $agrees + 1; }
+if (($u - 1) == ($u - $one)) { $agrees = $agrees + 1; }
+if (($u * 2) == ($u * $two)) { $agrees = $agrees + 1; }
+if (($u % 3) == ($u % $three)) { $agrees = $agrees + 1; }
+if (($u ** 2) == ($u ** $two)) { $agrees = $agrees + 1; }
+if (($u & 3) == ($u & $three)) { $agrees = $agrees + 1; }
+if (($u | 3) == ($u | $three)) { $agrees = $agrees + 1; }
+if (($u ^ 3) == ($u ^ $three)) { $agrees = $agrees + 1; }
+if (($u << 2) == ($u << $two)) { $agrees = $agrees + 1; }
+if (($u >> 1) == ($u >> $one)) { $agrees = $agrees + 1; }
+echo "rows agreeing: ", $agrees, "/10\n";
+
+// 2. Either side, because the placement is the *other* operand rather than
+//    the left one: a digit run written first is placed by what follows it.
+echo "literal on the left: ", 10 - $u, " ", 1 + $u, " ", 64 >> $u, "\n";
+
+// 3. The bound this placement is the only way to reach, named on both sides.
+//    § 4 makes a digit run past `int` "legal only where a `uint` is
+//    expected", and an operand was not such a position until now: `i64::MAX`
+//    is the last value that also fits an `int`, and one past it is the first
+//    that needs the placement to be written at all.
+uint $max = 9223372036854775807;
+echo "at i64::MAX: ", $max - 9223372036854775807, "\n";
+echo "one past it: ", 9223372036854775808 - $max, "\n";
+echo "at u64::MAX: ", 18446744073709551615 - $max, "\n";
+
+// 4. Value-preserving, which is what makes it safe on the comparison rows
+//    too: a bare digit run is never negative — a leading `-` is a wrapping
+//    unary operator, deliberately left unplaced — so the same value is being
+//    named at the neighbour's width.
+echo "comparisons: ", $u == 6, " ", $u < 7, " ", $max == 9223372036854775807, "\n";
+--EXPECT--
+rows agreeing: 10/10
+literal on the left: 4 7 1
+at i64::MAX: 0
+one past it: 1
+at u64::MAX: 9223372036854775808
+comparisons: 1 1 1

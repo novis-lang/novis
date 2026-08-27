@@ -186,6 +186,44 @@ pub(super) fn negated_literal_result(
         .map_or(inner, |negated| interner.int_literal(negated))
 }
 
+/// ADR 0007 § 2's "a numeric literal is untyped until placed" applied to the
+/// one placement a binary operator offers: its *other* operand.
+///
+/// `uint` is the only type this changes anything for, and it changes
+/// everything about writing one. An unplaced digit run defaults to `int` two
+/// functions below, so before this existed every literal beside a `uint` was
+/// § 4's mixed-signedness refusal — `$u + 1`, `$u & 3` and `$u << 1` were all
+/// `E0407`, and a `uint` operand could meet only a `uint`-declared local. A
+/// compound assignment never had the problem, because
+/// [`super::assign::check_compound_assign`] already hands its value the
+/// target's type as a hint; this is the same hint for the spelling that hint
+/// was missing.
+///
+/// Value-preserving on every row of § 4's table, and that is why it is safe to
+/// apply to the whole table rather than to the arithmetic rows alone: a bare
+/// digit run is never negative — a leading `-` is a wrapping
+/// [`ExprKind::Unary`], deliberately not placed here — so the same value is
+/// being named, at the width the neighbour already has. What it also buys is
+/// the literal above `i64::MAX`, which [`infer_int_literal`] admits exactly
+/// where a `uint` is expected and which therefore had no operand position at
+/// all until now.
+///
+/// Returns `None` for every other operand shape and every other neighbouring
+/// type, so that operand is checked with no expectation exactly as before.
+pub(super) fn uint_operand_expectation(
+    operand: &Expr,
+    other: TypeId,
+    interner: &mut TypeInterner,
+) -> Option<TypeId> {
+    if !matches!(operand.kind, ExprKind::Int(_)) {
+        return None;
+    }
+    if !matches!(interner.get(other), Ty::Uint) {
+        return None;
+    }
+    Some(interner.uint())
+}
+
 /// `123` — [`super::infer`]'s `ExprKind::Int` arm.
 ///
 /// ADR 0007 § 4: "An integer literal that does not fit `int` is legal only

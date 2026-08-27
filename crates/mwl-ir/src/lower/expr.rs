@@ -3010,8 +3010,27 @@ impl<'a> Lowering<'a> {
             unreachable!("lower_binary is reached only from `lower_expr`'s `Binary` arm");
         };
         let op = *op;
-        let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
-        let (rv, rty) = self.lower_expr(rhs, Some(lty), env, cur);
+        // The right operand is lowered against the left's representation,
+        // which is ADR 0054 § 2's placement rule carried one crate down: a
+        // digit run beside a `uint` is a `ConstUint`, not an `int` that
+        // happens to fit. When the digit run is the *left* operand the two
+        // are lowered in the other order, and nothing is observably reordered
+        // by it — a literal is a constant with no effects of its own, while
+        // the operand that could have some is still evaluated exactly once.
+        // The checker makes the same swap for the same reason
+        // (`mwl_types::expr::uint_operand_expectation`), and without this
+        // half a literal above `i64::MAX` beside a `uint` passes it and then
+        // panics below on a value that never fit an `int`.
+        let (lv, lty, rv, rty) =
+            if matches!(lhs.kind, ExprKind::Int(_)) && !matches!(rhs.kind, ExprKind::Int(_)) {
+                let (rv, rty) = self.lower_expr(rhs, expected, env, cur);
+                let (lv, lty) = self.lower_expr(lhs, Some(rty), env, cur);
+                (lv, lty, rv, rty)
+            } else {
+                let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
+                let (rv, rty) = self.lower_expr(rhs, Some(lty), env, cur);
+                (lv, lty, rv, rty)
+            };
         // ADR 0054 § 3's table is a set of runtime helpers rather than
         // a machine instruction, so a `decimal` on *either* side takes
         // its own path -- including the mixed `decimal ⊕ int` row,
