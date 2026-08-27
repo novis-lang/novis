@@ -404,10 +404,29 @@
 > `tests/differential/iter/an-abandoned-generators-finally-matches-phps.mwlt`, which adds an
 > abandonment made while an exception is in flight and agrees with PHP 8.5.9 byte for byte.
 > Valgrind-clean over four scratch fixtures covering the same shapes, the throwing `finally` among
-> them. Three live tools **are** the worklist and no session re-derives one: `python tools/holes.py`
-> reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item
-> N` for one in full), `python tools/loop.py --list` prints the named `.mwlt` cases each stage still
-> owes, and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> them. **ADR 0007 § 4's ordering row is closed at both ends**, which is `emit_binop`'s
+> representation catch-all subtracted from the operator end rather than from the backend's. That
+> table orders the numeric types against each other and, through ADR 0013, two objects of one
+> `Comparable` class; everything else PHP orders it orders by **converting** an operand first, which
+> § 2 never does by itself, so an operand the table does not name has no `<` at all rather than a
+> plausible answer below it. `mwl_types`' `reject_unordered_operand` refuses it where it is written
+> (`E0715`), each help naming the spelling that says what was meant — `Core\Str::compare` for two
+> strings, `as int` for an enum case, and nothing at all for a `bytes`, an `array<T>`, a `callable`
+> or `null`, which have no ordering to name. Two rows go the other way and are answered rather than
+> refused: `bool` against `bool`, which is the ordering of the one bit it already is and is PHP's
+> answer too, and `null == null`, which reached the same catch-all and is now a constant in
+> `emit_binop` — both operands are the single value the type has, so ADR 0090 § 2's disjointness
+> check passes the pair and there is nothing to compute. The **object** family keeps ADR 0013's own
+> `E0411` however the receiver was spelled, an erased `object` and a shape included, so "these two
+> do not order" reads as one diagnostic rather than as two codes divided by how much the checker
+> happened to know. What still reaches that catch-all is `Ty::Tagged`, whose arithmetic and ordering
+> are item 24, and the three representations no source expression has — the site's own comment
+> carries that roster, as the statement and expression dispatches' do. ADR 0007 § 4's table gains
+> the two rows and the closure sentence rather than being left to disagree with the tree. Three live
+> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
+> refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item N` for
+> one in full), `python tools/loop.py --list` prints the named `.mwlt` cases each stage still owes,
+> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

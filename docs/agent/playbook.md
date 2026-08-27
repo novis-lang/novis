@@ -969,8 +969,9 @@ is why" — is this file.
   representations with *"does not lower a binary operator over mismatched representations"*. Equality is
   out of that hole, and so is ADR 0007 § 4's whole promotion table: `$n + $f`, `$n * $f`, `$n ** $f`,
   `$n < $f`, `$n <=> $f` and `$u + $f` all run today, `mwl-ir` having widened the narrower operand before
-  the instruction is emitted. What still reaches that refusal is a pair no widening exists for — two
-  `string`s under `<` (the neighbouring bullet), an `Enum` under any operator. So a conformance case
+  the instruction is emitted. The ordering half of the hole is closed at the *checker* now (`E0715`, the
+  neighbouring bullet), so what still reaches this refusal is a mismatched pair no widening exists for and
+  no diagnostic names — a `Ty::Tagged` operand under an operator, mostly. So a conformance case
   written straight off an ADR's compiling rows can still fail at run time: run the rows in a scratch
   `.agent-tmp/*.mwl` before writing the case, and if one does not lower, pin it in the crate's own
   `tests/` and say in the case comment why it is not here.
@@ -980,17 +981,19 @@ is why" — is this file.
   arbitrary buffer — a lone `ff`, a truncated sequence — still has to come from `fromHex`. Assert the
   result with `toHex` either way, since `echo` has no `bytes` row: ADR 0009 § 3 makes `bytes as string`
   *checked*, and an implicit render is not that check.
-- **`emit_binop`'s ordering rows are `Int | Uint | Bool` only, so `<`/`<=`/`>`/`>=` over two `string`s
-  does not lower** — and the checker does not stop you, because `operators.rs`'s result table models only
-  `int`/`uint`/`float` operands and falls back to `mixed` for everything else. A `.mwlt` case that
-  compares two strings for order therefore compiles and then fails at run time. Assert a fixed slice with
-  `==`, or a shape with `Core\Regex::matches`, and pin the ordering in the crate's own `#[test]`, which
-  can also sleep. Watch the neighbouring trap too: a `Core` member answering `uint`
-  (`Core\Str::length`) in `$int + …` is `E0407`, not a widening.
-- **`mwl-codegen` has no `BinOp` row for `Ty::Enum` at all**, matched pair or not: `emit_binop`'s
-  `integral` set is `Int | Uint | Bool`, so an `Eq` a lowering emits over two enum values fails with
-  *"a `Eq` over representation Enum(Int)"*. Compare one representation down — `InstKind::Reinterpret` to
-  the backing integer is free, and it is the row `$m as int` already uses.
+- **`<`/`<=`/`>`/`>=`/`<=>` over two `string`s is `E0715` where it is written**, and this bullet used to
+  say it compiled and then failed at run time — it does not any anymore, and the diagnostic names the
+  member that does say what was meant. `Core\Str::compare` is the ordering two strings have; the same
+  code refuses a `bytes`, an `array<T>`, a `callable`, an enum case (order `as int` instead) and `null`,
+  while the object family keeps `E0411` however the receiver was spelled. So a case that wants to assert
+  text ordering asserts `Core\Str::compare`, and one that wants a fixed slice still uses `==`. Watch the
+  neighbouring trap too: a `Core` member answering `uint` (`Core\Str::length`) in `$int + …` is `E0407`,
+  not a widening.
+- **`emit_binop`'s `integral` set is `Int | Uint | Bool`, so an enum operand needs the reinterpretation
+  first.** `==` over two enum values lowers today because `mwl-ir` compares one representation down —
+  `InstKind::Reinterpret` to the backing integer is free, and it is the row `$m as int` already uses — so
+  a new lowering that emits a `BinOp` over `Ty::Enum` directly still fails with *"a `Eq` over
+  representation Enum(Int)"*.
 - **Never put `--ORACLE--` in a `tests/conformance/` case** — CI runs that suite on all three hosted
   runners and none of them has PHP, so an oracle section makes the runner *skip the whole case* there,
   subtracting from the very count Stage 4 measures. Verify against PHP while authoring — `php -r '…'` is
@@ -1384,8 +1387,8 @@ is why" — is this file.
 
 - **Float `<`, `>`, `&&` and `||` all lower, and `0.0 / 0.0` answers `NAN` rather than throwing** —
   which together are what let a case assert "near, not equal" without a member. The neighbouring
-  bullet about `emit_binop`'s ordering rows being `Int | Uint | Bool` is about *strings*; two
-  `float`s compare for order fine. So the tolerance spelling a float agreement case wants is
+  bullet about `E0715` is about *strings* and the other unordered domains; two `float`s compare for
+  order fine. So the tolerance spelling a float agreement case wants is
   `float $tol = 0.000000000001 * ($mag + 1.0);` then `if (($d < $tol) && ($d > 0.0 - $tol))`, with
   the magnitude taken by hand (`if ($mag < 0.0) { $mag = 0.0 - $mag; }`) because
   `Core\Math::abs` answers the `int|float` union and not a `float`. `-0.0` echoes as `-0` and is
