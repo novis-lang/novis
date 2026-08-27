@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -285,6 +286,45 @@ def totals(sessions):
         "tail": sum(s["tail"] for s in whole) / len(whole),
         "cost_per_session": sum(s["cost_usd"] or 0 for s in whole) / len(whole),
     }
+
+
+def live_ctx_start(sessions):
+    """What the NEXT session will open at, rather than what the last ones opened at.
+
+    The projection decides a slice cap, and a cap is advice about the run you are about to do.
+    `ctx_start` averaged over the transcripts answers a different question: it is the mean of
+    every pack the last run happened to carry, and the pack is the one part of the floor anybody
+    ever changes. A pass that halves it would otherwise go on producing the old cap until a whole
+    run had been spent re-measuring the thing that was just measured.
+
+    So: the regressed fixed floor -- harness prompt, tool schemas, CLAUDE.md, AGENTS.md, none of
+    which moves -- plus the pack that is on disk right now, at the regressed bytes-per-token.
+    Falls back to the historical mean when there is no calibration to regress from, because a
+    projection from a guessed constant is worse than one from a stale measurement."""
+    points = [(s["pack_bytes"], s["ctx_start"]) for s in sessions
+              if s.get("pack_bytes") and s.get("ctx_start")]
+    if len({p for p, _ in points}) < 2:
+        return None
+    n = len(points)
+    mx = sum(p for p, _ in points) / n
+    my = sum(c for _, c in points) / n
+    sxx = sum((p - mx) ** 2 for p, _ in points)
+    if sxx == 0:
+        return None
+    slope = sum((p - mx) * (c - my) for p, c in points) / sxx
+    intercept = my - slope * mx
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "orient.py")],
+            capture_output=True, text=True, cwd=ROOT, timeout=60,
+        )
+        if proc.returncode != 0:
+            return None
+        now = len(proc.stdout.encode("utf-8"))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {"tokens": intercept + slope * now, "pack": now, "floor": intercept,
+            "per_byte": slope}
 
 
 def project(t, ceiling):
@@ -624,6 +664,16 @@ def main():
         )
     else:
         print(f"   largest context any session here reached: {max(s['ctx_end'] for s in sessions):,}")
+    # The projection is advice about the NEXT run, so it opens where the next session will open,
+    # not where the last ones did. The pack on disk is the only part of that floor anyone moves.
+    live = live_ctx_start(sessions)
+    if live and abs(live["tokens"] - t["ctx_start"]) > 2_000:
+        print(
+            f"   the pack on disk is now {live['pack']:,} B, so the NEXT session opens at "
+            f"{live['tokens']:,.0f},\n   not the {t['ctx_start']:,.0f} these transcripts averaged. "
+            "Everything below uses the former."
+        )
+        t = dict(t, ctx_start=live["tokens"])
     budget = ceiling - t["ctx_start"]
     print(
         f"   a session starts at {t['ctx_start']:,.0f} (prompt + AGENTS.md + orientation), leaving "

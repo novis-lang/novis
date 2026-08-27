@@ -29,10 +29,15 @@ added; that file is authoritative for steps 1–5.
    collections and ended at 235,448 against a 200,000 ceiling. 120k leaves the ~45k a second slice has
    historically cost plus the ~33k tail of verification, docs, handoff and commits. If you are past it,
    stop at one and say in the handoff where you stopped; what you do not reach stays ticked-off-able for
-   the next session, and the ceiling is a quality number, not a capacity one.
-3. **Verify once, at the end of the group:** `python tools/verify.py`, plus a `valgrind` run for any new
-   refcount edge (`docs/agent/commands.md`). **This is the only place verification happens**, and the whole
-   group shares one run — it is the same build either way.
+   the next session, and the ceiling is a quality number, not a capacity one. The cap itself and the
+   measurement behind it live in `AGENTS.md` § *Session workflow* step 2, which is their only home.
+3. **Verify once, at the end of the group — and start it before you write the wrap.** `python
+   tools/verify.py --start` returns at once, `python tools/verify.py --wait` collects it with its exit
+   status, and the wrap file gets written in between: it is the same steps and the same verdict, with the
+   42 seconds overlapping prose that cannot fail. Add a `valgrind` run for any new refcount edge
+   (`docs/agent/commands.md`). **This is the only place verification happens**, and the whole group shares
+   one run — it is the same build either way. A mid-work check is `--fast` or `-p <crate>`, never the full
+   gate.
 4. **Write the docs and the handoff, once for the whole group.** The plan's status block, any doc the
    change invalidates, and `docs/agent/handoff.md` overwritten under the contract below. If the session
    cost you a *trap* — something that looked like it should work and did not — add one bullet to
