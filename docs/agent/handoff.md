@@ -2,65 +2,67 @@
 
 ## State
 
-**M4 — language completeness.** The array-literal/`??` group landed whole: an array
-literal placed against a `?array<T>` expectation is an `array<T>` in a binding, a
-`return` and an argument, and `??` guards **every** level of a subscript chain under it
-rather than only its immediate operand.
+**M4 — language completeness.** Two of the array-literal element list's three slices
+landed; the third (the lowering) is the whole of the next group.
 
-Both halves are the same one move, `TypeInterner::without_null` before the `Ty::Array` is
-read off a type. In `check_array_literal` (`crates/mwl-types/src/expr/literals.rs:596`)
-it is the *expectation* whose `null` is stripped; in the `ExprKind::Index` arm
-(`crates/mwl-types/src/expr/mod.rs:346`) it is the *base*, and there only when the read
-is coalesce-guarded, because under a `??` a `null` base has an answer rather than being
-the untested nullable `E0482` refuses. The marking walks the whole `Index` chain
-(`crates/mwl-types/src/expr/mod.rs:204`), and `Env::coalesce_guarded`'s doc comment
-(`crates/mwl-types/src/lib.rs:369`) owns why. The runtime half is three lines:
-`mwl_array_optional_get` (`crates/mwl-runtime/src/helpers.rs:287`) answers `null` for a
-`null` array, so a guarded read whose base is another guarded read needs no branch in
-`mwl-ir` at all. Nothing in `mwl-ir` or `mwl-codegen` changed but a doc comment — the
-helper ABI already passes a `Ty::Tagged` operand, and `aliasing_read` already answered
-correctly for a chain rooted at a variable.
+`&value` as an array-literal element is **E0483** and no longer a panic. The standing
+decision in `docs/agent/loop-goal.md` is what it names: ADR 0031 § 2 removed
+by-reference capture and ADR 0023 fixes an element as a copy taken where the literal is
+evaluated, so an aliasing element has no owner in either — a shape the language does not
+have, not a lowering `mwl-ir` has not learned. It is reported per `ArrayItem` in
+`check_array_literal` (`crates/mwl-types/src/expr/literals.rs:596`), so every element
+list is walked at every depth and a nested `&` is refused where it is written;
+`lower_array_literal`'s assert (`crates/mwl-ir/src/lower/expr.rs:3643`) names only
+`...spread` now, and `mwl-ir`'s gap 8 says so.
 
-`verify.py` 6 of 6 green — conformance **581**, differential 162. `tools/leak-check.sh`
-green over both new fixtures. `holes.py` unchanged at **35 sites, 9 items**; neither of
-these was a panic.
+`[...$a]` type-checks, in the same loop and by the same move the written-out elements
+use: `check_spread_element` (`crates/mwl-types/src/expr/literals.rs:668`) gives the
+subject `array<T>` for the literal's own `T` as its **expectation**, so a mismatch is an
+ordinary `E0401` naming both array types, and element covariance falls out of it rather
+than being a second rule. **E0484** is only what a position naming no `array<T>` at all
+is left with — a `mixed` binding or parameter — and the `env.diags.len()` guard is what
+keeps `[...$s]` from being two diagnostics. That function's doc comment owns the rest,
+including the decision the next slice needs: **nothing is recorded on the `ExprInfo`
+side for a spread**, because the lowering reads `ArrayItem::spread` off the AST and its
+own `lower_expr` answers the subject's `Ty::Array`.
 
-**Item 1 is behaviourally closed** and its 11 sites are catch-alls, like item 25's: every
-promotion row in ADR 0007 § 4 runs, checked by hand this session. The playbook bullet
-claiming `$n + $f` and `$n < $f` still fail at `emit_binop` is corrected in place.
+`verify.py` 6 of 6 green — conformance **583**, differential 162. `python
+tools/holes.py` is unchanged at **35 sites, 9 items**: item 17's site is the single
+assert line both spellings shared.
 
 ## Next group
 
-**All three are the array-literal element list**, and they share
-`crates/mwl-types/src/expr/literals.rs`'s `check_array_literal` (line 596) and
-`mwl-ir`'s `ArrayLiteral` arm (`crates/mwl-ir/src/lower/expr.rs:3651`, whose panic names
-both spellings at once). Item 17 in `python tools/holes.py`.
+**The spread family**, and the first two share `crates/mwl-ir/src/lower/expr.rs`'s
+`lower_array_literal` (line 3643) with `crates/mwl-ir/src/lower/mod.rs`'s array-literal
+fixture block (around line 4020, whose `should_panic` fixture is the one to delete).
+Item 17, then item 16, in `python tools/holes.py`.
 
-- [ ] **`&value` as an array-literal element is a diagnostic, not a panic** — the
-      standing decision in `docs/agent/loop-goal.md` settles it: ADR 0031 § 2 removed
-      by-reference capture and ADR 0023 fixes what a copy means, so an aliasing array
-      element has no owner in either. New code in the types band (**E0483** is next
-      free), declared in `crates/mwl-diagnostics/src/lib.rs`, reported from
-      `check_array_literal` over an `ArrayItem` carrying the `&`, with help naming that
-      decision. This is half of item 17's site.
-- [ ] **`[...$a]` type-checks** — the spread subject's element type has to satisfy the
-      literal's, checked in the same loop in `check_array_literal`
-      (`crates/mwl-types/src/expr/literals.rs:608`); a subject that is not an
-      `array<T>` is a diagnostic beside the `&value` one. Nothing records a spread on
-      the `ExprInfo` side yet, so decide here whether the lowering reads the AST again
-      or gets a table entry.
-- [ ] **`[...$a]` lowers** — `crates/mwl-ir/src/lower/expr.rs:3651`, appending the
-      subject's entries into the literal's array. **One semantics call to take and
-      record** (do not `BLOCKED` it): PHP renumbers integer keys and preserves string
-      ones, while ADR 0007 § 5 makes *every* MWL key a string, so "renumber the
-      integer-looking ones" and "preserve every key" are both defensible. Record the
-      answer in ADR 0007 § 5 and pin it with a `tests/differential/` case, since PHP is
-      the oracle for exactly this.
+- [ ] **`[...$a]` lowers** — `crates/mwl-ir/src/lower/expr.rs:3643`, appending the
+      subject's entries into the literal's array, in both shapes the arm already has
+      (all-positional `ArrayNew`, and `ArrayNew` + `ArraySet`* once any key is
+      explicit). What arrives is well-typed now, so the subject's `lower_expr` answers a
+      `Ty::Array` and nothing has to be re-checked. Refcounts: each entry copied out of
+      the subject is a fresh reference the new array owns, which is the same rule the
+      written-out elements two lines up already follow through `aliasing_read`.
+- [ ] **The key semantics, decided and pinned** — **one call to take, not to `BLOCKED`**:
+      PHP renumbers integer keys and preserves string ones, while ADR 0007 § 5 makes
+      *every* MWL key a string, so "renumber the integer-looking ones" and "preserve
+      every key" are both defensible. Record the answer in ADR 0007 § 5 and pin it with
+      a `tests/differential/` case, PHP being the oracle for exactly this.
+- [ ] **Item 16's checker half: a named or spread *call* argument type-checks** —
+      `crates/mwl-types/src/expr/args.rs:38` (`check_args_typed`) and `:117`
+      (`check_arg`). The spread half is `check_spread_element`
+      (`crates/mwl-types/src/expr/literals.rs:668`) one position along: a variadic
+      parameter's element type is the expectation, and a subject that is not an
+      `array<T>` takes the same refusal. `loop-goal.md` § *Standing decisions* fixes the
+      order — checker before lowering — so `crates/mwl-ir/src/lower/call.rs:75` stays a
+      panic this group.
 
 ## Backlog
 
-- Item 16: a named/spread *call* argument, `crates/mwl-ir/src/lower/call.rs:71`,`:77` —
-  the checker half first, per `loop-goal.md` § *Standing decisions*.
+- `every_refusal_is_a_diagnostic_or_decided` **does not exist in `crates/`**, though
+  `loop-goal.toml`'s Stage 8, `loop-goal.md` and the plan all discuss its allowlist as
+  though it were on disk (`docs/agent/loop-goal.toml`).
 - Item 1's and item 25's 13 catch-all sites are misattributed in `tools/holes.py`; the
   worklist would read truer if they were split off (`docs/implementation-plan.md`).
 - `lower_decl_type`/`lower_checked_ty`'s uncovered *declared* types — `decimal`,
@@ -68,5 +70,3 @@ both spellings at once). Item 17 in `python tools/holes.py`.
   no item yet (`docs/implementation-plan.md` § *Open now*).
 - `Core\Json::decodeAs<T>`'s wider codec-reachable set (`mwl_stdlib::json` gaps).
 - ADR 0088's qualifier classification (`mwl_stdlib::hash`'s module doc).
-- Conformance is 581 of the goal's 750; `python tools/gaps.py` still ranks the thin
-  `Core` classes for a session whose group is blocked.

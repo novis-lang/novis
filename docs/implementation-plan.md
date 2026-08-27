@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 581 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 583 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 162, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -243,12 +243,28 @@
 > default-bearing rows (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification
 > (`mwl_stdlib::hash`'s module doc), and ADR 0086 § 1's substitution table (M8,
 > `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, and out of this goal's scope** —
-> ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 § 3; their work is M6, M7, M8 and M10. **M4S
-> Part I is the floor, not the frontier**: conformance is at 581 of the goal's new 750 and
-> differential at 162 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
-> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
-> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
-> tools/check-migration.py`).
+> ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 § 3; their work is M6, M7, M8 and M10.
+> **Item 17's `&value` half is closed outright, and its spread half type-checks.** `&value` as an
+> array-literal element is **E0483** — ADR 0031 § 2 removed by-reference capture and ADR 0023 fixes
+> an element as a copy, so an aliasing element has no owner in either and it is a shape the language
+> does not have rather than a lowering `mwl-ir` has not learned; `lower_array_literal`'s assert
+> names only `...spread` now, and every element list is walked at every depth so a nested `&` is
+> refused where it is written. `[...$a]` is checked in the same loop and by the same move the
+> surrounding elements already use: the subject takes `array<T>` for the literal's own `T` as its
+> *expectation*, so a mismatch is an ordinary `E0401` naming both array types and element covariance
+> falls out of it — an `array<string>` spreads into an `array<mixed>` for the same reason reading
+> one does. **E0484** is only what a position naming no `array<T>` at all is left with, a `mixed`
+> binding or parameter being the reachable one, so `[...$s]` over a `string` is one diagnostic
+> however it is written. Nothing is recorded on the `ExprInfo` side for a spread, and that is a
+> decision rather than an omission: the lowering reads `ArrayItem::spread` off the AST it already
+> walks and its own `lower_expr` hands back the subject's `Ty::Array` beside the value, so an entry
+> would be a second copy of two facts it holds already. What is left of item 17 is the lowering and
+> one semantics call on keys. `python tools/holes.py` is unchanged at **35 sites, 9 items** — item
+> 17's site is the one assert line both spellings shared. **M4S Part I is the floor, not the
+> frontier**: conformance is at 583 of the goal's new 750 and differential at 162 of 165, `python
+> tools/gaps.py` still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a
+> group is blocked — never a reason to leave a language item unfinished.
+> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones
