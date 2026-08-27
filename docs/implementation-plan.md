@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 602 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 603 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 167, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -465,8 +465,38 @@
 > table carries the row and the paragraph under it carries the reasoning;
 > `mwl_runtime::value_truthy`'s `Tag::Bytes` arm had already taken the same reading, so the two
 > spellings of one buffer agree by construction. `truthy_convert` panics for `Ty::Void` alone now,
-> which ADR 0007 keeps out of value position. **M4S Part I is the floor, not the frontier**:
-> conformance is at 602 of the goal's new 750 and differential at 167 of 165, `python tools/gaps.py`
+> which ADR 0007 keeps out of value position. **`as ?T` over a literal or enum target runs now**,
+> which is ADR 0066 § 3 row 2's "non-throwing twin" reaching the one target family it never had.
+> What blocked it was not the chain but the *target*: `lower_conversion`'s nullable arm read it off
+> the `?T`'s **inner** AST node, and `mwl_types::lower::lower_type` records a checked type once, at
+> its own entry point, so a nested `Type` node has no entry at all and `lower_decl_type` fell back
+> to the AST — where a name-shaped atom is a class whether or not it names an enum. `$m as ?Mode`
+> therefore died on `Tagged as ?Object`, which reads as a missing conversion row rather than as a
+> missing table entry. The target is the whole annotation's checked type minus `null` instead (`?T`
+> interns as `T|null`, `Lowering::nullable_target_atoms`), and the accepted set is built from those
+> atoms rather than from a `TypeId` — this crate holds the interner by shared reference and can
+> intern none. **The form is built as the twin, not as a redirect of the throwing one.**
+> `landing_block` ends in `Terminator::Catch`/`Propagate` with a pending `Throwable`, so re-pointing
+> the checked lowering's error edge at a null-producing block would have to discard that object and
+> account for its reference, which is `lower/exception.rs` plumbing for a form that needs no
+> exception to exist. Two substitutions on the non-nullable arm buy the same thing:
+> `lower_literal_membership` takes a `miss: Option<BlockId>` — `None` is today's
+> `Helper::LiteralMismatch` throw, `Some` a jump — and the base conversion runs through
+> `convert_or_null` wherever its row can fail (`conversion_can_fail` is `Lowering::convert`'s own
+> free/total/widening row list read as a question). **A `Ty::Tagged` operand into a literal set
+> needs no conversion at all**: the result of `as ?T` is a `Ty::Tagged` value and on a hit the
+> operand already *is* one, which is also what keeps a `mixed` holding `1` out of a set naming `"1"`
+> — the coercion ADR 0047 § 4 refuses. **A fallible base keeps its tagged answer and compares
+> through `Helper::Identical`** rather than untagging first, because an `Untag` of the `null` a
+> failed conversion produced reads a zero payload and an enum with a case backed by `0` would then
+> *hit* on a conversion that failed; a `null` matches no member, so the miss edge answers it with no
+> test of its own. Ownership is one rule for both shapes — the answer is an owned `Ty::Tagged` value
+> the hit path hands the consumer and the miss path releases, a release being a runtime no-op for
+> every tag that owns nothing — and `tools/leak-check.sh` is green over a fixture covering both
+> edges with a fresh refcounted operand live. `python tools/holes.py` still reads **24 sites, 6
+> items**: `convert_or_null`'s catch-all is unchanged, `$b as ?string` and `$m as ?array<T>` still
+> reaching it, and this slice widened neither. **M4S Part I is the floor, not the frontier**:
+> conformance is at 603 of the goal's new 750 and differential at 167 of 165, `python tools/gaps.py`
 > still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a group is
 > blocked — never a reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is
 > 31% classified (`python tools/check-migration.py`).

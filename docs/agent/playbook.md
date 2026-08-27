@@ -454,6 +454,16 @@ is why" — is this file.
   files, one per receiver family, cost less than the fix did and are what turned a one-answer slice
   into two: a lowering for the case that must be deferred, a diagnostic for the ones a declared
   type already answers. Do that sweep before deciding what a refusal site owes.
+- **Only the *outermost* annotation has a recorded checked type, so `lower_decl_type` over a
+  nested `Type` node silently answers from the AST instead.** `mwl_types::lower::lower_type`
+  calls `record_type` once, at its own entry point, and recurses through `lower_type_at_depth`
+  without recording — so a lowering that reaches *inside* an annotation (`?T`'s target, a
+  union's member, an `array<T>`'s element) gets `lower_decl_type`'s `match &ty.kind` fallback,
+  where every name-shaped atom is `Ty::Object` whether it names a class or an enum. `$m as ?Mode`
+  died on `Tagged as ?Object` for exactly that reason, and the message points at a missing
+  conversion row rather than at the missing table entry it actually is. Read the **whole**
+  annotation's `declared_ty` and take the piece you want off the checked type — `?T` interns as
+  `T|null`, so its target is that union minus `CheckedTy::Null`.
 
 ## Running things
 
