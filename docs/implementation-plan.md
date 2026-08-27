@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 598 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 600 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 167, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -419,10 +419,34 @@
 > operand. `tools/leak-check.sh` is green over fixtures exercising both paths with a refcounted
 > `mixed` live. `python tools/holes.py` is at **25 sites**, still 7 items — it read **26** at this
 > session's head, so the 24 quoted above predates a change in the tool's own inventory rather than
-> this slice. **M4S Part I is the floor, not the frontier**: conformance is at 598 of the goal's new
-> 750 and differential at 167 of 165, `python tools/gaps.py` still ranks the thin classes, and a
-> `Core` depth slice is a legitimate slice when a group is blocked — never a reason to leave a
-> language item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
+> this slice. **`true` and `false` are `bool`'s literal types now**, which is what closed
+> `closed_literal_set`'s own panic. ADR 0007 § 3 has always had the two atoms and ADR 0047 § 1 calls
+> its string and int literals their generalisation, but nothing ever *placed* a `true` expression at
+> one: `true $t = true;` was `E0401` and `$m as true` aborted in `erase_checked_ty` naming a
+> representation it had no arm for. They are placed
+> (`mwl_types::expr::literals::infer_bool_literal`), widened (`TypeInterner::literal_base`) and
+> erased (`Ty::Bool`) exactly as § 1's two are, so `var $b = true;` still infers `bool` where the
+> position names no singleton, and `bool $b = $x as true;` is an ordinary assignment. `$m as true`
+> is `as bool` plus § 5's membership test, and for a `mixed` operand that test is
+> `Helper::Identical` against the runtime tag — so a `mixed` holding `1` is a miss where a
+> statically typed `int` `1` is a hit, which is the split the string and int sets already had rather
+> than a new one. What is left after a proven tag is one unchecked `InstKind::Untag` and not ADR
+> 0035's truthy table, which would answer `true` for the very value the test just refused. **The
+> panic itself is gone rather than diagnosed**: the `closed` predicate and the member map walked the
+> *same* atom list twice, so the catch-all was an internal-consistency check between a list and
+> itself, and one `collect::<Option<_>>` pass makes "this target is not a closed set" one answer in
+> one place. **A second live abort went with it**, found by measuring the item's own spellings
+> rather than by the worklist: a set whose members share no representation (`$s as 1|"a"`) erases to
+> a tagged target, and `convert` had no `(_, Ty::Tagged)` arm at all, so it died on `Str as Tagged`.
+> That row is one `InstKind::Tag` — the instruction `Lowering::coerce` already emits where a
+> *declaration* is the wider side — plus the single retain a borrowed operand owes, because a
+> conversion's result is a fresh value its consumer owns; `$s as mixed` is the same row written
+> plainly. A failed membership test names a `bool` operand as `true`/`false` now
+> (`mwl_runtime::rendered_operand`) rather than as "a `Bool` value". `python tools/holes.py` is down
+> to **24 sites and 6 items**. **M4S Part I is the floor, not the frontier**: conformance is at 600
+> of the goal's new 750 and differential at 167 of 165, `python tools/gaps.py` still ranks the thin
+> classes, and a `Core` depth slice is a legitimate slice when a group is blocked — never a reason
+> to leave a language item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
 > tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop

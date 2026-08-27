@@ -2,57 +2,60 @@
 
 ## State
 
-**M4 — language completeness.** `instanceof` is closed on both sides. A subject whose tag nothing
-proved — a `mixed`, a `?Box` no test narrowed — travels as a whole `Value` by address and
-`mwl_runtime::mwl_value_instanceof` reads its tag; every subject whose *declared* type can hold no
-object is **E0497** (ADR 0007 § 7 **row 14**, new); every right-hand side naming no declared class
-is **E0496**, except a name resolving to nothing, which keeps the ordinary **E0303**.
-`python tools/holes.py` is at **25 sites, 7 items**.
+**M4 — language completeness.** `true` and `false` are `bool`'s literal types: placed at a
+position that names one, widened to `bool` everywhere else, erased to `bool`'s
+representation, and tested for membership by an `as` exactly as ADR 0047 § 1's string and
+int atoms are. `closed_literal_set` builds its set in one fallible pass, so the catch-all
+that was on the worklist no longer exists. `convert` gained the widening row a
+heterogeneous set needs (`$s as 1|"a"`, `$s as mixed`) — one `InstKind::Tag`.
+`python tools/holes.py` is at **24 sites, 6 items**.
 
-The one fact worth carrying: `holes.py` read **26** sites at this session's head, not the 24 the
-previous handoff quoted — the tool's inventory is derived live, so treat a handoff's count as
-stale and re-run it rather than subtracting from it.
+`verify.py` 6 of 6 green — conformance **600**, differential **167**, 1631 unit tests.
+`tools/leak-check.sh` green over a fixture exercising all three new edges: the untag after
+a proven tag, the widening row over a borrowed operand in a loop and over a fresh one, and
+a throwing miss with a refcounted `mixed` live across it.
 
-`verify.py` 6 of 6 green — conformance **598**, differential **167**, 1631 unit tests.
-`tools/leak-check.sh` green over three fixtures: a temporary subject, a tagged subject holding each
-non-object tag, and a loop declaring a refcounted `mixed` per round.
-
-Facts recorded where they belong rather than here: ADR 0007 § 7 row 14 owns the subject-side
-divergence; `E0496`/`E0497`'s reasoning is each one's own `Code::new` doc comment;
-`mwl_types::expr::members`' module doc says how the two sides split; `ExprInfo::InstanceOf`'s doc
-comment says nothing unrecorded reaches `mwl-ir` any more; `mwl_runtime::mwl_value_instanceof` owns
-the by-address subject.
+Facts recorded where they belong rather than here: `mwl_types::ty::Ty::True` owns what the
+two `bool` singletons are; `Lowering::convert`'s doc comment owns the four shapes of row it
+lowers, the widening one included; `closed_literal_set`'s own comment owns why the target's
+atom list is walked once.
 
 ## Next group
 
-**The three remaining panics in `crates/mwl-ir/src/lower/expr.rs`** — the file this session already
-had open, with `crates/mwl-types/src/expr/mod.rs` (the `infer` dispatch each one is the mirror of)
-and `crates/mwl-diagnostics/src/lib.rs` (next free code is **E0498**).
+**The remaining aborts in `crates/mwl-ir/src/lower/expr.rs`**, the file this session had
+open, with `crates/mwl-runtime/src/helpers.rs` (where a new `Helper` is implemented),
+`crates/mwl-ir/src/ir.rs` (the `Helper` enum) and `crates/mwl-codegen/src/emit.rs` (its
+`Signatures` row). The first two are the same missing helper seen from two sides.
 
-- [ ] **An `as` whose target `closed_literal_set` cannot build** —
-      `crates/mwl-ir/src/lower/expr.rs:4167`, the `other => panic!` inside the atom map, against
-      ADR 0047 § 3's three atoms (`StringLiteral`, `IntLiteral`, `EnumCase`). Measure which target
-      spellings actually reach it — `$x as true`, `$x as 1|2.5`, a `?T` over literals — with one
-      scratch `.agent-tmp/*.mwl` before deciding diagnostic vs lowering. The neighbouring `:4159`
-      panic is an internal-consistency check between two tables and is owed no case.
-- [ ] **The `lower_expr` dispatch catch-all** — `crates/mwl-ir/src/lower/expr.rs:258`. Its message
-      lists what *is* covered, so the work is a subtraction against `mwl_syntax::ast::ExprKind`'s
-      roster; each survivor is then either a lowering or an `E04xx` at the checker. Do this second:
-      it names the group's remaining scope.
-- [ ] **A `Class::CONST` on a user-declared class** — `crates/mwl-ir/src/lower/expr.rs:246`, whose
-      fix is on the `mwl_types` side (nothing collects a user class constant into a signature
-      table, `mwl_types`' own known gaps). Bigger than the two above; take it only with the file set
-      already loaded and the context to spare.
+- [ ] **A `mixed` in a condition, and `$m as bool`** — `crates/mwl-ir/src/lower/expr.rs:1081`,
+      `truthy_convert`'s catch-all. `mixed $m = "a"; if ($m) { … }` aborts the process
+      today, which is ADR 0035's whole subject matter over ADR 0007 § 2's one unchecked
+      position. One runtime helper applying § 1's table to a tagged value, dispatching on
+      the tag the way `Helper::Identical` already does; `convert`'s `(_, Ty::Bool)` arm at
+      `expr.rs:1000` then reaches it for free. Not on `holes.py`'s list — it reads
+      `expr.rs` and attributes only the dispatch catch-all — so say so in the handoff if
+      the tool still misses it after.
+- [ ] **`as ?T` over a literal or enum target** — `crates/mwl-ir/src/lower/expr.rs:981`,
+      `convert_or_null`'s catch-all, whose message already names this as ADR 0066 § 1's
+      available form. `$x as ?"a"` aborts. It is the membership chain
+      `lower_conversion` now emits for every other target, answering `null` at the far end
+      instead of `Helper::LiteralMismatch` — `lower_literal_membership` at `expr.rs:4290`
+      is the thing to parameterize, not to copy.
+- [ ] **The `lower_expr` dispatch catch-all** — `crates/mwl-ir/src/lower/expr.rs:258`
+      (`holes.py` item 6). Its message lists what is lowered; measure which `ExprKind`
+      still reaches it with a scratch file before deciding, per the new playbook bullet.
+- [ ] **A `Class::CONST` on a user-declared class** — `crates/mwl-ir/src/lower/expr.rs:247`.
+      The value is unmodeled in `mwl_types`, so this is a checker slice before it is a
+      lowering one; `E0498` is the next free code if it turns out to be a refusal.
 
 ## Backlog
 
-- `emit_instanceof`'s `CodegenError::Unsupported` for a class with no descriptor is unreachable from
-  source now that every right-hand side is checked — `crates/mwl-codegen/src/emit.rs:2097`.
-- A `Core` class has no `ClassDesc`, so `$x instanceof Core\Cli\Text` is `E0496` rather than an
-  answer; revisit when `Core` classes become real instances at M7/M8 — `E0496`'s own doc comment.
-- Item 25's two sites stay misattributed catch-alls (`lower_decl_type`/`lower_checked_ty`): `decimal`,
-  `never`, `iterable`, `self`/`static`/`parent`, a shape and an intersection as a *declared* type —
-  `docs/agent/loop-goal.md`.
-- ADRs 0091, 0093, 0097 and 0100 § 3 are decided and unbuilt, at M6/M7/M8/M10 — their own ADRs.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
-- 17 of the 32 named `.mwlt` cases each stage owes are still to write — `python tools/loop.py --list`.
+- A `Ty::Tagged` operand converted to `bytes` — no runtime-tag helper; `convert`'s own
+  panic at `crates/mwl-ir/src/lower/expr.rs:921` names it.
+- `array<T> as array<U>` — ADR 0007 § 2's last unbuilt conversion row, and the reason
+  several `Core` refusals cannot be reached from source (`docs/agent/playbook.md`).
+- `holes.py` item 25's two catch-alls: `decimal`/`never`/`iterable`/`self`/a shape/an
+  intersection as a *declared* type (`crates/mwl-ir/src/lower/mod.rs:2319`).
+- `Class::method(...)`, the first-class callable spelling — `mwl-ir` gap 1.
+- The two unattributed sites in `crates/mwl-codegen/src/ty.rs:116` and `:121`.
+- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).

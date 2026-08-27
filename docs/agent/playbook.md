@@ -603,6 +603,17 @@ is why" — is this file.
   nothing wrote — which reads as a missing script rather than as path translation. `commands.md`'s
   spelling is right; run it through the PowerShell tool, where the argument is passed through
   untouched.
+- **A `holes.py` site guarded by a predicate over the same list it matches is an
+  internal-consistency check, and the reachable holes are its *neighbours*.**
+  `closed_literal_set`'s `other => panic!` was on the worklist and owed a
+  diagnostic-or-lowering decision; the `closed` predicate three lines above it had already
+  asserted every atom was one of the three the map handles, so no program could reach it and
+  what it owed was `collect::<Option<_>>`. The item's own three spellings each hit a
+  *different* site one call apart: `$x as 1|2.5` is `E0120` in the parser, `$x as true`
+  aborted in `erase_checked_ty` (`lower/mod.rs`, naming a representation rather than the
+  feature), and `$x as ?"a"` in `convert_or_null`. Four scratch files under `.agent-tmp/`
+  cost less than reading either function, so run the item's spellings **before** designing
+  anything — the panic a worklist item names is often not the one that fires.
 
 ## Adding a `Core` member
 
