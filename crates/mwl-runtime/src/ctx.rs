@@ -26,6 +26,9 @@
 //!   emit site the safepoint poll uses. It sits in this line rather than
 //!   anywhere colder precisely so the compare costs a load that is already
 //!   paid for.
+//! * [`STATICS_OFFSET`] — the base of this request's static-property storage,
+//!   loaded inline by every `Class::$prop` read and write. See *Static
+//!   properties are request-scoped* below.
 //!
 //! All three are exposed as `offset_of!` constants rather than restated
 //! numbers, so adding a field can never silently desynchronise codegen from
@@ -62,6 +65,28 @@
 //! request's stack becomes MWL's own to size at M6, and until then an embedder
 //! that knows its bounds calls [`Ctx::arm_stack_limit`] with them.
 //!
+//! # Static properties are request-scoped
+//!
+//! A `public static int $total;` has exactly one storage slot **per request**,
+//! not per process: [`Ctx::install_statics`] materializes every slot from its
+//! declared initializer when the request's context is armed, and [`Ctx`]'s
+//! `Drop` releases them when the request ends. `docs/adr/README.md`
+//! § *Decisions taken at project start* owns the decision and its reasoning;
+//! what belongs here is the shape it takes.
+//!
+//! The slots are one flat `[Value]`, indexed by a slot number `mwl-codegen`
+//! resolves at compile time from `mwl_ir::ir::Program::statics` — the same
+//! "the label is resolved once, the machine sees an index" arrangement a
+//! field slot already has. Compiled code loads the base out of
+//! [`STATICS_OFFSET`] and indexes it, so a static read is two loads and no
+//! call, exactly like a `FieldGet` after its receiver.
+//!
+//! **What it spends:** 16 bytes per *accessed* static property per in-flight
+//! request, plus whatever a `string` or array initializer allocates — one
+//! [`crate::MwlStr`] per request per string-valued static. O(in-flight
+//! requests), never O(requests served), which is what `AGENTS.md`'s
+//! priority-5 rule asks of any per-request allocation.
+//!
 //! # Output
 //!
 //! `Ctx` owns where `echo` writes, rather than the runtime writing to the
@@ -74,8 +99,9 @@
 use std::borrow::Cow;
 use std::io::{self, Write};
 
-use crate::object::{ClassDesc, ClassId, ClassTable};
+use crate::object::{ClassDesc, ClassId, ClassTable, FieldDefault};
 use crate::throwable::{Thrown, ThrownClass};
+use crate::value::Value;
 
 bitflags::bitflags! {
     /// What a safepoint poll has been asked to do.
@@ -188,6 +214,14 @@ pub struct Ctx {
     /// but it shares the hot line anyway, because the slow path that reads it
     /// has just read the word beside it.
     stack_floor: usize,
+    /// Hot. The base of [`Self::statics_store`], loaded inline by every
+    /// static-property read and write — see the module docs.
+    ///
+    /// Null until [`Ctx::install_statics`] runs, which is safe because a unit
+    /// declaring no static property emits no instruction that loads it: the
+    /// slot index compiled code carries comes from `mwl_ir::Program::statics`,
+    /// so there is an index only where there is a slot.
+    statics: *mut Value,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -255,6 +289,14 @@ pub struct Ctx {
     /// How many runtime helpers this request has entered, counted only while
     /// `fault` is armed. See [`FaultSite::HelperPanic`].
     helper_calls: u32,
+    /// This request's static-property slots, owned. Cold: compiled code
+    /// reaches them through [`Self::statics`], never through this field.
+    ///
+    /// A boxed slice rather than a `Vec` on purpose — the pointer beside it is
+    /// only sound while nothing can reallocate the buffer, and a boxed slice
+    /// has no `push`. [`Ctx::install_statics`] is the one place the two are
+    /// written, so they cannot disagree.
+    statics_store: Box<[Value]>,
 }
 
 /// One class descriptor, plus the table that owns it.
@@ -430,6 +472,18 @@ pub struct TraceEvent {
     pub status: Option<i32>,
 }
 
+/// The request ends here, and so does everything its static properties held.
+///
+/// This is the whole of what makes a static's storage request-scoped rather
+/// than process-global: nothing outside the [`Ctx`] ever points at a slot, so
+/// dropping the context is what returns the memory and drops the references —
+/// there is no second owner to coordinate with and no table to clear.
+impl Drop for Ctx {
+    fn drop(&mut self) {
+        self.release_statics();
+    }
+}
+
 /// Byte offset of the safepoint word within [`Ctx`] — see the module docs.
 pub const SAFEPOINT_OFFSET: usize = std::mem::offset_of!(Ctx, safepoint);
 
@@ -439,6 +493,10 @@ pub const DEBUG_FLAGS_OFFSET: usize = std::mem::offset_of!(Ctx, debug);
 /// Byte offset of the soft call-stack limit within [`Ctx`] — see the module
 /// docs.
 pub const STACK_LIMIT_OFFSET: usize = std::mem::offset_of!(Ctx, stack_limit);
+
+/// Byte offset of the static-property base pointer within [`Ctx`] — see the
+/// module docs' *Static properties are request-scoped* section.
+pub const STATICS_OFFSET: usize = std::mem::offset_of!(Ctx, statics);
 
 /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
 /// call-stack ceiling: **8 MiB of reserved address space per request**, of
@@ -477,6 +535,7 @@ impl Ctx {
             debug: DebugFlags::empty(),
             stack_limit: 0,
             stack_floor: 0,
+            statics: std::ptr::null_mut(),
             pending: None,
             runtime_error_class: None,
             output,
@@ -485,9 +544,70 @@ impl Ctx {
             trace: Vec::new(),
             fault: None,
             helper_calls: 0,
+            statics_store: Vec::new().into_boxed_slice(),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
         ctx
+    }
+
+    /// Arms this request's static-property storage: one slot per entry in
+    /// `defaults`, in that order, each materialized from its declared
+    /// initializer.
+    ///
+    /// **Every embedder calls this before running any of a unit's code**, and
+    /// the call is `mwl_codegen::Unit::install_in`'s job rather than an
+    /// embedder's own — a unit's slot *numbering* is what the compiled code
+    /// baked in, so the vector handed here has to be the one that unit
+    /// produced. Calling it twice re-runs the initializers and releases the
+    /// previous slots, which is what makes a `Ctx` reusable across requests.
+    ///
+    /// The initializers are constants (`mwl_types::defaults::ConstArg`), so
+    /// arming a request runs no user code and cannot fail or throw — the whole
+    /// reason a static's initializer is restricted to one. A `None` entry is a
+    /// static ADR 0022 § 2 required no default of (a nullable or `lateinit`
+    /// one) and starts the request at `null`.
+    pub fn install_statics(&mut self, defaults: &[Option<FieldDefault>]) {
+        self.release_statics();
+        let mut store: Box<[Value]> = defaults
+            .iter()
+            .map(|default| {
+                default
+                    .as_ref()
+                    .map_or_else(Value::null, FieldDefault::materialize)
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+        // The pointer is taken before the move, and stays valid across it:
+        // moving a `Box` moves the three words, never the heap buffer.
+        self.statics = store.as_mut_ptr();
+        self.statics_store = store;
+    }
+
+    /// How many static-property slots this request holds — the length
+    /// [`Ctx::install_statics`] was last armed with.
+    #[must_use]
+    pub fn statics_len(&self) -> usize {
+        self.statics_store.len()
+    }
+
+    /// Releases every armed slot and disarms the pointer beside them.
+    ///
+    /// Each slot owns exactly one reference — [`FieldDefault::materialize`]
+    /// hands one over and a static write releases what it overwrote — so this
+    /// is one release per slot, never a scan of what compiled code did with
+    /// them.
+    #[expect(
+        unsafe_code,
+        reason = "a slot's owned reference is released exactly once here; the \
+                  slots were materialized by `install_statics` and no other \
+                  owner of them exists"
+    )]
+    fn release_statics(&mut self) {
+        let store = std::mem::replace(&mut self.statics_store, Vec::new().into_boxed_slice());
+        self.statics = std::ptr::null_mut();
+        for value in store.into_vec() {
+            unsafe { value.release() };
+        }
     }
 
     /// Arms [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
@@ -1159,6 +1279,28 @@ mod tests {
         assert_eq!(SAFEPOINT_OFFSET, 0);
         assert_eq!(DEBUG_FLAGS_OFFSET, 8);
         assert_eq!(STACK_LIMIT_OFFSET, 16);
+        assert_eq!(STATICS_OFFSET, 32);
+    }
+
+    #[test]
+    fn installing_statics_materializes_one_slot_per_declared_default() {
+        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        assert_eq!(ctx.statics_len(), 0);
+        ctx.install_statics(&[
+            Some(FieldDefault::Int(3)),
+            Some(FieldDefault::Str("hi".to_owned())),
+            None,
+        ]);
+        assert_eq!(ctx.statics_len(), 3);
+        // Re-arming is what a second request on a reused context does: the
+        // previous slots are released, never leaked, and the initializers run
+        // again rather than the writes of the request before carrying over.
+        ctx.install_statics(&[
+            Some(FieldDefault::Int(3)),
+            Some(FieldDefault::Str("hi".to_owned())),
+            None,
+        ]);
+        assert_eq!(ctx.statics_len(), 3);
     }
 
     #[test]

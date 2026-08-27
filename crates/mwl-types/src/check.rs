@@ -212,6 +212,7 @@ fn check_stmts(
                 crate::conformance::check_class_conformance(decl, &qname, env);
                 crate::derive::check_class_derive(decl, &qname, &ctx, env);
                 record_property_defaults(&qname, env);
+                record_static_properties(&qname, env);
             }
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
@@ -281,6 +282,21 @@ fn record_property_defaults(qname: &QName, env: &mut Env<'_>) {
     let defaults = sig.property_defaults.clone();
     env.exprs
         .record_property_defaults(qname.to_string(), defaults);
+}
+
+/// The same move for the class's own `static` properties — see
+/// [`crate::expr_table::ExprTypeTable::record_static_properties`], which is
+/// what `mwl-ir` enumerates the program's static slots out of.
+fn record_static_properties(qname: &QName, env: &mut Env<'_>) {
+    let Some(sig) = env.signatures.get(qname) else {
+        return;
+    };
+    if sig.static_properties.is_empty() {
+        return;
+    }
+    let statics = sig.static_properties.clone();
+    env.exprs
+        .record_static_properties(qname.to_string(), statics);
 }
 
 fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {

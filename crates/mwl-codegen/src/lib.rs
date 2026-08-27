@@ -282,6 +282,10 @@ pub struct Unit {
     /// what makes installing one need no `unsafe` at the call site.
     classes: std::rc::Rc<mwl_runtime::ClassTable>,
     entries: FxHashMap<String, *const u8>,
+    /// This unit's static-property initializers, in the slot order the
+    /// compiled code baked in — `mwl_ir::ir::Program::statics`' own order.
+    /// Handed to a context by [`Unit::install_in`].
+    statics: Vec<Option<mwl_runtime::FieldDefault>>,
 }
 
 impl std::fmt::Debug for Unit {
@@ -331,8 +335,8 @@ impl Unit {
     /// Hands `ctx` this unit's class table. **Every embedder calls this before
     /// running any of the unit's code**, whether or not it cares about `catch`.
     ///
-    /// Two obligations share the one call, and the second is the reason it is
-    /// not optional:
+    /// Three obligations share the one call, and the second is the reason it
+    /// is not optional:
     ///
     /// 1. *Behaviour.* A runtime helper's failure carries only a message; the
     ///    installed class is what promotes it to a catchable object with a
@@ -344,10 +348,16 @@ impl Unit {
     ///    what makes a `Ctx` safe to outlive the `Unit` whose code it ran.
     ///    Skip the call and drop the `Unit` first, and `Ctx::pending` reads
     ///    freed memory — a use-after-free with no `unsafe` at the call site.
+    /// 3. *State.* A `static` property's storage is the **request's**, not the
+    ///    process's (`mwl_runtime::ctx`'s own docs), so arming it is part of
+    ///    arming the context. Compiled code indexes that vector by a slot
+    ///    number this unit fixed at compile time, which is why the unit hands
+    ///    it over rather than an embedder building one.
     pub fn install_in(&self, ctx: &mut mwl_runtime::Ctx) {
         if let Some(class) = self.runtime_error_class() {
             ctx.set_runtime_error_class(class);
         }
+        ctx.install_statics(&self.statics);
     }
 }
 
@@ -406,6 +416,14 @@ struct Jit {
     /// at, and the field-slot index every `FieldGet`/`FieldSet` resolves
     /// through.
     classes: Classes,
+    /// Every `static` property the unit declares, mapped from the
+    /// `(declaring class, name)` pair `mwl_ir::ir::InstKind::StaticGet` names
+    /// to its slot number — the static-storage counterpart of
+    /// [`ClassEntry::slots`], and resolved exactly the same way: once, before
+    /// any body is emitted, so the machine sees a constant index.
+    statics: FxHashMap<(String, String), u32>,
+    /// The same table's initializers, in slot order — see [`Unit::statics`].
+    static_defaults: Vec<Option<mwl_runtime::FieldDefault>>,
     /// One entry per emitted `ConstStr`, so data-object names stay unique.
     literals: usize,
     entries: Vec<(String, cranelift_module::FuncId)>,
@@ -770,6 +788,8 @@ impl Jit {
             sigs,
             functions: FxHashMap::default(),
             classes: Classes::default(),
+            statics: FxHashMap::default(),
+            static_defaults: Vec::new(),
             literals: 0,
             entries: Vec::new(),
             disasm,
@@ -786,6 +806,17 @@ impl Jit {
     /// were never defined.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
         self.classes = Classes::build(&program.classes);
+        // The slot number *is* the position in `Program::statics`, which
+        // `mwl_ir::lower` already sorted; nothing here reorders it, because
+        // the vector handed to `mwl_runtime::Ctx::install_statics` has to be
+        // indexed by the very numbers baked into the code below.
+        for (slot, prop) in program.statics.iter().enumerate() {
+            let slot = u32::try_from(slot)
+                .map_err(|_| emit::internal("a unit declaring more than 2^32 statics"))?;
+            self.statics
+                .insert((prop.class.clone(), prop.name.clone()), slot);
+            self.static_defaults.push(prop.default_value.clone());
+        }
         for (index, function) in program.functions.iter().enumerate() {
             // `index` only disambiguates the Cranelift symbol name: an MWL
             // function name is not a valid symbol (`<script>` is the first
@@ -830,6 +861,7 @@ impl Jit {
                 sigs: &self.sigs,
                 functions: &self.functions,
                 classes: &self.classes,
+                statics: &self.statics,
                 literals: &mut self.literals,
             },
             function,
@@ -897,6 +929,7 @@ impl Jit {
             _module: self.module,
             classes: std::rc::Rc::new(self.classes.table),
             entries,
+            statics: self.static_defaults,
         })
     }
 

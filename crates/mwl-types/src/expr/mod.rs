@@ -264,6 +264,23 @@ pub(super) fn infer(
         } => check_property_access(object, property, *nullsafe, false, live, scope, ctx, env),
         ExprKind::StaticPropertyAccess { class, name } => {
             check_expr(class, None, live, scope, ctx, env);
+            // A static property's storage is resolved where the access is
+            // written, so `static::` — which PHP re-resolves against the
+            // *called* class — has no honest answer here. See
+            // `code::E_STATIC_PROPERTY_LATE_BOUND`, which owns the rule.
+            if matches!(class.kind, ExprKind::StaticExpr) {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_STATIC_PROPERTY_LATE_BOUND,
+                        "`static::` does not resolve a static property",
+                    )
+                    .with_primary(class.span, "the called class is only known at run time")
+                    .with_help(
+                        "write `self::` for the class this is declared in, or name the class \
+                         whose storage is meant",
+                    ),
+                );
+            }
             let text = span_text(env.src, *name);
             let prop_name = strip_sigil(text).to_owned();
             // Resolved through the *owning* class so ADR 0094's level test
@@ -281,6 +298,19 @@ pub(super) fn infer(
                         crate::signatures::property_visibility(&owner, &prop_name, env.signatures),
                         ctx,
                         env,
+                    );
+                    // Keyed by the *declaring* class, which is the storage's
+                    // identity — see `ExprInfo::StaticProperty`. Recorded for
+                    // a write exactly as for a read: `check_assign`'s general
+                    // arm routes an assignment target back through this same
+                    // path, so both are keyed by this expression's own span.
+                    env.exprs.record(
+                        expr.span,
+                        ExprInfo::StaticProperty {
+                            class: owner,
+                            name: prop_name,
+                            ty,
+                        },
                     );
                     ty
                 }

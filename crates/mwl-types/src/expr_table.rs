@@ -233,6 +233,26 @@ pub enum ExprInfo {
         /// The property's declared type.
         ty: TypeId,
     },
+    /// A resolved `Class::$prop` access, read or write — the static
+    /// counterpart of [`ExprInfo::Property`], and recorded for the same reason:
+    /// `mwl-ir` has no way of its own to turn the written class expression
+    /// (`self`, `static`, `parent` or a name) into the label the storage is
+    /// keyed on.
+    ///
+    /// `class` is the class that actually **declares** the property, not the
+    /// one written at the access. That is what makes `Sub::$count` and
+    /// `Base::$count` the one slot PHP makes them, with no flattening step
+    /// anywhere below: the checker has already resolved the name through the
+    /// class graph ([`crate::signatures::resolve_property_owned`]), so the
+    /// label recorded here *is* the storage's identity.
+    StaticProperty {
+        /// The class that declares the property.
+        class: QName,
+        /// The property's own name, `$`-sigil not included.
+        name: String,
+        /// The property's declared type.
+        ty: TypeId,
+    },
     /// A resolved access to a property that declares an ADR 0014 § 1 hook
     /// block — recorded *instead of* [`ExprInfo::Property`] for exactly the
     /// same `PropertyAccess` spans, read and write alike, so a consumer that
@@ -509,6 +529,7 @@ pub struct ExprTypeTable {
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
     property_types: FxHashMap<String, Vec<(String, TypeId)>>,
+    static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
 }
 
@@ -640,6 +661,30 @@ impl ExprTypeTable {
     #[must_use]
     pub fn property_defaults(&self, label: &str) -> &[(String, crate::defaults::ConstArg)] {
         self.property_defaults.get(label).map_or(&[], Vec::as_slice)
+    }
+
+    /// Records the class labelled `label`'s **own** `static` properties and
+    /// their evaluated initializers —
+    /// [`crate::signatures::ClassSignature::static_properties`], copied across
+    /// at check time for [`Self::record_property_defaults`]'s reason.
+    pub(crate) fn record_static_properties(
+        &mut self,
+        label: String,
+        statics: Vec<(String, Option<crate::defaults::ConstArg>)>,
+    ) {
+        self.static_properties.insert(label, statics);
+    }
+
+    /// The class labelled `label`'s own `static` properties, in declaration
+    /// order — empty for a class that declares none.
+    ///
+    /// **Own only**, and unlike [`Self::property_defaults`] never joined with
+    /// an ancestor's: `Sub::$count` and the `Base::$count` it inherits are one
+    /// storage, held under `Base`'s label, so `mwl_ir::lower` enumerates each
+    /// class's own entry and stops there.
+    #[must_use]
+    pub fn static_properties(&self, label: &str) -> &[(String, Option<crate::defaults::ConstArg>)] {
+        self.static_properties.get(label).map_or(&[], Vec::as_slice)
     }
 
     /// Records the class labelled `label`'s **own** declared property types,

@@ -914,6 +914,35 @@ impl<'a> Lowering<'a> {
                     (v, field_ty)
                 }
             }
+            // `Class::$prop = expr;` — the same sequence the field arm below
+            // ends with, minus every step that needs a receiver: retain the
+            // new value if it is an aliasing read, read the slot's previous
+            // value back and release it, then store. Retain before release,
+            // so `Class::$p = Class::$p;` never observes a transient zero.
+            ExprKind::StaticPropertyAccess { .. } => {
+                let (class, name, slot_ty) = self.static_property_of(target);
+                let (v, vty, aliasing) = self.lower_stored(stored, Some(slot_ty), env, cur);
+                if slot_ty.is_refcounted() && aliasing {
+                    self.emit_retain(*cur, v);
+                }
+                let v = self.coerce(*cur, v, vty, slot_ty, env);
+                if slot_ty.is_refcounted() && extra_owner {
+                    self.emit_retain(*cur, v);
+                }
+                if slot_ty.is_refcounted() {
+                    let (old_v, _) = self.emit(
+                        *cur,
+                        slot_ty,
+                        InstKind::StaticGet {
+                            class: class.clone(),
+                            name: name.clone(),
+                        },
+                    );
+                    self.emit_release(*cur, old_v);
+                }
+                self.emit_static_set(*cur, class, name, v);
+                (v, slot_ty)
+            }
             // `$arr[$i] = expr;` — the element's declared type comes from
             // `self.exprs`, exactly like the read side above (`check_assign`'s
             // general arm routes the target back through the same

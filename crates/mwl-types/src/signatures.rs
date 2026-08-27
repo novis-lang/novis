@@ -354,8 +354,27 @@ pub struct ClassSignature {
     /// is the one place both this table and `crate::layout`'s slots are in
     /// hand. `crate::defaults` owns what a default may be and where it ends up
     /// at run time; a `static` property is excluded, since it occupies no
-    /// instance slot for anything to be written into.
+    /// instance slot for anything to be written into — it takes
+    /// [`Self::static_property_defaults`] instead.
     pub property_defaults: Vec<(String, crate::defaults::ConstArg)>,
+    /// This declaration's own `static` properties — **every one of them**, in
+    /// declaration order, each with its evaluated initializer.
+    ///
+    /// Separate from [`Self::property_defaults`] because the two are joined
+    /// against different things: an instance default is written into a slot of
+    /// the flattened *layout*, and a static's is materialized once per request
+    /// into `mwl_runtime::Ctx`'s own slot vector (that module's docs own the
+    /// lifetime). A static property is never inherited into a second slot —
+    /// `Sub::$count` and `Base::$count` are the one storage PHP makes them —
+    /// so this is read per declaring class and never flattened.
+    ///
+    /// Every static appears, initializer or not: this is what `mwl_ir::lower`
+    /// enumerates the program's slots from, so a static missing here has no
+    /// storage at all. A `None` initializer is one ADR 0022 § 2 required no
+    /// default of — a nullable or `lateinit` static — and its slot starts each
+    /// request at `null`, the same "an absent default is the zeroed slot"
+    /// convention an instance property already has.
+    pub static_properties: Vec<(String, Option<crate::defaults::ConstArg>)>,
     /// Method signatures, keyed by method name.
     pub methods: FxHashMap<String, MethodSig>,
     /// This declaration's own properties that ADR 0022 § 2 requires a
@@ -724,13 +743,15 @@ fn collect_members(
                 // expression together, and because it must happen exactly
                 // once: `crate::defaults` reports a bad default, and a second
                 // walk would report it twice.
-                let default = if p.modifiers.contains(&Modifier::Static) {
-                    None
-                } else {
-                    p.default
-                        .as_ref()
-                        .and_then(|expr| crate::defaults::eval_property_default(expr, ty, env))
-                };
+                let default = p
+                    .default
+                    .as_ref()
+                    .and_then(|expr| crate::defaults::eval_property_default(expr, ty, env));
+                // A `static` property occupies no instance slot, so its
+                // constant goes to the other vector — the one
+                // `mwl_runtime::Ctx` arms once per request rather than once
+                // per `new`. See `ClassSignature::static_property_defaults`.
+                let is_static_property = p.modifiers.contains(&Modifier::Static);
                 let sig = table.entry(qname.clone());
                 sig.properties.insert(name.clone(), ty);
                 if let Some(level) = visibility {
@@ -739,10 +760,34 @@ fn collect_members(
                 if hooks != PropertyHooks::default() {
                     sig.hooked_properties.insert(name.clone(), hooks);
                 }
-                if let Some(default) = default {
+                if is_static_property {
+                    sig.static_properties.push((name.clone(), default));
+                } else if let Some(default) = default {
                     sig.property_defaults.push((name.clone(), default));
                 }
-                if required {
+                // A static property is deliberately **not** an ADR 0022 § 2
+                // obligation: its storage is the request's rather than any
+                // instance's, so no constructor can discharge one and the
+                // declaration is the only place it can be initialized. Same
+                // test, its own diagnostic, and reported here because this is
+                // the pass that holds the type and the written default
+                // together.
+                if required && is_static_property {
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_UNINITIALIZED_PROPERTY,
+                            format!(
+                                "the static property `${name}` has no initializer, and no \
+                                 constructor can give it one"
+                            ),
+                        )
+                        .with_primary(p.name, "never initialized")
+                        .with_help(
+                            "give it a value here (`= 0`), or declare it nullable so it starts \
+                             each request at `null`",
+                        ),
+                    );
+                } else if required {
                     sig.required_properties.push((name.clone(), p.name));
                 }
                 if is_lateinit {

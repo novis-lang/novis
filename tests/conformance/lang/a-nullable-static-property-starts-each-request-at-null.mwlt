@@ -1,0 +1,46 @@
+--TEST--
+A `static` property whose type admits `null` needs no initializer and starts the request at `null`; a subclass redeclaring one gets a second storage — ADR 0022 § 2, and `docs/adr/README.md` § *Decisions taken at project start* for the lifetime
+--FILE--
+<?mwl
+class Cache {
+    // No initializer, and none required: ADR 0022 § 2 exempts a nullable
+    // declaration, so the slot is armed with `null` when the request starts.
+    // This is a deliberate MWL answer rather than PHP's — PHP leaves a typed
+    // static *uninitialized* and throws on the read, which is exactly the
+    // "reading a binding that may not have reached its initialiser" state
+    // ADR 0007 § 1 does not have.
+    public static ?string $entry;
+    public static ?int $hits;
+
+    public static function seed(): void {
+        self::$entry = "warm";
+        self::$hits = 1;
+    }
+}
+
+// Redeclaring in a subclass is a second storage, exactly as it is in PHP:
+// the checker resolves each access to the class that *declares* the name it
+// finds, so these two never alias.
+class Layered extends Cache {
+    public static ?string $entry;
+}
+
+echo Cache::$entry ?? "cold", "\n";
+echo (Cache::$hits ?? 0) as string, "\n";
+
+Cache::seed();
+echo Cache::$entry ?? "cold", "\n";
+echo (Cache::$hits ?? 0) as string, "\n";
+
+// `Layered::$entry` names its own declaration, so seeding the parent's left
+// it alone; `Cache::$entry` still holds what `seed` put there.
+echo Layered::$entry ?? "cold", "\n";
+Layered::$entry = "own";
+echo Layered::$entry ?? "cold", " ", Cache::$entry ?? "cold", "\n";
+--EXPECT--
+cold
+0
+warm
+1
+cold
+own warm

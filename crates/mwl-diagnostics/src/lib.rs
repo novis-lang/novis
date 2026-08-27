@@ -1022,6 +1022,22 @@ pub mod code {
     /// The accepted set is PHP's: a variable, a subscript, a property (`?->`
     /// included), a static property, and any of those in parentheses.
     pub const E_ISSET_NOT_A_VARIABLE: Code = Code::new("E0498");
+    /// `static::$prop` — late static binding on a *static property*, whose
+    /// storage MWL resolves at compile time.
+    ///
+    /// PHP re-resolves the name against the **called** class, so a subclass
+    /// that redeclares the property gets its own storage through this
+    /// spelling and the parent's through `self::`. MWL's slot is fixed where
+    /// the access is written (`mwl_ir::ir::StaticProp`), which answers the
+    /// same as PHP for every class that does *not* redeclare and differs
+    /// silently for one that does — so the spelling is refused rather than
+    /// left to diverge, per `AGENTS.md`'s priority 2. `self::$prop` and a
+    /// written class name both say exactly which storage is meant and are
+    /// unaffected.
+    ///
+    /// **The last code in the E04xx band.** The next type diagnostic needs a
+    /// band decision, not a number.
+    pub const E_STATIC_PROPERTY_LATE_BOUND: Code = Code::new("E0499");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

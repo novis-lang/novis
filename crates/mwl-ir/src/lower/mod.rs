@@ -270,7 +270,7 @@ fn property_defaults(
     layout: &mwl_types::ClassLayout,
     exprs: &ExprTypeTable,
 ) -> Vec<(usize, mwl_types::FieldDefault)> {
-    use mwl_types::{ConstArg, FieldDefault};
+    use mwl_types::FieldDefault;
 
     let mut image: Vec<Option<FieldDefault>> = vec![None; layout.fields.len()];
     let chain = std::iter::once(label).chain(layout.conforms.iter().map(String::as_str));
@@ -282,18 +282,7 @@ fn property_defaults(
             if image[slot].is_some() {
                 continue;
             }
-            image[slot] = match value {
-                ConstArg::Bool(v) => Some(FieldDefault::Bool(*v)),
-                ConstArg::Int(v) => Some(FieldDefault::Int(*v)),
-                ConstArg::Uint(v) => Some(FieldDefault::Uint(*v)),
-                ConstArg::Float(v) => Some(FieldDefault::Float(*v)),
-                ConstArg::Str(s) => Some(FieldDefault::Str(s.clone())),
-                ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
-                ConstArg::Null
-                | ConstArg::Bytes(_)
-                | ConstArg::Options(_)
-                | ConstArg::Built { .. } => None,
-            };
+            image[slot] = field_default(value);
         }
     }
     image
@@ -301,6 +290,67 @@ fn property_defaults(
         .enumerate()
         .filter_map(|(slot, value)| Some((slot, value?)))
         .collect()
+}
+
+/// One evaluated constant, as the runtime's own smaller vocabulary spells it —
+/// `None` for a variant a written property declaration cannot reach, which is
+/// unreachable rather than lossy for [`property_defaults`]' own reason.
+fn field_default(value: &mwl_types::ConstArg) -> Option<mwl_types::FieldDefault> {
+    use mwl_types::{ConstArg, FieldDefault};
+
+    match value {
+        ConstArg::Bool(v) => Some(FieldDefault::Bool(*v)),
+        ConstArg::Int(v) => Some(FieldDefault::Int(*v)),
+        ConstArg::Uint(v) => Some(FieldDefault::Uint(*v)),
+        ConstArg::Float(v) => Some(FieldDefault::Float(*v)),
+        ConstArg::Str(s) => Some(FieldDefault::Str(s.clone())),
+        ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
+        ConstArg::Null | ConstArg::Bytes(_) | ConstArg::Options(_) | ConstArg::Built { .. } => None,
+    }
+}
+
+/// Every `static` property the unit declares, in the order that fixes each
+/// one's slot number — [`crate::ir::Program::statics`].
+///
+/// Sorted by `(class, name)` for the reason `lower_program` sorts its classes:
+/// the layout table behind `layouts` is a hash map, and a slot number that
+/// moved between runs would make every snapshot of a lowered program — and
+/// every compiled unit's agreement with the context it is installed in —
+/// depend on iteration order.
+///
+/// Never flattened along the class graph, unlike [`property_defaults`]: a
+/// static's storage belongs to the class that *declares* it, and that is the
+/// label the checker already resolved every access to.
+fn static_props(
+    layouts: &ClassLayoutTable,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> Vec<crate::ir::StaticProp> {
+    let mut statics: Vec<crate::ir::StaticProp> = layouts
+        .iter()
+        .flat_map(|(label, _)| {
+            exprs
+                .static_properties(label)
+                .iter()
+                .map(move |(name, default)| crate::ir::StaticProp {
+                    class: label.to_owned(),
+                    name: name.clone(),
+                    // The same fallback `field_reprs` takes, for the same
+                    // reason: a type this crate does not represent is
+                    // `Ty::Tagged`, which reads and writes the whole 16 bytes
+                    // rather than a payload half it cannot name.
+                    repr: exprs
+                        .property_types(label)
+                        .iter()
+                        .find(|(property, _)| property == name)
+                        .and_then(|(_, ty)| erase_checked_ty(*ty, checked_types))
+                        .unwrap_or(Ty::Tagged),
+                    default_value: default.as_ref().and_then(field_default),
+                })
+        })
+        .collect();
+    statics.sort_by(|a, b| (&a.class, &a.name).cmp(&(&b.class, &b.name)));
+    statics
 }
 
 /// What each of `label`'s field slots is declared to hold, in slot order —
@@ -584,7 +634,11 @@ pub fn lower_program(
     // map, and a closure's and a generator's class are named for the site.
     classes.dedup_by(|a, b| a.label == b.label);
 
-    crate::ir::Program { functions, classes }
+    crate::ir::Program {
+        functions,
+        classes,
+        statics: static_props(layouts, exprs, checked_types),
+    }
 }
 
 /// [`lower_program`] over a program of exactly one file — the shape a
@@ -1733,6 +1787,24 @@ impl<'a> Lowering<'a> {
             on_error: None,
         });
     }
+    /// Appends an [`InstKind::StaticSet`] to `b` — see
+    /// [`Self::lower_store`]'s static-property arm for the retain/release
+    /// policy wrapped around this, which is [`Self::emit_field_set`]'s
+    /// unchanged.
+    pub(super) fn emit_static_set(
+        &mut self,
+        b: BlockId,
+        class: String,
+        name: String,
+        value: ValueId,
+    ) {
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::StaticSet { class, name, value },
+            on_error: None,
+        });
+    }
     /// Appends an [`InstKind::ArraySet`] to `b`, yielding the array that now
     /// holds the entry — see that variant's own doc comment for the
     /// consume-one-reference-yield-one protocol, and
@@ -2537,7 +2609,14 @@ pub(super) enum Stored<'a> {
 fn is_aliasing_read(kind: &ExprKind) -> bool {
     matches!(
         kind,
-        ExprKind::Variable(_) | ExprKind::PropertyAccess { .. } | ExprKind::Index { .. }
+        ExprKind::Variable(_)
+            | ExprKind::PropertyAccess { .. }
+            | ExprKind::Index { .. }
+            // `Class::$prop` reads a slot the *request* owns, which outlives
+            // every frame that can read it — so it is an aliasing read with no
+            // base to recurse into, the one shape here that is durable by
+            // construction rather than by whatever it was read out of.
+            | ExprKind::StaticPropertyAccess { .. }
     )
 }
 

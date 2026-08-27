@@ -291,7 +291,7 @@ pub use closure::{CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, call_closure, closure_arit
 pub use ctx::{
     CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Ctx, DEBUG_FLAGS_OFFSET, DebugFlags,
     ErrorClass, FaultSite, OutputSink, SAFEPOINT_OFFSET, STACK_CEILING, STACK_LIMIT_OFFSET,
-    STACK_RESERVE, SafepointFlags, TraceEvent, is_carrier, mwl_probe_call_enter,
+    STACK_RESERVE, STATICS_OFFSET, SafepointFlags, TraceEvent, is_carrier, mwl_probe_call_enter,
     mwl_probe_call_exit, mwl_probe_stmt, mwl_safepoint, mwl_stack_check,
 };
 pub use decimal::Decimal;

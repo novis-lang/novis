@@ -111,6 +111,9 @@ pub(crate) struct UnitTables<'a> {
     pub functions: &'a FxHashMap<String, FuncId>,
     /// Every class the unit declares — see [`crate::Classes`].
     pub classes: &'a Classes,
+    /// Every `static` property the unit declares, by `(declaring class, name)`
+    /// — see [`crate::Jit::statics`].
+    pub statics: &'a FxHashMap<(String, String), u32>,
     /// One entry per emitted `ConstStr`, so data-object names stay unique.
     pub literals: &'a mut usize,
 }
@@ -128,6 +131,7 @@ pub(crate) fn emit_function(
         sigs,
         functions,
         classes,
+        statics,
         literals,
     } = tables;
     let target_config = module.target_config();
@@ -186,6 +190,7 @@ pub(crate) fn emit_function(
         sigs,
         functions,
         classes,
+        statics,
         literals,
         f,
         values: FxHashMap::default(),
@@ -270,7 +275,7 @@ fn is_landing(block: &BasicBlock) -> bool {
     )
 }
 
-fn internal(what: &str) -> CodegenError {
+pub(crate) fn internal(what: &str) -> CodegenError {
     CodegenError::Unsupported(format!("{what} (this is a bug in mwl-ir or mwl-codegen)"))
 }
 
@@ -340,6 +345,8 @@ struct Emitter<'a, 'f> {
     functions: &'a FxHashMap<String, FuncId>,
     /// Every class the unit declares — see [`crate::Classes`].
     classes: &'a Classes,
+    /// Every `static` property the unit declares — see [`crate::Jit::statics`].
+    statics: &'a FxHashMap<(String, String), u32>,
     literals: &'a mut usize,
     f: &'a Function,
     /// Every SSA value defined so far, with the representation it was defined
@@ -605,6 +612,13 @@ impl Emitter<'_, '_> {
                 value,
             } => {
                 self.emit_field_set(*object, class, field, *value)?;
+            }
+            InstKind::StaticGet { class, name } => {
+                let value = self.emit_static_get(inst, class, name)?;
+                self.define(inst, value)?;
+            }
+            InstKind::StaticSet { class, name, value } => {
+                self.emit_static_set(class, name, *value)?;
             }
             InstKind::InstanceOf { value, class } => {
                 let result = self.emit_instanceof(*value, class)?;
@@ -2295,6 +2309,78 @@ impl Emitter<'_, '_> {
         let (base, _) = self.value(object)?;
         let (value, ty) = self.value(value)?;
         self.store_value(base, offset, value, ty)
+    }
+
+    /// `Class::$prop`: two loads — the request's static-slot base out of the
+    /// context, then the payload out of the slot.
+    ///
+    /// The same shape [`Self::emit_field_get`] has once its receiver is in
+    /// hand, and for the same reason: the slot's static type is settled, so
+    /// the tag is not re-read. What replaces the receiver is one load at
+    /// [`mwl_runtime::STATICS_OFFSET`] — a hot-word read exactly like the
+    /// safepoint poll's, against a pointer `mwl_runtime::Ctx::install_statics`
+    /// armed before any of this unit's code ran.
+    ///
+    /// Nothing is retained: the slot keeps its one reference and
+    /// `mwl_ir::ir::InstKind::StaticGet` borrows, so the consumer inserts the
+    /// retain if it keeps the value.
+    fn emit_static_get(
+        &mut self,
+        inst: &Inst,
+        class: &str,
+        name: &str,
+    ) -> Result<Value, CodegenError> {
+        let offset = self.static_offset(class, name)?;
+        let base = self.statics_base();
+        let ty = inst
+            .ty
+            .ok_or_else(|| internal("a static property read with no representation"))?;
+        self.load_value(base, offset, ty)
+    }
+
+    /// `Class::$prop = v`: [`Self::emit_static_get`]'s store side, and
+    /// [`Self::emit_field_set`]'s policy unchanged — the release of what the
+    /// slot held is the IR's, emitted before this.
+    fn emit_static_set(
+        &mut self,
+        class: &str,
+        name: &str,
+        value: ValueId,
+    ) -> Result<(), CodegenError> {
+        let offset = self.static_offset(class, name)?;
+        let base = self.statics_base();
+        let (value, ty) = self.value(value)?;
+        self.store_value(base, offset, value, ty)
+    }
+
+    /// This request's static-slot base, loaded out of the context.
+    ///
+    /// Re-loaded per access rather than hoisted to function entry: nothing in
+    /// a frame can re-arm the vector — `install_statics` runs before the
+    /// request's first frame — so the two are equivalent, and leaving the load
+    /// where the access is keeps it out of the far more common function that
+    /// touches no static at all.
+    fn statics_base(&mut self) -> Value {
+        let offset = i32::try_from(mwl_runtime::STATICS_OFFSET)
+            .unwrap_or_else(|_| unreachable!("the statics base sits within the context's head"));
+        self.b
+            .ins()
+            .load(types::I64, ctx_word(), self.ctx_p, offset)
+    }
+
+    /// The byte offset of `class::$name`'s slot within this request's static
+    /// storage, as an `i32` Cranelift memory operand.
+    fn static_offset(&self, class: &str, name: &str) -> Result<i32, CodegenError> {
+        let slot = *self
+            .statics
+            .get(&(class.to_owned(), name.to_owned()))
+            .ok_or_else(|| {
+                CodegenError::Unsupported(format!(
+                    "the static property `{class}::${name}`, which this unit declares no slot for"
+                ))
+            })?;
+        i32::try_from(usize::try_from(slot).unwrap_or(usize::MAX) * size_of::<MwlValue>())
+            .map_err(|_| internal("a static property sitting past a 2 GiB offset"))
     }
 
     /// The byte offset of `class::field` within an instance, as an `i32`

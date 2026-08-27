@@ -297,11 +297,18 @@ impl<'a> Lowering<'a> {
             // owes. `mwl_types::expr::presence` marks its subscripts guarded,
             // which is what makes `empty($a["nope"])` answer `true`.
             ExprKind::Empty(operand) => (self.lower_not(operand, env, cur), Ty::Bool),
+            // `Class::$prop` — one load out of the request's own static slot.
+            // The written class expression (`self`, `static`, `parent` or a
+            // name) is never looked at here: the checker already resolved it
+            // to the *declaring* class, which is the storage's identity, and
+            // recorded the pair — see `InstKind::StaticGet`.
+            ExprKind::StaticPropertyAccess { .. } => self.lower_static_property(expr, cur),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
-                 operators, `new`, a static or instance method call, property access, an array \
-                 literal, an array-element read, `instanceof`, `isset`, `empty`, an enum case, an \
-                 increment, an assignment, `print` and an `as` conversion — got {other:?}; \
+                 operators, `new`, a static or instance method call, property access, a static \
+                 property, an array literal, an array-element read, `instanceof`, `isset`, \
+                 `empty`, an enum case, an increment, an assignment, `print` and an `as` \
+                 conversion — got {other:?}; \
                  see the crate docs' known gaps"
             ),
         }
@@ -3611,6 +3618,53 @@ impl<'a> Lowering<'a> {
             }
         };
         self.emit_fallible(*cur, return_ty, kind, env)
+    }
+
+    /// `Class::$prop` — one [`InstKind::StaticGet`] against the slot the
+    /// checker's resolved `(declaring class, name)` pair names.
+    ///
+    /// No receiver is lowered and the written class expression is not looked
+    /// at: `self`, `static`, `parent` and a spelled-out name all resolve to
+    /// the same declaring class, and late static binding has nothing to say
+    /// about storage that is not per-instance. That is why this is a read with
+    /// no base to release, unlike [`Self::lower_property_access`].
+    ///
+    /// # Panics
+    ///
+    /// Panics when the typed-expression table has no
+    /// `ExprInfo::StaticProperty` for this access — the same
+    /// internal-consistency check a property access makes, and reachable only
+    /// from a body checked against a different table.
+    pub(super) fn lower_static_property(
+        &mut self,
+        expr: &Expr,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let (class, name, ty) = self.static_property_of(expr);
+        self.emit(*cur, ty, InstKind::StaticGet { class, name })
+    }
+
+    /// The resolved `(declaring class label, property name, representation)`
+    /// behind a `Class::$prop` access — the one place the read side and
+    /// `Lowering::lower_store`'s write side agree on what a static names.
+    ///
+    /// # Panics
+    ///
+    /// See [`Self::lower_static_property`].
+    pub(super) fn static_property_of(&self, expr: &Expr) -> (String, String, Ty) {
+        let Some(ExprInfo::StaticProperty { class, name, ty }) = self.exprs.lookup(expr.span)
+        else {
+            panic!(
+                "mwl-ir: a static property access at {:?} has no resolved declaring class \
+                 recorded in the typed-expression table — it wasn't checked with the same table",
+                expr.span
+            );
+        };
+        (
+            class.to_string(),
+            name.clone(),
+            lower_checked_ty(*ty, self.checked_types),
+        )
     }
 
     /// `$obj->prop` — the receiver's declaring class comes from

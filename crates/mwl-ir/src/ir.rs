@@ -17,6 +17,44 @@ pub struct Program {
     /// Every class and interface declared in the unit, in no particular
     /// order — see [`Class`].
     pub classes: Vec<Class>,
+    /// Every `static` property the unit declares, in slot order — see
+    /// [`StaticProp`], and [`InstKind::StaticGet`] for what a slot number is.
+    pub statics: Vec<StaticProp>,
+}
+
+/// One `static` property's storage: the identity a
+/// [`InstKind::StaticGet`]/[`InstKind::StaticSet`] names, and the constant
+/// every request starts it at.
+///
+/// A static property has **no instance slot** ([`Class::fields`] never lists
+/// one), and its storage is not the class's at all: it is one entry in the
+/// request's own flat slot vector, whose index is this value's position in
+/// [`Program::statics`]. `mwl_runtime::ctx`'s docs own the lifetime — the slot
+/// is request-scoped, armed from [`Self::default_value`] when the request
+/// starts and released when it ends — and `docs/adr/README.md`
+/// § *Decisions taken at project start* owns why it is request-scoped rather
+/// than process-global.
+///
+/// The pair `(class, name)` is the *declaring* class's label and the property's
+/// own name, which is exactly what `mwl_types::expr_table::ExprInfo::StaticProperty`
+/// carries. A subclass reading an inherited static therefore resolves to the
+/// ancestor's entry, with no flattening step: `Sub::$count` and `Base::$count`
+/// are one storage, as they are in PHP.
+#[derive(Clone, Debug)]
+pub struct StaticProp {
+    /// The declaring class's rendered label, spelled the way
+    /// [`InstKind::FieldGet::class`] is.
+    pub class: String,
+    /// The property's own name, `$`-sigil not included.
+    pub name: String,
+    /// What the slot holds, so a read can load the payload half alone — the
+    /// same "the declared type settles the representation" rule a field slot
+    /// has ([`Class::field_reprs`]).
+    pub repr: Ty,
+    /// The declared initializer, or `None` for a nullable or `lateinit`
+    /// static ADR 0022 § 2 required no default of, whose slot starts each
+    /// request at `null`.
+    pub default_value: Option<mwl_types::FieldDefault>,
 }
 
 /// One class's or interface's runtime shape: what an instance's field slots
@@ -515,6 +553,44 @@ pub enum InstKind {
         class: String,
         /// The field's own name, `$`-sigil not included.
         field: String,
+        /// The new value, already lowered.
+        value: ValueId,
+    },
+    /// Reads a `static` property — `Class::$prop`, `self::$prop`, and every
+    /// other spelling of the same storage.
+    ///
+    /// `class`/`name` are the **declaring** class's label and the property's
+    /// own name, exactly the resolved identity
+    /// `mwl_types::expr_table::ExprInfo::StaticProperty` carries — they stay
+    /// labels here rather than becoming a slot number for
+    /// [`InstKind::FieldGet`]'s reason, and `mwl-codegen` resolves the pair
+    /// through [`Program::statics`] the same way it resolves a field name
+    /// through [`Class::fields`]. What reaches the machine is a constant
+    /// offset into the request's slot vector, which is the whole difference
+    /// from [`InstKind::SlotGet`]'s name-keyed fetch: a static read costs two
+    /// loads — the base out of the context, the payload out of the slot — and
+    /// no call.
+    ///
+    /// **Borrows, exactly like [`InstKind::FieldGet`].** The slot keeps its
+    /// one reference and this takes none, so a consumer that keeps the value
+    /// retains it — `crate::lower::is_aliasing_read` lists
+    /// `ExprKind::StaticPropertyAccess` for that reason.
+    StaticGet {
+        /// The declaring class's label.
+        class: String,
+        /// The property's own name, `$`-sigil not included.
+        name: String,
+    },
+    /// Writes a `static` property — [`InstKind::StaticGet`]'s counterpart, and
+    /// [`InstKind::FieldSet`]'s refcounting policy unchanged: the lowering
+    /// retains the incoming value if it is an aliasing read, reads the slot's
+    /// previous value back with a [`InstKind::StaticGet`] and releases it, and
+    /// only then stores. Defines no value.
+    StaticSet {
+        /// The declaring class's label.
+        class: String,
+        /// The property's own name, `$`-sigil not included.
+        name: String,
         /// The new value, already lowered.
         value: ValueId,
     },

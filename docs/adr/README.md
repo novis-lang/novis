@@ -485,3 +485,17 @@ silently. `benches/abi-probe/` checks them on every CI run, including the *premi
 ever changes we are told rather than left paying for a workaround that is no longer needed. It also guards a
 premise about the *platform we are replacing*: that an OS process costs orders of magnitude more than a
 task, which is the whole cost argument for [0006](0006-isolated-script-execution.md).
+
+**A `static` property's storage is the request's, not the process's.** One slot per declared static per
+in-flight request, armed from the declaration's own initializer when the request's `mwl_runtime::Ctx` is
+built and released when it is dropped. The priority ordering settles it at rank 1: a process-global static
+is a channel from one request into the next, so a token cached in one is readable by whoever sends the
+next request, and no amount of care in user code closes that. `mwl run` cannot tell the two apart — a CLI
+run is one request — so the divergence is invisible until `mwl serve` at M7, which is exactly when the
+wrong default would have become expensive. What it costs is the PHP idiom of a process-lifetime memo,
+which [0006](0006-isolated-script-execution.md) had already removed by making a script's world
+per-execution; a cache that must outlive a request is a `Core` capability with a stated lifetime, not a
+class variable. Because a static therefore has no constructor to assign it, its declaration must carry an
+initializer unless its type admits `null` (`E0409`), and `static::$prop` — which PHP re-resolves against
+the *called* class — is refused rather than silently answering the writing class's slot (`E0499`).
+`mwl_runtime::ctx`'s module docs own the mechanism and what it spends.

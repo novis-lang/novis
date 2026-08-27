@@ -319,7 +319,7 @@ impl FieldDefault {
     /// A fresh [`Value`] for this default, owning one reference to whatever it
     /// allocated.
     #[must_use]
-    fn materialize(&self) -> Value {
+    pub(crate) fn materialize(&self) -> Value {
         match self {
             Self::Bool(v) => Value::bool(*v),
             Self::Int(v) => Value::int(*v),

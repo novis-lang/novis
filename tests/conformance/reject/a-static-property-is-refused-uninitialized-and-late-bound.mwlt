@@ -1,0 +1,36 @@
+--TEST--
+The two shapes a `static` property has no honest answer for: no initializer on a non-nullable declaration (`E0409`, ADR 0022 § 2's rule against storage nothing assigns), and `static::$prop`, whose called class PHP resolves at run time and MWL fixes at compile time (`E0499`)
+--FILE--
+<?mwl
+class Counter {
+    // No constructor can discharge this: the storage is the request's, not
+    // any instance's, so the declaration is the only place it can be given
+    // a value.
+    public static int $total;
+    public static string $label = "counts";
+
+    public static function read(): string {
+        // The slot is resolved where this is written, so `static::` — which
+        // PHP re-resolves against the called class — would answer this
+        // class's storage for every subclass, silently, rather than the
+        // subclass's own.
+        return static::$label;
+    }
+}
+echo Counter::read(), "\n";
+--EXPECTF-ERROR--
+error[E0409]: the static property `$total` has no initializer, and no constructor can give it one
+  --> %s:6:23
+  |
+6 |     public static int $total;
+  |                       ^^^^^^ never initialized
+  = help: give it a value here (`= 0`), or declare it nullable so it starts each request at `null`
+
+error[E0499]: `static::` does not resolve a static property
+   --> %s:14:16
+   |
+14 |         return static::$label;
+   |                ^^^^^^ the called class is only known at run time
+   = help: write `self::` for the class this is declared in, or name the class whose storage is meant
+
+error: aborting due to 2 errors

@@ -97,6 +97,15 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         );
         return;
     }
+    if let InstKind::StaticSet {
+        ref class,
+        ref name,
+        value,
+    } = inst.kind
+    {
+        let _ = writeln!(out, "    static.set {class}::${name}, v{}", value.index());
+        return;
+    }
     // A value-less `HelperCall`, of which there are two kinds and both are
     // invoked for an effect: `Helper::EchoStr` writes and returns nothing, and
     // `Helper::LiteralMismatch` never returns at all. Neither has a `result`
@@ -202,6 +211,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             class,
             field,
         } => format!("field.get v{}, {class}::{field}", object.index()),
+        InstKind::StaticGet { class, name } => format!("static.get {class}::${name}"),
         InstKind::SlotGet {
             object,
             field,
@@ -288,7 +298,8 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         | InstKind::Retain { .. }
         | InstKind::Release { .. }
         | InstKind::RefStore { .. }
-        | InstKind::FieldSet { .. } => {
+        | InstKind::FieldSet { .. }
+        | InstKind::StaticSet { .. } => {
             unreachable!("returned above")
         }
     };
