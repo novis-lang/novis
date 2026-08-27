@@ -610,6 +610,16 @@ is why" — is this file.
   meant. `git status` says *"CRLF will be replaced by LF the next time Git touches it"* and that
   warning is the whole diagnosis. `tools/splice.py` already gets this right; a one-off script beside
   it does not inherit that.
+- **`cargo insta` is not installed in this tree**, so `cargo insta accept` and `cargo
+  insta review` both fail with *"a command with a similar name exists: `init`"* rather
+  than with anything about snapshots. Accepting one by hand is two steps and the second
+  is the one that is easy to miss: `mv x.snap.new x.snap`, then
+  `sed -i '/^assertion_line: /d' x.snap`, because insta writes that header into a
+  *pending* file and a committed snapshot must not carry it — leave it in and the file
+  is a diff away from every other snapshot in the tree. The neighbouring bullet about
+  accepting *every* pending snapshot still applies whichever way you accept: run
+  `git status --short` first, and any `.snap.new` you did not just produce is one to
+  delete rather than to accept.
 
 ## Running things
 

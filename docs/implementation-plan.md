@@ -350,11 +350,34 @@
 > seven positions a staged call takes, and the oracle twin
 > `tests/differential/lang/a-reference-argument-matches-phps.mwlt`, which deliberately writes no
 > read to the *left* of such a call: that is the operand-order divergence `Lowering::pending_refs`
-> owns, PHP's manual leaves it undefined, and it is not a difference to pin. Three live tools
-> **are** the worklist and no session re-derives one: `python tools/holes.py` reads the refusal
-> sites out of `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item N` for one in
-> full), `python tools/loop.py --list` prints the named `.mwlt` cases each stage still owes, and
-> `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> owns, PHP's manual leaves it undefined, and it is not a difference to pin. **An abandoned
+> generator's `finally` has an entry point now**, which is item 13's first half and the half that
+> had the design call in it. Every generator's state class carries a fourth synthesized method,
+> `{name}$gen::unwind`, and one more `Ty::Int` field, `gen#unwind`: `unwind` reads the parked state,
+> and where that state names an actual suspension — anything above `0`, since `0` is "never entered"
+> and so no `try` has been entered either — it raises the flag and re-enters `advance()`, whose
+> entry switch lands on that suspension's own resume block. A resume block that sits inside a
+> `finally`-owning region grows a branch on the flag, and its unwind arm is lowered as **exactly
+> what `return;` lowers to at that point** — `run_pending_finallys` over every enclosing region,
+> innermost first, then `finish_generator` — so the ladder, the per-binding releases and the exit
+> are the body's own rather than a second copy of the rules. A suspension owing nothing grows no
+> branch at all, which is why a generator with no `finally` lowers byte-identically to before. **It
+> is not a destructor and re-opens nothing in ADR 0028 § 2**, whose body now says so in its own
+> paragraph: no class declares anything, no method name is recognized, no object gains a lifecycle
+> hook, and the only code that runs is code the program had already entered and suspended inside.
+> One convention is deliberately inverted and it is the reason the design works: **`unwind` borrows
+> argument 0**, alone among compiled methods, because the release path reaches it at the moment a
+> count has already hit zero — a consuming convention would ask that caller for a reference it no
+> longer has, and `advance`'s own release on the way out would then cross zero a second time and
+> re-enter the release path on the allocation it is already dismantling. The retain inside `unwind`
+> pairs with that release, so the count it is handed is the count it leaves behind. What is still
+> open is the other end, `mwl-ir` gap 18's remaining sentence: `mwl_runtime::object::dismantle` does
+> not look the method up, so a `break` out of a `foreach` still leaves the frame parked and prints
+> nothing. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
+> cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
