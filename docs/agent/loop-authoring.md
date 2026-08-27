@@ -36,12 +36,18 @@ same week, opposite instruction. So:
 
 | If `loop-stats.py` now says | Then |
 |---|---|
-| Sessions finish **over** the ceiling | This is where the loop stands today. The cap is one slice and the lever is *reading less*: whole files only when small, regions otherwise, and nothing re-read that orientation already printed. Grouping is not available until sessions land under the line. |
+| Sessions finish **over** the ceiling | The cap is one slice and the lever is *reading less*: whole files only when small, regions otherwise, and nothing re-read that orientation already printed. Grouping is not available until sessions land under the line. |
 | Sessions finish **well under** the ceiling | Grouping is back on. Take the cap the projection prints, preferring the knee over the fastest. |
 | Fixed cost is a small share of a session | Grouping has stopped paying whatever the context says. Look at parallel lanes instead (coordinator.md's last section). |
 | Sessions are compacting | The ceiling is far too high — compaction loses the standing instructions the run depends on. Drop it until it stops, and treat every result from that run as suspect. |
 | Calls per message is above 1 | Batching finally happened, so the clock constants shifted but the context ones did not. Re-derive before trusting any earlier ratio; batching buys turns, never tokens. It has never happened by hand — 0 in 3,647 calls — which is why reading goes through `peek.py` instead. |
-| `ctx_start` has crept up | The fixed cost of *existing* grew — AGENTS.md, the brief, the playbook. Every byte there is charged to every session before it does anything, and then re-billed on every turn of it. Over one run `playbook.md` grew 61% and dragged `ctx_start` up 5.3k with it. `--calibrate` prices a byte here; § 2 says what to do about it. |
+| `ctx_start` has crept up | The fixed cost of *existing* grew — AGENTS.md, the brief, the playbook. Every byte there is charged to every session before it does anything, and then re-billed on every turn of it. Over one run `playbook.md` grew 61% and dragged `ctx_start` up 5.3k with it; over the next, the pack went 59 KB to 118 KB at +907 B a session and the projection's cap fell to one slice on the strength of it alone. `--calibrate` prices a byte here; `session.py --wrap` reports the growth each session leaves behind; § 2 says what to do about it. |
+| The same trap appears in the playbook twice | `python tools/playbook.py --dupes`. An append-mostly file cannot notice it already knows something: one trap had been written down six times, by six sessions, in six wordings, and each copy was charged to every session afterwards. |
+
+**The projection opens where the *next* session will open**, not where the last ones did — the regressed
+fixed floor plus the pack that is on disk right now. That matters when you have just changed what a
+session reads: without it, a pass that halves the pack goes on producing the old cap until a whole further
+run has been spent re-measuring what was just measured.
 
 Whatever you pick, **say in the commit which cap it is and why.** AGENTS.md § *Session workflow* step 2 is
 the one place it lives.
@@ -60,7 +66,7 @@ unscoped one, which is about 30k of context before a session has read a line of 
 | `rules` | ADR numbers; their one-sentence bullet from [ground-rules.md](../adr/ground-rules.md) | listing every ADR the topic touches rather than the ones that *bind the work* |
 | `adrs` | `"NNNN"` for the *In short* block, `"NNNN §N"` for one section | naming a whole ADR — that is 7k of context where a section is 1k |
 | `shapes` | headings of [conventions.md](conventions.md) the goal will write | listing all of them; a goal writing no `Core` member does not need that shape |
-| `playbook` | a heading of [playbook.md](playbook.md), **or one bullet** — `"Tooling > A whole ADR"`. Don't pick by hand: `python tools/playbook.py --goal` ranks all 86 bullets against this goal's own `modules` and prints the list as TOML | naming the section when the goal needs three of its bullets: sections grow forever, and this one is usually the pack's largest. Naming four whole sections cost 42 KB of a 78 KB pack until it was measured |
+| `playbook` | a heading of [playbook.md](playbook.md), **or one bullet** — `"Tooling > A whole ADR"`. Don't pick by hand: `python tools/playbook.py --goal` ranks every bullet against this goal's own `modules` and prints the list as TOML | naming the section when the goal needs three of its bullets: sections grow forever, and this one is usually the pack's largest. Naming four whole sections cost 42 KB of a 78 KB pack until it was measured. `orient.py` narrows this list a second time, to the paths the session's own item names, so a selector that no item touches costs one line rather than a bullet |
 | `plan` | status-block fields worth printing | more than `Open now` and `Blocking`, which is usually the answer |
 | `milestones` | `"M4S"` for a whole milestone out of [docs/plan/](../plan/), `"M4S:lead"` or `"M4S:verify"` for one paragraph | naming the whole milestone when `:verify` was the question — M8 is 11k, its acceptance paragraph is under 1k |
 

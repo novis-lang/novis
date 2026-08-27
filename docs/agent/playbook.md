@@ -485,6 +485,13 @@ is why" — is this file.
   whose hook *discards* its argument shows anything. That is why `lower_store` takes an
   `extra_owner` flag instead of handing the value back for its caller to retain: the retain has to
   be emitted where each arm still holds a reference, which for that one arm is *before* the call.
+- **A `splice.py` patch cannot carry a patch, so an edit to prose *about* the patch format is one
+  the `Edit` tool has to make.** A block runs from `<<<<<<< OLD` to the first `=======` after it,
+  and a block whose own text quotes those markers — a doc showing the format, a bullet like this
+  one — ends in the middle of itself. The failure does not look like a parse error: it looks like
+  a stale anchor in whatever file the truncated block landed on, which is a confusing thing to
+  read when the file was correct a second ago. Everything else about the tool is worth reaching
+  for from three edits up, across as many files as the edit spans; this is its one edge.
 
 ## Running things
 
