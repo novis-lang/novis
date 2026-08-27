@@ -796,6 +796,12 @@ is why" — is this file.
   that looks like a POSIX path into a Windows one before `wsl.exe` ever sees it, and the error names
   a path nobody typed. The same command through the PowerShell tool runs unchanged; `MSYS_NO_PATHCONV=1`
   is the other way. This is one call's worth of confusion every time a session adds a refcount edge.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it
+  when the Bash tool is what runs it.** Git Bash rewrites the `/mnt/...` argument into
+  `C:/Program Files/Git/mnt/...` before `wsl.exe` ever sees it, and the failure reads as a missing
+  script rather than as a mangled path — *`bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh:
+  No such file or directory`*. The file-passed-by-path shape `commands.md` documents is otherwise
+  unchanged, and the PowerShell tool needs no prefix.
 
 ## Writing a test case
 
