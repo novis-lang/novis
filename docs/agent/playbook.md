@@ -659,15 +659,15 @@ is why" — is this file.
   static layout differs from the value's own is a narrower shape — which is the only widening a case
   testing § 4's name-keyed read can write. Several doc comments claimed the class direction worked; they
   were wrong and are fixed, so do not design a case around it.
-- **A `?array<T>` cannot be indexed even after a `!= null` guard** — `E0482: `null|array<string>`
-  cannot be subscripted`, whose help names the two ways round it. It used to be a `mwl-ir` panic; the
-  refusal is at check time now, but the hole is the same one and is unchanged: `mwl_types::locals`'
-  `narrow` (`crates/mwl-types/src/locals.rs:315`) drops `null` only when the residue is a `Ty::Class`,
-  so a nullable **array** never narrows at all, and `Core\Arr::first`/`last` over an
-  `array<array<string>>` is where a case meets it. Three spellings do lower and are the way round it:
-  `$rows["0"]["name"]`
-  (nested indexing, no nullable in the path), `foreach ($rows as array<string> $row)` — the binding's
-  declared type is what re-supplies the element type — and binding `var $row = $rows["0"];` first.
+- **A `?array<T>` *is* indexable after a `!= null` guard, and so is every other `?T`.** This bullet
+  used to say the opposite and is kept because the shape it warns about moved rather than went away:
+  `narrow` drops `null` whatever the residue now, and the read is untagged once at the variable
+  (`Lowering::untag_narrowed`), so a subscript, a `foreach`, an element write and an argument all work
+  inside the guard. What is still `E0482` is the **untested** one — `Core\Arr::first`/`last` over an
+  `array<array<string>>` answers a `?array<string>` and indexing that answer *directly* has no test to
+  narrow, so bind it (`?array<string> $row = Core\Arr::first($rows); if ($row != null) { … }`) rather
+  than reaching for the old workarounds. A `?array<T>` still resolves no element type as the **base of
+  a `??`** — `$a["k"]["j"] ?? "d"` throws at the inner level.
 - **Registering a `Core` member and writing its conformance case are one slice, not two.**
   `crates/mwl-stdlib/tests/conformance_coverage.rs` fails the moment a registry row has no `.mwlt` case
   calling it, so a plan that lands the rows in one session and the cases in another leaves the tree red
