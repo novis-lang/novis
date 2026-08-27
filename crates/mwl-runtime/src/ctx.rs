@@ -795,6 +795,35 @@ impl Ctx {
             .map_or_else(|| installed.desc(), |found| found.desc())
     }
 
+    /// Runs `body` with this context's pending failure set aside, discarding
+    /// anything `body` raised and putting the saved one back.
+    ///
+    /// # Decision: a throw out of a dying generator's `finally` is dropped
+    ///
+    /// Its one caller is [`crate::object::dismantle`], and a release has no
+    /// error edge to propagate on: `mwl_object_release` answers nothing, and
+    /// the release itself is very often *already* running under an exception —
+    /// a landing pad dropping its locals on the way out. Leaving the throw in
+    /// the pending slot would therefore either replace the exception actually
+    /// in flight with one raised by a `finally` the program never resumed into
+    /// by hand, or attach itself to whatever call returns next; both are worse
+    /// than losing it, and the first loses the original as well. So the
+    /// `finally` **runs** — which is what PHP compatibility asks for
+    /// ([ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) § 4) —
+    /// and a throw escaping it is where this differs from PHP, which reports
+    /// one as uncaught. Surfacing it wants
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)'s ladder,
+    /// which does not exist yet; until it does, the safe half is the half that
+    /// is kept.
+    pub(crate) fn with_pending_set_aside<R>(&mut self, body: impl FnOnce(&mut Self) -> R) -> R {
+        let saved = self.pending.take();
+        let out = body(self);
+        // Dropping a `Pending::Thrown` releases the exception object's own
+        // reference, which is why this is a replace rather than an assignment.
+        drop(std::mem::replace(&mut self.pending, saved));
+        out
+    }
+
     /// Records an already-built exception as the pending `THROWN` — what
     /// [`mwl_raise`] does for MWL's own `throw`, taking ownership of the
     /// reference it was handed.
@@ -1003,6 +1032,68 @@ impl Default for Ctx {
     fn default() -> Self {
         Self::stdout()
     }
+}
+
+thread_local! {
+    /// The context whose compiled frames are running on this thread, or null
+    /// between runs — see [`CurrentCtx`].
+    ///
+    /// A raw pointer and a `Cell` so it is `const`-initialized and carries no
+    /// destructor, which is what `crate::alloc`'s own thread-local requires of
+    /// every one in this crate and costs nothing here.
+    static CURRENT: std::cell::Cell<*mut Ctx> = const { std::cell::Cell::new(std::ptr::null_mut()) };
+}
+
+/// Installs a context as this thread's current one for as long as the guard
+/// lives, restoring whatever was there before when it drops.
+///
+/// # Decision: the release path reaches its context through here
+///
+/// [`crate::abi::call`] is the one door from Rust into compiled code, so this
+/// is set there and nowhere else. Its one reader is
+/// [`crate::object::dismantle`], which has to call a dying generator's unwind
+/// entry point (`mwl_ir::lower::generator`'s transform) and reaches it from a
+/// `mwl_object_release` whose `extern "C"` signature is one pointer wide:
+/// threading a context through every release primitive would put a parameter
+/// on the hot path of every decrement in the language to serve the one release
+/// in ten thousand that frees a suspended generator, which AGENTS.md's
+/// priority 3 rules out.
+///
+/// **A release performs no other context access**, which is what makes this
+/// sound: the `&mut Ctx` frames above a release are dormant for the length of
+/// it, so the reborrow [`with_current`] hands out is the only live one.
+/// **Cost:** two thread-local word stores per Rust-to-compiled call boundary —
+/// not per compiled call, which passes the context in a register.
+pub(crate) struct CurrentCtx(*mut Ctx);
+
+impl CurrentCtx {
+    /// Makes `ctx` this thread's current context until the guard drops.
+    pub(crate) fn install(ctx: &mut Ctx) -> Self {
+        Self(CURRENT.replace(&raw mut *ctx))
+    }
+}
+
+impl Drop for CurrentCtx {
+    fn drop(&mut self) {
+        CURRENT.set(self.0);
+    }
+}
+
+/// Runs `body` against this thread's current context, or answers `None` when
+/// no compiled frame is running — see [`CurrentCtx`].
+pub(crate) fn with_current<R>(body: impl FnOnce(&mut Ctx) -> R) -> Option<R> {
+    let ptr = CURRENT.get();
+    if ptr.is_null() {
+        return None;
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the pointer was installed by `CurrentCtx::install` from a \
+                  live `&mut Ctx` whose guard is still on this thread's stack, \
+                  and every frame holding one is dormant for the length of a \
+                  release"
+    )]
+    Some(body(unsafe { &mut *ptr }))
 }
 
 /// The safepoint poll's slow path — reached only when the word compiled code

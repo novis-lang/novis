@@ -142,6 +142,39 @@ pub fn call_render(ctx: &mut Ctx, receiver: Value, what: &str) -> Result<Option<
         })
 }
 
+/// Resumes the dying generator `receiver` into its unwind entry point, at the
+/// address its class carries ([`crate::ClassDesc::unwind_entry`]).
+///
+/// Ownership is [`call_render`]'s rather than [`call_at`]'s, and for the same
+/// reason stated the other way round: `gen#unwind` is the one *compiled*
+/// method that **borrows** argument 0, because its caller is a release that
+/// has no reference left to hand over. `mwl_ir::lower::generator`'s
+/// `lower_generator_unwind` argues that inversion in full; here it means this
+/// neither retains on the way in nor releases on the way out.
+///
+/// # Errors
+///
+/// [`Fault::Pending`] when a `finally` the unwind ran threw — which
+/// [`crate::object::dismantle`] discards, [`crate::Ctx::with_pending_set_aside`]
+/// owning why.
+pub(crate) fn call_unwind(
+    ctx: &mut Ctx,
+    receiver: Value,
+    target: *const u8,
+) -> Result<Value, Fault> {
+    #[expect(
+        unsafe_code,
+        reason = "the address came out of a live descriptor's own method table, \
+                  which `mwl-codegen` fills only with compiled functions of \
+                  exactly this signature"
+    )]
+    let target: MwlFn = unsafe { std::mem::transmute::<*const u8, MwlFn>(target) };
+    crate::abi::call(target, ctx, &[receiver]).map_err(|status| {
+        debug_assert_ne!(status, OK, "call reports Err only for a non-OK status");
+        Fault::Pending(status)
+    })
+}
+
 /// Calls a member on `receiver` at the address [`method_address`] answered,
 /// with `args` past the receiver, returning whatever it produced.
 ///

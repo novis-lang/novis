@@ -102,14 +102,14 @@ fn G::two$gen::current(object) -> int {
     return v1
 }
 
-fn G::two$gen::unwind(object) -> void {
+fn G::two$gen::gen#unwind(object) -> void {
   bb0:
     safepoint
     v0 = param 0  ; object
     v1 = field.get v0, G::two$gen::gen#state  ; int
-    v2 = const.int 0  ; int
-    v3 = gt v1, v2  ; bool
-    branch v3 -> bb1 (e0), bb2 (e1)
+    v2 = const.int 1  ; int
+    v3 = eq v1, v2  ; bool
+    branch v3 -> bb1 (e0), bb3 (e1)
   bb1:
     v4 = const.int 1  ; int
     field.set v0, G::two$gen::gen#unwind, v4
@@ -118,6 +118,8 @@ fn G::two$gen::unwind(object) -> void {
     return
   bb2:
     return
+  bb3:
+    jump bb2
 }
 
 fn <script>() -> tagged {

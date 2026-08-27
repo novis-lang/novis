@@ -297,7 +297,28 @@ pub struct ClassDesc {
     /// before the method table. **Cost:** one pointer per class, once per
     /// process, not per instance.
     render: *const u8,
+    /// The address of this class's [`GENERATOR_UNWIND_METHOD`] entry point, or
+    /// null for every class that answers no such name — which is every class
+    /// but a generator's synthesized state class.
+    ///
+    /// A cached copy of one [`Self::method`] row rather than a second lookup,
+    /// because its reader is [`dismantle`]: every dying object would otherwise
+    /// pay a binary search over its whole method table to learn that it is not
+    /// a generator, which is AGENTS.md's priority 3 spent on a question
+    /// answered once per class at [`ClassTable::set_methods`] time. **Cost:**
+    /// one pointer per class, once per process, not per instance.
+    unwind: *const u8,
 }
+
+/// The name of the resume-to-unwind entry point on a generator's state class,
+/// which is the whole of what [`dismantle`] knows about
+/// `mwl_ir::lower::generator`'s transform — that module's `GEN_UNWIND_METHOD`
+/// is the same string, and its doc comment owns why the name is unspellable.
+///
+/// Restated here rather than shared: this crate depends on neither `mwl-ir`
+/// nor `mwl-codegen`, and the class label and field names of that transform
+/// are restated in the same direction for the same reason.
+pub const GENERATOR_UNWIND_METHOD: &str = "gen#unwind";
 
 /// One property default's already-evaluated value — the closed set
 /// `mwl_types::defaults::ConstArg` can reach from a *written* property
@@ -519,6 +540,17 @@ impl ClassDesc {
             Some(self.render)
         }
     }
+
+    /// The address of this class's [`GENERATOR_UNWIND_METHOD`] entry point, or
+    /// `None` for a class that answers no such name — see [`Self::unwind`].
+    #[must_use]
+    pub fn unwind_entry(&self) -> Option<*const u8> {
+        if self.unwind.is_null() {
+            None
+        } else {
+            Some(self.unwind)
+        }
+    }
 }
 
 impl fmt::Debug for ClassDesc {
@@ -618,6 +650,7 @@ impl ClassTable {
             defaults: Vec::new(),
             field_tags: Vec::new(),
             render: std::ptr::null(),
+            unwind: std::ptr::null(),
         }));
         id
     }
@@ -712,6 +745,11 @@ impl ClassTable {
         desc.methods = methods;
         desc.methods.sort_by(|(a, _), (b, _)| a.cmp(b));
         desc.methods.dedup_by(|(a, _), (b, _)| a == b);
+        // Resolved once per class here rather than once per dying instance in
+        // `dismantle` — see `ClassDesc::unwind`.
+        desc.unwind = desc
+            .method(GENERATOR_UNWIND_METHOD)
+            .unwrap_or(std::ptr::null());
     }
 
     /// Fills in `id`'s native renderer — see [`ClassDesc::renderer`].
@@ -1303,6 +1341,29 @@ pub unsafe fn release_graph(root: *mut ObjHeader) {
 /// slot's value to `work` rather than releasing it here — see
 /// [`crate::release`].
 ///
+/// # An abandoned generator runs its `finally` first
+///
+/// A class that answers [`GENERATOR_UNWIND_METHOD`] is a generator's state
+/// class, and one reaching this while still suspended has `finally` bodies the
+/// program entered and never left. They run **before** the field sweep below,
+/// because that is where their parked locals still are: the unwind entry point
+/// resumes `advance()`, which reloads those very slots.
+///
+/// Two things make calling compiled code from a release path safe, and neither
+/// is optional:
+///
+/// - **The count is resurrected to one first.** `gen#unwind` borrows argument
+///   0 (`mwl_ir::lower::generator::lower_generator_unwind` owns why), so it
+///   retains and `advance()` releases on its way out — a pair that would cross
+///   zero, and re-enter the release path on the allocation already being
+///   dismantled, if it started from the zero this function is handed. The
+///   allocation is freed below whatever the count then reads: nothing else can
+///   observe it, since it reached zero once already.
+/// - **The context is taken from the thread rather than passed.** A decrement
+///   carries none — [`crate::ctx::CurrentCtx`] is that decision's home. With
+///   no compiled frame running there is no context, no unwind runs, and the
+///   sweep proceeds; that is the shape a Rust test dropping a handle takes.
+///
 /// # Safety
 ///
 /// `ptr` must refer to an MWL object allocation whose reference count reached
@@ -1320,7 +1381,11 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
                   allocated with, before the header is freed"
     )]
     unsafe {
-        let field_count = (*MwlObj::class_of(ptr)).fields.len();
+        let class = MwlObj::class_of(ptr);
+        if let Some(target) = (*class).unwind_entry() {
+            unwind_abandoned(ptr, target);
+        }
+        let field_count = (*class).fields.len();
         for index in 0..field_count {
             if let Some(dying) = crate::release::step_field(*field_ptr(ptr, index)) {
                 work.push(dying);
@@ -1328,6 +1393,31 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
         }
         dealloc(ptr.cast::<u8>(), obj_layout(field_count));
     }
+}
+
+/// Runs the unwind entry point at `target` on the dying generator at `ptr` —
+/// [`dismantle`]'s first half, whose doc comment owns both of the rules below.
+///
+/// # Safety
+///
+/// `ptr` must refer to an MWL object allocation whose reference count reached
+/// zero, whose class carries `target` as its [`GENERATOR_UNWIND_METHOD`] row.
+#[expect(
+    unsafe_code,
+    reason = "reaching zero, and the address being this class's own, are both \
+              the caller's obligations to state"
+)]
+unsafe fn unwind_abandoned(ptr: *mut ObjHeader, target: *const u8) {
+    crate::ctx::with_current(|ctx| {
+        // The resurrection: `gen#unwind` retains and `advance()` releases, and
+        // that pair must not cross zero.
+        bump(ptr);
+        ctx.with_pending_set_aside(|ctx| {
+            // The reference the resurrection just made is the one this
+            // borrows for the length of the call.
+            let _ = crate::dispatch::call_unwind(ctx, Value::from_obj_ptr(ptr), target);
+        });
+    });
 }
 
 // ---------------------------------------------------------------------------

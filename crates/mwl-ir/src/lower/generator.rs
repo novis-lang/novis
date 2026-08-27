@@ -200,6 +200,11 @@ impl<'a> Lowering<'a> {
         // [`lower_generator`] § *An abandoned generator runs its `finally`*.
         let mut carry_on = resume;
         if self.try_stack.iter().any(|frame| frame.finally.is_some()) {
+            self.generator
+                .as_mut()
+                .expect("checked above")
+                .unwind_states
+                .push(state);
             let owed = self.new_block();
             let resumed = self.new_block();
             let (flag, _) = self.emit(
@@ -296,9 +301,19 @@ pub(super) const GEN_CURRENT_METHOD: &str = "current";
 
 /// The resume-to-unwind entry point's name in the state class's method table,
 /// which is how the release path reaches it — see
-/// [`lower_generator_unwind`]. It is not a member of `Iterator<T>`: no source
-/// program can name it, `Iterator` declaring only `advance` and `current`.
-pub(super) const GEN_UNWIND_METHOD: &str = "unwind";
+/// [`lower_generator_unwind`]. It is not a member of `Iterator<T>`, which
+/// declares only `advance` and `current`.
+///
+/// Spelled with the `#` every parked field carries, and for a stronger reason
+/// than theirs: `mwl_runtime::object::dismantle` probes **every** dying
+/// object's class for this name, so a name a source program could declare
+/// would turn a user method into the destructor
+/// [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+/// § 2 says MWL does not have. `#` is not in an identifier, so no class but
+/// one this transform synthesized can answer. `mwl_runtime` restates the
+/// string as `mwl_runtime::object::GENERATOR_UNWIND_METHOD`, for the reason
+/// [`THROWABLE_ROOT`] is restated here.
+pub(super) const GEN_UNWIND_METHOD: &str = "gen#unwind";
 
 /// One generator's synthesized state class, accumulated while its
 /// `advance()` body is lowered — see [`lower_generator`].
@@ -317,6 +332,14 @@ pub(super) struct GenFrame {
     /// entry switch's arms, whose case value is the index plus one (state `0`
     /// is the body's own start).
     pub(super) resumes: Vec<BlockId>,
+    /// The state values whose resume block grew an unwind arm — the
+    /// suspension points that sit inside a `finally`-owning region, and so the
+    /// only ones [`lower_generator_unwind`] may resume into.
+    ///
+    /// Collected rather than recomputed because it is what makes the entry
+    /// point *safe*: resuming a suspension that owes nothing would run the
+    /// rest of the body, which is the opposite of abandoning it.
+    pub(super) unwind_states: Vec<i64>,
 }
 
 impl GenFrame {
@@ -387,8 +410,11 @@ impl GenFrame {
 ///
 /// * [`GEN_UNWIND`] is a flag on the state object, `0` until something sets
 ///   it.
-/// * [`lower_generator_unwind`] builds `{name}$gen::unwind`, which sets that
-///   flag and calls `advance()` — but only when the parked state says the
+/// * [`lower_generator_unwind`] builds `{name}$gen::gen#unwind`, which the
+///   release path calls as it dismantles the state object
+///   (`mwl_runtime::object::dismantle` § *An abandoned generator runs its
+///   `finally`* owns that end, including the resurrection it needs). It sets
+///   that flag and calls `advance()` — but only when the parked state says the
 ///   generator is actually *suspended*. A state of `0` means the body has
 ///   never been entered, so no `try` has been entered either and there is
 ///   nothing to run; [`GEN_DONE`] means it has already finished. Both are
@@ -471,11 +497,26 @@ pub(super) fn lower_generator(
         checked_types,
         enums,
     );
-    let (mut advance, fields) = advance;
+    let (mut advance, fields, owed) = advance;
     let current = lower_generator_current(&class, elem, src);
-    let unwind = lower_generator_unwind(&class, m, src, exprs, checked_types, enums);
 
-    let mut functions = vec![factory, advance.function, current, unwind];
+    let mut functions = vec![factory, advance.function, current];
+    // A generator no suspension of which sits inside a `finally`-owning region
+    // owes nothing when it is abandoned, so it carries no entry point at all
+    // and `mwl_runtime::object::dismantle` finds a null field rather than a
+    // method to call — which is what keeps such a generator lowering exactly as
+    // it did before this existed.
+    if !owed.is_empty() {
+        functions.push(lower_generator_unwind(
+            &class,
+            m,
+            &owed,
+            src,
+            exprs,
+            checked_types,
+            enums,
+        ));
+    }
     functions.append(&mut advance.closures);
     let mut classes = advance.classes;
     classes.push(crate::ir::Class {
@@ -491,11 +532,16 @@ pub(super) fn lower_generator(
         // `instanceof`. Stated rather than left implicit: an
         // `$gen instanceof Iterator` would answer `false`.
         conforms: vec![mwl_hir_iterator_label()],
-        methods: vec![
-            (GEN_ADVANCE.to_owned(), class.clone()),
-            (GEN_CURRENT_METHOD.to_owned(), class.clone()),
-            (GEN_UNWIND_METHOD.to_owned(), class),
-        ],
+        methods: {
+            let mut methods = vec![
+                (GEN_ADVANCE.to_owned(), class.clone()),
+                (GEN_CURRENT_METHOD.to_owned(), class.clone()),
+            ];
+            if !owed.is_empty() {
+                methods.push((GEN_UNWIND_METHOD.to_owned(), class));
+            }
+            methods
+        },
         // A generator state class is synthesized, so nothing wrote an
         // attribute on it, and no source property to carry a default.
         codec: Vec::new(),
@@ -643,7 +689,7 @@ pub(super) fn lower_generator_advance(
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
     enums: &EnumTable,
-) -> (Lowered, Vec<(String, Ty)>) {
+) -> (Lowered, Vec<(String, Ty)>, Vec<i64>) {
     let label = format!("{class}::{GEN_ADVANCE}");
     let mut low = Lowering::new(&label, src, Ty::Bool, exprs, checked_types, enums);
     let entry = low.new_block();
@@ -680,6 +726,7 @@ pub(super) fn lower_generator_advance(
         gen_v,
         fields,
         resumes: Vec::new(),
+        unwind_states: Vec::new(),
     });
 
     let mut env = Env::default();
@@ -753,6 +800,7 @@ pub(super) fn lower_generator_advance(
             classes,
         },
         frame.fields,
+        frame.unwind_states,
     )
 }
 
@@ -820,13 +868,20 @@ pub(super) fn lower_generator_current(class: &str, elem: Ty, src: &SourceFile) -
 /// The resume-to-unwind entry point: `{class}::unwind`, which the release
 /// path calls on a generator that is being dropped.
 ///
-/// Three blocks and no user code of its own. It reads the parked state, and
-/// where that state names a suspension point — anything above `0`, state `0`
-/// being "never entered" and [`GEN_DONE`] being `-1` — it raises the
-/// [`GEN_UNWIND`] flag and re-enters [`GEN_ADVANCE`], whose entry switch lands
-/// on that suspension's own resume block. The branch there takes the unwind
-/// arm, runs every enclosing `finally` and finishes the generator, so this
-/// function never has to know anything about the body it is unwinding.
+/// No user code of its own: it reads the parked state and, where that state is
+/// one of `owed` — the suspension points that sit inside a `finally`-owning
+/// region, [`GenFrame::unwind_states`] — it raises the [`GEN_UNWIND`] flag and
+/// re-enters [`GEN_ADVANCE`], whose entry switch lands on that suspension's own
+/// resume block. The branch there takes the unwind arm, runs every enclosing
+/// `finally` and finishes the generator, so this function never has to know
+/// anything about the body it is unwinding.
+///
+/// **The test is membership, not `state > 0`**, and the difference is the whole
+/// correctness of it: a resume block that owes nothing carries no unwind arm,
+/// so entering it would carry on running the body rather than abandon it. A
+/// generator with no owed state at all gets no entry point emitted and no
+/// method table row, which is what makes it lower exactly as it did before —
+/// [`lower_generator`] is where that is decided.
 ///
 /// Why it is a fourth *method* rather than something the release path does
 /// itself: the flag's slot index and the entry switch's encoding are both
@@ -853,6 +908,7 @@ pub(super) fn lower_generator_current(class: &str, elem: Ty, src: &SourceFile) -
 pub(super) fn lower_generator_unwind(
     class: &str,
     m: &MethodMember,
+    owed: &[i64],
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
@@ -872,30 +928,41 @@ pub(super) fn lower_generator_unwind(
             field: GEN_STATE.to_owned(),
         },
     );
-    let (zero, _) = low.emit(entry, Ty::Int, InstKind::ConstInt(0));
-    let (suspended, _) = low.emit(
-        entry,
-        Ty::Bool,
-        InstKind::BinOp {
-            op: BinOp::Gt,
-            lhs: state_v,
-            rhs: zero,
-        },
-    );
+    // One test per suspension point that owes a `finally`, and deliberately
+    // not `state > 0`: a resume block that owes nothing carries no unwind arm,
+    // so resuming into it would run the rest of the body — which is the
+    // opposite of abandoning it, and printed three conformance cases' bodies
+    // to completion when this read `> 0`.
     let resume = low.new_block();
     let nothing_owed = low.new_block();
-    let resume_edge = low.ids.next_edge(m.name);
-    let nothing_edge = low.ids.next_edge(m.name);
-    low.seal(
-        entry,
-        Terminator::Branch {
-            cond: suspended,
-            then_block: resume,
-            then_edge: resume_edge,
-            else_block: nothing_owed,
-            else_edge: nothing_edge,
-        },
-    );
+    let mut test = entry;
+    for state in owed {
+        let (want, _) = low.emit(test, Ty::Int, InstKind::ConstInt(*state));
+        let (hit, _) = low.emit(
+            test,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: BinOp::Eq,
+                lhs: state_v,
+                rhs: want,
+            },
+        );
+        let next = low.new_block();
+        let resume_edge = low.ids.next_edge(m.name);
+        let next_edge = low.ids.next_edge(m.name);
+        low.seal(
+            test,
+            Terminator::Branch {
+                cond: hit,
+                then_block: resume,
+                then_edge: resume_edge,
+                else_block: next,
+                else_edge: next_edge,
+            },
+        );
+        test = next;
+    }
+    low.seal(test, Terminator::Jump(nothing_owed));
 
     let (one, _) = low.emit(resume, Ty::Int, InstKind::ConstInt(1));
     low.emit_field_set(resume, gen_v, class.to_owned(), GEN_UNWIND.to_owned(), one);

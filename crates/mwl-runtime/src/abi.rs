@@ -375,6 +375,9 @@ macro_rules! mwl_helper {
 /// caller to [`Ctx::take_pending`].
 pub fn call(function: MwlFn, ctx: &mut Ctx, args: &[Value]) -> Result<Value, i32> {
     let mut out = Value::null();
+    // What the release path reaches a context through, since a decrement
+    // carries none — `crate::ctx::CurrentCtx` owns the argument.
+    let _current = crate::ctx::CurrentCtx::install(ctx);
     #[expect(
         unsafe_code,
         reason = "every pointer here is derived from a live Rust reference, and \

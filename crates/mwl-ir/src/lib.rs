@@ -407,21 +407,24 @@
 //!     declaring a local that shadows an outer one is not distinguished from a
 //!     reassignment. Not observable for any program in scope today, but worth
 //!     knowing before trusting `Env` further.
-//! 18. **An abandoned generator's `finally` has an entry point, and nothing
-//!     calls it yet.** `{name}$gen::unwind` is on every generator's state
-//!     class and in its method table: it raises the `gen#unwind` flag and
-//!     re-enters `advance()`, whose resume block for a suspension inside a
+//! 18. **An abandoned generator's `finally` runs; a throw escaping one is
+//!     dropped.** `{name}$gen::gen#unwind` is on every generator's state class
+//!     and in its method table, and `mwl_runtime::object::dismantle` calls it
+//!     on the way past: it raises the `gen#unwind` flag and re-enters
+//!     `advance()`, whose resume block for a suspension inside a
 //!     `finally`-owning region takes the unwind arm and runs exactly what
 //!     `return;` runs at that point. [`lower::generator::lower_generator`]
 //!     § *An abandoned generator runs its `finally`* owns the mechanism, and
 //!     [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
 //!     § 2 records why it is not the destructor MWL does not have. What is
-//!     missing is the other end: `mwl_runtime::object`'s release path does not
-//!     look that method up, so a `break` out of a `foreach` still leaves the
-//!     frame parked and the `finally` unprinted. The two suites pin the halves
-//!     that already agree — `tests/differential/iter/a-generators-finally-matches-phps.mwlt`
-//!     for a drained generator and `…/a-generator-abandoned-by-break-matches-php.mwlt`
-//!     for a body with no protected region.
+//!     left is one divergence, and it is the runtime's: a release has no error
+//!     edge, so an exception a `finally` raises on that path is discarded
+//!     where PHP reports it uncaught —
+//!     `mwl_runtime::Ctx::with_pending_set_aside` argues why losing it beats
+//!     replacing the exception actually in flight, and surfacing it wants ADR
+//!     0020's ladder. `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.mwlt`
+//!     and `tests/differential/iter/an-abandoned-generators-finally-matches-phps.mwlt`
+//!     pin the rest.
 //! 19. **ADR 0090 is built; what a cross-representation pair still cannot do
 //!     is *arithmetic*.** Every row of §§ 2, 3 and 5 lowers: `===`/`!==` no
 //!     longer lex, `== null` takes

@@ -133,9 +133,15 @@ inside a `try { … yield … } finally { … }`, and PHP resumes such a generat
 priority ordering. Nothing above is weakened by it: no class declares anything, no method name is
 recognized, no object gains a lifecycle hook, and the only code that runs is code the program had **already
 entered** and suspended inside — the release path resumes a frame rather than tearing an object down. Both
-arguments above survive unchanged for that reason: the resumption is an ordinary call with an ordinary error
-edge, so a throw has the call site 0002 asks for, and it touches exactly the one frame being dropped rather
-than walking anything. `mwl_ir::lower::generator`'s module doc owns the mechanism.
+arguments above survive unchanged for that reason: the resumption touches exactly the one frame being
+dropped rather than walking anything, and the first argument is met by *narrowing* rather than by an
+exception — a throw escaping such a `finally` is **discarded**, because a release is exactly the site that
+bullet says has no sound place to report one, and replacing the exception a landing pad is already carrying
+would lose the program's own failure to one it never asked for. That is a deliberate divergence from PHP,
+which reports it uncaught; `mwl_runtime::Ctx::with_pending_set_aside` is its one home, and surfacing it
+wants [0020](0020-error-escalation-ladder.md)'s ladder rather than a hook here.
+`mwl_ir::lower::generator`'s module doc owns the mechanism, and `mwl_runtime::object::dismantle` the
+release end of it.
 
 ### 3. `__isset`/`__unset` need no replacement — and `unset()` on an object property is refused
 

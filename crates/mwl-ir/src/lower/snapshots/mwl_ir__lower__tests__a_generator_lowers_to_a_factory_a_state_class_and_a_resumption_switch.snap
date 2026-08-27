@@ -75,24 +75,6 @@ fn G::upTo$gen::current(object) -> int {
     return v1
 }
 
-fn G::upTo$gen::unwind(object) -> void {
-  bb0:
-    safepoint
-    v0 = param 0  ; object
-    v1 = field.get v0, G::upTo$gen::gen#state  ; int
-    v2 = const.int 0  ; int
-    v3 = gt v1, v2  ; bool
-    branch v3 -> bb1 (e0), bb2 (e1)
-  bb1:
-    v4 = const.int 1  ; int
-    field.set v0, G::upTo$gen::gen#unwind, v4
-    retain v0
-    v5 = call G::upTo$gen::advance(this: v0)  ; bool
-    return
-  bb2:
-    return
-}
-
 fn <script>() -> tagged {
   bb0:
     safepoint
