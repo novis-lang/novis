@@ -2702,6 +2702,17 @@ pub const FN_PARAM_TAG_ANY: u8 = 12;
 /// Exhaustive on purpose: a new [`Ty`] variant is a decision about what a
 /// closure parameter of that representation admits, and this is where it gets
 /// taken rather than defaulted.
+///
+/// Because the key is a representation and not a declared type, a `?T`
+/// parameter checks exactly as much as a `mixed` one does — nothing: both
+/// erase to [`Ty::Tagged`], so both take [`FN_PARAM_TAG_ANY`] and `?string $k`
+/// accepts an `int` argument as readily as `mixed $k` does. That is the answer
+/// rather than a hole. A nibble names one tag, so `T`-or-null cannot be
+/// spelled here at all, and it does not need to be: a body lowered against a
+/// tagged slot reads the tag at every use, which is the guarantee the check
+/// exists to give the bodies that do not.
+/// `tests/conformance/core/arr-a-mixed-or-nullable-callback-parameter-is-unchecked.mwlt`
+/// pins both halves from MWL.
 pub fn param_tag_nibble(ty: Ty) -> u8 {
     match ty {
         // `Ref` and `ClassDesc` ride in the payload of an otherwise-`null`

@@ -1,0 +1,72 @@
+--TEST--
+A `mixed` or `?T` closure parameter admits every argument, so a Core\Arr callback declaring one is never refused while its non-nullable twin always is — ADR 0007 § 2, ADR 0069 § 5
+--FILE--
+<?mwl
+// The depth claim is *a bound asserted on both sides*. `mwl_runtime` checks a
+// closure's arguments against the tags the closure declared, and the tag it
+// compares is the parameter's **representation**, not its declared type: a
+// `?T` and a `mixed` both erase to one tagged slot, which admits every tag by
+// construction (`mwl_ir::lower::param_tag_nibble`'s own doc comment owns why).
+// So "unchecked" is the answer here rather than a hole, and the way to pin an
+// answer that consists of nothing happening is to name the refusal it sits
+// next to: each declaration below is written twice, bare and nullable, over
+// the same member and the same argument. A check that read the declared type
+// would refuse both halves of a pair; a check that had been dropped would
+// accept both. Only "the representation is the check" prints this line.
+//
+// The keys are ADR 0069 § 5's `string`, over the packed list the neighbouring
+// `arr-a-callback-key-is-a-string-on-a-list-too` pins, so every refusal below
+// is a `string` argument meeting a parameter of some other representation.
+
+array<int> $list = [10, 20, 30, 40];
+array<int> $map = ["a" => 1, "b" => 2];
+
+// One character per declaration, in pairs: the bare form then its nullable
+// twin. `y` is "the member ran", `n` is "the call threw `LogicError`".
+var $marks = "";
+try { Core\Arr::filter($list, fn(int $v, int $k) => true); $marks = $marks . "y"; }
+catch (LogicError $e) { $marks = $marks . "n"; }
+try { Core\Arr::filter($list, fn(int $v, ?int $k) => true); $marks = $marks . "y"; }
+catch (LogicError $e) { $marks = $marks . "n"; }
+try { Core\Arr::filter($list, fn(int $v, bool $k) => true); $marks = $marks . "y"; }
+catch (LogicError $e) { $marks = $marks . "n"; }
+try { Core\Arr::filter($list, fn(int $v, ?bool $k) => true); $marks = $marks . "y"; }
+catch (LogicError $e) { $marks = $marks . "n"; }
+try { Core\Arr::filter($list, fn(int $v, array<string> $k) => true); $marks = $marks . "y"; }
+catch (LogicError $e) { $marks = $marks . "n"; }
+try { Core\Arr::filter($list, fn(int $v, ?array<string> $k) => true); $marks = $marks . "y"; }
+catch (LogicError $e) { $marks = $marks . "n"; }
+// The pair the key's own representation is on: both halves accept, one
+// because the tag matches and one because nothing looked.
+try { Core\Arr::filter($list, fn(int $v, string $k) => true); $marks = $marks . "y"; }
+catch (LogicError $e) { $marks = $marks . "n"; }
+try { Core\Arr::filter($list, fn(int $v, ?string $k) => true); $marks = $marks . "y"; }
+catch (LogicError $e) { $marks = $marks . "n"; }
+// `mixed` is ADR 0007 § 2's one unchecked position and has no bare twin.
+try { Core\Arr::filter($list, fn(int $v, mixed $k) => true); $marks = $marks . "y"; }
+catch (LogicError $e) { $marks = $marks . "n"; }
+echo $marks, "\n";
+
+// The same pair in the *value* position, so the rule is about an argument
+// rather than about the key: an `int` element meeting a `string` parameter.
+var $value = "";
+try { Core\Arr::filter($list, fn(string $v, string $k) => true); $value = $value . "y"; }
+catch (LogicError $e) { $value = $value . "n"; }
+try { Core\Arr::filter($list, fn(?string $v, string $k) => true); $value = $value . "y"; }
+catch (LogicError $e) { $value = $value . "n"; }
+echo $value, "\n";
+
+// And the argument arrives intact under a declaration that disagrees with it:
+// `$k as string` inside a `?int $k` reads the tag the value actually carries,
+// so the keys come back whole rather than converted, defaulted or nulled.
+echo Core\Str::join(Core\Arr::values(Core\Arr::map($list, fn(int $v, ?int $k) => $k as string)), ","), "\n";
+echo Core\Str::join(Core\Arr::values(Core\Arr::map($map, fn(int $v, ?int $k) => $k as string)), ","), "\n";
+// Both parameters wrong at once, over a member that offers three arguments:
+// the `?bool $v` holds the `int` element, and renders as one.
+echo Core\Arr::reduce($map, fn(string $c, ?bool $v, mixed $k) => $c . ($k as string) . ($v as string), ""), "\n";
+--EXPECT--
+nynynyyyy
+ny
+0,1,2,3
+a,b
+a1b2
