@@ -1294,8 +1294,35 @@ pub enum Helper {
     /// `string` truthiness: falsy iff `""` or exactly the one-character
     /// string `"0"` — PHP's own rule, so `"0.0"`/`"false"` are truthy.
     StrTruthy,
+    /// `bytes` truthiness: falsy iff empty, and **deliberately not**
+    /// [`Self::StrTruthy`]'s row. The one place the two differ is the
+    /// one-octet buffer `"0"`, which is falsy for a `string` because that is
+    /// PHP's numeric-string rule; a
+    /// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) `bytes` never
+    /// converts to a number, so carrying the quirk over would make a buffer
+    /// falsy for a reason that does not apply to it.
+    /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md) § 2's
+    /// table states the row; `mwl_runtime::value_truthy`'s `Tag::Bytes` arm is
+    /// the same rule reached through a `mixed`.
+    BytesTruthy,
     /// `array<T>` truthiness: falsy iff empty, for any `T`.
     ArrayTruthy,
+    /// Truthiness of a [`crate::ty::Ty::Tagged`] value —
+    /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md) § 2's last
+    /// table row, where a `mixed` or a union "resolved dynamically per this
+    /// table, dispatching on the value's runtime type".
+    ///
+    /// The row the six helpers above name statically, chosen at run time
+    /// instead: `mwl_runtime::value_truthy` reads the tag and applies the same
+    /// rule the matching helper would have, so a `mixed` holding `"0"` and a
+    /// `string $s = "0"` answer alike. It is the truthiness twin of
+    /// [`Self::Identical`], which is ADR 0090 § 5's equality row for the same
+    /// operand shape and reached by the same reasoning: a tag is what a type
+    /// no longer answers.
+    ///
+    /// Like that helper it cannot fail — every tag has a row — so it carries
+    /// no error edge.
+    ValueTruthy,
     /// One level of a nested array-element write's descent
     /// (`crate::lower::Lowering::lower_reassignment`'s `Index` arm): the row
     /// `args[1]` names in the array `args[0]`, **with a reference of its

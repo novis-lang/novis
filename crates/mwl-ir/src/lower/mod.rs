@@ -3241,20 +3241,35 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `Ty::Tagged` gives a `mixed`-typed condition an IR representation to
-    /// exist at all, but not a way to convert it through ADR 0035's truthy
-    /// table — that still needs a runtime type-tag representation this slice
-    /// deliberately doesn't build (see `Ty::Tagged`'s own doc comment). Before
-    /// this slice this case was unreachable for any in-scope program (no
-    /// `mixed`-typed value could exist yet); now it's a live gap, so this
-    /// documents the panic actually fires rather than merely being named as
-    /// theoretical.
+    /// A `mixed` condition is ADR 0035 § 2's last table row: the dispatch it
+    /// names moves into `Helper::ValueTruthy`, which reads the operand's tag
+    /// and applies whichever of the rows above it names. This used to be a
+    /// `#[should_panic]` guard over exactly this source — `Ty::Tagged` gave
+    /// the value a representation to exist in without giving the table a way
+    /// to read it — so what the snapshot pins is one helper call where a
+    /// panic stood, and no untag anywhere: an unchecked one over an `int`
+    /// payload is a pointer the next instruction would dereference.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn a_mixed_condition_still_panics_naming_the_gap() {
-        lower_first_method(
+    fn a_mixed_condition_dispatches_the_truthy_table_on_the_tag() {
+        let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(mixed $x): bool {\n    if ($x) {\n      return true;\n    }\n    return false;\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `bytes` is the one row ADR 0035 § 2 does not take from PHP, which has
+    /// no such type: falsy iff empty, dropping the one-octet `"0"` case that
+    /// exists for a `string` only because PHP reads one as a possible number.
+    /// The snapshot pins that a declared `bytes` reaches `Helper::BytesTruthy`
+    /// rather than `Helper::StrTruthy`, which is the whole of the difference —
+    /// the two heap shapes are identical, so a mis-routed operand would still
+    /// run and answer wrongly on one input.
+    #[test]
+    fn a_bytes_condition_takes_its_own_truthy_helper() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(bytes $b): bool {\n    if ($b) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// A `for` loop: the initializer runs before the header, the step runs in

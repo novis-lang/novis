@@ -1009,40 +1009,45 @@ impl<'a> Lowering<'a> {
     /// use-after-free that reuse.
     ///
     /// `Ty::Bool` passes straight through; `Ty::Int`/`Ty::Uint`/`Ty::Float`/
-    /// `Ty::Str` each convert through their own [`Helper`] variant
-    /// (`IntTruthy`/`UintTruthy`/`FloatTruthy`/`StrTruthy`); [`Ty::Array`]
+    /// `Ty::Decimal`/`Ty::Str`/`Ty::Bytes` each convert through their own
+    /// [`Helper`] variant; [`Ty::Array`]
     /// converts through [`Helper::ArrayTruthy`] (falsy iff empty, ADR 0035's
     /// table); and [`Ty::Object`] — a class instance or an enum case — needs
     /// no helper at all, since ADR 0035 § 4 makes either always truthy: this
     /// folds straight to a fresh [`InstKind::ConstBool`] `true` rather than
     /// emitting a call with nothing to inspect at runtime.
     ///
+    /// [`Ty::Tagged`] — a `mixed`, a union, or a `?T` no test narrowed — is
+    /// the one row this table does **not** settle here: it converts through
+    /// [`Helper::ValueTruthy`], which reads the value's tag and applies
+    /// whichever of the rows above it names. That is ADR 0035 § 2's own last
+    /// line rather than a fallback, and it is why ADR 0007 § 2 can make
+    /// `mixed` the one unchecked position without a condition being a hole in
+    /// it: the question a condition asks has an answer for every tag.
+    ///
     /// # Panics
     ///
-    /// Panics naming the case for anything outside this table: `Ty::Bytes`
-    /// (no truthy row is named for it — ADR 0035's table only covers
-    /// `string`, not the separate `bytes` type) or `Ty::Void`. The `null`
-    /// case (a nullable type) still has no IR representation to convert
-    /// *from* at all, so it can't actually reach this method for any program
-    /// in scope today. `Ty::Tagged` still panics too: converting one through
-    /// ADR 0035's table needs a runtime type-tag representation this crate
-    /// still doesn't have.
+    /// Panics naming the case for anything outside this table, which today is
+    /// `Ty::Void` alone — ADR 0007 already keeps `void`/`never` out of value
+    /// position, so no program reaches it. The `null` case (a nullable type)
+    /// has no IR representation to convert *from* at all, a `?T` being one
+    /// [`Ty::Tagged`] slot, so it cannot reach this method either.
     pub(super) fn truthy_convert(&mut self, v: ValueId, ty: Ty, cur: BlockId) -> ValueId {
         match ty {
             Ty::Bool => v,
-            Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal | Ty::Str => {
+            Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal | Ty::Str | Ty::Bytes => {
                 let helper = match ty {
                     Ty::Int => Helper::IntTruthy,
                     Ty::Uint => Helper::UintTruthy,
                     Ty::Float => Helper::FloatTruthy,
                     Ty::Decimal => Helper::DecimalTruthy,
                     Ty::Str => Helper::StrTruthy,
+                    Ty::Bytes => Helper::BytesTruthy,
                     Ty::Bool
                     | Ty::Void
                     | Ty::Null
                     | Ty::Object
                     | Ty::Array
-                    | Ty::Bytes
                     | Ty::Tagged
                     | Ty::Enum(_)
                     | Ty::ClassDesc
@@ -1078,11 +1083,26 @@ impl<'a> Lowering<'a> {
             // and is still `true` here, where a plain `int` `0` goes through
             // `Helper::IntTruthy` and comes back `false`.
             Ty::Object | Ty::Enum(_) => self.emit(cur, Ty::Bool, InstKind::ConstBool(true)).0,
+            // ADR 0035 § 2's last row, and the one this table answers at run
+            // time rather than at compile time: a `mixed`, a union or a `?T`
+            // no test narrowed carries its row in its tag, so the dispatch
+            // moves into `Helper::ValueTruthy` and the arms above become the
+            // cases where a static type already picked one.
+            Ty::Tagged => {
+                self.emit(
+                    cur,
+                    Ty::Bool,
+                    InstKind::HelperCall {
+                        helper: Helper::ValueTruthy,
+                        args: vec![v],
+                    },
+                )
+                .0
+            }
             other => panic!(
-                "mwl-ir's truthy-condition slice only converts a `bool`, a scalar, `Ty::Array` \
-                 or `Ty::Object` value — got {other:?}; a `null` value has no IR representation \
-                 to convert from at all, and a `mixed`/union value needs a runtime type-tag \
-                 representation this crate doesn't have yet, see the crate docs' known gaps"
+                "mwl-ir's truthy-condition slice only converts a `bool`, a scalar, `Ty::Array`, \
+                 `Ty::Object` or a tagged value — got {other:?}; a `null` value has no IR \
+                 representation to convert from at all, see the crate docs' known gaps"
             ),
         }
     }

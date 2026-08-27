@@ -1,0 +1,140 @@
+--TEST--
+A `mixed` in a condition, and `$m as bool`, resolve ADR 0035 § 2's table on the value's runtime tag — the table's own last row, over ADR 0007 § 2's one unchecked position
+--FILE--
+<?mwl
+// ADR 0035 § 2's table names one row per type and then says a `mixed` or a
+// union is "resolved dynamically per this table, dispatching on the value's
+// runtime type". Every other row is picked by the operand's static type
+// before the program runs; this is the one that cannot be, because ADR 0007
+// § 2 makes `mixed` the position where the type is only known at run time.
+//
+// Each block below holds the *same* value in a `mixed` that a statically
+// typed binding would hold, so the assertion is that the two spellings agree
+// rather than that the dynamic one is plausible on its own.
+
+class Say {
+    // A condition is the one place a value is tested without `as`
+    // (ADR 0007 § 2's named carve-out), so this takes the `mixed` straight.
+    public static function truthy(string $label, mixed $m): string {
+        if ($m) {
+            return $label . ": true\n";
+        }
+        return $label . ": false\n";
+    }
+
+    // `$m as bool` is the same table read through the conversion operator —
+    // `as bool` is PHP's own `(bool)` cast, which is the truthy table said
+    // out loud rather than a second rule.
+    public static function converted(string $label, mixed $m): string {
+        bool $b = $m as bool;
+        if ($b) {
+            return $label . ": true\n";
+        }
+        return $label . ": false\n";
+    }
+
+    // `bool as string` renders `false` as the empty string, so a line built
+    // out of `as string` over predicates loses its false columns silently and
+    // still reads as a shorter tally. This branches instead.
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+// The scalar rows. `"0"` is falsy and `"0.0"`/`"false"` are not — PHP's own
+// one-character rule, and the reason `string` has a row of its own rather
+// than "empty or not".
+echo Say::truthy("int 0", 0);
+echo Say::truthy("int 1", 1);
+echo Say::truthy("int -1", -1);
+echo Say::truthy("uint 0", 0 as uint);
+echo Say::truthy("float 0.0", 0.0);
+echo Say::truthy("float -0.0", 0.0 - 0.0);
+echo Say::truthy("float 0.1", 0.1);
+echo Say::truthy("string empty", "");
+echo Say::truthy("string zero", "0");
+echo Say::truthy("string zero point zero", "0.0");
+echo Say::truthy("string false", "false");
+echo Say::truthy("string space", " ");
+echo Say::truthy("bool false", false);
+echo Say::truthy("bool true", true);
+
+// `null` is the row a `?T` reaches. Nothing else in the table answers
+// `false` without inspecting a payload.
+?string $absent = null;
+echo Say::truthy("null", $absent);
+
+// `array<T>` is falsy iff empty, "regardless of their content" — so an array
+// holding one falsy element is still truthy.
+array<string> $empty = [];
+array<string> $one = ["k" => ""];
+echo Say::truthy("array empty", $empty);
+echo Say::truthy("array one falsy element", $one);
+
+// A class instance is always truthy, and so is a `callable` — ADR 0035 § 2's
+// last two type rows, which need no payload read at all.
+final class Box {
+    public int $n = 0;
+}
+echo Say::truthy("object", new Box());
+echo Say::truthy("closure", fn (): int => 0);
+
+// The same table through `as bool`, on the rows where the two could most
+// easily disagree: a conversion that read "empty or not" would answer `true`
+// for `"0"`, and one that read the payload as a number would answer `false`
+// for `"false"`.
+echo Say::converted("as bool: string zero", "0");
+echo Say::converted("as bool: string false", "false");
+echo Say::converted("as bool: int 0", 0);
+echo Say::converted("as bool: object", new Box());
+echo Say::converted("as bool: null", $absent);
+
+// A `mixed` in each of the other truthy-tested positions ADR 0007 § 2 names,
+// not just `if`: the operator suite reaches the same table through the same
+// helper, so a position that grew its own conversion would show here.
+mixed $m = "0";
+echo Say::yn(!$m), "|", Say::yn(!!$m), "|\n";
+mixed $keep = "keep";
+echo ($m ?: "elvis"), "|", ($keep ?: "elvis"), "|\n";
+echo Say::yn($m && $keep), "|", Say::yn($m || $keep), "|\n";
+
+// `while` and `for`'s middle clause take the operand by the same route.
+mixed $countdown = 2;
+int $laps = 0;
+while ($countdown) {
+    $laps = $laps + 1;
+    $countdown = $laps - 2;
+}
+echo "laps: ", $laps as string, "\n";
+--EXPECT--
+int 0: false
+int 1: true
+int -1: true
+uint 0: false
+float 0.0: false
+float -0.0: false
+float 0.1: true
+string empty: false
+string zero: false
+string zero point zero: true
+string false: true
+string space: true
+bool false: false
+bool true: true
+null: false
+array empty: false
+array one falsy element: true
+object: true
+closure: true
+as bool: string zero: false
+as bool: string false: true
+as bool: int 0: false
+as bool: object: true
+as bool: null: false
+y|n|
+elvis|keep|
+n|y|
+laps: 2

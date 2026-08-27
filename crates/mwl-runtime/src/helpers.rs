@@ -125,6 +125,23 @@ crate::mwl_helper! {
 }
 
 crate::mwl_helper! {
+    /// `mwl_ir::Helper::BytesTruthy` — falsy iff the buffer is empty, which
+    /// is [`mwl_str_truthy`]'s row **without** its `"0"` case. That case is
+    /// PHP's numeric-string rule and
+    /// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s binary scalar
+    /// never converts to a number, so a one-octet buffer holding `0x30` is
+    /// truthy here where the `string` spelling of the same octet is not.
+    /// [`value_truthy`]'s `Tag::Bytes` arm is this rule reached through a
+    /// `mixed`, and the two are deliberately one sentence.
+    fn mwl_bytes_truthy(_ctx, args: [1]) {
+        let bytes = args[0]
+            .as_bytes()
+            .ok_or_else(|| wrong_tag("mwl_bytes_truthy", Tag::Bytes, args[0]))?;
+        Ok(Value::bool(!bytes.is_empty()))
+    }
+}
+
+crate::mwl_helper! {
     /// `mwl_ir::Helper::ArrayTruthy` — falsy iff the array holds no entries,
     /// for any element type. [`mwl_str_truthy`]'s structure with a different
     /// emptiness test, as this module's own docs predicted it would be.
@@ -138,6 +155,25 @@ crate::mwl_helper! {
         )]
         let count = unsafe { crate::array::mwl_array_count(array) };
         Ok(Value::bool(count != 0))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ValueTruthy` —
+    /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md) § 2's
+    /// table over a value whose type the compiler erased, which is the table's
+    /// own last row. Every other row is reached without this helper, because
+    /// the operand's static type already named it:
+    /// `mwl_ir::lower::Lowering::truthy_convert`'s arms are that table, one
+    /// representation at a time.
+    ///
+    /// The row itself is [`value_truthy`], which is total — § 2 covers every
+    /// type that can reach a condition — so this carries no error edge, the
+    /// same reason [`mwl_value_identical`] carries none on the equality side.
+    /// The operand is borrowed, the treatment [`mwl_array_truthy`] already
+    /// gives its own.
+    fn mwl_value_truthy(_ctx, args: [1]) {
+        Ok(Value::bool(value_truthy(args[0])))
     }
 }
 
@@ -1267,14 +1303,23 @@ crate::mwl_helper! {
 /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md)'s truthy
 /// table, applied to a value whose type is known only at runtime.
 ///
-/// The per-type helpers above are what *compiled* code reaches: the checker
-/// already knows an `if`'s operand type, so the branch is picked at compile
-/// time and there is no tag test on the hot path. This is the other case —
-/// native `Core` code holding a [`Value`] a closure just returned, whose
-/// static type is `callable`'s opaque result and therefore nothing. It is
-/// deliberately *not* the general `mixed` dispatch `mwl_ir::ty::Ty::Tagged`
-/// still defers: this reads a tag a `Value` already carries rather than
-/// deciding how a `mixed` binding represents one.
+/// The per-type helpers above are what compiled code reaches wherever a static
+/// type names the row: the checker already knows an `if`'s operand type, so
+/// the branch is picked at compile time and there is no tag test on the hot
+/// path. This is the row for everything else, and it has two callers that
+/// arrive by different routes at the same question. Native `Core` code holds
+/// a [`Value`] a closure just returned, whose static type is `callable`'s
+/// opaque result and therefore nothing; and compiled code holding a
+/// `mwl_ir::ty::Ty::Tagged` operand — a `mixed`, a union, a `?T` no test
+/// narrowed — reaches it through [`mwl_value_truthy`], which is ADR 0035
+/// § 2's own last table row rather than a fallback below it.
+///
+/// One divergence lives here and it is not this function's to fix: **an enum
+/// case tagged into a `mixed` reads as its backing integer**, so a case backed
+/// by `0` is falsy where ADR 0035 § 4 makes every statically-typed enum case
+/// truthy. `mwl_codegen::ty::tag_of` is where that is decided — ADR 0010 § 6
+/// reserves an enum tag and nothing writes one yet, so by the time a case is
+/// here it is indistinguishable from the `int` behind it.
 ///
 /// A `Tag::Object` value is always truthy, which includes an exception and a
 /// closure alike (ADR 0035 § 4); a tag byte denoting nothing at all is falsy,
@@ -1336,7 +1381,9 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_uint_truthy", address(mwl_uint_truthy)),
         ("mwl_float_truthy", address(mwl_float_truthy)),
         ("mwl_str_truthy", address(mwl_str_truthy)),
+        ("mwl_bytes_truthy", address(mwl_bytes_truthy)),
         ("mwl_array_truthy", address(mwl_array_truthy)),
+        ("mwl_value_truthy", address(mwl_value_truthy)),
         ("mwl_array_row_for_write", address(mwl_array_row_for_write)),
         ("mwl_array_required_get", address(mwl_array_required_get)),
         ("mwl_array_optional_get", address(mwl_array_optional_get)),
