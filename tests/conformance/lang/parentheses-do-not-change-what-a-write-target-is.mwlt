@@ -1,0 +1,42 @@
+--TEST--
+Parentheses group and never change what an expression is, so a parenthesized local is still the holder an element write is written back into — ADR 0007 § 5
+--FILE--
+<?mwl
+// `mwl_syntax::ast::Expr::unparenthesized` is the one home for "parentheses
+// group, and never change what an expression *is*". Two rules ask that
+// question rather than what an expression evaluates to: whether a subscript
+// chain's root is a place a separated array can be written back into (ADR
+// 0007 § 5), and whether a read aliases storage something else already owns.
+// Both are asked here at every level a parenthesis can sit at, and what is
+// pinned is that they *agree* with the unparenthesized spelling — PHP writes
+// through parentheses too (checked line by line against `php -r`), so
+// refusing one would be a divergence bought for nothing, and reading a
+// parenthesized local as a temporary released its array twice.
+array<string> $a = ["0" => "x", "1" => "p"];
+($a)["0"] = "y";
+echo $a["0"], "\n";
+
+// Every write spelling, through as many parentheses as the level admits.
+((($a)))["0"] .= "!";
+echo $a["0"], "\n";
+
+unset(($a)["1"]);
+echo Core\Arr::count($a) as string, "\n";
+
+// A parenthesis *between* two levels of a chain leaves the root the same
+// local, so the inner element is written in place rather than in a copy.
+array<array<string>> $g = ["0" => ["1" => "p"]];
+($g["0"])["1"] = "q";
+echo $g["0"]["1"], "\n";
+
+// The read half: `($a)` aliases the local exactly as `$a` does, so the copy
+// is a second owner of one array rather than a second release of it.
+array<string> $b = ($a);
+$b["0"] = "z";
+echo $a["0"], " ", $b["0"], "\n";
+--EXPECT--
+y
+y!
+1
+q
+y! z

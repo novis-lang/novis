@@ -585,11 +585,17 @@ fn refused_as_a_write_target(expr: &Expr, base: &Expr, env: &Env<'_>) -> bool {
     if !env.write_target_levels.contains_key(&expr.span) {
         return false;
     }
-    let mut root = base;
+    let mut root = base.unparenthesized();
     while let ExprKind::Index { base, .. } = &root.kind {
-        root = base;
+        root = base.unparenthesized();
     }
     if matches!(root.kind, ExprKind::PropertyAccess { nullsafe: true, .. }) {
+        return true;
+    }
+    // A root that is no place at all takes `E0700` at the write, and that is
+    // one mistake however the level below it reads — `$h->maybeRows()["a"] = v`
+    // is not additionally a nullable subscript.
+    if !is_a_place(&root.kind) {
         return true;
     }
     matches!(

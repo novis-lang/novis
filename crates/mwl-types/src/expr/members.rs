@@ -727,9 +727,9 @@ pub(crate) fn check_unset_target(
         }
         ExprKind::Index { .. } => {
             check_expr(expr, None, live, scope, ctx, env);
-            let mut root = expr;
+            let mut root = expr.unparenthesized();
             while let ExprKind::Index { base, .. } = &root.kind {
-                root = base;
+                root = base.unparenthesized();
             }
             if is_unset_holder(&root.kind) {
                 check_write_target(expr, env);

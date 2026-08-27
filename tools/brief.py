@@ -858,7 +858,15 @@ def run_numbers():
             emit("reused, so this is deliberately not the lowest hole):")
             for band in sorted(highest):
                 meaning = legend.get(band, "(no row for this band in that file's legend table)")
-                emit(f"  E{band}xx  {meaning:<48} next: E{highest[band] + 1:04d}")
+                # Max-plus-one leaves the band when it lands on `Enn00`, and a number in
+                # the next band's digits is not free -- it reads as that band's stage.
+                # So a filled band says so and the legend table's continuation row is
+                # where the next code comes from: E0499 did not make E0500 the next types
+                # code, it made the types band need E07xx.
+                if (highest[band] + 1) % 100 == 0:
+                    emit(f"  E{band}xx  {meaning:<48} FULL at E{highest[band]:04d}")
+                else:
+                    emit(f"  E{band}xx  {meaning:<48} next: E{highest[band] + 1:04d}")
             unlisted = sorted(set(legend) - set(highest))
             if unlisted:
                 emit(f"  bands with a legend row but no code yet: "

@@ -383,14 +383,14 @@ pub(super) fn check_assign(
 /// *index* expression is not walked — `$a[$b[]] = 1` reads `$b[]`, and is
 /// refused for it.
 pub(super) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env<'_>) {
-    let mut level = target;
+    let mut level = target.unparenthesized();
     while let ExprKind::Index { base, .. } = &level.kind {
         env.write_target_levels.insert(level.span, plain);
-        level = base;
+        level = base.unparenthesized();
     }
 }
 
-/// The three assignment targets that have nowhere to write to, refused where
+/// The four assignment targets that have nowhere to write to, refused where
 /// they are written rather than lowered into something that quietly drops the
 /// write. The first two match PHP, which refuses the same two spellings, and
 /// are standing decisions in `docs/agent/loop-goal.md`.
@@ -418,6 +418,17 @@ pub(super) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 /// refused for the language's own reason rather than PHP's: the property reads
 /// as `mixed`, and `mixed` is not indexable anywhere else either.
 ///
+/// A root that is not a **place** at all — `$h->rows()["a"] = "y"`,
+/// `[1, 2]["0"] = "z"` — is the fourth and the widest, `E0700`. It is the same
+/// missing slot the two above are about, arrived at from the other side: those
+/// two name a holder that turns out not to be storage, this one names no
+/// holder in the first place. [`is_a_place`] is the test, and it is exactly
+/// the set of roots `mwl_ir::lower::Lowering::write_back_array` can re-point.
+/// This is the one of the four PHP does *not* refuse — 8.5 lowers the write
+/// into the temporary and discards it, silently — so it is a deliberate
+/// divergence, ADR 0007 § 7 row 15, taken because the only statement it costs
+/// is one that could never have done anything.
+///
 /// Called *after* the target is checked, because the hooked half reads the
 /// [`ExprInfo::HookedProperty`] entry [`super::members`] records while
 /// checking the access. All three spellings that write through a target go
@@ -430,10 +441,10 @@ pub(super) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 /// the root is the only level with a holder at all — which is also why
 /// `$obj->hooked[0][1] = v` is this same refusal and not a deeper one.
 pub(super) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
-    let mut root = target;
+    let mut root = target.unparenthesized();
     let mut through_subscript = false;
     while let ExprKind::Index { base, .. } = &root.kind {
-        root = base;
+        root = base.unparenthesized();
         through_subscript = true;
     }
     if matches!(root.kind, ExprKind::PropertyAccess { nullsafe: true, .. }) {
@@ -451,6 +462,22 @@ pub(super) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
         return;
     }
     if !through_subscript {
+        return;
+    }
+    if !is_a_place(&root.kind) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ELEMENT_WRITE_ROOT_NOT_A_PLACE,
+                "an array element cannot be written through a temporary",
+            )
+            .with_primary(root.span, "this value is not stored anywhere")
+            .with_help(
+                "ADR 0007 § 5 separates the array before the element is written, and the \
+                 separated copy has to go back into whatever held it — a temporary holds it \
+                 nowhere, so the write would be discarded. Bind it first, write the element \
+                 through the binding, and assign that back if it has an owner",
+            ),
+        );
         return;
     }
     match env.exprs.lookup(root.span) {
@@ -491,6 +518,31 @@ pub(super) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
         }
         _ => {}
     }
+}
+
+/// Whether `kind` is a **place**: storage a separated array can be written
+/// back into, rather than a value dropped at the end of the statement.
+///
+/// The three that are, are the three
+/// `mwl_ir::lower::Lowering::write_back_array` can re-point — a local (a `&$x`
+/// parameter's slot included), a property of a receiver whose class is known
+/// at compile time, and a static property, whose slot the request owns. A
+/// property of a *temporary* receiver (`(new H)->rows["a"] = "y"`) is a place
+/// too and deliberately so: the field belongs to a heap object with reference
+/// semantics, so the write lands in real storage whatever happens to the
+/// handle afterwards, which is PHP's answer as well.
+///
+/// `ExprKind::Error` is here so a parse error takes one diagnostic rather than
+/// two. Parentheses never reach it, [`Expr::unparenthesized`] having peeled
+/// them at every walk that calls this.
+pub(super) fn is_a_place(kind: &ExprKind) -> bool {
+    matches!(
+        kind,
+        ExprKind::Variable(_)
+            | ExprKind::PropertyAccess { .. }
+            | ExprKind::StaticPropertyAccess { .. }
+            | ExprKind::Error
+    )
 }
 
 /// `$x ⊕= e`, typed as the `$x = $x ⊕ e` it means — [`AssignOp::binary_op`]

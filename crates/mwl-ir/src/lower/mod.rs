@@ -1968,6 +1968,10 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) {
+        // `($a)["0"] = "y"` writes `$a["0"]`, here and in PHP alike: the holder
+        // is whatever the parentheses wrap. Every caller flattens through them
+        // as well, so this is the belt to that braces.
+        let base = base.unparenthesized();
         match &base.kind {
             ExprKind::Variable(name_span) => {
                 let name = strip_sigil(span_text(self.src, *name_span)).to_owned();
@@ -2029,7 +2033,9 @@ impl<'a> Lowering<'a> {
                 "mwl-ir lowers an array-element write only through a bare local, a \
                  compile-time-known property or a static property, because ADR 0007 § 5's \
                  copy-on-write separation has to be written back to whatever holds the array — \
-                 not through {other:?}; see the crate docs' known gaps"
+                 not through {other:?}, which `mwl_types::expr::assign::check_write_target` \
+                 refuses as `E0700` where it is written, so this body was not checked with the \
+                 same table"
             ),
         }
     }
@@ -2157,6 +2163,17 @@ impl<'a> Lowering<'a> {
         // owns — see `Self::staged_targets`. It answers `true` whatever its
         // syntax was, which is what stops the second read of a rewritten
         // `$t = $t ⊕ e` releasing a receiver the first read still needs.
+        if self.staged(e.span).is_some() {
+            return true;
+        }
+        // Parentheses group and never change what an expression *is*
+        // (`mwl_syntax::ast::Expr::unparenthesized`), so every question below
+        // is asked of what they wrap: `($a)` aliases the local exactly as `$a`
+        // does, and answering `false` here for one is what made
+        // `array<string> $b = ($a);` release the array twice. The staged
+        // lookup runs on both spans because a rewritten target's staged
+        // sub-expression is recorded under the span it was *written* with.
+        let e = e.unparenthesized();
         if self.staged(e.span).is_some() {
             return true;
         }

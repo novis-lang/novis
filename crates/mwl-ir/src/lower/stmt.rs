@@ -1067,10 +1067,10 @@ impl<'a> Lowering<'a> {
                 // `$grid[0]` (whose key is `0`) and the target itself (whose
                 // key is `1`, and which is not in `levels`).
                 let mut levels: Vec<&Expr> = Vec::new();
-                let mut root = base;
+                let mut root = base.unparenthesized();
                 while let ExprKind::Index { base: inner, .. } = &root.kind {
                     levels.push(root);
-                    root = inner;
+                    root = inner.unparenthesized();
                 }
                 levels.reverse();
                 let (root_v, _) = self.lower_expr(root, None, env, cur);
@@ -1168,10 +1168,16 @@ impl<'a> Lowering<'a> {
                 self.write_back_array(root, written, env, cur);
                 (v, elem_ty)
             }
-            other => panic!(
-                "mwl-ir's control-flow slice only lowers reassignment to a plain local, a \
-                 compile-time-known property, or a compile-time-known array element, not \
-                 {other:?}"
+            other => unreachable!(
+                "mwl-ir reaches an assignment target of kind {other:?} only if both gates above \
+                 it let one through, and neither can — this is an invariant, not a gap. \
+                 `mwl_syntax`'s `is_assignable` admits a local, a subscript, a property and a \
+                 static property and refuses every other kind where it is written (`E0105`), for \
+                 `=`, `⊕=` and an increment alike; \
+                 `mwl_types::expr::assign::check_write_target` then refuses a subscript chain \
+                 whose root is not a place (`E0700`). `ExprKind::Error` is the one kind those \
+                 two admit and this match does not, and a body holding a parse error is never \
+                 lowered"
             ),
         }
     }
@@ -1258,10 +1264,10 @@ impl<'a> Lowering<'a> {
         // [`Self::lower_store`]'s `Index` arm does, and for the same reason:
         // only the root has a holder to be written back to.
         let mut levels: Vec<&Expr> = Vec::new();
-        let mut root = base;
+        let mut root = base.unparenthesized();
         while let ExprKind::Index { base: inner, .. } = &root.kind {
             levels.push(root);
-            root = inner;
+            root = inner.unparenthesized();
         }
         levels.reverse();
         let (root_v, root_ty) = self.lower_expr(root, None, env, cur);

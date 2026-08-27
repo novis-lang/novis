@@ -550,6 +550,18 @@ initializer unless its type admits `null` (`E0409`), and `static::$prop` — whi
 the *called* class — is refused rather than silently answering the writing class's slot (`E0499`).
 `mwl_runtime::ctx`'s module docs own the mechanism and what it spends.
 
+**A diagnostic band is two digits wide, and a full one continues in a new band rather than running past
+its end.** `E04xx` — types — filled at `E0499`, and the max-plus-one rule would have yielded `E0500`,
+whose own digits read as `E05xx`: IR and codegen. A code is a promise that its number alone says which
+stage produced it, and `mwl_diagnostics::code`'s legend table is where that promise is written down, so
+`E0500` is never issued and the types band continues at **`E07xx`**, one more row in that table, opening
+at `E0700`. Both alternatives cost more than a second range: widening every band to three digits
+renumbers two hundred released codes and every `.mwlt` case that names one, and filling the lowest hole
+inside `E04xx` reuses a retired number, which the same promise forbids. `tools/brief.py` reports a band
+whose max-plus-one would leave it as **full** rather than handing out the number past its end, so the
+next session reads this decision off the tool instead of re-deriving it. `E08xx` stays unallocated for
+whichever band fills next.
+
 **A `class`, `interface` or `enum` is declared at file scope, or not at all.** PHP declares a nested type
 when the statement *runs*, so `if ($legacy) { class Session { … } }` makes the very existence of a name a
 run-time fact. MWL resolves every type name against a static table built before any code runs — the

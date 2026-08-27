@@ -607,6 +607,33 @@ pub struct Expr {
     pub span: Span,
 }
 
+impl Expr {
+    /// This expression with every layer of `(` … `)` peeled off — the one home
+    /// for "parentheses group, and never change what an expression *is*".
+    ///
+    /// Every rule that asks what an expression **is** rather than what it
+    /// evaluates to goes through this, because the answer for `($a)` is always
+    /// the answer for `$a`: whether a subscript chain's root is a place to
+    /// write a separated array back into
+    /// (`mwl_types::expr::assign::check_write_target`), and whether a read
+    /// aliases storage something else already owns
+    /// (`mwl_ir::lower::Lowering::aliasing_read`). Both answered as if a
+    /// parenthesised local were a temporary before this existed, which made
+    /// `($a)["0"] = "y"` panic in `mwl-ir` and `array<string> $b = ($a);`
+    /// release the array twice.
+    ///
+    /// What an expression evaluates *to* never needs this: lowering has a
+    /// `Paren` arm that recurses, so the value falls out of the ordinary walk.
+    #[must_use]
+    pub fn unparenthesized(&self) -> &Self {
+        let mut e = self;
+        while let ExprKind::Paren(inner) = &e.kind {
+            e = inner;
+        }
+        e
+    }
+}
+
 /// Every expression form the parser produces.
 ///
 /// Literal payloads are spans, not cooked values — see the module docs.

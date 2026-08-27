@@ -265,7 +265,14 @@
 //!    assignment target (`$a?->b = v`) is `E0479` in `mwl_types`, which is
 //!    what PHP refuses too. An array-element write through a hooked property
 //!    is `E0478` and one through an erased property `E0480`, both for the
-//!    reason those codes' own rows state. An *increment* is a write like any
+//!    reason those codes' own rows state, and one whose root is no place at
+//!    all — `$h->rows()["a"] = v`, `[1, 2]["0"] = v` — is `E0700`, the fourth
+//!    entry the same `check_write_target` grew and the one shape
+//!    [`lower::Lowering::write_back_array`]'s catch-all was still reached
+//!    through. Parentheses are not such a root:
+//!    `mwl_syntax::ast::Expr::unparenthesized` is what every walk on this path
+//!    uses to find the holder, so `($a)["0"] = v` writes `$a` as it does in
+//!    PHP. An *increment* is a write like any
 //!    other and earns whichever of those three its own target does: `$a?->b++`
 //!    desugars into the compound assignment this crate lowers by reading the
 //!    target twice, so the checker refuses it where it is written rather than

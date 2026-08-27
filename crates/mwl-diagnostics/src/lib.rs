@@ -54,6 +54,7 @@ pub use span::{BytePos, SourceId, Span, Spanned};
 /// | `E04xx` | types |
 /// | `E05xx` | IR and codegen |
 /// | `E06xx` | configuration and capabilities |
+/// | `E07xx` | types, continued — the `E04xx` band filled at `E0499` |
 /// | `E09xx` | internal compiler errors |
 /// | `W1xxx` | warnings |
 pub mod code {
@@ -1060,8 +1061,12 @@ pub mod code {
     /// written class name both say exactly which storage is meant and are
     /// unaffected.
     ///
-    /// **The last code in the E04xx band.** The next type diagnostic needs a
-    /// band decision, not a number.
+    /// **The last code in the E04xx band**, which is now full. The band
+    /// decision the next type diagnostic needed was taken with
+    /// [`E_ELEMENT_WRITE_ROOT_NOT_A_PLACE`]: the types band continues at
+    /// `E07xx`, and `E0500` is never issued, its own digits reading as the
+    /// IR-and-codegen band. `docs/adr/README.md` § *Decisions taken at project
+    /// start* is the one home for why.
     pub const E_STATIC_PROPERTY_LATE_BOUND: Code = Code::new("E0499");
 
     // --- E05xx IR and codegen ----------------------------------------------
@@ -1078,6 +1083,30 @@ pub mod code {
     pub const E_CAPABILITY_DENIED: Code = Code::new("E0602");
     /// A per-request limit was exceeded.
     pub const E_LIMIT_EXCEEDED: Code = Code::new("E0603");
+
+    // --- E07xx types, continued --------------------------------------------
+    //
+    // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose
+    // band digits read as E05xx — IR and codegen — so that number is never
+    // issued and the types band continues here instead. `docs/adr/README.md`
+    // § *Decisions taken at project start* owns the reasoning; `tools/brief.py`
+    // reports a filled band as full rather than handing out the number past
+    // its end.
+    /// An array element written through a root that is not a **place**:
+    /// `$h->rows()["a"] = "y"`, `[1, 2]["0"] = "z"`, `($c ? $a : $b)["k"] = v`.
+    ///
+    /// ADR 0007 § 5's copy-on-write separation has to be written back into
+    /// whatever holds the array, and a temporary holds it nowhere — the write
+    /// would land in a value dropped at the end of the statement. PHP 8.5
+    /// accepts the spelling and discards the write with no diagnostic at all
+    /// (checked with `php -r`, not assumed), which makes this ADR 0007 § 7's
+    /// fifteenth deliberate divergence rather than a PHP-compatible refusal
+    /// like `E0478` beside it.
+    ///
+    /// Parentheses are **not** a temporary: `($a)["0"] = "y"` writes `$a["0"]`
+    /// here exactly as it does in PHP, because
+    /// `mwl_syntax::ast::Expr::unparenthesized` is what finds the root.
+    pub const E_ELEMENT_WRITE_ROOT_NOT_A_PLACE: Code = Code::new("E0700");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
