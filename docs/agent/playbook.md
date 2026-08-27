@@ -1392,6 +1392,15 @@ is why" — is this file.
   pointing at the first clause, with no loop anywhere in the file. ADR 0007 § 1's declare-once rule is
   about the *binding*, so a case that catches two different classes needs two names (`$a` for every
   `ArithmeticError` clause, `$l` for every `LogicError` one) and can keep reusing each within its class.
+- **A property default is a scalar literal or `[]`, and a *hooked* property takes none at
+  all.** `public array<string> $rows = ["a"];` is `E0472`: a default is written into every
+  fresh instance's slot at compile time, so a case that needs a seeded `array<T>` property
+  seeds it in `constructor` — `array<int> $seed = ["0" => 1]; $this->counts = $seed;`, which
+  is also the one spelling that gets past an array literal's own `array<mixed>` type. Putting
+  a `{ get => …; set { … } }` block after a default is then a *parse* error that cascades into
+  six more, so the hook block reads as broken syntax rather than as the illegal default it
+  follows. Copy the shape from
+  `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.mwlt`.
 
 ## Splitting a file that got too big
 
