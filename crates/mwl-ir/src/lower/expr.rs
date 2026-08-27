@@ -303,12 +303,17 @@ impl<'a> Lowering<'a> {
             // to the *declaring* class, which is the storage's identity, and
             // recorded the pair — see `InstKind::StaticGet`.
             ExprKind::StaticPropertyAccess { .. } => self.lower_static_property(expr, cur),
+            // `exit`/`exit(...)` — one helper call, see `Self::lower_exit`.
+            // The construct is typed `never`, so the value handed back here is
+            // unreachable by construction; it exists because this dispatch is
+            // total in `(ValueId, Ty)`.
+            ExprKind::Exit(arg) => self.lower_exit(arg.as_deref(), env, cur),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
                  operators, `new`, a static or instance method call, property access, a static \
                  property, an array literal, an array-element read, `instanceof`, `isset`, \
-                 `empty`, an enum case, an increment, an assignment, `print` and an `as` \
-                 conversion — got {other:?}; \
+                 `empty`, an enum case, an increment, an assignment, `print`, `exit` and an \
+                 `as` conversion — got {other:?}; \
                  see the crate docs' known gaps"
             ),
         }
@@ -383,6 +388,75 @@ impl<'a> Lowering<'a> {
         self.lower_echo(std::slice::from_ref(operand), cur, env);
         let (one, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(1));
         (one, Ty::Int)
+    }
+    /// `exit;` and `exit(...)` — ADR 0002's status vocabulary, plus one.
+    ///
+    /// The whole construct is a single [`Helper::Exit`] call whose *success*
+    /// is `mwl_runtime::EXITED`: the ordinary status check `mwl-codegen`
+    /// emits after it takes this site's error edge, so the frame's live
+    /// locals are released in its landing block and the status travels on
+    /// through every caller's own check. No `catch` sees it and **no
+    /// `finally` runs** — [`crate::ir::Terminator::Catch`] admits only
+    /// `THROWN`, and every copy of a `finally` body lives behind it. Both are
+    /// PHP's own behaviour, checked against `php -r` rather than assumed;
+    /// `docs/adr/README.md` § *Decisions taken at project start* owns the
+    /// decision.
+    ///
+    /// The operand carries PHP's two spellings at once: an `int` is the
+    /// process status, and a `string` is a message written first, after which
+    /// the status is `0`. `mwl_types::expr` refuses everything else, so the
+    /// branch here is on the operand's already-checked representation and
+    /// needs no third case.
+    ///
+    /// What follows the call is dead by construction — the helper never
+    /// returns `OK` — but is still lowered, because a `never`-typed
+    /// expression has to hand a value back to whatever dispatched to it.
+    pub(super) fn lower_exit(
+        &mut self,
+        arg: Option<&Expr>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
+        let code = match arg {
+            None => self.emit(*cur, Ty::Int, InstKind::ConstInt(0)).0,
+            Some(operand) => {
+                let (v, ty) = self.lower_expr(operand, None, env, cur);
+                if matches!(ty, Ty::Str) {
+                    // PHP's `exit("…")`: the message is written exactly the
+                    // way `echo` writes it, and the status is `0`.
+                    if !self.aliasing_read(operand) {
+                        self.own_temporary(v);
+                    }
+                    let landing = self.landing_block(env);
+                    self.block_insts[cur.index() as usize].push(Inst {
+                        result: None,
+                        ty: None,
+                        kind: InstKind::HelperCall {
+                            helper: Helper::EchoStr,
+                            args: vec![v],
+                        },
+                        on_error: Some(landing),
+                    });
+                    self.emit(*cur, Ty::Int, InstKind::ConstInt(0)).0
+                } else {
+                    v
+                }
+            }
+        };
+        let landing = self.landing_block(env);
+        self.block_insts[cur.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::HelperCall {
+                helper: Helper::Exit,
+                args: vec![code],
+            },
+            on_error: Some(landing),
+        });
+        self.release_temporaries_since(mark, *cur);
+        let (zero, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
+        (zero, Ty::Int)
     }
     /// Whether the checker *placed* the numeric literal at `span` at
     /// `decimal` — ADR 0054 § 2's rule, read back from the one recording

@@ -34,6 +34,17 @@ pub const THROWN: i32 = 1;
 /// ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)).
 pub const FATAL: i32 = 2;
 
+/// The program stopped itself: `exit` or `exit(...)` ran, and the status it
+/// named is on the context ([`Ctx::exit_code`]).
+///
+/// It propagates exactly the way [`FATAL`] does — no `catch` sees it, and no
+/// `finally` runs, which is PHP's own `exit` — but it is **not** a failure:
+/// `exit(0)` is the most ordinary end a program has, so the request boundary
+/// reports the code rather than an error. `docs/adr/README.md`
+/// § *Decisions taken at project start* owns why this is a fourth status
+/// rather than a `FATAL` carrying a code.
+pub const EXITED: i32 = 3;
+
 /// A compiled MWL function.
 ///
 /// `unsafe` because the three pointers carry a contract the type cannot
@@ -83,8 +94,9 @@ pub enum Fault {
     /// The one variant carrying no message, and deliberately: a
     /// [`Self::Thrown`] built here would call [`Ctx::set_pending`] a second
     /// time and replace the exception object the callee raised with a bare
-    /// string. Reached today only from [`crate::call_closure`], which is the
-    /// one place a helper calls compiled MWL code.
+    /// string. Reached from [`crate::call_closure`], which is the one place a
+    /// helper calls compiled MWL code, and from `mwl_exit`, whose *success* is
+    /// [`EXITED`] and which has already recorded the status on the context.
     Pending(i32),
 }
 

@@ -222,6 +222,13 @@ pub struct Ctx {
     /// slot index compiled code carries comes from `mwl_ir::Program::statics`,
     /// so there is an index only where there is a slot.
     statics: *mut Value,
+    /// The process status `exit`/`exit(n)` named, `0` until one runs.
+    ///
+    /// Cold: written once by `mwl_exit` on the way out, read once at the
+    /// request boundary. It sits beside [`Self::pending`] rather than inside
+    /// it because an `exit` is not a failure and carries no message — see
+    /// [`crate::EXITED`] for why it is its own status.
+    exit_code: i64,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -536,6 +543,7 @@ impl Ctx {
             stack_limit: 0,
             stack_floor: 0,
             statics: std::ptr::null_mut(),
+            exit_code: 0,
             pending: None,
             runtime_error_class: None,
             output,
@@ -548,6 +556,20 @@ impl Ctx {
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
         ctx
+    }
+
+    /// The process status `exit`/`exit(n)` named, `0` if none ran.
+    ///
+    /// Read once, at the request boundary, after a [`crate::EXITED`] status
+    /// came back — that constant owns why an `exit` is not a failure.
+    #[must_use]
+    pub fn exit_code(&self) -> i64 {
+        self.exit_code
+    }
+
+    /// Records the status `exit(n)` named — `mwl_exit`'s one side effect.
+    pub fn set_exit_code(&mut self, code: i64) {
+        self.exit_code = code;
     }
 
     /// Arms this request's static-property storage: one slot per entry in

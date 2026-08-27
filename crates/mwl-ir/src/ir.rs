@@ -249,8 +249,9 @@ pub struct Inst {
     ///
     /// `Some` for the instructions that can actually fail: [`InstKind::Call`],
     /// [`InstKind::CallVirtual`], [`InstKind::New`],
-    /// [`InstKind::NewDynamic`], the one [`InstKind::HelperCall`] with a real
-    /// failure mode ([`Helper::EchoStr`]'s write), and **every integer
+    /// [`InstKind::NewDynamic`], the two [`InstKind::HelperCall`]s that leave
+    /// by a non-`OK` status ([`Helper::EchoStr`]'s write, which can fail, and
+    /// [`Helper::Exit`], whose success *is* one), and **every integer
     /// arithmetic row** — `+`, `-`, `*`, `/` and `%` over
     /// [`crate::ty::Ty::Int`]/[`crate::ty::Ty::Uint`] as an
     /// [`InstKind::BinOp`], and unary `-` over the same two as an
@@ -1596,6 +1597,23 @@ pub enum Helper {
     /// this one — whether `echo` under `mwl serve` becomes that sink is an
     /// M7 decision this deliberately does not pre-empt.
     EchoStr,
+    /// `exit`/`exit(...)`: record the process status its one
+    /// [`crate::ty::Ty::Int`] argument names, then end the request.
+    ///
+    /// **The one helper whose success is a non-`OK` status.** It returns
+    /// `mwl_runtime::EXITED`, so the ADR 0002 status check after it takes this
+    /// instruction's error edge, the frame's live locals are released in that
+    /// landing block, and every caller's own check propagates it onward. No
+    /// `catch` sees it — [`Terminator::Catch`] admits only `THROWN` — and **no
+    /// `finally` runs**, because every copy of a `finally` body lives behind
+    /// that comparison. Both are PHP's own behaviour for `exit`;
+    /// `docs/adr/README.md` § *Decisions taken at project start* owns the
+    /// decision and what it costs.
+    ///
+    /// Defines no value and never returns normally, so it is pushed with
+    /// `result: None` the way [`Self::EchoStr`] is, and always carries an
+    /// error edge.
+    Exit,
     /// The throw at the end of
     /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md)
     /// § 5's membership test: the operand reached none of the literals its

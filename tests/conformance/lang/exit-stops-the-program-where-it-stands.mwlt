@@ -1,0 +1,27 @@
+--TEST--
+`exit` stops the program where it stands: no `catch` sees it and no `finally` above it runs — docs/adr/README.md § Decisions taken at project start
+--FILE--
+<?mwl
+// PHP's `exit` is not an unwind. It is neither catchable nor observable by a
+// `finally`, in the frame that runs it or in any frame above — which is what
+// makes it a fourth ABI status rather than a `throw` with a nicer name.
+// Checked against PHP's own output rather than assumed.
+class Deep {
+    public static function inner(): void {
+        string $held = "held";
+        echo $held, "\n";
+        exit(0);
+    }
+}
+echo "before\n";
+try {
+    Deep::inner();
+} catch (Throwable $e) {
+    echo "caught\n";
+} finally {
+    echo "finally\n";
+}
+echo "after\n";
+--EXPECT--
+before
+held

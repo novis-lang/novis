@@ -326,6 +326,20 @@ front end plus a working backend. Mitigated by shipping a *baseline* tier where 
 call into a Rust runtime helper — mechanically close to an interpreter loop, therefore quick to get
 correct — with typed inlining layered on later behind the same IR boundary.
 
+**`exit` is a fourth ABI status, not a `FATAL` carrying a code.** `mwl_runtime::EXITED` sits beside `OK`,
+`THROWN` and `FATAL`, and the status `exit(n)` named rides out on the request context rather than in the
+status word. A `FATAL` is a *failure* — [ADR 0020](0020-error-escalation-ladder.md)'s tier 3, reported at
+the request boundary as one — while `exit(0)` is the most ordinary end a PHP program has, so folding them
+together would report every clean exit as an internal error. What the two do share is propagation: neither
+is catchable, because `mwl_ir::ir::Terminator::Catch` admits only `THROWN`, and **neither runs a
+`finally`**, which is PHP's own behaviour for `exit` — checked against `php -r`, not assumed, and therefore
+priority 2 rather than a simplification. The cost is one more constant that every status check already
+handles by comparing against `OK`, and one `i64` per request. The frame's locals are still released,
+because `exit` lowers to an ordinary helper call carrying ADR 0002's error edge. `exit("message")` is PHP's
+other spelling of the same construct: the message is written and the status is `0`; anything that is
+neither an `int` nor a `string` is a type mismatch at the operand, since ADR 0007 § 2 has no implicit
+conversion to offer there.
+
 **SIMD is a dependency's job, and the JIT emits scalar code.** No `target-cpu` flag is set anywhere, on any
 platform: LLVM autovectorizes the Rust crates at each target's *baseline* ISA — SSE2 on x86_64, NEON on
 aarch64 — and no further, because a `native` build produces a binary that faults on the next machine. The

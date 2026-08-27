@@ -1233,6 +1233,25 @@ crate::mwl_helper! {
     }
 }
 
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::Exit` — records the process status `exit`/`exit(n)`
+    /// named, then ends the request.
+    ///
+    /// **The one helper whose success is a non-`OK` status.** It answers
+    /// [`Fault::Pending`] carrying [`crate::EXITED`], so the ordinary ADR 0002
+    /// status check `mwl-codegen` emits after the call takes the site's error
+    /// edge: the frame's live locals are released in its landing block, and
+    /// every caller's own check propagates the status the same way. Nothing
+    /// catches it and no `finally` runs — `docs/adr/README.md`
+    /// § *Decisions taken at project start* owns why that is a fourth status
+    /// rather than a `FATAL` carrying a code.
+    fn mwl_exit(ctx, args: [1]) {
+        let code = expect_tag!("mwl_exit", args[0], as_int, Tag::Int);
+        ctx.set_exit_code(code);
+        Err(Fault::Pending(crate::EXITED))
+    }
+}
+
 /// One operand of a failed
 /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 5
 /// membership test, rendered the way § 6's compile-time sibling renders it:
@@ -1428,6 +1447,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_decimal_to_float", address(mwl_decimal_to_float)),
         ("mwl_decimal_to_string", address(mwl_decimal_to_string)),
         ("mwl_echo_str", address(mwl_echo_str)),
+        ("mwl_exit", address(mwl_exit)),
         ("mwl_literal_mismatch", address(mwl_literal_mismatch)),
         (
             "mwl_str_new",

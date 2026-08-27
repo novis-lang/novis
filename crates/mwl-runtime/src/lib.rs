@@ -278,7 +278,7 @@ static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 static POOLED_ALLOCATOR: alloc::Pooled = alloc::Pooled;
 
 pub use abi::{
-    FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, affordable, call, run_helper,
+    EXITED, FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, affordable, call, run_helper,
 };
 pub use arith::mwl_float_pow;
 pub use array::{

@@ -164,6 +164,37 @@ fn a_fatal_is_never_caught() {
 }
 
 #[test]
+fn an_exit_is_caught_by_nothing_and_carries_the_status_it_named() {
+    // `exit` is its own ABI status, so the `catch` does not run and neither
+    // does the `finally` — PHP's own behaviour, and the reason it is not a
+    // `FATAL` is that the code it named survives to the request boundary.
+    // docs/adr/README.md § Decisions taken at project start owns both.
+    let mut ctx = Ctx::buffered();
+    let source = "<?mwl\ntry {\n    exit(3);\n} catch (Throwable $e) {\n    \
+                  echo \"caught\";\n} finally {\n    echo \"finally\";\n}\n";
+    assert_eq!(run_with(&mut ctx, source).unwrap_err(), EXITED);
+    assert_eq!(ctx.exit_code(), 3);
+    assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b""[..]));
+}
+
+#[test]
+fn a_bare_exit_is_status_zero_and_a_string_operand_is_written_first() {
+    // PHP's two spellings of one construct: `exit(n)` names a status, and
+    // `exit("…")` writes a message and leaves the status at zero.
+    let mut ctx = Ctx::buffered();
+    assert_eq!(run_with(&mut ctx, "<?mwl\nexit;\n").unwrap_err(), EXITED);
+    assert_eq!(ctx.exit_code(), 0);
+
+    let mut ctx = Ctx::buffered();
+    assert_eq!(
+        run_with(&mut ctx, "<?mwl\nexit(\"bye\");\n").unwrap_err(),
+        EXITED
+    );
+    assert_eq!(ctx.exit_code(), 0);
+    assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b"bye"[..]));
+}
+
+#[test]
 fn a_frame_that_throws_releases_the_strings_it_still_held() {
     // The error path's refcount cleanup, observed rather than assumed: the
     // caught exception's message is the only allocation still alive once the

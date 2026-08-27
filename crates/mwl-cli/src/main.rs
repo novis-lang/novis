@@ -428,6 +428,13 @@ fn run_run(
 
     match outcome {
         Ok(_) => ExitCode::SUCCESS,
+        // `exit`/`exit(n)` ended the program the way it meant to, so the
+        // status it named becomes this process's and nothing is reported —
+        // see `mwl_runtime::EXITED`. The low byte is what a shell can carry,
+        // and truncating to it is what PHP does.
+        Err(status) if status == mwl_runtime::EXITED => {
+            ExitCode::from(u8::try_from(ctx.exit_code() & 0xFF).unwrap_or(0))
+        }
         Err(status) => {
             // ADR 0020's ladder is not built yet; until it is, the honest
             // report is the status and whatever message the runtime recorded.

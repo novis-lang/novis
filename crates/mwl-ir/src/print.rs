@@ -494,6 +494,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::TaggedToUint => "tagged_to_uint",
         Helper::TaggedToFloat => "tagged_to_float",
         Helper::EchoStr => "echo_str",
+        Helper::Exit => "exit",
         Helper::LiteralMismatch => "literal_mismatch",
         Helper::Identical => "identical",
         Helper::NumericEq => "numeric_eq",

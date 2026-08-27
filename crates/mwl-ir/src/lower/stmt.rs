@@ -253,6 +253,13 @@ impl<'a> Lowering<'a> {
             // has a block to seal. `$x = throw …;` falls through to
             // `lower_expr`'s own unsupported-shape panic.
             ExprKind::Throw(inner) => self.lower_throw(inner, env, cur),
+            // `exit;` / `exit(…);` — the whole construct is the one helper
+            // call `Self::lower_exit` emits. The `never`-typed value it hands
+            // back is a dead `ConstInt`, and `Ty::Int` is not refcounted, so
+            // there is nothing to discard here.
+            ExprKind::Exit(arg) => {
+                self.lower_exit(arg.as_deref(), env, cur);
+            }
             // ADR 0053 § 4's suspension point. Only the statement position
             // is lowered, for `throw`'s reason above: `yield` produces
             // nothing a surrounding expression could consume (§ 5 gives a

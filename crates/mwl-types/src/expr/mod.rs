@@ -495,7 +495,31 @@ pub(super) fn infer(
         }
         ExprKind::Exit(opt) => {
             if let Some(e) = opt {
-                check_expr(e, None, live, scope, ctx, env);
+                // PHP's `exit` takes either spelling: an `int` is the process
+                // status, a `string` is a message written before the program
+                // stops. ADR 0007 § 2 has no implicit conversion to offer for
+                // anything else, so anything else is a mismatch here rather
+                // than a silent `as`.
+                let actual = check_expr(e, None, live, scope, ctx, env);
+                let int_ty = env.interner.int();
+                let string_ty = env.interner.string();
+                let never_ty = env.interner.never();
+                if actual != never_ty
+                    && !is_assignable(actual, int_ty, env.interner, env.graph, env.signatures)
+                    && !is_assignable(actual, string_ty, env.interner, env.graph, env.signatures)
+                {
+                    let actual_desc = env.interner.describe(actual);
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_TYPE_MISMATCH,
+                            format!("expected `int` or `string`, found `{actual_desc}`"),
+                        )
+                        .with_primary(
+                            e.span,
+                            "`exit` takes an `int` process status or a `string` message".to_owned(),
+                        ),
+                    );
+                }
             }
             env.interner.never()
         }
