@@ -105,6 +105,15 @@ Locators are `120-160`, `120+30`, `@symbol`, `re:pattern` (optionally `re:patter
 sweeps a crate. Prefer `re:` to the `/pattern/` spelling: Git Bash rewrites a leading `/` into a Win32
 path before the tool sees it. `--locate` is what a handoff's `file.rs:NN` anchors are made of.
 
+**And when you do not know the file yet, read its seams before its lines.** `python tools/peek.py
+--outline <path>` prints one line per `fn`/`struct`/`enum`/`trait`/`impl`, with where it starts and how
+far it runs; every line of it is a `:@name` target that then lands first time. This is what the re-fetch
+number argues for: **56% of a session's read calls fetch a file the session had already opened** — 24.6
+calls a session across only 20.3 distinct files — and since the two hottest files in this repository are
+5,044 and 5,720 lines, "read it whole" was never the alternative. An outline of `lower/mod.rs` is 2.8 KB
+against the file's 276 KB. `peek.py` counts a session's fetches per file and names the flag once you have
+reached into the same one three times.
+
 ## Verifying
 
 ```sh

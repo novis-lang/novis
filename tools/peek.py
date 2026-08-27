@@ -31,10 +31,19 @@ Target forms, all of them `path` followed by `:` and a locator:
 which is how you sweep a regex across a crate without a second call.
 
     python tools/peek.py --locate mwl_object_slot_get SlotSet ClassDesc
+    python tools/peek.py --outline crates/mwl-ir/src/lower/mod.rs
 
 `--locate` is the other half: symbols in, `file:line  <the defining line>` out, and no bodies at
 all. It is what a handoff's `## Next group` file set is made of, and what the tail of a session
 otherwise spends five `grep`s rediscovering.
+
+`--outline` is for the file you do not know yet: one line per `fn`/`struct`/`enum`/`trait`/`impl`
+seam, with the line it starts on and how long it runs. **56% of a session's read calls re-fetch a
+file it has already opened** -- 24.6 calls a session over only 20.3 distinct files -- and the two
+hottest files here are 5,044 and 5,720 lines, so "read it whole" is not available. Landing the
+first fetch correctly is what is available, and an outline is the map that does it: 2.8 KB against
+`lower/mod.rs`'s 276 KB. Top-level seams only unless `--deep`. When a session has fetched the same
+file three times, the footer says so and names this flag.
 
 Nothing here judges or truncates silently. Every target that produced nothing says so on its own
 line, and a target that would blow the budget prints its size and refuses rather than quietly
@@ -46,9 +55,11 @@ from __future__ import annotations
 
 import argparse
 import glob as globmod
+import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -76,6 +87,49 @@ DEFINITION = [
 SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".agent-tmp", ".loop"}
 TEXT_SUFFIXES = {".rs", ".py", ".md", ".toml", ".mwl", ".mwlt", ".txt", ".json", ".yml",
                  ".yaml", ".sh", ".ps1", ".snap", ".php", ".lock", ".cfg", ".ini"}
+
+# What `--outline` prints one line for: the seams of a file, and nothing inside them. A `fn`, a
+# `struct`, an `impl` -- the things a `:@name` target can then land on exactly.
+OUTLINE = re.compile(
+    r"^(?P<indent>\s*)(?P<sig>"
+    r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:const\s+|unsafe\s+|extern\s+\"[^\"]*\"\s+)*fn\s+\w+"
+    r"|(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait|union|mod)\s+\w+"
+    r"|impl(?:<[^>]*>)?\s+[^{;]+"
+    r")"
+)
+
+#: Python's seams, kept separate because `class Adder` is also MWL, and this repository's Rust is
+#: full of MWL fixtures in string literals -- matching them turned a `lower/mod.rs` outline into
+#: a list of test classes.
+OUTLINE_PY = re.compile(r"^(?P<indent>\s*)(?P<sig>(?:async\s+)?(?:def|class)\s+\w+)")
+
+#: Where this session's fetches are remembered, so a repeat can be reported. One file per
+#: process tree is not possible -- `peek.py` is a fresh process every call -- so it is one file
+#: per day under `.agent-tmp/`, which is gitignored and swept with the rest of it.
+LEDGER = ROOT / ".agent-tmp" / "peek-ledger.json"
+
+#: Fetches of one file, in one session, past which the footer says so. Three is where reading
+#: the seams first (`--outline`) starts to beat guessing at another region.
+REFETCH_NOTE_AT = 3
+
+#: Idle time that ends a session when there is no loop driver to ask. `.agent-tmp` is never
+#: swept, so without a boundary the tally would be cumulative and the advice would fire on every
+#: call of every session forever.
+LEDGER_IDLE_SECONDS = 2 * 60 * 60
+
+
+def session_key() -> str:
+    """What makes this session distinct from the last one, for the re-fetch ledger.
+
+    Under the loop driver, consecutive sessions are 0.4 minutes apart -- far too close for an
+    idle timer to separate -- but each one has its own transcript, so the newest log file names
+    it. Interactively there is no such marker and the idle timer is the whole answer."""
+    logs = ROOT / ".loop" / "logs"
+    if logs.is_dir():
+        newest = max(logs.glob("*.log"), key=lambda p: p.stat().st_mtime, default=None)
+        if newest is not None:
+            return newest.name
+    return "interactive"
 
 
 # ----------------------------------------------------------------------------- plumbing
@@ -371,6 +425,99 @@ def locate(names: list[str], scope: str | None) -> int:
 # --------------------------------------------------------------------------------- main
 
 
+def outline(patterns: list[str], deep: bool) -> int:
+    """One line per seam of a file: every `fn`, `struct`, `enum`, `trait`, `impl` and `mod`,
+    with the line it starts on and how many lines it runs for.
+
+    This is the answer to the measurement that says 56% of a session's read calls re-fetch a file
+    it already opened -- 24.6 calls a session, over only 20.3 distinct files. The two hottest
+    files in this repository are 5,044 and 5,720 lines, so reading one whole is not the fix and
+    never will be; the fix is landing the *first* fetch on the right region. An outline of
+    `lower/mod.rs` is about 4 KB against the file's 276 KB, and every line of it is a `:@name`
+    target that lands exactly.
+
+    Top-level seams only unless `--deep`: in that same file, 72 seams are top level and 218 are
+    methods inside an `impl`, and printing all 290 costs 19 KB where the structure costs 5. A
+    method is what `--locate <name>` answers in one line without printing any outline at all."""
+    seen, nested = 0, 0
+    for pattern in patterns:
+        for path in expand(pattern):
+            lines = read_lines(path)
+            if lines is None:
+                out(f"===== {pattern}  -- cannot read")
+                continue
+            rx = OUTLINE_PY if path.suffix == ".py" else OUTLINE
+            hits = []
+            for n, line in enumerate(lines, start=1):
+                m = rx.match(line)
+                if m and not line.lstrip().startswith(("//", "#", "*")):
+                    hits.append((n, len(m.group("indent")), m.group("sig").strip()))
+            shown = hits if deep else [h for h in hits if h[1] == 0]
+            hidden = len(hits) - len(shown)
+            out(f"===== {rel(path)}  {len(lines):,} lines, {len(hits)} seam(s)"
+                + (f", {hidden} nested one(s) not shown" if hidden else ""))
+            for i, (n, indent, sig) in enumerate(hits):
+                if (n, indent, sig) not in shown:
+                    continue
+                nxt = hits[i + 1][0] if i + 1 < len(hits) else len(lines) + 1
+                out(f"{n:>6}  {'  ' * min(indent // 4, 3)}{sig}   [{nxt - n} lines]")
+            out()
+            seen += 1
+            nested += hidden
+    if not seen:
+        out("-- outline: nothing matched")
+        return 1
+    out("-- outline: every line above is a `:@name` target that lands on that seam exactly.")
+    if nested:
+        out(f"-- {nested} seam(s) nested inside an `impl` are not shown; `--deep` prints them, and")
+        out("   `python tools/peek.py --locate <name>` finds one by name without printing any.")
+    return 0
+
+
+def note_refetch(targets: list[str]) -> str | None:
+    """One line when this session has now fetched the same file `REFETCH_NOTE_AT` times.
+
+    A `peek.py` process cannot see the session it runs inside, so the count lives in a file. It
+    is advice and nothing else: it never refuses, never changes an exit code, and a missing or
+    unwritable ledger is silently no advice at all rather than an error on a read."""
+    paths = {split_target(t)[0] for t in targets}
+    paths = {p for p in paths if "*" not in p and "?" not in p}
+    if not paths:
+        return None
+    now, key_now = time.time(), session_key()
+    record = {"session": key_now, "at": now, "files": {}}
+    try:
+        if LEDGER.exists():
+            held = json.loads(LEDGER.read_text(encoding="utf-8"))
+            fresh = (isinstance(held, dict)
+                     and held.get("session") == key_now
+                     and now - float(held.get("at", 0)) < LEDGER_IDLE_SECONDS)
+            if fresh and isinstance(held.get("files"), dict):
+                record["files"] = held["files"]
+    except (OSError, ValueError, TypeError):
+        pass
+
+    hot = []
+    tally = record["files"]
+    for p in sorted(paths):
+        name = p.replace("\\", "/")
+        tally[name] = int(tally.get(name, 0)) + 1
+        if tally[name] >= REFETCH_NOTE_AT:
+            hot.append((name, tally[name]))
+    try:
+        LEDGER.parent.mkdir(parents=True, exist_ok=True)
+        LEDGER.write_text(json.dumps(record), encoding="utf-8")
+    except OSError:
+        pass
+
+    if not hot:
+        return None
+    worst, count = max(hot, key=lambda x: x[1])
+    return (f"-- you have now fetched {worst} {count} times this session. "
+            f"`python tools/peek.py --outline {worst}` prints its seams once, and every line of "
+            "that is a `:@name` target that lands first time.")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -379,6 +526,10 @@ def main() -> int:
                     help="path[:locator], one or many; a path may be a glob")
     ap.add_argument("--locate", nargs="+", metavar="SYMBOL",
                     help="symbols in, file:line out, no bodies")
+    ap.add_argument("--outline", nargs="+", metavar="PATH",
+                    help="one line per fn/struct/impl seam, with its span -- the map of a big file")
+    ap.add_argument("--deep", action="store_true",
+                    help="with --outline, include seams nested inside an impl")
     ap.add_argument("--in", dest="scope", metavar="GLOB",
                     help="restrict --locate to these files")
     ap.add_argument("--window", type=int, default=DEFAULT_WINDOW,
@@ -393,6 +544,9 @@ def main() -> int:
     except AttributeError:
         pass
 
+    if opts.outline:
+        return outline(opts.outline, opts.deep)
+
     if opts.locate:
         return 1 if locate(opts.locate, opts.scope) else 0
 
@@ -406,10 +560,15 @@ def main() -> int:
         total += printed
         empty += missed
 
+    # The ledger is written whatever `--quiet` says: a call that does not count itself makes the
+    # next call's advice wrong. Only the advice line is what `--quiet` suppresses.
+    advice = note_refetch(opts.targets)
     if not opts.quiet:
         out(f"-- peek: {len(opts.targets)} target(s) in one call, "
             f"{total:,} B (~{total / BYTES_PER_TOKEN:,.0f} tok)"
             + (f", {empty} produced nothing" if empty else ""))
+        if advice:
+            out(advice)
     return 0
 
 
