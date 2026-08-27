@@ -540,6 +540,13 @@ is why" — is this file.
   `mwl-ir` itself, and `mwl_ir::lower::param_tag_nibble` already *is* that guard. `mwl-codegen`'s
   `ty.rs` cannot hold a second copy: both `clif_ty` and `tag_of` end in a `_ =>` arm because the
   compiler requires one there.
+- **A hole item names one spelling, and the panic can be under a different one.** Item 29 says
+  `$a?->b = v` panics; it has been `E0479` since `c5a8761`, and what still panicked was
+  `$a?->b++` — `check_write_target` was called from the plain and compound assignment arms and
+  not from `PreIncDec`/`PostIncDec`. Three scratch files (`= v`, `+= v`, `++`) run against
+  `target/debug/mwl.exe` in one call told the whole story, where editing the site the item named
+  would have closed nothing. Ask every spelling that reaches the same lowering before you believe
+  the item's, and `git log -S` on the code the item quotes says whether its half already landed.
 
 ## Running things
 

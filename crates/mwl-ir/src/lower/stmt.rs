@@ -111,6 +111,28 @@ impl<'a> Lowering<'a> {
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, ty, value);
             }
+            // `int $x;` — a declaration with no initializer, which ADR 0007
+            // § 1 makes a complete statement: the type is fixed here and the
+            // value arrives on some later line. There is nothing to emit,
+            // because `mwl_types::locals`' definite-assignment pass is what
+            // guarantees no path reads the name before an assignment reaches
+            // it (reading one that may not have is `E0403`) — so the whole
+            // statement *is* the type, remembered for the assignment that
+            // will bind it. See `Lowering::declared_tys` for why remembering
+            // it is not optional.
+            StmtKind::LocalDecl {
+                ty: Some(decl_ty),
+                name: local_name,
+                value: None,
+            } => {
+                let declared = lower_decl_type(decl_ty, self.exprs, self.checked_types);
+                let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
+                self.declared_tys.insert(lname, declared);
+            }
+            // A bare `;`. PHP parses one wherever a statement is legal and it
+            // does nothing there; so does this, and the `StmtMarker` above
+            // has already given it the source position a debugger would want.
+            StmtKind::Empty => {}
             StmtKind::Expr(e) => self.lower_expr_stmt(e, env, cur),
             // See `Self::release_all_locals`'s own doc comment for why a
             // bare `$name` return expression is excluded from the exit
@@ -196,11 +218,19 @@ impl<'a> Lowering<'a> {
                 catches,
                 finally,
             } => self.lower_try(body, catches, finally.as_ref(), cur, env),
+            // Three shapes the checker accepts still arrive here, and each is
+            // its own scheduled item rather than a gap in this dispatch:
+            // ADR 0050's `[$a, $b] = $pair` destructuring, inline HTML at
+            // file scope (`docs/agent/loop-goal.md` item 34), and a
+            // class/interface/enum declared inside a function body — the last
+            // being a decision nobody has taken, since PHP's "declared when
+            // the statement runs" has no reading a static class table can
+            // give it.
             other => panic!(
-                "mwl-ir's control-flow slice only lowers a typed local declaration, a plain \
-                 reassignment, `echo`, `unset`, `return`, a nested block, `if`, `while`, \
-                 `do`/`while`, `for`, `foreach`, `switch`, `try`/`catch`, `throw` and a \
-                 loop-scoped \
+                "mwl-ir's control-flow slice only lowers a typed local declaration with or \
+                 without an initializer, a plain reassignment, `echo`, `unset`, `return`, an \
+                 empty statement, a nested block, `if`, `while`, `do`/`while`, `for`, \
+                 `foreach`, `switch`, `try`/`catch`, `throw` and a loop-scoped \
                  `break`/`continue` — got {other:?}; see the crate docs' known gaps"
             ),
         }
@@ -773,7 +803,15 @@ impl<'a> Lowering<'a> {
                     self.emit_ref_store(*cur, slot, v);
                     (v, pointee)
                 } else {
-                    let expected = env.get(&lname).map(|&(_, t)| t);
+                    // A local declared without an initializer has no `Env`
+                    // entry until this assignment makes one, and its declared
+                    // type is still what the value has to arrive as — see
+                    // `Lowering::declared_tys`, which is why the fallback is
+                    // an `or_else` and not the other order.
+                    let expected = env
+                        .get(&lname)
+                        .map(|&(_, t)| t)
+                        .or_else(|| self.declared_tys.get(&lname).copied());
                     let (v, ty, aliasing) = self.lower_stored(stored, expected, env, cur);
                     // ADR 0037 fixes a local's type at its declaration, so an
                     // existing binding's representation wins over whatever the
@@ -809,10 +847,21 @@ impl<'a> Lowering<'a> {
             ExprKind::PropertyAccess {
                 object, nullsafe, ..
             } => {
+                // A *nullsafe* target never arrives here, and never will:
+                // `?->` yields `null` where the receiver is `null` and `null`
+                // is not a place, so `mwl_types::expr::assign`'s
+                // `check_write_target` refuses `$a?->b = v` as `E0479` where
+                // it is written — PHP's own "can't use nullsafe operator in
+                // write context". The alternative was never a lowering rule
+                // but an assignment that silently does nothing on one path,
+                // which is why this asserts the checker's answer rather than
+                // naming a shape still to be lowered.
                 assert!(
                     !*nullsafe,
-                    "mwl-ir does not yet lower a nullsafe property assignment target (`?->`); \
-                     see the crate docs' known gaps"
+                    "mwl-ir: a nullsafe property assignment target (`?->`) at {:?} reached \
+                     lowering, so it wasn't checked with the same rules — \
+                     `mwl_types::expr::assign`'s `check_write_target` refuses that as `E0479`",
+                    target.span
                 );
                 // A `set` hook (ADR 0014 § 1) makes the write a call, exactly
                 // the way a `get` hook makes the read one — same receiver

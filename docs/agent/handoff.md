@@ -2,58 +2,62 @@
 
 ## State
 
-**M4 — language completeness.** The closure's entry now pays for the class label a four-bit tag
-cannot hold. `mwl_ir::lower::closure::check_param_class` branches the body's first block on one
-`instanceof` per class-declared parameter and throws `LogicError` on the miss, so the type
-confusion that stood behind this group — two `final` classes and one wrong `Core\Arr::filter`
-callback writing an `int` over a `string` field, `misaligned pointer dereference`, from a program
-with no `unsafe` in it — is closed. The tag word gained no class channel.
+**M4 — language completeness.** An increment is a **write**, which is the half
+`mwl_types::expr`'s `PreIncDec`/`PostIncDec` arm used to leave out: it now marks its target's
+subscript levels and runs `assign::check_write_target`, so `$a?->b++`, `$g->hooked["0"]++` and
+`$erased->rows["0"]++` take the same `E0479`/`E0478`/`E0480` the `=` and `⊕=` spellings have taken
+since `c5a8761`, instead of two `mwl-ir` panics and one `E0482` blaming the subscript for the
+`?->` above it. The numeric refusal is skipped when the write refusal fired, so a refused target
+is one diagnostic and not two. Item 29's remaining half — the `mwl-ir` assert at
+`lower/stmt.rs`'s `PropertyAccess` target arm — no longer advertises a gap it does not have; it
+asserts the checker's answer and names `E0479`.
 
-`docs/adr/README.md` § *Decisions taken at project start* states the rule and its **three
-deliberate remainders**: a `?C` parameter is unchecked on both lines (it erases to `Ty::Tagged`
-before any class survives), a `Core` class parameter keeps the objecthood-only check (a unit's
-class table is `mwl_types::layout`'s declared tree, so there is no descriptor and no `instanceof`
-spelling either), and the refusal does not name the class that *arrived* — no IR instruction reads
-an object's class name, so `must be of type Marker, another class given` is the message's limit
-until something other than a diagnostic wants that value shape.
+`mwl-ir`'s statement slice also lowers **a typed declaration with no initializer** (`int $x;`) and
+**the empty statement** `;`. The declaration binds nothing — `mwl_types::locals`' definite
+assignment is what makes that safe — but it does fix the representation, in the new
+`Lowering::declared_tys`, which the reassignment arm reads when `Env` has no entry yet. Without
+that the *first* assignment would take its representation from the right-hand side, and
+`?string $s;` assigned a string on one branch and `null` on the other would merge two shapes.
+Nothing that compiles today can reach the new map, since every program that fills it panicked
+before.
 
-`tests/conformance/core/out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.mwlt`
-(renamed from `…-is-checked-by-representation-not-by-class`) pins both lines at once — the tag
-word's around objecthood, the entry check's around ancestry, with a parent class and an
-implemented interface both accepting the instance an exact class does. `tools/leak-check.sh` is
-clean over the refusal path; `verify.py` green — conformance 624, differential 173.
+Two conformance cases under `tests/conformance/lang/`; `tools/leak-check.sh` clean over both new
+paths; `verify.py` green — conformance 626, differential 173. `python tools/holes.py` is at 25
+sites.
 
-**Gap in the pack:** `orient.py` printed neither `docs/adr/README.md` § *Decisions taken at project
-start* (which the item names as its specification) nor the `.mwlt` case it was about to flip, so
-both were read by hand. `[context] adrs` takes a `README.md:"## Decisions taken at project start"`
-selector for the first.
+**Gap in the pack:** the item's own prose was stale (see the playbook bullet), and `orient.py`
+printed no map line or window for `crates/mwl-types/src/expr/assign.rs`, which is where the three
+write-target refusals actually live. `[context] modules` wants an `mwl-types/src/expr/assign.rs`
+pattern on any item about an assignment target.
 
 ## Next group
 
-**Close `mwl-ir`'s statement-slice refusals.** The file set: `crates/mwl-ir/src/lower/stmt.rs`,
-`crates/mwl-diagnostics/src/lib.rs`, `tests/conformance/lang/`. `python tools/holes.py --item 4`
-and `--item 7` attribute every site below.
+**The three shapes still reaching the statement slice's catch-all.** The file set:
+`crates/mwl-ir/src/lower/stmt.rs`, `crates/mwl-syntax/src/parser/stmt.rs`,
+`crates/mwl-diagnostics/src/lib.rs`, `tests/conformance/lang/`. All three panic at the one site
+`crates/mwl-ir/src/lower/stmt.rs:230`, and a scratch `.mwl` per shape reproduces each in one call.
 
-- [ ] **A nullsafe assignment target is a diagnostic, not a panic.** `crates/mwl-ir/src/lower/stmt.rs:814`
-      panics on `$a?->b = v`; `docs/agent/loop-goal.md` § *Standing decisions* already settles it as
-      a compile error taking a new `E`-code, and the orientation pack's *next free number* section
-      names it. The array-element write through an ADR 0014 § 1 hooked property is the same
-      decision's other half.
-- [ ] **The control-flow slice's "only lowers …" panics name a shape the checker accepted.**
-      `crates/mwl-ir/src/lower/stmt.rs:200`, `:331`, `:1120` — item 4's `$x++`/`--$x` and compound
-      assignment reach the first two, a reassignment target that is neither a local nor a
-      compile-time-known property the third. Each is a refusal that must become a lowering or a
-      diagnostic naming the rule, never a panic.
-- [ ] **`reduce` counts positions, not roles** — carried, untaken twice now, and on its own file
-      set: `crates/mwl-stdlib/src/arr.rs:2611`. The carry is argument 1, the element 2 and the key
-      3, and the refusal names the position rather than the role. Take it alone, not as this
-      group's third.
+- [ ] **Inline HTML at file scope lowers** — `docs/agent/loop-goal.md` item 34, which already names
+      the lowering: the `Helper::EchoStr` call `echo` emits, at `crates/mwl-ir/src/lower/expr.rs:351`
+      (`lower_echo`). `StmtKind::InlineHtml` carries the span of the text after `?>`; the run is a
+      string literal like any other.
+- [ ] **A class, interface or enum declared inside a function body is refused by name.** No item
+      owns it and no decision has been taken: PHP declares such a class when the statement *runs*,
+      and a static class table has no reading of that, so the choice is a diagnostic rather than a
+      silent hoist. Next free `E02xx` is **E0233**; its siblings are at
+      `crates/mwl-diagnostics/src/lib.rs:297` and the refusal that reads most like it is
+      `E_LIST_DESTRUCTURING_UNSUPPORTED` at `crates/mwl-syntax/src/parser/stmt.rs:773`. Take the
+      decision in `docs/agent/loop-goal.md` § *Standing decisions* in the same session.
+- [ ] **ADR 0050's `[$a, $b] = $pair` destructuring lowers.** The largest of the three and the one
+      that is a feature rather than a decision — `StmtKind::Destructure` carries a
+      `DestructureTarget` of typed leaves, each of which is a `bind_local` against the element the
+      key names. `E0230` already refuses the `list(...)` spelling, so `[...]` is the only one.
 
 ## Backlog
 
-- ADR 0007 § 4's promotion table still has 11 refusal sites (`holes.py --item 1`).
-- A named argument and a spread argument type-check and lower — 3 sites, `holes.py --item 16`.
-- `object` as a declared type has a representation arm — `crates/mwl-ir/src/lower/mod.rs:2399`, `:2482`.
-- `<=>` answers for a scalar — 1 site, `holes.py --item 6`.
-- Two unattributed refusal sites in `crates/mwl-codegen/src/ty.rs:116`/`:121` belong to no item.
-- 14 of 32 named cases still unwritten, all under milestone 8's corpus (`holes.py --cases`).
+- `Core\Reflect::typeOf` does not exist yet (`E0405`), so no case can assert a binding's *type* by
+  observation — `docs/spec/01-core-library.md` owns when it arrives.
+- Item 7's four remaining sites in `lower/stmt.rs` are the nested-index and `unset` internal
+  asserts, not increment work — `python tools/holes.py --item 7`.
+- Items 1, 4, 6, 16 and 25 still hold refusal sites; `python tools/holes.py` ranks them.
+- 14 of 32 named `.mwlt` cases still to write — `python tools/holes.py --cases`.

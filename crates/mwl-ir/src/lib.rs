@@ -15,7 +15,10 @@
 //! frame of ordinary locals with no receiver (ADR 0008 § 2), returning
 //! [`ty::Ty::Tagged`] because that is what ADR 0021 types a `require`'s result.
 //!
-//! - **Statements** — typed and `var` local declarations (ADR 0037),
+//! - **Statements** — typed and `var` local declarations (ADR 0037), a typed
+//!   one with no initializer at all (the type is fixed and remembered, and
+//!   the first assignment binds it — [`lower::Lowering::declared_tys`]), the
+//!   empty statement `;`,
 //!   reassignment, `return`, nested blocks, `echo`, `unset`, `if`, `while`,
 //!   `do`/`while`, `for`, `switch`,
 //!   `foreach` over all three of ADR 0053 § 3's subjects, `break`/`continue`
@@ -255,7 +258,11 @@
 //!    assignment target (`$a?->b = v`) is `E0479` in `mwl_types`, which is
 //!    what PHP refuses too. An array-element write through a hooked property
 //!    is `E0478` and one through an erased property `E0480`, both for the
-//!    reason those codes' own rows state. A *nested* write — `$grid[0][1] =
+//!    reason those codes' own rows state. An *increment* is a write like any
+//!    other and earns whichever of those three its own target does: `$a?->b++`
+//!    desugars into the compound assignment this crate lowers by reading the
+//!    target twice, so the checker refuses it where it is written rather than
+//!    leaving it to that rewrite's own panic. A *nested* write — `$grid[0][1] =
 //!    v`, whose base is itself an index expression — lowers: it flattens to
 //!    its root holder plus one key per level, descends, and writes every
 //!    level back with the outermost last, auto-vivifying an absent row the

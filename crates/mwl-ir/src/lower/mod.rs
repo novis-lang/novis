@@ -1110,6 +1110,22 @@ struct Lowering<'a> {
     /// entry. Empty outside a statement's own target, and never more than a
     /// target's depth long.
     staged_targets: Vec<(Span, ValueId, Ty)>,
+    /// The representation of every local this frame has **declared without an
+    /// initializer** — `int $x;`, whose type ADR 0037 fixes at the
+    /// declaration while its first value arrives on some later line.
+    ///
+    /// [`Env`] holds a name only once it has a value, so this is the only
+    /// place a declaration with nothing to bind can put the one thing it does
+    /// decide. Without it the *first* assignment would take its
+    /// representation from the right-hand side instead, and `?string $s; $s =
+    /// "x";` would bind a [`Ty::Str`] where every later narrowing expects the
+    /// one tagged slot the declaration gave it.
+    ///
+    /// Read only where `Env` has no entry, so a bound local's own entry
+    /// always wins, and never removed: MWL has no shadowing and a name is
+    /// declared once per frame (ADR 0007 § 1), which is also why one flat map
+    /// per frame is the whole scoping rule.
+    declared_tys: FxHashMap<String, Ty>,
     /// This frame's late-static-binding class as a [`Ty::ClassDesc`] value,
     /// once something has asked for one — see [`Self::lsb`], which is the only
     /// thing that sets it after [`lower_method`] seeds a `static` method's
@@ -1410,6 +1426,7 @@ impl<'a> Lowering<'a> {
             try_stack: Vec::new(),
             owned_temporaries: Vec::new(),
             staged_targets: Vec::new(),
+            declared_tys: FxHashMap::default(),
             lsb: None,
             this: None,
             entry: None,

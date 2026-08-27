@@ -1,0 +1,61 @@
+--TEST--
+`int $x;` declares without binding: the type is the declaration's and the value arrives later, on one line or on every branch of an `if` — ADR 0007 § 1, ADR 0037
+--FILE--
+<?mwl
+// ADR 0007 § 1 fixes a binding's type where it is declared, and nothing about
+// that needs an initializer on the same line: the definite-assignment pass
+// refuses a *read* on a path no assignment reached, which is what makes a
+// bare declaration safe rather than a hole. What it must not do is let the
+// first assignment decide the representation instead — the `?string` below is
+// where that shows, since one branch assigns a string and the other assigns
+// `null`, and the two agree at the join only because the declaration already
+// said what the slot is. A bare `;` is a statement in the same sense: legal
+// wherever a statement is, and it does nothing.
+class Counter {
+    public static function run(int $seed): string {
+        // Declared at the top and assigned below, the shape a body written
+        // for definite assignment naturally takes.
+        string $label;
+        int $total;
+        $total = 0;
+        int $k;
+        for ($k = 0; $k < 3; $k++) {
+            $total = $total + $seed;
+        }
+        $label = "total=";
+        return $label . ($total as string);
+    }
+}
+
+int $i;
+$i = 2;
+;
+echo $i, "\n";
+
+// Both branches are the *first* assignment, and they disagree about the value
+// while agreeing about the slot.
+?string $maybe;
+if ($i == 2) {
+    $maybe = "here";
+} else {
+    $maybe = null;
+}
+if ($maybe != null) {
+    echo $maybe, "\n";
+}
+
+?string $absent;
+if ($i == 3) {
+    $absent = "no";
+} else {
+    $absent = null;
+}
+echo ($absent ?? "fell back"), "\n";
+
+// A declaration inside a method body, read after a loop has written it.
+echo Counter::run(2), "\n";
+--EXPECT--
+2
+here
+fell back
+total=6
