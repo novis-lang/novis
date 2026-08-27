@@ -1352,6 +1352,12 @@ is why" — is this file.
   `E0406: $e is already declared`, pointing at the first: a `catch` binding is the function's, and
   the class it names is part of the declaration that clashes. Give a differently-typed handler its
   own name.
+- **Two file-scope `catch`es may share a binding name only while they name the same class.** The
+  neighbouring bullet says several file-scope `try`s each binding `$e` compile, and that holds — but
+  `catch (ArithmeticError $e)` followed by `catch (LogicError $e)` is `E0406: `$e` is already declared`,
+  pointing at the first clause, with no loop anywhere in the file. ADR 0007 § 1's declare-once rule is
+  about the *binding*, so a case that catches two different classes needs two names (`$a` for every
+  `ArithmeticError` clause, `$l` for every `LogicError` one) and can keep reusing each within its class.
 
 ## Splitting a file that got too big
 
