@@ -371,6 +371,45 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
         }
     }
+    /// A run of literal text between `?>` and the next `<?mwl` — spec
+    /// `00-overview.md` § 1 — written to the request's output verbatim.
+    ///
+    /// The span points straight at the source bytes, so there is nothing to
+    /// cook: unlike a string literal it carries no quotes and no escape
+    /// sequences, and unlike [`Self::lower_echo`]'s operands it is never
+    /// converted or escaped on the way out. `mwl_syntax::Lexer::lex_code`
+    /// already swallowed the one newline immediately after `?>`, and
+    /// `lex_html` pushes no token at all for an empty run, so the text this
+    /// receives is exactly what the page owes and never the empty string.
+    ///
+    /// From there it is [`Self::lower_echo`]'s own tail, for the same reasons
+    /// that function's doc comment gives: one [`Helper::EchoStr`] call, the
+    /// one conversion-free helper that can genuinely fail, carrying the
+    /// failure edge [`Self::landing_block`] hands out. The
+    /// [`InstKind::ConstStr`] is a fresh value with exactly one use, so it
+    /// goes on [`Self::owned_temporaries`] and is released on both edges.
+    ///
+    /// Nothing here is file-scope-specific: `?>`/`<?mwl` reopen and reclose
+    /// code mode anywhere a statement is expected (`mwl_syntax::ast::StmtKind::InlineHtml`),
+    /// and a run inside a loop body lowers into that body like any other
+    /// statement.
+    pub(super) fn lower_inline_html(&mut self, span: Span, cur: &mut BlockId, env: &mut Env) {
+        let text = span_text(self.src, span).to_owned();
+        let mark = self.temporaries_mark();
+        let (v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(text));
+        self.own_temporary(v);
+        let landing = self.landing_block(env);
+        self.block_insts[cur.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::HelperCall {
+                helper: Helper::EchoStr,
+                args: vec![v],
+            },
+            on_error: Some(landing),
+        });
+        self.release_temporaries_since(mark, *cur);
+    }
     /// `print $x` — one operand written exactly as [`Self::lower_echo`]
     /// writes it, answering the `1` PHP answers.
     ///

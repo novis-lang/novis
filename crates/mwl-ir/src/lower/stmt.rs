@@ -218,19 +218,20 @@ impl<'a> Lowering<'a> {
                 catches,
                 finally,
             } => self.lower_try(body, catches, finally.as_ref(), cur, env),
-            // Three shapes the checker accepts still arrive here, and each is
-            // its own scheduled item rather than a gap in this dispatch:
-            // ADR 0050's `[$a, $b] = $pair` destructuring, inline HTML at
-            // file scope (`docs/agent/loop-goal.md` item 34), and a
-            // class/interface/enum declared inside a function body — the last
-            // being a decision nobody has taken, since PHP's "declared when
-            // the statement runs" has no reading a static class table can
-            // give it.
+            StmtKind::InlineHtml(span) => self.lower_inline_html(*span, cur, env),
+            // One shape the checker accepts still arrives here, and it is its
+            // own scheduled item rather than a gap in this dispatch: ADR
+            // 0050's `[$a, $b] = $pair` destructuring. A class, interface or
+            // enum declared inside a body used to be the other one, and is now
+            // `E0233` from `mwl_types::locals` — the decision is in
+            // `docs/adr/README.md` § *Decisions taken at project start*, since
+            // PHP's "declared when the statement runs" has no reading a static
+            // class table can give it.
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a typed local declaration with or \
-                 without an initializer, a plain reassignment, `echo`, `unset`, `return`, an \
-                 empty statement, a nested block, `if`, `while`, `do`/`while`, `for`, \
-                 `foreach`, `switch`, `try`/`catch`, `throw` and a loop-scoped \
+                 without an initializer, a plain reassignment, `echo`, inline HTML, `unset`, \
+                 `return`, an empty statement, a nested block, `if`, `while`, `do`/`while`, \
+                 `for`, `foreach`, `switch`, `try`/`catch`, `throw` and a loop-scoped \
                  `break`/`continue` — got {other:?}; see the crate docs' known gaps"
             ),
         }

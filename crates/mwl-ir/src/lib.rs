@@ -18,7 +18,9 @@
 //! - **Statements** — typed and `var` local declarations (ADR 0037), a typed
 //!   one with no initializer at all (the type is fixed and remembered, and
 //!   the first assignment binds it — [`lower::Lowering::declared_tys`]), the
-//!   empty statement `;`,
+//!   empty statement `;`, a run of inline HTML
+//!   ([`lower::Lowering::lower_inline_html`] — the same
+//!   [`ir::Helper::EchoStr`] call `echo` emits, over the raw span),
 //!   reassignment, `return`, nested blocks, `echo`, `unset`, `if`, `while`,
 //!   `do`/`while`, `for`, `switch`,
 //!   `foreach` over all three of ADR 0053 § 3's subjects, `break`/`continue`
@@ -141,6 +143,11 @@
 //! # Known gaps
 //!
 //! Each panics naming itself rather than miscompiling.
+//!
+//! **A number here is a stable identifier**, cited from `docs/agent/loop-goal.md`
+//! and `docs/agent/playbook.md`. A closed gap is deleted and leaves a hole
+//! rather than renumbering the ones below it — the same rule the diagnostic
+//! registry states for a retired `E`-code, and for the same reason.
 //!
 //! 1. **`do`/`while` does not lower** — [`lower::Lowering::lower_while`] with
 //!    the branch moved below the body, and nothing new to build. Every other
@@ -348,10 +355,6 @@
 //!     for; it panics here. One arriving inside a [`ty::Ty::Tagged`] value
 //!     throws instead, because [`ir::Helper::TaggedToString`] decides by tag
 //!     at runtime and has no row for it.
-//! 13. **Inline HTML at file scope is not lowered.** The lowering is the same
-//!     [`ir::Helper::EchoStr`] call `echo` emits over the raw span; it is out
-//!     only because `mwl_types` treats `InlineHtml` as a no-op too, so landing
-//!     it widens two crates at once.
 //! 14. **Two of the safepoint's four flags still do nothing.**
 //!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
 //!     back edge, and `mwl-codegen` lowers it to a real poll: `CPU_LIMIT` and
