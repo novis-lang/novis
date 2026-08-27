@@ -57,13 +57,13 @@
 > type parser is what reaches `int &$x` first, and a lookahead that consumes it leaves the site
 > above nothing to report — so § 3's own text is corrected rather than left disagreeing with the
 > tree. The 12 `.mwlt` cases and both examples that spelled `&$` are rewritten **with their expected
-> output unchanged**, which is the check that this ADR changed no semantics; **items 46 and 47a are
-> landed and what is left of Stage 0a is item 47b's doc sweep alone**. The rename went through
-> `mwl-ir`, `mwl-types` and `mwl-diagnostics` as one token substitution and then stopped at three
-> places it must not touch: `$a = &$b` (`E0701`), `[&$x]` (`E0483`) and `use (&$y)` (`E0224`) are
-> refused because MWL has no reference at all, so ADR 0107 replaced no marker of theirs, and
-> `ExprKind::Assign::by_ref`, `ArrayItem::by_ref` and the use-clause parser's own locals keep the
-> old word on purpose. Six diagnostic constants moved with the family — `E_INOUT_ARG_NOT_A_PLACE`,
+> output unchanged**, which is the check that this ADR changed no semantics; **items 46, 47a and 47b
+> are all landed, and Stage 0a is closed**. The rename went through `mwl-ir`, `mwl-types` and
+> `mwl-diagnostics` as one token substitution and then stopped at three places it must not touch:
+> `$a = &$b` (`E0701`), `[&$x]` (`E0483`) and `use (&$y)` (`E0224`) are refused because MWL has no
+> reference at all, so ADR 0107 replaced no marker of theirs, and `ExprKind::Assign::by_ref`,
+> `ArrayItem::by_ref` and the use-clause parser's own locals keep the old word on purpose. Six
+> diagnostic constants moved with the family — `E_INOUT_ARG_NOT_A_PLACE`,
 > `E_INOUT_ARG_TYPE_NOT_EXACT`, `E_CLOSURE_INOUT_PARAM`, `E_FOREACH_INOUT_ELEMENT_TY`,
 > `E_FOREACH_INOUT_SUBJECT` and `E_GENERATOR_INOUT_PARAM` — while `E_BY_REFERENCE_MARKER_RETIRED`,
 > `E_ASSIGN_BY_REFERENCE`, `E_ARRAY_ELEMENT_BY_REFERENCE` and `E_CLOSURE_USE_BY_REF_UNSUPPORTED`
@@ -80,32 +80,40 @@
 > unmarked argument and `E0714` at a marked one against both a by-value parameter and a call through
 > a `callable`. That correction is folded into § *Verification*'s own body. The `.mwlt` prose caught
 > up with the source items 44–45 had already moved, so nothing in `tests/` outside a PHP oracle half
-> and the two deliberate refusal cases spells `&$` any more; what still does is `docs/`, which is
-> item 47b. It is first because a case authored in the old spelling is authored twice, and because
-> M4B is deferred behind this goal exactly so its `.lspt` suite is written against the finished
-> surface. A hole is a shape that compiles in the front end and then refuses below it; it is closed
-> when it either runs with a fixture or a `.mwlt` case pinning what it prints, or is refused by a
-> **diagnostic that names the rule** — never by a panic. The statement dispatch has no shape left
-> that the checker accepts: ADR 0007 § 3.3's `[int $a, string $b] = $pair;` lowers as the subscripts
-> it is spelled out of and refuses what one refuses (`E0482`/`E0401`/`E0483`), inline HTML lowers
-> over its raw span, a nested `class`/`interface`/`enum` is `E0233`, an increment takes its write
-> target's own `E0479`/`E0478`/`E0480`, `unset()` is narrowed to an array element of a named holder
-> and refuses every other operand (`E0234`, plus `E0413` for a static property), an element write
-> whose root is only a temporary is `E0700` — the first code of the `E07xx` band the full `E04xx`
-> one continues in — an increment's own target passes the parser's `E0105` gate like every other
-> write spelling, the read-modify-write rewrite's own assertion has no reachable target left — its
-> doc comment carries the proof, and `mwl_types`' two write-target refusals are two thirds of it —
-> an element write evaluates the receiver under its root holder exactly once, PHP 8.5.9's own count,
-> a computed member name (`->$name` / `->{expr}`) is `E0235` where it is written and an undeclared
-> property is `E0405` on every class kind, which together leave the property-write panic no
-> reachable target, all four write spellings — `=`, `⊕=`, an increment and `unset()` — agree on the
-> three element-write holders that are no slot and take exactly one diagnostic each for it, an
-> intermediate level of a nested element write is `E0482` unless it is an array of its own, which
-> together leave `write_back_array`'s and `row_ty_of`'s panics no reachable target either, and `int
-> $x;` and `;` both lower, all seven declaration spellings — `class`, `interface`, `enum`, `type`,
-> `namespace`, `use` and `autoload` — are skipped at file scope and `E0233` inside a body, so an
-> `autoload` written in the entry point itself resolves a class exactly as one in a bootstrap file
-> does, and an expression used as its own statement is evaluated for its effects with its value
+> and the two deliberate refusal cases spells `&$` any more, and neither does `docs/`: item 47b
+> renamed every site that named MWL's own by-reference parameter — an alias's type rule (ADR 0007 §
+> 1), what cannot cross a `spawn` or a copy boundary (0006, 0023), what `class_alias` does not
+> affect (0015), R3's banned out-parameter (0063), the `foreach` line in the spec's overview, M4's
+> own feature list and four playbook bullets — and deleted `docs/agent/loop-goal.md` § *Stage 0a*,
+> whose checks stay in `loop-goal.toml` as guards under names that now cite the ADR rather than a
+> deleted item number. What still spells `&$` in `docs/` is quotation and nothing else: ADR 0107's
+> own 17, ADR 0031's `use (&$y)`, the three refusals this field names above, and one routing-table
+> row in `docs/adr/README.md` that keeps the retired spelling as a search key for a reader who has
+> not heard yet. Stage 0a was first because a case authored in the old spelling is authored twice,
+> and because M4B is deferred behind this goal exactly so its `.lspt` suite is written against the
+> finished surface. A hole is a shape that compiles in the front end and then refuses below it; it
+> is closed when it either runs with a fixture or a `.mwlt` case pinning what it prints, or is
+> refused by a **diagnostic that names the rule** — never by a panic. The statement dispatch has no
+> shape left that the checker accepts: ADR 0007 § 3.3's `[int $a, string $b] = $pair;` lowers as the
+> subscripts it is spelled out of and refuses what one refuses (`E0482`/`E0401`/`E0483`), inline
+> HTML lowers over its raw span, a nested `class`/`interface`/`enum` is `E0233`, an increment takes
+> its write target's own `E0479`/`E0478`/`E0480`, `unset()` is narrowed to an array element of a
+> named holder and refuses every other operand (`E0234`, plus `E0413` for a static property), an
+> element write whose root is only a temporary is `E0700` — the first code of the `E07xx` band the
+> full `E04xx` one continues in — an increment's own target passes the parser's `E0105` gate like
+> every other write spelling, the read-modify-write rewrite's own assertion has no reachable target
+> left — its doc comment carries the proof, and `mwl_types`' two write-target refusals are two
+> thirds of it — an element write evaluates the receiver under its root holder exactly once, PHP
+> 8.5.9's own count, a computed member name (`->$name` / `->{expr}`) is `E0235` where it is written
+> and an undeclared property is `E0405` on every class kind, which together leave the property-write
+> panic no reachable target, all four write spellings — `=`, `⊕=`, an increment and `unset()` —
+> agree on the three element-write holders that are no slot and take exactly one diagnostic each for
+> it, an intermediate level of a nested element write is `E0482` unless it is an array of its own,
+> which together leave `write_back_array`'s and `row_ty_of`'s panics no reachable target either, and
+> `int $x;` and `;` both lower, all seven declaration spellings — `class`, `interface`, `enum`,
+> `type`, `namespace`, `use` and `autoload` — are skipped at file scope and `E0233` inside a body,
+> so an `autoload` written in the entry point itself resolves a class exactly as one in a bootstrap
+> file does, and an expression used as its own statement is evaluated for its effects with its value
 > discarded whatever shape it is, `$a = &$b;` being the one spelling refused instead (`E0701`, ADR
 > 0031 § 2 has nowhere to put a reference) — which together leave both of the statement slice's
 > catch-alls no reachable target. The **expression** dispatch is now the same: `Foo::class` folds to
@@ -294,45 +302,45 @@
 > check, so too few arguments is the same catchable `LogicError` and there is no second convention
 > beside it; too many are trimmed, which is PHP's answer for a userland call as well as the spec's
 > "a callback may declare fewer parameters". Valgrind-clean over a fixture that spreads a borrowed
-> and a freshly built argument list two hundred times each. **A `&$x` argument's copy-back now lands
-> where the call is**, which is item 18 and PHP's own sequence point, so such a call lowers in any
-> expression position at all rather than only as a bare statement or a plain assignment's right-hand
-> side. A call site takes `Lowering::pending_refs_mark` before it lowers its argument list and hands
-> that mark back to `flush_ref_writebacks` once its call has returned, which is what makes the
-> staging list a stack rather than a queue drained at a boundary: `Adder::sum(Adder::bump($n), $n)`
-> stages `$n` for the *outer* call before the inner one's arguments are lowered at all, so a flush
-> that drained the whole list would write the outer slot back before the outer call had run and then
-> lose that call's own write. Under a `?->` the copy-back lands inside the guard, where it belongs —
-> a receiver that was `null` ran no callee and wrote nothing back, and the old statement-level flush
-> read a slot defined only in the branch it skipped. The four statement-level flush sites are gone
-> with it, and `lower_stmts`' assertion survives as an internal-consistency check on the call sites
-> rather than as a refusal of the program. What this does **not** buy is PHP's *operand* order, and
-> it is not meant to: MWL evaluates a binary operator's operands strictly left to right, so `$n +
-> Adder::bump($n)` reads the left `$n` before the call and answers `5 + 7` where PHP's
-> compiled-variable read at the `ADD` answers `7 + 7`. PHP's own manual leaves an expression's
-> operand order undefined, so there is no specified behaviour here to be compatible with, and
-> `Lowering::pending_refs` is that decision's one home. Subtracting the deferral found a leak
-> underneath it that was older than it and that no fixture had reached: `return $s;` names its own
-> local as the one binding `release_all_locals` skips, transferring that binding's reference
-> straight out instead of retaining it — and a `&$x` parameter is a `Ty::Ref` cell
-> `release_all_locals` was never going to release in the first place (the caller's copy-back owns
-> that reference), so the exemption lost the retain outright and the caller then freed a value its
-> own staged slot still owned. `mwl run` printed the right answer and exited 127. The exemption is
-> decided by the binding's representation now, and the pair is valgrind-clean over a fixture that
-> grows a borrowed and a freshly built string through a `&$x` parameter, and writes back through a
-> property holder, two hundred times. **A `finally` now runs when its own `catch` clause's body
-> throws**, which is item 12 and the last exit out of a protected region that did not run one. The
-> clause body is lowered under a frame whose handler is that region's own finally-and-re-raise block
-> rather than the dispatch that selected the clause — a clause does not catch what its own body
-> raises — so the `finally` runs, the clause binding is released there exactly as the completing
-> path already released it before lowering its own copy, and the new exception is handed on to the
-> enclosing region carrying the same reference it arrived with. A `finally` that throws on its own
-> way out therefore **replaces** the exception in flight, which is PHP's answer and falls out of the
-> ordering rather than being written down anywhere: the re-raise's own `Terminator::Throw` is simply
-> never reached. Where the region has no `finally` the frame names no handler at all and such a
-> throw still reaches the enclosing region directly, so nothing is spent on a `try`/`catch` that
-> owes nothing. Valgrind-clean over a fixture that wraps, re-raises through the same object, catches
-> unbound and crosses a frame, two hundred times each.
+> and a freshly built argument list two hundred times each. **An `inout` argument's copy-back now
+> lands where the call is**, which is item 18 and PHP's own sequence point, so such a call lowers in
+> any expression position at all rather than only as a bare statement or a plain assignment's
+> right-hand side. A call site takes `Lowering::pending_refs_mark` before it lowers its argument
+> list and hands that mark back to `flush_ref_writebacks` once its call has returned, which is what
+> makes the staging list a stack rather than a queue drained at a boundary:
+> `Adder::sum(Adder::bump($n), $n)` stages `$n` for the *outer* call before the inner one's
+> arguments are lowered at all, so a flush that drained the whole list would write the outer slot
+> back before the outer call had run and then lose that call's own write. Under a `?->` the
+> copy-back lands inside the guard, where it belongs — a receiver that was `null` ran no callee and
+> wrote nothing back, and the old statement-level flush read a slot defined only in the branch it
+> skipped. The four statement-level flush sites are gone with it, and `lower_stmts`' assertion
+> survives as an internal-consistency check on the call sites rather than as a refusal of the
+> program. What this does **not** buy is PHP's *operand* order, and it is not meant to: MWL
+> evaluates a binary operator's operands strictly left to right, so `$n + Adder::bump($n)` reads the
+> left `$n` before the call and answers `5 + 7` where PHP's compiled-variable read at the `ADD`
+> answers `7 + 7`. PHP's own manual leaves an expression's operand order undefined, so there is no
+> specified behaviour here to be compatible with, and `Lowering::pending_refs` is that decision's
+> one home. Subtracting the deferral found a leak underneath it that was older than it and that no
+> fixture had reached: `return $s;` names its own local as the one binding `release_all_locals`
+> skips, transferring that binding's reference straight out instead of retaining it — and an `inout`
+> parameter is a `Ty::Ref` cell `release_all_locals` was never going to release in the first place
+> (the caller's copy-back owns that reference), so the exemption lost the retain outright and the
+> caller then freed a value its own staged slot still owned. `mwl run` printed the right answer and
+> exited 127. The exemption is decided by the binding's representation now, and the pair is
+> valgrind-clean over a fixture that grows a borrowed and a freshly built string through an `inout`
+> parameter, and writes back through a property holder, two hundred times. **A `finally` now runs
+> when its own `catch` clause's body throws**, which is item 12 and the last exit out of a protected
+> region that did not run one. The clause body is lowered under a frame whose handler is that
+> region's own finally-and-re-raise block rather than the dispatch that selected the clause — a
+> clause does not catch what its own body raises — so the `finally` runs, the clause binding is
+> released there exactly as the completing path already released it before lowering its own copy,
+> and the new exception is handed on to the enclosing region carrying the same reference it arrived
+> with. A `finally` that throws on its own way out therefore **replaces** the exception in flight,
+> which is PHP's answer and falls out of the ordering rather than being written down anywhere: the
+> re-raise's own `Terminator::Throw` is simply never reached. Where the region has no `finally` the
+> frame names no handler at all and such a throw still reaches the enclosing region directly, so
+> nothing is spent on a `try`/`catch` that owes nothing. Valgrind-clean over a fixture that wraps,
+> re-raises through the same object, catches unbound and crosses a frame, two hundred times each.
 > `tests/conformance/error/a-finally-runs-when-its-catch-body-throws.mwlt` pins six shapes
 > byte-for-byte against PHP 8.5.9's own output, an unbound clause, nested regions running innermost
 > first and the replacing `finally` among them; `mwl-ir`'s known gap 2 loses its first half and

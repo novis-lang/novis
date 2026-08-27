@@ -2,74 +2,65 @@
 
 ## State
 
-**ADR 0107's surface is finished in the tree, and Stage 0a is one doc sweep
-from done.** `inout` parses before the type in all three binding positions and
-again at a call site, `&` in a by-reference position is `E0237`, the checker
-enforces the call-site marker both ways (`E0713`/`E0714`), and as of this
-session the compiler's own identifiers and prose say `inout` too. Both trees
-are green at **676** conformance and 174 differential.
+**Stage 0a is finished and deleted.** ADR 0107's surface — `inout` before the
+type in all three binding positions and again at the call site, `&` in a
+by-reference position `E0237`, the call-site marker enforced both ways
+(`E0713`/`E0714`) — is landed in the tree, in the compiler's own identifiers and
+prose, in the `.mwlt` corpus, and as of this session in `docs/`. Both trees are
+green at **676** conformance and 174 differential; this session changed no Rust.
 
-- **What is left of Stage 0a is item 47b alone**: every `&$x` still in `docs/`.
-  `grep -rn '&\$' docs/` is 65 lines over 17 files, and most of them are
-  correct as they stand — **ADR 0107's own 17 are all deliberate quotations of
-  the retired spelling, and need no edit**, and ADR 0031's 16 are `use (&$y)`,
-  which ADR 0107 § *Consequences* says is deliberately not amended. The real
-  worklist is the rest: `docs/implementation-plan.md` (8),
-  `docs/agent/playbook.md` (6), `docs/spec/00-overview.md`, `docs/plan/m4.md`,
-  and one line each in `docs/adr/{divergences,README,0089,0063,0023,0015,0007,0006}.md`.
-  Then `docs/agent/loop-goal.md` § *Stage 0a* is deleted.
-- **The rename stops at three spellings and that is the decision, not an
-  oversight.** `$a = &$b` (`E0701`), `[&$x]` (`E0483`) and `use (&$y)`
-  (`E0224`) are refused because MWL has no reference at all — ADR 0107 replaced
-  a by-reference *parameter*'s marker, and none of those three has one — so
-  `ExprKind::Assign::by_ref` (`crates/mwl-syntax/src/ast.rs:736`),
-  `ArrayItem::by_ref` (`:386`) and `Parser::report_closure_use_clause`
-  (`crates/mwl-syntax/src/parser/expr.rs:1629`) keep the old word. Every other
-  `by_ref` in `crates/` is gone; `grep -rn by_ref --include=*.rs crates/`
-  returns exactly those three families and nothing else.
-- **Six diagnostic constants moved and four did not**, on the same line:
-  `E_INOUT_ARG_NOT_A_PLACE`, `E_INOUT_ARG_TYPE_NOT_EXACT`,
-  `E_CLOSURE_INOUT_PARAM`, `E_FOREACH_INOUT_ELEMENT_TY`,
-  `E_FOREACH_INOUT_SUBJECT` and `E_GENERATOR_INOUT_PARAM` name an `inout`
-  binding; `E_BY_REFERENCE_MARKER_RETIRED`, `E_ASSIGN_BY_REFERENCE`,
-  `E_ARRAY_ELEMENT_BY_REFERENCE` and `E_CLOSURE_USE_BY_REF_UNSUPPORTED` each
-  name a `&`. Numbers are untouched; next free is still `E0238`/`E0715`.
-- **Two doc paragraphs were corrections rather than renames**, and both are
-  recorded where they live: `ResolvedCall::inout`
-  (`crates/mwl-types/src/expr_table.rs:91`) was recorded because "a call site's
-  own syntax says nothing about it", which § 2 falsified, and
-  `check_foreach_inout`'s two help strings
-  (`crates/mwl-types/src/expr/iteration.rs:314`, `:336`) still told a user to
-  drop a `&` their source no longer contains — so the handoff's old claim that
-  every user-facing string was already done was one file short.
-- **ADR 0107 § *Verification* now names two conformance cases, not one**, with
-  the reason in its own body: a `.mwlt` has one verdict, so the accepted shapes
-  and the three refusals cannot share a file.
+- **What still spells `&$` in `docs/` is deliberate quotation.** ADR 0107's own
+  17 sites, ADR 0031's 16 `use (&$y)`, the three refusals the plan names
+  (`$a = &$b` `E0701`, `[&$x]` `E0483`, `use (&$y)` `E0224` — MWL has no
+  reference at all, so ADR 0107 replaced no marker of theirs), and one row in
+  `docs/adr/README.md` § *Where to look* that keeps `&$x` as a search key.
+  `grep -rn '&\$' docs/` should stay at those and nothing else.
+- **`docs/agent/loop-goal.md` § *Stage 0a* is gone; its `loop-goal.toml` checks
+  are not.** The two `stage = "0a inout"` blocks stay as guards — their `stage`
+  string must keep its leading `0` or `loop.py` moves them out of the catch-up
+  class (playbook) — and their comments now cite ADR 0107 rather than the
+  deleted items 44/45/47.
+- **Stage 0 is what a session takes its group from next, and `holes.py` says it
+  is nearly empty.** The 9 sites it still attributes to item 1 are `emit.rs`'s
+  generic catch-alls, attributed by *file* rather than by shape; item 4 has one
+  and item 16 two. The real frontier is Stage 3's item 13 and the ten Stage 5–7
+  named cases `python tools/holes.py --cases` lists.
+- **`orient.py`'s pack was complete for this slice.** No `[context]` field was
+  missing anything; `holes.py`, unscoped, is what named the next group, which is
+  cheap and did not need the manifest.
 
 ## Next group
 
-**Stage 0a item 47b, then Stage 0b's first hole. One session: 47b is a doc
-sweep with no build in it, so it leaves nearly the whole budget for the hole
-behind it.** The file set: `docs/`, then whatever the hole names.
+**Item 13 — an abandoned generator runs the `finally` it is suspended inside —
+and its two cases.** Settled in § *Standing decisions*: a resume-to-unwind entry
+point on the state machine plus a release-path call to it, **not** a destructor
+and not a re-opening of ADR 0028 § 2. The file set:
+`crates/mwl-ir/src/lower/generator.rs`, `crates/mwl-runtime/src/object.rs`, then
+`tests/`. Slice 1 is the hard one and may take the session alone.
 
-- [ ] **Item 47b — the doc sweep.** Every `&$x` in `docs/` that names MWL's own
-      by-reference parameter, from `grep -rn '&\$' docs/`. Skip ADR 0107
-      (`docs/adr/0107-…md`, 17 sites, all deliberate) and ADR 0031
-      (`docs/adr/0031-…md`, 16 sites, all `use (&$y)`). The pattern that worked
-      on `crates/` and `tests/` is: mask the refused spellings (`use (&$y)`,
-      `` `[&$x]` ``, `$a = &$b`, `int &$x`) first, then substitute `` `&$v` ``,
-      `` `&$x` ``, `` `&$n` `` and `as &$v)`, then fix `a `inout` → `an `inout`.
-      Finish by deleting `docs/agent/loop-goal.md` § *Stage 0a*.
-- [ ] **Stage 0b's first item**, from `docs/agent/loop-goal.md` — read it after
-      47b lands, since deleting § *Stage 0a* is what makes it the head.
+- [ ] **The resume-to-unwind entry point.** ADR 0053 § 4 owns the state machine;
+      `crates/mwl-ir/src/lower/generator.rs:321` (`lower_generator`) is where the
+      three synthesized methods are built, `:103` (`lower_yield`) is what parks a
+      frame, and the gap is `mwl-ir` gap 18. Record the mechanism in that
+      module's own `//!` doc, and fold one sentence into ADR 0028 § 2 saying this
+      is not a destructor.
+- [ ] **The release path calls it.** `crates/mwl-runtime/src/object.rs:1314`
+      (`dismantle`) and `:1450` (`mwl_object_release`) are where a generator
+      frame dies today with nothing resumed. Valgrind the pair under WSL — this
+      is a new refcount edge, so `docs/agent/commands.md`'s valgrind leg is owed.
+- [ ] **The two named cases**, both listed by `python tools/holes.py --cases`:
+      `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.mwlt`
+      and the oracle twin
+      `tests/differential/iter/an-abandoned-generators-finally-matches-phps.mwlt`.
+      PHP 8.5.9 is on `PATH` on both legs, so the oracle half is real.
+- [ ] **Fallback, pre-authorized**: if the state machine cannot express the
+      resume, keep the divergence, pin it in `tests/differential/` as deliberate,
+      and say so in ADR 0028 § 2. Never leave it undocumented.
 
 ## Backlog
 
-- A variadic `inout` parameter is accepted and writes nothing back — `mwl-types`
-  gap, playbook § *Writing MWL itself* has the repro.
-- `tests/{conformance,codegen}` still hold files named `by_reference.rs`; the
-  name describes the semantics, which are unchanged, so this is cosmetic only.
-- `at_intersection_amp` survives ADR 0107 § 3's delete request — ADR 0107 § 3's
-  body and `crates/mwl-syntax/src/parser/ty.rs:147` are the pair of homes.
-- ADR 0089's tier-D rule for the `inout` conversion is M11, named in ADR 0107
-  § *Verification*.
+- Stage 0 item 4's one remaining site and item 16's two — `python tools/holes.py --item N`.
+- Item 25, `object` as a declared type has a representation arm — 2 sites, `docs/agent/loop-goal.md`.
+- The two unattributed sites in `crates/mwl-codegen/src/ty.rs:116` and `:121` — no item anchors that file.
+- Nine Stage 5–7 named cases still unwritten — `python tools/holes.py --cases`.
+- `docs/spec/02-php-migration.md`'s score — `python tools/check-migration.py`.
