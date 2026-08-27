@@ -1947,6 +1947,10 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         "stream-json",
         "--verbose",
     ]
+    # Only when it was asked for: the flag and the model's own default are not the same thing to
+    # the harness, and passing `--effort high` would record a choice where none was made.
+    if opts.effort:
+        cmd += ["--effort", opts.effort]
     # `orient.py` runs a `brief.py`, a `git log` and a plan read before the child is even
     # spawned, and on a cold filesystem cache that is tens of seconds between the "== session"
     # banner and the first token. It is the second half of the gap between two sessions.
@@ -1968,8 +1972,10 @@ def run_session(run_id, index, prompt_text, opts, renderer):
     # which is how `loop-stats.py --calibrate` derives bytes-per-token instead of assuming
     # it. Nothing downstream needs this line; every reader skips a `type` it does not know.
     CONSOLE.raw(json.dumps({"type": "loop_pack", "bytes": len(pack.encode("utf-8"))}) + "\n")
-    step(f"launching {exe} (--model {opts.model}, --permission-mode {opts.permission_mode})")
-    TICKER.set(phase="launching", detail=f"{exe} --model {opts.model}")
+    effort = f", --effort {opts.effort}" if opts.effort else ""
+    step(f"launching {exe} (--model {opts.model}{effort}, "
+         f"--permission-mode {opts.permission_mode})")
+    TICKER.set(phase="launching", detail=f"{exe} --model {opts.model}{effort}")
     launched = time.monotonic()
     proc = subprocess.Popen(
         cmd,
@@ -2141,7 +2147,8 @@ def claim_run(opts):
         f"pid:      {os.getpid()}\n"
         f"host:     {platform.node()}\n"
         f"started:  {datetime.now():%Y-%m-%d %H:%M:%S}\n"
-        f"sessions: up to {opts.max_sessions}, model {opts.model}\n",
+        f"sessions: up to {opts.max_sessions}, model {opts.model}"
+        f"{f', effort {opts.effort}' if opts.effort else ''}\n",
         encoding="utf-8",
         newline="\n",
     )
@@ -2185,6 +2192,15 @@ def run_cli():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--max-sessions", type=int, default=1)
     ap.add_argument("--model", default="opus")
+    ap.add_argument(
+        "--effort", default=None, choices=("low", "medium", "high", "xhigh", "max"),
+        help="reasoning effort for every session in the run. Omitted, the harness uses the "
+             "model's own default -- `high` for opus-5. The run stamp and the effort are both "
+             "in the ledger header, so `loop-stats.py --run <stamp>` prices one setting against "
+             "another. Relative token cost on opus-5: low 0.67, medium 0.76, high 1, xhigh 1.6, "
+             "max 1.7 -- and roughly a fifth of a session's ending context is thinking, so this "
+             "moves the context ceiling as well as the bill"
+    )
     ap.add_argument("--permission-mode", default="bypassPermissions")
     ap.add_argument("--max-stalls", type=int, default=10, help="consecutive no-commit sessions")
     ap.add_argument("--max-retries", type=int, default=3, help="consecutive CLI failures")
@@ -2327,7 +2343,12 @@ def drive(opts, goal):
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}"
     CONSOLE.open_run(LOGDIR / f"{run_id}-console.log")
     ledger("")
-    ledger(f"## run started {datetime.now():%Y-%m-%d %H:%M} (max {opts.max_sessions}, logs {run_id}-*)")
+    # The effort is in the header, not on each session line: it is a property of the run, and this
+    # is the row that maps a run stamp onto a setting -- which is the whole of what an A/B between
+    # two settings needs, since `loop-stats.py --run <stamp>` prices a run.
+    effort = f", effort {opts.effort}" if opts.effort else ""
+    ledger(f"## run started {datetime.now():%Y-%m-%d %H:%M} "
+           f"(max {opts.max_sessions}{effort}, logs {run_id}-*)")
     say(f"console log: {rel_to_root(LOGDIR / f'{run_id}-console.log')}", C.GRAY, driver=True)
     # The key row under the status line says this continuously and says it in context, so it is
     # only worth a line when that row is not there -- which is a redirected STDOUT, not a missing

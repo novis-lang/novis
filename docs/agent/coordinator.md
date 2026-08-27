@@ -67,8 +67,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
     claim .loop/running, or refuse to start because another driver holds it
     if .loop/stop exists                   -> stop
     record HEAD
-    run: claude -p <docs/agent/session-prompt.md> --model opus --permission-mode <mode>
-              --output-format stream-json --verbose
+    run: claude -p <docs/agent/session-prompt.md> --model opus [--effort <level>]
+              --permission-mode <mode> --output-format stream-json --verbose
          (each NDJSON event is appended to .loop/logs/<run>-NNNN.log and rendered live to the console --
           text, thinking, tool calls with their full input, tool results, and the turn/cost summary;
           everything printed, and every subprocess's output, is teed to .loop/logs/<run>-console.log)
@@ -226,7 +226,10 @@ prints what it cost.
 
     python tools/loop.py --max-sessions 300
 
-Flags worth knowing: `--model`, `--permission-mode`, `--max-stalls`, `--max-retries`, `--delay-seconds`,
+Flags worth knowing: `--model`, `--effort` (`low`|`medium`|`high`|`xhigh`|`max`; omitted, the harness
+uses the model's own default, which is `high` on opus-5 — the run's setting goes in the ledger header, so
+`loop-stats.py --run <stamp>` prices one against another), `--permission-mode`, `--max-stalls`,
+`--max-retries`, `--delay-seconds`,
 `--max-limit-wait` (how long a closed usage window may be waited out before the run stops instead; 6h),
 `--full-output` (echo every tool call's full input and result, no truncation anywhere), `--goal-only`,
 `--list`, `--no-status`.
