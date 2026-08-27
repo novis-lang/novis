@@ -56,6 +56,9 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. |
 | `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
 
+| `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
+| `.loop/interrupted.json` | Written when a session was cut off with work still uncommitted — the paths, and why. `orient.py` prints it at the top of the pack, so the next session knows those files are somebody's unfinished slice and not the state it was meant to start from. Deleted by the next session that leaves a clean tree. |
+
 `.loop/` is gitignored in full — everything the driver writes at run time lives under it.
 
 ## What the driver does, per iteration
@@ -68,6 +71,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
          (each NDJSON event is appended to .loop/logs/<run>-NNNN.log and rendered live to the console --
           text, thinking, tool calls with their full input, tool results, and the turn/cost summary;
           everything printed, and every subprocess's output, is teed to .loop/logs/<run>-console.log)
+    if a rate_limit_event said `rejected`  -> sleep until its resetsAt, then re-run this session --
+                                              not a failure, not a stall, and not one of --max-sessions
     if the CLI exited non-zero             -> exponential backoff, retry; give up after --max-retries
     copy this session's subagent transcripts into .loop/logs/<run>-NNNN.subagents/
     read .loop/status.txt, diff HEAD, append one ledger line
@@ -93,6 +98,32 @@ what separates the live line from the dead scrollback it would otherwise read as
 **And all of it is on disk.** The console is for watching a run; `.loop/logs/<run>-console.log` is for
 reading one back — the same lines, stamped to the millisecond, plus the whole stdout and stderr of every
 subprocess. A check that took four minutes and then failed used to leave one ledger line and nothing else.
+
+### The usage wall
+
+A session does not *fail* when the account's usage window closes. It stops, mid-slice, and exits non-zero
+exactly like a crashed CLI — so counted as a crash it took three retries and about three minutes to end a
+run at the start of a five-hour window, and an unattended box then sat idle until somebody noticed.
+
+The stream already carries the answer. `--output-format stream-json` emits a `rate_limit_event` on
+stdout, re-emitted whenever the status changes, so a window closing *mid-session* arrives live rather
+than only at connect. Its `status` is `allowed`, `allowed_warning` or `rejected`, and its `resetsAt` is
+epoch seconds — the recovery is a sleep of a known length, not a guess. **It is parsed, never grepped:** a
+perfectly healthy event already contains `"rejected"`, under `overageStatus`, which is a different
+question about a different setting.
+
+A refused session is therefore neither a failure nor a stall. The driver sleeps until `resetsAt`, then
+re-runs the session that was refused: it does not spend one of `--max-sessions`, does not count toward
+`--max-retries`, and keeps its own log index so the refused transcript is not overwritten by its
+replacement. The deadline goes to `.loop/limit.json`, so a driver killed during the wait does not restart
+into the same wall, and `.loop/stop` is honoured while a run is parked as well as between sessions.
+`--max-limit-wait` bounds the sleep — 6h by default, which a five-hour window fits inside and a weekly one
+does not, so a weekly limit ends the run naming the time to come back rather than sleeping for days.
+
+Nothing landed was ever lost to this, before or after: every session commits its own slices, so a wall
+costs only the slice in flight. `.loop/interrupted.json` is what keeps even that from costing twice — it
+records the uncommitted paths and why, and `orient.py` puts them in front of the next session instead of
+letting them read as the tree it was supposed to start from.
 
 ## The acceptance test
 
@@ -185,6 +216,7 @@ prints what it cost.
     python tools/loop.py --max-sessions 300
 
 Flags worth knowing: `--model`, `--permission-mode`, `--max-stalls`, `--max-retries`, `--delay-seconds`,
+`--max-limit-wait` (how long a closed usage window may be waited out before the run stops instead; 6h),
 `--full-output` (echo every tool call's full input and result, no truncation anywhere), `--goal-only`,
 `--list`, `--no-status`.
 

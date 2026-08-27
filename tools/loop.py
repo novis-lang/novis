@@ -59,6 +59,8 @@ STATUS = RUNDIR / "status.txt"
 STOP = RUNDIR / "stop"
 RUNNING = RUNDIR / "running"
 GOALCACHE = RUNDIR / "goal-green.json"
+LIMIT = RUNDIR / "limit.json"
+INTERRUPTED = RUNDIR / "interrupted.json"
 
 IS_WINDOWS = os.name == "nt"
 
@@ -427,6 +429,14 @@ def mmss(seconds):
     float of seconds is unreadable at the top of that range."""
     seconds = int(seconds)
     return f"{seconds // 60}m{seconds % 60:02d}s" if seconds >= 60 else f"{seconds}s"
+
+
+def hms(seconds):
+    """`mmss` below an hour, `4h52m` above it. Everything this driver times is minutes long
+    except one thing -- the wait for a usage window to reopen, which is hours -- and `292m11s`
+    is a number you have to do arithmetic on before you can decide whether to wait up for it."""
+    seconds = int(max(0, seconds))
+    return mmss(seconds) if seconds < 3600 else f"{seconds // 3600}h{seconds % 3600 // 60:02d}m"
 
 
 def step(text, colour=C.GRAY):
@@ -1501,6 +1511,185 @@ def feed(stream, text):
         pass
 
 
+# ------------------------------------------------------------------------- the usage wall
+#
+# A session does not FAIL when the account's usage window closes. It stops, mid-slice, and exits
+# non-zero -- which is indistinguishable from a crashed CLI, so the driver counted it against
+# `--max-retries`, backed off 60s and then 120s, and ended the run. Three sessions and about three
+# minutes to turn a five-hour window into an idle night. Nothing landed was ever lost (every
+# session commits its own slices, and the ledger, the goal memo and the machine profile are all on
+# disk), but the run had to be noticed and restarted by hand -- which unattended is the whole point
+# of not happening.
+#
+# The signal is exact, and it is already in every session log here. `--output-format stream-json`
+# carries a `rate_limit_event` on stdout, emitted unconditionally in print mode and re-emitted
+# whenever the status changes, so a window that closes MID-session arrives live rather than only at
+# connect:
+#
+#     {"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1787868600,
+#      "rateLimitType":"five_hour","overageStatus":"rejected",...},"uuid":...,"session_id":...}
+#
+# `status` is `allowed`, `allowed_warning` or `rejected`; `resetsAt` is epoch seconds and says
+# exactly when to come back, so the recovery is a sleep and not a guess.
+#
+# **Parse it, never grep it.** The event above is a healthy one -- and it already contains the
+# string `"rejected"`, under `overageStatus`, which is a different question about a different
+# account setting. A substring test for a refusal matches every session on this machine.
+
+#: A wall this driver will not sit through: eight in a row is past any unattended run, and the
+#: guard exists so a permanently refused account cannot loop forever at zero sessions served.
+MAX_WALLS = 8
+
+#: How long to come back in when the CLI reported a limit in text but no event carried a deadline.
+#: Short on purpose: the next session's own event carries the real one, so a guess only has to be
+#: cheap and roughly right.
+BLIND_WAIT = 1800
+
+#: The fallback, for the day the event changes shape or never arrives. Matched ONLY against the
+#: single terminal `result` event of a session that exited non-zero -- never against tool results,
+#: where a session that merely read this file would supply the words itself.
+LIMIT_TEXT = re.compile(r"usage limit reached|rate_limit_error", re.I)
+
+#: Windows measured in days rather than hours. Reaching one is not something to sleep through.
+LONG_WINDOWS = {"seven_day", "seven_day_opus", "seven_day_sonnet"}
+
+
+class RateLimit:
+    """One `rate_limit_event`: the last thing a session said about the account's standing.
+
+    `blocked` is the only verdict the driver acts on, and it deliberately wants both halves -- a
+    `rejected` status AND a reset still in the future. The CLI leaves the last observed value
+    standing rather than clearing it when a window turns over, so a rejection whose `resetsAt` has
+    passed is stale, and parking a run behind a wall that is no longer there is the one failure
+    mode worse than the one this replaces."""
+
+    __slots__ = ("status", "resets_at", "kind", "utilization")
+
+    def __init__(self, info):
+        info = info if isinstance(info, dict) else {}
+        self.status = str(info.get("status") or "")
+        self.kind = str(info.get("rateLimitType") or "")
+        self.utilization = info.get("utilization")
+        try:
+            self.resets_at = int(info.get("resetsAt") or 0)
+        except (TypeError, ValueError):
+            self.resets_at = 0
+
+    @property
+    def blocked(self):
+        return self.status == "rejected" and self.left() > 0
+
+    @property
+    def long(self):
+        return self.kind in LONG_WINDOWS
+
+    def left(self):
+        return self.resets_at - time.time() if self.resets_at else 0
+
+    def when(self):
+        return f"{datetime.fromtimestamp(self.resets_at):%Y-%m-%d %H:%M}" if self.resets_at else "?"
+
+    def describe(self):
+        state = {"rejected": "is reached", "allowed_warning": "is close"}.get(self.status, "is fine")
+        pct = self.utilization
+        used = f", {pct * 100:.0f}% used" if isinstance(pct, (int, float)) and 0 <= pct <= 1 else ""
+        return (f"the {(self.kind or 'usage').replace('_', '-')} usage window {state}{used}; "
+                f"it resets at {self.when()}, {hms(self.left())} from now")
+
+
+def read_limit(line):
+    """One NDJSON line, as a `RateLimit` if that is what it is."""
+    try:
+        e = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    return RateLimit(e.get("rate_limit_info")) if e.get("type") == "rate_limit_event" else None
+
+
+def remember_limit(limit):
+    """Leave the deadline on disk, so a driver killed or rebooted during a wall does not walk
+    straight back into it on the next start. Best effort: an unwritable `.loop/` costs the next
+    run one refused session, not the run."""
+    try:
+        LIMIT.parent.mkdir(exist_ok=True)
+        LIMIT.write_text(
+            json.dumps({"resets_at": limit.resets_at, "kind": limit.kind, "status": limit.status,
+                        "noted": f"{datetime.now():%Y-%m-%d %H:%M:%S}"}, indent=1),
+            encoding="utf-8", newline="\n",
+        )
+    except OSError:
+        pass
+
+
+def standing_limit():
+    """The wall a previous driver was still waiting out, or `None` once it has turned over. A
+    file that has gone stale is deleted here rather than left to be re-read every start."""
+    try:
+        entry = json.loads(LIMIT.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    limit = RateLimit({"status": "rejected", "resetsAt": entry.get("resets_at"),
+                       "rateLimitType": entry.get("kind")})
+    if limit.blocked:
+        return limit
+    LIMIT.unlink(missing_ok=True)
+    return None
+
+
+def wait_out_limit(limit, opts):
+    """Sleep until the window reopens. Returns "" when the run may go on, or the reason it stops.
+
+    A minute of margin: `resetsAt` is the server's second and the clock here is not it, and a
+    session launched a moment early costs a whole session to learn that it was.
+    """
+    left = limit.left() + 60
+    if left <= 0:
+        LIMIT.unlink(missing_ok=True)
+        return ""
+    if left > opts.max_limit_wait:
+        return (f"{limit.describe()} -- further out than --max-limit-wait "
+                f"({hms(opts.max_limit_wait)}), so the run stops here rather than sleeping "
+                f"through it. Nothing is lost: every session committed its own slices, and a "
+                f"restart after {limit.when()} picks up from the handoff.")
+    remember_limit(limit)
+    ledger(f"       usage wall: {limit.describe()}; waiting {hms(left)}")
+    TICKER.set(phase="waiting out the usage limit", detail=limit.describe())
+    # In slices, because a wall is hours long and that is exactly when somebody decides to take
+    # the tree back. `.loop/stop` has to work while the run is parked, not only between sessions.
+    while left > 0:
+        if STOP.exists():
+            return f"{rel_to_root(STOP)} appeared while waiting out the usage limit"
+        wait(min(30, left), f"usage window reopens {limit.when()}")
+        left = limit.left() + 60
+    LIMIT.unlink(missing_ok=True)
+    step(f"the usage window has reopened -- {limit.when()} has passed", C.GREEN)
+    return ""
+
+
+def mark_interrupted(index, limit):
+    """Record that a session was cut off with work still in the tree. Returns the path count.
+
+    A session stopped mid-slice has committed everything it FINISHED -- one commit per slice is
+    what buys that -- but whatever it was in the middle of is still uncommitted, and the handoff
+    it never reached does not mention it. Without this the next session finds those files and has
+    no way to tell them from the state it was supposed to start in. `orient.py` reads this file
+    and says so at the top of the pack; the next session to leave a clean tree deletes it."""
+    dirty = [ln for ln in git("status", "--porcelain").split("\n") if ln.strip()]
+    if not dirty:
+        INTERRUPTED.unlink(missing_ok=True)
+        return 0
+    try:
+        INTERRUPTED.write_text(
+            json.dumps({"session": index, "when": f"{datetime.now():%Y-%m-%d %H:%M:%S}",
+                        "why": limit.describe() if limit else "the CLI exited non-zero",
+                        "head": git("rev-parse", "HEAD"), "files": dirty}, indent=1),
+            encoding="utf-8", newline="\n",
+        )
+    except OSError:
+        pass
+    return len(dirty)
+
+
 def run_session(run_id, index, prompt_text, opts, renderer):
     """One `claude -p` session, its NDJSON streamed to the console and to
     .loop/logs/<run>-NNNN.log. The run stamp is in the name because the index restarts at 1
@@ -1543,6 +1732,8 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         step(f"orientation pack: orient.py failed after {spent} -- "
              "the session will run it itself", C.YELLOW)
     session_id = ""
+    limit = None  # the last `rate_limit_event` this session reported; see `RateLimit`
+    said_limit = False  # the text fallback, read only off a non-zero exit's `result` event
     # The pack's size, recorded beside the transcript that paid for it. Two sessions with
     # different pack sizes are a two-point regression against their measured `ctx_start`,
     # which is how `loop-stats.py --calibrate` derives bytes-per-token instead of assuming
@@ -1573,6 +1764,18 @@ def run_session(run_id, index, prompt_text, opts, renderer):
                 TICKER.set(phase="working")
                 launched = 0
             CONSOLE.raw(line)
+            if '"rate_limit_event"' in line:
+                fresh = read_limit(line)
+                if fresh:
+                    # Said once per change, not once per event: the status is re-sent whenever
+                    # anything about it moves, and a healthy account sends one at connect.
+                    if fresh.status != "allowed" and (not limit or fresh.status != limit.status):
+                        step(f"the account reports: {fresh.describe()}", C.YELLOW)
+                    limit = fresh
+            elif '"type":"result"' in line and LIMIT_TEXT.search(line):
+                # The terminal event only. `"type":"tool_result"` does not match this, which is
+                # the point: a session that read this very file would otherwise supply the words.
+                said_limit = True
             if not session_id and '"session_id"' in line:
                 try:
                     e = json.loads(line)
@@ -1601,7 +1804,13 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         except subprocess.TimeoutExpired:
             pass
         raise
-    return proc.returncode, log, session_id
+    if proc.returncode and said_limit and not (limit and limit.blocked):
+        # A limit reported in prose, with no event carrying a deadline. Come back shortly rather
+        # than ending the run: the next session's own event will carry the real one.
+        step(f"a usage limit was reported in text but no event named a reset -- treating it as a "
+             f"wall and coming back in {hms(BLIND_WAIT)}", C.YELLOW)
+        limit = RateLimit({"status": "rejected", "resetsAt": int(time.time()) + BLIND_WAIT})
+    return proc.returncode, log, session_id, limit
 
 
 # ------------------------------------------------------------------- subagent transcripts
@@ -1740,6 +1949,11 @@ def run_cli():
     ap.add_argument("--permission-mode", default="bypassPermissions")
     ap.add_argument("--max-stalls", type=int, default=10, help="consecutive no-commit sessions")
     ap.add_argument("--max-retries", type=int, default=3, help="consecutive CLI failures")
+    ap.add_argument(
+        "--max-limit-wait", type=float, default=6 * 3600, metavar="SECONDS",
+        help="sleep through a usage limit that reopens within this long, and end the run when it "
+             "does not (default 6h: a five-hour window fits inside it, a weekly one does not)"
+    )
     ap.add_argument("--delay-seconds", type=int, default=0)
     ap.add_argument("--max-result-lines", type=int, default=60)
     ap.add_argument("--max-input-lines", type=int, default=40)
@@ -1887,15 +2101,36 @@ def drive(opts, goal):
     if warm:
         say(f"the debug CLI is not built: {warm}", C.YELLOW, driver=True)
 
-    for i in range(1, opts.max_sessions + 1):
+    # Two counters where there was one. `index` names the logs and only ever goes up, so a session
+    # the wall cut short never has its transcript overwritten by the one that replaces it; `served`
+    # is what `--max-sessions` counts, and a session the account refused is not one of them.
+    index = 0
+    served = 0
+    walls = 0
+    wall = standing_limit()  # left standing by a driver killed or rebooted during one
+    if wall:
+        step(f"{rel_to_root(LIMIT)} says {wall.describe()}", C.YELLOW)
+
+    while served < opts.max_sessions:
         if STOP.exists():
             reason = f"{STOP.relative_to(ROOT).as_posix()} present"
             break
 
+        if wall:
+            # Neither a failure nor a stall: no retry can help, nothing is wrong with the tree, and
+            # the account has already said when it will answer again. Sleep until then, then run
+            # the session it refused.
+            stop = wait_out_limit(wall, opts)
+            if stop:
+                reason = stop
+                break
+            wall = None
+
+        index += 1
         head_before = git("rev-parse", "HEAD")
         STATUS.unlink(missing_ok=True)
-        TICKER.set(scope=f"session {i}/{opts.max_sessions}", phase="starting")
-        say(f"== session {i}/{opts.max_sessions}  {datetime.now():%H:%M:%S}", C.CYAN)
+        TICKER.set(scope=f"session {served + 1}/{opts.max_sessions}", phase="starting")
+        say(f"== session {served + 1}/{opts.max_sessions}  {datetime.now():%H:%M:%S}", C.CYAN)
 
         # The prompt is re-read for the same reason `load_goal()` is called below: a session that
         # improved it should be improving the next session, not the next run. A read that fails
@@ -1906,13 +2141,31 @@ def drive(opts, goal):
             say(f"   {rel_to_root(PROMPT)} did not read, using the last good one -- {e}", C.YELLOW)
 
         session_started = time.monotonic()
-        cli_exit, log, session_id = run_session(run_id, i, prompt_text, opts, renderer)
-        step(f"session {i} ended after {mmss(time.monotonic() - session_started)}, "
+        cli_exit, log, session_id, limit = run_session(run_id, index, prompt_text, opts, renderer)
+        step(f"session {index} ended after {mmss(time.monotonic() - session_started)}, "
              f"claude exit {cli_exit}", C.CYAN)
+
+        # The wall is judged before the exit code, because it EXPLAINS the exit code. A refused
+        # session exits non-zero exactly like a crashed one, and counting it as a crash is what
+        # used to end a run three minutes into a five-hour window.
+        if limit and limit.blocked:
+            walls += 1
+            open_paths = mark_interrupted(index, limit)
+            ledger(f"- {index:04d} refused by the usage wall -- {limit.describe()}"
+                   + (f"; {open_paths} path(s) left uncommitted" if open_paths
+                      else "; the tree is clean")
+                   + f" -- see {log.relative_to(ROOT).as_posix()}")
+            if walls >= MAX_WALLS:
+                reason = f"{walls} sessions in a row were refused by the usage limit"
+                break
+            wall = limit
+            continue
+
         if cli_exit != 0:
             fails += 1
+            mark_interrupted(index, None)
             ledger(
-                f"- {i:04d} CLI exit {cli_exit} (attempt {fails}/{opts.max_retries}) -- "
+                f"- {index:04d} CLI exit {cli_exit} (attempt {fails}/{opts.max_retries}) -- "
                 f"see {log.relative_to(ROOT).as_posix()}"
             )
             if fails >= opts.max_retries:
@@ -1924,21 +2177,26 @@ def drive(opts, goal):
             wait(backoff, "claude exited non-zero")
             continue
         fails = 0
+        walls = 0
+        served += 1
 
         line = STATUS.read_text(encoding="utf-8").strip() if STATUS.exists() else ""
         head_after = git("rev-parse", "HEAD")
         commits = 0
         if head_after and head_after != head_before:
             commits = int(git("rev-list", "--count", f"{head_before}..{head_after}") or 0)
+        # A session that finished and left nothing behind closes any earlier interruption.
+        if not git("status", "--porcelain").strip():
+            INTERRUPTED.unlink(missing_ok=True)
         step("collecting subagent transcripts")
         TICKER.set(phase="collecting subagent transcripts")
         started = time.monotonic()
-        agents, agent_calls = collect_subagents(session_id, run_id, i)
+        agents, agent_calls = collect_subagents(session_id, run_id, index)
         spent = time.monotonic() - started
         if spent >= 1:
             step(f"subagent transcripts took {mmss(spent)}")
         delegated = f" | {agents} subagent(s), {agent_calls} call(s)" if agents else ""
-        ledger(f"- {i:04d} {commits} commit(s){delegated} | {line or '(no status written)'}")
+        ledger(f"- {index:04d} {commits} commit(s){delegated} | {line or '(no status written)'}")
 
         # The deterministic goal check outranks whatever the session reported -- against the list
         # as the session left it, which is why this is re-read rather than held from start-up. A

@@ -78,6 +78,7 @@ PLAYBOOK = AGENT / "playbook.md"
 CONVENTIONS = AGENT / "conventions.md"
 GROUND_RULES = ADR_DIR / "ground-rules.md"
 RUNNING = ROOT / ".loop" / "running"
+INTERRUPTED = ROOT / ".loop" / "interrupted.json"
 
 # A section is measured for --audit as it is emitted, so the report is of what was actually
 # printed rather than of what the files hold.
@@ -308,12 +309,32 @@ class Manifest:
 
 
 def run_marker() -> None:
-    section("RUN", "git, and .loop/running")
+    section("RUN", "git, .loop/running and .loop/interrupted.json")
     if RUNNING.exists():
         emit("A LOOP DRIVER HOLDS THIS TREE. Its sessions edit these files on nearly every")
         emit("iteration; do not start a by-hand pass over shared files while this says so.")
         for line in read(RUNNING).rstrip("\n").split("\n"):
             emit(f"  {line}")
+        emit()
+    if INTERRUPTED.exists():
+        # Written by loop.py when a session was cut off with work still in the tree -- a usage
+        # window closing mid-slice, or a CLI that died. The uncommitted paths below are that
+        # session's unfinished slice, and without this line they look like the starting state.
+        try:
+            cut = json.loads(read(INTERRUPTED))
+        except ValueError:
+            cut = {}
+        files = [str(f) for f in cut.get("files", []) if str(f).strip()]
+        emit(f"THE PREVIOUS SESSION WAS CUT OFF at {cut.get('when', 'an unrecorded time')} --")
+        emit(f"{cut.get('why', 'reason unrecorded')}.")
+        emit("Everything it committed stands; one commit per slice is what buys that. The paths")
+        emit("below are the slice it was in the MIDDLE of. Read them first and either finish that")
+        emit("slice or revert it -- do not start new work on top of it, and do not assume the")
+        emit("handoff describes them, because it was never written.")
+        for f in files[:20]:
+            emit(f"  {f}")
+        if len(files) > 20:
+            emit(f"  ... and {len(files) - 20} more")
         emit()
     branch = git("rev-parse", "--abbrev-ref", "HEAD") or "(unknown)"
     changed = [ln for ln in git("status", "--short").split("\n") if ln.strip()]
