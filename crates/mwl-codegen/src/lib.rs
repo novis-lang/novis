@@ -626,12 +626,14 @@ struct Signatures {
     /// runtime half of `static::method(...)`'s dispatch. See
     /// `mwl_runtime::mwl_class_method`.
     class_method: Signature,
-    /// `mwl_object_slot_get(ctx, object, name, len, hint, out) -> status` —
+    /// `mwl_object_slot_get(ctx, receiver, name, len, hint, out) -> status` —
     /// ADR 0036 § 4's name-keyed shape read. The one object access that is not
     /// a fixed offset resolved here, and the one that can throw; see
-    /// `mwl_ir::ir::InstKind::SlotGet`.
+    /// `mwl_ir::ir::InstKind::SlotGet`. The receiver travels by *address*,
+    /// as a whole 16-byte value, because a `mixed` one arrives with a tag
+    /// nothing proved and this helper is where it is checked.
     slot_get: Signature,
-    /// `mwl_object_slot_set(ctx, object, name, len, hint, value, out) -> status`
+    /// `mwl_object_slot_set(ctx, receiver, name, len, hint, value, out) -> status`
     /// — ADR 0036 § 4's name-keyed shape *write*. One parameter wider than
     /// [`Self::slot_get`], because the value travels through a caller-owned
     /// 16-byte slot the way [`Self::array_value_at`]'s result does *and* the helper
@@ -1000,7 +1002,7 @@ impl Signatures {
 
         let mut slot_get = module.make_signature();
         slot_get.params.push(AbiParam::new(ptr)); // ctx
-        slot_get.params.push(AbiParam::new(ptr)); // object
+        slot_get.params.push(AbiParam::new(ptr)); // receiver, by address
         slot_get.params.push(AbiParam::new(ptr)); // field name bytes
         slot_get.params.push(AbiParam::new(ptr)); // field name length
         slot_get.params.push(AbiParam::new(types::I64)); // slot hint
@@ -1009,7 +1011,7 @@ impl Signatures {
 
         let mut slot_set = module.make_signature();
         slot_set.params.push(AbiParam::new(ptr)); // ctx
-        slot_set.params.push(AbiParam::new(ptr)); // object
+        slot_set.params.push(AbiParam::new(ptr)); // receiver, by address
         slot_set.params.push(AbiParam::new(ptr)); // field name bytes
         slot_set.params.push(AbiParam::new(ptr)); // field name length
         slot_set.params.push(AbiParam::new(types::I64)); // slot hint

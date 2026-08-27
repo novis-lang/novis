@@ -1,0 +1,59 @@
+--TEST--
+`->` on a receiver whose declared type can never hold an object is `E0495` where it is written, and a union naming no single class takes the same code — ADR 0007 § 7 row 13
+--FILE--
+<?mwl
+// PHP warns and yields `null` for every receiver below. A declared type
+// makes the answer knowable before the program runs, so this is row 8's
+// rule ("nothing makes an absent thing read as a zero value") at the one
+// storage kind a *type* already answers — ADR 0007 § 7 row 13.
+final class Box { public string $name = "boxed"; public function constructor() { } }
+final class Circle { public string $name = "round"; public function constructor() { } }
+
+int $count = 5;
+echo $count->name, "\n";
+
+string $text = "s";
+echo $text->length, "\n";
+
+array<string> $rows = ["k" => "v"];
+echo $rows->k, "\n";
+
+// A union naming no single class has no one property set to resolve
+// against, so it is the same refusal rather than a second one.
+Box|Circle $either = new Box();
+echo $either->name, "\n";
+
+// `mixed` is deliberately *not* here: it is ADR 0007 § 2's one unchecked
+// position and defers to a run-time throw, which the companion case pins.
+mixed $deferred = new Box();
+echo $deferred->name, "\n";
+--EXPECTF-ERROR--
+error[E0495]: a property cannot be reached through `int`
+   --> %s:10:6
+   |
+10 | echo $count->name, "\n";
+   |      ^^^^^^^^^^^^ this receiver's type declares no properties
+   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (ADR 0007 § 2) and defers the whole question to a catchable throw at run time
+
+error[E0495]: a property cannot be reached through `string`
+   --> %s:13:6
+   |
+13 | echo $text->length, "\n";
+   |      ^^^^^^^^^^^^^ this receiver's type declares no properties
+   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (ADR 0007 § 2) and defers the whole question to a catchable throw at run time
+
+error[E0495]: a property cannot be reached through `array<string>`
+   --> %s:16:6
+   |
+16 | echo $rows->k, "\n";
+   |      ^^^^^^^^ this receiver's type declares no properties
+   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (ADR 0007 § 2) and defers the whole question to a catchable throw at run time
+
+error[E0495]: a property cannot be reached through `Box|Circle`
+   --> %s:21:6
+   |
+21 | echo $either->name, "\n";
+   |      ^^^^^^^^^^^^^ this receiver's type declares no properties
+   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (ADR 0007 § 2) and defers the whole question to a catchable throw at run time
+
+error: aborting due to 4 errors

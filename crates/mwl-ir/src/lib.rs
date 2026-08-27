@@ -230,16 +230,23 @@
 //!    [`lower::Lowering::lower_index`]'s panics and the assignment arm's
 //!    matching one are invariant checks no source file reaches.
 //!    Every ADR 0036 § 4 receiver lowers: a shape naming one
-//!    of its own fields, a shape asked for a name it does not list, and a
-//!    plain `object`. All three are one [`ir::InstKind::SlotGet`] — § 4's
+//!    of its own fields, a shape asked for a name it does not list, a
+//!    plain `object`, and a `mixed`. All four are one
+//!    [`ir::InstKind::SlotGet`] — § 4's
 //!    **name-keyed** fetch, which is therefore right through a widened view
 //!    too — or one [`ir::InstKind::SlotSet`], which additionally checks the
 //!    incoming value's tag against what the concrete class declares the field
 //!    to hold; `mwl_runtime::object`'s docs § *What a shape write checks*
-//!    state what that granularity misses. The erased two differ only in what
+//!    state what that granularity misses. The erased ones differ only in what
 //!    the checker could record: no slot to hint (so `0`, which the runtime's
 //!    by-name search corrects) and no type (so [`ir::Ty::Tagged`]), which
-//!    makes § 4's missing-name throw reachable rather than theoretical. An
+//!    makes § 4's missing-name throw reachable rather than theoretical. A
+//!    `mixed` receiver adds the one thing the other three cannot: an
+//!    unproven *tag*, so `lower::expr`'s `ReceiverProof::Erased` emits no
+//!    [`ir::InstKind::Untag`] and the whole tagged value reaches the runtime,
+//!    which throws in PHP's own wording for a receiver that is not an object
+//!    — every *statically* non-object receiver having been `E0495` at the
+//!    checker (ADR 0007 § 7 row 13). An
 //!    anonymous `{a: 1}` literal
 //!    constructs, as an instance of the class [`lower::shape_class_label`]
 //!    names. Nullsafe `?->` *reads* — a call and a property alike, over

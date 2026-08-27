@@ -542,11 +542,20 @@ pub enum InstKind {
     /// lists the field, which is every receiver the checker records one for —
     /// it is the erased half of § 4 that can reach it.
     ///
+    /// **The receiver may be a [`Ty::Tagged`], and the runtime checks its
+    /// tag.** ADR 0007 § 2's `mixed` is an erased receiver like a plain
+    /// `object` is, with the one difference that nothing proved it holds an
+    /// object at all — so `crate::lower::expr`'s `ReceiverProof::Erased` emits no
+    /// [`InstKind::Untag`] for it and the whole value travels here. A
+    /// non-object receiver is a catchable throw in PHP's own wording; every
+    /// *statically* non-object receiver was already `E0495` at the checker.
+    ///
     /// Borrows its receiver exactly as [`InstKind::FieldGet`] does: the slot
     /// keeps owning what it holds, so a consumer that outlives the receiver
     /// owes the read value a retain.
     SlotGet {
-        /// The receiver, already lowered.
+        /// The receiver, already lowered — a [`Ty::Object`], or a
+        /// [`Ty::Tagged`] whose tag this instruction checks.
         object: ValueId,
         /// The field's own name, `$`-sigil not included — what the fetch is
         /// actually keyed on.
@@ -585,7 +594,9 @@ pub enum InstKind {
     /// `Release` pair precedes this the way one precedes a `FieldSet`.
     /// Defines nothing: a [`Ty::Void`] result, like a statement call.
     SlotSet {
-        /// The receiver, already lowered.
+        /// The receiver, already lowered — a [`Ty::Object`], or a
+        /// [`Ty::Tagged`] whose tag this instruction checks, exactly as
+        /// [`InstKind::SlotGet`]'s does.
         object: ValueId,
         /// The field's own name, `$`-sigil not included — what the write is
         /// keyed on.

@@ -19,16 +19,21 @@
 //! access lands there, whatever its receiver's spelling, and a method call
 //! does not yet.
 //!
-//! [`check_property_access`]'s shape/`object` arms are ADR 0036 § 4 whole: a
-//! field a shape names types cleanly with no diagnostic either way, and
-//! records the slot `mwl-ir` reads it at
+//! [`check_property_access`]'s shape/`object`/`mixed` arms are ADR 0036 § 4
+//! whole: a field a shape names types cleanly with no diagnostic either way,
+//! and records the slot `mwl-ir` reads it at
 //! ([`crate::expr_table::ExprInfo::ShapeProperty`]); a name it doesn't list,
-//! or a plain `object` receiver, is silently `mixed` rather than
-//! `E_UNKNOWN_MEMBER`, and records the same entry carrying the written name
-//! alone — which is what ADR 0014 § 5's runtime-checked fallback is keyed on,
-//! and it throws now rather than being deferred. `unset()` on any *declared*
-//! object property is refused outright
-//! regardless of nullability (ADR 0028 § 3, [`check_unset_target`]).
+//! a plain `object` receiver, and a `mixed` one are silently `mixed` rather
+//! than `E_UNKNOWN_MEMBER`, and record the same entry carrying the written
+//! name alone — which is what ADR 0014 § 5's runtime-checked fallback is
+//! keyed on, and it throws now rather than being deferred. A `mixed` is there
+//! for ADR 0007 § 2's reason rather than § 4's: it is the one unchecked
+//! position, so even "is this an object at all" is deferred to that throw.
+//! Every *other* receiver — a scalar, an `array<T>`, a union naming no single
+//! class — is `E_RECEIVER_HAS_NO_PROPERTIES` where it is written (ADR 0007
+//! § 7 row 13). `unset()` on any *declared* object property is refused
+//! outright regardless of nullability (ADR 0028 § 3,
+//! [`check_unset_target`]).
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
@@ -360,7 +365,7 @@ pub(super) fn check_property_member(
     // `E_UNKNOWN_MEMBER` below — nothing is diagnosed here, and the access
     // answers `mixed`.
     //
-    // All three record an `ExprInfo::ShapeProperty`, because § 4 keys the
+    // All four record an `ExprInfo::ShapeProperty`, because § 4 keys the
     // fetch on the **name** in every one of them and the name is the only
     // thing an erased access has. What differs is what rides along: a field
     // the receiver's own shape lists contributes its slot as the hint the
@@ -368,6 +373,15 @@ pub(super) fn check_property_member(
     // hints slot 0 and answers `mixed`, leaving `mwl_runtime::ClassDesc::
     // field_slot`'s by-name search — and § 4's catchable missing-name throw —
     // as the whole of the resolution.
+    //
+    // A `mixed` receiver is the fourth, and it is ADR 0007 § 2's one
+    // unchecked position rather than a fourth kind of erasure: PHP accepts
+    // `$m->name` and so does this, deferring the whole question — is it even
+    // an object, and does that object carry this name — to the same run-time,
+    // catchable throw. What a `mixed` receiver does *not* share with the
+    // other three is a proven tag, so the fetch sees the tagged value itself
+    // (`mwl_ir::ir::InstKind::SlotGet`, whose receiver operand is therefore
+    // not always a `Ty::Object`).
     match env.interner.get(object_ty).clone() {
         Ty::Shape(fields) => {
             // A field the shape names is proven present, so reading it never
@@ -395,7 +409,7 @@ pub(super) fn check_property_member(
             );
             return ty;
         }
-        Ty::Object => {
+        Ty::Object | Ty::Mixed => {
             let ty = env.interner.mixed();
             env.exprs.record(
                 object.span.to(*name_span),
@@ -495,7 +509,41 @@ pub(super) fn check_property_member(
                 env.interner.mixed()
             }
         },
-        None => env.interner.mixed(),
+        // Every receiver that neither names a class nor erases to one of the
+        // three shapes above: a scalar, an `array<T>`, an enum, a `callable`,
+        // or a union naming no single class. PHP warns and yields `null` for
+        // the first family and this refuses it instead — ADR 0007 § 7 row 13,
+        // which is row 8's rule ("nothing makes an absent thing read as a
+        // zero value") at the one storage kind a *declared* type already
+        // answers before the program runs. `mixed` is not here: it took the
+        // erased arm above, because deferring is what ADR 0007 § 2 makes it
+        // for.
+        None => {
+            // A nullable receiver whose non-`null` half *is* a class already
+            // took `E_NULLABLE_RECEIVER` on the way in
+            // ([`strip_nullsafe_receiver`]) and is one mistake, not two.
+            let non_null = env.interner.without_null(object_ty);
+            if class_qname_of(non_null, env.interner).is_none() {
+                let described = env.interner.describe(object_ty);
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_RECEIVER_HAS_NO_PROPERTIES,
+                        format!("a property cannot be reached through `{described}`"),
+                    )
+                    .with_primary(
+                        object.span.to(*name_span),
+                        "this receiver's type declares no properties",
+                    )
+                    .with_help(
+                        "only an object has properties — convert the receiver to the class you \
+                         expect (`$x as Box`), or declare it `mixed`, which is the one unchecked \
+                         position (ADR 0007 § 2) and defers the whole question to a catchable \
+                         throw at run time",
+                    ),
+                );
+            }
+            env.interner.mixed()
+        }
     }
 }
 

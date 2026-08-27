@@ -957,6 +957,17 @@ pub mod code {
     /// class carries one slot per name. Refusing where it is written is the
     /// only answer that keeps both readings out of the language.
     pub const E_DUPLICATE_SHAPE_FIELD: Code = Code::new("E0494");
+    /// `->` on a receiver whose declared type can never hold an object —
+    /// `int $i = 5; echo $i->name;` — or on one that names no single class,
+    /// such as a union of two.
+    ///
+    /// PHP warns and yields `null` here; ADR 0007 § 7 row 13 makes it a
+    /// check-time error instead, for row 8's reason: a declared type is what
+    /// makes the answer knowable before the program runs, and nothing in MWL
+    /// makes an absent thing read as a zero value. `mixed` is the one receiver
+    /// that keeps PHP's *timing* — ADR 0007 § 2's one unchecked position, so
+    /// it defers to ADR 0036 § 4's name-keyed fetch and its catchable throw.
+    pub const E_RECEIVER_HAS_NO_PROPERTIES: Code = Code::new("E0495");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

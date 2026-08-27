@@ -1148,10 +1148,19 @@ impl<'a> Lowering<'a> {
     /// an object. Ownership rides along with it (see [`Self::coerce`]), so
     /// the member access's own aliasing retain still applies exactly once, to
     /// the untagged value it now sees.
+    ///
+    /// That last paragraph is what `proof` selects. A
+    /// [`ReceiverProof::Erased`] receiver has no proven tag at all — it is a
+    /// `mixed`, ADR 0007 § 2's one unchecked position — so no `Untag` is
+    /// emitted for it and the *tagged* value is handed back for
+    /// [`InstKind::SlotGet`] to check at run time. Ownership is unchanged
+    /// either way: a tagged value is refcounted ([`Ty::is_refcounted`]) and
+    /// its release is the same release, tag-dispatched.
     pub(super) fn open_nullsafe(
         &mut self,
         object: &Expr,
         nullsafe: bool,
+        proof: ReceiverProof,
         env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty, Option<NullsafeGuard>) {
@@ -1160,7 +1169,10 @@ impl<'a> Lowering<'a> {
             return (object_v, object_ty, None);
         }
         if !nullsafe {
-            let (v, ty) = self.untag_receiver(object_v, object_ty, *cur);
+            let (v, ty) = match proof {
+                ReceiverProof::Proven => self.untag_receiver(object_v, object_ty, *cur),
+                ReceiverProof::Erased => (object_v, object_ty),
+            };
             return (v, ty, None);
         }
         let is_null = self
@@ -1182,16 +1194,21 @@ impl<'a> Lowering<'a> {
             },
         );
         *cur = member_block;
-        let receiver = self
-            .emit(
-                member_block,
+        let (receiver, receiver_ty) = match proof {
+            ReceiverProof::Proven => (
+                self.emit(
+                    member_block,
+                    Ty::Object,
+                    InstKind::Untag { operand: object_v },
+                )
+                .0,
                 Ty::Object,
-                InstKind::Untag { operand: object_v },
-            )
-            .0;
+            ),
+            ReceiverProof::Erased => (object_v, Ty::Tagged),
+        };
         (
             receiver,
-            Ty::Object,
+            receiver_ty,
             Some(NullsafeGuard {
                 null_block,
                 merge_block,
@@ -3015,7 +3032,8 @@ impl<'a> Lowering<'a> {
             let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
             let mark = self.temporaries_mark();
-            let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
+            let (object_v, receiver_ty, guard) =
+                self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
             // The receiver is borrowed like every other argument to a
             // `Core` member, so a *freshly built* one — a nested
             // call's own result — has no other owner and this frame
@@ -3051,7 +3069,8 @@ impl<'a> Lowering<'a> {
         let is_static = call.is_static;
         // `?->` guards everything below on the receiver not being
         // `null`; `->` opens no guard and lowers exactly as before.
-        let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
+        let (object_v, receiver_ty, guard) =
+            self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
         // A `static` method reached through an instance
         // (`$obj->staticMethod()`, which PHP allows) takes no
         // receiver: its parameter 0 is the *called* class, which here
@@ -3301,15 +3320,20 @@ impl<'a> Lowering<'a> {
     }
 
     /// `$obj->prop` — the receiver's declaring class comes from
-    /// `self.exprs`, exactly like a call's resolved target. A **shape**
-    /// receiver naming one of its own fields resolves to a slot index
-    /// instead and is handed to [`Self::lower_shape_property_access`];
-    /// what still has no entry at all is a plain-`object` receiver, and
-    /// a name the shape does not list (ADR 0036 § 4), so this panics
-    /// naming that case rather than lowering it — see the crate docs'
-    /// known gaps for why (the checker itself defers the
-    /// runtime-checked fallback to M4, with no IR/codegen yet to throw
-    /// from).
+    /// `self.exprs`, exactly like a call's resolved target. Every receiver
+    /// with **no** declaring class to resolve — a shape (naming one of its
+    /// own fields or not), a plain `object`, and a `mixed` — records
+    /// `ExprInfo::ShapeProperty` instead and is handed to
+    /// [`Self::lower_shape_property_access`], which is ADR 0036 § 4's
+    /// name-keyed fetch.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the typed-expression table holds neither entry for this
+    /// access. That is an internal-consistency check rather than a hole: a
+    /// receiver whose type can hold no object at all is `E0495` at the
+    /// checker (ADR 0007 § 7 row 13), so a body that reaches here was
+    /// checked against a different table.
     fn lower_property_access(
         &mut self,
         object: &Expr,
@@ -3349,11 +3373,10 @@ impl<'a> Lowering<'a> {
                 ..
             }) => (class, name, *ty, get.clone()),
             _ => panic!(
-                "mwl-ir: a property access at {:?} has no resolved declaring class \
-                 recorded in the typed-expression table — either it wasn't checked with \
-                 the same table, or its receiver erased to a plain `object` or to a \
-                 shape that does not name this field (ADR 0036 § 4), which this crate \
-                 does not yet lower (see the crate docs' known gaps)",
+                "mwl-ir: a property access at {:?} has neither a resolved declaring class \
+                 nor an ADR 0036 § 4 erased entry recorded in the typed-expression table, \
+                 so it was not checked with the same table — every erased receiver records \
+                 one and every receiver that can hold no object at all is `E0495`",
                 expr.span
             ),
         };
@@ -3363,7 +3386,8 @@ impl<'a> Lowering<'a> {
         // See the `MethodCall` arm above: `?->` guards the access on
         // the receiver not being `null`, `->` opens no guard.
         let mark = self.temporaries_mark();
-        let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
+        let (object_v, receiver_ty, guard) =
+            self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
         // A base that is itself a fresh producer — `$m->make()->name` — has
         // no other owner, so this frame owes its release. Only the slot read
         // stages it: a `get` hook's receiver is parameter 0 and the callee's
@@ -3546,7 +3570,8 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let field_ty = lower_checked_ty(field.ty, self.checked_types);
         let mark = self.temporaries_mark();
-        let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
+        let (object_v, receiver_ty, guard) =
+            self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
         let base_is_temporary = receiver_ty.is_refcounted() && !self.aliasing_read(object);
         if base_is_temporary {
             self.own_temporary(object_v);
@@ -3598,10 +3623,13 @@ impl<'a> Lowering<'a> {
     ) {
         let field_ty = lower_checked_ty(field.ty, self.checked_types);
         let mark = self.temporaries_mark();
+        // A narrowed `?{...}` receiver arrives tagged, and so does a `mixed`
+        // one — and neither is untagged here. [`InstKind::SlotSet`] takes the
+        // receiver as it finds it and checks the tag where it checks the
+        // name, which is [`ReceiverProof::Erased`] on the read side and the
+        // same rule for the same reason: an unchecked untag over a `mixed`
+        // holding an `int` is a pointer the runtime would then store through.
         let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
-        // A narrowed `?{...}` receiver arrives tagged, exactly as on the read
-        // side — see `Lowering::untag_receiver`.
-        let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
         if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
             self.own_temporary(object_v);
         }
@@ -4297,6 +4325,25 @@ impl<'a> Lowering<'a> {
         self.seal(*cur, Terminator::Jump(hit));
         *cur = hit;
     }
+}
+
+/// What [`Lowering::open_nullsafe`] is allowed to assume about the tag of a
+/// [`Ty::Tagged`] receiver — the one question a member access asks that
+/// nothing else in this file does.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum ReceiverProof {
+    /// `mwl_types` proved the tag before this ever ran: a narrowed `?T`, the
+    /// non-`null` arm of a `?->`, a receiver whose declared type is a class.
+    /// The tagged slot is one [`InstKind::Untag`] away from the object, and
+    /// that untag is unchecked on purpose — see [`Lowering::untag_receiver`].
+    Proven,
+    /// Nothing proved it: the receiver is a `mixed`, ADR 0007 § 2's one
+    /// unchecked position, so the value reaching the member may hold any tag
+    /// at all. No `Untag` is emitted — an unchecked one over an `int` payload
+    /// is a pointer this frame would then dereference — and the tagged value
+    /// travels to [`InstKind::SlotGet`], which checks the tag where it
+    /// already checks the name (ADR 0036 § 4).
+    Erased,
 }
 
 /// The two blocks a `?->` guard still owes once its member access is lowered

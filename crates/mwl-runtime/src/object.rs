@@ -1671,6 +1671,13 @@ pub unsafe extern "C" fn mwl_object_field_get(ptr: *mut ObjHeader, index: usize)
 /// `hint` is the slot the static type said the field was at; see
 /// [`ClassDesc::field_slot`] for what it buys and when it is wrong.
 ///
+/// The receiver arrives as a whole [`Value`] by address rather than as a bare
+/// pointer, because § 4's erased half now includes a `mixed` — ADR 0007 § 2's
+/// one unchecked position, whose tag nothing before this proved. The tag is
+/// therefore checked here, where the *name* is already checked, and an
+/// unchecked untag in compiled code (which would dereference an `int` payload)
+/// is what that buys.
+///
 /// # Errors
 ///
 /// A [`Fault::Thrown`] naming the field and the concrete class when that class
@@ -1679,20 +1686,24 @@ pub unsafe extern "C" fn mwl_object_field_get(ptr: *mut ObjHeader, index: usize)
 /// widened or erased view, since a field the receiver's own shape lists is
 /// proven present.
 ///
+/// A second [`Fault::Thrown`] when the receiver is not an object at all, in
+/// PHP's own wording — a `mixed` is the only receiver that reaches it, every
+/// other non-object being `E0495` at check time (ADR 0007 § 7 row 13).
+///
 /// # Safety
 ///
-/// `ctx` and `out` must satisfy [`crate::run_helper`]'s contract, `ptr` must
-/// refer to a live MWL object allocation, and `name`/`len` must describe
-/// initialized bytes that live for the call.
+/// `ctx` and `out` must satisfy [`crate::run_helper`]'s contract, `receiver`
+/// must point at one initialized [`Value`] its caller still owns, and
+/// `name`/`len` must describe initialized bytes that live for the call.
 #[expect(
     unsafe_code,
-    reason = "compiled code passes a raw object pointer and a static byte \
+    reason = "compiled code passes a value by address and a static byte \
               range, neither of which the signature can bound"
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mwl_object_slot_get(
     ctx: *mut Ctx,
-    ptr: *mut ObjHeader,
+    receiver: *const Value,
     name: *const u8,
     len: usize,
     hint: usize,
@@ -1707,6 +1718,17 @@ pub unsafe extern "C" fn mwl_object_slot_get(
     let body = move |_ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
         let name = std::str::from_utf8(name)
             .map_err(|_| Fault::fatal("internal error: a field name that is not UTF-8"))?;
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees this points at one initialized value"
+        )]
+        let receiver = unsafe { *receiver };
+        let Some(ptr) = receiver.obj_ptr() else {
+            return Err(Fault::thrown(format!(
+                "attempt to read property `{name}` on {}",
+                receiver.tag().map_or("a malformed value", Tag::describe)
+            )));
+        };
         if ptr.is_null() {
             return Err(Fault::fatal(format!(
                 "internal error: `->{name}` reached a null receiver"
@@ -1770,21 +1792,23 @@ pub unsafe extern "C" fn mwl_object_slot_get(
 /// copied. See [`ClassDesc::field_tags`] for the granularity of that check and
 /// this module's docs for what it does not catch.
 ///
+/// A third when the receiver is not an object at all, in PHP's own wording —
+/// [`mwl_object_slot_get`]'s own third, and reachable for the same one reason.
+///
 /// # Safety
 ///
-/// `ctx` and `out` must satisfy [`crate::run_helper`]'s contract, `ptr` must
-/// refer to a live MWL object allocation, `name`/`len` must describe
-/// initialized bytes that live for the call, and `value` must point at one
-/// initialized [`Value`] its caller still owns.
+/// `ctx` and `out` must satisfy [`crate::run_helper`]'s contract, `name`/`len`
+/// must describe initialized bytes that live for the call, and `receiver` and
+/// `value` must each point at one initialized [`Value`] its caller still owns.
 #[expect(
     unsafe_code,
-    reason = "compiled code passes a raw object pointer, a static byte range \
-              and a value by address, none of which the signature can bound"
+    reason = "compiled code passes a static byte range and two values by \
+              address, neither of which the signature can bound"
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mwl_object_slot_set(
     ctx: *mut Ctx,
-    ptr: *mut ObjHeader,
+    receiver: *const Value,
     name: *const u8,
     len: usize,
     hint: usize,
@@ -1800,6 +1824,17 @@ pub unsafe extern "C" fn mwl_object_slot_set(
     let body = move |_ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
         let name = std::str::from_utf8(name)
             .map_err(|_| Fault::fatal("internal error: a field name that is not UTF-8"))?;
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees this points at one initialized value"
+        )]
+        let receiver = unsafe { *receiver };
+        let Some(ptr) = receiver.obj_ptr() else {
+            return Err(Fault::thrown(format!(
+                "attempt to assign property `{name}` on {}",
+                receiver.tag().map_or("a malformed value", Tag::describe)
+            )));
+        };
         if ptr.is_null() {
             return Err(Fault::fatal(format!(
                 "internal error: `->{name} =` reached a null receiver"

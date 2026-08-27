@@ -148,7 +148,16 @@ satisfying the same shape may lay fields out differently; the compile-time proof
 
 A field accessed through plain `object`, or a name a shape does not list, cannot be checked at compile time
 at all. This is [ADR 0014](0014-property-observer.md) § 5's already-decided fallback for a *dynamically
-computed* property name, now also triggered by an *erased receiver type*:
+computed* property name, now also triggered by an *erased receiver type*.
+
+**A `mixed` receiver is the third trigger, and the widest**: [ADR 0007](0007-explicit-type-system.md) § 2
+makes it the one unchecked position, so `$m->name` defers not only which class is behind the handle but
+whether there is one at all. The fetch below is what answers both, and a receiver whose tag turns out not
+to be an object is one more catchable throw, worded as PHP words its warning. Every receiver whose
+*declared* type can hold no object — a scalar, an `array<T>`, a union naming no single class — is refused
+where it is written instead (`E0495`, ADR 0007 § 7 row 13): the deferral is what `mixed` is for, and a type
+that already answers the question does not get to ask it again at run time. The two rules below apply to
+all three triggers:
 
 - **Read:** a checked, catchable throw if the concrete instance behind the handle does not actually have
   that name — never a silent value, never PHP's warning-plus-`null`.

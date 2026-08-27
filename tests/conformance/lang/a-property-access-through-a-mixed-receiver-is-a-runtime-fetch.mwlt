@@ -1,0 +1,79 @@
+--TEST--
+A property access through a `mixed` receiver is ADR 0036 § 4's name-keyed fetch, with the receiver's own tag checked at the same place — ADR 0007 § 2, § 7 row 13
+--FILE--
+<?mwl
+// `mixed` is ADR 0007 § 2's one unchecked position, so `$m->name` defers
+// every question it raises — is this an object, and does that object carry
+// this name — to run time, exactly where PHP answers them. It is the fourth
+// receiver shape ADR 0036 § 4's erased half covers, and the only one whose
+// *tag* nothing proved before the fetch.
+final class Box {
+    public string $name = "boxed";
+    public int $count = 1;
+
+    public function constructor() { }
+}
+
+mixed $m = new Box();
+echo $m->name, " ", $m->count, "\n";
+
+// The write lands on the value itself: `mixed` erases the static view of a
+// refcounted instance and nothing else about it.
+$m->name = "wrote";
+var $same = $m;
+echo $same->name, "\n";
+
+// A name the concrete class does not carry is § 4's catchable throw, the
+// same one a plain `object` receiver takes.
+try {
+    echo $m->nope, "\n";
+} catch (Throwable $missing) {
+    echo $missing->message, "\n";
+}
+
+// A receiver that is not an object at all is the throw this receiver shape
+// adds, in PHP's own wording. Every *statically* non-object receiver is
+// `E0495` at check time instead — see the companion case.
+mixed $five = 5;
+try {
+    echo $five->name, "\n";
+} catch (Throwable $readOnInt) {
+    echo $readOnInt->message, "\n";
+}
+try {
+    $five->name = "x";
+} catch (Throwable $writeOnInt) {
+    echo $writeOnInt->message, "\n";
+}
+
+array<string> $rows = ["k" => "v"];
+mixed $asArray = $rows;
+try {
+    echo $asArray->k, "\n";
+} catch (Throwable $readOnArray) {
+    echo $readOnArray->message, "\n";
+}
+
+// `?->` still short-circuits on the `null` tag before any of that, so a
+// `mixed` holding `null` answers `null` rather than throwing.
+mixed $nothing = null;
+echo $nothing?->name ?? "short-circuited", "\n";
+
+// A shape behind a `mixed` binding is reached by name like any other value:
+// the fetch never had a slot to rely on in the first place.
+mixed $shape = {label: "anonymous"};
+echo $shape->label, "\n";
+
+// A freshly built receiver has no other owner, so this is also the row that
+// says the base is released and the read is not.
+echo (new Box())->name, "\n";
+--EXPECT--
+boxed 1
+wrote
+`Box` has no field `nope`
+attempt to read property `name` on int
+attempt to assign property `name` on int
+attempt to read property `k` on array
+short-circuited
+anonymous
+boxed

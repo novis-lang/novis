@@ -2157,7 +2157,7 @@ impl Emitter<'_, '_> {
     ) -> Result<Block, CodegenError> {
         let (name, len) = self.emit_bytes(field.as_bytes())?;
         let hint = self.b.ins().iconst(types::I64, i64::from(slot));
-        let (base, _) = self.value(object)?;
+        let recv_p = self.materialize_receiver(object)?;
 
         let out_slot = self.b.create_sized_stack_slot(StackSlotData::new(
             StackSlotKind::ExplicitSlot,
@@ -2170,7 +2170,7 @@ impl Emitter<'_, '_> {
         let call = self
             .b
             .ins()
-            .call(callee, &[self.ctx_p, base, name, len, hint, out_p]);
+            .call(callee, &[self.ctx_p, recv_p, name, len, hint, out_p]);
         let status = self.b.inst_results(call)[0];
         let cont = self.emit_status_check(status, inst.on_error)?;
 
@@ -2210,7 +2210,7 @@ impl Emitter<'_, '_> {
     ) -> Result<Block, CodegenError> {
         let (name, len) = self.emit_bytes(field.as_bytes())?;
         let hint = self.b.ins().iconst(types::I64, i64::from(slot));
-        let (base, _) = self.value(object)?;
+        let recv_p = self.materialize_receiver(object)?;
         let (value, value_ty) = self.value(value)?;
 
         let in_slot = self.b.create_sized_stack_slot(StackSlotData::new(
@@ -2232,9 +2232,34 @@ impl Emitter<'_, '_> {
         let call = self
             .b
             .ins()
-            .call(callee, &[self.ctx_p, base, name, len, hint, in_p, out_p]);
+            .call(callee, &[self.ctx_p, recv_p, name, len, hint, in_p, out_p]);
         let status = self.b.inst_results(call)[0];
         self.emit_status_check(status, inst.on_error)
+    }
+
+    /// The receiver of an ADR 0036 § 4 name-keyed access, in the one shape
+    /// both halves of it take: a caller-owned 16-byte
+    /// [`mwl_runtime::Value`] passed by address.
+    ///
+    /// Not the bare pointer a [`Self::emit_field_get`] receiver is, and the
+    /// difference is the whole erased half of § 4: this access may reach a
+    /// `mixed`, whose tag no pass before it proved (`ReceiverProof::Erased`
+    /// in `mwl_ir::lower::expr`). The runtime therefore has to *see* the tag —
+    /// checking it where it already checks the name — so a `mixed` holding an
+    /// `int` throws instead of being dereferenced as a pointer.
+    ///
+    /// A receiver that is statically a [`Ty::Object`] pays two stores for
+    /// that uniformity, on a path that was already one call.
+    fn materialize_receiver(&mut self, object: ValueId) -> Result<Value, CodegenError> {
+        let (base, base_ty) = self.value(object)?;
+        let slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            VALUE_SIZE.cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let recv_p = self.b.ins().stack_addr(types::I64, slot, 0);
+        self.store_value(recv_p, 0, base, base_ty)?;
+        Ok(recv_p)
     }
 
     /// `$obj->prop = expr;`: one store into the receiver's field slot.
