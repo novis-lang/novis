@@ -1,0 +1,62 @@
+--TEST--
+`-` and `~` over an operand whose static type names no row are answered from its runtime tag, ADR 0007 §§ 2 and 4
+--FILE--
+<?nvs
+// ADR 0007 § 4's unary rows, chosen from the operand's tag because a `mixed`
+// names none of them where the operator is written. `nvs_ir::Helper::ValueNeg`
+// is the pair's home.
+mixed $i = 5;
+echo -$i, "\n";
+echo ~$i, "\n";
+// Unary `+` is the identity over every numeric row, so it emits no instruction
+// at all and a tagged operand goes through it unchanged.
+echo +$i, "\n";
+mixed $f = 2.5;
+echo -$f, "\n";
+uint $u = 7;
+mixed $mu = $u;
+// `~` is total over both integer tags — every 64-bit pattern is a value of
+// each — and reads the *tag*'s signedness rather than a declaration's.
+echo ~$mu, "\n";
+uint $nought = 0;
+mixed $mz = $nought;
+echo -$mz, "\n";
+decimal $d = 1.25;
+mixed $md = $d;
+echo -$md, "\n";
+// The answer is `Ty::Tagged` whatever the operand held, so a declared type
+// absorbs it by the rows that already absorb integer `/`'s union.
+int $back = -$i as int;
+echo $back, "\n";
+// § 4's overflow throw reaches the unary row too: `-i64::MIN` has no `int`,
+// and every non-zero `uint` has no negation at all.
+int $min = -9223372036854775807 - 1;
+mixed $mn = $min;
+try { echo -$mn, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+try { echo -$mu, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+// And the closed table's refusal, which is `E0705`/`E0706` wherever the static
+// type shows it and a catchable throw where only the tag knows.
+mixed $s = "5";
+try { echo -$s, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+try { echo ~$f, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+try { echo ~$md, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+mixed $n = null;
+try { echo -$n, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+mixed $b = true;
+try { echo ~$b, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+--EXPECT--
+-5
+-6
+5
+-2.5
+18446744073709551608
+0
+-1.25
+-5
+Integer negation overflowed
+Integer negation overflowed
+no unary `-` for a `string` — convert the operand out loud first: `... as int`/`as float`
+no unary `~` for a `float`
+no unary `~` for a `decimal`
+no unary `-` for a `null`
+no unary `~` for a `bool`

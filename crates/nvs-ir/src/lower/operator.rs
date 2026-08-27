@@ -355,6 +355,40 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
+        // ADR 0007 § 4's unary rows for the operand shape the binary arms above
+        // answer for equality, ordering and arithmetic: a `mixed`, a union or
+        // the `int|float` a division returns names no row where it is written,
+        // so the tag names it when it arrives. See `Helper::ValueNeg`, which is
+        // this pair's home; unary `+` is not among them because it is the
+        // identity over every numeric row and so returns below with no
+        // instruction at all, whatever the operand's representation.
+        //
+        // The operand is staged and released exactly as the binary arms stage
+        // theirs, and for the same reason: both helpers carry ADR 0002's error
+        // edge — the closed table and the negation overflow are two ways one
+        // throws — so an operand released inline would be abandoned on the edge
+        // a throw leaves by.
+        if ty == Ty::Tagged && matches!(op, AstUnaryOp::Neg | AstUnaryOp::BitNot) {
+            let mark = self.temporaries_mark();
+            let aliasing = self.aliasing_read(inner);
+            self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+            let helper = if matches!(op, AstUnaryOp::Neg) {
+                Helper::ValueNeg
+            } else {
+                Helper::ValueBitNot
+            };
+            let (answer, _) = self.emit_fallible(
+                *cur,
+                Ty::Tagged,
+                InstKind::HelperCall {
+                    helper,
+                    args: vec![v],
+                },
+                env,
+            );
+            self.release_temporaries_since(mark, *cur);
+            return (answer, Ty::Tagged);
+        }
         let uop = match op {
             AstUnaryOp::Neg => UnOp::Neg,
             // ADR 0007 § 4's `~` row: the operand type, preserved, and total

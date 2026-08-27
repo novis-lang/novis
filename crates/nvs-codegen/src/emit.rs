@@ -655,6 +655,16 @@ impl Emitter<'_, '_> {
                 let to = inst.ty.ok_or_else(|| {
                     internal("a value-defining instruction with no representation")
                 })?;
+                // An internal-consistency check with no reachable target, and
+                // the roster is `nvs-ir`'s three producers of this instruction.
+                // Two are ADR 0010 § 5's enum rows in either direction, and
+                // `Ty::Enum` is a zero-byte tag over the very integer it
+                // relabels to; the third is ADR 0009 § 3's `string as bytes`,
+                // where a `bytes` *is* the string's allocation minus the UTF-8
+                // promise. All three therefore share a machine type by
+                // construction, so an arrival here is a `nvs-ir` site emitting
+                // a relabelling between two representations that are not one —
+                // a bug in that site, never a shape the language admits.
                 if crate::ty::clif_ty(from) != crate::ty::clif_ty(to) {
                     return Err(CodegenError::Unsupported(format!(
                         "`reinterpret` between {from:?} and {to:?}, which do not share a machine                          type — it is a relabelling, never a bit cast"
@@ -685,6 +695,17 @@ impl Emitter<'_, '_> {
                     // A float's payload is its bit pattern, which is what the
                     // `Value` slot holds and what `Tag::Float` promises.
                     Ty::Float => self.b.ins().bitcast(types::I64, MemFlagsData::new(), value),
+                    // The pair with no reachable target, for one reason each.
+                    // `Lowering::coerce` is the only producer of this
+                    // instruction and it answers `(a, b) if a == b` before
+                    // anything else, so a `Ty::Tagged` operand is the identity
+                    // there and never arrives; a `Ty::Void` one would be a
+                    // `void` call's result read as a value, which every
+                    // position that could widen refuses where it is written
+                    // (`E0708` under `as`, `E0707` at an implicit string
+                    // site). So this is an internal-consistency check on
+                    // `coerce`'s own table, and its `Untag` twin below is the
+                    // same check in the other direction.
                     Ty::Void | Ty::Tagged => {
                         return Err(CodegenError::Unsupported(format!(
                             "widening a value of representation {from:?} into a tagged one"
@@ -716,6 +737,14 @@ impl Emitter<'_, '_> {
                 let value = match to {
                     Ty::Bool => self.b.ins().ireduce(types::I8, bits),
                     Ty::Float => self.b.ins().bitcast(types::F64, MemFlagsData::new(), bits),
+                    // The `Tag` arm's check, read the other way, and with one
+                    // target rather than two: `Ty::Tagged` is a row above
+                    // rather than a refusal, since narrowing a union to a
+                    // narrower union is a checker fact. What is left is a
+                    // `void` call's result standing in a narrowing position,
+                    // which no declaration can ask for — nothing is declared
+                    // `void` but a return type, and `Lowering::coerce` reaches
+                    // this instruction from a declared type alone.
                     Ty::Void => {
                         return Err(CodegenError::Unsupported(format!(
                             "narrowing a tagged value to representation {to:?}"
@@ -1811,6 +1840,25 @@ impl Emitter<'_, '_> {
                 let zero = self.b.ins().iconst(types::I8, 0);
                 self.b.ins().icmp(IntCC::Equal, v, zero)
             }
+            // An internal-consistency check with no reachable target left, and
+            // the roster is the three rows above plus the checked negation
+            // ahead of them. `UnOp` is three variants: `!` arrives only over a
+            // `Ty::Bool`, ADR 0035's truthy table having already answered one
+            // whatever the operand's own type was, and `-` and `~` arrive only
+            // over the numeric representations ADR 0007 § 4 tabulates, because
+            // `nvs_types::expr::operators::reject_unary_arith_operand` refuses
+            // every other operand where it is written (`E0705`, and `E0706` for
+            // the `float`/`decimal` pair `~` leaves out). Unary `+` never
+            // reaches an instruction at all — it is the identity over all four
+            // numeric types, so `nvs-ir` returns the operand itself.
+            //
+            // `Ty::Decimal` and `Ty::Tagged` have both left: a `decimal`
+            // negation is `Helper::DecimalNeg`, and a tagged operand's `-` and
+            // `~` are the `Helper::ValueNeg` pair, chosen from the operand's
+            // runtime tag in `nvs-ir` rather than from a representation it does
+            // not have. What is left is the three representations no source
+            // expression has (`ClassDesc`, `Ref`, `Void`), which is
+            // `Self::emit_binop`'s residue exactly.
             (op, ty) => {
                 return Err(CodegenError::Unsupported(format!(
                     "the unary operator {op:?} over representation {ty:?}"
@@ -2803,6 +2851,16 @@ impl Emitter<'_, '_> {
             (Ty::Object, false) => "nvs_object_release",
             (Ty::Array, true) => "nvs_array_retain",
             (Ty::Array, false) => "nvs_array_release",
+            // An internal-consistency check on `nvs-ir`, not on the language:
+            // the rows above are exactly `nvs_ir::ty::Ty::is_refcounted`'s five
+            // with `Ty::Tagged` taken out of line by the branch above, and
+            // every other representation is a scalar with no reference to
+            // count. So an arrival here is a site in `nvs-ir` that emitted an
+            // `InstKind::Retain`/`Release` without asking that predicate first
+            // — which is the trap `docs/agent/playbook.md` records under a
+            // *widened* operand, where a decision phrased as the negation of
+            // "this is a string" survives the widening and starts releasing
+            // plain integers.
             (other, _) => {
                 return Err(CodegenError::Unsupported(format!(
                     "a refcount operation on representation {other:?}"
@@ -2954,6 +3012,17 @@ impl Emitter<'_, '_> {
                 self.b.switch_to_block(onward);
                 self.b.ins().return_(&[status]);
             }
+            // No reachable target: `nvs_ir::ir::Terminator` is seven variants
+            // and the arms above are all seven — `Return` in both its shapes,
+            // `Jump`, `Branch`, `Switch`, `Throw`, and the two a landing block
+            // ends in, `Propagate` and `Catch`. The arm exists because that
+            // enum is `#[non_exhaustive]` and this is a downstream crate, so
+            // the compiler asks for it whether or not a variant is missing;
+            // that is also what makes it worth a comment rather than a
+            // `matches!` the reader can count for themselves. A variant added
+            // to `nvs-ir` therefore surfaces here as this refusal rather than
+            // as a build failure — which is the one thing the roster above
+            // cannot enforce.
             other => {
                 return Err(CodegenError::Unsupported(format!(
                     "the terminator {other:?}"
@@ -3279,6 +3348,8 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ValueBitXor => "nvs_value_bit_xor",
         Helper::ValueShl => "nvs_value_shl",
         Helper::ValueShr => "nvs_value_shr",
+        Helper::ValueNeg => "nvs_value_neg",
+        Helper::ValueBitNot => "nvs_value_bit_not",
         Helper::SecretEq => "nvs_secret_eq",
         Helper::CallClosure => "nvs_call_closure",
         Helper::CallClosureArray => "nvs_call_closure_array",
@@ -3325,6 +3396,14 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::DecimalToUint => "nvs_decimal_to_uint",
         Helper::DecimalToFloat => "nvs_decimal_to_float",
         Helper::DecimalToString => "nvs_decimal_to_string",
+        // No reachable target, and for `Self::emit_terminator`'s catch-all's
+        // reason exactly: every one of `nvs_ir::ir::Helper`'s variants has a
+        // row above, and this arm is here only because that enum is
+        // `#[non_exhaustive]` and this is a downstream crate. The table is the
+        // whole of the compiler's side of the runtime ABI — a helper added in
+        // `nvs-ir` and given no symbol here is a linking question answered at
+        // compile time by this refusal, which is why the arm is worth keeping
+        // even though nothing can reach it today.
         other => {
             return Err(CodegenError::Unsupported(format!(
                 "the runtime helper {other:?}"

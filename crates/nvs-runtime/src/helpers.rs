@@ -1008,6 +1008,109 @@ value_arith_helper! {
     fn nvs_value_shr = Shr
 }
 
+/// ADR 0007 § 4's **unary** rows, chosen from one runtime tag rather than from
+/// a static type — [`value_arith`]'s one-operand twin, and the last shape of
+/// that table an erased operand had no answer for.
+///
+/// `-` is over the four numeric types and no more. The two integer rows are
+/// `checked_neg` for the table's own reason: `-i64::MIN` has no `int` and every
+/// non-zero `uint` has no negation at all, so § 4's overflow throw reaches the
+/// unary row too, worded exactly as `nvs-codegen`'s `emit_unop` words the
+/// statically typed spelling's. `float` and `decimal` cannot fail — a float's
+/// sign bit is one flip, and ADR 0054's mantissa is unsigned, so there is no
+/// asymmetric minimum to overflow. Every other tag is the closed table's
+/// refusal, which is [`no_unary`].
+fn value_neg(value: Value) -> Result<Value, Fault> {
+    match value.tag() {
+        Some(Tag::Int) => value
+            .as_int()
+            .ok_or_else(|| wrong_tag("nvs_value_neg", Tag::Int, value))?
+            .checked_neg()
+            .map(Value::int)
+            .ok_or_else(negation_overflowed),
+        Some(Tag::Uint) => value
+            .as_uint()
+            .ok_or_else(|| wrong_tag("nvs_value_neg", Tag::Uint, value))?
+            .checked_neg()
+            .map(Value::uint)
+            .ok_or_else(negation_overflowed),
+        Some(Tag::Float) => {
+            Ok(Value::float(-value.as_float().ok_or_else(|| {
+                wrong_tag("nvs_value_neg", Tag::Float, value)
+            })?))
+        }
+        Some(Tag::Decimal) => Ok(Value::decimal(
+            decimal_operand("nvs_value_neg", value)?.negated(),
+        )),
+        _ => Err(no_unary("-", value)),
+    }
+}
+
+/// ADR 0007 § 4's `~` row behind a `mixed`, which is narrower than
+/// [`value_neg`]'s by exactly the two rows `& | ^ << >>` is narrower than the
+/// arithmetic ones by: the bit operators are over `int` and `uint` alone, so a
+/// `float` or a `decimal` operand is a number with no bit pattern to
+/// complement. It is total over the two rows it does have — every 64-bit
+/// pattern is a value of each — so unlike `-` it cannot overflow.
+fn value_bit_not(value: Value) -> Result<Value, Fault> {
+    match value.tag() {
+        Some(Tag::Int) => {
+            Ok(Value::int(!value.as_int().ok_or_else(|| {
+                wrong_tag("nvs_value_bit_not", Tag::Int, value)
+            })?))
+        }
+        Some(Tag::Uint) => {
+            Ok(Value::uint(!value.as_uint().ok_or_else(|| {
+                wrong_tag("nvs_value_bit_not", Tag::Uint, value)
+            })?))
+        }
+        _ => Err(no_unary("~", value)),
+    }
+}
+
+/// ADR 0007 § 4's negation overflow, worded as `nvs-codegen`'s `emit_unop`
+/// words the statically typed row's so the two ends cannot drift apart.
+fn negation_overflowed() -> Fault {
+    Fault::thrown("Integer negation overflowed".to_owned())
+}
+
+/// The catchable throw the two unary rows raise for an operand ADR 0007 § 4
+/// tabulates no row for — [`no_arithmetic`]'s shape with one operand, carrying
+/// the reading `nvs_types::expr::operators::reject_unary_arith_operand` gives
+/// the same refusal (`E0705`, and `E0706` for the two `~` leaves out) wherever
+/// the static type shows it.
+fn no_unary(spelling: &str, value: Value) -> Fault {
+    // The one operand PHP would have converted silently, and [`no_arithmetic`]'s
+    // reason for naming it: ADR 0007 § 2 has no implicit conversion, so a
+    // numeric-looking `string` is where an author is told to say `as int` out
+    // loud.
+    let hint = if matches!(value.tag(), Some(Tag::Str)) {
+        " — convert the operand out loud first: `... as int`/`as float`"
+    } else {
+        ""
+    };
+    Fault::thrown(format!(
+        "no unary `{spelling}` for a `{}`{hint}",
+        tag_name(value)
+    ))
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ValueNeg` — `-` where the operand's static type named
+    /// no row, so its tag names it instead. See [`value_neg`].
+    fn nvs_value_neg(_ctx, args: [1]) {
+        value_neg(args[0])
+    }
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ValueBitNot` — `~` where the operand's static type
+    /// named no row. See [`value_bit_not`].
+    fn nvs_value_bit_not(_ctx, args: [1]) {
+        value_bit_not(args[0])
+    }
+}
+
 crate::nvs_helper! {
     /// `nvs_ir::Helper::SecretEq` — `==` where the checker typed at least one
     /// operand `secret`, which
@@ -2349,6 +2452,8 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_value_lt", address(nvs_value_lt)),
         ("nvs_value_lt_eq", address(nvs_value_lt_eq)),
         ("nvs_value_cmp", address(nvs_value_cmp)),
+        ("nvs_value_neg", address(nvs_value_neg)),
+        ("nvs_value_bit_not", address(nvs_value_bit_not)),
         ("nvs_value_add", address(nvs_value_add)),
         ("nvs_value_sub", address(nvs_value_sub)),
         ("nvs_value_mul", address(nvs_value_mul)),

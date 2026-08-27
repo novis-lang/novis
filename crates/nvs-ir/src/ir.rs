@@ -1889,6 +1889,30 @@ pub enum Helper {
     /// operator that reads its left operand's *signedness* rather than only its
     /// width, which behind a `mixed` is the tag rather than the declaration.
     ValueShr,
+    /// `-a` over a tagged operand — [`Self::ValueAdd`]'s table asked with one
+    /// operand instead of two, and the shape of it a *unary* operator reaches.
+    /// The rows are ADR 0007 § 4's own: `int` and `uint` throw rather than
+    /// wrap, `-i64::MIN` having no `int` and every non-zero `uint` no negation
+    /// at all, and `float` and `decimal` cannot fail. Everything else is the
+    /// closed table's refusal, arriving as a catchable throw carrying
+    /// `nvs_types::expr::operators::reject_unary_arith_operand`'s own reading
+    /// (`E0705`) because that check cannot make it from a `mixed`.
+    ///
+    /// The result is [`crate::ty::Ty::Tagged`] for [`Self::ValueAdd`]'s reason:
+    /// `-$m` is an `int`, a `float`, a `decimal` or a throw, and which one is
+    /// exactly what the tag arrives to say.
+    ///
+    /// Unary `+` has no member here because it has no row anywhere: it is the
+    /// identity over all four numeric types, so
+    /// `crate::lower::Lowering::lower_unary` returns the operand itself and
+    /// emits no instruction, a tagged operand included.
+    ValueNeg,
+    /// `~a` over a tagged operand — see [`Self::ValueNeg`], over
+    /// [`Self::ValueBitAnd`]'s narrower table: § 4's `& | ^ ~ << >>` row is
+    /// `int` and `uint` alone, so a `float` or a `decimal` operand is a number
+    /// with no bit pattern to complement and takes the refusal rather than a
+    /// row.
+    ValueBitNot,
     /// `a == b` over two operands at least one of which the checker typed
     /// `secret` —
     /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)

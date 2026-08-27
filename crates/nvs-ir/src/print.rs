@@ -520,6 +520,8 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ValueBitXor => "value_bit_xor",
         Helper::ValueShl => "value_shl",
         Helper::ValueShr => "value_shr",
+        Helper::ValueNeg => "value_neg",
+        Helper::ValueBitNot => "value_bit_not",
         Helper::SecretEq => "secret_eq",
         Helper::CallClosure => "call_closure",
         Helper::CallClosureArray => "call_closure_array",
