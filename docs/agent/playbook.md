@@ -464,6 +464,17 @@ is why" — is this file.
   conversion row rather than at the missing table entry it actually is. Read the **whole**
   annotation's `declared_ty` and take the piece you want off the checked type — `?T` interns as
   `T|null`, so its target is that union minus `CheckedTy::Null`.
+- **A refusal for a *name-shaped* expression fires on every `Foo::bar()` in the program unless
+  the class side is taken off the value walk first.** `Class::method()`, `Class::CONST`,
+  `Class::$prop`, `Class::class` and `$x instanceof Class` all carry the class as an ordinary
+  `Expr` whose kind is `ExprKind::ConstFetch` — and `self`/`static`/`parent` are the same three
+  shapes by a second route — so both walkers that see one, `mwl_hir::members::walk_expr` and
+  `mwl_types::expr::check_expr`, recurse into it and an arm added for "a bare name is not a
+  value" reports there too. `mwl_hir::members::walk_class_side` is the fix on the resolver side,
+  one helper over five call sites; `mwl_types` has the identical five
+  (`expr/mod.rs:264`, `:292`, `expr/calls.rs:143`, `expr/members.rs:85`, `:211`) and has not
+  needed it only because its arms answer `mixed` in silence. Nothing catches this: it builds, and
+  the first sign is a conformance case that used to pass reporting an extra error.
 
 ## Running things
 

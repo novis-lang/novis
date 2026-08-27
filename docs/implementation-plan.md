@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 603 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 605 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 167, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -496,10 +496,24 @@
 > edges with a fresh refcounted operand live. `python tools/holes.py` still reads **24 sites, 6
 > items**: `convert_or_null`'s catch-all is unchanged, `$b as ?string` and `$m as ?array<T>` still
 > reaching it, and this slice widened neither. **M4S Part I is the floor, not the frontier**:
-> conformance is at 603 of the goal's new 750 and differential at 167 of 165, `python tools/gaps.py`
+> conformance is at 605 of the goal's new 750 and differential at 167 of 165, `python tools/gaps.py`
 > still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a group is
-> blocked — never a reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is
-> 31% classified (`python tools/check-migration.py`).
+> blocked — never a reason to leave a language item unfinished. **A bare name in value position is a
+> diagnostic now**, which is the cheap half of `lower_expr`'s own dispatch catch-all rather than a
+> lowering: `PHP_EOL` is **E0319**, `strlen($s)` is **E0320** and a bare `self`/`static`/`parent` is
+> **E0321**. ADR 0011 §§ 1 and 3 removed the global-function and global-constant storage rows
+> outright, so there is nothing below the resolver to lower any of them to, and all three are
+> reported in `mwl_hir::members` rather than in `mwl_types` — a name that resolves against nothing
+> needs no type to refuse, and the `E04xx` band has two numbers left. **What made this one edit
+> rather than five is that the same `ExprKind`s mean a class on the left of a `::`**: `Foo::bar()`,
+> `Foo::CONST`, `Foo::$prop`, `Foo::class` and `$x instanceof Foo` all carry the class side as an
+> ordinary `Expr` the walk used to recurse into, so every one of those positions goes through a new
+> `walk_class_side` that skips the value-position arms instead. One suppression keeps a single
+> mistake to a single diagnostic: a name this file declared as a top-level `function` or `const` was
+> already refused by the parser (E0215/E0216), so its use site is skipped rather than cascading a
+> second error onto the same edit. `python tools/holes.py` still reads **24 sites** — the dispatch
+> catch-all is one site whichever shapes reach it, and what still reaches it is enumerated in the
+> handoff. `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones
