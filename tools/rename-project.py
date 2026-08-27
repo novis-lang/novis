@@ -57,6 +57,7 @@ import argparse
 import os
 import re
 import subprocess
+import time
 import sys
 from pathlib import Path
 
@@ -81,11 +82,18 @@ LITERALS = [
     ("MWL'S", "NOVIS'S"),
 ]
 
-#: Prose: the all-caps spelling, standing as its own word. The look-around is identifier
+#: Prose: the all-caps spelling, standing as its own word. The look-behind is identifier
 #: characters only, so `MWL_JOBS`, `MWLC` and `MWL1` are left to the token rule, while `MWL.`
 #: at the end of a sentence, `MWL-native`, `MWL/PHP` and `MWL's` are all prose. No all-caps
 #: `MWL` is adjacent to `-`, `/` or `.` in a path anywhere in the tree -- paths are lowercase.
-PROSE = re.compile(r"(?<![A-Za-z0-9_])MWL(?![A-Za-z0-9_])")
+#:
+#: `<?` is the one exception, and it cost a red test to find. `<?MWL` is a *mis-cased open tag*:
+#: it appears in a lexer test, a diagnostic's doc comment and two ADRs, always as the example of
+#: the casing `E_RESERVED_SPELLING_CASE` rejects. Neither neighbour is an identifier character,
+#: so the plain word boundary read it as prose and produced `<?Novis`, which is seven characters
+#: where the lexer matches five and so lexes as inline HTML rather than a tag. It is syntax, not
+#: a name: it takes the token rule and becomes `<?NVS`, still mis-cased, still the point.
+PROSE = re.compile(r"(?<![A-Za-z0-9_])(?<!<\?)MWL(?![A-Za-z0-9_])")
 
 #: The token rule, any capitalisation.
 TOKEN = re.compile(OLD, re.IGNORECASE)
@@ -99,6 +107,10 @@ DATA_FILES = {
     # `lowerFirst("MWL")` -> `mWL`
     "tests/conformance/core/str-first-letter-case-members.mwlt",
     "tests/differential/core/str-upper-first-diverges-from-ucfirst.mwlt",
+    # `upper("mwl")` -> `MWL`, alone on its line in `--EXPECT--`. The differential sibling of
+    # `str-case-members`, and the one this list was missing on the first run: a bare `MWL` in an
+    # expectation block is indistinguishable from prose by shape, and only the oracle caught it.
+    "tests/differential/core/str-upper-diverges-from-strtoupper.mwlt",
     # `new Slug("MWL")` -> `mwl`
     "tests/conformance/class/a-constructor-reaches-a-private-method.mwlt",
     # `assert_eq!(output_of(source), "MWL|Runs|abab")` over `upper("mwl")`
@@ -112,6 +124,12 @@ EXCLUDE_DIRS = {".git", "target", "php-src", "__pycache__", "node_modules", ".lo
 
 #: Untracked trees that are working state rather than build output, and so are in scope.
 UNTRACKED_SCOPE = {"examples", ".agent-tmp"}
+
+#: ...except the captured output under them. `verify.py` writes `.agent-tmp/verify-test.log`, and
+#: every cargo line in it quotes an absolute path under a checkout still called `<repo>` -- so
+#: the audit would report a fresh finding after every run, for a file the next run overwrites.
+#: It is output, like `target`. Rewriting it would also falsify a record of what actually ran.
+SKIP_SUFFIXES = (".log",)
 
 #: This file, excluded from its own scope. It is the one place in the tree where `mwl` and `MWL`
 #: are *the subject* rather than a name -- the regexes, DATA_FILES and the survey above all quote
@@ -179,6 +197,8 @@ def walk(tracked_only):
             top = p.split("/", 1)[0]
             if p == SELF:
                 continue
+            if p not in keep and p.endswith(SKIP_SUFFIXES):
+                continue
             if p in keep or top in UNTRACKED_SCOPE or Path(dirpath) == ROOT:
                 found.append(p)
     return sorted(set(found) | keep)
@@ -245,13 +265,29 @@ def path_renames(tracked_only):
 
 
 def move(rel_old, rel_new, tracked):
-    """`git mv` when git knows the path, so the rename is staged rather than inferred."""
-    if tracked:
-        out = git("mv", rel_old, rel_new, check=False)
-        if out.returncode == 0:
+    """`git mv` when git knows the path, so the rename is staged rather than inferred.
+
+    Retried, because on Windows a directory rename issued moments after the content pass wrote
+    into it loses to whatever still holds a handle -- an indexer, a watcher, an antivirus scan --
+    with `WinError 5`. The handle is released within a moment; the first run of this tool hit it
+    on exactly one of the ten crate directories and the same `git mv` then succeeded by hand.
+    """
+    last = None
+    for attempt in range(6):
+        if attempt:
+            time.sleep(0.25 * attempt)
+        if tracked:
+            out = git("mv", rel_old, rel_new, check=False)
+            if out.returncode == 0:
+                return
+            last = out.stderr.strip()
+        try:
+            (ROOT / rel_new).parent.mkdir(parents=True, exist_ok=True)
+            os.rename(ROOT / rel_old, ROOT / rel_new)
             return
-    (ROOT / rel_new).parent.mkdir(parents=True, exist_ok=True)
-    os.rename(ROOT / rel_old, ROOT / rel_new)
+        except OSError as exc:
+            last = exc
+    raise SystemExit(f"could not rename {rel_old} -> {rel_new}: {last}")
 
 
 def rename_pass(tracked_only, apply):
