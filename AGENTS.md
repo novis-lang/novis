@@ -93,19 +93,22 @@ Every session runs the same five steps, in this order, and **stops**:
    write, and the rules this goal lives inside. It is narrowed on purpose: if you find yourself needing
    something it did not print, that is a gap in the goal's `[context]` manifest — say so in the handoff.
 2. **Do the work — as much of the group as fits under the context ceiling.** The handoff names a group of
-   related slices and the file set they share. **Take up to two, the second only if it touches files
-   already loaded *and* you are under 120k with the first committed. Never take a third.** Context is the
-   binding budget here, not the clock: an agent degrades well before its window is full, so the ceiling is
-   a fixed **200k**. **This paragraph is the cap's only home** — every other file points here rather than
+   related slices and the file set they share. **Keep taking slices from that group while both hold: the
+   next one touches files already loaded, *and* you are under 120k with the previous one committed. Stop at
+   the first slice that fails either test.** Context is the binding budget here, not the clock: an agent
+   degrades well before its window is full, so the ceiling is a fixed **200k**. **This paragraph is the cap's only home** — every other file points here rather than
    restating a number, because three files holding three different numbers is how it last went wrong.
 
-   The cap is 2 because `python tools/loop-stats.py` says so over 60 sessions, and says it three different
-   ways at once: cheapest, best-value and fastest-safe all land on two, which projects to 198,360 against
-   the 200,000 ceiling at 0.98x the tokens of two separate sessions. Three projects to 249,076, and 8 of
-   those 60 sessions had already finished over the line. Re-derive it after any run that changes what a
-   session reads — the projection now opens where the *next* session will open rather than where the last
-   ones did, so a pass that cuts the pack shows up in the cap immediately. The 120k gate is what keeps a
-   second slice inside the ceiling and is unchanged.
+   **The gate is the budget, not a count**, because a slice's cost is not fixed and a count prices every
+   slice as the most expensive one. A session's fixed cost is 32 of its 81 calls — 14 to orient, 18 to
+   verify and wrap — and it is the same for a three-line slice as for a three-hundred-line one, so a slice
+   that only writes a test over landed work buys that 39% a second time when it gets a session to itself.
+   One lowering slice spends the 120k by itself; five test-writing slices over one file set do not, and a
+   rule counting slices cannot tell those apart. This replaced a cap of 2, which `python
+   tools/loop-stats.py` had derived three ways at once — and could not have derived otherwise, because it
+   prices a slice from sessions that each did one hard one. Take the **ceiling** from that tool after any
+   run that changes what a session reads: its projection opens where the *next* session will open, so a
+   pass that cuts the pack shows up immediately. Leave the number of slices to the 120k gate.
 3. **Verify what you touched, once, at the end of the group** — `python tools/verify.py`, plus whatever the
    change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
    verification happens**, and a group shares one run: the build is the same build.

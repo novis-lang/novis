@@ -22,15 +22,17 @@ added; that file is authoritative for steps 1–5.
    the unscoped version; reach for it only when you genuinely need something outside the goal, and say so
    in the handoff so the manifest gains the selector.
 2. **Do the work — as much of the group as fits under the context ceiling.** `orient.py` prints your item
-   in full and the rest of the group one line each. **Take the first. Then take a second only if both are
-   true: it touches files you have already loaded, and you are under 120k of context with the first one
-   committed. Never take a third.** The context test is the one that matters and it is a *measurement*, not
+   in full and the rest of the group one line each. **Take the first. Then keep taking slices while both
+   are true: the next touches files you have already loaded, and you are under 120k of context with the
+   previous one committed.** The context test is the one that matters and it is a *measurement*, not
    a judgement — the first session run under a two-slice rule with no number on it took § 9's two
-   collections and ended at 235,448 against a 200,000 ceiling. 120k leaves the ~45k a second slice has
-   historically cost plus the ~33k tail of verification, docs, handoff and commits. If you are past it,
-   stop at one and say in the handoff where you stopped; what you do not reach stays ticked-off-able for
-   the next session, and the ceiling is a quality number, not a capacity one. The cap itself and the
-   measurement behind it live in `AGENTS.md` § *Session workflow* step 2, which is their only home.
+   collections and ended at 235,448 against a 200,000 ceiling. 120k leaves the ~45k a *hard* slice has
+   historically cost plus the ~33k tail of verification, docs, handoff and commits — and a slice that only
+   writes a test over landed work costs a fraction of that, which is the whole reason the gate counts
+   context and not slices. If you are past it, stop and say in the handoff where you stopped; what you do
+   not reach stays ticked-off-able for the next session, and the ceiling is a quality number, not a
+   capacity one. The gate itself and the measurement behind it live in `AGENTS.md` § *Session workflow*
+   step 2, which is their only home.
 3. **Verify once, at the end of the group — and start it before you write the wrap.** `python
    tools/verify.py --start` returns at once, `python tools/verify.py --wait` collects it with its exit
    status, and the wrap file gets written in between: it is the same steps and the same verdict, with the

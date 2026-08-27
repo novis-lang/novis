@@ -36,8 +36,8 @@ same week, opposite instruction. So:
 
 | If `loop-stats.py` now says | Then |
 |---|---|
-| Sessions finish **over** the ceiling | The cap is one slice and the lever is *reading less*: whole files only when small, regions otherwise, and nothing re-read that orientation already printed. Grouping is not available until sessions land under the line. |
-| Sessions finish **well under** the ceiling | Grouping is back on. Take the cap the projection prints, preferring the knee over the fastest. |
+| Sessions finish **over** the ceiling | The lever is *reading less*: whole files only when small, regions otherwise, and nothing re-read that orientation already printed. Do **not** answer it with a slice count. A session that blew the ceiling inside its first slice never reached the group gate, so no count could have saved it — while a count does stop the sessions that finished with headroom to spare. The 120k gate is the one that binds, and it binds on context. |
+| Sessions finish **well under** the ceiling | Grouping is paying. It needs no new number: the 120k gate lets a session keep taking slices exactly as long as it has room. Read the projection for the **ceiling**, not for a count of slices. |
 | Fixed cost is a small share of a session | Grouping has stopped paying whatever the context says. Look at parallel lanes instead (coordinator.md's last section). |
 | Sessions are compacting | The ceiling is far too high — compaction loses the standing instructions the run depends on. Drop it until it stops, and treat every result from that run as suspect. |
 | Calls per message is above 1 | Batching finally happened, so the clock constants shifted but the context ones did not. Re-derive before trusting any earlier ratio; batching buys turns, never tokens. It has never happened by hand — 0 in 3,647 calls — which is why reading goes through `peek.py` instead. |
