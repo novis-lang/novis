@@ -2,62 +2,53 @@
 
 ## State
 
-**M4 — language completeness.** **A closure carries what its parameters require, and the call
-checks them.** Two reserved fields sit ahead of the captures now: `FN_ARITY` in slot 0 and
-`FN_PARAM_TAGS` in slot 1 (`crates/mwl-ir/src/lower/mod.rs:2680`), the second holding one nibble
-per parameter — the `mwl_runtime::Tag` discriminant an argument in that position must carry,
-parameter 0 in the low four bits, sixteen parameters to a slot. It is written at the literal
-(`crates/mwl-ir/src/lower/expr.rs:3231`) out of `param_tags_word`
-(`crates/mwl-ir/src/lower/closure.rs:59`), because the declared types are readable there and
-nowhere below this crate.
+**M4 — language completeness.** **A closure's declared parameter types are checked at the call, and
+the one conversion ADR 0007 § 2 admits there is applied rather than refused.** The check itself is
+`check_param_tags` (`crates/mwl-runtime/src/closure.rs:325`), reached from `call_closure` and
+therefore from both callers — a `Core` member's callback and ADR 0031's `$fn(...)`. Two `.mwlt`
+cases under `tests/conformance/lang/` pin it from MWL, each asking the same closure of both callers
+so a check that grew a second entry point fails rather than printing plausibly twice.
 
-`check_param_tags` (`crates/mwl-runtime/src/closure.rs:312`) compares one nibble per argument
-inside `call_closure`, which is the single path a `Core` member's callback and ADR 0031's
-`$fn(...)` both take — putting it in either caller would have left the other holding the hole. A
-mismatch is a catchable `LogicError` (`crates/mwl-runtime/src/closure.rs:373`), so
-`Core\Arr::map($ints, fn (string $s): string => $s)` throws where it used to read an `int` payload
-as an `MwlStr` pointer. That is the priority-1 hole the previous handoff named, closed.
+The widening: an `int` or `uint` arriving at a `float` parameter is converted in place through
+`mwl_runtime::helpers::widen_to_float` (`crates/mwl-runtime/src/helpers.rs:750`), which reads the
+same `row::int_to_float`/`uint_to_float` a written `as float` does, so the 2^53 boundary cannot
+drift between the two spellings. Past it the throw is `ArithmeticError`
+(`crates/mwl-runtime/src/closure.rs:392`) — the class ADR 0007 § 4 names, which `helpers`'
+`does_not_fit` still cannot reach and says so in its own `# Known gap`. Because the check now
+*converts*, `call_closure` builds its `slots` vector first and checks over that copy: the caller
+keeps owning the `int` it passed, and neither tag is refcounted, so the retain sweep is unchanged.
 
-Neither `mwl-ir` nor `mwl-runtime` can name the other, so `param_tag_nibble`
-(`crates/mwl-ir/src/lower/mod.rs:2705`) is held against `mwl_codegen::ty::tag_of` by two unit tests
-in `crates/mwl-codegen/src/ty.rs` — see the playbook bullet for why that shape rather than a new
-dependency edge.
+The previous handoff's recorded divergence is closed, not carried. Nothing else in this area is
+open below the front end.
 
-**One divergence, recorded rather than kept quiet:** the comparison is exact, so an `int` argument
-to a `float` parameter throws instead of widening, which ADR 0007 § 2 *does* admit at a parameter
-position. `check_param_tags`'s own `# Known gap` states it and names the row that closes it; it is
-the second slice below.
-
-`verify.py` 6 of 6 green — conformance 617, differential 173.
+`verify.py` 6 of 6 green — conformance 619, differential 173.
 
 ## Next group
 
-**Pin the check from MWL, then let through the one conversion it refuses.** The file set:
-`tests/conformance/lang/`, `crates/mwl-codegen/tests/closures.rs`,
-`crates/mwl-runtime/src/closure.rs`.
+**Pin the same two rules from native code, then settle what a callback's *key* argument carries.**
+The file set: `crates/mwl-codegen/tests/closures.rs`, `crates/mwl-runtime/src/closure.rs`,
+`crates/mwl-stdlib/src/arr.rs`.
 
-- [ ] **A `.mwlt` case pinning both sides, through both callers.** A matching call runs and a
-      mismatched one is caught, once through a `Core` member (`Core\Arr::filter`) and once through
-      `$f(...)`; a `mixed` parameter accepts either. The message to expect is at
-      `crates/mwl-runtime/src/closure.rs:373`, and
-      `tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.mwlt` is the
-      neighbour whose shape to follow.
-- [ ] **An `int` or `uint` argument widens into a `float` parameter instead of throwing** — ADR
-      0007 § 2's one implicit conversion, at `crates/mwl-runtime/src/closure.rs:312`, substituting
-      the converted value into the slot before the retain loop in `call_closure`
-      (`crates/mwl-runtime/src/closure.rs:125`). The 2^53 rule already has one implementation:
-      `crates/mwl-runtime/src/helpers.rs:516`. Above it, throw as that row does.
 - [ ] **A codegen test that a mismatched argument throws out of a native caller**, beside
-      `a_closure_object_carries_its_own_arity_in_slot_zero`
-      (`crates/mwl-codegen/tests/closures.rs:27`) — the layout test that says whether slot 1 is
-      still where both crates think it is.
+      `crates/mwl-codegen/tests/closures.rs:77` — that test already drives a `Core` member into a
+      throwing closure and is the harness to copy. Assert the `LogicError` message at
+      `crates/mwl-runtime/src/closure.rs:403` and that the partial result leaks nothing, which is
+      the half a `.mwlt` case cannot see.
+- [ ] **A codegen test for the widening and its bound**, in the same file: an `int` argument
+      reaching a `float` parameter as a `float`, and `2^53 + 1` throwing at
+      `crates/mwl-runtime/src/closure.rs:392`. Beside it, the unit tests in
+      `crates/mwl-codegen/src/ty.rs` that hold `param_tag_nibble` against `tag_of` are where a new
+      `Ty` row would have to be noticed.
+- [ ] **Decide and pin what a callback's key argument carries.** `Core\Arr::filter` renders every
+      key as a `string` before the call (`crates/mwl-stdlib/src/arr.rs:912`), and `map` and the rest
+      do the same, so a two-parameter predicate over a *list* that declares `int $k` now throws
+      where before the check it read an integer key's payload as an `MwlStr`. Spec § 2's callback
+      rule is the home for the answer; whichever way it goes, a `.mwlt` case pins it.
 
 ## Backlog
 
-- `object` as a declared type has no representation arm — 2 sites, `python tools/holes.py --item 25`.
-- ADR 0007 § 4's promotion table still has 11 refusal sites — `python tools/holes.py --item 1`.
-- `$x++`/`--$x` (5 sites) and named/spread arguments (3 sites) — items 7 and 16 of the same tool.
-- A closure declaring more than 16 parameters is refused at the call and no case reaches it —
-  `crates/mwl-runtime/src/closure.rs:312`'s `# Errors`.
-- `mwl_runtime::Tag::Array`'s doc comment still says "no representation exists yet"; `Value::array`
-  has built one since (`crates/mwl-runtime/src/value.rs:274`).
+- `Core\Arr::filter`'s `wants_key` reads the arity but not the tags, so a key argument is built for
+  a two-parameter closure before anything checks it — `crates/mwl-stdlib/src/arr.rs:892`.
+- The remaining M4 language holes, ordered by file set in `docs/agent/loop-goal.md`.
+- `python tools/holes.py` is the live worklist; `python tools/loop.py --list` names the `.mwlt`
+  cases each stage still owes.

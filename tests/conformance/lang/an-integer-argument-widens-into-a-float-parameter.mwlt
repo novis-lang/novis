@@ -1,0 +1,47 @@
+--TEST--
+An `int` or `uint` argument widens into a closure's `float` parameter, and is refused past 2^53 — ADR 0007 §§ 2, 4, ADR 0031 § 1
+--FILE--
+<?mwl
+// ADR 0007 § 2: an `int` or `uint` in a `float` position is the one implicit
+// conversion the language has. A `callable` carries no parameter list (ADR
+// 0031 § 1), so no checker saw this call site to insert it — the comparison in
+// `mwl_runtime::call_closure` applies it where it would otherwise refuse.
+callable $half = fn (float $f): float => $f / 2.0;
+
+// Agreement, not one answer: the same closure and the same argument through
+// `$fn(...)` and through a `Core` member's callback. A widening that lived in
+// one caller would still print plausibly on the other's line.
+array<int> $ints = [7];
+array<mixed> $mapped = Core\Arr::map($ints, $half);
+echo "direct ", $half(7) as string, " callback ", Core\Json::encode($mapped), "\n";
+
+// `uint` is a tag of its own and takes the same row.
+uint $nine = 9;
+echo "uint ", $half($nine) as string, "\n";
+
+// Both sides of the bound, named together: 2^53 is the last integer an `f64`
+// represents exactly, and the first one past it throws rather than rounding —
+// ADR 0007 § 2's rule, as ADR 0007 § 4's `ArithmeticError`.
+echo "at 2^53 ", $half(9007199254740992) as string, "\n";
+try {
+    float $past = $half(9007199254740993) as float;
+    echo "past 2^53 did not throw, ", $past as string, "\n";
+} catch (Throwable $e) {
+    echo "past 2^53: ", $e->message, "\n";
+}
+
+// The one row, and no second. It does not read backwards: a `float` arriving
+// at a `string` parameter is the ordinary exact-comparison refusal.
+callable $wantsString = fn (string $s): string => $s;
+try {
+    string $bad = $wantsString(1.5) as string;
+    echo "backwards did not throw, ", $bad, "\n";
+} catch (Throwable $e) {
+    echo "backwards: ", $e->message, "\n";
+}
+--EXPECT--
+direct 3.5 callback [3.5]
+uint 4.5
+at 2^53 4.5035996273705E+15
+past 2^53: cannot convert argument 1 to a `callable` from `int` to `float`
+backwards: argument 1 to a `callable` must be of type string, float given

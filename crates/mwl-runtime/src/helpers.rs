@@ -734,6 +734,30 @@ fn to_float(value: Value) -> Option<f64> {
     }
 }
 
+/// ADR 0007 § 2's one *implicit* conversion — an `int` or `uint` arriving in a
+/// `float` position — as a value-to-value row, for the one caller that cannot
+/// reach it through a lowered `as`.
+///
+/// `crate::closure::check_param_tags` is that caller: a `callable` carries no
+/// parameter list (ADR 0031 § 1), so no checker ever saw the call site and
+/// nothing inserted the widening conversion the declared `float` earns. It is
+/// applied there instead, out of the same [`row`] set every written `as float`
+/// goes through, so the 2^53 boundary cannot drift between the two spellings.
+///
+/// `None` where that row refuses — the magnitude past which an `f64` stops
+/// representing every integer — and for any other tag, which the caller has
+/// already excluded.
+pub(crate) fn widen_to_float(value: Value) -> Option<Value> {
+    match value.tag() {
+        Some(Tag::Int) => value.as_int().and_then(row::int_to_float).map(Value::float),
+        Some(Tag::Uint) => value
+            .as_uint()
+            .and_then(row::uint_to_float)
+            .map(Value::float),
+        _ => None,
+    }
+}
+
 crate::mwl_helper! {
     /// `mwl_ir::Helper::TaggedToInt` — ADR 0007 § 2's checked `as int` over an
     /// operand whose representation is `mwl_ir::ty::Ty::Tagged`, so [`to_int`]'s

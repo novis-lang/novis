@@ -1328,6 +1328,12 @@ is why" — is this file.
   `a-named-and-spread-argument-match-phps`; renaming afterwards is a `git mv` plus a re-run, but the
   owed name is also a *specification* — it said "and a spread by position", which is a row the first
   draft did not have.
+- **`echo` writes its arguments one at a time, so a throwing call inside an `echo` list prints
+  everything to its left first.** A `try { echo "did not throw, ", $f(1) as string, "\n"; }` that is
+  *meant* to throw leaves `did not throw, ` on stdout ahead of the `catch`'s own line, and the
+  `--EXPECT--` you then freeze pins that as correct. Bind the call first — `string $s = $f(1) as
+  string; echo "did not throw, ", $s, "\n";` — so the negative branch prints nothing at all when the
+  positive one is what happens.
 
 ## Splitting a file that got too big
 

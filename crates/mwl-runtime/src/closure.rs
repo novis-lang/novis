@@ -42,8 +42,9 @@
 //! answers a bad arity with. It sits in [`call_closure`] because that is the
 //! one path *both* callers take, a `Core` member's callback and ADR 0031's
 //! `$fn(...)` alike; putting it in either caller would leave the other one
-//! holding the hole. What it costs, and the one conversion it refuses that
-//! ADR 0007 admits, are that function's own doc comment.
+//! holding the hole. What it costs, and the one argument it converts rather
+//! than compares — ADR 0007 § 2's `int`-into-`float` widening, which no checker
+//! was there to insert — are that function's own doc comment.
 
 use crate::abi::{Fault, MwlFn, OK};
 use crate::ctx::Ctx;
@@ -116,7 +117,8 @@ const CLOSURE_PARAM_TAGS_CAPACITY: usize = 16;
 /// throws or faults, so the exception the callee recorded in `ctx` reaches
 /// the request unchanged rather than being replaced by a message from here.
 /// [`Fault::Thrown`] for an argument whose tag is not the one the closure
-/// declares in that position — [`check_param_tags`], which runs before
+/// declares in that position, and which ADR 0007 § 2's `int`-into-`float`
+/// widening does not reconcile — [`check_param_tags`], which runs before
 /// anything is retained or passed.
 /// [`Fault::Fatal`] when `closure` is not a closure value at all, or declares
 /// more parameters than the caller has to offer — both engine faults: the
@@ -132,7 +134,6 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
             args.len()
         ))
     })?;
-    check_param_tags(closure, args)?;
     #[expect(
         unsafe_code,
         reason = "the address came out of a live descriptor's method table, \
@@ -144,6 +145,11 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
     let mut slots = Vec::with_capacity(args.len() + 1);
     slots.push(closure);
     slots.extend_from_slice(args);
+    // Over this frame's own copy rather than the caller's slice, because the
+    // check both refuses and *converts*: a widened `int` must reach the callee
+    // as a `float` while the caller keeps owning the `int` it passed. Neither
+    // tag is refcounted, so the retain below is unaffected by the substitution.
+    check_param_tags(closure, &mut slots[1..])?;
     #[expect(
         unsafe_code,
         reason = "every value here is one the caller already owns a reference \
@@ -284,19 +290,26 @@ pub fn closure_arity(closure: Value) -> Result<usize, Fault> {
 /// ordering names, and the only design available while `callable` stays
 /// unparameterized.
 ///
-/// # Known gap
+/// # The one conversion, rather than a refusal
 ///
-/// The comparison is exact, so an `int` argument to a `float` parameter throws
-/// rather than widening, which is the one implicit conversion
-/// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2 admits at a
-/// parameter position. Closing it means converting the value here under that
-/// ADR's 2^53 rule — `crate::helpers`'s `int_to_float` row is the one
-/// implementation — and until then a throw is the answer, because the
-/// alternative it replaced was reading the payload at the wrong width.
+/// The comparison is exact everywhere except the single position
+/// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2 admits an
+/// implicit conversion: an `int` or `uint` arriving at a `float` parameter is
+/// *widened in place* rather than refused, through
+/// [`crate::helpers::widen_to_float`] and therefore through the same row a
+/// written `as float` takes. Above 2^53 that row refuses, and so does this —
+/// as `ArithmeticError`, the class ADR 0007 § 4 names for a numeric overflow,
+/// which a helper failure cannot reach (see `crate::helpers`'s `does_not_fit`)
+/// but this function can.
+///
+/// Because it converts, `args` is the caller's *copy* rather than the caller's
+/// slice; [`call_closure`] owns that distinction.
 ///
 /// # Errors
 ///
-/// [`Fault::Thrown`] carrying [`crate::ThrownClass::Logic`] for a mismatched
+/// [`Fault::Thrown`] carrying [`crate::ThrownClass::Arithmetic`] for an
+/// integer argument to a `float` parameter that the widening above cannot
+/// represent exactly, and [`crate::ThrownClass::Logic`] for a mismatched
 /// argument, and for a closure declaring more parameters than
 /// [`CLOSURE_PARAM_TAGS_CAPACITY`] can record — a program can reach both and a
 /// program-reachable failure is a throw
@@ -309,7 +322,7 @@ pub fn closure_arity(closure: Value) -> Result<usize, Fault> {
 /// does not hold an `int`, or when either side carries a byte that denotes no
 /// representation at all — each of those is a compiler or runtime bug rather
 /// than something a program can write.
-fn check_param_tags(closure: Value, args: &[Value]) -> Result<(), Fault> {
+fn check_param_tags(closure: Value, args: &mut [Value]) -> Result<(), Fault> {
     let ptr = closure.obj_ptr().ok_or_else(|| {
         Fault::fatal(format!(
             "internal error: a `callable` argument carried tag {} rather than an object",
@@ -332,7 +345,7 @@ fn check_param_tags(closure: Value, args: &[Value]) -> Result<(), Fault> {
     // bits either way, and only the nibbles are ever read.
     let word = u64::from_ne_bytes(word.to_ne_bytes());
 
-    for (i, arg) in args.iter().enumerate() {
+    for (i, arg) in args.iter_mut().enumerate() {
         if i >= CLOSURE_PARAM_TAGS_CAPACITY {
             return Err(Fault::thrown_as(
                 crate::ThrownClass::Logic,
@@ -364,6 +377,26 @@ fn check_param_tags(closure: Value, args: &[Value]) -> Result<(), Fault> {
             ))
         })?;
         if given != required {
+            // ADR 0007 § 2's one implicit conversion, and there is no second:
+            // an `int` or `uint` arriving at a `float` parameter widens under
+            // that ADR's 2^53 rule instead of being refused. It is applied
+            // here because no checker saw this call site to insert it — a
+            // `callable` has no parameter list (ADR 0031 § 1) — and out of
+            // `crate::helpers`'s own row, so the boundary is the same one a
+            // written `as float` lands on.
+            if required == Tag::Float && matches!(given, Tag::Int | Tag::Uint) {
+                *arg = crate::helpers::widen_to_float(*arg).ok_or_else(|| {
+                    Fault::thrown_as(
+                        crate::ThrownClass::Arithmetic,
+                        format!(
+                            "cannot convert argument {} to a `callable` from `{}` to `float`",
+                            i + 1,
+                            given.describe()
+                        ),
+                    )
+                })?;
+                continue;
+            }
             return Err(Fault::thrown_as(
                 crate::ThrownClass::Logic,
                 format!(
