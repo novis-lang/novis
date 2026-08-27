@@ -334,6 +334,24 @@ pub(super) fn infer(
                 arm_types.push(check_expr(&arm.body, None, live, scope, ctx, env));
             }
             if arm_types.is_empty() {
+                // A `match` is an expression, so an arm-less one has no value
+                // for the position it sits in — every path through it throws.
+                // PHP agrees on the behaviour (`UnhandledMatchError`, on every
+                // evaluation) and only disagrees on when it is said; refusing
+                // it here loses no program that ran, and it is what keeps
+                // `mwl_ir::lower::Lowering::lower_match` from having to invent
+                // a value for a phi with no incoming edge.
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_MATCH_NO_ARMS,
+                        "a `match` with no arms has no value".to_owned(),
+                    )
+                    .with_primary(expr.span, "every path through this `match` throws")
+                    .with_help(
+                        "write the arm this was meant to have, or `throw` outright if the \
+                         intent was to refuse every subject",
+                    ),
+                );
                 env.interner.mixed()
             } else {
                 env.interner.make_union(arm_types)

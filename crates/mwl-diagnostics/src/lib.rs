@@ -768,6 +768,15 @@ pub mod code {
     /// level that names none has nothing to lower to.
     /// `mwl_types::locals` is where the enclosing depth is counted.
     pub const E_BREAK_LEVEL: Code = Code::new("E0475");
+    /// A `match` written with no arms at all.
+    ///
+    /// PHP parses one and throws `UnhandledMatchError` on every evaluation,
+    /// so the construct has no reachable value there either. MWL refuses it
+    /// where it is written instead: a `match` is an *expression*, and one
+    /// whose every path throws has nothing for the position it sits in to
+    /// bind, pass or return. Nothing that worked is lost — a written arm, or
+    /// a `throw` expression, says the same thing and says it on purpose.
+    pub const E_MATCH_NO_ARMS: Code = Code::new("E0476");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.
