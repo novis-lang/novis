@@ -1,11 +1,29 @@
 # Setting up a machine
 
 What a machine needs before `python tools/verify.py` or the acceptance run mean anything. One-time, per
-machine. How the repo is *driven* once it is set up — `verify.py`, `splice.py`, WSL one-liners, valgrind,
-fuzzing — is [docs/agent/commands.md](agent/commands.md); this file is only the install list.
+machine, and this file is the whole of it: the install list, then the few things a `git clone` does not
+carry. How the repo is *driven* once it is set up — `verify.py`, `splice.py`, WSL one-liners, valgrind,
+fuzzing — is [docs/agent/commands.md](agent/commands.md).
 
 **On Windows, WSL is not optional and PHP is installed twice, at the same version.** That is the pair a new
 machine gets wrong. The rest is a Rust toolchain that installs itself.
+
+**Moving development to another machine is this file and nothing else.** Everything that decides what
+happens next is committed — the plan, the goal, [handoff.md](agent/handoff.md) — so a clone plus the steps
+below lands the new machine where the old one stopped. § *What a clone does not carry* is the part that is
+not an install; § *Picking up where the last machine left off* is the order to do it all in.
+
+## Getting the repository
+
+```sh
+git clone https://github.com/novis-lang/novis
+```
+
+`origin` is a self-hosted git server rather than GitHub, so the clone wants that host's credentials; on
+Windows a personal access token used as the HTTP password is the least painful form. **Where the tree lands
+does not matter.** Nothing under `tools/` hardcodes a path: `tools/loop.py` derives the WSL side's
+`/mnt/<drive>/…` from wherever the repo actually is. Keep it on the Windows filesystem rather than inside
+the distro — the native leg is the primary one, and the distro reaches it over the 9p mount.
 
 ## Every platform
 
@@ -15,7 +33,7 @@ machine gets wrong. The rest is a Rust toolchain that installs itself.
 | Python 3.11+ | Everything in `tools/`. No third-party package is ever required. | `python --version` |
 | PHP on `PATH`, at the version in [the plan](implementation-plan.md)'s status block § *Toolchain* — that field is the version's one home, and it reads 8.5 today | The differential oracle. A `tests/differential/` case runs its `--ORACLE--` twin under real PHP and compares stdout, so a machine without it **skips** those cases instead of failing them. It is also the fastest way to settle a semantics question while authoring: `php -r '…'`. | `php -v` |
 | Node.js 20 LTS or newer, with `npm` — **from M4B onward** | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `mwl lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
-| Bun — **optional, benchmarks only** | The fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case ([ADR 0100](adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5). Nothing else in the tree reads it: without Bun, run `python tools/bench.py --engines mwl,php,python` and the suite is otherwise unchanged. No build, test or loop session touches it. | `bun --version` |
+| Bun — **optional, benchmarks only** | The fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case ([ADR 0100](adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5). Nothing else in the tree reads it: without Bun, run `python tools/bench.py --engines mwl,php,python` and the suite is otherwise unchanged. No build, test or loop session touches it. Its Windows installer does not always land on `PATH`; `python tools/bench.py --bun <path>` takes the executable explicitly. | `bun --version` |
 | VS Code — **from M4B onward** | Two different things. `@vscode/test-electron` downloads its **own** pinned build into `editors/vscode/.vscode-test/` for the extension-host tier, so a system install is not what that test runs against; the system install is what you drive the extension in by hand, which is the entire point of pulling M4B ahead of M10. Fetch the test build once (below) and nothing afterwards touches the network. | `code --version` |
 
 MWL generates native code, so "it compiles here" is a weaker claim in this repository than in most. CI
@@ -71,6 +89,38 @@ runs the valgrind sweep directly. Install a C toolchain, PHP 8.5, and (on Linux)
 `cargo-fuzz` still needs a nightly toolchain. macOS has no valgrind, so the leak sweep is a Linux or WSL
 machine's job.
 
+## What a clone does not carry
+
+Four things sit outside what git tracks. Only the first is not optional.
+
+1. **The commit hooks.** git does not version `.git/hooks`, so `tools/git-hooks/` is inert until this clone
+   is pointed at it:
+
+   ```sh
+   git config core.hooksPath tools/git-hooks
+   ```
+
+   `verify.py` prints a line every run until it is set. What the hook rejects, and why, is
+   [docs/agent/conventions.md](agent/conventions.md) § *A commit message*.
+2. **A git identity**, if the machine has no global one — `git config user.name` and `user.email`. Every
+   session ends in commits, so a machine that cannot commit cannot finish one.
+3. **The PHP corpus** — optional, and silently so. `crates/mwl-syntax/tests/corpus_parse.rs` parses a
+   directory of real-world `.php` files and asserts only that the parser does not panic; with no corpus it
+   **skips** rather than fails. Point `MWL_PHP_CORPUS` at any tree of `.php` files, or drop one at
+   `php-src/` in the workspace root, which is gitignored for the purpose.
+4. **Machine-local harness settings** — optional. `.claude/settings.json` is committed and carries the
+   shared permission allowlist; `.claude/settings.local.json` is per-machine and is not.
+
+CI installs `cargo-deny` and `cargo-geiger`; a development machine needs neither. `cargo-fuzz` is the WSL
+side's, above.
+
+## What does not travel, and should not
+
+`.loop/`, `.agent-tmp/`, `target/` and `.mwl-cache/` are gitignored, and copying one to the new machine is
+worse than leaving it: `.loop/goal-green.json` remembers which expensive checks were green *for a given
+tree and toolchain fingerprint*, and it re-earns itself on the first run. `.agent-tmp/` is scratch. A stale
+green is what costs a debugging session, so do not archive them "just in case".
+
 ## Proving the machine is set up
 
 ```sh
@@ -90,3 +140,18 @@ npm run test:headless                                     # grammar, contributio
 The middle one is the check that actually catches a missing PHP: what matters is **`0 skipped`**. A suite
 whose oracle cannot be run prints one `no PHP oracle` line per case and still **exits 0**, so nothing else
 in this repository will tell you the coverage is gone.
+
+## Picking up where the last machine left off
+
+Once those are green, in this order:
+
+1. `git status` and `git log --oneline -5`. The old machine's last session committed everything it did, so
+   a clean tree sitting at `origin/main` *is* the handover.
+2. **`python tools/brief.py`** — the plan's status, one line per milestone and per module, the guard tests,
+   what is on disk. Step 1 of every session, machine move or not ([AGENTS.md](../AGENTS.md)).
+3. [docs/agent/handoff.md](agent/handoff.md) — where the work stands now, and the next group of slices with
+   the file set they share. It is overwritten each session, so it is state rather than history.
+4. `python tools/loop.py` if the unattended loop is what runs next; its design is
+   [docs/agent/coordinator.md](agent/coordinator.md).
+
+None of that is machine-specific, which is the point: the handover is the repository.
