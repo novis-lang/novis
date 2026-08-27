@@ -775,6 +775,12 @@ is why" — is this file.
   live one, and grepping for the *tag* it claims to catch is the cheap way to tell them apart.
   `crates/mwl-stdlib/tests/allocation_policy.rs`'s `no_member_revalidates_a_string_argument` is the
   source scan that keeps the pair out now.
+- **The WSL valgrind leg has to be launched from PowerShell, not from the Bash tool.** `wsl.exe --
+  bash /mnt/<drive>/<repo>/tools/leak-check.sh <case>` under Git Bash dies with *"bash: C:/Program
+  Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory"* — MSYS rewrites any argument
+  that looks like a POSIX path into a Windows one before `wsl.exe` ever sees it, and the error names
+  a path nobody typed. The same command through the PowerShell tool runs unchanged; `MSYS_NO_PATHCONV=1`
+  is the other way. This is one call's worth of confusion every time a session adds a refcount edge.
 
 ## Writing a test case
 

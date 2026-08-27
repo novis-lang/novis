@@ -41,16 +41,15 @@
 > [docs/agent/loop-goal.md](agent/loop-goal.md). A hole is a shape that compiles in the front end
 > and then refuses below it; it is closed when it either runs with a fixture or a `.mwlt` case
 > pinning what it prints, or is refused by a **diagnostic that names the rule** — never by a panic.
-> An increment is a write like any other, so `$a?->b++`, `$g->hooked["0"]++` and
-> `$erased->rows["0"]++` now take the same `E0479`/`E0478`/`E0480` the plain assignment already did,
-> in place of three panics; a typed declaration with no initializer (`int $x;`) and the empty
-> statement `;` both lower. Inline HTML lowers as the write `echo` already emits, over its raw span,
-> and a `class`, `interface` or `enum` declared anywhere but file scope is `E0233` rather than a
-> panic. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
-> cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> The statement dispatch has no shape left that the checker accepts: ADR 0007 § 3.3's `[int $a,
+> string $b] = $pair;` lowers as the subscripts it is spelled out of and refuses what one refuses
+> (`E0482`/`E0401`/`E0483`), inline HTML lowers over its raw span, a nested
+> `class`/`interface`/`enum` is `E0233`, an increment takes its write target's own
+> `E0479`/`E0478`/`E0480`, and `int $x;` and `;` both lower. Three live tools **are** the worklist
+> and no session re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and
+> `mwl-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.mwlt` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

@@ -71,10 +71,10 @@
 
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
-    ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind,
-    FnBody, FnExpr, ForeachBinding, IncDecOp, MatchArm, MethodMember, Modifier, NamespaceDecl,
-    NewTarget, ObjectLiteralField, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAtom,
-    TypeKind, UnaryOp as AstUnaryOp,
+    ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind,
+    DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
+    IncDecOp, MatchArm, MethodMember, Modifier, NamespaceDecl, NewTarget, ObjectLiteralField, Stmt,
+    StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::EnumTable;
 use mwl_types::expr_table::{ArgSlot, ExprInfo, ExprTypeTable, ForeachDrive};

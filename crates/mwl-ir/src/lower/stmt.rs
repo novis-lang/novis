@@ -219,20 +219,22 @@ impl<'a> Lowering<'a> {
                 finally,
             } => self.lower_try(body, catches, finally.as_ref(), cur, env),
             StmtKind::InlineHtml(span) => self.lower_inline_html(*span, cur, env),
-            // One shape the checker accepts still arrives here, and it is its
-            // own scheduled item rather than a gap in this dispatch: ADR
-            // 0050's `[$a, $b] = $pair` destructuring. A class, interface or
-            // enum declared inside a body used to be the other one, and is now
-            // `E0233` from `mwl_types::locals` — the decision is in
-            // `docs/adr/README.md` § *Decisions taken at project start*, since
-            // PHP's "declared when the statement runs" has no reading a static
-            // class table can give it.
+            StmtKind::Destructure { target, value } => {
+                self.lower_destructure(target, value, cur, env);
+            }
+            // Nothing the checker accepts reaches this arm any more. The two
+            // shapes that used to went out opposite doors: ADR 0007 § 3.3's
+            // destructuring lowers, one arm above, and a class, interface or
+            // enum declared inside a body is `E0233` from `mwl_types::locals`
+            // — the decision is in `docs/adr/README.md` § *Decisions taken at
+            // project start*, since PHP's "declared when the statement runs"
+            // has no reading a static class table can give it.
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a typed local declaration with or \
-                 without an initializer, a plain reassignment, `echo`, inline HTML, `unset`, \
-                 `return`, an empty statement, a nested block, `if`, `while`, `do`/`while`, \
-                 `for`, `foreach`, `switch`, `try`/`catch`, `throw` and a loop-scoped \
-                 `break`/`continue` — got {other:?}; see the crate docs' known gaps"
+                 without an initializer, a plain reassignment, destructuring, `echo`, inline \
+                 HTML, `unset`, `return`, an empty statement, a nested block, `if`, `while`, \
+                 `do`/`while`, `for`, `foreach`, `switch`, `try`/`catch`, `throw` and a \
+                 loop-scoped `break`/`continue` — got {other:?}; see the crate docs' known gaps"
             ),
         }
     }
@@ -1257,6 +1259,158 @@ impl<'a> Lowering<'a> {
             self.emit_release(*cur, key_v);
         }
         self.write_back_array(base, written, env, cur);
+    }
+    /// ADR 0007 § 3.3's `[int $a, string $b] = $pair;` — a run of element
+    /// reads off one subject, and nothing else at all.
+    ///
+    /// Every leaf is the subscript it is spelled out of: `$pair[0]`,
+    /// `$pair[1]`, or `$pair[k]` where the element writes a `k =>`. So a
+    /// missing key **throws** exactly as that subscript would
+    /// ([`AbsentKey::Throws`], ADR 0007 § 7 row 11's divergence — PHP warns
+    /// and binds `null`), a leaf binds exactly as
+    /// [`StmtKind::LocalDecl`]'s own arm binds an initializer, and the
+    /// element read is at the *element's* representation rather than the
+    /// leaf's: `mwl_types::locals` records that type under the leaf's own
+    /// span as the same [`ExprInfo::Index`] entry a subscript gets, and
+    /// [`Self::coerce`] takes it from there to the declared one, which is
+    /// how `[float $f] = $ints;` widens where ADR 0007 § 2 says it does.
+    ///
+    /// **The subject is lowered once**, whatever the pattern's depth, and a
+    /// nested target reads through the borrowed element rather than a copy
+    /// of it. A fresh producer (`[int $a] = rows();`) is staged on the
+    /// owned-temporaries stack for the whole statement, so a throw out of
+    /// any element read drops it on the way — [`Self::lower_index`]'s rule,
+    /// one statement wider — and so is a rendered key, which is why the
+    /// mark is taken before the subject and released only at the end.
+    ///
+    /// A leaf's *position* is its index in the pattern, `[, int $b]`'s
+    /// skipped slot included, and a `k =>` element occupies one like any
+    /// other rather than renumbering what follows it. PHP refuses to mix the
+    /// two spellings in one pattern at all, so nothing observable rides on
+    /// which answer this gives the mixture.
+    pub(super) fn lower_destructure(
+        &mut self,
+        target: &'a DestructureTarget,
+        value: &'a Expr,
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) {
+        let mark = self.temporaries_mark();
+        let (subject_v, subject_ty) = self.lower_expr(value, None, env, cur);
+        assert!(
+            subject_ty == Ty::Array,
+            "mwl-ir destructures only an `array<T>` — got {subject_ty:?}; a value that names no \
+             element type is `E0482` at `mwl_types::locals`, so this body was not checked"
+        );
+        if !self.aliasing_read(value) {
+            self.own_temporary(subject_v);
+        }
+        self.lower_destructure_target(target, subject_v, cur, env);
+        self.release_temporaries_since(mark, *cur);
+    }
+    /// One level of [`Self::lower_destructure`]'s pattern, against the array
+    /// that level takes apart. Recurses for a nested target, whose own
+    /// subject is the element just read.
+    fn lower_destructure_target(
+        &mut self,
+        target: &'a DestructureTarget,
+        subject: ValueId,
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) {
+        for (position, element) in target.elements.iter().enumerate() {
+            match element {
+                DestructureElement::Skip => {}
+                DestructureElement::Leaf {
+                    key,
+                    ty,
+                    name,
+                    span,
+                    ..
+                } => {
+                    let decl_ty = ty.as_ref().expect(
+                        "mwl_types reports E0101 for a destructuring leaf with no declared type",
+                    );
+                    let declared = lower_decl_type(decl_ty, self.exprs, self.checked_types);
+                    let elem_ty = self.destructured_element_ty(*span);
+                    let v =
+                        self.read_destructured(subject, key.as_ref(), position, elem_ty, cur, env);
+                    let v = self.coerce(*cur, v, elem_ty, declared, env);
+                    let lname = strip_sigil(span_text(self.src, *name)).to_owned();
+                    // The read borrows the entry the array still owns, so the
+                    // binding takes a reference of its own — the same
+                    // `is_aliasing_read` answer `Self::bind_local` computes
+                    // for a `$a = $pair["0"];` written out by hand.
+                    self.bind_local_value(*cur, env, lname, v, declared, true);
+                }
+                DestructureElement::Nested { key, target, .. } => {
+                    let nested = self.read_destructured(
+                        subject,
+                        key.as_ref(),
+                        position,
+                        Ty::Array,
+                        cur,
+                        env,
+                    );
+                    self.lower_destructure_target(target, nested, cur, env);
+                }
+                _ => {}
+            }
+        }
+    }
+    /// The representation a destructuring leaf's element read answers in,
+    /// which is the element type of the array being taken apart and not the
+    /// leaf's own declared type — see [`Self::lower_destructure`].
+    fn destructured_element_ty(&self, span: Span) -> Ty {
+        let Some(ExprInfo::Index { elem_ty, .. }) = self.exprs.lookup(span) else {
+            panic!(
+                "mwl-ir: a destructuring leaf at {span:?} has no element type recorded in the \
+                 typed-expression table — `mwl_types::locals` records one for every leaf it \
+                 accepts, so this body was not checked with the same table"
+            );
+        };
+        lower_checked_ty(*elem_ty, self.checked_types)
+    }
+    /// One element read out of a destructuring subject: `subject[key]`, or
+    /// `subject[position]` where the element writes no key.
+    ///
+    /// A rendered key is staged rather than released here, for
+    /// [`Self::lower_index`]'s reason — the read below can throw, and the
+    /// landing block releases the stack the whole statement opened.
+    fn read_destructured(
+        &mut self,
+        subject: ValueId,
+        key: Option<&'a Expr>,
+        position: usize,
+        result_ty: Ty,
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) -> ValueId {
+        let key_v = match key {
+            Some(key) => {
+                let (key_v, key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
+                if key_ty.is_refcounted() && !key_aliasing {
+                    self.own_temporary(key_v);
+                }
+                key_v
+            }
+            None => {
+                let index = i64::try_from(position)
+                    .expect("a destructuring pattern has far fewer than i64::MAX elements");
+                self.emit(*cur, Ty::Int, InstKind::ConstInt(index)).0
+            }
+        };
+        self.emit_fallible(
+            *cur,
+            result_ty,
+            InstKind::ArrayGet {
+                array: subject,
+                key: key_v,
+                absent: AbsentKey::Throws,
+            },
+            env,
+        )
+        .0
     }
     /// Whether lowering `e` twice observes the same value and runs no side
     /// effect the second time — the precondition
