@@ -141,6 +141,36 @@ a check being skipped: the inputs are bit-identical. Only green is cached, the e
 hour, and `--no-cache` forces the real thing. A `--fast` or `-p`-scoped verdict never satisfies a wider
 run; a wider one does satisfy a narrower.
 
+## Trying a snippet against PHP
+
+```sh
+python tools/try.py .agent-tmp/promo.mwlt .agent-tmp/div.mwlt .agent-tmp/shift.mwlt
+python tools/try.py .agent-tmp/*.mwlt          # the whole scratch pad, one call
+python tools/try.py --keep .agent-tmp/promo.mwlt
+```
+
+Each file is in the `.mwlt` shape — `--TEST--`, `--FILE--`, `--ORACLE--` — or, with no markers at all, a
+bare `<?mwl` snippet. `try.py` runs the MWL, runs the `--ORACLE--` through PHP, prints both and says
+whether they agree and where they first do not. Write the files with the Write tool, as many as you have
+questions, and run them in one call.
+
+**Two things this replaces, and the second is the important one.** Measured over a 33-session run,
+sessions made **370 snippet-running calls, 335 of them distinct** — 9.6 a session — each one a heredoc
+into `.agent-tmp` followed by a hand-written `php -r` beside it. The turns are the cheap half. The
+expensive half is that a hand-written twin is a *translation*, made under time pressure by the same agent
+that wrote the MWL, at the moment it most wants the answer to be yes — and a twin that quietly differs
+from what it is checking reads exactly like proof. Priority 2 is PHP-compatible observable behaviour;
+that is not a place to accept a translation nobody ran.
+
+**An experiment that comes out right is already the case.** Give the file its `--TEST--` sentence, move it
+under `tests/differential/`, and `mwl test` runs the same two programs the same way — there is no second
+translation step, which is the step the drift used to happen in. [conventions.md](conventions.md) § *A
+`.mwlt` test case* owns the format.
+
+`try.py` needs `target/debug/mwl` built; `verify.py` builds it, so a snippet run after a green
+verification needs nothing. It judges nothing and exits 0 even when a twin disagrees — that is the
+finding, not an error.
+
 ## Finishing a session: steps 4 and 5 in one call
 
 ```sh
