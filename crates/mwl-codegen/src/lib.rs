@@ -154,17 +154,18 @@
 //!    one address either way — so what this costs is unit bytes and some
 //!    instruction-cache locality, and closing it means keying a map on the
 //!    literal's bytes beside `emit::Emitter::define_literal`'s counter.
-//! 5. **Integer `/` does not compile.**
+//! 5. **Integer `/` compiles, and it is the one operator that picks its
+//!    result representation at run time.**
 //!    [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 types
 //!    `int / int` as `int|float` — PHP-exact, so `6/3` is an integer and `7/2`
-//!    is not. That union now has a representation ([`mwl_ir::Ty::Tagged`], and
-//!    [`ty::clif_ty`] gives it a machine type), so what is left is the
-//!    *operator*: `BinOp::Div` emits one instruction for one representation,
-//!    and a tagged result would need it to pick at runtime. It is refused a
-//!    phase earlier today regardless, since `mwl_types` does not yet widen
-//!    that union to `float` at a binding, which is what makes `float $avg =
-//!    $sum / $n;` the ADR's own worked example. Integer `%` has no such
-//!    problem — its result is the operand type — and compiles.
+//!    is not — and that union's representation is [`mwl_ir::Ty::Tagged`], so
+//!    `emit_binop` hands the row to its own `emit_int_div`: a zero-divisor
+//!    guard in front, then a branch on whether the remainder is zero, joining
+//!    at a phi that carries the tagged value. The signed overflow
+//!    `i64::MIN / -1` takes the inexact arm rather than a second throw,
+//!    because PHP answers a `float` for it. `mwl_ir::lower::Lowering::coerce`
+//!    is where the union is absorbed back into a declared `float`, which is
+//!    what makes `float $avg = $sum / $n;` the ADR's own worked example.
 //! 6. **[`mwl_ir::ir::Terminator::Switch`] lowers to a compare chain, not a
 //!    jump table.** Correct for any case set — the IR deliberately does not
 //!    require a dense or sorted one — and the arms are few in the one

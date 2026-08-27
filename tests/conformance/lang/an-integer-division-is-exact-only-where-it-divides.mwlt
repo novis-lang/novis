@@ -1,0 +1,60 @@
+--TEST--
+Integer `/` answers an integer exactly where the divisor divides and a float otherwise, and the union widens at a declared `float` — ADR 0007 §§ 2, 4
+--FILE--
+<?mwl
+// ADR 0007 § 4 types `int / int` as `int|float` — "PHP-exact, so `6/3` is an
+// integer and `7/2` is a float" — so which of the two a pair produces is a
+// run-time question and the only thing a program can observe about it is how
+// the value renders. The sweep is counted rather than read off a line: an
+// implementation that answers a float for every row prints plausibly on any
+// single one of them.
+//
+// `as` binds tighter than any binary operator (§ 2), so the quotient needs its
+// own parentheses before it can be rendered.
+int $six = 6;
+int $three = 3;
+int $seven = 7;
+int $two = 2;
+int $ten = 10;
+int $four = 4;
+int $zero = 0;
+int $nine = 9;
+int $minusSeven = 0 - 7;
+
+int $agree = 0;
+if ((($six / $three) as string) == "2") { $agree += 1; }
+if ((($seven / $two) as string) == "3.5") { $agree += 1; }
+if ((($minusSeven / $two) as string) == "-3.5") { $agree += 1; }
+if ((($nine / $three) as string) == "3") { $agree += 1; }
+if ((($ten / $four) as string) == "2.5") { $agree += 1; }
+if ((($zero / $four) as string) == "0") { $agree += 1; }
+if ((($six / $four) as string) == "1.5") { $agree += 1; }
+echo "quotients rendering exactly: ", $agree, " of 7\n";
+
+// The `uint` row of the same table, whose union is `uint|float`.
+uint $ua = 8;
+uint $ub = 4;
+uint $uc = 7;
+int $uagree = 0;
+if ((($ua / $ub) as string) == "2") { $uagree += 1; }
+if ((($uc / $ub) as string) == "1.75") { $uagree += 1; }
+echo "uint quotients: ", $uagree, " of 2\n";
+
+// § 4's own worked example: "in practice the union is absorbed by the target's
+// declared type through the `int → float` widening in *2*". `int $n = 7 / 2;`
+// is a diagnostic for the same reason and is pinned where the diagnostics are.
+float $avg = $seven / $two;
+echo "widened at the binding: ", $avg, "\n";
+
+// The one row of the table that is not a value at all.
+try {
+    var $bad = $six / $zero;
+    echo "no throw\n";
+} catch (Throwable $dz) {
+    echo "zero divisor: ", $dz->message, "\n";
+}
+--EXPECT--
+quotients rendering exactly: 7 of 7
+uint quotients: 2 of 2
+widened at the binding: 3.5
+zero divisor: Division by zero

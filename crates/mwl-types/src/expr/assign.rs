@@ -42,7 +42,11 @@ use super::*;
 /// [`shape_satisfied`]'s call), never narrows. ADR 0047 § 4 adds the last:
 /// `"a" → string`, `Mode::Read → Mode`, and each of those over a union, are
 /// free — see the widening step below for why one recursion states all four
-/// rows and why the reverse direction needs no rule to refuse it.
+/// rows and why the reverse direction needs no rule to refuse it. ADR 0007
+/// § 2's own amendment is the last: `int`/`uint` widen into a `float`
+/// position, that being the one implicit conversion the language has, and a
+/// union source is therefore satisfied member-wise against any target —
+/// which is how § 4's `int|float` quotient reaches a declared `float`.
 ///
 /// Takes the interner by `&mut` for that one step: asking whether `from`
 /// widens to `to` means naming the type it widens *to*, and naming a type in
@@ -106,6 +110,29 @@ pub(crate) fn is_assignable(
                 .all(|member| satisfies(member, interner)),
             _ => satisfies(from, interner),
         };
+    }
+    // ADR 0007 § 2's implicit conversion, and the whole of it: "Implicit
+    // conversion happens in exactly one place: **`int` or `uint` widening into
+    // a `float` position**, which is the one coercion PHP's own
+    // `strict_types` permits, and it throws above 2^53 rather than rounding."
+    // The throw is `mwl_ir::lower::Lowering::coerce`'s half; here it is only
+    // the accepting.
+    //
+    // A *union* source is checked member-wise against a non-union target for
+    // this row's sake rather than as a rule of its own — ADR 0007 § 4's
+    // `int|float` quotient reaching a declared `float` is the one shape that
+    // needs it, and it is the ADR's own worked example (`float $avg = $sum /
+    // $n;`). Written as a general member-wise check because that is what the
+    // relation means, and because narrowing the rule to the quotient's exact
+    // two unions would make `is_assignable` name an operator.
+    if let Ty::Union(from_members) = interner.get(from) {
+        let from_members = from_members.clone();
+        return from_members
+            .into_iter()
+            .all(|member| is_assignable(member, to, interner, graph, signatures));
+    }
+    if matches!(interner.get(to), Ty::Float) && matches!(interner.get(from), Ty::Int | Ty::Uint) {
+        return true;
     }
     if matches!(interner.get(to), Ty::Object)
         && matches!(interner.get(from), Ty::Class(..) | Ty::Shape(_))
