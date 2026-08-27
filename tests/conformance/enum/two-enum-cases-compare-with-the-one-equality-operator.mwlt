@@ -1,0 +1,106 @@
+--TEST--
+`==` and `!=` over two cases of one enum answer their backing integers' comparison — ADR 0090 §§ 2, 3 and ADR 0010 §§ 3, 5
+--FILE--
+<?mwl
+enum Rank {
+    Bronze,
+    Silver,
+    Gold,
+}
+
+// ADR 0010 § 2: a case may name any integer, including zero and a negative
+// one. Zero is the case that would read falsy if an enum were judged by its
+// backing value, which ADR 0035 § 4 says it never is — and it is equally the
+// case an `==` implemented as "is it set" would get wrong.
+enum Signal {
+    Stop = -1,
+    Idle = 0,
+    Go = 10,
+}
+
+final class Dispatch {
+    public static function of(Signal $s): Signal {
+        return $s;
+    }
+}
+
+final class Holder {
+    public Rank $rank;
+
+    public function constructor(Rank $rank) {
+        $this->rank = $rank;
+    }
+}
+
+// ADR 0090 § 2: an enum is its own equality domain — a case against its
+// underlying integer does not compile, and neither do two different enums.
+// So the property `==` has is agreement with the comparison ADR 0010 § 3
+// makes cheap, over every ordered pair rather than on one line.
+array<Rank> $ranks = [Rank::Bronze, Rank::Silver, Rank::Gold];
+int $pairs = 0;
+int $agree = 0;
+foreach ($ranks as Rank $a) {
+    foreach ($ranks as Rank $b) {
+        $pairs = $pairs + 1;
+        if (($a == $b) == (($a as int) == ($b as int))) {
+            $agree = $agree + 1;
+        }
+        if (($a != $b) == (($a as int) != ($b as int))) {
+            $agree = $agree + 1;
+        }
+    }
+}
+echo $pairs, ",", $agree, "\n";
+
+// The same agreement over the enum whose cases run negative through zero,
+// asserted as a count so a row answering plausibly still fails.
+array<Signal> $signals = [Signal::Stop, Signal::Idle, Signal::Go];
+int $equal = 0;
+foreach ($signals as Signal $x) {
+    foreach ($signals as Signal $y) {
+        if ($x == $y) {
+            $equal = $equal + 1;
+        }
+    }
+}
+echo $equal, "\n";
+
+// The zero-backed case named on both sides, and against its neighbours.
+Signal $held = Signal::Idle;
+echo ($held == Signal::Idle) as string, "|";
+echo ($held == Signal::Stop) as string, "|";
+echo ($held != Signal::Go) as string, "\n";
+
+// A case that crossed a call boundary and a property slot compares the same:
+// ADR 0010 § 3 makes it an integer constant, so nothing about it is identity.
+Signal $returned = Dispatch::of(Signal::Go);
+echo ($returned == Signal::Go) as string, "|";
+Holder $h = new Holder(Rank::Silver);
+echo ($h->rank == Rank::Silver) as string, "|";
+echo ($h->rank == Rank::Gold) as string, "|\n";
+
+// `==` in the one position a condition tests without `as bool` (ADR 0035).
+if ($h->rank != Rank::Bronze) {
+    echo "not bronze\n";
+}
+
+// ADR 0010 § 2's other backing type. `2^64 − 1` has no `int`, so this pair is
+// the one an equality reading the payload as a *signed* integer would still
+// answer for while `<` would not — what it pins here is that a `uint`-backed
+// enum reaches its own representation rather than falling through.
+enum Mask: uint {
+    None = 0,
+    All = 18446744073709551615,
+}
+Mask $m = Mask::All;
+echo ($m == Mask::All) as string, "|";
+echo ($m == Mask::None) as string, "|";
+echo ($m != Mask::None) as string, "|";
+echo (($m == Mask::All) == (($m as uint) == (Mask::All as uint))) as string, "\n";
+--EXPECT--
+9,18
+3
+1||1
+1|1||
+not bronze
+1||1|1

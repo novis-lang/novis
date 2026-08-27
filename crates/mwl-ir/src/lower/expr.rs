@@ -2357,6 +2357,29 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
+        // ADR 0090 § 2's enum row: an enum is its own equality domain — a
+        // case against its underlying integer is a compile error and two
+        // different enums are disjoint, so a pair that reaches here is one
+        // enum compared with itself. It is answered one representation down,
+        // on the integer its cases *are* (ADR 0010 § 3): `Ty::Enum` is a
+        // zero-byte tag over that integer, so the free `Reinterpret` row 1 of
+        // ADR 0010 § 5 already uses for `$m as int` turns the comparison into
+        // the machine compare `mwl-codegen` has — its `BinOp` table is
+        // `Ty::Int`/`Ty::Uint`/`Ty::Bool` and has no `Ty::Enum` row at all.
+        //
+        // Only `==`/`!=` are relabelled. `<` over two cases has no row in any
+        // ADR, and ADR 0090 § 2 keeps the two domains apart on purpose, so
+        // ordering an enum stays something `$e as int` says out loud.
+        let (lv, lty, rv, rty) = if matches!(op, BinaryOp::Eq | BinaryOp::NotEq)
+            && matches!(lty, Ty::Enum(_))
+            && matches!(rty, Ty::Enum(_))
+        {
+            let (lv, lty) = self.reinterpret_enum_to_backing(lv, lty, cur);
+            let (rv, rty) = self.reinterpret_enum_to_backing(rv, rty, cur);
+            (lv, lty, rv, rty)
+        } else {
+            (lv, lty, rv, rty)
+        };
         // ADR 0090 § 2's numeric row: `int`, `uint` and `float` are one
         // domain, so the checker accepts `$n == $f` where the two operands
         // have two *representations*. That pairing is settled here, exactly
@@ -3941,6 +3964,37 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// Relabels an enum value as the `int`/`uint` its cases *are*, leaving
+    /// every other representation exactly as it arrived.
+    ///
+    /// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 3 makes
+    /// a case a compile-time integer constant, and [`Ty::Enum`] is a zero-byte
+    /// tag over it — so this is the free [`InstKind::Reinterpret`] row 1 of
+    /// that ADR's *5* already uses for `$m as int`, emitting no machine
+    /// instruction at all. Every comparison over an enum goes through it,
+    /// because `mwl-codegen`'s `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool`
+    /// and carries no `Ty::Enum` row: ADR 0047 § 5's membership chain, and
+    /// ADR 0090 § 2's `==` between two cases of one enum.
+    ///
+    /// Nothing is released or retained around it: an enum is a scalar, so the
+    /// relabelled value borrows no ownership from the operand.
+    fn reinterpret_enum_to_backing(
+        &mut self,
+        value: ValueId,
+        value_ty: Ty,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        match value_ty {
+            Ty::Enum(EnumRepr::Int) => {
+                self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: value })
+            }
+            Ty::Enum(EnumRepr::Uint) => {
+                self.emit(*cur, Ty::Uint, InstKind::Reinterpret { operand: value })
+            }
+            _ => (value, value_ty),
+        }
+    }
+
     /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 5's
     /// membership test: a chain of equality comparisons, each branching
     /// straight to the one block where the conversion succeeded, with the
@@ -3970,22 +4024,9 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) {
         // An enum operand is tested one representation down, on the integer
-        // its cases *are* (ADR 0010 § 3). `Ty::Enum` is a zero-byte tag over
-        // that integer, so this is the free `Reinterpret` row 1 of ADR 0010
-        // § 5 already uses for `$m as int` — and it is what keeps the chain
-        // below a machine compare, since `mwl-codegen` lowers `BinOp::Eq`
-        // over `Ty::Int`/`Ty::Uint` and not over `Ty::Enum`. The value the
-        // conversion answers with is untouched: this reinterpret feeds the
-        // comparisons alone.
-        let (value, value_ty) = match value_ty {
-            Ty::Enum(EnumRepr::Int) => {
-                self.emit(*cur, Ty::Int, InstKind::Reinterpret { operand: value })
-            }
-            Ty::Enum(EnumRepr::Uint) => {
-                self.emit(*cur, Ty::Uint, InstKind::Reinterpret { operand: value })
-            }
-            _ => (value, value_ty),
-        };
+        // its cases *are*. The value the conversion answers with is
+        // untouched: this reinterpret feeds the comparisons alone.
+        let (value, value_ty) = self.reinterpret_enum_to_backing(value, value_ty, cur);
         let hit = self.new_block();
         for member in &accepted.members {
             let (kind, ty) = match member {
