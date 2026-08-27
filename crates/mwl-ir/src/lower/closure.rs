@@ -42,6 +42,44 @@ pub(super) struct PendingClosure {
     pub(super) ret: Ty,
 }
 
+/// The [`FN_PARAM_TAGS`] word for `fn_expr` — one nibble per declared
+/// parameter, in declaration order, least significant first.
+///
+/// Read at the *literal*, where the declared types are still in hand, and
+/// stored in the object the literal builds; that constant owns the encoding
+/// and why the object carries it at all. Parameters past
+/// [`FN_PARAM_TAGS_CAPACITY`] contribute no nibble, which is what makes
+/// `mwl_runtime::call_closure` refuse the call rather than pass an argument it
+/// cannot judge.
+///
+/// # Panics
+///
+/// Naming ADR 0007 § 1 for a parameter with no declared type, exactly as
+/// [`lower_closure`] does for the same parameter list.
+pub(super) fn param_tags_word(
+    fn_expr: &FnExpr,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> i64 {
+    let mut word: u64 = 0;
+    for (i, p) in fn_expr
+        .params
+        .iter()
+        .take(FN_PARAM_TAGS_CAPACITY)
+        .enumerate()
+    {
+        let decl_ty =
+            p.ty.as_ref()
+                .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
+        let nibble = param_tag_nibble(lower_decl_type(decl_ty, exprs, checked_types));
+        word |= u64::from(nibble) << (i * 4);
+    }
+    // A sixteenth parameter puts a nibble in the sign bit. The slot holds the
+    // same 64 bits whichever way they are read, and the reader takes them
+    // apart nibble by nibble.
+    i64::from_ne_bytes(word.to_ne_bytes())
+}
+
 /// Lowers every pending closure, and every closure *those* bodies contain, to
 /// exhaustion.
 pub(super) fn drain_closures(
@@ -217,9 +255,11 @@ pub(super) fn lower_closure(
         },
         std::iter::once(crate::ir::Class {
             label: class.clone(),
-            // `FN_ARITY` first, always — a native caller reads it by index,
-            // not by name. See that constant.
-            fields: std::iter::once(FN_ARITY.to_owned())
+            // `FN_ARITY` first and `FN_PARAM_TAGS` second, always — a native
+            // caller reads both by index, not by name, so a capture's slot is
+            // its position in this list plus two. See those constants.
+            fields: [FN_ARITY.to_owned(), FN_PARAM_TAGS.to_owned()]
+                .into_iter()
                 .chain(captures.iter().map(|(n, _)| n.clone()))
                 .collect(),
             // A closure's environment is never a `SlotSet` receiver: it has no

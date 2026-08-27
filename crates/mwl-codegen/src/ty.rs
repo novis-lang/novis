@@ -123,3 +123,55 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         }
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mwl_ir::lower::{FN_PARAM_TAG_ANY, param_tag_nibble};
+
+    /// A closure object records one nibble per parameter and
+    /// `mwl_runtime::call_closure` compares it against the tag an argument
+    /// actually carries — so `mwl_ir::lower::param_tag_nibble` has to answer
+    /// exactly the byte [`tag_of`] answers. Neither of those crates can name
+    /// the other, and this one names both: a representation whose two answers
+    /// drift apart makes every call through such a closure either refuse a
+    /// good argument or accept a mismatched one, which is the priority-1 hole
+    /// the nibble exists to close.
+    #[test]
+    fn param_tag_nibbles_are_the_runtime_tag_bytes() {
+        let reprs = [
+            Ty::Bool,
+            Ty::Int,
+            Ty::Uint,
+            Ty::Float,
+            Ty::Decimal,
+            Ty::Null,
+            Ty::Object,
+            Ty::Str,
+            Ty::Bytes,
+            Ty::Array,
+            Ty::Enum(EnumRepr::Int),
+            Ty::Enum(EnumRepr::Uint),
+            Ty::Ref,
+            Ty::ClassDesc,
+        ];
+        for ty in reprs {
+            let tag = tag_of(ty).expect("every representation above has a tag");
+            assert_eq!(
+                param_tag_nibble(ty),
+                tag as u8,
+                "the nibble recorded for a {ty:?} parameter is not the tag one carries"
+            );
+        }
+    }
+
+    /// The other half: the one nibble that is not a tag has to stay out of the
+    /// roster, or a `mixed` parameter would read back as a demand for whatever
+    /// tag happened to take that number.
+    #[test]
+    fn the_any_nibble_denotes_no_tag_at_all() {
+        assert!(Tag::from_byte(FN_PARAM_TAG_ANY).is_none());
+        assert_eq!(param_tag_nibble(Ty::Tagged), FN_PARAM_TAG_ANY);
+        assert!(tag_of(Ty::Tagged).is_err());
+    }
+}

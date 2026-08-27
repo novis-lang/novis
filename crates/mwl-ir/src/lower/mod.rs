@@ -2641,6 +2641,90 @@ pub(crate) const FN_INVOKE: &str = "invoke";
 /// carry too.
 pub(crate) const FN_ARITY: &str = "fn#arity";
 
+/// The reserved **second** field of every closure's environment class: which
+/// runtime tag each parameter of [`FN_INVOKE`] requires, packed one nibble
+/// per parameter into the slot's `int` payload, parameter 0 in the least
+/// significant nibble.
+///
+/// # Why the object carries it
+///
+/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+/// gives `callable` no parameter list, so **no checker can compare a call site
+/// against the body it will reach** — and the compiled `invoke` reads argument
+/// slot *i* at its own declared representation, which turns a mismatch into an
+/// arbitrary dereference rather than a fault. That is a priority-1 hole, so
+/// the one party that still knows the declared types — this lowering, at the
+/// literal — writes them down for the one party that can act on them:
+/// `mwl_runtime::call_closure`, which compares before it passes.
+///
+/// A nibble is the `mwl_runtime::Tag` discriminant the argument must carry,
+/// so the reader needs no table of its own; [`param_tag_nibble`] is the map
+/// and `mwl-codegen`'s `param_tag_nibbles_are_the_runtime_tag_bytes` holds it
+/// against `mwl_codegen::ty::tag_of`, which is the same fact one crate over.
+/// [`FN_PARAM_TAG_ANY`] is the one nibble that is not a tag: a `mixed`, `?T`
+/// or union parameter is `Ty::Tagged`, whose representation *is* a tag byte
+/// chosen at run time, so nothing about the argument can be wrong.
+///
+/// # The bound, and what happens past it
+///
+/// Sixteen parameters fit ([`FN_PARAM_TAGS_CAPACITY`]). A closure declaring
+/// more gets no nibble for its seventeenth onward, and `mwl_runtime` refuses
+/// the *call* rather than passing a parameter it cannot check — fail-closed,
+/// under this repository's priority ordering, and unreachable from a callback
+/// the spec describes, which is handed two arguments.
+///
+/// One further 16-byte slot per closure, per evaluation of the literal, beside
+/// [`FN_ARITY`]'s — priority 5 spent on priority 1, and bought against a
+/// per-parameter slot, which would cost the same at two parameters and more at
+/// every count above.
+pub(crate) const FN_PARAM_TAGS: &str = "fn#params";
+
+/// How many parameters [`FN_PARAM_TAGS`] describes: one nibble each, in the
+/// 64 bits of a slot's `int` payload.
+pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
+
+/// The [`FN_PARAM_TAGS`] nibble for a parameter no argument can be wrong for.
+///
+/// Deliberately not a `mwl_runtime::Tag` discriminant — the roster runs to
+/// eleven, so twelve is free and can never be mistaken for a tag a value
+/// actually carries.
+pub const FN_PARAM_TAG_ANY: u8 = 12;
+
+/// The [`FN_PARAM_TAGS`] nibble a parameter represented as `ty` requires.
+///
+/// The whole of this map is "the tag a value of that representation carries",
+/// which is `mwl_codegen::ty::tag_of` one crate over — `mwl-ir` cannot name
+/// `mwl_runtime::Tag` (it does not depend on it) and neither can `mwl-runtime`
+/// name this, so the two are held together by a test in `mwl-codegen`, which
+/// sees both. That is the same shape [`FN_ARITY`] and
+/// `mwl_runtime::CLOSURE_ARITY_SLOT` already stand in.
+///
+/// Exhaustive on purpose: a new [`Ty`] variant is a decision about what a
+/// closure parameter of that representation admits, and this is where it gets
+/// taken rather than defaulted.
+pub fn param_tag_nibble(ty: Ty) -> u8 {
+    match ty {
+        // `Ref` and `ClassDesc` ride in the payload of an otherwise-`null`
+        // slot, exactly as `tag_of` says; neither is writable as a parameter's
+        // declared type, and a `&$x` parameter is refused before it gets here.
+        Ty::Null | Ty::Ref | Ty::ClassDesc => 0,
+        Ty::Bool => 1,
+        // ADR 0010's enum travels as its backing integer, tag included.
+        Ty::Int | Ty::Enum(EnumRepr::Int) => 2,
+        Ty::Uint | Ty::Enum(EnumRepr::Uint) => 3,
+        Ty::Float => 4,
+        Ty::Str => 5,
+        Ty::Array => 6,
+        Ty::Object => 7,
+        Ty::Decimal => 10,
+        Ty::Bytes => 11,
+        // `Tagged` accepts every tag by construction. `Void` is not a value
+        // and cannot be written in a parameter position at all, so it has no
+        // argument to judge either.
+        Ty::Tagged | Ty::Void => FN_PARAM_TAG_ANY,
+    }
+}
+
 /// One lowered body, plus everything the ADR 0031 closures inside it
 /// synthesized.
 ///

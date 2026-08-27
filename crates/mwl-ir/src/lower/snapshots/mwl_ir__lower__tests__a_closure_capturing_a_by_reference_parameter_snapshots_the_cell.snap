@@ -11,9 +11,11 @@ fn T::make(classdesc, ref) -> object {
     v2 = new T$fn0()  ; object
     v3 = const.int 0  ; int
     field.set v2, T$fn0::fn#arity, v3
-    v4 = ref.load v1  ; string
-    retain v4
-    field.set v2, T$fn0::s, v4
+    v4 = const.int 0  ; int
+    field.set v2, T$fn0::fn#params, v4
+    v5 = ref.load v1  ; string
+    retain v5
+    field.set v2, T$fn0::s, v5
     return v2
 }
 

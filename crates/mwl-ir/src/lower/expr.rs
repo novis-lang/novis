@@ -3222,6 +3222,13 @@ impl<'a> Lowering<'a> {
         let arity = i64::try_from(fn_expr.params.len()).expect("a parameter list fits an i64");
         let (arity_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(arity));
         self.emit_field_set(*cur, obj, class.clone(), FN_ARITY.to_owned(), arity_v);
+        // The declared parameter types are readable here and nowhere below
+        // this crate — `callable` carries no parameter list for a call site to
+        // compare against (ADR 0031 § 1), so the object is what carries them
+        // to the one caller that can act on them. See `FN_PARAM_TAGS`.
+        let tags = param_tags_word(fn_expr, self.exprs, self.checked_types);
+        let (tags_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(tags));
+        self.emit_field_set(*cur, obj, class.clone(), FN_PARAM_TAGS.to_owned(), tags_v);
         let mut captured = Vec::with_capacity(names.len());
         for name in names {
             let &(v, ty) = env.get(&name).unwrap_or_else(|| {
