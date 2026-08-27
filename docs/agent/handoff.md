@@ -2,72 +2,77 @@
 
 ## State
 
-**M4 — `Lowering::convert`'s catch-all is down to two rows, and the `Core` half of
-`as string` is refused where it is written.** A `mixed`, a `?T` or any other union
-converted to `bytes` now takes ADR 0009 § 3's row from its runtime tag; a `Core`-owned
-class the spec gives no `toString` is `E0710` at the `echo` rather than a throw below it.
+**M4 — a `Core`-owned class renders where the spec gives it a `toString`, and the
+whole static half of ADR 0028 § 1 is closed.** `echo $uri`, `"$uri"`, `"" . $uri` and
+`$uri as string` are one call for one value, and they agree with `$uri->toString()`
+written out; a `Core` class with no `toString` was already `E0710` at the site.
 
-- **`$m as bytes` and `$m as ?bytes` are one row set.** `Helper::TaggedToBytes` and
-  `Helper::ToBytesOrNull` share `mwl_runtime::to_bytes`, which hands back the same
-  allocation under the other tag for a `Tag::Str` or a `Tag::Bytes` and answers nothing
-  for every other tag. Neither can fault, so the `?` twin is emitted plainly — the
-  `string` target is still the one `?` row carrying ADR 0002's error edge, because only
-  it can run a `toString()` body. Valgrind clean over a fixture exercising both.
-- **The statically typed `as bytes` reaches no helper at all** and did not change: it is
-  a free `InstKind::Reinterpret`, which is why `TaggedToBytes` is the one conversion
-  helper here with no static sibling. `mwl-ir`'s known gap 4 and the roster in its
-  crate docs are the home for what is left.
-- **`require_stringable_object` no longer exempts every `Core` class.** It asks
-  `mwl_stdlib::registry::class_renders`, which joins the two rosters that answer: three
-  classes have a `toString` row — `Core\Uri`, `Core\Uuid`, `Core\Time\Duration` — and the
-  two sink carriers render through ADR 0088 § 5 with no member at all. That function's
-  doc comment is the one home for the rule; every other `Core` class is `E0710`.
-- **A `Core` class that *does* render still throws**, and that is `mwl-ir`'s known gap 12
-  in full now: `resolve_method` finds the seeded signature, but the member is a native
-  symbol rather than an entry in a compiled method table, so nothing a `CallVirtual`
-  reaches exists.
+- **One check records, one lowering chooses.** `require_stringable_object` no longer
+  returns early for a `Core` class: whichever question it passed — `Stringable` for a
+  declared class, `mwl_stdlib::registry::class_renders` for a `Core` one — it records
+  the same resolved `toString` under the operand's span. `lower_to_string_call` then
+  asks `mwl_types::core_symbol_of`, and a `Core` member takes the native
+  `InstKind::CoreCall` its written-out spelling takes instead of a `CallVirtual` into a
+  method table it has no entry in. Nothing dispatches on the runtime class there,
+  because a `Core` class is final by construction.
+- **The ownership inverts with the call and that is the new refcount edge.** A native
+  member *borrows* argument 0, where a compiled one owns its parameters — so an
+  aliasing receiver is no longer retained and a fresh one (`echo Core\Uri::parse(…)`)
+  is the rendering site's to release, staged on the temporaries stack so a throwing
+  edge drops it too. Valgrind clean over a fixture that renders in a loop.
+- **ADR 0088 § 5's sink carrier is untouched and is why the two rows stay apart.** It
+  is the one rendering class with no `toString` member, so `resolve_method` finds
+  nothing, nothing is recorded, and it still renders its own bytes through
+  `mwl_runtime::stringify`. The new case pins that by rendering an `echo` through
+  `Core\Out::capture`, whose answer is a carrier.
+- **What is left of `mwl-ir`'s known gap 12 is the erased operand.**
+  `mixed $m = Core\Uri::parse(…); echo $m;` still throws "does not implement
+  `Stringable`": the runtime dispatch reads a compiled method table, and `mwl-runtime`
+  is below `mwl-stdlib` so it cannot ask the registry. That gap's own text names the
+  two shapes that could close it.
 
 ## Next group
 
-**The rendering half of `Core`'s `as string`, then the two rows `Lowering::convert`'s
-catch-all still names.** The file set:
-`crates/mwl-types/src/expr/operators.rs`, `crates/mwl-ir/src/lower/expr.rs`,
-`crates/mwl-stdlib/src/registry.rs`, `crates/mwl-runtime/src/helpers.rs`,
+**The two rows `Lowering::convert`'s catch-all still names, then the erased half
+above.** The file set: `crates/mwl-ir/src/lower/expr.rs`,
+`crates/mwl-runtime/src/helpers.rs`, `crates/mwl-stdlib/src/registry.rs`,
 `tests/conformance/lang/`.
 
-- [ ] **`echo $uri` on a `Core` class that has a `toString`** — `mwl-ir`'s known gap 12,
-      ADR 0028 § 1. The refusal half is done; what is missing is the *call*. A `Core`
-      member is an `InstKind::CoreCall` on the registry's symbol, not a `CallVirtual`, so
-      the recorded target `require_stringable_object` writes has to say which, or the
-      lowering has to ask the registry. Anchors:
-      `crates/mwl-types/src/expr/operators.rs:1600` (`require_stringable_object`, the
-      `Core` branch is at 1603), `crates/mwl-types/src/expr/operators.rs:1652`
-      (`record_to_string`), `crates/mwl-ir/src/lower/expr.rs:847`
-      (`lower_to_string_call`), `crates/mwl-stdlib/src/uuid.rs:150`,
-      `crates/mwl-stdlib/src/uri.rs:454`, `crates/mwl-stdlib/src/time.rs:259` (the three
-      `toString` rows). The runtime half, if the answer is a helper rather than a call,
-      is `crates/mwl-runtime/src/helpers.rs:985` (`stringify`).
 - [ ] **`$m as Plain` — a tagged operand converted to an object** — ADR 0007 § 6's
-      checked way out of `mixed`, and one of the two rows `Lowering::convert`'s
-      catch-all still names. Needs a class identity `Ty::Object` deliberately does not
-      carry, so the helper takes an `ir::Program::classes` label the way
-      `InstKind::ClassDescConst` already hands one to `Core\Json::decodeAs`. Anchors:
-      `crates/mwl-ir/src/lower/expr.rs:1288` (the catch-all),
-      `crates/mwl-ir/src/lower/expr.rs:1342` (`convert_or_null`, whose `?` twin closes
-      with it).
-- [ ] **`$xs as array<U>`** — the last row of that catch-all and the one that is no
-      single helper call: ADR 0007 § 2's O(n) element walk, "every element must satisfy
-      `U`". The `?` twin is the same walk answering `null` on the first element that
-      does not. Same two anchors as above; the element check is `mwl_types`' erasure
-      table, so read `erase_checked_ty` before deciding where the per-element type
-      comes from.
+      checked way out of `mixed`. The design is already resolved and needs no new
+      instruction, no new `Helper` row and no new `ExprInfo`: `InstKind::InstanceOf`
+      already takes a `Ty::Tagged` subject and answers `false` for a non-object tag
+      (`crates/mwl-codegen/src/emit.rs:2140` bakes the descriptor in), so the row is a
+      test, a `Terminator::Throw` on the false edge and an `InstKind::Untag` on the
+      true one. Write it at `crates/mwl-ir/src/lower/expr.rs:4746`
+      (`lower_conversion`'s `None =>` arm), **not** inside `convert`
+      (`crates/mwl-ir/src/lower/expr.rs:1032`), whose `cur` is by value and so cannot
+      branch; `lower_literal_membership`
+      (`crates/mwl-ir/src/lower/expr.rs:5240`) is the same test-then-throw shape with
+      `cur: &mut BlockId` and is the one to copy, and
+      `crates/mwl-ir/src/lower/closure.rs:385` is the synthesized `New` +
+      `Terminator::Throw` pair. The class name needs no new table: it is
+      `exprs.declared_ty(ty.span)` read back through `checked_types`, the route
+      `lower_decl_type` (`crates/mwl-ir/src/lower/mod.rs:2402`) already takes. A
+      `Helper` row is the wrong shape here — helper arguments are stored as `Value`s
+      (`crates/mwl-codegen/src/emit.rs:1802`), so a `Ty::ClassDesc` cannot ride one.
+- [ ] **`$xs as array<U>`** — the last row of that catch-all, ADR 0007 § 2's O(n)
+      element walk, and the one the playbook says blocks three written cases
+      (`Core\Csv::format`'s column refusal, a nested `array<mixed>` read). Catch-all at
+      `crates/mwl-ir/src/lower/expr.rs:1321`; its `?` twin is `convert_or_null`
+      (`crates/mwl-ir/src/lower/expr.rs:1380`), whose panic names the same row.
+- [ ] **A `Core` object behind a `mixed` renders** — gap 12's residual, above. It is a
+      `mwl-runtime`/`mwl-stdlib` boundary question, not a lowering one:
+      `crates/mwl-runtime/src/helpers.rs:985` (`stringify`) and
+      `crates/mwl-runtime/src/ctx.rs:179` (`is_carrier`, the roster shape that already
+      crosses the boundary by name).
 
 ## Backlog
 
-- `mwl-ir` gap 12's runtime half — `mwl_runtime::stringify` cannot see a native member
-  (crate docs, gap 12).
-- `mwl-codegen/src/ty.rs:116` and `:121` are two refusal sites `holes.py` attributes to
-  no item at all.
-- ADR 0010 § 5's integer *into* an enum has no lowering in either form (`mwl-ir` gap 4).
-- An abandoned generator's `finally` (standing decision, `docs/agent/loop-goal.md`).
-- `Core\Log` inspection and ADR 0024 § 4's sink list wait on M7/M8 `Core` classes.
+- `Lowering::convert`'s catch-all message still names both missing rows — rewrite it as
+  each lands (`crates/mwl-ir/src/lower/expr.rs:1321`).
+- The goal's `[context] playbook` selector prints neither of the two bullets about
+  `wsl.exe` needing `MSYS_NO_PATHCONV=1` from the Bash tool, so a session that runs the
+  documented `tools/leak-check.sh` invocation still pays for that call.
+- ADR 0028 § 2's abandoned-generator `finally`, pre-authorized in
+  `docs/agent/loop-goal.md` § *Standing decisions*.

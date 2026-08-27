@@ -168,14 +168,24 @@
 > agreeing because they are one check. Two rosters answer, and they are two rules: `Core\Uri`,
 > `Core\Uuid` and `Core\Time\Duration` have a `toString` row, and the two sink carriers render
 > through ADR 0088 § 5 with no member at all, which is `mwl_runtime::is_carrier`'s list read rather
-> than copied. What is left is the class that *does* render: its members are native rather than
-> entries in a compiled method table, so the runtime dispatch finds nothing and it throws where it
-> should have rendered — still `mwl_stdlib::registry`'s half, and it wants a native call rather than
-> a `CallVirtual`. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
-> cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> than copied. The class that *does* render now renders. `require_stringable` records the same
+> resolved `toString` target for a `Core` class that a declared one gets — a `Core` member resolves
+> out of the seeded signature table like any other — and `mwl-ir` asks `core_symbol_of` which of the
+> two calls to emit, so it takes the native `InstKind::CoreCall` the member written out takes rather
+> than a `CallVirtual` into a method table a `Core` class has no entry in. All four rendering
+> spellings therefore agree with `$uri->toString()` for each of the three classes the spec gives
+> one, and the receiver's ownership inverts with the call: a native member *borrows* argument 0, so
+> a fresh receiver (`echo Core\Uri::parse(…)`) is the rendering site's to release rather than the
+> callee's, which is valgrind-clean over a fixture that renders in a loop. What is left of that row
+> is the same class reached through an **erased** operand — a `Core` object behind a `mixed`
+> dispatches through `mwl_runtime::stringify`, which reads a compiled method table and so throws for
+> a value the static spelling renders. That one is not this crate's: `mwl-runtime` sits below
+> `mwl-stdlib` and cannot read the registry, so closing it is a question of what the two share, and
+> `mwl-ir`'s known gap 12 owns the two candidate shapes. Three live tools **are** the worklist and
+> no session re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and
+> `mwl-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.mwlt` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
