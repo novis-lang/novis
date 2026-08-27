@@ -614,6 +614,13 @@ pub(super) fn check_array_literal(
         _ => None,
     });
     for item in items {
+        if item.by_ref {
+            report_by_reference_element(item, env);
+        }
+        if item.spread {
+            check_spread_element(item, elem_expected, live, scope, ctx, env);
+            continue;
+        }
         if let Some(key) = &item.key {
             let key_ty = check_expr(key, None, live, scope, ctx, env);
             check_array_key_type(key_ty, key.span, env);
@@ -627,6 +634,90 @@ pub(super) fn check_array_literal(
             env.interner.array(mixed)
         }
     }
+}
+
+/// `[...$a]` — the subject's own elements have to satisfy the literal's.
+///
+/// A spread contributes the subject's *entries*, so what it owes is exactly
+/// what a written-out element owes, one level up: where the literal knows its
+/// element type the subject is checked against `array<that>`, which reports an
+/// ordinary `E0401` naming both array types when it does not fit — array reads
+/// being element-covariant ([`super::assign::is_assignable`]), spreading an
+/// `array<Dog>` into an `array<Animal>` is accepted for the same reason
+/// reading one is. This is why the check is an *expectation* rather than a
+/// comparison afterwards: it is the same rule as the surrounding loop's, and
+/// an inner literal spread into an outer one (`[...["a"]]`) gets the element
+/// type placed into it exactly as a nested literal would.
+///
+/// The subject still has to be an array at all, and where the position named
+/// no `array<T>` there is no expectation to catch that — a `mixed` binding or
+/// parameter is the reachable one, an `array<mixed>` position still expecting
+/// `array<mixed>`. `E0484` is that case and only that case, so `[...$s]` over
+/// a `string` is one diagnostic however it is written, never `E0401` and
+/// `E0484` together. The `env.diags.len()` guard is the
+/// same "a subject that already reported its own error is one mistake, not
+/// two" the `ExprKind::Index` arm uses.
+///
+/// **Nothing is recorded on the [`crate::expr_table`] side for a spread, and
+/// that is a decision rather than an omission.** The lowering reads
+/// `ArrayItem::spread` off the AST it already walks, and the one type it needs
+/// — the subject's — is what its own `lower_expr` hands back beside the value;
+/// an entry would be a second copy of two facts the lowering holds already.
+/// That is the opposite of `ExprInfo::Index`, which exists because a guarded
+/// read's element type is not recoverable below the checker at all.
+fn check_spread_element(
+    item: &ArrayItem,
+    elem_expected: Option<TypeId>,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let expectation = elem_expected.map(|elem| env.interner.array(elem));
+    let before = env.diags.len();
+    let subject_ty = check_expr(&item.value, expectation, live, scope, ctx, env);
+    let reported = env.diags.len() != before;
+    if reported || matches!(env.interner.get(subject_ty), Ty::Array(_)) {
+        return;
+    }
+    let rendered = env.interner.describe(subject_ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SPREAD_SUBJECT_NOT_AN_ARRAY,
+            "a `...` array element needs an `array<T>` to spread",
+        )
+        .with_primary(item.value.span, format!("this is `{rendered}`"))
+        .with_help(
+            "`...` contributes the subject's own entries to the array being built, so the \
+             subject has to have entries — write the value as an ordinary element instead",
+        ),
+    );
+}
+
+/// `&value` as an array-literal element is refused here rather than lowered.
+///
+/// PHP's `[&$x]` makes the element and `$x` the same storage, and MWL has no
+/// rule that can own one: ADR 0031 § 2 removed by-reference capture, so no
+/// binding aliases another, and ADR 0023 fixes an element as a copy taken
+/// where the literal is evaluated. So this is not a gap in `mwl-ir` — the
+/// panic it used to reach was reporting the absence of a feature the language
+/// decided against — and the refusal names the decision rather than the
+/// missing lowering. Checking continues past it: the element's value is an
+/// ordinary expression and its own errors are worth reporting in the same
+/// run.
+fn report_by_reference_element(item: &ArrayItem, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ARRAY_ELEMENT_BY_REFERENCE,
+            "an array element cannot be taken by reference",
+        )
+        .with_primary(item.span, "this element is `&value`")
+        .with_help(
+            "MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 \
+             makes an element a copy, so drop the `&` — to share one mutable cell, hold it in \
+             an object and store that",
+        ),
+    );
 }
 
 /// ADR 0007 § 5: every array key is a `string`, and an `int`/`uint` key

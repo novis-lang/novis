@@ -1,0 +1,40 @@
+--TEST--
+`&value` as an array-literal element is `E0483` at every depth, never a panic — ADR 0031 § 2 removed by-reference capture and ADR 0023 makes an element a copy, so an aliasing element has no owner in either
+--FILE--
+<?mwl
+string $x = "a";
+// ADR 0031 § 2 removed by-reference capture, so no binding aliases
+// another: this element is a copy of `$x` taken where the literal is
+// evaluated, and there is nothing for a write to travel back through.
+array<string> $a = [&$x];
+// The `&` sits on the value, so an element carrying an explicit key
+// takes the identical refusal.
+array<string> $b = ["k" => &$x];
+// Every element list is walked at every depth — an inner literal is an
+// element of the outer one, so a nested `&` is reported here rather than
+// surviving to `mwl-ir` as a panic.
+array<array<string>> $c = [["n" => &$x]];
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0483]: an array element cannot be taken by reference
+  --> %s:6:21
+  |
+6 | array<string> $a = [&$x];
+  |                     ^^^ this element is `&value`
+  = help: MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes an element a copy, so drop the `&` — to share one mutable cell, hold it in an object and store that
+
+error[E0483]: an array element cannot be taken by reference
+  --> %s:9:21
+  |
+9 | array<string> $b = ["k" => &$x];
+  |                     ^^^^^^^^^^ this element is `&value`
+  = help: MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes an element a copy, so drop the `&` — to share one mutable cell, hold it in an object and store that
+
+error[E0483]: an array element cannot be taken by reference
+   --> %s:13:29
+   |
+13 | array<array<string>> $c = [["n" => &$x]];
+   |                             ^^^^^^^^^^ this element is `&value`
+   = help: MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes an element a copy, so drop the `&` — to share one mutable cell, hold it in an object and store that
+
+error: aborting due to 3 errors

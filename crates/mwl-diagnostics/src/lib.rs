@@ -851,6 +851,30 @@ pub mod code {
     /// an exception: ADR 0009 § 2 indexes one by grapheme cluster through
     /// `Core\Str`, not through a subscript.
     pub const E_SUBSCRIPT_ON_NON_ARRAY: Code = Code::new("E0482");
+    /// `&value` as an element of an array literal.
+    ///
+    /// PHP's `[&$x]` stores a reference, so writing the element writes
+    /// `$x` too. MWL has nowhere to put one: ADR 0031 § 2 removed
+    /// by-reference capture, so no binding aliases another, and ADR 0023
+    /// fixes what a copy means, so an element is a copy at the point the
+    /// literal is evaluated. An aliasing element would therefore have no
+    /// owner in either rule — it is not a lowering that is missing, it is
+    /// a thing the language does not have. Write the value; to share one
+    /// mutable cell, put it in an object, exactly as ADR 0031 § 2's own
+    /// worked example does.
+    pub const E_ARRAY_ELEMENT_BY_REFERENCE: Code = Code::new("E0483");
+    /// `[...$x]` where `$x` is not an `array<T>`.
+    ///
+    /// A spread element contributes the subject's *entries* to the literal
+    /// being built, so a subject with no entries has nothing to contribute.
+    /// PHP's `[...$s]` over a string is a `TypeError` at run time; MWL's
+    /// element types are declared, so it is a diagnostic instead. Where the
+    /// literal does have an expected element type the mismatch is reported
+    /// as an ordinary [`E_TYPE_MISMATCH`] against `array<T>` instead, which
+    /// names both array types and is the better message — so this code is
+    /// only what a position naming no `array<T>` at all is left with, a
+    /// `mixed` binding or parameter being the reachable one.
+    pub const E_SPREAD_SUBJECT_NOT_AN_ARRAY: Code = Code::new("E0484");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

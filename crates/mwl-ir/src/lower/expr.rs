@@ -3646,9 +3646,14 @@ impl<'a> Lowering<'a> {
         env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        // `&value` never arrives here: `mwl_types` refuses it as `E0483`,
+        // because ADR 0031 § 2 and ADR 0023 between them leave an aliasing
+        // element no owner, so it is a shape the language does not have
+        // rather than one this function has not learned. `...spread` is
+        // still the latter.
         assert!(
-            items.iter().all(|item| !item.spread && !item.by_ref),
-            "mwl-ir does not yet lower a `...spread` or `&value` array-literal element \
+            items.iter().all(|item| !item.spread),
+            "mwl-ir does not yet lower a `...spread` array-literal element \
              — see the crate docs' known gaps"
         );
         if items.iter().all(|item| item.key.is_none()) {

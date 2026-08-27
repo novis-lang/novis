@@ -1,0 +1,41 @@
+--TEST--
+`[...$x]` checks the spread subject against `array<T>` for the literal's own `T` — ADR 0007 § 5, and `E0484` where the position names no `array<T>` to check against at all
+--FILE--
+<?mwl
+array<string> $a = ["x"];
+array<int> $n = [1];
+string $s = "s";
+// Accepted, and pinned by the absence of a diagnostic on this line: an
+// array read is element-covariant, and a spread is a read, so `array<string>`
+// contributes to an `array<mixed>` exactly as an element of it would.
+array<mixed> $wide = [...$a];
+// The subject is checked against `array<T>` for the literal's own `T`, so a
+// mismatch names both array types rather than the element alone.
+array<string> $rows = [...$n];
+// Not an array at all, in a position that does name an element type.
+array<string> $chars = [...$s];
+// The same mistake where the position names no `array<T>` to check against:
+// `mixed` accepts the literal, so nothing but this code refuses the spread.
+mixed $any = [...$s];
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0401]: expected `array<string>`, found `array<int>`
+   --> %s:11:27
+   |
+11 | array<string> $rows = [...$n];
+   |                           ^^ this is `array<int>`
+
+error[E0401]: expected `array<string>`, found `string`
+   --> %s:13:28
+   |
+13 | array<string> $chars = [...$s];
+   |                            ^^ this is `string`
+
+error[E0484]: a `...` array element needs an `array<T>` to spread
+   --> %s:16:18
+   |
+16 | mixed $any = [...$s];
+   |                  ^^ this is `string`
+   = help: `...` contributes the subject's own entries to the array being built, so the subject has to have entries — write the value as an ordinary element instead
+
+error: aborting due to 3 errors

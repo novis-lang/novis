@@ -4024,9 +4024,10 @@ class T {
     // instruction it needs. The fixtures immediately below are all
     // *positional* literals — no explicit `key =>` — which keep the single-
     // `ArrayNew` shape; the explicit-`key =>` fixtures further down cover the
-    // `ArrayNew` (empty) + `ArraySet`* shape. `...spread`/`&value` still
-    // panic naming the gap (see the `should_panic` fixtures at the end of
-    // this block).
+    // `ArrayNew` (empty) + `ArraySet`* shape. `...spread` still panics
+    // naming the gap (see the `should_panic` fixture at the end of this
+    // block); `&value` never reaches here at all, `mwl_types` refusing it
+    // as `E0483`.
 
     /// `[]` — an empty array literal lowers to `InstKind::ArrayNew` with no
     /// entries at all, still a well-formed fresh `Ty::Array` value.
