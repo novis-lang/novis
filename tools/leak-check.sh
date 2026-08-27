@@ -8,13 +8,13 @@
 # `nvs_ir::lower::end_iteration`) went unnoticed until a fixture happened to
 # declare one.
 #
-#   wsl.exe -- bash /mnt/d/nvs/tools/leak-check.sh target/mine.nvs examples/report.nvs
+#   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh target/mine.nvs examples/report.nvs
 #
 # A `wsl.exe -- bash -lc "…"` one-liner mangles under two layers of shell
 # quoting, so this is a file passed by path instead. AGENTS.md says why.
 set -u
 
-cd /mnt/d/nvs || exit 1
+cd /mnt/<drive>/<repo> || exit 1
 # /var/tmp, not /tmp: systemd clears /tmp at every WSL boot, and WSL boots again
 # after every idle gap -- a target directory there costs a cold build every run.
 export CARGO_TARGET_DIR=/var/tmp/nvs-linux
