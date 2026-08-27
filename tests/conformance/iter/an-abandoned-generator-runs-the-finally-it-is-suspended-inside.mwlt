@@ -88,6 +88,23 @@ foreach (G::partly() as int $v) {
     }
 }
 echo "\n";
+
+// Held and dropped through a binding whose declared type is `object`. ADR
+// 0007 § 3's erasure keeps the pointer and drops the class *label*, and the
+// release path never wanted one: `ClassDesc::unwind` is read off the concrete
+// instance's own descriptor, exactly as `ClassDesc::renderer` is for a
+// rendering. So the last reference going away through an erased binding runs
+// the same `finally` the `foreach` temporaries above did.
+Iterator<int> $held = G::guarded(5);
+foreach ($held as int $v) {
+    echo $v;
+    break;
+}
+object $erased = $held;
+$held = G::guarded(0);
+echo "-";
+$erased = $held;
+echo "\n";
 --EXPECT--
 01[f]
 01[f]
@@ -95,3 +112,4 @@ echo "\n";
 1[inner][outer]
 0
 01[g]
+0-[f]
