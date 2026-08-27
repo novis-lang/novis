@@ -1,0 +1,72 @@
+--TEST--
+Arithmetic and bitwise operators over an operand whose static type names no row are answered from its runtime tag, and refuse where the table names none (ADR 0007 §§ 2, 4; ADR 0054 § 3)
+--FILE--
+<?nvs
+// ADR 0007 § 4's arithmetic rows, chosen from the operands' runtime tags: a
+// `mixed` names no row where it is written, so the tags name it when they
+// arrive. This is `an-ordering-over-a-mixed-operand-is-decided-by-its-tag`'s
+// twin, one table over.
+mixed $m = 7;
+echo $m + 1, " ", $m - 1, " ", $m * 2, " ", $m ** 2, "\n";
+// `int / int` is `int|float`, PHP-exact: an exact quotient is an integer and
+// an inexact one is a float, and which of the two is a runtime question here
+// twice over.
+echo $m / 7, " ", $m / 2, " ", $m % 4, "\n";
+// § 4's `& | ^ << >>` row is `int` and `uint` alone, and `>>` reads the
+// signedness off the tag rather than off a declaration.
+echo $m & 3, " ", $m | 8, " ", $m ^ 1, " ", $m << 2, " ", $m >> 1, "\n";
+// "Either operand a `float`", including the operand that is only a `float`
+// once its tag arrives.
+mixed $f = 1.5;
+echo $m + $f, " ", $f * 2, " ", $m / $f, "\n";
+// The `uint` rows, reached the same way — `3 / 3` is exact, so the quotient is
+// a `uint` and not a `float`.
+uint $u = 3;
+mixed $mu = $u;
+echo $mu + $u, " ", $mu * $mu, " ", $mu / $u, "\n";
+// ADR 0054 § 3's five arithmetic rows are answered from the tag too, over the
+// same `decimal` implementation the statically typed spelling uses.
+decimal $dec = 1.25;
+mixed $md = $dec;
+echo $md + $dec, " ", $md * 2, "\n";
+// ADR 0007 § 4's table is a *closed* list, so a pair it names no row for has
+// no arithmetic at all rather than PHP's converted answer — § 2 having no
+// implicit conversion for that to be.
+mixed $s = "5";
+try { echo $s + 1, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+mixed $n = null;
+try { echo $n * 2, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+try { echo $f & 1, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+// `int ⊕ uint` has no representable common type, refused here exactly as
+// `E0407` refuses it where the static types show it.
+try { echo $m + $u, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+// Overflow throws rather than wrapping or promoting to `float`, which is the
+// divergence from PHP § 4 is least willing to trade.
+mixed $big = 9223372036854775807;
+try { echo $big + 1, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+try { echo $big * 2, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+// And the four an operand's *value* refuses, each carrying the message the
+// statically typed row raises through `nvs-codegen`.
+mixed $zero = 0;
+try { echo $m / $zero, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+try { echo $m % $zero, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+mixed $neg = 0 - 1;
+try { echo $m << $neg, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+try { echo $m ** $neg, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
+--EXPECT--
+8 6 14 49
+1 3.5 3
+3 15 6 28 3
+8.5 3 4.6666666666667
+6 9 1
+2.50 2.50
+no `+` for a `string` and a `int` — convert the operand out loud first: `... as int`/`as float`
+no `*` for a `null` and a `int`
+no `&` for a `float` and a `int`
+`int` and `uint` have no representable common type in arithmetic — convert one side explicitly with `as int`/`as uint`
+Integer addition overflowed
+Integer multiplication overflowed
+Division by zero
+Modulo by zero
+Bit shift by negative number
+Negative exponent has no integer result

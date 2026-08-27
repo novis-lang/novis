@@ -1832,6 +1832,63 @@ pub enum Helper {
     /// already follow; a pair with no row throws, exactly as it does for the
     /// four ordering operators.
     ValueCmp,
+    /// `a + b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
+    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's
+    /// **arithmetic** rows chosen from the operands' runtime tags, exactly as
+    /// [`Self::ValueLt`] chooses its ordering ones, and the last shape that
+    /// used to reach `nvs_codegen::emit`'s representation catch-all.
+    ///
+    /// The eleven of them are one table in the runtime
+    /// (`nvs_runtime::helpers::value_arith`) asked eleven different rows, and
+    /// that function's doc comment is the table's one home. Three things about
+    /// the family belong *here*, because they are lowering decisions:
+    ///
+    /// * **The result is [`crate::ty::Ty::Tagged`] whatever the operands
+    ///   hold**, since which row a pair of tags takes is only known when they
+    ///   arrive — `$m + 1` is an `int` or a `float` or a throw. That is the
+    ///   same reason integer `/` already carries that representation, and
+    ///   `crate::lower::Lowering::coerce` absorbs it into a declared type by
+    ///   the same rows.
+    /// * **Every one carries [`Inst::on_error`]**, and for two reasons where
+    ///   the ordering family has one: § 4's table is closed, so a pair it names
+    ///   no row for throws; *and* the rows it does name throw on overflow,
+    ///   which is the divergence from PHP the ADR is least willing to trade.
+    ///   `int ⊕ uint` is a third — the pair has no representable common type,
+    ///   so `E0407`'s refusal arrives here as a throw when only the tags know.
+    /// * **A `decimal` operand is a row of this table, not of
+    ///   [`Self::DecimalAdd`]'s.** Behind a `mixed` there is no static
+    ///   `decimal` to route on, so ADR 0054 § 3's five arithmetic rows are
+    ///   answered from the tag alongside the integer ones — over the very same
+    ///   `Decimal` methods, so the two ends of the row cannot disagree.
+    ValueAdd,
+    /// `a - b` over a tagged pair — see [`Self::ValueAdd`].
+    ValueSub,
+    /// `a * b` over a tagged pair — see [`Self::ValueAdd`].
+    ValueMul,
+    /// `a / b` over a tagged pair — see [`Self::ValueAdd`]. ADR 0007 § 4 types
+    /// integer division `int|float`, so this is the one row whose answer's tag
+    /// is still a runtime question once the operands' tags are known.
+    ValueDiv,
+    /// `a % b` over a tagged pair — see [`Self::ValueAdd`].
+    ValueMod,
+    /// `a ** b` over a tagged pair — see [`Self::ValueAdd`].
+    ValuePow,
+    /// `a & b` over a tagged pair — see [`Self::ValueAdd`]. ADR 0007 § 4's
+    /// `& | ^ << >>` row is `int` and `uint` alone, the same list
+    /// `nvs_types::expr::operators::reject_bitwise_operand` refuses every
+    /// other operand against (`E0706`), so the five bitwise members of this
+    /// family have a narrower table than the six arithmetic ones.
+    ValueBitAnd,
+    /// `a | b` over a tagged pair — see [`Self::ValueBitAnd`].
+    ValueBitOr,
+    /// `a ^ b` over a tagged pair — see [`Self::ValueBitAnd`].
+    ValueBitXor,
+    /// `a << b` over a tagged pair — see [`Self::ValueBitAnd`].
+    ValueShl,
+    /// `a >> b` over a tagged pair — see [`Self::ValueBitAnd`]. The one
+    /// operator that reads its left operand's *signedness* rather than only its
+    /// width, which behind a `mixed` is the tag rather than the declaration.
+    ValueShr,
     /// `a == b` over two operands at least one of which the checker typed
     /// `secret` —
     /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)

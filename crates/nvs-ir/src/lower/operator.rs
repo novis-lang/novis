@@ -584,6 +584,68 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
             return (answer, ty);
         }
+        // ADR 0007 § 4's *arithmetic* and bitwise rows for the operand shape
+        // the two arms above answer for equality and ordering, and the last of
+        // the three: a `mixed`, a union or the `int|float` a division returns
+        // names no row where it is written, so the tags name it when they
+        // arrive. See `Helper::ValueAdd`, which is this family's home.
+        //
+        // The result is `Ty::Tagged` for every one of the eleven, because which
+        // row a pair of tags takes is exactly what is not known here — `$m + 1`
+        // is an `int`, a `float` or a throw. `Lowering::coerce` absorbs it into
+        // whatever the position declares, by the same rows it already absorbs
+        // integer `/`'s union with.
+        //
+        // The operands are staged and released exactly as the ordering arm
+        // stages its own, and for the same reason: these helpers carry ADR
+        // 0002's error edge — a closed table, an overflow and the `int ⊕ uint`
+        // pair are three ways one throws — so an operand released inline would
+        // be abandoned on the edge a throw leaves by.
+        if matches!(
+            op,
+            BinaryOp::Add
+                | BinaryOp::Sub
+                | BinaryOp::Mul
+                | BinaryOp::Div
+                | BinaryOp::Mod
+                | BinaryOp::Pow
+                | BinaryOp::BitAnd
+                | BinaryOp::BitOr
+                | BinaryOp::BitXor
+                | BinaryOp::Shl
+                | BinaryOp::Shr
+        ) && (lty == Ty::Tagged || rty == Ty::Tagged)
+        {
+            let mark = self.temporaries_mark();
+            for (operand, value, ty) in [(lhs, lv, lty), (rhs, rv, rty)] {
+                let aliasing = self.aliasing_read(operand);
+                self.account_for_arg(value, ty, ArgOwnership::Borrowed, aliasing, *cur);
+            }
+            let helper = match op {
+                BinaryOp::Add => Helper::ValueAdd,
+                BinaryOp::Sub => Helper::ValueSub,
+                BinaryOp::Mul => Helper::ValueMul,
+                BinaryOp::Div => Helper::ValueDiv,
+                BinaryOp::Mod => Helper::ValueMod,
+                BinaryOp::Pow => Helper::ValuePow,
+                BinaryOp::BitAnd => Helper::ValueBitAnd,
+                BinaryOp::BitOr => Helper::ValueBitOr,
+                BinaryOp::BitXor => Helper::ValueBitXor,
+                BinaryOp::Shl => Helper::ValueShl,
+                _ => Helper::ValueShr,
+            };
+            let (answer, _) = self.emit_fallible(
+                *cur,
+                Ty::Tagged,
+                InstKind::HelperCall {
+                    helper,
+                    args: vec![lv, rv],
+                },
+                env,
+            );
+            self.release_temporaries_since(mark, *cur);
+            return (answer, Ty::Tagged);
+        }
         // ADR 0090 § 2's enum row: an enum is its own equality domain — a
         // case against its underlying integer is a compile error and two
         // different enums are disjoint, so a pair that reaches here is one

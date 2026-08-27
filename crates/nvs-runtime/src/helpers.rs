@@ -461,11 +461,15 @@ fn value_ordering(left: Value, right: Value) -> Result<Option<std::cmp::Ordering
     }
 }
 
-/// The catchable throw [`value_ordering`] raises for a pair ADR 0007 § 4
-/// tabulates no row for, naming the spelling that says what was meant wherever
-/// there is one — the same three wordings `E0715` carries.
-fn no_ordering(left: Value, right: Value) -> Fault {
-    let name = |value: Value| match value.tag() {
+/// One operand's type as ADR 0007 spells it, for a message a program reads.
+///
+/// Shared by every refusal a tag-dispatched row makes — [`no_ordering`] and
+/// [`no_arithmetic`] — so that "a `string` against an `array<T>`" reads the
+/// same whichever operator asked. `Tag::Closure` renders as `object` because a
+/// closure *is* one (ADR 0031 § 1), and the fallback covers the tags no source
+/// value carries.
+fn tag_name(value: Value) -> &'static str {
+    match value.tag() {
         Some(Tag::Null) => "null",
         Some(Tag::Bool) => "bool",
         Some(Tag::Int) => "int",
@@ -477,8 +481,14 @@ fn no_ordering(left: Value, right: Value) -> Fault {
         Some(Tag::Decimal) => "decimal",
         Some(Tag::Bytes) => "bytes",
         _ => "value",
-    };
-    let (left_name, right_name) = (name(left), name(right));
+    }
+}
+
+/// The catchable throw [`value_ordering`] raises for a pair ADR 0007 § 4
+/// tabulates no row for, naming the spelling that says what was meant wherever
+/// there is one — the same three wordings `E0715` carries.
+fn no_ordering(left: Value, right: Value) -> Fault {
+    let (left_name, right_name) = (tag_name(left), tag_name(right));
     let hint = match (left.tag(), right.tag()) {
         (Some(Tag::Str), Some(Tag::Str)) => {
             " — `Core\\Str::compare` is the ordering two strings have"
@@ -528,6 +538,474 @@ crate::nvs_helper! {
     fn nvs_value_cmp(_ctx, args: [2]) {
         Ok(Value::int(spaceship(value_ordering(args[0], args[1])?)))
     }
+}
+
+/// One row of ADR 0007 § 4's arithmetic and bitwise table, named so that the
+/// eleven helpers below share one implementation of it rather than eleven
+/// copies of the tag dispatch.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ArithRow {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Pow,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
+}
+
+impl ArithRow {
+    /// The operator as a program writes it, for the refusals below.
+    fn spelling(self) -> &'static str {
+        match self {
+            Self::Add => "+",
+            Self::Sub => "-",
+            Self::Mul => "*",
+            Self::Div => "/",
+            Self::Mod => "%",
+            Self::Pow => "**",
+            Self::BitAnd => "&",
+            Self::BitOr => "|",
+            Self::BitXor => "^",
+            Self::Shl => "<<",
+            Self::Shr => ">>",
+        }
+    }
+
+    /// The operation as the two overflow messages name it — `nvs-codegen`'s
+    /// `emit_checked_int_arith` and `emit_int_pow` word theirs "Integer
+    /// {word} overflowed", and [`arithmetic_error`] words ADR 0054 § 3's
+    /// "`decimal` {word} is outside the type's range", so one word serves both
+    /// and the statically and dynamically typed ends of a row cannot drift
+    /// apart in their wording.
+    fn word(self) -> &'static str {
+        match self {
+            Self::Add => "addition",
+            Self::Sub => "subtraction",
+            Self::Mul => "multiplication",
+            Self::Div => "division",
+            Self::Mod => "remainder",
+            Self::Pow => "exponentiation",
+            Self::BitAnd | Self::BitOr | Self::BitXor | Self::Shl | Self::Shr => "bit operation",
+        }
+    }
+}
+
+/// ADR 0007 § 4's **arithmetic** rows, chosen from two runtime **tags** rather
+/// than from two static types — the row a `mixed`, a union or the `int|float` a
+/// division returns defers, and the one the `nvs_ir::Helper::ValueAdd` family
+/// is all reading. It is [`value_ordering`]'s twin, one table over from it.
+///
+/// Three refusals live here, where the ordering table has one, and each is the
+/// same refusal `nvs_types` makes wherever the static types show it:
+///
+/// * **A pair the table names no row for** — a `string`, an `array<T>`, an
+///   object, `null`, a `bool` — has no arithmetic at all rather than PHP's
+///   converted one, since ADR 0007 § 2 has no implicit conversion for that to
+///   be. That is [`no_arithmetic`].
+/// * **`int ⊕ uint`** is refused outright: § 4 gives the pair no representable
+///   common type, so there is nothing to return. `E0407` where it is written,
+///   [`mixed_signedness`] where only the tags know.
+/// * **Overflow throws**, § 4's least tradeable divergence from PHP, which is
+///   what makes every integer row below a `checked_*` and not a `wrapping_*`.
+///
+/// Two rows are deliberately narrower than "the operands are numbers", and both
+/// are guarded rather than answered:
+///
+/// * The **`decimal`** rows are ADR 0054 § 3's five arithmetic ones and no
+///   more — its `**` is `E0455` and its bit operators `E0706` — so a `decimal`
+///   under one of the six it grants nothing takes the refusal.
+/// * The **`float`** rows are § 4's "either operand a `float`" for `+ - * / **`
+///   only. `%` is left out on purpose: `nvs-codegen` lowers no `float` `%`
+///   either, so refusing here is the answer that *agrees* with the statically
+///   typed end, and inventing PHP's integer-modulo reading behind a `mixed`
+///   would put a rule in this file that no ADR states.
+fn value_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> {
+    match (left.tag(), right.tag()) {
+        (Some(Tag::Int), Some(Tag::Int)) => signed_arith(
+            op,
+            left.as_int()
+                .ok_or_else(|| wrong_tag("nvs_value_arith", Tag::Int, left))?,
+            right
+                .as_int()
+                .ok_or_else(|| wrong_tag("nvs_value_arith", Tag::Int, right))?,
+        ),
+        (Some(Tag::Uint), Some(Tag::Uint)) => unsigned_arith(
+            op,
+            left.as_uint()
+                .ok_or_else(|| wrong_tag("nvs_value_arith", Tag::Uint, left))?,
+            right
+                .as_uint()
+                .ok_or_else(|| wrong_tag("nvs_value_arith", Tag::Uint, right))?,
+        ),
+        (Some(Tag::Int), Some(Tag::Uint)) | (Some(Tag::Uint), Some(Tag::Int)) => {
+            Err(mixed_signedness())
+        }
+        (Some(Tag::Decimal), Some(Tag::Decimal | Tag::Int | Tag::Uint))
+        | (Some(Tag::Int | Tag::Uint), Some(Tag::Decimal))
+            if matches!(
+                op,
+                ArithRow::Add | ArithRow::Sub | ArithRow::Mul | ArithRow::Div | ArithRow::Mod
+            ) =>
+        {
+            decimal_arith(op, left, right)
+        }
+        (Some(Tag::Int | Tag::Uint | Tag::Float), Some(Tag::Int | Tag::Uint | Tag::Float))
+            if matches!(
+                op,
+                ArithRow::Add | ArithRow::Sub | ArithRow::Mul | ArithRow::Div | ArithRow::Pow
+            ) =>
+        {
+            float_arith(op, left, right)
+        }
+        _ => Err(no_arithmetic(op, left, right)),
+    }
+}
+
+/// The catchable throw [`value_arith`] raises for a pair ADR 0007 § 4
+/// tabulates no row for, naming the spelling that says what was meant wherever
+/// there is one — the same shape [`no_ordering`] takes for its own table.
+fn no_arithmetic(op: ArithRow, left: Value, right: Value) -> Fault {
+    // One hint, for the one operand PHP would have converted silently: ADR
+    // 0007 § 2 has no implicit conversion, so a numeric-looking `string` is
+    // where an author is told to say `as int` out loud. Every other operand —
+    // an `array<T>`, an object, `null` — has no arithmetic to name at all.
+    let hint = if matches!(left.tag(), Some(Tag::Str)) || matches!(right.tag(), Some(Tag::Str)) {
+        " — convert the operand out loud first: `... as int`/`as float`"
+    } else {
+        ""
+    };
+    Fault::thrown(format!(
+        "no `{}` for a `{}` and a `{}`{hint}",
+        op.spelling(),
+        tag_name(left),
+        tag_name(right)
+    ))
+}
+
+/// ADR 0007 § 4's `int ⊕ uint` row, which is a *compile* error wherever the
+/// static types show it — [`nvs_types::expr::operators::report_int_uint`]'s
+/// `E0407`, whose wording this is, because it is the same refusal made at the
+/// first moment two `mixed` operands make it answerable.
+fn mixed_signedness() -> Fault {
+    Fault::thrown(
+        "`int` and `uint` have no representable common type in arithmetic — convert one side \
+         explicitly with `as int`/`as uint`"
+            .to_owned(),
+    )
+}
+
+/// ADR 0007 § 4's overflow throw, worded exactly as `nvs-codegen`'s
+/// `raise_arithmetic_error` words the statically typed row's.
+///
+/// Known gap, shared with [`arithmetic_error`] and [`does_not_fit`]: a helper
+/// failure carries only a message, so the driver promotes this to spec § 10's
+/// `RuntimeError` rather than the `ArithmeticError` the ADR names.
+fn overflowed(op: ArithRow) -> Fault {
+    Fault::thrown(format!("Integer {} overflowed", op.word()))
+}
+
+/// The `int ⊕ int` rows. Every one that can leave the type is `checked_*`:
+/// § 4's "no wrap, no promotion to `float`" is what this table exists to keep.
+fn signed_arith(op: ArithRow, left: i64, right: i64) -> Result<Value, Fault> {
+    let value = match op {
+        ArithRow::Add => left.checked_add(right).ok_or_else(|| overflowed(op))?,
+        ArithRow::Sub => left.checked_sub(right).ok_or_else(|| overflowed(op))?,
+        ArithRow::Mul => left.checked_mul(right).ok_or_else(|| overflowed(op))?,
+        // `int / int` is `int|float`, PHP-exact, so it answers a value rather
+        // than an `i64` — see [`signed_div`].
+        ArithRow::Div => return signed_div(left, right),
+        ArithRow::Mod => {
+            if right == 0 {
+                return Err(Fault::thrown("Modulo by zero".to_owned()));
+            }
+            // `i64::MIN % -1` is `0` rather than an overflow, which is PHP 8's
+            // answer and the identity `nvs-codegen`'s `emit_int_mod` rewrites
+            // the divisor for.
+            if right == -1 { 0 } else { left % right }
+        }
+        ArithRow::Pow => return signed_pow(left, right).map(Value::int),
+        ArithRow::BitAnd => left & right,
+        ArithRow::BitOr => left | right,
+        ArithRow::BitXor => left ^ right,
+        ArithRow::Shl | ArithRow::Shr => return signed_shift(op, left, right),
+    };
+    Ok(Value::int(value))
+}
+
+/// ADR 0007 § 4's `int / int` row: `int|float`, "PHP-exact — `6/3` is an
+/// integer, `7/2` is a float", which is why the quotient's *type* is a runtime
+/// question and this returns a tagged value.
+///
+/// `i64::MIN / -1` takes the inexact arm rather than a second throw: it is not
+/// an integer at all, and PHP answers the `float` this computes.
+/// `nvs-codegen`'s `emit_int_div` is the same three guards in Cranelift.
+fn signed_div(left: i64, right: i64) -> Result<Value, Fault> {
+    if right == 0 {
+        return Err(Fault::thrown("Division by zero".to_owned()));
+    }
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the inexact arm is exactly what `float` means here — ADR 0007 § 4's `int|float`"
+    )]
+    let inexact = Ok(Value::float(left as f64 / right as f64));
+    if left == i64::MIN && right == -1 {
+        return inexact;
+    }
+    if left % right == 0 {
+        return Ok(Value::int(left / right));
+    }
+    inexact
+}
+
+/// ADR 0007 § 4's `int ** int` row, square-and-multiply with the overflow throw
+/// checked at every step — `nvs-codegen`'s `emit_int_pow` in Rust, including
+/// its two details: the square is not taken after the last set bit, and a
+/// negative exponent throws except over a base of `1` or `-1`, which do have an
+/// integer answer.
+fn signed_pow(base: i64, exponent: i64) -> Result<i64, Fault> {
+    if exponent < 0 {
+        return match base {
+            1 => Ok(1),
+            -1 => Ok(if exponent % 2 == 0 { 1 } else { -1 }),
+            _ => Err(Fault::thrown(
+                "Negative exponent has no integer result".to_owned(),
+            )),
+        };
+    }
+    let mut accumulator: i64 = 1;
+    let mut square = base;
+    let mut left = exponent.cast_unsigned();
+    loop {
+        if left & 1 == 1 {
+            accumulator = accumulator
+                .checked_mul(square)
+                .ok_or_else(|| overflowed(ArithRow::Pow))?;
+        }
+        left >>= 1;
+        if left == 0 {
+            return Ok(accumulator);
+        }
+        square = square
+            .checked_mul(square)
+            .ok_or_else(|| overflowed(ArithRow::Pow))?;
+    }
+}
+
+/// ADR 0007 § 4's `<<`/`>>` over an `int`, whose count PHP judges where the
+/// machine masks it — `nvs-codegen`'s `emit_shift` in Rust, and its three rules
+/// unchanged: a negative count throws, a count of 64 or more answers all-zeros
+/// or all-sign, and `>>` is arithmetic on an `int`.
+fn signed_shift(op: ArithRow, left: i64, count: i64) -> Result<Value, Fault> {
+    if count < 0 {
+        return Err(Fault::thrown("Bit shift by negative number".to_owned()));
+    }
+    // `checked_*` is the past-the-width test as well as the shift: a count of
+    // 64 or more answers `None`, and the saturated value each row fills with is
+    // all-zeros for `<<` and all-sign for `>>`.
+    let count = u32::try_from(count).unwrap_or(u32::MAX);
+    let value = match op {
+        ArithRow::Shl => left.checked_shl(count).unwrap_or(0),
+        _ => left.checked_shr(count).unwrap_or(left >> 63),
+    };
+    Ok(Value::int(value))
+}
+
+/// The `uint ⊕ uint` rows — [`signed_arith`]'s, minus the two asymmetries an
+/// unsigned type does not have: no count can be negative, and `**` has no
+/// negative exponent, so neither carries a guard.
+fn unsigned_arith(op: ArithRow, left: u64, right: u64) -> Result<Value, Fault> {
+    let value = match op {
+        ArithRow::Add => left.checked_add(right).ok_or_else(|| overflowed(op))?,
+        ArithRow::Sub => left.checked_sub(right).ok_or_else(|| overflowed(op))?,
+        ArithRow::Mul => left.checked_mul(right).ok_or_else(|| overflowed(op))?,
+        ArithRow::Div => return unsigned_div(left, right),
+        ArithRow::Mod => {
+            if right == 0 {
+                return Err(Fault::thrown("Modulo by zero".to_owned()));
+            }
+            left % right
+        }
+        ArithRow::Pow => unsigned_pow(left, right)?,
+        ArithRow::BitAnd => left & right,
+        ArithRow::BitOr => left | right,
+        ArithRow::BitXor => left ^ right,
+        // No negative count exists on this row, so unlike [`signed_shift`] it
+        // needs no guard — only the past-the-width saturation, which is
+        // all-zeros in both directions for an unsigned operand.
+        ArithRow::Shl => left
+            .checked_shl(u32::try_from(right).unwrap_or(u32::MAX))
+            .unwrap_or(0),
+        ArithRow::Shr => left
+            .checked_shr(u32::try_from(right).unwrap_or(u32::MAX))
+            .unwrap_or(0),
+    };
+    Ok(Value::uint(value))
+}
+
+/// ADR 0007 § 4's `uint / uint` row — [`signed_div`]'s `uint|float`, with no
+/// overflow arm, an unsigned type having no asymmetric minimum.
+fn unsigned_div(left: u64, right: u64) -> Result<Value, Fault> {
+    if right == 0 {
+        return Err(Fault::thrown("Division by zero".to_owned()));
+    }
+    if left.is_multiple_of(right) {
+        return Ok(Value::uint(left / right));
+    }
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the inexact arm is exactly what `float` means here — ADR 0007 § 4's `uint|float`"
+    )]
+    Ok(Value::float(left as f64 / right as f64))
+}
+
+/// [`signed_pow`]'s loop over the unsigned row.
+fn unsigned_pow(base: u64, exponent: u64) -> Result<u64, Fault> {
+    let mut accumulator: u64 = 1;
+    let mut square = base;
+    let mut left = exponent;
+    loop {
+        if left & 1 == 1 {
+            accumulator = accumulator
+                .checked_mul(square)
+                .ok_or_else(|| overflowed(ArithRow::Pow))?;
+        }
+        left >>= 1;
+        if left == 0 {
+            return Ok(accumulator);
+        }
+        square = square
+            .checked_mul(square)
+            .ok_or_else(|| overflowed(ArithRow::Pow))?;
+    }
+}
+
+/// ADR 0007 § 4's "either operand a `float`" row.
+///
+/// The integer side widens through [`row::int_to_float`], which is the *checked*
+/// widening § 2 names as the language's one implicit conversion — exact, or
+/// throwing above 2^53 — because that is the widening `nvs_ir`'s
+/// `Lowering::widen_to_float` emits for the statically typed spelling of the
+/// same row. A silent `as f64` here would answer a pair one representation
+/// down from the one the compiler would have.
+///
+/// Division by zero is **not** a throw on this row, for the same reason: the
+/// static row is a bare `fdiv`, so `1.0 / 0.0` is `INF` at both ends.
+fn float_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> {
+    let operand = |value: Value| match value.tag() {
+        Some(Tag::Float) => value
+            .as_float()
+            .ok_or_else(|| wrong_tag("nvs_value_arith", Tag::Float, value)),
+        Some(Tag::Int) => {
+            let int = value
+                .as_int()
+                .ok_or_else(|| wrong_tag("nvs_value_arith", Tag::Int, value))?;
+            row::int_to_float(int).ok_or_else(|| does_not_fit(&format!("`int` {int}"), "float"))
+        }
+        _ => {
+            let uint = value
+                .as_uint()
+                .ok_or_else(|| wrong_tag("nvs_value_arith", Tag::Uint, value))?;
+            row::uint_to_float(uint).ok_or_else(|| does_not_fit(&format!("`uint` {uint}"), "float"))
+        }
+    };
+    let (left, right) = (operand(left)?, operand(right)?);
+    Ok(Value::float(match op {
+        ArithRow::Add => left + right,
+        ArithRow::Sub => left - right,
+        ArithRow::Mul => left * right,
+        ArithRow::Div => left / right,
+        // The one row that leaves the compiled function statically too, and it
+        // leaves it for the same symbol: there is no `fpow` instruction, so
+        // `nvs-codegen` calls exactly this function for `float ** float`.
+        _ => crate::arith::nvs_float_pow(left, right),
+    }))
+}
+
+/// ADR 0054 § 3's five arithmetic rows behind a `mixed`, over
+/// [`decimal_operand`]'s one promotion of an `int`/`uint` operand — the same
+/// implementation the statically typed `decimal` helpers use, so the two ends
+/// of the row cannot answer differently.
+fn decimal_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> {
+    let left = decimal_operand("nvs_value_arith", left)?;
+    let right = decimal_operand("nvs_value_arith", right)?;
+    match op {
+        ArithRow::Add => left.checked_add(right),
+        ArithRow::Sub => left.checked_sub(right),
+        ArithRow::Mul => left.checked_mul(right),
+        ArithRow::Div => left.checked_div(right),
+        _ => left.checked_rem(right),
+    }
+    .map(Value::decimal)
+    .ok_or_else(|| arithmetic_error(op.word()))
+}
+
+macro_rules! value_arith_helper {
+    ($(#[$meta:meta])* fn $name:ident = $row:ident) => {
+        crate::nvs_helper! {
+            $(#[$meta])*
+            fn $name(_ctx, args: [2]) {
+                value_arith(ArithRow::$row, args[0], args[1])
+            }
+        }
+    };
+}
+
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValueAdd` — `+` where at least one operand's static
+    /// type named no row, so the two tags name it instead. The table is
+    /// [`value_arith`], and every helper below is that same table asked a
+    /// different row.
+    fn nvs_value_add = Add
+}
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValueSub` — see [`value_arith`].
+    fn nvs_value_sub = Sub
+}
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValueMul` — see [`value_arith`].
+    fn nvs_value_mul = Mul
+}
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValueDiv` — see [`value_arith`]. The one row whose
+    /// answer's *tag* is a runtime question even once the operands' are known:
+    /// ADR 0007 § 4 types integer division `int|float`.
+    fn nvs_value_div = Div
+}
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValueMod` — see [`value_arith`].
+    fn nvs_value_mod = Mod
+}
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValuePow` — see [`value_arith`].
+    fn nvs_value_pow = Pow
+}
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValueBitAnd` — see [`value_arith`]. ADR 0007 § 4's
+    /// `& | ^ << >>` row is `int` and `uint` alone, so every other pair of tags
+    /// is the refusal rather than PHP's converted answer.
+    fn nvs_value_bit_and = BitAnd
+}
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValueBitOr` — see [`nvs_value_bit_and`].
+    fn nvs_value_bit_or = BitOr
+}
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValueBitXor` — see [`nvs_value_bit_and`].
+    fn nvs_value_bit_xor = BitXor
+}
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValueShl` — see [`nvs_value_bit_and`].
+    fn nvs_value_shl = Shl
+}
+value_arith_helper! {
+    /// `nvs_ir::Helper::ValueShr` — see [`nvs_value_bit_and`], and
+    /// [`signed_shift`] for the signedness `>>` reads off the tag.
+    fn nvs_value_shr = Shr
 }
 
 crate::nvs_helper! {
@@ -1871,6 +2349,17 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_value_lt", address(nvs_value_lt)),
         ("nvs_value_lt_eq", address(nvs_value_lt_eq)),
         ("nvs_value_cmp", address(nvs_value_cmp)),
+        ("nvs_value_add", address(nvs_value_add)),
+        ("nvs_value_sub", address(nvs_value_sub)),
+        ("nvs_value_mul", address(nvs_value_mul)),
+        ("nvs_value_div", address(nvs_value_div)),
+        ("nvs_value_mod", address(nvs_value_mod)),
+        ("nvs_value_pow", address(nvs_value_pow)),
+        ("nvs_value_bit_and", address(nvs_value_bit_and)),
+        ("nvs_value_bit_or", address(nvs_value_bit_or)),
+        ("nvs_value_bit_xor", address(nvs_value_bit_xor)),
+        ("nvs_value_shl", address(nvs_value_shl)),
+        ("nvs_value_shr", address(nvs_value_shr)),
         ("nvs_numeric_lt_eq", address(nvs_numeric_lt_eq)),
         ("nvs_secret_eq", address(nvs_secret_eq)),
         ("nvs_int_to_uint", address(nvs_int_to_uint)),

@@ -1141,12 +1141,16 @@ impl Emitter<'_, '_> {
             // (`E0715`, and `E0411` for the object family), and `decimal`'s own
             // twelve rows never arrive here at all — `lower_decimal_binary`
             // rewrites each into a helper call.
-            // A `Ty::Tagged` *ordering* has left too: it is the tag-dispatched
-            // `Helper::ValueLt` family, the equality row's twin. What is left
-            // is a `Ty::Tagged` under an **arithmetic** operator, which is the
-            // second half of the loop goal's item 24, and the three
-            // representations no source expression has (`ClassDesc`, `Ref`,
-            // `Void`).
+            // `Ty::Tagged` has left entirely: its equality is
+            // `Helper::Identical`, its ordering the `Helper::ValueLt` family
+            // and its arithmetic and bitwise rows the eleven-member
+            // `Helper::ValueAdd` one, each chosen from the operands' runtime
+            // tags in `nvs-ir` rather than from a representation neither side
+            // has. What is left is the three representations no source
+            // expression has (`ClassDesc`, `Ref`, `Void`). The `float` rows do
+            // not reach here at all — they are `integral`'s sibling below —
+            // which is why `float` `%` is refused by the operator table's own
+            // catch-all further down rather than by this one.
             return Err(CodegenError::Unsupported(format!(
                 "a `{op:?}` over representation {ty:?}"
             )));
@@ -3264,6 +3268,17 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ValueLt => "nvs_value_lt",
         Helper::ValueLtEq => "nvs_value_lt_eq",
         Helper::ValueCmp => "nvs_value_cmp",
+        Helper::ValueAdd => "nvs_value_add",
+        Helper::ValueSub => "nvs_value_sub",
+        Helper::ValueMul => "nvs_value_mul",
+        Helper::ValueDiv => "nvs_value_div",
+        Helper::ValueMod => "nvs_value_mod",
+        Helper::ValuePow => "nvs_value_pow",
+        Helper::ValueBitAnd => "nvs_value_bit_and",
+        Helper::ValueBitOr => "nvs_value_bit_or",
+        Helper::ValueBitXor => "nvs_value_bit_xor",
+        Helper::ValueShl => "nvs_value_shl",
+        Helper::ValueShr => "nvs_value_shr",
         Helper::SecretEq => "nvs_secret_eq",
         Helper::CallClosure => "nvs_call_closure",
         Helper::CallClosureArray => "nvs_call_closure_array",
