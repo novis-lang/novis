@@ -2,51 +2,58 @@
 
 ## State
 
-**M4 — language completeness.** Both remaining edges of the closure tag check are pinned from MWL.
-An **object** argument reaches it through `Core\Out::capture($body, {through: $fn})`, and the line
-it draws is objecthood and nothing finer: every non-object representation refuses by name while
-`object`, `mixed`, `?T` and *any class at all* accept. An **enum** parameter is its backing integer
-(`crates/mwl-ir/src/lower/mod.rs:2734`), so an enum, that integer and any other enum over the same
-backing are one representation, while `int` and `uint` are still told apart.
+**M4 — language completeness.** The closure's entry now pays for the class label a four-bit tag
+cannot hold. `mwl_ir::lower::closure::check_param_class` branches the body's first block on one
+`instanceof` per class-declared parameter and throws `LogicError` on the miss, so the type
+confusion that stood behind this group — two `final` classes and one wrong `Core\Arr::filter`
+callback writing an `int` over a `string` field, `misaligned pointer dereference`, from a program
+with no `unsafe` in it — is closed. The tag word gained no class channel.
 
-**A wrong-class closure parameter is a type confusion, and it is the session's real finding.**
-Two `final` classes and one wrong `Core\Arr::filter` callback write an `int` over a `string` field
-and the next read dereferences it — `misaligned pointer dereference: address must be a multiple of
-0x8 but is 0x5`, from a program with no `unsafe` in it. This is the only way a named-class binding
-comes to hold another class's instance, and `docs/adr/README.md` § *Decisions taken at project
-start* owns the decision: the **closure's own entry** pays, not every property access. That
-paragraph is the specification for the next group; `param_tag_nibble`'s doc comment points at it.
+`docs/adr/README.md` § *Decisions taken at project start* states the rule and its **three
+deliberate remainders**: a `?C` parameter is unchecked on both lines (it erases to `Ty::Tagged`
+before any class survives), a `Core` class parameter keeps the objecthood-only check (a unit's
+class table is `mwl_types::layout`'s declared tree, so there is no descriptor and no `instanceof`
+spelling either), and the refusal does not name the class that *arrived* — no IR instruction reads
+an object's class name, so `must be of type Marker, another class given` is the message's limit
+until something other than a diagnostic wants that value shape.
 
-`verify.py` green — conformance 624, differential 173.
+`tests/conformance/core/out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.mwlt`
+(renamed from `…-is-checked-by-representation-not-by-class`) pins both lines at once — the tag
+word's around objecthood, the entry check's around ancestry, with a parent class and an
+implemented interface both accepting the instance an exact class does. `tools/leak-check.sh` is
+clean over the refusal path; `verify.py` green — conformance 624, differential 173.
+
+**Gap in the pack:** `orient.py` printed neither `docs/adr/README.md` § *Decisions taken at project
+start* (which the item names as its specification) nor the `.mwlt` case it was about to flip, so
+both were read by hand. `[context] adrs` takes a `README.md:"## Decisions taken at project start"`
+selector for the first.
 
 ## Next group
 
-**Close the type confusion at the closure's entry.** The file set:
-`crates/mwl-ir/src/lower/closure.rs:59` (`param_tags_word`), `crates/mwl-ir/src/lower/mod.rs:2727`
-(`param_tag_nibble`), `crates/mwl-runtime/src/closure.rs:325` (`check_param_tags`),
-`crates/mwl-runtime/src/object.rs:1020` (`MwlObj::is_instance_of`), `tests/conformance/core/`.
+**Close `mwl-ir`'s statement-slice refusals.** The file set: `crates/mwl-ir/src/lower/stmt.rs`,
+`crates/mwl-diagnostics/src/lib.rs`, `tests/conformance/lang/`. `python tools/holes.py --item 4`
+and `--item 7` attribute every site below.
 
-- [ ] **A closure parameter naming a class checks the argument's class at entry.**
-      `mwl_ir::lower::closure` knows the declared class and `lower_expr` already emits the
-      `mwl_value_instanceof` call-and-branch for `$x instanceof C`; emit the same at the body's
-      first block, one per class-declared parameter, throwing `LogicError` in the sentence shape
-      `crates/mwl-runtime/src/closure.rs:402` already writes. The tag word gains no class channel.
-      `docs/adr/README.md` § *Decisions taken at project start*, second new paragraph.
-- [ ] **`out-a-callback-object-parameter-is-checked-by-representation-not-by-class.mwlt` flips and
-      is renamed.** Its `Marker`/`?Marker` rows go `y`→`n` (a `?T` still accepts — it erases to
-      `Ty::Tagged` before any class survives), and its "**the class half is a hole**" comment block
-      becomes the statement of the check. A subclass and an interface both accepting is the new
-      case's other half, `is_instance_of` being a flattened ancestry scan.
-- [ ] **`reduce` counts positions, not roles** — carried over untaken. The carry is argument 1, the
-      element 2 and the key 3, and the refusal names the position rather than the role.
-      `crates/mwl-stdlib/src/arr.rs:2611`.
+- [ ] **A nullsafe assignment target is a diagnostic, not a panic.** `crates/mwl-ir/src/lower/stmt.rs:814`
+      panics on `$a?->b = v`; `docs/agent/loop-goal.md` § *Standing decisions* already settles it as
+      a compile error taking a new `E`-code, and the orientation pack's *next free number* section
+      names it. The array-element write through an ADR 0014 § 1 hooked property is the same
+      decision's other half.
+- [ ] **The control-flow slice's "only lowers …" panics name a shape the checker accepted.**
+      `crates/mwl-ir/src/lower/stmt.rs:200`, `:331`, `:1120` — item 4's `$x++`/`--$x` and compound
+      assignment reach the first two, a reassignment target that is neither a local nor a
+      compile-time-known property the third. Each is a refusal that must become a lowering or a
+      diagnostic naming the rule, never a panic.
+- [ ] **`reduce` counts positions, not roles** — carried, untaken twice now, and on its own file
+      set: `crates/mwl-stdlib/src/arr.rs:2611`. The carry is argument 1, the element 2 and the key
+      3, and the refusal names the position rather than the role. Take it alone, not as this
+      group's third.
 
 ## Backlog
 
-- A promoted constructor property is not readable — `public function constructor(public string $name)`
-  then `$m->name` is `E0405`. ADR 0030 owns the spelling; playbook § *Writing MWL itself*.
-- An integer literal in an array-literal element position keeps `int` against a declared
-  `array<uint>`. ADR 0054 § 2; playbook § *Writing MWL itself*.
-- `Core\Reflect::typeOf` does not exist, so a value's tag is observable only through a `callable`
-  parameter today. ADR 0007 § 4 names it; `docs/spec/01-core-library.md` owns the member.
-- The `[context]` manifest printed everything this item needed; no field was missing.
+- ADR 0007 § 4's promotion table still has 11 refusal sites (`holes.py --item 1`).
+- A named argument and a spread argument type-check and lower — 3 sites, `holes.py --item 16`.
+- `object` as a declared type has a representation arm — `crates/mwl-ir/src/lower/mod.rs:2399`, `:2482`.
+- `<=>` answers for a scalar — 1 site, `holes.py --item 6`.
+- Two unattributed refusal sites in `crates/mwl-codegen/src/ty.rs:116`/`:121` belong to no item.
+- 14 of 32 named cases still unwritten, all under milestone 8's corpus (`holes.py --cases`).

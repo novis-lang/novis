@@ -41,12 +41,12 @@
 > [docs/agent/loop-goal.md](agent/loop-goal.md). A hole is a shape that compiles in the front end
 > and then refuses below it; it is closed when it either runs with a fixture or a `.mwlt` case
 > pinning what it prints, or is refused by a **diagnostic that names the rule** — never by a panic.
-> One hole on this frontier is on none of those lists because it refuses nothing at all — a closure
-> parameter naming a class is checked for objecthood only, and `docs/adr/README.md` § *Decisions
-> taken at project start* names the boundary that closes it. Three live tools **are** the worklist
-> and no session re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and
-> `mwl-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.mwlt` cases each stage still owes, and `python
+> The one hole that refused nothing at all is closed: a closure parameter naming a class is checked
+> against the argument's ancestry at the closure's entry, and `docs/adr/README.md` § *Decisions
+> taken at project start* now states that rule and its three remainders. Three live tools **are**
+> the worklist and no session re-derives one: `python tools/holes.py` reads the refusal sites out of
+> `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item N` for one in full), `python
+> tools/loop.py --list` prints the named `.mwlt` cases each stage still owes, and `python
 > tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
