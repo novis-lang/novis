@@ -196,11 +196,19 @@ handler landing without them is not a finished slice.
     theme recognises renders as unstyled body text — a grammar that is technically correct and visibly
     broken. This is the largest single item in the goal and is expected to take more than one session —
     split it by construct family, not by file.
-22b. **The `.mwlt`/`.lspt` grammar** — sections, with item 22's grammar `include`d inside `--FILE--` and
-    PHP's inside `--ORACLE--`. Nearly free, and the one grammar whose audience is this loop rather than
-    MWL's users: sessions write hundreds of those files and read them as flat grey text today. **Group
-    with item 22** — same directory, same snapshot harness, and it is the cheapest possible check that
-    item 22's grammar is embeddable at all.
+22b. **The `.mwlt`/`.lspt` grammar** — a `begin`/`end` rule per section, anchored on `^--NAME--$` and ending
+    at `(?=^--[A-Z])`, with item 22's grammar `include`d inside the four sections that hold a program —
+    `--FILE--`, `--FILE <path>--` (its own rule: the header carries an argument), `--SKIPIF--` and
+    `--CLEAN--` — PHP's inside `--ORACLE--`, and `constant.character.escape` on the `%` escapes in
+    `--EXPECTF--`/`--EXPECTF-ERROR--`. Every other section is literal text with only its delimiter
+    coloured. **The section list is [`crates/mwl-test`](../../crates/mwl-test/src/lib.rs)'s module doc** —
+    read it rather than inferring the set from the corpus, and treat a section it names but this item does
+    not as literal text. The one real risk is the PHP leg: VS Code splits PHP across `source.php` and
+    `text.html.php`, and only the latter handles the `<?php` opener every `--ORACLE--` body starts with, so
+    settle which one in the snapshot test rather than by reading documentation. Nearly free, and the one
+    grammar whose audience is this loop rather than MWL's users: sessions write hundreds of those files and
+    read them as flat grey text today. **Group with item 22** — same directory, same snapshot harness, and
+    it is the cheapest possible check that item 22's grammar is embeddable at all.
 23. **The client** — spawning `mwl lsp` via `vscode-languageclient` with a configurable path falling back
     to `PATH`, the `LanguageStatusItem` for health and version, and the settings block. Plus the headless
     **protocol round-trip** that drives the real binary from Node.

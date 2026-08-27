@@ -61,9 +61,15 @@ the user's theme's — so both layers ship *names*, every one of them from the s
 or LSP's standard legend, because a theme styles only names it recognises and an invented scope renders as
 unstyled body text. The two custom modifiers reach a theme through `semanticTokenScopes`, and the
 extension contributes no colour-customization defaults at all. A **second grammar** colours `.mwlt` and
-`.lspt` themselves — sections, with MWL embedded in `--FILE--` and PHP in `--ORACLE--` — which is nearly
-free and is the grammar whose audience is this project's own loop, currently reading hundreds of those
-files as flat grey text.
+`.lspt` themselves — sections, with MWL embedded in the four that hold a program (`--FILE--`,
+`--FILE <path>--`, `--SKIPIF--`, `--CLEAN--`), PHP in `--ORACLE--`, and `--EXPECTF--`/`--EXPECTF-ERROR--`'s
+`%` escapes as escapes; every other section is literal text with only its delimiter coloured. Which
+sections exist and what each holds is [`crates/mwl-test`](../../crates/mwl-test/src/lib.rs)'s module doc,
+not this paragraph. Nearly free, and the grammar whose audience is this project's own loop, currently
+reading hundreds of those files as flat grey text. It is **colour only** — the server's unit of analysis is
+one `.mwl` document and a `.mwlt` case is not a program, so a `--FILE--` body gets no hover, completion,
+diagnostics or semantic tokens; projecting sections into virtual documents is an M10 question, not a cheap
+extension of this.
 
 **The extension.** `editors/vscode`, a TypeScript package outside the Cargo workspace: `.mwl` registration
 (**and not `.php`**), `language-configuration.json` — whose `wordPattern` must include `$`, or
