@@ -1794,10 +1794,12 @@ impl<'a> Lowering<'a> {
     /// Exactly two holders can be written back to today, which are the two
     /// [`is_aliasing_read`] already recognises as durable storage: a bare
     /// local, and a compile-time-known property. A nested subscript
-    /// (`$grid[0][1] = 5`) would have to separate every level of the chain and
-    /// write each back in turn, so it panics naming itself rather than
-    /// silently dropping the outer levels' separation; so does any other base,
-    /// which is a write into a temporary and has no holder to speak of.
+    /// (`$grid[0][1] = 5`) never reaches here as `base` at all:
+    /// [`Self::lower_reassignment`] flattens the whole chain first and hands
+    /// this its *root*, having already separated and re-pointed every level
+    /// in between. Any other base is a write into a temporary and has no
+    /// holder to speak of, so it panics naming itself rather than silently
+    /// dropping the separation.
     pub(super) fn write_back_array(
         &mut self,
         base: &Expr,
@@ -4336,16 +4338,18 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `$grid[0][1] = 5;` — a nested subscript would have to separate every
-    /// level of the chain and write each one back in turn, so it panics
-    /// naming itself rather than silently dropping the outer levels'
-    /// separation. See `Lowering::write_back_array`.
+    /// `$grid[0][1] = 5;` — a nested subscript separates *every* level of the
+    /// chain and writes each one back in turn, which the snapshot reads as
+    /// one `array_row_for_write` descending and two `array.set`s climbing
+    /// back out, outermost last. The row helper is what makes the descent's
+    /// ownership uniform (see `ir::Helper::ArrayRowForWrite`), so there is no
+    /// retain beside it and no branch for the absent key.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn writing_through_a_nested_subscript_is_still_out_of_scope() {
-        lower_first_method(
+    fn writing_through_a_nested_subscript_separates_every_level() {
+        let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(array<array<int>> $g): void {\n    $g[0][1] = 5;\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// A `bool` subscript isn't one of ADR 0007 § 5's three legal key source

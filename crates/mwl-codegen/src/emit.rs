@@ -3073,6 +3073,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::NumericLtEq => "mwl_numeric_lt_eq",
         Helper::SecretEq => "mwl_secret_eq",
         Helper::ArrayTruthy => "mwl_array_truthy",
+        Helper::ArrayRowForWrite => "mwl_array_row_for_write",
         Helper::IntToUint => "mwl_int_to_uint",
         Helper::UintToInt => "mwl_uint_to_int",
         Helper::IntToFloat => "mwl_int_to_float",

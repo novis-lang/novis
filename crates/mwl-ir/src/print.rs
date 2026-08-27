@@ -434,6 +434,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::FloatTruthy => "float_truthy",
         Helper::StrTruthy => "str_truthy",
         Helper::ArrayTruthy => "array_truthy",
+        Helper::ArrayRowForWrite => "array_row_for_write",
         Helper::DecimalTruthy => "decimal_truthy",
         Helper::DecimalAdd => "decimal_add",
         Helper::DecimalSub => "decimal_sub",

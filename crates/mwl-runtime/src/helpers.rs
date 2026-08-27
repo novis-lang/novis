@@ -137,6 +137,63 @@ crate::mwl_helper! {
 }
 
 crate::mwl_helper! {
+    /// `mwl_ir::Helper::ArrayRowForWrite` — one level of a nested
+    /// `$grid[0][1] = v`'s descent, and the only array entry point whose
+    /// answer is **owned** rather than borrowed.
+    ///
+    /// Two cases, one ownership answer. A row that is there comes back
+    /// retained, so the [`crate::array::mwl_array_set`] the lowering emits on
+    /// the way back up has a reference to consume — and so the row's count is
+    /// at least two, which is exactly what makes that write separate it (ADR
+    /// 0007 § 5). A key that is *absent* comes back as a fresh empty array
+    /// with a count of one, which is PHP's auto-vivification: `$g[9][0] = 1`
+    /// over an empty `$g` builds the missing row rather than faulting. The
+    /// fresh row is not inserted here; the same `mwl_array_set` stores it,
+    /// since replacing a row and inserting one are one instruction.
+    ///
+    /// The declared element type is what rules out the third case PHP has —
+    /// a present entry that is not an array — so a non-array row here is an
+    /// internal inconsistency and is reported as a wrong tag rather than as a
+    /// language-level fault.
+    fn mwl_array_row_for_write(_ctx, args: [2]) {
+        let array = args[0]
+            .array_ptr()
+            .ok_or_else(|| wrong_tag("mwl_array_row_for_write", Tag::Array, args[0]))?;
+        let mut row = Value::default();
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live \
+                      allocation, so it is live for this read, and `row` is a \
+                      readable 16-byte slot on this frame"
+        )]
+        unsafe {
+            if let Some(key) = args[1].str_ptr() {
+                crate::array::mwl_array_get(array, key, &raw mut row);
+            } else if let Some(index) = args[1].as_int() {
+                crate::array::mwl_array_get_index(array, index, &raw mut row);
+            } else {
+                return Err(wrong_tag("mwl_array_row_for_write", Tag::Str, args[1]));
+            }
+        }
+        let Some(ptr) = row.array_ptr() else {
+            if row.tag().is_none() || row.tag() == Some(Tag::Null) {
+                return Ok(Value::from_array_ptr(crate::array::mwl_array_new()));
+            }
+            return Err(wrong_tag("mwl_array_row_for_write", Tag::Array, row));
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the entry just read is live for as long as the array \
+                      holding it, which this call's argument owns"
+        )]
+        unsafe {
+            crate::array::mwl_array_retain(ptr);
+        }
+        Ok(row)
+    }
+}
+
+crate::mwl_helper! {
     /// `mwl_ir::Helper::Identical` — `==` where at least one operand is a
     /// `mixed` or a union, which is
     /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
@@ -1151,6 +1208,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_float_truthy", address(mwl_float_truthy)),
         ("mwl_str_truthy", address(mwl_str_truthy)),
         ("mwl_array_truthy", address(mwl_array_truthy)),
+        ("mwl_array_row_for_write", address(mwl_array_row_for_write)),
         ("mwl_value_identical", address(mwl_value_identical)),
         ("mwl_numeric_eq", address(mwl_numeric_eq)),
         ("mwl_numeric_lt", address(mwl_numeric_lt)),

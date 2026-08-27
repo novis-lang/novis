@@ -777,6 +777,24 @@ impl<'a> Lowering<'a> {
             // holder has been re-pointed at that result —
             // `Self::write_back_array` does exactly that, and its own doc
             // comment owns why no retain or release goes with it.
+            //
+            // A *nested* target (`$grid[0][1] = v`) is the same write one
+            // level down, and the separation has to run at every level: the
+            // target is flattened to its root and one key per level, the root
+            // and each key are lowered exactly once (PHP evaluates neither
+            // twice), the chain is descended with `InstKind::ArrayGet`, and
+            // the `ArraySet`s are then emitted back up with the *outermost*
+            // last, so the value handed to `Self::write_back_array` is the
+            // root array that now holds every re-pointed row. Each key is used
+            // twice — borrowed by the `ArrayGet`, stored by the `ArraySet` —
+            // but only the store takes a reference, so the single-level
+            // `if key_aliasing { retain }` still applies exactly once per key.
+            // The descent itself is `Helper::ArrayRowForWrite` rather than an
+            // `InstKind::ArrayGet`, because a row has to arrive owning a
+            // reference (the `ArraySet` below it consumes one) *and* an
+            // absent key has to auto-vivify the way PHP's does — see that
+            // helper's own doc comment, and this crate's module docs for what
+            // the resulting refcount means for the copy.
             ExprKind::Index { base, index } => {
                 let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(target.span) else {
                     panic!(
@@ -789,28 +807,85 @@ impl<'a> Lowering<'a> {
                     );
                 };
                 let elem_ty = lower_checked_ty(*elem_ty, self.checked_types);
-                let (array_v, _) = self.lower_expr(base, None, env, cur);
-                let written = match index {
-                    None => {
-                        let (v, _, aliasing) = self.lower_stored(stored, Some(elem_ty), env, cur);
-                        if elem_ty.is_refcounted() && aliasing {
-                            self.emit_retain(*cur, v);
-                        }
-                        self.emit_array_append(*cur, array_v, v, env)
-                    }
+                // `$grid[0][1]` flattens to the root `$grid` and the levels
+                // `$grid[0]` (whose key is `0`) and the target itself (whose
+                // key is `1`, and which is not in `levels`).
+                let mut levels: Vec<&Expr> = Vec::new();
+                let mut root = base;
+                while let ExprKind::Index {
+                    base: inner,
+                    index: Some(_),
+                } = &root.kind
+                {
+                    levels.push(root);
+                    root = inner;
+                }
+                levels.reverse();
+                let (root_v, _) = self.lower_expr(root, None, env, cur);
+                // Every key, then the value: left to right, each exactly
+                // once, and every retain deferred until nothing that can
+                // throw is left to lower.
+                let mut inner_keys: Vec<(ValueId, bool)> = Vec::with_capacity(levels.len());
+                for level in &levels {
+                    let ExprKind::Index {
+                        index: Some(key), ..
+                    } = &level.kind
+                    else {
+                        unreachable!("only an `Index` carrying a subscript is pushed onto `levels`")
+                    };
+                    let (key_v, _key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
+                    inner_keys.push((key_v, key_aliasing));
+                }
+                let outer_key = match index {
+                    None => None,
                     Some(index) => {
                         let (key_v, _key_ty, key_aliasing) = self.lower_array_key(index, env, cur);
-                        if key_aliasing {
-                            self.emit_retain(*cur, key_v);
-                        }
-                        let (v, _, aliasing) = self.lower_stored(stored, Some(elem_ty), env, cur);
-                        if elem_ty.is_refcounted() && aliasing {
-                            self.emit_retain(*cur, v);
-                        }
-                        self.emit_array_set(*cur, array_v, key_v, v)
+                        Some((key_v, key_aliasing))
                     }
                 };
-                self.write_back_array(base, written, env, cur);
+                let (v, _, aliasing) = self.lower_stored(stored, Some(elem_ty), env, cur);
+                for &(key_v, key_aliasing) in &inner_keys {
+                    if key_aliasing {
+                        self.emit_retain(*cur, key_v);
+                    }
+                }
+                if let Some((key_v, true)) = outer_key {
+                    self.emit_retain(*cur, key_v);
+                }
+                if elem_ty.is_refcounted() && aliasing {
+                    self.emit_retain(*cur, v);
+                }
+                // Down the chain. Each row arrives owning one reference —
+                // `Helper::ArrayRowForWrite`'s whole job, since the
+                // `ArraySet` below consumes one and a plain
+                // `InstKind::ArrayGet` would both borrow and answer an absent
+                // key with a null.
+                let mut arrays: Vec<ValueId> = Vec::with_capacity(levels.len() + 1);
+                arrays.push(root_v);
+                for (level, &(key_v, _)) in levels.iter().zip(&inner_keys) {
+                    let row_ty = self.row_ty_of(level);
+                    let array = *arrays.last().expect("pushed the root above");
+                    let (row, _) = self.emit(
+                        *cur,
+                        row_ty,
+                        InstKind::HelperCall {
+                            helper: Helper::ArrayRowForWrite,
+                            args: vec![array, key_v],
+                        },
+                    );
+                    arrays.push(row);
+                }
+                // And back up, innermost first, so each level is handed the
+                // separated array the level below just produced.
+                let innermost = *arrays.last().expect("pushed the root above");
+                let mut written = match outer_key {
+                    None => self.emit_array_append(*cur, innermost, v, env),
+                    Some((key_v, _)) => self.emit_array_set(*cur, innermost, key_v, v),
+                };
+                for (i, &(key_v, _)) in inner_keys.iter().enumerate().rev() {
+                    written = self.emit_array_set(*cur, arrays[i], key_v, written);
+                }
+                self.write_back_array(root, written, env, cur);
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers reassignment to a plain local, a \
@@ -818,6 +893,40 @@ impl<'a> Lowering<'a> {
                  {other:?}"
             ),
         }
+    }
+    /// The representation of one intermediate level of a nested
+    /// array-element write target — `$grid[0]` in `$grid[0][1] = v` — read
+    /// out of the typed-expression table exactly as the write's own element
+    /// type is, since the checker records an [`ExprInfo::Index`] entry per
+    /// `Index` node whether it was reached as a read or as a target.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the level has no entry (its base erased to `mixed`), and
+    /// when its element type is not an array — a level that is being
+    /// subscripted again has to be one, so anything else means the checker
+    /// accepted a target this crate has no separation rule for.
+    fn row_ty_of(&self, level: &Expr) -> Ty {
+        let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(level.span) else {
+            panic!(
+                "mwl-ir: an intermediate level of a nested array-index assignment target at \
+                 {:?} has no resolved element type recorded in the typed-expression table — \
+                 either it wasn't checked with the same table, or its base erased to `mixed` \
+                 (an unresolved array), which this crate does not yet lower (see the crate \
+                 docs' known gaps)",
+                level.span
+            );
+        };
+        let row_ty = lower_checked_ty(*elem_ty, self.checked_types);
+        assert!(
+            row_ty == Ty::Array,
+            "mwl-ir: an intermediate level of a nested array-index assignment target at {:?} \
+             lowered to {row_ty:?} rather than an array, so there is nothing for the level \
+             above it to write back into — mwl_types::check_program is trusted to have \
+             rejected subscripting a non-array",
+            level.span
+        );
+        row_ty
     }
     /// `unset($a[$k]);` — the one `unset` target ADR 0028 § 3 leaves
     /// standing, lowered to [`InstKind::ArrayUnset`] and written back through

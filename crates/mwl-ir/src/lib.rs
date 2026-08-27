@@ -116,6 +116,23 @@
 //!   reaching [`ir::InstKind::ArrayUnset`], which has no index-shaped
 //!   primitive beside it. `lower::Lowering::lower_array_key` and
 //!   `lower_rendered_array_key` own both exceptions.
+//! - **A nested element write always separates the inner row, and that is
+//!   the price of having no branch.** `$grid[0][1] = v` flattens to its root
+//!   plus one key per level and descends with [`ir::Helper::ArrayRowForWrite`]
+//!   — a row that arrives owning a reference of its own, because the
+//!   [`ir::InstKind::ArraySet`] climbing back out consumes one. So every level
+//!   below the root reaches its write at a refcount of at least two and ADR
+//!   0007 § 5's copy-on-write separates it, even when nothing else was ever
+//!   going to observe the old row. **The cost is O(inner) per write**, paid
+//!   once per level, and it is correct rather than merely acceptable: a copy
+//!   is what the value semantics promise, and only an optimizer can tell that
+//!   this particular one is unobservable. The follow-up that removes it is a
+//!   *write-through* descent — one runtime entry point that takes the whole
+//!   key chain, walks it holding the parent's borrow rather than a reference,
+//!   and separates only where the count genuinely says it must — which is a
+//!   `mwl-runtime` ABI question (M9 freezes that surface) and not a lowering
+//!   one. Nothing depends on the copy happening, so it can be taken away
+//!   without changing an observable.
 //!
 //! # Known gaps
 //!
@@ -465,6 +482,19 @@
 //!     locals (ADR 0021's "no isolation") or not — which is why this is
 //!     recorded rather than guessed at. The declaration half, which is what
 //!     ADR 0061's autoload map needs, runs today.
+//! 23. **An append at an *intermediate* level of a write target does not
+//!     lower** — `$g[][0] = 1;`, PHP's "start a fresh row and write into it".
+//!     [`lower::Lowering::lower_reassignment`] flattens a nested target only
+//!     through levels carrying a subscript, so the `$g[]` under it is reached
+//!     as a *read* and hits [`lower::Lowering::lower_index`]'s permanent panic
+//!     for append-as-a-read. The outermost level being an append (`$g[0][] =
+//!     1;`) does lower and is the common spelling. Closing this needs no new
+//!     primitive, only one more shape in that flatten: an append level has
+//!     nothing to descend *into*, so its row is a fresh
+//!     [`ir::InstKind::ArrayNew`] rather than an
+//!     [`ir::Helper::ArrayRowForWrite`], and the climb back out stores it with
+//!     [`ir::InstKind::ArrayAppend`] rather than [`ir::InstKind::ArraySet`] —
+//!     which is exactly why the appended row's key never has to be named.
 
 pub mod ids;
 pub mod ir;

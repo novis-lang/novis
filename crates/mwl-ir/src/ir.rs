@@ -1165,7 +1165,7 @@ pub enum InstKind {
 /// the same reason [`BinOp`]/[`UnOp`] already are one: the set is small,
 /// closed, and known entirely to this crate and `mwl-codegen`, never
 /// user-extensible, so a string name would only trade compile-time
-/// exhaustiveness for nothing. Two families exist so far: a scalar-to-
+/// exhaustiveness for nothing. Three families exist so far: a scalar-to-
 /// [`crate::ty::Ty::Str`] conversion — for `.` concatenation
 /// (`crate::lower::Lowering::concat_operand`), with `UintToString` reused
 /// verbatim by `crate::lower::Lowering::lower_array_key` to render the one
@@ -1177,7 +1177,10 @@ pub enum InstKind {
 /// `if`/`while` condition whose static type isn't already `bool` (a
 /// `Ty::Object` condition needs none of these: ADR 0035 § 4 makes it always
 /// truthy with nothing to inspect at runtime, so that case lowers straight to
-/// a fresh [`InstKind::ConstBool`] instead).
+/// a fresh [`InstKind::ConstBool`] instead). The third has one member,
+/// [`Helper::ArrayRowForWrite`], and is here for the reason its own doc
+/// gives: an array primitive whose ownership answer is uniform across a
+/// present and an absent key, which no borrowing read can be.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum Helper {
@@ -1201,6 +1204,23 @@ pub enum Helper {
     StrTruthy,
     /// `array<T>` truthiness: falsy iff empty, for any `T`.
     ArrayTruthy,
+    /// One level of a nested array-element write's descent
+    /// (`crate::lower::Lowering::lower_reassignment`'s `Index` arm): the row
+    /// `args[1]` names in the array `args[0]`, **with a reference of its
+    /// own** — a retain of what was there, or a freshly allocated empty
+    /// array when the key is absent, which is PHP's auto-vivification.
+    ///
+    /// It exists because [`InstKind::ArrayGet`] models only the happy path:
+    /// it *borrows*, and it answers a missing key with a null-shaped
+    /// [`crate::ty::Ty::Tagged`] the caller would then hand to an
+    /// [`InstKind::ArraySet`] as if it were an array. Folding the two into
+    /// one entry point keeps the ownership uniform — the result is always
+    /// exactly one owned reference, so the lowering emits no retain beside
+    /// it — and it is why a nested write needs no branch in the IR at all.
+    /// The vivified row is not inserted into `args[0]` here; the `ArraySet`
+    /// on the way back up stores it, which is the same instruction that
+    /// re-points an existing row.
+    ArrayRowForWrite,
     /// `decimal` truthiness: falsy iff zero, at any scale.
     DecimalTruthy,
     /// `a + b` over [`crate::ty::Ty::Decimal`] —
