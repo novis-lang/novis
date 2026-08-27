@@ -838,6 +838,10 @@ is why" — is this file.
   enumerates all of the *refused* shapes, while lowering panics on the first shape that gets
   that far, so each panicking shape costs its own edit-and-run. Put the shapes you expect to
   be refused in one file and the ones you expect to lower in another.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it when
+  it goes through the Bash tool**, which is Git Bash: without it the `/mnt/<drive>/<repo>/...` argument is
+  rewritten to `C:/Program Files/Git/mnt/<drive>/<repo>/...` before `wsl.exe` ever sees it, and the failure reads
+  as a missing script rather than as a mangled path. PowerShell passes it through unchanged.
 
 ## Writing a test case
 

@@ -112,36 +112,53 @@
 > Core\Html\Markup`, whose own `E0417` wants a source literal), and the identical type. What is left
 > is the one that is no downcast: `$foo as Bar` between two unrelated classes, which was worse than
 > a panic — both erase to one pointer, so it took the free `from == to` row, nothing ran, and
-> `Bar`'s slot list was then read off a `Foo`'s allocation. `mwl-ir`'s own catch-all still has
-> exactly the two targets its message names, and neither of them is an object any more: `array<T> as
-> array<U>`, and ADR 0024 § 5's `string as Core\Html\Markup`, which is a *rule* rather than a test —
-> a source-literal string and nothing else — and waits on `Core\Html` existing at all (M7). The
-> tagged operand into an object closed, and it closed as two answers rather than one. A **declared
-> class** target is ADR 0007 § 6's checked way out of `mixed`, and it needed nothing new:
-> `InstKind::InstanceOf` already takes a `Ty::Tagged` subject and already answers `false` for a tag
-> that is not an object, so the row is that test, a `Terminator::Throw` on the false edge and one
-> free `InstKind::Untag` on the true one — a `Helper` could not have carried it in any case, helper
-> arguments being stored as `Value`s that a class descriptor is not. `$m as Plain`, `$m as Shape`
-> through an interface and `?Plain as Plain` all agree with `$m instanceof Plain` for every tag a
-> `mixed` can hold, and the ownership is `convert`'s own free row split across the two edges:
-> `Untag` is a relabelling, so a borrowed operand is retained on the way out and a fresh one
-> transfers instead, and the false edge releases a fresh one before it throws rather than abandoning
-> it on the edge — valgrind-clean over a fixture that converts, and fails to convert, two hundred
-> times. Every **other** object target names no class to test against — plain `object`, a shape, a
-> `callable`, and a `Core` class, which has no descriptor in the unit for the same reason
-> `instanceof Core\Uri` is `E0496` — so from an operand that is not already an object the conversion
-> could only assert a tag it cannot verify, which is `$foo as Bar`'s type confusion one step
-> earlier, and `mwl_types` refuses it where it is written (`E0711`). `$plain as object` stays the
-> free widening row it always was, and `Core\Html\Markup` is the one `Core` exemption, its own row
-> being `mwl_types::expr::quals`' to own. The third was a tagged operand into `bytes` and it is a
-> row now: ADR 0009 § 3's pair is the operand's own *tag*'s wherever its static type names neither
-> side of it, so `Helper::TaggedToBytes` hands the same allocation back under the other tag for a
-> `string` or a `bytes` and throws for every tag § 2's table gives no row. It is the only shape of
-> `as bytes` that reaches a call at all, the statically typed spelling being a free `Reinterpret`
-> over that same allocation. `lower_expr`'s dispatch message is the assertion its roster already
-> proved. One level *up* from all of it, **a digit run beside a `uint` is now placed at `uint`**
-> rather than defaulting to `int` — ADR 0007 § 2's "untyped until placed" applied to the one
-> placement a binary operator offers, its other operand — so `$u + 1`, `$u & 3` and `$u << 1`
+> `Bar`'s slot list was then read off a `Foo`'s allocation. `mwl-ir`'s own catch-all has one target
+> left and it is not this milestone's: ADR 0024 § 5's `string as Core\Html\Markup`, which is a
+> *rule* rather than a test — a source-literal string and nothing else — and waits on `Core\Html`
+> existing at all (M7). `array<T> as array<U>` was the other, and it closed as a **walk** rather
+> than as a row. § 2's check is per *element*, and what checks one element is its runtime **tag** —
+> the same four bits a closure parameter's entry check compares — so `Lowering::lower_array_restamp`
+> reads the element type off the annotation, which is the only place it still exists, and hands one
+> tag nibble per level of `U` to `Helper::ToArrayOf`. It could not have been a row of
+> `Lowering::convert`: both sides of `array<int> as array<string>` erase to one `Ty::Array`, so that
+> function took its free `from == to` row and handed the `int`s straight through under the other
+> declaration, which is `$foo as Bar`'s type confusion one container in. `Helper::ToArrayOfOrNull`
+> is ADR 0066's spelling of the same walk over one implementation, so the checked and the
+> `null`-answering rows closed together. **Nothing is copied**: an MWL array is copy-on-write, so
+> the result is the operand's own allocation under one more reference and whichever view writes
+> first separates itself — § 5's invariance is bought with tag tests rather than with bytes moved,
+> and that section's own "a real copy" sentence is corrected rather than left to disagree. What a
+> tag cannot decide is refused where it is written (`E0711`, `reject_uncheckable_element_type`,
+> which is that roster's one home): a **class** element is the fixed-offset confusion again, an
+> **enum** would admit any integer as a case where ADR 0010 § 5's own row throws, and a **literal
+> type** or a **union** admits some values of its representation and not others. `array<mixed>` is
+> the target every tag satisfies, the way round all four, and the one shape that runs nothing at all
+> from an operand already an array. The tagged operand into an object closed, and it closed as two
+> answers rather than one. A **declared class** target is ADR 0007 § 6's checked way out of `mixed`,
+> and it needed nothing new: `InstKind::InstanceOf` already takes a `Ty::Tagged` subject and already
+> answers `false` for a tag that is not an object, so the row is that test, a `Terminator::Throw` on
+> the false edge and one free `InstKind::Untag` on the true one — a `Helper` could not have carried
+> it in any case, helper arguments being stored as `Value`s that a class descriptor is not. `$m as
+> Plain`, `$m as Shape` through an interface and `?Plain as Plain` all agree with `$m instanceof
+> Plain` for every tag a `mixed` can hold, and the ownership is `convert`'s own free row split
+> across the two edges: `Untag` is a relabelling, so a borrowed operand is retained on the way out
+> and a fresh one transfers instead, and the false edge releases a fresh one before it throws rather
+> than abandoning it on the edge — valgrind-clean over a fixture that converts, and fails to
+> convert, two hundred times. Every **other** object target names no class to test against — plain
+> `object`, a shape, a `callable`, and a `Core` class, which has no descriptor in the unit for the
+> same reason `instanceof Core\Uri` is `E0496` — so from an operand that is not already an object
+> the conversion could only assert a tag it cannot verify, which is `$foo as Bar`'s type confusion
+> one step earlier, and `mwl_types` refuses it where it is written (`E0711`). `$plain as object`
+> stays the free widening row it always was, and `Core\Html\Markup` is the one `Core` exemption, its
+> own row being `mwl_types::expr::quals`' to own. The third was a tagged operand into `bytes` and it
+> is a row now: ADR 0009 § 3's pair is the operand's own *tag*'s wherever its static type names
+> neither side of it, so `Helper::TaggedToBytes` hands the same allocation back under the other tag
+> for a `string` or a `bytes` and throws for every tag § 2's table gives no row. It is the only
+> shape of `as bytes` that reaches a call at all, the statically typed spelling being a free
+> `Reinterpret` over that same allocation. `lower_expr`'s dispatch message is the assertion its
+> roster already proved. One level *up* from all of it, **a digit run beside a `uint` is now placed
+> at `uint`** rather than defaulting to `int` — ADR 0007 § 2's "untyped until placed" applied to the
+> one placement a binary operator offers, its other operand — so `$u + 1`, `$u & 3` and `$u << 1`
 > compile at all, where each of them used to be § 4's mixed-signedness refusal and a `uint` could
 > meet only a `uint`-declared local; a digit run above `i64::MAX`, which § 4 admits "only where a
 > `uint` is expected", has an operand position for the first time, and `mwl-ir` makes the same
@@ -159,10 +176,10 @@
 > ?int`, `$flag as ?int`, `$i as ?bytes` and `null as ?int` take the same `E0708` their unsugared
 > spellings already did — they reached a lowering and panicked before, the checker having skipped
 > the table for every written `?T`. The class row was already absolute and is untouched (`E0473`),
-> and the three never fire on one expression. What is left under `as ?T` is the opposite direction,
-> a row § 3 calls **available** with no `?` helper to run it, and it is now `$m as ?array<T>` alone,
-> `Lowering::convert`'s own missing row in its null-answering spelling, so the two close together.
-> The `bytes` target closed with its checked twin: `Helper::ToBytesOrNull` shares
+> and the three never fire on one expression. Under `as ?T` the opposite direction — a row § 3 calls
+> **available** with no `?` helper to run it — is closed too, and it needed no helper of its own:
+> `$m as ?array<U>` is the element walk again, answering `null` in exactly the places the checked
+> spelling throws. The `bytes` target closed with its checked twin: `Helper::ToBytesOrNull` shares
 > `Helper::TaggedToBytes`'s one implementation of the two rows a tag can take into a `bytes`, and
 > neither can fault at all, so unlike the text target neither pays for a landing block. The **text**
 > target is closed: `Helper::ToStringOrNull` is `Helper::TaggedToString`'s twin over one
