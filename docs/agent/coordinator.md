@@ -160,9 +160,16 @@ inputs: no memoized check runs a `.mwlt` case or reads a document. When both con
 binary are green, the WSL build is skipped with them — never one without the other, or the sweep would
 silently fall back to a platform with no valgrind on it.
 
-The sweep itself runs four fixtures at a time. A leak verdict is per-process and deterministic, so
-concurrency cannot change one; the abi-probe **cost-class** guards are the opposite and still run last,
-alone, on an idle machine. Measured on 16 cores: 67.8s serial, 21.2s at four, 16.0s at eight.
+The sweep runs several fixtures at once, and **how many is the machine's answer, not this repo's** —
+`tools/machine.py` holds that policy and nothing else does: half the cores the work will actually see,
+never fewer than two, never more than there are fixtures, never more than free memory allows. On
+Windows "the cores the work sees" means WSL's, which `.wslconfig` sets independently of the host. Those
+facts, plus one fixture timed serially as a baseline, are probed **once per machine** and cached in
+`.loop/machine.json`; `python tools/machine.py` shows what this box came out as, and `MWL_VALGRIND_JOBS`
+overrides the width for one run. Half a box and not all of it, because the release build overlaps the
+sweep on purpose and is the longer pole. Measured on 16 cores, 23 fixtures: 67.8s serial, 21.2s at four,
+16.0s at eight. A leak verdict is per-process and deterministic, so concurrency cannot change one; the
+abi-probe **cost-class** guards are the opposite and still run last, alone, on an idle machine.
 
 Every check is timed, and the driver writes a `goal cost:` line to the ledger each iteration naming the
 wall clock and the three slowest checks. The headline is wall clock rather than the sum of the timers,

@@ -264,6 +264,29 @@ and is not comparable across machines, which is why the cross-machine history in
 [ADR 0026](../adr/0026-performance-measurement-methodology.md) is counted in instructions instead. This
 suite is that ADR's § 3 secondary figure, in runnable form.
 
+## How wide anything runs
+
+```sh
+python tools/machine.py               # what this box is, and the widths it implies
+python tools/machine.py --refresh     # forget the cached facts and probe again
+MWL_VALGRIND_JOBS=2 python tools/loop.py --goal-only   # override one run's sweep width
+```
+
+**One policy, in `tools/machine.py`, and no caller has its own:** half the cores the work will actually
+see, floor two, capped by how many items there are and by free memory. Half and not more because the
+machine is not idle — `loop.py` overlaps the release build with the valgrind sweep deliberately, and that
+build is the longer pole.
+
+The facts it needs are a property of the box, so they are probed **once** and cached in
+`.loop/machine.json`: cores, free memory, and one unit of the real work timed serially as a baseline. The
+probe runs *where the work runs*, which on Windows is inside WSL — `.wslconfig` sets WSL2's cores and
+memory independently of the host, so the host's count is the wrong number. An entry is re-probed when the
+host name changes or after 30 days, which is how a `.wslconfig` edit gets noticed. `MWL_JOBS` overrides
+every width for one run, `MWL_VALGRIND_JOBS` and `MWL_TRY_JOBS` one caller's; none is written back.
+
+Two callers today: the valgrind sweep in `loop.py`, and `try.py`, which runs its snippets this wide and
+prints the blocks back in the order you asked for them.
+
 ## Disk
 
 ```sh
