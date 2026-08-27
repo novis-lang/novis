@@ -1443,6 +1443,13 @@ sibling in the same namespace unqualified.
   `public Rank $rank = Rank::Silver;` is `E0472`: a case *is* a compile-time integer
   constant (ADR 0010 § 3), but a property default accepts only a scalar literal or `[]`,
   so an enum-typed property takes its value through `constructor`.
+- **A nullable property cannot default to `null`.** `public ?string $s = null;` is `E0472: a property
+  default must be a `string|null` literal — not a literal of the declared type`, and the same for
+  `?object`, so a class in a case or a fixture cannot open a nullable slot the obvious way. What
+  works is declaring it non-nullable and filling it in `constructor`, which is what the help text
+  already says for the shapes it does mean to refuse. A **local** `?object $m = null;` is fine — it
+  is only the property-default folder that refuses the `null` literal, and it refuses it for every
+  `?T`, not just for an object one.
 
 ## Divergences and refusals already pinned
 
