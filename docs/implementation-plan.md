@@ -211,15 +211,29 @@
 > `$uri->toString()` for each of the three classes the spec gives one, and the receiver's ownership
 > inverts with the call: a native member *borrows* argument 0, so a fresh receiver (`echo
 > Core\Uri::parse(…)`) is the rendering site's to release rather than the callee's, which is
-> valgrind-clean over a fixture that renders in a loop. What is left of that row is the same class
-> reached through an **erased** operand — a `Core` object behind a `mixed` dispatches through
-> `mwl_runtime::stringify`, which reads a compiled method table and so throws for a value the static
-> spelling renders. That one is not this crate's: `mwl-runtime` sits below `mwl-stdlib` and cannot
-> read the registry, so closing it is a question of what the two share, and `mwl-ir`'s known gap 12
-> owns the two candidate shapes. Three live tools **are** the worklist and no session re-derives
-> one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and
-> attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the
-> named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
+> valgrind-clean over a fixture that renders in a loop. That row is closed at its other end too, and
+> the erased half renders through the very same member. `mwl-runtime` sits below `mwl-stdlib` and
+> cannot read the registry, so what the two share is the **descriptor**: `mwl_stdlib::instance` puts
+> the class's registered `toString` on it as `ClassDesc::renderer`, derived from
+> `registry::class_renders` — the check the compiler already makes at a written `echo` — rather than
+> written down a second time, and `mwl_runtime::stringify` asks for that before the compiled method
+> table a `Core` class has no entry in. It is deliberately not a row *in* that table, because the
+> two calling conventions differ: a compiled method owns its parameters while a native `Core` member
+> borrows argument 0, so which descriptor field an address came out of is what tells the caller
+> which reference it owes. So `echo $m`, `"$m"`, `"" . $m` and `$m as string` over a `mixed` holding
+> a `Core\Uri`, a `Core\Uuid` or a `Core\Time\Duration` all answer what `$x->toString()` answers,
+> valgrind-clean over a fixture that renders a borrowed and a fresh operand two hundred times each,
+> while a `Core` class the registry gives no `toString` throws catchably where there is no site to
+> refuse it at. The two sink carriers are unchanged and needed nothing: ADR 0088 § 5 renders one as
+> exactly the bytes it carries, with no member asked for at all, behind a `mixed` as through its own
+> type. Two agreement tests keep the halves in step —
+> `a_core_class_stringifies_exactly_where_the_registry_says_so` asks the checker and the registry
+> the same question, `every_rendering_class_carries_a_renderer_or_is_a_carrier` asks the descriptor
+> and the registry theirs — so a `Core` class cannot render where it is written and throw where it
+> is not. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
+> cases each stage still owes, and `python tools/check-migration.py` scores
 > `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop

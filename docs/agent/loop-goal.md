@@ -176,10 +176,17 @@ ledger distinguishes "the unit guards are green" from "the program runs".
     `mwl_types` refuses neither, so both reach lowering and panic naming the ADR.
     `crates/mwl-ir/src/lower/expr.rs:918` (`convert_or_null`) is where they arrive; the fix is in
     `mwl_types`. `mwl-ir` gap 4.
-28. **`echo $someCoreObject` answers or is diagnosed.** A `Core`-owned class is exempt from
-    `require_stringable`, records no `to_string_call` target, and reaches `mwl-ir`'s gap 12 as a panic.
-    Closing it means saying which `Core` classes ADR 0028 § 1 makes stringifiable, which is
-    `mwl_stdlib::registry`'s answer to give. `crates/mwl-types/src/expr/operators.rs:895`.
+28. ~~**`echo $someCoreObject` answers or is diagnosed.**~~ **Done**, both halves and behind an erased
+    operand too. `mwl_stdlib::registry::class_renders` is the one answer to "which `Core` classes does
+    ADR 0028 § 1 make stringifiable", and it has two rows: a class the spec gives a `toString`, and a
+    sink carrier that renders through ADR 0088 § 5 with no member at all. `require_stringable` reads it
+    and refuses the rest where they are written (`E0710`); `mwl-ir` emits the native call the member
+    written out takes. Where the operand's static type names *no* class there is nothing to resolve, so
+    the runtime decides: `mwl_stdlib::instance` puts that same registered `toString` on the class's
+    descriptor as `ClassDesc::renderer` and `mwl_runtime::stringify` asks for it before the compiled
+    method table a `Core` class has no entry in. One implementation, reached two ways — the two
+    agreement tests are `a_core_class_stringifies_exactly_where_the_registry_says_so` and
+    `every_rendering_class_carries_a_renderer_or_is_a_carrier`.
 29. **A nullsafe assignment target is a diagnostic.** `$a?->b = v` panics; PHP refuses it outright and
     `mwl_types` does not diagnose it. Same for an array-element write through a hooked property — see
     § *Standing decisions* for both. `crates/mwl-ir/src/lower/mod.rs:1702`.

@@ -842,6 +842,13 @@ is why" — is this file.
   it goes through the Bash tool**, which is Git Bash: without it the `/mnt/<drive>/<repo>/...` argument is
   rewritten to `C:/Program Files/Git/mnt/<drive>/<repo>/...` before `wsl.exe` ever sees it, and the failure reads
   as a missing script rather than as a mangled path. PowerShell passes it through unchanged.
+- **`tools/leak-check.sh` has to be run from PowerShell, not from the Bash tool.** `wsl.exe -- bash
+  /mnt/<drive>/<repo>/tools/leak-check.sh <fixture>` is the spelling `commands.md` gives, and under Git Bash
+  it fails with `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or
+  directory` — MSYS rewrites any argument that looks like an absolute POSIX path into a Windows one
+  before `wsl.exe` ever sees it. The same command from the PowerShell tool runs unchanged. Prefixing
+  `MSYS_NO_PATHCONV=1` also works, but the shorter rule is that anything handing `/mnt/...` to
+  `wsl.exe` belongs in PowerShell.
 
 ## Writing a test case
 
