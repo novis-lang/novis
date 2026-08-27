@@ -549,3 +549,18 @@ class variable. Because a static therefore has no constructor to assign it, its 
 initializer unless its type admits `null` (`E0409`), and `static::$prop` — which PHP re-resolves against
 the *called* class — is refused rather than silently answering the writing class's slot (`E0499`).
 `mwl_runtime::ctx`'s module docs own the mechanism and what it spends.
+
+**A `class`, `interface` or `enum` is declared at file scope, or not at all.** PHP declares a nested type
+when the statement *runs*, so `if ($legacy) { class Session { … } }` makes the very existence of a name a
+run-time fact. MWL resolves every type name against a static table built before any code runs — the
+`require`/autoload graph of [0021](0021-single-file-inclusion-construct.md), then `mwl_hir`'s member and
+hierarchy tables, then `mwl_types::layout`'s field offsets — and none of those has a reading to give a
+name that may or may not exist yet. So a declaration written inside a method body, a property hook, a
+closure body or a nested block at file scope is `E0233` where it is written, reported by
+`mwl_types::locals`' per-body walk, which is reached only from inside a body and therefore needs no
+"am I nested" test of its own. Both cheaper readings were rejected: declaring it unconditionally at file
+scope silently changes the program PHP wrote, and admitting a conditional entry in the class table would
+put a run-time question inside every name resolution, layout and dispatch decision below it — priority 4,
+paid for once here rather than at every later lookup. What it costs is PHP's conditional-class idiom,
+whose two real uses — a polyfill and a feature switch — are `require` of one file or the other, which is
+static and already works.

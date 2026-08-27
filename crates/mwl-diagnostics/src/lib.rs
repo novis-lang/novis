@@ -295,6 +295,14 @@ pub mod code {
     /// three characters are consumed, named, and lexed as the two-character
     /// operator so the rest of the file still reports its own problems.
     pub const E_IDENTITY_OPERATOR_UNSUPPORTED: Code = Code::new("E0232");
+    /// A `class`, `interface` or `enum` declaration written inside a function
+    /// body, a property hook or a nested block. PHP declares such a type when
+    /// the statement *runs*, so whether the name exists depends on control
+    /// flow; MWL resolves every type name against a static table built before
+    /// any code runs. See `docs/adr/README.md`
+    /// § *Decisions taken at project start*, and `mwl_types::locals`' module
+    /// doc for the walk that reports it.
+    pub const E_NESTED_TYPE_DECLARATION_UNSUPPORTED: Code = Code::new("E0233");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

@@ -67,10 +67,17 @@
 //! `continue`, and not the last case) contributes nothing to what is live
 //! *within* the case it falls into — each case is still checked starting
 //! fresh from what was live before the whole `switch`, same as a `case`
-//! reached by a direct jump would see (documented at the `Switch` arm below);
-//! a nested class/interface/enum declaration inside a function body is not
-//! descended into at all (its own methods go unchecked, same as a closure's
-//! body — see `crate::expr`'s docs for the latter).
+//! reached by a direct jump would see (documented at the `Switch` arm below).
+//!
+//! **A type declaration reaching this walk is refused, not descended into.**
+//! [`crate::check::check_stmts`] matches `class`/`interface`/`enum` at file
+//! scope itself and never forwards one here, so arriving is proof of nesting
+//! — inside a method body, a property hook, a closure body, or a block at
+//! file scope — and [`nested_type_declaration`] reports `E0233` on the spot.
+//! The decision is `docs/adr/README.md` § *Decisions taken at project start*:
+//! a name whose existence depends on control flow has no reading the static
+//! class table can give it. Nothing below the checker ever sees one, which
+//! is why `mwl_ir::lower::stmt`'s dispatch does not carry an arm for it.
 
 use mwl_diagnostics::{Diagnostic, Span, code};
 use mwl_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stmt, StmtKind};
@@ -917,10 +924,16 @@ pub(crate) fn check_stmt(
             // unstructured") — nothing downstream ever acts on them, same as
             // `mwl_hir::members`'s own walk.
         }
-        StmtKind::ClassDecl(_)
-        | StmtKind::InterfaceDecl(_)
-        | StmtKind::EnumDecl(_)
-        | StmtKind::NamespaceDecl(_)
+        // A type declaration only ever reaches this walk from *inside* a body:
+        // `crate::check::check_stmts` matches all three at file scope and
+        // never forwards one here. So the refusal below needs no "am I nested"
+        // test — arriving is the test. See this module's own doc comment.
+        StmtKind::ClassDecl(decl) => nested_type_declaration("class", decl.name.span, env),
+        StmtKind::InterfaceDecl(decl) => {
+            nested_type_declaration("interface", decl.name.span, env);
+        }
+        StmtKind::EnumDecl(decl) => nested_type_declaration("enum", decl.name.span, env),
+        StmtKind::NamespaceDecl(_)
         | StmtKind::UseDecl(_)
         | StmtKind::TypeAliasDecl(_)
         | StmtKind::TopLevelFunction(_)
@@ -930,6 +943,30 @@ pub(crate) fn check_stmt(
         }
         _ => {}
     }
+}
+
+/// `E0233` — a `class`, `interface` or `enum` declared anywhere but file
+/// scope, named for what it is rather than left to panic below the checker.
+///
+/// `kind` is the keyword as written, so the message reads back the source;
+/// `name` is the declared name's own span, which is the shortest thing to
+/// point at and the one part of the declaration a reader has to move.
+fn nested_type_declaration(kind: &str, name: Span, env: &mut Env<'_>) {
+    let name_text = span_text(env.src, name).to_owned();
+    env.diags.report(
+        Diagnostic::error(
+            code::E_NESTED_TYPE_DECLARATION_UNSUPPORTED,
+            format!("a nested `{kind}` declaration is not supported"),
+        )
+        .with_primary(
+            name,
+            format!("`{name_text}` would only exist once control reached this statement"),
+        )
+        .with_help(format!(
+            "move `{name_text}` out to file scope — every type in MWL is declared before any code \
+             runs, so a name's existence never depends on control flow"
+        )),
+    );
 }
 
 fn walk_destructure_target(
