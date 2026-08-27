@@ -127,7 +127,21 @@
 > stays refused is the pair with no digit run in it: a shift's *count* is an operand of the operator
 > rather than a bare width, judged by the row its left operand takes, which is exactly what makes
 > `mwl-codegen`'s `emit_shift` sound in reading one signedness for both the negative-count guard and
-> the arithmetic-versus-logical choice. Three live tools **are** the worklist and no session
+> the arithmetic-versus-logical choice. One level up from the `as` table, **ADR 0066 § 3's own table
+> is closed at both ends too**. `as ?T` "yields `null` exactly where `as T` would throw", so a row
+> that never throws promises a `null` no run can produce and forces a check on every reader after
+> it: `$i as ?int`, `$i as ?string`, `$xs as ?bool`, `$mode as ?int`, `$s as ?mixed` and `Mode::Read
+> as ?Mode` are now `E0709`, each help naming `as T`, and that is the one judgement the plain form
+> never has to make. The other end is shared: § 2's closure is asked of the `T` *inside* the sugar
+> rather than of the `Union([Null, T])` it interns as, so `array<int> as ?int`, `$flag as ?int`, `$i
+> as ?bytes` and `null as ?int` take the same `E0708` their unsugared spellings already did — they
+> reached a lowering and panicked before, the checker having skipped the table for every written
+> `?T`. The class row was already absolute and is untouched (`E0473`), and the three never fire on
+> one expression. What is left under `as ?T` is the opposite direction, a row § 3 calls
+> **available** with no `?` helper to run it: every target that produces text or a container — `$b
+> as ?string`, `$m as ?string`, `$m as ?bytes`, `$m as ?array<T>` — which is `Lowering::convert`'s
+> own missing row in its null-answering spelling, plus a `string` twin of `Helper::TaggedToString`
+> answering `null` where that one throws. Three live tools **are** the worklist and no session
 > re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen`
 > and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
 > the named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
