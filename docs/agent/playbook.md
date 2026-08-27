@@ -571,6 +571,16 @@ is why" — is this file.
   it, because a non-fallible `HelperCall` discards the status word rather than branching on it. So
   when a new row makes a uniform emit site fallible, the scratch file to write is one that throws
   from inside the new row and catches it — not one that checks the row's own value.
+- **A `Core` class can render as text without a `toString` row, and the second rule is
+  `mwl_runtime::is_carrier`.** A refusal written off the registry's member rosters alone
+  looks right, compiles, and then turns four green `Core\Out::capture` cases red at the
+  full verify: `Core\Cli\Text` is a **sink carrier**, so ADR 0088 § 5 renders it as the
+  bytes it already holds — `value_to_string`'s own `Tag::Object` arm does it, asking for
+  no member at all — and `Core\Html\Markup` is the other one. So "which `Core` classes
+  render" is two rosters, not one; `mwl_stdlib::registry::class_renders` is where they
+  are joined, and `mwl-types` has no `mwl-runtime` dependency to reach the second
+  directly. The general shape: a rule stated over `registry.rs`'s rows is not the whole
+  rule wherever `mwl_runtime` answers for a class on its own.
 
 ## Running things
 

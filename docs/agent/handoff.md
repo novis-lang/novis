@@ -2,62 +2,72 @@
 
 ## State
 
-**M4 — ADR 0066 § 3's `as ?T` table has no text row left, and the object half of `as string` is
-two thirds closed.** An operand whose static type names a class still resolves its `toString` in
-`mwl_types` and lowers to an ordinary call; one that names *none* is dispatched on its runtime
-class by `mwl_runtime::stringify`, which is the one home for that half of ADR 0028 § 1.
+**M4 — `Lowering::convert`'s catch-all is down to two rows, and the `Core` half of
+`as string` is refused where it is written.** A `mixed`, a `?T` or any other union
+converted to `bytes` now takes ADR 0009 § 3's row from its runtime tag; a `Core`-owned
+class the spec gives no `toString` is `E0710` at the `echo` rather than a throw below it.
 
-- **`echo $o`, `"" . $o` and `$o as string` are one answer for one value.** `concat_operand`
-  already fell back to `Helper::TaggedToString` for an unresolved object; `convert`'s
-  `(Ty::Object, Ty::Str)` row panicked instead, and now takes the same fallback. Under it,
-  `stringify` asks the receiver's class for `toString` and `value_to_string` is the tag table
-  beneath, so a class with none throws catchably and names itself.
-- **The `Core`-owned class is the last third and is a `mwl-stdlib` question, not an `mwl-ir` one.**
-  Its members are native, so nothing is in the compiled method table for that dispatch to find;
-  `mwl-ir`'s known gap 12 is the home, and the standing decision names `mwl_stdlib::registry` as
-  where "which `Core` classes have a `toString`" is stated.
-- **`Helper::ToStringOrNull` shares `TaggedToString`'s implementation**, so the two spellings
-  cannot disagree on a row. It is the one `?` helper emitted through `emit_fallible`: a
-  `toString()` body that throws is the program's own exception and propagates — see the playbook
-  bullet, which is what that cost.
-- **The item this session was handed was already closed.** A `Stringable`-typed receiver resolves
-  and lowers today; `implements_interface`'s self-pair answer closed it. The panic's reachable
-  shapes were the erased `object` and the `Core` class, and `holes.py` should be re-read rather
-  than the item's own prose.
+- **`$m as bytes` and `$m as ?bytes` are one row set.** `Helper::TaggedToBytes` and
+  `Helper::ToBytesOrNull` share `mwl_runtime::to_bytes`, which hands back the same
+  allocation under the other tag for a `Tag::Str` or a `Tag::Bytes` and answers nothing
+  for every other tag. Neither can fault, so the `?` twin is emitted plainly — the
+  `string` target is still the one `?` row carrying ADR 0002's error edge, because only
+  it can run a `toString()` body. Valgrind clean over a fixture exercising both.
+- **The statically typed `as bytes` reaches no helper at all** and did not change: it is
+  a free `InstKind::Reinterpret`, which is why `TaggedToBytes` is the one conversion
+  helper here with no static sibling. `mwl-ir`'s known gap 4 and the roster in its
+  crate docs are the home for what is left.
+- **`require_stringable_object` no longer exempts every `Core` class.** It asks
+  `mwl_stdlib::registry::class_renders`, which joins the two rosters that answer: three
+  classes have a `toString` row — `Core\Uri`, `Core\Uuid`, `Core\Time\Duration` — and the
+  two sink carriers render through ADR 0088 § 5 with no member at all. That function's
+  doc comment is the one home for the rule; every other `Core` class is `E0710`.
+- **A `Core` class that *does* render still throws**, and that is `mwl-ir`'s known gap 12
+  in full now: `resolve_method` finds the seeded signature, but the member is a native
+  symbol rather than an entry in a compiled method table, so nothing a `CallVirtual`
+  reaches exists.
 
 ## Next group
 
-**The conversion rows `Lowering::convert`'s catch-all still names, and the `Core` half of
-`as string`.** The file set: `crates/mwl-ir/src/lower/expr.rs`,
-`crates/mwl-runtime/src/helpers.rs`, `crates/mwl-types/src/expr/operators.rs`,
-`crates/mwl-stdlib/src/registry.rs`, `tests/conformance/lang/`.
+**The rendering half of `Core`'s `as string`, then the two rows `Lowering::convert`'s
+catch-all still names.** The file set:
+`crates/mwl-types/src/expr/operators.rs`, `crates/mwl-ir/src/lower/expr.rs`,
+`crates/mwl-stdlib/src/registry.rs`, `crates/mwl-runtime/src/helpers.rs`,
+`tests/conformance/lang/`.
 
-- [ ] **`$m as bytes` and `$m as ?bytes`** — ADR 0007 § 2's tagged-operand-into-`bytes` row, one of
-      the three `Lowering::convert`'s catch-all names and the one with a helper already half
-      written: `bytes_to_string` is the other direction, and the `?` twin is a `Ty::Bytes` arm
-      beside the `Ty::Str` one added this session. Anchors:
-      `crates/mwl-ir/src/lower/expr.rs:1265` (the catch-all),
-      `crates/mwl-ir/src/lower/expr.rs:1316` (`convert_or_null`),
-      `crates/mwl-runtime/src/helpers.rs:985` (`stringify`, the shape to copy).
-- [ ] **The `Core`-owned `as string`, refusal half.** `require_stringable_object` exempts every
-      `Core` class at its second line, so `echo $uuid` reaches the runtime dispatch, finds no
-      compiled method and throws. The standing decision says the registry states which classes have
-      a `toString` and a class with none is refused where it is written. Anchors:
-      `crates/mwl-types/src/expr/operators.rs:1603` (the `is_core` exemption),
-      `crates/mwl-stdlib/src/uuid.rs:150` (a `CoreMethod` row named `toString`),
-      `crates/mwl-stdlib/src/registry.rs`.
-- [ ] **The `Core`-owned `as string`, rendering half.** A class the registry *does* give a
-      `toString` has to reach its native member — `mwl_runtime::stringify` finds nothing in the
-      class table, so the row belongs beside `value_to_string`'s carrier one rather than in the
-      dispatch. Anchors: `crates/mwl-runtime/src/helpers.rs:985`,
-      `crates/mwl-runtime/src/helpers.rs:@value_to_string` (the `Tag::Object` row).
+- [ ] **`echo $uri` on a `Core` class that has a `toString`** — `mwl-ir`'s known gap 12,
+      ADR 0028 § 1. The refusal half is done; what is missing is the *call*. A `Core`
+      member is an `InstKind::CoreCall` on the registry's symbol, not a `CallVirtual`, so
+      the recorded target `require_stringable_object` writes has to say which, or the
+      lowering has to ask the registry. Anchors:
+      `crates/mwl-types/src/expr/operators.rs:1600` (`require_stringable_object`, the
+      `Core` branch is at 1603), `crates/mwl-types/src/expr/operators.rs:1652`
+      (`record_to_string`), `crates/mwl-ir/src/lower/expr.rs:847`
+      (`lower_to_string_call`), `crates/mwl-stdlib/src/uuid.rs:150`,
+      `crates/mwl-stdlib/src/uri.rs:454`, `crates/mwl-stdlib/src/time.rs:259` (the three
+      `toString` rows). The runtime half, if the answer is a helper rather than a call,
+      is `crates/mwl-runtime/src/helpers.rs:985` (`stringify`).
+- [ ] **`$m as Plain` — a tagged operand converted to an object** — ADR 0007 § 6's
+      checked way out of `mixed`, and one of the two rows `Lowering::convert`'s
+      catch-all still names. Needs a class identity `Ty::Object` deliberately does not
+      carry, so the helper takes an `ir::Program::classes` label the way
+      `InstKind::ClassDescConst` already hands one to `Core\Json::decodeAs`. Anchors:
+      `crates/mwl-ir/src/lower/expr.rs:1288` (the catch-all),
+      `crates/mwl-ir/src/lower/expr.rs:1342` (`convert_or_null`, whose `?` twin closes
+      with it).
+- [ ] **`$xs as array<U>`** — the last row of that catch-all and the one that is no
+      single helper call: ADR 0007 § 2's O(n) element walk, "every element must satisfy
+      `U`". The `?` twin is the same walk answering `null` on the first element that
+      does not. Same two anchors as above; the element check is `mwl_types`' erasure
+      table, so read `erase_checked_ty` before deciding where the per-element type
+      comes from.
 
 ## Backlog
 
-- `array<T> as array<U>` — the O(n) element walk, `Lowering::convert`'s third catch-all target and
-  the one that unblocks four playbook bullets; `mwl-ir`'s known gap 4.
-- A tagged operand into an object — ADR 0007 § 6's checked way out of `mixed`, which wants a class
-  identity `Ty::Object` does not carry; `mwl-ir`'s known gap 4.
-- ADR 0010 § 5's integer *into* an enum, in both `as` forms; `mwl-ir`'s known gap 4.
-- `mwl-ir` gap 22 — a second file's file-scope statements do not run; `tests/conformance/` cases
-  pin a second file by what it declares.
+- `mwl-ir` gap 12's runtime half — `mwl_runtime::stringify` cannot see a native member
+  (crate docs, gap 12).
+- `mwl-codegen/src/ty.rs:116` and `:121` are two refusal sites `holes.py` attributes to
+  no item at all.
+- ADR 0010 § 5's integer *into* an enum has no lowering in either form (`mwl-ir` gap 4).
+- An abandoned generator's `finally` (standing decision, `docs/agent/loop-goal.md`).
+- `Core\Log` inspection and ADR 0024 § 4's sink list wait on M7/M8 `Core` classes.
