@@ -1595,6 +1595,15 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
 /// the same question of `mwl_stdlib::registry` instead, for the reason
 /// [`core_class_renders`] gives.
 ///
+/// A class that passes either question then records the *same* resolved
+/// `toString` target, because a `Core` member resolves out of the seeded
+/// signature table exactly as a declared one does — `mwl-ir` asks
+/// `core_symbol_of` which of the two calls to emit, and that is the only place
+/// the difference is visible. The one rendering class that records nothing is
+/// ADR 0088 § 5's sink carrier: it has no `toString` member to resolve, so
+/// `resolve_method` answers `None` and the value renders through
+/// `mwl_runtime::stringify` on its runtime class instead.
+///
 /// Called on its own by the `as string` conversion, which is why it is a
 /// function rather than a branch of [`require_stringable`].
 fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
@@ -1614,23 +1623,24 @@ fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
                      this one has none — call the member that answers the text you want",
                 ),
             );
+            return;
         }
-        return;
-    }
-    let stringable = QName::parse("Stringable");
-    if !mwl_hir::implements_interface(&qname, &stringable, env.graph) {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_STRINGABLE_REQUIRED,
-                format!(
-                    "`{qname}` cannot be converted to `string` here; it does not implement \
-                     `Stringable`"
-                ),
-            )
-            .with_primary(span, "converted to `string` here")
-            .with_help("implement `Stringable`'s `toString(): string` on the class"),
-        );
-        return;
+    } else {
+        let stringable = QName::parse("Stringable");
+        if !mwl_hir::implements_interface(&qname, &stringable, env.graph) {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_STRINGABLE_REQUIRED,
+                    format!(
+                        "`{qname}` cannot be converted to `string` here; it does not implement \
+                         `Stringable`"
+                    ),
+                )
+                .with_primary(span, "converted to `string` here")
+                .with_help("implement `Stringable`'s `toString(): string` on the class"),
+            );
+            return;
+        }
     }
     // ADR 0028 § 1: the conversion *is* a `toString()` call, so `mwl-ir` needs
     // its resolved target the same way an ordinary `$obj->toString()` does —

@@ -1,0 +1,80 @@
+--TEST--
+Every rendering spelling of a `Core`-owned class the spec gives a `toString` agrees with the member call written out, for each of the three classes that have one — ADR 0028 § 1
+--FILE--
+<?mwl
+// ADR 0028 § 1 makes the implicit rendering a `toString()` call, so the four
+// spellings that render are four spellings of one call. A `Core` class's
+// member is a native symbol rather than an entry in a compiled method table,
+// so what `mwl-ir` emits for it is the same native call the member written
+// out takes rather than the virtual dispatch a declared class gets — and this
+// case asserts the two **agree**, which is what a spelling that grew a
+// rendering of its own would fail while still looking right on its own line.
+//
+// The sibling case `a-core-class-with-no-tostring-is-refused-where-it-is-
+// rendered` owns the other half: the classes `mwl_stdlib::registry` gives no
+// `toString` are refused where they are written.
+class Render {
+    // `Core\Out::capture` is what gives the `echo` spelling a value to
+    // compare against the other three. The carrier it answers is the second
+    // row of `registry::class_renders` — a class that renders through
+    // ADR 0088 § 5 with no `toString` member at all — so this line also pins
+    // that the two rows still reach two different renderings.
+    public static function uri(Core\Uri $u): int {
+        string $direct = $u->toString();
+        int $agree = 0;
+        if ("$u" == $direct) { $agree = $agree + 1; }
+        if (("" . $u) == $direct) { $agree = $agree + 1; }
+        if (($u as string) == $direct) { $agree = $agree + 1; }
+        string $echoed = Core\Out::capture(fn (): void => { echo $u; }) as string;
+        if ($echoed == $direct) { $agree = $agree + 1; }
+        return $agree;
+    }
+
+    public static function uuid(Core\Uuid $id): int {
+        string $direct = $id->toString();
+        int $agree = 0;
+        if ("$id" == $direct) { $agree = $agree + 1; }
+        if (("" . $id) == $direct) { $agree = $agree + 1; }
+        if (($id as string) == $direct) { $agree = $agree + 1; }
+        string $echoed = Core\Out::capture(fn (): void => { echo $id; }) as string;
+        if ($echoed == $direct) { $agree = $agree + 1; }
+        return $agree;
+    }
+
+    public static function duration(Core\Time\Duration $d): int {
+        string $direct = $d->toString();
+        int $agree = 0;
+        if ("$d" == $direct) { $agree = $agree + 1; }
+        if (("" . $d) == $direct) { $agree = $agree + 1; }
+        if (($d as string) == $direct) { $agree = $agree + 1; }
+        string $echoed = Core\Out::capture(fn (): void => { echo $d; }) as string;
+        if ($echoed == $direct) { $agree = $agree + 1; }
+        return $agree;
+    }
+}
+
+Core\Uri $u = Core\Uri::parse("https://example.com/a?b=1");
+Core\Uuid $id = Core\Uuid::parse("0191b0c4-1c2f-7a3d-8f4e-5a6b7c8d9e0f");
+Core\Time\Duration $d = Core\Time\Duration::seconds(90);
+
+echo Render::uri($u), " ", Render::uuid($id), " ", Render::duration($d), "\n";
+echo $u, "\n";
+echo $id, "\n";
+echo $d, "\n";
+
+// The receiver is *borrowed* by a native member, unlike the parameter a
+// compiled one owns, so a freshly built one has no other owner and the
+// rendering site is what owes its release. These three are that edge; a
+// leak in them is what the Valgrind fixture catches, and a double release is
+// what this case's own exit status would.
+echo Core\Uri::parse("https://fresh.example/p"), "\n";
+echo "d=" . Core\Time\Duration::minutes(2), "\n";
+echo "n={" . Core\Uuid::parse("0191b0c4-1c2f-7a3d-8f4e-5a6b7c8d9e0f") . "}\n";
+--EXPECT--
+4 4 4
+https://example.com/a?b=1
+0191b0c4-1c2f-7a3d-8f4e-5a6b7c8d9e0f
+1m30s
+https://fresh.example/p
+d=2m
+n={0191b0c4-1c2f-7a3d-8f4e-5a6b7c8d9e0f}

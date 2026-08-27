@@ -832,10 +832,12 @@ impl<'a> Lowering<'a> {
     /// same way: `Helper::TaggedToString` over the receiver, which dispatches
     /// `toString` on its *runtime* class. The checker records a target wherever
     /// the operand's static type names a class to resolve against, so a missing
-    /// one means it named none — an erased `object` (ADR 0036 § 4), a union, or
-    /// a `Core`-owned class whose members are native rather than compiled.
+    /// one means it named none — an erased `object` (ADR 0036 § 4) or a union
+    /// — or that it named ADR 0088 § 5's sink carrier, the one rendering class
+    /// with no `toString` member at all, whose bytes `mwl_runtime::stringify`
+    /// hands back as they are.
     ///
-    /// The call is ordinary in every respect, exactly as
+    /// The *user-declared* call is ordinary in every respect, exactly as
     /// [`Self::lower_object_comparison`]'s `compareTo` is: ADR 0002's error
     /// edge, since a `toString` body may throw like any other, and the same
     /// ownership convention [`Self::lower_call_args`] applies to a receiver —
@@ -852,6 +854,33 @@ impl<'a> Lowering<'a> {
         cur: BlockId,
     ) -> Option<ValueId> {
         let call = self.exprs.to_string_call(expr.span)?;
+        // A `Core`-owned class renders through a native symbol rather than an
+        // entry in a compiled method table, so the dispatch below would find
+        // nothing to call — the same `InstKind::CoreCall`
+        // [`Self::lower_method_call`] emits for `$uri->toString()` written out,
+        // with the receiver in argument slot 0 and **borrowed** there, which is
+        // why the ownership rule inverts: an aliasing receiver needs no retain,
+        // and a fresh one (`echo Core\Uuid::v4()`) is this frame's to release
+        // on both edges. Nothing is dispatched on the runtime class because a
+        // `Core` class is final by construction: the registry's row is the only
+        // `toString` it can have.
+        if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
+            let mark = self.temporaries_mark();
+            if !self.aliasing_read(expr) {
+                self.own_temporary(receiver);
+            }
+            let (s, _) = self.emit_fallible(
+                cur,
+                Ty::Str,
+                InstKind::CoreCall {
+                    symbol,
+                    args: vec![receiver],
+                },
+                env,
+            );
+            self.release_temporaries_since(mark, cur);
+            return Some(s);
+        }
         let fallback = call
             .has_body
             .then(|| format!("{}::{}", call.class, call.method));
