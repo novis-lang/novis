@@ -1636,11 +1636,22 @@ impl<'a> Lowering<'a> {
         seen: &mut FxHashSet<String>,
         out: &mut Vec<String>,
     ) {
-        if let ExprKind::Assign {
-            target,
-            by_ref: false,
-            ..
-        } = &e.kind
+        // `$i++` re-points its local exactly the way the `$i = $i + 1` it
+        // lowers to does (`Self::lower_incdec_stmt`), and it is the *usual*
+        // spelling of a `for` step — a missed phi there reads the pre-loop
+        // value on every iteration, which is an infinite loop rather than a
+        // diagnostic.
+        let target = match &e.kind {
+            ExprKind::Assign {
+                target,
+                by_ref: false,
+                ..
+            }
+            | ExprKind::PreIncDec { expr: target, .. }
+            | ExprKind::PostIncDec { expr: target, .. } => Some(target),
+            _ => None,
+        };
+        if let Some(target) = target
             && let Some(name) = self.rebound_local(target)
             && seen.insert(name.clone())
         {

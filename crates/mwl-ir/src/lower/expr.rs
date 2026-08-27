@@ -48,6 +48,14 @@ impl<'a> Lowering<'a> {
         env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        // An assignment target's address, already lowered once by
+        // `Self::lower_read_modify_write` — answered before the kind is looked
+        // at, so `Box::make()->count += 1` runs `make()` once however many
+        // times the `$t = $t ⊕ e` rewrite writes the receiver down. See
+        // `Self::staged_targets`.
+        if let Some((v, ty)) = self.staged(expr.span) {
+            return (v, ty);
+        }
         match &expr.kind {
             // `(expr)` is fully transparent — `mwl_types::expr::check_expr`'s
             // own `ExprKind::Paren` arm just recurses with the same
@@ -3445,7 +3453,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         object: &Expr,
         field: &ShapeField,
-        value: &Expr,
+        value: &Stored<'_>,
         env: &Env,
         cur: &mut BlockId,
     ) {
@@ -3458,9 +3466,9 @@ impl<'a> Lowering<'a> {
         if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
             self.own_temporary(object_v);
         }
-        let (v, vty) = self.lower_expr(value, Some(field_ty), env, cur);
+        let (v, vty, aliasing) = self.lower_stored(value, Some(field_ty), env, cur);
         let v = self.coerce(*cur, v, vty, field_ty, env);
-        if field_ty.is_refcounted() && !self.aliasing_read(value) {
+        if field_ty.is_refcounted() && !aliasing {
             self.own_temporary(v);
         }
         self.emit_fallible(

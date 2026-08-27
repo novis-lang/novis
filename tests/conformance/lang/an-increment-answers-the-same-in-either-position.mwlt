@@ -1,0 +1,88 @@
+--TEST--
+`$x++` and `++$x` are the same statement, over every numeric type and every writable target — ADR 0007 §§ 2, 4
+--FILE--
+<?mwl
+// ADR 0007 § 4: an increment is `± 1` over the target's own numeric type. The
+// operator's position decides which value a surrounding *expression* sees, so
+// as a statement the two spellings have nothing to disagree about — every pair
+// below runs both over two identical subjects and counts whether they agree,
+// rather than reading either answer off its own line.
+
+final class Cell {
+    public int $count = 0;
+    public static function make(): Cell { echo "make\n"; return new Cell(); }
+}
+
+int $agree = 0;
+
+// A local, at each numeric representation § 4 tabulates.
+int $ia = 5;
+int $ib = 5;
+$ia++;
+++$ib;
+if ($ia == $ib) { $agree = $agree + 1; }
+echo "int:   ", $ia, " ", $ib, "\n";
+
+uint $ua = 5;
+uint $ub = 5;
+$ua--;
+--$ub;
+if ($ua == $ub) { $agree = $agree + 1; }
+echo "uint:  ", $ua, " ", $ub, "\n";
+
+float $fa = 1.5;
+float $fb = 1.5;
+$fa++;
+++$fb;
+if ($fa == $fb) { $agree = $agree + 1; }
+echo "float: ", $fa, " ", $fb, "\n";
+
+// A property and an array element are targets too, and take the identical
+// read-modify-write a local does.
+var $pa = new Cell();
+var $pb = new Cell();
+$pa->count++;
+++$pb->count;
+if ($pa->count == $pb->count) { $agree = $agree + 1; }
+echo "prop:  ", $pa->count, " ", $pb->count, "\n";
+
+array<int> $aa = ["k" => 2];
+array<int> $ab = ["k" => 2];
+$aa["k"]++;
+++$ab["k"];
+if ($aa["k"] == $ab["k"]) { $agree = $agree + 1; }
+echo "elem:  ", $aa["k"], " ", $ab["k"], "\n";
+
+// `$i++` is the usual spelling of a `for` step, and the loop-header phi it
+// owes is the one `$i = $i + 1` owes.
+int $i = 0;
+string $post = "";
+for ($i = 0; $i < 3; $i++) { $post = $post . ($i as string); }
+int $j = 0;
+string $pre = "";
+for ($j = 0; $j < 3; ++$j) { $pre = $pre . ($j as string); }
+if ($post == $pre) { $agree = $agree + 1; }
+echo "for:   ", $post, " ", $pre, "\n";
+echo "agree: ", $agree, " of 6\n";
+
+// § 4 again: `+ 1` past a type's top throws rather than wrapping, and an
+// increment carries that edge because it *is* that addition.
+int $top = 9223372036854775807;
+try { $top++; echo "no throw\n"; } catch (Throwable $over) { echo "over:  ", $over->message, "\n"; }
+uint $bottom = 0;
+try { --$bottom; echo "no throw\n"; } catch (Throwable $under) { echo "under: ", $under->message, "\n"; }
+
+// The target's *address* is computed once however many times the `$t = $t + 1`
+// rewrite writes it down, so `make()` runs once and not twice.
+Cell::make()->count++;
+--EXPECT--
+int:   6 6
+uint:  4 4
+float: 2.5 2.5
+prop:  1 1
+elem:  3 3
+for:   012 012
+agree: 6 of 6
+over:  Integer addition overflowed
+under: Integer subtraction overflowed
+make

@@ -18,6 +18,16 @@
 //! and a `match` arm at the same check; ADR 0069 § 2 refuses `+`/`+=` with an
 //! array operand ([`reject_array_combination`]), naming `Core\Arr::underlay`.
 //!
+//! `++`/`--` is the same table read as `± 1`, so its target has to be one of
+//! § 4's numeric types ([`reject_increment_on_non_numeric`]). **PHP's string
+//! increment does not exist** — `$s++` walking `"a"`→`"b"`→`"aa"` is a
+//! divergence taken deliberately, and this is its home: ADR 0007 § 2 fixes a
+//! binding's type at its declaration and § 4's table has no row producing
+//! `"b"` from a `string` and a `1`, so there is no arithmetic here to lower
+//! and no type the result could take. Code that wants the next spreadsheet
+//! column asks for it by name. The cost is one refused shape in ported code,
+//! against a `string` that silently changes length and alphabet under `+= 1`.
+//!
 //! `as` is here too, as the conversion's *operand* rule
 //! ([`reject_enum_to_enum_conversion`], and ADR 0047 § 6's
 //! [`reject_impossible_literal_conversion`] for a conversion whose operand
@@ -639,6 +649,36 @@ pub(super) fn reject_arithmetic_on_object(op: UnaryOp, ty: TypeId, span: Span, e
         .with_help(
             "MWL has no operator overloading; call the member that does this — a \
              `Core\\Time\\Duration` negates with `->negated()` and subtracts with `->minus(…)`",
+        ),
+    );
+}
+
+/// Reports `E_INCREMENT_NOT_NUMERIC` for `++`/`--` on a target that is not one
+/// of ADR 0007 § 4's numeric types — the module doc above owns the decision,
+/// including why PHP's string increment is not among them.
+///
+/// Scoped exactly the way the refusals around it are: only a type whose
+/// [`equality_domain`] is known *and* is not the numeric one is refused, so
+/// `mixed`, a union (`int|float` is what `7 / 2` produces), a type variable
+/// and an error placeholder all pass through and are settled below.
+pub(super) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let refused = {
+        let resolved = env.interner.get(ty);
+        !matches!(equality_domain(resolved), None | Some(EqDomain::Numeric))
+    };
+    if !refused {
+        return;
+    }
+    let described = env.interner.describe(ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_INCREMENT_NOT_NUMERIC,
+            format!("`++`/`--` has no meaning for `{described}`"),
+        )
+        .with_primary(span, "an increment is `± 1`, and this is not a number")
+        .with_help(
+            "ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP's \
+             string increment does not exist in MWL, because a binding never changes type",
         ),
     );
 }

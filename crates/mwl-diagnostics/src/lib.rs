@@ -749,6 +749,16 @@ pub mod code {
     /// `Core\Uri::tryParse` is the member that answers a parse instead — which
     /// the help names for a class in `mwl_stdlib::registry::TRY_PARSE_CLASSES`.
     pub const E_CLASS_CONVERSION_TARGET: Code = Code::new("E0473");
+    /// `++`/`--` on a binding that is not one of ADR 0007 § 4's numeric
+    /// types.
+    ///
+    /// An increment is `± 1` and nothing else. PHP's `$s++` walking a string
+    /// through `"a"`→`"b"`→`"aa"` is a divergence this takes deliberately:
+    /// § 2 says a declared type never changes and § 4's table has no row that
+    /// produces `"b"` from a `string` and a `1`, so there is no arithmetic
+    /// here to lower. `mwl_types::expr::operators`' module doc is that
+    /// decision's home.
+    pub const E_INCREMENT_NOT_NUMERIC: Code = Code::new("E0474");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

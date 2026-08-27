@@ -495,6 +495,42 @@ impl<'a> Lowering<'a> {
     pub(super) fn forget_temporaries_since(&mut self, mark: usize) {
         self.owned_temporaries.truncate(mark);
     }
+    /// The value staged for `span`, if any — [`Self::staged_targets`] searched
+    /// innermost first, which is the whole read side of that table.
+    pub(super) fn staged(&self, span: Span) -> Option<(ValueId, Ty)> {
+        self.staged_targets
+            .iter()
+            .rev()
+            .find(|(s, ..)| *s == span)
+            .map(|&(_, v, ty)| (v, ty))
+    }
+    /// Records `(v, ty)` as the already-lowered value of the expression at
+    /// `span` — see [`Self::staged_targets`], which owns the protocol.
+    pub(super) fn stage(&mut self, span: Span, v: ValueId, ty: Ty) {
+        self.staged_targets.push((span, v, ty));
+    }
+    /// The height of [`Self::staged_targets`] — the mark
+    /// [`Self::unstage_to`] winds back to.
+    pub(super) fn staged_mark(&self) -> usize {
+        self.staged_targets.len()
+    }
+    /// Drops every staging recorded since `mark`. Never releases anything: a
+    /// staged entry is a borrow, and whatever owns the value it names —
+    /// [`Self::owned_temporaries`], or a durable slot — is what releases it.
+    pub(super) fn unstage_to(&mut self, mark: usize) {
+        self.staged_targets.truncate(mark);
+    }
+    /// A span no expression in this file can carry: empty, one past the last
+    /// byte a `u32` offset can name.
+    ///
+    /// The one thing staged under it is an increment's implicit `1`
+    /// ([`Self::lower_read_modify_write`]), whose span is never *read* —
+    /// [`Self::lower_expr`] answers from [`Self::staged_targets`] before it
+    /// looks at the expression's kind, so the `ExprKind::Int` wrapped around
+    /// it never cooks any digits.
+    pub(super) fn synthetic_span(&self) -> Span {
+        Span::at(self.src.id(), u32::MAX)
+    }
     /// Stages one by-reference argument, returning the [`Ty::Ref`] the callee
     /// is handed — see [`Ty::Ref`], which owns the representation, and
     /// [`Self::lower_call_args`], which owns why `ownership` does not reach

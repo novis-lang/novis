@@ -183,7 +183,13 @@ pub(super) fn infer(
         }
         ExprKind::PreIncDec { expr: inner, .. } | ExprKind::PostIncDec { expr: inner, .. } => {
             note_write(inner, scope, env);
-            check_expr(inner, None, live, scope, ctx, env)
+            // An increment is ADR 0007 § 4's `± 1` and produces the target's
+            // own type — the write does not widen it, exactly as `$x += 1`
+            // does not. `reject_increment_on_non_numeric` owns which targets
+            // that table leaves nothing to lower for.
+            let inner_ty = check_expr(inner, None, live, scope, ctx, env);
+            reject_increment_on_non_numeric(inner_ty, expr.span, env);
+            inner_ty
         }
         ExprKind::Binary { op, lhs, rhs } => {
             let lhs_ty = check_expr(lhs, None, live, scope, ctx, env);

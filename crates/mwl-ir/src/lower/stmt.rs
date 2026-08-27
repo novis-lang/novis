@@ -277,6 +277,13 @@ impl<'a> Lowering<'a> {
             // wrapped. Parentheses say nothing about what a statement means,
             // so this unwraps and dispatches again rather than duplicating
             // any arm above.
+            // ADR 0007 § 4's `± 1`, over the target's own numeric type. Both
+            // spellings are the same statement — see `Self::lower_incdec_stmt`
+            // for why the prefix/postfix distinction has nothing to say here.
+            ExprKind::PreIncDec { op, expr: target }
+            | ExprKind::PostIncDec { op, expr: target } => {
+                self.lower_incdec_stmt(e, *op, target, env, cur);
+            }
             ExprKind::Paren(inner) => self.lower_expr_stmt(inner, env, cur),
             // A value built and immediately discarded. `new` above is the
             // same shape and the same one line of accounting: the literal is
@@ -349,31 +356,183 @@ impl<'a> Lowering<'a> {
                 return;
             }
         }
+        self.lower_read_modify_write(e.span, target, op, Some(value), env, cur);
+    }
+    /// `$x++;` / `--$x;` — ADR 0007 § 4's `± 1` over the target's own numeric
+    /// type, through the same read-modify-write `$x += 1;` takes.
+    ///
+    /// **Prefix and postfix are the same statement.** The two differ only in
+    /// which of the read-modify-write's two values the surrounding
+    /// *expression* sees, and an expression statement sees neither — so this
+    /// does not distinguish them, and `tests/conformance/lang/`'s
+    /// `an-increment-answers-the-same-in-either-position` is what holds them
+    /// together. An increment used *as a value* (`$y = $x++;`) is the same
+    /// unlowered shape a nested assignment (`$y = ($x = 5);`) is, and for the
+    /// same reason: [`Self::lower_expr`] is handed an `&Env` and so has no
+    /// binding it could re-point.
+    pub(super) fn lower_incdec_stmt(
+        &mut self,
+        e: &Expr,
+        op: IncDecOp,
+        target: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
+        let op = match op {
+            IncDecOp::Inc => BinaryOp::Add,
+            IncDecOp::Dec => BinaryOp::Sub,
+        };
+        self.lower_read_modify_write(e.span, target, op, None, env, cur);
+    }
+    /// `$t ⊕= e;` and `$t++;` alike: read the target, combine, write it back,
+    /// answering `(old, new)` for a position that wants one of them.
+    ///
+    /// The combine is still the `$t = $t ⊕ e` rewrite — this crate has one
+    /// binary-operator lowering and it takes an [`Expr`] — but the target's
+    /// **address** is computed before the rewrite is built rather than by it:
+    /// every sub-expression that cannot be re-read is lowered once and staged
+    /// ([`Self::stage_target_address`]), so `Box::make()->count += 1` calls
+    /// `make()` once where the rewrite writes its receiver down twice. The
+    /// read itself is staged the same way, which is also how an increment
+    /// learns the representation to emit its `1` at.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the target when it is not one
+    /// [`Self::reevaluable_target`] accepts even after staging — a nullsafe
+    /// path, or a call in a position staging does not reach.
+    pub(super) fn lower_read_modify_write(
+        &mut self,
+        span: Span,
+        target: &Expr,
+        op: BinaryOp,
+        rhs: Option<&Expr>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty, ValueId, Ty) {
+        let temporaries = self.temporaries_mark();
+        let addresses = self.staged_mark();
+        self.stage_target_address(target, env, cur);
         assert!(
-            is_reevaluable_target(&target.kind),
+            self.reevaluable_target(target),
             "mwl-ir lowers a compound assignment by rewriting it to `$x = $x op e`, which reads \
              the target twice, so its target must be a local, `$this`, or a property/element \
              path over those — got {:?}; see the crate docs' known gaps",
             target.kind
         );
-        let read = Expr {
+        let reads = self.staged_mark();
+        let (old, old_ty) = self.lower_expr(target, None, env, cur);
+        self.stage(target.span, old, old_ty);
+        // An increment's `1` has no source span to build an `ExprKind::Int`
+        // from, so it is emitted here — at the representation the read just
+        // reported, since ADR 0007 § 4 gives `int ⊕ int` and `uint ⊕ uint`
+        // their own rows and refuses the mixed pair — and staged like the rest
+        // of the address. `one` exists only to outlive the borrow below.
+        let one;
+        let rhs = match rhs {
+            Some(rhs) => rhs,
+            None => {
+                let span = self.synthetic_span();
+                let v = self.emit_const_one(*cur, old_ty);
+                self.stage(span, v, old_ty);
+                one = Expr {
+                    kind: ExprKind::Int(span),
+                    span,
+                };
+                &one
+            }
+        };
+        let combined = Expr {
             kind: ExprKind::Binary {
                 op,
                 lhs: Box::new(target.clone()),
-                rhs: Box::new(value.clone()),
+                rhs: Box::new(rhs.clone()),
             },
-            span: e.span,
+            span,
         };
-        let desugared = Expr {
-            kind: ExprKind::Assign {
-                op: AssignOp::Assign,
-                target: Box::new(target.clone()),
-                value: Box::new(read),
-                by_ref: false,
-            },
-            span: e.span,
+        let (new, new_ty) = self.lower_expr(&combined, Some(old_ty), env, cur);
+        // The read and the `1` are dropped before the write: the store lowers
+        // the target's own sub-expressions again — which is what keeps a plain
+        // `=` emitting exactly what it always did — and those are the entries
+        // that have to still be standing when it does.
+        self.unstage_to(reads);
+        self.lower_store(target, &Stored::Value(new, new_ty), env, cur);
+        self.unstage_to(addresses);
+        self.release_temporaries_since(temporaries, *cur);
+        // `$x += Foo::bar($n);` — the right-hand side may have staged a `&$n`
+        // argument, exactly as a plain assignment's does. See
+        // `Self::pending_refs`.
+        self.flush_ref_writebacks(env, *cur);
+        (old, old_ty, new, new_ty)
+    }
+    /// The `1` an increment adds or subtracts, at the target's own
+    /// representation.
+    ///
+    /// ADR 0007 § 4 gives each numeric type its own arithmetic row and
+    /// refuses a mixed-signedness pair outright, so the literal is emitted as
+    /// the operand it will be paired with rather than as a default `int`.
+    ///
+    /// Anything else takes `int`, which is what a written `$x += 1` puts on
+    /// the right — so a target `mwl_types` could not pin down (a `mixed`, a
+    /// `?int`) is refused in the same place, and with the same message, that
+    /// spelling is already refused in. Every target it *can* pin down and that
+    /// is not numeric is E0474 and never reaches here.
+    fn emit_const_one(&mut self, cur: BlockId, ty: Ty) -> ValueId {
+        let (ty, kind) = match ty {
+            Ty::Uint => (Ty::Uint, InstKind::ConstUint(1)),
+            Ty::Float => (Ty::Float, InstKind::ConstFloat(1.0)),
+            Ty::Decimal => (
+                Ty::Decimal,
+                InstKind::ConstDecimal {
+                    negative: false,
+                    mantissa: 1,
+                    scale: 0,
+                },
+            ),
+            _ => (Ty::Int, InstKind::ConstInt(1)),
         };
-        self.lower_reassignment(&desugared, env, cur);
+        self.emit(cur, ty, kind).0
+    }
+    /// Lowers, once, every sub-expression of `target` the `$t = $t ⊕ e`
+    /// rewrite would otherwise evaluate twice, and stages the results — see
+    /// [`Self::staged_targets`].
+    ///
+    /// Only what [`Self::reevaluable_target`] refuses is staged, so a target
+    /// that already lowered before this existed emits exactly the instructions
+    /// it emitted then. A refcounted one goes on [`Self::owned_temporaries`]:
+    /// it is a fresh producer with no other owner — that is precisely why it
+    /// could not be re-read — so this frame owes its release, on the throwing
+    /// edge as much as the normal one.
+    fn stage_target_address(&mut self, target: &Expr, env: &mut Env, cur: &mut BlockId) {
+        match &target.kind {
+            ExprKind::PropertyAccess { object, .. } => self.stage_address_of(object, env, cur),
+            ExprKind::Index { base, index } => {
+                self.stage_address_of(base, env, cur);
+                if let Some(index) = index
+                    && !self.pure_key(index)
+                {
+                    self.stage_value_of(index, env, cur);
+                }
+            }
+            _ => {}
+        }
+    }
+    /// One receiver or base: staged when it cannot be re-read, walked into
+    /// when it can — so a `$this->a->b` path stages nothing at all.
+    fn stage_address_of(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
+        if self.reevaluable_target(e) {
+            self.stage_target_address(e, env, cur);
+        } else {
+            self.stage_value_of(e, env, cur);
+        }
+    }
+    fn stage_value_of(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
+        let aliasing = self.aliasing_read(e);
+        let (v, ty) = self.lower_expr(e, None, env, cur);
+        if ty.is_refcounted() && !aliasing {
+            self.own_temporary(v);
+        }
+        self.stage(e.span, v, ty);
     }
 
     /// `$s .= e;` where `$s` is a plain `Ty::Str` local — one
@@ -422,6 +581,31 @@ impl<'a> Lowering<'a> {
         else {
             unreachable!("Self::lower_expr_stmt only routes a plain `AssignOp::Assign` here");
         };
+        self.lower_store(target, &Stored::Expr(value), env, cur);
+        // `$x = Foo::bar($n);` — the right-hand side may have staged a `&$n`
+        // argument, whose copy-back belongs to this statement. See
+        // `Self::pending_refs`.
+        self.flush_ref_writebacks(env, *cur);
+    }
+    /// The write half of [`Self::lower_reassignment`]: everything about
+    /// *where* the value lands, with what lands there left to [`Stored`].
+    ///
+    /// Split out because a read-modify-write has no right-hand-side
+    /// expression to hand this — its value is already in a register by the
+    /// time the store runs ([`Self::lower_read_modify_write`]). The target's
+    /// own sub-expressions are still lowered *here*, at the point in the
+    /// evaluation order they have always been lowered at, so a plain `=` emits
+    /// exactly the instructions it did before the split; for the
+    /// read-modify-write path they are staged
+    /// ([`Self::staged_targets`]) and this second lowering costs nothing and
+    /// runs nothing twice.
+    pub(super) fn lower_store(
+        &mut self,
+        target: &Expr,
+        stored: &Stored<'_>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
         match &target.kind {
             ExprKind::Variable(name_span) => {
                 let lname = strip_sigil(span_text(self.src, *name_span)).to_owned();
@@ -433,8 +617,8 @@ impl<'a> Lowering<'a> {
                 // `Ty::Ref` and `InstKind::RefStore`.
                 if let Some(&(slot, Ty::Ref)) = env.get(&lname) {
                     let pointee = self.pointee_of(&lname);
-                    let (v, _) = self.lower_expr(value, Some(pointee), env, cur);
-                    if pointee.is_refcounted() && self.aliasing_read(value) {
+                    let (v, _, aliasing) = self.lower_stored(stored, Some(pointee), env, cur);
+                    if pointee.is_refcounted() && aliasing {
                         self.emit_retain(*cur, v);
                     }
                     if pointee.is_refcounted() {
@@ -444,7 +628,7 @@ impl<'a> Lowering<'a> {
                     self.emit_ref_store(*cur, slot, v);
                 } else {
                     let expected = env.get(&lname).map(|&(_, t)| t);
-                    let (v, ty) = self.lower_expr(value, expected, env, cur);
+                    let (v, ty, aliasing) = self.lower_stored(stored, expected, env, cur);
                     // ADR 0037 fixes a local's type at its declaration, so an
                     // existing binding's representation wins over whatever the
                     // right-hand side produced -- otherwise a `?int` local
@@ -454,7 +638,7 @@ impl<'a> Lowering<'a> {
                         Some(want) => (self.coerce(*cur, v, ty, want, env), want),
                         None => (v, ty),
                     };
-                    self.bind_local(*cur, env, lname, v, ty, value);
+                    self.bind_local_value(*cur, env, lname, v, ty, aliasing);
                 }
             }
             // `$obj->prop = expr;` — the receiver's declaring class comes
@@ -501,7 +685,7 @@ impl<'a> Lowering<'a> {
                         slot: *slot,
                         ty: *ty,
                     };
-                    self.lower_shape_property_assign(object, &field, value, env, cur);
+                    self.lower_shape_property_assign(object, &field, stored, env, cur);
                     return;
                 }
                 let (class, name, ty, set) = match self.exprs.lookup(target.span) {
@@ -534,8 +718,8 @@ impl<'a> Lowering<'a> {
                     if receiver_ty.is_refcounted() && self.aliasing_read(object) {
                         self.emit_retain(*cur, object_v);
                     }
-                    let (v, vty) = self.lower_expr(value, Some(field_ty), env, cur);
-                    if field_ty.is_refcounted() && self.aliasing_read(value) {
+                    let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
+                    if field_ty.is_refcounted() && aliasing {
                         self.emit_retain(*cur, v);
                     }
                     let v = self.coerce(*cur, v, vty, field_ty, env);
@@ -552,8 +736,8 @@ impl<'a> Lowering<'a> {
                 } else {
                     let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
                     let (object_v, _) = self.untag_receiver(object_v, receiver_ty, *cur);
-                    let (v, vty) = self.lower_expr(value, Some(field_ty), env, cur);
-                    if field_ty.is_refcounted() && self.aliasing_read(value) {
+                    let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
+                    if field_ty.is_refcounted() && aliasing {
                         self.emit_retain(*cur, v);
                     }
                     let v = self.coerce(*cur, v, vty, field_ty, env);
@@ -608,8 +792,8 @@ impl<'a> Lowering<'a> {
                 let (array_v, _) = self.lower_expr(base, None, env, cur);
                 let written = match index {
                     None => {
-                        let (v, _) = self.lower_expr(value, Some(elem_ty), env, cur);
-                        if elem_ty.is_refcounted() && self.aliasing_read(value) {
+                        let (v, _, aliasing) = self.lower_stored(stored, Some(elem_ty), env, cur);
+                        if elem_ty.is_refcounted() && aliasing {
                             self.emit_retain(*cur, v);
                         }
                         self.emit_array_append(*cur, array_v, v, env)
@@ -619,8 +803,8 @@ impl<'a> Lowering<'a> {
                         if key_aliasing {
                             self.emit_retain(*cur, key_v);
                         }
-                        let (v, _) = self.lower_expr(value, Some(elem_ty), env, cur);
-                        if elem_ty.is_refcounted() && self.aliasing_read(value) {
+                        let (v, _, aliasing) = self.lower_stored(stored, Some(elem_ty), env, cur);
+                        if elem_ty.is_refcounted() && aliasing {
                             self.emit_retain(*cur, v);
                         }
                         self.emit_array_set(*cur, array_v, key_v, v)
@@ -634,10 +818,6 @@ impl<'a> Lowering<'a> {
                  {other:?}"
             ),
         }
-        // `$x = Foo::bar($n);` — the right-hand side may have staged a `&$n`
-        // argument, whose copy-back belongs to this statement. See
-        // `Self::pending_refs`.
-        self.flush_ref_writebacks(env, *cur);
     }
     /// `unset($a[$k]);` — the one `unset` target ADR 0028 § 3 leaves
     /// standing, lowered to [`InstKind::ArrayUnset`] and written back through
@@ -690,37 +870,42 @@ impl<'a> Lowering<'a> {
         }
         self.write_back_array(base, written, env, cur);
     }
-}
-
-/// Whether lowering this expression twice observes the same value and runs
-/// no side effect the second time — the precondition
-/// [`Lowering::lower_compound_assignment`]'s rewrite needs, since `$x op= e`
-/// becomes `$x = $x op e` with the target appearing on both sides.
-///
-/// A local read (`$this` is one, spelled as an ordinary variable), and a
-/// property or element path built over those, are the shapes that qualify: each is a load, and a `get` hook (ADR 0014
-/// § 1) still runs exactly once because the write side of a property
-/// assignment never reads its own target back through the hook. A call, a
-/// `new`, an assignment, or anything else that can run user code is refused
-/// rather than silently duplicated.
-fn is_reevaluable_target(kind: &ExprKind) -> bool {
-    match kind {
-        ExprKind::Variable(_) => true,
-        ExprKind::PropertyAccess {
-            object,
-            nullsafe: false,
-            ..
-        } => is_reevaluable_target(&object.kind),
-        ExprKind::Index { base, index } => {
-            is_reevaluable_target(&base.kind) && index.as_ref().is_none_or(|i| is_pure_key(&i.kind))
+    /// Whether lowering `e` twice observes the same value and runs no side
+    /// effect the second time — the precondition
+    /// [`Self::lower_read_modify_write`]'s rewrite needs, since `$t ⊕= e`
+    /// becomes `$t = $t ⊕ e` with the target appearing on both sides.
+    ///
+    /// A **staged** sub-expression qualifies whatever it was written as: its
+    /// second lowering is a lookup in [`Self::staged_targets`] and runs
+    /// nothing at all, which is the whole reason that table exists. Beyond
+    /// that, a local read (`$this` is one, spelled as an ordinary variable)
+    /// and a property or element path built over those are the shapes that
+    /// qualify: each is a load, and a `get` hook (ADR 0014 § 1) still runs
+    /// exactly once because the write side of a property assignment never
+    /// reads its own target back through the hook. A nullsafe path, or
+    /// anything else that can run user code where staging did not reach it, is
+    /// refused rather than silently duplicated.
+    fn reevaluable_target(&self, e: &Expr) -> bool {
+        if self.staged(e.span).is_some() {
+            return true;
         }
-        _ => false,
+        match &e.kind {
+            ExprKind::Variable(_) => true,
+            ExprKind::PropertyAccess {
+                object,
+                nullsafe: false,
+                ..
+            } => self.reevaluable_target(object),
+            ExprKind::Index { base, index } => {
+                self.reevaluable_target(base) && index.as_ref().is_none_or(|i| self.pure_key(i))
+            }
+            _ => false,
+        }
     }
-}
-
-/// Whether an array key expression can be lowered twice — the same question
-/// [`is_reevaluable_target`] asks of a target, widened by the literal forms a
-/// key is usually written as.
-fn is_pure_key(kind: &ExprKind) -> bool {
-    matches!(kind, ExprKind::Int(_) | ExprKind::Str(_)) || is_reevaluable_target(kind)
+    /// Whether an array key expression can be lowered twice — the same
+    /// question [`Self::reevaluable_target`] asks of a target, widened by the
+    /// literal forms a key is usually written as.
+    fn pure_key(&self, e: &Expr) -> bool {
+        matches!(e.kind, ExprKind::Int(_) | ExprKind::Str(_)) || self.reevaluable_target(e)
+    }
 }

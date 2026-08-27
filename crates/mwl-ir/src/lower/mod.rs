@@ -72,9 +72,9 @@
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
     ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind,
-    FnBody, FnExpr, ForeachBinding, MatchArm, MethodMember, Modifier, NamespaceDecl, NewTarget,
-    ObjectLiteralField, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind,
-    UnaryOp as AstUnaryOp,
+    FnBody, FnExpr, ForeachBinding, IncDecOp, MatchArm, MethodMember, Modifier, NamespaceDecl,
+    NewTarget, ObjectLiteralField, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAtom,
+    TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::EnumTable;
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable, ForeachDrive};
@@ -1023,6 +1023,31 @@ struct Lowering<'a> {
     /// stack, released on the error edge and *forgotten* on the normal one,
     /// plus one such forget at each of the three transferring call sites.
     owned_temporaries: Vec<ValueId>,
+    /// The address half of an assignment target, already lowered, keyed by the
+    /// span of the sub-expression that produced it — what
+    /// [`Self::lower_read_modify_write`] splits out of the `$t = $t ⊕ e`
+    /// rewrite so `Box::make()->count += 1` calls `make()` **once** where the
+    /// rewrite reads its receiver twice.
+    ///
+    /// [`Self::lower_expr`] consults this before it looks at an expression's
+    /// kind at all, so a staged sub-expression lowers to the value already in
+    /// hand and runs nothing a second time. The implicit `1` an increment
+    /// carries rides here too: it has no source span to build an
+    /// [`ExprKind::Int`] from, so it is emitted at the target's own
+    /// representation and staged under [`Self::synthetic_span`].
+    ///
+    /// An entry is a **borrow**, not an owner: whatever it names is either a
+    /// durable slot's value or one this frame already put on
+    /// [`Self::owned_temporaries`] for the length of the statement. That is
+    /// why [`Self::aliasing_read`] answers `true` for a staged span — a
+    /// consumer that wants to own the value retains it, and none of them
+    /// releases it.
+    ///
+    /// Searched back to front and truncated rather than removed by key, so a
+    /// nested read-modify-write (`$a[$i++] += 1`) sees its own innermost
+    /// entry. Empty outside a statement's own target, and never more than a
+    /// target's depth long.
+    staged_targets: Vec<(Span, ValueId, Ty)>,
     /// This frame's late-static-binding class as a [`Ty::ClassDesc`] value,
     /// once something has asked for one — see [`Self::lsb`], which is the only
     /// thing that sets it after [`lower_method`] seeds a `static` method's
@@ -1274,6 +1299,7 @@ impl<'a> Lowering<'a> {
             loop_stack: Vec::new(),
             try_stack: Vec::new(),
             owned_temporaries: Vec::new(),
+            staged_targets: Vec::new(),
             lsb: None,
             this: None,
             entry: None,
@@ -1711,7 +1737,39 @@ impl<'a> Lowering<'a> {
         ty: Ty,
         source: &Expr,
     ) {
-        if ty.is_refcounted() && self.aliasing_read(source) {
+        let aliasing = self.aliasing_read(source);
+        self.bind_local_value(cur, env, name, v, ty, aliasing);
+    }
+    /// The value half of [`Self::lower_store`]: `(value, representation,
+    /// whether it aliases storage another owner keeps)`.
+    pub(super) fn lower_stored(
+        &mut self,
+        stored: &Stored<'_>,
+        expected: Option<Ty>,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty, bool) {
+        match stored {
+            Stored::Expr(e) => {
+                let (v, ty) = self.lower_expr(e, expected, env, cur);
+                (v, ty, self.aliasing_read(e))
+            }
+            Stored::Value(v, ty) => (*v, *ty, false),
+        }
+    }
+    /// [`Self::bind_local`] for a value with no right-hand-side expression to
+    /// judge — a read-modify-write's combined result, which is a fresh
+    /// producer by construction (see [`Self::lower_read_modify_write`]).
+    pub(super) fn bind_local_value(
+        &mut self,
+        cur: BlockId,
+        env: &mut Env,
+        name: String,
+        v: ValueId,
+        ty: Ty,
+        aliasing: bool,
+    ) {
+        if ty.is_refcounted() && aliasing {
             self.emit_retain(cur, v);
         }
         if let Some(&(old_v, old_ty)) = env.get(&name)
@@ -1902,6 +1960,14 @@ impl<'a> Lowering<'a> {
     /// so the recursion below covers both spellings of "reads a slot of
     /// something nothing else owns".
     pub(super) fn aliasing_read(&self, e: &Expr) -> bool {
+        // A staged sub-expression of an assignment target is a borrow of a
+        // value this frame's own temporaries stack (or a durable slot) already
+        // owns — see `Self::staged_targets`. It answers `true` whatever its
+        // syntax was, which is what stops the second read of a rewritten
+        // `$t = $t ⊕ e` releasing a receiver the first read still needs.
+        if self.staged(e.span).is_some() {
+            return true;
+        }
         if !is_aliasing_read(&e.kind) {
             return false;
         }
@@ -2352,6 +2418,22 @@ fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
     })
 }
 
+/// What an assignment stores, once its target's address is settled.
+///
+/// [`Lowering::lower_store`] lowers the target either way; only where the
+/// value comes from differs. A read-modify-write (`$x += 1`, `$x++`) has
+/// combined its value before the store runs and has no expression left to
+/// hand over — see [`Lowering::lower_read_modify_write`].
+pub(super) enum Stored<'a> {
+    /// `$t = e;` — lowered against the target's declared representation, and
+    /// judged by [`Lowering::aliasing_read`] like any other read.
+    Expr(&'a Expr),
+    /// A value already in hand. Always a **fresh producer**: the only thing
+    /// that builds one is a binary operator's result, which no durable slot
+    /// holds yet.
+    Value(ValueId, Ty),
+}
+
 fn is_aliasing_read(kind: &ExprKind) -> bool {
     matches!(
         kind,
@@ -2718,6 +2800,53 @@ class T {
                 "the compound form of {name} did not lower: {text}"
             );
         }
+    }
+
+    /// `$x++` and `++$x` are the same *statement*: the operator's position
+    /// decides which of the read-modify-write's two values a surrounding
+    /// expression sees, and an expression statement sees neither. So all four
+    /// spellings go through the one [`Lowering::lower_incdec_stmt`] and two
+    /// adds and two subs is the whole shape.
+    ///
+    /// Counted rather than snapshotted, for
+    /// [`a_bitwise_compound_assignment_lowers_through_its_binary_form`]'s
+    /// reason: a snapshot would go red for a renumbering while saying nothing
+    /// about the two spellings agreeing.
+    #[test]
+    fn an_increment_lowers_in_either_position() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\nclass T {\n",
+            "  function step(int $x): int {\n",
+            "    $x++;\n    ++$x;\n    $x--;\n    --$x;\n",
+            "    return $x;\n",
+            "  }\n}\n",
+        ));
+        let text = print_function(&f, map.file(file));
+        assert_eq!(text.matches("= add ").count(), 2, "{text}");
+        assert_eq!(text.matches("= sub ").count(), 2, "{text}");
+    }
+
+    /// The `$t = $t ⊕ e` rewrite writes its target down twice, so a target
+    /// with a call in it would *call* twice — `f()->count += 1` incrementing
+    /// the field of one object and then discarding a second one.
+    /// [`Lowering::lower_read_modify_write`] lowers the address once and
+    /// stages it ([`Lowering::staged_targets`]), which is what this counts:
+    /// one call, and the field read and written off the value it produced.
+    #[test]
+    fn a_compound_assignment_evaluates_its_target_once() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\nclass T {\n",
+            "  public int $count = 0;\n",
+            "  function bump(): void {\n",
+            "    $this->box()->count += 1;\n",
+            "  }\n",
+            "  function box(): T { return $this; }\n",
+            "}\n",
+        ));
+        let text = print_function(&f, map.file(file));
+        assert_eq!(text.matches("call T::box").count(), 1, "{text}");
+        assert_eq!(text.matches("field.get").count(), 1, "{text}");
+        assert_eq!(text.matches("field.set").count(), 1, "{text}");
     }
 
     /// ADR 0007 § 4 gives `**` a row for every numeric representation but the
