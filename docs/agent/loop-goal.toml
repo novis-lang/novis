@@ -53,6 +53,12 @@ files = [
 # needs it, and take it out again when that group lands.
 modules = [
   "crates/mwl-ir/src/lower/expr.rs",
+  # `expr.rs` was 5,754 lines and is now the dispatch plus what has nowhere more
+  # specific to be. Its two biggest areas are their own modules, and both are named
+  # here because Stage 0 is entirely `operator.rs` and Stage 4's `as` rows are
+  # entirely `convert.rs`.
+  "crates/mwl-ir/src/lower/operator.rs",
+  "crates/mwl-ir/src/lower/convert.rs",
   "crates/mwl-ir/src/lower/stmt.rs",
   "crates/mwl-ir/src/lower/control.rs",
   "crates/mwl-ir/src/lower/mod.rs",

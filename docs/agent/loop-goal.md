@@ -52,7 +52,7 @@ all of it — one group, several sessions.
    a result type without converting either side, so both operands reach `mwl-codegen` in two
    representations and are refused there. The widening *is* the semantics rather than an approximation of
    it, so it belongs in `mwl-ir`'s existing conversion rows, not in the backend.
-   `crates/mwl-ir/src/lower/expr.rs:2270` (`lower_binary`), `crates/mwl-ir/src/lower/mod.rs:1552`
+   `crates/mwl-ir/src/lower/operator.rs:470` (`lower_binary`), `crates/mwl-ir/src/lower/mod.rs:1731`
    (`coerce`), `crates/mwl-types/src/expr/operators.rs:403` (`arithmetic_result`),
    `crates/mwl-codegen/src/emit.rs:1008` (`emit_binop`). Same table decides `$n < $f`, which is the
    ordering half of the row and is refused the same way. `mwl-ir` gap 19, `mwl-codegen` gap 9.
@@ -71,14 +71,16 @@ all of it — one group, several sessions.
    `~` no `InstKind`; the grammar has had all six since M1 (`mwl_syntax::ast::BinaryOp`,
    `UnaryOp::BitNot`). Adding the variants gives `&=`, `|=`, `^=`, `<<=`, `>>=` their compound forms for
    free, because `lower_compound_assignment` rewrites `$x op= e` into the `$x = $x op e` it means.
-   `crates/mwl-ir/src/ir.rs:1470` (`BinOp`), `crates/mwl-ir/src/lower/expr.rs:2270`,
+   `crates/mwl-ir/src/ir.rs:1470` (`BinOp`), `crates/mwl-ir/src/lower/operator.rs:470`,
    `crates/mwl-ir/src/lower/stmt.rs:331`. `mwl-ir` gap 16.
 5. **`**` and `**=` exist**, over every numeric row but the one ADR 0054 § 3 already refuses (a `decimal`
    base, which `mwl_types` reports). Same three files as item 4.
 6. **`<=>` answers for a scalar.** It has no `decimal` row and no `int` one either — every scalar operand
    reaches `lower_expr`'s panic, and only ADR 0013's *object* form lowers today. ADR 0013's own
    `object_comparison_result` is the shape to match: `-1`/`0`/`1`, and the same three comparisons
-   `lower_decimal_binary` already rewrites into six. `crates/mwl-ir/src/lower/expr.rs:44`. `mwl-ir` gap 15.
+   `lower_decimal_binary` already rewrites into six. `crates/mwl-ir/src/lower/operator.rs:43`, beside
+   the object row at `:139`; the dispatch that panics is `crates/mwl-ir/src/lower/expr.rs:50`.
+   `mwl-ir` gap 15.
 7. **`$x++` and `--$x` lower**, in both positions, and with them the compound forms that inherit the same
    hole. Two things have to be split out of `lower_reassignment` first: the target's *address* computation,
    so `f()->count += 1` evaluates `f()` once where the rewrite reads it twice, and the increment's `1`,
@@ -170,11 +172,11 @@ ledger distinguishes "the unit guards are green" from "the program runs".
 26. **`bool as int` and `bool as string` run**, with ADR 0007 § 2's remaining non-scalar rows beside them:
     `array<T> as array<U>`'s element walk — the one row in that table that is not a single helper call —
     and a `Ty::Tagged` operand converted to `bytes`, the one target with no runtime-tag row.
-    `crates/mwl-ir/src/lower/expr.rs:661` (`convert`). `mwl-ir` gap 20.
+    `crates/mwl-ir/src/lower/convert.rs:60` (`convert`). `mwl-ir` gap 20.
 27. **ADR 0066 § 3's two refusals are diagnostics.** `as ?T` where the conversion cannot fail
     (`$i as ?string`) or does not exist at all (`$arr as ?int`) is a **compile error** by that ADR;
     `mwl_types` refuses neither, so both reach lowering and panic naming the ADR.
-    `crates/mwl-ir/src/lower/expr.rs:918` (`convert_or_null`) is where they arrive; the fix is in
+    `crates/mwl-ir/src/lower/convert.rs:402` (`convert_or_null`) is where they arrive; the fix is in
     `mwl_types`. `mwl-ir` gap 4.
 28. ~~**`echo $someCoreObject` answers or is diagnosed.**~~ **Done**, both halves and behind an erased
     operand too. `mwl_stdlib::registry::class_renders` is the one answer to "which `Core` classes does
