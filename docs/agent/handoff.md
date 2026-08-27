@@ -2,65 +2,60 @@
 
 ## State
 
-**M4 — language completeness.** Both write-path panics the last handoff named are closed, and
-neither by adding a lowering: each has **no reachable target left**, and each carries its own
-proof in its own doc comment rather than in a doc that can drift away from it.
+**M4 — language completeness.** Both catch-alls in `mwl-ir`'s *statement* slice are closed, and
+the last handoff's method — enumerate the roster, do not trust the message — found four live holes
+where the plan claimed none, so it is now a playbook bullet rather than a habit.
 
-- **`Lowering::write_back_array`'s property arm** (`crates/mwl-ir/src/lower/mod.rs:1999`). A
-  `PropertyAccess` span carries exactly one of `Property`, `HookedProperty`, `ShapeProperty`
-  or nothing; `check_property_member` reports a diagnostic on every path it records nothing
-  on, and `check_write_target` refuses the middle two as `E0478`/`E0480`, leaving `Property`.
-- **`Lowering::row_ty_of`** (`crates/mwl-ir/src/lower/stmt.rs`), both halves. No entry means
-  `mwl_types::expr`'s `ExprKind::Index` arm declined to record one, and every such path
-  reports `E0482` or leans on a diagnostic already coming. A non-array element type cannot
-  arise because *intermediate* means the level above resolved with this one as its base;
-  `??`-guarded typing is the one exception and `Env::coalesce_guarded` is filled only from a
-  `??`'s left operand, never from a write target — `??=` included.
+- **`lower_stmt`'s statement-kind catch-all** (`crates/mwl-ir/src/lower/stmt.rs`). `StmtKind` has
+  31 variants against 18 arms; of the thirteen left, `global`/`goto`/function-scope `static` and
+  `Error` die in the parser, `var $x;` is `E0101`, a top-level `function`/`const` is
+  `E0215`/`E0216`, and the seven **declarations** are now uniform: skipped at file scope by
+  `lower_script_stmts` (`autoload` was missing from that list, so an entry-point `autoload`
+  panicked) and `E0233` from `mwl_types::locals::nested_declaration` anywhere else (`namespace`,
+  `use`, `type` and `autoload` were silently accepted). `mwl_types::check::check_stmts` now matches
+  `TypeAliasDecl`/`AutoloadDecl` at file scope, which is what makes "arriving is the test" true for
+  all seven rather than three. The arm's own doc comment carries the subtraction.
+- **`lower_expr_stmt`'s catch-all** (same file). It refuses nothing now: an expression used as its
+  own statement is lowered for its effects and its value discarded, guarded by
+  `Lowering::aliasing_read` so `$x;` does not release a reference this frame never took. Refusing
+  the effect-free ones was rejected — "has no effect" is not decidable here (a property read runs
+  its ADR 0014 § 1 hook), and priority 2 says a statement PHP evaluates evaluates. A shape with no
+  lowering is named one level down by `lower_expr`'s own dispatch.
+- **`$a = &$b;` is `E0701`** (`crates/mwl-types/src/expr/assign.rs`, reported from
+  `expr/mod.rs`'s `Assign` arm so every position takes it). ADR 0031 § 2 removed by-reference
+  capture and ADR 0023 makes the right-hand side a copy, so the `&` has no owner — the same
+  reasoning `E0483` already applies to `[&$x]`. `&$x` at a *call* site is untouched.
 
-`unset()` was the one write spelling that did not mark its subscript levels, so
-`unset($erased->rows["0"])` took `E0482` for the subscript *and* `E0480` for the holder. It
-marks them now (`crates/mwl-types/src/expr/members.rs`, the `Index` arm of
-`check_unset_target`), and all four spellings now take exactly one diagnostic on the same
-target — which is what the new agreement case asserts.
-
-`python tools/holes.py` no longer attributes any site to this group; its worklist is now items
-1, 4, 6, 16 and 25.
+`python tools/holes.py` attributes nothing to this group any more; its worklist is items 1, 4, 6,
+16 and 25.
 
 ## Next group
 
-**The `mwl-ir` lowering dispatch's own catch-alls** — the five `got {other:?}` refusals that
-name a *kind* rather than a feature, which is the same "enumerate the arms, do not trust the
-message" job the last two were. The file set:
-`crates/mwl-ir/src/lower/expr.rs`, `crates/mwl-ir/src/lower/stmt.rs`,
-`crates/mwl-syntax/src/ast.rs` (for the `StmtKind`/`ExprKind`/`UnaryOp`/`BinaryOp` rosters),
-`tests/conformance/lang/`.
+**The `mwl-ir` *expression* dispatch's catch-alls** — the same "enumerate the arms, do not trust
+the message" job, one file over. The file set: `crates/mwl-ir/src/lower/expr.rs`,
+`crates/mwl-syntax/src/ast.rs` (for the `ExprKind`/`UnaryOp`/`BinaryOp` rosters),
+`tests/conformance/lang/`. Note that `lower_expr_stmt` now *routes* every unhandled statement-shape
+here, so this dispatch's message is what a user sees for one — its wording is load-bearing now.
 
-- [ ] **`stmt.rs:233` — the statement-kind dispatch's catch-all.** Enumerate `StmtKind`
-      against the arms above it; the plan's *Open now* claims the dispatch has no shape left
-      the checker accepts, so this is a proof to write down or a hole to find. Anchors:
-      `crates/mwl-ir/src/lower/stmt.rs:233`, `crates/mwl-syntax/src/ast.rs:@StmtKind`.
-- [ ] **`stmt.rs:364` — the expression-statement/reassignment catch-all.** Same file, same
-      roster, one level in: which `ExprKind`s reach a bare expression statement. Anchors:
-      `crates/mwl-ir/src/lower/stmt.rs:364`.
-- [ ] **`expr.rs:317` — the expression-kind dispatch's catch-all** (`holes.py --item 6`).
-      Enumerate `ExprKind` against `lower_expr`'s arms. Anchors:
-      `crates/mwl-ir/src/lower/expr.rs:317`, `crates/mwl-ir/src/lower/expr.rs:44`.
-- [ ] **`expr.rs:2679` and `expr.rs:3125` — the unary and binary operator catch-alls**, one
-      slice because they are twins: `UnaryOp` and `BinaryOp` are both closed rosters and ADR
-      0007 § 4's table says which rows exist. Watch the playbook's `emit_binop` bullets — a
-      row the checker accepts is not a row that runs. Anchors:
-      `crates/mwl-ir/src/lower/expr.rs:2679`, `crates/mwl-ir/src/lower/expr.rs:3125`,
-      `crates/mwl-types/src/expr/operators.rs:403`.
+- [ ] **`expr.rs:322` — the expression-kind dispatch's catch-all** (`holes.py --item 6`).
+      Subtract the arms from `ExprKind`'s roster the way `stmt.rs` was just done, then one scratch
+      `.mwl` per survivor. Anchors: `crates/mwl-ir/src/lower/expr.rs:322`,
+      `crates/mwl-syntax/src/ast.rs:@ExprKind`, `crates/mwl-ir/src/lower/expr.rs:44` (`lower_expr`).
+- [ ] **`expr.rs:2679` — the unary-operator catch-all.** `UnaryOp` is a short roster; the arm
+      claims only `-`/`!`/`~` lower. Anchors: `crates/mwl-ir/src/lower/expr.rs:2649`
+      (`lower_unary`), `crates/mwl-syntax/src/ast.rs:@UnaryOp`.
+- [ ] **`expr.rs:3126` — the binary-operator catch-all.** Same shape against `BinaryOp`, and the
+      playbook's `emit_binop` bullets say which rows the checker accepts but codegen refuses —
+      that gap is the likely residue. Anchors: `crates/mwl-ir/src/lower/expr.rs:2840`
+      (`lower_binary`), `crates/mwl-syntax/src/ast.rs:@BinaryOp`.
 
 ## Backlog
 
-- `mwl-ir` gap 21 (`crates/mwl-ir/src/lib.rs:535`) reads stale: `object $o = $obj;` lowers and
-  runs today, so the gap text and its "one line arm" plan need re-checking or deleting.
-- `crates/mwl-ir/src/lower/expr.rs:3441` — the instance-call panic still names "a `mixed`, a
-  union or a scalar receiver, which the checker does not yet refuse". `E0235` closed only its
-  computed-name half.
-- ADR 0007 § 2's `array<T> as array<U>` conversion row still panics `mwl-ir`
-  (`lower/expr.rs:877`), which is what keeps several `Core` refusals unreachable from source —
-  `docs/agent/playbook.md` § *Writing a test case* carries the worked cases.
-- `crates/mwl-codegen/src/ty.rs:116` and `:121` are the two refusal sites `holes.py` attributes
-  to no item at all.
+- `crates/mwl-codegen/src/ty.rs:116` and `:121` — two refusal sites no `holes.py` item anchors.
+- ADR 0007 § 2's `array<T> as array<U>` still panics `mwl-ir`; it blocks several case spellings
+  (playbook, *Writing a test case*).
+- `$c = require 'config.mwl';` — ADR 0021 § 3's value form, still a gap (`mwl-ir` crate docs).
+- `mwl_types::locals` still does not descend into a nested declaration's *body*, so an error
+  inside a refused `namespace { … }` block is not reported (that module's known gaps).
+- `holes.py` items 1, 4, 16 and 25 — the promotion table, the bitwise operators, named/spread
+  arguments, `object` as a declared type.

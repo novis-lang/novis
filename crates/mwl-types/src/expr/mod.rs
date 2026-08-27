@@ -233,8 +233,21 @@ pub(super) fn infer(
             binary_result(*op, lhs_ty, rhs_ty, expr.span, env)
         }
         ExprKind::Assign {
-            op, target, value, ..
-        } => check_assign(*op, expr.span, target, value, live, scope, ctx, env),
+            op,
+            target,
+            value,
+            by_ref,
+        } => {
+            // `$a = &$b;` — refused here rather than left to `check_assign`,
+            // whose whole job is the type on either side of a `=` and which
+            // has nothing to say about the `&`. Reported and then checked
+            // anyway, so a reference assignment that is *also* a type error
+            // says both things in one run.
+            if *by_ref {
+                report_by_reference_assignment(expr.span, value.span, env);
+            }
+            check_assign(*op, expr.span, target, value, live, scope, ctx, env)
+        }
         ExprKind::Ternary { cond, then, else_ } => {
             let cond_ty = check_expr(cond, None, live, scope, ctx, env);
             // `$a ?: $b` (`then` omitted) evaluates to `$a` itself on the

@@ -1122,6 +1122,18 @@ pub mod code {
     /// here exactly as it does in PHP, because
     /// `mwl_syntax::ast::Expr::unparenthesized` is what finds the root.
     pub const E_ELEMENT_WRITE_ROOT_NOT_A_PLACE: Code = Code::new("E0700");
+    /// A reference assignment, `$a = &$b;`.
+    ///
+    /// PHP binds the two names to one slot, so a later write through either
+    /// is seen through the other. MWL has nowhere to put that: ADR 0031 § 2
+    /// removed by-reference capture, so no binding aliases another, and
+    /// ADR 0023 fixes what a copy means, so the right-hand side is a copy at
+    /// the point the assignment runs. The same reasoning already refuses
+    /// `[&$x]` as [`E_ARRAY_ELEMENT_BY_REFERENCE`] — it is not a lowering
+    /// that is missing, it is a thing the language does not have. `&$x` at a
+    /// *call site* stays, because a parameter's write-back is a copy in and a
+    /// copy out rather than a shared slot.
+    pub const E_ASSIGN_BY_REFERENCE: Code = Code::new("E0701");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

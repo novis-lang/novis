@@ -58,10 +58,16 @@
 > element-write holders that are no slot and take exactly one diagnostic each for it, an
 > intermediate level of a nested element write is `E0482` unless it is an array of its own, which
 > together leave `write_back_array`'s and `row_ty_of`'s panics no reachable target either, and `int
-> $x;` and `;` both lower. Three live tools **are** the worklist and no session re-derives one:
-> `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes
-> each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
-> `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
+> $x;` and `;` both lower, all seven declaration spellings — `class`, `interface`, `enum`, `type`,
+> `namespace`, `use` and `autoload` — are skipped at file scope and `E0233` inside a body, so an
+> `autoload` written in the entry point itself resolves a class exactly as one in a bootstrap file
+> does, and an expression used as its own statement is evaluated for its effects with its value
+> discarded whatever shape it is, `$a = &$b;` being the one spelling refused instead (`E0701`, ADR
+> 0031 § 2 has nowhere to put a reference) — which together leave both of the statement slice's
+> catch-alls no reachable target. Three live tools **are** the worklist and no session re-derives
+> one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and
+> attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the
+> named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
 > `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop

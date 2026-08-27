@@ -312,6 +312,32 @@ pub(crate) fn check_return(
     }
 }
 
+/// `E0701` — `$a = &$b;`, refused rather than lowered.
+///
+/// MWL has no references: ADR 0031 § 2 removed by-reference capture, so no
+/// binding aliases another, and ADR 0023 fixes what a copy means, so the
+/// right-hand side is a copy at the point the assignment runs. The `&` has no
+/// owner in either rule — the same reasoning `literals`' `[&$x]` refusal
+/// (`E0483`) already states, and the reason both are refusals rather than
+/// missing lowerings.
+///
+/// `value` is quoted back because dropping one character is the whole fix.
+pub(super) fn report_by_reference_assignment(span: Span, value: Span, env: &mut Env<'_>) {
+    let value_text = span_text(env.src, value).to_owned();
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ASSIGN_BY_REFERENCE,
+            "a binding cannot be assigned by reference",
+        )
+        .with_primary(span, format!("this would share `{value_text}`'s own slot"))
+        .with_help(
+            "MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes \
+             this a copy, so drop the `&` — to share one mutable cell, hold it in an object and \
+             assign that",
+        ),
+    );
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "the same context [`check_compound_assign`] states, with the \n              assignment operator in place of the binary one it maps to"

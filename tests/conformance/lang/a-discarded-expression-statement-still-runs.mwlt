@@ -1,0 +1,50 @@
+--TEST--
+An expression used as its own statement is evaluated for its effects and its value discarded, whatever shape it is — ADR 0007 § 7
+--FILE--
+<?mwl
+// PHP evaluates an expression statement for what it does and throws the value
+// away. So does MWL: there is no "expression result unused" refusal, because
+// "has no effect" is not a question the compiler can answer — a call is buried
+// inside half of the shapes below, and a property read runs the hook ADR 0014
+// § 1 gives it. The agreement this pins is that every shape runs its call
+// exactly once and in source order, which a slice that lowered only some of
+// them would fail on while each line still looked plausible on its own.
+class Note {
+    public static function say(string $s): string {
+        echo $s, "\n";
+        return $s;
+    }
+}
+
+int $i = 0;
+string $tag = "t";
+
+// A call buried in a discarded expression still runs, once.
+Note::say("concat") . "x";
+true ? Note::say("ternary") : Note::say("never");
+match (1) { 1 => Note::say("match"), default => Note::say("never") };
+[Note::say("array")];
+// ADR 0036 § 2: a statement-initial `{` is a block, so the literal is
+// parenthesized — which changes nothing about what the statement means.
+({v: Note::say("shape")});
+(Note::say("paren"));
+
+// The other half: legal, lowered, and observably nothing. A bare local is the
+// one that must not be *released* here — it hands back the local's own value,
+// and this frame never took the reference it would be dropping.
+$i;
+$tag;
+1 + 2;
+"literal";
+$i < 1;
+
+// The locals are untouched by having been mentioned.
+echo $i, $tag, "\n";
+--EXPECT--
+concat
+ternary
+match
+array
+shape
+paren
+0t

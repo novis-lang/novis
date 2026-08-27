@@ -1816,6 +1816,15 @@ sibling in the same namespace unqualified.
   found that in one call each; reading the message and believing it would have rebuilt a
   feature that was already there. Enumerate the arms of whatever *records* the table entry
   and probe one program per arm, before taking the panic's own account of itself.
+- **A plan field's "no shape left the checker accepts" is a claim, not a proof, and the cheap way
+  to judge one is the roster and the binary rather than the arms.** `StmtKind` has 31 variants and
+  `lower_stmt` had arms for 18; four of the thirteen left — `autoload`, `namespace`, `use` and
+  `type` — reached the catch-all from source the checker happily accepted, and one of them
+  (`autoload` in the *entry* file) is spelled in a passing conformance case, just from a
+  `require`d file whose statements never lower. Grep the enum's variant list, subtract the arms,
+  then write one scratch `.mwl` per survivor and run it: six `mwl run` calls settled thirteen
+  variants, where reading the arms would only have re-derived the claim. The same subtraction is
+  what turns the residue into the doc comment the panic then carries.
 
 ## Divergences and refusals already pinned
 

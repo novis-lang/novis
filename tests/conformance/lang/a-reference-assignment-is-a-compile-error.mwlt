@@ -1,0 +1,43 @@
+--TEST--
+`$a = &$b;` is `E0701` in every position it can be written, never a panic — ADR 0031 § 2, ADR 0023
+--FILE--
+<?mwl
+// MWL has no references at all: ADR 0031 § 2 removed by-reference capture, so
+// no binding aliases another, and ADR 0023 makes the right-hand side a copy.
+// So `= &` has no owner in either rule — a refusal, not a missing lowering.
+int $b = 1;
+int $a = 2;
+$a = &$b;
+
+// An element target takes the same answer, and takes it once: the `&` is
+// refused before the write target is even considered.
+array<int> $rows = ["0" => 1];
+$rows["0"] = &$b;
+
+// PHP's other spelling of the same thing, inside an expression rather than as
+// a statement of its own.
+int $c = ($a = &$b);
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0701]: a binding cannot be assigned by reference
+  --> %s:7:1
+  |
+7 | $a = &$b;
+  | ^^^^^^^^ this would share `$b`'s own slot
+  = help: MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — to share one mutable cell, hold it in an object and assign that
+
+error[E0701]: a binding cannot be assigned by reference
+   --> %s:12:1
+   |
+12 | $rows["0"] = &$b;
+   | ^^^^^^^^^^^^^^^^ this would share `$b`'s own slot
+   = help: MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — to share one mutable cell, hold it in an object and assign that
+
+error[E0701]: a binding cannot be assigned by reference
+   --> %s:16:11
+   |
+16 | int $c = ($a = &$b);
+   |           ^^^^^^^^ this would share `$b`'s own slot
+   = help: MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — to share one mutable cell, hold it in an object and assign that
+
+error: aborting due to 3 errors
