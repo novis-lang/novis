@@ -142,7 +142,17 @@ pub(super) fn infer(
         ExprKind::Interpolated(parts) => infer_interpolated(expr, parts, live, scope, ctx, env),
         ExprKind::Variable(span) => {
             let name = strip_sigil(span_text(env.src, *span)).to_owned();
-            check_read(&name, expr.span, live, scope, env)
+            let ty = check_read(&name, expr.span, live, scope, env);
+            // A narrowing is only usable below the checker if the read that
+            // benefits from it says so — `ExprInfo::NarrowedRead` owns why the
+            // fact belongs here rather than at each consumer. The equality is
+            // what keeps an *unnarrowed* read (and a `check_read` that
+            // recovered with `mixed` after reporting) from recording one.
+            if scope.narrowed_ty(&name) == Some(ty) {
+                env.exprs
+                    .record(expr.span, ExprInfo::NarrowedRead { to: ty });
+            }
+            ty
         }
         ExprKind::ConstFetch(_) => env.interner.mixed(),
         ExprKind::SelfExpr | ExprKind::StaticExpr => class_of_ctx(ctx, env),
@@ -499,22 +509,22 @@ fn refused_as_a_write_target(expr: &Expr, base: &Expr, env: &Env<'_>) -> bool {
 /// `mwl_ir::lower::Lowering::lower_index` has to lower against. A base with
 /// no element type therefore has nothing to read, and every one of these
 /// used to reach `mwl-ir` and panic there instead — a subscripted `mixed`,
-/// a subscripted scalar, and a `?array<T>` that a `!= null` test did not
-/// narrow (`crate::locals`' [`narrow`](crate::locals) docs own why an array
-/// binding is not on the narrowing list yet).
+/// a subscripted scalar, and an *untested* `?array<T>`.
 ///
 /// The help splits three ways because the three have different answers, and
 /// naming the wrong one costs a session: `mixed` needs the binding declared
 /// as what it holds, a `string` needs ADR 0009 § 2's grapheme indexing said
-/// out loud as `Core\Str::slice`, and a nullable array needs a second,
-/// non-nullable binding until the narrowing lands.
+/// out loud as `Core\Str::slice`, and a nullable array needs the `!= null`
+/// test ADR 0066 already gives it — [`narrow`](crate::locals) drops the
+/// `null` and the subscript is then an ordinary one.
 fn report_unsubscriptable(base: &Expr, base_ty: TypeId, env: &mut Env<'_>) {
     let residue = env.interner.without_null(base_ty);
     let nullable_array = residue != base_ty && matches!(env.interner.get(residue), Ty::Array(_));
     let help = if nullable_array {
-        "a `!= null` test does not narrow an array binding out of `null` yet — assign it \
-         to a plain `array<T>` binding first, or iterate it with `foreach ($x as T $v)`, \
-         whose element type comes from the binding rather than from the subject"
+        "a nullable array has no elements until it is known not to be `null` — put the \
+         subscript inside an `if ($x != null) { … }`, which narrows the binding to its \
+         `array<T>` for the whole branch. Only a *binding* narrows, so a nullable array \
+         that came straight out of a call has to be bound to one first"
     } else if matches!(
         env.interner.get(base_ty),
         Ty::String

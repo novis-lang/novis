@@ -1,0 +1,57 @@
+--TEST--
+A `!= null` test narrows a `?T` local to whatever dropping `null` leaves — an array, a scalar, a class — and the narrowed local is readable, indexable, writable and iterable (ADR 0066, ADR 0007 §§ 2 and 5)
+--FILE--
+<?mwl
+// ADR 0066: `null` is dropped on the branch the test proves, and what is
+// left is the whole residue. A `?array<T>` is the shape this case exists
+// for — it used to narrow nowhere at all, so every subscript on one was a
+// diagnostic however carefully it had been guarded.
+array<string> $seed = ["k" => "v"];
+?array<string> $rows = $seed;
+if ($rows != null) {
+    echo $rows["k"], "\n";
+    // ADR 0007 § 5: a write through the narrowed name separates and is
+    // written back into the local it came out of, so the next read of it
+    // sees the new element and the one before it alike.
+    $rows["j"] = "w";
+    echo $rows["j"], "|", $rows["k"], "\n";
+    foreach ($rows as string $each) {
+        echo $each;
+    }
+    echo "\n";
+    echo Core\Arr::count($rows) as string, "\n";
+}
+
+// The narrowing ends with the guard, so the local is a `?array<string>`
+// again on the other side of it — and a second test proves the same thing
+// about the value the first one's write left behind.
+if ($rows != null) {
+    echo $rows["j"], "\n";
+}
+
+// A scalar residue narrows the same way: this is the arithmetic that had
+// no representation to run on while only a class could narrow.
+?int $n = 7;
+if ($n != null) {
+    echo ($n + 1) as string, "\n";
+}
+?string $s = "ab";
+if ($s != null) {
+    echo $s . "c", "\n";
+}
+
+// A `null` local is not narrowed by a test it fails, and the `== null`
+// spelling proves the same thing about its own branch.
+?array<string> $absent = null;
+if ($absent == null) {
+    echo "absent\n";
+}
+--EXPECT--
+v
+w|v
+vw
+2
+w
+8
+abc
+absent

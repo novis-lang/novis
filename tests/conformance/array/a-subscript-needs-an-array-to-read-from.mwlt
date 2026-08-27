@@ -1,5 +1,5 @@
 --TEST--
-a subscript whose base declares no element type is refused where it is written, for a `mixed`, a scalar, a `string` and an unnarrowed `?array<T>` alike — ADR 0007 § 5, ADR 0009 § 2
+a subscript whose base declares no element type is refused where it is written, for a `mixed`, a scalar, a `string` and an untested `?array<T>` alike — ADR 0007 § 5, ADR 0009 § 2
 --FILE--
 <?mwl
 // ADR 0007 § 5 checks an element read and write against the array's *declared*
@@ -8,9 +8,10 @@ a subscript whose base declares no element type is refused where it is written, 
 // these — ADR 0007 § 7 row 8's family — and MWL refuses at check time instead.
 // A `string` is not an exception: ADR 0009 § 2 indexes one by extended
 // grapheme cluster through `Core\Str`, deliberately not through a subscript.
-// The last one is the sharpest: a `!= null` test narrows a `?Class` receiver
-// but not an array binding (`mwl_types::locals`' narrowing docs own why), so
-// `$rows["0"]` inside the guard is refused rather than lowered.
+// The last one is the sharpest: a nullable array has an element type only
+// once it is known not to be `null`, so an *untested* one is refused here
+// while the same subscript inside an `if ($rows != null)` narrows and runs
+// (`mwl_types::locals`' narrowing docs own that half).
 mixed $m = "x";
 $m["0"] = "1";
 echo $m["0"], "\n";
@@ -19,26 +20,24 @@ echo $i["0"], "\n";
 string $s = "abc";
 echo $s["0"], "\n";
 ?array<string> $rows = null;
-if ($rows != null) {
-    echo $rows["0"], "\n";
-}
+echo $rows["0"], "\n";
 echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0482]: `mixed` cannot be subscripted
-   --> case.mwl:12:1
+   --> case.mwl:13:1
 %A
 error[E0482]: `mixed` cannot be subscripted
-   --> case.mwl:13:6
+   --> case.mwl:14:6
 %A
 error[E0482]: `int` cannot be subscripted
-   --> case.mwl:15:6
+   --> case.mwl:16:6
 %A
 error[E0482]: `string` cannot be subscripted
-   --> case.mwl:17:6
+   --> case.mwl:18:6
 %A
 error[E0482]: `null|array<string>` cannot be subscripted
-   --> case.mwl:20:10
+   --> case.mwl:20:6
 %A
 error: aborting due to 5 errors

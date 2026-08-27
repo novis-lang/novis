@@ -177,9 +177,11 @@
 //! - **ADR 0007 § 6's narrowing is one of its four spellings.** `=== null`/
 //!   `!== null` over a plain local narrows, and [`locals`]' own docs own the
 //!   rule, what invalidates one and the two places the walk deliberately
-//!   refuses to prove anything. `instanceof`, a comparison against a
-//!   literal-typed value and `match (true)` do not narrow yet, and the
-//!   residue is restricted to a class — the same conservative direction as
+//!   refuses to prove anything. The residue is unrestricted — dropping
+//!   `null` leaves an array, a scalar or a class alike, and
+//!   [`expr_table::ExprInfo::NarrowedRead`] is what carries that to `mwl-ir`.
+//!   `instanceof`, a comparison against a literal-typed value and
+//!   `match (true)` do not narrow yet — the same conservative direction as
 //!   the row above: a missing narrowing is a diagnostic, never a wrong
 //!   program.
 //! - References (`&$x`) needing both sides to declare the same type.

@@ -137,11 +137,16 @@ impl<'a> Lowering<'a> {
                 // A `&$x` parameter binds an address, not a value: reading it
                 // is a load out of the caller-staged slot, at the declared
                 // (pointee) type `Self::ref_locals` remembers. See `Ty::Ref`.
-                if ty == Ty::Ref {
+                let (v, ty) = if ty == Ty::Ref {
                     let pointee = self.pointee_of(name);
-                    return self.emit(*cur, pointee, InstKind::RefLoad { slot: v });
-                }
-                (v, ty)
+                    self.emit(*cur, pointee, InstKind::RefLoad { slot: v })
+                } else {
+                    (v, ty)
+                };
+                // A `?T` local the checker narrowed is read at what it proved,
+                // not at the tagged slot it lives in — `Self::untag_narrowed`
+                // owns why that happens here and nowhere else.
+                self.untag_narrowed(expr.span, v, ty, *cur)
             }
             // `!` always produces `Ty::Bool` via ADR 0035's truthy table,
             // regardless of `inner`'s own type — a separate arm from the plain
@@ -1217,6 +1222,51 @@ impl<'a> Lowering<'a> {
             self.emit(cur, Ty::Object, InstKind::Untag { operand: v }).0,
             Ty::Object,
         )
+    }
+
+    /// Narrows a read of a `?T` local a dominating `!= null` test proved
+    /// non-`null`, down to the representation of what it proved.
+    ///
+    /// A `?T` local is one [`Ty::Tagged`] slot wide whatever the checker later
+    /// proves about it, so *every* consumer of such a read — a subscript base,
+    /// a `foreach` subject, an array-write root, a call argument, a receiver —
+    /// would otherwise have to narrow for itself, and one forgotten site is a
+    /// cranelift rejection rather than a panic. `mwl_types` therefore records
+    /// the narrowing on the read's own span
+    /// (`mwl_types::expr_table::ExprInfo::NarrowedRead`) and it is discharged
+    /// **once, here**, where the value is produced — which is what leaves no
+    /// site to forget. [`Self::untag_receiver`] is the same move written for
+    /// the one consumer that predates this, and is a no-op once this has run.
+    ///
+    /// The [`InstKind::Untag`] is unchecked for [`Self::untag_receiver`]'s
+    /// reason, and transfers ownership unchanged — so a borrowed slot read
+    /// stays a borrow, and [`Self::aliasing_read`], which answers on the
+    /// *syntax* rather than on the representation, still decides the one
+    /// retain a consumer owes.
+    ///
+    /// A residue that erases to [`Ty::Tagged`] itself (a `?(A|B)` narrowed to
+    /// `A|B`) is left alone: there is no representation to change, exactly as
+    /// `mwl-codegen`'s own `Untag`-to-tagged identity has it.
+    pub(super) fn untag_narrowed(
+        &mut self,
+        span: Span,
+        v: ValueId,
+        ty: Ty,
+        cur: BlockId,
+    ) -> (ValueId, Ty) {
+        if ty != Ty::Tagged {
+            return (v, ty);
+        }
+        let Some(ExprInfo::NarrowedRead { to }) = self.exprs.lookup(span) else {
+            return (v, ty);
+        };
+        let Some(to) = super::erase_checked_ty(*to, self.checked_types) else {
+            return (v, ty);
+        };
+        if to == Ty::Tagged {
+            return (v, ty);
+        }
+        (self.emit(cur, to, InstKind::Untag { operand: v }).0, to)
     }
 
     /// Closes the guard [`Self::open_nullsafe`] opened, merging the member's

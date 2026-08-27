@@ -310,6 +310,29 @@ pub enum ExprInfo {
         /// away.
         guarded: bool,
     },
+    /// A read of a local a dominating `!= null` test **narrowed** — `$m`
+    /// inside `if ($m != null) { … }`, where [`crate::locals`]' `narrow`
+    /// proved the binding cannot be `null` on this path.
+    ///
+    /// Keyed by the [`mwl_syntax::ast::ExprKind::Variable`] read's own span,
+    /// which carries no other entry, and it is the whole of what makes a
+    /// narrowing usable below the checker. `mwl-ir` gives a `?T` local one
+    /// `mwl_ir::ty::Ty::Tagged` slot whatever a condition later proves about
+    /// it, so every *consumer* of such a read — a call receiver, a subscript
+    /// base, a `foreach` subject, an argument — would otherwise have to narrow
+    /// for itself, and one forgotten site is a cranelift rejection rather than
+    /// a panic. Recording the fact at the read means it is discharged **once,
+    /// where the value is produced**, leaving no site to forget:
+    /// `mwl_ir::lower::Lowering::lower_expr`'s `Variable` arm is that one site.
+    ///
+    /// Recorded only where the narrowing actually changed the answer, so a
+    /// read of an ordinary non-nullable binding carries no entry at all.
+    NarrowedRead {
+        /// What the test proved — the declared union with `null` dropped, and
+        /// exactly the type [`crate::locals::LocalScope::declared_ty`]
+        /// answered this read with.
+        to: TypeId,
+    },
     /// `$a ?? $b`, keyed by the whole binary expression's own span.
     ///
     /// Recorded rather than left to `mwl-ir` because both types it needs are

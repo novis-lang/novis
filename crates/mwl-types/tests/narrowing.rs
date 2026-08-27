@@ -10,8 +10,9 @@ mod common;
 use common::check_src;
 use mwl_diagnostics::{Diagnostics, code};
 
-/// Wraps `body` in a method taking a `?Node`, the one shape narrowing
-/// applies to today (a `null`-and-one-class union).
+/// Wraps `body` in a method taking a `?Node` — the shape most of these cases
+/// are written over, not the only one that narrows (see
+/// [`a_nullable_scalar_and_a_nullable_array_both_narrow`]).
 fn check_with_node(body: &str) -> Diagnostics {
     check_src(&format!(
         "<?mwl\nclass Node {{\n  function label(): string {{ return \"n\"; }}\n}}\n\
@@ -122,19 +123,19 @@ fn an_equality_null_test_narrows() {
     );
 }
 
-/// Only a `null`-and-one-class union narrows — see [`mwl_types::locals`]'s
-/// `narrow` for why a `?int` narrowed here would trade a clean diagnostic for
-/// an `mwl-ir` panic.
+/// Every `?T` narrows to whatever dropping `null` leaves — a scalar and an
+/// `array<T>` alike, not only the single class this once restricted itself
+/// to. [`mwl_types::locals`]'s `narrow` owns what lifted that restriction, and
+/// `mwl_types::expr_table::ExprInfo::NarrowedRead` is the half below it.
 #[test]
-fn a_nullable_scalar_is_deliberately_not_narrowed() {
+fn a_nullable_scalar_and_a_nullable_array_both_narrow() {
     let diags = check_src(
-        "<?mwl\nclass T {\n  function m(?int $v): void {\n    \
-         if ($v !=null) {\n      int $w = $v;\n      echo $w;\n    }\n  }\n}\n",
+        "<?mwl\nclass T {\n  function m(?int $v, ?array<string> $rows): void {\n    \
+         if ($v !=null) {\n      int $w = $v;\n      echo $w;\n    }\n    \
+         if ($rows !=null) {\n      string $first = $rows[\"0\"];\n      echo $first;\n    \
+         }\n  }\n}\n",
     );
-    assert!(
-        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
-        "{diags:?}"
-    );
+    assert!(!diags.has_errors(), "{diags:?}");
 }
 
 /// A `foreach` binding is a write like any other, so reusing the narrowed

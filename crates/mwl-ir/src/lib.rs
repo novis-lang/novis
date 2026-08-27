@@ -178,10 +178,15 @@
 //!    ([`ir::Helper::TaggedToString`]). `?->` reads one only to *test* it
 //!    ([`lower::Lowering::open_nullsafe`]), as does `== null`/`!= null`,
 //!    which is one [`ir::InstKind::IsNull`] rather than a comparison against
-//!    a `null` constant — and a plain `->` on the receiver that test narrowed
-//!    is one unchecked [`ir::InstKind::Untag`]
-//!    ([`lower::Lowering::untag_receiver`]; `mwl_types::locals` owns the
-//!    proof).
+//!    a `null` constant — and a *read* of the local that test narrowed is one
+//!    unchecked [`ir::InstKind::Untag`] at the read itself
+//!    ([`lower::Lowering::untag_narrowed`], off
+//!    `mwl_types::expr_table::ExprInfo::NarrowedRead`; `mwl_types::locals`
+//!    owns the proof). Narrowing there rather than at each consumer is what
+//!    lets a subscript base, a `foreach` subject, an array-write root and an
+//!    argument all see the narrow representation with no site to forget;
+//!    [`lower::Lowering::untag_receiver`] is the same move for the one
+//!    consumer that predates it.
 //!    What does not: reading a tagged value *without* a checker-proven
 //!    narrowing — arithmetic on a `mixed`, ADR 0035's truthy table, an array
 //!    access through a tagged base. Each panics naming itself, and closing

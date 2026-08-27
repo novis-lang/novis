@@ -1817,7 +1817,23 @@ impl<'a> Lowering<'a> {
         match &base.kind {
             ExprKind::Variable(name_span) => {
                 let name = strip_sigil(span_text(self.src, *name_span)).to_owned();
-                env.insert(name, (written, Ty::Array));
+                // A narrowed `?array<T>` root was *read* at `Ty::Array`
+                // (`Lowering::untag_narrowed`), but the local it is written
+                // back into is still the one tagged slot its declaration gave
+                // it, and the narrowing ends with the guard. Re-tagging keeps
+                // the binding's representation the one every path out of the
+                // guard agrees on; the `Tag` transfers the separated array's
+                // reference exactly as this arm's plain store does.
+                let held = env.get(&name).map(|&(_, ty)| ty);
+                let (written, ty) = if held == Some(Ty::Tagged) {
+                    (
+                        self.coerce(*cur, written, Ty::Array, Ty::Tagged, env),
+                        Ty::Tagged,
+                    )
+                } else {
+                    (written, Ty::Array)
+                };
+                env.insert(name, (written, ty));
             }
             ExprKind::PropertyAccess { object, .. } => {
                 let Some(ExprInfo::Property { class, name, .. }) = self.exprs.lookup(base.span)

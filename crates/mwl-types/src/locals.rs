@@ -56,9 +56,11 @@
 //!   `while` condition's own narrowing is installed after that drop and is
 //!   sound, since the condition is re-tested before every entry.
 //!
-//! **Only a `null`-and-one-class union narrows**, deliberately: see
-//! [`narrow`] for why a `?int` narrowed here would turn a clean diagnostic
-//! into an `mwl-ir` panic.
+//! **Every `?T` narrows, to whatever dropping `null` leaves** — see
+//! [`narrow`] for the restriction that used to sit here, and for what lifted
+//! it: the narrowing is recorded on the variable read's own span
+//! ([`crate::expr_table::ExprInfo::NarrowedRead`]) and `mwl-ir` discharges it
+//! once, where the value is produced, rather than at each consumer.
 //!
 //! **Known gaps**, beyond the ones `crate` docs already name: a `switch`
 //! case that silently falls through to the next one (no explicit `break`/
@@ -76,7 +78,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::expr::{check_expr, check_return, check_unset_target, require_stringable};
 use crate::lower::{lower_optional_type, lower_type};
-use crate::ty::{Ty, TypeId};
+use crate::ty::TypeId;
 use crate::{Ctx, Env, span_text, strip_sigil};
 
 /// One local variable's declared type and where it was declared.
@@ -176,6 +178,18 @@ impl LocalScope {
             used.push((name.to_owned(), ty));
         }
         Some(ty)
+    }
+
+    /// The narrowed type a dominating `!= null` test proved for `name`, or
+    /// `None` where nothing narrowed it.
+    ///
+    /// [`Self::declared_ty`] deliberately answers the narrowed type without
+    /// saying that it *is* one, which is right for every check it feeds. The
+    /// one caller that needs to know the difference is `crate::expr`'s
+    /// variable-read arm, because the fact has to reach `mwl-ir` on the read's
+    /// own span — see [`crate::expr_table::ExprInfo::NarrowedRead`].
+    pub(crate) fn narrowed_ty(&self, name: &str) -> Option<TypeId> {
+        self.narrowed.borrow().get(name).copied()
     }
 
     /// What `name` was *declared* as, dropping any narrowing on it first —
@@ -290,16 +304,19 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// Installs the narrowing `cond` proves on the branch where it evaluates to
 /// `when`, and hands back what that branch's end has to restore.
 ///
-/// **Only a union of `null` and exactly one class narrows.** The general
-/// rule — drop `null`, keep the rest — is what ADR 0066's body describes and
-/// what this would like to do, but `mwl-ir` lowers a `?T` local's slot as
-/// [`Ty::Tagged`](mwl_ir::ty::Ty) whatever the checker later proves about it,
-/// and today only a *receiver* reads back out of one (an unchecked `Untag`,
-/// which `mwl_types` having proved the shape is exactly what licenses).
-/// Narrowing `?int` here would make `$n + 1` type-check and then panic in
-/// `mwl-ir`'s arithmetic, trading a clean diagnostic for a crash — so the
-/// residue is checked and anything else is left alone. Widening this is
-/// gated on `mwl-ir` gap 1's tagged arithmetic, not on any decision here.
+/// **The general rule, and nothing narrower: drop `null`, keep the rest.**
+/// That is what ADR 0066's body describes, and every residue takes it — a
+/// class, an `array<T>`, a scalar, or a union of them.
+///
+/// This used to be restricted to a single-class residue, because `mwl-ir`
+/// lowers a `?T` local's slot as [`Ty::Tagged`](mwl_ir::ty::Ty) whatever the
+/// checker later proves about it, and the only *consumer* that narrowed back
+/// out of one was a call receiver. What lifted the restriction is that the
+/// narrowing is now recorded on the variable read's own span
+/// ([`crate::expr_table::ExprInfo::NarrowedRead`]) and discharged once, where
+/// `mwl-ir` produces the value, rather than at each consumer that wants it —
+/// so a subscript base, a `foreach` subject, an array-write root and an
+/// argument all see the narrow representation with no site left to forget.
 fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Narrowing {
     let Some((name_span, non_null_when_true)) = null_test(cond) else {
         return Narrowing::default();
@@ -312,7 +329,7 @@ fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Nar
         return Narrowing::default();
     };
     let residue = env.interner.without_null(current);
-    if residue == current || !matches!(env.interner.get(residue), Ty::Class(..)) {
+    if residue == current {
         return Narrowing::default();
     }
     let previous = scope.narrowed.borrow_mut().insert(name.clone(), residue);
