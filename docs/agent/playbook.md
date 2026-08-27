@@ -1651,6 +1651,14 @@ sibling in the same namespace unqualified.
   `echo "made: ", Cell::make()->count++, "\n";` prints `made: ` *before* `make`, because `echo`
   writes each operand as it reaches it rather than evaluating the whole list first; a case whose
   operand has a side effect has to expect the interleaving.
+- **A static property does not lower, in either direction.** `Reg::$current` as a *read*
+  panics `lower_expr`'s dispatch catch-all with a bare `StaticPropertyAccess { … }`, and
+  `Reg::$count = 1;` panics `lower_stmt`'s reassignment arm naming the same node — so a case
+  reaching for a class-level counter or a class-level flag has no spelling at all, and what
+  works instead is an instance property on a local object (`Counter $c = new Counter();`).
+  The checker accepts both happily, which is why this reads as a checker/lowering mismatch
+  rather than as the missing feature it is; nothing on `python tools/holes.py`'s worklist
+  names it either.
 
 ## Divergences and refusals already pinned
 

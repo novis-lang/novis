@@ -65,8 +65,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 607 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 170, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 609 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 171, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -496,7 +496,7 @@
 > edges with a fresh refcounted operand live. `python tools/holes.py` still reads **24 sites, 6
 > items**: `convert_or_null`'s catch-all is unchanged, `$b as ?string` and `$m as ?array<T>` still
 > reaching it, and this slice widened neither. **M4S Part I is the floor, not the frontier**:
-> conformance is at 607 of the goal's new 750 and differential at 170 of 165, `python tools/gaps.py`
+> conformance is at 609 of the goal's new 750 and differential at 171 of 165, `python tools/gaps.py`
 > still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a group is
 > blocked — never a reason to leave a language item unfinished. **A bare name in value position is a
 > diagnostic now**, which is the cheap half of `lower_expr`'s own dispatch catch-all rather than a
@@ -565,8 +565,38 @@
 > `Fault` variant carried to `mwl-cli`'s exit status) rather than a runtime call, and that is a
 > slice of its own across `mwl-runtime` and `mwl-cli`. `python tools/holes.py` still reads **24
 > sites**: `lower_expr`'s dispatch catch-all is one site whichever shapes reach it, and
-> `lower_expr_stmt`'s is another. `docs/spec/02-php-migration.md` is 31% classified (`python
-> tools/check-migration.py`).
+> `lower_expr_stmt`'s is another. **`isset(...)` runs, and its operands are checked for the first
+> time.** ADR 0028 § 3 fixes it as `$x != null` and a list of operands as the conjunction, and that
+> is the whole semantics — no magic method survives ADR 0014's removal of the ambient fallback the
+> pair existed to intercept. What it needed was the *operand*: `ExprKind::Isset(_)` answered `bool`
+> without ever calling `check_expr`, so no `ExprInfo` was recorded and lowering one would have
+> panicked on a property or an element before it reached any null test. `mwl_types::expr::presence`
+> is the new home of both rules it carries. **An absent key answers `false` rather than throwing**,
+> which is what decides the shape: every `Index` level of every operand is marked in
+> `Env::coalesce_guarded` — the same set `??` fills and the same one the `ExprKind::Index` arm
+> already reads — so ADR 0007 § 7 row 11's throw is off for exactly the reads this construct exists
+> to ask about, and `isset($maybe["k"])` over an untested `?array<string>` needs no `!= null` first,
+> that being the one other position a nullable array already had. A stored `null` and an absent key
+> are indistinguishable here, `isset` asking `!= null` and both answering it the same way. The
+> lowering is one `InstKind::IsNull` and a `Not` for a `Ty::Tagged` operand and a **constant** for
+> every other representation — `Ty::Null` answering `false`, everything else `true` — so a
+> non-nullable operand costs nothing at all, ADR 0022 having made a declared property definitely
+> initialised and ADR 0007 § 1 a local. **The conjunction short-circuits, and that is observable
+> rather than an optimisation**: `isset($a, $b[$i++])` leaves `$i` alone when `$a` is `null`, so the
+> tail is lowered on one edge only, in the same branch/merge shape `lower_and` uses, recursing over
+> the tail rather than folding so a three-operand `isset` stops at either point. The one refusal is
+> **E0498**, an operand naming no storage — `isset(Foo::bar())`, `isset($s . "z")`,
+> `isset(Foo::BAR)` — which PHP refuses at compile time with a message naming `null !== expression`,
+> and the accepted set is PHP's own: a variable, a subscript, a property (`?->` included), a static
+> property, and any of those in parentheses, `isset(($s))` being `true` in both languages. One new
+> refcount edge, valgrind-green: the operand is only *read*, so a fresh one nothing else names — an
+> element read off a temporary, a field off a call's return — is released once the test has
+> answered, the same rule `lower_instanceof` applies to its own subject. It lowers in statement
+> position too, where the answer goes unread and the operands still run. **`mwl-ir` lowers no static
+> property at all**, read or write, which the conformance case found on its way past and which no
+> worklist item names; the handoff's backlog carries it. `python tools/holes.py` still reads **24
+> sites, 6 items**: both dispatch catch-alls are one site whatever shapes reach them.
+> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones
