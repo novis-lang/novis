@@ -7,41 +7,36 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-26. **M3 is done, spec §§ 1-12 is registered whole, and Stage 0's catch-up
-> list is closed.** `crates/mwl-stdlib/tests/spec-members-outstanding.txt` holds no keys: the
-> ratchet `spec_registry_coverage.rs` reads is empty, which is this project's own definition of Part
-> I being *registered*. All seven Stage 3 fixtures produce their frozen output,
-> `examples/collect.mwl` having landed with `Core\Out::capture` — and with two bugs a parse error
-> had been masking in it since it was written (`Core\Uuid::isValid`, which spec § 11 says does not
-> exist, and an `Arr::first` result indexed through the nullable-array hole the playbook names). All
-> seventeen original Stage 0 items and its bench-review batch 18-22 are done; **the frontier is
-> Stage 4's two counts**, conformance 552 of 600 and differential 159 of 150. **Nothing below them
-> is red, and `verify.py` is deterministic again**: the uncaught-throw test read a freed exception
-> object because the compiled `Unit` owns the class descriptors and the codegen harness dropped it
-> while the `Ctx` still held one — `mwl_codegen::Unit::install_in`'s own doc comment is now the home
-> of that obligation, and both embedders call it. **The depth pass is section by section, and every
-> section has now taken its turn** — `encoding`, `hash`, `csv`, `validate`, `out`, `heap`, `uuid`,
-> `path`, `json`, `random`, `bytes`, § 9's two collections, `regex`, `math`, `uri`, `time`, `str`
-> and finally `arr`. What each pass pins is its own case's `--TEST--` line, and the four case shapes
-> they reuse are named in `Open now`; neither is restated here. **A depth slice lands its claim as a
-> new case file**, because the gate counts files and deepening one in place moves nothing. The goal
-> is unchanged: **M4S Part I in full plus the M4 surface it cannot be written without**. Every
-> representation that blocked a section is built and recorded in the crate that owns it —
-> `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict identity is `mwl_runtime::identity`,
-> `decimal` is `mwl_runtime::decimal`, a `Core`-owned instance is an ordinary MWL object
+> **Status:** 2026-08-27. Current: **M4**, language completeness. M3 is done, spec §§ 1-12 is
+> registered whole, the previous loop's Stage 0 catch-up list is closed, and **M4S Part I stands at
+> 552 of its 600 conformance cases with both named guards green** — it is now the floor and the
+> corpus gate of a new goal rather than the frontier. **The loop is aimed at M4**: every shape that
+> compiles in the front end and then refuses below it, closed, before M4B's LSP is written against
+> the surface. [docs/agent/loop-goal.md](agent/loop-goal.md) holds the 43 items, grouped by file
+> set, and `python tools/holes.py` is the live worklist behind them — 45 refusal sites in `mwl-ir`
+> and `mwl-codegen`, attributed to the item that names their function.
+> `crates/mwl-stdlib/tests/spec-members-outstanding.txt` holds no keys: the ratchet
+> `spec_registry_coverage.rs` reads is empty, which is this project's own definition of Part I being
+> *registered*, and all seven Stage 3 fixtures produce their frozen output. **Every representation
+> the library needed is built and recorded in the crate that owns it** — `mixed`/`?T`/every union is
+> `mwl_ir::Ty::Tagged`, strict identity is `mwl_runtime::identity`, `decimal` is
+> `mwl_runtime::decimal`, a `Core`-owned instance is an ordinary MWL object
 > (`mwl_stdlib::instance`), a variadic tail is one `array<T>` argument, and a sink's carrier is a
-> `Core` instance whose one slot `mwl_runtime::value_to_string` renders (ADR 0088 § 5). **Every M4
-> control-flow statement lowers but `do`/`while`**, and ADR 0070's duration literal lexes, types and
-> runs. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the one predicate, `E0008` at the
-> lexer, and a substitution at both sinks at M7/M8. **ADR 0090 §§ 1 and 2 are built**: `==`/`!=` are
-> the only equality spellings, `===`/`!==` are `E0232`, and two statically disjoint operands are
-> `E0466`; § 3's string, array and object rows are one runtime helper each and still owed. **ADR
-> 0069's `+`/`+=` refusal is built**, `E0467` naming `Core\Arr::underlay`. **ADR 0071's first
+> `Core` instance whose one slot `mwl_runtime::value_to_string` renders (ADR 0088 § 5). **ADR 0087's
+> lexer half is built** — `mwl_syntax::bidi` is the one predicate, `E0008` at the lexer, and a
+> substitution at both sinks at M7/M8. **ADR 0090 is built whole**, §§ 1, 2, 3 and 5 alike, and
+> **ADR 0069's `+`/`+=` refusal** is `E0467` naming `Core\Arr::underlay`. **ADR 0071's first
 > compiler-recognized attribute is built** — `#[Json\Derive]`, matched nominally in
-> `mwl_types::derive` — and `ParseError` carries § 10's `issues`. **Cranelift's stack probe is
-> emitted inline**, the default `outline` strategy having called a `__cranelift_probestack` symbol
-> this JIT never registers. Dependencies: `regex` + `fancy-regex` and `jiff` are named by the user;
-> the rest the loop picks under ADR 0051 § 4.
+> `mwl_types::derive`, decoder included for a scalar-fielded class — and `ParseError` carries § 10's
+> `issues`. **ADR 0070's duration literal lexes, types and runs.** What M4 still owes is stated as
+> items rather than prose: the operator table (promotion, integer `/`, overflow, the bitwise rows,
+> `**`, `<=>`, `++`/`--`), control flow (`do`/`while`, `break 2`, a two-representation ternary,
+> `finally` through a throwing `catch`, an abandoned generator's `finally`), calls (a closure
+> through the variable holding it, named and spread arguments, `&$x` anywhere), targets (a static
+> property, a nested element write), `mixed` dispatch, ADR 0007 § 2's last conversion rows, and the
+> five declared features with no slice at all — `PropertyObserver`, ADR 0043's `by`-delegation, ADR
+> 0046's retrieval, ADR 0092's `Core\Debug::dump`, ADR 0079's `#[Test]`. Dependencies: `regex` +
+> `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -112,44 +107,45 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Conformance is the only frontier left, at 552 of the 600**, and Stage 4's
-> differential gate is met at 159 against the 150 it requires. Both named guards
-> (`every_part_one_member_has_a_conformance_case`, `every_part_one_spec_member_is_registered`) pass,
-> so the gap is behavioural *depth* per member rather than an unregistered or uncovered one, and a
-> new case reaches for one of conventions.md's four shapes and lands its claim as its own file,
-> because the gate counts files. **`python tools/gaps.py` is the worklist and no session re-derives
-> it**: `--coverage` ranks every class by cases per member, `--differential` names the members whose
-> spec **Replaces** column gives them a PHP twin that no oracle case calls (9, all `Core\Time` and
-> `Core\Encoding`), and `--errors` the `Fault::` sites no case asserts (58, of which 57 are `fatal`
-> and unreachable by any handler, so by any case). **Unbuilt in the library**, none of it a
-> registration gap: `Core\Json::decodeAs<T>`'s decoder, which ADR 0071 leaves reading a
-> scalar-fielded class only (`mwl_stdlib::json` gap 2); ADR 0088's qualifier classification, missing
-> from every `mwl-stdlib` member row (`mwl_stdlib::hash`'s module doc); and ADR 0086 § 1's
-> substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, but not
-> catch-up** — ADRs 0091, 0092, 0093, 0097, 0100 § 3 and 0106; none invalidates built behaviour or a
-> written fixture, and their work is M1, M4, M6, M7, M8 and M10. 0106 is the only one of them that
-> adds a rule to code already written rather than only adding code — teardown stops recursing, and a
-> helper whose runtime scales with its input polls a deadline flag — so its M6 slice edits
-> `mwl-runtime` instead of extending it. **Open beside the library** — a property's declared default
-> (`E0472`), `do`/`while`, a closure called through the variable holding it, `?bool` tested for
-> truth, `bool as int` and `bool as string`, an abandoned generator's `finally` and ADR 0043's
-> `by`-delegation (`mwl-ir` gaps 1 and 18); and `docs/spec/02-php-migration.md` is 31% classified
-> (`python tools/check-migration.py`). **What has landed is not restated here** — `git log` holds
-> the session history, each crate's module doc its per-file gaps, and what a session *found* pinning
-> a member against its PHP twin is a bullet under playbook § *Divergences and refusals already
-> pinned*, selected into a goal with `python tools/playbook.py --match <the group's paths>`.
+> **Open now:** **The frontier is M4's language holes, and there are 43 of them**, ordered and
+> grouped by file set in [docs/agent/loop-goal.md](agent/loop-goal.md). A hole is a shape that
+> compiles in the front end and then refuses below it, and it is closed when it either runs with a
+> fixture or a `.mwlt` case pinning what it prints, or is refused by a **diagnostic that names the
+> rule** — never by a panic. **`python tools/holes.py` is the worklist and no session re-derives
+> it**: it reads the refusal sites out of `mwl-ir` and `mwl-codegen` live, attributes each to the
+> item whose prose names its function, and prints what no item claims (45 sites, 13 items, 2
+> unattributed today). `--item N` is one item in full. `python tools/loop.py --list` prints the 32
+> named `.mwlt` cases each stage owes and which are still to write. **The biggest single hole is the
+> operator table**: `1 + 1.5` does not compile, integer `/` does not compile, and integer
+> `+`/`-`/`*` wrap where ADR 0007 § 4 says they throw — so Stage 0 is those, and `tools/loop.py`
+> runs it before the program legs, because every fixture and every case in every stage below is
+> written against those rules. **Unbuilt in the library**, none of it a registration gap:
+> `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing rows
+> (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification (`mwl_stdlib::hash`'s module doc),
+> and ADR 0086 § 1's substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
+> unbuilt, and out of this goal's scope** — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 §
+> 3; their work is M6, M7, M8 and M10. **M4S Part I is the floor, not the frontier**: conformance is
+> at 552 of the goal's new 750 and differential at 159 of 165, `python tools/gaps.py` still ranks
+> the thin classes, and a `Core` depth slice is a legitimate slice when a group is blocked — never a
+> reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is 31% classified
+> (`python tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
-> reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
-> `?T`/`mixed` representation (settled, `mwl_ir::Ty::Tagged`), re-scoping a `catch` binding to its
-> own handler block, widening `array<T>` to element-covariant-on-read (settled,
-> `mwl_types::expr::is_assignable`), object identity (settled, `mwl_runtime::identity`), the sink's
-> carrier being a `Core` instance rather than a `string` (settled under ADR 0088 § 5), and picking
-> every dependency but the two the user named. Stages 0, 1, 2 and **3** pass whole on both legs,
-> with no intermittently red test left: the uncaught-throw use-after-free is fixed and
-> `mwl_codegen::Unit::install_in` owns the obligation it broke. What Stage 4 needs is not a
-> decision: the differential gate is met at 159 of 150, conformance stands at 552 of 600, and the
-> remainder is written a section at a time.
+> reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones
+> this goal added: an abandoned generator's `finally` runs through a resume-to-unwind entry point
+> and **not** a destructor (so ADR 0028 § 2 stands, with one sentence folded into it), `int / int`
+> widens at the binding rather than at the operator, a nullsafe assignment target and an element
+> write through a hooked property are both compile errors because PHP refuses both, `&value` as an
+> array-literal element does not exist (ADR 0031 § 2 left it no owner), and a `Core` class
+> stringifies exactly where the spec gives it a `toString`. The representation questions the
+> previous goal settled are settled still — `?T`/`mixed` (`mwl_ir::Ty::Tagged`), object identity
+> (`mwl_runtime::identity`), element-covariant array reads (`mwl_types::expr::is_assignable`), a
+> `catch` binding scoped to its own handler — and picking every dependency but the two the user
+> named remains pre-authorized. Stages 1 and 8's floor passes whole on both legs with no
+> intermittently red test left. **The one thing this goal forbids outright** is growing the
+> allowlist in `every_refusal_is_a_diagnostic_or_decided` to make a run go green: every entry on it
+> is a bullet in § *Standing decisions*, and a session that needs a new one takes the decision
+> there, in the same session, with the reason.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in

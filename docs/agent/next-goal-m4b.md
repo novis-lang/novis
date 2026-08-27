@@ -1,8 +1,14 @@
 # Loop goal — M4B (staged; not yet live)
 
 **This file is not the running goal.** It is written ahead of time so the switch is a rename rather than
-an authoring session. When the M4S run reaches its acceptance list, do the four things in
+an authoring session. When the running goal reaches its acceptance list, do the four things in
 *Switching to this goal* at the foot of this file, and this becomes `docs/agent/loop-goal.md`.
+
+**It is now two goals away, not one.** M4S Part I was overtaken by **M4 — language completeness**,
+which is the running goal, and M4B waits behind it by decision: an LSP written against a language
+whose `1 + 1.5` does not compile is written twice, and every `.lspt` case authored in the meantime
+is authored against a surface about to change. Nothing else in this file is amended for that — its
+scope, its stages and its standing decisions are unchanged.
 
 ---
 

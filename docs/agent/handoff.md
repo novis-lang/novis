@@ -2,60 +2,78 @@
 
 ## State
 
-**Conformance is at 552 of 600, and it is the only frontier left.** Verify is green (1597 cargo
-tests, 74 suites, 552 conformance, 159 differential, clippy and fmt clean) and runs both `.mwlt`
-trees itself, so after a green `verify.py` there is nothing else to run (playbook, *Running
-things*).
+**The goal changed.** M4S Part I reached 552 of 600 conformance cases with both its named guards
+green, and the loop is now aimed at **M4 — language completeness**: every shape that compiles in the
+front end and then refuses below it, closed, before M4B's LSP is written against the surface.
+[loop-goal.md](loop-goal.md) is the target, the 43 items and the standing decisions;
+[loop-goal.toml](loop-goal.toml) is every check. M4S Part I is not discarded — it is Stage 1's floor
+and Stage 8's suites, and a `Core` depth slice from `python tools/gaps.py` is still a legitimate
+slice when a group is blocked.
 
-This session took **two** slices, both over `mwl_stdlib::ordering`'s one helper and its call sites
-in `arr.rs`, `math.rs` and `heap.rs`, and added no library code. It ended near 55k of the 200k
-ceiling. Both landed cases are conventions.md's *agreement* shape — one question asked of every
-member that shares a rule, counted rather than echoed — and both findings are a bullet under
-playbook § *Divergences and refusals already pinned*, which is where the detail lives:
-`ordering-is-one-total-order-shared-by-arr-math-and-heap.mwlt` (432 pairwise agreements per table,
-plus the whole-table drain) and
-`ordering-refuses-a-pair-with-no-order-once-for-all-seven-members.mwlt` (56 agreements over eight
-rows, six refusing and two accepting).
+**Nothing is implemented yet: this session authored the goal, not the code.** What landed is the
+goal's two files, four new acceptance fixtures with frozen output (`examples/operators.mwl`,
+`control.mwl`, `callable.mwl`, `targets.mwl`), `cases` support in `tools/loop.py`, and
+`tools/holes.py`. Every check above Stage 1 is red by construction, which is the point: the ledger
+now names which hole the loop is standing on.
 
-**The by-hand `docs/adr/` pass has landed** — the 103 modified ADRs the last five handoffs warned
-about are committed and the tree is clean. There is nothing to avoid staging any more.
+**`python tools/holes.py` is the worklist and no session re-derives it.** It reads the refusal
+sites out of `mwl-ir` and `mwl-codegen` live, attributes each to the goal item that names its
+function, and prints what is unattributed — 45 sites, 13 items, 2 unattributed today.
+`--item N` is one item in full: its anchors, its sites, its cases. `python tools/loop.py --list`
+prints the 32 named `.mwlt` cases and which are not written yet.
 
-**`gaps.py --coverage`'s thinnest-class ranking is still not a worklist** — every §§ 1–12 class has
-had a pass, so the ratio measures member count rather than depth, and the seam with room left is
-conventions.md's *agreement* shape. The two cases above are the first pair written to it
-deliberately; the group below is the third.
-
-`orient.py`'s pack was complete. What was fetched outside it: `ordering.rs`'s `compare_values` and
-`comparator_sign`, the `extremum`/`pick`/`compare` call sites, and the `Core\Heap` registry rows.
+**The group cap is 3 slices, raised from 1 this session on a fresh `python tools/loop-stats.py`**:
+27 sessions now mean 115k of a 200k ceiling for one slice, the largest ever reached is 168k, and the
+projection puts 3 slices at 170k with 30k of headroom. The measurement says 4 at 197,908, which has
+none — so the knee, not the fastest. AGENTS.md § *Session workflow* step 2 carries it.
 
 ## Next group
 
-Three slices on **one file set** — `crates/mwl-stdlib/src/arr.rs`, `crates/mwl-stdlib/src/ordering.rs`
-and `crates/mwl-stdlib/src/heap.rs`, the same three this session had open. [2] and [3] share every
-anchor. Nothing here needs a new member.
+Three slices, **all three in `emit_binop` and `lower_binary`** — the tightest group in the goal, and
+Stage 0, which `tools/loop.py` runs before the program legs because every fixture and case in every
+stage below is written against these rules. `docs/adr/0007-explicit-type-system.md` § 4 is the
+table; the pack prints it.
 
-- [ ] **`Core\Arr::sort`'s one deliberate divergence from PHP's `sort`** — the doc comment above
-      `crates/mwl-stdlib/src/arr.rs:2790` names it and `:2894` is the natural-order call it rests
-      on; strings compare bytewise, never numerically, so PHP's `sort(["10", "9"])` and MWL's
-      disagree. Its own file, because the gate counts files, and `php -r` settles the oracle side
-      while authoring (the case itself stays in `tests/conformance/`, no `--ORACLE--`).
-- [ ] **One comparator contract, two receivers** — `crates/mwl-stdlib/src/ordering.rs:78`
-      (`comparator_sign`) is what both `Core\Arr::sort`'s `{comparator: …}` (the wrapper at
-      `arr.rs:3065`, the member at `arr.rs:2790`) and `Core\Heap`'s constructor comparator
-      (`heap.rs:285` `sign_of`, `heap.rs:516` `mwl_core_heap_new`) read, so an `int`, a `uint` and a
-      `float` verdict of the same sign must order identically through both, and a `NaN` verdict must
-      refuse from both naming its own member. Counted agreements, one table, both receivers.
-- [ ] **A tie names the same entry everywhere** — `extremum`'s "the first extreme wins"
-      (`arr.rs:4357`) and `merge_sort`'s stability (`arr.rs:3069`) are one rule, and `sortByKey`
-      (`arr.rs:2955`) is the third member bound by it. Ties between equal *values* are invisible, so
-      the case sorts a keyed array and asserts on `Core\Arr::keys` of the result.
+- [ ] **[1] ADR 0007 § 4's promotion table runs** — `1 + 1.5` does not compile today, and neither
+      does `$n < $f`: `mwl_types` gives the pair a result type without converting either side, so
+      both operands reach the backend in two representations and are refused there. The widening is
+      the semantics, so it belongs in the existing conversion rows and not in a backend repair.
+      `crates/mwl-ir/src/lower/expr.rs:2270` (`lower_binary`), `crates/mwl-ir/src/lower/mod.rs:1552`
+      (`coerce`), `crates/mwl-types/src/expr/operators.rs:403` (`arithmetic_result`),
+      `crates/mwl-codegen/src/emit.rs:1008` (`emit_binop`). Sites: `emit.rs:1069`, `:1138`.
+- [ ] **[2] Integer `/` compiles** — ADR 0007 § 4 types `int / int` as `int|float`, so `6/3` is an
+      integer and `7/2` is not. `Ty::Tagged` is the representation and `clif_ty` already gives it a
+      machine type; what is left is the operator picking at runtime, plus `mwl_types` widening that
+      union to `float` at a binding, which is what makes `float $avg = $sum / $n;` the ADR's own
+      worked example. `crates/mwl-codegen/src/emit.rs:1104` is the refusal, verbatim;
+      `crates/mwl-types/src/expr/operators.rs:96` (`binary_result`) is the widening.
+- [ ] **[3] Integer `+`/`-`/`*` throw `ArithmeticError` on overflow** — the mechanism exists: `%`'s
+      zero divisor already raises inline through `mwl_runtime::mwl_raise_new` and takes
+      `mwl_ir::ir::Inst::on_error`'s edge, which is the shape a checked `iadd` wants. Three emit
+      sites, one error edge each. `crates/mwl-codegen/src/emit.rs:1008`,
+      `crates/mwl-ir/src/ir.rs:248` (`InstKind`).
+
+`examples/operators.mwl` is the fixture all three feed (Stage 2), and it also holds items 4–7, so
+it stays red until the whole of Stage 0 lands — **that is expected, and not a reason to touch its
+expected output.** Each slice's own proof is its `cargo-named` test in Stage 0, plus its `.mwlt`
+case: `every-arithmetic-row-promotes-the-narrower-operand`,
+`an-integer-division-is-exact-only-where-it-divides`,
+`an-integer-overflow-throws-rather-than-wrapping`, all under `tests/conformance/lang/`.
 
 ## Backlog
 
-- Nine spec members whose **Replaces** column gives them a PHP twin no oracle case calls, all
-  `Core\Time` and `Core\Encoding` — `python tools/gaps.py --differential`.
-- `Core\Json::decodeAs<T>`'s decoder reads a scalar-fielded class only — `mwl_stdlib::json` gap 2.
-- ADR 0088's qualifier classification is missing from every `mwl-stdlib` member row —
-  `mwl_stdlib::hash`'s module doc.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
-- ADR 0086 § 1's substitution table is unbuilt — `crates/mwl-stdlib/src/cli.rs` gap 1.
+- **The rest of Stage 0** — items 4–8 (the bitwise operators, `**`, `<=>` over a scalar, `++`/`--`
+  with the target's address split out of `lower_reassignment`, and `Enum(Int)` on `emit_binop`'s
+  integral rows). Items 4–6 share `ir.rs`'s `BinOp` with each other and are the natural next group;
+  item 7 is its own, because the split it needs is in `stmt.rs` and touches no operator table.
+- **Stages 3–7 in order.** Each stage's items are grouped by file set in `loop-goal.md` already;
+  take the grouping from there rather than inventing one.
+- `Core\Uri::resolve` and `compareTo` — RFC 3986 § 5 reference resolution and the normalized order;
+  `crates/mwl-stdlib/src/uri.rs:499`, `:506`. `docs/spec/01-core-library.md` § 7. A Stage 8 corpus
+  slice, not a language one.
+- `Core\Time\Instant`'s and `DateTime`'s depth rows read low only because their values are never
+  spelled out; the playbook's false-alarm bullet owns it.
+- **Two unattributed refusal sites**, `crates/mwl-codegen/src/ty.rs:116` and `:121` — the static tag
+  of a tagged value and a tagged value crossing a call boundary. Both look like item 24's, and
+  neither is anchored by any item. The session that opens item 24 either claims them or writes the
+  decision that says they stay.

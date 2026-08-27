@@ -91,11 +91,13 @@ Every session runs the same five steps, in this order, and **stops**:
    write, and the rules this goal lives inside. It is narrowed on purpose: if you find yourself needing
    something it did not print, that is a gap in the goal's `[context]` manifest — say so in the handoff.
 2. **Do the work — as much of the group as fits under the context ceiling.** The handoff names a group of
-   related slices and the file set they share. **Take the first. Then take a second only if it touches
-   files already loaded *and* you are under 120k with the first committed. Never take a third.** Context is
+   related slices and the file set they share. **Take up to three, each only if it touches files already
+   loaded *and* you are under 120k with the previous one committed. Never take a fourth.** Context is
    the binding budget here, not the clock: an agent degrades well before its window is full, so the ceiling
-   is a fixed **200k**, and the 120k gate is what keeps a second slice inside it — measured, because the
-   first two-slice session run without a number ended at 235k.
+   is a fixed **200k**. The cap is 3 because `python tools/loop-stats.py` says so over 27 sessions — one
+   slice now ends at 115k against a largest-ever 168k, and the projection puts three at 170k and four at
+   197,908, which leaves no headroom at all. It was 1 while sessions were finishing over the line; the
+   120k gate is what keeps each further slice inside the ceiling and is unchanged.
 3. **Verify what you touched, once, at the end of the group** — `python tools/verify.py`, plus whatever the
    change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
    verification happens**, and a group shares one run: the build is the same build.
