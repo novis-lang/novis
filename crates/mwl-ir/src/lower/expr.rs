@@ -2834,12 +2834,19 @@ impl<'a> Lowering<'a> {
                     expr.span
                 )
             });
-            assert!(
-                ty != Ty::Ref,
-                "mwl-ir does not lower a closure capturing the `&$x` parameter \
-                 `${name}`: the cell it addresses is the caller's, and the closure may \
-                 outlive the call that staged it; see the crate docs' known gaps"
-            );
+            // A `&$x` parameter binds an address, not a value, and ADR 0031 § 2
+            // captures by value — so the field takes a snapshot of the cell's
+            // value here, which is the same `RefLoad` at the declared (pointee)
+            // type that reading `$x` anywhere else lowers to. That is also what
+            // makes the closure safe to outlive the call that staged the cell:
+            // it holds a copy, and the retain below gives the copy its own
+            // reference exactly as it does for any other captured value.
+            let (v, ty) = if ty == Ty::Ref {
+                let pointee = self.pointee_of(&name);
+                self.emit(*cur, pointee, InstKind::RefLoad { slot: v })
+            } else {
+                (v, ty)
+            };
             if ty.is_refcounted() {
                 self.emit_retain(*cur, v);
             }
@@ -3451,11 +3458,13 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics for a literal that writes one field name twice. `mwl_types`
-    /// interns that as a shape with a repeated field, and its reader resolves
-    /// the *first* of the two, while a class can only carry one slot under a
-    /// name — so the two sides would disagree silently. Diagnosing it belongs
-    /// to the checker; see the crate docs' known gaps.
+    /// The assert on a literal that writes one field name twice is an
+    /// internal-consistency check rather than a gap: a shape's fields are a
+    /// set, so `mwl_types::expr::literals::check_object_literal` refuses the
+    /// repeat where it is written as `E0494` and nothing that reaches here
+    /// carries one. It stays because the disagreement it would otherwise hide
+    /// is silent — the interned shape reads the first of the pair and the
+    /// class below carries one slot per name.
     fn lower_object_literal(
         &mut self,
         fields: &[ObjectLiteralField],
@@ -3471,10 +3480,11 @@ impl<'a> Lowering<'a> {
         sorted.dedup();
         assert!(
             sorted.len() == names.len(),
-            "mwl-ir does not lower an object literal that writes one field name twice — \
-             `mwl_types` records the shape with the name repeated and reads the first of \
-             them, so there is no slot layout the two sides agree on; see the crate docs' \
-             known gaps"
+            "an object literal writing one field name twice reached lowering: a shape's \
+             fields are a set, so `mwl_types::expr::literals::check_object_literal` refuses \
+             the repeat where it is written, as `E0494` — the interned shape reads the \
+             first of the pair while this class carries one slot per name, and there is no \
+             layout the two sides agree on"
         );
         let class = shape_class_label(&sorted);
         let (obj, _) = self.emit(

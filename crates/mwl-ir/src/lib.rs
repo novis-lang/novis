@@ -285,13 +285,14 @@
 //!    second, count-carrying calling convention.
 //! 9. **A closure literal lowers; `$f(...)` does not.** The only caller today
 //!    is native `Core` code going through `mwl_runtime::mwl_closure_call`.
-//!    ADR 0031 § 3's self-name is parsed and ignored, and a closure that
-//!    *captures* an enclosing `&$x` parameter panics — § 2's capture is by
-//!    value, so what it owes is a snapshot of the cell's current value (an
-//!    [`ir::InstKind::RefLoad`] at the literal), and nobody has written that
-//!    yet. A `&$x` parameter on the closure *itself* is no longer a gap: it is
-//!    `E0493`, `callable` carrying no parameter list for a call site to stage
-//!    a cell against.
+//!    ADR 0031 § 3's self-name is parsed and ignored. Neither half of `&$x` is
+//!    a gap any more: a closure *capturing* an enclosing `&$x` parameter takes
+//!    § 2's by-value snapshot of the cell — one [`ir::InstKind::RefLoad`] at
+//!    the literal, at the pointee type, retained like any other captured
+//!    value, which is what lets the closure outlive the call that staged the
+//!    cell — and a `&$x` parameter on the closure *itself* is `E0493`,
+//!    `callable` carrying no parameter list for a call site to stage a cell
+//!    against.
 //! 10. **A `&$x` argument's copy-back is emitted at the enclosing statement**,
 //!     because that is the nearest scope holding an `&mut Env` — so such a
 //!     call lowers only as a bare expression statement or an assignment's

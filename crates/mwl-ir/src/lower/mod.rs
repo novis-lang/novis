@@ -5065,6 +5065,29 @@ echo $bump;
         assert_snapshot!(print_program(&p, map.file(file)));
     }
 
+    /// A closure capturing an enclosing `&$x` parameter, which is the one
+    /// capture whose `Env` entry is an address rather than a value: ADR 0031
+    /// § 2 captures by value, so the field takes a `ref.load` snapshot of the
+    /// cell at the literal, at the declared pointee type, and then the same
+    /// retain every refcounted capture already takes. Both halves are visible
+    /// here on purpose — the load alone would leave the environment object
+    /// sharing the caller's one reference, and the field's `str` type is what
+    /// says `invoke` reads a value rather than the caller's address, which is
+    /// what makes the closure safe to outlive the call that staged the cell.
+    #[test]
+    fn a_closure_capturing_a_by_reference_parameter_snapshots_the_cell() {
+        let (p, map, file) = lower_program(
+            "<?mwl
+class T {
+  static function make(string &$s): callable {
+    return fn (): string => $s;
+  }
+}
+",
+        );
+        assert_snapshot!(print_program(&p, map.file(file)));
+    }
+
     /// A refcounted element and a refcounted local both survive a
     /// suspension: the field takes its own reference on the way in and the
     /// resume block takes one on the way back out, so the two never share.

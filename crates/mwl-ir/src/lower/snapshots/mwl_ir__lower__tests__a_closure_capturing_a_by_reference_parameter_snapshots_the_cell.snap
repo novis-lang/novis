@@ -1,0 +1,78 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_program(&p, map.file(file))"
+---
+fn T::make(classdesc, ref) -> object {
+  bb0:
+    safepoint
+    v0 = param 0  ; classdesc
+    v1 = param 1  ; ref
+    ; stmt s0 @4:5-4:32
+    v2 = new T$fn0()  ; object
+    v3 = const.int 0  ; int
+    field.set v2, T$fn0::fn#arity, v3
+    v4 = ref.load v1  ; string
+    retain v4
+    field.set v2, T$fn0::s, v4
+    return v2
+}
+
+fn T$fn0::invoke(object) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = field.get v0, T$fn0::s  ; string
+    retain v1
+    retain v1
+    release v0
+    release v1
+    return v1
+}
+
+fn <script>() -> tagged {
+  bb0:
+    safepoint
+    return
+}
+
+fn Throwable::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Throwable::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Throwable::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Throwable::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Throwable::location, v4
+    release v1
+    release v2
+    release v0
+    return
+}
+
+fn ParseError::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, ParseError::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, ParseError::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, ParseError::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, ParseError::location, v4
+    v5 = array.new []  ; array
+    field.set v0, ParseError::issues, v5
+    release v1
+    release v2
+    release v0
+    return
+}
