@@ -8,6 +8,20 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+# ---------------------------------------------------------------------------
+# `sanitizer` takes this crate's own test binary off `alloc::Pooled` and back
+# onto the platform heap, so that ASAN can see a free. It exists for the CI job
+# of the same name and for nothing else — see `counting_alloc`'s module doc for
+# why a recycled block is invisible to a sanitizer, and `lib.rs` § *the
+# allocator itself* for what is given up while it is on.
+#
+# `cfg(sanitize = "address")` would set this automatically and needs no feature
+# at all, but it is nightly-gated (rust#39699) and a hard error on the pinned
+# stable toolchain. Revisit when it stabilizes.
+# ---------------------------------------------------------------------------
+[features]
+sanitizer = []
+
 [dependencies]
 bitflags.workspace = true
 # ADR 0033 § 5's `secret == secret` is a constant-time comparison, and this

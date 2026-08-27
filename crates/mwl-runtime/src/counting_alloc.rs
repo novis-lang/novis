@@ -9,17 +9,41 @@
 //!
 //! # What it wraps, and why the counts still mean what they did
 //!
-//! Every method below forwards to [`Pooled`](crate::alloc::Pooled) rather than
-//! to the platform heap, so a test build measures the allocator an optimized
-//! build actually runs on instead of the one it replaced. `Counting` sits
-//! *outside* the size-class cache: a request served from a recycled block is
-//! still exactly one `alloc` here, and returning that block to the cache is
-//! still exactly one `dealloc`, so both counters carry the same meaning they
-//! carried over [`System`](std::alloc::System) — [`live_bytes`] a balance and
-//! [`allocated_bytes`] a monotonic total, both in *requested* bytes rather
-//! than in the class-rounded block a request lands in. What changes is the
-//! shape underneath them: a leak or a transient allocation is now caught
-//! against the code path the release binary takes.
+//! Every method below forwards to `Backing` — [`Pooled`](crate::alloc::Pooled)
+//! normally — rather than to the platform heap, so a test build measures the
+//! allocator an optimized build actually runs on instead of the one it
+//! replaced. `Counting` sits *outside* the size-class cache: a request served
+//! from a recycled block is still exactly one `alloc` here, and returning that
+//! block to the cache is still exactly one `dealloc`, so both counters carry
+//! the same meaning they carried over [`System`](std::alloc::System) —
+//! [`live_bytes`] a balance and [`allocated_bytes`] a monotonic total, both in
+//! *requested* bytes rather than in the class-rounded block a request lands
+//! in. What changes is the shape underneath them: a leak or a transient
+//! allocation is now caught against the code path the release binary takes.
+//!
+//! # Why a sanitizer needs `Backing` to be the platform heap
+//!
+//! That recycling is invisible to a memory checker, and this crate's own test
+//! binary is the one build where it matters. ASAN finds a use-after-free by
+//! poisoning freed memory and holding it in quarantine, which it can only do
+//! for a block that reaches `free`. A block MWL frees goes onto the size-class
+//! cache instead, so ASAN never poisons it and a read through a dangling
+//! pointer lands in live, legitimately-mapped memory and says nothing. That is
+//! exactly the refcount bug the sanitizer is there for.
+//!
+//! Hence the crate's `sanitizer` feature: it swaps `Backing` for
+//! [`System`](std::alloc::System) so every free is a real one. The counters
+//! keep both their meanings — `Counting` sits outside either backing allocator
+//! — so the leak guards above still assert what they assert; what is given up
+//! while it is on is that they measure the platform heap rather than the code
+//! path a release binary takes. The CI job named `asan` is the only caller.
+//!
+//! **No other leg needs it.** `tools/loop.py`'s valgrind sweep runs
+//! `target/debug/mwl`, and a debug build is deliberately left on the platform
+//! heap ([`crate`] § *the allocator itself*), so that sweep sees every free
+//! already. `mwl-codegen` and `mwl-stdlib` link this crate with `cfg(test)`
+//! off, which is the same story. `cfg(test)` here is the one place the pool is
+//! installed under a checker.
 //!
 //! # Why the counter is thread-local
 //!
@@ -39,7 +63,10 @@
 use std::alloc::{GlobalAlloc, Layout};
 use std::cell::Cell;
 
-use crate::alloc::Pooled;
+#[cfg(not(feature = "sanitizer"))]
+use crate::alloc::Pooled as Backing;
+#[cfg(feature = "sanitizer")]
+use std::alloc::System as Backing;
 
 thread_local! {
     static LIVE: Cell<isize> = const { Cell::new(0) };
@@ -70,25 +97,25 @@ fn add(bytes: isize) {
     }
 }
 
-/// [`Pooled`], plus the per-thread byte count above.
+/// `Backing`, plus the per-thread byte count above.
 #[derive(Debug)]
 pub(crate) struct Counting;
 
 #[expect(
     unsafe_code,
     reason = "a global allocator's contract is inherently unsafe to implement; \
-              every method below forwards to `Pooled` unchanged and only adds \
+              every method below forwards to `Backing` unchanged and only adds \
               arithmetic on a thread-local Cell"
 )]
 unsafe impl GlobalAlloc for Counting {
     #[expect(
         unsafe_code,
-        reason = "the caller's `layout` obligations are forwarded to `Pooled` \
+        reason = "the caller's `layout` obligations are forwarded to `Backing` \
                   verbatim"
     )]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
-        let ptr = unsafe { Pooled.alloc(layout) };
+        let ptr = unsafe { Backing.alloc(layout) };
         if !ptr.is_null() {
             add(isize::try_from(layout.size()).unwrap_or(isize::MAX));
         }
@@ -98,24 +125,24 @@ unsafe impl GlobalAlloc for Counting {
     #[expect(
         unsafe_code,
         reason = "the caller's `ptr`/`layout` obligations are forwarded to \
-                  `Pooled` verbatim"
+                  `Backing` verbatim"
     )]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         add(-isize::try_from(layout.size()).unwrap_or(isize::MAX));
         #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
         unsafe {
-            Pooled.dealloc(ptr, layout);
+            Backing.dealloc(ptr, layout);
         }
     }
 
     #[expect(
         unsafe_code,
-        reason = "the caller's `layout` obligations are forwarded to `Pooled` \
+        reason = "the caller's `layout` obligations are forwarded to `Backing` \
                   verbatim"
     )]
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
-        let ptr = unsafe { Pooled.alloc_zeroed(layout) };
+        let ptr = unsafe { Backing.alloc_zeroed(layout) };
         if !ptr.is_null() {
             add(isize::try_from(layout.size()).unwrap_or(isize::MAX));
         }
@@ -125,11 +152,11 @@ unsafe impl GlobalAlloc for Counting {
     #[expect(
         unsafe_code,
         reason = "the caller's `ptr`/`layout`/`new_size` obligations are \
-                  forwarded to `Pooled` verbatim"
+                  forwarded to `Backing` verbatim"
     )]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         #[expect(unsafe_code, reason = "forwarding the caller's own contract")]
-        let fresh = unsafe { Pooled.realloc(ptr, layout, new_size) };
+        let fresh = unsafe { Backing.realloc(ptr, layout, new_size) };
         if !fresh.is_null() {
             add(isize::try_from(new_size).unwrap_or(isize::MAX));
             add(-isize::try_from(layout.size()).unwrap_or(isize::MAX));

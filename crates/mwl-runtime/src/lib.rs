@@ -177,7 +177,10 @@
 //!   of PHP on the userland suite, and it is **O(threads), never
 //!   O(requests served)**: the cache is not per request, does not grow with
 //!   traffic, and holds no request-owned bytes. A debug build is left on the
-//!   platform heap so valgrind still sees every free. That module's own doc
+//!   platform heap so valgrind still sees every free, and the `sanitizer`
+//!   feature extends that to this crate's own test binary — the one build
+//!   where the pool would otherwise sit under a memory checker
+//!   ([`counting_alloc`]). That module's own doc
 //!   owns each of those decisions and is the only place they are argued.
 //!
 //! ## Known gaps
@@ -265,7 +268,11 @@ static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 /// links this crate gets it: a `#[global_allocator]` is chosen once for the
 /// whole crate graph. See [`alloc`] for what the per-thread cache spends and
 /// why a debug build is deliberately left on the platform heap.
-#[cfg(all(not(test), not(debug_assertions)))]
+///
+/// The `sanitizer` feature takes this out too, for the reason
+/// [`counting_alloc`] § *Why a sanitizer needs `Backing` to be the platform
+/// heap* states: a recycled block is a block a checker never sees freed.
+#[cfg(all(not(test), not(debug_assertions), not(feature = "sanitizer")))]
 #[global_allocator]
 static POOLED_ALLOCATOR: alloc::Pooled = alloc::Pooled;
 
