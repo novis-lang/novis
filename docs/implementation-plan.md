@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 566 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 567 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 162, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -140,16 +140,27 @@
 > `self`/`static`/`parent`, a shape type and an intersection as a *declared* type — a different hole
 > that shares item 25's file and that no item names yet. Even so, `tools/loop.py` runs it before the
 > program legs, because every fixture and every case in every stage below is written against those
-> rules. **Unbuilt in the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s wider
-> codec-reachable set and its two default-bearing rows (`mwl_stdlib::json` gaps), ADR 0088's
-> qualifier classification (`mwl_stdlib::hash`'s module doc), and ADR 0086 § 1's substitution table
-> (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, and out of this goal's scope**
-> — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 § 3; their work is M6, M7, M8 and M10.
-> **M4S Part I is the floor, not the frontier**: conformance is at 566 of the goal's new 750 and
-> differential at 162 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
-> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
-> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
-> tools/check-migration.py`).
+> rules. **Item 22's own hole is closed**: a nested `$grid[0][1] = v` flattens to its root plus one
+> key per level, descends, and writes every level back with the outermost last, so ADR 0007 § 5's
+> separation runs at every level rather than being silently dropped above the innermost one.
+> **Auto-vivification came with it and was not optional**: `InstKind::ArrayGet` answers an absent
+> key with a null-shaped value, so descending through one aborted the process rather than refusing,
+> and the fix is one new `Helper::ArrayRowForWrite` whose answer is uniformly one owned reference —
+> a retain of the row that was there, or a fresh empty array where PHP would build one. `$g[9][0] =
+> 1` over an empty `$g` now prints what PHP prints. What still stands under item 22 is the *other*
+> holder: an element write through an ADR 0014 § 1 hooked property, and one through a receiver that
+> erased to a shape or a plain `object`, both in `write_back_array`. One shape this deliberately did
+> not take is `$g[][0] = 1`, an append at an intermediate level, recorded as `mwl-ir` gap 23 with
+> the recipe that closes it. **Unbuilt in the library**, none of it a registration gap:
+> `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing rows
+> (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification (`mwl_stdlib::hash`'s module doc),
+> and ADR 0086 § 1's substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
+> unbuilt, and out of this goal's scope** — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 §
+> 3; their work is M6, M7, M8 and M10. **M4S Part I is the floor, not the frontier**: conformance is
+> at 567 of the goal's new 750 and differential at 162 of 165, `python tools/gaps.py` still ranks
+> the thin classes, and a `Core` depth slice is a legitimate slice when a group is blocked — never a
+> reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is 31% classified
+> (`python tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones

@@ -1,0 +1,70 @@
+--TEST--
+a nested `$grid[0][1] = v` separates every level it descends, leaves every row it did not name alone, and auto-vivifies an absent key the way PHP does — ADR 0007 §§ 2, 5
+--FILE--
+<?mwl
+final class Board {
+    public array<array<string>> $cells = [];
+
+    public function constructor(array<array<string>> $cells) {
+        $this->cells = $cells;
+    }
+
+    // The write-back's other holder: a compile-time-known property, whose
+    // slot is re-pointed at the separated grid exactly as a local's binding
+    // is.
+    public function set(string $v): void {
+        $this->cells[1][0] = $v;
+    }
+}
+
+// ADR 0007 § 5's copy-on-write is a *write*-side cost, so a binding taken
+// before the write keeps what it was given — the whole grid, and a single
+// row alike.
+array<array<int>> $grid = [[1, 2], [3, 4]];
+array<array<int>> $copy = $grid;
+array<int> $row = $grid[0];
+$grid[0][1] = 9;
+echo $grid[0][1], ";", $copy[0][1], ";", $row[1], "\n";
+// Only the row the write named separates: every other cell reads back
+// unchanged, on both sides of the copy.
+echo $grid[1][0], ";", $grid[1][1], ";", $copy[1][1], "\n";
+
+// Three levels descend and write back in one statement, outermost last.
+array<array<array<int>>> $cube = [[[1, 2], [3]], [[4, 5]]];
+$cube[0][0][1] = 7;
+echo $cube[0][0][0], ";", $cube[0][0][1], ";", $cube[1][0][1], "\n";
+
+// The innermost level may be an append, which is the same write with no key
+// to lower at all.
+array<array<int>> $g = [[1], [2]];
+$g[0][] = 8;
+echo Core\Arr::count($g[0]), ";", $g[0][1], ";", Core\Arr::count($g[1]), "\n";
+
+// PHP's auto-vivification: an absent key builds the missing row rather than
+// faulting, and key order is insertion order at both levels. This line is
+// byte-identical to PHP's own `json_encode` over the same four statements.
+array<array<int>> $tally = [];
+$tally["b"]["x"] = 1;
+$tally["b"]["y"] = 2;
+$tally["a"]["x"] = 5;
+echo Core\Json::encode($tally), "\n";
+
+// A refcounted element and a variable key: each key is lowered once and the
+// key binding is not consumed by the store.
+array<array<string>> $names = [["a", "b"], ["c"]];
+string $k = "1";
+$names[0][$k] = "z";
+echo $names[0][0], $names[0][1], $names[1][0], ";", $k, "\n";
+
+Board $b = new Board([["a", "b"], ["c", "d"]]);
+array<array<string>> $before = $b->cells;
+$b->set("z");
+echo $b->cells[1][0], ";", $b->cells[1][1], ";", $before[1][0], "\n";
+--EXPECT--
+9;2;2
+3;4;4
+1;7;5
+2;8;1
+{"b":{"x":1,"y":2},"a":{"x":5}}
+azc;1
+z;d;c

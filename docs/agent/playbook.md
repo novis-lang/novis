@@ -396,6 +396,18 @@ is why" — is this file.
   `true` for a staged span, or the second read releases a base the first one still needs, and the
   stager must `own_temporary` a refcounted staged value, because it is a fresh producer precisely
   when it could not be re-read.
+- **`InstKind::ArrayGet` answers a missing key with `Value::default()`, so any lowering that
+  descends through one and then treats the result as a pointer aborts the process.** The
+  symptom is not a null-deref: it is *"an MWL array pointer is never null"* followed by
+  *"panic in a function that cannot unwind"* and exit 127, from inside `mwl_array_set` —
+  which reads as a runtime bug in the array module rather than as the missing feature it is,
+  because the frame that produced the null is three instructions upstream and long gone.
+  `mwl_array_get`/`mwl_array_get_index` both end in `.unwrap_or_default()`; that is the whole
+  recognition test. The general shape of the fix is a helper whose ownership answer is the
+  *same* in the present and the absent case — `Helper::ArrayRowForWrite` retains what it found
+  or allocates what it did not, so the caller emits no retain and needs no branch — and the
+  general rule is that a borrowing read is not a building block for a write path, however
+  well it reads.
 
 ## Running things
 
