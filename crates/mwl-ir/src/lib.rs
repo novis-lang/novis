@@ -203,7 +203,8 @@
 //!    access through a tagged base. Each panics naming itself, and closing
 //!    them adds [`ir::Helper`] variants dispatching on the tag, not a second
 //!    representation.
-//! 4. **One conversion row is missing, and every ADR 0066 § 3 refusal is.**
+//! 4. **One conversion row is missing, and ADR 0066's `as ?T` has no helper
+//!    for the ones that produce text.**
 //!    ADR 0007 § 2's free, total and checked scalar rows all lower, in both
 //!    the throwing form ([`lower::Lowering::convert`]) and ADR 0066's
 //!    non-throwing `as ?T` ([`lower::Lowering::convert_or_null`]). The row
@@ -211,11 +212,19 @@
 //!    it throws on a value no case names, which needs the declaration's case
 //!    set carried to the check, and nothing here expresses one. `EnumName` ↔
 //!    `string` is not a gap — ADR 0010 § 5 leaves it out of the language.
-//!    ADR 0066 § 3 makes `as ?T` a **compile error** where the conversion
-//!    cannot fail (`$i as ?string`) or does not exist at all (`$arr as ?int`);
-//!    `mwl_types` refuses neither yet, so both reach lowering and panic naming
-//!    that ADR instead of being diagnosed. The **class-target** refusal is the
-//!    one of § 3's that does exist —
+//!    ADR 0066 § 3's own refusals are all `mwl_types`' and none reaches here:
+//!    a conversion that cannot fail (`$i as ?string`) is
+//!    `mwl_diagnostics::code::E_NULLABLE_CONVERSION_CANNOT_FAIL` and one that
+//!    does not exist at all (`$arr as ?int`) is `E_NO_CONVERSION`, that
+//!    table's closure asked of the `T` inside the sugar. What is left is the
+//!    other direction — a row § 3 calls **available** with no `?` helper to
+//!    run it, which is every target that produces *text* or a container:
+//!    `$b as ?string`, `$m as ?string`, `$m as ?bytes`, `$m as ?array<T>`.
+//!    Each is [`lower::Lowering::convert`]'s own missing row in its
+//!    null-answering spelling, so the two close together — except `?string`,
+//!    which needs a twin of [`ir::Helper::TaggedToString`] answering `null`
+//!    where that one throws. The **class-target** refusal is the third of
+//!    § 3's —
 //!    `mwl_diagnostics::code::E_CLASS_CONVERSION_TARGET`, and it is absolute,
 //!    so no class reaches this crate through `as` at all. It used to carry a
 //!    two-class exception, the *parse roster*, lowered here to one

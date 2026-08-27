@@ -1284,13 +1284,15 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics naming ADR 0066 § 3 for the two shapes that ADR makes a compile
-    /// error and `mwl_types` does not yet refuse: a conversion that **cannot
-    /// fail** (`$i as ?int`, `$i as ?string`), which the target-type match and
-    /// the `from == to` guard catch between them, and a target with no
-    /// conversion at all. An enum or literal-type target is that ADR's other
-    /// available form and is not built either — it needs the case set
-    /// [`Self::convert`]'s own gap already names.
+    /// Panics for a row ADR 0066 § 3 calls **available** and this crate has no
+    /// `?` helper to run — `$b as ?string`, `$m as ?bytes`, `$m as ?array<T>`.
+    /// Both of that section's *refusals* are `mwl_types`' now, so neither
+    /// reaches here: a conversion that cannot fail is `E0709` and a pair
+    /// naming no row is `E0708`, both where the conversion is written. The
+    /// remaining targets are the same missing lowerings [`Self::convert`]'s
+    /// own catch-all names, plus the `string` one this form adds — a row that
+    /// throws in the checked spelling and so needs a null-answering twin
+    /// rather than the same helper.
     pub(super) fn convert_or_null(
         &mut self,
         v: ValueId,
@@ -1301,20 +1303,26 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let helper = match to {
             _ if from == to => panic!(
-                "mwl-ir: `{from:?} as ?{to:?}` converts a value to the representation it already \
-                 has, which cannot fail — ADR 0066 § 3 makes that a compile error naming `as T`, \
-                 and `mwl_types` does not refuse it yet"
+                "mwl-ir: `{from:?} as ?{to:?}` — one representation on both sides, and \
+                 `mwl_types` has refused every pair of that shape whose conversion cannot fail \
+                 (`E0709`). What is left is two *different* checked types sharing one \
+                 representation: `array<T> as array<U>`, which is the missing lowering \
+                 `Lowering::convert`'s own catch-all names, and a `?T` whose `T` is itself a \
+                 union, which erases to one `Ty::Tagged` the same way `mixed` does"
             ),
             Ty::Int => Helper::ToIntOrNull,
             Ty::Uint => Helper::ToUintOrNull,
             Ty::Float => Helper::ToFloatOrNull,
             Ty::Decimal => Helper::ToDecimalOrNull,
             other => panic!(
-                "mwl-ir lowers ADR 0066's `as ?T` for the checked numeric targets — got \
-                 `{from:?} as ?{other:?}`. A total conversion (`as ?string`, `as ?bool`) is that \
-                 ADR § 3's \"cannot fail\" row and a compile error; an enum or literal-type \
-                 target is its available form still missing here, blocked on the same case set \
-                 `Lowering::convert`'s own gap names. See the crate docs' known gaps"
+                "mwl-ir lowers ADR 0066's `as ?T` for the checked numeric targets, and through \
+                 `Self::lower_nullable_membership` for ADR 0047's literal and enum-case ones — \
+                 got `{from:?} as ?{other:?}`. Both of § 3's refusals are `mwl_types`' now \
+                 (`E0709` for a row that cannot fail, `E0708` for a pair naming no row), so what \
+                 reaches here is a row that exists, can fail, and has no `?` helper to run it: a \
+                 `string` target from `bytes`, from an object or from a tagged operand, and the \
+                 `bytes`, `array<T>` and object targets `Lowering::convert`'s own catch-all \
+                 already names. See the crate docs' known gaps"
             ),
         };
         let out = self.emit(

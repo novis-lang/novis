@@ -1238,6 +1238,21 @@ pub mod code {
     /// `as SomeClass` is the missing row rather than the withdrawn parse
     /// roster. The two never fire on the same expression.
     pub const E_NO_CONVERSION: Code = Code::new("E0708");
+    /// An `expr as ?T` whose row cannot fail, which ADR 0066 § 3 makes a
+    /// compile error naming `as T`.
+    ///
+    /// `as ?T` "yields `null` exactly where `as T` would throw" — so over a
+    /// row that never throws it promises a `null` no run can produce, and
+    /// every reader after it is forced to check for it. `$i as ?int` (the
+    /// identity), `$i as ?string` (ADR 0007 § 2's total "anything →
+    /// `string`" row), `$x as ?bool` (ADR 0035's, which has an answer for
+    /// every type) and `Mode::Read as ?Mode` are the shapes that reach it.
+    ///
+    /// The sibling refusals are the other two rows of that same table:
+    /// [`E_NO_CONVERSION`] for a pair naming no row at all, asked of the `T`
+    /// inside the sugar, and [`E_CLASS_CONVERSION_TARGET`] for a class
+    /// target. The three never fire on the same expression.
+    pub const E_NULLABLE_CONVERSION_CANNOT_FAIL: Code = Code::new("E0709");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

@@ -1,0 +1,82 @@
+--TEST--
+`as ?T` is refused at both ends of its table — a row that cannot fail, and a pair naming no row at all — ADR 0066 § 3, over ADR 0007 § 2's closed table
+--FILE--
+<?mwl
+// ADR 0066 § 3 in one sentence: "a conversion that exists and failed is
+// `null`; a conversion that does not exist is a diagnostic" — and a
+// conversion that *cannot fail* is a diagnostic too, because the `?` then
+// promises a `null` no run produces and every reader after it has to check
+// for it. The plain `as T` form is refused at one end only, so the sugar
+// takes one refusal of its own and shares the other.
+enum Mode { Read, Write }
+
+class Helper {
+    public static function nothing(): void {}
+}
+
+class Foo { public int $n = 1; }
+
+array<int> $xs = [1, 2];
+bool $flag = true;
+int $i = 7;
+string $s = "abc";
+Mode $mode = Mode::Read;
+Mode::Read $read = Mode::Read;
+Foo $foo = new Foo();
+
+// End one, and the sugar's alone: a row that always succeeds. `as ?T` "yields
+// `null` exactly where `as T` would throw", so over these it yields it
+// nowhere. Each help names `as T`.
+?int $a = $i as ?int;
+?string $b = $i as ?string;
+?bool $c = $xs as ?bool;
+?int $d = $mode as ?int;
+?mixed $e = $s as ?mixed;
+?Mode $f = $read as ?Mode;
+
+// End two, shared with the plain form: ADR 0007 § 2's table is closed, and
+// asking it through the sugar asks it of the `T` inside. Every pair here is
+// one `the-conversion-table-is-closed` already pins without the `?`.
+?int $g = $xs as ?int;
+?float $h = $mode as ?float;
+?int $j = $flag as ?int;
+?bytes $k = $i as ?bytes;
+?array<int> $l = $s as ?array<int>;
+?string $m = Helper::nothing() as ?string;
+?int $n = null as ?int;
+
+// § 3's third refusal, absolute and with a help of its own: `as?` spells a
+// downcast in every language a reader arrives from, and no class is a row.
+?Foo $o = $foo as ?Foo;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0709]: `int as ?int` cannot fail, so it never answers `null`
+%A
+error[E0709]: `int as ?string` cannot fail, so it never answers `null`
+%A
+error[E0709]: `array<int> as ?bool` cannot fail, so it never answers `null`
+%A
+error[E0709]: `Mode as ?int` cannot fail, so it never answers `null`
+%A
+error[E0709]: `string as ?mixed` cannot fail, so it never answers `null`
+%A
+error[E0709]: `Mode::Read as ?Mode` cannot fail, so it never answers `null`
+%A
+error[E0708]: `array<int>` cannot be converted to `int`
+%A
+error[E0708]: `Mode` cannot be converted to `float`
+%A
+error[E0708]: `bool` cannot be converted to `int`
+%A
+error[E0708]: `int` cannot be converted to `bytes`
+%A
+error[E0708]: `string` cannot be converted to `array<int>`
+%A
+error[E0708]: `void` cannot be converted to `string`
+%A
+error[E0708]: `null` cannot be converted to `int`
+%A
+error[E0473]: `Foo` is a class, so `as ?Foo` is not a conversion
+%A
+error: aborting due to 14 errors

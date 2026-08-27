@@ -93,18 +93,24 @@ pub(super) fn infer_conversion(
     } else {
         check_expr(inner, None, live, scope, ctx, env)
     };
-    if matches!(env.interner.get(result), Ty::String) {
-        // The *object* half only: `as string` is the explicit conversion, and
-        // ADR 0007 § 2's table grants it rows — `bytes` among them — that no
-        // implicit site gets.
+    // The *object* half only: `as string` is the explicit conversion, and
+    // ADR 0007 § 2's table grants it rows — `bytes` among them — that no
+    // implicit site gets. ADR 0066 § 3 row 1 makes `as ?string` available
+    // exactly where `as string` is a row, so the sugar asks the same question
+    // of the `T` inside it: an object that cannot render is neither.
+    let string_target = nullable_inner_target(result, env).unwrap_or(result);
+    if matches!(env.interner.get(string_target), Ty::String) {
         require_stringable_object(inner_ty, inner.span, env);
     }
     check_class_target_conversion(ty, result, expr.span, env);
-    // Only the plain `as T` form: ADR 0066's `as ?T` interns as `Union([Null,
-    // T])`, which is one `ConvKind::Wide` target and therefore left alone here.
-    // Which conversions admit *that* form is § 3's own question, and the
-    // refusal it still owes is `Lowering::convert_or_null`'s two panics.
-    if !is_written_nullable(ty) {
+    // The two tables are one question asked of two spellings. `as ?T` interns
+    // as `Union([Null, T])`, which is one `ConvKind::Wide` target and so says
+    // nothing to the table below — ADR 0066 § 3 is what judges it, over the
+    // `T` inside the sugar, and it refuses one row the plain form has no
+    // reason to look at.
+    if is_written_nullable(ty) {
+        reject_unavailable_nullable_conversion(inner_ty, result, expr.span, env);
+    } else {
         reject_unconvertible(inner_ty, result, expr.span, env);
     }
     reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
@@ -905,13 +911,16 @@ fn is_written_nullable(ty: &Type) -> bool {
     }
 }
 
-/// The class an `as ?T` target names, or `None` for every other target.
+/// The `T` an `as ?T` target names, or `None` where the target is not that
+/// sugar's own shape.
 ///
 /// `?T` interns as exactly `Union([Null, T])` — the checker has no separate
 /// nullable type ([`crate::lower::lower_type`]) — so this reads the one
-/// non-`null` member back out. A union with more than one is not the `?T`
-/// sugar's shape and is left to the caller's `None` path.
-fn nullable_class_target(to: TypeId, env: &Env<'_>) -> Option<String> {
+/// non-`null` member back out. A union with more than one is `?("a"|"b")`,
+/// whose membership chain `mwl_ir::lower` builds out of the atoms rather than
+/// out of one target, and it is left to the caller's `None` path for that
+/// reason.
+fn nullable_inner_target(to: TypeId, env: &Env<'_>) -> Option<TypeId> {
     let Ty::Union(members) = env.interner.get(to) else {
         return None;
     };
@@ -919,13 +928,147 @@ fn nullable_class_target(to: TypeId, env: &Env<'_>) -> Option<String> {
         .iter()
         .filter(|member| !matches!(env.interner.get(**member), Ty::Null));
     let only = *named.next()?;
-    if named.next().is_some() {
-        return None;
-    }
-    match env.interner.get(only) {
+    named.next().is_none().then_some(only)
+}
+
+/// The class an `as ?T` target names, or `None` for every other target.
+fn nullable_class_target(to: TypeId, env: &Env<'_>) -> Option<String> {
+    match env.interner.get(nullable_inner_target(to, env)?) {
         Ty::Class(name, _) => Some(name.to_string()),
         _ => None,
     }
+}
+
+/// ADR 0066 § 3's table, which is ADR 0007 § 2's asked one row further on:
+/// **a conversion that exists and failed is `null`; a conversion that does
+/// not exist is a diagnostic** — and a conversion that cannot fail is a
+/// diagnostic too, because the `?` then promises a `null` no run produces.
+///
+/// So the sugar takes both halves. The closed-table refusal
+/// ([`reject_unconvertible`]) runs against the `T` *inside* the sugar rather
+/// than against the union it interns as, which is what makes `array<int> as
+/// ?int` the same diagnostic `array<int> as int` already was; and the
+/// cannot-fail row above it has no counterpart in the plain form at all,
+/// since `as T` is happy to be total.
+///
+/// § 3's third row — **any** class target, absolutely — is
+/// [`check_class_target_conversion`]'s, whose help names `tryParse` rather
+/// than a row. Skipped here so one expression takes one diagnostic.
+fn reject_unavailable_nullable_conversion(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
+    if nullable_class_target(to, env).is_some() {
+        return;
+    }
+    let Some(inner) = nullable_inner_target(to, env) else {
+        return;
+    };
+    if !nullable_conversion_is_total(from, to, inner, env) {
+        reject_unconvertible(from, inner, span, env);
+        return;
+    }
+    let described_from = env.interner.describe(from);
+    let described_to = env.interner.describe(inner);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_NULLABLE_CONVERSION_CANNOT_FAIL,
+            format!(
+                "`{described_from} as ?{described_to}` cannot fail, so it never answers `null`"
+            ),
+        )
+        .with_primary(span, "converted here")
+        .with_help(format!(
+            "write `as {described_to}`: ADR 0066 § 3 makes a `?T` that is never `null` a compile \
+             error, since every reader after it then has to check for a value the conversion \
+             cannot produce"
+        )),
+    );
+}
+
+/// Whether `as ?T` would answer `null` on no value at all — ADR 0066 § 3's
+/// "a conversion that **cannot fail**" row.
+///
+/// The scalar rows are the `false` arms of `mwl_ir::lower::expr`'s own
+/// `conversion_can_fail`, and the two have to agree: that function is what
+/// picks the `?` helper for a row this one leaves standing, so a row this
+/// calls total and it calls fallible would look for a helper that exists
+/// while a row the other way round would reach the panic this refusal is
+/// here to empty.
+///
+/// Two rows are this side's alone, because a representation cannot see them:
+/// a value that already *is* one of the target's (`?int as ?int`,
+/// `Mode::Read as ?Mode` — every case of `Mode` is a `Mode`), and ADR 0066
+/// § 3 row 2's literal, enum-case and whole-enum targets, whose membership
+/// test is fallible however the base representation reads.
+fn nullable_conversion_is_total(from: TypeId, to: TypeId, inner: TypeId, env: &Env<'_>) -> bool {
+    // `?int as ?int` is R17's forbidden second spelling and `$i as ?int` the
+    // identity; both are the value already satisfying the target.
+    if from == to || from == inner {
+        return true;
+    }
+    if let (Ty::EnumCase(case_of, ..), Ty::Enum(named, _)) =
+        (env.interner.get(from), env.interner.get(inner))
+        && case_of == named
+    {
+        return true;
+    }
+    if is_closed_value_target(inner, env) {
+        return false;
+    }
+    let from_kind = conversion_kind(from, env.interner);
+    let to_kind = conversion_kind(inner, env.interner);
+    use ConvKind::{Bool, Bytes, Decimal, Enum, Float, Int, Null, Object, Str, Uint, Void, Wide};
+    match (from_kind, to_kind) {
+        // A `void` call is neither an operand nor a target, and saying so is
+        // [`reject_unconvertible`]'s job rather than this one's.
+        (Void, _) | (_, Void) => false,
+        // A target admitting more than one runtime shape is the widening row,
+        // which has nothing to check and so nothing to fail.
+        (_, Wide) => true,
+        // ADR 0035: `as bool` is the condition's own test written out, and it
+        // has an answer for every type — an object and an enum case included,
+        // § 4 making both always truthy.
+        (_, Bool) => true,
+        // ADR 0010 § 5 row 1: an enum to its own backing type, total and free.
+        // Any *other* number is ADR 0007 § 2's row and throws.
+        (Enum(backing), target) => target == enum_backing_kind(backing),
+        // ADR 0009 § 3: every `string` is valid UTF-8, so this direction alone
+        // is total — `bytes as ?string` is the checked one.
+        (Str, Bytes) => true,
+        // ADR 0007 § 2's "anything → `string`" row, "total for scalars". An
+        // *object* is the row's exception ("needs `Stringable`, or it throws")
+        // and is left fallible here for that reason.
+        (Bool | Int | Uint | Float | Decimal | Str | Null, Str) => true,
+        // One representation spelled two ways — a literal type and its base, a
+        // `tainted`/`secret` value and its plain twin. The closed-value targets
+        // returned above, so a same-kind pair left here converts nothing. The
+        // `bool` pair is the `as bool` row two arms up rather than a missing
+        // one here.
+        (Int, Int)
+        | (Uint, Uint)
+        | (Float, Float)
+        | (Decimal, Decimal)
+        | (Bytes, Bytes)
+        | (Null, Null)
+        | (Object, Object) => true,
+        _ => false,
+    }
+}
+
+/// Whether the target is one of ADR 0066 § 3 row 2's **closed** sets — a
+/// literal type, an enum case, or a whole enum — where the conversion is a
+/// membership test that a value of the right representation can still miss.
+/// Their base representation reads as free ([`conversion_kind`] folds
+/// `"a"` to `Str` and `Mode::Read` to `Enum`), so without this the row above
+/// would call the available form total.
+fn is_closed_value_target(to: TypeId, env: &Env<'_>) -> bool {
+    matches!(
+        env.interner.get(to),
+        Ty::IntLiteral(_)
+            | Ty::StringLiteral(_)
+            | Ty::True
+            | Ty::False
+            | Ty::Enum(..)
+            | Ty::EnumCase(..)
+    )
 }
 
 /// ADR 0007 § 2's conversion table is **closed**, and this is the refusal that
