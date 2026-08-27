@@ -2,62 +2,59 @@
 
 ## State
 
-**M4 — language completeness.** `empty(...)` runs end to end, in value and statement
-position, as ADR 0035 § 2's truthy table negated over any expression. The checker half is
-`mwl_types::expr::presence::check_empty_operand`
-(`crates/mwl-types/src/expr/presence.rs:75`), which shares `isset`'s guarded-subscript
-marking (`mark_guarded_subscripts`, `:99`) and none of its E0498 shape check; the lowering
-is one line per position calling `Lowering::lower_not`
-(`crates/mwl-ir/src/lower/expr.rs:295`, `crates/mwl-ir/src/lower/stmt.rs:311`).
-`truthy_convert` gained the `Ty::Null` row it had asserted was unreachable, which also
-closed `!null` and `if (null)`.
+**M4 — language completeness.** A `static` property now has storage, read and write, end to
+end: the checker records `ExprInfo::StaticProperty` (`crates/mwl-types/src/expr/mod.rs:265`),
+`mwl_ir::ir::Program::statics` fixes one slot per declared static, `InstKind::StaticGet`/
+`StaticSet` name it by `(declaring class, name)`, and `mwl-codegen` resolves that pair to an
+index into a per-request `Value` vector reached through `mwl_runtime::STATICS_OFFSET` — two
+loads and no call, the `FieldGet` shape with the context in place of a receiver.
 
-**The language frontier is now two slices, both with file sets of their own**, and neither
-is the one-liner `empty` was. `exit` needs a distinguished unwind; a static property has no
-storage anywhere below the checker.
+**The storage is request-scoped**, armed by `Unit::install_in` and released by `Ctx`'s `Drop`.
+`docs/adr/README.md` § *Decisions taken at project start* owns the decision (priority 1: a
+process-global static is a channel from one request into the next); `mwl_runtime::ctx`'s
+module docs own the mechanism and what it spends.
 
-`verify.py` 6 of 6 green — conformance **610**, differential **172**, 1632 unit tests.
-`python tools/holes.py` reads **24 sites, 6 items**, unchanged: every remaining site is a
-catch-all, and `empty` was never one of them.
+Two shapes are refused rather than answered wrongly: a non-nullable static with no
+initializer is `E0409` at its declaration (no constructor can discharge an obligation on
+storage that is not any instance's), and `static::$prop` is `E0499` — PHP re-resolves it
+against the *called* class, which this slot layout cannot express. `E0499` is **the last
+code in the `E04xx` band**; see the playbook.
+
+`verify.py` 6 of 6 green — conformance **612**, differential **173**, 1633 unit tests.
+`tools/leak-check.sh` clean over a fixture that assigns a `string` static from itself.
 
 ## Next group
 
-**The static property first, then `exit`.** They share no files with each other and none
-with this session; the static property is picked first because it is a *hole* (the checker
-accepts a shape nothing below it lowers) while `exit` is a feature that was never built.
-Read `crates/mwl-ir/src/ir.rs:290-320` (the `InstKind` neighbourhood a new pair joins)
-before either.
+**`exit` first, then late static binding for a static property.** They share no files; `exit`
+is the item this session did not reach and is a feature that was never built, while the
+late-binding hole is one this session created the diagnostic for and named the shape of.
 
-- [ ] **A static property lowers nowhere, read or write** — the read falls through
-      `lower_expr`'s dispatch catch-all (`crates/mwl-ir/src/lower/expr.rs:300`) and the
-      write through `lower_stmt`'s reassignment arm
-      (`crates/mwl-ir/src/lower/stmt.rs:1065`); `ExprKind::StaticPropertyAccess` is
-      `crates/mwl-syntax/src/ast.rs:775`. **There is no storage for one anywhere**: `grep`
-      finds no static slot in `crates/mwl-ir/src/ir.rs`, no `Class` field holding one and
-      no runtime home, so this is an `InstKind` pair plus a codegen data slot plus a
-      runtime table, not a lowering arm. **Decide the lifetime before writing any of it**
-      and record it in `docs/adr/README.md` § *Decisions taken at project start*: priority
-      1 makes state request-scoped, so a process-global static is the wrong default under
-      `mwl serve` at M7 even though it is what a single `mwl run` cannot tell apart. No
-      worklist item names this, so `holes.py` does not count it.
-- [ ] **`exit` and `exit(...)`** — its own file set (`crates/mwl-runtime/src/abi.rs:53`'s
-      `Fault`, `mwl-cli`'s exit status). There is no `process::exit` in this tree and there
-      must not be one in a helper, for the same priority-1 reason: under `mwl serve` a
-      helper ending the process ends every other in-flight request with it. It wants a
-      distinguished unwind carried to `mwl-cli`'s exit status.
+- [ ] **`exit` and `exit(...)` need a distinguished unwind.** `ExprKind::Exit` is
+      `crates/mwl-syntax/src/ast.rs:851`; it reaches `lower_expr_stmt`
+      (`crates/mwl-ir/src/lower/stmt.rs:225`) and `lower_expr`'s catch-all
+      (`crates/mwl-ir/src/lower/expr.rs:300`) with no arm. The status vocabulary is
+      `crates/mwl-runtime/src/abi.rs:35` (`OK`/`THROWN`/`FATAL`) and the terminators are
+      `crates/mwl-ir/src/ir.rs:1822` — decide whether `exit` is a fourth status or a
+      `FATAL` carrying an exit code, and record it in `docs/adr/README.md`
+      § *Decisions taken at project start*. `finally` must still run, which is what makes
+      this an unwind rather than a `return`.
+- [ ] **`static::$prop` could resolve like PHP instead of being refused.** It needs a
+      per-class static slot table hanging off the `ClassDesc` rather than the flat
+      unit-wide vector `mwl_ir::ir::Program::statics` is today
+      (`crates/mwl-ir/src/ir.rs:22`), plus a runtime lookup keyed on the late-static-binding
+      class the callee already carries in slot 0 (`crates/mwl-ir/src/lower/mod.rs:677`).
+      Only a subclass that *redeclares* the static observes the difference. The refusal is
+      `crates/mwl-types/src/expr/mod.rs:265` and its case is
+      `tests/conformance/reject/a-static-property-is-refused-uninitialized-and-late-bound.mwlt`.
 
 ## Backlog
 
-- An enum case tagged into a `mixed` reads as its backing integer, so a case backed by `0`
-  is falsy where ADR 0035 § 4 makes every statically typed one truthy —
-  `mwl_codegen::ty::tag_of` reserves no enum tag. `Core\Reflect::typeOf` is the same gap by
-  a second route.
-- `array<T> as array<U>` does not lower (`crates/mwl-ir/src/lower/expr.rs:877`), which is
-  what keeps several `gaps.py --errors` sites unreachable from source — ADR 0007 § 2.
-- The value form of `require` (`$c = require 'config.mwl';`, ADR 0021 § 3) lowers nowhere —
-  `mwl-ir`'s crate doc owns the gap.
-- `Class::method(...)`, the first-class callable spelling, panics `mwl-ir` — gap 1 in that
-  crate's own doc.
-- 17 of the 32 named `.mwlt` cases `python tools/loop.py --list` schedules are still to
-  write; conformance is 610 against the goal's 750.
-- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+- The `E04xx` band is exhausted at `E0499` — the next type diagnostic needs a band decision
+  (`docs/adr/README.md` § *Decisions taken at project start*).
+- `ExprInfo::StaticProperty`'s write side goes through `lower_store`'s new arm
+  (`crates/mwl-ir/src/lower/stmt.rs`); a compound `Class::$p += 1` was not exercised and
+  may reach `lower_read_modify_write`'s staged-target path, which has no static arm.
+- `docs/spec/02-php-migration.md` has not been re-scored since statics landed —
+  `python tools/check-migration.py`.
+- `holes.py` still reads 24 sites / 6 items: no worklist item named the static property, so
+  the count is unchanged by this session.

@@ -492,6 +492,12 @@ is why" — is this file.
   a stale anchor in whatever file the truncated block landed on, which is a confusing thing to
   read when the file was correct a second ago. Everything else about the tool is worth reaching
   for from three edits up, across as many files as the edit spans; this is its one edge.
+- **The `E04xx` type-diagnostic band is full: `E0499` is the last number in it.** The next
+  type diagnostic is a band decision, not a `brief.py` lookup — `E05xx` is IR and codegen
+  and `E03xx` is name resolution, so neither absorbs it. `brief.py`'s "next free" line will
+  happily print `E0500`, which belongs to another phase; do not take it. Widening the band
+  (`E04xxx`, or a second types band) is a decision the session that needs one takes, in
+  `docs/adr/README.md` § *Decisions taken at project start*, with the reason.
 
 ## Running things
 
@@ -1646,6 +1652,13 @@ sibling in the same namespace unqualified.
   The checker accepts both happily, which is why this reads as a checker/lowering mismatch
   rather than as the missing feature it is; nothing on `python tools/holes.py`'s worklist
   names it either.
+- **`static::$prop` is late-bound in PHP and was not here, and only a redeclaring subclass
+  shows it.** `static::$total` inside `Base` answered `Base`'s slot for `Sub::viaStatic()`
+  where PHP answers `Sub`'s — the two agree on every class that does *not* redeclare the
+  static, which is why a scratch run has to redeclare one to see it at all. It is `E0499`
+  now rather than a silent difference. The general shape is worth keeping: a resolved-at-
+  compile-time storage and a spelling PHP resolves at run time agree until the two classes
+  disagree, so the scratch file that judges one has to make them disagree.
 
 ## Divergences and refusals already pinned
 
