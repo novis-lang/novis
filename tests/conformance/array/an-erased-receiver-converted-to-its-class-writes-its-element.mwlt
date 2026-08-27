@@ -1,0 +1,32 @@
+--TEST--
+the way through `E0480`: converting an erased receiver to the class that declares the property makes the element write an ordinary one — ADR 0007 § 2, ADR 0036 § 4
+--FILE--
+<?mwl
+// `E0480` refuses an element write through an erased property and its help
+// names one spelling that works. This pins that the help is true: `as
+// ClassName` is a checked conversion (ADR 0007 § 2), and what it yields is a
+// receiver with a declaring class, so the write back into the property's own
+// slot is the same one any class-typed receiver gets. `instanceof` is not a
+// second spelling here — it proves the class for a *branch*, and a local
+// declared `object` keeps its declared type inside one.
+class Plain {
+    public array<string> $rows;
+
+    public function constructor() {
+        array<string> $seed = ["a", "b"];
+        $this->rows = $seed;
+    }
+}
+
+object $erased = new Plain();
+var $known = $erased as Plain;
+$known->rows["0"] = "z";
+echo Core\Json::encode($known->rows), "\n";
+
+// `as` converted a handle, not a value: ADR 0023 makes an object identity, so
+// the write is visible through the original binding's own class-typed read.
+var $again = $erased as Plain;
+echo Core\Json::encode($again->rows), "\n";
+--EXPECT--
+["z","b"]
+["z","b"]

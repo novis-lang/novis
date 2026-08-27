@@ -1,0 +1,55 @@
+--TEST--
+every shape of array-element write through a hooked property is refused where it is written, PHP's "indirect modification of overloaded property" taken as a compile error — ADR 0014 § 1, ADR 0007 § 5
+--FILE--
+<?mwl
+// ADR 0014 § 1 makes a hooked property a pair of accessors and not a slot, so
+// the copy ADR 0007 § 5 separates on a write has nowhere to be written back
+// to. PHP agrees at run time — `Error: Indirect modification of Grid::$rows is
+// not allowed` — so refusing at compile time is the compatible answer, not a
+// divergence. All four subscript spellings take the same refusal, because the
+// lowering flattens every one of them down to the same root holder.
+class Grid {
+    public array<string> $rows {
+        get => $this->rows;
+        set (array<string> $v) {
+            $this->rows = $v;
+        }
+    }
+
+    public array<array<string>> $cells {
+        get => $this->cells;
+        set (array<array<string>> $v) {
+            $this->cells = $v;
+        }
+    }
+
+    public function constructor() {
+        array<string> $flat = [];
+        $this->rows = $flat;
+        array<array<string>> $seed = [];
+        $this->cells = $seed;
+    }
+}
+
+var $g = new Grid();
+$g->rows["0"] = "z";
+$g->cells["0"]["1"] = "z";
+$g->rows["0"] .= "x";
+$g->rows[] = "appended";
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0478]: an array element cannot be written through the hooked property `rows`
+   --> case.mwl:32:1
+%A
+error[E0478]: an array element cannot be written through the hooked property `cells`
+   --> case.mwl:33:1
+%A
+error[E0478]: an array element cannot be written through the hooked property `rows`
+   --> case.mwl:34:1
+%A
+error[E0478]: an array element cannot be written through the hooked property `rows`
+   --> case.mwl:35:1
+%A
+error: aborting due to 4 errors

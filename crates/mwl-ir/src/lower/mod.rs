@@ -1800,6 +1800,13 @@ impl<'a> Lowering<'a> {
     /// in between. Any other base is a write into a temporary and has no
     /// holder to speak of, so it panics naming itself rather than silently
     /// dropping the separation.
+    ///
+    /// A *hooked* property (ADR 0014 § 1) never arrives here either, and for
+    /// the same reason it never could be written back to: it is a pair of
+    /// accessors rather than a slot, so `mwl_types::expr::assign`'s
+    /// `check_write_target` refuses `$obj->hooked[0] = v` as `E0478` where it
+    /// is written — PHP's own "indirect modification of overloaded property",
+    /// and the reason this function needs no rule for it.
     pub(super) fn write_back_array(
         &mut self,
         base: &Expr,
@@ -1813,24 +1820,14 @@ impl<'a> Lowering<'a> {
                 env.insert(name, (written, Ty::Array));
             }
             ExprKind::PropertyAccess { object, .. } => {
-                assert!(
-                    !matches!(
-                        self.exprs.lookup(base.span),
-                        Some(ExprInfo::HookedProperty { .. })
-                    ),
-                    "mwl-ir does not lower an array-element write through an ADR 0014 § 1 hooked \
-                     property: the copy-on-write separation would have to be written back \
-                     through the property's `set` hook, which no PHP-compatible rule for \
-                     `$obj->hooked[0] = v` exists for yet; see the crate docs' known gaps"
-                );
                 let Some(ExprInfo::Property { class, name, .. }) = self.exprs.lookup(base.span)
                 else {
                     panic!(
                         "mwl-ir: an array-index assignment whose base is the property at {:?} \
-                         has no resolved declaring class recorded in the typed-expression table \
-                         — either it wasn't checked with the same table, or its receiver erased \
-                         to a shape/plain `object` (ADR 0036 § 4), which this crate does not yet \
-                         lower (see the crate docs' known gaps)",
+                         has no resolved declaring class recorded in the typed-expression \
+                         table, so it wasn't checked with the same table — an erased \
+                         receiver cannot be what put it here, `check_write_target` having \
+                         refused that as `E0480`",
                         base.span
                     );
                 };

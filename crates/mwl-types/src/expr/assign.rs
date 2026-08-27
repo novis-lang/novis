@@ -355,8 +355,108 @@ pub(super) fn check_assign(
         }
     } else {
         let target_ty = check_expr(target, None, live, scope, ctx, env);
+        check_write_target(target, env);
         check_expr(value, Some(target_ty), live, scope, ctx, env);
         target_ty
+    }
+}
+
+/// The three assignment targets that have nowhere to write to, refused where
+/// they are written rather than lowered into something that quietly drops the
+/// write. The first two match PHP, which refuses the same two spellings, and
+/// are standing decisions in `docs/agent/loop-goal.md`.
+///
+/// A **nullsafe** target (`$a?->b = v`) is refused for the operator's own
+/// reason: `?->` yields `null` where the receiver is `null`, and `null` is not
+/// a place. PHP says "can't use nullsafe operator in write context"; the
+/// alternative is an assignment that silently does nothing on one path.
+///
+/// An **element write through an ADR 0014 § 1 hooked property**
+/// (`$obj->hooked[0] = v`) is refused because a hooked property is a pair of
+/// accessors and not a slot. ADR 0007 § 5 separates the array the `get` hook
+/// answered with, and no rule pushes the separated copy back through `set` —
+/// PHP raises "indirect modification of overloaded property" and discards the
+/// write, so refusing *is* the PHP-compatible answer rather than a divergence.
+/// Read the array into a local, write the element, assign it back.
+///
+/// An **element write through an erased property** — an ADR 0036 shape's
+/// field, or any property of ADR 0007 § 3's plain `object` — is refused
+/// because ADR 0036 § 4 resolves one by *name* at run time and stopped there:
+/// a read needs only the name, a write needs a slot for the separated array to
+/// land in. This is the write half of the question `E0477` answers for a
+/// method call, and the answer is the same one — narrow the receiver. It is
+/// the one of the three PHP would have allowed (on a `stdClass`), and it is
+/// refused for the language's own reason rather than PHP's: the property reads
+/// as `mixed`, and `mixed` is not indexable anywhere else either.
+///
+/// Called *after* the target is checked, because the hooked half reads the
+/// [`ExprInfo::HookedProperty`] entry [`super::members`] records while
+/// checking the access. Only the root of a subscript chain is examined:
+/// `mwl_ir::lower::Lowering::lower_reassignment` flattens a nested element
+/// write down to its root holder and writes every level back through that, so
+/// the root is the only level with a holder at all — which is also why
+/// `$obj->hooked[0][1] = v` is this same refusal and not a deeper one.
+fn check_write_target(target: &Expr, env: &mut Env<'_>) {
+    let mut root = target;
+    let mut through_subscript = false;
+    while let ExprKind::Index { base, .. } = &root.kind {
+        root = base;
+        through_subscript = true;
+    }
+    if matches!(root.kind, ExprKind::PropertyAccess { nullsafe: true, .. }) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_NULLSAFE_WRITE_TARGET,
+                "`?->` cannot be written through",
+            )
+            .with_primary(root.span, "this yields `null` when the receiver is `null`")
+            .with_help(
+                "`null` is not a place to assign to — test the receiver instead: \
+                 `if ($x !== null) { $x->p = …; }`",
+            ),
+        );
+        return;
+    }
+    if !through_subscript {
+        return;
+    }
+    match env.exprs.lookup(root.span) {
+        Some(ExprInfo::HookedProperty { name, .. }) => {
+            let name = name.clone();
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ELEMENT_WRITE_THROUGH_HOOK,
+                    format!(
+                        "an array element cannot be written through the hooked property `{name}`"
+                    ),
+                )
+                .with_primary(root.span, "reading this runs its `get` hook")
+                .with_help(
+                    "ADR 0014 § 1 makes a hooked property a pair of accessors, not a slot, so the \
+                     separated array would have nowhere to go — read it into a local, write the \
+                     element there, and assign the local back through the property",
+                ),
+            );
+        }
+        Some(ExprInfo::ShapeProperty { name, .. }) => {
+            let name = name.clone();
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ELEMENT_WRITE_THROUGH_ERASED_PROPERTY,
+                    format!(
+                        "an array element cannot be written through the erased property `{name}`"
+                    ),
+                )
+                .with_primary(root.span, "this receiver is a shape or a plain `object`")
+                .with_help(
+                    "ADR 0036 § 4 resolves such a property by *name* at run time, which gives the \
+                     separated array no slot to be written back into — convert the receiver to \
+                     the class that declares it first (`var $c = $x as ClassName;`), or read the \
+                     property into a typed local, write the element there, and assign it back",
+                ),
+            );
+        }
+        _ => {}
     }
 }
 
@@ -388,6 +488,7 @@ pub(super) fn check_compound_assign(
 ) -> TypeId {
     note_write(target, scope, env);
     let target_ty = check_expr(target, None, live, scope, ctx, env);
+    check_write_target(target, env);
     // [`infer`] rather than [`check_expr`]: the target's type is a *hint* for
     // an untyped literal here, not a position the value has to satisfy — the
     // operator decides that, and it is the operator's result this function

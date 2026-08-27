@@ -1,0 +1,38 @@
+--TEST--
+an array element written through a property whose receiver erased — a shape's field, or any property of a plain `object` — is refused where it is written — ADR 0036 § 4, ADR 0007 § 3
+--FILE--
+<?mwl
+// ADR 0036 § 4 gave an erased property a name-keyed runtime *fetch* and
+// stopped there on purpose. That is enough to read one and not enough to write
+// an element through one: ADR 0007 § 5 separates the array on the way in, and
+// the separated copy needs a slot to land in that a by-name resolution does
+// not supply. The plain-`object` half has no element type either — the
+// property reads as `mixed`, which is not indexable anywhere else in the
+// language — so this is the element-write twin of `E0477`, and the answer is
+// the same one: convert the receiver to the class that declares the property.
+class Plain {
+    public array<string> $rows;
+
+    public function constructor() {
+        array<string> $seed = ["a", "b"];
+        $this->rows = $seed;
+    }
+}
+
+array<string> $flat = ["a", "b"];
+var $shaped = ({rows: $flat});
+$shaped->rows["0"] = "z";
+
+object $erased = new Plain();
+$erased->rows["0"] = "z";
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0480]: an array element cannot be written through the erased property `rows`
+   --> case.mwl:21:1
+%A
+error[E0480]: an array element cannot be written through the erased property `rows`
+   --> case.mwl:24:1
+%A
+error: aborting due to 2 errors

@@ -1,0 +1,35 @@
+--TEST--
+`?->` is a read operator only: a nullsafe property, and a nullsafe subscript over one, are both refused as assignment targets — ADR 0007 § 3
+--FILE--
+<?mwl
+// `?->` answers `null` when the receiver is `null`, and `null` is not a place
+// to write to, so an assignment through one would silently do nothing on that
+// path. PHP refuses the same two spellings ("Can't use nullsafe operator in
+// write context"), and so does the plain-value form and the element form
+// alike — the subscript chain is walked down to its root, which is where the
+// `?->` sits.
+class Plain {
+    public int $n;
+    public array<string> $rows;
+
+    public function constructor() {
+        $this->n = 0;
+        array<string> $seed = [];
+        $this->rows = $seed;
+    }
+}
+
+?Plain $maybe = new Plain();
+$maybe?->n = 1;
+$maybe?->rows["0"] = "z";
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0479]: `?->` cannot be written through
+   --> case.mwl:20:1
+%A
+error[E0479]: `?->` cannot be written through
+   --> case.mwl:21:1
+%A
+error: aborting due to 2 errors

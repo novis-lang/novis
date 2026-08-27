@@ -1,0 +1,40 @@
+--TEST--
+the two element writes a hooked array property does allow: through a local read back and assigned in, and inside the property's own hook where `$this->p` is the backing slot — ADR 0014 § 1, ADR 0007 § 5
+--FILE--
+<?mwl
+// The refusal an element write through a hook takes (E0478) has exactly two
+// ways round it, and both run. Inside the property's own `set` hook `$this->p`
+// is the backing slot rather than a call to the accessor, so an element write
+// there is an ordinary write to a plain field. Outside it, the array is read
+// into a local — one `get` hook call — written, and assigned back through the
+// `set` hook, which is the sequence the diagnostic's help text names.
+class Box {
+    public array<string> $rows {
+        get => $this->rows;
+        set (array<string> $v) {
+            $this->rows = $v;
+            $this->rows["0"] = "seen-by-set";
+        }
+    }
+
+    public function constructor(array<string> $start) {
+        $this->rows = $start;
+    }
+}
+
+array<string> $start = ["a", "b"];
+var $b = new Box($start);
+echo Core\Json::encode($b->rows), "\n";
+
+// The read is a copy (ADR 0007 § 5), so writing the local does not touch the
+// property until the assignment back does — and that assignment runs `set`,
+// which stamps element 0 again.
+array<string> $local = $b->rows;
+$local["1"] = "y";
+echo Core\Json::encode($b->rows), "\n";
+$b->rows = $local;
+echo Core\Json::encode($b->rows), "\n";
+--EXPECT--
+["seen-by-set","b"]
+["seen-by-set","b"]
+["seen-by-set","y"]

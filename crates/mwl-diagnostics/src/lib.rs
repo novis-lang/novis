@@ -789,6 +789,40 @@ pub mod code {
     /// (ADR 0014). Narrow first: `instanceof` proves the class, and
     /// `as ClassName` converts to it.
     pub const E_METHOD_ON_ERASED_RECEIVER: Code = Code::new("E0477");
+    /// An array element written through an ADR 0014 § 1 hooked property:
+    /// `$obj->hooked[0] = v`, or any deeper subscript over the same base.
+    ///
+    /// A hooked property is a pair of accessors, not a slot, so the element
+    /// write has nothing to write *into*: ADR 0007 § 5 separates the array
+    /// the `get` hook returned, and the separated copy would then have to be
+    /// pushed back through `set`, which PHP does not do either — it raises
+    /// "indirect modification of overloaded property" and discards the write.
+    /// Refusing where it is written is therefore the PHP-compatible answer as
+    /// well as the honest one. Read the array into a local, write the
+    /// element, and assign the local back through the property.
+    pub const E_ELEMENT_WRITE_THROUGH_HOOK: Code = Code::new("E0478");
+    /// A nullsafe access used as an assignment target: `$a?->b = v`.
+    ///
+    /// `?->` means "or `null`", and `null` is not a place: PHP refuses the
+    /// same spelling with "can't use nullsafe operator in write context",
+    /// because the alternative is an assignment that silently does nothing
+    /// on the null path. Test the receiver instead — `if ($a !== null) {
+    /// $a->b = v; }` says which of the two outcomes was meant.
+    pub const E_NULLSAFE_WRITE_TARGET: Code = Code::new("E0479");
+    /// An array element written through a property whose receiver erased:
+    /// an ADR 0036 shape, or ADR 0007 § 3's plain `object`.
+    ///
+    /// ADR 0036 § 4 gave such a property a name-keyed runtime *fetch* and
+    /// deliberately stopped there, which is enough for a read and not enough
+    /// for a write: ADR 0007 § 5 separates the array on the way in, and the
+    /// separated copy needs a slot to be written back into that a by-name
+    /// resolution does not supply. A plain `object` receiver has no element
+    /// type either — the property reads as `mixed`, and `mixed` is not
+    /// indexable anywhere else in the language. Narrow the receiver first
+    /// (`instanceof`, or `as ClassName`), or read the property into a typed
+    /// local, write the element there, and assign it back. This is the
+    /// element-write twin of [`E_METHOD_ON_ERASED_RECEIVER`].
+    pub const E_ELEMENT_WRITE_THROUGH_ERASED_PROPERTY: Code = Code::new("E0480");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.
