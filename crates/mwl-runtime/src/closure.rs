@@ -384,6 +384,8 @@ fn check_param_tags(closure: Value, args: &mut [Value]) -> Result<(), Fault> {
             // `callable` has no parameter list (ADR 0031 § 1) — and out of
             // `crate::helpers`'s own row, so the boundary is the same one a
             // written `as float` lands on.
+            // `tests/conformance/core/arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.mwlt`
+            // pins both sides of it from MWL.
             if required == Tag::Float && matches!(given, Tag::Int | Tag::Uint) {
                 *arg = crate::helpers::widen_to_float(*arg).ok_or_else(|| {
                     Fault::thrown_as(

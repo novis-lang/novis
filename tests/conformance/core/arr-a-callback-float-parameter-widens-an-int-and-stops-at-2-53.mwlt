@@ -1,0 +1,96 @@
+--TEST--
+ADR 0007 § 2's one implicit widening reaches a `callable` parameter, exactly and only up to 2^53, for an `int` and a `uint` alike — ADR 0007 §§ 2, 4, ADR 0031 § 1
+--FILE--
+<?mwl
+// The depth claim is *a bound asserted on both sides*. A `callable` has no
+// parameter list (ADR 0031 § 1), so no checker ever saw this call site to
+// insert a conversion into it; the widening is applied by the runtime's own
+// argument check (`mwl_runtime::closure`), out of the same helper a written
+// `as float` lands on. That makes two things worth pinning at once: that the
+// one implicit conversion ADR 0007 § 2 admits does reach here at all, and that
+// it stops where the ADR says it stops rather than where `f64` happens to run
+// out. Every refusal below is `ArithmeticError` per ADR 0007 § 4 — the
+// neighbouring `arr-a-mixed-or-nullable-callback-parameter-is-unchecked` owns
+// the `LogicError` half, which is what happens when no widening exists.
+
+array<int> $ints = [7, 10];
+array<uint> $uints = [7, 10];
+
+// It is a widening and not merely an acceptance: the element arrives as a
+// `float` and divides like one, so an odd element halves to a fraction rather
+// than to ADR 0007 § 4's `int|float` integer answer.
+echo Core\Str::join(Core\Arr::values(Core\Arr::map($ints, fn(float $v, string $k) => ($v / 2.0) as string)), ","), "|",
+     Core\Str::join(Core\Arr::values(Core\Arr::map($uints, fn(float $v, string $k) => ($v / 2.0) as string)), ","), "\n";
+
+array<int> $iEdge = [9007199254740992];
+array<int> $iOver = [9007199254740993];
+array<int> $iNegEdge = [-9007199254740992];
+array<int> $iNegOver = [-9007199254740993];
+array<uint> $uEdge = [9007199254740992];
+array<uint> $uOver = [9007199254740993];
+// 2^54 is *exactly* representable in an `f64` and is refused anyway: the bound
+// is the range over which every integer is representable, not this integer's
+// own luck. It is computed rather than written because an element position
+// carries no `uint` expectation for a literal to take.
+uint $two = 2;
+uint $pow53 = 9007199254740992;
+array<uint> $uPow54 = [$pow53 * $two];
+
+// The last accepted magnitude arrives whole rather than rounded: 2^53 over
+// 2^52 is 2 on the nose, and so is its negation.
+echo Core\Str::join(Core\Arr::values(Core\Arr::map($iEdge,
+         fn(float $v, string $k) => ($v / 4503599627370496.0) as string)), ","), "|",
+     Core\Str::join(Core\Arr::values(Core\Arr::map($iNegEdge,
+         fn(float $v, string $k) => ($v / 4503599627370496.0) as string)), ","), "\n";
+
+// One character per magnitude, in pairs: the last accepted one then the first
+// refused one, over both signs and both integer types. `y` is "the member
+// ran", `n` is "the call threw `ArithmeticError`".
+var $marks = "";
+try { Core\Arr::filter($iEdge, fn(float $v, string $k) => true); $marks = $marks . "y"; }
+catch (ArithmeticError $a) { $marks = $marks . "n"; }
+try { Core\Arr::filter($iOver, fn(float $v, string $k) => true); $marks = $marks . "y"; }
+catch (ArithmeticError $a) { $marks = $marks . "n"; }
+try { Core\Arr::filter($iNegEdge, fn(float $v, string $k) => true); $marks = $marks . "y"; }
+catch (ArithmeticError $a) { $marks = $marks . "n"; }
+try { Core\Arr::filter($iNegOver, fn(float $v, string $k) => true); $marks = $marks . "y"; }
+catch (ArithmeticError $a) { $marks = $marks . "n"; }
+try { Core\Arr::filter($uEdge, fn(float $v, string $k) => true); $marks = $marks . "y"; }
+catch (ArithmeticError $a) { $marks = $marks . "n"; }
+try { Core\Arr::filter($uOver, fn(float $v, string $k) => true); $marks = $marks . "y"; }
+catch (ArithmeticError $a) { $marks = $marks . "n"; }
+try { Core\Arr::filter($uPow54, fn(float $v, string $k) => true); $marks = $marks . "y"; }
+catch (ArithmeticError $a) { $marks = $marks . "n"; }
+echo $marks, "\n";
+
+// There is no second implicit conversion, in either direction: a `float`
+// element does not narrow, an `int` element does not render, and the key's
+// `string` does not widen either — the widening reads the argument's own tag,
+// so it is the pair `int|uint` → `float` and nothing else.
+array<float> $floats = [1.5, 2.5];
+var $one = "";
+try { Core\Arr::filter($floats, fn(int $v, string $k) => true); $one = $one . "y"; }
+catch (LogicError $l) { $one = $one . "n"; }
+try { Core\Arr::filter($ints, fn(string $v, string $k) => true); $one = $one . "y"; }
+catch (LogicError $l) { $one = $one . "n"; }
+try { Core\Arr::filter($ints, fn(bool $v, string $k) => true); $one = $one . "y"; }
+catch (LogicError $l) { $one = $one . "n"; }
+try { Core\Arr::filter($ints, fn(float $v, float $k) => true); $one = $one . "y"; }
+catch (LogicError $l) { $one = $one . "n"; }
+echo $one, "\n";
+
+// The widening lives inside the check, so a parameter the check skips does not
+// get it either: `?float` and `mixed` both take the very element a `float`
+// threw on, unwidened, because nothing looked at them.
+var $skipped = "";
+try { Core\Arr::filter($iOver, fn(?float $v, string $k) => true); $skipped = $skipped . "y"; }
+catch (ArithmeticError $a) { $skipped = $skipped . "n"; }
+try { Core\Arr::filter($iOver, fn(mixed $v, string $k) => true); $skipped = $skipped . "y"; }
+catch (ArithmeticError $a) { $skipped = $skipped . "n"; }
+echo $skipped, "\n";
+--EXPECT--
+3.5,5|3.5,5
+2|-2
+ynynynn
+nnnn
+yy
