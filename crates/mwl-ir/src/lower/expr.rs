@@ -381,14 +381,11 @@ impl<'a> Lowering<'a> {
             //
             // `Ternary`, `Match`, `Paren` and `ObjectLiteral`, which used to
             // arrive here, all lower above.
+            //
+            // That subtraction is the proof; the message below is not.
             other => panic!(
-                "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
-                 operators, `new`, a static or instance method call, property access, a static \
-                 property, an array literal, an array-element read, `instanceof`, `isset`, \
-                 `empty`, an enum case, a class-name constant, an increment, an assignment, \
-                 `print`, `throw`, `exit`, a call through a `callable` and an \
-                 `as` conversion — got {other:?}; \
-                 see the crate docs' known gaps"
+                "mwl-ir: unreachable — `ExprKind::{other:?}` reached the expression lowering \
+                 dispatch; see this arm's own comment for the roster it subtracts"
             ),
         }
     }
@@ -1120,6 +1117,14 @@ impl<'a> Lowering<'a> {
                     },
                 )
             }
+            // ADR 0007 § 2's "anything → `string`" row at `null`, and the same
+            // answer `Self::concat_operand` gives the same value: PHP renders
+            // `null` as the empty string, and a `?string` holding one already
+            // does through `Helper::TaggedToString`. The static case rendering
+            // anything else — or being refused — would diverge from both. The
+            // operand has already been lowered for its effects and `Ty::Null`
+            // is not refcounted, so there is nothing here to release.
+            (Ty::Null, Ty::Str) => self.emit(cur, Ty::Str, InstKind::ConstStr(String::new())),
             // ADR 0028 § 1's row: `as string` is the explicit spelling of the
             // same implicit conversion `.` and `echo` apply, so it goes
             // through the same resolved `toString()` rather than a second
@@ -1237,14 +1242,21 @@ impl<'a> Lowering<'a> {
                 }
                 out
             }
+            // Three shapes reach here, all of them a missing *lowering*:
+            // `mwl_types`' `reject_unconvertible` refuses every pair ADR 0007
+            // § 2's closed table has no row for (`E0708`), so this is no
+            // longer where a missing rule is discovered.
             _ => panic!(
                 "mwl-ir lowers ADR 0007 § 2's scalar conversion rows, ADR 0009 § 3's `string` ↔ \
                  `bytes` pair, both of ADR 0010 § 5's enum ones, a `Ty::Tagged` operand into \
-                 every target among them, and every operand into a tagged target — got \
-                 `{from:?} as {to:?}`. ADR 0007 § 2's \
-                 `array<T> as array<U>` is the shape still missing, along with a `Ty::Tagged` \
-                 operand converted to `bytes`, whose runtime-tag row has no helper. See the \
-                 crate docs' known gaps"
+                 every scalar target among them, and every operand into a tagged target — got \
+                 `{from:?} as {to:?}`. Three rows are still missing, and they are the whole of \
+                 what can arrive here, every other pair being `E0708` a phase up: ADR 0007 § 2's \
+                 `array<T> as array<U>`, whose O(n) element walk is no single helper; a \
+                 `Ty::Tagged` operand converted to `bytes`, whose runtime-tag row has no helper; \
+                 and a `Ty::Tagged` operand converted to an object — the checked downcast out of \
+                 ADR 0007 § 6's `mixed`, which needs a class identity this representation does \
+                 not carry. See the crate docs' known gaps"
             ),
         }
     }

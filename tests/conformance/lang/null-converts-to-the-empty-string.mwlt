@@ -1,0 +1,25 @@
+--TEST--
+`null as string` is the empty string, and the static `null`, a `?string` holding one and `echo` all agree — ADR 0007 § 2
+--FILE--
+<?mwl
+// ADR 0007 § 2's "anything → `string`" row at `null`. PHP renders it as the
+// empty string, and a `?string` holding one already did here through
+// `Helper::TaggedToString`, so the *statically* `null` operand — the same
+// value one type earlier — renders the same rather than being refused. The
+// three spellings below are asserted to agree, not each to print something
+// plausible on its own.
+?string $absent = null;
+string $fromTagged = $absent as string;
+string $fromLiteral = null as string;
+
+echo "[", $fromLiteral, "]\n";
+echo "[", $fromTagged, "]\n";
+// `echo` is the implicit site, and `E0707`'s doc is the one home for why
+// `null` is not among the four types it refuses.
+echo "[", null, "]\n";
+echo ($fromLiteral == $fromTagged) as string, "\n";
+--EXPECT--
+[]
+[]
+[]
+1

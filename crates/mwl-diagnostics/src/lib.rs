@@ -1222,6 +1222,22 @@ pub mod code {
     /// PHP's answer and the one a `?string` holding `null` already gets at run
     /// time — `mwl_ir::lower::expr`'s `concat_operand` owns that row.
     pub const E_NO_STRING_FORM: Code = Code::new("E0707");
+    /// An `expr as T` whose operand and target name no row of ADR 0007 § 2's
+    /// conversion table, nor of the three ADRs that table delegates rows to —
+    /// ADR 0009 § 3's `string` ↔ `bytes` pair, ADR 0054 § 4's `decimal` ones
+    /// and ADR 0010 § 5's two enum ones.
+    ///
+    /// The table is *closed*: `as` "either produces a value of the target type
+    /// or throws", so a pair with no row has nothing to produce and nothing to
+    /// throw. `true as int`, `$xs as string`, `$i as bytes`, `$case as float`
+    /// and `$obj as OtherClass` are the shapes that reach it, and each help
+    /// names the spelling that says what was meant instead.
+    ///
+    /// A class target is this code's, not [`E_CLASS_CONVERSION_TARGET`]'s:
+    /// that one is ADR 0066 § 3's *written* `as ?T` sugar, and a plain
+    /// `as SomeClass` is the missing row rather than the withdrawn parse
+    /// roster. The two never fire on the same expression.
+    pub const E_NO_CONVERSION: Code = Code::new("E0708");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

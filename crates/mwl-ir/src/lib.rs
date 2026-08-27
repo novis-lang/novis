@@ -521,10 +521,27 @@
 //!     call, while `bytes as string` validates UTF-8 through
 //!     [`ir::Helper::BytesToString`] and throws rather than substituting.
 //!
-//!     What panics is ADR 0007 § 2's `array<T> as array<U>`, whose O(n)
-//!     element walk is the one row in that table that is not a single helper
-//!     call, and a [`ty::Ty::Tagged`] operand converted to `bytes` — the one
-//!     target with no runtime-tag row of its own.
+//!     What panics is three rows, and **those three are now the whole of
+//!     it**: every other operand/target pair naming no row of ADR 0007 § 2's
+//!     closed table is `E0708` where it is written
+//!     (`mwl_types::expr::operators`' `reject_unconvertible`), so a pair that
+//!     arrives here is a missing lowering rather than a missing rule.
+//!
+//!     They are `array<T> as array<U>`, whose O(n) element walk is the one
+//!     row in that table that is not a single helper call; a
+//!     [`ty::Ty::Tagged`] operand converted to `bytes`, the one scalar target
+//!     with no runtime-tag row of its own; and a [`ty::Ty::Tagged`] operand
+//!     converted to an *object* — `$m as Plain` over a `mixed`, ADR 0007
+//!     § 6's checked way out of the one unchecked position, which needs a
+//!     runtime class identity [`ty::Ty::Object`] deliberately does not carry
+//!     (see its own doc comment) and so wants a helper taking the
+//!     [`ir::Program::classes`] label rather than a representation pair. The
+//!     *statically* typed downcasts are not in this list and run today:
+//!     `object as Plain` and `Comparable as Cell` are one representation on
+//!     both sides, so ADR 0036 § 4 leaves the check to the member access.
+//!
+//!     `null as string` used to be here and is a row now — the empty string,
+//!     the answer `concat_operand` already gave the same value.
 //!
 //!     A statically settled operand needs no check and already worked, since
 //!     `mwl_types` refuses `E0470` before lowering ever sees it. `as ?"a"`

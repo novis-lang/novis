@@ -37,7 +37,11 @@
 //! already names a value the target's closed set does not contain), plus
 //! ADR 0066 § 3's target rule for `as ?T`
 //! ([`check_class_target_conversion`]: every class target is refused, with no
-//! exceptions — § 3a's `tryParse` is the member that answers instead); what a
+//! exceptions — § 3a's `tryParse` is the member that answers instead), plus
+//! the table's own closure ([`reject_unconvertible`]: § 2 is a *closed* list
+//! of rows, so a pair naming none of them has nothing to produce and nothing
+//! to throw, and a class target is decided by whether the two types share a
+//! value at all — [`reject_unrelated_class_conversion`]); what a
 //! conversion does to a qualifier is [`super::quals`], and what its target type
 //! may be spelled as is [`crate::lower`].
 //!
@@ -96,6 +100,13 @@ pub(super) fn infer_conversion(
         require_stringable_object(inner_ty, inner.span, env);
     }
     check_class_target_conversion(ty, result, expr.span, env);
+    // Only the plain `as T` form: ADR 0066's `as ?T` interns as `Union([Null,
+    // T])`, which is one `ConvKind::Wide` target and therefore left alone here.
+    // Which conversions admit *that* form is § 3's own question, and the
+    // refusal it still owes is `Lowering::convert_or_null`'s two panics.
+    if !is_written_nullable(ty) {
+        reject_unconvertible(inner_ty, result, expr.span, env);
+    }
     reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
     reject_secret_markup_conversion(inner_ty, result, expr.span, env);
     reject_non_literal_markup_conversion(inner, result, expr.span, env);
@@ -846,9 +857,11 @@ pub(super) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
 /// Keyed on the **written `?T` sugar**, not on the interned target: § 1
 /// deliberately leaves the `Core\Uri|null` union spelling out of the form, so
 /// a target reached any other way is not this ADR's and is left alone. A
-/// plain `as SomeClass` is left alone too — that is ADR 0007 § 2's table
-/// having no row for a class type, which is a separate refusal this slice
-/// does not add.
+/// plain `as SomeClass` is left alone too, and goes to
+/// [`reject_unconvertible`] instead — that is ADR 0007 § 2's table having no
+/// row for a class type, which is a different sentence reaching a different
+/// help. The two never fire on the same expression, since this one runs only
+/// on the written `?T` sugar and that one only where the sugar is absent.
 fn check_class_target_conversion(ty: &Type, to: TypeId, span: Span, env: &mut Env<'_>) {
     if !is_written_nullable(ty) {
         return;
@@ -912,6 +925,314 @@ fn nullable_class_target(to: TypeId, env: &Env<'_>) -> Option<String> {
     match env.interner.get(only) {
         Ty::Class(name, _) => Some(name.to_string()),
         _ => None,
+    }
+}
+
+/// ADR 0007 § 2's conversion table is **closed**, and this is the refusal that
+/// says so. `as` "is total in intent and checked in fact: it either produces a
+/// value of the target type or throws" — so a pair naming no row has nothing to
+/// produce and nothing to throw, and the honest answer is a diagnostic where it
+/// is written rather than a wrong value or a panic below.
+///
+/// The rows are that table's own, plus the three it delegates to: ADR 0009 § 3
+/// for `string` ↔ `bytes`, ADR 0054 § 4 for `decimal`, and ADR 0010 § 5 for an
+/// enum and its backing type. Two are not in any ADR's table and are here
+/// because they are true of every type — ADR 0035's `as bool`, which is the
+/// condition's own test said out loud, and the widening into a target that
+/// admits more than one runtime shape.
+///
+/// This is what leaves `mwl_ir::lower::expr`'s `Lowering::convert` catch-all
+/// only the two gaps its own message names (`array<T> as array<U>`, and a
+/// tagged operand into `bytes`). Before it, `true as int`, `$xs as string`,
+/// `$i as bytes`, `$case as float` and `null as string` each panicked there,
+/// and `$foo as Bar` between two unrelated classes was worse than a panic: the
+/// representations are equal, so it took the free `from == to` row and read
+/// `Bar`'s slot list off a `Foo`.
+fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
+    // The identical type is always the free no-op row, whatever its kind —
+    // `$s as string` after a narrowing, `$f as Foo`. Only a *different* class
+    // is the unsound reinterpret below.
+    if from == to {
+        return;
+    }
+    let from_kind = conversion_kind(from, env.interner);
+    let to_kind = conversion_kind(to, env.interner);
+    // A class target is not judged by the table at all — see
+    // [`reject_unrelated_class_conversion`] for the three rows that exist and
+    // why relatedness rather than a row is what decides them.
+    if to_kind == ConvKind::Object {
+        reject_unrelated_class_conversion(from, to, span, env);
+        return;
+    }
+    if conversion_row_exists(from_kind, to_kind) {
+        return;
+    }
+    let described_from = env.interner.describe(from);
+    let described_to = env.interner.describe(to);
+    let help = conversion_help(from_kind, to_kind);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_NO_CONVERSION,
+            format!("`{described_from}` cannot be converted to `{described_to}`"),
+        )
+        .with_primary(span, "converted here")
+        .with_help(help),
+    );
+}
+
+/// A class target, which ADR 0007 § 2 tabulates no row *producing* — and yet
+/// three shapes of `as` legitimately name one, so a blanket refusal is wrong:
+///
+/// * **A downcast out of an erased view.** `$erased as Plain` over a plain
+///   `object`, and `$other as Cell` over the interface ADR 0013's `compareTo`
+///   receives, are the two spellings ADR 0036 § 4 leaves standing. Both erase
+///   to one pointer representation, so the conversion runs nothing and the
+///   check happens at the member access instead (`InstKind::SlotGet`).
+/// * **A `Core`-owned class**, which decides for itself: ADR 0024's
+///   `as Core\Html\Markup` is a source-literal `string` and has its own
+///   diagnostic (`E_MARKUP_NOT_LITERAL`) saying so. Exempted here exactly as
+///   [`require_stringable_object`] exempts them, and for the same reason —
+///   the registry row is the rule, not this table.
+/// * **The identical type**, returned by [`reject_unconvertible`] before this
+///   is reached.
+///
+/// What is left is the one that is not a downcast at all: two user types with
+/// **no value in common**, which is `types_are_disjoint`'s question — ADR 0090
+/// § 2's, asked of a conversion rather than of an equality. `$foo as Bar`
+/// between two unrelated classes was worse than a panic before this refusal,
+/// because both erase to `mwl_ir::ty::Ty::Object` and the conversion therefore
+/// took `Lowering::convert`'s free `from == to` row: nothing ran, and `Bar`'s
+/// slot list was then read off a `Foo`'s allocation.
+fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
+    let Ty::Class(qname, _) = env.interner.get(to).clone() else {
+        // Plain `object`, a shape and a `callable` are the other three
+        // `ConvKind::Object` targets, and none of them names a class to be
+        // unrelated to.
+        return;
+    };
+    if qname.is_core() || !types_are_disjoint(from, to, env) {
+        return;
+    }
+    let described_from = env.interner.describe(from);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_NO_CONVERSION,
+            format!("`{described_from}` cannot be converted to `{qname}`"),
+        )
+        .with_primary(span, "converted here")
+        .with_help(
+            "ADR 0007 § 2 tabulates no conversion into a class, and these two share no value at \
+             all: ask `$x instanceof Name` and use the value the test narrows, or call that \
+             class's own named constructor",
+        ),
+    );
+}
+
+/// Which row of ADR 0007 § 2's table a type can appear in — deliberately
+/// coarser than [`Ty`], because the table is written over the *language's*
+/// types rather than over an interned identity.
+///
+/// The union fold and the atom arms mirror `mwl_ir::lower::erase_checked_ty`
+/// on purpose: a type that erases to one runtime representation converts as
+/// that representation, and one that admits more than one is
+/// [`ConvKind::Wide`], where the conversion is picked from the operand's tag
+/// at run time and no static pair can be refused.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConvKind {
+    Bool,
+    Int,
+    Uint,
+    Float,
+    Decimal,
+    Str,
+    Bytes,
+    Null,
+    Void,
+    Array,
+    /// An enum or one of its cases, carrying the backing type ADR 0010 § 5's
+    /// two rows are *about* — `Mode::Read as int` is a row and
+    /// `Mode::Read as uint` is not.
+    Enum(crate::enums::EnumBacking),
+    /// A class, a shape, a `callable` or plain `object`: one pointer
+    /// representation, and no row of the table produces one.
+    Object,
+    /// More than one runtime shape — `mixed`, a `?T`, a heterogeneous union,
+    /// or a type this table does not model. **Never refused, on either side**:
+    /// the row is chosen from the value's tag at run time.
+    Wide,
+}
+
+/// [`ConvKind`] for one type. See that enum's doc comment for why the fold is
+/// the one `erase_checked_ty` performs.
+fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
+    match interner.get(id) {
+        Ty::Bool | Ty::True | Ty::False => ConvKind::Bool,
+        Ty::Int | Ty::IntLiteral(_) => ConvKind::Int,
+        Ty::Uint => ConvKind::Uint,
+        Ty::Float => ConvKind::Float,
+        Ty::Decimal => ConvKind::Decimal,
+        Ty::String
+        | Ty::TaintedString
+        | Ty::SecretString
+        | Ty::SecretTaintedString
+        | Ty::StringLiteral(_) => ConvKind::Str,
+        Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => ConvKind::Bytes,
+        Ty::Null => ConvKind::Null,
+        Ty::Void => ConvKind::Void,
+        Ty::Array(_) => ConvKind::Array,
+        Ty::Enum(_, backing) | Ty::EnumCase(_, backing, _) => ConvKind::Enum(*backing),
+        Ty::Class(..) | Ty::Object | Ty::Shape(_) | Ty::Callable | Ty::CallableTo(_) => {
+            ConvKind::Object
+        }
+        Ty::Union(members) => {
+            let mut shared: Option<ConvKind> = None;
+            for member in members {
+                let kind = conversion_kind(*member, interner);
+                match shared {
+                    None => shared = Some(kind),
+                    Some(seen) if seen == kind => {}
+                    _ => return ConvKind::Wide,
+                }
+            }
+            shared.unwrap_or(ConvKind::Wide)
+        }
+        _ => ConvKind::Wide,
+    }
+}
+
+/// The table itself, one arm per ADR row. Read [`reject_unconvertible`]'s doc
+/// comment first: everything here is a row of ADR 0007 § 2 or of one of the
+/// three ADRs it delegates to, and `false` is the absence of a row rather than
+/// a judgement of its own.
+fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
+    use ConvKind::{
+        Array, Bool, Bytes, Decimal, Enum, Float, Int, Null, Object, Str, Uint, Void, Wide,
+    };
+    match (from, to) {
+        // A `void` call has no value, so it is neither an operand a row can
+        // read nor a target a row can produce. Refused on both sides rather
+        // than left to the widening row below, where `Helper::nothing() as
+        // mixed` tagged a value that was never defined.
+        (Void, _) | (_, Void) => false,
+        // A class target never reaches this table — [`reject_unconvertible`]
+        // sends it to [`reject_unrelated_class_conversion`] first, because
+        // what decides one is whether the two types share a value rather than
+        // which row of § 2 they name.
+        (_, Object) => true,
+        // Either side admits more than one runtime shape, so the row is the
+        // operand's tag's and no static pair can be judged. `mixed` is the
+        // whole of ADR 0007 § 6 here.
+        (Wide, _) | (_, Wide) => true,
+        // ADR 0035, which makes a condition the one place a value is tested
+        // without `as` — so `as bool` is that same test written out, and it
+        // has an answer for every type the table above did not already
+        // exclude.
+        (_, Bool) => true,
+        // ADR 0007 § 2's "anything → `string`" row: total for scalars, and an
+        // object needs `Stringable` — which `require_stringable_object` has
+        // already asked at this same span. `null` is in the row for the reason
+        // `E_NO_STRING_FORM`'s doc gives: PHP renders it as the empty string
+        // and a `?string` holding one already does.
+        (Bool | Int | Uint | Float | Decimal | Str | Null | Object, Str) => true,
+        // ADR 0007 § 2's numeric rows, each exact-or-throws.
+        (Int, Uint) | (Uint, Int) | (Int | Uint, Float) | (Float, Int | Uint) => true,
+        (Str, Int | Uint | Float) => true,
+        // ADR 0054 § 4's rows. `decimal → string` is in the "anything →
+        // `string`" row above with the other scalars.
+        (Int | Uint | Float | Str, Decimal) | (Decimal, Int | Uint | Float) => true,
+        // ADR 0009 § 3's pair, and the only two rows either side appears in.
+        (Str, Bytes) | (Bytes, Str) => true,
+        // ADR 0010 § 5 refuses enum → a *different* enum by name rather than
+        // by backing type, and `reject_enum_to_enum_conversion` is where that
+        // sentence lives — so this leaves the pair alone rather than reporting
+        // a second, vaguer diagnostic on the same span. An enum case converted
+        // to its own enum reaches here too, and is the free row.
+        (Enum(_), Enum(_)) => true,
+        // ADR 0010 § 5 row 1: an enum to its own underlying type, total and
+        // free. Not to any *other* number — `$case as float` is that row and
+        // then ADR 0007 § 2's, written out.
+        (Enum(backing), target) => target == enum_backing_kind(backing),
+        // ADR 0010 § 5 row 2, the same composition `Lowering::convert`
+        // performs: the operand converts to the enum's backing scalar by
+        // whichever row above applies, and the tag goes back on for free.
+        (source, Enum(backing)) => conversion_row_exists(source, enum_backing_kind(backing)),
+        // ADR 0007 § 2's O(n) element row.
+        (Array, Array) => true,
+        // Two spellings of one representation — a literal type and its base,
+        // `secret bytes` and `bytes`. ADR 0047 § 5 and ADR 0033 § 1 both make
+        // these free, and the qualifier rule that runs after this one
+        // ([`super::quals`]) is what decides the result's own qualifiers. The
+        // `bool` and `string` pairs are already true two rows up, so naming
+        // them again here is an unreachable arm rather than a missing one.
+        (Int, Int)
+        | (Uint, Uint)
+        | (Float, Float)
+        | (Decimal, Decimal)
+        | (Bytes, Bytes)
+        | (Null, Null) => true,
+        _ => false,
+    }
+}
+
+/// The [`ConvKind`] of an enum's backing type — ADR 0010 § 2 gives every enum
+/// exactly one, `int` or `uint`.
+fn enum_backing_kind(backing: crate::enums::EnumBacking) -> ConvKind {
+    match backing {
+        crate::enums::EnumBacking::Int => ConvKind::Int,
+        crate::enums::EnumBacking::Uint => ConvKind::Uint,
+    }
+}
+
+/// What to write instead, for each shape that reaches [`reject_unconvertible`].
+/// Ordered operand-first where the operand is the whole reason there is no row,
+/// target-first otherwise.
+fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
+    use ConvKind::{Array, Bool, Bytes, Enum, Null, Object, Str, Void};
+    match (from, to) {
+        (Void, _) => {
+            "a call that returns `void` has no value at all, so there is nothing here to convert"
+        }
+        (_, Void) => "`void` is a return type, not a value's type — there is nothing to produce",
+        (_, Object) => {
+            "ADR 0007 § 2 tabulates no conversion into a class: ask `$x instanceof Name` and use \
+             the value the test narrows, or call that class's own named constructor"
+        }
+        (Array, Str) => {
+            "an `array<T>` has no text of its own; render it — `Core\\Json::encode($a)` — or \
+             build the string from its elements"
+        }
+        (Enum(_), Str) => {
+            "an enum case is a named integer (ADR 0010 § 3), not text — `$case as int as string`, \
+             or a member of your own that names it"
+        }
+        (Enum(_), _) => {
+            "ADR 0010 § 5 converts an enum to its own backing type alone — convert to that first, \
+             then to the type you want"
+        }
+        (_, Array) => {
+            "ADR 0007 § 2's only row producing an `array<T>` is another `array<U>` — text becomes \
+             one through `Core\\Json::decode($s)`"
+        }
+        (_, Bytes) => {
+            "ADR 0009 § 3 gives `bytes` exactly one source, a `string`: render the value first — \
+             `$v as string as bytes`"
+        }
+        (Bytes, _) => {
+            "ADR 0009 § 3 gives `bytes` exactly one target, a `string` — `$b as string`, and then \
+             the type you want"
+        }
+        (Bool, _) => {
+            "`bool` converts to `string` and to `bool` alone (ADR 0007 § 2); a number out of a \
+             predicate is a branch said out loud — `$b ? 1 : 0`"
+        }
+        (Null, _) => {
+            "`null` converts to `string` — the empty one — and to `bool`; every other target \
+             would be a substituted default, and `as` never substitutes one"
+        }
+        _ => {
+            "ADR 0007 § 2's table is the whole list of conversions there is, and it has no row \
+             for this pair"
+        }
     }
 }
 

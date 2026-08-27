@@ -1,0 +1,65 @@
+--TEST--
+`as` refuses every operand/target pair ADR 0007 § 2's table has no row for, one diagnostic per pair — ADR 0007 § 2, ADR 0009 § 3, ADR 0010 § 5
+--FILE--
+<?mwl
+// ADR 0007 § 2's table is *closed*: `as` "either produces a value of the
+// target type or throws", so a pair naming no row has nothing to produce and
+// nothing to throw. Each binding below is one absent row, and each help names
+// the spelling that says what was meant instead.
+enum Mode { Read, Write }
+
+class Helper {
+    public static function nothing(): void {}
+}
+
+class Foo { public int $n = 1; }
+class Bar { public string $m = "x"; }
+
+array<int> $xs = [1, 2];
+bool $flag = true;
+int $i = 7;
+string $s = "abc";
+Mode $mode = Mode::Read;
+Foo $foo = new Foo();
+
+// An `array<T>` and an enum case have no text of their own: the "anything →
+// `string`" row is total for *scalars*, and neither is one.
+string $a = $xs as string;
+string $b = $mode as string;
+// ADR 0010 § 5 grants an enum its own backing type and no other number.
+float $c = $mode as float;
+// `bool` is in the `string` row and in no numeric one.
+int $d = $flag as int;
+// ADR 0009 § 3 gives `bytes` exactly one source and one target, both `string`.
+bytes $e = $i as bytes;
+// The only row producing an `array<T>` is another `array<U>`.
+array<int> $f = $s as array<int>;
+// No row produces a class. `Foo` and `Bar` share one representation, so this
+// is the pair that would otherwise read `Bar`'s slot list off a `Foo`.
+Bar $g = $foo as Bar;
+// A `void` call has no value at all, so it is neither an operand nor a target.
+string $h = Helper::nothing() as string;
+// `as` never substitutes a default, which is the whole of what this would be.
+int $j = null as int;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0708]: `array<int>` cannot be converted to `string`
+%A
+error[E0708]: `Mode` cannot be converted to `string`
+%A
+error[E0708]: `Mode` cannot be converted to `float`
+%A
+error[E0708]: `bool` cannot be converted to `int`
+%A
+error[E0708]: `int` cannot be converted to `bytes`
+%A
+error[E0708]: `string` cannot be converted to `array<int>`
+%A
+error[E0708]: `Foo` cannot be converted to `Bar`
+%A
+error[E0708]: `void` cannot be converted to `string`
+%A
+error[E0708]: `null` cannot be converted to `int`
+%A
+error: aborting due to 9 errors
