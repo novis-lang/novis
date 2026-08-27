@@ -689,7 +689,15 @@ pub fn lower_method(
         let decl_ty =
             p.ty.as_ref()
                 .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
-        let ty = lower_decl_type(decl_ty, exprs, checked_types);
+        // `...$rest`'s declared type is what each trailing *argument* is
+        // checked against; the slot itself receives the one array
+        // `Lowering::lower_variadic_tail` collected them into, which is what
+        // the caller has always passed. `mwl_types::check` binds the body's
+        // own name at `array<` that `>` for the same reason.
+        let ty = match p.variadic {
+            true => Ty::Array,
+            false => lower_decl_type(decl_ty, exprs, checked_types),
+        };
         // +1: index 0 is always the implicit receiver seeded above.
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let pname = strip_sigil(span_text(src, p.name)).to_owned();

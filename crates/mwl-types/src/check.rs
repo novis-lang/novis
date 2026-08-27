@@ -395,6 +395,16 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
     for param in &m.params {
         let ty = lower_optional_type(param.ty.as_ref(), ctx, env);
+        // `...$rest` declares the type of *each* trailing argument — which is
+        // what `MethodSig::param_at` matches an argument against — but the
+        // body is handed the one array the call site collected them into, so
+        // the binding is `array<` that `>`. Getting this wrong is not a
+        // checker-only mistake: `mwl_ir::lower::lower_method` binds the same
+        // slot, and the caller has always passed an array there.
+        let ty = match param.variadic {
+            true => env.interner.array(ty),
+            false => ty,
+        };
         let name = strip_sigil(span_text(env.src, param.name)).to_owned();
         scope.declare_param(name.clone(), ty, param.name);
         live.insert(name);

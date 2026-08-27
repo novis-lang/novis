@@ -214,12 +214,15 @@ The container is unchanged — an insertion-ordered hash with copy-on-write valu
 - An `int` or `uint` subscript is normalised to its decimal string at the subscript: `$a[8]` is `$a["8"]`.
   This is key normalisation, not a value conversion, and it needs no `as` — PHP already normalises, in the
   other direction. `"08"` remains a distinct key from `"8"`, exactly as in PHP.
-- **A `...$a` element of an array literal renumbers an integer-looking key and preserves every other one**,
+- **A `...$a` element of an array literal, and a `...$a` argument filling a variadic tail, renumber an
+  integer-looking key and preserve every other one**,
   which is PHP's own spread and needs no rule of its own: each entry copied is either the append above or
   the write `$a[$k] = $v`, chosen by the same canonical-decimal reading of the key that already decides
   where a later `$a[]` lands. So `[...$xs, ...$ys]` concatenates two lists, `[...$defaults, ...$overrides]`
   overrides by name, and a mixed subject gets both — the outcome a developer reading the literal expects,
-  in the one place where they can see the subject. That reading selects between two *writes* here rather
+  in the one place where they can see the subject — and a call's tail is that same array, built the same
+  way, which is why `f(...$xs, ...$ys)` concatenates too and why *7* row 12 is the only place the two
+  languages part. That reading selects between two *writes* here rather
   than between two *rules*, which is what a **combining member** may not do:
   `Core\Arr::overlay`/`underlay`/`appendAll` treat every key alike, and there is deliberately no
   `Arr::merge` ([0069](0069-array-combination-is-key-type-independent.md)). Because a renumbered key is an
@@ -329,8 +332,10 @@ later. Each is reachable in PHP only *because* a binding somewhere is untyped:
 | 10 | `$a[] .= "x"` appends, the element that is not there yet reading as `""` | refused at check time (`E0481`), like every other read of `[]` — nothing makes an absent element read as a zero value, which is row 8 one storage kind along |
 | 11 | reading an absent array key warns and yields `null` | **throws** — there is no `null` to put in an `array<string>`, so row 8's rule holds at runtime too: absent storage is never a zero value. A stored `null` in an `array<?T>` is not an absent key and reads back unchanged. **`$a["k"] ?? $d` is the one exception and is PHP-identical**: `??` means "absent or `null`, without the warning", so the guarded read yields `$d` rather than throwing — refusing there would refuse the spelling PHP offers for exactly this, and the throw is what makes it worth writing. The guard covers **every level of the chain under it**, so `$a["k"]["j"] ?? $d` yields `$d` for an absent key at either depth, and a `null` base needs no `!= null` test in that one position |
 
+| 12 | `f(...["k" => "v", "0" => "z"])` is a fatal *"Cannot use positional argument after named argument during unpacking"* | accepted — the tail is built by the one spread rule in *5*, so the string key is preserved and the integer-looking one is renumbered under the tail's own append counter. PHP refuses it because it re-reads a string key as a `name:`; MWL's variadic tail *is* the array, and a name never reaches it ([0063](0063-core-signatures-and-options.md) R2 is the by-name surface), so there is nothing for a later key to be out of order with. Every spread PHP does accept is byte-identical, string keys included |
+
 The consequence to plan around: the imported `.phpt` corpus (M11) will have a **structurally lower** pass
-rate than a compatibility-first design would, and failures in these eleven classes are intentional
+rate than a compatibility-first design would, and failures in these twelve classes are intentional
 divergence, not bugs. The tracked number must distinguish the two or it will be read as regression.
 
 ## Consequences

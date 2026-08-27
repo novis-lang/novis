@@ -1201,6 +1201,15 @@ is why" — is this file.
   goes red under a fix, check its expectation against PHP (`php -r '…'`) before adjusting
   either side: a `--EXPECT--` block is only as authoritative as the session that wrote it, and
   a case using a construct incidentally is where a wrong one hides.
+- **`python tools/loop.py --list` names the exact `.mwlt` *filenames* each stage owes, and a case
+  written under a different name does not count toward them.** `python tools/holes.py --item N`
+  prints the same names under "cases that may belong to it", which is the cheapest place to see them
+  — one call, before writing the case rather than after. Two cases went in as
+  `a-named-argument-fills-its-own-parameters-slot` and `a-spread-argument-unpacks-like-phps` when the
+  stage was owed `a-named-argument-binds-by-name-and-a-spread-by-position` and
+  `a-named-and-spread-argument-match-phps`; renaming afterwards is a `git mv` plus a re-run, but the
+  owed name is also a *specification* — it said "and a spread by position", which is a row the first
+  draft did not have.
 
 ## Splitting a file that got too big
 

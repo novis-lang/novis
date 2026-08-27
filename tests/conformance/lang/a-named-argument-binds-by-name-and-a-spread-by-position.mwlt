@@ -1,5 +1,5 @@
 --TEST--
-a `name:` call argument is evaluated where it is written and lands in its own parameter's slot, so a call may reorder its arguments and skip a defaulted parameter in the middle (ADR 0063 R2, ADR 0011 § 1)
+a `name:` call argument is evaluated where it is written and lands in its own parameter's slot, so a call may reorder its arguments and skip a defaulted parameter in the middle, while a `...` argument binds by position at the end of the list (ADR 0007 § 5, ADR 0063 R2, ADR 0011 § 1)
 --FILE--
 <?mwl
 final class Fmt {
@@ -15,6 +15,14 @@ final class Fmt {
     }
     public static function pair(string $a, string $b): string {
         return $a . "/" . $b;
+    }
+    // The body is handed the one array the call site collected, keys and all.
+    public static function rest(string $sep, string ...$parts): string {
+        string $out = "";
+        foreach ($parts as string $p) {
+            $out = $out . $p . $sep;
+        }
+        return "(" . $out . ")";
     }
 }
 
@@ -54,6 +62,14 @@ echo $b->render(close: ">", open: "<"), "\n";
 int $n = 5;
 Box::bump(by: 3, n: $n);
 echo $n as string, "\n";
+
+// A `...` binds by *position*, not by name: it lands wholly in the variadic
+// tail, after every fixed parameter is filled, and its own entries become the
+// tail's. A written argument before it keeps its own place.
+array<string> $xs = ["a", "b"];
+echo Fmt::rest("-"), "\n";
+echo Fmt::rest("-", ...$xs), "\n";
+echo Fmt::rest("-", "z", ...$xs), "\n";
 --EXPECT--
 > a!
 > a?
@@ -63,3 +79,6 @@ tap:B tap:A A/B
 [t:4]
 <t:4>
 8
+()
+(a-b-)
+(z-a-b-)

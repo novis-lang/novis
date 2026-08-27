@@ -2,70 +2,49 @@
 
 ## State
 
-**M4 — language completeness.** Item 16 is half closed: a **named** or **spread** call
-argument now type-checks, with the parameter it fills settled by the checker and handed
-down. The lowering half is still open, so a well-typed `f(...$xs)` still panics at
-`crates/mwl-ir/src/lower/call.rs:75` — unchanged, not a regression.
+**M4 — language completeness.** Item 16 is closed: a `name:` argument lands in its own
+parameter's ABI slot while evaluating where it was written, a `...` argument's entries
+are spread into the variadic tail, and both are pinned against PHP. `python tools/holes.py`
+is at **33 sites**; item 16's one remaining site is the `CallArgs::FirstClassCallable`
+arm (`crates/mwl-ir/src/lower/call.rs:85`), which is `mwl-ir` gap 1 and not item 16's.
 
-The mapping is `mwl_types::expr_table::ArgSlot` (`Param(i)` / `Spread(i)` / `Unresolved`),
-one entry per written argument, recorded on `ResolvedCall::arg_slots`. `mwl-ir` cannot
-re-derive it: a name resolves against `MethodSig::param_names`, a new
-`Option<Vec<String>>` that is `None` for every signature with no source names — every
-`Core` row, the synthesized `Throwable` constructor, the seeded interfaces. `None` is not
-`Some(vec![])`, and that is the whole reason it is an `Option`: it is what makes
-**E0485** ("write ADR 0063 R2's options bag") a different diagnostic from **E0486**
-("no such parameter") at a zero-parameter user method.
+`verify.py` 6 of 6 green — conformance **588**, differential **164**, 1629 unit tests.
+`tools/leak-check.sh` green over a fixture with a borrowed spread subject, a freshly-built
+one, two spreads in one call and a throwing variadic callee.
 
-The rules and their reasons are on `mwl_types::expr::args::map_arguments`
-(`crates/mwl-types/src/expr/args.rs:145`), which is reached only by a list containing a
-`name:` or a `...` — an all-positional list keeps its own identity mapping and its own
-count-against-count arity message, so no existing call site's diagnostic moved. New
-codes: **E0485**–**E0489**. Two findings worth not re-deriving: **E0484 has no call-site
-twin** (a variadic parameter always supplies an `array<T>` expectation, so the mismatch
-is the better `E0401` — `declared_for`'s doc comment owns it, and the item's own text
-predicted otherwise), and a spread binds a *generic* variadic tail for free, `array<T>`
-against the subject's own array type being the same rule one element at a time.
-
-`verify.py` 6 of 6 green — conformance **586**, differential **163**, 1629 unit tests.
-`python tools/holes.py` is unmoved at **34 sites**: this slice added no lowering.
+Three facts worth not re-deriving, all recorded where they belong rather than here:
+the placement rule and its ownership are `lower_call_args`/`lower_variadic_tail`'s own doc
+comments; the spread's key rule is ADR 0007 § 5 and its single PHP divergence is § 7
+**row 12**; and a variadic parameter's *body* binding is `array<T>` while its recorded
+signature type stays the element type — that split is commented at both binding sites
+(`crates/mwl-types/src/check.rs:396`, `crates/mwl-ir/src/lower/mod.rs:688`) and was a live
+bug this session, not a design change.
 
 ## Next group
 
-**Item 16's lowering half first** — it is the only thing standing between a checked
-`f(...$xs)`/`f(name: v)` and a program that runs, and everything it needs is now on disk.
-It and the third slice are two file sets; take the third only with room left.
+**Item 7 — `$x++`/`--$x`, and the compound forms that inherit the same hole.** One file
+set: `crates/mwl-ir/src/lower/stmt.rs` throughout, with the expression-position half in
+`crates/mwl-ir/src/lower/expr.rs`. The item's own text (`tools/holes.py --item 7`) names
+the two prerequisites, and they are the first slice rather than a preamble to it.
 
-- [ ] **Item 16's lowering half: reorder by `arg_slots`** — `crates/mwl-ir/src/lower/call.rs:60`
-      (`lower_call_args`, whose `assert!` at `:75` is the panic) and `:219`
-      (`lower_variadic_tail`). Read `ResolvedCall::arg_slots` through
-      `ArgSig` (`crates/mwl-ir/src/lower/mod.rs:1193`), which today copies only
-      `param_tys`/`by_ref`/`variadic`/`defaults` off the resolved call. The checker
-      guarantees the shape: every slot is `Param(i)` or `Spread(i)`, at most one argument
-      per fixed parameter, every `Spread` lands at the variadic index with every fixed
-      parameter already filled — so the lowering never has to refuse anything, it has to
-      *place* each lowered value at its parameter's ABI position and fall back to
-      `emit_const_arg` for a parameter no slot named.
-- [ ] **The spread's own entries into the variadic tail** — same file. The tail already
-      builds one fresh array; a `Spread` contributes its subject's entries to that array,
-      which is the `InstKind::ArraySpread` (`crates/mwl-ir/src/lower/expr.rs:3645`) and
-      the `mwl_array_spread` helper item 17 landed. Watch the refcount edge item 17
-      already paid for: the subject is **borrowed**, so a freshly-built one is staged as
-      an owned temporary, and the array under construction is staged and re-pointed
-      after every write.
-- [ ] **A positional element after an explicit key still numbers from its own position**
-      — `crates/mwl-ir/src/lower/expr.rs:3657`'s keyed shape, the one divergence a
-      spread-carrying literal no longer shares. `[1, "k" => 2, 3]` puts `3` at `"1"`
-      where PHP puts it at `"2"`, and the fix is the `ArrayAppend` the spread path
-      already takes. `lower::tests::a_positional_element_after_an_explicit_key_keeps_its_own_position_counter`
-      pins the current answer and `ir::InstKind::ArrayNew`'s doc comment records it as
-      deliberate.
+- [ ] **Split the target's *address* out of `lower_reassignment`** — `crates/mwl-ir/src/lower/stmt.rs:415`
+      (`lower_reassignment`), `:706` (`is_reevaluable_target`), `:331`. `f()->count += 1` must
+      evaluate `f()` once where the rewrite reads it twice, so a re-evaluable target is staged
+      through `Lowering::staged_targets` (the playbook bullet on it is the whole mechanism) rather
+      than lowered twice. `mwl-ir` gap 16.
+- [ ] **`$x++`/`--$x` in statement position**, over a plain local, a compile-time-known property and
+      an array element — same file, `crates/mwl-ir/src/lower/stmt.rs:920`. The increment's `1` has no
+      source span, so it cannot be desugared into an `ExprKind::Int` the way every other compound
+      form is: emit the constant directly, which is the second thing the item says to split out.
+- [ ] **`$x++`/`--$x` in expression position**, where pre- and post- differ in the value the
+      expression yields — `crates/mwl-ir/src/lower/expr.rs:258` is the arm that refuses an `Assign`
+      as an expression today, and it is the same arm a `$n = $m = 0` would need.
 
 ## Backlog
-
-- `mwl-ir` gap 1: `Class::method(...)` first-class callable panics — `mwl-ir`'s crate docs.
-- Calling a closure through the variable holding it does not lower — `mwl-ir`'s crate docs.
-- ADR 0007 § 2's `array<T> as array<U>` conversion row does not lower — `lower/expr.rs:877`.
-- `lower_decl_type`/`lower_checked_ty` catch-alls: `decimal`, `never`, `iterable`,
-  `self`/`static`/`parent`, a shape and an intersection as a *declared* type — no item names them.
-- An abandoned generator's `finally` (loop-goal § *Standing decisions*) is still unbuilt.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- Item 20, `foreach (… as &$v)` — one site, `crates/mwl-ir/src/lower/control.rs:712`, its own file set.
+- Item 19's three `&$x`-in-a-closure/generator sites — `lower/closure.rs:160`, `lower/generator.rs:155`/`:470`.
+- Item 4 (bitwise) 2 sites and item 6 (`<=>`) 1 — `docs/agent/loop-goal.md` items 4 and 6.
+- `mwl-codegen/src/ty.rs:116`/`:121` are unattributed by `holes.py` and no item names them.
+- ADR 0007 § 5's remaining keyed-literal divergence: a positional element after an explicit
+  `int`-looking key numbers from its own position — the third slice of the group just finished, untaken.
+- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).

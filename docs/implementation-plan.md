@@ -65,8 +65,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 586 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 163, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 588 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 164, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -296,13 +296,37 @@
 > position with no `array<T>` expectation is left with, and a variadic parameter always has one, so
 > `...$s` over a `string` is `expected array<T>, found string`, the same mistake named better. The
 > arity check for a named list names the unfilled parameter rather than counting, and is suppressed
-> behind any argument that reached no parameter at all, one mistake being one diagnostic. **The
-> lowering half is untouched**: `crates/mwl-ir/src/lower/call.rs:75` still asserts, so a well-typed
-> `f(...$xs)` reaches it and panics exactly as before. **M4S Part I is the floor, not the
-> frontier**: conformance is at 586 of the goal's new 750 and differential at 163 of 165, `python
-> tools/gaps.py` still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a
-> group is blocked — never a reason to leave a language item unfinished.
-> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+> behind any argument that reached no parameter at all, one mistake being one diagnostic. **Item 16
+> is closed.** `lower_call_args` no longer walks the written list against `param_tys` position by
+> position: it reads `ResolvedCall::arg_slots` off `ArgSig` and places each written argument at the
+> ABI position of the parameter it fills, so **evaluation stays in written order while the callee's
+> typed slots fill in declaration order** — the two disagree exactly when a `name:` reorders a call.
+> A fixed parameter no argument filled takes its own default afterwards, which is the hole-filling
+> an omitted trailing argument already got except that a hole may now sit in the middle of the list.
+> A `...` argument is one `InstKind::ArraySpread` into the tail array rather than one entry of it,
+> reusing item 17's instruction and its runtime; the written-out entries keep their single
+> `ArrayNew`, because they are always a *prefix* — a positional argument cannot follow a `...` and a
+> `name:` never reaches the variadic parameter — so a call with no spread emits exactly the
+> instructions it emitted before. **The key rule is ADR 0007 § 5's, unchanged**: an integer-looking
+> key renumbered under the tail's own append counter, every other preserved, which is byte-identical
+> to PHP's own unpacking on every input PHP accepts, string keys included. The one divergence is ADR
+> 0007 § 7 **row 12**, the § 7 table's second new row this goal: `f(...["k" => "v", "0" => "z"])` is
+> a run-time fatal in PHP, which re-reads a string key as a `name:` and then refuses the integer one
+> behind it, and is accepted here because MWL's variadic tail *is* the array and has no by-name
+> surface for a later key to be out of order with. **One live bug went with it**, off the worklist
+> because nothing panicked: a `string ...$parts` parameter bound its own *body* at `string` — the
+> type each argument is checked against — while the caller has always passed the one array it
+> collected them into, so no user-declared variadic method could read its tail at all (`foreach
+> ($parts as string $p)` was `E0443: foreach cannot iterate a string`) and `mwl-ir` declared that
+> ABI slot at the element's representation rather than `Ty::Array`. Both halves bind `array<T>` now,
+> in `mwl_types::check`'s parameter loop and in `mwl_ir::lower::lower_method`'s. `python
+> tools/holes.py` is down to **33 sites**, and item 16's last one is not its own: it is the
+> `CallArgs::FirstClassCallable` arm, the `Class::method(...)` spelling that is `mwl-ir` gap 1.
+> **M4S Part I is the floor, not the frontier**: conformance is at 588 of the goal's new 750 and
+> differential at 164 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
+> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
+> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
+> tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones

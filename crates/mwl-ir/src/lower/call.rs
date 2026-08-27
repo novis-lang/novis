@@ -15,9 +15,9 @@ impl<'a> Lowering<'a> {
     /// the ABI position of the parameter it fills rather than at its own place
     /// in the list. Which parameter that is comes from [`ArgSig::arg_slots`],
     /// which owns why this crate cannot work it out itself. An argument whose
-    /// expected type
-    /// [`Ty::is_refcounted`] and whose source expression [`is_aliasing_read`]
-    /// (a bare variable or a compile-time-known property read) is retained
+    /// expected type [`Ty::is_refcounted`] and whose source expression
+    /// [`is_aliasing_read`] (a bare variable or a compile-time-known property
+    /// read) is retained
     /// before the call — the callee's own parameter is bound into its `Env`
     /// exactly like a local (see [`lower_method`]) and released at its own
     /// exit by [`Lowering::release_all_locals`], so this retain is the
@@ -119,7 +119,16 @@ impl<'a> Lowering<'a> {
                 continue;
             }
             let mut one = LoweredArgs::default();
-            self.lower_fixed_arg(arg, index, sig, checked_types, ownership, env, cur, &mut one);
+            self.lower_fixed_arg(
+                arg,
+                index,
+                sig,
+                checked_types,
+                ownership,
+                env,
+                cur,
+                &mut one,
+            );
             filled[index] = Some(one);
         }
         assert!(
@@ -293,6 +302,29 @@ impl<'a> Lowering<'a> {
     /// array itself is the one value accounted at the call boundary — a fresh
     /// producer, hence this frame's temporary to release once the call has
     /// returned.
+    ///
+    /// # A `...` argument
+    ///
+    /// A spread hands over an array whose *entries* become arguments, so it is
+    /// one [`ir::InstKind::ArraySpread`] into the tail array rather than one
+    /// entry of it: how many arrived is the subject's own run-time length, and
+    /// there is no lowering-time key to give them. `mwl_runtime::mwl_array_spread`
+    /// owns which of the subject's keys survive (ADR 0007 § 5) and it is PHP's
+    /// unpacking rule as well as PHP's array-literal one — an integer-looking
+    /// key is renumbered under the tail's own append counter, so
+    /// `f(...$xs, ...$ys)` concatenates, and a string key is preserved, which
+    /// is what a `string`-keyed unpack lands in PHP's variadic parameter too.
+    ///
+    /// The written-out entries keep their single `ArrayNew` because they are
+    /// always a *prefix*: a positional argument cannot follow a `...`, and a
+    /// `name:` never reaches the variadic parameter at all
+    /// (`mwl_types::expr::args::map_arguments` rules 1 and 3). So a call with
+    /// no spread emits exactly the instruction it emitted before.
+    ///
+    /// The subject is **borrowed** by the copy and the half-built array is
+    /// named by nothing, so both go on [`Self::owned_temporaries`] while the
+    /// copies run — the array re-pointed after each one, and handed back to
+    /// [`Self::account_for_arg`] at the end.
     #[expect(
         clippy::too_many_arguments,
         reason = "the same context `lower_call_args` itself threads; splitting it into a struct \
@@ -308,14 +340,14 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         out: &mut LoweredArgs,
     ) {
-        assert!(
-            rest.iter().all(|arg| !arg.spread),
-            "mwl-ir does not yet lower a spread call argument's entries into a variadic tail; \
-             see the crate docs' known gaps"
-        );
         let expected = sig.expectation(fixed, self.checked_types);
-        let mut entries = Vec::with_capacity(rest.len());
-        for (index, arg) in rest.iter().enumerate() {
+        // Every argument written out one by one is a prefix of the tail: a
+        // positional argument cannot follow a `...` (`mwl_types`' E0488) and a
+        // `name:` never reaches the variadic parameter at all, so the first
+        // spread is where the lowering-time keys stop.
+        let spread_from = rest.iter().position(|arg| arg.spread).unwrap_or(rest.len());
+        let mut entries = Vec::with_capacity(spread_from);
+        for (index, arg) in rest[..spread_from].iter().enumerate() {
             let (v, ty) = self.lower_expr(&arg.value, expected, env, cur);
             if ty.is_refcounted() && self.aliasing_read(&arg.value) {
                 self.emit_retain(*cur, v);
@@ -330,7 +362,42 @@ impl<'a> Lowering<'a> {
             };
             entries.push((index.to_string(), v));
         }
-        let (array, ty) = self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries });
+        let (mut array, ty) = self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries });
+        if spread_from < rest.len() {
+            // The tail array is named by no local while the copies run, and
+            // `ArraySpread` can throw, so it is this frame's temporary and is
+            // re-pointed after every write — exactly what an array literal
+            // containing a spread does with the array it is building.
+            let slot = self.temporaries_mark();
+            self.own_temporary(array);
+            for arg in &rest[spread_from..] {
+                assert!(
+                    arg.spread,
+                    "mwl-ir: a positional argument follows a `...` in a variadic tail — \
+                     this crate trusts mwl_types::check_program already reported it as E0488"
+                );
+                let mark = self.temporaries_mark();
+                // The subject is *borrowed* by the copy, so a freshly-built one
+                // is this frame's to release on whichever edge the copy takes.
+                let (subject, subject_ty) = self.lower_expr(&arg.value, None, env, cur);
+                if subject_ty.is_refcounted() && !self.aliasing_read(&arg.value) {
+                    self.own_temporary(subject);
+                }
+                array = self
+                    .emit_fallible(
+                        *cur,
+                        Ty::Array,
+                        InstKind::ArraySpread { array, subject },
+                        env,
+                    )
+                    .0;
+                self.retarget_temporary(slot, array);
+                self.release_temporaries_since(mark, *cur);
+            }
+            // The finished array is `account_for_arg`'s from here, exactly as
+            // the no-spread one beside it is.
+            self.forget_temporary(slot);
+        }
         self.account_for_arg(array, ty, ownership, false, *cur);
         out.values.push(array);
     }

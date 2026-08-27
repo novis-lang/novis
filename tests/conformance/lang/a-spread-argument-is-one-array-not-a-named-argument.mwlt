@@ -1,0 +1,41 @@
+--TEST--
+a `...` call argument builds the variadic tail by ADR 0007 § 5's one spread rule, so a mix of string and integer-looking keys is accepted where PHP refuses it as a positional-after-named unpack (ADR 0007 § 5, § 7 row 12)
+--FILE--
+<?mwl
+final class Tail {
+    public static function shape(string ...$parts): string {
+        return Core\Json::encode($parts);
+    }
+    public static function count(string ...$parts): string {
+        return Core\Arr::count($parts) as string;
+    }
+}
+
+// PHP re-reads a string key as a `name:` and then refuses the integer one
+// after it. MWL's variadic tail is the array itself and has no by-name
+// surface for an argument to be out of order with, so this is just the
+// spread rule: the string key preserved, the integer-looking one renumbered
+// under the tail's own append counter.
+echo Tail::shape(...["k" => "v", "0" => "z"]), "\n";
+
+// An empty subject contributes nothing and is not an error — the tail is
+// still one array, empty rather than absent.
+array<string> $none = [];
+echo Tail::count(...$none), "\n";
+echo Tail::count("a", ...$none), "\n";
+
+// The subject may be any expression that answers an `array<T>`, not only a
+// local: a spread borrows what it copies out of.
+echo Tail::shape(...Core\Str::split("a,b", ",")), "\n";
+
+// The body is handed the one array the call site collected, so its own
+// declared type is `array<string>` and not the `string` each argument was
+// checked against.
+array<string> $xs = ["p", "q"];
+echo Tail::count(...$xs, ...$xs), "\n";
+--EXPECT--
+{"k":"v","0":"z"}
+0
+1
+["a","b"]
+4
