@@ -802,6 +802,15 @@ is why" — is this file.
   script rather than as a mangled path — *`bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh:
   No such file or directory`*. The file-passed-by-path shape `commands.md` documents is otherwise
   unchanged, and the PowerShell tool needs no prefix.
+- **A roster probe binds its subject; it never `echo`s it, and it gets one panic per run.**
+  Sweeping "which `BinaryOp` reaches this catch-all" over a scratch file, an `echo $subject`
+  line goes through `concat_operand` first — so an `array<int>` operand reported *that*
+  function's missing row and not the operator's, which reads as the probe having found its
+  answer. `mixed $x = $a & $a;` asks the question the probe meant. The two phases also answer
+  at different rates: the checker reports every diagnostic in the file at once, so one run
+  enumerates all of the *refused* shapes, while lowering panics on the first shape that gets
+  that far, so each panicking shape costs its own edit-and-run. Put the shapes you expect to
+  be refused in one file and the ones you expect to lower in another.
 
 ## Writing a test case
 

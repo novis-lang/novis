@@ -82,11 +82,26 @@
 > by checked return so there is no channel to mute, which leaves `UnaryOp`'s five variants as four
 > arms and one the parser never constructs. `BinaryOp`'s 22 are the scalar table's eighteen rows
 > plus `.`, `&&`, `||` and `??`, each of which `lower_expr` takes before the general `Binary` arm
-> that is that table's only caller, a compound assignment desugaring through the same four. Three
-> live tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
-> refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item N` for
-> one in full), `python tools/loop.py --list` prints the named `.mwlt` cases each stage still owes,
-> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> that is that table's only caller, a compound assignment desugaring through the same four. One
+> level down, the **`decimal` operator table** closes on the same subtraction: ADR 0054 § 3 grants
+> twelve of the 22 — the five arithmetic rows, `==`/`!=`, the four orderings and `<=>` — and of the
+> ten it does not, `**` was already `E0455` and the five bit operators are now `E0706`, ADR 0007 §
+> 4's `& | ^ ~ << >>` row being over `int` and `uint` alone, so a `float`, `decimal`, `string`,
+> `bool`, `null` or `array<T>` operand of any of the six spellings is refused where it is written
+> rather than answered wrongly below — `1.5 & 1.5` used to evaluate to `1.5`, a bit-and over the
+> `f64`'s own bits, where PHP answers `1`. The other four (`.`, `&&`, `||`, `??`) never reach that
+> table at all, for the reason they never reach the scalar one. **`concat_operand`'s representation
+> catch-all** goes with it: nine of `mwl_ir::ty::Ty`'s fifteen are rows — `null` newly among them,
+> rendering as the empty string exactly as the `?string` holding one already did, which is PHP's
+> answer and keeps the static and the tagged case agreeing — four are refused a phase up by the one
+> check every implicit site shares (`E0707`: a `bytes`, an `array<T>`, an enum case and a `void`
+> call, each naming the spelling that says what was meant, while the explicit `as string` keeps ADR
+> 0009 § 3's `bytes` row), and `ClassDesc`/`Ref` are compiler-internal representations no source
+> expression ever has. Three live tools **are** the worklist and no session re-derives one: `python
+> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
+> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
+> cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

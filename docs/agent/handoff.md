@@ -2,72 +2,69 @@
 
 ## State
 
-**M4 — language completeness.** Both `mwl-ir` *operator* catch-alls now have no reachable
-target, on the same evidence the expression dispatch's did one session ago: the roster is
-subtracted in the arm's own comment and the panic message is explicitly not the proof.
+**M4 — language completeness.** Two more `mwl-ir` catch-alls have no reachable target, and
+both were closed by widening a *checker* refusal rather than by adding a lowering row.
 
-- **Unary.** `UnaryOp`'s five variants are four arms and one the parser never constructs.
-  `+` is the identity over `int`/`uint`/`float`/`decimal` and lowers to its operand — no
-  instruction, so no overflow edge, which is the asymmetry
-  `unary-plus-is-the-identity-that-negation-is-not.mwlt` pins at `i64::MIN` and at
-  `uint`'s top, where `-` throws. What makes that safe rather than a silent divergence is
-  one refusal a phase up: `mwl_types::expr::operators::reject_unary_arith_operand` (the
-  widened `reject_arithmetic_on_object`) turns away every operand ADR 0007 § 4 has no row
-  for as **`E0705`**, because PHP's `+"5"`/`-true`/`~"ab"` all *convert* first and ADR 0007
-  § 2 has no implicit conversion for that to be. An object still parts from them with its
-  own `E0401` "MWL has no operator overloading" sentence.
-- **`@` is `E0236`, refused at the parser.** ADR 0020 makes every runtime failure a
-  `Throwable` propagated by checked return, never a diagnostic printed beside a value, so
-  there is no channel to mute; ADR 0063 § 3 already listed `@` among what that decision
-  closes. `UnaryOp::Suppress` is now a variant nothing constructs — kept only so the
-  operator has a name to be refused under. The parser hands the **operand** back in place
-  of the whole `@expr`, so each site reports exactly once (see the new playbook bullet).
-- **Binary.** `BinaryOp`'s 22 are the scalar table's eighteen rows plus `.`, `&&`, `||`
-  and `??`, every one of which `lower_expr` takes before the general `Binary` arm that is
-  `lower_binary`'s only caller — compound assignment included, since `AssignOp::to_binary_op`
-  re-enters `lower_expr`. All four were run rather than assumed (`.=`, `??=`, `+=` too);
-  no new case, because `logical-connectives-short-circuit.mwlt`,
-  `a-coalesce-guards-*.mwlt` and `concatenation-*.mwlt` already pin them.
-- **One code commit for two slices, deliberately.** Both edit
-  `crates/mwl-ir/src/lower/expr.rs` and a commit stages whole files, so a path-split would
-  have been a lie about what each carries.
+- **The `decimal` operator table** (`lower_decimal_binary`). The item's own survivor list was
+  wrong and the roster is why it is subtracted by hand: `Pow`, `Concat`, `And`, `Or` and
+  `Coalesce` are five of ten, and the five it missed — `BitAnd`, `BitOr`, `BitXor`, `Shl`,
+  `Shr` — were the ones that actually reached the panic. `E0706` now refuses every operand of
+  `& | ^ ~ << >>` outside `int`/`uint`, which is ADR 0007 § 4's whole row. That refusal is
+  worth more than the panic it removes: `bitwise_result`'s silent `_ => mixed` arm meant
+  `1.5 & 1.5` **evaluated to `1.5`** (a bit-and over the `f64`'s bits) where PHP answers `1`,
+  and `~1.5` reached `mwl-codegen`'s "not lowered yet". `~` is in the same code by design —
+  a `float`/`decimal` operand is a number with no bit pattern, so it takes the bitwise
+  sentence, and every *non*-numeric operand of `~` keeps `E0705`.
+- **`concat_operand`'s representation catch-all.** `Ty`'s fifteen are nine rows, four
+  refusals and two representations no source expression has (`ClassDesc` is only a static
+  call's receiver slot, `Ref` only a staged `&$x`). `E0707` refuses `bytes`, `array<T>`, an
+  enum case and a `void` call at the four implicit sites, which are one check —
+  `require_stringable`, now the whole of ADR 0007 § 2's "anything → `string`" row, with the
+  object half split out as `require_stringable_object` so the explicit `as string` keeps ADR
+  0009 § 3's `bytes` conversion.
+- **`null` renders as the empty string** rather than being refused: the `?string` holding one
+  already printed nothing through `Helper::TaggedToString`, and PHP agrees, so refusing the
+  static case would diverge from both. Decided under the goal's standing "decide and record";
+  its home is `concat_operand`'s own arm comment plus `E_NO_STRING_FORM`'s doc.
+- **One code commit for two slices again, deliberately** — both edit the same three files
+  (`mwl-diagnostics/src/lib.rs`, `mwl-types/src/expr/operators.rs`,
+  `mwl-ir/src/lower/expr.rs`) and a commit stages whole files.
 
 ## Next group
 
-**The three dispatch catch-alls one level down** — the same "enumerate the roster, do not
-trust the message" job, all three in the file this session had open. The file set:
+**The two conversion catch-alls, one file over from the last three.** `as` is where the
+remaining panics live, and the dispatch message is the small one beside them. The file set:
 `crates/mwl-ir/src/lower/expr.rs`, `tests/conformance/lang/`.
 
-- [ ] **`expr.rs:629` — the `decimal` operator table's catch-all.** Subtract `BinaryOp`
-      against ADR 0054 § 3's rows: `Add`/`Sub`/`Mul`/`Div`/`Mod`/`Eq`/`NotEq`/`Lt`/`Gt`/
-      `LtEq`/`GtEq`/`Cmp` are there, so the survivors are `Pow` (whose refusal
-      `mwl_types::expr::operators::power_result` already reports — confirm it, do not
-      quote the panic), `Concat`, `And`, `Or` and `Coalesce`, which `lower_expr` takes
-      first exactly as it does for the scalar table. One scratch `.mwl` per survivor.
-      Anchors: `crates/mwl-ir/src/lower/expr.rs:629`, `crates/mwl-syntax/src/ast.rs:251`
-      (`BinaryOp`).
-- [ ] **`expr.rs:762` — `concat_operand`'s representation catch-all.** A `Ty` roster, not
-      an AST one: which `mwl_ir::ir::Ty` can reach a `.` operand, and whether
-      `mwl_types::expr::require_stringable` plus ADR 0007 § 2's "anything → `string`" row
-      already refuse the rest where they are written. Anchors:
-      `crates/mwl-ir/src/lower/expr.rs:762`, and `Ty`'s own definition in
-      `crates/mwl-ir/src/ir.rs`.
+- [ ] **`expr.rs:1240` — the `as` conversion table's catch-all.** Confirmed live, not
+      hypothetical: `$xs as string` over an `array<int>` panics there with `got
+      Array as Str`. Subtract the operand × target grid against ADR 0007 § 2's table, ADR
+      0009 § 3 and ADR 0010 § 5 — the message itself names `array<T> as array<U>` and a
+      `Ty::Tagged` operand into `bytes` as the two known gaps, so what is left to decide is
+      every *other* survivor: `Array as Str` (`Core\Json::encode` is the spelling that
+      exists), `Enum as Str`, `Void as` anything, `Null as Str`. Some want a lowering row and
+      some an `E07xx`; `E0707`'s wording is the precedent for the refused half.
+      Anchors: `crates/mwl-ir/src/lower/expr.rs:1240`,
+      `crates/mwl-types/src/expr/operators.rs:75` (the `as` site that calls
+      `require_stringable_object`).
 - [ ] **`expr.rs:384` — the `lower_expr` dispatch's message.** The *arm* was proven
-      unreachable last session and its comment carries the subtraction; what is stale is
-      the message below it, which still enumerates twenty shapes as though it were the
-      proof. Rewrite it the way the two operator arms now read. Comment-only, so it rides
-      with whichever of the two above lands first.
+      unreachable two sessions ago; what is left is the message, which still reads as a
+      to-do list rather than as an assertion. Rewrite it in the shape the other four now
+      share — roster subtracted in the comment, `"mwl-ir: unreachable — …; see this arm's
+      own comment"` below it. No behaviour change, so no new case.
+      Anchors: `crates/mwl-ir/src/lower/expr.rs:384`.
+- [ ] **`~` and the shift count, one probe deep.** `$u << $i` (mixed signedness) is
+      `E0407` through `report_int_uint`, but nothing pins that the *count* takes the same
+      row as the operand now that `E0706` sits in front of it. One scratch file says whether
+      a case is owed.
+      Anchors: `crates/mwl-types/src/expr/operators.rs:@bitwise_result`.
 
 ## Backlog
 
-- `holes.py` item 1 — 10 sites, ADR 0007 § 4's promotion table in `mwl-codegen`.
-- `holes.py` item 16 — 3 sites, named and spread arguments; the `mwl_types` checker half
-  lands first (`docs/agent/loop-goal.md` § *Standing decisions*).
-- `holes.py` item 25 — 2 sites, `object` as a declared type.
-- 2 unattributed sites, `crates/mwl-codegen/src/ty.rs:116` and `:121` — no item anchors
-  the file.
-- 14 named `.mwlt` cases still owed; `python tools/holes.py --cases` is the list.
-- `orient.py` printed everything this session needed. The one thing greped for outside it
-  was ADR 0063 § 3's rejected-construct table, which is where `@` was already closed —
-  worth adding to `[context] adrs` as `0063` § 3 for the sessions that reach the rest of
-  that list.
+- `Ty::Iterable` and `Ty::Never` have no `erase_checked_ty` row, so they panic in
+  `mwl-ir/src/lower/mod.rs:2650` rather than at a use site — `docs/plan/m4.md`.
+- A closure or a shape in an `echo` reaches `Helper::TaggedToString` and throws at run time
+  rather than being refused where it is written; ADR 0028 § 1 would allow either.
+- `spawn script` (`E0703`) and `require` for its value (`E0704`) stay open at M5 and
+  `mwl-ir`'s known gap 22.
+- `python tools/holes.py` is the live worklist for what is left below `mwl-ir`.
