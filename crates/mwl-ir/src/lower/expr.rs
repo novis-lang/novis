@@ -4043,8 +4043,20 @@ impl<'a> Lowering<'a> {
                 // error, which `mwl_types` does not refuse yet, so it
                 // would panic where it now converts.
                 let (v, from) = self.lower_expr(inner, None, env, cur);
-                let to = lower_decl_type(target, self.exprs, self.checked_types);
-                self.convert_or_null(v, from, to, inner, *cur)
+                // ADR 0066 § 3 row 2 — a literal or enum-case target, the
+                // "non-throwing twin" of the checked conversion. The target
+                // is `T|null` minus `null`, which is the one place it still
+                // exists: see `Self::nullable_target_atoms` for why the `T`
+                // node's own span answers nothing.
+                let Some(atoms) = self.nullable_target_atoms(ty) else {
+                    let to = lower_decl_type(target, self.exprs, self.checked_types);
+                    return self.convert_or_null(v, from, to, inner, *cur);
+                };
+                let to = shared_repr(&atoms, self.checked_types);
+                let Some(accepted) = self.closed_set_of_atoms(&atoms, None, from) else {
+                    return self.convert_or_null(v, from, to, inner, *cur);
+                };
+                self.lower_nullable_membership(v, from, to, &accepted, inner, ty.span, env, cur)
             }
             None => {
                 let to = lower_decl_type(ty, self.exprs, self.checked_types);
@@ -4100,7 +4112,7 @@ impl<'a> Lowering<'a> {
                 // hazard above cannot arise: an enum's base is never
                 // `string`.
                 if from == Ty::Tagged && !matches!(to, Ty::Enum(_)) {
-                    self.lower_literal_membership(v, from, &accepted, ty.span, env, cur);
+                    self.lower_literal_membership(v, from, &accepted, ty.span, env, cur, None);
                     // A `bool` set is the one target with no conversion left
                     // to run. Every other base is reached by a row that
                     // happens to be an identity once the test above has
@@ -4136,6 +4148,7 @@ impl<'a> Lowering<'a> {
                     ty.span,
                     env,
                     cur,
+                    None,
                 );
                 (converted, converted_ty)
             }
@@ -4180,9 +4193,38 @@ impl<'a> Lowering<'a> {
     ///   backing type, because `mwl_types` refuses a conversion between two
     ///   different enums outright (`reject_enum_to_enum_conversion`).
     fn closed_literal_set(&self, ty: &Type, inner: &Expr, from: Ty) -> Option<AcceptedSet> {
-        let types = self.checked_types;
         let target = self.exprs.declared_ty(ty.span)?;
-        if let CheckedTy::Enum(qname, backing) = types.get(target) {
+        let atoms: Vec<TypeId> = match self.checked_types.get(target) {
+            CheckedTy::Union(members) => members.clone(),
+            _ => vec![target],
+        };
+        self.closed_set_of_atoms(&atoms, Some(inner), from)
+    }
+
+    /// [`Self::closed_literal_set`] over an atom list the caller already
+    /// expanded, which is what an `as ?T` needs: its annotation's checked type
+    /// is the union `T|null`, so the target is what is left once `null` is
+    /// dropped ([`Self::nullable_target_atoms`]) and there is no single
+    /// [`TypeId`] naming it — this crate holds the interner by shared
+    /// reference and cannot intern one.
+    ///
+    /// `operand` is `None` for exactly that caller, and the omission is the
+    /// rule rather than a shortcut: [`Self::operand_names_one_value`] is this
+    /// function deferring to a decision **the checker already took**
+    /// (`reject_impossible_literal_conversion`), and that check bails on a
+    /// target holding one wider atom — which `null` is. So `3 as Mode` is
+    /// settled at compile time and `3 as ?Mode` is not, and the second one
+    /// still owes the run-time chain the first one is excused.
+    fn closed_set_of_atoms(
+        &self,
+        atoms: &[TypeId],
+        operand: Option<&Expr>,
+        from: Ty,
+    ) -> Option<AcceptedSet> {
+        let types = self.checked_types;
+        if let [target] = atoms
+            && let CheckedTy::Enum(qname, backing) = types.get(*target)
+        {
             let repr = match backing {
                 mwl_types::EnumBacking::Int => EnumRepr::Int,
                 mwl_types::EnumBacking::Uint => EnumRepr::Uint,
@@ -4199,11 +4241,7 @@ impl<'a> Lowering<'a> {
             });
             return Some(whole_enum_set(info, &qname.to_string()));
         }
-        let atoms: Vec<TypeId> = match types.get(target) {
-            CheckedTy::Union(members) => members.clone(),
-            _ => vec![target],
-        };
-        if self.operand_names_one_value(inner) {
+        if operand.is_some_and(|inner| self.operand_names_one_value(inner)) {
             return None;
         }
         // One pass, not a `closed` predicate and then a map over the same
@@ -4255,6 +4293,35 @@ impl<'a> Lowering<'a> {
             .collect::<Vec<_>>()
             .join(", ");
         Some(AcceptedSet { members, rendered })
+    }
+
+    /// The atoms of an `as ?T` annotation's target — the checker's type for
+    /// the *whole* `?T` with `null` dropped.
+    ///
+    /// Read off the whole annotation and not off the `T` inside it, because
+    /// only the whole one was recorded: `mwl_types::lower::lower_type` calls
+    /// [`ExprTypeTable::record_type`] once, at its own entry point, so a
+    /// nested `Type` node has no entry at all and
+    /// [`lower_decl_type`] would fall back to answering `?Mode`'s target from
+    /// the AST — where a name-shaped atom is a class and an enum is
+    /// indistinguishable from one. That fallback is what made `$m as ?Mode`
+    /// panic on `Tagged as ?Object`.
+    ///
+    /// `None` where the checker never visited the annotation, which is the
+    /// same shape [`lower_decl_type`] answers from the AST alone.
+    fn nullable_target_atoms(&self, ty: &Type) -> Option<Vec<TypeId>> {
+        let whole = self.exprs.declared_ty(ty.span)?;
+        // `?T` is interned as `T|null` — the checker has no separate nullable
+        // type (`erase_checked_ty`'s `CheckedTy::Null` arm says so).
+        let CheckedTy::Union(members) = self.checked_types.get(whole) else {
+            return None;
+        };
+        let kept: Vec<TypeId> = members
+            .iter()
+            .copied()
+            .filter(|id| !matches!(self.checked_types.get(*id), CheckedTy::Null))
+            .collect();
+        (!kept.is_empty()).then_some(kept)
     }
 
     /// Whether a conversion's operand names exactly one value, so that
@@ -4311,6 +4378,108 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 3
+    /// row 2 — `expr as ?T` where `T` is a literal type, an enum-case subset
+    /// or a whole enum: "that conversion is already checked and throwing;
+    /// this is its non-throwing twin."
+    ///
+    /// Built as the twin rather than as a redirect of the throwing one.
+    /// [`Self::landing_block`] ends in `Terminator::Catch`/`Propagate` and a
+    /// pending `Throwable`, so re-pointing the checked lowering's error edge
+    /// at a null-producing block would have to discard that object and account
+    /// for its reference — `lower::exception`'s plumbing, for a form that
+    /// needs no exception to exist at all. Two substitutions on
+    /// [`Self::lower_conversion`]'s non-nullable arm buy the same thing: the
+    /// membership chain takes a `miss` block instead of the throw
+    /// ([`Self::lower_literal_membership`]), and the base conversion runs
+    /// through [`Self::convert_or_null`] wherever its row can fail.
+    ///
+    /// The two shapes below are the same split that arm already makes, for
+    /// the same reason:
+    ///
+    /// * A [`Ty::Tagged`] operand into a **literal** set is tested first, on
+    ///   its own runtime tag, and **needs no conversion at all** — the result
+    ///   of `as ?T` is a [`Ty::Tagged`] value, and on a hit the operand
+    ///   already *is* one, holding exactly the value the chain just proved it
+    ///   holds. Converting first would run `Helper::TaggedToString` and let a
+    ///   `mixed` holding `1` satisfy a set naming `"1"`, which is the coercion
+    ///   ADR 0047 § 4 refuses.
+    /// * Everything else converts to the target's own base first — an
+    ///   **enum** target included, ADR 0010 § 5 wording that row as "exactly
+    ///   the shape `as uint` already has for untrusted input" — and a row
+    ///   that can fail runs as its `?` form, whose `null` matches no member
+    ///   and so reaches the same miss edge with no test of its own. That is
+    ///   why the fallible branch keeps the tagged answer and compares through
+    ///   [`Helper::Identical`]: an `Untag` of a `null` would read a zero
+    ///   payload, and an enum with a case backed by `0` would then *hit* on a
+    ///   conversion that failed.
+    ///
+    /// Ownership is one rule for both shapes: `answer` is a [`Ty::Tagged`]
+    /// value this frame owns by the time the chain runs — retained where the
+    /// operand was borrowed storage, produced fresh by the conversion
+    /// otherwise — so the hit path hands the consumer the reference every
+    /// other conversion row hands it, and the miss path releases it, which is
+    /// a runtime no-op for every tag that owns nothing.
+    #[allow(clippy::too_many_arguments)]
+    fn lower_nullable_membership(
+        &mut self,
+        v: ValueId,
+        from: Ty,
+        to: Ty,
+        accepted: &AcceptedSet,
+        inner: &Expr,
+        span: Span,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let miss = self.new_block();
+        let join = self.new_block();
+        let (probe, probe_ty, answer) = if from == Ty::Tagged && !matches!(to, Ty::Enum(_)) {
+            if self.aliasing_read(inner) {
+                self.emit_retain(*cur, v);
+            }
+            (v, Ty::Tagged, v)
+        } else {
+            let base = match to {
+                Ty::Enum(EnumRepr::Int) => Ty::Int,
+                Ty::Enum(EnumRepr::Uint) => Ty::Uint,
+                other => other,
+            };
+            if conversion_can_fail(from, base) {
+                let (tagged, _) = self.convert_or_null(v, from, base, inner, *cur);
+                (tagged, Ty::Tagged, tagged)
+            } else {
+                let (converted, converted_ty) = self.convert(v, from, to, inner, env, *cur);
+                // A heterogeneous set erases to `Ty::Tagged` already, and
+                // `Self::convert`'s widening row put the tag on — a second
+                // one would tag a `Value`.
+                let answer = if converted_ty == Ty::Tagged {
+                    converted
+                } else {
+                    self.emit(*cur, Ty::Tagged, InstKind::Tag { operand: converted })
+                        .0
+                };
+                (converted, converted_ty, answer)
+            }
+        };
+        self.lower_literal_membership(probe, probe_ty, accepted, span, env, cur, Some(miss));
+        let hit = *cur;
+        self.seal(hit, Terminator::Jump(join));
+        self.emit_release(miss, answer);
+        let (null_v, _) = self.emit(miss, Ty::Null, InstKind::ConstNull);
+        let null_v = self.coerce(miss, null_v, Ty::Null, Ty::Tagged, env);
+        self.seal(miss, Terminator::Jump(join));
+        let (merged, _) = self.emit(
+            join,
+            Ty::Tagged,
+            InstKind::Phi {
+                incoming: vec![(hit, answer), (miss, null_v)],
+            },
+        );
+        *cur = join;
+        (merged, Ty::Tagged)
+    }
+
     /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 5's
     /// membership test: a chain of equality comparisons, each branching
     /// straight to the one block where the conversion succeeded, with the
@@ -4330,6 +4499,14 @@ impl<'a> Lowering<'a> {
     /// the chain and dominates every block in it, so there is no
     /// [`InstKind::Phi`] here and no `Env` to reconcile — every block this
     /// builds is straight-line and assigns nothing.
+    ///
+    /// `miss` is what happens where every comparison missed, and it is the
+    /// whole difference between the two spellings ADR 0066 § 3 row 2 calls
+    /// twins. `None` is `expr as T`: the throw above, on ADR 0002's error
+    /// edge. `Some(block)` is `expr as ?T`, which jumps there instead and
+    /// answers `null` — [`Self::lower_nullable_membership`] owns that block,
+    /// because only it knows what the result value and its ownership are.
+    #[allow(clippy::too_many_arguments)]
     fn lower_literal_membership(
         &mut self,
         value: ValueId,
@@ -4338,6 +4515,7 @@ impl<'a> Lowering<'a> {
         span: Span,
         env: &Env,
         cur: &mut BlockId,
+        miss: Option<BlockId>,
     ) {
         // An enum operand is tested one representation down, on the integer
         // its cases *are*. The value the conversion answers with is
@@ -4386,7 +4564,7 @@ impl<'a> Lowering<'a> {
             if ty.is_refcounted() {
                 self.emit_release(*cur, wanted);
             }
-            let miss = self.new_block();
+            let next = self.new_block();
             let hit_edge = self.ids.next_edge(span);
             let miss_edge = self.ids.next_edge(span);
             self.seal(
@@ -4395,11 +4573,18 @@ impl<'a> Lowering<'a> {
                     cond: equal,
                     then_block: hit,
                     then_edge: hit_edge,
-                    else_block: miss,
+                    else_block: next,
                     else_edge: miss_edge,
                 },
             );
-            *cur = miss;
+            *cur = next;
+        }
+        // ADR 0066 § 3 row 2's non-throwing twin: every comparison missed, so
+        // the answer is `null` and the caller's own block builds it.
+        if let Some(block) = miss {
+            self.seal(*cur, Terminator::Jump(block));
+            *cur = hit;
+            return;
         }
         let (listed, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(accepted.rendered.clone()));
         let landing = self.landing_block(env);
@@ -4545,6 +4730,54 @@ pub(super) struct NullsafeGuard {
 /// A `null|T` *union* spelling is deliberately not folded in: ADR 0066 § 1
 /// defines the operator over `?T`, and a union target has no lowering at all
 /// yet — one gap is better than a second spelling that half works.
+/// The one representation a target's atoms share, or [`Ty::Tagged`] where
+/// they share none — [`erase_checked_ty`]'s own `CheckedTy::Union` fold, over
+/// an atom list rather than over an interned union.
+///
+/// The `?T` half of ADR 0047 § 5's "zero additional runtime representation"
+/// needs this separately because `T|null` is the union that *is* interned, and
+/// folding that one would answer [`Ty::Tagged`] for every target: `null` and
+/// `Ty::Str` are two representations, not one.
+fn shared_repr(atoms: &[TypeId], checked_types: &TypeInterner) -> Ty {
+    let mut shared: Option<Ty> = None;
+    for atom in atoms {
+        match (erase_checked_ty(*atom, checked_types), shared) {
+            (Some(ty), None) => shared = Some(ty),
+            (Some(ty), Some(seen)) if ty == seen => {}
+            _ => return Ty::Tagged,
+        }
+    }
+    shared.unwrap_or(Ty::Tagged)
+}
+
+/// Whether [`Lowering::convert`] would emit an error edge for this row —
+/// which is the same question as "does this row have a `?` form to run
+/// instead", and is asked only by [`Lowering::lower_nullable_membership`].
+///
+/// The `false` arms are that function's own free, total and widening rows,
+/// listed in the order its doc comment names them; everything else is one of
+/// its checked rows and goes through [`Lowering::convert_or_null`]. A row that
+/// can fail and has no `?` helper — `bytes`/an object into a *string* literal
+/// set — reaches that function's own panic naming `as ?string`, which is the
+/// gap it already names for the plain `$b as ?string` spelling rather than a
+/// second one this form opens.
+fn conversion_can_fail(from: Ty, to: Ty) -> bool {
+    if from == to {
+        return false;
+    }
+    !matches!(
+        (from, to),
+        (Ty::Enum(EnumRepr::Int), Ty::Int)
+            | (Ty::Enum(EnumRepr::Uint), Ty::Uint)
+            | (Ty::Str, Ty::Bytes)
+            | (
+                Ty::Bool | Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal,
+                Ty::Str
+            )
+            | (_, Ty::Bool | Ty::Tagged)
+    )
+}
+
 fn nullable_target(ty: &Type) -> Option<&Type> {
     match &ty.kind {
         TypeKind::Nullable(inner) => Some(inner),
