@@ -191,6 +191,15 @@ diagnostic saying exactly that. There is no literal suffix, for any numeric type
 | `& \| ^ ~ <<` | the operand type, preserved | — |
 | any operation involving `decimal` | [ADR 0054](0054-decimal-scalar-type.md) § 3 owns those rows | — |
 | `object` against `object` in `< <= > >= <=>` | requires `Comparable` ([0013](0013-comparable-interface.md)), no fallback | **compile error** when the class does not implement it |
+| `bool` against `bool` in `< <= > >= <=>` | `bool`/`int` — `false < true`, the ordering of the one bit it already is | — |
+| any other operand in `< <= > >= <=>` | **compile error** | a `string`, `bytes`, `array<T>`, `callable`, enum case or `null` has no ordering at all |
+
+The ordering rows are a **closed** list, exactly as *2*'s conversion grid is. Everything else PHP orders it
+orders by converting an operand first, and *2* has no implicit conversion for that to be — so two strings
+order through `Core\Str::compare`, an enum case through its backing `as int` ([0010](0010-enums-are-a-value-type.md)),
+and an `array<T>`, a `callable` and `null` not at all. Each is refused where it is written rather than
+answered plausibly below it, and the object family keeps ADR 0013's own diagnostic however the receiver was
+spelled, an erased `object` and a shape included.
 
 Rejecting mixed-signedness arithmetic while allowing mixed-signedness comparison is the line C gets wrong
 and pays for: a comparison has an exact answer in the mathematical integers and can be lowered as one,

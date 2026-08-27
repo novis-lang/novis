@@ -1117,10 +1117,33 @@ impl Emitter<'_, '_> {
             return Ok((self.b.ins().icmp(cc, l, r), cur));
         }
 
+        // `null == null`, which is the only pair that reaches here in this
+        // representation: a `null` against anything else is either ADR 0090
+        // § 2's disjoint refusal (`E0466`) or a tagged operand, and `$x ==
+        // null` over a `?T` is lowered as a tag test rather than as this
+        // instruction. Both operands are the one value the type has, so the
+        // answer is a constant and PHP's is the same one.
+        if matches!(ty, Ty::Null) && matches!(op, BinOp::Eq | BinOp::NotEq) {
+            let answer = i64::from(matches!(op, BinOp::Eq));
+            return Ok((self.b.ins().iconst(types::I8, answer), cur));
+        }
+
         let signed = matches!(ty, Ty::Int);
         let float = matches!(ty, Ty::Float);
         let integral = matches!(ty, Ty::Int | Ty::Uint | Ty::Bool);
         if !float && !integral {
+            // An internal-consistency check with no reachable target left, and
+            // the roster is the four rows above plus this one. Equality is
+            // answered for a `string`, a `bytes`, an `array<T>`, an object, an
+            // enum case (through `Reinterpret` to its backing integer, in
+            // `mwl-ir`) and `null`; ordering is refused where it is *written*
+            // for every representation that is not a number or a `bool`
+            // (`E0715`, and `E0411` for the object family), and `decimal`'s own
+            // twelve rows never arrive here at all — `lower_decimal_binary`
+            // rewrites each into a helper call. What is left is `Ty::Tagged`,
+            // whose arithmetic and ordering are the loop goal's item 24, and
+            // the three representations no source expression has
+            // (`ClassDesc`, `Ref`, `Void`).
             return Err(CodegenError::Unsupported(format!(
                 "a `{op:?}` over representation {ty:?}"
             )));

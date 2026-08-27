@@ -68,6 +68,84 @@ fn a_subclass_of_a_comparable_class_is_comparable_to_itself() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
+/// ADR 0007 § 4's ordering row is closed, so the five spellings have to
+/// **agree** on every operand it leaves out — asserted by counting the whole
+/// sweep rather than by reading one line off it, since an operator that grew
+/// its own answer still looks right on its own.
+#[test]
+fn every_operator_refuses_every_operand_with_no_ordering_row() {
+    let operands = [
+        (
+            "string $a = \"x\"; string $b = \"y\";",
+            code::E_ORDERING_HAS_NO_ROW,
+        ),
+        (
+            "bytes $a = \"x\" as bytes; bytes $b = \"y\" as bytes;",
+            code::E_ORDERING_HAS_NO_ROW,
+        ),
+        (
+            "array<int> $a = [1]; array<int> $b = [2];",
+            code::E_ORDERING_HAS_NO_ROW,
+        ),
+        (
+            "callable $a = fn (): int => 1; callable $b = fn (): int => 2;",
+            code::E_ORDERING_HAS_NO_ROW,
+        ),
+        (
+            "?int $a = null; ?int $b = null; null < null;",
+            code::E_ORDERING_HAS_NO_ROW,
+        ),
+        (
+            "Rank $a = Rank::Bronze; Rank $b = Rank::Silver;",
+            code::E_ORDERING_HAS_NO_ROW,
+        ),
+        // The object family keeps ADR 0013's own code however the receiver
+        // was spelled — an erased `object` names no class to ask about.
+        (
+            "object $a = new Plain(); object $b = new Plain();",
+            code::E_COMPARISON_REQUIRES_COMPARABLE,
+        ),
+    ];
+    let mut refused = 0;
+    for (binding, expected) in operands {
+        for op in ["<", "<=", ">", ">=", "<=>"] {
+            let src = format!(
+                "<?mwl\nenum Rank {{ Bronze, Silver }}\nclass Plain {{}}\nclass T {{\n  function m(): void {{\n    {binding}\n    $a {op} $b;\n  }}\n}}\n"
+            );
+            let diags = check_src(&src);
+            if diags.iter().any(|d| d.code == Some(expected)) {
+                refused += 1;
+            } else {
+                panic!("`{op}` over `{binding}` was not refused: {diags:?}");
+            }
+        }
+    }
+    assert_eq!(refused, operands.len() * 5);
+}
+
+/// The other side of the same bound: the rows that *are* tabulated stay
+/// answered, and `mixed` stays a run-time question rather than a refusal.
+#[test]
+fn the_tabulated_ordering_rows_are_not_refused() {
+    for binding in [
+        "int $a = 1; int $b = 2;",
+        "uint $a = 1; float $b = 2.5;",
+        "float $a = 1.5; int $b = 2;",
+        "decimal $a = 1.5; decimal $b = 2.5;",
+        // ADR 0007 § 4 tabulates no `bool` row because that table is about
+        // the numeric widenings; two `bool`s are the one bit they already
+        // are, which orders exactly and is PHP's answer too.
+        "bool $a = true; bool $b = false;",
+        "mixed $a = 1; mixed $b = 2;",
+    ] {
+        let src = format!(
+            "<?mwl\nclass T {{\n  function m(): void {{\n    {binding}\n    $a < $b;\n    $a <=> $b;\n  }}\n}}\n"
+        );
+        let diags = check_src(&src);
+        assert!(!diags.has_errors(), "{binding}: {diags:?}");
+    }
+}
+
 #[test]
 fn concatenating_a_non_stringable_object_is_diagnosed() {
     let diags = check_src(

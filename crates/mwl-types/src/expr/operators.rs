@@ -151,11 +151,12 @@ pub(super) fn binary_result(
         BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor | BinaryOp::Shl | BinaryOp::Shr => {
             bitwise_result(op, lhs, rhs, span, env)
         }
-        BinaryOp::Cmp => {
-            object_comparison_result(op, lhs, rhs, span, env).unwrap_or_else(|| env.interner.int())
-        }
+        BinaryOp::Cmp => object_comparison_result(op, lhs, rhs, span, env)
+            .or_else(|| reject_unordered_operand(op, lhs, rhs, span, env))
+            .unwrap_or_else(|| env.interner.int()),
         BinaryOp::Lt | BinaryOp::LtEq | BinaryOp::Gt | BinaryOp::GtEq => {
             object_comparison_result(op, lhs, rhs, span, env)
+                .or_else(|| reject_unordered_operand(op, lhs, rhs, span, env))
                 .unwrap_or_else(|| env.interner.bool_ty())
         }
         BinaryOp::Eq | BinaryOp::NotEq => {
@@ -434,6 +435,113 @@ pub(super) fn report_comparable_diagnostic(span: Span, message: String, env: &mu
             .with_primary(span, "compared here")
             .with_help("implement `Comparable`'s `compareTo(self $other): int` on the class"),
     );
+}
+
+/// Which of [`reject_unordered_operand`]'s three wordings an offending operand
+/// takes — an owned classification rather than the borrowed [`EqDomain`] it is
+/// derived from, so that the report below it may take `env` mutably.
+#[derive(Clone, Copy)]
+enum Unordered {
+    Object,
+    Str,
+    Enum,
+    Other,
+}
+
+/// ADR 0007 § 4's ordering row is a **closed** list, so an operand it does not
+/// name has no `<`/`<=`/`>`/`>=`/`<=>` at all and is refused where it is
+/// written rather than answered below.
+///
+/// The table orders the numeric types against each other, and ADR 0013 orders
+/// two objects of one `Comparable` class — [`object_comparison_result`] owns
+/// that half and runs first, so everything reaching here either names no class
+/// at all or names one on only one side. Everything else PHP orders, it orders
+/// by converting an operand first, which ADR 0007 § 2 never does by itself:
+/// two strings order through `Core\Str::compare`, an enum case through its
+/// backing `as int`, and an `array<T>`, a `callable` and `null` not at all.
+///
+/// `bool` is deliberately a row rather than a refusal — `false < true` is the
+/// ordering of the one bit it already is, which is PHP's answer too and needs
+/// no conversion to be exact. [`code::E_ORDERING_HAS_NO_ROW`]'s own doc
+/// comment is that decision's home.
+///
+/// Scoped exactly like [`reject_bitwise_operand`] beside it: an operand whose
+/// type is not yet known ([`equality_domain`] answering `None` — `mixed`, a
+/// union, a type variable) passes through, since what it holds is a run-time
+/// question. Returns `Some(mixed)` once diagnosed, `None` for every pair the
+/// caller's own table should answer itself.
+fn reject_unordered_operand(
+    op: BinaryOp,
+    lhs: TypeId,
+    rhs: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    // The left operand first, so a pair that is wrong on both sides reports
+    // once and names the side written first.
+    let (offender, domain) = [lhs, rhs].into_iter().find_map(|ty| {
+        let domain = match equality_domain(env.interner.get(ty))? {
+            // A row: the numeric widenings, and the one bit `bool` already is.
+            EqDomain::Numeric | EqDomain::Bool => return None,
+            EqDomain::Object => Unordered::Object,
+            EqDomain::Str => Unordered::Str,
+            EqDomain::Enum(_) => Unordered::Enum,
+            EqDomain::Bytes | EqDomain::Array | EqDomain::Callable | EqDomain::Null => {
+                Unordered::Other
+            }
+        };
+        Some((ty, domain))
+    })?;
+    if matches!(domain, Unordered::Object) {
+        // The object family keeps one code however the receiver was spelled:
+        // an erased `object`, a shape and a class-against-`object` pair all
+        // name no class to ask `Comparable` about, which is what the two
+        // arms above this one report when the class *is* named.
+        report_comparable_diagnostic(
+            span,
+            format!(
+                "`{}` names no class to check `Comparable` on; ordering two objects with \
+                 `<`/`<=`/`>`/`>=`/`<=>` requires a class that implements it",
+                env.interner.describe(offender)
+            ),
+            env,
+        );
+        return Some(env.interner.mixed());
+    }
+    let spelling = match op {
+        BinaryOp::Lt => "<",
+        BinaryOp::LtEq => "<=",
+        BinaryOp::Gt => ">",
+        BinaryOp::GtEq => ">=",
+        _ => "<=>",
+    };
+    let help = match domain {
+        Unordered::Str => {
+            "`Core\\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no \
+             `<` for text, because PHP's own answer there is a conversion MWL never makes by \
+             itself"
+        }
+        Unordered::Enum => {
+            "an enum case is a name rather than a number (ADR 0010); order the backing values \
+             instead — `($a as int) < ($b as int)`"
+        }
+        _ => {
+            "ADR 0007 § 4's `< <= > >= <=>` row is the numeric types, plus two objects of one \
+             `Comparable` class (ADR 0013); this operand is on neither half"
+        }
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ORDERING_HAS_NO_ROW,
+            format!(
+                "`{spelling}` has no meaning for `{}`",
+                env.interner.describe(offender)
+            ),
+        )
+        .with_primary(span, "ordered here")
+        .with_help(help),
+    );
+    Some(env.interner.mixed())
 }
 
 pub(super) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {

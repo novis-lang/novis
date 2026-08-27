@@ -1,0 +1,39 @@
+--TEST--
+Two `null`s are equal and two `bool`s order, which are ADR 0007 § 4's two non-numeric rows — ADR 0007 § 4, ADR 0090 § 2
+--FILE--
+<?mwl
+// `null == null` is the one pair whose static types are both `null`, so
+// ADR 0090 § 2's disjointness check passes it and both operands are the
+// single value the type has. The answer is therefore a constant, and it is
+// PHP's — `var_dump(null == null)` is `true` there too.
+echo (null == null) as string, "|\n";
+echo (null != null) as string, "|\n";
+
+// The same question one indirection out: a `?string` holding `null` is a
+// *tagged* value, so `$a == null` is a tag test rather than this row, and
+// the two spellings have to agree.
+?string $a = null;
+?string $b = null;
+echo ($a == null) as string, "|\n";
+echo ($a == $b) as string, "|\n";
+echo ($a != $b) as string, "|\n";
+
+// A `bool` is the one non-numeric type ADR 0007 § 4's ordering row admits:
+// `false < true` is the ordering of the one bit it already is, needs no
+// conversion to be exact, and is PHP's answer as well. Every other operand
+// with no row is refused where it is written — see
+// `the-relational-operators-refuse-every-operand-with-no-ordering-row.mwlt`.
+bool $t = true;
+bool $f = false;
+echo ($f < $t) as string, "|\n";
+echo ($t < $f) as string, "|\n";
+echo ($t >= $t) as string, "|\n";
+--EXPECT--
+1|
+|
+1|
+1|
+|
+1|
+|
+1|

@@ -1349,6 +1349,28 @@ pub mod code {
     /// own run-time length, which needs no parameter list to be meaningful.
     pub const E_NAMED_ARG_THROUGH_CALLABLE: Code = Code::new("E0712");
 
+    /// `<`, `<=`, `>`, `>=` or `<=>` over an operand ADR 0007 § 4 gives no
+    /// ordering row for.
+    ///
+    /// That table orders the numeric types against each other and, through
+    /// ADR 0013, two objects of one class that implements `Comparable`. It
+    /// is a *closed* list, and everything else PHP orders it orders by
+    /// converting first — which MWL never does by itself. A `string`, a
+    /// `bytes`, an `array<T>`, a `callable`, an enum case and `null` therefore
+    /// have no `<` at all, and each help names the member that does say what
+    /// was meant: `Core\Str::compare` for text, `as int` for an enum case.
+    ///
+    /// The object family keeps [`E_COMPARISON_REQUIRES_COMPARABLE`] rather
+    /// than joining this code, so that "these two do not order" is one
+    /// diagnostic however the receiver was spelled.
+    ///
+    /// `bool` is deliberately *not* refused: `false < true` is the machine
+    /// ordering of the one bit, it is PHP's answer as well, and it needs no
+    /// conversion to be exact — the row is left out of ADR 0007 § 4's table
+    /// because that table is about the numeric widenings, not because two
+    /// `bool`s are unordered.
+    pub const E_ORDERING_HAS_NO_ROW: Code = Code::new("E0715");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
