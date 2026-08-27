@@ -12,7 +12,7 @@
   values satisfy `callable` is unchanged; that ADR is spelled in `callable` terms throughout, and
   `Closure::fromCallable` is dropped since nothing is left to convert from). All three folds are applied in
   those files.
-- **Amended by:** 0036, 0063
+- **Amended by:** 0036, 0063, 0107
 
 > **In short:** PHP's anonymous-function surface collapses to one literal and one type. **`fn(...)` is the
 > only closure literal** — with or without a body (`fn($x) => $x + 1` and `fn($x) => { ...; return $x; }`
