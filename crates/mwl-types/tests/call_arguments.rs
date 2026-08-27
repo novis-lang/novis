@@ -154,6 +154,57 @@ fn a_spread_argument_is_checked_against_the_tail_element_type() {
 }
 
 #[test]
+fn a_named_argument_through_a_callable_is_refused() {
+    // ADR 0031 § 1 gives `callable` no parameter list, so there is no
+    // parameter for the name to fill — and nothing below has one either: a
+    // closure value records its arity and its parameter tags, never their
+    // names. `mwl_types::expr::calls::report_named_args_through_callable`
+    // owns the rule.
+    let src = with_method(
+        "int $count",
+        "callable $f = fn (int $n): int => $n;\n    $f(n: 1);",
+    );
+    let diags = check_src(&src);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_NAMED_ARG_THROUGH_CALLABLE)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_spread_argument_through_a_callable_is_accepted() {
+    // The other half of the same rule: how many arguments a `...` hands over
+    // is its own run-time length, which needs no parameter list to mean
+    // something — so it is left alone here and lowers
+    // (`mwl_ir::Helper::CallClosureArray`). What still applies is the order
+    // rule, asserted below.
+    let src = with_method(
+        "int $count",
+        "callable $f = fn (int $n): int => $n;\n    array<int> $more = [1];\n    $f(...$more);",
+    );
+    let diags = check_src(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_positional_argument_cannot_follow_a_spread_through_a_callable() {
+    let src = with_method(
+        "int $count",
+        "callable $f = fn (int $n): int => $n;\n    array<int> $more = [1];\n    $f(...$more, 2);",
+    );
+    let diags = check_src(&src);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_POSITIONAL_AFTER_NAMED)),
+        "which parameter a positional argument fills is its own place in the list, \
+         with or without a signature: {diags:?}"
+    );
+}
+
+#[test]
 fn a_spread_argument_needs_a_variadic_parameter() {
     let src = with_method("int $count", "array<int> $more = [1];\n    T::m(...$more);");
     let diags = check_src(&src);

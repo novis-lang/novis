@@ -1,0 +1,20 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @4:5-4:34
+    v1 = class.desc T  ; classdesc
+    v2 = const.int 1  ; int
+    v3 = const.str "z"  ; string
+    v4 = const.str "!"  ; string
+    v5 = call T::label(this: v1, v3, v2, v4) ! bb1  ; void
+    release v0
+    return
+  bb1:
+    release v0
+    propagate "m() at t.mwl:4"
+}

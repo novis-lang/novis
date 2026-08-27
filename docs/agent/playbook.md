@@ -1054,11 +1054,12 @@ is why" — is this file.
   run. Wrap it in a `final class` and call it `Render::pairs($m)`; a compiler-owned generic type
   (`Core\ObjectMap<Tag, int>`) is accepted in that method's parameter list, so the helper can take the
   collection the case is about.
-- **A case that sweeps a table cannot factor the sweep into a closure.** Two separate walls, one call
-  apart: `function (…) { … }` is `E0222` outright (`fn (…) => …` or `fn (…) => { … }` is the one closure
-  literal), and the `fn` form then *lowers nowhere* — calling a closure through the variable holding it
-  panics `mwl-ir`'s control-flow slice with a bare `got Call { callee: Variable(…) }`, which reads as a
-  parser gap rather than as the missing lowering it is. The shape that works is a typed array plus
+- **A case that sweeps a table can factor the sweep into a closure now, but `function (…) { … }` is
+  still `E0222` outright** — `fn (…) => …` or `fn (…) => { … }` is the one closure literal (ADR 0031).
+  Calling one through the variable holding it lowers (it used to panic), and so does `$f(...$args)`;
+  what a call through a `callable` answers is `mixed`, so the result takes an `as T` wherever a
+  narrower type is declared. The array-plus-`foreach` shape below is still the one to reach for when
+  the sweep's rows are *data* rather than behaviour: a typed array plus
   `foreach`, with the `try`/`catch` inline in the loop body: `array<string> $rows = ["…", …];` — **no
   `var`**, because an array literal is `array<mixed>` and `var` refuses to infer an element type
   (`E0414`), and `foreach ($rows as string $row)` over the literal directly is `E0401` for the same
@@ -1366,14 +1367,13 @@ is why" — is this file.
   exponentials are a double's whole precision apart, so the ratio *is* one — while `cosh(20.0)` is
   still finite, and at 1000 both `cosh` and `sinh` answer `INFINITY` rather than refusing, a
   hyperbolic member having no domain to leave on that side.
-- **A spread argument does not lower, so a case that composes a variadic member folds instead.**
-  `Core\Path::join(...Core\Path::split($p))` is how `path.rs`'s own doc comment writes the round trip
-  and it panics `mwl-ir` at `crates/mwl-ir/src/lower/call.rs:75` — *"does not yet lower a named or
-  spread call argument"*. The fold is a `public static function` helper taking the `array<string>`:
-  the first element is the base and the rest are joined one at a time, which is the same composition
-  because `join` only ever appends. Indexing that array is by the *string* of the offset —
-  `$parts["0"]`, and `$parts[$i as string]` inside the loop — and `Core\Arr::count($parts) as int` is
-  what an `int` counter may be compared against.
+- **A spread argument lowers now, so a case that composes a variadic member composes it.**
+  `Core\Path::join(...Core\Path::split($p))` is how `path.rs`'s own doc comment writes the round
+  trip, and it used to panic `mwl-ir`; it does not any more. The fold this bullet used to prescribe
+  — a `public static function` helper walking the `array<string>` — is still what a case reaches for
+  when the *pieces* are the subject, and two spellings inside it are still worth knowing: an array is
+  indexed by the *string* of the offset (`$parts["0"]`, `$parts[$i as string]` inside a loop), and
+  `Core\Arr::count($parts) as int` is what an `int` counter may be compared against.
 
 - **A count that compares a library-built path against its input string is leg-dependent, and length
   is the way round it.** `Core\Path`'s members re-render with `Core\Path::SEPARATOR`, so "the rebuilt
@@ -1456,6 +1456,13 @@ is why" — is this file.
   besides; the legacy cast in `mwl-syntax/src/parser/expr.rs`'s `parse_unary` keeps `Error` only
   because `(int)$x` names a target type it cannot honestly produce a value of. Decide which of the
   two a new refusal wants *before* writing the expected block, not after pasting it.
+- **`lower_first_method` lowers `T`'s *first* method, so a lowering fixture puts the method
+  under test first and its helpers after it.** The instinct is to declare the callee at the
+  top the way a `.mwlt` case does, and the snapshot that comes back is then the callee's own
+  three-line body — which looks like a lowering that produced nothing rather than like the
+  wrong function, because a `static function m(): void { }` lowers to exactly a `safepoint`, a
+  `param` per declaration and a `return`. Recognizing it costs one `cargo insta` cycle;
+  reordering the two members is the whole fix.
 
 ## Splitting a file that got too big
 
@@ -1623,8 +1630,8 @@ sibling in the same namespace unqualified.
   pairs each code with its own bounds carries them in a parallel `array<int>` and reads it by key —
   `foreach ($codes as string $k => string $c)` binds both, and `$high[$k]` indexes the sibling
   array — since there is no arithmetic on a format string to build one from.
-- **A closure held in an array can be handed to a `Core` member's `callable` option**, even
-  though calling one through the variable holding it panics `mwl-ir` outright. `array<callable>
+- **A closure held in an array can be handed to a `Core` member's `callable` option**, and
+  calling one through the variable holding it lowers too (it used to panic). `array<callable>
   $filters = [fn (Core\Cli\Text $c): int => 7, ...];` then `foreach ($filters as callable
   $filter) { ... Core\Out::capture($body, {through: $filter}) ... }` lowers and runs, because the
   call is the runtime's (`mwl_runtime::call_closure`) and not a lowered `Call` — which is what
@@ -1772,7 +1779,8 @@ sibling in the same namespace unqualified.
   spread contributed rather than from its own position. The one refusal left is the
   append's: a literal whose explicit key is already `i64::MAX` throws PHP's *"Cannot add
   element to the array as the next element is already occupied"*. A **call** argument
-  spread (`f(...$a)`) is still `mwl-ir` gap 8 and still panics.
+  spread (`f(...$a)`) lowers now too — into a variadic tail at a resolved target, and
+  through `Helper::CallClosureArray` at a `callable`.
 - **A local's slot is re-pointed in four places in `mwl_ir::lower`, and a rule hooked into
   `bind_local_value` catches three.** That function is the funnel for `$x = e` and every
   compound form; `write_back_holder` (a `&$x` argument's copy-back) and `write_back_array`
@@ -1897,6 +1905,13 @@ sibling in the same namespace unqualified.
   expression's `expected` to its left, which is why the left-hand digit run was the half that
   fell over while `$u - 18446744073709551615` was already fine. The two crates have to make
   the same placement, and the checker's half alone is not the feature.
+- **A new `mwl_ir::Helper` row needs a *fourth* edit, and the three obvious ones all build
+  clean without it.** The variant, `print.rs`'s name and `emit.rs`'s `helper_symbol` string are
+  what a session looks for; what nothing points at is `mwl_runtime::helpers`' symbol table,
+  the `(name, address)` list the JIT resolves against. Miss it and the whole workspace
+  compiles, every unit test passes, and the *first program that reaches the new row* dies
+  inside cranelift with `can't resolve symbol mwl_<name>` and no MWL frame anywhere in the
+  message. `grep -n "mwl_call_closure" crates/` names all four sites at once.
 
 ## Divergences and refusals already pinned
 

@@ -1,7 +1,9 @@
 <?mwl
 class Apply {
     public static function twice(callable $f, int $n): int {
-        return $f($f($n));
+        // A `callable` carries no return type (ADR 0031 § 1), so a call
+        // through one answers `mixed` and needs ADR 0007 § 2's `as` here.
+        return $f($f($n) as int) as int;
     }
 
     public static function total(int $base, int ...$rest): int {

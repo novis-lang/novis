@@ -631,6 +631,7 @@ tests = [
   "a_closure_is_called_through_the_variable_holding_it",
   "a_named_argument_lowers_to_its_declared_position",
   "a_spread_argument_lowers_to_the_positions_it_fills",
+  "a_spread_argument_through_a_callable_becomes_one_array",
   "a_spread_array_element_lowers",
   "a_reference_argument_lowers_in_any_expression_position",
   "a_closure_capturing_a_by_reference_parameter_snapshots_the_cell",
@@ -646,7 +647,13 @@ tests = [
   # Item 16's half, which lands FIRST -- a lowering with no resolved per-argument type is how that
   # gap got here in the first place (loop-goal.md § Standing decisions).
   "a_named_argument_is_checked_against_its_own_parameter",
-  "a_spread_argument_is_checked_against_the_positions_it_fills",
+  # A spread fills only a variadic tail (rule 5 of `map_arguments`), so "the positions it fills" IS that
+  # tail's element type -- the test the crate has, under the name the rule gave it.
+  "a_spread_argument_is_checked_against_the_tail_element_type",
+  # The same two spellings through a `callable`, which has no signature to map them against at all:
+  # ADR 0031 § 1 refuses the name and admits the spread.
+  "a_named_argument_through_a_callable_is_refused",
+  "a_spread_argument_through_a_callable_is_accepted",
   # Item 10's diagnostic half: `mwl_types` does not check loop nesting at all today.
   "a_break_past_its_nesting_is_a_compile_error",
   # Item 17's other half, refused by decision rather than built (ADR 0031 § 2).

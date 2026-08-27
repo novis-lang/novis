@@ -5596,6 +5596,75 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
+    /// A `name:` argument lands at the ABI position of the parameter its name
+    /// reached, not at its own place in the list — `mwl_types` records that
+    /// mapping as `ResolvedCall::arg_slots` and
+    /// [`Lowering::lower_call_args`] is what reads it.
+    ///
+    /// The call below writes its two parameters backwards and omits the third,
+    /// so all three facts are in the one snapshot: the `"z"` reaches argument
+    /// 0 and the `1` argument 1 despite being written the other way round, and
+    /// `$mark`'s own default is materialized into argument 2 by
+    /// [`Lowering::lower_default_arg`] rather than left absent. Evaluation
+    /// stays in *written* order above the call — the `1` is emitted first —
+    /// which is the half a positional list cannot tell apart.
+    #[test]
+    fn a_named_argument_lowers_to_its_declared_position() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\n",
+            "class T {\n",
+            "  function m(): void {\n",
+            "    T::label(times: 1, who: \"z\");\n",
+            "  }\n",
+            "  static function label(string $who, int $times, string $mark = \"!\"): void { }\n",
+            "}\n",
+        ));
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A `...` argument fills the variadic tail's positions, which are not one
+    /// ABI argument each: the tail is one array, so the spread is an
+    /// `array_spread` of the subject into the array the written-out prefix
+    /// built — how many entries arrive being the subject's own run-time length.
+    ///
+    /// Both call sites are here because they differ by one instruction and
+    /// nothing else: the second's prefix is empty, so its `array_new` starts
+    /// with no entries at all.
+    #[test]
+    fn a_spread_argument_lowers_to_the_positions_it_fills() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\n",
+            "class T {\n",
+            "  function m(array<int> $extra): void {\n",
+            "    T::total(1, 2, ...$extra);\n",
+            "    T::total(1, ...$extra);\n",
+            "  }\n",
+            "  static function total(int $base, int ...$rest): void { }\n",
+            "}\n",
+        ));
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// The same `...` through a `callable`, where there is no signature and so
+    /// no tail to fill: the *whole* argument list becomes the array instead,
+    /// and the call goes through `Helper::CallClosureArray` rather than the
+    /// `call_closure` beside it, whose argument count `mwl-codegen` writes as a
+    /// literal. The second call is the unspread one, which still emits the
+    /// counted helper — one snapshot holding both rows.
+    #[test]
+    fn a_spread_argument_through_a_callable_becomes_one_array() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\n",
+            "class T {\n",
+            "  function m(callable $f, array<int> $extra): void {\n",
+            "    echo $f(1, ...$extra) as string;\n",
+            "    echo $f(1) as string;\n",
+            "  }\n",
+            "}\n",
+        ));
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
     /// `$x instanceof Name` — one `instanceof` naming the *resolved* class
     /// label the checker recorded, with no retain of the receiver.
     #[test]

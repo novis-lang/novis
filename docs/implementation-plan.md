@@ -230,11 +230,31 @@
 > `a_core_class_stringifies_exactly_where_the_registry_says_so` asks the checker and the registry
 > the same question, `every_rendering_class_carries_a_renderer_or_is_a_carrier` asks the descriptor
 > and the registry theirs — so a `Core` class cannot render where it is written and throw where it
-> is not. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
-> cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> is not. **A named and a spread argument now lower at both kinds of call site**, which is item 16
+> closed at both ends. A `name:` argument lands at the ABI position of the parameter its *name*
+> reached rather than at its own place in the list, with every parameter no argument filled taking
+> its own default in declaration order and evaluation staying in **written** order above the call —
+> `mwl_types`' `ResolvedCall::arg_slots` is that mapping and `mwl-ir` only reads it, a name
+> resolving against a `MethodSig`'s parameter names that no later pass holds. A `...` argument is
+> one `array_spread` of the subject into the array a variadic tail already is, so how many arguments
+> arrive is the subject's own run-time length rather than anything the site counted. Through a
+> `callable` there is no signature to map either against, and that is where the two halves part
+> company. A `name:` is refused where it is written (`E0712`): ADR 0031 § 1 gives `callable` no
+> parameter list at *either* end, a closure value recording its arity and its parameter tags and
+> never their names, so PHP's spelling has nothing to resolve against here at all. A `...` needs no
+> parameter list to mean something, so it lowers — the whole argument list becomes one array behind
+> `Helper::CallClosureArray`, which is a second helper rather than a wider `CallClosure` because
+> that one's argument count is a literal `mwl-codegen` writes beside the argument slot, and a
+> spread's count is exactly the fact that is not known there. Both reach the one
+> `mwl_runtime::call_closure` every `Core` member's callback already does, through one shared arity
+> check, so too few arguments is the same catchable `LogicError` and there is no second convention
+> beside it; too many are trimmed, which is PHP's answer for a userland call as well as the spec's
+> "a callback may declare fewer parameters". Valgrind-clean over a fixture that spreads a borrowed
+> and a freshly built argument list two hundred times each. Three live tools **are** the worklist
+> and no session re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and
+> `mwl-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.mwlt` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

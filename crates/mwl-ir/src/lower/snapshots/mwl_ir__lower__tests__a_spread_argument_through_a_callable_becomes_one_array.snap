@@ -1,0 +1,71 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, object, array) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; object
+    v2 = param 2  ; array
+    ; stmt s0 @4:5-4:37
+    v3 = const.int 1  ; int
+    v4 = array.new ["0": v3]  ; array
+    v5 = array.spread v4, v2 ! bb1  ; array
+    v6 = helper.call_closure_array v1, v5 ! bb2  ; tagged
+    release v5
+    v7 = helper.tagged_to_string v6 ! bb3  ; string
+    release v6
+    helper.echo_str v7 ! bb4
+    release v7
+    ; stmt s1 @5:5-5:26
+    v8 = const.int 1  ; int
+    v9 = helper.call_closure v1, v8 ! bb5  ; tagged
+    v10 = helper.tagged_to_string v9 ! bb6  ; string
+    release v9
+    helper.echo_str v10 ! bb7
+    release v10
+    release v2
+    release v1
+    release v0
+    return
+  bb1:
+    release v4
+    release v2
+    release v1
+    release v0
+    propagate "m() at t.mwl:4"
+  bb2:
+    release v5
+    release v2
+    release v1
+    release v0
+    propagate "m() at t.mwl:4"
+  bb3:
+    release v2
+    release v1
+    release v0
+    propagate "m() at t.mwl:4"
+  bb4:
+    release v7
+    release v2
+    release v1
+    release v0
+    propagate "m() at t.mwl:4"
+  bb5:
+    release v2
+    release v1
+    release v0
+    propagate "m() at t.mwl:5"
+  bb6:
+    release v2
+    release v1
+    release v0
+    propagate "m() at t.mwl:5"
+  bb7:
+    release v10
+    release v2
+    release v1
+    release v0
+    propagate "m() at t.mwl:5"
+}
