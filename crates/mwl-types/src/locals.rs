@@ -928,49 +928,79 @@ pub(crate) fn check_stmt(
             // unstructured") — nothing downstream ever acts on them, same as
             // `mwl_hir::members`'s own walk.
         }
-        // A type declaration only ever reaches this walk from *inside* a body:
-        // `crate::check::check_stmts` matches all three at file scope and
-        // never forwards one here. So the refusal below needs no "am I nested"
-        // test — arriving is the test. See this module's own doc comment.
-        StmtKind::ClassDecl(decl) => nested_type_declaration("class", decl.name.span, env),
+        // A declaration only ever reaches this walk from *inside* a body:
+        // `crate::check::check_stmts` matches every one of these at file scope
+        // and never forwards one here. So the refusals below need no "am I
+        // nested" test — arriving is the test. See this module's own doc
+        // comment.
+        StmtKind::ClassDecl(decl) => nested_declaration("class", decl.name.span, true, env),
         StmtKind::InterfaceDecl(decl) => {
-            nested_type_declaration("interface", decl.name.span, env);
+            nested_declaration("interface", decl.name.span, true, env);
         }
-        StmtKind::EnumDecl(decl) => nested_type_declaration("enum", decl.name.span, env),
-        StmtKind::NamespaceDecl(_)
-        | StmtKind::UseDecl(_)
-        | StmtKind::TypeAliasDecl(_)
-        | StmtKind::TopLevelFunction(_)
-        | StmtKind::TopLevelConst(_) => {
-            // A declaration nested inside a function body is not descended
-            // into by this slice — see the module docs' known gaps.
+        StmtKind::EnumDecl(decl) => nested_declaration("enum", decl.name.span, true, env),
+        StmtKind::TypeAliasDecl(decl) => nested_declaration("type", decl.name.span, true, env),
+        // The three that introduce no name of their own: they change what the
+        // names around them *mean*, for the whole file, which is the same
+        // thing control flow has no reading to give.
+        StmtKind::NamespaceDecl(decl) => {
+            let at = decl.name.as_ref().map_or(stmt.span, |n| n.span);
+            nested_declaration("namespace", at, false, env);
+        }
+        StmtKind::UseDecl(decl) => nested_declaration("use", decl.path.span, false, env),
+        StmtKind::AutoloadDecl(decl) => nested_declaration("autoload", decl.span, false, env),
+        StmtKind::TopLevelFunction(_) | StmtKind::TopLevelConst(_) => {
+            // `E0215`/`E0216` from `mwl_hir::members` already refuse these at
+            // every scope, by the rule they actually break (ADR 0011 § 1: a
+            // function is a method, a constant belongs to a class), so a
+            // second diagnostic here would only say it worse.
         }
         _ => {}
     }
 }
 
-/// `E0233` — a `class`, `interface` or `enum` declared anywhere but file
-/// scope, named for what it is rather than left to panic below the checker.
+/// `E0233` — a declaration written anywhere but file scope, named for what it
+/// is rather than left to panic below the checker.
 ///
-/// `kind` is the keyword as written, so the message reads back the source;
-/// `name` is the declared name's own span, which is the shortest thing to
-/// point at and the one part of the declaration a reader has to move.
-fn nested_type_declaration(kind: &str, name: Span, env: &mut Env<'_>) {
-    let name_text = span_text(env.src, name).to_owned();
-    env.diags.report(
-        Diagnostic::error(
-            code::E_NESTED_TYPE_DECLARATION_UNSUPPORTED,
-            format!("a nested `{kind}` declaration is not supported"),
-        )
-        .with_primary(
-            name,
-            format!("`{name_text}` would only exist once control reached this statement"),
-        )
-        .with_help(format!(
-            "move `{name_text}` out to file scope — every type in MWL is declared before any code \
-             runs, so a name's existence never depends on control flow"
-        )),
-    );
+/// All seven spellings share one code because they break one rule: every
+/// declaration in MWL is in effect before any code runs, so "which statements
+/// have run by now" is a question none of the tables below can answer. `kind`
+/// is the keyword as written, so the message reads back the source.
+///
+/// `introduces_a_name` picks between the two halves of that rule, and `at` is
+/// the span each half wants underlined:
+///
+/// * `class`, `interface`, `enum` and `type` **introduce** a name — `at` is
+///   that name, the shortest thing to point at and the one part of the
+///   declaration a reader has to move.
+/// * `namespace`, `use` and `autoload` introduce none; they change what the
+///   names around them resolve to. `at` is the shortest span that identifies
+///   which one — the namespace's name, the import's path, the whole `autoload`
+///   — since there is no declared name to quote back.
+fn nested_declaration(kind: &str, at: Span, introduces_a_name: bool, env: &mut Env<'_>) {
+    let title = format!("a nested `{kind}` declaration is not supported");
+    let diag = if introduces_a_name {
+        let name_text = span_text(env.src, at).to_owned();
+        Diagnostic::error(code::E_NESTED_TYPE_DECLARATION_UNSUPPORTED, title)
+            .with_primary(
+                at,
+                format!("`{name_text}` would only exist once control reached this statement"),
+            )
+            .with_help(format!(
+                "move `{name_text}` out to file scope — every type in MWL is declared before any \
+                 code runs, so a name's existence never depends on control flow"
+            ))
+    } else {
+        Diagnostic::error(code::E_NESTED_TYPE_DECLARATION_UNSUPPORTED, title)
+            .with_primary(
+                at,
+                format!("this `{kind}` would only take effect once control reached this statement"),
+            )
+            .with_help(format!(
+                "move the `{kind}` out to file scope — it applies to the whole file, so what a \
+                 name resolves to never depends on control flow"
+            ))
+    };
+    env.diags.report(diag);
 }
 
 /// ADR 0007 § 3.3's destructuring target, against the type of the value being

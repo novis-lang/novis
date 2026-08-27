@@ -37,6 +37,12 @@ impl<'a> Lowering<'a> {
                 | StmtKind::InterfaceDecl(_)
                 | StmtKind::EnumDecl(_)
                 | StmtKind::TypeAliasDecl(_)
+                // ADR 0061's `autoload` map is read by `mwl_hir` while the
+                // `require`/autoload graph is being built, long before any of
+                // this — so at file scope it is a declaration like the rest of
+                // this list and emits nothing, in the entry point exactly as
+                // in the bootstrap file a conformance case usually puts it.
+                | StmtKind::AutoloadDecl(_)
                 | StmtKind::TopLevelFunction(_)
                 | StmtKind::TopLevelConst(_) => {}
                 _ => self.lower_stmt(stmt, cur, env),
@@ -222,13 +228,31 @@ impl<'a> Lowering<'a> {
             StmtKind::Destructure { target, value } => {
                 self.lower_destructure(target, value, cur, env);
             }
-            // Nothing the checker accepts reaches this arm any more. The two
-            // shapes that used to went out opposite doors: ADR 0007 § 3.3's
-            // destructuring lowers, one arm above, and a class, interface or
-            // enum declared inside a body is `E0233` from `mwl_types::locals`
-            // — the decision is in `docs/adr/README.md` § *Decisions taken at
-            // project start*, since PHP's "declared when the statement runs"
-            // has no reading a static class table can give it.
+            // Nothing the checker accepts reaches this arm any more, and the
+            // proof is the roster rather than the message below it.
+            // `StmtKind` has 31 variants; the arms above cover 18 of them,
+            // plus three of `LocalDecl`'s four shapes. Of the thirteen with no
+            // arm and the one `LocalDecl` shape:
+            //
+            // * `global`, `goto` and a function-scope `static` are reported by
+            //   the parser that built them (ADR 0008 § 5), and `Error` is a
+            //   parse error already reported — none of the four survives to a
+            //   compilation that lowers.
+            // * `var $x;` with no initializer is `E0101` at the missing `=`;
+            //   `var` has nothing else to infer a type from.
+            // * a top-level `function` or `const` is `E0215`/`E0216` from
+            //   `mwl_hir::members` at every scope (ADR 0011 § 1).
+            // * the remaining seven are declarations — `class`, `interface`,
+            //   `enum`, `type`, `namespace`, `use` and `autoload`. At file
+            //   scope `lower_script_stmts` above skips all seven; anywhere
+            //   else they are `E0233` from `mwl_types::locals`, whose walk is
+            //   reached only from inside a body. The decision is in
+            //   `docs/adr/README.md` § *Decisions taken at project start*,
+            //   since PHP's "declared when the statement runs" has no reading
+            //   a static table built before any code runs can give it.
+            //
+            // ADR 0007 § 3.3's destructuring, the other shape that used to
+            // arrive here, lowers one arm above.
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a typed local declaration with or \
                  without an initializer, a plain reassignment, destructuring, `echo`, inline \
@@ -252,11 +276,11 @@ impl<'a> Lowering<'a> {
     /// known gaps), independent of whether the call itself is a statement or
     /// bound to something.
     ///
-    /// # Panics
-    ///
-    /// Panics naming the unsupported shape for anything outside this slice's
-    /// scope: an expression statement that is neither a plain reassignment
-    /// nor a bare call/`new`.
+    /// Every arm below is a shape with accounting of its own; anything else
+    /// is evaluated for its effects and discarded by the last arm, so this
+    /// dispatch refuses nothing — an expression with no lowering is named by
+    /// [`Self::lower_expr`]'s own dispatch instead, which points at the
+    /// expression rather than at the statement wrapping it.
     pub(super) fn lower_expr_stmt(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
         match &e.kind {
             ExprKind::Assign {
@@ -360,11 +384,42 @@ impl<'a> Lowering<'a> {
             ExprKind::Empty(operand) => {
                 self.lower_not(operand, env, cur);
             }
-            other => panic!(
-                "mwl-ir's control-flow slice only lowers a plain `$x = expr;` reassignment, a \
-                 bare call/`new`, `print`, `isset`, `empty`, or a discarded shape literal as an \
-                 expression statement — got {other:?}; see the crate docs' known gaps"
-            ),
+            // Every other expression, evaluated for what it does with its
+            // value discarded — `$a[$i++];`, `$obj->prop;`, `$x;`, `1 + 2;`,
+            // a discarded `match`. PHP runs one of these for its effects and
+            // so does this, which is the same rule the `isset`, `empty` and
+            // `ObjectLiteral` arms above already spell out one shape at a
+            // time; those stay because each carries an accounting note of its
+            // own, not because this could not cover them.
+            //
+            // Refusing an effect-free one instead — the "expression result
+            // unused" a stricter language reports — is not taken, and the
+            // reason is that "has no effect" is not a property this slice can
+            // decide: a property read runs the hook ADR 0014 § 1 gives it, a
+            // subscript key runs whatever the key expression does, and a call
+            // is buried inside half of these. A statement PHP evaluates has
+            // to evaluate here (priority 2 over priority 4), and the residue
+            // that genuinely does nothing costs one dead instruction the
+            // backend drops.
+            //
+            // The release is `Self::aliasing_read`'s judgment, not a blanket
+            // one: `$x;` hands back the local's own value and releasing that
+            // would be a release of a reference this frame never took, while
+            // `$m->rows()["0"];` is a fresh producer whose only reference is
+            // the one being discarded here. A shape with no lowering at all
+            // is still refused one level down, by `lower_expr`'s own
+            // dispatch, which names the expression rather than the statement
+            // wrapping it.
+            _ => {
+                let (v, ty) = self.lower_expr(e, None, env, cur);
+                if ty.is_refcounted() && !self.aliasing_read(e) {
+                    self.emit_release(*cur, v);
+                }
+                // A `&$x` argument staged by a call buried in the discarded
+                // expression is copied back at the same statement boundary
+                // the bare-call arm above uses. See `Self::pending_refs`.
+                self.flush_ref_writebacks(env, *cur);
+            }
         }
     }
     /// `$x ⊕= e;` — rewritten into the `$x = $x ⊕ e;` it means and handed

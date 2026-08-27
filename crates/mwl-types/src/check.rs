@@ -236,6 +236,13 @@ fn check_stmts(
                 };
                 check_members(&decl.members, &ctx, env);
             }
+            // Two more declarations this walk has nothing to check, matched
+            // here rather than left to fall through, because what
+            // `crate::locals::check_stmt` does with one now is refuse it as
+            // `E0233` — and there the fact that it arrived at all *is* the
+            // proof it was nested. `mwl_hir` is what reads both: a `type`
+            // alias into the type table, an `autoload` into ADR 0061's map.
+            StmtKind::TypeAliasDecl(_) | StmtKind::AutoloadDecl(_) => {}
             // Everything else is a *statement* of the script body, not a
             // declaration: one synthesized frame for the whole file, whose
             // variables are ordinary locals (ADR 0008 § 2). Reuses

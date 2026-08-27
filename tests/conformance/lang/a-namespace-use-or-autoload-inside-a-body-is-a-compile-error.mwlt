@@ -1,0 +1,54 @@
+--TEST--
+A `use`, `autoload`, `type` or `namespace` written inside a body is `E0233`, never a panic — docs/adr/README.md § *Decisions taken at project start*
+--FILE--
+<?mwl
+// A declaration is in effect before any code runs, so a body is the one place
+// it has no reading at all.
+class Outer {
+    public static function run(): int {
+        use App\Thing;
+        autoload 'App' from './src';
+        return 1;
+    }
+}
+// A block at file scope is not file scope.
+if (true) {
+    type Handle = int;
+}
+// A closure body is a body like any other.
+callable $f = fn (): int => {
+    namespace Inner {
+    }
+    return 1;
+};
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0233]: a nested `use` declaration is not supported
+  --> %s:6:13
+  |
+6 |         use App\Thing;
+  |             ^^^^^^^^^ this `use` would only take effect once control reached this statement
+  = help: move the `use` out to file scope — it applies to the whole file, so what a name resolves to never depends on control flow
+
+error[E0233]: a nested `autoload` declaration is not supported
+  --> %s:7:9
+  |
+7 |         autoload 'App' from './src';
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this `autoload` would only take effect once control reached this statement
+  = help: move the `autoload` out to file scope — it applies to the whole file, so what a name resolves to never depends on control flow
+
+error[E0233]: a nested `type` declaration is not supported
+   --> %s:13:10
+   |
+13 |     type Handle = int;
+   |          ^^^^^^ `Handle` would only exist once control reached this statement
+   = help: move `Handle` out to file scope — every type in MWL is declared before any code runs, so a name's existence never depends on control flow
+
+error[E0233]: a nested `namespace` declaration is not supported
+   --> %s:17:15
+   |
+17 |     namespace Inner {
+   |               ^^^^^ this `namespace` would only take effect once control reached this statement
+   = help: move the `namespace` out to file scope — it applies to the whole file, so what a name resolves to never depends on control flow
+
+error: aborting due to 4 errors
