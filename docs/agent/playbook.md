@@ -659,11 +659,13 @@ is why" — is this file.
   static layout differs from the value's own is a narrower shape — which is the only widening a case
   testing § 4's name-keyed read can write. Several doc comments claimed the class direction worked; they
   were wrong and are fixed, so do not design a case around it.
-- **A `?array<T>` cannot be indexed even after a `!= null` guard** — `mwl-ir` panics outright at
-  `crates/mwl-ir/src/lower/expr.rs:2952`, *"has no resolved element type recorded … its base erased to
-  `mixed`"*. The narrowing itself works for a `?string`, so the hole is specifically that a narrowed
-  nullable **array** loses its element type, and `Core\Arr::first`/`last` over an `array<array<string>>`
-  is where a case meets it. Three spellings do lower and are the way round it: `$rows["0"]["name"]`
+- **A `?array<T>` cannot be indexed even after a `!= null` guard** — `E0482: `null|array<string>`
+  cannot be subscripted`, whose help names the two ways round it. It used to be a `mwl-ir` panic; the
+  refusal is at check time now, but the hole is the same one and is unchanged: `mwl_types::locals`'
+  `narrow` (`crates/mwl-types/src/locals.rs:315`) drops `null` only when the residue is a `Ty::Class`,
+  so a nullable **array** never narrows at all, and `Core\Arr::first`/`last` over an
+  `array<array<string>>` is where a case meets it. Three spellings do lower and are the way round it:
+  `$rows["0"]["name"]`
   (nested indexing, no nullable in the path), `foreach ($rows as array<string> $row)` — the binding's
   declared type is what re-supplies the element type — and binding `var $row = $rows["0"];` first.
 - **Registering a `Core` member and writing its conformance case are one slice, not two.**
@@ -1176,6 +1178,13 @@ is why" — is this file.
   conversion (ADR 0007 § 2) that would throw rather than lie if the guard above it were wrong, and
   `$r ?? "<null>"` where the value is only being echoed — which is also how a case prints the refusal
   itself, since `echo` has no `null` row.
+- **A green conformance case can be pinning the bug you are about to fix.**
+  `reading-an-absent-array-key-throws.mwlt` asserted `$maybe["gone"] ?? "stored-null"` *throws* —
+  it was written to pin ADR 0007 § 7 row 11 and reached for `??` as a convenient way to spell
+  the read, freezing the exact divergence from PHP that row was not claiming. So when a case
+  goes red under a fix, check its expectation against PHP (`php -r '…'`) before adjusting
+  either side: a `--EXPECT--` block is only as authoritative as the session that wrote it, and
+  a case using a construct incidentally is where a wrong one hides.
 
 ## Splitting a file that got too big
 

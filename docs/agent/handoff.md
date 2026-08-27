@@ -2,73 +2,77 @@
 
 ## State
 
-**M4 — language completeness.** One slice landed, and it closes the live crash the previous
-group found rather than a worklist item: **reading an absent array key throws.**
+**M4 — language completeness.** One slice landed, and like the previous one it closes a live
+wrong answer rather than a worklist item: **`$a["k"] ?? "d"` yields the default now** instead
+of throwing.
 
-`mwl_ir::InstKind::ArrayGet` is a *fallible* instruction now. It carries ADR 0002's error
-edge, `mwl-codegen` emits it through `emit_helper` against one runtime entry point
-(`mwl_array_required_get`, in `crates/mwl-runtime/src/helpers.rs`), and the `Ty::Str`
-versus `Ty::Int` key split that used to pick between two borrowing primitives is decided
-there by the key's own tag — so `Signatures::array_get`/`array_get_index` and their two
-`RuntimeSig` rows are gone. The divergence is ADR 0007 § 7 **row 11**; that helper's doc
-comment owns why the old answer was a null dereference below the language rather than an
-error inside it, and `InstKind::ArrayGet`'s owns the instruction's half.
+`mwl_types` marks the `??`'s immediate left operand in `Env::coalesce_guarded`
+(`crates/mwl-types/src/lib.rs`) before it checks it; the `ExprKind::Index` arm answers
+`?elem_ty` for a marked read and records `ExprInfo::Index { guarded: true }`. That `null` in
+the operand's static type is the whole mechanism — it is what stops `lower_coalesce`
+(`crates/mwl-ir/src/lower/expr.rs:1297`) short-circuiting a `??` whose left operand looked
+statically non-nullable. Below, `mwl_ir::ir::InstKind::ArrayGet` carries an
+`mwl_ir::ir::AbsentKey`: `Throws` is every read written outside a guard (fallible, element
+representation, `mwl_array_required_get`), `Null` is the guarded one (infallible, `Ty::Tagged`,
+`mwl_array_optional_get` — new, in `crates/mwl-runtime/src/helpers.rs`). ADR 0007 § 7 row 11
+carries the exception in its own cell; `AbsentKey`'s and `ExprInfo::Index::guarded`'s doc
+comments own the two halves of the mechanism.
 
-An absent key is told from a stored `null` by an `Option` out of the table
-(`mwl_runtime::array::entry`/`entry_at_index`, both new), so an `array<?T>` reads its own
-`null` back. The write side is unchanged and deliberately answers the opposite —
-`Helper::ArrayRowForWrite` vivifies where a read throws.
+**Only the immediate operand is guarded.** `$a["k"]["j"] ?? "d"` still throws at the inner
+level, because guarding a whole chain needs the base of a guarded read to be a `?array<T>`
+that resolves an element type — which is the next slice. `Env::coalesce_guarded`'s doc says so.
 
-`verify.py` 6 of 6 green — conformance **577**, differential 162. `tools/leak-check.sh` is
-green over a fixture that throws with a rendered `uint` key and a temporary base live, which
-is the one new refcount edge: the key is staged on the owned-temporaries stack now rather
-than released inline. `holes.py` is unchanged at **35 sites, 9 items** — this was never a
-panic site, which is why no item named it.
+`verify.py` 6 of 6 green — conformance **578**, differential 162. `tools/leak-check.sh` is
+green over two fixtures covering the new edges (a guarded read off a call temporary, and a
+rendered `uint` key under a guard). `holes.py` is unchanged at **35 sites, 9 items** — this
+was never a panic. One existing case, `reading-an-absent-array-key-throws.mwlt`, had frozen
+the old wrong answer into its `--EXPECT--` and is corrected.
 
 ## Next group
 
-**All three share `crates/mwl-types/src/locals.rs`'s `narrow` (line 303) and
-`crates/mwl-ir/src/lower/expr.rs`'s `lower_index` (line 3661) / `lower_coalesce`
-(line 1271).** The third is new and is the one with a user-visible wrong answer.
+**All three share `crates/mwl-types/src/locals.rs`'s `narrow` (line 303, the residue test at
+line 315) and `crates/mwl-types/src/expr/mod.rs`'s `Index`/`Variable` arms (lines 295, 143).**
+The first is the one the other two wait on, and it is **not** the one-line residue widening it
+reads as — the design work is done below, so do not re-derive it.
 
-- [ ] **`$a["k"] ?? "d"` throws where PHP yields the default.** `lower_coalesce`
-      (`crates/mwl-ir/src/lower/expr.rs:1271`) short-circuits to the left operand whenever
-      its representation is not `Ty::Tagged`, and an `array<string>` element is a `Ty::Str`
-      — so the `??` never runs, and the read under it now throws instead of crashing.
-      PHP's `??` is exactly *"absent or null, without the warning"*, so priority 2 says the
-      guarded read must not throw. The shape: `mwl_types` records the index expression under
-      a `??` (and under `isset`, once that lowers) as coalesce-guarded, and `lower_index`
-      emits the non-throwing read for one — `mwl_array_get`'s borrowing answer is still
-      there and is what it wants. ADR 0007 § 7 row 11 is the rule the exception is carved
-      out of, so say so in its cell.
-- [ ] **`?array<T>` does not narrow out of `null`** — `crates/mwl-types/src/locals.rs:303`,
-      whose residue check accepts only `Ty::Class(..)`. **Relaxing that check is not the
-      slice**, and this session's change is why the temptation is now real: the helper ABI
-      is tag-dispatched, so a narrowed `?array<T>` would read *through a subscript* with no
-      untag at all — and then meet `InstKind::ArrayNextSlot` (`foreach`), `ArraySet` (an
-      element write) and every other consumer that takes a raw `Ty::Array` operand, each of
-      which gets a `Ty::Tagged` one and fails in codegen. The slice is to record the
-      narrowing on the *variable read* the way a receiver's already is (`untag_receiver`,
-      `crates/mwl-ir/src/lower/expr.rs`) and untag in `lower_expr`, which is what that
-      function's doc comment at `locals.rs:290-302` has been waiting for.
-- [ ] **Re-word E0482's nullable-array help and retire the playbook's `?array<T>` trap** —
-      both are only true while the slice above is open. `E0482` is declared in
-      `crates/mwl-diagnostics/src/lib.rs` and reported from
-      `crates/mwl-types/src/expr/mod.rs`.
+- [ ] **`?array<T>` does not narrow out of `null`.** `narrow`
+      (`crates/mwl-types/src/locals.rs:315`) drops `null` only when the residue is a
+      `Ty::Class`, so `if ($m != null) { echo $m["k"]; }` over a `?array<string>` is `E0482`.
+      Widening the residue test is one line; what it costs is that `mwl-ir` lowers a `?T`
+      local's slot as `Ty::Tagged` whatever the checker proves, and today the *only* consumer
+      that reads back out of one is a receiver, through `Lowering::untag_receiver`
+      (`crates/mwl-ir/src/lower/expr.rs:1212`). An array has several consumers, not one:
+      `lower_index`'s base (`:3667`), the array-write root's write-back
+      (`crates/mwl-ir/src/lower/stmt.rs:715`), a `foreach` subject, and a call argument.
+      **Two shapes, and the second is the recommendation.** (a) An `untag_array` mirroring
+      `untag_receiver` at each of those consumers — contained, blessed by precedent, but one
+      forgotten site is a cranelift rejection rather than a panic. (b) Record the narrowing on
+      the *variable read's own span* (`ExprInfo::NarrowedRead { to }`, from the
+      `ExprKind::Variable` arm at `crates/mwl-types/src/expr/mod.rs:143`, where
+      `LocalScope::declared_ty` already answers the narrowed type) and untag once in
+      `lower_expr`'s `Variable` arm, so every consumer sees the narrow representation with no
+      site to forget. (b) subsumes `untag_receiver`, and `narrow`'s own doc comment
+      (`locals.rs:290-302`) is the paragraph to rewrite either way — it currently states the
+      restriction as gated on `mwl-ir` gap 1's tagged arithmetic.
+- [ ] **`?array<T> $m = ["k" => "v"];` is `E0401`** — *expected `null|array<string>`, found
+      `array<mixed>`*. The expectation is not pushed through the `null` union to the literal,
+      so a `?array<T>` binding can be initialised only from `null` or a call, which is what
+      makes the slice above hard to even write a case for. `check_array_literal`'s `expected`
+      (`crates/mwl-types/src/expr/mod.rs:151`) is the site.
+- [ ] **Re-word `E0482`'s nullable-array help and retire the playbook's `?array<T>` trap** —
+      `report_unsubscriptable`'s help text at `crates/mwl-types/src/expr/mod.rs:515` names a
+      workaround that the first slice removes, and the playbook bullet under *Writing MWL
+      itself* is the one to edit (not delete: the three spellings it lists stay useful).
 
 ## Backlog
 
-- `isset(...)`/`empty(...)` parse (`crates/mwl-syntax/src/ast.rs:845`) and lower nowhere —
-  the same guarded-read question as `??` above (`mwl_types::expr`'s module doc).
-- `mwl-ir` gap 1's tagged arithmetic is what gates narrowing a `?int` at all
-  (`crates/mwl-types/src/locals.rs:299`).
-- The two unattributed `holes.py` sites are `lower_decl_type`/`lower_checked_ty`'s
-  catch-alls — `decimal`, `never`, `iterable`, `self`/`static`/`parent`, a shape type and an
-  intersection as a *declared* type (docs/implementation-plan.md § Open now).
-- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
-- 20 of the 32 named `.mwlt` cases are still to write (`python tools/holes.py --cases`).
-
-**Orientation gap:** `[context] modules` in `docs/agent/loop-goal.toml` names no
-`mwl-runtime` pattern at all, and no `mwl-codegen/src/lib.rs` — this slice lived in
-`crates/mwl-runtime/src/{array,helpers,abi}.rs` and in `Signatures`, all of them read from
-scratch. Any slice that changes what an instruction *costs at runtime* lands there.
+- `$a["k"]["j"] ?? "d"` throws at the inner level where PHP yields the default — blocked on the
+  `?array<T>` narrowing above; `mwl_types::Env::coalesce_guarded`'s doc owns why.
+- `isset($a["k"])` should take the same guard once `isset` lowers — `docs/adr/0007` § 7.
+- `mwl-ir` gap 1's tagged arithmetic: a narrowed `?int` would type-check `$n + 1` and fail in
+  `emit_binop` — `crates/mwl-types/src/locals.rs:299` states the trade.
+- `array<T> as array<U>` still does not lower (`crates/mwl-ir/src/lower/expr.rs:877`), which is
+  what keeps four `gaps.py --errors` sites unreachable — playbook, *Writing a test case*.
+- `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing rows —
+  `mwl_stdlib::json`'s module doc.
+- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
