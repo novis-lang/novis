@@ -123,6 +123,7 @@ so you never have to open this file to route a topic.
 | `callable`, first-class callable syntax (`Foo::bar(...)`), `__invoke`, calling an object with `()` | [0027](0027-callable-is-closures-only.md) |
 | The pipeline operator, `\|>`, the hole `$_`, method chaining, a fluent interface on a `string`/`array<T>`, why PHP 8.5's `\|>` spelling does not work here, `#[Fluentable]` | [0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md) for the operator; [0063](0063-core-api-conventions.md) R17-R19 for why there are no methods on scalars |
 | Anonymous functions, `fn`, arrow functions, closure capture, `use (...)`, recursive closures | [0031](0031-callable-is-the-only-closure-type.md) |
+| By-reference parameters, `inout`, `&$x`, `foreach (… as &$v)`, whether a call site marks an argument it writes | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) |
 | `__toString`/`Stringable`, `__destruct`, `__isset`/`__unset`, `unset()` on an object property, `__debugInfo`, `__set_state`, or "what happened to PHP magic method X" | [0028](0028-closing-the-remaining-magic-methods.md) |
 | `stdClass`, an anonymous object literal `{a: 1}`, the `object` type, an inline `{name: T}` shape type | [0036](0036-anonymous-object-shapes.md) |
 | Naming conventions, `PascalCase`/`camelCase`/`SCREAMING_SNAKE_CASE`, acronym spelling, identifier casing | [0029](0029-identifier-casing-is-checked.md) |
@@ -309,6 +310,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0104](0104-an-application-is-an-entry-file-path.md) | An application is an entry file path, and a per-app block is keyed on it | Accepted |
 | [0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) | An uploaded file is a stream, and there is one way to receive it | Accepted |
 | [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) | Nothing a request can send terminates or wedges a worker | Accepted |
+| [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) | A by-reference binding is spelled `inout`, at the declaration and at the call | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
@@ -510,7 +512,7 @@ refusal **does not name the class that arrived**: no IR instruction reads an obj
 widening `must be of type Marker, another class given` to PHP's `…, App\Holder given` means a new value
 shape in `mwl-ir` and `mwl-codegen`, worth taking when something other than a message wants one.
 
-**A `&$x` parameter belongs only to a frame the call site outlives.** A by-reference parameter is a
+**An `inout` parameter belongs only to a frame the call site outlives.** A by-reference parameter is a
 contract between the two ends of one call: `mwl_ir::lower::call` stages a cell at the site, hands the callee
 its address, and copies back when the call returns — sound precisely because the callee's frame dies first.
 Two declarations break that ordering, and both are refused where they are written rather than lowered. A
@@ -522,11 +524,14 @@ its type is `callable` and nothing else ([0031](0031-callable-is-the-only-closur
 parameter list for a site to read, and § 2's by-value capture lets it outlive every frame in scope where it
 was written — `E0493`, `mwl_types::expr::calls::report_by_reference_parameter`. Neither is a lowering we
 chose not to write: there is no representation either could keep instead, because copying the value in would
-stop being a reference, which is the whole observable point of `&$x`. The replacements are the ones those
+stop being a reference, which is the whole observable point of `inout`. The replacements are the ones those
 ADRs already name — for shared mutable state, § 2's ordinary object captured by value; for a generator,
-taking the value and `yield`ing what the body computes from it. **Capturing** an enclosing `&$x` parameter
+taking the value and `yield`ing what the body computes from it. **Capturing** an enclosing `inout` parameter
 is a different question and is *not* refused: § 2's capture is by value, so what it owes is a snapshot of
-the cell's value at the literal, which `mwl-ir` has not written yet (its gap 9).
+the cell's value at the literal, which `mwl-ir` has not written yet (its gap 9). **The spelling is
+[0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md)'s** — `inout` before the type and
+again at the call site, `&` rejected in every by-reference position — and this paragraph states the rule in
+it; the tree still spells it `&` until that ADR's M4 items land.
 
 **Architecture assumptions are tested, not remembered.** Several decisions here rest on how Cranelift,
 `corosensei` and Wasmtime behave rather than on our own code, and a dependency bump can invalidate them

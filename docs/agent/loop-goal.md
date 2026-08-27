@@ -37,6 +37,42 @@ the test. **That allowlist may never grow.** Every entry on it is a decision in 
 forbids outright. `python tools/holes.py` prints the same inventory as a worklist, mapped to the items
 below, so that no session re-derives it.
 
+## Stage 0a — the `inout` spelling, ahead of every other slice
+
+**Taken before Stage 0 and before any new `.mwlt` is written**, and named `0a` because that is what puts
+its checks in `loop.py`'s catch-up class so a red one is the first thing the ledger reports.
+[ADR 0107](../adr/0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) retires `&` as a
+by-reference marker in favour of `inout`, written before the type and again at the call site. It is here,
+first, for Stage 0's own argument turned on the surface: every case authored in the old spelling is
+authored twice, the corpus is about to grow through Stage 8 and M4S depth, and M4B's `.lspt` suite is
+deferred behind this goal precisely so it is written against the finished surface. The semantics do not
+change — that is the check, not a caveat.
+
+The items are one group by subject and **three by file set**, and they land in this order because the
+workspace does not compile between 44 and 46.
+
+44. **`inout` parses and `&` is refused.** `Inout` joins the keyword table
+    (`crates/mwl-syntax/src/token.rs:368`); `parse_param` takes it in the modifier slot it already runs
+    (`crates/mwl-syntax/src/parser/expr.rs:1512`), as do the `foreach` binding
+    (`crates/mwl-syntax/src/parser/stmt.rs:366`) and the destructuring leaf (`:902`). Every `&` that meant
+    by-reference is `E0237` naming `inout` — the ten `TokenKind::Amp` sites outside the bitwise operator
+    and the intersection type. `Parser::at_intersection_amp` (`crates/mwl-syntax/src/parser/ty.rs:147`) is
+    **deleted**, not reworded: with the fourth meaning gone an `&` in a type is always an intersection.
+    `ast::Arg` gains the call-site marker.
+45. **The checker enforces the call site.** An argument binding an `inout` parameter must be written
+    `inout $x` (`E0713`) and one binding a by-value parameter must not (`E0714`) —
+    `crates/mwl-types/src/expr/args.rs:524` and `crates/mwl-types/src/expr/calls.rs:671` are the two ends.
+    `E0492`, `E0493` and `E0701` keep their codes and gain the new word in their help text.
+46. **The rename reaches `mwl-ir` and `mwl-stdlib`.** Mechanical and semantically empty: `by_ref` → `inout`
+    through `crates/mwl-ir/src/lower/` and `signatures.rs`/`core_lib.rs`. `Ty::Ref`, `pending_refs`
+    (`crates/mwl-ir/src/lower/mod.rs:1182`) and `write_through_element` are unchanged in every respect but
+    the word in their prose. **44–46 are one session and one green run**; they may be three commits.
+47. **The corpus is rewritten and the new shapes pinned.** The 14 `.mwlt` files that spell `&$` move to
+    `inout` **with their expected output unchanged** — that identity is the proof this ADR changed no
+    semantics — and
+    `tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.mwlt` pins the accepted
+    shapes and all three diagnostics. Then the 15 doc files, `docs/plan/m4.md`, and this section deleted.
+
 ## Stage 0 — the operator table, before anything else
 
 **Every other stage's fixtures are written against these rules, so a case written before they land is

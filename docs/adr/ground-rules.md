@@ -136,6 +136,10 @@ spellings rejected, and the reasoning.
   ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 8).
 - **A bidirectional control that opens a scope and never closes it is a compile error in source and is
   substituted at both output sinks** ([0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md)).
+- **A by-reference binding is spelled `inout` before the type and written again at the call site**, so a
+  reader sees at the call that an argument will be written; `&` is no longer a by-reference marker in any
+  position and keeps only bitwise AND and the intersection type
+  ([0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md)).
 
 ## Security and isolation
 
