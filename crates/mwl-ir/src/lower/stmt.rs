@@ -1234,20 +1234,42 @@ impl<'a> Lowering<'a> {
     /// type is, since the checker records an [`ExprInfo::Index`] entry per
     /// `Index` node whether it was reached as a read or as a target.
     ///
+    /// Neither of the two refusals below has a reachable target, and the
+    /// reason is one fact each, both owned by `mwl_types::expr`'s
+    /// `ExprKind::Index` arm — which is the only producer of an
+    /// [`ExprInfo::Index`] entry there is.
+    ///
+    /// **No entry at all.** That arm records one exactly where the base's type
+    /// is a `Ty::Array`, and every path it records nothing on has reported a
+    /// diagnostic: `E0482` for a base with no element type, or nothing extra
+    /// because the base itself already reported, or nothing extra because the
+    /// chain's root is a write target `check_write_target` is refusing in the
+    /// same breath (`E0479`, `E0478`, `E0480`, `E0700`). A body holding a
+    /// diagnostic is never lowered, so a level reaching here has an entry.
+    ///
+    /// **An entry whose element type is not an array.** *Intermediate* is what
+    /// makes this hold: the level above was checked with this one as its base,
+    /// and it resolved — otherwise the paragraph above would have stopped the
+    /// program — so this level's type was a `Ty::Array` there. This level's
+    /// type *is* the `elem_ty` recorded here, with one exception that cannot
+    /// arise: a `??`-guarded read is typed with its `null` dropped, and
+    /// `mwl_types::Env::coalesce_guarded` is filled only from a `??`'s own left
+    /// operand, which is a read. `??=` marks nothing, so its target's levels
+    /// are the ordinary ones — `array<?array<int>> $g; $g["0"]["1"] ??= 5;` is
+    /// `E0482` like the plain `=` it is spelled out of.
+    ///
     /// # Panics
     ///
-    /// Panics when the level has no entry (its base erased to `mixed`), and
-    /// when its element type is not an array — a level that is being
-    /// subscripted again has to be one, so anything else means the checker
-    /// accepted a target this crate has no separation rule for.
+    /// On either, as an invariant this crate asserts rather than a gap it
+    /// leaves open.
     fn row_ty_of(&self, level: &Expr) -> Ty {
         let Some(ExprInfo::Index { elem_ty, .. }) = self.exprs.lookup(level.span) else {
-            panic!(
-                "mwl-ir: an intermediate level of a nested array-index assignment target at \
-                 {:?} has no resolved element type recorded in the typed-expression table — \
-                 either it wasn't checked with the same table, or its base erased to `mixed` \
-                 (an unresolved array), which this crate does not yet lower (see the crate \
-                 docs' known gaps)",
+            unreachable!(
+                "mwl-ir reaches an intermediate level of a nested array-index assignment \
+                 target at {:?} with no resolved element type recorded in the typed-expression \
+                 table only if `mwl_types::expr`'s `ExprKind::Index` arm both declined to \
+                 record one and reported nothing, and it never does — see this function's own \
+                 doc comment for which path leaves which diagnostic",
                 level.span
             );
         };
@@ -1256,8 +1278,8 @@ impl<'a> Lowering<'a> {
             row_ty == Ty::Array,
             "mwl-ir: an intermediate level of a nested array-index assignment target at {:?} \
              lowered to {row_ty:?} rather than an array, so there is nothing for the level \
-             above it to write back into — mwl_types::check_program is trusted to have \
-             rejected subscripting a non-array",
+             above it to write back into — the level above it was checked with this one as \
+             its base and resolved, which is only possible where this one is an array",
             level.span
         );
         row_ty

@@ -1,0 +1,49 @@
+--TEST--
+an intermediate level of a nested element write is refused where it is written when it is not an array of its own, for a scalar, a `mixed` and an untested `?array<T>` alike — ADR 0007 § 5
+--FILE--
+<?mwl
+// ADR 0007 § 5 separates every level of a nested element write, innermost
+// first, and each level's separated copy is written back into the level above
+// it — so an *intermediate* level has to be an array of its own for there to
+// be anything to separate. The level that is not one is refused where it is
+// written, exactly as a first-level subscript with no element type already is
+// (`a-subscript-needs-an-array-to-read-from`), and this is the same rule asked
+// one level in: a scalar element, a `mixed` one, and an untested `?array<T>`
+// one, whose `null` is a level the write-back has nowhere to land in. `unset()`
+// separates the chain the same way a write does, so it answers the same.
+array<int> $flat = ["0" => 1];
+array<mixed> $loose = ["0" => 1];
+array<?array<int>> $sparse = ["0" => null];
+array<array<int>> $grid = ["0" => ["0" => 1]];
+
+$flat["0"]["1"] = 5;
+$loose["0"]["1"] = 5;
+$sparse["0"]["1"] = 5;
+$grid["0"]["1"]["2"] = 5;
+
+unset($flat["0"]["1"]);
+unset($sparse["0"]["1"]);
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0482]: `int` cannot be subscripted
+   --> case.mwl:16:1
+%A
+error[E0482]: `mixed` cannot be subscripted
+   --> case.mwl:17:1
+%A
+error[E0482]: `null|array<int>` cannot be subscripted
+   --> case.mwl:18:1
+%A
+error[E0482]: `int` cannot be subscripted
+   --> case.mwl:19:1
+%A
+error[E0482]: `int` cannot be subscripted
+   --> case.mwl:21:7
+%A
+error[E0482]: `null|array<int>` cannot be subscripted
+   --> case.mwl:22:7
+%A
+error: aborting due to 6 errors
