@@ -1269,6 +1269,29 @@ pub mod code {
     /// the class graph the same question; the two never fire together,
     /// because a class is `Core`-owned or it is not.
     pub const E_CORE_CLASS_NOT_STRINGABLE: Code = Code::new("E0710");
+    /// An `expr as T` into an object target that names **no testable class** —
+    /// plain `object`, a shape, `callable`, or a `Core`-owned class — from an
+    /// operand that is not already an object.
+    ///
+    /// ADR 0007 § 2 tabulates no row producing an object, and the one reason a
+    /// class target is admitted at all is that it can be *checked*: the
+    /// downcast out of `mixed` tests the value's runtime class and throws when
+    /// it misses. A target naming no class has nothing to test — there is no
+    /// class descriptor for `object`, a shape or a `callable`, and a `Core`
+    /// class has none in the unit either, which is the same fact `instanceof
+    /// Core\Uri` is refused for ([`E_INSTANCEOF_NOT_A_CLASS`]). So the
+    /// conversion could only *assert* the tag it cannot verify, and the honest
+    /// answer is a diagnostic where it is written.
+    ///
+    /// An operand that is already an object is untouched and is the free
+    /// widening row: `$plain as object` runs nothing, because both sides are
+    /// one pointer.
+    ///
+    /// The sibling for a target that *does* name a class is
+    /// [`E_NO_CONVERSION`], which refuses the pair sharing no value at all;
+    /// the two never fire together, because a target names a testable class or
+    /// it does not.
+    pub const E_UNTESTABLE_CONVERSION_TARGET: Code = Code::new("E0711");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

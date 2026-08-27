@@ -290,8 +290,13 @@ pub(super) fn lower_closure(
     )
 }
 
-/// The class an argument must be an instance of to satisfy this parameter, or
-/// `None` where nothing at the entry can check it.
+/// The class an annotation names and a run-time test can compare against, or
+/// `None` where nothing can check it. Two callers ask the same question: a
+/// closure parameter's entry check below, and
+/// [`Lowering::lower_checked_downcast`](super::Lowering::lower_checked_downcast),
+/// ADR 0007 § 6's checked way out of `mixed`. `mwl_types` refuses the `None`
+/// case at the conversion (`E0711`), so the second caller's `None` is a
+/// conversion this crate has no lowering for rather than a shape it declines.
 ///
 /// The declaration has to be a class *name* and nothing wider: `object`, a
 /// shape and `?C` alike erase to a representation that names no class — a `?C`
@@ -306,7 +311,7 @@ pub(super) fn lower_closure(
 /// (`E0496` at the checker). That leaves a `Core\Cli\Text $c` parameter
 /// checked for objecthood alone, which `docs/adr/README.md` § *Decisions taken
 /// at project start* records as the remainder rather than the rule.
-fn declared_class(
+pub(super) fn declared_class(
     ty: &Type,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,

@@ -1085,8 +1085,8 @@ fn is_closed_value_target(to: TypeId, env: &Env<'_>) -> bool {
 /// admits more than one runtime shape.
 ///
 /// This is what leaves `mwl_ir::lower::expr`'s `Lowering::convert` catch-all
-/// only the two gaps its own message names (`array<T> as array<U>`, and a
-/// tagged operand into `bytes`). Before it, `true as int`, `$xs as string`,
+/// only the two gaps its own message names (`array<T> as array<U>`, and ADR
+/// 0024 § 5's `Core\Html\Markup`). Before it, `true as int`, `$xs as string`,
 /// `$i as bytes`, `$case as float` and `null as string` each panicked there,
 /// and `$foo as Bar` between two unrelated classes was worse than a panic: the
 /// representations are equal, so it took the free `from == to` row and read
@@ -1133,27 +1133,55 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
 ///   check happens at the member access instead (`InstKind::SlotGet`).
 /// * **A `Core`-owned class**, which decides for itself: ADR 0024's
 ///   `as Core\Html\Markup` is a source-literal `string` and has its own
-///   diagnostic (`E_MARKUP_NOT_LITERAL`) saying so. Exempted here exactly as
-///   [`require_stringable_object`] exempts them, and for the same reason —
-///   the registry row is the rule, not this table.
+///   diagnostic (`E_MARKUP_REQUIRES_LITERAL`, in [`crate::expr::quals`])
+///   saying so. Exempted from the disjointness question exactly as
+///   [`require_stringable_object`] exempts them, and for the same reason — the
+///   owning rule is the rule, not this table. It is also the *only* `Core`
+///   target so exempted, because it is the only one decided by a rule rather
+///   than by a test.
 /// * **The identical type**, returned by [`reject_unconvertible`] before this
 ///   is reached.
 ///
-/// What is left is the one that is not a downcast at all: two user types with
-/// **no value in common**, which is `types_are_disjoint`'s question — ADR 0090
-/// § 2's, asked of a conversion rather than of an equality. `$foo as Bar`
-/// between two unrelated classes was worse than a panic before this refusal,
-/// because both erase to `mwl_ir::ty::Ty::Object` and the conversion therefore
-/// took `Lowering::convert`'s free `from == to` row: nothing ran, and `Bar`'s
-/// slot list was then read off a `Foo`'s allocation.
+/// Two refusals are left, and they are the two halves of "can this conversion
+/// be *checked*". A target naming a declared class is checked by testing the
+/// value's runtime class, so what it refuses is the pair with **no value in
+/// common** — `types_are_disjoint`'s question, ADR 0090 § 2's, asked of a
+/// conversion rather than of an equality. `$foo as Bar` between two unrelated
+/// classes was worse than a panic before this refusal, because both erase to
+/// `mwl_ir::ty::Ty::Object` and the conversion therefore took
+/// `Lowering::convert`'s free `from == to` row: nothing ran, and `Bar`'s slot
+/// list was then read off a `Foo`'s allocation.
+///
+/// A target naming **no testable class** — plain `object`, a shape, a
+/// `callable`, or a `Core` class, none of which has a descriptor to compare
+/// against — has no such test to run, so the operand has to be an object
+/// *already*. From anything wider the conversion could only assert the tag it
+/// cannot verify, which is the same type confusion one step earlier, and it is
+/// [`code::E_UNTESTABLE_CONVERSION_TARGET`] where it is written. `$plain as
+/// object` stays the free widening row it always was.
 fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
     let Ty::Class(qname, _) = env.interner.get(to).clone() else {
         // Plain `object`, a shape and a `callable` are the other three
-        // `ConvKind::Object` targets, and none of them names a class to be
-        // unrelated to.
+        // `ConvKind::Object` targets, and none of them names a class to test
+        // against — nor to be unrelated to.
+        reject_untestable_object_target(from, to, span, env);
         return;
     };
-    if qname.is_core() || !types_are_disjoint(from, to, env) {
+    if qname.is_core() {
+        // ADR 0024 § 5's `as Core\Html\Markup` is that section's own row and
+        // `crate::expr::quals` owns it end to end — a source-literal `string`
+        // and nothing else, `E_MARKUP_REQUIRES_LITERAL` for anything computed.
+        // It is the one `Core` target whose conversion is decided by a rule
+        // rather than by a test, which is exactly the exemption this function
+        // records; every other `Core` class has no descriptor in the unit, the
+        // same fact `instanceof Core\Uri` is refused for
+        // (`E_INSTANCEOF_NOT_A_CLASS`).
+        if qname.to_string() != "Core\\Html\\Markup" {
+            reject_untestable_object_target(from, to, span, env);
+        }
+        return;
+    }
+    if !types_are_disjoint(from, to, env) {
         return;
     }
     let described_from = env.interner.describe(from);
@@ -1167,6 +1195,34 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
             "ADR 0007 § 2 tabulates no conversion into a class, and these two share no value at \
              all: ask `$x instanceof Name` and use the value the test narrows, or call that \
              class's own named constructor",
+        ),
+    );
+}
+
+/// The half of [`reject_unrelated_class_conversion`] that fires for a target
+/// with no class descriptor behind it. Read that function's doc comment first.
+///
+/// The operand already being an object is the free widening row and the only
+/// accepted shape: `$plain as object`, `$plain as callable`, `$uri as object`
+/// are one pointer on both sides and run nothing at all. Everything else —
+/// `mixed`, a `?T`, a scalar, an `array<T>` — would have to take a tag on
+/// trust, and `mwl_ir` has no instruction that could check it.
+fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
+    if conversion_kind(from, env.interner) == ConvKind::Object {
+        return;
+    }
+    let described_from = env.interner.describe(from);
+    let described_to = env.interner.describe(to);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNTESTABLE_CONVERSION_TARGET,
+            format!("`{described_from}` cannot be converted to `{described_to}`"),
+        )
+        .with_primary(span, "converted here")
+        .with_help(
+            "ADR 0007 § 2 tabulates no conversion into an object, and this target names no class \
+             to test the value against: convert to a declared class instead, which is the one \
+             checked way out of `mixed`",
         ),
     );
 }

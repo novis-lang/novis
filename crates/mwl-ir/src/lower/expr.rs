@@ -1316,18 +1316,21 @@ impl<'a> Lowering<'a> {
             }
             // Two shapes reach here, both of them a missing *lowering*:
             // `mwl_types`' `reject_unconvertible` refuses every pair ADR 0007
-            // § 2's closed table has no row for (`E0708`), so this is no
+            // § 2's closed table has no row for (`E0708`), and every object
+            // target with no class to test against (`E0711`), so this is no
             // longer where a missing rule is discovered.
             _ => panic!(
                 "mwl-ir lowers ADR 0007 § 2's scalar conversion rows, ADR 0009 § 3's `string` ↔ \
                  `bytes` pair, both of ADR 0010 § 5's enum ones, a `Ty::Tagged` operand into \
                  every scalar target among them and into `bytes`, and every operand into a \
-                 tagged target — got `{from:?} as {to:?}`. Two rows are still missing, and they \
-                 are the whole of what can arrive here, every other pair being `E0708` a phase \
-                 up: ADR 0007 § 2's `array<T> as array<U>`, whose O(n) element walk is no single \
-                 helper; and a `Ty::Tagged` operand converted to an object — the checked \
-                 downcast out of ADR 0007 § 6's `mixed`, which needs a class identity this \
-                 representation does not carry. See the crate docs' known gaps"
+                 tagged target — got `{from:?} as {to:?}`. Two rows are still missing and are \
+                 the whole of what can arrive here, every other pair being `E0708` or `E0711` a \
+                 phase up: ADR 0007 § 2's `array<T> as array<U>`, whose O(n) element walk is no \
+                 single helper; and ADR 0024 § 5's `string as Core\\Html\\Markup`, which waits \
+                 on `Core\\Html` existing at all (M7). A *declared* class target does not reach \
+                 here — a tagged operand into one is `Self::lower_checked_downcast`, which \
+                 branches and so could not be a row of this table. See the crate docs' known \
+                 gaps"
             ),
         }
     }
@@ -4812,6 +4815,19 @@ impl<'a> Lowering<'a> {
                         other => other,
                     });
                 let (v, from) = self.lower_expr(inner, placed, env, cur);
+                // ADR 0007 § 6's checked way out of `mixed`, and the one row
+                // of this operator whose test is a *class* rather than a tag.
+                // It is here rather than in `Self::convert` because it
+                // branches, and that function's `cur` is by value — the same
+                // reason `Self::lower_literal_membership` is a caller of this
+                // arm rather than a row of the table.
+                if from == Ty::Tagged
+                    && to == Ty::Object
+                    && let Some(class) =
+                        super::closure::declared_class(ty, self.exprs, self.checked_types)
+                {
+                    return self.lower_checked_downcast(v, &class, inner, ty.span, env, cur);
+                }
                 let Some(accepted) = self.closed_literal_set(ty, inner, from) else {
                     return self.convert(v, from, to, inner, env, *cur);
                 };
@@ -4883,6 +4899,111 @@ impl<'a> Lowering<'a> {
                 (converted, converted_ty)
             }
         }
+    }
+
+    /// ADR 0007 § 6's checked downcast: a [`Ty::Tagged`] operand — a `mixed`,
+    /// a `?C`, a union of classes — converted to the declared class `class`
+    /// names.
+    ///
+    /// Nothing new is needed to express it, which is why this is a shape
+    /// rather than a helper. [`InstKind::InstanceOf`] already takes a tagged
+    /// subject and already answers `false` for a tag that is not an object at
+    /// all (`mwl_codegen`'s `emit_instanceof` routes one through
+    /// `mwl_value_instanceof` for exactly that), so the row is a test, a
+    /// [`Terminator::Throw`] on the false edge and one free
+    /// [`InstKind::Untag`] on the true one. A [`Helper`] row could not have
+    /// carried it: helper arguments are stored as `mwl_runtime::Value`s, and a
+    /// class descriptor is not one.
+    ///
+    /// The throw is a `RuntimeError` and not the `LogicError` a closure
+    /// parameter's identical check raises
+    /// ([`super::closure`]'s `check_param_class`): this is the `as` operator,
+    /// whose every other checked row throws that class through
+    /// `mwl_runtime::helpers`' `does_not_fit`, and an operand out of `mixed` is
+    /// untrusted input rather than a call written wrong. What arrived is not
+    /// named in the message, for the reason that function's doc comment
+    /// records — no [`InstKind`] reads an object's class name.
+    ///
+    /// **Ownership follows [`Self::convert`]'s free row, split across the two
+    /// edges.** [`InstKind::Untag`] is a relabelling, so the object shares the
+    /// tagged operand's reference: a borrowed operand is retained on the way
+    /// out, because the consumer of an `as` owns its result, and a fresh one
+    /// transfers instead. The false edge is where that asymmetry has to be
+    /// said out loud — a fresh operand reaches no consumer there, so it is
+    /// released before the throw rather than abandoned on it.
+    fn lower_checked_downcast(
+        &mut self,
+        value: ValueId,
+        class: &str,
+        operand: &Expr,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let borrowed = self.aliasing_read(operand);
+        let (is_instance, _) = self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::InstanceOf {
+                value,
+                class: class.to_owned(),
+            },
+        );
+        let hit = self.new_block();
+        let refused = self.new_block();
+        let hit_edge = self.ids.next_edge(span);
+        let refused_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: is_instance,
+                then_block: hit,
+                then_edge: hit_edge,
+                else_block: refused,
+                else_edge: refused_edge,
+            },
+        );
+        if !borrowed {
+            self.emit_release(refused, value);
+        }
+        let (message, _) = self.emit(
+            refused,
+            Ty::Str,
+            InstKind::ConstStr(format!(
+                "cannot convert a value of another type to `{class}`"
+            )),
+        );
+        // Argument 2 is the `{previous}` bag flattened to its own `null`
+        // default, widened into the `Ty::Tagged` slot spec § 10's
+        // `Throwable|null` erases to — the same list `Self::lower_match`'s
+        // unmatched throw builds by hand, and for the same reason.
+        let (absent, _) = self.emit(refused, Ty::Null, InstKind::ConstNull);
+        let absent = self.coerce(refused, absent, Ty::Null, Ty::Tagged, env);
+        let (exception, _) = self.emit_fallible(
+            refused,
+            Ty::Object,
+            InstKind::New {
+                class: "RuntimeError".to_owned(),
+                ctor: Some(THROWABLE_CTOR.to_owned()),
+                args: vec![message, absent],
+            },
+            env,
+        );
+        self.write_throw_location(refused, exception);
+        let landing = self.landing_block(env);
+        self.seal(
+            refused,
+            Terminator::Throw {
+                value: exception,
+                landing,
+            },
+        );
+        *cur = hit;
+        let (out, _) = self.emit(hit, Ty::Object, InstKind::Untag { operand: value });
+        if borrowed {
+            self.emit_retain(hit, out);
+        }
+        (out, Ty::Object)
     }
 
     /// The closed set of literals an `expr as T` has to test its operand

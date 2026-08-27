@@ -1,0 +1,76 @@
+--TEST--
+`$m as Plain` tests the runtime class and throws where `instanceof` answers false, ADR 0007 §§ 2 and 6
+--FILE--
+<?mwl
+class Plain { public int $n = 7; }
+interface Shape { public function sides(): int; }
+class Square implements Shape { public function sides(): int { return 4; } }
+
+// Every tag a `mixed` can hold that the conversion has to tell apart: the
+// class itself, an unrelated class, a string, an int, and `null`.
+class Probe {
+    public static function tag(int $which): mixed {
+        if ($which == 0) { return new Plain(); }
+        if ($which == 1) { return new Square(); }
+        if ($which == 2) { return "a string"; }
+        if ($which == 3) { return 42; }
+        return null;
+    }
+}
+
+// Agreement, not a row each: ADR 0007 § 6's checked way out of `mixed` is the
+// `instanceof` test said as an expression, so the two must answer the same
+// thing for every tag. A conversion that grew its own opinion fails the count
+// while still printing plausibly line by line.
+int $which = 0;
+int $agreed = 0;
+for (; $which < 5; $which = $which + 1) {
+    mixed $v = Probe::tag($which);
+    bool $tested = $v instanceof Plain;
+    bool $converted = true;
+    try {
+        Plain $p = $v as Plain;
+        echo $p->n, "\n";
+    } catch (Throwable $e) {
+        $converted = false;
+        echo $e->message, "\n";
+    }
+    if ($tested == $converted) { $agreed = $agreed + 1; }
+}
+echo "agreed ", $agreed, "\n";
+
+// An interface is a class the test can name too — the descriptor `instanceof`
+// compares against is the same one.
+mixed $sq = Probe::tag(1);
+Shape $s = $sq as Shape;
+echo $s->sides(), "\n";
+
+// A `?C` erases to the same tagged representation `mixed` does, so it takes
+// the same row: the present case converts and the `null` throws.
+?Plain $maybe = new Plain();
+echo ($maybe as Plain)->n, "\n";
+
+?Plain $none = null;
+try {
+    Plain $t = $none as Plain;
+    echo $t->n, "\n";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+
+// The other direction is untouched and runs nothing: an operand that is
+// already an object widens into `object` as one pointer.
+Plain $already = new Plain();
+object $widened = $already as object;
+if ($widened instanceof Plain) { echo "widened stays a Plain\n"; }
+--EXPECT--
+7
+cannot convert a value of another type to `Plain`
+cannot convert a value of another type to `Plain`
+cannot convert a value of another type to `Plain`
+cannot convert a value of another type to `Plain`
+agreed 5
+4
+7
+cannot convert a value of another type to `Plain`
+widened stays a Plain

@@ -557,18 +557,31 @@
 //!     What panics is two rows, and **those two are now the whole of it**:
 //!     every other operand/target pair naming no row of ADR 0007 § 2's
 //!     closed table is `E0708` where it is written
-//!     (`mwl_types::expr::operators`' `reject_unconvertible`), so a pair that
-//!     arrives here is a missing lowering rather than a missing rule.
+//!     (`mwl_types::expr::operators`' `reject_unconvertible`), and every
+//!     object target with no class to test against is `E0711` beside it, so a
+//!     pair that arrives here is a missing lowering rather than a missing
+//!     rule.
 //!
 //!     They are `array<T> as array<U>`, whose O(n) element walk is the one
-//!     row in that table that is not a single helper call; and a
-//!     [`ty::Ty::Tagged`] operand
-//!     converted to an *object* — `$m as Plain` over a `mixed`, ADR 0007
-//!     § 6's checked way out of the one unchecked position, which needs a
-//!     runtime class identity [`ty::Ty::Object`] deliberately does not carry
-//!     (see its own doc comment) and so wants a helper taking the
-//!     [`ir::Program::classes`] label rather than a representation pair. The
-//!     *statically* typed downcasts are not in this list and run today:
+//!     row in that table that is not a single helper call; and ADR 0024 § 5's
+//!     `string as Core\Html\Markup`, which is a *rule* rather than a test —
+//!     a source-literal string and nothing else — and waits on `Core\Html`
+//!     existing at all (M7).
+//!
+//!     A [`ty::Ty::Tagged`] operand converted to an *object* used to be the
+//!     second — `$m as Plain` over a `mixed`, ADR 0007 § 6's checked way out
+//!     of the one unchecked position — and it wanted no helper in the end.
+//!     [`ir::InstKind::InstanceOf`] already takes a tagged subject and already
+//!     answers `false` for a tag that is not an object, so
+//!     `lower::Lowering::lower_checked_downcast` is that test, a
+//!     [`ir::Terminator::Throw`] on the false edge and one free
+//!     [`ir::InstKind::Untag`] on the true one. A helper could not have
+//!     carried it anyway: helper arguments are stored as
+//!     `mwl_runtime::Value`s, and a class descriptor is not one. Every other
+//!     object target names no class to test against — plain `object`, a
+//!     shape, a `callable`, a `Core` class — and `mwl_types` refuses those
+//!     from a non-object operand where they are written (`E0711`). The
+//!     *statically* typed downcasts are in neither list and always ran:
 //!     `object as Plain` and `Comparable as Cell` are one representation on
 //!     both sides, so ADR 0036 § 4 leaves the check to the member access.
 //!
