@@ -352,6 +352,20 @@ is why" — is this file.
   is a floor, never a count, for the rest. Check with `python tools/gaps.py --member compareTo`
   before writing a case the ranking says is missing.
 - **An ADR index **Decision** cell is derived from the ADR's own title, not written.** `adr.py --check` reports the whole index table stale when a cell says anything else, and the message names `--index` without saying why the row you just added is the one it dislikes. `python tools/adr.py --index | grep NNNN` prints the row it wants; paste that. Writing a richer sentence there and letting the title stay short is the natural move and it fails every time.
+- **`alloc::Pooled` recycles a freed block, so a memory checker over it cannot see a
+  use-after-free — and exactly one leg of four is affected.** ASAN and valgrind both work on memory
+  that reaches `free`: one poisons it and quarantines it, the other unmaps it. A block MWL frees
+  goes onto the per-thread size-class cache instead, so a read through a dangling pointer lands in
+  live, mapped memory and neither tool says a word. The leg that matters is **`cargo test -p
+  mwl-runtime`**, where `cfg(test)` installs `counting_alloc` over `Pooled` — the crate holding
+  most of this tree's `unsafe` was the one whose own tests checked the least. `--features
+  mwl-runtime/sanitizer` swaps the backing allocator for the platform heap, and the `asan` CI job
+  passes it. **The easy mistake is extending that conclusion to the other three, which are all
+  fine**: `tools/loop.py`'s valgrind sweep runs `target/debug/mwl` and a debug build is deliberately
+  left on the platform heap, and `mwl-codegen`/`mwl-stdlib` link the runtime with `cfg(test)` off,
+  so every one of those sees every free already. Before changing any of it, read `counting_alloc`'s
+  module doc, which is the home of the reasoning — the wrong version of this bullet costs a session
+  either way round.
 
 ## Running things
 
