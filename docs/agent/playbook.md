@@ -1527,6 +1527,17 @@ sibling in the same namespace unqualified.
   append's: a literal whose explicit key is already `i64::MAX` throws PHP's *"Cannot add
   element to the array as the next element is already occupied"*. A **call** argument
   spread (`f(...$a)`) is still `mwl-ir` gap 8 and still panics.
+- **A local's slot is re-pointed in four places in `mwl_ir::lower`, and a rule hooked into
+  `bind_local_value` catches three.** That function is the funnel for `$x = e` and every
+  compound form; `write_back_holder` (a `&$x` argument's copy-back) and `write_back_array`
+  (`$x[0] = e`) `env.insert` directly and each needs the hook of its own. The fourth is a
+  *lowering's own* bookkeeping insert, and it is the one that bites: `foreach (… as &$v)`
+  re-points the array binding by hand, so with three hooks in place a nested
+  `foreach ($grid as … &$row) { foreach ($row as … &$cell) … }` updated the row and never
+  told the grid — it builds, every single-level case passes, and the wrong answer is a
+  silently un-updated outer array. `grep -n "env.insert(" crates/mwl-ir/src/lower/` is the
+  whole check, and it is worth doing for any rule phrased as "whenever this name is
+  rebound".
 
 ## Divergences and refusals already pinned
 

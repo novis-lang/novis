@@ -65,8 +65,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 588 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 164, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 590 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 165, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -322,11 +322,31 @@
 > in `mwl_types::check`'s parameter loop and in `mwl_ir::lower::lower_method`'s. `python
 > tools/holes.py` is down to **33 sites**, and item 16's last one is not its own: it is the
 > `CallArgs::FirstClassCallable` arm, the `Class::method(...)` spelling that is `mwl-ir` gap 1.
-> **M4S Part I is the floor, not the frontier**: conformance is at 588 of the goal's new 750 and
-> differential at 164 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
-> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
-> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
-> tools/check-migration.py`).
+> **Item 20 is closed, and `&$v` is a write-through rather than a copy-back.** A by-reference
+> `foreach` drops the second reference to the array the by-value one takes — the one thing that
+> reference buys, ADR 0007 § 5 separating on the first write so the cursor keeps walking the
+> snapshot, is exactly what `&$v` must not do — and walks the subject variable's own `Env` binding
+> instead, so the local stays the single owner it always was and the loop releases nothing after
+> itself. Every rebinding of `$v` writes the entry it came from *at the point it is written*
+> (`Lowering::write_through_element`, hooked into the three places that re-point a local's slot:
+> `bind_local_value` for an assignment and every compound form, `write_back_holder` for a `&$v`
+> argument's copy-back, and `write_back_array` for `$v[0] = e`), which is what makes a `break`, a
+> `return` and a throw out of the body all leave standing what the body had already written — PHP's
+> `&$v` is a true alias, and this is that alias one store later, without a copy-back to emit at four
+> different edges. The array's binding is re-pointed by each write, `InstKind::ArraySet` consuming
+> one reference and producing the holder's, so the subject takes a header phi like any reassigned
+> local, and a nested `foreach ($grid as array<int> &$row)` re-points the outer entry at the row the
+> inner loop separated. Two refusals came with it and PHP shares both: a subject that is not a plain
+> variable is **E0490** — a temporary has nowhere to leave the write, and ADR 0053 § 1's cursor has
+> no element storage at all — and a binding wider than the element type is **E0491**, an `array<T>`
+> read being covariant where a write is not. Every row is byte-identical to PHP, including an entry
+> the body appends mid-loop and a throw with a written entry live, and it is pinned that way in
+> `tests/differential/lang/a-foreach-by-reference-matches-phps.mwlt`; `tools/leak-check.sh` is green
+> over all three fixtures. `python tools/holes.py` is down to **32 sites**. **M4S Part I is the
+> floor, not the frontier**: conformance is at 590 of the goal's new 750 and differential at 165 of
+> 165, `python tools/gaps.py` still ranks the thin classes, and a `Core` depth slice is a legitimate
+> slice when a group is blocked — never a reason to leave a language item unfinished.
+> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones
