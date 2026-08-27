@@ -357,14 +357,25 @@
 //!     The disjoint-operand refusal of § 2 is `mwl_types`' half, not this
 //!     crate's.
 //!
-//!     What is left is the same mismatch under a *different* operator, and it
-//!     belongs to [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
-//!     § 4 rather than to 0090: `mwl_types` gives `$n + $f` a result type and
-//!     `$n < $f` a `bool` without either side being converted, so both still
-//!     reach `mwl-codegen` as two representations and are refused there. ADR
-//!     0007 § 4's promotion table is what says which side widens, and unlike
-//!     equality that widening *is* the semantics rather than an approximation
-//!     of it, so it belongs in [`lower::Lowering::convert`]'s existing rows.
+//!     The same mismatch under a *different* operator is closed too, and it
+//!     splits in two rather than following equality — which is
+//!     [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's own
+//!     division, not a new one. **Arithmetic widens**: `$n + $f` is that
+//!     table's "either operand a `float`" row, so the integer side is
+//!     converted in [`lower::Lowering::lower_binary`] through the very
+//!     [`ir::Helper::IntToFloat`] a written `$n as float` emits — § 2 names
+//!     this as the one implicit conversion in the language and gives it that
+//!     conversion's own behaviour, exact or throwing above 2^53.
+//!     **Ordering does not**: § 4 closes by saying a comparison "has an exact
+//!     answer in the mathematical integers and can be lowered as one", so
+//!     `$n < $f` takes [`ir::Helper::NumericLt`] beside its equality sibling.
+//!     Widening there would be wrong twice — rounding away every integer past
+//!     2^53, and, since the widening throws rather than rounds, raising
+//!     `ArithmeticError` where PHP answers an ordering.
+//!
+//!     Nothing of this reached [`lower::Lowering::coerce`], whose rows
+//!     reconcile [`ty::Ty::Tagged`] and emit nothing that can fail; a
+//!     conversion carrying ADR 0002's error edge does not belong in one.
 //!
 //! 20. **ADR 0047 § 5, ADR 0010 § 5 and ADR 0007 § 2's scalar rows all run
 //!     whole, a `mixed` source included; what is left is § 2's two

@@ -463,6 +463,8 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::LiteralMismatch => "literal_mismatch",
         Helper::Identical => "identical",
         Helper::NumericEq => "numeric_eq",
+        Helper::NumericLt => "numeric_lt",
+        Helper::NumericLtEq => "numeric_lt_eq",
         Helper::SecretEq => "secret_eq",
     }
 }

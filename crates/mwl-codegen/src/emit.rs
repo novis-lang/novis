@@ -1076,6 +1076,13 @@ impl Emitter<'_, '_> {
         if matches!(op, BinOp::Mod) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_int_mod(inst, l, r, signed);
         }
+        // The other one, and for a second reason on top of the trap it also
+        // guards: ADR 0007 § 4 types integer `/` as a union, so its result is
+        // a *tagged* value rather than this function's one representation and
+        // it could not join the table below either. See `Self::emit_int_div`.
+        if matches!(op, BinOp::Div) && matches!(ty, Ty::Int | Ty::Uint) {
+            return self.emit_int_div(inst, l, r, signed);
+        }
 
         let value = match op {
             BinOp::Add if float => self.b.ins().fadd(l, r),
@@ -1091,21 +1098,6 @@ impl Emitter<'_, '_> {
             BinOp::Add => self.b.ins().iadd(l, r),
             BinOp::Sub => self.b.ins().isub(l, r),
             BinOp::Mul => self.b.ins().imul(l, r),
-            // Deliberately not emitted, and no longer for the reason integer
-            // `Mod` above once shared: the trap is guarded now, but ADR 0007
-            // § 4 types `int / int` as `int|float` — PHP-exact, so `6/3` is an
-            // integer and `7/2` is not — and `mwl_ir::Ty` has no
-            // representation for a union (see `mwl_ir::ty::Ty::Tagged`, which
-            // states that gap). Nothing reaches this arm today anyway:
-            // `mwl_types` does not yet widen that union to `float` at a
-            // binding, so an integer `/` is refused a checker phase earlier.
-            BinOp::Div => {
-                return Err(CodegenError::Unsupported(
-                    "integer `/`, whose `int|float` result (ADR 0007 § 4) has no \
-                     single IR representation"
-                        .to_owned(),
-                ));
-            }
             BinOp::Eq | BinOp::NotEq | BinOp::Lt | BinOp::LtEq | BinOp::Gt | BinOp::GtEq => {
                 if float {
                     let cc = match op {
@@ -1211,6 +1203,128 @@ impl Emitter<'_, '_> {
             self.b.ins().urem(lhs, rhs)
         };
         Ok((value, cont))
+    }
+
+    /// Integer `/`, whose result is ADR 0007 § 4's `int|float` union — "PHP-
+    /// exact, so `6/3` is an integer and `7/2` is a float" — and therefore the
+    /// one arithmetic operator that produces a [`Ty::Tagged`] value rather
+    /// than a machine one.
+    ///
+    /// Which of the two it produces is a **runtime** question, so it is a
+    /// branch and not a type: the quotient is an integer exactly where the
+    /// remainder is zero. Three guards stand in front of it, and each is a
+    /// trap — a request-isolation failure, AGENTS.md's priority 1 — rather
+    /// than a wrong answer, so none may reach `sdiv`/`udiv`:
+    ///
+    /// * **A zero divisor** throws spec § 10's `ArithmeticError` carrying
+    ///   PHP's own `Division by zero` message, exactly as
+    ///   [`Self::emit_int_mod`] does and by the same route: the exception is
+    ///   built by [`mwl_runtime::mwl_raise_new`] from a baked-in descriptor
+    ///   address, since a helper's `Fault` could only ever name `RuntimeError`.
+    /// * **`i64::MIN / -1`** is the signed overflow, and it is not an integer
+    ///   at all: PHP answers the `float` `9.2233720368548E+18`, which is
+    ///   exactly what the inexact arm here computes. So it joins "the
+    ///   remainder is not zero" in choosing that arm rather than becoming a
+    ///   second throw — no `sdiv` runs on it.
+    /// * **`i64::MIN % -1`** would trap the *remainder* the same way, so the
+    ///   divisor feeding `srem` is rewritten to `1` when it is `-1`, which
+    ///   `emit_int_mod` explains: `x % -1` and `x % 1` are both `0` for every
+    ///   `x`. The `sdiv` on the exact arm keeps the real divisor, being
+    ///   reachable only where neither overflow guard fired.
+    fn emit_int_div(
+        &mut self,
+        inst: &Inst,
+        lhs: Value,
+        rhs: Value,
+        signed: bool,
+    ) -> Result<(Value, Block), CodegenError> {
+        let by_zero = self.b.ins().icmp_imm_s(IntCC::Equal, rhs, 0);
+        let raise = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.ins().brif(by_zero, raise, &[], cont, &[]);
+
+        self.b.switch_to_block(raise);
+        let desc = self.class_desc_const("ArithmeticError")?;
+        let (message, len) = self.emit_bytes(b"Division by zero")?;
+        let callee = self.runtime_ref("mwl_raise_new", RuntimeSig::RaiseNew)?;
+        self.b.ins().call(callee, &[self.ctx_p, desc, message, len]);
+        let status = self.b.ins().iconst(types::I32, i64::from(THROWN));
+        match inst.on_error {
+            Some(landing) => {
+                let target = self.block(landing)?;
+                self.b
+                    .ins()
+                    .jump(target, &[codegen::ir::BlockArg::Value(status)]);
+            }
+            // `emit_int_mod`'s own reasoning for this arm, unchanged.
+            None => {
+                self.b.ins().return_(&[status]);
+            }
+        }
+
+        self.b.switch_to_block(cont);
+        let exact = if signed {
+            let minus_one = self.b.ins().icmp_imm_s(IntCC::Equal, rhs, -1);
+            let one = self.b.ins().iconst(types::I64, 1);
+            let divisor = self.b.ins().select(minus_one, one, rhs);
+            let remainder = self.b.ins().srem(lhs, divisor);
+            let divides = self.b.ins().icmp_imm_s(IntCC::Equal, remainder, 0);
+            let min = self.b.ins().iconst(types::I64, i64::MIN);
+            let is_min = self.b.ins().icmp(IntCC::Equal, lhs, min);
+            let overflows = self.b.ins().band(is_min, minus_one);
+            let in_range = self.b.ins().bxor_imm_u(overflows, 1);
+            self.b.ins().band(divides, in_range)
+        } else {
+            let remainder = self.b.ins().urem(lhs, rhs);
+            self.b.ins().icmp_imm_s(IntCC::Equal, remainder, 0)
+        };
+
+        let integral = self.b.create_block();
+        let fractional = self.b.create_block();
+        let merge = self.b.create_block();
+        self.b.append_block_param(merge, types::I128);
+        self.b.ins().brif(exact, integral, &[], fractional, &[]);
+
+        self.b.switch_to_block(integral);
+        let quotient = if signed {
+            self.b.ins().sdiv(lhs, rhs)
+        } else {
+            self.b.ins().udiv(lhs, rhs)
+        };
+        let tag = tag_of(if signed { Ty::Int } else { Ty::Uint })?;
+        let tag_word = self.b.ins().iconst(types::I64, i64::from(tag as u8));
+        let tagged = self.join_tagged(tag_word, quotient);
+        self.b
+            .ins()
+            .jump(merge, &[codegen::ir::BlockArg::Value(tagged)]);
+
+        self.b.switch_to_block(fractional);
+        let (left, right) = if signed {
+            (
+                self.b.ins().fcvt_from_sint(types::F64, lhs),
+                self.b.ins().fcvt_from_sint(types::F64, rhs),
+            )
+        } else {
+            (
+                self.b.ins().fcvt_from_uint(types::F64, lhs),
+                self.b.ins().fcvt_from_uint(types::F64, rhs),
+            )
+        };
+        let quotient = self.b.ins().fdiv(left, right);
+        let bits = self
+            .b
+            .ins()
+            .bitcast(types::I64, MemFlagsData::new(), quotient);
+        let tag = tag_of(Ty::Float)?;
+        let tag_word = self.b.ins().iconst(types::I64, i64::from(tag as u8));
+        let tagged = self.join_tagged(tag_word, bits);
+        self.b
+            .ins()
+            .jump(merge, &[codegen::ir::BlockArg::Value(tagged)]);
+
+        self.b.switch_to_block(merge);
+        let value = self.b.block_params(merge)[0];
+        Ok((value, merge))
     }
 
     fn emit_unop(&mut self, op: UnOp, operand: ValueId) -> Result<Value, CodegenError> {
@@ -2542,6 +2656,8 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::LiteralMismatch => "mwl_literal_mismatch",
         Helper::Identical => "mwl_value_identical",
         Helper::NumericEq => "mwl_numeric_eq",
+        Helper::NumericLt => "mwl_numeric_lt",
+        Helper::NumericLtEq => "mwl_numeric_lt_eq",
         Helper::SecretEq => "mwl_secret_eq",
         Helper::ArrayTruthy => "mwl_array_truthy",
         Helper::IntToUint => "mwl_int_to_uint",

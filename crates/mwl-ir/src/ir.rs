@@ -1434,6 +1434,29 @@ pub enum Helper {
     /// [`crate::ty::Ty::Tagged`] one takes [`Self::Identical`]. Like both of
     /// those it is total, so it carries no error edge.
     NumericEq,
+    /// `a < b` over that same pair of representations — the ordering half of
+    /// [`Self::NumericEq`], and exact for the same reason.
+    ///
+    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 closes
+    /// its own table with the rule this exists to keep: "a comparison has an
+    /// exact answer in the mathematical integers and can be lowered as one".
+    /// It says that about `int` against `uint`, and the `int`/`uint` against
+    /// `float` pairing is the same question — so widening the integer side
+    /// into a `float` first, which is what the *arithmetic* rows of that table
+    /// do, is wrong here twice over: it would round away every integer past
+    /// 2^53, and because § 2 makes that widening **throw** rather than round,
+    /// what a program would actually observe is `9007199254740993 < 1.5`
+    /// raising `ArithmeticError` where PHP answers `false`.
+    /// `mwl_runtime::numeric_ordering` compares over `i128` and over the
+    /// float's own binary value instead, which has an answer for every pair.
+    ///
+    /// **`>` is this helper with its operands swapped**, the arrangement
+    /// [`Self::DecimalLt`] already uses; a matched pair never reaches here at
+    /// all, being one machine comparison. Total, so no error edge.
+    NumericLt,
+    /// `a <= b` over a mixed numeric pair — [`Self::NumericLt`]'s row
+    /// inclusive, and `>=` is this one swapped.
+    NumericLtEq,
     /// `a == b` over two operands at least one of which the checker typed
     /// `secret` —
     /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)

@@ -488,6 +488,70 @@ fn integer_eq_float(integer: i128, float: f64) -> bool {
     exact_i128(float) == Some(integer)
 }
 
+/// How two numeric values order, with `int`, `uint` and `float` read as **one
+/// domain** — [`numeric_identical`]'s question for `<`, and exact for the same
+/// reason. `mwl_ir::Helper::NumericLt` is the one caller.
+///
+/// [`None`] only for a `NaN` operand, which is unordered against everything
+/// including itself; every `<`/`<=`/`>`/`>=` against one is `false` in PHP,
+/// which is what the callers turn a `None` into.
+///
+/// A `decimal` never arrives — `mwl_ir::Helper::DecimalLt` takes every pairing
+/// one side of which is one.
+#[must_use]
+pub fn numeric_ordering(left: Value, right: Value) -> Option<Ordering> {
+    match (left.tag(), right.tag()) {
+        (Some(Tag::Int | Tag::Uint), Some(Tag::Int | Tag::Uint)) => {
+            Some(integer(left).cmp(&integer(right)))
+        }
+        (Some(Tag::Int | Tag::Uint), Some(Tag::Float)) => {
+            integer_cmp_float(integer(left), right.as_float()?)
+        }
+        (Some(Tag::Float), Some(Tag::Int | Tag::Uint)) => {
+            Some(integer_cmp_float(integer(right), left.as_float()?)?.reverse())
+        }
+        (Some(Tag::Float), Some(Tag::Float)) => left.as_float()?.partial_cmp(&right.as_float()?),
+        // Unreachable from a compiled ordering, whose operands were both
+        // numeric before this was chosen — and cheaper to answer than to argue
+        // about, exactly like [`numeric_identical`]'s own last arm.
+        _ => None,
+    }
+}
+
+/// An integer against a float, without converting either — the widening that
+/// would make this one machine instruction is exactly what loses the answer
+/// past 2^53.
+///
+/// The float's *floor* is the pivot: an integer above it is greater, below it
+/// is less, and equal to it decides on whether the float had a fractional part
+/// left over. An infinity has no floor and is answered directly.
+fn integer_cmp_float(integer: i128, float: f64) -> Option<Ordering> {
+    if float.is_nan() {
+        return None;
+    }
+    if float.is_infinite() {
+        return Some(if float > 0.0 {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        });
+    }
+    let floor = float.floor();
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "`as` saturates at `i128`'s bounds, which lie far outside the \
+                  `[-2^63, 2^64)` an int/uint payload can hold — so a float \
+                  that saturates orders correctly against every integer here"
+    )]
+    let pivot = floor as i128;
+    Some(match integer.cmp(&pivot) {
+        // Equal to the floor, so the float is the larger unless it *is* the
+        // integer: `3 < 3.5` and `3 == 3.0`.
+        Ordering::Equal if floor < float => Ordering::Less,
+        other => other,
+    })
+}
+
 /// The integer a float holds exactly, or `None` for a NaN, an infinity or a
 /// value with a fractional part.
 fn exact_i128(float: f64) -> Option<i128> {

@@ -1220,6 +1220,7 @@ impl<'a> Lowering<'a> {
         guard: Option<NullsafeGuard>,
         value: ValueId,
         ty: Ty,
+        env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let Some(NullsafeGuard {
@@ -1236,10 +1237,10 @@ impl<'a> Lowering<'a> {
             return (value, ty);
         }
         let member_end = *cur;
-        let member_v = self.coerce(member_end, value, ty, Ty::Tagged);
+        let member_v = self.coerce(member_end, value, ty, Ty::Tagged, env);
         self.seal(member_end, Terminator::Jump(merge_block));
         let null_v = self.emit(null_block, Ty::Null, InstKind::ConstNull).0;
-        let null_v = self.coerce(null_block, null_v, Ty::Null, Ty::Tagged);
+        let null_v = self.coerce(null_block, null_v, Ty::Null, Ty::Tagged, env);
         self.seal(null_block, Terminator::Jump(merge_block));
         let (merged, _) = self.emit(
             merge_block,
@@ -1284,14 +1285,14 @@ impl<'a> Lowering<'a> {
                 if rty.is_refcounted() && self.aliasing_read(rhs) {
                     self.emit_retain(rhs_cur, rv);
                 }
-                let rv = self.coerce(rhs_cur, rv, rty, result_repr);
+                let rv = self.coerce(rhs_cur, rv, rty, result_repr, env);
                 *cur = rhs_cur;
                 return (rv, result_repr);
             }
             if lhs_ty.is_refcounted() && lhs_is_alias {
                 self.emit_retain(*cur, lhs_v);
             }
-            let v = self.coerce(*cur, lhs_v, lhs_ty, result_repr);
+            let v = self.coerce(*cur, lhs_v, lhs_ty, result_repr, env);
             return (v, result_repr);
         }
 
@@ -1325,7 +1326,7 @@ impl<'a> Lowering<'a> {
         if non_null_repr.is_refcounted() && lhs_is_alias {
             self.emit_retain(value_block, untagged);
         }
-        let value_v = self.coerce(value_block, untagged, non_null_repr, result_repr);
+        let value_v = self.coerce(value_block, untagged, non_null_repr, result_repr, env);
         self.seal(value_block, Terminator::Jump(merge_block));
 
         let mut rhs_cur = null_block;
@@ -1333,7 +1334,7 @@ impl<'a> Lowering<'a> {
         if rty.is_refcounted() && self.aliasing_read(rhs) {
             self.emit_retain(rhs_cur, rv);
         }
-        let null_v = self.coerce(rhs_cur, rv, rty, result_repr);
+        let null_v = self.coerce(rhs_cur, rv, rty, result_repr, env);
         self.seal(rhs_cur, Terminator::Jump(merge_block));
 
         let (value, _) = self.emit(
@@ -1696,7 +1697,7 @@ impl<'a> Lowering<'a> {
                 // for a written `new`; this site builds the list by hand and
                 // so has to say it.
                 let (absent, _) = self.emit(test_cur, Ty::Null, InstKind::ConstNull);
-                let absent = self.coerce(test_cur, absent, Ty::Null, Ty::Tagged);
+                let absent = self.coerce(test_cur, absent, Ty::Null, Ty::Tagged, env);
                 let (exception, _) = self.emit_fallible(
                     test_cur,
                     Ty::Object,
@@ -2417,10 +2418,66 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
+        // ADR 0007 § 4's ordering rows, which are *not* its arithmetic ones:
+        // the table's own closing paragraph says a comparison "has an exact
+        // answer in the mathematical integers and can be lowered as one", so a
+        // mixed numeric pair is settled by a helper here — the same shape and
+        // the same reason as `Helper::NumericEq` next door — rather than by
+        // the widening below, which past 2^53 would raise `ArithmeticError`
+        // where PHP answers an ordering. `>`/`>=` are the same two helpers
+        // with their operands swapped, the arrangement `lower_decimal_binary`
+        // already uses. See `Helper::NumericLt`.
+        if matches!(
+            op,
+            BinaryOp::Lt | BinaryOp::LtEq | BinaryOp::Gt | BinaryOp::GtEq
+        ) && lty != rty
+            && matches!(lty, Ty::Int | Ty::Uint | Ty::Float)
+            && matches!(rty, Ty::Int | Ty::Uint | Ty::Float)
+        {
+            let (helper, args) = match op {
+                BinaryOp::Lt => (Helper::NumericLt, vec![lv, rv]),
+                BinaryOp::Gt => (Helper::NumericLt, vec![rv, lv]),
+                BinaryOp::LtEq => (Helper::NumericLtEq, vec![lv, rv]),
+                _ => (Helper::NumericLtEq, vec![rv, lv]),
+            };
+            // Nothing is released: every representation in this arm is a
+            // scalar, so neither operand is `Ty::is_refcounted`.
+            return self.emit(*cur, Ty::Bool, InstKind::HelperCall { helper, args });
+        }
+        // ADR 0007 § 4's "either operand a `float`" row, made real: the
+        // checker types the pair `float`, but until here both operands still
+        // travelled in their own representation and `mwl-codegen`'s "a
+        // `BinOp` has one representation" invariant refused them. So the
+        // integer side widens *here*, beside the `decimal`, `Tagged` and
+        // `NumericEq` arms above, which settle their own mixed pairings the
+        // same way rather than asking the backend to.
+        //
+        // It is the checked widening — the very helper `$n as float` emits —
+        // because ADR 0007 § 2 names this as the one implicit conversion in
+        // the language and says it "throws above 2^53 rather than rounding".
+        // A silent `fcvt_from_sint` would answer an exact-in-the-integers
+        // question with a rounded one, which is the same reason `==` next
+        // door is a helper and not a widening. Being fallible, it carries
+        // ADR 0002's error edge exactly as the written conversion does.
+        //
+        // Only the arithmetic rows reach this: every comparison over a mixed
+        // numeric pair has already returned above, exactly so that none of
+        // them pays a conversion that can throw.
+        let (lv, lty) = self.widen_to_float(lv, lty, rty, env, cur);
+        let (rv, _) = self.widen_to_float(rv, rty, lty, env, cur);
         let (bop, ty) = match op {
             BinaryOp::Add => (BinOp::Add, lty),
             BinaryOp::Sub => (BinOp::Sub, lty),
             BinaryOp::Mul => (BinOp::Mul, lty),
+            // The one operator whose result representation is not its
+            // operands': ADR 0007 § 4 types `int / int` as `int|float` and
+            // `uint / uint` as `uint|float`, PHP-exact, so which of the two a
+            // given pair produces is only known at run time and the value is
+            // therefore [`Ty::Tagged`]. `mwl-codegen`'s `emit_int_div` owns
+            // the branch; `Lowering::coerce` owns the widening that absorbs
+            // the union back into a declared `float`, which is ADR 0007 § 4's
+            // own worked example `float $avg = $sum / $n;`.
+            BinaryOp::Div if matches!(lty, Ty::Int | Ty::Uint) => (BinOp::Div, Ty::Tagged),
             BinaryOp::Div => (BinOp::Div, lty),
             BinaryOp::Mod => (BinOp::Mod, lty),
             BinaryOp::Eq => (BinOp::Eq, Ty::Bool),
@@ -2440,18 +2497,25 @@ impl<'a> Lowering<'a> {
         // right after the instruction reads it, exactly the rule the
         // `Concat` arm above applies to its own fresh operands.
         //
-        // Integer `%` is the one operator here that can *fail*: ADR
-        // 0007 § 4 makes a zero divisor throw `ArithmeticError`, which
-        // `mwl-codegen` raises inline rather than through a helper, so
-        // it needs an error edge exactly the way a call does. Every
-        // other operator, `%` on floats included, returns no status at
-        // all — see `Inst::on_error`.
+        // The two integer operators here that can *fail* are `%` and `/`:
+        // ADR 0007 § 4 makes a zero divisor throw `ArithmeticError` for
+        // both, which `mwl-codegen` raises inline rather than through a
+        // helper, so each needs an error edge exactly the way a call
+        // does. `/` is recognised by its *result* rather than by its
+        // operands, since the integer row is the one that produces a
+        // `Ty::Tagged`. Every other operator, `%` and `/` on floats
+        // included, returns no status at all — see `Inst::on_error`.
         let inst = InstKind::BinOp {
             op: bop,
             lhs: lv,
             rhs: rv,
         };
-        let result = if matches!(bop, BinOp::Mod) && matches!(ty, Ty::Int | Ty::Uint) {
+        let fallible = match bop {
+            BinOp::Mod => matches!(ty, Ty::Int | Ty::Uint),
+            BinOp::Div => ty == Ty::Tagged,
+            _ => false,
+        };
+        let result = if fallible {
             self.emit_fallible(*cur, ty, inst, env)
         } else {
             self.emit(*cur, ty, inst)
@@ -2465,6 +2529,46 @@ impl<'a> Lowering<'a> {
             }
         }
         result
+    }
+
+    /// One operand of a binary operator, widened into ADR 0007 § 4's
+    /// `float` row when — and only when — the *other* operand is already
+    /// one. `other` is that operand's representation; everything else is
+    /// returned untouched, so a matched pair costs nothing and no
+    /// instruction is emitted for it.
+    ///
+    /// The conversion is [`Helper::IntToFloat`]/[`Helper::UintToFloat`],
+    /// the same pair `$n as float` lowers to, because ADR 0007 § 2 makes
+    /// this implicit row *the same conversion* as the written one — exact
+    /// or throwing above 2^53, never rounding. That is why it goes through
+    /// [`Lowering::emit_fallible`] and not through
+    /// [`Lowering::coerce`], which only reconciles [`Ty::Tagged`] and
+    /// emits nothing that can fail.
+    fn widen_to_float(
+        &mut self,
+        v: ValueId,
+        ty: Ty,
+        other: Ty,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        if other != Ty::Float || !matches!(ty, Ty::Int | Ty::Uint) {
+            return (v, ty);
+        }
+        let helper = if ty == Ty::Int {
+            Helper::IntToFloat
+        } else {
+            Helper::UintToFloat
+        };
+        self.emit_fallible(
+            *cur,
+            Ty::Float,
+            InstKind::HelperCall {
+                helper,
+                args: vec![v],
+            },
+            env,
+        )
     }
 
     /// `new Target(...)` — the constructed class and its resolved
@@ -2723,7 +2827,7 @@ impl<'a> Lowering<'a> {
                 env,
             );
             self.release_temporaries_since(mark, *cur);
-            return self.close_nullsafe(guard, v, ty, cur);
+            return self.close_nullsafe(guard, v, ty, env, cur);
         }
         let target_label = format!("{}::{}", call.class, call.method);
         let sig = ArgSig::of(call);
@@ -2808,7 +2912,7 @@ impl<'a> Lowering<'a> {
             }
         };
         let (v, ty) = self.emit_fallible(*cur, return_ty, kind, env);
-        self.close_nullsafe(guard, v, ty, cur)
+        self.close_nullsafe(guard, v, ty, env, cur)
     }
 
     /// `parent::method(...)`/`self::method(...)`/`Class::method(...)`.
@@ -3101,7 +3205,7 @@ impl<'a> Lowering<'a> {
             }
             self.release_temporaries_since(mark, *cur);
         }
-        self.close_nullsafe(guard, v, ty, cur)
+        self.close_nullsafe(guard, v, ty, env, cur)
     }
 
     /// `{x: 1, y: 2}` — [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)
@@ -3245,7 +3349,7 @@ impl<'a> Lowering<'a> {
             }
             self.release_temporaries_since(mark, *cur);
         }
-        self.close_nullsafe(guard, v, ty, cur)
+        self.close_nullsafe(guard, v, ty, env, cur)
     }
 
     /// `$issue->path = "x";` — [`Self::lower_shape_property_access`]'s write
@@ -3284,7 +3388,7 @@ impl<'a> Lowering<'a> {
             self.own_temporary(object_v);
         }
         let (v, vty) = self.lower_expr(value, Some(field_ty), env, cur);
-        let v = self.coerce(*cur, v, vty, field_ty);
+        let v = self.coerce(*cur, v, vty, field_ty, env);
         if field_ty.is_refcounted() && !self.aliasing_read(value) {
             self.own_temporary(v);
         }

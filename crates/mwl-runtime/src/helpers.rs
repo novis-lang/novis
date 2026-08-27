@@ -165,6 +165,38 @@ crate::mwl_helper! {
 }
 
 crate::mwl_helper! {
+    /// `mwl_ir::Helper::NumericLt` — `<` over two operands whose
+    /// representations differ but whose types are ADR 0007 § 4's one numeric
+    /// domain. The row is [`crate::numeric_ordering`], and `>` is this helper
+    /// with its operands swapped.
+    ///
+    /// An unordered pair — a `NaN` on either side — is `false`, which is PHP's
+    /// answer for all four ordering operators against one. That is why this
+    /// takes the ordering rather than a `bool` from the row: `false` here is
+    /// "not less", not "greater".
+    ///
+    /// Total, so it carries no error edge.
+    fn mwl_numeric_lt(_ctx, args: [2]) {
+        Ok(Value::bool(matches!(
+            crate::numeric_ordering(args[0], args[1]),
+            Some(core::cmp::Ordering::Less)
+        )))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::NumericLtEq` — [`mwl_numeric_lt`]'s row inclusive, and
+    /// `>=` is this helper with its operands swapped. A `NaN` operand is
+    /// `false` here too, for the reason that one states.
+    fn mwl_numeric_lt_eq(_ctx, args: [2]) {
+        Ok(Value::bool(matches!(
+            crate::numeric_ordering(args[0], args[1]),
+            Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+        )))
+    }
+}
+
+crate::mwl_helper! {
     /// `mwl_ir::Helper::SecretEq` — `==` where the checker typed at least one
     /// operand `secret`, which
     /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
@@ -1085,6 +1117,8 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_array_truthy", address(mwl_array_truthy)),
         ("mwl_value_identical", address(mwl_value_identical)),
         ("mwl_numeric_eq", address(mwl_numeric_eq)),
+        ("mwl_numeric_lt", address(mwl_numeric_lt)),
+        ("mwl_numeric_lt_eq", address(mwl_numeric_lt_eq)),
         ("mwl_secret_eq", address(mwl_secret_eq)),
         ("mwl_int_to_uint", address(mwl_int_to_uint)),
         ("mwl_uint_to_int", address(mwl_uint_to_int)),

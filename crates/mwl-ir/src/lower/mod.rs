@@ -1538,20 +1538,79 @@ impl<'a> Lowering<'a> {
     ///
     /// The two representations can differ for exactly one reason: the checker
     /// accepted an assignment, an argument or a `return` whose declared type
-    /// is wider than the value's own. Since [`Ty::Tagged`] is what every such
-    /// wider type erases to (see its own doc comment), reconciling them is
-    /// widening into it or narrowing back out of it, and never anything else —
-    /// any other mismatch is a bug in this crate rather than a conversion, so
-    /// it is left alone for the instruction that consumes it to reject.
+    /// is wider than the value's own. That is [`Ty::Tagged`] for every wider
+    /// type but one (see its own doc comment), so most of this is widening
+    /// into it or narrowing back out of it; any mismatch not in the table
+    /// below is a bug in this crate rather than a conversion, and is left
+    /// alone for the instruction that consumes it to reject.
     ///
-    /// Ownership is unchanged in both directions: both instructions transfer
-    /// the operand's reference to their result, so no caller needs a retain or
-    /// a release around one, and the [`is_aliasing_read`]-keyed retain every
-    /// boundary already emits still applies exactly once — to whichever of the
-    /// two values that boundary ends up storing.
-    pub(super) fn coerce(&mut self, cur: BlockId, v: ValueId, from: Ty, to: Ty) -> ValueId {
+    /// The exception is ADR 0007 § 2's implicit `int`/`uint` → `float`
+    /// widening, whose target is a machine representation rather than a tag,
+    /// and which **can fail** — so unlike the two tag instructions it is a
+    /// helper call carrying an error edge, and it is why this takes `env`.
+    ///
+    /// Ownership is unchanged in every direction: `Tag`/`Untag` transfer the
+    /// operand's reference to their result and the numeric rows have no
+    /// reference to transfer, so no caller needs a retain or a release around
+    /// one, and the [`is_aliasing_read`]-keyed retain every boundary already
+    /// emits still applies exactly once — to whichever of the two values that
+    /// boundary ends up storing.
+    pub(super) fn coerce(
+        &mut self,
+        cur: BlockId,
+        v: ValueId,
+        from: Ty,
+        to: Ty,
+        env: &Env,
+    ) -> ValueId {
         match (from, to) {
             (a, b) if a == b => v,
+            // ADR 0007 § 2's one implicit conversion: "`int` or `uint`
+            // widening into a `float` position", which is exactly what a
+            // declared type wider than the value's own is here. It is the
+            // *same* conversion `$n as float` performs — exact, or throwing
+            // above 2^53 where an `f64` stops representing every integer —
+            // and § 2 says so outright, so it is the same fallible helper and
+            // not a `fcvt_from_sint` this function could emit on its own.
+            //
+            // That is why this one takes `env`, and why every caller passes
+            // it: a conversion carrying ADR 0002's error edge needs the
+            // frame's landing block, which only the environment names.
+            (Ty::Int | Ty::Uint, Ty::Float) => {
+                let helper = if from == Ty::Int {
+                    Helper::IntToFloat
+                } else {
+                    Helper::UintToFloat
+                };
+                self.emit_fallible(
+                    cur,
+                    Ty::Float,
+                    InstKind::HelperCall {
+                        helper,
+                        args: vec![v],
+                    },
+                    env,
+                )
+                .0
+            }
+            // The union ADR 0007 § 4 gives integer `/` reaches a declared
+            // `float` the same way, but its representation is already
+            // [`Ty::Tagged`] rather than an integer one, so the row is the
+            // one that reads the runtime tag. `mwl_types` is what decided the
+            // position accepts it (`expr::assign::is_assignable`); this only
+            // performs it.
+            (Ty::Tagged, Ty::Float) => {
+                self.emit_fallible(
+                    cur,
+                    Ty::Float,
+                    InstKind::HelperCall {
+                        helper: Helper::TaggedToFloat,
+                        args: vec![v],
+                    },
+                    env,
+                )
+                .0
+            }
             (_, Ty::Tagged) => self.emit(cur, Ty::Tagged, InstKind::Tag { operand: v }).0,
             (Ty::Tagged, _) => self.emit(cur, to, InstKind::Untag { operand: v }).0,
             _ => v,

@@ -137,7 +137,7 @@ impl<'a> Lowering<'a> {
             // slot's representation here. `Self::coerce` transfers whatever
             // ownership `account_for_arg` just settled, so the order of the
             // two does not matter.
-            let v = self.coerce(*cur, v, ty, expected);
+            let v = self.coerce(*cur, v, ty, expected, env);
             out.values.push(v);
         }
         for (index, default) in sig.defaults.iter().enumerate().take(fixed).skip(list.len()) {
@@ -238,7 +238,7 @@ impl<'a> Lowering<'a> {
             // a fixed argument is — `Self::coerce` is ownership-transparent,
             // so the retain above still pays for what lands in the array.
             let v = match expected {
-                Some(expected) => self.coerce(*cur, v, ty, expected),
+                Some(expected) => self.coerce(*cur, v, ty, expected, env),
                 None => v,
             };
             entries.push((index.to_string(), v));
@@ -351,7 +351,7 @@ impl<'a> Lowering<'a> {
                 let (v, ty) = self.lower_expr(value, Some(expected), env, cur);
                 let aliasing = self.aliasing_read(value);
                 self.account_for_arg(v, ty, ownership, aliasing, *cur);
-                let v = self.coerce(*cur, v, ty, expected);
+                let v = self.coerce(*cur, v, ty, expected, env);
                 out.values.push(v);
                 continue;
             }
@@ -368,7 +368,7 @@ impl<'a> Lowering<'a> {
                 });
             let (v, ty) = self.emit_const_arg(default, env, *cur);
             self.account_for_arg(v, ty, ownership, false, *cur);
-            let v = self.coerce(*cur, v, ty, expected);
+            let v = self.coerce(*cur, v, ty, expected, env);
             out.values.push(v);
         }
     }

@@ -85,7 +85,7 @@ impl<'a> Lowering<'a> {
             } => {
                 let expected = lower_decl_type(decl_ty, self.exprs, self.checked_types);
                 let (v, actual) = self.lower_expr(value, Some(expected), env, cur);
-                let v = self.coerce(*cur, v, actual, expected);
+                let v = self.coerce(*cur, v, actual, expected, env);
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, expected, value);
             }
@@ -146,7 +146,7 @@ impl<'a> Lowering<'a> {
                     if except.is_none() && rty.is_refcounted() && self.aliasing_read(value_expr) {
                         self.emit_retain(*cur, rv);
                     }
-                    Some(self.coerce(*cur, rv, rty, ret_ty))
+                    Some(self.coerce(*cur, rv, rty, ret_ty, env))
                 } else {
                     None
                 };
@@ -451,7 +451,7 @@ impl<'a> Lowering<'a> {
                     // reassigned an `int` would silently change shape, and the
                     // next phi over it would merge two representations.
                     let (v, ty) = match expected {
-                        Some(want) => (self.coerce(*cur, v, ty, want), want),
+                        Some(want) => (self.coerce(*cur, v, ty, want, env), want),
                         None => (v, ty),
                     };
                     self.bind_local(*cur, env, lname, v, ty, value);
@@ -538,7 +538,7 @@ impl<'a> Lowering<'a> {
                     if field_ty.is_refcounted() && self.aliasing_read(value) {
                         self.emit_retain(*cur, v);
                     }
-                    let v = self.coerce(*cur, v, vty, field_ty);
+                    let v = self.coerce(*cur, v, vty, field_ty, env);
                     self.emit_fallible(
                         *cur,
                         Ty::Void,
@@ -556,7 +556,7 @@ impl<'a> Lowering<'a> {
                     if field_ty.is_refcounted() && self.aliasing_read(value) {
                         self.emit_retain(*cur, v);
                     }
-                    let v = self.coerce(*cur, v, vty, field_ty);
+                    let v = self.coerce(*cur, v, vty, field_ty, env);
                     if field_ty.is_refcounted() {
                         let (old_v, _) = self.emit(
                             *cur,
