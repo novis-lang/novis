@@ -65,8 +65,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 606 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 168, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 607 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 170, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -496,7 +496,7 @@
 > edges with a fresh refcounted operand live. `python tools/holes.py` still reads **24 sites, 6
 > items**: `convert_or_null`'s catch-all is unchanged, `$b as ?string` and `$m as ?array<T>` still
 > reaching it, and this slice widened neither. **M4S Part I is the floor, not the frontier**:
-> conformance is at 606 of the goal's new 750 and differential at 168 of 165, `python tools/gaps.py`
+> conformance is at 607 of the goal's new 750 and differential at 170 of 165, `python tools/gaps.py`
 > still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a group is
 > blocked — never a reason to leave a language item unfinished. **A bare name in value position is a
 > diagnostic now**, which is the cheap half of `lower_expr`'s own dispatch catch-all rather than a
@@ -533,8 +533,40 @@
 > its body in the scan, which is what `while ($i++ < 3)` needs: without it the header carries no phi
 > for `$i` and the increment reads the pre-loop value forever — an infinite loop rather than a
 > diagnostic, which is exactly how it first showed. `python tools/holes.py` still reads **24
-> sites**: item 7's remaining five are other items' panics that share `lower/stmt.rs`.
-> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+> sites**: item 7's remaining five are other items' panics that share `lower/stmt.rs`. **An
+> assignment in value position runs, and `lower_store` hands back what it wrote.** `int $b = ($a =
+> 2);` and the chain `$a = $b = 0;` answer the value **written**, at the target's own declared
+> representation — `check_assign` types the whole expression as the target's declared type, so there
+> is one representation question and one answer — and every target the statement form already had
+> gains the value position at once: a local, a `&$x` slot, a property, an ADR 0014 § 1 `set`-hooked
+> property, an ADR 0036 § 2 shape field, an element, an append and a nested element. A compound
+> spelling (`$e += 4`, `$s .= "x"`) answers the value *after* the operation through the very
+> `lower_read_modify_write` the statement form takes, so the target's address is still computed
+> exactly once; the one thing it does not reuse is the `.=`-on-a-`string`-local fast path, which
+> re-points the holder in place and has no value to hand back. **The retain is a parameter rather
+> than a line the caller emits, and that is the whole of what this cost.** The value that landed is
+> owned by the binding, the field, the slot or the entry it landed in, and `is_aliasing_read` does
+> not list `ExprKind::Assign`, so the expression is a fresh producer to every consumer above it and
+> owes a second owner. Emitting that retain *after* the store is wrong in exactly one arm — a `set`
+> hook is a **call**, the argument convention transfers the reference to it, and what the hook then
+> does with the value is the hook's business — so `lower_store` takes an `extra_owner` flag and each
+> arm emits it at the point it still holds a reference of its own. Every row is byte-identical to
+> PHP, over a local, a chain, a call argument, a property, an element, an append, a nested element,
+> both compound forms, every conditionally-evaluated operand (`&&`, `?:`, `??`, `match`) and a
+> loop's own condition, and is pinned that way in
+> `tests/differential/lang/an-assignment-in-value-position-matches-phps.mwlt`; `tools/leak-check.sh`
+> is green over all of it, the `set` hook and the shape field included. **`print` lowers in both
+> positions too**: one operand written exactly as `echo` writes it plus the `1` PHP answers, which
+> is that write plus one `InstKind::ConstInt` and no second output path, with the statement form
+> simply leaving the constant unread. **`exit` did not land and is not the cheap half it was filed
+> as**: there is no `process::exit` anywhere in this tree and there must not be one inside a helper,
+> because priority 1 makes termination request-scoped — under `mwl serve` at M7 a helper that ends
+> the process ends every other in-flight request with it — so `exit` wants a distinguished unwind (a
+> `Fault` variant carried to `mwl-cli`'s exit status) rather than a runtime call, and that is a
+> slice of its own across `mwl-runtime` and `mwl-cli`. `python tools/holes.py` still reads **24
+> sites**: `lower_expr`'s dispatch catch-all is one site whichever shapes reach it, and
+> `lower_expr_stmt`'s is another. `docs/spec/02-php-migration.md` is 31% classified (`python
+> tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones

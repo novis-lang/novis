@@ -475,6 +475,16 @@ is why" — is this file.
   (`expr/mod.rs:264`, `:292`, `expr/calls.rs:143`, `expr/members.rs:85`, `:211`) and has not
   needed it only because its arms answer `mixed` in silence. Nothing catches this: it builds, and
   the first sign is a conformance case that used to pass reporting an extra error.
+- **A value handed to an ADR 0014 § 1 `set` hook is *transferred*, so there is no "afterwards" in
+  which to retain it.** Every other assignment target leaves the target itself owning what was
+  stored — a local's slot, a `&$x` pointee, a field, an array entry — so a lowering that wants a
+  second owner of the stored value can retain once the store has run, and four of the five arms of
+  `Lowering::lower_store` are safe that way. A `set` hook is a **call**, and `mwl-ir`'s argument
+  convention gives the callee the reference: a retain emitted after that call can read a value the
+  hook already released, and nothing catches it — it builds, it runs, and only a valgrind fixture
+  whose hook *discards* its argument shows anything. That is why `lower_store` takes an
+  `extra_owner` flag instead of handing the value back for its caller to retain: the retain has to
+  be emitted where each arm still holds a reference, which for that one arm is *before* the call.
 
 ## Running things
 
