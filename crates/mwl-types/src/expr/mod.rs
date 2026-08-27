@@ -220,10 +220,13 @@ pub(super) fn infer(
             match op {
                 UnaryOp::Not => env.interner.bool_ty(),
                 UnaryOp::Neg | UnaryOp::Plus | UnaryOp::BitNot => {
-                    reject_arithmetic_on_object(*op, inner_ty, expr.span, env);
+                    reject_unary_arith_operand(*op, inner_ty, expr.span, env);
                     negated_literal_result(*op, inner_ty, env.interner)
                 }
-                UnaryOp::Suppress => inner_ty,
+                // `UnaryOp::Suppress` is not a row here and never will be: the
+                // parser refuses `@` where it is written (`E0236`), so nothing
+                // this function can be handed carries it. The wildcard is the
+                // `#[non_exhaustive]` enum's, not that operator's.
                 _ => inner_ty,
             }
         }

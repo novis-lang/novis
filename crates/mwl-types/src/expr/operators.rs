@@ -621,37 +621,74 @@ pub(super) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// operand (including `Ty::Enum`, `mixed`, and a scalar) and for an
 /// unmodeled `Core` class, the same scoping [`object_comparison_result`] and
 /// [`check_property_access`] already use.
-/// Reports `E_TYPE_MISMATCH` for `-`, `+` or `~` applied to an object.
+/// Reports the two ways `-`, `+` or `~` can be handed an operand ADR 0007 § 4
+/// tabulates no row for. One call site, because it is one question asked of
+/// one operand and a program is owed one diagnostic for it.
 ///
-/// MWL has no operator overloading, so there is no arithmetic an object can
-/// take part in — and the first place a program reaches for one is
+/// **An object** takes `E_TYPE_MISMATCH`: MWL has no operator overloading, so
+/// there is no arithmetic an object can take part in — and the first place a
+/// program reaches for one is
 /// [ADR 0070](../../../docs/adr/0070-duration-literals.md) § 4's `-7d`, which
 /// that ADR refuses outright in favour of `->minus(7d)`. Left unchecked it
 /// reaches `mwl-codegen`, which panics naming the representation; a
 /// diagnostic naming the operator is what the author needs.
 ///
-/// Only the three arithmetic prefixes: `!` is ADR 0035's truthy test, which an
-/// object is perfectly legal in, and `@` is a suppression marker that says
-/// nothing about its operand's type.
-pub(super) fn reject_arithmetic_on_object(op: UnaryOp, ty: TypeId, span: Span, env: &mut Env<'_>) {
-    if !matches!(env.interner.get(ty), Ty::Class(..) | Ty::Object) {
-        return;
-    }
+/// **Every other non-numeric operand** takes `E_UNARY_ARITH_NOT_NUMERIC`,
+/// scoped exactly the way [`reject_increment_on_non_numeric`] next door is:
+/// only a type whose [`equality_domain`] is known *and* is not the numeric
+/// one, so `mixed`, a union (`7 / 2` produces `int|float`), a type variable
+/// and an error placeholder all pass through. PHP answers `+"5"`, `-"5"` and
+/// `~"ab"` by *converting* the operand first, and ADR 0007 § 2 has no implicit
+/// conversion for that to be — which is what makes unary `+` safe to lower as
+/// the identity it is over a number (`mwl_ir::lower::expr`'s `Plus` arm): the
+/// operand it would silently pass through unchanged is refused here instead,
+/// naming `as int`.
+///
+/// Only the three arithmetic prefixes: `!` is ADR 0035's truthy test, which
+/// every type is legal in, and `@` never reaches the checker at all — the
+/// parser refuses it as `E0236`.
+pub(super) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, env: &mut Env<'_>) {
     let spelling = match op {
         UnaryOp::Neg => "-",
         UnaryOp::Plus => "+",
         _ => "~",
     };
+    if matches!(
+        env.interner.get(ty),
+        Ty::Class(..) | Ty::Object | Ty::Shape(_)
+    ) {
+        let described = env.interner.describe(ty);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_MISMATCH,
+                format!("`{spelling}` has no meaning for `{described}`"),
+            )
+            .with_primary(span, "an object takes part in no arithmetic")
+            .with_help(
+                "MWL has no operator overloading; call the member that does this — a \
+                 `Core\\Time\\Duration` negates with `->negated()` and subtracts with `->minus(…)`",
+            ),
+        );
+        return;
+    }
+    let refused = {
+        let resolved = env.interner.get(ty);
+        !matches!(equality_domain(resolved), None | Some(EqDomain::Numeric))
+    };
+    if !refused {
+        return;
+    }
     let described = env.interner.describe(ty);
     env.diags.report(
         Diagnostic::error(
-            code::E_TYPE_MISMATCH,
+            code::E_UNARY_ARITH_NOT_NUMERIC,
             format!("`{spelling}` has no meaning for `{described}`"),
         )
-        .with_primary(span, "an object takes part in no arithmetic")
+        .with_primary(span, "a unary arithmetic operator is over numbers")
         .with_help(
-            "MWL has no operator overloading; call the member that does this — a \
-             `Core\\Time\\Duration` negates with `->negated()` and subtracts with `->minus(…)`",
+            "ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP \
+             converts this operand first and MWL never converts by itself, so say it — \
+             `$x as int`",
         ),
     );
 }

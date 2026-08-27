@@ -1,0 +1,61 @@
+--TEST--
+`@expr` is `E0236` in all four positions PHP puts it, and reports exactly once each because the operand takes its place — ADR 0020, ADR 0063 § 3
+--FILE--
+<?mwl
+// ADR 0020 makes every runtime failure a `Throwable` propagated by checked
+// return (ADR 0002), never a diagnostic printed beside a value — so there
+// is no channel for `@` to mute, and ADR 0063 § 3 already lists it among
+// what that decision closes. The refusal is the parser's, which is why it
+// reaches every position alike rather than only the ones the checker would
+// have got as far as typing.
+array<string> $m = ["k" => "v"];
+string $missing = @$m["nope"] ?? "d";
+
+class Risky {
+    public static function read(string $k): string {
+        return $k;
+    }
+}
+
+string $got = @Risky::read("x");
+
+int $n = 7;
+int $doubled = @$n * 2;
+
+string $tail = @$got . "!";
+
+// Four `@`s, four diagnostics: the count is the assertion. The parser hands
+// the operand back in place of the whole `@expr`, so each of these bindings
+// is still typed against exactly what it was written to hold and none of
+// them reports a second time about a value the suppression swallowed.
+echo $missing, $got, $doubled, $tail;
+--EXPECTF-ERROR--
+error[E0236]: `@expr` error suppression does not exist
+  --> %s:9:19
+  |
+9 | string $missing = @$m["nope"] ?? "d";
+  |                   ^^^^^^^^^^^ there is nothing here to suppress
+  = help: a failure is a `Throwable` propagated by checked return, not a diagnostic printed beside a value — catch it with `try`/`catch`
+
+error[E0236]: `@expr` error suppression does not exist
+   --> %s:17:15
+   |
+17 | string $got = @Risky::read("x");
+   |               ^^^^^^^^^^^^^^^^^ there is nothing here to suppress
+   = help: a failure is a `Throwable` propagated by checked return, not a diagnostic printed beside a value — catch it with `try`/`catch`
+
+error[E0236]: `@expr` error suppression does not exist
+   --> %s:20:16
+   |
+20 | int $doubled = @$n * 2;
+   |                ^^^ there is nothing here to suppress
+   = help: a failure is a `Throwable` propagated by checked return, not a diagnostic printed beside a value — catch it with `try`/`catch`
+
+error[E0236]: `@expr` error suppression does not exist
+   --> %s:22:16
+   |
+22 | string $tail = @$got . "!";
+   |                ^^^^^ there is nothing here to suppress
+   = help: a failure is a `Throwable` propagated by checked return, not a diagnostic printed beside a value — catch it with `try`/`catch`
+
+error: aborting due to 4 errors

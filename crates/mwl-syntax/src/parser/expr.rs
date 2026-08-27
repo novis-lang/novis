@@ -475,7 +475,35 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Minus => prefix!(Neg),
             TokenKind::Plus => prefix!(Plus),
             TokenKind::Tilde => prefix!(BitNot),
-            TokenKind::At => prefix!(Suppress),
+            // `@expr` is refused where it is written, exactly as the legacy
+            // cast above is, so `UnaryOp::Suppress` is a variant the parser
+            // never produces. ADR 0020's ladder makes a runtime failure a
+            // `Throwable`, not a diagnostic printed next to a value, so there
+            // is nothing an operand-shaped marker could suppress; ADR 0063 § 3
+            // already lists `@` among what that decision closes. The operand is
+            // parsed *and handed back in place of the whole thing*, so `@$n * 2`
+            // is typed as `$n * 2` and reports once rather than reporting again
+            // at every binding a `mixed` no longer satisfies. That is where this
+            // parts from the legacy cast above, which names a target type it
+            // cannot honestly produce a value of and so yields
+            // [`ExprKind::Error`]; `@` says nothing about its operand's type.
+            TokenKind::At => {
+                let start = self.bump().span;
+                let operand = self.parse_unary();
+                let span = start.to(operand.span);
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_SUPPRESSION_UNSUPPORTED,
+                        "`@expr` error suppression does not exist",
+                    )
+                    .with_primary(span, "there is nothing here to suppress")
+                    .with_help(
+                        "a failure is a `Throwable` propagated by checked return, not a \
+                         diagnostic printed beside a value — catch it with `try`/`catch`",
+                    ),
+                );
+                operand
+            }
             // `!` normally binds looser than a cast/unary op ([`Self::parse_not`]
             // is the tier that reaches it first in the ordinary chain), but a
             // cast or another unary op recurses straight into this function for

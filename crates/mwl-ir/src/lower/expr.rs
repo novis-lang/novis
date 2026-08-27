@@ -2743,9 +2743,28 @@ impl<'a> Lowering<'a> {
             // over it — every 64-bit pattern is a value of both `int` and
             // `uint`, so this is the one unary arithmetic row with no edge.
             AstUnaryOp::BitNot => UnOp::BitNot,
+            // ADR 0007 § 4 gives unary `+` no row because there is nothing for
+            // one to say: over `int`, `uint`, `float` and `decimal` alike it is
+            // the identity, and it is the identity in PHP too. So the operand
+            // *is* the result — no instruction, and no overflow edge, for the
+            // same reason `~` has none. What makes that safe rather than a
+            // silent divergence is one refusal a phase up:
+            // `mwl_types::expr::operators::reject_unary_arith_operand` turns
+            // away every operand that is not one of those four, because PHP's
+            // `+"5"` is a *numeric conversion* and ADR 0007 § 2 has no implicit
+            // one for it to be.
+            AstUnaryOp::Plus => return (v, ty),
+            // `UnaryOp`'s roster is five, and this arm has no reachable target
+            // left. `-`, `~` and `+` are the three above; `!` is split out by
+            // `Self::lower_expr` into `Self::lower_not` before this function is
+            // called at all (ADR 0035's truthy table answers `Ty::Bool`
+            // whatever the operand's own type is); and `@` never reaches the
+            // IR, the parser refusing error suppression outright as `E0236`
+            // since ADR 0020's ladder leaves it nothing to suppress. That
+            // subtraction is the proof — the message below is not.
             other => panic!(
-                "mwl-ir's control-flow slice only lowers unary `-`/`!`/`~` — got {other:?}; \
-                 see the crate docs' known gaps"
+                "mwl-ir: unreachable — `UnaryOp::{other:?}` reached the lowering dispatch; \
+                 see this arm's own comment for the roster it subtracts"
             ),
         };
         let kind = InstKind::UnOp {
@@ -3189,9 +3208,23 @@ impl<'a> Lowering<'a> {
             // result is an `int` whatever the operands hold, which alongside
             // `Div` makes it the second row whose type is not `lty`.
             BinaryOp::Cmp => (BinOp::Cmp, Ty::Int),
+            // `BinaryOp`'s roster is 22 and this arm has no reachable target
+            // left. Eighteen of them are the rows above (`Div` twice, guarded
+            // by its operands' representation). The other four never arrive
+            // here at all, because `Self::lower_expr` takes each of them
+            // *before* the general `Binary` arm that is this function's only
+            // caller: `.` goes to `Self::lower_concat`, which flattens the
+            // whole spine into one `InstKind::Concat` rather than allocating a
+            // buffer per operator; `&&` and `||` short-circuit, so they are
+            // branches rather than an instruction with two evaluated operands;
+            // and `??` is `Self::lower_coalesce`'s null test over a value
+            // that must not be evaluated twice. A compound assignment reaches
+            // the same four the same way — `AssignOp::to_binary_op` hands back
+            // an ordinary `BinaryOp` and the desugar re-enters `lower_expr`.
+            // That subtraction is the proof; the message below is not.
             other => panic!(
-                "mwl-ir's control-flow slice only lowers arithmetic/equality/ordering \
-                 operators — got {other:?}; see the crate docs' known gaps"
+                "mwl-ir: unreachable — `BinaryOp::{other:?}` reached the scalar-operator \
+                 table; see this arm's own comment for the roster it subtracts"
             ),
         };
         // A comparison only *reads* its operands, so a refcounted one

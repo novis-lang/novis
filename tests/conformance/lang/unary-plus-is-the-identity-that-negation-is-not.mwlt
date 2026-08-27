@@ -1,0 +1,60 @@
+--TEST--
+Unary `+` hands back every numeric type unchanged and is total at the two bounds where `-` throws — ADR 0007 §§ 2, 4
+--FILE--
+<?mwl
+// ADR 0007 § 4 gives unary `+` no row of its own because there is nothing
+// for one to say: over `int`, `uint`, `float` and `decimal` alike it hands
+// its operand back. That is asserted here by *agreement* — each column
+// renders the operand and its plus-prefixed self and reports whether the
+// two match — so a `+` that grew an opinion about one type fails even
+// though every line still prints plausibly.
+class Plus {
+    public static function agrees(string $a, string $b): string {
+        if ($a == $b) {
+            return "=";
+        }
+        return "!";
+    }
+}
+
+int $i = 7;
+uint $u = 3;
+float $f = 2.5;
+decimal $d = 1.25;
+echo Plus::agrees($i as string, (+$i) as string),
+    Plus::agrees($u as string, (+$u) as string),
+    Plus::agrees($f as string, (+$f) as string),
+    Plus::agrees($d as string, (+$d) as string),
+    "\n";
+
+// It composes with the negation rather than cancelling it, on either side.
+echo +(-$i), ",", -(+$i), "\n";
+
+// The bound is where the two operators part. ADR 0007 § 4 makes `-i64::MIN`
+// an `ArithmeticError` — there is no `int` to hold it, and the ADR refuses
+// to wrap or promote — while `+` over the very same value cannot fail,
+// because it is the identity and emits no instruction to fail in.
+int $min = -9223372036854775807 - 1;
+echo +$min, "\n";
+try {
+    echo -$min, "\n";
+} catch (Throwable $e) {
+    echo "throws\n";
+}
+
+// `uint`'s own top is the same asymmetry read from the other end: every
+// non-zero `uint` negates out of the type, and none of them is unplussable.
+uint $top = 18446744073709551615;
+echo +$top, "\n";
+try {
+    echo -$top, "\n";
+} catch (Throwable $e) {
+    echo "throws\n";
+}
+--EXPECT--
+====
+-7,-7
+-9223372036854775808
+throws
+18446744073709551615
+throws

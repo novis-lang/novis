@@ -329,6 +329,14 @@ pub mod code {
     /// § 2 already refuses its literal-side twin, the computed shape key
     /// `{[$expr]: 1}`.
     pub const E_DYNAMIC_MEMBER_NAME: Code = Code::new("E0235");
+    /// `@expr` — PHP's error-suppression prefix. There is nothing for it to
+    /// suppress: [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// makes every runtime failure a `Throwable` propagated by checked return
+    /// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)), not a
+    /// diagnostic printed alongside a value, and ADR 0063 § 3 already lists
+    /// `@` among the constructs that decision closes. `try`/`catch` is the
+    /// replacement, and it is the only one.
+    pub const E_SUPPRESSION_UNSUPPORTED: Code = Code::new("E0236");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
@@ -1167,6 +1175,20 @@ pub mod code {
     /// is whether that frame shares the caller's locals. This code is what
     /// that gap's session removes.
     pub const E_REQUIRE_VALUE_UNLOWERED: Code = Code::new("E0704");
+    /// `-`, `+` or `~` over an operand ADR 0007 § 4's arithmetic table has no
+    /// row for — a `string`, a `bytes`, an `array<T>`, a `bool`, `null`, a
+    /// `callable` or an enum case. The sibling of [`E_INCREMENT_NOT_NUMERIC`]
+    /// one operator over, and it exists for the same reason: PHP answers each
+    /// of these by *converting* the operand first, and ADR 0007 § 2 has no
+    /// implicit conversion for that to be — so unary `+`, which is the
+    /// identity over every numeric type, would otherwise be a silent identity
+    /// over a `string` where PHP produces a number.
+    ///
+    /// An object takes `E_TYPE_MISMATCH` instead, one branch earlier in
+    /// `mwl_types::expr::operators::reject_unary_arith_operand`: "MWL has no
+    /// operator overloading" is the sentence that author needs, not "convert
+    /// it first".
+    pub const E_UNARY_ARITH_NOT_NUMERIC: Code = Code::new("E0705");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
