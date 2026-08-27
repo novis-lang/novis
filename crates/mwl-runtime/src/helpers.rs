@@ -1521,6 +1521,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::array::mwl_array_append as *const ()).cast::<u8>(),
         ),
         (
+            "mwl_array_spread",
+            (crate::array::mwl_array_spread as *const ()).cast::<u8>(),
+        ),
+        (
             "mwl_array_unset",
             (crate::array::mwl_array_unset as *const ()).cast::<u8>(),
         ),

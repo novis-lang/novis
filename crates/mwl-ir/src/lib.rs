@@ -271,17 +271,13 @@
 //!    method table [`ir::Class::methods`] carries. A real vtable would index
 //!    that table by slot instead, which is the remaining half — a lookup
 //!    cost, not a correctness gap.
-//! 8. **No named or spread call argument**, and no `...spread` array-literal
-//!    element — and that one is now purely a lowering gap: `mwl_types`
-//!    checks the subject against `array<T>` for the literal's own `T`, so
-//!    what arrives here is a well-typed `ArrayItem` whose subject `lower_expr`
-//!    answers a `Ty::Array` for. A `&value` element is no longer among them
-//!    either — `mwl_types` refuses one as `E0483`, ADR 0031 § 2 and ADR 0023
-//!    leaving an aliasing element no owner, so it is a shape the language does
-//!    not have rather than one this crate has not learned.
-//!    `mwl_types` does not fully positionally
-//!    type-check a named or spread argument either, so there is no resolved
-//!    per-argument type to lower against. A **variadic** signature is no
+//! 8. **No named or spread call argument.** The array-literal half is closed:
+//!    a `...spread` element is one [`ir::InstKind::ArraySpread`], and a
+//!    `&value` element is not a shape the language has at all — `mwl_types`
+//!    refuses one as `E0483`, ADR 0031 § 2 and ADR 0023 leaving an aliasing
+//!    element no owner. What is left is the *call* argument: `mwl_types` does
+//!    not fully positionally type-check a named or spread one, so there is no
+//!    resolved per-argument type to lower against. A **variadic** signature is no
 //!    longer among them: `lower::Lowering::lower_variadic_tail` collects every
 //!    argument from that parameter's position into one fresh array, which is
 //!    the single value the parameter receives — see

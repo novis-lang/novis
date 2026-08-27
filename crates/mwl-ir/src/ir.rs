@@ -1070,6 +1070,39 @@ pub enum InstKind {
         /// The value to append, already lowered.
         value: ValueId,
     },
+    /// Copies every entry of `subject` into `array` — the `...$a` element of
+    /// an array literal (ADR 0007 § 5), lowered by
+    /// `crate::lower::Lowering::lower_array_literal`.
+    ///
+    /// One instruction rather than a lowered loop over
+    /// [`InstKind::ArrayNextSlot`]/[`InstKind::ArrayKeyAt`]/[`InstKind::ArrayValueAt`]:
+    /// the copy is a whole-array operation with no user code inside it, so a
+    /// lowered loop would spend three calls and a branch per entry to express
+    /// what the runtime already walks in one pass, and it would put a
+    /// control-flow join inside an *expression* that has none.
+    ///
+    /// **Which key survives is a language rule, not a representation
+    /// detail**, and `mwl_runtime::mwl_array_spread` is its one home: a key
+    /// that reads as a canonical decimal integer is renumbered under this
+    /// array's own append counter, and every other key is preserved in place.
+    ///
+    /// **Defines a fresh [`crate::ty::Ty::Array`] value**, on exactly
+    /// [`InstKind::ArraySet`]'s consume-one-reference-yield-one protocol.
+    /// `subject` is **borrowed** — the only array operand of a write that is
+    /// neither consumed nor stored — so the lowering stages a freshly-built
+    /// one as an ordinary owned temporary rather than transferring it. Each
+    /// value copied is retained by the runtime, since the entry ends up held
+    /// by two arrays; nothing here needs a retain emitted beside it.
+    ///
+    /// Carries an [`Inst::on_error`] edge for the same reason
+    /// [`InstKind::ArrayAppend`] does, because for a renumbered key it *is*
+    /// that append.
+    ArraySpread {
+        /// The array under construction, already lowered.
+        array: ValueId,
+        /// The array whose entries are copied out, already lowered.
+        subject: ValueId,
+    },
     /// Removes `key` from `array` if it is present — `unset($a[$k]);`, ADR
     /// 0028 § 3's one surviving `unset` target (the declared-*property* form
     /// is a diagnostic `mwl_types::expr::check_unset_target` already reports,

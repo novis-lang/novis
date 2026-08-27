@@ -1505,6 +1505,102 @@ pub unsafe extern "C" fn mwl_array_append(
     }
 }
 
+/// Copies every entry of `subject` into `array` — `mwl_ir::InstKind::ArraySpread`,
+/// the `[...$a]` array-literal element.
+///
+/// Consumes one reference to `array` and **borrows** `subject`, writing into
+/// `out` the one reference to the array that now holds the entries. Every
+/// value copied is **retained** before it is stored, because the entry is now
+/// held by two arrays; the caller emits no retain of its own beside this.
+///
+/// **Which key survives is [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
+/// § 5's rule, not a representation question.** A key that reads as a
+/// canonical decimal integer is *renumbered* — appended under this array's own
+/// counter — and every other key is preserved, overwriting an entry already
+/// there in place. That is PHP's own spread, expressed in the two writes MWL
+/// already has, and [`Table::note_key`] is where the identical predicate
+/// already decides where a later `$a[]` lands. [`SlotKey::Index`] is therefore
+/// not the test: it says the subject is *packed*, which every list is and no
+/// hashed array is, so a hashed `"5"` takes the same renumbering by way of
+/// [`integer_key`].
+///
+/// Answers [`crate::OK`], or [`crate::THROWN`] with `array` written to `out`
+/// holding whatever it had copied so far — the append it stopped at is an
+/// ordinary [`mwl_array_append`] refusal, and this shares that whole fault
+/// channel because it shares the write. See this module's *the append is the
+/// one array write with a fault channel*.
+///
+/// # Safety
+///
+/// `ctx` must refer to the live [`Ctx`](crate::Ctx) of the request this call
+/// runs inside, `array` and `subject` to live MWL array allocations, the
+/// caller owning `array`'s reference and holding `subject` live for the call,
+/// and `out` must point at a writable pointer-wide slot.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes raw pointers whose ownership the signature \
+              cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_array_spread(
+    ctx: *mut crate::Ctx,
+    array: *mut ArrayHeader,
+    subject: *mut ArrayHeader,
+    out: *mut *mut ArrayHeader,
+) -> i32 {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees one owned reference to `array`, a live \
+                  `subject`, and that `ctx` and `out` are live and writable"
+    )]
+    unsafe {
+        let mut handle = MwlArray::from_raw(array);
+        // The subject's reference belongs to whoever lowered it — the
+        // literal's element list borrows it, exactly as a call argument
+        // borrows a receiver — so this handle must not run its own drop.
+        let source = std::mem::ManuallyDrop::new(MwlArray::from_raw(subject));
+        // Every read below takes its own scoped borrow of the subject's
+        // table, so a write into `handle` never overlaps one. They are two
+        // arrays in any case: the destination is the literal under
+        // construction and nothing else can name it yet.
+        let mut refused = None;
+        let mut from = 0;
+        while let Some(slot) = source.next_slot(from) {
+            from = slot + 1;
+            let value = source.value_at(slot).expect("next_slot names a live entry");
+            let key = source.slot_key(slot).expect("next_slot names a live entry");
+            value.retain();
+            let renumbered = match &key {
+                SlotKey::Index(_) => true,
+                SlotKey::Str(key) => integer_key(key.as_bytes()).is_some(),
+            };
+            if renumbered {
+                if let Err(value) = handle.try_append(value) {
+                    refused = Some(value);
+                    break;
+                }
+            } else {
+                let SlotKey::Str(key) = key else {
+                    unreachable!("an index key is renumbered above");
+                };
+                handle.set(key, value);
+            }
+        }
+        out.write(handle.into_raw());
+        match refused {
+            None => crate::OK,
+            Some(value) => {
+                crate::release::release_value(value);
+                (*ctx).set_pending_as(
+                    crate::ThrownClass::Logic,
+                    "Cannot add element to the array as the next element is already occupied",
+                );
+                crate::THROWN
+            }
+        }
+    }
+}
+
 /// Removes `key` if present — `unset($a[$k])`.
 ///
 /// Consumes one reference to `array` and returns the one reference to the

@@ -4024,10 +4024,9 @@ class T {
     // instruction it needs. The fixtures immediately below are all
     // *positional* literals — no explicit `key =>` — which keep the single-
     // `ArrayNew` shape; the explicit-`key =>` fixtures further down cover the
-    // `ArrayNew` (empty) + `ArraySet`* shape. `...spread` still panics
-    // naming the gap (see the `should_panic` fixture at the end of this
-    // block); `&value` never reaches here at all, `mwl_types` refusing it
-    // as `E0483`.
+    // `ArrayNew` (empty) + `ArraySet`* shape, which a `...spread` element
+    // takes too. `&value` never reaches here at all, `mwl_types` refusing
+    // it as `E0483`.
 
     /// `[]` — an empty array literal lowers to `InstKind::ArrayNew` with no
     /// entries at all, still a well-formed fresh `Ty::Array` value.
@@ -4114,12 +4113,44 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
+    /// `[...$a]` — one `InstKind::ArraySpread` per spread element, over the
+    /// same empty-`ArrayNew` shape an explicit key already takes. The subject
+    /// is a local read, so it is *borrowed* and no retain is emitted beside
+    /// the copy: what the destination ends up owning is a fresh reference per
+    /// entry, and the runtime takes it.
     #[test]
-    #[should_panic(expected = "known gap")]
-    fn a_spread_array_element_is_still_out_of_scope() {
-        lower_first_method(
+    fn a_spread_element_copies_the_subject_into_the_literal() {
+        let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(): void {\n    array $a = [1];\n    array $b = [...$a];\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `[0, ...$a, 2]` — a keyless element of a literal that contains a
+    /// spread is an `InstKind::ArrayAppend`, not a lowering-time index: how
+    /// many entries the spread contributed is the subject's own run-time
+    /// length. The fixture two above is the contrast — with no spread in the
+    /// literal, that counter is still this pass's.
+    #[test]
+    fn a_keyless_element_beside_a_spread_appends_instead_of_numbering() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    array $a = [1];\n    array $b = [0, ...$a, 2];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A spread whose subject is a *fresh producer* — a call's result rather
+    /// than a local read — is staged on `Lowering::owned_temporaries` and
+    /// released once the copy has been emitted, because
+    /// `InstKind::ArraySpread` borrows its subject rather than consuming it.
+    /// The array under construction is on that same stack throughout, which
+    /// is what gives the copy's own error edge something to release.
+    #[test]
+    fn a_spread_of_a_call_result_releases_the_subject_after_the_copy() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    array $b = [...self::rows()];\n  }\n  static function rows(): array {\n    return [1];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// Passing an `array` local as a call argument retains it first —

@@ -1,0 +1,27 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @4:5-4:34
+    v1 = array.new []  ; array
+    v2 = class.of v0  ; classdesc
+    v3 = call T::rows(this: v2) ! bb1  ; array
+    v4 = array.spread v1, v3 ! bb2  ; array
+    release v3
+    release v4
+    release v0
+    return
+  bb1:
+    release v1
+    release v0
+    propagate "m() at t.mwl:4"
+  bb2:
+    release v1
+    release v3
+    release v0
+    propagate "m() at t.mwl:4"
+}

@@ -129,7 +129,8 @@
 //!
 //!    Everything else about objects and arrays compiles: `New`, `FieldGet`,
 //!    `FieldSet`, an instance `Call`, every array instruction — `ArrayNew`,
-//!    `ArrayGet`, `ArraySet`, `ArrayAppend`, `ArrayUnset` and `foreach`'s
+//!    `ArrayGet`, `ArraySet`, `ArrayAppend`, `ArraySpread`, `ArrayUnset` and
+//!    `foreach`'s
 //!    `ArrayNextSlot`/`ArrayKeyAt`/`ArrayValueAt` cursor — and a
 //!    `Ty::Object`/`Ty::Array` retain/release, against
 //!    [`mwl_runtime::object`]'s layout, the per-class slot table
@@ -659,6 +660,14 @@ struct Signatures {
     /// `mwl_runtime::mwl_array_append` owns what `out` holds on the refusal
     /// and why the refusal exists.
     array_append: Signature,
+    /// `mwl_array_spread(ctx, array, subject, out) -> status` — the `[...$a]`
+    /// element's whole-array copy. [`Self::array_append`]'s shape, and it
+    /// carries the fault channel for the same reason: a renumbered key is an
+    /// append. Its own signature all the same, because its third parameter is
+    /// an array pointer where that one's is a 16-byte value slot, and this
+    /// struct's rule is that no signature is shared by two symbols whose Rust
+    /// declarations are not the same shape for the same reason.
+    array_spread: Signature,
     /// `mwl_array_unset(array, key) -> *mut ArrayHeader` — two pointers in,
     /// one pointer back.
     ///
@@ -1033,6 +1042,13 @@ impl Signatures {
         array_append.params.push(AbiParam::new(ptr)); // out
         array_append.returns.push(AbiParam::new(types::I32));
 
+        let mut array_spread = module.make_signature();
+        array_spread.params.push(AbiParam::new(ptr)); // ctx
+        array_spread.params.push(AbiParam::new(ptr)); // array
+        array_spread.params.push(AbiParam::new(ptr)); // subject
+        array_spread.params.push(AbiParam::new(ptr)); // out
+        array_spread.returns.push(AbiParam::new(types::I32));
+
         let mut array_unset = module.make_signature();
         array_unset.params.push(AbiParam::new(ptr)); // array
         array_unset.params.push(AbiParam::new(ptr)); // key
@@ -1076,6 +1092,7 @@ impl Signatures {
             array_set,
             array_set_index,
             array_append,
+            array_spread,
             array_unset,
             array_next_slot,
             array_key_at,

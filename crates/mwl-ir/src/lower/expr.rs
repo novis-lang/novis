@@ -3616,47 +3616,56 @@ impl<'a> Lowering<'a> {
 
     /// `[...]`/legacy `array(...)` — see `InstKind::ArrayNew`'s own
     /// doc comment for the full policy this mirrors and its known
-    /// gaps. `...spread` and `&value` elements are still unsupported
-    /// — each panics naming itself rather than guessing at a merge/
-    /// reference representation this crate doesn't have yet. A
-    /// *purely positional* literal (no element has an explicit
-    /// `key =>`) keeps the original single-`ArrayNew` shape: each
-    /// element's key is simply its index, auto-numbered from `0`
-    /// exactly like PHP's own `[$a, $b]` shorthand, computed at
-    /// lowering time with no runtime key instruction at all. A
-    /// literal with at least one explicit `key =>` element instead
-    /// builds an empty array first and appends one `ArraySet` per
-    /// element in source order — seeing `crate::ir::InstKind::ArrayNew`'s
-    /// own doc comment for why that's the only shape general enough
-    /// to give an explicit key's (possibly runtime-computed) value a
-    /// place to live, and the one PHP behavior it deliberately doesn't
-    /// reproduce (a positional element's key numbering ignores any
-    /// explicit `int`/`uint` key elsewhere in the same literal, rather
-    /// than PHP's real "continues from the highest int key used so
-    /// far"). Each value that's itself `Ty::is_refcounted` and
+    /// gaps. A *purely positional* literal (no element has an
+    /// explicit `key =>`, and none is a `...spread`) keeps the
+    /// original single-`ArrayNew` shape: each element's key is simply
+    /// its index, auto-numbered from `0` exactly like PHP's own
+    /// `[$a, $b]` shorthand, computed at lowering time with no runtime
+    /// key instruction at all. Anything else instead builds an empty
+    /// array first and writes one element at a time into it in source
+    /// order — seeing `crate::ir::InstKind::ArrayNew`'s own doc
+    /// comment for why that's the only shape general enough to give an
+    /// explicit key's (possibly runtime-computed) value a place to
+    /// live. Each value that's itself `Ty::is_refcounted` and
     /// `is_aliasing_read` is retained before the array durably owns
     /// it, the same policy `Self::lower_call_args` already applies at
     /// a call-argument boundary; an explicit key gets the identical
     /// treatment via `Self::lower_array_key`'s own aliasing flag. The
     /// array literal's own result needs no retain — a fresh producer,
     /// same as `new`/a call's result.
+    ///
+    /// **A `...spread` element is one [`InstKind::ArraySpread`]**, which
+    /// copies the subject's entries in and owns which of their keys survive
+    /// (ADR 0007 § 5). The subject is *borrowed*, so a freshly-built one is
+    /// staged as this frame's temporary and released on whichever edge the
+    /// copy takes, rather than transferred the way a written-out element is.
+    ///
+    /// A keyless element of a literal that contains a spread is an
+    /// [`InstKind::ArrayAppend`] rather than a lowering-time index: after a
+    /// spread there is no index this pass can compute, since how many entries
+    /// arrived is the subject's own run-time length. That is PHP's real rule
+    /// — "the next free integer key" — and it is why a literal with a spread
+    /// does *not* share the one deliberate divergence the keyed shape still
+    /// has, where a positional element's numbering ignores an explicit
+    /// `int`-looking key elsewhere in the same literal.
+    ///
+    /// The array under construction is itself staged as an owned temporary
+    /// while it is being filled, and re-pointed after every write. Both an
+    /// element's own expression and the spread copy can throw, and the
+    /// half-built array is named by no local and no other temporary, so
+    /// without this the landing block would have nothing to release.
     fn lower_array_literal(
         &mut self,
         items: &[ArrayItem],
         env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        // `&value` never arrives here: `mwl_types` refuses it as `E0483`,
-        // because ADR 0031 § 2 and ADR 0023 between them leave an aliasing
-        // element no owner, so it is a shape the language does not have
-        // rather than one this function has not learned. `...spread` is
-        // still the latter.
-        assert!(
-            items.iter().all(|item| !item.spread),
-            "mwl-ir does not yet lower a `...spread` array-literal element \
-             — see the crate docs' known gaps"
-        );
-        if items.iter().all(|item| item.key.is_none()) {
+        // `&value` never arrives here, at any depth: `mwl_types` refuses it as
+        // `E0483`, because ADR 0031 § 2 and ADR 0023 between them leave an
+        // aliasing element no owner, so it is a shape the language does not
+        // have rather than one this function has not learned.
+        let spread = items.iter().any(|item| item.spread);
+        if !spread && items.iter().all(|item| item.key.is_none()) {
             let mut entries = Vec::with_capacity(items.len());
             for (i, item) in items.iter().enumerate() {
                 let (v, ty) = self.lower_expr(&item.value, None, env, cur);
@@ -3680,29 +3689,62 @@ impl<'a> Lowering<'a> {
             // construction is solely owned, but threaded rather than
             // assumed so the one protocol has no exception.
             let mut array_v = array.0;
+            let slot = self.temporaries_mark();
+            self.own_temporary(array_v);
             for item in items {
-                let (key_v, _key_ty, key_aliasing) = match &item.key {
-                    Some(key) => self.lower_array_key(key, env, cur),
+                if item.spread {
+                    let mark = self.temporaries_mark();
+                    let (subject, subject_ty) = self.lower_expr(&item.value, None, env, cur);
+                    if subject_ty.is_refcounted() && !self.aliasing_read(&item.value) {
+                        self.own_temporary(subject);
+                    }
+                    array_v = self
+                        .emit_fallible(
+                            *cur,
+                            Ty::Array,
+                            InstKind::ArraySpread {
+                                array: array_v,
+                                subject,
+                            },
+                            env,
+                        )
+                        .0;
+                    self.retarget_temporary(slot, array_v);
+                    self.release_temporaries_since(mark, *cur);
+                    continue;
+                }
+                let key_v = match &item.key {
+                    Some(key) => {
+                        let (key_v, _key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
+                        if key_aliasing {
+                            self.emit_retain(*cur, key_v);
+                        }
+                        Some(key_v)
+                    }
+                    // The append the doc comment above explains: a spread's
+                    // length is not a lowering-time fact.
+                    None if spread => None,
                     None => {
                         let key_str = next_index.to_string();
                         next_index += 1;
                         let (kv, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(key_str));
-                        (kv, Ty::Str, false)
+                        Some(kv)
                     }
                 };
-                if key_aliasing {
-                    self.emit_retain(*cur, key_v);
-                }
                 let (v, ty) = self.lower_expr(&item.value, None, env, cur);
                 if ty.is_refcounted() && self.aliasing_read(&item.value) {
                     self.emit_retain(*cur, v);
                 }
-                array_v = self.emit_array_set(*cur, array_v, key_v, v);
+                array_v = match key_v {
+                    Some(key_v) => self.emit_array_set(*cur, array_v, key_v, v),
+                    None => self.emit_array_append(*cur, array_v, v, env),
+                };
+                self.retarget_temporary(slot, array_v);
             }
+            self.forget_temporary(slot);
             (array_v, Ty::Array)
         }
     }
-
     /// `$arr[$i]` — the element's declared type comes from
     /// `self.exprs`, exactly like a property access's declaring
     /// class: a base that declares no element type has no

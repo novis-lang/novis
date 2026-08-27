@@ -495,6 +495,27 @@ impl<'a> Lowering<'a> {
     pub(super) fn forget_temporaries_since(&mut self, mark: usize) {
         self.owned_temporaries.truncate(mark);
     }
+    /// Re-points the temporary staged at `slot` — an array under
+    /// construction, after a write that consumed its reference and yielded
+    /// another name for the same one.
+    ///
+    /// The one temporary whose *value* changes while later temporaries sit
+    /// above it on the stack, so it is addressed by index rather than through
+    /// [`Self::forget_temporaries_since`]: truncating down to it would drop an
+    /// element's own in-flight temporary without releasing it. Skipping the
+    /// re-point would be worse than untidy — a write that separated a shared
+    /// array released the reference the old name held, so a landing block
+    /// still naming it would release it twice.
+    pub(super) fn retarget_temporary(&mut self, slot: usize, v: ValueId) {
+        self.owned_temporaries[slot] = v;
+    }
+    /// Removes the temporary staged at `slot` **without** releasing it, the
+    /// entries above it keeping their order — [`Self::forget_temporaries_since`]
+    /// for one entry that is no longer the top of the stack, which is what a
+    /// finished array literal's own result is.
+    pub(super) fn forget_temporary(&mut self, slot: usize) {
+        self.owned_temporaries.remove(slot);
+    }
     /// The value staged for `span`, if any — [`Self::staged_targets`] searched
     /// innermost first, which is the whole read side of that table.
     pub(super) fn staged(&self, span: Span) -> Option<(ValueId, Ty)> {

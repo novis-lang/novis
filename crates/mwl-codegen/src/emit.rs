@@ -746,6 +746,9 @@ impl Emitter<'_, '_> {
             InstKind::ArrayAppend { array, value } => {
                 return self.emit_array_append(inst, *array, *value);
             }
+            InstKind::ArraySpread { array, subject } => {
+                return self.emit_array_spread(inst, *array, *subject);
+            }
             InstKind::ArrayUnset { array, key } => {
                 let (array, _) = self.value(*array)?;
                 let (key, _) = self.value(*key)?;
@@ -2552,6 +2555,44 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
+    /// `[...$a]`: the whole-array copy, and the second write emitted as a
+    /// status check.
+    ///
+    /// [`Self::emit_array_append`] with an array pointer where that one builds
+    /// a 16-byte value slot — the subject is borrowed, so nothing about it is
+    /// stored or read back. Which entry of it is renumbered and which keeps
+    /// its key is `mwl_runtime::mwl_array_spread`'s, not this crate's: the
+    /// whole point of one instruction here is that no key crosses this
+    /// boundary at all.
+    fn emit_array_spread(
+        &mut self,
+        inst: &Inst,
+        array: ValueId,
+        subject: ValueId,
+    ) -> Result<Block, CodegenError> {
+        let (array, _) = self.value(array)?;
+        let (subject, _) = self.value(subject)?;
+
+        let out_slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            u32::try_from(std::mem::size_of::<usize>()).unwrap_or(8),
+            3,
+        ));
+        let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
+
+        let callee = self.runtime_ref("mwl_array_spread", RuntimeSig::ArraySpread)?;
+        let call = self
+            .b
+            .ins()
+            .call(callee, &[self.ctx_p, array, subject, out_p]);
+        let status = self.b.inst_results(call)[0];
+        let cont = self.emit_status_check(status, inst.on_error)?;
+
+        let written = self.b.ins().load(types::I64, trusted(), out_p, 0);
+        self.define(inst, written)?;
+        Ok(cont)
+    }
+
     /// A retain or release of one refcounted value.
     ///
     /// [`Ty::Str`] and [`Ty::Bytes`] share the `StrHeader` representation, so
@@ -2957,6 +2998,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::ArraySet => &self.sigs.array_set,
             RuntimeSig::ArraySetIndex => &self.sigs.array_set_index,
             RuntimeSig::ArrayAppend => &self.sigs.array_append,
+            RuntimeSig::ArraySpread => &self.sigs.array_spread,
             RuntimeSig::ArrayUnset => &self.sigs.array_unset,
             RuntimeSig::ArrayNextSlot => &self.sigs.array_next_slot,
             RuntimeSig::ArrayKeyAt => &self.sigs.array_key_at,
@@ -3013,6 +3055,7 @@ enum RuntimeSig {
     ArraySet,
     ArraySetIndex,
     ArrayAppend,
+    ArraySpread,
     ArrayUnset,
     ArrayNextSlot,
     ArrayKeyAt,
