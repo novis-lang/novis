@@ -515,6 +515,12 @@ is why" — is this file.
   *does* lower — which reads as "`echo` is unsupported" rather than "this file is all text". The
   `.mwlt` harness supplies the tag for you inside `--FILE--`, so the omission only ever bites on a
   scratch run, which is exactly where a session is trying to find out whether a shape lowers.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it under
+  the Bash tool.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe` sees it,
+  so the documented command arrives as `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such
+  file or directory` — which reads as a missing script rather than as a mangled argument, and the script
+  is right there. `commands.md` § *Fuzzing and callgrind on Windows* spells the command itself; this is
+  only what the shell in front of it does to the argument.
 
 ## Adding a `Core` member
 

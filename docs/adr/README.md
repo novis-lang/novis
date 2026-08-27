@@ -429,6 +429,21 @@ too. `mwl_ir::lower::Lowering::lower_break`/`lower_continue` lower the rest, and
 `tests/conformance/lang/a-break-leaves-the-level-it-names.mwlt` pins the whole file byte-for-byte against
 PHP's output.
 
+**A ternary's or a `match`'s branches join at the union's erasure, and widen at the binding.** Two branches
+that lower to two representations are not reconciled by promoting one into the other: the checker has
+already typed the whole expression as the *union* of its branches, and `mwl_ir::lower`'s `erase_checked_ty`
+erases a union whose members do not share a representation to the tagged one, so the phi carries that and
+`mwl_ir::lower::Lowering::join_representations` tags each branch in its own block. This is the same line
+integer `/` draws and for the same reason ([0007](0007-explicit-type-system.md) §§ 2 and 4): § 4's promotion
+rows belong to an *operator*, whose result type that table fixes, and § 2's implicit `int`→`float` widening
+happens at a `float` **position** — a binding, a parameter, a `return`. A ternary branch is neither, so
+`$c ? 1 : 2.5` keeps PHP's answer on its truthy path (an `int`, not `1.0`, and exact past 2^53 where the
+widening would have thrown) and `float $x = $c ? 1 : 2.5;` widens exactly once, where the declared type is.
+An **arm-less** `match` is refused where it is written, `E0476`, rather than lowered: PHP parses one and
+throws `UnhandledMatchError` on every evaluation, so no program that ran is lost, and a `match` is an
+expression — one whose every path throws has nothing for the position it sits in to bind, pass or return,
+and no value for a merge phi with no incoming edge to carry.
+
 **Architecture assumptions are tested, not remembered.** Several decisions here rest on how Cranelift,
 `corosensei` and Wasmtime behave rather than on our own code, and a dependency bump can invalidate them
 silently. `benches/abi-probe/` checks them on every CI run, including the *premise* of
