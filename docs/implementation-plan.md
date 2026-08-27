@@ -97,11 +97,30 @@
 > check every implicit site shares (`E0707`: a `bytes`, an `array<T>`, an enum case and a `void`
 > call, each naming the spelling that says what was meant, while the explicit `as string` keeps ADR
 > 0009 § 3's `bytes` row), and `ClassDesc`/`Ref` are compiler-internal representations no source
-> expression ever has. Three live tools **are** the worklist and no session re-derives one: `python
-> tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to
-> its item (`--item N` for one in full), `python tools/loop.py --list` prints the named `.mwlt`
-> cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> expression ever has. **The `as` conversion table** closes the same way one level down, and
+> subtracting its grid found something worse than a panic underneath it. ADR 0007 § 2's table is a
+> *closed* list of rows — `as` "either produces a value of the target type or throws", so a pair
+> naming no row has nothing to produce and nothing to throw — and `mwl_types` now says so where it
+> is written (`E0708`): `true as int`, `$xs as string`, `$case as string`, `$case as float`, `$i as
+> bytes`, `$s as array<int>`, `null as int`, and a `void` call on either side, each help naming the
+> spelling that says what was meant. `null as string` goes the other way and becomes a lowering row,
+> the empty string `concat_operand` already answered for the same value and PHP answers too. A
+> **class** target is decided by whether the two types share a value at all rather than by a row,
+> because three shapes legitimately name one: a downcast out of an erased view or an interface
+> (`object as Plain`, `Comparable as Cell` — one representation on both sides, so ADR 0036 § 4
+> leaves the check to the member access), a `Core`-owned class deciding for itself (ADR 0024's `as
+> Core\Html\Markup`, whose own `E0417` wants a source literal), and the identical type. What is left
+> is the one that is no downcast: `$foo as Bar` between two unrelated classes, which was worse than
+> a panic — both erase to one pointer, so it took the free `from == to` row, nothing ran, and
+> `Bar`'s slot list was then read off a `Foo`'s allocation. `mwl-ir`'s own catch-all now has exactly
+> the three targets its message names, all of them a missing *lowering* rather than a missing rule:
+> `array<T> as array<U>`, a tagged operand into `bytes`, and a tagged operand into an object — ADR
+> 0007 § 6's checked way out of `mixed`, which wants a class identity `Ty::Object` deliberately does
+> not carry. `lower_expr`'s dispatch message is the assertion its roster already proved. Three live
+> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
+> refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item N` for
+> one in full), `python tools/loop.py --list` prints the named `.mwlt` cases each stage still owes,
+> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

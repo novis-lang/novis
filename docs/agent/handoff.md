@@ -2,69 +2,65 @@
 
 ## State
 
-**M4 — language completeness.** Two more `mwl-ir` catch-alls have no reachable target, and
-both were closed by widening a *checker* refusal rather than by adding a lowering row.
+**M4 — the `as` conversion table is closed**, and closing it found a soundness hole rather
+than only a panic. ADR 0007 § 2's table is a *closed* list of rows, so
+`mwl_types::expr::operators`' `reject_unconvertible` (`E0708`) refuses every operand/target
+pair naming none of them — that function's doc comment is the one home for the rule and for
+the row-by-row table behind it.
 
-- **The `decimal` operator table** (`lower_decimal_binary`). The item's own survivor list was
-  wrong and the roster is why it is subtracted by hand: `Pow`, `Concat`, `And`, `Or` and
-  `Coalesce` are five of ten, and the five it missed — `BitAnd`, `BitOr`, `BitXor`, `Shl`,
-  `Shr` — were the ones that actually reached the panic. `E0706` now refuses every operand of
-  `& | ^ ~ << >>` outside `int`/`uint`, which is ADR 0007 § 4's whole row. That refusal is
-  worth more than the panic it removes: `bitwise_result`'s silent `_ => mixed` arm meant
-  `1.5 & 1.5` **evaluated to `1.5`** (a bit-and over the `f64`'s bits) where PHP answers `1`,
-  and `~1.5` reached `mwl-codegen`'s "not lowered yet". `~` is in the same code by design —
-  a `float`/`decimal` operand is a number with no bit pattern, so it takes the bitwise
-  sentence, and every *non*-numeric operand of `~` keeps `E0705`.
-- **`concat_operand`'s representation catch-all.** `Ty`'s fifteen are nine rows, four
-  refusals and two representations no source expression has (`ClassDesc` is only a static
-  call's receiver slot, `Ref` only a staged `&$x`). `E0707` refuses `bytes`, `array<T>`, an
-  enum case and a `void` call at the four implicit sites, which are one check —
-  `require_stringable`, now the whole of ADR 0007 § 2's "anything → `string`" row, with the
-  object half split out as `require_stringable_object` so the explicit `as string` keeps ADR
-  0009 § 3's `bytes` conversion.
-- **`null` renders as the empty string** rather than being refused: the `?string` holding one
-  already printed nothing through `Helper::TaggedToString`, and PHP agrees, so refusing the
-  static case would diverge from both. Decided under the goal's standing "decide and record";
-  its home is `concat_operand`'s own arm comment plus `E_NO_STRING_FORM`'s doc.
-- **One code commit for two slices again, deliberately** — both edit the same three files
-  (`mwl-diagnostics/src/lib.rs`, `mwl-types/src/expr/operators.rs`,
-  `mwl-ir/src/lower/expr.rs`) and a commit stages whole files.
+- **`$foo as Bar` between two unrelated classes read `Bar`'s slot list off a `Foo`.** Both
+  erase to one `mwl_ir::ty::Ty::Object`, so the conversion took `Lowering::convert`'s free
+  `from == to` row and nothing ran. A class target is therefore judged by
+  `types_are_disjoint` rather than by a row (`reject_unrelated_class_conversion`), which
+  keeps the three shapes that legitimately name one: a downcast out of plain `object` or an
+  interface, a `Core`-owned class deciding for itself (ADR 0024's `as Core\Html\Markup`),
+  and the identical type.
+- **`null as string` is a lowering row, not a refusal** — the empty string, matching PHP and
+  matching what `concat_operand` and `Helper::TaggedToString` already answered for the same
+  value. Same decision, same reason, as last session's `concat_operand` arm.
+- **`as ?T` is deliberately untouched.** ADR 0066's form interns as `Union([Null, T])` and
+  `infer_conversion` skips the new check on the written `?T` sugar; the refusals that form
+  still owes are `Lowering::convert_or_null`'s own two panics.
+- **`mwl-ir`'s conversion catch-all now has three reachable targets**, all missing
+  *lowerings*, all named in the crate docs' gap 20: `array<T> as array<U>`, a tagged operand
+  into `bytes`, and a tagged operand into an object.
+- Two commits, one per slice; the dispatch-message slice is prose only and owes no case.
 
 ## Next group
 
-**The two conversion catch-alls, one file over from the last three.** `as` is where the
-remaining panics live, and the dispatch message is the small one beside them. The file set:
-`crates/mwl-ir/src/lower/expr.rs`, `tests/conformance/lang/`.
+**The two `as` panics one file over from the table, plus the probe this group did not
+reach.** The file set: `crates/mwl-ir/src/lower/expr.rs`,
+`crates/mwl-types/src/expr/operators.rs`, `tests/conformance/lang/`.
 
-- [ ] **`expr.rs:1240` — the `as` conversion table's catch-all.** Confirmed live, not
-      hypothetical: `$xs as string` over an `array<int>` panics there with `got
-      Array as Str`. Subtract the operand × target grid against ADR 0007 § 2's table, ADR
-      0009 § 3 and ADR 0010 § 5 — the message itself names `array<T> as array<U>` and a
-      `Ty::Tagged` operand into `bytes` as the two known gaps, so what is left to decide is
-      every *other* survivor: `Array as Str` (`Core\Json::encode` is the spelling that
-      exists), `Enum as Str`, `Void as` anything, `Null as Str`. Some want a lowering row and
-      some an `E07xx`; `E0707`'s wording is the precedent for the refused half.
-      Anchors: `crates/mwl-ir/src/lower/expr.rs:1240`,
-      `crates/mwl-types/src/expr/operators.rs:75` (the `as` site that calls
-      `require_stringable_object`).
-- [ ] **`expr.rs:384` — the `lower_expr` dispatch's message.** The *arm* was proven
-      unreachable two sessions ago; what is left is the message, which still reads as a
-      to-do list rather than as an assertion. Rewrite it in the shape the other four now
-      share — roster subtracted in the comment, `"mwl-ir: unreachable — …; see this arm's
-      own comment"` below it. No behaviour change, so no new case.
-      Anchors: `crates/mwl-ir/src/lower/expr.rs:384`.
-- [ ] **`~` and the shift count, one probe deep.** `$u << $i` (mixed signedness) is
-      `E0407` through `report_int_uint`, but nothing pins that the *count* takes the same
-      row as the operand now that `E0706` sits in front of it. One scratch file says whether
-      a case is owed.
+- [ ] **`~` and the shift count, one probe deep.** Carried unchanged from the last group.
+      `$u << $i` (mixed signedness) is `E0407` through `report_int_uint`, but nothing pins
+      that the *count* takes the same row as the operand now that `E0706` sits in front of
+      it. One scratch file says whether a case is owed.
       Anchors: `crates/mwl-types/src/expr/operators.rs:@bitwise_result`.
+- [ ] **`convert_or_null`'s two panics — ADR 0066 § 3's refusals `mwl_types` does not make.**
+      A conversion that *cannot fail* (`$i as ?int`, `$i as ?string`) is that section's
+      compile error, and a target with no row at all is the same subtraction this group just
+      did one form over. `reject_unconvertible` is the function to reach through: it skips
+      `as ?T` today on `is_written_nullable`, so the work is deciding which rows admit the
+      non-throwing form and dropping that guard for the rest.
+      Anchors: `crates/mwl-ir/src/lower/expr.rs:1292` (`convert_or_null`),
+      `crates/mwl-types/src/expr/operators.rs:@reject_unconvertible`.
+- [ ] **`lower_to_string_call`'s panic — the object half of `as string`.** A value typed at
+      `Stringable` itself and a `Core`-owned class are the two shapes with no recorded
+      `toString` target; plain `object`, a shape and a `callable` reach it too, since
+      `require_stringable_object` matches `Ty::Class` alone. Each is either a resolution to
+      record or an `E`-code beside `E0412`.
+      Anchors: `crates/mwl-ir/src/lower/expr.rs:845` (`lower_to_string_call`),
+      `crates/mwl-types/src/expr/operators.rs:@require_stringable_object`.
 
 ## Backlog
 
-- `Ty::Iterable` and `Ty::Never` have no `erase_checked_ty` row, so they panic in
-  `mwl-ir/src/lower/mod.rs:2650` rather than at a use site — `docs/plan/m4.md`.
-- A closure or a shape in an `echo` reaches `Helper::TaggedToString` and throws at run time
-  rather than being refused where it is written; ADR 0028 § 1 would allow either.
-- `spawn script` (`E0703`) and `require` for its value (`E0704`) stay open at M5 and
-  `mwl-ir`'s known gap 22.
-- `python tools/holes.py` is the live worklist for what is left below `mwl-ir`.
+- A tagged operand converted to an object (`$m as Plain` over a `mixed`) — ADR 0007 § 6's
+  checked downcast, wanting a helper that takes a `Program::classes` label; `mwl-ir` gap 20.
+- `array<T> as array<U>`, the O(n) element walk; `mwl-ir` gap 20 and ADR 0007 § 2 row 6.
+- A tagged operand converted to `bytes`, the one scalar target with no runtime-tag row;
+  `mwl-ir` gap 20.
+- `object` as a declared binding type has no representation arm — `mwl-ir` gap 21.
+- A `require`d file's own top-level statements are not run — `mwl-ir` gap 22.
+- Stage 8's `every_refusal_is_a_diagnostic_or_decided` guard test does not exist on disk yet;
+  `docs/agent/loop-goal.toml` names it and a named check must both exist and pass.
