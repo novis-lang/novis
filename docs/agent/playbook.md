@@ -603,6 +603,13 @@ is why" — is this file.
   new one names the test file, the old one names the module). Doing that for the six pending at
   once is a five-line script; doing it by hand is two calls per snapshot. `cargo install
   cargo-insta` would fix it once for every future session and nobody has run it.
+- **A Python rename script must open with `newline=""` at both ends, or it rewrites every line of
+  every file it touches.** `Path.read_text()` / `write_text()` default to `newline=None`, which is
+  universal-newlines on the way in and `os.linesep` on the way out — so on Windows an LF file comes
+  back CRLF and `git diff --numstat` reads the whole file as changed, burying the six lines you
+  meant. `git status` says *"CRLF will be replaced by LF the next time Git touches it"* and that
+  warning is the whole diagnosis. `tools/splice.py` already gets this right; a one-off script beside
+  it does not inherit that.
 
 ## Running things
 
@@ -1953,6 +1960,13 @@ sibling in the same namespace unqualified.
   compiles, every unit test passes, and the *first program that reaches the new row* dies
   inside cranelift with `can't resolve symbol mwl_<name>` and no MWL frame anywhere in the
   message. `grep -n "mwl_call_closure" crates/` names all four sites at once.
+- **`inout ...$rest` does not parse, and spreading into a variadic `inout` tail is accepted in
+  silence.** `Parser::parse_arg` tests for `...` *before* it eats `inout`, so the marked spelling
+  eats the word and then fails on the ellipsis — `E0714` plus five lines of `E0101`/`E0102`
+  cascade, which is not a shape to pin. The unmarked one is worse: `Adder::many(...$rest)` against
+  `public static function many(inout int ...$xs)` compiles and runs with no diagnostic at all,
+  though nothing is written back. So `E0714`'s "a spread's entries" half is reachable only through
+  a *fixed* `inout` parameter, and a case that wants the variadic row has to wait for that hole.
 
 ## Divergences and refusals already pinned
 

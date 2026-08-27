@@ -57,12 +57,31 @@
 > type parser is what reaches `int &$x` first, and a lookahead that consumes it leaves the site
 > above nothing to report — so § 3's own text is corrected rather than left disagreeing with the
 > tree. The 12 `.mwlt` cases and both examples that spelled `&$` are rewritten **with their expected
-> output unchanged**, which is the check that this ADR changed no semantics; what is left of Stage
-> 0a is item 46's mechanical `by_ref` → `inout` rename through the prose and identifiers of
-> `mwl-ir`, `mwl-types` and `mwl-stdlib` — every *compile-necessary* read of the renamed AST fields
-> already moved — and item 47's own new case,
-> `tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.mwlt`, plus the 15
-> doc files. It is first because a case authored in the old spelling is authored twice, and because
+> output unchanged**, which is the check that this ADR changed no semantics; **items 46 and 47a are
+> landed and what is left of Stage 0a is item 47b's doc sweep alone**. The rename went through
+> `mwl-ir`, `mwl-types` and `mwl-diagnostics` as one token substitution and then stopped at three
+> places it must not touch: `$a = &$b` (`E0701`), `[&$x]` (`E0483`) and `use (&$y)` (`E0224`) are
+> refused because MWL has no reference at all, so ADR 0107 replaced no marker of theirs, and
+> `ExprKind::Assign::by_ref`, `ArrayItem::by_ref` and the use-clause parser's own locals keep the
+> old word on purpose. Six diagnostic constants moved with the family — `E_INOUT_ARG_NOT_A_PLACE`,
+> `E_INOUT_ARG_TYPE_NOT_EXACT`, `E_CLOSURE_INOUT_PARAM`, `E_FOREACH_INOUT_ELEMENT_TY`,
+> `E_FOREACH_INOUT_SUBJECT` and `E_GENERATOR_INOUT_PARAM` — while `E_BY_REFERENCE_MARKER_RETIRED`,
+> `E_ASSIGN_BY_REFERENCE`, `E_ARRAY_ELEMENT_BY_REFERENCE` and `E_CLOSURE_USE_BY_REF_UNSUPPORTED`
+> each name a `&` and keep it. Two of the field docs were not renames at all but corrections:
+> `ResolvedCall::inout` was recorded because "a call site's own syntax says nothing about it", which
+> ADR 0107 § 2 falsified outright, and `mwl_types`' two `foreach` help strings still told a user to
+> "drop the `&`" that is no longer in their source. Item 47 landed as **two** cases rather than the
+> one ADR 0107 § *Verification* named, because a `.mwlt` has one verdict:
+> `a-by-reference-argument-is-written-inout-at-both-ends.mwlt` **runs** the accepted shapes — the
+> word before the type on a static method, an instance method and a `foreach` value binding, and
+> again at an argument naming a local, a property and a named argument's outside — and
+> `the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.mwlt` pins all three
+> diagnostics in one compile, `E0237` at each of the five positions PHP writes `&` in, `E0713` at an
+> unmarked argument and `E0714` at a marked one against both a by-value parameter and a call through
+> a `callable`. That correction is folded into § *Verification*'s own body. The `.mwlt` prose caught
+> up with the source items 44–45 had already moved, so nothing in `tests/` outside a PHP oracle half
+> and the two deliberate refusal cases spells `&$` any more; what still does is `docs/`, which is
+> item 47b. It is first because a case authored in the old spelling is authored twice, and because
 > M4B is deferred behind this goal exactly so its `.lspt` suite is written against the finished
 > surface. A hole is a shape that compiles in the front end and then refuses below it; it is closed
 > when it either runs with a fixture or a `.mwlt` case pinning what it prints, or is refused by a
