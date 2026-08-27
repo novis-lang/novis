@@ -795,6 +795,15 @@ impl<'a> Lowering<'a> {
             // absent key has to auto-vivify the way PHP's does — see that
             // helper's own doc comment, and this crate's module docs for what
             // the resulting refcount means for the copy.
+            //
+            // An intermediate level may itself be an append (`$g[][0] = 1;`),
+            // PHP's "start a fresh row and write into it". It has no key to
+            // lower and nothing to descend into, so its row is an empty
+            // `InstKind::ArrayNew` and the climb stores it back with an
+            // `InstKind::ArrayAppend` — which is why the fresh row's key is
+            // never named anywhere here. Only the *read* spelling `$a[]` is
+            // still unlowered, and it is a refusal `mwl_types` owes rather
+            // than a shape (this crate's module docs' gap 23).
             ExprKind::Index { base, index } => {
                 let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(target.span) else {
                     panic!(
@@ -812,11 +821,7 @@ impl<'a> Lowering<'a> {
                 // key is `1`, and which is not in `levels`).
                 let mut levels: Vec<&Expr> = Vec::new();
                 let mut root = base;
-                while let ExprKind::Index {
-                    base: inner,
-                    index: Some(_),
-                } = &root.kind
-                {
+                while let ExprKind::Index { base: inner, .. } = &root.kind {
                     levels.push(root);
                     root = inner;
                 }
@@ -824,17 +829,24 @@ impl<'a> Lowering<'a> {
                 let (root_v, _) = self.lower_expr(root, None, env, cur);
                 // Every key, then the value: left to right, each exactly
                 // once, and every retain deferred until nothing that can
-                // throw is left to lower.
-                let mut inner_keys: Vec<(ValueId, bool)> = Vec::with_capacity(levels.len());
+                // throw is left to lower. An intermediate level may itself be
+                // an *append* (`$g[][0] = 1;`) and then has no key at all —
+                // the `None`s below are that level, and the descent and the
+                // climb each have one arm for it.
+                let mut inner_keys: Vec<Option<(ValueId, bool)>> = Vec::with_capacity(levels.len());
                 for level in &levels {
-                    let ExprKind::Index {
-                        index: Some(key), ..
-                    } = &level.kind
-                    else {
-                        unreachable!("only an `Index` carrying a subscript is pushed onto `levels`")
+                    let ExprKind::Index { index, .. } = &level.kind else {
+                        unreachable!("only an `Index` is pushed onto `levels`")
                     };
-                    let (key_v, _key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
-                    inner_keys.push((key_v, key_aliasing));
+                    let key = match index {
+                        None => None,
+                        Some(key) => {
+                            let (key_v, _key_ty, key_aliasing) =
+                                self.lower_array_key(key, env, cur);
+                            Some((key_v, key_aliasing))
+                        }
+                    };
+                    inner_keys.push(key);
                 }
                 let outer_key = match index {
                     None => None,
@@ -844,8 +856,8 @@ impl<'a> Lowering<'a> {
                     }
                 };
                 let (v, _, aliasing) = self.lower_stored(stored, Some(elem_ty), env, cur);
-                for &(key_v, key_aliasing) in &inner_keys {
-                    if key_aliasing {
+                for key in &inner_keys {
+                    if let Some((key_v, true)) = *key {
                         self.emit_retain(*cur, key_v);
                     }
                 }
@@ -862,17 +874,32 @@ impl<'a> Lowering<'a> {
                 // key with a null.
                 let mut arrays: Vec<ValueId> = Vec::with_capacity(levels.len() + 1);
                 arrays.push(root_v);
-                for (level, &(key_v, _)) in levels.iter().zip(&inner_keys) {
+                for (level, key) in levels.iter().zip(&inner_keys) {
                     let row_ty = self.row_ty_of(level);
                     let array = *arrays.last().expect("pushed the root above");
-                    let (row, _) = self.emit(
-                        *cur,
-                        row_ty,
-                        InstKind::HelperCall {
-                            helper: Helper::ArrayRowForWrite,
-                            args: vec![array, key_v],
-                        },
-                    );
+                    let (row, _) = match *key {
+                        Some((key_v, _)) => self.emit(
+                            *cur,
+                            row_ty,
+                            InstKind::HelperCall {
+                                helper: Helper::ArrayRowForWrite,
+                                args: vec![array, key_v],
+                            },
+                        ),
+                        // An append level has nothing to descend *into*: PHP
+                        // starts a fresh row and the climb below appends it,
+                        // which is why its key is never named. The empty
+                        // `ArrayNew` already arrives owning one reference, so
+                        // this is the same ownership `ArrayRowForWrite` hands
+                        // back.
+                        None => self.emit(
+                            *cur,
+                            row_ty,
+                            InstKind::ArrayNew {
+                                entries: Vec::new(),
+                            },
+                        ),
+                    };
                     arrays.push(row);
                 }
                 // And back up, innermost first, so each level is handed the
@@ -882,8 +909,11 @@ impl<'a> Lowering<'a> {
                     None => self.emit_array_append(*cur, innermost, v, env),
                     Some((key_v, _)) => self.emit_array_set(*cur, innermost, key_v, v),
                 };
-                for (i, &(key_v, _)) in inner_keys.iter().enumerate().rev() {
-                    written = self.emit_array_set(*cur, arrays[i], key_v, written);
+                for (i, key) in inner_keys.iter().enumerate().rev() {
+                    written = match *key {
+                        Some((key_v, _)) => self.emit_array_set(*cur, arrays[i], key_v, written),
+                        None => self.emit_array_append(*cur, arrays[i], written, env),
+                    };
                 }
                 self.write_back_array(root, written, env, cur);
             }

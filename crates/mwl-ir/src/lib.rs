@@ -482,19 +482,17 @@
 //!     locals (ADR 0021's "no isolation") or not — which is why this is
 //!     recorded rather than guessed at. The declaration half, which is what
 //!     ADR 0061's autoload map needs, runs today.
-//! 23. **An append at an *intermediate* level of a write target does not
-//!     lower** — `$g[][0] = 1;`, PHP's "start a fresh row and write into it".
-//!     [`lower::Lowering::lower_reassignment`] flattens a nested target only
-//!     through levels carrying a subscript, so the `$g[]` under it is reached
-//!     as a *read* and hits [`lower::Lowering::lower_index`]'s permanent panic
-//!     for append-as-a-read. The outermost level being an append (`$g[0][] =
-//!     1;`) does lower and is the common spelling. Closing this needs no new
-//!     primitive, only one more shape in that flatten: an append level has
-//!     nothing to descend *into*, so its row is a fresh
-//!     [`ir::InstKind::ArrayNew`] rather than an
-//!     [`ir::Helper::ArrayRowForWrite`], and the climb back out stores it with
-//!     [`ir::InstKind::ArrayAppend`] rather than [`ir::InstKind::ArraySet`] —
-//!     which is exactly why the appended row's key never has to be named.
+//! 23. **`$a[]` in a *read* position panics instead of being refused.**
+//!     [`lower::Lowering::lower_index`] is right that append syntax is
+//!     assignment-target-only — PHP refuses `echo $a[];` at compile time with
+//!     *"Cannot use [] for reading"* — but nothing above says so, so the front
+//!     end accepts it and this crate panics. Every *write* spelling lowers,
+//!     including an append at an intermediate level (`$g[][0] = 1;`), so what
+//!     is left is purely the refusal. It belongs in `mwl_types`, not here: the
+//!     legal spans are exactly the ones `mwl_types::expr::assign`'s
+//!     `check_assign` already walks down the target chain, so marking them
+//!     there and reporting a new `E04xx` from `check_expr`'s `ExprKind::Index`
+//!     arm for any other `index: None` is the whole change.
 
 pub mod ids;
 pub mod ir;

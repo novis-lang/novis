@@ -1,0 +1,55 @@
+--TEST--
+an append at an intermediate level of a write target starts a fresh row and writes into it, at every depth and under every holder — ADR 0007 § 5
+--FILE--
+<?mwl
+// `$g[][0] = 1;` is PHP's "start a fresh row and write into it". The level
+// carrying the `[]` has nothing to descend into, so its row is a brand new
+// empty array rather than the separated copy of an existing one, and the climb
+// back out appends that row rather than storing it under a key — which is why
+// the appended row's key is never named anywhere in the target.
+array<array<int>> $a = [];
+$a[][0] = 1;
+$a[][0] = 2;
+echo Core\Json::encode($a), "\n";
+
+// An append at *both* levels: the outermost one is the spelling that already
+// worked, and the two compose without either naming a key.
+array<array<int>> $b = [];
+$b[][] = 7;
+$b[][] = 8;
+echo Core\Json::encode($b), "\n";
+
+// Three deep, with the append outermost: the fresh row is a map because the
+// level below it is subscripted by a string.
+array<array<array<int>>> $c = [];
+$c[]["k"][0] = 3;
+echo Core\Json::encode($c), "\n";
+
+// An append *under* a keyed level: `$d["x"]` is auto-vivified the way any
+// intermediate level is, and each append then lands in that row.
+array<array<array<int>>> $d = [];
+$d["x"][][0] = 4;
+$d["x"][][0] = 5;
+echo Core\Json::encode($d), "\n";
+
+// The root may be a property, since the copy-on-write separation is written
+// back through whatever holds the array.
+class Holder {
+    public array<array<int>> $g = [];
+}
+Holder $h = new Holder();
+$h->g[][0] = 9;
+echo Core\Json::encode($h->g), "\n";
+
+// And the append counter is the array's own: the fresh row lands one past the
+// highest integer key already present, not at the end of the insertion order.
+array<array<int>> $e = ["7" => [], "2" => []];
+$e[][0] = 6;
+echo Core\Json::encode($e), "\n";
+--EXPECT--
+[[1],[2]]
+[[7],[8]]
+[{"k":[3]}]
+{"x":[[4],[5]]}
+[[9]]
+{"7":[],"2":[],"8":[6]}
