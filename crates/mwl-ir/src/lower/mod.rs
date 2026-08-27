@@ -238,11 +238,15 @@ struct TryFrame<'a> {
     /// — for a `try`/`finally` with no clauses — the block that runs the
     /// `finally` body and re-raises.
     ///
-    /// `None` for the frame pushed around a `catch` clause's *own body*: that
-    /// body still owes this region's `finally` on the way out
-    /// ([`Lowering::run_pending_finallys`]), but a throw inside it belongs to
-    /// the enclosing region rather than to the clause list it is already
-    /// running — so [`Lowering::landing_block`] looks straight past it.
+    /// For the frame pushed around a `catch` clause's *own body* it is that
+    /// region's finally-and-re-raise block
+    /// ([`Lowering::lower_finally_and_reraise`]) rather than the dispatch the
+    /// clause was selected by: the body owes this region's `finally` on the
+    /// way out however it leaves, but the clause list it is already running
+    /// does not catch what it raises. `None` where that region has no
+    /// `finally` at all — nothing is owed, so [`Lowering::landing_block`]
+    /// looks straight past the frame and the throw reaches the enclosing
+    /// region directly.
     handler: Option<BlockId>,
     /// One `(landing block, env)` pair per protected call site lowered inside
     /// this region's body, in source order.

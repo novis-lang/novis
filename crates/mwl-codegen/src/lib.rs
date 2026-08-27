@@ -103,16 +103,12 @@
 //! requires, and each gap below is a missing *lowering*, not a missing
 //! decision:
 //!
-//! 0. **A `finally` does not run on every exit.** It runs on the normal exit,
-//!    on a `return` out of the protected region *or out of a matched `catch`
-//!    clause*, on the exception path, and at the end of a matched clause —
-//!    but not when a `catch` clause's own body throws, and a
-//!    `break`/`continue` out of a protected region is refused outright rather
-//!    than lowered without one. See
-//!    [`mwl_ir::lower::Lowering::lower_try`], which owns the whole policy.
-//!    Exceptions themselves are ordinary objects: `Ty::Throwable` is gone,
-//!    a user class `extends Throwable` compiles like any other, and a typed
-//!    `catch` is an [`mwl_ir::ir::InstKind::InstanceOf`] chain.
+//! Exceptions are ordinary objects here: `Ty::Throwable` is gone, a user class
+//! `extends Throwable` compiles like any other, and a typed `catch` is an
+//! [`mwl_ir::ir::InstKind::InstanceOf`] chain. A `finally` runs on every exit
+//! from its region — [`mwl_ir::lower::Lowering::lower_try`] owns that policy
+//! whole, and this backend emits the copies it lowers.
+//!
 //! 1. **Virtual dispatch is by name, not by slot.** An instance call whose
 //!    resolved declaration some subtype overrides — and the two shapes with
 //!    no static answer at all, `static::method(...)`/`new static(...)` and a

@@ -1,0 +1,138 @@
+--TEST--
+A `finally` runs when its own `catch` clause's body throws, before the new exception leaves the region — ADR 0002 § *Decision* ("`error_block` is where this frame's refcount decrements and `finally` blocks go"), lowered by `mwl_ir::lower::Lowering::lower_try`
+--FILE--
+<?mwl
+final class Ladder {
+    // The shape the case is named for: the clause body throws, and the
+    // region's own `finally` runs before the new exception reaches the
+    // enclosing `try`. A clause does not catch what its own body raises, so
+    // the second exception is the outer clause's and not this list's.
+    public static function order(): string {
+        var $log = "";
+        try {
+            try {
+                throw new LogicError("one");
+            } catch (LogicError $first) {
+                $log = $log . "catch;";
+                throw new RuntimeError("two");
+            } finally {
+                $log = $log . "finally;";
+            }
+        } catch (RuntimeError $second) {
+            $log = $log . "outer:" . $second->message;
+        }
+        return $log;
+    }
+
+    // Re-raising the very same object takes the same path — the `finally`
+    // runs once, and the object the outer clause binds is the one thrown.
+    public static function rethrown(): string {
+        var $log = "";
+        try {
+            try {
+                throw new LogicError("same");
+            } catch (LogicError $e) {
+                throw $e;
+            } finally {
+                $log = $log . "finally;";
+            }
+        } catch (LogicError $again) {
+            $log = $log . "caught:" . $again->message;
+        }
+        return $log;
+    }
+
+    // A clause that binds no name reaches it too: the exception it was
+    // entered with has no slot to live in, which changes what is released
+    // but not what runs.
+    public static function unbound(): string {
+        var $log = "";
+        try {
+            try {
+                throw new LogicError("x");
+            } catch (Throwable) {
+                throw new RuntimeError("raised");
+            } finally {
+                $log = $log . "finally;";
+            }
+        } catch (RuntimeError $raised) {
+            $log = $log . $raised->message;
+        }
+        return $log;
+    }
+
+    // Nested regions run innermost first, exactly as they do for a throw out
+    // of a `try` body — the clause body's exception leaves one region at a
+    // time.
+    public static function nested(): string {
+        var $log = "";
+        try {
+            try {
+                try {
+                    throw new LogicError("deep");
+                } catch (LogicError $inner) {
+                    throw new RuntimeError("up");
+                } finally {
+                    $log = $log . "inner;";
+                }
+            } finally {
+                $log = $log . "middle;";
+            }
+        } catch (RuntimeError $risen) {
+            $log = $log . "outer:" . $risen->message;
+        }
+        return $log;
+    }
+
+    // The `finally` runs before the clause's exception leaves, so a `finally`
+    // that throws on the way replaces it: "c" is what the outer clause binds,
+    // never "b".
+    public static function replaced(): string {
+        try {
+            try {
+                throw new LogicError("a");
+            } catch (LogicError $first) {
+                throw new RuntimeError("b");
+            } finally {
+                throw new LogicError("c");
+            }
+        } catch (Throwable $last) {
+            return $last->message;
+        }
+    }
+
+    // The region and the clause that catches its exception are one frame, so
+    // the `finally` runs before the exception crosses into the caller's.
+    public static function acrossAFrame(): string {
+        try {
+            Ladder::wrapping();
+        } catch (Throwable $crossed) {
+            return "caught:" . $crossed->message;
+        }
+        return "not reached";
+    }
+
+    public static function wrapping(): void {
+        try {
+            throw new LogicError("deep");
+        } catch (LogicError $seen) {
+            throw new RuntimeError("wrapped:" . $seen->message);
+        } finally {
+            echo "frame-finally;";
+        }
+    }
+}
+
+echo Ladder::order(), "\n";
+echo Ladder::rethrown(), "\n";
+echo Ladder::unbound(), "\n";
+echo Ladder::nested(), "\n";
+echo Ladder::replaced(), "\n";
+echo Ladder::acrossAFrame(), "\n";
+--EXPECT--
+catch;finally;outer:two
+finally;caught:same
+finally;raised
+inner;middle;outer:up
+c
+frame-finally;caught:wrapped:deep

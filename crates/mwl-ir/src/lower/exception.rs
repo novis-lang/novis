@@ -108,15 +108,6 @@ impl<'a> Lowering<'a> {
     /// `merge_envs`, so anything left holding a reference at that join would
     /// never be released at all.
     ///
-    /// # Known gaps
-    ///
-    /// * A `finally` does **not** run when the exception path enters a
-    ///   `catch` clause whose *own body* then throws: the frame the clause
-    ///   body is lowered under names no handler, so that throw reaches the
-    ///   enclosing region directly. PHP runs the `finally` first. A `return`
-    ///   out of a clause body *does* run it — that frame carries `finally`
-    ///   for exactly that reason.
-    ///
     /// A `break`/`continue` out of a protected region *does* run the pending
     /// `finally` of every region it leaves, bounded by the loop it targets —
     /// [`Self::run_finallys_above`].
@@ -221,19 +212,36 @@ impl<'a> Lowering<'a> {
                 // `TakeThrown` produced has no slot to live in.
                 None => self.emit_release(handler, thrown),
             }
-            // A `return` inside the clause body still owes this region's
-            // `finally` — so the body is lowered under a frame that carries
-            // it. The frame names no handler: a throw from a `catch` body is
-            // the enclosing region's, not this clause list's own.
+            // Every exit from the clause body owes this region's `finally`, so
+            // the body is lowered under a frame carrying it: a `return` takes
+            // it through `run_pending_finallys`, and a *throw* takes it
+            // through the frame's handler. That handler is this region's own
+            // finally-and-re-raise block rather than the dispatch above — a
+            // clause does not catch what its own body raises — and with no
+            // `finally` there is nothing owed at all, so the frame names no
+            // handler and such a throw goes straight to the enclosing region.
+            let reraise = finally.map(|_| self.new_block());
             self.try_stack.push(crate::lower::TryFrame {
-                handler: None,
+                handler: reraise,
                 edges: Vec::new(),
                 finally,
             });
             self.lower_stmts(&clause.body.stmts, &mut handler_cur, &mut handler_env);
-            self.try_stack
+            let clause_frame = self
+                .try_stack
                 .pop()
                 .expect("just pushed this clause's own frame above");
+            if let Some(block) = finally
+                && let Some(reraise) = reraise
+            {
+                self.lower_finally_and_reraise(
+                    reraise,
+                    block,
+                    &clause_frame.edges,
+                    bound.as_deref(),
+                    &join.dispatch_env,
+                );
+            }
             if !self.is_terminated(handler_cur) {
                 if let Some(name) = &bound
                     && let Some(&(v, _)) = handler_env.get(name)
@@ -263,6 +271,60 @@ impl<'a> Lowering<'a> {
             let landing = self.landing_block(&rethrow_env);
             self.seal(
                 rethrow_cur,
+                Terminator::Throw {
+                    value: thrown,
+                    landing,
+                },
+            );
+        }
+    }
+    /// Builds the block a throw out of a `catch` clause's own body lands in:
+    /// this region's `finally`, then the very same reference handed onward to
+    /// the enclosing region.
+    ///
+    /// PHP's own order, and the one thing that makes a `catch` body no
+    /// different from any other exit out of the region: the `finally` runs
+    /// before the new exception leaves the frame, and a `finally` that throws
+    /// on its way *replaces* it, because its own `Terminator::Throw` is never
+    /// reached.
+    ///
+    /// `edges` is the clause frame's — one landing block per failing call in
+    /// the body — and they are folded into this block's phis by the same
+    /// [`Self::merge_envs`] the dispatch block's own edges go through. The
+    /// clause binding is released here, exactly as the clause's completing
+    /// path already releases it before lowering its own copy of the `finally`:
+    /// the first exception's reference is this frame's, and the second one is
+    /// what [`InstKind::TakeThrown`] hands back.
+    ///
+    /// The block is built even when `edges` is empty — a clause body that
+    /// cannot throw at all — because every block this lowering creates has to
+    /// reach a terminator ([`Self::finish`]), and a dead handler block is what
+    /// [`Self::lower_try`] already leaves behind for a `try` body in the same
+    /// position.
+    pub(super) fn lower_finally_and_reraise(
+        &mut self,
+        reraise: BlockId,
+        finally: &'a Block,
+        edges: &[(BlockId, Env)],
+        bound: Option<&str>,
+        dispatch_env: &Env,
+    ) {
+        // The phis first, then the take: `mwl-codegen` requires a block's phis
+        // to be its leading run.
+        let mut env = self.merge_envs(reraise, edges, dispatch_env);
+        let (thrown, _) = self.emit(reraise, Ty::Object, InstKind::TakeThrown);
+        let mut cur = reraise;
+        if let Some(name) = bound
+            && let Some(&(v, _)) = env.get(name)
+        {
+            self.emit_release(cur, v);
+            env.remove(name);
+        }
+        self.lower_stmts(&finally.stmts, &mut cur, &mut env);
+        if !self.is_terminated(cur) {
+            let landing = self.landing_block(&env);
+            self.seal(
+                cur,
                 Terminator::Throw {
                     value: thrown,
                     landing,

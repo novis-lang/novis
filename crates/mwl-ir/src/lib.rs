@@ -161,13 +161,10 @@
 //!    to [`ir::Terminator::Switch`] — that terminator selects on an integer,
 //!    while a label is any expression of the subject's type; `lower_switch`'s
 //!    own doc comment owns why one shape for every subject type beats two.
-//! 2. **A `finally` does not run when a `catch` clause's own body throws.**
-//!    [`lower::Lowering::lower_try`] owns that one — every other exit from a
-//!    protected region runs its `finally`, including a `return`, a `break` and
-//!    a `continue`. A second, narrower gap sits inside what does lower: a
-//!    landing block now sweeps the frame's owned-temporaries stack as well as
-//!    its locals, so a call's arguments and receiver, and the operands of `.`,
-//!    an interpolation and an `echo`, are released on both edges. A producer
+//! 2. **A value fresh on the throw path can still leak.** A landing block
+//!    sweeps the frame's owned-temporaries stack as well as its locals, so a
+//!    call's arguments and receiver, and the operands of `.`, an
+//!    interpolation and an `echo`, are released on both edges. A producer
 //!    that still releases its fresh value inline — a normalized subscript key,
 //!    a `match` subject — is not on that stack yet and leaks.
 //!    [`lower::Lowering::landing_block`] states the boundary and
