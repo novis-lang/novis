@@ -1,0 +1,25 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, bool) -> tagged {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; bool
+    ; stmt s0 @4:5-4:29
+    branch v1 -> bb1 (e0), bb2 (e1)
+  bb1:
+    v2 = const.int 1  ; int
+    v4 = tag v2  ; tagged
+    jump bb3
+  bb2:
+    v3 = const.str "x"  ; string
+    v5 = tag v3  ; tagged
+    jump bb3
+  bb3:
+    v6 = phi [bb1: v4, bb2: v5]  ; tagged
+    ; stmt s1 @5:5-5:15
+    release v0
+    return v6
+}

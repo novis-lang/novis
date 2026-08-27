@@ -4493,16 +4493,31 @@ class T {
     }
 
     /// A ternary whose `then`/`else` branches lower to two different
-    /// `crate::ty::Ty` representations (`int` vs `string`) — the checker's
-    /// own union of their static types has no IR representation this crate
-    /// can fold into yet, so `Lowering::lower_ternary` panics naming the
-    /// mismatch rather than guessing which side wins.
+    /// `crate::ty::Ty` representations (`int` vs `string`) — each branch is
+    /// tagged in its **own** block, ahead of its jump, and the phi carries
+    /// `Ty::Tagged`, which is exactly what `erase_checked_ty` gives the union
+    /// the checker already typed the whole expression as. See
+    /// `Lowering::join_representations` for why that is the erasure rather
+    /// than a promotion of one side into the other.
     #[test]
-    #[should_panic(expected = "share the same IR-level type")]
-    fn a_ternary_with_mismatched_branch_types_still_panics_naming_the_gap() {
-        lower_first_method(
+    fn a_ternary_with_mismatched_branch_types_joins_at_the_tagged_representation() {
+        let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(bool $c): mixed {\n    mixed $r = $c ? 1 : \"x\";\n    return $r;\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// The same rule over more than two branches: a `match` whose arms lower
+    /// to `int`, `float` and `string` tags each of them in its own arm block
+    /// and joins at one `Ty::Tagged` phi — `Lowering::lower_match` shares
+    /// `Lowering::join_representations` with the ternary rather than owning a
+    /// second rule.
+    #[test]
+    fn match_arms_in_three_representations_join_at_the_tagged_representation() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(int $k): mixed {\n    mixed $r = match ($k) { 1 => 1, 2 => 2.5, default => \"x\" };\n    return $r;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// A short-circuiting `&&` nested inside a **call argument** — the

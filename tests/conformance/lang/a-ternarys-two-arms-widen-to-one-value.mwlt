@@ -1,0 +1,56 @@
+--TEST--
+A ternary, an elvis and a `match` whose branches lower to two representations join at one value, and the widening happens at the binding — ADR 0007 §§ 2 and 4, ADR 0035 § 1
+--FILE--
+<?mwl
+bool $t = true;
+bool $f = false;
+
+// ADR 0007 § 4: the join is the erasure of the checker's union of the two
+// arms, not a promotion of one arm into the other. A truthy arm past 2^53
+// still prints exactly — an implicit `int` -> `float` widening is § 2's
+// conversion, which throws above 2^53 rather than rounding, so a promoted
+// arm could not have printed at all.
+echo ($t ? 9007199254740993 : 2.5), "\n";
+echo ($f ? 9007199254740993 : 2.5), "\n";
+
+// ADR 0007 § 2: `int`/`uint` widen into a *`float` position*, and a declared
+// binding is one. Both paths of the same expression reach it.
+float $a = $t ? 1 : 2.5;
+float $b = $f ? 1 : 2.5;
+echo $a, " ", $b, "\n";
+
+// Two arms with no numeric relation at all join by the same rule.
+echo ($t ? "one" : 2), "|", ($f ? "one" : 2), "\n";
+mixed $n = $f ? "x" : null;
+echo "[", $n, "]\n";
+
+// The joined value owns its own reference: an arm that reads a binding
+// leaves that binding readable afterwards.
+string $name = "ada";
+mixed $who = $t ? $name : 7;
+echo $who, " ", $name, "\n";
+
+// ADR 0035 § 1: elvis tests the condition once and reuses it as the truthy
+// arm, which joins against the else arm exactly as an explicit one would.
+string $empty = "";
+echo ($name ?: 0), "|", ($empty ?: 0), "\n";
+
+// A `match` is the same rule over more than two branches, the fall-off arm
+// included.
+int $k = 2;
+echo (match ($k) { 1 => "one", 2 => 2.5, default => 3 }), "\n";
+echo (match ($k) { 1 => "one", 3 => 2.5, default => 3 }), "\n";
+
+// Nested, mismatched at both levels.
+echo ($t ? ($f ? 1 : "two") : 3.5), "\n";
+--EXPECT--
+9007199254740993
+2.5
+1 2.5
+one|2
+[]
+ada ada
+ada|0
+2.5
+3
+two

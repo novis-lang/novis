@@ -1511,14 +1511,14 @@ impl<'a> Lowering<'a> {
     /// its own freshness by this same rule) needs no retain, since ownership
     /// just transfers.
     ///
+    /// Two branches that lower to two different representations join at
+    /// [`Ty::Tagged`], which is what the checker's own union of their static
+    /// types already erases to — see [`Self::join_representations`], which
+    /// performs it, for why that is an erasure rather than a promotion.
+    ///
     /// # Panics
     ///
-    /// Panics naming the case if `then`'s and `else`'s branches lower to two
-    /// different [`Ty`] representations — the checker's own union of their
-    /// static types has no IR representation this crate can fold into yet
-    /// (see [`Ty::Tagged`]'s own doc comment on why a union isn't folded into
-    /// it automatically). Otherwise see [`Self::truthy_convert`]'s own panic
-    /// doc for `cond`'s own restriction.
+    /// See [`Self::truthy_convert`]'s own panic doc for `cond`'s restriction.
     pub(super) fn lower_ternary(
         &mut self,
         cond: &Expr,
@@ -1567,32 +1567,78 @@ impl<'a> Lowering<'a> {
                 (cond_v, cond_ty, then_block)
             }
         };
-        self.seal(then_end, Terminator::Jump(merge_block));
 
         let mut else_cur = else_block;
         let (else_v, else_ty) = self.lower_expr(else_, None, env, &mut else_cur);
         if else_ty.is_refcounted() && self.aliasing_read(else_) {
             self.emit_retain(else_cur, else_v);
         }
-        self.seal(else_cur, Terminator::Jump(merge_block));
 
-        assert_eq!(
-            then_ty, else_ty,
-            "mwl-ir's ternary/elvis slice only lowers a ternary whose branches share the same \
-             IR-level type — got {then_ty:?} vs {else_ty:?}; a differing-branch-type ternary \
-             erases to a union the checker already computed but this crate has no IR \
-             representation to fold it into yet, see the crate docs' known gaps"
-        );
+        // Neither branch is sealed until both have been lowered: the
+        // representation they join at is not known until the second one has a
+        // type, and the instruction that widens a branch into it belongs in
+        // that branch's own block, ahead of its jump.
+        let mut branches = [(then_end, then_v, then_ty), (else_cur, else_v, else_ty)];
+        let ty = self.join_representations(&mut branches, env);
+        self.seal(then_end, Terminator::Jump(merge_block));
+        self.seal(else_cur, Terminator::Jump(merge_block));
 
         let (result, _) = self.emit(
             merge_block,
-            then_ty,
+            ty,
             InstKind::Phi {
-                incoming: vec![(then_end, then_v), (else_cur, else_v)],
+                incoming: branches.iter().map(|&(b, v, _)| (b, v)).collect(),
             },
         );
         *cur = merge_block;
-        (result, then_ty)
+        (result, ty)
+    }
+    /// The one representation a value-producing join — a ternary's two
+    /// branches, a `match`'s arms — hands to its [`InstKind::Phi`], with
+    /// every branch widened into it in its own block.
+    ///
+    /// Branches that already share a representation cost nothing: no
+    /// instruction is emitted and the representation is returned unchanged.
+    /// A mismatched set joins at [`Ty::Tagged`], and that is not a choice
+    /// made here — the checker has already typed the whole expression as the
+    /// *union* of its branches (`mwl_types::expr::check_expr`'s `Ternary` arm
+    /// interns one), and `erase_checked_ty` erases a union whose members do
+    /// not share a representation to exactly [`Ty::Tagged`]. This performs
+    /// that erasure rather than inventing a type the rest of the crate would
+    /// then disagree with.
+    ///
+    /// So it deliberately does **not** reach for [`Self::widen_to_float`].
+    /// ADR 0007 § 4's promotion rows belong to an *operator*, whose result
+    /// type that table fixes outright, and § 2's implicit `int`/`uint` →
+    /// `float` widening happens at a **`float` position** — a binding, a
+    /// parameter, a `return`. A branch of a ternary is neither, so
+    /// `$c ? 1 : 2.5` keeps PHP's answer on its truthy path (an `int`, not
+    /// `1.0`), and `float $x = $c ? 1 : 2.5;` widens exactly once, at the
+    /// binding, through [`Self::coerce`]'s own `(Ty::Tagged, Ty::Float)` row.
+    /// That is the same line integer `/` already draws: widen where the
+    /// declared type is, never at the expression that produced the union.
+    ///
+    /// Ownership is unchanged in either direction. [`InstKind::Tag`]
+    /// transfers its operand's reference to its result, so a branch that
+    /// retained an aliasing read still owns exactly one afterwards, and a
+    /// tagged non-refcounted payload is a no-op for the runtime's own
+    /// tag-dispatched release.
+    ///
+    /// An empty set has no value and so no representation; both callers
+    /// refuse that shape before they reach here (a ternary always has two
+    /// branches, and an arm-less `match` is refused in [`Self::lower_match`]).
+    fn join_representations(&mut self, branches: &mut [(BlockId, ValueId, Ty)], env: &Env) -> Ty {
+        let Some(&(_, _, first)) = branches.first() else {
+            return Ty::Void;
+        };
+        if branches.iter().all(|&(_, _, ty)| ty == first) {
+            return first;
+        }
+        for branch in branches.iter_mut() {
+            branch.1 = self.coerce(branch.0, branch.1, branch.2, Ty::Tagged, env);
+            branch.2 = Ty::Tagged;
+        }
+        Ty::Tagged
     }
     /// `match (subject) { a, b => x, default => y }` — [`Self::lower_switch`]'s
     /// equality chain producing a **value** instead of running statements.
@@ -1624,12 +1670,16 @@ impl<'a> Lowering<'a> {
     /// each arm body and the throw block. Those are disjoint paths, so the
     /// release runs exactly once.
     ///
+    /// Two arms whose bodies lower to different representations join at
+    /// [`Ty::Tagged`], [`Self::lower_ternary`]'s rule applied to N branches
+    /// rather than two — [`Self::join_representations`] owns it.
+    ///
     /// # Panics
     ///
-    /// Panics naming the case for a `match` with no arms at all (there is no
-    /// value for the phi to carry), for a label whose representation differs
-    /// from the subject's, and — [`Self::lower_ternary`]'s own restriction —
-    /// for two arms whose bodies lower to different representations.
+    /// Panics for a label whose representation differs from the subject's,
+    /// and — as an engine invariant, not a refusal — for a `match` with no
+    /// arms at all, which `mwl_types` refuses as `E0476` before this crate
+    /// ever sees it.
     pub(super) fn lower_match(
         &mut self,
         subject: &Expr,
@@ -1640,9 +1690,9 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         assert!(
             !arms.is_empty(),
-            "mwl-ir does not lower an arm-less `match`: it is an expression that can only \
-             throw, so there is no value for its merge phi to carry; see the crate docs' \
-             known gaps"
+            "an arm-less `match` reached lowering — this is a bug in mwl-types, whose \
+             `E0476` refuses one where it is written precisely so that this crate never \
+             has to invent a value for a merge phi with no incoming edge"
         );
         let (subj_v, subj_ty) = self.lower_expr(subject, None, env, cur);
         // A fresh subject is this expression's to free; an aliasing one stays
@@ -1736,31 +1786,35 @@ impl<'a> Lowering<'a> {
             }
         }
 
-        let mut incoming: Vec<(BlockId, ValueId)> = Vec::with_capacity(arms.len());
-        let mut result_ty: Option<Ty> = None;
+        let mut branches: Vec<(BlockId, ValueId, Ty)> = Vec::with_capacity(arms.len());
         for (i, arm) in arms.iter().enumerate() {
             let mut arm_cur = arm_blocks[i];
             if owed {
                 self.emit_release(arm_cur, subj_v);
             }
             let (v, ty) = self.lower_expr(&arm.body, expected, env, &mut arm_cur);
-            match result_ty {
-                None => result_ty = Some(ty),
-                Some(first) => assert_eq!(
-                    first, ty,
-                    "mwl-ir's `match` slice only lowers arms that share one IR-level type — the \
-                     checker's union of their static types has no IR representation this crate \
-                     can fold into yet, see `Ty::Tagged`'s own doc comment"
-                ),
-            }
             if ty.is_refcounted() && self.aliasing_read(&arm.body) {
                 self.emit_retain(arm_cur, v);
             }
-            self.seal(arm_cur, Terminator::Jump(merge_block));
-            incoming.push((arm_cur, v));
+            branches.push((arm_cur, v, ty));
         }
-        let ty = result_ty.expect("the arm list is non-empty, checked above");
-        let (result, _) = self.emit(merge_block, ty, InstKind::Phi { incoming });
+        // No arm is sealed inside the loop above: an arm that has to widen
+        // into the representation the whole `match` joins at needs the
+        // widening in its own block, and which representation that is is not
+        // known until the last arm has a type. `Self::join_representations`
+        // owns the rule, and it is the ternary's rule exactly — a `match` is
+        // a ternary with more than two branches.
+        let ty = self.join_representations(&mut branches, env);
+        for &(block, _, _) in &branches {
+            self.seal(block, Terminator::Jump(merge_block));
+        }
+        let (result, _) = self.emit(
+            merge_block,
+            ty,
+            InstKind::Phi {
+                incoming: branches.iter().map(|&(b, v, _)| (b, v)).collect(),
+            },
+        );
         *cur = merge_block;
         (result, ty)
     }
