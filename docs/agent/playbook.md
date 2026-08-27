@@ -2002,6 +2002,18 @@ sibling in the same namespace unqualified.
   the `(name, address)` table `nvs-codegen` registers with `JITBuilder::symbol` — a `#[no_mangle]`
   helper is *not* found by name in the host process, it is found in that vector. Grep it for a
   neighbouring helper rather than trusting the compiler to notice.
+- **A refusal in `nvs_types` phrased "this operand is not one of the four rows"
+  does not cover a `mixed` operand, and the hole opens one crate down.**
+  `reject_unary_arith_operand` decides from `equality_domain`, which answers
+  `None` for a type that names no domain at all — a `mixed`, a union — and the
+  `!matches!(…, None | Some(Numeric))` reading takes `None` as *accepted*. That
+  is right (the deferral is what `mixed` is for) and it is also why `-$m` walked
+  past the checker into `nvs-codegen`'s representation catch-all with nothing
+  between. The general rule: a checker refusal written as "the type is not one
+  of these" leaves the erased operand to the *runtime*, so every such site owes
+  a tagged answer one crate down or it owes a diagnostic that names `mixed`
+  explicitly. `python tools/holes.py --item N` lists the sites; running the
+  shape in a scratch `.agent-tmp/*.nvs` is what tells the two apart in one call.
 
 ## Divergences and refusals already pinned
 

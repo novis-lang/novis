@@ -466,11 +466,42 @@
 > (`ClassDesc`, `Ref`, `Void`), the `float` rows never reaching it at all. Valgrind-clean over a
 > fixture that abandons a freshly built `string` operand on the refusal's error edge two hundred
 > times, and `tests/conformance/lang/arithmetic-over-a-mixed-operand-is-decided-by-its-tag.nvst`
-> pins sixteen lines of the table, the six throws among them. Three live tools **are** the worklist
-> and no session re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and
-> `nvs-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.nvst` cases each stage still owes, and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> pins sixteen lines of the table, the six throws among them. **`emit.rs`'s six remaining internal
+> panics carry their roster now, and subtracting one of them found a hole rather than a check.**
+> Five are internal-consistency checks and say so in the shape `emit_binop`'s comment set:
+> `reinterpret` between two representations that do not share a machine type, which `nvs-ir`'s three
+> producers of that instruction cannot be — ADR 0010 § 5's enum rows in either direction and ADR
+> 0009 § 3's `string as bytes`, each a relabelling of one allocation; the tagged widen/narrow pair,
+> whose only producer is `Lowering::coerce` and whose refused targets are the identity it answers
+> first (`Ty::Tagged`) and a `void` call's result no position can declare; the refcount one, which
+> is `Ty::is_refcounted`'s five rows with `Ty::Tagged` taken out of line, so an arrival is a
+> `nvs-ir` site that emitted a retain without asking that predicate — the playbook's widened-operand
+> trap; and the terminator and runtime-helper catch-alls, which cover all seven `Terminator`
+> variants and all 76 `Helper` ones and exist only because both enums are `#[non_exhaustive]` in a
+> downstream crate. The **sixth was a hole**: `reject_unary_arith_operand` refuses an operand ADR
+> 0007 § 4 tabulates no row for, but a `mixed` names no row *and* no refusal, so `-$m` reached that
+> catch-all and `nvs run` printed "does not lower the unary operator Neg over representation
+> Tagged". It is closed the way item 24 closed the binary half, and from the same end:
+> `Helper::ValueNeg` and `Helper::ValueBitNot` answer § 4's unary rows from the operand's runtime
+> **tag**, over `nvs_runtime::helpers::value_neg`/`value_bit_not`, whose doc comments are those
+> rows' home. `-` is the four numeric types, the two integer ones `checked_neg` so that `-i64::MIN`
+> and every non-zero `uint` throw rather than wrap, worded exactly as `emit_unop` words the
+> statically typed row's; `~` is `int` and `uint` alone, the same narrowing `E0706` makes where the
+> static type shows it, so a `float` or a `decimal` operand is a number with no bit pattern to
+> complement. Every other tag is the closed table's refusal as a catchable throw carrying `E0705`'s
+> reading. Unary `+` gains no member because it has no row: it is the identity over all four numeric
+> types, so `nvs-ir` returns the operand itself with no instruction, a tagged operand included. The
+> result is `Ty::Tagged` for the `ValueAdd` family's reason — `-$m` is an `int`, a `float`, a
+> `decimal` or a throw — and the operand is staged on the owned-temporaries stack rather than
+> released inline, both helpers carrying ADR 0002's error edge. Valgrind-clean over a fixture that
+> abandons a freshly built `string` operand on that edge four hundred times, and
+> `tests/conformance/lang/a-unary-operator-over-a-mixed-operand-is-decided-by-its-tag.nvst` pins
+> fifteen lines of the pair, the seven throws among them. The unary catch-all's own roster comment
+> is now `emit_binop`'s residue exactly: the three representations no source expression has. Three
+> live tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
+> refusal sites out of `nvs-ir` and `nvs-codegen` and attributes each to its item (`--item N` for
+> one in full), `python tools/loop.py --list` prints the named `.nvst` cases each stage still owes,
+> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
