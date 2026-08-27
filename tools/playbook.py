@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Pick the playbook bullets a goal actually needs, and report the ones that have gone stale.
 
-`docs/agent/playbook.md` is 47 KB in 86 bullets across six sections, and it is append-mostly by
-decision -- every trap a session writes down is charged to every session after it. It is the
-single largest thing `orient.py` ships: measured on the current goal, **42 KB of a 78 KB pack,
-17k of its 31k tokens**, because `[context] playbook` names four whole sections and a session
-reads perhaps three of their bullets.
+`docs/agent/playbook.md` is append-mostly by decision -- every trap a session writes down is
+charged to every session after it -- and it has grown accordingly: **205 KB in 296 bullets** across
+six sections, from 47 KB in 86 when this script was written. It is the single largest thing
+`orient.py` ships. Run `--check` for the live figures; a number quoted in prose is stale the week
+after it is written, which is why the two above are dated by that contrast rather than trusted.
 
-The fix is not to split the file and not to trim it. `orient.py` already slices it, and a
-`[context] playbook` entry may already name **one bullet** -- `"Tooling > A whole ADR"`. What
-was missing is any cheap way to decide *which* bullets, out of 86, a given file set implies. That
-is this script.
+The fix is not to split the file and not to trim it. `orient.py` slices it twice -- by the goal's
+`[context] playbook`, then again by the paths the session's own item names -- and an entry there
+may name **one bullet** rather than a section: `"Tooling > A whole ADR"`. What was missing is any
+cheap way to decide *which* bullets a given file set implies. That is this script.
 
     python tools/playbook.py                       # every section and bullet, one line, with sizes
     python tools/playbook.py --show <selector>     # one bullet or section, as orient.py prints it
@@ -18,6 +18,7 @@ is this script.
     python tools/playbook.py --manifest <term>...  # the same, as a paste-ready `playbook = [...]`
     python tools/playbook.py --goal                # --manifest driven by loop-goal.toml's modules
     python tools/playbook.py --check               # stale paths, colliding selectors, sizes
+    python tools/playbook.py --dupes               # bullets that already say what another says
 
 A term is a path (`crates/mwl-ir/src/lower/expr.rs`), a crate (`mwl-ir`), a tool (`peek.py`) or a
 plain word. A path is expanded to the things a bullet would actually spell -- the posix path, the
@@ -28,9 +29,16 @@ own file set is enough.
 `session.py`'s `## playbook: <heading>` section, which keeps the whole session tail at one call.
 A second way to add one would be a second thing to keep in agreement.
 
-`--check` is the only pruning signal an append-mostly file can have: a bullet naming a path that
-is no longer in the tree is describing a trap someone already closed. It reports; it does not
-delete, and it never exits non-zero over a size (docs/agent/doc-style.md § *Length targets*).
+`--check` and `--dupes` are the two pruning signals an append-mostly file can have. A bullet naming
+a path that is no longer in the tree is describing a trap someone already closed; a bullet sharing
+most of its three-word runs with another is a trap that was written down twice. **Five separate
+sessions wrote the `wsl.exe` path-mangling bullet, one each, in five wordings**, and every copy was
+charged to every session afterwards -- `--check` could see two of them, because their lead-ins
+happened to collide as selectors, and was blind to the other three.
+
+Both report; neither deletes, and neither exits non-zero over a size (docs/agent/doc-style.md
+§ *Length targets*). Two bullets about one file are often two different traps, and only a reader
+can tell.
 """
 
 from __future__ import annotations
@@ -353,6 +361,53 @@ def run_match(text: str, every: list[dict], terms: list[str], as_manifest: bool,
     return 0
 
 
+def run_dupes(every: list[dict], floor: float) -> int:
+    """Bullets that already say what another bullet says.
+
+    An append-mostly file cannot notice that it already knows something. Five separate sessions
+    wrote the `wsl.exe` path-mangling trap, one each, in five different wordings -- and every copy
+    was charged to every session afterwards, because the playbook is the single largest thing
+    `orient.py` ships. `--check` caught that pair only because two of the lead-ins happened to
+    collide as selectors; three of the five it could not see at all.
+
+    Similarity is over the *shingles* of each bullet -- its distinct three-word runs -- rather
+    than over its characters, because the whole failure mode here is the same trap in different
+    prose. A shared code span or path name is what the overlap actually rests on, so `--dupes`
+    reports and never prunes: two bullets about the same file are often two different traps, and
+    only a reader can tell.
+
+    AGENTS.md is explicit that this file is append-mostly and must not be reworded to say the
+    same thing differently. This is how you find the places where it already was."""
+    def shingles(body):
+        words = re.findall(r"[a-z0-9_./-]+", body.lower())
+        return {" ".join(words[i:i + 3]) for i in range(max(0, len(words) - 2))}
+
+    grams = [(b, shingles(b["body"])) for b in every]
+    pairs = []
+    for i, (a, ga) in enumerate(grams):
+        for b, gb in grams[i + 1:]:
+            if not ga or not gb:
+                continue
+            overlap = len(ga & gb) / min(len(ga), len(gb))
+            if overlap >= floor:
+                pairs.append((overlap, a, b))
+    pairs.sort(key=lambda p: -p[0])
+
+    print(f"== BULLETS THAT MAY ALREADY BE SAID ELSEWHERE  (>= {floor:.0%} of the shorter one's "
+          "three-word runs)")
+    if not pairs:
+        print(f"  none at this threshold across {len(every)} bullets. `--min` lowers it.")
+        return 0
+    for overlap, a, b in pairs:
+        print(f"\n  {overlap:.0%}  and {a['bytes'] + b['bytes']:,} B between them")
+        print(f"      {a['selector']}")
+        print(f"      {b['selector']}")
+    print(f"\n  {len(pairs)} pair(s). This reports and never prunes -- two bullets about one file")
+    print("  are often two different traps, and only a reader can tell. When they are the same")
+    print("  trap, merge them into the better-written one and say so in the commit.")
+    return 0
+
+
 def run_check(text: str, every: list[dict]) -> int:
     print(f"docs/agent/playbook.md: {nbytes(text)} bytes, {len(every)} bullets\n")
 
@@ -413,6 +468,8 @@ def main() -> int:
     ap.add_argument("--gap", action="store_true",
                     help="bullets the handoff's next group implies that the manifest omits")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--dupes", nargs="?", type=float, const=0.30, metavar="RATIO",
+                    help="bullets that may already say what another bullet says (default 0.30)")
     opts = ap.parse_args()
 
     try:
@@ -433,6 +490,8 @@ def main() -> int:
         return run_gap(text, every, opts.floor)
     if opts.check:
         return run_check(text, every)
+    if opts.dupes is not None:
+        return run_dupes(every, opts.dupes)
     if opts.goal:
         terms = goal_terms()
         if not terms:

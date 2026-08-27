@@ -152,6 +152,14 @@ def where_it_diverges(src, old):
 
 
 def main(argv):
+    # Every message this tool prints quotes the file it failed on, and this repository's prose is
+    # full of `§` and em dashes. Without this, a failed match on such a line dies inside the
+    # console codec instead of saying which anchor went stale.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", newline="\n")
+    except AttributeError:
+        pass
+
     if not argv:
         die(__doc__.strip().split("\n\n")[1], 2)
 

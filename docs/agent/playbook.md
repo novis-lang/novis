@@ -604,36 +604,19 @@ is why" — is this file.
   *does* lower — which reads as "`echo` is unsupported" rather than "this file is all text". The
   `.mwlt` harness supplies the tag for you inside `--FILE--`, so the omission only ever bites on a
   scratch run, which is exactly where a session is trying to find out whether a shape lowers.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it under
-  the Bash tool.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe` sees it,
-  so the documented command arrives as `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such
-  file or directory` — which reads as a missing script rather than as a mangled argument, and the script
-  is right there. `commands.md` § *Fuzzing and callgrind on Windows* spells the command itself; this is
-  only what the shell in front of it does to the argument.
 - **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works from
-  PowerShell.** Git Bash rewrites a leading `/mnt/...` into `C:/Program Files/Git/mnt/...` before
-  `wsl.exe` ever sees it, so the leak check dies with *"No such file or directory"* naming a path no
-  document mentions — which reads as a missing script rather than as the POSIX-path translation it is.
-  Run it through the PowerShell tool, where the argument is passed through verbatim.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` mangles its own path under the Bash tool.** Git
-  Bash rewrites an absolute POSIX argument on the way out, so the command arrives as
-  `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory` — which reads
-  like a missing script rather than the MSYS path conversion it is. Run the identical line through the
-  **PowerShell** tool instead and it works unchanged; `MSYS_NO_PATHCONV=1` is the other way and is one
-  more thing to remember. The same rewrite applies to any `/mnt/...` or `/tmp/...` argument handed to
-  `wsl.exe` from Bash.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` from the Bash tool dies with
-  *"C:/Program Files/Git/mnt/<drive>/<repo>/… No such file or directory"***, because Git Bash rewrites any
-  argument that looks like a Unix path before `wsl.exe` ever sees it. The script's own header shows
-  the invocation and cannot show this, since it is the *caller's* shell that mangles it. Prefix the
-  call with `MSYS_NO_PATHCONV=1` and it runs unchanged; the fixture paths after it are relative and
-  survive either way.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works from
-  PowerShell.** Git Bash rewrites a lone `/mnt/...` argument into `C:/Program Files/Git/mnt/...`
-  before `wsl.exe` ever sees it, so the run dies with *"No such file or directory"* naming a path
-  nothing wrote — which reads as a missing script rather than as path translation. `commands.md`'s
-  spelling is right; run it through the PowerShell tool, where the argument is passed through
-  untouched.
+  PowerShell.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe` ever
+  sees it, so the documented command arrives as `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/
+  leak-check.sh: No such file or directory` — a path no document mentions, which reads as a missing
+  script rather than as the MSYS path translation it is. The script's own header shows the
+  invocation and cannot show this, because it is the *caller's* shell that mangles it. Run the
+  identical line through the **PowerShell** tool, where the argument is passed through verbatim;
+  `MSYS_NO_PATHCONV=1` in front of it is the other way and is one more thing to remember. The same
+  rewrite hits any `/mnt/...` or `/tmp/...` argument handed to `wsl.exe` from Bash. `commands.md`
+  § *Fuzzing and callgrind on Windows* spells the command itself; this is only what the shell in
+  front of it does to the argument. **Five sessions wrote this bullet, one each.** That is what
+  `python tools/playbook.py --dupes` now exists to catch: an append-mostly file cannot notice that
+  it already knows something, and every copy is charged to every session afterwards.
 - **A `holes.py` site guarded by a predicate over the same list it matches is an
   internal-consistency check, and the reachable holes are its *neighbours*.**
   `closed_literal_set`'s `other => panic!` was on the worklist and owed a
@@ -645,15 +628,6 @@ is why" — is this file.
   feature), and `$x as ?"a"` in `convert_or_null`. Four scratch files under `.agent-tmp/`
   cost less than reading either function, so run the item's spellings **before** designing
   anything — the panic a worklist item names is often not the one that fires.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from a POSIX shell**, with
-  *"bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory"* —
-  Git Bash rewrites a lone `/mnt/...` argument into a Windows path before `wsl.exe` ever sees
-  it, and the error names bash rather than the translation, so it reads as a missing file. The
-  script's own header spells the command for a Windows shell; run it from one (PowerShell, or
-  `MSYS_NO_PATHCONV=1` in front of it), not from the Bash tool.
-
-## Adding a `Core` member
-
 - **A new `Core` member owes four things**, and the third is the one that bites: the registry row, the
   `mwl_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
   symbol, not a link error), and a `.mwlt` case that calls it — `crates/mwl-stdlib/tests/conformance_coverage.rs` fails
@@ -1697,11 +1671,6 @@ every session. Nothing below was reworded on the way.
   first**, where `mwl_stdlib::math::pick` answers the first to both — visible wherever two equal
   values are distinguishable, `min(1000000000000000000, 1.0e18)` being the sharpest — and
   `f64::total_cmp` separates `-0.0` from `0.0` where PHP's `<` calls them equal.
-- **A `CoreTy::Var("T")` signature binds `T` to the first argument**, so a crossed pair reaches the
-  runtime refusal only when the union is declared on the bindings; written as two literals
-  `Core\Math::min(0, "a")` is `E0401`, and the same holds of `Core\Math::mod(7, 2)`, whose two
-  `float` parameters do not widen an `int` the way `fmod` does — the integer remainder is the `%`
-  operator.
 - **`Core\Math::mod` throws on a zero divisor where `fmod` answers `NAN`**, spec § 3 making a
   division by zero a throw wherever it appears, while the IEEE *domain* rows — an infinite
   dividend, either operand a `NAN` — stay at IEEE's answer and agree; `intDiv` agrees with `intdiv`
