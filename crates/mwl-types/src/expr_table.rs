@@ -161,6 +161,35 @@ pub struct ResolvedCall {
     /// compiled label. `true` sends it through
     /// `mwl_ir::ir::InstKind::CallVirtual` with that label as the fallback.
     pub overridden: bool,
+    /// Which parameter each **written** argument fills, in the order the call
+    /// site wrote them — one entry per [`mwl_syntax::ast::Arg`].
+    ///
+    /// For a plain positional list this is `[Param(0), Param(1), …]` and says
+    /// nothing new. It exists for the two shapes where an argument's position
+    /// is not its parameter's: `name: value` fills the parameter its name
+    /// resolved to, and `...$rest` fills the variadic tail with the subject's
+    /// own entries. `mwl-ir` cannot re-derive either — a name resolves against
+    /// [`crate::signatures::MethodSig::param_names`], which the IR has no
+    /// access to — so the mapping is settled once, here, by the checker that
+    /// already had to do it to type the arguments at all.
+    pub arg_slots: Vec<ArgSlot>,
+}
+
+/// Which parameter one written argument fills — [`ResolvedCall::arg_slots`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ArgSlot {
+    /// The parameter at this index takes this argument's own value: a
+    /// positional argument at its own position, or a named one at the
+    /// position its name resolved to.
+    Param(usize),
+    /// `...$rest`: the argument is an `array<T>` and *its entries* are
+    /// appended to the variadic parameter at this index, which is always the
+    /// last one.
+    Spread(usize),
+    /// The argument fills no parameter, and a diagnostic already said why.
+    /// A consumer never sees one: `mwl-ir` runs only on a program that
+    /// reported nothing.
+    Unresolved,
 }
 
 /// One resolved expression a later pass (today, only `mwl-ir`) needs more

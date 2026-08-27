@@ -25,16 +25,25 @@
 use super::*;
 
 /// Checks a call's arguments against a resolved [`MethodSig`], when one was
-/// found: reports `E_ARITY_MISMATCH` for a wrong non-variadic argument count,
-/// then checks each positional argument against its parameter's type the
-/// same way an ordinary assignment is checked. Falls back to the old
-/// "just walk nested expressions, `mixed` throughout" behaviour when no
-/// signature resolved, and also when any argument is named or spread — PHP's
-/// named/variadic call resolution isn't a straight positional mapping, and
-/// modeling that is out of scope for this slice. Returns each positional
-/// argument's own checked type, in call order — [`ExprKind::New`]'s arm reads
-/// the first one back to feed [`reject_secret_throwable_message`] without a
-/// second, diagnostic-duplicating pass over the same expression.
+/// found: works out which parameter each written argument fills, reports
+/// `E_ARITY_MISMATCH` where that leaves a required one unfilled, then checks
+/// each argument against its parameter's type the same way an ordinary
+/// assignment is checked. Falls back to the old "just walk nested expressions,
+/// `mixed` throughout" behaviour when no signature resolved.
+///
+/// Returns each argument's own checked type, in call order —
+/// [`ExprKind::New`]'s arm reads the first one back to feed
+/// [`reject_secret_throwable_message`] without a second,
+/// diagnostic-duplicating pass over the same expression — and beside it the
+/// [`ArgSlot`] mapping, which is the fact `mwl-ir` cannot re-derive and so the
+/// one thing this pass has to hand down: a name resolves against
+/// [`MethodSig::param_names`], which no later pass holds.
+///
+/// **The all-positional list is still its own path**, and deliberately: its
+/// mapping is the identity and its arity check is one count against another,
+/// which is the message every existing call site already gets. [`map_arguments`]
+/// is reached only by a call that writes a `name:` or a `...`, where a count is
+/// no longer the question — *which* parameter is unfilled is.
 pub(super) fn check_args_typed(
     args: &CallArgs,
     sig: Option<MethodSig>,
@@ -43,64 +52,337 @@ pub(super) fn check_args_typed(
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) -> (Vec<TypeId>, Option<MethodSig>) {
+) -> (Vec<TypeId>, Vec<ArgSlot>, Option<MethodSig>) {
     let CallArgs::List(list) = args else {
-        return (Vec::new(), sig);
+        return (Vec::new(), Vec::new(), sig);
     };
     let Some(sig) = sig else {
         let types = list
             .iter()
             .map(|Arg { value, .. }| check_expr(value, None, live, scope, ctx, env))
             .collect();
-        return (types, None);
+        return (types, Vec::new(), None);
     };
-    if list.iter().any(|a| a.name.is_some() || a.spread) {
-        let types = list
-            .iter()
-            .map(|Arg { value, .. }| check_expr(value, None, live, scope, ctx, env))
-            .collect();
-        return (types, Some(sig));
-    }
-    let required = sig.required();
-    // A variadic tail removes the *upper* bound and nothing else: a call still
-    // has to supply every fixed parameter before it, which `required` already
-    // stops one short of counting.
-    let too_many = !sig.variadic && list.len() > sig.params.len();
-    if list.len() < required || too_many {
-        let expected = if sig.variadic {
-            format!("at least {required}")
-        } else if required == sig.params.len() {
-            format!("{required}")
-        } else {
-            format!("{required} to {}", sig.params.len())
-        };
-        env.diags.report(
-            Diagnostic::error(
-                code::E_ARITY_MISMATCH,
-                format!("expected {expected} argument(s), found {}", list.len()),
-            )
-            .with_primary(call_span, "called here"),
-        );
-    }
+    let slots = if list.iter().any(|a| a.name.is_some() || a.spread) {
+        map_arguments(list, &sig, call_span, env)
+    } else {
+        check_positional_arity(list.len(), &sig, call_span, env);
+        (0..list.len()).map(ArgSlot::Param).collect()
+    };
     if sig.is_generic(env.interner) {
-        return check_generic_args(list, sig, live, scope, ctx, env);
+        let (types, sig) = check_generic_args(list, &slots, sig, live, scope, ctx, env);
+        return (types, slots, sig);
     }
-    let last_param_index = sig.params.len().saturating_sub(1);
     let mut arg_types = Vec::with_capacity(list.len());
-    for (i, arg) in list.iter().enumerate() {
-        let expected = if sig.variadic && i >= last_param_index {
-            sig.params.last().copied()
-        } else {
-            sig.params.get(i).copied()
-        };
+    for (arg, &slot) in list.iter().zip(&slots) {
+        let expected = declared_for(slot, &sig, env.interner);
         let actual = check_arg(&arg.value, expected, live, scope, ctx, env);
-        if sig.is_by_ref(i) {
+        // Only a whole argument can be written back: a `...` hands over a
+        // subject's entries rather than the subject, so there is no one
+        // storage location for a by-reference parameter to alias.
+        if let ArgSlot::Param(index) = slot
+            && sig.is_by_ref(index)
+        {
             note_write(&arg.value, scope, env);
             check_by_ref_arg(arg, actual, expected, env);
         }
         arg_types.push(actual);
     }
-    (arg_types, Some(sig))
+    (arg_types, slots, Some(sig))
+}
+
+/// The arity check for an all-positional argument list: one count against
+/// another, reported at the call.
+fn check_positional_arity(written: usize, sig: &MethodSig, call_span: Span, env: &mut Env<'_>) {
+    let required = sig.required();
+    // A variadic tail removes the *upper* bound and nothing else: a call still
+    // has to supply every fixed parameter before it, which `required` already
+    // stops one short of counting.
+    let too_many = !sig.variadic && written > sig.params.len();
+    if written >= required && !too_many {
+        return;
+    }
+    let expected = if sig.variadic {
+        format!("at least {required}")
+    } else if required == sig.params.len() {
+        format!("{required}")
+    } else {
+        format!("{required} to {}", sig.params.len())
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ARITY_MISMATCH,
+            format!("expected {expected} argument(s), found {written}"),
+        )
+        .with_primary(call_span, "called here"),
+    );
+}
+
+/// What one argument's own value has to be, given the parameter it fills.
+///
+/// The one thing that is not the parameter's declared type is a spread: it
+/// hands over a whole array whose *entries* become arguments, so what it owes
+/// is `array<` the parameter's element type `>`. That indirection is the whole
+/// of the spread rule — expressing it as an expectation rather than as a
+/// comparison afterwards is what makes an `array<int>` spread into a
+/// `string ...$rest` an ordinary `E_TYPE_MISMATCH` naming both array types,
+/// exactly as an array literal's own `[...$a]` element already is.
+///
+/// **`E_SPREAD_SUBJECT_NOT_AN_ARRAY` therefore has no call-site twin**, which
+/// the array-literal side's own docs predict rather than contradict: that code
+/// is what a position with *no* `array<T>` expectation is left with, and a
+/// spread only ever reaches a variadic parameter, which always has one. A
+/// `string` spread at a call is `expected array<T>, found string` — the same
+/// mistake, named better.
+fn declared_for(slot: ArgSlot, sig: &MethodSig, interner: &mut TypeInterner) -> Option<TypeId> {
+    match slot {
+        ArgSlot::Param(index) => sig.param_at(index),
+        ArgSlot::Spread(index) => sig.param_at(index).map(|elem| interner.array(elem)),
+        ArgSlot::Unresolved => None,
+    }
+}
+
+/// Which parameter each argument of a call that writes a `name:` or a `...`
+/// fills — and every refusal working that out can produce.
+///
+/// Five rules, and PHP refuses on four of the five for its own reasons:
+///
+/// 1. A positional argument may not follow a `name:` or `...` one, because
+///    which parameter it fills *is* its position and neither of those leaves
+///    one defined (`E_POSITIONAL_AFTER_NAMED`).
+/// 2. A `name:` needs a signature that has names —
+///    [`MethodSig::param_names`] owns why a `Core` member has none
+///    (`E_NAMED_ARG_NO_PARAM_NAMES`).
+/// 3. The name must reach a parameter a call can fill by name, which excludes
+///    a `...$rest` tail: MWL builds that array at the call site out of the
+///    arguments written into it, so a name has nowhere to be recorded
+///    (`E_UNKNOWN_ARG_NAME`). This is the one rule PHP does not share — it
+///    collects an unmatched name into the variadic as a string key.
+/// 4. No parameter may be filled twice (`E_DUPLICATE_ARG`).
+/// 5. A `...` must land wholly in a variadic tail, every fixed parameter
+///    already filled (`E_SPREAD_ARG_NOT_VARIADIC`). How many entries an array
+///    holds is a run-time fact, so a spread that could fill fixed parameters
+///    would leave the call's arity uncheckable — which is the one thing this
+///    whole mapping exists to keep.
+///
+/// Then the arity check, which here is not a count: with names in play, *which*
+/// required parameter went unfilled is both knowable and the useful message.
+fn map_arguments(
+    list: &[Arg],
+    sig: &MethodSig,
+    call_span: Span,
+    env: &mut Env<'_>,
+) -> Vec<ArgSlot> {
+    // Indices below this are the fixed parameters — the ones a call fills with
+    // one argument each, at most once. A variadic tail is neither.
+    let fixed = match sig.variadic {
+        true => sig.params.len().saturating_sub(1),
+        false => sig.params.len(),
+    };
+    let mut filled = vec![false; fixed];
+    let mut slots = Vec::with_capacity(list.len());
+    let mut next = 0_usize;
+    let mut positional_ends: Option<Span> = None;
+    for arg in list {
+        let slot = if let Some(name) = arg.name {
+            positional_ends.get_or_insert(arg.span);
+            named_slot(name, sig, env)
+        } else if arg.spread {
+            positional_ends.get_or_insert(arg.span);
+            spread_slot(arg, sig, fixed, &filled, env)
+        } else if let Some(first) = positional_ends {
+            report_positional_after_named(arg, first, env);
+            ArgSlot::Unresolved
+        } else {
+            let index = next;
+            next += 1;
+            ArgSlot::Param(index)
+        };
+        slots.push(match slot {
+            ArgSlot::Param(index) if index < fixed => {
+                match std::mem::replace(&mut filled[index], true) {
+                    true => {
+                        report_duplicate_arg(arg, index, sig, env);
+                        ArgSlot::Unresolved
+                    }
+                    false => ArgSlot::Param(index),
+                }
+            }
+            // Past the last parameter of a signature with no variadic tail:
+            // one report per extra argument, at the argument rather than at
+            // the call, since the call itself is no longer the whole story.
+            ArgSlot::Param(_) if !sig.variadic => {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_ARITY_MISMATCH,
+                        format!(
+                            "this call's target declares {} parameter(s)",
+                            sig.params.len()
+                        ),
+                    )
+                    .with_primary(arg.span, "no parameter left for this argument"),
+                );
+                ArgSlot::Unresolved
+            }
+            other => other,
+        });
+    }
+    // One mistake is one diagnostic: an argument that reached no parameter is
+    // exactly why some parameter has none, so reporting the arity behind it
+    // would name the same mistake a second time and from further away.
+    if slots.iter().all(|slot| *slot != ArgSlot::Unresolved) {
+        report_unfilled(&filled, sig, call_span, env);
+    }
+    slots
+}
+
+/// Rule 1 of [`map_arguments`].
+fn report_positional_after_named(arg: &Arg, first: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_POSITIONAL_AFTER_NAMED,
+            "a positional argument cannot follow a `name:` or `...` argument",
+        )
+        .with_primary(arg.span, "no position left for this argument")
+        .with_secondary(first, "the list stops being positional here")
+        .with_help(
+            "which parameter a positional argument fills is its own place in the list, so write \
+             every positional argument before the first `name:` or `...` one",
+        ),
+    );
+}
+
+/// Rules 2 and 3 of [`map_arguments`]: the parameter a `name:` argument fills.
+fn named_slot(name_span: Span, sig: &MethodSig, env: &mut Env<'_>) -> ArgSlot {
+    let name = span_text(env.src, name_span).to_owned();
+    let Some(names) = sig.param_names.as_ref() else {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_NAMED_ARG_NO_PARAM_NAMES,
+                "this call's target does not name its parameters",
+            )
+            .with_primary(name_span, format!("`{name}:` has nothing to match"))
+            .with_help(
+                "a `Core` member's parameters are types and nothing else — its by-name surface \
+                 is ADR 0063 R2's trailing options bag, written `{name: value}` at the call site",
+            ),
+        );
+        return ArgSlot::Unresolved;
+    };
+    if let Some(index) = sig.param_index(&name) {
+        return ArgSlot::Param(index);
+    }
+    let is_variadic_tail = sig.variadic && names.last().is_some_and(|last| *last == name);
+    let help = if is_variadic_tail {
+        format!(
+            "`...${name}` is one array built out of the arguments written into it, so there is \
+             nothing for a name to key — write them out positionally"
+        )
+    } else {
+        format!("the parameters are: {}", parameter_names(sig))
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNKNOWN_ARG_NAME,
+            format!("no parameter of this call can be filled by the name `{name}`"),
+        )
+        .with_primary(name_span, "no such parameter")
+        .with_help(help),
+    );
+    ArgSlot::Unresolved
+}
+
+/// Rule 5 of [`map_arguments`]: the variadic tail a `...` argument lands in.
+fn spread_slot(
+    arg: &Arg,
+    sig: &MethodSig,
+    fixed: usize,
+    filled: &[bool],
+    env: &mut Env<'_>,
+) -> ArgSlot {
+    if sig.variadic && filled.iter().all(|f| *f) {
+        return ArgSlot::Spread(fixed);
+    }
+    let (label, help) = match sig.variadic {
+        true => (
+            "this call's fixed parameters still need arguments",
+            "how many entries an array holds is a run-time fact, so a spread that could fill a \
+             fixed parameter would leave the call's arity uncheckable — write those arguments \
+             out and let the spread supply the tail",
+        ),
+        false => (
+            "this call's target declares no `...` parameter",
+            "a `...` only ever supplies a `...$rest` tail, because how many entries an array \
+             holds is a run-time fact and a fixed parameter list has to be counted — write the \
+             arguments out",
+        ),
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SPREAD_ARG_NOT_VARIADIC,
+            "a `...` argument has no variadic parameter to spread into",
+        )
+        .with_primary(arg.span, label)
+        .with_help(help),
+    );
+    ArgSlot::Unresolved
+}
+
+/// Rule 4 of [`map_arguments`].
+fn report_duplicate_arg(arg: &Arg, index: usize, sig: &MethodSig, env: &mut Env<'_>) {
+    let parameter = match sig.param_names.as_ref().and_then(|names| names.get(index)) {
+        Some(name) => format!("`${name}`"),
+        None => format!("at position {}", index + 1),
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_DUPLICATE_ARG,
+            format!("the parameter {parameter} is given an argument twice"),
+        )
+        .with_primary(arg.span, "already filled by an earlier argument"),
+    );
+}
+
+/// The arity check for a call that writes a `name:` or a `...`: every required
+/// parameter the mapping left unfilled, named.
+fn report_unfilled(filled: &[bool], sig: &MethodSig, call_span: Span, env: &mut Env<'_>) {
+    let missing: Vec<String> = (0..sig.required())
+        .filter(|index| !filled.get(*index).copied().unwrap_or(true))
+        .map(
+            |index| match sig.param_names.as_ref().and_then(|n| n.get(index)) {
+                Some(name) => format!("`${name}`"),
+                None => format!("position {}", index + 1),
+            },
+        )
+        .collect();
+    if missing.is_empty() {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ARITY_MISMATCH,
+            format!("no argument for the parameter(s) {}", missing.join(", ")),
+        )
+        .with_primary(call_span, "called here"),
+    );
+}
+
+/// A signature's parameter names as a call site would write them, for a
+/// diagnostic's help line. Never reached for a signature with no names — rule
+/// 2 of [`map_arguments`] has already stopped there.
+fn parameter_names(sig: &MethodSig) -> String {
+    let fixed = match sig.variadic {
+        true => sig.params.len().saturating_sub(1),
+        false => sig.params.len(),
+    };
+    match sig.param_names.as_ref().map(|names| &names[..fixed]) {
+        Some([]) | None => "none — this member takes no named argument".to_owned(),
+        Some(names) => names
+            .iter()
+            .map(|name| format!("`{name}:`"))
+            .collect::<Vec<_>>()
+            .join(", "),
+    }
 }
 
 /// One argument against its parameter's declared type — [`check_expr`] for
@@ -354,37 +636,43 @@ pub(super) fn check_by_ref_arg(
 /// first would check a field against an unsubstituted `T`.
 pub(super) fn check_generic_args(
     list: &[Arg],
+    slots: &[ArgSlot],
     sig: MethodSig,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> (Vec<TypeId>, Option<MethodSig>) {
-    let deferred = options_param(&sig, env.interner);
+    // The bag is identified by the *parameter* it fills, not by where it was
+    // written: with a `name:` or a `...` in the list those two differ.
+    let deferred = options_param(&sig, env.interner).map(ArgSlot::Param);
     let mut arg_types: Vec<TypeId> = Vec::with_capacity(list.len());
     for (index, Arg { value, .. }) in list.iter().enumerate() {
         // A placeholder for the bag: overwritten in the second pass below,
         // and never read in between — `crate::generics::bind` is skipped for
         // this index too.
-        if deferred == Some(index) {
+        if deferred == Some(slots[index]) {
             arg_types.push(env.interner.mixed());
             continue;
         }
         // Only a position still open is checked with no expectation; see this
         // function's own docs for what an expected type carries that
         // assignability alone does not.
-        let expected = sig
-            .param_at(index)
+        let expected = declared_for(slots[index], &sig, env.interner)
             .filter(|id| !crate::generics::mentions_type_var(*id, env.interner));
         arg_types.push(check_expr(value, expected, live, scope, ctx, env));
     }
 
     let mut bindings = crate::generics::Bindings::default();
     for (index, actual) in arg_types.iter().enumerate() {
-        if deferred == Some(index) {
+        if deferred == Some(slots[index]) {
             continue;
         }
-        let Some(declared) = sig.param_at(index) else {
+        // A spread binds through `array<T>` against the subject's own array
+        // type, which is the same rule one entry at a time — so `T` comes out
+        // of `Core\Arr::of(...$xs)` exactly as it does out of a written-out
+        // element.
+        let Some(declared) = declared_for(slots[index], &sig, env.interner) else {
             continue;
         };
         // The one binding that is not read out of a type. A `callable`
@@ -412,10 +700,10 @@ pub(super) fn check_generic_args(
     let sig = sig.substituted(&bindings, env.interner);
 
     for (index, arg) in list.iter().enumerate() {
-        let Some(declared) = sig.param_at(index) else {
+        let Some(declared) = declared_for(slots[index], &sig, env.interner) else {
             continue;
         };
-        if deferred == Some(index) {
+        if deferred == Some(slots[index]) {
             arg_types[index] = check_arg(&arg.value, Some(declared), live, scope, ctx, env);
             continue;
         }

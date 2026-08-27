@@ -46,7 +46,7 @@ use mwl_syntax::ast::{
 };
 use rustc_hash::FxHashSet;
 
-use crate::expr_table::{ExprInfo, ForeachDrive, ResolvedCall};
+use crate::expr_table::{ArgSlot, ExprInfo, ForeachDrive, ResolvedCall};
 use crate::locals::{Captures, LocalScope, check_block};
 use crate::lower::{lower_optional_type, lower_type};
 use crate::signatures::{

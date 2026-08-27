@@ -54,6 +54,20 @@ pub struct MethodSig {
     /// Each parameter's declared type (`mixed` for one written with none —
     /// already diagnosed elsewhere).
     pub params: Vec<TypeId>,
+    /// Each parameter's own name without the `$`, positionally — or `None`
+    /// where the signature has no names to be called by at all, which is every
+    /// `Core` member (`mwl_stdlib::registry` records a row's parameter types
+    /// and never its names) and the synthesized `Throwable` constructor.
+    ///
+    /// `None` is not `Some(vec![])`, and the difference is the whole reason
+    /// this is an `Option`: a user-declared method that takes no parameters
+    /// still *names* the ones it has, so a `name:` argument at it is an
+    /// ordinary `E_UNKNOWN_ARG_NAME`, while the same spelling at a `Core`
+    /// member is `E_NAMED_ARG_NO_PARAM_NAMES` — a different fix, ADR 0063 R2's
+    /// options bag rather than a corrected spelling. Read it through
+    /// [`Self::param_index`] rather than indexed directly, so the "a variadic
+    /// tail cannot be filled by name" rule stays in one place.
+    pub param_names: Option<Vec<String>>,
     /// Whether each parameter is declared `&$x`, positionally — one entry per
     /// [`Self::params`] entry, read through [`Self::is_by_ref`] rather than
     /// indexed directly so the variadic rule stays in one place.
@@ -173,6 +187,24 @@ impl MethodSig {
             return self.params.last().copied();
         }
         self.params.get(index).copied()
+    }
+
+    /// The index a `name:` argument fills, or `None` where the name reaches
+    /// no parameter a call may fill by name.
+    ///
+    /// The variadic tail is deliberately excluded: it is one `array<T>` built
+    /// at the call site out of the arguments written into it, so a name has
+    /// nowhere to be recorded there. `None` is also every name at a signature
+    /// with no [`Self::param_names`] at all, which the caller distinguishes by
+    /// looking at that field — the two cases take different diagnostics.
+    #[must_use]
+    pub fn param_index(&self, name: &str) -> Option<usize> {
+        let index = self.param_names.as_ref()?.iter().position(|p| p == name)?;
+        let fillable = match self.variadic {
+            true => self.params.len().saturating_sub(1),
+            false => self.params.len(),
+        };
+        (index < fillable).then_some(index)
     }
 
     /// Whether the parameter at `index` is declared `&$x`, following the same
@@ -738,6 +770,12 @@ fn collect_members(
                     .iter()
                     .map(|p| lower_optional_type(p.ty.as_ref(), ctx, env))
                     .collect();
+                let param_names: Option<Vec<String>> = Some(
+                    m.params
+                        .iter()
+                        .map(|p| strip_sigil(span_text(env.src, p.name)).to_owned())
+                        .collect(),
+                );
                 let by_ref: Vec<bool> = m.params.iter().map(|p| p.by_ref).collect();
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
                 let defaults = collect_defaults(&m.params, &params, env);
@@ -750,6 +788,7 @@ fn collect_members(
                     name,
                     MethodSig {
                         params,
+                        param_names,
                         by_ref,
                         variadic,
                         defaults,

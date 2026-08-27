@@ -1,0 +1,40 @@
+--TEST--
+a `...` call argument supplies a `...$rest` tail and nothing else: every fixed parameter is still written out, and the tail's element type is what the subject's `array<T>` is checked against (ADR 0007 § 5, ADR 0011 § 1)
+--FILE--
+<?mwl
+final class Join {
+    public static function of(string $sep, string ...$parts): string {
+        return $sep;
+    }
+    public static function pair(string $a, string $b): string {
+        return $a;
+    }
+}
+array<string> $parts = ["a", "b"];
+array<int> $nums = [1, 2];
+// A spread lands wholly in the variadic tail, so `$sep` still needs one:
+// how many entries `$parts` holds is a run-time fact.
+echo Join::of(...$parts), "\n";
+// There is no tail at all here.
+echo Join::pair(...$parts), "\n";
+// The tail's element type is the expectation, one level up — so the refusal
+// names both array types rather than the subject alone.
+echo Join::of("-", ...$nums), "\n";
+// The same rule at a `Core` member: `Core\Path::join(string, string ...)`.
+echo Core\Path::join("a", ...$nums), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0489]: a `...` argument has no variadic parameter to spread into
+   --> case.mwl:14:15
+%A
+error[E0489]: a `...` argument has no variadic parameter to spread into
+   --> case.mwl:16:17
+%A
+error[E0401]: expected `array<string>`, found `array<int>`
+   --> case.mwl:19:23
+%A
+error[E0401]: expected `array<string>`, found `array<int>`
+   --> case.mwl:21:30
+%A
+error: aborting due to 4 errors

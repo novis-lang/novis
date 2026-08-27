@@ -92,6 +92,12 @@ fn method_sig(
             .iter()
             .map(|param| lower(param, interner))
             .collect(),
+        // A registry row records its parameters' *types* and never
+        // their names, so no `Core` member is callable by name —
+        // ADR 0063 R2's options bag is that surface instead, and
+        // `MethodSig::param_names` owns why `None` here is a
+        // decision rather than a gap.
+        param_names: None,
         // ADR 0063 R7: nothing in `Core` mutates its subject, so
         // no `Core` parameter is ever by-reference. Not a gap in
         // the registry — a property of the convention.

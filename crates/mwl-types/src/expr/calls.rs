@@ -96,7 +96,7 @@ pub(super) fn infer_method_call(
         .map(|(owner, name, _)| format!("{owner}::{name}"));
     let (sig, _written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
-    let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    let (_, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     // ADR 0027: `$obj->method(...)` (first-class callable syntax) names a
     // `Closure` value, not the method's return type — the sentinel
     // `CallArgs::FirstClassCallable` marks exactly this shape, ahead of the
@@ -111,7 +111,7 @@ pub(super) fn infer_method_call(
     // never survives a call site, and this record is the one thing that carries
     // a signature past it.
     if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
-        let call = resolved_call(qname.clone(), name.clone(), sig, env.signatures);
+        let call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
     let returned = sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
@@ -180,7 +180,7 @@ pub(super) fn infer_static_call(
         .map(|(owner, name, _)| format!("{owner}::{name}"));
     let (sig, written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
-    let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    let (_, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     // See [`infer_method_call`]: first-class callable syntax names a `Closure`,
     // not the resolved method's return type.
     if matches!(args, CallArgs::FirstClassCallable) {
@@ -189,7 +189,7 @@ pub(super) fn infer_static_call(
     // See [`infer_method_call`]: persisted for `mwl-ir` to read back a resolved
     // static call's target, always as the *substituted* signature.
     if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
-        let mut call = resolved_call(qname.clone(), name.clone(), sig, env.signatures);
+        let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
         // Late static binding: an explicitly named class *sets* the called
         // class, while `self`/`static`/`parent` forward the caller's. See
         // `ResolvedCall::static_class`.
@@ -248,7 +248,7 @@ pub(super) fn infer_new(
     }
     let ctor_owner = resolved.as_ref().map(|(owner, _)| owner.clone());
     let sig = resolved.map(|(_, sig)| sig);
-    let (arg_types, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     if let Some(qname) = &target_qname {
         reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
         // A `Core`-owned class has no constructor and never will: its instances
@@ -271,10 +271,9 @@ pub(super) fn infer_new(
         }
         // `mwl-ir` needs the constructed class and its resolved constructor (if
         // any) to lower `new` — see `crate::expr_table`'s own module docs.
-        let ctor = sig
-            .as_ref()
-            .zip(ctor_owner)
-            .map(|(s, owner)| resolved_call(owner, "constructor".to_owned(), s, env.signatures));
+        let ctor = sig.as_ref().zip(ctor_owner).map(|(s, owner)| {
+            resolved_call(owner, "constructor".to_owned(), s, slots, env.signatures)
+        });
         env.exprs.record(
             expr.span,
             ExprInfo::New {
@@ -375,6 +374,7 @@ pub(super) fn resolved_call(
     qname: QName,
     name: String,
     sig: &MethodSig,
+    arg_slots: Vec<ArgSlot>,
     signatures: &SignatureTable,
 ) -> ResolvedCall {
     let overridden = signatures.is_overridden(&qname, &name);
@@ -382,6 +382,7 @@ pub(super) fn resolved_call(
         class: qname,
         method: name,
         overridden,
+        arg_slots,
         param_tys: sig.params.clone(),
         by_ref: sig.by_ref.clone(),
         variadic: sig.variadic,

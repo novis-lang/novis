@@ -875,6 +875,43 @@ pub mod code {
     /// only what a position naming no `array<T>` at all is left with, a
     /// `mixed` binding or parameter being the reachable one.
     pub const E_SPREAD_SUBJECT_NOT_AN_ARRAY: Code = Code::new("E0484");
+    /// `name: value` at a call whose target names none of its parameters.
+    ///
+    /// A `Core` member's parameters are types in `mwl_stdlib::registry` and
+    /// nothing else — the rows carry no names, deliberately, because ADR 0063
+    /// R2 already gives every `Core` member its by-name surface as a trailing
+    /// options bag (`{limit: 4}`). So there is no name to call one by, and
+    /// inventing one at the registry would be a second spelling of the same
+    /// optional argument. The synthesized `Throwable` constructor is the other
+    /// signature with no names.
+    pub const E_NAMED_ARG_NO_PARAM_NAMES: Code = Code::new("E0485");
+    /// `name: value` naming no parameter a call can fill by name — either the
+    /// callee declares no parameter of that name at all, or the name reaches
+    /// its `...$rest` tail.
+    ///
+    /// PHP collects an unmatched named argument into a variadic parameter as a
+    /// string-keyed entry. MWL's variadic tail is an ordinary `array<T>` built
+    /// at the call site from the arguments written into it, so a name has
+    /// nowhere to be recorded — and a caller that wants a keyed entry writes
+    /// the array itself.
+    pub const E_UNKNOWN_ARG_NAME: Code = Code::new("E0486");
+    /// One parameter given an argument twice — positionally and then by name,
+    /// or by the same name twice.
+    pub const E_DUPLICATE_ARG: Code = Code::new("E0487");
+    /// A positional argument after a `name:` or a `...` one.
+    ///
+    /// PHP refuses both orderings for the same reason: which parameter a
+    /// positional argument fills is its own position in the list, and neither
+    /// a named argument nor an unpacked array leaves that position defined.
+    pub const E_POSITIONAL_AFTER_NAMED: Code = Code::new("E0488");
+    /// `...$rest` at a call with no variadic parameter left for it to land in
+    /// — the callee declares no `...$x` at all, or one or more of its fixed
+    /// parameters is still unfilled where the spread is written.
+    ///
+    /// How many entries an array holds is a run-time fact, so a spread that
+    /// had to fill fixed parameters would leave a call's arity uncheckable.
+    /// Write the fixed arguments out and let the spread supply the tail.
+    pub const E_SPREAD_ARG_NOT_VARIADIC: Code = Code::new("E0489");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

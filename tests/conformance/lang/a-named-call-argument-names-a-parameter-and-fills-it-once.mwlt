@@ -1,0 +1,38 @@
+--TEST--
+a `name:` call argument is matched against the callee's parameter names, fills exactly one parameter, ends the positional part of the list, and does not exist for a `Core` member (ADR 0063 R2, ADR 0011 § 1)
+--FILE--
+<?mwl
+final class Label {
+    public static function render(int $count, string $text): string {
+        return $text;
+    }
+}
+// The name has to reach a parameter the callee declares.
+echo Label::render(count: 1, caption: "x"), "\n";
+// One parameter, one argument: filled positionally and then again by name.
+echo Label::render(1, count: 2, text: "x"), "\n";
+// Which parameter a positional argument fills is its own place in the list,
+// so there is no position left once a `name:` has been written.
+echo Label::render(count: 1, "x"), "\n";
+// A `Core` member has no parameter names at all — ADR 0063 R2's options bag
+// is its by-name surface instead, one diagnostic per name written.
+echo Core\Str::repeat(subject: "x", times: 2), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0486]: no parameter of this call can be filled by the name `caption`
+  --> case.mwl:8:30
+%A
+error[E0487]: the parameter `$count` is given an argument twice
+   --> case.mwl:10:23
+%A
+error[E0488]: a positional argument cannot follow a `name:` or `...` argument
+   --> case.mwl:13:20
+%A
+error[E0485]: this call's target does not name its parameters
+   --> case.mwl:16:23
+%A
+error[E0485]: this call's target does not name its parameters
+   --> case.mwl:16:37
+%A
+error: aborting due to 5 errors
