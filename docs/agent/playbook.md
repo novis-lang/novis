@@ -1509,6 +1509,15 @@ sibling in the same namespace unqualified.
   `InstKind::Untag`: read it as "a tagged value reached an instruction that wanted an object",
   not as a codegen bug. Nothing above catches it, because the checker is happy and the lowering
   never panics.
+- **A `...spread` array-literal element lowers now, and it is PHP-exact on keys** — an
+  integer-looking key is renumbered under the destination's counter, every other key is
+  preserved (ADR 0007 § 5). So `[...$xs, ...$ys]` concatenates two lists and
+  `[...$m, "k" => "v"]` overrides by name, `[...Core\Arr::keys($m), "end"]` works with a
+  call as the subject, and a keyless element beside a spread continues from what the
+  spread contributed rather than from its own position. The one refusal left is the
+  append's: a literal whose explicit key is already `i64::MAX` throws PHP's *"Cannot add
+  element to the array as the next element is already occupied"*. A **call** argument
+  spread (`f(...$a)`) is still `mwl-ir` gap 8 and still panics.
 
 ## Divergences and refusals already pinned
 

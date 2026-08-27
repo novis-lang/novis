@@ -214,6 +214,16 @@ The container is unchanged — an insertion-ordered hash with copy-on-write valu
 - An `int` or `uint` subscript is normalised to its decimal string at the subscript: `$a[8]` is `$a["8"]`.
   This is key normalisation, not a value conversion, and it needs no `as` — PHP already normalises, in the
   other direction. `"08"` remains a distinct key from `"8"`, exactly as in PHP.
+- **A `...$a` element of an array literal renumbers an integer-looking key and preserves every other one**,
+  which is PHP's own spread and needs no rule of its own: each entry copied is either the append above or
+  the write `$a[$k] = $v`, chosen by the same canonical-decimal reading of the key that already decides
+  where a later `$a[]` lands. So `[...$xs, ...$ys]` concatenates two lists, `[...$defaults, ...$overrides]`
+  overrides by name, and a mixed subject gets both — the outcome a developer reading the literal expects,
+  in the one place where they can see the subject. That reading selects between two *writes* here rather
+  than between two *rules*, which is what a **combining member** may not do:
+  `Core\Arr::overlay`/`underlay`/`appendAll` treat every key alike, and there is deliberately no
+  `Arr::merge` ([0069](0069-array-combination-is-key-type-independent.md)). Because a renumbered key is an
+  append, a spread throws exactly where an append throws.
 - A `float`, `bool` or `null` subscript is **rejected**. PHP truncates a float, stringifies `true` to `"1"`
   and `null` to `""`; each is a silent conversion at the one place where a mistake becomes a missing row.
 - Iteration order is **insertion order, always**. Only the sort members reorder, and they say so in their

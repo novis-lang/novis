@@ -65,8 +65,8 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 583 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
-> and `reject`) and `tests/differential` × 162, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`), `tests/conformance` × 584 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> and `reject`) and `tests/differential` × 163, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -258,13 +258,31 @@
 > however it is written. Nothing is recorded on the `ExprInfo` side for a spread, and that is a
 > decision rather than an omission: the lowering reads `ArrayItem::spread` off the AST it already
 > walks and its own `lower_expr` hands back the subject's `Ty::Array` beside the value, so an entry
-> would be a second copy of two facts it holds already. What is left of item 17 is the lowering and
-> one semantics call on keys. `python tools/holes.py` is unchanged at **35 sites, 9 items** — item
-> 17's site is the one assert line both spellings shared. **M4S Part I is the floor, not the
-> frontier**: conformance is at 583 of the goal's new 750 and differential at 162 of 165, `python
-> tools/gaps.py` still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a
-> group is blocked — never a reason to leave a language item unfinished.
-> `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+> would be a second copy of two facts it holds already. **Item 17 is closed.** A `...spread` element
+> is one `InstKind::ArraySpread`, one runtime call (`mwl_array_spread`) that walks the subject once
+> — not a lowered loop over the `foreach` cursor, which would spend three calls and a branch per
+> entry and put a control-flow join inside an expression that has none. **The key semantics are
+> PHP's, and ADR 0007 § 5 is their home**: a key that reads as a canonical decimal integer is
+> renumbered under the destination's own append counter, every other key is preserved in place, so
+> `[...$xs, ...$ys]` concatenates and `[...$defaults, ...$overrides]` overrides by name. That is the
+> same canonical-decimal reading `$a[]`'s counter has always kept, selecting between the two
+> *writes* the language already has rather than between two rules — which is why it does not re-open
+> ADR 0069, whose own Context paragraph now says where the line is: a spread is written at the site
+> with both arrays in view, where `merge($a, $b)` is a name whose behaviour changes underneath one.
+> A keyless element of a literal *containing* a spread is an `ArrayAppend` rather than a
+> lowering-time index, since how many entries arrived is the subject's run-time length, so such a
+> literal does not share the keyed shape's one remaining divergence. Because a renumbered key is an
+> append, a spread throws exactly where an append does, and `["9223372036854775807" => "z", ...$a]`
+> prints PHP's own *"Cannot add element…"* message. Two new refcount edges, both valgrind-green: the
+> subject is **borrowed**, so a freshly-built one is staged as an owned temporary, and the array
+> under construction is staged too and re-pointed after every write — it is named by no local, so
+> without that its throwing edges had nothing to release. `python tools/holes.py` is down to **34
+> sites**; item 17 still lists 5, all of them other items' panics that share `lower/expr.rs`. **M4S
+> Part I is the floor, not the frontier**: conformance is at 584 of the goal's new 750 and
+> differential at 163 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
+> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
+> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
+> tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones

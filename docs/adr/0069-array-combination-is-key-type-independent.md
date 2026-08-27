@@ -38,9 +38,12 @@
   keys matter.
 - **MWL has no integer key.** [ADR 0007](0007-explicit-type-system.md) § 5 makes every key a `string`;
   `$a[8]` is `$a["8"]`. Reproducing `array_merge` here means asking, of each key, "does this string look
-  like a canonical decimal integer?" — a content sniff deciding control flow, of exactly the kind § 5
-  already refuses for `float`, `bool` and `null` subscripts. The PHP rule is not merely inconvenient in
-  MWL; it has no type to hang itself on.
+  like a canonical decimal integer?" — a content sniff deciding control flow, under a *name* that shows
+  the reader neither side of the question. The PHP rule is not merely inconvenient in MWL; it has no type
+  to hang itself on. That reading does exist in the language: § 5's append counter has always kept it, and
+  the `[...$a]` element that section defines renumbers by it. What separates the two is that a spread is
+  written at the site with both arrays in view, and its two outcomes are the two writes the developer
+  could have spelled out by hand, where `merge($a, $b)` is a name whose behaviour changes underneath one.
 - `$a + $b` is worse than inconvenient: it is arithmetic notation for a set operation, it is silently
   *left*-biased where every other combining spelling in every language is right-biased, and it has no
   compound-assignment sibling that means anything different. It is also common in real code — `$options +
