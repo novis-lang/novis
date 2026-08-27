@@ -31,6 +31,7 @@ the distro — the native leg is the primary one, and the distro reaches it over
 |---|---|---|
 | Rust, the version pinned in [rust-toolchain.toml](../rust-toolchain.toml) | `rustup` installs it on the first `cargo` command inside the tree — nothing to do by hand. Never a different channel: the pin is what makes three platforms the same compiler. | `cargo --version` |
 | Python 3.11+ | Everything in `tools/`. No third-party package is ever required. | `python --version` |
+| The `claude` CLI on `PATH` — **the unattended loop only** | `tools/loop.py` spawns one `claude -p` per session and finds it with `shutil.which("claude")`. With nothing on `PATH` it falls back to the bare name and the run dies on session 1 with `FileNotFoundError: [WinError 2]`, *after* printing the launch line and building the orientation pack — so it reads like a loop bug rather than a missing install. **An IDE extension does not count.** The VS Code extension carries its own `claude` binary inside its versioned extension directory and never puts it on `PATH`, so a machine that runs Claude Code all day can still have none; `claude install stable`, runnable from that bundled binary, lands one in `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows) that updates itself independently of the editor. Nothing else in the tree spawns a session — `verify.py`, `--goal-only` and `--leg-only` never do. | `python -c "import shutil; print(shutil.which('claude'))"` — the CLI's own `--version` can pass on a shell alias that `loop.py` cannot see |
 | PHP on `PATH`, at the version in [the plan](implementation-plan.md)'s status block § *Toolchain* — that field is the version's one home, and it reads 8.5 today | The differential oracle. A `tests/differential/` case runs its `--ORACLE--` twin under real PHP and compares stdout, so a machine without it **skips** those cases instead of failing them. It is also the fastest way to settle a semantics question while authoring: `php -r '…'`. | `php -v` |
 | Node.js 20 LTS or newer, with `npm` — **from M4B onward** | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `mwl lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
 | Bun — **optional, benchmarks only** | The fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case ([ADR 0100](adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5). Nothing else in the tree reads it: without Bun, run `python tools/bench.py --engines mwl,php,python` and the suite is otherwise unchanged. No build, test or loop session touches it. Its Windows installer does not always land on `PATH`; `python tools/bench.py --bun <path>` takes the executable explicitly. | `bun --version` |
@@ -91,7 +92,8 @@ machine's job.
 
 ## What a clone does not carry
 
-Four things sit outside what git tracks. Only the first is not optional.
+Four things sit outside what git tracks. The first is not optional, and neither is the trust flag in the
+fourth if anyone will work in this tree interactively.
 
 1. **The commit hooks.** git does not version `.git/hooks`, so `tools/git-hooks/` is inert until this clone
    is pointed at it:
@@ -123,8 +125,15 @@ Four things sit outside what git tracks. Only the first is not optional.
 
    That is 15,039 files, and the spread is the point: WordPress is procedural legacy, Symfony modern
    typed OO, phpMyAdmin a whole application, Composer a CLI tool.
-4. **Machine-local harness settings** — optional. `.claude/settings.json` is committed and carries the
-   shared permission allowlist; `.claude/settings.local.json` is per-machine and is not.
+4. **Machine-local harness settings.** `.claude/settings.json` is committed and carries the shared
+   permission allowlist; `.claude/settings.local.json` is per-machine, is not, and is optional.
+   **Trusting the workspace is not.** Until this clone is trusted the committed allowlist is ignored
+   entirely — one `Ignoring N permissions.allow entries … this workspace has not been trusted` line, and
+   then a prompt for every call the file already allows. Trust is per-machine state in
+   `~/.claude.json`: open the tree in an interactive `claude` once and accept, or set
+   `projects["<absolute path to the tree>"].hasTrustDialogAccepted: true`. The loop does not need it —
+   `bypassPermissions` answers everything either way — so an untrusted tree costs an interactive session
+   and nothing else.
 
 CI installs `cargo-deny` and `cargo-geiger`; a development machine needs neither. `cargo-fuzz` is the WSL
 side's, above.
@@ -167,6 +176,7 @@ Once those are green, in this order:
 3. [docs/agent/handoff.md](agent/handoff.md) — where the work stands now, and the next group of slices with
    the file set they share. It is overwritten each session, so it is state rather than history.
 4. `python tools/loop.py` if the unattended loop is what runs next; its design is
-   [docs/agent/coordinator.md](agent/coordinator.md).
+   [docs/agent/coordinator.md](agent/coordinator.md). It is the one thing here that needs a `claude` on
+   `PATH` (§ *Every platform*), and the only step above will not have caught its absence.
 
 None of that is machine-specific, which is the point: the handover is the repository.
