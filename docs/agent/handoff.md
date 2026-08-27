@@ -5,10 +5,9 @@
 **The project is called Novis, and every path, crate and extension is `nvs`.**
 The ten crates are `crates/nvs-*`, cases are `.nvst`, sources are `.nvs`, the
 binary is `nvs`, the open tag is `<?nvs` and the env prefix is `NVS_`. In prose
-the name is **Novis**; `nvs` is the token spelling and the two never swap.
-`python tools/rename-project.py --audit` is the standing check, and its module
-docstring is the home for why the split exists. Out of scope on purpose and
-still to do by hand: the `origin` remote and the `<repo>` checkout directory.
+the name is **Novis**; `nvs` is the token spelling and the two never swap. Out
+of scope on purpose and still to do by hand: the `origin` remote and the
+`<repo>` checkout directory.
 
 **A tagged operand orders now, and `object` as a declared type is checked at
 both ends.** `<`/`<=`/`>`/`>=`/`<=>` over a `mixed`, a union or the `int|float`
