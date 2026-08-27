@@ -311,9 +311,16 @@ impl<'a> Lowering<'a> {
             ExprKind::Isset(operands) => {
                 self.lower_isset(operands, env, cur);
             }
+            // `empty($x);` — the same discarded `Ty::Bool`, and here for the
+            // same reason: `Self::lower_not` still evaluates the operand, so
+            // `empty($a[$i++]);` writes `$i` exactly where PHP writes it, and
+            // it already releases a fresh operand itself.
+            ExprKind::Empty(operand) => {
+                self.lower_not(operand, env, cur);
+            }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a plain `$x = expr;` reassignment, a \
-                 bare call/`new`, `print`, `isset`, or a discarded shape literal as an \
+                 bare call/`new`, `print`, `isset`, `empty`, or a discarded shape literal as an \
                  expression statement — got {other:?}; see the crate docs' known gaps"
             ),
         }

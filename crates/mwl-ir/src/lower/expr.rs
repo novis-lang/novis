@@ -292,10 +292,15 @@ impl<'a> Lowering<'a> {
             // ADR 0028 § 3's `isset($x)` is `$x != null`, and a list of them
             // is the conjunction — see `Self::lower_isset`.
             ExprKind::Isset(operands) => (self.lower_isset(operands, env, cur), Ty::Bool),
+            // `empty($x)` is `!$x` — ADR 0035 § 2's truthy table negated — so
+            // it *is* `Self::lower_not`, down to the release a fresh operand
+            // owes. `mwl_types::expr::presence` marks its subscripts guarded,
+            // which is what makes `empty($a["nope"])` answer `true`.
+            ExprKind::Empty(operand) => (self.lower_not(operand, env, cur), Ty::Bool),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
                  operators, `new`, a static or instance method call, property access, an array \
-                 literal, an array-element read, `instanceof`, `isset`, an enum case, an \
+                 literal, an array-element read, `instanceof`, `isset`, `empty`, an enum case, an \
                  increment, an assignment, `print` and an `as` conversion — got {other:?}; \
                  see the crate docs' known gaps"
             ),
@@ -1091,9 +1096,9 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics naming the case for anything outside this table, which today is
     /// `Ty::Void` alone — ADR 0007 already keeps `void`/`never` out of value
-    /// position, so no program reaches it. The `null` case (a nullable type)
-    /// has no IR representation to convert *from* at all, a `?T` being one
-    /// [`Ty::Tagged`] slot, so it cannot reach this method either.
+    /// position, so no program reaches it. [`Ty::Null`] *is* in the table and
+    /// is reachable only from the literal `null`: a `?T` is one
+    /// [`Ty::Tagged`] slot and takes that row instead.
     pub(super) fn truthy_convert(&mut self, v: ValueId, ty: Ty, cur: BlockId) -> ValueId {
         match ty {
             Ty::Bool => v,
@@ -1145,6 +1150,12 @@ impl<'a> Lowering<'a> {
             // and is still `true` here, where a plain `int` `0` goes through
             // `Helper::IntTruthy` and comes back `false`.
             Ty::Object | Ty::Enum(_) => self.emit(cur, Ty::Bool, InstKind::ConstBool(true)).0,
+            // ADR 0035 § 2's first row, reachable only from the *literal*
+            // `null` — a `?T` is one `Ty::Tagged` slot and goes through the
+            // arm below. `empty(null)`, `!null` and `if (null)` are the three
+            // spellings that get here, and nothing about the value needs
+            // reading to answer them.
+            Ty::Null => self.emit(cur, Ty::Bool, InstKind::ConstBool(false)).0,
             // ADR 0035 § 2's last row, and the one this table answers at run
             // time rather than at compile time: a `mixed`, a union or a `?T`
             // no test narrowed carries its row in its tag, so the dispatch
@@ -1162,9 +1173,9 @@ impl<'a> Lowering<'a> {
                 .0
             }
             other => panic!(
-                "mwl-ir's truthy-condition slice only converts a `bool`, a scalar, `Ty::Array`, \
-                 `Ty::Object` or a tagged value — got {other:?}; a `null` value has no IR \
-                 representation to convert from at all, see the crate docs' known gaps"
+                "mwl-ir's truthy-condition slice only converts a `bool`, a scalar, `null`, \
+                 `Ty::Array`, `Ty::Object` or a tagged value — got {other:?}; see the crate \
+                 docs' known gaps"
             ),
         }
     }

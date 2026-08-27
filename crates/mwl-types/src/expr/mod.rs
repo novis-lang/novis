@@ -456,7 +456,13 @@ pub(super) fn infer(
             }
             env.interner.bool_ty()
         }
-        ExprKind::Empty(_) => env.interner.bool_ty(),
+        // `empty($x)` is `!$x` — ADR 0035 § 2's table negated — over any
+        // expression at all, so it shares `isset`'s guarded-subscript rule and
+        // none of its shape check. `presence` owns both.
+        ExprKind::Empty(operand) => {
+            presence::check_empty_operand(operand, live, scope, ctx, env);
+            env.interner.bool_ty()
+        }
         ExprKind::Exit(opt) => {
             if let Some(e) = opt {
                 check_expr(e, None, live, scope, ctx, env);

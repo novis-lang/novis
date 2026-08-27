@@ -1,0 +1,56 @@
+--TEST--
+`empty($x)` is ADR 0035 § 2's truthy table negated, including the four rows PHP has no spelling for — `bytes`, `uint`, `decimal` and a shape literal — ADR 0035 §§ 2 and 4, ADR 0009 § 2
+--FILE--
+<?mwl
+final class Show {
+    public static function of(bool $b): string {
+        if ($b) { return "T"; }
+        return "F";
+    }
+}
+
+// ADR 0009: `bytes` never reads as a number, so it is falsy iff **empty** —
+// the one-octet `"0"` a `string` loses is truthy here. This is the row that
+// makes `bytes` a type of its own rather than a `string` with a flag.
+bytes $b0 = "" as bytes;
+bytes $b1 = "0" as bytes;
+echo "bytes ", Show::of(empty($b0)), Show::of(empty($b1)), "\n";
+
+uint $u0 = 0;
+uint $u1 = 1;
+echo "uint ", Show::of(empty($u0)), Show::of(empty($u1)), "\n";
+
+decimal $d0 = 0;
+decimal $d1 = 2;
+echo "dec ", Show::of(empty($d0)), Show::of(empty($d1)), "\n";
+
+// The table's last row: a `mixed` carries which row it takes in its own tag,
+// so `"0"` is falsy here for the same reason a statically typed `string` is.
+mixed $m0 = 0;
+mixed $m1 = "0";
+mixed $m2 = "x";
+echo "mixed ", Show::of(empty($m0)), Show::of(empty($m1)), Show::of(empty($m2)), "\n";
+
+// ADR 0036 § 2's anonymous object is an object, so ADR 0035 § 4 applies to it
+// unchanged: always truthy, nothing inspected at run time.
+echo "shape ", Show::of(empty({x: 1})), "\n";
+
+// A narrowed `?array<T>` reads through the guard, and an absent key under an
+// `empty` still answers rather than taking ADR 0007 § 7 row 11's throw.
+?array<string> $q = ["k" => "v"];
+if ($q != null) {
+    echo "narrow ", Show::of(empty($q)), Show::of(empty($q["k"])),
+         Show::of(empty($q["no"])), "\n";
+}
+
+bool $t = true;
+bool $f = false;
+echo "bool ", Show::of(empty($t)), Show::of(empty($f)), "\n";
+--EXPECT--
+bytes TF
+uint TF
+dec TF
+mixed TTF
+shape F
+narrow FFT
+bool FT
