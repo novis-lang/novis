@@ -656,6 +656,7 @@ mod tests {
             exprs: &mut exprs,
             diags: &mut diags,
             closure_seq: 0,
+            exit_targets: Vec::new(),
         };
         let id = lower_type(&probe_ty, &ctx, &mut env);
         (id, interner, diags)

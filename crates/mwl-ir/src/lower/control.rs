@@ -1191,27 +1191,39 @@ impl<'a> Lowering<'a> {
         );
         v
     }
-    /// `break;`/`break 1;` — jumps straight to the enclosing loop's exit
-    /// block, recording the current block and environment as one more
-    /// incoming edge [`Self::lower_while`] folds into its own after-block
-    /// merge once the body it's nested in finishes lowering. See
-    /// [`Self::loop_exit_level`] for what `level` is allowed to be.
+    /// `break;`/`break N;` — jumps straight to the exit block of the `N`-th
+    /// enclosing `break` target, recording the current block and environment
+    /// as one more incoming edge [`Self::lower_while`] folds into its own
+    /// after-block merge once the body it's nested in finishes lowering.
+    ///
+    /// `N` counts **every** enclosing target, a `switch` included, which is
+    /// PHP's own rule and the one thing `break` and `continue` disagree about
+    /// here — see [`Self::lower_continue`], which counts loops only because a
+    /// `switch` owns no back edge to jump to.
+    ///
+    /// Leaving more than one at once changes nothing about the shape of the
+    /// jump and everything about what it owes: the *outermost* frame being
+    /// left is the one whose [`LoopFrame::carried`] set decides which names
+    /// are body-local, so one [`Self::end_iteration_at`] against that frame
+    /// releases every intervening loop's iteration bindings and bookkeeping
+    /// references as well as its own. See [`Self::loop_exit_level`] for what
+    /// `level` is allowed to be.
     ///
     /// # Panics
     ///
-    /// Panics if [`Self::loop_stack`] is empty — `mwl_types` does not yet
-    /// reject a `break` outside any loop itself (see the crate docs' known
-    /// gaps), so this is the one place that still gets checked, defensively,
-    /// before building a jump with nothing to target.
+    /// Panics if the level names more targets than enclose it —
+    /// `mwl_types::locals` rejects that with `E0475` before lowering runs, so
+    /// reaching it here is an internal error rather than a program's.
     pub(super) fn lower_break(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &Env) {
-        self.loop_exit_level(level, "break");
-        let frame = self.loop_stack.last().unwrap_or_else(|| {
+        let level = self.loop_exit_level(level, "break");
+        let at = self.loop_stack.len().checked_sub(level).unwrap_or_else(|| {
             panic!(
-                "mwl-ir: `break` reached lowering with no enclosing loop on the loop stack \
-                 — mwl_types should have already rejected this; see the crate docs' known \
-                 gaps"
+                "mwl-ir: `break {level}` reached lowering inside {} enclosing break \
+                     target(s) — mwl_types rejects that with E0475 before this runs",
+                self.loop_stack.len()
             )
         });
+        let frame = &self.loop_stack[at];
         let after_block = frame.after_block;
         let try_depth = frame.try_depth;
         // A `break` leaves every protected region between it and its loop, so
@@ -1226,20 +1238,17 @@ impl<'a> Lowering<'a> {
         // back edge owes — see `LoopFrame::iteration_owned`. It additionally
         // hides the loop's own bookkeeping names from everything after the
         // loop, which the condition's own false edge never carries either.
-        self.end_iteration(*cur, &mut exit_env);
-        for name in &self
-            .loop_stack
-            .last()
-            .expect("just read the same stack above")
-            .loop_private
-        {
+        //
+        // Only the target frame's own bookkeeping is *hidden* rather than
+        // released: its after-block is where those references are dropped. An
+        // intervening loop's are not in the target's `carried` set, so the
+        // sweep above has already released them — which is exactly right,
+        // since this jump skips the after-block that would have.
+        self.end_iteration_at(*cur, &mut exit_env, at);
+        for name in &self.loop_stack[at].loop_private {
             exit_env.remove(name);
         }
-        self.loop_stack
-            .last_mut()
-            .expect("just read the same stack above")
-            .break_edges
-            .push((*cur, exit_env));
+        self.loop_stack[at].break_edges.push((*cur, exit_env));
         self.seal(*cur, Terminator::Jump(after_block));
     }
     /// Releases everything the innermost loop's *current iteration* owns and
@@ -1308,19 +1317,40 @@ impl<'a> Lowering<'a> {
     /// Panics if [`Self::loop_stack`] is empty — see [`Self::lower_break`]'s
     /// panic doc, the same defensive check applies here.
     pub(super) fn lower_continue(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &Env) {
-        self.loop_exit_level(level, "continue");
-        // The innermost frame that *is* a loop, not simply the innermost
-        // frame: an enclosing `switch` pushes one to own the `break` alone —
-        // see `LoopFrame::continue_target`.
-        let at = self
-            .loop_stack
+        let level = self.loop_exit_level(level, "continue");
+        // Counted PHP's way — every enclosing frame, a `switch` included — and
+        // then walked *outward* to the nearest frame that is a loop, not
+        // simply the `level`-th loop. The two steps are what make `continue N`
+        // mean in MWL exactly what it means in PHP:
+        //
+        // * `continue 2` inside a `switch` inside one loop is PHP's own
+        //   idiomatic spelling for "continue the loop", and counting loops
+        //   alone would make it name a second loop that is not there.
+        // * `continue 2` inside a `switch` inside two nested loops is PHP's
+        //   "continue the *inner* loop"; counting loops alone would silently
+        //   continue the outer one, which is the worst of the three
+        //   possibilities.
+        //
+        // The walk is where the one divergence lives, and it is not a new
+        // one: a level landing on a `switch` frame is PHP's "break the
+        // switch", and MWL already reads a bare `continue` there as
+        // continuing the enclosing loop instead — see
+        // `LoopFrame::continue_target` and `Self::lower_switch`. Level 1
+        // reduces to exactly that rule.
+        let counted = self.loop_stack.len().checked_sub(level).unwrap_or_else(|| {
+            panic!(
+                "mwl-ir: `continue {level}` reached lowering inside {} enclosing frame(s) — \
+                 mwl_types rejects that with E0475 before this runs",
+                self.loop_stack.len()
+            )
+        });
+        let at = self.loop_stack[..=counted]
             .iter()
             .rposition(|frame| frame.continue_target.is_some())
             .unwrap_or_else(|| {
                 panic!(
-                    "mwl-ir: `continue` reached lowering with no enclosing loop on the loop \
-                     stack — mwl_types should have already rejected this; see the crate docs' \
-                     known gaps"
+                    "mwl-ir: `continue {level}` reached lowering with no enclosing loop at or \
+                     outside its level — mwl_types rejects that with E0475 before this runs"
                 )
             });
         let frame = &self.loop_stack[at];
@@ -1343,38 +1373,42 @@ impl<'a> Lowering<'a> {
         self.loop_stack[at].continue_edges.push((*cur, back_env));
         self.seal(*cur, Terminator::Jump(header_block));
     }
-    /// Validates a `break`/`continue` statement's optional level operand —
-    /// PHP allows `break N;`/`continue N;` to unwind `N` nested loops at
-    /// once. Only `None` (defaults to level 1) or a literal `1` is accepted
-    /// today: a non-literal level has no compile-time meaning to resolve,
-    /// and `N > 1` would need every enclosing [`LoopFrame`] on
-    /// [`Self::loop_stack`] up to the `N`-th, not just the innermost one, to
-    /// become that statement's target — a real widening [`Self::lower_while`]
-    /// doesn't do yet, left for whenever a fixture actually nests loops this
-    /// deeply.
+    /// Reads a `break`/`continue` statement's optional level operand — PHP's
+    /// `break N;`/`continue N;`, which names the `N`-th enclosing target
+    /// rather than the innermost one. `None` is level 1.
+    ///
+    /// The operand is an integer literal or nothing: a level computed at run
+    /// time would have no target to resolve against at compile time, which is
+    /// why PHP stopped accepting one in 5.4 and why `mwl_types::locals`
+    /// refuses it with `E0475`. That checker also refuses a `0` and a level
+    /// naming more targets than enclose it, so everything reaching here is a
+    /// level the loop stack can satisfy.
     ///
     /// # Panics
     ///
-    /// Panics naming the gap for a non-literal level or one greater than 1.
-    pub(super) fn loop_exit_level(&self, level: &Option<Expr>, keyword: &str) {
+    /// Panics on anything `mwl_types::locals` should already have refused —
+    /// an internal error, not a program's.
+    pub(super) fn loop_exit_level(&self, level: &Option<Expr>, keyword: &str) -> usize {
         let Some(level_expr) = level else {
-            return;
+            return 1;
         };
         let ExprKind::Int(span) = &level_expr.kind else {
             panic!(
-                "mwl-ir does not yet lower a `{keyword}` with a non-literal level; see the \
-                 crate docs' known gaps"
+                "mwl-ir: a `{keyword}` level reached lowering as a non-literal — mwl_types \
+                 rejects that with E0475 before this runs"
             );
         };
         let (radix, digits) = int_literal_digits(self.src, *span);
         let n = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
             panic!("mwl-ir: `{keyword}` level literal `{digits}` doesn't fit a u64")
         });
+        let n = usize::try_from(n).unwrap_or(usize::MAX);
         assert!(
-            n == 1,
-            "mwl-ir does not yet lower `{keyword} {n}` — a multi-level {keyword}; see the crate \
-             docs' known gaps"
+            n >= 1,
+            "mwl-ir: `{keyword} 0` reached lowering — mwl_types rejects that with E0475 before \
+             this runs"
         );
+        n
     }
     /// Merges the environments reaching a join block into one, inserting a
     /// [`InstKind::Phi`] for any local whose value differs across incoming

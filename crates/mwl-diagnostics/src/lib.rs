@@ -759,6 +759,15 @@ pub mod code {
     /// here to lower. `mwl_types::expr::operators`' module doc is that
     /// decision's home.
     pub const E_INCREMENT_NOT_NUMERIC: Code = Code::new("E0474");
+    /// A `break`/`continue` whose level names no target it can jump to: a
+    /// level computed at run time, a `0`, or more enclosing loops than there
+    /// are — including the bare `break;` written outside every loop.
+    ///
+    /// PHP refuses all four at compile time too, and for the same reason:
+    /// `break N` resolves to a *statically known* enclosing statement, so a
+    /// level that names none has nothing to lower to.
+    /// `mwl_types::locals` is where the enclosing depth is counted.
+    pub const E_BREAK_LEVEL: Code = Code::new("E0475");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

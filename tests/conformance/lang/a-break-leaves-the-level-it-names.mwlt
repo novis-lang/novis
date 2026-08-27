@@ -1,0 +1,92 @@
+--TEST--
+`break N` and `continue N` leave the N-th enclosing loop or `switch`, counted PHP's way — ADR 0007 § 4's neighbours in the statement grammar, and `mwl_ir::lower::Lowering::lower_break`/`lower_continue`
+--FILE--
+<?mwl
+// A level names an enclosing statement by count, outermost last: level 1 is
+// the innermost, and every loop *and* every `switch` is one of them. Nothing
+// below is a rendering of what MWL chose — the whole file is byte-identical
+// to the same program under PHP, which is what `break 2` has to be.
+array<string> $outer = ["a", "b", "c"];
+array<string> $inner = ["x", "y", "z"];
+
+// `break 2` leaves both loops at once, so neither the inner loop's remaining
+// elements nor the outer loop's tail runs again.
+foreach ($outer as string $o) {
+    foreach ($inner as string $i) {
+        if ($i == "y") {
+            break 2;
+        }
+        echo $o, $i, "\n";
+    }
+    echo "outer-tail\n";
+}
+echo "after-break\n";
+
+// `continue 2` ends the inner loop and starts the *outer* one's next
+// iteration, so the outer tail is skipped every time while the outer loop
+// still runs to its end.
+foreach ($outer as string $p) {
+    foreach ($inner as string $q) {
+        if ($q == "y") {
+            continue 2;
+        }
+        echo $p, $q, "\n";
+    }
+    echo "inner-done\n";
+}
+echo "after-continue\n";
+
+// The row this exists for: a `switch` is a level, so `continue 2` written
+// inside one is PHP's own idiomatic spelling for "continue the enclosing
+// loop" — and it means exactly that here. `n=2` prints nothing and skips the
+// tail; every other iteration runs both.
+int $n = 0;
+while ($n < 3) {
+    $n = $n + 1;
+    switch ($n) {
+        case 2:
+            continue 2;
+        default:
+            echo "n=", $n, "\n";
+    }
+    echo "tail=", $n, "\n";
+}
+
+// A level is bounded below as well as above: `break 1` is the innermost
+// statement and means exactly what a bare `break` does.
+int $m = 0;
+while ($m < 9) {
+    $m = $m + 1;
+    if ($m == 2) {
+        break 1;
+    }
+}
+echo "m=", $m, "\n";
+
+// The releases a multi-level jump owes are the intervening loops', not just
+// its own: each iteration below binds two `string`s the jump abandons.
+array<string> $keys = ["k1", "k2"];
+foreach ($keys as string $k) {
+    foreach ($inner as string $v) {
+        string $joined = $k . "/" . $v;
+        if ($joined == "k1/y") {
+            break 2;
+        }
+        echo $joined, "\n";
+    }
+}
+echo "done\n";
+--EXPECT--
+ax
+after-break
+ax
+bx
+cx
+after-continue
+n=1
+tail=1
+n=3
+tail=3
+m=2
+k1/x
+done

@@ -415,6 +415,20 @@ thing inside a `switch` and another everywhere else, which the priority ordering
 to buy for a compatibility PHP itself discourages. `mwl_ir::lower::Lowering::lower_switch` implements it and
 `tests/differential/lang/a-switch-and-a-match-agree-with-php.mwlt` pins it against PHP's `continue 2`.
 
+**A written level counts the way PHP counts, and `continue` then walks outward.** `break N`/`continue N`
+name the `N`-th enclosing statement, and a `switch` is one of them for *both* keywords — that is PHP's rule,
+and departing from it would silently retarget `continue 2` inside a `switch` inside two nested loops from
+the inner loop to the outer one, which is the one outcome worse than a diagnostic. A level that lands on a
+`switch` frame then looks further out for a loop, which is the paragraph above generalized from the bare
+keyword to a written level: it makes `continue 2` inside a `switch` mean in MWL exactly what it means in
+PHP, and leaves the divergence exactly where it already was — a level naming a `switch` for `continue`
+continues the loop rather than breaking the `switch`. A level with nothing to name is
+`E0475` (`mwl_types::locals::check_exit_level`), never a panic: a non-literal level, a `0`, a level past the
+enclosing depth, and `continue` with no loop at or outside its frame. PHP refuses all four at compile time
+too. `mwl_ir::lower::Lowering::lower_break`/`lower_continue` lower the rest, and
+`tests/conformance/lang/a-break-leaves-the-level-it-names.mwlt` pins the whole file byte-for-byte against
+PHP's output.
+
 **Architecture assumptions are tested, not remembered.** Several decisions here rest on how Cranelift,
 `corosensei` and Wasmtime behave rather than on our own code, and a dependency bump can invalidate them
 silently. `benches/abi-probe/` checks them on every CI run, including the *premise* of

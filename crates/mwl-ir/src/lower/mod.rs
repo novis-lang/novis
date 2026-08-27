@@ -2741,6 +2741,75 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
+    /// ADR 0007 § 4's "either operand a `float`" row is settled *here*, by a
+    /// conversion emitted ahead of the operator, and not by `mwl-codegen`
+    /// repairing a `BinOp` whose two operands disagree — that crate's "a
+    /// `BinOp` has one representation" invariant stays intact, and its
+    /// mismatch refusal stays a genuine internal error.
+    ///
+    /// The conversion is the checked one `$n as float` writes
+    /// (`Helper::IntToFloat`/`UintToFloat`), so it carries ADR 0002's error
+    /// edge — ADR 0007 § 2 names this as the language's one implicit
+    /// conversion and says it throws above 2^53 rather than rounding.
+    ///
+    /// Read off the rendering rather than snapshotted: what is pinned is the
+    /// *order* of two instructions and which of them can throw, and a
+    /// snapshot would go red for an unrelated renumbering while saying
+    /// nothing about either.
+    #[test]
+    fn a_mixed_numeric_pair_converts_before_the_operator() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\nclass T {\n",
+            "  function widen(int $i, uint $u, float $f): float {\n",
+            "    float $a = $i + $f;\n",
+            "    float $b = $f * $u;\n",
+            "    return $a + $b;\n",
+            "  }\n}\n",
+        ));
+        let text = print_function(&f, map.file(file));
+        let at = |needle: &str| {
+            text.find(needle)
+                .unwrap_or_else(|| panic!("{needle} is not in the lowering: {text}"))
+        };
+        assert!(
+            at("int_to_float") < at("= add "),
+            "the `int` side widened after its operator: {text}"
+        );
+        assert!(
+            at("uint_to_float") < at("= mul "),
+            "the `uint` side widened after its operator: {text}"
+        );
+        for line in text.lines() {
+            if line.contains("int_to_float") {
+                assert!(
+                    line.contains(" ! bb"),
+                    "the implicit widening lost its error edge: {line}"
+                );
+            }
+        }
+    }
+
+    /// The other side of that bound: ADR 0007 § 4's *ordering* rows are
+    /// exact in the mathematical integers, so a mixed numeric pair under
+    /// `<` is answered by `Helper::NumericLt` and pays no conversion at
+    /// all — a widening there would raise `ArithmeticError` past 2^53 for
+    /// a pair that orders perfectly well.
+    #[test]
+    fn a_mixed_numeric_comparison_pays_no_widening() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\nclass T {\n",
+            "  function order(int $i, float $f): bool {\n",
+            "    return $i < $f;\n",
+            "  }\n}\n",
+        ));
+        let text = print_function(&f, map.file(file));
+        assert!(text.contains("numeric_lt"), "{text}");
+        assert!(
+            !text.contains("int_to_float"),
+            "an ordering row widened an operand that can throw: {text}"
+        );
+    }
+
     /// ADR 0007 § 4's six bitwise rows all reach an instruction, and only the
     /// two that PHP can refuse carry an error edge.
     ///
@@ -4497,43 +4566,62 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `break`/`continue` outside any loop at all reach lowering unrejected —
-    /// `mwl_types` does not yet check loop nesting at all (see the crate
-    /// docs' known gaps) — so `Lowering::loop_stack` being empty is the one
-    /// place this still gets caught, defensively, rather than lowering a
-    /// `Jump` to a block that was never created.
+    /// `break 2;` targets the *outer* loop's after-block, not the inner
+    /// one's — the whole point of a level, and the half a jump could get
+    /// wrong while still lowering to something well-formed.
+    ///
+    /// Read off the rendering rather than snapshotted: what is pinned is
+    /// which block the jump names, and a snapshot would go red for any
+    /// unrelated renumbering while saying nothing about that. `break;` in the
+    /// same position is lowered beside it, so the assertion is that the two
+    /// name **different** blocks rather than that either names a particular
+    /// one.
     #[test]
-    #[should_panic(expected = "no enclosing loop")]
-    fn break_outside_any_loop_panics_naming_the_gap() {
-        lower_first_method("<?mwl\nclass T {\n  function m(): void {\n    break;\n  }\n}\n");
-    }
-
-    /// Same as above, for `continue`.
-    #[test]
-    #[should_panic(expected = "no enclosing loop")]
-    fn continue_outside_any_loop_panics_naming_the_gap() {
-        lower_first_method("<?mwl\nclass T {\n  function m(): void {\n    continue;\n  }\n}\n");
-    }
-
-    /// `break 2;`/`continue 2;` — a multi-level break/continue — still
-    /// panics naming the gap: unwinding more than one enclosing loop would
-    /// need every `LoopFrame` up to the `N`-th on `Lowering::loop_stack` to
-    /// become the statement's target, not just the innermost one
-    /// `Lowering::loop_exit_level` reads today.
-    #[test]
-    #[should_panic(expected = "multi-level break")]
-    fn a_multi_level_break_still_panics_naming_the_gap() {
-        lower_first_method(
-            "<?mwl\nclass T {\n  function m(int $n): void {\n    while ($n > 0) {\n      while ($n > 0) {\n        break 2;\n      }\n    }\n  }\n}\n",
+    fn a_multi_level_break_leaves_the_loop_its_level_names() {
+        let nested = |keyword: &str| {
+            let (f, map, file) = lower_first_method(&format!(
+                "<?mwl\nclass T {{\n  function m(int $n): void {{\n    while ($n > 0) {{\n      \
+                 while ($n > 0) {{\n        {keyword};\n      }}\n      echo \"inner-done\";\n    \
+                 }}\n  }}\n}}\n",
+            ));
+            print_function(&f, map.file(file))
+        };
+        let one = nested("break");
+        let two = nested("break 2");
+        assert_ne!(
+            one, two,
+            "`break 2` lowered to the same jump a `break` does"
         );
     }
 
-    /// Same as above, for `continue`.
+    /// `continue 2` written inside a `switch` inside one loop is PHP's own
+    /// idiomatic spelling for "continue the enclosing loop", and it lowers to
+    /// exactly the back edge a bare `continue` there already takes — the
+    /// `switch` counts as a level and the walk outward finds the loop.
+    ///
+    /// `mwl_ir::lower::Lowering::lower_continue` is where both steps live and
+    /// why; `docs/adr/README.md`'s paragraph on `continue` inside a `switch`
+    /// is the decision's home.
     #[test]
-    #[should_panic(expected = "multi-level continue")]
-    fn a_multi_level_continue_still_panics_naming_the_gap() {
-        lower_first_method(
-            "<?mwl\nclass T {\n  function m(int $n): void {\n    while ($n > 0) {\n      continue 2;\n    }\n  }\n}\n",
+    fn a_continue_level_walks_out_of_a_switch_to_the_loop() {
+        let inside_switch = |keyword: &str| {
+            let (f, map, file) = lower_first_method(&format!(
+                "<?mwl\nclass T {{\n  function m(int $n): void {{\n    while ($n > 0) {{\n      \
+                 $n = $n - 1;\n      switch ($n) {{\n        case 1:\n          {keyword};\n      \
+                   default:\n          echo \"tick\";\n      }}\n    }}\n  }}\n}}\n",
+            ));
+            // Without the `; stmt @l:c-l:c` markers, which differ only
+            // because `continue 2` is two characters longer than `continue`.
+            print_function(&f, map.file(file))
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("; stmt"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        assert_eq!(
+            inside_switch("continue"),
+            inside_switch("continue 2"),
+            "`continue 2` inside a `switch` did not reach the loop a bare `continue` does"
         );
     }
 

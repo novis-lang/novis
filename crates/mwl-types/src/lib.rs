@@ -335,6 +335,18 @@ pub(crate) struct Env<'a> {
     /// because a closure nested inside another closure has no enclosing
     /// declaration of its own to be numbered within.
     pub closure_seq: u32,
+    /// One entry per enclosing `break` target the statement being checked
+    /// sits inside, outermost first: `true` for a loop, `false` for a
+    /// `switch`. PHP's `break N`/`continue N` count these frames, a `switch`
+    /// included, so a level is checked against the length — and `continue`
+    /// additionally needs a loop at or outside the frame it lands on, which
+    /// is why this is a stack of kinds and not a pair of counters.
+    ///
+    /// Maintained by [`crate::locals`] as it walks a body, and saved/emptied/
+    /// restored across an ADR 0031 closure literal's body, which no enclosing
+    /// loop reaches into: a `break` written in one has nothing outside the
+    /// closure to leave.
+    pub exit_targets: Vec<bool>,
 }
 
 pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {

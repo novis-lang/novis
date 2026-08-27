@@ -1,0 +1,59 @@
+--TEST--
+Every `break`/`continue` level with no statically-known target is `E0475`, never a panic — `mwl_types::locals::check_exit_level`, and PHP refuses all five at compile time too
+--FILE--
+<?mwl
+int $depth = 2;
+array<string> $rows = ["a"];
+foreach ($rows as string $r) {
+    // A level resolves to an enclosing statement at compile time, so it
+    // cannot be computed — PHP stopped accepting this in 5.4.
+    break $depth;
+    // Levels count from 1: the innermost enclosing statement.
+    break 0;
+    // One loop encloses this, so 3 names two statements that do not exist.
+    break 3;
+}
+switch ($depth) {
+    case 2:
+        // A `switch` is a level, but it has no back edge to continue: a
+        // level landing on one looks further out, and there is no loop.
+        continue 1;
+    default:
+        echo "x\n";
+}
+// The same rule with no level written at all — level 1 of nothing.
+break;
+--EXPECTF-ERROR--
+error[E0475]: a `break` level must be an integer literal
+  --> %s:7:11
+  |
+7 |     break $depth;
+  |           ^^^^^^ this is computed at run time
+  = help: `break N;` names the N-th enclosing loop or `switch` at compile time, so N has to be written out
+
+error[E0475]: `break 0` leaves nothing
+  --> %s:9:11
+  |
+9 |     break 0;
+  |           ^ the innermost enclosing statement is level 1
+
+error[E0475]: `break 3` names more levels than enclose it
+   --> %s:11:11
+   |
+11 |     break 3;
+   |           ^ 1 enclosing loop/`switch` here, so the highest level is 1
+
+error[E0475]: `continue 1` names no enclosing loop
+   --> %s:17:18
+   |
+17 |         continue 1;
+   |                  ^ every statement at or outside this level is a `switch`
+   = help: `continue` needs a loop to start the next iteration of; a `switch` has none, so a level landing on one looks further out and finds nothing here
+
+error[E0475]: `break` is not inside a loop or `switch`
+   --> %s:22:1
+   |
+22 | break;
+   | ^^^^^^ no enclosing loop or `switch` to leave
+
+error: aborting due to 5 errors

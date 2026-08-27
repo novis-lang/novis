@@ -491,6 +491,7 @@ pub fn build_signatures(
             exprs: &mut placeholder_exprs,
             diags: &mut *diags,
             closure_seq: 0,
+            exit_targets: Vec::new(),
         };
         collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);
     }

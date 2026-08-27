@@ -462,6 +462,132 @@ pub(crate) fn check_block(
     carried.restore(scope);
 }
 
+/// Enters a loop body — one more `break`/`continue` target, and a loop.
+///
+/// A `switch` pushes a `false` inline in its own arm: it is a `break` target
+/// without being a loop, and PHP's `break N`/`continue N` count it all the
+/// same, which is why [`Env::exit_targets`] is a stack of kinds rather than a
+/// count.
+fn enter_loop(env: &mut Env<'_>) {
+    env.exit_targets.push(true);
+}
+
+/// Leaves a loop body, undoing [`enter_loop`].
+fn leave_loop(env: &mut Env<'_>) {
+    env.exit_targets.pop();
+}
+
+/// Whether `continue N` has a loop to reach: the frame it lands on, or any
+/// frame outside that one — a level landing on a `switch` walks outward. See
+/// [`check_exit_level`] for why that walk is the same rule a bare `continue`
+/// inside a `switch` already follows.
+fn reaches_a_loop(targets: &[bool], n: usize) -> bool {
+    n <= targets.len() && targets[..=targets.len() - n].iter().any(|&is_loop| is_loop)
+}
+
+/// `break`/`continue`, with or without PHP's optional level operand.
+///
+/// The level names the `N`-th enclosing target *statically*, counting every
+/// loop and every `switch` exactly as PHP does, so everything this refuses is
+/// refused because there is no target to name and not because lowering is
+/// missing: a level computed at run time (which PHP stopped accepting in
+/// 5.4), a `0`, a level counting past the enclosing depth — which subsumes
+/// the bare `break;` written outside every loop — and, for `continue` alone,
+/// a level with no loop at or outside the frame it lands on. One code,
+/// [`code::E_BREAK_LEVEL`], for all of them.
+///
+/// That last rule is where `continue` differs, and it is not a second
+/// decision: a level landing on a `switch` walks outward to the enclosing
+/// loop, which is MWL's already-settled reading of a bare `continue` inside a
+/// `switch` (`mwl_ir::lower::Lowering::lower_switch`'s doc comment is its
+/// home) generalized to a written level. It makes `continue 2` inside a
+/// `switch` — PHP's own idiomatic spelling — mean in MWL what it means in
+/// PHP.
+fn check_exit_level(
+    level: Option<&Expr>,
+    stmt_span: Span,
+    keyword: &str,
+    live: &mut FxHashSet<String>,
+    scope: &mut LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let depth = env.exit_targets.len();
+    let Some(level) = level else {
+        let (ok, enclosing) = if keyword == "break" {
+            (depth >= 1, "loop or `switch`")
+        } else {
+            (reaches_a_loop(&env.exit_targets, 1), "loop")
+        };
+        if !ok {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_BREAK_LEVEL,
+                    format!("`{keyword}` is not inside a {enclosing}"),
+                )
+                .with_primary(stmt_span, format!("no enclosing {enclosing} to leave")),
+            );
+        }
+        return;
+    };
+    // Checked before the shape test so a level written as `$n` still records
+    // the read — the binding is a real one either way, and a second
+    // diagnostic about an unassigned local is more use than silence.
+    check_expr(level, None, live, scope, ctx, env);
+    let ExprKind::Int(span) = &level.kind else {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_BREAK_LEVEL,
+                format!("a `{keyword}` level must be an integer literal"),
+            )
+            .with_primary(level.span, "this is computed at run time")
+            .with_help(format!(
+                "`{keyword} N;` names the N-th enclosing loop or `switch` at compile time, so N \
+                 has to be written out"
+            )),
+        );
+        return;
+    };
+    let (radix, digits) = crate::expr::int_literal_digits(env.src, *span);
+    let n = usize::from_str_radix(&digits, radix).unwrap_or(usize::MAX);
+    if n == 0 {
+        env.diags.report(
+            Diagnostic::error(code::E_BREAK_LEVEL, format!("`{keyword} 0` leaves nothing"))
+                .with_primary(level.span, "the innermost enclosing statement is level 1"),
+        );
+        return;
+    }
+    if n > depth {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_BREAK_LEVEL,
+                format!("`{keyword} {n}` names more levels than enclose it"),
+            )
+            .with_primary(
+                level.span,
+                format!("{depth} enclosing loop/`switch` here, so the highest level is {depth}"),
+            ),
+        );
+        return;
+    }
+    if keyword == "continue" && !reaches_a_loop(&env.exit_targets, n) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_BREAK_LEVEL,
+                format!("`continue {n}` names no enclosing loop"),
+            )
+            .with_primary(
+                level.span,
+                "every statement at or outside this level is a `switch`",
+            )
+            .with_help(
+                "`continue` needs a loop to start the next iteration of; a `switch` has none, so \
+                 a level landing on one looks further out and finds nothing here",
+            ),
+        );
+    }
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "one match arm per AST statement variant, each a couple of lines"
@@ -517,14 +643,18 @@ pub(crate) fn check_stmt(
             // outside the loop, which `suspend` puts out of reach.
             let suspended = suspend(scope);
             let narrowed = narrow(cond, true, scope, env);
+            enter_loop(env);
             check_stmt(body, &mut body_live, scope, return_ty, ctx, env);
+            leave_loop(env);
             narrowed.restore(scope);
             suspended.resume(scope);
         }
         StmtKind::DoWhile { body, cond } => {
             // The body runs at least once, so its assignments carry forward.
             let suspended = suspend(scope);
+            enter_loop(env);
             check_stmt(body, live, scope, return_ty, ctx, env);
+            leave_loop(env);
             suspended.resume(scope);
             check_expr(cond, None, live, scope, ctx, env);
         }
@@ -543,7 +673,9 @@ pub(crate) fn check_stmt(
             }
             let mut body_live = live.clone();
             let suspended = suspend(scope);
+            enter_loop(env);
             check_stmt(body, &mut body_live, scope, return_ty, ctx, env);
+            leave_loop(env);
             for e in step {
                 check_expr(e, None, &mut body_live, scope, ctx, env);
             }
@@ -572,7 +704,9 @@ pub(crate) fn check_stmt(
             declare_binding(scope, &value_name, value_ty, value.name, false, env);
             body_live.insert(value_name);
             let suspended = suspend(scope);
+            enter_loop(env);
             check_stmt(body, &mut body_live, scope, return_ty, ctx, env);
+            leave_loop(env);
             suspended.resume(scope);
         }
         StmtKind::Switch { subject, cases } => {
@@ -593,6 +727,10 @@ pub(crate) fn check_stmt(
             // joins the other candidates too.
             let last_index = cases.len().saturating_sub(1);
             let mut candidates: Vec<FxHashSet<String>> = Vec::new();
+            // A `switch` is a `break` target without being a loop — PHP counts
+            // it as a level for both keywords, and `continue` then walks out
+            // of it to the loop (see `check_exit_level`).
+            env.exit_targets.push(false);
             for (i, case) in cases.iter().enumerate() {
                 let mut case_live = live.clone();
                 if let Some(c) = &case.cond {
@@ -612,6 +750,7 @@ pub(crate) fn check_stmt(
                     candidates.push(case_live);
                 }
             }
+            env.exit_targets.pop();
             if cases.iter().all(|c| c.cond.is_some()) {
                 candidates.push(live.clone());
             }
@@ -624,10 +763,12 @@ pub(crate) fn check_stmt(
             // No candidates at all: every case terminates, so nothing after
             // the switch is reachable — `live` stays as-is, unused.
         }
-        StmtKind::Break(Some(e)) | StmtKind::Continue(Some(e)) => {
-            check_expr(e, None, live, scope, ctx, env);
+        StmtKind::Break(level) => {
+            check_exit_level(level.as_ref(), stmt.span, "break", live, scope, ctx, env);
         }
-        StmtKind::Break(None) | StmtKind::Continue(None) => {}
+        StmtKind::Continue(level) => {
+            check_exit_level(level.as_ref(), stmt.span, "continue", live, scope, ctx, env);
+        }
         StmtKind::Try {
             body,
             catches,

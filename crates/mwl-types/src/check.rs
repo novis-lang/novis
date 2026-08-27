@@ -110,6 +110,7 @@ pub fn check_program(
             exprs: &mut *exprs,
             diags: &mut *diags,
             closure_seq,
+            exit_targets: Vec::new(),
         };
         let mut frame = ScriptFrame {
             scope: LocalScope::new(),

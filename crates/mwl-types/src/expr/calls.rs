@@ -592,6 +592,12 @@ pub(super) fn check_fn_literal(
         current_hook: ctx.current_hook,
         generator_elem: None,
     };
+    // A closure's body is its own function: an enclosing loop's `break`
+    // targets are not reachable from inside it, so the two counters
+    // `mwl_types::locals` keeps start again at zero and are put back
+    // afterwards. Without this, `foreach (...) { $f = fn (): void => {
+    // break; }; }` would count the outer loop as a target it could leave.
+    let outer_targets = std::mem::take(&mut env.exit_targets);
     let declared = f
         .return_type
         .as_ref()
@@ -630,6 +636,7 @@ pub(super) fn check_fn_literal(
             ret
         }
     };
+    env.exit_targets = outer_targets;
 
     let captures = inner
         .captures
