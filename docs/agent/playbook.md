@@ -545,6 +545,13 @@ is why" — is this file.
   `wsl.exe` ever sees it, so the leak check dies with *"No such file or directory"* naming a path no
   document mentions — which reads as a missing script rather than as the POSIX-path translation it is.
   Run it through the PowerShell tool, where the argument is passed through verbatim.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` mangles its own path under the Bash tool.** Git
+  Bash rewrites an absolute POSIX argument on the way out, so the command arrives as
+  `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory` — which reads
+  like a missing script rather than the MSYS path conversion it is. Run the identical line through the
+  **PowerShell** tool instead and it works unchanged; `MSYS_NO_PATHCONV=1` is the other way and is one
+  more thing to remember. The same rewrite applies to any `/mnt/...` or `/tmp/...` argument handed to
+  `wsl.exe` from Bash.
 
 ## Adding a `Core` member
 
@@ -666,8 +673,9 @@ is why" — is this file.
   inside the guard. What is still `E0482` is the **untested** one — `Core\Arr::first`/`last` over an
   `array<array<string>>` answers a `?array<string>` and indexing that answer *directly* has no test to
   narrow, so bind it (`?array<string> $row = Core\Arr::first($rows); if ($row != null) { … }`) rather
-  than reaching for the old workarounds. A `?array<T>` still resolves no element type as the **base of
-  a `??`** — `$a["k"]["j"] ?? "d"` throws at the inner level.
+  than reaching for the old workarounds. **Under a `??` even the untested one is fine**, and that is the
+  one exception: every level of a subscript chain below a `??` is guarded, so `$a["nope"]["j"] ?? "d"`
+  and `$m["k"] ?? "d"` over a plain `?array<string> $m = null;` both answer `"d"` with no test at all.
 - **Registering a `Core` member and writing its conformance case are one slice, not two.**
   `crates/mwl-stdlib/tests/conformance_coverage.rs` fails the moment a registry row has no `.mwlt` case
   calling it, so a plan that lands the rows in one session and the cases in another leaves the tree red
@@ -693,10 +701,13 @@ is why" — is this file.
   everything the compiler enforces.
 - **A row the checker accepts is not a row that runs.** `mwl-codegen` refuses a binary operator over two
   representations with *"does not lower a binary operator over mismatched representations"*. Equality is
-  out of that hole — `$n == $f` is `Helper::NumericEq` now — but `$n + $f` and `$n < $f` still type-check
-  and still fail there, so a conformance case written straight off an ADR's compiling rows can fail at run
-  time. Run the rows in a scratch `.agent-tmp/*.mwl` before writing the case; if one does not lower, pin it
-  in the crate's own `tests/` and say in the case comment why it is not here.
+  out of that hole, and so is ADR 0007 § 4's whole promotion table: `$n + $f`, `$n * $f`, `$n ** $f`,
+  `$n < $f`, `$n <=> $f` and `$u + $f` all run today, `mwl-ir` having widened the narrower operand before
+  the instruction is emitted. What still reaches that refusal is a pair no widening exists for — two
+  `string`s under `<` (the neighbouring bullet), an `Enum` under any operator. So a conformance case
+  written straight off an ADR's compiling rows can still fail at run time: run the rows in a scratch
+  `.agent-tmp/*.mwl` before writing the case, and if one does not lower, pin it in the crate's own
+  `tests/` and say in the case comment why it is not here.
 - **`"…" as bytes` is how a case writes a `bytes` it can read, and `Core\Encoding::fromHex("…")` is how
   it writes one it cannot.** There is no `bytes` literal at all (`00-overview` § 5), so those are the two
   spellings; `as bytes` is total and free and only reaches octets that are valid UTF-8, which is why an

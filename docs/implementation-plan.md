@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 579 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 581 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 162, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -221,12 +221,30 @@
 > however narrow the guard is and the narrowing ends with it. `E0482` is the *untested* nullable
 > array only now, and its help names the test rather than the two workarounds it used to; only a
 > **binding** narrows, so a nullable array straight out of a call still has to be bound to one
-> first. **Unbuilt in the library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s wider
-> codec-reachable set and its two default-bearing rows (`mwl_stdlib::json` gaps), ADR 0088's
-> qualifier classification (`mwl_stdlib::hash`'s module doc), and ADR 0086 § 1's substitution table
-> (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, and out of this goal's scope**
-> — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 § 3; their work is M6, M7, M8 and M10.
-> **M4S Part I is the floor, not the frontier**: conformance is at 579 of the goal's new 750 and
+> first. **An array literal now takes its element type from a `?array<T>` expectation**:
+> `check_array_literal` strips the expectation's `null` before it looks for the `Ty::Array`, so
+> `?array<string> $m = ["k" => "v"];` type-checks instead of being an `array<mixed>` at an `E0401` —
+> and so does a `return` of one and an argument of one, the three positions being one helper reading
+> one expectation. The element type reaches the elements with it, so an untyped numeric literal in
+> an `?array<uint>` becomes a `uint` by being placed. **`??` now guards every level of a subscript
+> chain under it**, not only its immediate operand: `$a["nope"]["j"] ?? "d"` threw where PHP yields
+> the default, because the inner read was never marked. Every `Index` level below a `??` is marked
+> now, a guarded level drops `null` from its base type before reading the element type off it —
+> which is what lets a guarded read's own guarded base resolve at all — and `mwl_array_optional_get`
+> answers `null` for a `null` array rather than the tag mismatch a well-typed program otherwise
+> cannot produce. `$m["k"] ?? "d"` over an untested `?array<string>` is PHP-identical too, that
+> being the one position where a nullable array needs no `!= null` test, and ADR 0007 § 7 row 11's
+> cell states the chain-wide rule. **Item 1 is behaviourally closed and its 11 sites are
+> catch-alls**: every row of ADR 0007 § 4's promotion table runs today — `$n + $f`, `$n * $f`, `$n
+> ** $f`, `$n < $f`, `$n <=> $f`, `$u + $f` — so `mwl-codegen`'s mismatched-representation refusal
+> is reachable only by a pair no widening exists for (two `string`s under `<`, an `Enum` under any
+> operator), and the playbook bullet that said otherwise is corrected. **Unbuilt in the library**,
+> none of it a registration gap: `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two
+> default-bearing rows (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification
+> (`mwl_stdlib::hash`'s module doc), and ADR 0086 § 1's substitution table (M8,
+> `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, and out of this goal's scope** —
+> ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 § 3; their work is M6, M7, M8 and M10. **M4S
+> Part I is the floor, not the frontier**: conformance is at 581 of the goal's new 750 and
 > differential at 162 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
 > depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
 > item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
