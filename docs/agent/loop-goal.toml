@@ -8,10 +8,14 @@
 # user. It does not restate this list, and this file does not restate its reasoning. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. A fixture may be corrected to a
-# spelling the docs already fix -- its author had to write every `Core` signature, every enum's namespace
-# and every options bag from the spec, and an error there is a bug in the fixture, not a decision. What may
-# never change is the expected output, or a fixture's reason for existing. Re-freeze, say why in the commit
-# message, move on. That is not licence to weaken a check to make it pass.
+# spelling the docs already fix -- its author had to write it without being able to compile it, and an
+# error there is a bug in the fixture, not a decision. What may never change is the expected output, or a
+# fixture's reason for existing. Re-freeze, say why in the commit message, move on. That is not licence to
+# weaken a check to make it pass.
+#
+# `cases = [...]` on an `mwl-suite` check names `.mwlt` files that must EXIST, run, and not be skipped --
+# the `.mwlt` twin of `cargo-named`. A suite that is green because a case was never written is the failure
+# it guards against; `min_passing` cannot see that, and neither can a SKIP line.
 
 # Every fixture the run touches. Missing one fails before anything is built, naming the file.
 files = [
@@ -22,6 +26,8 @@ files = [
   "examples/nullable.mwl", "examples/match.mwl",
   "examples/text.mwl", "examples/numbers.mwl", "examples/dates.mwl", "examples/json.mwl",
   "examples/collect.mwl",
+  # The four this goal adds. Each is one stage's item list written as one program.
+  "examples/operators.mwl", "examples/control.mwl", "examples/callable.mwl", "examples/targets.mwl",
 ]
 
 # What a session of this goal READS. `python tools/orient.py` slices exactly these out of the live
@@ -35,112 +41,114 @@ files = [
 # so in the handoff, and the next one that touches the goal adds the selector.
 [context]
 
-# Modules whose map line a session needs, as globs under crates/. The file set the handoff's
-# `## Next group` names, plus anything those files call into.
+# Modules whose map line a session needs, as globs under crates/.
+#
+# This goal's file set is NOT the previous one's. The work is lowering and checking rather than
+# `Core` members, so `mwl-stdlib`'s per-class modules came out whole and `mwl-ir`'s `lower/` came in
+# file by file -- `expr.rs`, `stmt.rs` and `control.rs` are three of the four groups' shared set, and
+# almost every item names one of them.
+#
+# `mwl-stdlib/src/registry.rs` stays: items 28 and 32 both ask it a question, and a Stage 8 `Core`
+# depth slice still starts there. Its 30 sibling modules do not -- put one back the session a group
+# needs it, and take it out again when that group lands.
 modules = [
-  # The work is `.mwlt` cases, so the file set is the two members' own implementations plus the
-  # table their signatures come from -- not the runtime and codegen files a Stage 0 slice needed.
-  # Everything dropped here was a module map printed unread every session: `mwl-runtime`'s
-  # `value`/`string`/`helpers`/`release`/`ctx`, `mwl-types`' `core_lib`/`ty`, `mwl-codegen`'s `ty`,
-  # `mwl-diagnostics`, and `encoding`/`math`/`hash`. Put one back the session a group needs it.
+  "crates/mwl-ir/src/lower/expr.rs",
+  "crates/mwl-ir/src/lower/stmt.rs",
+  "crates/mwl-ir/src/lower/control.rs",
+  "crates/mwl-ir/src/lower/mod.rs",
+  "crates/mwl-ir/src/ir.rs",
+  "crates/mwl-codegen/src/emit.rs",
+  "crates/mwl-types/src/expr/operators.rs",
+  # Named per-stage rather than always. `closure.rs`, `generator.rs`, `call.rs` and `exception.rs`
+  # are Stage 3's; `locals.rs` and `members.rs` are Stage 6's. They are here because four of the
+  # eight stages name one, and the alternative measured worse: a session that greps for
+  # `lower_try` pays the discovery bucket twice over what the map line costs.
+  "crates/mwl-ir/src/lower/call.rs",
+  "crates/mwl-ir/src/lower/closure.rs",
+  "crates/mwl-ir/src/lower/generator.rs",
+  "crates/mwl-ir/src/lower/exception.rs",
+  "crates/mwl-types/src/locals.rs",
   "crates/mwl-stdlib/src/registry.rs",
-  # These three follow the `--errors` worklist rather than the spec's section order, because that is
-  # what the group is chosen from now. `str.rs`, `encoding.rs`, `path.rs`, `time.rs` and `math.rs`
-  # came out when their last assertable site was asserted; put a module back the session a group
-  # needs it, and take one out the session its last assertable site is asserted.
-  "crates/mwl-stdlib/src/csv.rs",
-  "crates/mwl-stdlib/src/heap.rs",
-  "crates/mwl-stdlib/src/arr.rs",
-  "crates/mwl-stdlib/src/regex.rs",
-  # Stage 0 is closed, and the reason it added nothing here is worth keeping because it applies to
-  # any item list: a session takes ONE item, so the union of six items' file sets prints five unread
-  # module maps every session. Measured at +1,715 tokens for items 10-15, and items 18-22 sat in
-  # five different crates and shared no file at all. A selector belongs here when the *file set* a
-  # group shares is what the handoff names.
 ]
 
 # The decisions this goal's work sits inside, by ADR number. orient.py prints the one-sentence
 # bullet for each out of docs/adr/ground-rules.md -- the index, not the rule.
-rules = ["0090", "0094", "0069", "0047", "0007", "0035", "0010"]
+rules = ["0007", "0090", "0035", "0053", "0031", "0066", "0014", "0043", "0046", "0028", "0021"]
 
 # ADR sections sliced live into the pack. `NNNN` alone is the In short block; `NNNN §N` is that
 # numbered section. Name only the sections the items actually need -- a whole ADR is 7k of context.
+#
+# The four below are the ones EVERY session of this goal reads: the conversion and promotion tables
+# are the spine of Stages 0, 2 and 4, the truthy table is item 24's, and § 2's no-capture rule is
+# what makes items 17 and 19 refusals rather than features. A per-item section does NOT belong here
+# -- a session takes one item, so pre-printing all eight stages' ADRs prints seven unread sections
+# every session. Items 30-35 each name their own ADR in loop-goal.md; read it at that heading.
 adrs = [
-  "0009 §1",
-  "0009 §3",
-  "0051 §4",
-  "0007 §3",
-  # `Core\Out::capture` shipped and Stage 3 is green, so 0088 §§ 3 and 5 -- the two sections that
-  # member is specified by -- came out of this list. They were the per-item selector the block
-  # below warns against, kept one goal past the item that needed them.
-  # Stage 0's items deliberately added NOTHING here, and the rule behind that still holds: a session
-  # takes ONE item, so pre-printing every item's ADR prints five unread sections every session --
-  # measured at +9,154 tokens of pack for a session that reads one of them. A selector belongs here
-  # when *every* session of this goal needs it, which is why the four above are all foundational
-  # (the `string`/`bytes` pair, the dependency test, the type grammar) rather than per-item.
+  "0007 §2",
+  "0007 §4",
+  "0035 §4",
+  "0031 §2",
 ]
 
 # Headings of docs/agent/conventions.md naming shapes this goal will write.
 shapes = ["A diagnostic", "A `.mwlt` test case", "A commit message"]
 
 # Traps from docs/agent/playbook.md that apply to this file set. An entry is either a `##` heading
-# (the whole section) or ONE bullet, named by its bold lead-in after a `>`:
+# (the whole section) or ONE bullet, named by its bold lead-in after a `>`.
 #
-#   "Tooling"                  the whole section -- 11 KB, and growing every time a trap is added
-#   "Tooling > A whole ADR"    just that bullet -- 310 B
-#
-# This is the pack's largest section by a wide margin, and the only one that grows on its own: the
-# playbook is append-mostly by decision, so every trap a session writes down is charged to every
-# session after it. A goal that needs three traps should name three traps. `orient.py --audit`
-# prices whichever you pick.
-#
-# The four whole sections this used to name were 42,328 B -- 17k tokens of a 31k pack, over half of
-# it, for a session that reads perhaps three bullets. The list below is bullet-level and was
-# produced by `python tools/playbook.py --goal --min 3`: every bullet whose text names three or more
-# of this goal's own `modules` above. Re-run that after the file set changes; `--min 2` widens it,
+# Produced by `python tools/playbook.py --goal --min 3` against the `modules` list above, then the
+# process block by hand. Re-run that after the file set changes; `--min 2` widens it, and
 # `python tools/playbook.py --match <paths>` narrows it to one session's own next group.
 #
-# The second block is by hand and cannot be otherwise. Those traps are about how a session RUNS --
-# how it ends, how it reads, what a commit may not carry, what to do when this pack is short -- so
-# they name no crate and no file and rank zero against any file set. They apply to every session.
+# `Writing MWL itself` is the section that ranks for this goal where `Adding a Core member` ranked
+# for the last one -- these sessions write MWL source into fixtures and cases, and every trap in it
+# is a shape that parses and then does not run.
 playbook = [
-  # The traps of WRITING a case, 12 bullets. This block used to be the 19 that ranked against a
-  # `modules` list aimed at Stage 0, and seven of those were `Adding a `Core` member` -- the traps
-  # of *implementing* a member, which is not what this goal does any more. `never put` is the rule
-  # the whole group now sits on: an `--ORACLE--` section in `tests/conformance/` makes CI skip the
-  # whole case and subtract from the very count Stage 4 measures.
+  # The bullets that rank against `mwl-ir`, `mwl-codegen` and MWL source itself -- the top of
+  # `--goal --min 3`, minus the `Core`-member ones, which are the previous goal's work and not
+  # this one's. `Writing MWL itself` is NOT named whole here even though every session of this
+  # goal writes MWL: the section is 261 bullets' worth of file and the ranker says six of them
+  # carry this file set. That is the § 2 rule the last goal paid 42 KB to learn.
+  'Tooling > mwl-ir cannot',
+  'Tooling > teaching mwl-ir',
+  'Tooling > widening an',
+  'Tooling > a class synthesized',
+  'Tooling > cargo insta accept',
+  'Writing MWL itself > the first-class',
+  'Writing MWL itself > a closure held',
+  'Writing MWL itself > an option',
+  'Writing MWL itself > one compile',
+  'Writing MWL itself > an integer',
+  'Writing MWL itself > bool as',
+  'Divergences and refusals already pinned > the last site,',
+  'Divergences and refusals already pinned > compare folds',
+
+  # the traps of writing a case, kept from the previous goal: Stage 8's corpus is still `.mwlt`
+  # files and every one of these is a shape that compiles and then does not run.
   'Writing a test case > never put',
-  'Writing a test case > deepening a',
-  'Writing a test case > a case that',
+  'Writing a test case > a case that sweeps',
   'Writing a test case > a catch',
   "Writing a test case > a .mwlt case's",
   'Writing a test case > an array literal is',
-  "Writing a test case > a property's",
-  'Writing a test case > a named',
-  'Writing a test case > "…" as',
-  'Running things > target/release/mwl.exe is',
-  'Running things > verify.py executes',
-  'Tooling > a loop-goal.toml',
-
-  # The conformance-case traps, 12 bullets, 7,489 B. These arrived as a `python tools/playbook.py
-  # --gap` block when the work in flight was mwl-ir/mwl-codegen; they are kept deliberately now that
-  # it is not, because what follows Stage 0 is Stage 4's corpus -- conformance 436 of 600,
-  # differential 90 of 150 -- and every bullet below is a shape that compiles and then does not run.
-  # A session writing `.mwlt` cases pays for each of these exactly once if it has not read them.
   'Writing a test case > mwl-codegen has',
   'Writing a test case > a row',
   'Writing a test case > a case cannot',
-  'Writing a test case > a ?array<t>',
   'Writing a test case > a multi-file',
+  'Writing a test case > a spread',
+  'Writing a test case > a ?bool',
+  'Writing a test case > a ?array<t>',
+  'Writing a test case > float <,',
+  'Writing a test case > check a',
   "Writing a test case > emitbinop's ordering",
   'Writing a test case > the php',
   'Running things > a field',
-  'Running things > a scratch',
   'Running things > mwl run printing',
-  'Tooling > a class',
-  'Tooling > a python str.index',
+  'Running things > a scratch .mwl under',
+  'Running things > a leak whose',
+  'Running things > target/release/mwl.exe is',
+  'Running things > verify.py executes',
 
-  # the process traps, by hand, 9 bullets, 4,764 B
+  # the process traps, by hand
   'Tooling > the end',
   'Tooling > one call reads',
   'Tooling > a whole adr',
@@ -148,6 +156,7 @@ playbook = [
   'Tooling > plan.py --get',
   'Tooling > a commit',
   'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
   'Tooling > orient.py prints',
   'Tooling > another session',
   'Tooling > another agent',
@@ -156,16 +165,19 @@ playbook = [
 # Fields of the plan's status block worth printing. Default is these two.
 plan = ["Open now", "Blocking"]
 
-# Milestones out of docs/plan/, one file each. `"M4S"` is the whole thing, `"M4S:verify"` its
-# acceptance paragraph alone, `"M4S:lead"` its opening one. Empty on purpose: this goal's items name
-# their own scope, and M4S whole is 6k of context for a session that is checking one member against
-# the spec. Name `"M4S:verify"` here the session the goal starts asking "is this milestone done".
-milestones = []
+# Milestones out of docs/plan/, one file each. `"M4:verify"` is M4's acceptance paragraph alone --
+# named here, unlike the previous goal's empty list, because this goal IS a milestone's completion
+# and its every stage is measured against that paragraph. The whole of M4 is not: it is 4k of
+# context restating what loop-goal.md's item list already says per item.
+milestones = ["M4:verify"]
 
 [valgrind]
 # Every fixture again under `valgrind --leak-check=full`, once the program legs are green. A hand-written
 # refcount protocol is exactly where a leak hides. Cycles are out of scope by decision (loop-goal.md), so
 # only *definite* losses fail. These two exit non-zero by design, so they are skipped.
+#
+# Items 14 and 36 are both leak items, so this sweep is the check for neither: a leak on a path no
+# fixture takes is invisible to it. Each names its own `cargo-named` guard below.
 skip = ["examples/fatal.mwl", "examples/uncaught.mwl"]
 
 [wsl]
@@ -176,307 +188,71 @@ target_dir = "/tmp/mwl-target-wsl"
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0 -- CATCH-UP. Work that a later ADR reopened inside a milestone already reported done, plus the
-# milestone debt that never landed with it. `tools/loop.py` runs this stage BEFORE the program legs, so
-# an unfinished item here is what the ledger names -- see loop-goal.md's own Stage 0 section for the
-# ordered list, which milestone owns each item and what "done" is.
+# Stage 0 -- THE OPERATOR TABLE. `tools/loop.py` runs a `stage = "0..."` cargo check BEFORE the program
+# legs, which is what this stage is for: every fixture and every case in every stage below is written
+# against these rules, so one written while an item here is open is written AROUND it -- and a case that
+# spells `0.0 - 1.5` to dodge an int/float mix reads as deliberate and nobody re-checks it.
 #
 # Every test named below must EXIST and pass. Most do not exist yet; writing one is how the loop finishes
-# its item. Do not rename them to something already green.
+# its item. Do not rename one to something already green.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-syntax"
-args = ["test", "-p", "mwl-syntax"]
-tests = [
-  # ADR 0087 -- built; this keeps it from regressing.
-  "an_unterminated_bidi_control_is_rejected_in_every_source_span",
-  # ADR 0090 § 1 -- the lexer must stop producing `===`/`!==`.
-  "a_rejected_equality_spelling_is_a_compile_error",
-  # ADR 0061 -- the two file-scope `autoload` declaration forms.
-  "an_autoload_declaration_parses",
-  # ADR 0094 -- a member declaration with no visibility is E0122, the `(set)` form is written as a
-  # pair, a class-body `var` names the visibility rather than the local grammar, and a plain
-  # constructor parameter stays exempt (the one case this rule could wrongly break).
-  "a_member_without_visibility_is_a_compile_error",
-  "a_bare_set_visibility_is_a_compile_error",
-  "a_class_body_var_names_the_missing_visibility",
-  "a_plain_constructor_parameter_needs_no_visibility",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-hir"
-args = ["test", "-p", "mwl-hir"]
-tests = [
-  # ADR 0061 -- name-to-file resolution as a fixpoint over the require-graph worklist.
-  "an_autoload_declaration_resolves_a_name_to_its_file",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-types"
+stage = "0 operators"
+name = "mwl-types (the promotion table)"
 args = ["test", "-p", "mwl-types"]
 tests = [
-  # ADR 0090 § 2 -- two statically disjoint operands do not compile, and § 3's null test narrows
-  # through the one remaining spelling.
-  "a_disjoint_equality_does_not_compile",
-  "an_equality_null_test_narrows",
-  # ADR 0047 § 4 -- the literal and enum-case type atoms are checked, not refused by name.
-  "a_literal_type_atom_is_checked",
-  # M2's own two gaps, both PHP-observable divergences rather than decisions.
-  "a_private_member_is_refused_outside_its_class",
-  "a_stringable_parameter_can_call_to_string",
-  # ADR 0069 -- `array + array` does not compile, and neither does `+=` over two arrays.
-  "two_arrays_do_not_combine_with_plus",
+  # Item 1 -- ADR 0007 § 4: a mixed-representation arithmetic or ordering pair has a result type AND
+  # a stated widening, which is the half `arithmetic_result` records nothing for today.
+  "a_mixed_numeric_pair_widens_the_narrower_operand",
+  "a_mixed_numeric_comparison_widens_the_same_way",
+  # Item 2 -- `int / int` is `int|float`, widened to `float` where a binding declares one.
+  "an_integer_division_is_a_union_widened_at_its_binding",
 ]
 
 [[check]]
 kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-runtime"
-args = ["test", "-p", "mwl-runtime"]
-tests = [
-  # ADR 0090 § 3's three non-scalar rows, one helper each.
-  "equal_strings_compare_as_text_and_never_as_numbers",
-  "equal_arrays_compare_ordered_and_element_wise",
-  "equal_objects_compare_by_identity",
-  # ADR 0090 § 3's numeric row, and § 5's "applies *3*'s table" -- one answer
-  # however the row is reached, with the hash agreeing with it.
-  "the_four_numeric_representations_are_one_domain",
-  "an_integral_float_past_two_to_the_53_hashes_with_both_of_its_readings",
-]
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 0, items 10-15 -- the "now or never" set from the PHP-history review. Every one was settled
-# with the user, is argued in `loop-goal.md` § *Stage 0*, and is here rather than scheduled to a
-# milestone for one reason each: the emit site, the ABI or the member it changes is being written
-# right now, and the same change costs an order of magnitude more once it is. The numbers quoted in
-# that prose were measured on this tree, not estimated.
-# ---------------------------------------------------------------------------------------------------
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-runtime (overflow-checks)"
-args = ["test", "-p", "mwl-runtime"]
-tests = [
-  # Item 10 -- a release build checks integer overflow. Measured cost: inside run-to-run noise on
-  # `decimal` arithmetic, array append and string construction alike, so nothing is traded for it.
-  "the_release_profile_checks_integer_overflow",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-ir (secret equality)"
+stage = "0 operators"
+name = "mwl-ir (the operator rows)"
 args = ["test", "-p", "mwl-ir"]
 tests = [
-  # Item 11 -- ADR 0033 x ADR 0090: `==` over two `secret` operands lowers to the constant-time
-  # helper rather than the short-circuiting one, so a hand-written token comparison is not a timing
-  # oracle. The equality lowering landed in item 4; this rides it while it is fresh.
-  "a_secret_equality_lowers_to_the_constant_time_helper",
+  # Item 1 -- the widening is a conversion in `lower_binary`, not a backend repair.
+  "a_mixed_numeric_pair_converts_before_the_operator",
+  # Item 4 -- five binary rows and one unary one, and the compound forms they carry with them.
+  "every_bitwise_operator_lowers",
+  "a_bitwise_compound_assignment_lowers_through_its_binary_form",
+  # Item 5
+  "a_power_operator_lowers_over_every_numeric_row",
+  # Item 6
+  "a_spaceship_answers_minus_one_zero_or_one_for_a_scalar",
+  # Item 7 -- both positions, and the address computation split out of `lower_reassignment` so a
+  # re-evaluable target is read once.
+  "an_increment_lowers_in_either_position",
+  "a_compound_assignment_evaluates_its_target_once",
 ]
 
 [[check]]
 kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-types (a class is never a conversion target)"
-args = ["test", "-p", "mwl-types"]
-tests = [
-  # Item 12 -- ADR 0066 § 3's class row, absolute: EVERY class or interface target is E0473,
-  # `Core\Uri` and `Core\Uuid` included. An earlier revision of that ADR admitted those two as a
-  # `as ?T` "parse roster"; it is withdrawn, and the first test names them so the exception cannot
-  # grow back unnoticed. § 3a's `Core\Uri::tryParse` is the member that answers instead, and it
-  # answers `?T` rather than `T` -- which is the half a `try...` name alone could not promise.
-  "a_class_type_still_refuses_the_nullable_conversion",
-  "a_try_parse_answers_the_nullable_of_its_class",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-stdlib (uri)"
-args = ["test", "-p", "mwl-stdlib"]
-tests = [
-  # Item 12 -- with `tryParse` above, `Core\Uri::isValid` is the second spelling R17 forbids. Both
-  # `isValid` members existed and are deleted (an earlier comment here said `Uri`'s was not written
-  # yet; it was). The second test holds ADR 0066 3a's conditions on `tryParse` itself, and the
-  # third holds that R5's `try.../...OrNull/...Safe/...Ex` ban is otherwise total.
-  "core_uri_declares_no_is_valid_member",
-  "a_try_parse_is_its_own_class_parse_made_nullable",
-  "no_member_spells_a_banned_non_throwing_variant",
-  # Item 13 -- `$uri->compareTo($other)` normalizes per RFC 3986 § 6.2.2 and then compares
-  # components. NOT `==`, which ADR 0090 § 4 fixes as object identity for every class and which
-  # names `compareTo(...) == 0` as the spelling for content equality; this comment used to say
-  # `==` and was wrong about which operator carries the rule. `parse` still reports verbatim:
-  # that is `uri.rs`'s own rule and this does not change it, because the normalization happens
-  # at the comparison, not at the parse.
-  "two_uris_compare_by_normalized_components",
-  "a_parsed_uri_round_trips_through_its_own_text",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-codegen (stack limit)"
+stage = "0 operators"
+name = "mwl-codegen (the operator rows)"
 args = ["test", "-p", "mwl-codegen"]
 tests = [
-  # Item 14 -- the stack check rides the safepoint's existing emit site, which is why it is now:
-  # the plan states that retrofitting that site means rewriting the backend.
-  "a_function_entry_checks_the_stack_limit",
-  "a_leaf_function_under_the_slack_emits_no_stack_check",
-  "a_runaway_recursion_reports_a_limit_rather_than_faulting",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-runtime (packed arrays)"
-args = ["test", "-p", "mwl-runtime"]
-tests = [
-  # Item 15 -- a list-shaped array holds no index map and no key strings, an integer subscript
-  # reaches it without allocating one, and the first key that breaks the invariant degrades it to
-  # today's hash form with no observable difference.
-  "a_list_shaped_array_holds_no_index_map",
-  "an_integer_subscript_allocates_no_key",
-  "a_non_sequential_key_degrades_the_packed_array",
-  "both_representations_answer_every_primitive_alike",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-codegen (stack probes)"
-args = ["test", "-p", "mwl-codegen"]
-tests = [
-  # Item 16 -- Cranelift defaults stack probes off, so a frame over the 4 KiB guard page could step
-  # past it. Measured at no instruction-count change either way, so the flag is insurance bought for
-  # nothing. Not item 14 under another name: that counts depth, this catches one oversized frame.
-  "stack_probes_are_enabled",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-stdlib (allocation seam)"
-args = ["test", "-p", "mwl-stdlib"]
-tests = [
-  # Item 17 -- one allocation guard, in `mwl_runtime::affordable`, rather than four hand-written
-  # copies and three members with none. The test is the invariant, not the behaviour: it fails when
-  # someone writes copy number five.
-  "no_member_writes_its_own_allocation_guard",
-]
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 0, items 18-22 -- the bench review. Same "now or never" test as 10-15 and the same source of
-# authority: `loop-goal.md` § *Stage 0* argues each one, and `docs/perf/userland-gap.md` holds every
-# number and the attribution behind it. Nothing here is restated in either direction.
-#
-# THE ORDER OF THESE FIVE BLOCKS IS THE ORDER OF THE WORK, and it is not the order of payoff. The
-# allocator is first because every measurement taken before it -- including the `history.ndjson`
-# entry item 15 owed, which is append-only -- would be taken against the wrong baseline. That entry
-# exists now and was taken after the allocator landed, so the file's first line is on the right one.
-# ---------------------------------------------------------------------------------------------------
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "abi-probe (the allocator)"
-# `--release`, and the same invocation stage 5 uses so the two share one build rather than forcing a
-# second. A cost-class guard in a debug build measures the assertions and not the allocator, which is
-# the reason `tools/bench.py` refuses a `target/debug` binary by name. Word for word the same argv as
-# stage 5's `abi-probe`, `--test perf_guards` included -- the two are memoized onto one cargo run by
-# being identical, so a divergence here silently doubles the slowest check in the file.
-args = ["test", "--release", "-p", "mwl-abi-probe", "--test", "perf_guards"]
-tests = [
-  # Item 18 -- MWL's own allocator, not the platform heap. A round trip is 28.7 ns here today; the
-  # guard is a cost class rather than a number, the shape every other guard in this file uses.
-  "an_allocation_round_trip_stays_in_the_pooled_cost_class",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-codegen (packed subscript)"
-args = ["test", "-p", "mwl-codegen"]
-tests = [
-  # Item 19 -- item 15's other half. `mwl-runtime`'s own `an_integer_subscript_allocates_no_key`
-  # already holds the primitive; this holds the path COMPILED CODE takes to it, which is the half
-  # `lower_array_key` still renders a decimal for.
-  "an_integer_subscript_reaches_the_packed_form_from_compiled_code",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-runtime (string capacity)"
-args = ["test", "-p", "mwl-runtime"]
-tests = [
-  # Item 20 -- the three halves of one layout revision, each measured through
-  # `counting_alloc::allocated_bytes`, which is the shape `an_integer_subscript_allocates_no_key`
-  # established: a transient allocation has a zero LIVE delta and a non-zero TOTAL one.
-  #
-  # These are the names the tests landed under, and they are NOT the ones this list first
-  # predicted. Each was renamed here rather than in `string.rs` because the tree's name states the
-  # narrower, true claim: a uniquely owned string with no room left DOES reallocate, so
-  # "does_not_reallocate" would have named something the doubling never promises. Spare capacity,
-  # not unique ownership, is what makes an append free. See the handoff's own note.
-  "appending_into_spare_capacity_allocates_nothing",
-  "an_n_ary_concatenation_allocates_one_buffer",
-  "an_immortal_string_is_never_written_freed_or_allocated_for",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-codegen (immortal literals)"
-args = ["test", "-p", "mwl-codegen"]
-tests = [
-  # Item 20's codegen half -- `emit_const_str` used to call `mwl_str_new` on every EVALUATION, so a
-  # literal in a loop allocated once an iteration. It is an address in the unit's data section now.
-  # The name is the tree's: `mwl_runtime::counting_alloc` is that crate's own test build, so this
-  # crate cannot count bytes at all and asserts POINTER IDENTITY instead -- which is the stronger
-  # reading anyway, since two allocations cannot share an address.
-  "a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-stdlib (callback keys)"
-args = ["test", "-p", "mwl-stdlib"]
-tests = [
-  # Item 21 -- `map`/`filter`/`reduce`/`sort` render a decimal key per element and `call_closure`
-  # drops it again when the callback declares one parameter. The arity is readable once, before the
-  # loop. The second name covers `sort`'s own case: `preserveKeys = false` discards every key it built.
-  "a_one_parameter_callback_synthesizes_no_key",
-  "a_sort_that_renumbers_builds_no_keys",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "0 catch-up"
-name = "mwl-stdlib (one write per result)"
-args = ["test", "-p", "mwl-stdlib"]
-tests = [
-  # Item 22 -- `produced()` allocates a String and then copies it into an MwlStr, and `text()`
-  # re-validates UTF-8 that ADR 0009 already guarantees. Both are the pattern the NEXT member copies,
-  # which is the whole reason they are in this stage. Like item 17's, the second test is the
-  # invariant rather than the behaviour.
-  "a_str_member_allocates_its_result_once",
-  "no_member_revalidates_a_string_argument",
+  # Item 2 -- the union result picks its instruction at runtime.
+  "an_integer_division_emits_both_of_its_representations",
+  # Item 3 -- ADR 0007 § 4's overflow throw, at the three arithmetic sites, over `Inst::on_error`.
+  "an_integer_addition_traps_on_overflow",
+  "an_integer_subtraction_and_multiplication_trap_on_overflow",
+  # Item 8 -- `Enum(Int)` reaches the integral compare rows.
+  "two_enum_values_compare_as_their_backing_integer",
 ]
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 1 -- what the previous loop reached, unchanged. This is the non-regression floor: nothing below
-# may be traded for anything above it. `kind = "exact"` means: exit 0, and stdout line for line equal to
-# `want`. A fixture that prints an extra line has failed.
+# Stage 1 -- what the previous goal reached, unchanged. This is the non-regression floor: nothing below
+# may be traded for anything above it, and it runs FIRST among the program checks so that a red stage
+# above can never mask a regression inside it. `kind = "exact"` means: exit 0, and stdout line for line
+# equal to `want`. A fixture that prints an extra line has failed.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -584,17 +360,9 @@ args = ["--dump-asm"]
 stream = "stdout"
 min_bytes = 200
 
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 2 -- the keystone. `nullable.mwl` is the whole point of this loop: a `?T` property, a `?T` return,
-# a `?T` local, `??`, `?->` and ADR 0066's `as ?T`, plus the three `Core\Arr` members whose spec signature
-# returns one. `match.mwl` is the surface the corpus cannot be written without: `match`, `switch`, `for`
-# and compound assignment, none of which lowers today.
-# ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "exact"
-stage = "2 keystone"
+stage = "1 floor"
 file = "examples/nullable.mwl"
 want = [
   "host=example.test", "user=unset", "head=4 at=1", "empty=-1",
@@ -603,32 +371,25 @@ want = [
 
 [[check]]
 kind = "exact"
-stage = "2 keystone"
+stage = "1 floor"
 file = "examples/match.mwl"
 want = ["letters=ABCF", "passes=2", "sum=289", "tier=marginal"]
 
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 3 -- `Core` Part I is real, across all twelve sections. One fixture per domain, each reaching
-# members no unit test can prove reachable from MWL source. `report.mwl` keeps its frozen output while its
-# source is rewritten against the finished library -- M4S's own Verify line asks for exactly that.
-# ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "exact"
-stage = "3 Core Part I"
+stage = "1 floor"
 file = "examples/core.mwl"
 want = ["evens=5", "PEAR|APPLE|FIG|BANANA", "fig,pear,Apple,banana", "a+b+c", "007", "Mwl runs"]
 
 [[check]]
 kind = "exact"
-stage = "3 Core Part I"
+stage = "1 floor"
 file = "examples/report.mwl"
 want = ["the...3", "quick.1", "brown.1", "fox...2", "lazy..1", "dog...1", "distinct=6"]
 
 [[check]]
 kind = "exact"
-stage = "3 Core Part I"
+stage = "1 floor"
 file = "examples/text.mwl"
 want = [
   "tidy=[The Quick,  brown FOX]", "words=4", "slug=the-quick-brown-fox",
@@ -638,7 +399,7 @@ want = [
 
 [[check]]
 kind = "exact"
-stage = "3 Core Part I"
+stage = "1 floor"
 file = "examples/numbers.mwl"
 want = [
   "abs=7", "clamp=10", "gcd=12", "intDiv=3", "hex=beef", "back=48879",
@@ -648,7 +409,7 @@ want = [
 
 [[check]]
 kind = "exact"
-stage = "3 Core Part I"
+stage = "1 floor"
 file = "examples/dates.mwl"
 want = [
   "start=2024-02-28 23:30", "nextDay=2024-02-29", "nextMonth=2024-03-28",
@@ -658,7 +419,7 @@ want = [
 
 [[check]]
 kind = "exact"
-stage = "3 Core Part I"
+stage = "1 floor"
 file = "examples/json.mwl"
 want = [
   "{\"name\":\"ada\",\"age\":36,\"is_admin\":true}",
@@ -672,7 +433,7 @@ want = [
 
 [[check]]
 kind = "exact"
-stage = "3 Core Part I"
+stage = "1 floor"
 file = "examples/collect.mwl"
 want = [
   "set=2", "weight=3", "absent=-1",
@@ -683,77 +444,530 @@ want = [
   "email=valid", "captured=[inner]",
 ]
 
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 4 -- the two suites, plus the mechanical spec-coverage gates behind them. `mwl test <dir>` must
-# exit 0 AND print an "N passed, M failed" summary: a suite that silently collected nothing exits 0 too,
-# and that is the failure this guards against. These run once, not per leg.
-# ---------------------------------------------------------------------------------------------------
-
-[[check]]
-kind = "mwl-suite"
-stage = "4 suites"
-name = "conformance"
-args = ["test", "tests/conformance/"]
-min_passing = 600
-
-[[check]]
-kind = "mwl-suite"
-stage = "4 suites"
-name = "differential"
-args = ["test", "tests/differential/"]
-min_passing = 150
-
-# A named test must both EXIST and pass -- `cargo test` is green on a suite that never ran the guard.
-# The first of these already exists and keeps the *registered* half honest. The second does not exist yet,
-# and writing it is this loop's real definition of "Part I is complete": it reads the member rows out of
-# docs/spec/01-core-library.md's sections 1-12 and fails naming every one with no registry entry.
+# The previous goal's own guard tests, carried whole. These are the floor's other half: the program
+# fixtures above prove what a program prints, and these prove the rules underneath it -- ADR 0090's
+# equality rows, 0094's visibility, 0087's bidi, 0061's autoload, and every measured invariant items
+# 10-22 of that goal bought (the packed array, the stack limit, the string layout, the allocation seam).
+#
+# Split by crate rather than by topic because `tools/loop.py` memoizes an identical `args` list onto one
+# cargo run: naming a crate twice in this file costs nothing.
 [[check]]
 kind = "cargo-named"
-stage = "4 suites"
-name = "mwl-stdlib"
+stage = "1 floor"
+name = "mwl-syntax (carried)"
+args = ["test", "-p", "mwl-syntax"]
+tests = [
+  "an_unterminated_bidi_control_is_rejected_in_every_source_span",
+  "a_rejected_equality_spelling_is_a_compile_error",
+  "an_autoload_declaration_parses",
+  "a_member_without_visibility_is_a_compile_error",
+  "a_bare_set_visibility_is_a_compile_error",
+  "a_class_body_var_names_the_missing_visibility",
+  "a_plain_constructor_parameter_needs_no_visibility",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "mwl-hir (carried)"
+args = ["test", "-p", "mwl-hir"]
+tests = ["an_autoload_declaration_resolves_a_name_to_its_file"]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "mwl-types (carried)"
+args = ["test", "-p", "mwl-types"]
+tests = [
+  "a_disjoint_equality_does_not_compile",
+  "an_equality_null_test_narrows",
+  "a_literal_type_atom_is_checked",
+  "a_private_member_is_refused_outside_its_class",
+  "a_stringable_parameter_can_call_to_string",
+  "two_arrays_do_not_combine_with_plus",
+  "a_class_type_still_refuses_the_nullable_conversion",
+  "a_try_parse_answers_the_nullable_of_its_class",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "mwl-ir (carried)"
+args = ["test", "-p", "mwl-ir"]
+tests = ["a_secret_equality_lowers_to_the_constant_time_helper"]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "mwl-runtime (carried)"
+args = ["test", "-p", "mwl-runtime"]
+tests = [
+  "equal_strings_compare_as_text_and_never_as_numbers",
+  "equal_arrays_compare_ordered_and_element_wise",
+  "equal_objects_compare_by_identity",
+  "the_four_numeric_representations_are_one_domain",
+  "an_integral_float_past_two_to_the_53_hashes_with_both_of_its_readings",
+  "the_release_profile_checks_integer_overflow",
+  "a_list_shaped_array_holds_no_index_map",
+  "an_integer_subscript_allocates_no_key",
+  "a_non_sequential_key_degrades_the_packed_array",
+  "both_representations_answer_every_primitive_alike",
+  "appending_into_spare_capacity_allocates_nothing",
+  "an_n_ary_concatenation_allocates_one_buffer",
+  "an_immortal_string_is_never_written_freed_or_allocated_for",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "mwl-codegen (carried)"
+args = ["test", "-p", "mwl-codegen"]
+tests = [
+  "a_function_entry_checks_the_stack_limit",
+  "a_leaf_function_under_the_slack_emits_no_stack_check",
+  "a_runaway_recursion_reports_a_limit_rather_than_faulting",
+  "stack_probes_are_enabled",
+  "an_integer_subscript_reaches_the_packed_form_from_compiled_code",
+  "a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "mwl-stdlib (carried)"
+args = ["test", "-p", "mwl-stdlib"]
+tests = [
+  "core_uri_declares_no_is_valid_member",
+  "a_try_parse_is_its_own_class_parse_made_nullable",
+  "no_member_spells_a_banned_non_throwing_variant",
+  "two_uris_compare_by_normalized_components",
+  "a_parsed_uri_round_trips_through_its_own_text",
+  "no_member_writes_its_own_allocation_guard",
+  "a_one_parameter_callback_synthesizes_no_key",
+  "a_sort_that_renumbers_builds_no_keys",
+  "a_str_member_allocates_its_result_once",
+  "no_member_revalidates_a_string_argument",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- Stage 0's item list as one program. Separate from Stage 0 so the ledger tells "the unit
+# guards are green" apart from "the program runs".
+#
+# `mixed=2.5`: ADR 0007 § 4's promotion, item 1. `avg=3.5` and `whole=two`: integer division as a union,
+# item 2. `guarded=overflow`: item 3, over i64::MAX. `counted=5`: item 7, both positions. `bits=22` and
+# `not=-1`: item 4, five binary rows plus the unary one, four of them reached through their compound
+# spelling. `pow=1048576`: item 5. `cmp=-1,0,1`: item 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "2 operators"
+file = "examples/operators.mwl"
+want = [
+  "mixed=2.5", "avg=3.5", "whole=two", "guarded=overflow",
+  "counted=5", "bits=22", "not=-1", "pow=1048576", "cmp=-1,0,1",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- control flow and calls. Two fixtures, because the two halves share no file set: `control.mwl`
+# is `control.rs`/`exception.rs`/`generator.rs`, `callable.mwl` is `call.rs`/`closure.rs`/`mod.rs`.
+#
+# `control.mwl`: `digits` is item 9's `do`/`while`, `scan` item 10's `break 2`, `label` item 11's two-
+# representation ternary, the two `cleanup` lines item 12 (the second reached through a `catch` body that
+# throws), and `closed` before `taken=3` is item 13 -- the generator is abandoned by the `break` and runs
+# the `finally` it is suspended inside, where PHP runs it.
+#
+# `callable.mwl`: `direct` is item 15, `spread`/`named` item 16, `elements` item 17, `byref` item 18 (the
+# second read is in the SAME statement as the call, which is what the copy-back at the enclosing statement
+# gets wrong), `scaled` item 20.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "3 control and calls"
+file = "examples/control.mwl"
+want = [
+  "digits=01234", "scan=1235", "label=0",
+  "cleanup return", "handled=handled",
+  "cleanup rethrow", "rethrown=second",
+  "closed", "taken=3",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 control and calls"
+file = "examples/callable.mwl"
+want = [
+  "twice=10", "direct=13", "spread=10", "named=hi!hi!",
+  "elements=4", "byref=7 then 7", "scaled=60",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 control and calls"
+name = "mwl-ir (control flow)"
+args = ["test", "-p", "mwl-ir"]
+tests = [
+  "a_do_while_lowers_its_condition_below_its_body",
+  "a_multi_level_break_leaves_the_loop_it_names",
+  "a_two_representation_ternary_widens_to_one",
+  "a_finally_runs_when_its_catch_body_throws",
+  "an_abandoned_generator_resumes_to_unwind",
+  # Item 14 -- the two shapes the owned-temporaries stack still misses.
+  "an_inline_producer_releases_its_value_on_the_throw_path",
+  "a_transferred_argument_is_released_when_a_later_one_throws",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 control and calls"
+name = "mwl-ir (calls)"
+args = ["test", "-p", "mwl-ir"]
+tests = [
+  "a_closure_is_called_through_the_variable_holding_it",
+  "a_named_argument_lowers_to_its_declared_position",
+  "a_spread_argument_lowers_to_the_positions_it_fills",
+  "a_spread_array_element_lowers",
+  "a_reference_argument_lowers_in_any_expression_position",
+  "a_closure_capturing_a_reference_parameter_captures_its_value",
+  "a_foreach_by_reference_writes_through_to_its_array",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 control and calls"
+name = "mwl-types (calls and loops)"
+args = ["test", "-p", "mwl-types"]
+tests = [
+  # Item 16's half, which lands FIRST -- a lowering with no resolved per-argument type is how that
+  # gap got here in the first place (loop-goal.md § Standing decisions).
+  "a_named_argument_is_checked_against_the_parameter_it_names",
+  "a_spread_argument_is_checked_against_the_positions_it_fills",
+  # Item 10's diagnostic half: `mwl_types` does not check loop nesting at all today.
+  "a_break_past_its_nesting_is_a_compile_error",
+  # Item 17's other half, refused by decision rather than built (ADR 0031 § 2).
+  "a_reference_array_element_is_a_compile_error",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- assignment targets, `mixed`, and the rest of the conversion table.
+#
+# `hits=2,5` is item 21, `grid=93` item 22, `mixedSum`/`elem`/`flag` the three shapes of item 24 (arith-
+# metic on a tag, a subscript through one, and ADR 0035's truthy table over a `?bool`), `top=point` item
+# 25, `asInt`/`asString` and `converted=3` item 26's three rows.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "4 targets and mixed"
+file = "examples/targets.mwl"
+want = [
+  "hits=2,5", "grid=93", "mixedSum=5", "elem=2", "flag=no",
+  "top=point", "asInt=1 asString=1", "converted=3",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 targets and mixed"
+name = "mwl-ir (targets and tags)"
+args = ["test", "-p", "mwl-ir"]
+tests = [
+  "a_static_property_is_an_assignment_target",
+  "a_nested_element_write_separates_only_the_inner_array",
+  "a_tagged_operand_dispatches_on_its_tag_for_arithmetic",
+  "a_tagged_operand_answers_the_truthy_table",
+  "a_subscript_through_a_tagged_base_lowers",
+  "the_object_top_type_erases_to_the_pointer_a_class_does",
+  "a_bool_converts_to_an_int_and_to_a_string",
+  "an_array_conversion_walks_its_elements",
+  "a_tagged_operand_converts_to_bytes",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 targets and mixed"
+name = "mwl-types (targets and refusals)"
+args = ["test", "-p", "mwl-types"]
+tests = [
+  # Item 23 -- every ADR 0046 § 2 compile-time constant is a legal declared default, not just a
+  # literal and `[]`.
+  "a_property_default_accepts_every_compile_time_constant",
+  # Item 27 -- ADR 0066 § 3's two refusals, which reach lowering as panics today.
+  "a_nullable_conversion_that_cannot_fail_is_a_compile_error",
+  "a_nullable_conversion_that_does_not_exist_is_a_compile_error",
+  # Item 29 -- both write shapes that PHP itself refuses (loop-goal.md § Standing decisions).
+  "a_nullsafe_assignment_target_is_a_compile_error",
+  "an_element_write_through_a_hooked_property_is_a_compile_error",
+  # Item 28 -- a `Core` class stringifies where the spec gives it a `toString`, and is diagnosed at
+  # the `echo` where it does not. Never a panic below.
+  "a_core_class_stringifies_exactly_where_the_registry_says_so",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the M4 features with no slice at all. Each is proved by a `.mwlt` case rather than by an
+# examples fixture: they are corpus-visible behaviour, Stage 8 counts the corpus, and the case is the
+# artefact M4's own Verify paragraph asks for.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 declared features"
+name = "mwl-types (the declared features)"
+args = ["test", "-p", "mwl-types"]
+tests = [
+  # Item 30 -- ADR 0014 §§ 2-3. The interface is known to `mwl-syntax` and `mwl-hir` and to no other
+  # crate today: no checker rule, no lowering, no runtime.
+  "a_property_observer_is_resolved_and_its_signature_checked",
+  # Item 31 -- ADR 0043's delegation, the half that did not land with its syntax.
+  "a_by_delegation_supplies_every_member_of_the_interface_it_names",
+  # Item 32 -- ADR 0046 §§ 4-6.
+  "an_attribute_is_retrieved_by_its_own_type",
+  "an_ambiguous_attribute_retrieval_is_a_compile_error",
+  "an_explicit_call_site_type_argument_parses_and_checks",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 declared features"
+name = "mwl-ir (the declared features)"
+args = ["test", "-p", "mwl-ir"]
+tests = [
+  "a_property_observer_runs_after_the_hook_or_the_storage",
+  "a_delegated_call_reaches_the_object_it_names",
+  # Item 34
+  "inline_html_at_file_scope_lowers_to_an_echo",
+  # Item 35 -- one frame per file, called from the require site, and ADR 0021 § 3's value form.
+  "a_required_file_runs_its_own_top_level_statements",
+  "a_require_in_value_position_answers_the_files_result",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 declared features"
+name = "mwl-stdlib (dump)"
+args = ["test", "-p", "mwl-stdlib"]
+tests = [
+  # Item 33 -- ADR 0092's one record and its renderings, plus ADR 0033's redaction, which that ADR's
+  # own Verification section defers to M4 by name.
+  "a_dump_builds_one_diagnostic_record",
+  "a_dump_redacts_a_secret_qualified_property",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 declared features"
+name = "mwl-codegen (fatal locals)"
+args = ["test", "-p", "mwl-codegen"]
+tests = [
+  # Item 36 -- a THROWN releases the frame's locals and a FATAL does not. The valgrind sweep cannot
+  # see this: `examples/fatal.mwl` is on its skip list, because it exits non-zero by design.
+  "a_fatal_releases_the_frames_locals",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the checker and the front end. Nothing here is a panic below the checker; each is a program
+# the checker accepts and should not, or refuses without saying which rule.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 checker and parser"
+name = "mwl-types (narrowing and reachability)"
+args = ["test", "-p", "mwl-types"]
+tests = [
+  # Item 37 -- three of ADR 0007 § 6's four spellings, and the residue no longer restricted to a class.
+  "an_instanceof_narrows_its_operand",
+  "a_literal_comparison_narrows_its_operand",
+  "a_match_true_arm_narrows_its_subject",
+  # Item 38
+  "a_non_void_function_must_return_on_every_path",
+  "a_switch_and_a_try_contribute_to_definite_assignment",
+  # Item 39
+  "a_user_class_constant_has_a_type_at_an_expression_site",
+  "a_promoted_constructor_parameter_declares_its_property",
+  "an_implicit_constructor_is_held_to_zero_arguments",
+  "a_foreach_key_declared_past_string_is_a_compile_error",
+  # Item 40
+  "an_equality_between_incompatible_operands_is_a_compile_error",
+  # Item 41
+  "a_reference_declares_the_same_type_on_both_sides",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 checker and parser"
+name = "mwl-syntax (the last unparsed shapes)"
+args = ["test", "-p", "mwl-syntax"]
+tests = [
+  # Item 42 -- each of these parses or is refused by a diagnostic that names its rule. A generic
+  # parse error is not a refusal; loop-goal.md § What "no holes" means says why.
+  "a_grouped_use_parses_or_names_the_rule_that_refuses_it",
+  "a_goto_label_is_refused_by_the_diagnostic_that_refuses_goto",
+  "a_local_declared_with_a_bare_shape_type_parses",
+  "an_enum_case_named_with_a_keyword_parses",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- ADR 0079's `#[Test]`. Last, because it is the only stage that adds a surface rather than
+# closing a hole, and because every assertion in its roster is written against Stage 0's operator table.
+# `.mwlt` and `#[Test]` answer different questions and are never unified (that ADR § 23); `mwl-test` is
+# built and is not this item.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 testing"
+name = "mwl-types (the test table)"
+args = ["test", "-p", "mwl-types"]
+tests = [
+  "a_test_attribute_builds_a_table_of_its_cases",
+  "a_fixture_attribute_is_resolved_for_the_cases_that_name_it",
+  "a_test_with_attribute_expands_to_one_case_per_row",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "7 testing"
+name = "mwl-stdlib (the assertion roster)"
+args = ["test", "-p", "mwl-stdlib"]
+tests = [
+  "every_core_test_assertion_reports_through_the_one_ledger",
+  "a_failed_assertion_is_catchable",
+  "the_three_reporters_render_the_same_ledger",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the corpus and the guards. `mwl test <dir>` must exit 0 AND print an "N passed, M failed"
+# summary: a suite that silently collected nothing exits 0 too. These run once, not per leg.
+#
+# `cases` is the `.mwlt` twin of `cargo-named`: each file must exist, run, and not be skipped. Most do
+# not exist yet -- writing one is how an item above finishes.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "mwl-suite"
+stage = "8 corpus and guards"
+name = "conformance"
+args = ["test", "tests/conformance/"]
+min_passing = 750
+cases = [
+  # Stage 0
+  "tests/conformance/lang/every-arithmetic-row-promotes-the-narrower-operand.mwlt",
+  "tests/conformance/lang/an-integer-division-is-exact-only-where-it-divides.mwlt",
+  "tests/conformance/lang/an-integer-overflow-throws-rather-than-wrapping.mwlt",
+  "tests/conformance/lang/the-bitwise-operators-answer-over-every-row.mwlt",
+  "tests/conformance/lang/an-increment-answers-the-same-in-either-position.mwlt",
+  "tests/conformance/lang/a-spaceship-orders-every-scalar-the-relational-operators-do.mwlt",
+  # Stage 3
+  "tests/conformance/lang/a-do-while-runs-its-body-before-its-condition.mwlt",
+  "tests/conformance/lang/a-break-leaves-the-level-it-names.mwlt",
+  "tests/conformance/lang/a-ternarys-two-arms-widen-to-one-value.mwlt",
+  "tests/conformance/error/a-finally-runs-when-its-catch-body-throws.mwlt",
+  "tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.mwlt",
+  "tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.mwlt",
+  "tests/conformance/lang/a-named-argument-binds-by-name-and-a-spread-by-position.mwlt",
+  "tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.mwlt",
+  "tests/conformance/array/a-foreach-by-reference-writes-through-to-its-array.mwlt",
+  # Stage 4
+  "tests/conformance/array/a-nested-element-write-separates-only-the-inner-array.mwlt",
+  "tests/conformance/class/a-static-property-is-written-and-read-through-its-class.mwlt",
+  "tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.mwlt",
+  "tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.mwlt",
+  # Stage 5
+  "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.mwlt",
+  "tests/conformance/class/a-delegated-interface-forwards-to-the-object-it-names.mwlt",
+  "tests/conformance/lang/an-attribute-is-retrieved-by-its-own-type.mwlt",
+  "tests/conformance/lang/a-dump-renders-one-record-and-redacts-a-secret.mwlt",
+  "tests/conformance/lang/inline-html-at-file-scope-is-echoed-in-place.mwlt",
+  "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.mwlt",
+  # Stage 7
+  "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.mwlt",
+]
+
+[[check]]
+kind = "mwl-suite"
+stage = "8 corpus and guards"
+name = "differential"
+args = ["test", "tests/differential/"]
+min_passing = 165
+cases = [
+  # The rows PHP itself is the only authority on. Each is an item above whose answer is "whatever
+  # PHP prints", and each is worth a differential case rather than a frozen one for that reason.
+  "tests/differential/lang/an-integer-division-matches-phps.mwlt",
+  "tests/differential/lang/the-bitwise-operators-match-phps.mwlt",
+  "tests/differential/lang/a-mixed-numeric-promotion-matches-phps.mwlt",
+  "tests/differential/iter/an-abandoned-generators-finally-matches-phps.mwlt",
+  "tests/differential/lang/a-named-and-spread-argument-match-phps.mwlt",
+  "tests/differential/lang/a-reference-argument-matches-phps.mwlt",
+]
+
+# A named test must both EXIST and pass -- `cargo test` is green on a suite that never ran the guard.
+[[check]]
+kind = "cargo-named"
+stage = "8 corpus and guards"
+name = "mwl-stdlib (Part I)"
 args = ["test", "-p", "mwl-stdlib"]
 tests = [
   "every_part_one_member_has_a_conformance_case",
   "every_part_one_spec_member_is_registered",
 ]
 
+# The mechanical end gate. It reads `mwl-ir`'s and `mwl-codegen`'s own sources for refusal sites -- a
+# panic naming an unsupported shape -- and fails naming every one that is not on the allowlist frozen in
+# the test. THE ALLOWLIST MAY NEVER GROW: every entry is a bullet in loop-goal.md § Standing decisions,
+# and adding one to make a run go green is the single move this goal forbids outright. A count of
+# conformance cases is a proxy for "the language is finished"; this is not.
+[[check]]
+kind = "cargo-named"
+stage = "8 corpus and guards"
+name = "mwl-ir (no refusal left)"
+args = ["test", "-p", "mwl-ir"]
+tests = ["every_refusal_is_a_diagnostic_or_decided"]
+
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 5 -- the named guard tests.
+# Stage 9 -- the named guard tests, carried whole from the previous goal.
 # ---------------------------------------------------------------------------------------------------
 
 # `--test perf_guards` and not the whole package, which is a MEASUREMENT and not a narrowing. The
 # release profile is `lto = "thin"` with `codegen-units = 1`, so a one-line change to any crate this
 # reaches costs a thin-LTO relink of every binary the package holds -- measured on this tree, after
-# touching `mwl-runtime`: 200s for the package's five test binaries, 133s for this one. The other four
-# hold `tests/invariants.rs`, `tests/unwind_unavailable.rs` and the lib's own unit tests, none of which
-# is a cost guard and none of which the release profile changes the answer to; they are run below, in
-# debug, where they cost seconds. Nothing stopped running, and the cost classes are still measured
-# against the profile MWL ships. Every `#[test]` in `perf_guards.rs` carries
-# `#[cfg_attr(debug_assertions, ignore)]`, so the two halves partition the package exactly: this one
-# runs the guards and skips nothing, the debug one runs everything else and skips the guards.
+# touching `mwl-runtime`: 200s for the package's five test binaries, 133s for this one. Every `#[test]`
+# in `perf_guards.rs` carries `#[cfg_attr(debug_assertions, ignore)]`, so the two halves partition the
+# package exactly: this one runs the guards and skips nothing, the debug one runs everything else and
+# skips the guards.
 [[check]]
 kind = "cargo-named"
-stage = "5 guards"
+stage = "9 guards"
 name = "abi-probe"
 args = ["test", "--release", "-p", "mwl-abi-probe", "--test", "perf_guards"]
 tests = [
   "a_typed_arithmetic_loop_contains_no_call",
   "a_typed_arithmetic_loop_stays_in_the_native_cost_class",
   "a_refcount_one_array_member_mutates_in_place",
+  # Carried from the previous goal's Stage 0, into this block rather than beside it: the two used to
+  # share one cargo run only by having word-for-word identical `args`, and one list cannot diverge.
+  "an_allocation_round_trip_stays_in_the_pooled_cost_class",
+  # Item 30 lands `PropertyObserver`; this is the guard that says a class WITHOUT one still pays
+  # nothing for its existence, which is the whole shape of ADR 0014's decision.
   "a_class_without_a_property_observer_costs_nothing_extra",
   "a_grapheme_index_costs_more_than_a_code_point_index",
 ]
 
-# The other half of that split: the architecture invariants ADR 0003 rests on -- a result and a throw
-# travelling up through many JIT frames, a runtime panic contained and reported, a helper suspending
-# with JIT frames live above it, and native unwinding through those frames still being unavailable.
-# Correctness, not cost, so debug is the right profile and not merely the cheap one: `overflow-checks`
-# and `debug_assert!` are on, which is strictly more checking than the release run gave them.
+# The architecture invariants ADR 0003 rests on -- a result and a throw travelling up through many JIT
+# frames, a runtime panic contained and reported, a helper suspending with JIT frames live above it, and
+# native unwinding through those frames still being unavailable. Correctness, not cost, so debug is the
+# right profile and not merely the cheap one: `overflow-checks` and `debug_assert!` are on.
 [[check]]
 kind = "cargo-named"
-stage = "5 guards"
+stage = "9 guards"
 name = "abi-probe (invariants)"
 args = ["test", "-p", "mwl-abi-probe"]
 tests = [
@@ -765,14 +979,14 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 guards"
+stage = "9 guards"
 name = "mwl-codegen"
 args = ["test", "-p", "mwl-codegen"]
 tests = ["a_second_script_runs_after_a_contained_helper_panic"]
 
 [[check]]
 kind = "cargo-named"
-stage = "5 guards"
+stage = "9 guards"
 name = "mwl-runtime"
 args = ["test", "-p", "mwl-runtime"]
 tests = ["an_acyclic_object_graph_releases_every_allocation"]

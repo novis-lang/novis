@@ -1,398 +1,325 @@
 # Loop goal
 
-Finish **M4S Part I** — every member of `docs/spec/01-core-library.md` §§ 1–12 — and with it the part of
-**M4**'s language surface that Part I cannot be written without. Read those two milestone paragraphs in
-`docs/implementation-plan.md` for scope; do not re-derive them here.
+Finish **M4 — language completeness**: close every hole in the language surface, so that nothing a CLI
+program reaches for panics, silently miscompiles, or has to be spelled around. Read
+[docs/plan/m4.md](../plan/m4.md) for the milestone's own scope; this file does not restate it.
 
-The previous loop reached its acceptance list and stopped there. That list was a *threshold*, not a
-milestone: it left `Core` at 39 of ~205 spec member rows, with `Core\Str` and `Core\Arr` the only
-registered classes and §§ 3–12 not existing at all. This loop closes that.
+**M4B — the LSP and the VS Code extension — is deferred behind this goal, by decision.**
+[next-goal-m4b.md](next-goal-m4b.md) stays staged and unamended; it is the goal *after* this one. Writing
+completion, hover and diagnostics against a language whose `1 + 1.5` does not compile means writing them
+twice, and every `.lspt` case authored in the meantime is authored against a surface about to change.
 
-The keystone that used to stand under all of it — a representation for `?T` and for the `mixed` tag — is
-**built**: `mwl_ir::Ty::Tagged` is that representation, and the variadic and union-return shapes beside it
-are `registry::CoreTy::Variadic` and `CoreTy::Union`. Every `Core` signature the spec writes can now be
-stated. **What comes first now is Stage 0 below, not `Core` breadth.**
+The previous goal — M4S Part I, `Core` §§ 1–12 — is **not** discarded. It is 50 conformance cases from its
+own gate, both its named guards already pass, and it is carried here whole as Stage 1's floor plus Stage 8's
+suites. A session may still take a `Core` depth slice from `python tools/gaps.py`; it is simply no longer
+the frontier.
 
-## Stage 0 — catch up before anything else
+## What "no holes" means here, and why it is checkable
 
-**Eleven ADRs (0080–0090) landed after the milestones that own their work were reported done.** Two of
-them change a milestone's *built* behaviour rather than adding to a later one, and the debt beside them is
-what M1 and M2 never finished. **ADR 0094 joins the list from the other direction** — a decision taken
-while the loop is running, which reopens M1's declaration grammar rather than adding to a later milestone,
-so it is item 3 here instead of scheduled work somewhere ahead. **Items 10–17 arrive the same way**, from
-a review of what PHP's last three years of CVEs and performance work say about MWL: each was settled with
-the user, and each is here rather than scheduled to a milestone because the emit site, the ABI or the
-member it changes is being written *right now* — item 15 alone is the difference between `$a[] = $v`
-costing 9.4× what PHP's interpreter charges and roughly an eighth of it. **16 and 17 came from a second
-pass over the same ground and are already done**, both being small enough that queueing them would have
-cost more than doing them; they are listed so neither is re-opened and so the review's full output is in
-one place. **Items 18–22 arrive from a third pass, which measured the suite rather than reading php-src**
-— `python tools/bench.py` puts MWL's median at 0.31× against PHP 8.5.9 with its JIT on, and
-[docs/perf/userland-gap.md](../perf/userland-gap.md) is the ledger of what every case's number is made of,
-what one operation costs, and which item moves it. **Read that file before opening one of them; none of
-the five restates it.** Until this section is empty, **a session takes its group from here, in this
-order, and does not open a Stage 3 `Core` slice.** The reason is compounding cost, not tidiness: the
-spelling ADR 0090 deletes had reached 48 files and 93 lines before item 1 rewrote them, and every fixture
-written while an item here is open is written against a rule that is about to change.
+A hole is a shape that **compiles in the front end and then refuses below it** — `mwl-ir` panics naming
+itself, `mwl-codegen` refuses two representations, or the checker types an expression it has no lowering
+for. Each of the crate module docs' *Known gaps* lists is an inventory of them, and this goal's item list
+is that inventory ordered and grouped.
 
-The machine-checkable half is `loop-goal.toml`'s `stage = "0 catch-up"` block, which `tools/loop.py` runs
-**before** the program legs. Every test it names must exist and pass; most do not exist yet, and writing
-one is how an item finishes.
+A shape is **closed** when it either
 
-1. ~~**ADR 0090 § 1 — `===`/`!==` stop parsing** (M1).~~ **Done.** `E0232` names each spelling at the
-   lexer, which consumes the three characters and pushes the two-character token so one file still
-   reports every one of its own problems; `TokenKind::EqualsEqualsEquals`/`BangEqualsEquals` and
-   `BinaryOp::Identical`/`NotIdentical` are gone, and the whole corpus is rewritten.
-2. ~~**ADR 0090 § 2 — two statically disjoint operands do not compile** (M2).~~ **Done.** `E0466` over
-   the whole of that ADR's table, from `mwl_types::expr::operators`' `reject_disjoint_equality`, which
-   `==`/`!=`, a `switch` label and a `match` arm all reach (§ 6). The predicate is one-sided on purpose —
-   it refuses only where disjointness is provable from the two types alone — and that function's own doc
-   comment owns why.
-3. ~~**ADR 0094 — every member declaration writes a visibility** (M1).~~ **Done.** `E0122` from
-   `mwl_syntax::check_declarations` — the post-parse declaration walk that was `check_casing`, renamed
-   because it now answers two questions rather than one — over every property, class constant and method
-   in a `class`, `interface` or anonymous-class body, with a bare `(set)` naming the pair it is missing
-   (§ 3) and a class-body `var` redirected in the parser (§ 4). A plain constructor parameter stays exempt
-   and an `enum` body still reports only `E0220`. The corpus rewrite landed in the same slice; it was far
-   smaller than estimated, because a `mwl-types` or parser fixture never reaches that walk. It is the
-   *declaration* half of visibility; item 6 is the *access* half, and neither waits on the other.
-4. ~~**ADR 0090 §§ 2, 3 and 5 run**~~ (M3/M4; `mwl-ir`'s gap 19 owns the rest). **Done.** Every row of
-   § 3's table runs: a string pair calls `mwl_str_eq`, an array pair the new
-   `mwl_runtime::mwl_array_eq`, an object pair an inline pointer comparison, a `mixed` or union operand
-   § 5's `Helper::Identical` over `value_identical`, and § 2's numeric domain a `Helper::NumericEq` over
-   the new `mwl_runtime::numeric_identical` — settled in `mwl-ir`'s `lower_binary` beside the `decimal`
-   and `Tagged` arms, so `mwl-codegen` keeps its "a `BinOp` has one representation" invariant. The null
-   test moved with item 1, and the conformance rows dropped for the numeric domain are back. § 5's
-   numeric row closed last: `value_identical`'s four numeric representations delegate to
-   `numeric_identical`, so the row has one answer however it is reached, and `value_hash` canonicalizes a
-   numeric to the `f64` it coincides with so the set index agrees with the comparison. That decides
-   `Core\Arr` too — `contains([1.0], 1)` is `true` — under the strict-identity standing decision below,
-   and `mwl_runtime::identity`'s own module doc owns every row of it.
-5. ~~**ADR 0047 § 4 — the literal and enum-case type atoms are checked** (M2).~~ **Done.** All three
-   atoms intern (`Ty::StringLiteral`, `Ty::IntLiteral`, `Ty::EnumCase`), § 4's assignability widens each
-   to its base by one recursion, § 6 refuses a conversion the operand's own value disproves (`E0469`/
-   `E0470`), and § 5 costs nothing until a checked `as`: a union whose members share one representation
-   erases to it, and `lower_literal_membership` emits one comparison per member with the accepted set
-   named at the throw. ADR 0010 § 5 rides the same chain in both directions — an enum out to its backing
-   integer, and an integer back in, checked against every case of the declaration. What is left belongs
-   to **ADR 0007 § 2** rather than to either of them: a `mixed` operand converts to `string` and to
-   `decimal` and to nothing else, because `mixed as int` needs a helper that throws where
-   `Helper::ToIntOrNull` answers `null` (`mwl-ir` gap 20).
-6. ~~**`private`/`protected` are enforced** (M2).~~ **Done.** `E0471` from
-   `mwl_types::expr::members::check_member_visibility`, keyed on the accessing class
-   (`Ctx::current_class`) and never on the receiver's static type, so a second instance of the declaring
-   class is as reachable as `$this` and the identical line at file scope is not. A property reaches it
-   through `resolve_property_owned` (`$obj->n`, `Foo::$n`, and a write through the same span), a method
-   through `check_method_visibility`, which `$obj->m()`, `C::m()` and `new C(...)` all take — a `private`
-   constructor is the singleton idiom it was written to be. Where ADR 0043 § 3's private-interface-method
-   rule already fired, only that more specific diagnostic is reported. The one declaration still outside
-   it is a promoted constructor parameter, which no table records as a property.
-7. ~~**`Comparable`/`Stringable` carry their member signatures** (M2).~~ **Done.** `iter_lib` seeds all
-   four reserved interfaces with their members, `layout` seeds each a descriptor so `instanceof` answers,
-   `require_stringable` records the `toString()` ADR 0028 § 1's four implicit sites desugar to, and
-   `implements_interface` is reflexive so a value typed at the interface itself satisfies it.
-8. ~~**ADR 0061 — `autoload` parses and resolves** (M1 grammar, M2 fixpoint).~~ **Done.** Both file-scope
-   forms parse to `StmtKind::AutoloadDecl`, and `mwl_hir::requires::resolve_program` runs § 1's lookup as
-   a fixpoint over the require-graph worklist: one AST walk per file harvests its requires, its `autoload`
-   declarations and every name it uses where a class is meant — attributes included
-   (`requires::walk_attributes`), so a class named only by `#[Route(...)]` autoloads. `E0315`–`E0318` are
-   its four diagnostics, and ten `tests/conformance/lang/` cases pin the lookup, the shadowing rule,
-   ordered probing, the exact on-disk spelling, the silent skip and each diagnostic. § 1's
-   `mwl check --autoload-map` prints the resolved map, what a glob passed over and what was shadowed.
-   One thing is left, and it is the cache's rather than this ADR's: § 5's probe trace is produced and
-   dropped rather than folded into ADR 0042's key.
-9. ~~**ADR 0069 — `array + array` does not compile** (M4's *Verify* list).~~ **Done.** `E0467` from
-   `reject_array_combination`, naming `Core\Arr::underlay`; `+=` reaches it through `binary_result` and
-   reports once, because the recovery type is the array operand rather than `mixed`.
+1. runs, with a fixture or a `.mwlt` case pinning what it prints, **or**
+2. is refused by a **diagnostic that names the rule** — a numbered `E`-code and the ADR behind it.
 
-10. ~~**A release build checks integer overflow.**~~ **Done.** `overflow-checks = true` was already on
-    `[profile.release]`, with the measured basis and the reasoning in the manifest comment beside it; what
-    was missing was the thing that fails when the line is deleted, and that is now
-    `crates/mwl-runtime/tests/manifest_policy.rs` — the shape `mwl-codegen`'s `backend_policy` already
-    uses, reading the `[profile.release]` block with its comments stripped, because that block's own prose
-    names the setting several times while explaining it. Nothing else: the cast half is already enforced
-    by `[workspace.lints.clippy]` plus `verify.py`'s `-D warnings`.
-11. ~~**`secret == secret` lowers to the constant-time helper**
-    ([ADR 0033 § 5](../adr/0033-secret-qualifier-for-confidential-values.md) owns the rule and its cost).~~
-    **Done.** `mwl_ir::ir::Helper::SecretEq`, reached from `lower_binary`'s own arm and backed by
-    `mwl_runtime`'s `mwl_secret_eq` over `subtle::ConstantTimeEq`. Two things had to be settled first and
-    both are recorded where they belong: the qualifier does not survive `mwl_ir::ty::Ty` (ADR 0033 § 1
-    spends no representation on it), so the checker records
-    `mwl_types::expr_table::ExprInfo::SecretEquality` at the comparison and the lowering reads it back
-    rather than re-deriving it; and `erase_checked_ty` had no arm for any of the six qualified atoms, so
-    `secret string` did not lower at all — that was `mwl-ir` gap 11, and all six now erase to the
-    `string`/`bytes` they share an allocation with. What the arm declines is a `secret`-against-`mixed`
-    pair, which has no buffer to read and stays gap 11's remainder.
-12. **`Core\Uri::tryParse` and `Core\Uuid::tryParse` are the non-throwing parse, `isValid` is deleted from
-    both, and `as` targets no class at all**
-    ([ADR 0066 § 3a](../adr/0066-nullable-conversion-operator.md) owns the member and why `Duration` does
-    not get one; [ADR 0063](../adr/0063-core-api-conventions.md) R5 owns the name; `uri.rs`'s module doc
-    owns the call-site consequence). Both `isValid` members **were** written and are gone, against an
-    earlier note here saying `Uri::isValid` was not: `Core\Uuid::isValid` was exactly `parse` asked without
-    the throw, while `Core\Uri::isValid` asked one condition more — "is this an *absolute* URI" — which now
-    reads `Core\Uri::tryParse($s)?->scheme() != null`.
+The second is not a loophole. `goto` is refused by ADR 0008 § 5 and by-reference capture by ADR 0031 § 2;
+a language that refuses them with a diagnostic has no hole, while one that falls through to a generic parse
+error or a lowering panic does. **What may never close an item is a panic**, however well it names itself.
 
-    **This item landed twice.** The first version admitted a two-class *parse roster* where `$s as ?Uri`
-    and `$s as ?Uuid` compiled, lowering through `registry::PARSE_ROSTER` and
-    `ExprInfo::ParseRosterConversion`. ADR 0066 § 3 withdrew it — `as?` spells a downcast in every language
-    a reader arrives from, so spelling a *parse* that way inverted the syntax's one intuition for exactly
-    two memorized class names, and it never removed the second spelling it was justified by removing, since
-    `Core\Uri::parse` and `$s as ?Uri` both existed. R5's `try…` ban gained the one exception instead, and
-    every class target is now `E0473` with no roster to consult. Both symbols survive the reversal as
-    ordinary member rows; the roster machinery is deleted.
-13. **`Core\Uri` compares by normalized components, with two guards.**
-    `crates/mwl-stdlib/src/uri.rs`'s module doc owns the rule, why it does not contradict
-    that module's own "`parse` reports, it does not normalize", and the two guards it requires — a
-    `parse` → serialize → `parse` property and a differential corpus against the PHP 8.5 oracle. Add a
-    `fuzz/fuzz_targets` entry beside `lex.rs` and `parse.rs`.
-14. **A call-stack limit rides the safepoint's emit site**
-    ([ADR 0020 § 1](../adr/0020-error-escalation-ladder.md) owns the mechanism, the 8 MB ceiling, the two
-    tiers and the measured cost). File set: `crates/mwl-runtime/src/ctx.rs` for the `stack_limit` field
-    beside the safepoint word, `crates/mwl-codegen/src/emit.rs`'s `emit_safepoint` for the compare. It is
-    dated now because that emit site exists and lowers to nothing yet (`mwl-ir` gap 14), and the plan
-    states that retrofitting it means rewriting the backend. Expect a one-time step in `abi/frame_depth`,
-    a benchmark that does nothing but call; say so in the commit.
-15. ~~**A list-shaped array is packed.**~~ **Done**, both halves.
-    [`array.rs`](../../crates/mwl-runtime/src/array.rs)'s module doc owns the representation, the PHP
-    comparison that dates it, and why [ADR 0007 § 5](../adr/0007-explicit-type-system.md) is **unchanged**
-    by it — this is representation, not semantics. `docs/perf/history.ndjson` exists and holds its first
-    entry, `userland_08_array_list_build` at 217,254,092 instructions with a `php_ratio` of 0.93;
-    [ADR 0026](../adr/0026-performance-measurement-methodology.md) § 4 owns the schema, the recipe that
-    produced it, and what a repeat run does and does not reproduce.
-16. ~~**Cranelift's stack probes are on.**~~ **Done.** Cranelift defaults `enable_probestack` to
-    *false*, and off means a frame larger than the 4 KiB guard page can move the stack pointer past it
-    in one step — a stack clash, which is a memory-safety bug rather than the clean crash a guard page
-    exists to produce. `Jit::new`'s own comment owns the reasoning and the measurement: under callgrind
-    on this tree the retired-instruction count is unchanged to five significant figures with the flag on
-    (92,237,951 off vs 92,237,800 inline, call-heavy; 55,399,358 vs 55,399,652 at 200 frames deep),
-    because a probe is emitted only above 4 KiB and no MWL frame is that big *yet*. **It is not item 14
-    under another name** — that counts depth against a `Ctx` field, this catches one oversized frame
-    skipping the guard, and neither covers the other.
-17. ~~**One allocation guard, not one per member.**~~ **Done.** `mwl_runtime::affordable` is the single
-    place a count-shaped argument becomes a refusal, and its own doc comment owns why — including that
-    it is *not* a budget yet, and that [ADR 0004](../adr/0004-memory-for-simplicity.md)'s
-    `[limits.hard]` per-request ceiling attaches there when the M6 arena carries it. It replaced four
-    hand-written copies (`Core\Bytes`, `Core\Str::repeat`, both `Core\Random` draws) and, more to the
-    point, reached the three members that had **no** check at all: `Core\Arr::fill`/`padStart`/`padEnd`
-    through `append_copies`, and `Core\Str::padStart`/`padEnd` through `padding_run`. `Arr::fill($n, 0)`
-    was an unbounded run for any `uint` a caller chose — measured at 110 bytes and ~1.2 µs *per entry*,
-    so 100M entries is ~11 GB and about two minutes — and is now a catchable throw. The gate test is the
-    invariant rather than the behaviour: it fails when someone writes copy number five.
+The mechanical end gate is Stage 8's `every_refusal_is_a_diagnostic_or_decided`: it reads `mwl-ir`'s and
+`mwl-codegen`'s own sources for refusal sites and fails naming any that is not on the allowlist frozen in
+the test. **That allowlist may never grow.** Every entry on it is a decision in this file's
+§ *Standing decisions* with its ADR; adding an entry to make a run go green is the one move this goal
+forbids outright. `python tools/holes.py` prints the same inventory as a worklist, mapped to the items
+below, so that no session re-derives it.
 
-18. **MWL owns its allocator.** Every allocation goes to the platform heap — `mwl-runtime` registers a
-    `#[global_allocator]` only under `cfg(test)` — and one round trip costs 28.7 ns on the development
-    machine, against a bin allocator's small fraction of that. MWL also makes far more of them than PHP
-    does, which is items 20 to 22. **This is not a new decision and takes no ADR**:
-    [docs/plan/design.md](../plan/design.md) § *Per-request isolation* already settled that a request gets
-    an arena released wholesale at request end, and this is that decision landing early, in the half that
-    needs no `Ctx` — a thread-local size-class cache in front of `System`. The `[limits.hard]` ceiling
-    attaches to it at M6, where `mwl_runtime::affordable`'s own doc comment already says it does. Measured
-    on this tree with a throwaway build of exactly that cache: the suite's median goes **0.31× → 0.54×**
-    and nothing else changes. Say what it spends in `mwl-runtime`'s module doc, per
-    [ADR 0004](../adr/0004-memory-for-simplicity.md) § *Say what you spend*. One thing to get right:
-    `counting_alloc::Counting` must wrap the new allocator rather than `System`, or the leak guard
-    measures a path the release build does not take. **It is first because every number measured before
-    it is measured against the wrong baseline** — including the `docs/perf/history.ndjson` entry item 15
-    still owes, which is append-only and would record it permanently.
-19. ~~**An integer subscript reaches the packed form from compiled code**~~ — item 15's other half.
-    **Done.** `Lowering::lower_array_key` hands a `Ty::Int` subscript through as the `int` it already was
-    (`crates/mwl-ir/src/lower/expr.rs`'s own doc comment owns the rule, including why a `uint` still
-    renders), and `mwl-codegen`'s `an_integer_subscript_reaches_the_packed_form_from_compiled_code`
-    measures it from compiled code: the accesses in a loop cost the same number of allocations however
-    many times it goes round, while the rendered-key spelling beside it costs one per access.
-20. ~~**A string has capacity, and `.=` appends into it.**~~ **Done**, all three halves.
-    `StrHeader` carries a capacity beside its refcount and length and `mwl_str_append` writes into it;
-    `InstKind::Concat` is n-ary; and `emit_const_str` hands out the address of a header in the compiled
-    unit's data section. The fact that had to be **written down rather than re-derived** is in
-    `string.rs`'s own module doc, § *An immortal string, and why the `Cell` survives it*: an immortal
-    literal lives in the compiled unit — the one thing a request *does* share — so the plain `Cell`
-    refcount rests on the narrower claim that no refcount two threads can reach is ever *written*.
-    The measurements landed under names this file's acceptance list did not predict, and the list was
-    corrected rather than the tests: `appending_into_spare_capacity_allocates_nothing`,
-    `an_n_ary_concatenation_allocates_one_buffer`,
-    `an_immortal_string_is_never_written_freed_or_allocated_for`, and `mwl-codegen`'s
-    `a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation`. `loop-goal.toml`'s
-    comments say why each name is the truer one.
-21. ~~**No key is synthesized for a callback that does not want one.**~~ **Done.** `Core\Arr::map`,
-    `filter`, `reduce` and `sort` each read `mwl_runtime::closure_arity` once before their walk and build
-    `$key` only for a callback that declared somewhere to put it; `sort` skips collecting keys entirely
-    when it renumbers and its `by` wants none. `crates/mwl-stdlib/tests/allocation_policy.rs` measures
-    both halves. **One premise of this item was wrong and the test says so**: preserving keys is not what
-    cost anything on a list — `MwlArray::slot_key` answers a `SlotKey::Index` while the array is packed
-    and renders nothing, so the one place a sort *renders* a key is a two-parameter `by`.
-22. **A `Core\Str` member writes its result once.** Two mechanical patterns, and the reason they are here
-    rather than in the milestone is that every member §§ 1–12 still owes copies whichever one is in front
-    of it: `produced(&str)` allocates a `String` and then copies it into a fresh `MwlStr` (56 call sites
-    across `str`, `bytes`, `path`, `regex`, `uri`), and `text()` re-validates UTF-8 on every string
-    argument (56 in `str.rs` alone) — an O(n) pass over a string
-    [ADR 0009](../adr/0009-string-and-bytes.md) already guarantees valid, as that function's own error
-    message says. `Core\Str::length` adds two more passes on top; the grapheme unit makes one of them
-    unavoidable and does not make three.
+## Stage 0 — the operator table, before anything else
 
-**Already done, and listed so it is not re-opened:** ADR 0087's lexer half is built — `mwl_syntax::bidi` is
-the one predicate, the lexer makes it `E0008` over comments, string literals and inline HTML per line, and
-seven `.mwlt` cases pin it. Its two sink halves are M7's and M8's, not catch-up.
+**Every other stage's fixtures are written against these rules, so a case written before they land is
+written around them.** That is the same compounding-cost argument the previous goal's Stage 0 made and paid
+for at 48 files; here the shape is worse, because a case that spells `0.0 - 1.5` to avoid an `int`/`float`
+mix reads as deliberate and nobody re-checks it. **Until this stage is empty, a session takes its group
+from here.**
 
-**Not in this stage, deliberately:** ADR 0088's registry classification, 0086 § 6's command table and
-0085's OpenAPI emitter are all M4S work that lands with the milestone the loop is already inside; 0081–0084
-belong to milestones that have not started, as does 0093's `mwl service`. **0091 and 0092 join them, and
-neither carries catch-up debt**
-— unlike 0090 they invalidate no built behaviour and no written fixture, so there is nothing to rewrite
-before Stage 3 continues. What they *do* carry is scheduled work, in the milestone that owns each piece:
-0092's record model, plaintext rendering and `Core\Debug::dump` are M4; `[mode]`, `[log] format`/`level`
-and `[http.errors] detail` are M6; the HTML rendering and `[debug] inline` are M7; `Core\Log` and JSON
-Lines are M8; the compiler-diagnostic rendering is M10. The two documentation corrections they *did* owe —
-the spec's mis-attributed `Core\Debug` row, and two ADR examples writing a `string` log level — landed with
-the ADRs themselves.
+The items, grouped by the file set they share. `lower_binary` and `emit_binop` are the two ends of almost
+all of it — one group, several sessions.
 
-**The other half of the bench review is deliberately not here**, and
-[docs/perf/userland-gap.md](../perf/userland-gap.md) says why per item rather than this file: a cached
-hash on `StrHeader`, a virtual call resolved to a slot instead of a name search, and `Core\Arr::sort`
-without its permutation indirection are all real and none is about to be frozen by an ABI, so they run
-after Stage 3 rather than in front of it. `Core\Str::format`'s ten allocations a call ride
-[ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)'s pass over that member,
-which M4S already owes. And the statement probes that are most of a tight loop's instructions stay:
-removing them trades
-[ADR 0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s "a probe can be
-switched on for a request already running", which is a decision to fold into that ADR at M6 behind
-[ADR 0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s production mode,
-not a defect to fix now.
+1. **ADR 0007 § 4's promotion table runs.** `1 + 1.5` does not compile today: `mwl_types` gives `$n + $f`
+   a result type without converting either side, so both operands reach `mwl-codegen` in two
+   representations and are refused there. The widening *is* the semantics rather than an approximation of
+   it, so it belongs in `mwl-ir`'s existing conversion rows, not in the backend.
+   `crates/mwl-ir/src/lower/expr.rs:2270` (`lower_binary`), `crates/mwl-ir/src/lower/mod.rs:1552`
+   (`coerce`), `crates/mwl-types/src/expr/operators.rs:403` (`arithmetic_result`),
+   `crates/mwl-codegen/src/emit.rs:1008` (`emit_binop`). Same table decides `$n < $f`, which is the
+   ordering half of the row and is refused the same way. `mwl-ir` gap 19, `mwl-codegen` gap 9.
+2. **Integer `/` compiles.** ADR 0007 § 4 types `int / int` as `int|float` — PHP-exact, `6/3` an integer
+   and `7/2` not. `Ty::Tagged` is the representation and `clif_ty` already gives it a machine type; what is
+   missing is the operator picking at runtime, and `mwl_types` widening that union to `float` at a binding,
+   which is what makes `float $avg = $sum / $n;` the ADR's own worked example.
+   `crates/mwl-codegen/src/emit.rs:1008`, `crates/mwl-types/src/expr/operators.rs:96` (`binary_result`).
+   `mwl-codegen` gap 5.
+3. **Integer `+`/`-`/`*` throw `ArithmeticError` on overflow instead of wrapping.** ADR 0007 § 4 calls this
+   the divergence from PHP it is least willing to trade, and the mechanism exists: integer `%`'s zero
+   divisor already raises inline through `mwl_runtime::mwl_raise_new` and takes `mwl_ir::ir::Inst::on_error`'s
+   edge, which is the shape a checked `iadd` wants. Three emit sites, one error edge each.
+   `crates/mwl-codegen/src/emit.rs:1008`, `crates/mwl-ir/src/ir.rs:248` (`InstKind`). `mwl-codegen` gap 8.
+4. **The bitwise operators exist.** `&`, `|`, `^`, `<<`, `>>` have no `ir::BinOp` variant at all, and unary
+   `~` no `InstKind`; the grammar has had all six since M1 (`mwl_syntax::ast::BinaryOp`,
+   `UnaryOp::BitNot`). Adding the variants gives `&=`, `|=`, `^=`, `<<=`, `>>=` their compound forms for
+   free, because `lower_compound_assignment` rewrites `$x op= e` into the `$x = $x op e` it means.
+   `crates/mwl-ir/src/ir.rs:1470` (`BinOp`), `crates/mwl-ir/src/lower/expr.rs:2270`,
+   `crates/mwl-ir/src/lower/stmt.rs:331`. `mwl-ir` gap 16.
+5. **`**` and `**=` exist**, over every numeric row but the one ADR 0054 § 3 already refuses (a `decimal`
+   base, which `mwl_types` reports). Same three files as item 4.
+6. **`<=>` answers for a scalar.** It has no `decimal` row and no `int` one either — every scalar operand
+   reaches `lower_expr`'s panic, and only ADR 0013's *object* form lowers today. ADR 0013's own
+   `object_comparison_result` is the shape to match: `-1`/`0`/`1`, and the same three comparisons
+   `lower_decimal_binary` already rewrites into six. `crates/mwl-ir/src/lower/expr.rs:44`. `mwl-ir` gap 15.
+7. **`$x++` and `--$x` lower**, in both positions, and with them the compound forms that inherit the same
+   hole. Two things have to be split out of `lower_reassignment` first: the target's *address* computation,
+   so `f()->count += 1` evaluates `f()` once where the rewrite reads it twice, and the increment's `1`,
+   which has no source span to build an `ExprKind::Int` from and so cannot be desugared into an AST node
+   the way every other compound form is. `crates/mwl-ir/src/lower/stmt.rs:415` (`lower_reassignment`),
+   `:706` (`is_reevaluable_target`), `:331`. `mwl-ir` gap 16.
+8. **`==` over two enum values compiles.** `Enum(Int)` is not on `emit_binop`'s integral list, so the
+   comparison `mwl-ir` lowers is refused in the backend; the enum-to-backing reinterpretation
+   `lower_literal_membership` already does for a membership chain is the same move.
+   `crates/mwl-codegen/src/emit.rs:1008`. `mwl-codegen` gap 9's second shape.
+
+## Stage 1 — the floor
+
+The previous goal's entire acceptance list, unchanged: every Stage 1/2/3 fixture, both suites at their
+previous thresholds, and both Part I guards. **Never traded for anything above it.** A session that finds
+it has to change a floor fixture's expected output has found a bug in its own slice, not in the floor.
+
+## Stage 2 — the operator fixture
+
+`examples/operators.mwl`, which is Stage 0's item list as one program. It is listed separately so the
+ledger distinguishes "the unit guards are green" from "the program runs".
+
+## Stage 3 — control flow and calls
+
+9. **`do`/`while` lowers.** `lower_while` with the branch moved below the body, and nothing new to build.
+   `crates/mwl-ir/src/lower/control.rs:102`. `mwl-ir` gap 1.
+10. **`break 2` and `continue 2` lower**, and a level past the enclosing nesting is a diagnostic rather
+    than a panic — `mwl_types` does not check loop nesting at all today.
+    `crates/mwl-ir/src/lower/control.rs:1365` and `:1375`, `crates/mwl-ir/src/lower/mod.rs:4212`.
+11. **A ternary or a `match` whose arms lower to two representations widens to one.** Neither has a
+    recorded result type to widen its arms to, which is the one thing `ExprInfo::Coalesce` supplies for
+    `??`; closing it is that same recording in `mwl_types` plus `coerce` on each arm.
+    `crates/mwl-ir/src/lower/expr.rs:1616` (`lower_match`), `crates/mwl-ir/src/lower/mod.rs:1552`.
+    `mwl-ir` gap 5.
+12. **A `finally` runs when a `catch` clause's own body throws.** Every other exit from a protected region
+    already runs it, `return`/`break`/`continue` included. `crates/mwl-ir/src/lower/exception.rs:123`
+    (`lower_try`), which owns the whole policy. `mwl-ir` gap 2, `mwl-codegen` gap 0.
+13. **An abandoned generator runs the `finally` it is suspended inside.** Settled in
+    § *Standing decisions*: a resume-to-unwind entry point, not a destructor.
+    `crates/mwl-ir/src/lower/generator.rs:99`. `mwl-ir` gap 18.
+14. **Every value fresh on the throw path is released.** A landing block sweeps the frame's locals and its
+    owned-temporaries stack, but a producer that releases its fresh value inline — a normalized subscript
+    key, a `match` subject — is not on that stack and leaks; so does an argument being *transferred* when a
+    later one throws. `crates/mwl-ir/src/lower/mod.rs:1467` (`landing_block`), and `Lowering`'s own field
+    doc for the second shape. `mwl-ir` gap 2's tail.
+15. **`$f(...)` calls the closure the variable holds.** A closure literal lowers; the only caller today is
+    native `Core` code going through `mwl_runtime::mwl_closure_call`.
+    `crates/mwl-ir/src/lower/closure.rs:114`. `mwl-ir` gap 9.
+16. **A named argument and a spread argument type-check and lower.** `mwl_types` does not positionally
+    check either, so there is no resolved per-argument type to lower against — the checker's half lands
+    first. A variadic signature is already done (`lower_variadic_tail`).
+    `crates/mwl-ir/src/lower/call.rs:77`, `:219`. `mwl-ir` gap 8.
+17. **A `...spread` array-literal element lowers.** `crates/mwl-ir/src/lower/expr.rs:3339`. The `&value`
+    element is refused by decision instead — see § *Standing decisions*.
+18. **A `&$x` argument lowers in any expression position.** The copy-back is emitted at the enclosing
+    statement because that is the nearest scope holding an `&mut Env`, so such a call lowers only as a bare
+    expression statement or an assignment's right-hand side today. `crates/mwl-ir/src/lower/mod.rs:1090`
+    (`pending_refs`). `mwl-ir` gap 10.
+19. **A closure or generator may be written where a `&$x` parameter is in scope.** ADR 0031 § 2 gives the
+    language no by-reference *capture*, so what closes here is capturing such a parameter's **value** —
+    today the whole shape panics. `crates/mwl-ir/src/lower/closure.rs:160`,
+    `crates/mwl-ir/src/lower/generator.rs:155` and `:470`.
+20. **`foreach (… as &$v)` lowers.** `crates/mwl-ir/src/lower/control.rs:712`.
+
+## Stage 4 — assignment targets, `mixed`, and the conversion table
+
+21. **`C::$p = v` writes a static property**, and a declared default reaches one. A static property reads
+    today; `Lowering`'s assignment arm has no target for one, and the per-class instance image
+    `MwlObj::new` writes skips a static slot entirely. `crates/mwl-ir/src/lower/stmt.rs:415`.
+    `mwl-ir` gap 6.
+22. **A nested `$grid[0][1] = v` writes back.** The separated inner array has to be written into the outer
+    one, and only a local or a known property is a place `mwl-ir` can write back to today; reading
+    `$grid[0][1]` already works. `crates/mwl-ir/src/lower/mod.rs:1713`. `mwl-ir` gap 6.
+23. **A property's declared default accepts more than a literal.** `= null`, an enum case, a `decimal`, a
+    non-empty array literal and a `Class::CONST` are all `E0472` today. Widen the accepted set to every
+    compile-time constant ADR 0046 § 2 already defines one as.
+    `crates/mwl-diagnostics/src/lib.rs:738` (`E_PROPERTY_DEFAULT_NOT_LITERAL`).
+24. **Arithmetic on a tagged operand runs.** A `Ty::Tagged` value can be built, carried and narrowed but
+    not dispatched on: arithmetic on a `mixed`, ADR 0035's truthy table (which is `?bool` tested for
+    truth), and an array access through a tagged base each panic naming themselves. Each closes as an
+    `ir::Helper` variant dispatching on the tag — `mwl_runtime::value_truthy` is already the answer for the
+    second — and never as a second representation. `crates/mwl-ir/src/ir.rs:1180` (`Helper`).
+    `mwl-ir` gap 3.
+25. **`object` as a declared type has a representation arm.** `erase_checked_ty` maps a *named* class to
+    `Ty::Object`, and the checker's own ADR 0007 § 3 `object` top reaches no arm at all, so
+    `object $o = $obj;` panics. The representation is not in question — it is the same pointer — and the
+    arm is one line; what a session owes is the check that nothing below reads a class *label* off an
+    operand it would now receive without one. `crates/mwl-ir/src/lower/mod.rs:2206`. `mwl-ir` gap 21.
+26. **`bool as int` and `bool as string` run**, with ADR 0007 § 2's remaining non-scalar rows beside them:
+    `array<T> as array<U>`'s element walk — the one row in that table that is not a single helper call —
+    and a `Ty::Tagged` operand converted to `bytes`, the one target with no runtime-tag row.
+    `crates/mwl-ir/src/lower/expr.rs:661` (`convert`). `mwl-ir` gap 20.
+27. **ADR 0066 § 3's two refusals are diagnostics.** `as ?T` where the conversion cannot fail
+    (`$i as ?string`) or does not exist at all (`$arr as ?int`) is a **compile error** by that ADR;
+    `mwl_types` refuses neither, so both reach lowering and panic naming the ADR.
+    `crates/mwl-ir/src/lower/expr.rs:918` (`convert_or_null`) is where they arrive; the fix is in
+    `mwl_types`. `mwl-ir` gap 4.
+28. **`echo $someCoreObject` answers or is diagnosed.** A `Core`-owned class is exempt from
+    `require_stringable`, records no `to_string_call` target, and reaches `mwl-ir`'s gap 12 as a panic.
+    Closing it means saying which `Core` classes ADR 0028 § 1 makes stringifiable, which is
+    `mwl_stdlib::registry`'s answer to give. `crates/mwl-types/src/expr/operators.rs:895`.
+29. **A nullsafe assignment target is a diagnostic.** `$a?->b = v` panics; PHP refuses it outright and
+    `mwl_types` does not diagnose it. Same for an array-element write through a hooked property — see
+    § *Standing decisions* for both. `crates/mwl-ir/src/lower/mod.rs:1702`.
+
+## Stage 5 — the declared M4 features with no slice at all
+
+30. **`PropertyObserver` runs** — ADR 0014 §§ 2–3, the half M4 names beside the hooks. The interface name
+    is known to `mwl-syntax` and `mwl-hir` and appears in **no** other crate: no checker rule, no lowering,
+    no runtime. Hooks themselves are done and are not this item. The `abi-probe` guard
+    `a_class_without_a_property_observer_costs_nothing_extra` already exists and must stay green.
+31. **ADR 0043's `by`-delegation runs.** Its syntax and its default/private-method slice landed; the
+    delegation itself did not.
+32. **ADR 0046 §§ 4–6 run** — `Core\Attributes::get<T>`/`::all<T>`, the structural compile-time retrieval,
+    § 5's ambiguity error, and § 6's explicit call-site type argument. The attach grammar has parsed since
+    M1 (`crates/mwl-syntax/src/ast.rs:419`); M4 names the call-site `<T>` here even though the retrieval
+    body waits for M8.
+33. **ADR 0092 and `Core\Debug::dump` land**, including ADR 0033's redaction of a `secret`-qualified
+    property, which that ADR's own *Verification* defers to M4 by name.
+34. **Inline HTML at file scope lowers.** The lowering is the `Helper::EchoStr` call `echo` already emits
+    over the raw span; it is out only because `mwl_types` treats `InlineHtml` as a no-op too, so landing it
+    widens two crates at once. `mwl-ir` gap 13.
+35. **A `require`d file's own top-level statements run**, and ADR 0021 § 3's value form
+    (`$c = require './config.mwl';`) has an arm. `lower_program` gives a script frame to `files[0]` and
+    takes only the *declarations* of every other file. The shape that closes both is one frame per file,
+    called from the site. `crates/mwl-ir/src/lower/mod.rs:387`. `mwl-ir` gap 22.
+36. **A `FATAL` releases the frame's locals.** A `THROWN` does; an outcome no cleanup path and no `catch`
+    can act on gets no landing block at all. `mwl_ir::ir::Inst::on_error` owns the asymmetry.
+    `mwl-codegen` gap 3.
+
+## Stage 6 — the checker and the front end
+
+37. **ADR 0007 § 6's other three narrowing spellings.** `== null`/`!= null` over a plain local narrows;
+    `instanceof`, a comparison against a literal-typed value and `match (true)` do not, and the residue is
+    restricted to a class. `crates/mwl-types/src/locals.rs` owns the rule and what invalidates one.
+38. **Exhaustive control-flow reachability** — "every path through this non-`void` function returns", and
+    `switch`/`try` bodies contributing to definite assignment after them rather than conservatively
+    nothing.
+39. **The four signature-level gaps**: a user-declared class constant's type at an expression site, a
+    promoted constructor-parameter property, a class with no explicit `constructor` held to a
+    zero-argument arity check on `new`, and a `foreach` **key** binding declared at anything but `string`
+    (ADR 0007 § 5 gives an array one stored key type, so it is always wrong, and today it type-checks and
+    then trips an assertion in `mwl-ir`). `crates/mwl-types/src/expr/mod.rs`, `signatures`.
+40. **One equality-operand compatibility pass.** No general check exists for any type pair today — not
+    `int` against `uint`, not two different enums — which is why singling enums out was declined. ADR 0090
+    § 2's `reject_disjoint_equality` is the one-sided half that exists; this is the rest of it.
+41. **References declare the same type on both sides.** `mwl_types` does not require it.
+42. **Each unparsed front-end construct parses or is refused by name**: grouped `use` and
+    `use function`/`use const` (settle against ADR 0015 and do whichever it says), a `goto` target label
+    (ADR 0008 § 5 refuses `goto` — the label must be refused by the same diagnostic rather than falling
+    through), a bare inline shape type on a local declaration, and an enum case whose name is a reserved
+    keyword spelling. `crates/mwl-syntax/src/lib.rs` § *Known gaps* is the list.
+
+## Stage 7 — `#[Test]`, the testing capability MWL programs use
+
+43. **ADR 0079 lands** — `#[Test]` and the table the compiler builds from it, `#[Fixture]`, `#[TestWith]`,
+    the generic `Core\Test` assertion roster, the ledger behind a catchable failure, and the human/JUnit/JSON
+    reporters. That ADR's § 24 milestone table says which pieces land later; everything it puts at M4 is in
+    scope here and nothing else is. **`.mwlt` and `#[Test]` answer different questions and are never
+    unified** (§ 23) — `mwl-test` is built and is not this item.
+
+This stage is last because it is the only one that adds a *surface* rather than closing a hole, and because
+every assertion in that roster is written against the operator table Stage 0 lands.
+
+## Stage 8 — the corpus and the guards
+
+The two suites, the Part I guards, the existing named guards, and the mechanical end gate. The conformance
+floor rises to **750**. It is not M4's own 1000: that number is the milestone's acceptance and stays in
+[docs/plan/m4.md](../plan/m4.md) unchanged, to be reached as the corpus keeps growing through M4S depth and
+M8. **The stop condition for this loop is the feature gate, not the count** — 750 is the floor that says
+the corpus grew with the features rather than around them, and the previous goal's 600 is inside it.
 
 ## Acceptance
 
-**The checks themselves live in [`loop-goal.toml`](loop-goal.toml), and only there.** Every fixture, its
-exact expected output, the two suites and every named guard test are in that file as data; the driver reads
-it directly, so there is nothing here that could drift out of sync with what actually runs. Read it, or run
-`python tools/loop.py --list` for the same thing as a summary.
+**The checks live in [`loop-goal.toml`](loop-goal.toml), and only there.** Every fixture, its exact expected
+output, every suite, every named guard test and the `.mwlt` cases each item owes are in that file as data;
+the driver reads it directly. Read it, or `python tools/loop.py --list`.
 
-The driver runs those checks in order, short-circuiting on the first failure, so the ledger line each
-iteration writes tells you exactly how far the loop got. Every check must pass. Nothing else counts as done
-— not a passing unit test, not a session claiming `DONE`. What the check kinds mean, how the native/WSL legs
-and the valgrind sweep are ordered, and why: [coordinator.md](coordinator.md) § *The acceptance test*.
+Every check must pass. Nothing else counts as done — not a passing unit test, not a session claiming
+`DONE`. What the check kinds mean, and how the native/WSL legs and the valgrind sweep are ordered:
+[coordinator.md](coordinator.md) § *The acceptance test*.
 
-Stage 0 is the catch-up list above, and it runs before the program legs so the ledger names it while it is
-unfinished. Stage 1 is the previous loop's whole list, unchanged — **a non-regression floor, never traded
-for anything above it.** Stage 4's second named test, `every_part_one_spec_member_is_registered`, does not exist yet:
-writing it is this loop's real definition of done, because it reads the member rows out of the spec file
-itself and fails naming every one with no registry entry. A count of conformance cases is a proxy; that test
-is not.
-
-**The expected output in that file is frozen; a fixture's *source* is not.** The seven new fixtures were
-written against the spec by someone who could not compile them, so every `Core` signature, every enum
-namespace and every options bag in them is a reading of the spec that may be wrong. Correcting one is a bug
-fix, not a decision. In particular the fixtures spell a `Core`-owned enum `Core\RoundMode`, `Core\Unit`,
-`Core\Digest`, `Core\Charset` — flat under `Core`, following `Core\Order`, which is the only such enum that
-exists today; if the loop places them elsewhere, fix the fixtures. What may never change is the expected
-output, or the fixture's reason for existing. Re-freeze, record why in the commit message, move on. That is
-not licence to weaken a check to make it pass.
+**The expected output in that file is frozen; a fixture's *source* is not.** The five new fixtures were
+written by someone who could not compile them, so every signature, every `Core` member name and every
+options bag in them is a reading that may be wrong. Correcting one is a bug fix, not a decision; re-freeze,
+say why in the commit message, move on. What may never change is the expected output, or a fixture's reason
+for existing. That is not licence to weaken a check to make it pass.
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
-Every one of these was settled with the user before the loop started. Implement it; do not re-open it.
+Every one of these is settled. Implement it; do not re-open it.
 
-- **Decide and record; never `BLOCKED` for a design call.** The `?T` representation, the `mixed` runtime
-  type tag, the variadic and union-return `CoreTy` shapes, and every question they raise downstream are
-  yours to settle under AGENTS.md's priority ordering. Record each in the home AGENTS.md already names — a
-  paragraph in `docs/adr/README.md` § *Decisions taken at project start*, or the crate's own module doc.
-  **Do not open a numbered ADR for these.** Reserve `BLOCKED` for a decision that is expensive to reverse
-  *and* has no safe default.
-- **`?T` and the `mixed` tag are one design, decided once.** A nullable value and an erased one both need a
-  runtime discriminant, and choosing two unrelated shapes for them is the mistake to avoid. Whatever is
-  chosen goes in `mwl-ir`'s module doc for the IR half and `mwl-runtime`'s for the heap half, with the cost
-  it spends per value stated, per AGENTS.md's memory rule.
-- **A `catch` binding is re-scoped to its own handler block.** Today it is function-scoped, so two clauses
-  on one `try` cannot both bind `$e` and `E0406` fires on the second — PHP allows it and every PHP program
-  writes it, so the differential corpus cannot grow past it. Make the change and record the rule in
-  `mwl-types`' own module doc; if the implementation forces the opposite conclusion, keep the current rule
-  and record *that*, with the reason.
-- **`array<T>` becomes element-covariant on read, and object identity is settled.** The invariance that
-  refuses `Arr::flip($stringArray)` is widened — an MWL array is a copy-on-write *value*, so a covariant
-  read cannot be aliased into an unsound write — and the one strict-identity comparison over two `Value`s
-  that `contains`/`diff`/`intersect`/`unique`/`ObjectSet` all need is defined in `mwl-runtime`, deciding
-  what object identity means there. Both recorded in the owning crate's module doc.
-- **Three M4 language holes are in scope, because the corpus cannot be written around them.** Compound
-  assignment (`mwl-ir` gap 16 — a desugar of `$x op= e` to `$x = $x op e`), `for`/`switch`/`match`
-  (`mwl-ir` gap 1 — every terminator they need already exists), and `decimal`'s IR representation
-  (`mwl-ir` gap 15 — ADR 0054's 16-byte register pair). ADR 0070's **duration literal** is in scope too:
-  `Core\Time\Duration::parse` shares its grammar and its implementation, so build the literal first and
-  `parse` is the same parser reached from a second entry point.
-- **Dependencies: two are named, the rest are yours.** `Core\Regex` binds **`regex`** as ADR 0056's
-  linear-time default *and* **`fancy-regex`** as its budgeted opt-in backtracking tier — both tiers land,
-  closing that ADR rather than half of it. `Core\Time` binds **`jiff`**, whose type set maps almost
-  one-to-one onto § 4's `Instant`/`DateTime`/`Duration`/`Zone`. Every other outside crate — JSON, hashing,
-  UUID, CSV, base64/base32, Unicode segmentation and normalization, WHATWG encodings — you pick against
-  [ADR 0051 § 4](../adr/0051-standard-library-tiers.md)'s two questions, keeping `cargo deny check` green
-  and recording each pick with its reasoning in that module's own doc comment. A new dependency owes three
-  things (AGENTS.md): the `[workspace.dependencies]` line with a comment saying why that crate,
-  `cargo deny check`, and `python tools/gen-attribution.py`. Stop only if a needed capability has no
-  pure-Rust option at all — that is a real `BLOCKED`, naming the capability.
-- **`Core\Uri::parseQuery` implements PHP's bracket convention in full**, and its spec row is amended to
-  match: `a[]=1&a[]=2` builds a list, `a[b]=c` builds a map, nesting to arbitrary depth. The return type is
-  therefore not `array<string>` — pick the spelling the type system can actually state once `?T`/`mixed`
-  land, and write it into the spec table. This also settles the answer `Core\Request::query` owes at M8;
-  say so in § 12 rather than leaving two open questions.
-- **There is no `Core\Str::editDistance`.** The question is closed: fuzzy matching is not a Tier 0 concern
-  under ADR 0051's six tests. `docs/spec/02-php-migration.md`'s `levenshtein` row already says so.
-- **`Core` is native Rust, all of it.** Every §§ 1–12 member is a Rust function in `crates/mwl-stdlib`,
-  reached through the signature table the checker knows and the helper symbol codegen emits. No part of
-  `Core` is written in MWL.
-- **Spec §§ 1–12 only.** § 13 (`Reflect`, `Ast`, `Attributes` retrieval, `Program`, `Decimal`, `BigInt`,
-  `Test`) stays out; each depends on something outside `Core`, and that file's own *Milestones* section
-  says where each lands. § 10's exception tree already exists in `mwl_types::error_lib` — what it still
-  owes is the constructor's `{previous: $e}` options shape, `$e->location`, and `ParseError::issues`,
-  which [ADR 0071](../adr/0071-derived-codecs.md) § 5's one-throw-lists-every-bad-field rule needs.
-- **Type variables stay compiler-owned.** `<T>` machinery is for declarations the compiler owns. User code
-  gets exactly two things: implementing a compiler-owned generic interface at a concrete type, and an
-  explicit call-site type argument (`Core\Json::decodeAs<User>`, `new Core\ObjectMap<Tag, int>()`).
-  **User-defined generic classes stay deferred.**
-- **No cycle collector.** Refcounting only; a cyclic graph in a CLI script is retained until the process
-  exits, and Stage 6's leak check stays scoped to acyclic fixtures so it remains a true signal.
-- **`Path` and the two legs.** `Core\Path` emits `Path::SEPARATOR`, which differs between the native
-  Windows leg and the WSL one — so a fixture or a `.mwlt` case that asserts a built path must normalize it
-  (`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) or assert something separator-free. A case that
-  bakes in one platform's separator passes one leg and fails the other.
-- **Backlog items are off-path unless the goal needs them.** If a slice is not on the path to the
-  acceptance list, put it in `## Backlog` in the handoff and move on.
-- **Doc trimming is not loop work, ever.** Nothing measures doc size (doc-style.md § *Length targets*), and
-  [doc-cleanup.md](doc-cleanup.md)'s pass is never run from inside the loop.
-- **Four further decisions from the same review are settled in their own ADRs and are *not* this goal's
-  work** — [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md) (HTTP parsing, cookie names,
-  multipart caps, `Core\IO::within`), [0096](../adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
-  (`#[Access]`, CSRF) and [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
-  test axes. Their milestones have not started; do not re-open them and do not schedule them here.
+- **Decide and record; never `BLOCKED` for a design call.** Settle it under AGENTS.md's priority ordering
+  and record it in the home AGENTS.md already names — a paragraph in `docs/adr/README.md`
+  § *Decisions taken at project start*, or the crate's own module doc. **Do not open a numbered ADR.**
+  Reserve `BLOCKED` for a decision that is expensive to reverse *and* has no safe default.
+- **An abandoned generator's `finally` runs, through a resume-to-unwind entry point on the state machine
+  plus a release-path call to it.** PHP resumes a destroyed generator in a return-like mode and prints its
+  `finally`; priority 2 (PHP-compatible observable behaviour) outranks priority 4 (simplicity), so the
+  divergence is not kept. **This is not a destructor and does not re-open ADR 0028 § 2**: no user code
+  runs that the program did not already suspend inside, no `__destruct` is recognized, and no class gains
+  a lifecycle hook. The session that lands it folds one sentence into ADR 0028 § 2 saying so, and records
+  the mechanism in `mwl_ir::lower::generator`'s module doc. Fallback if the state machine cannot express
+  it: keep the divergence, pin it in `tests/differential/` as a named, deliberate difference, and say so
+  in ADR 0028 § 2 — never leave it undocumented.
+- **`int / int` widens at the binding, not at the operator.** `mwl_types` widens `int|float` to `float`
+  where a binding, parameter or return declares one, exactly as ADR 0007 § 4's worked example spells it.
+  The operator itself keeps the union.
+- **Overflow throws `ArithmeticError`.** ADR 0007 § 4 already decided it; the cost is three checked emit
+  sites and is not re-litigated against the wrapping we have.
+- **A nullsafe assignment target (`$a?->b = v`) is a compile error**, matching PHP, and so is an
+  array-element write through an ADR 0014 § 1 hooked property — PHP raises "indirect modification of
+  overloaded property" there, so a diagnostic *is* the PHP-compatible answer and no write-back rule needs
+  inventing. Both take a new `E`-code; the pack's *next free number* section names it.
+- **`&value` as an array-literal element does not exist.** ADR 0031 § 2 removed by-reference capture and
+  ADR 0023 fixes what a copy means; an aliasing array element has no owner in either. It is refused by a
+  diagnostic naming this decision, and that is what closes item 17's other half.
+- **A `Core` class is stringifiable exactly where the spec gives it a `toString`.**
+  `mwl_stdlib::registry` states it, `require_stringable` reads it, and a `Core` class with none is an
+  ordinary `E`-code at the `echo` rather than a panic below it.
+- **The named/spread argument checker half lands before the lowering half**, in that order, in
+  `mwl_types` — a lowering with no resolved per-argument type to lower against is how gap 8 got here.
+- **`object` erases to the same pointer a named class does.** The representation is settled; only the
+  "does anything below read a class label" check is work.
+- **Not in scope, and not holes**: virtual dispatch by slot rather than by name (a lookup cost, M12), a
+  `br_table` for a dense `switch` (M12), string-literal deduplication in a unit's data section
+  (`mwl-codegen` gap 4), freeing executable memory (ADR 0017, M6), ADR 0018's `BRANCH` probe and the
+  `COLLECT`/`DEBUG_BREAK` safepoint flags (no collector and no debugger exist to hand a frame to), a cycle
+  collector (decided against, ADR 0004), ADR 0024 § 4's sink list and ADR 0033's `Core\Log` inspection
+  (both need `Core` classes that arrive at M7/M8), and ADRs 0091, 0093, 0097 and 0100 § 3 (M6, M7, M8,
+  M10). A session that finds one of these on its path puts it in the handoff's `## Backlog` and moves on.
+- **The allowlist in `every_refusal_is_a_diagnostic_or_decided` may never grow.** Every entry is a bullet
+  in this section. A session that believes it needs a new one has found a decision, and takes it here —
+  in this file, in the same session, with the reason — or it has found a hole it is trying to skip.
+- **Picking every dependency but the two the user named** stays pre-authorized, unchanged from the
+  previous goal.
 
+## What this goal does not touch
 
-## The gaps that actually sit on the path
-
-Named because none is visible from either milestone's text, and each is work rather than a question. Each
-panics naming itself rather than miscompiling, so hitting one is loud.
-
-- **`?T` has no IR arm at all** (`mwl-ir` gap 3), and neither does `null`. This is the keystone above.
-- **A compound assignment does not lower** (`mwl-ir` gap 16), and **`for`/`switch`/`match` do not lower**
-  (gap 1). `examples/match.mwl` needs all four.
-- **`decimal` has no IR representation** (`mwl-ir` gap 15) — the keyword, the type atom and ADR 0054 § 3's
-  arithmetic table are all live in the front end, so a program that declares one reaches
-  `lower_decl_type` and panics. `examples/numbers.mwl` declares two.
-- **Only ADR 0007 § 2's free and total conversion rows lower** (gap 4). ADR 0066's `as ?T` needs the
-  *checked* rows plus a non-throwing form of each, and `examples/nullable.mwl` uses `"4x" as ?int`.
-- **`&&`/`||`/`!`/ternary lower only where a mutable `cur: &mut BlockId` is already owned** (gap 5).
-  Nested inside a call argument they panic — and five of the seven new fixtures write a ternary inside
-  one.
-- **No variadic, named or spread call argument** (gap 8), and `mwl_types` does not positionally
-  type-check one either. ADR 0069's three combination members and `Path::join` all need it.
-- **`$f(...)` does not lower** (gap 9) — only native `Core` code calling back through
-  `mwl_runtime::call_closure` works today. `Core\Out::capture` and `Regex::replaceWith` are native, so they
-  are fine; a `.mwlt` case that calls a closure variable directly is not.
-- **Neither `.` nor `as string` covers a `Stringable` operand** (gap 12). `Duration` is `Stringable` by
-  § 4, and `$d->toSeconds()` is the way around it in the fixture.
-- **A static property reads but does not write** (gap 6), a nested array write `$grid[0][1] = v` is
-  refused, and neither `ArrayGet` nor `ArraySet` models an absent key at runtime.
-- **Class-member `private`/`protected` is not enforced at all** (`mwl-types`' gap list), and its reserved
-  `Comparable`/`Stringable` interfaces carry no member signatures — which `Core\Heap`'s ordering and
-  `Duration`'s `Stringable` both need.
-- **`new` on an `abstract` class is not refused, and `$n->foo()` on a scalar receiver panics `mwl-ir`** —
-  both missing `mwl-types` diagnostics.
-- **An abandoned generator never runs the `finally` it is suspended inside** (`mwl-ir` gap 18) — the one
-  PHP divergence the corpus has found and not closed.
-- **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** of exactly the kind AGENTS.md
-  forbids. It is the one doc in the repo genuinely owed a trim. Backlog, not a reason to stop.
+`docs/` trimming (the user fires [doc-cleanup.md](doc-cleanup.md), never a session), dependency sweeps
+([dependency-update.md](dependency-update.md), same rule), and M4S `Core` **breadth** beyond what Stage 1's
+floor and Stage 8's suites already hold. A `Core` depth case from `python tools/gaps.py` is a legitimate
+slice when a session's group is blocked or when the conformance floor is what is left; it is never the
+reason to leave an item above unfinished.

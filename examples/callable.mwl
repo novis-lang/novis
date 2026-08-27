@@ -1,0 +1,59 @@
+<?mwl
+class Apply {
+    public static function twice(callable $f, int $n): int {
+        return $f($f($n));
+    }
+
+    public static function total(int $base, int ...$rest): int {
+        var $sum = $base;
+        foreach ($rest as int $one) {
+            $sum += $one;
+        }
+
+        return $sum;
+    }
+
+    public static function label(string $name, string $suffix = "!", int $times = 1): string {
+        var $out = "";
+        var $i = 0;
+        while ($i < $times) {
+            $out .= $name . $suffix;
+            $i++;
+        }
+
+        return $out;
+    }
+
+    public static function bump(int &$slot, int $by): int {
+        $slot = $slot + $by;
+
+        return $slot;
+    }
+}
+
+var $inc = fn(int $n) => $n + 3;
+
+echo "twice=" . Apply::twice($inc, 4) . "\n";
+echo "direct=" . $inc(10) . "\n";
+
+array<int> $extra = [2, 3, 4];
+echo "spread=" . Apply::total(1, ...$extra) . "\n";
+echo "named=" . Apply::label("hi", times: 2) . "\n";
+
+array<int> $joined = [1, ...$extra];
+echo "elements=" . Core\Arr::count($joined) . "\n";
+
+int $slot = 5;
+echo "byref=" . Apply::bump($slot, 2) . " then " . $slot . "\n";
+
+array<int> $nums = [1, 2, 3];
+foreach ($nums as int &$each) {
+    $each = $each * 10;
+}
+
+var $total = 0;
+foreach ($nums as int $one) {
+    $total += $one;
+}
+
+echo "scaled=" . $total . "\n";
