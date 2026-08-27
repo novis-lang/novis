@@ -562,6 +562,15 @@ is why" — is this file.
   `unreachable!` still counts as a language hole while its message says "only lowers", "does not
   lower" or "no lowering for" (`tools/holes.py`'s `REFUSAL`) — so a session that proves a site dead
   has to word the proof without those, or the tool keeps handing the site to the next session.
+- **A `?T` row that can carry a fault has to be emitted with `emit_fallible`, or a `catch` wrapped
+  straight round the conversion never sees the throw.** `Lowering::convert_or_null` emitted every
+  row with a plain `emit` on the strength of "the helper answers `null` where the throwing row
+  would throw, so it cannot fail" — true of the numeric rows, and false the moment `as ?string`
+  could run the operand's own `toString()`. The failure looks nothing like a missing landing pad:
+  the program prints `Uncaught Exception` and exits 1 *with* a `try`/`catch (Throwable $e)` around
+  it, because a non-fallible `HelperCall` discards the status word rather than branching on it. So
+  when a new row makes a uniform emit site fallible, the scratch file to write is one that throws
+  from inside the new row and catches it — not one that checks the row's own value.
 
 ## Running things
 

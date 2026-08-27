@@ -138,14 +138,31 @@
 > reached a lowering and panicked before, the checker having skipped the table for every written
 > `?T`. The class row was already absolute and is untouched (`E0473`), and the three never fire on
 > one expression. What is left under `as ?T` is the opposite direction, a row § 3 calls
-> **available** with no `?` helper to run it: every target that produces text or a container — `$b
-> as ?string`, `$m as ?string`, `$m as ?bytes`, `$m as ?array<T>` — which is `Lowering::convert`'s
-> own missing row in its null-answering spelling, plus a `string` twin of `Helper::TaggedToString`
-> answering `null` where that one throws. Three live tools **are** the worklist and no session
-> re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen`
-> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
-> the named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> **available** with no `?` helper to run it, and it is now the two targets that produce a
+> *container*: `$m as ?bytes` and `$m as ?array<T>`, each `Lowering::convert`'s own missing row in
+> its null-answering spelling, so the two close together. The **text** target is closed:
+> `Helper::ToStringOrNull` is `Helper::TaggedToString`'s twin over one implementation of § 2's rows
+> rather than a second copy of them, answering `null` exactly where that one throws, and it takes
+> `$b as ?string` with it — ADR 0009 § 3's UTF-8 validation is a row that can fail, so the `bytes`
+> source has a `null` answer of its own rather than a helper of its own. What `null` does **not**
+> stand for is an exception the operand raised on the way, which is why this is the one `?` row
+> emitted with ADR 0002's error edge: a `toString()` body that throws propagates through both
+> spellings alike, and a `catch` around either sees it. One level under that, **an object whose
+> static type names no class now renders through its runtime one** rather than panicking below.
+> `require_stringable` resolves a `toString` wherever the operand's type names a class and `mwl-ir`
+> calls it, unchanged; where it names none — an erased `object`, a `mixed`, any other union —
+> `mwl_runtime::stringify` asks the concrete instance's class for the same member, which is ADR 0036
+> § 4's deferral applied to the member access ADR 0028 § 1 says the conversion *is*. So `echo $o`,
+> `"" . $o` and `$o as string` are one answer for one value where they used to be a rendering, a
+> throw and a panic, and a class that declares no `toString` throws catchably, naming itself and the
+> interface. The `Core`-owned half is all that is left of that panic: a `Core` class's members are
+> native rather than entries in a compiled method table, so the dispatch finds nothing and a class
+> the spec gives a `toString` throws where it should render — `mwl_stdlib::registry`'s half, and the
+> standing decision already says which file states it. Three live tools **are** the worklist and no
+> session re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and
+> `mwl-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
+> --list` prints the named `.mwlt` cases each stage still owes, and `python
+> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,
