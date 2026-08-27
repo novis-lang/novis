@@ -540,6 +540,11 @@ is why" — is this file.
   file or directory` — which reads as a missing script rather than as a mangled argument, and the script
   is right there. `commands.md` § *Fuzzing and callgrind on Windows* spells the command itself; this is
   only what the shell in front of it does to the argument.
+- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works from
+  PowerShell.** Git Bash rewrites a leading `/mnt/...` into `C:/Program Files/Git/mnt/...` before
+  `wsl.exe` ever sees it, so the leak check dies with *"No such file or directory"* naming a path no
+  document mentions — which reads as a missing script rather than as the POSIX-path translation it is.
+  Run it through the PowerShell tool, where the argument is passed through verbatim.
 
 ## Adding a `Core` member
 

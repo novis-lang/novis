@@ -3696,26 +3696,35 @@ impl<'a> Lowering<'a> {
             self.own_temporary(array_v);
         }
         let (key_v, key_ty, key_aliasing) = self.lower_array_key(index, env, cur);
-        let result = self.emit(
+        // Only a rendered key is a reference this frame owns; an unrendered
+        // `int` subscript owns nothing at all. It is staged rather than
+        // released inline because the read below can throw: an absent key
+        // leaves through the landing block, which releases the stack this
+        // mark opened and would otherwise leave the rendered key behind.
+        let key_is_temporary = key_ty.is_refcounted() && !key_aliasing;
+        if key_is_temporary {
+            self.own_temporary(key_v);
+        }
+        let result = self.emit_fallible(
             *cur,
             result_ty,
             InstKind::ArrayGet {
                 array: array_v,
                 key: key_v,
             },
+            env,
         );
-        // Only a rendered key is a reference this frame owns; an unrendered
-        // `int` subscript owns nothing at all.
-        if key_ty.is_refcounted() && !key_aliasing {
-            self.emit_release(*cur, key_v);
-        }
         if base_is_temporary {
             // That makes the whole expression a *fresh producer*, which is why
             // `Lowering::aliasing_read` reports an index read off a temporary
             // as non-aliasing: the consumer must not retain it a second time.
+            // The retain goes first, since the release below drops the base
+            // this borrowed element lives inside.
             if result_ty.is_refcounted() {
                 self.emit_retain(*cur, result.0);
             }
+        }
+        if base_is_temporary || key_is_temporary {
             self.release_temporaries_since(mark, *cur);
         }
         result

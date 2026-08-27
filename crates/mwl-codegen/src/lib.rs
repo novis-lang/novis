@@ -633,28 +633,23 @@ struct Signatures {
     /// `mwl_object_slot_set(ctx, object, name, len, hint, value, out) -> status`
     /// — ADR 0036 § 4's name-keyed shape *write*. One parameter wider than
     /// [`Self::slot_get`], because the value travels through a caller-owned
-    /// 16-byte slot the way [`Self::array_get`]'s result does *and* the helper
+    /// 16-byte slot the way [`Self::array_value_at`]'s result does *and* the helper
     /// ABI still writes an (ignored) result of its own; see
     /// `mwl_ir::ir::InstKind::SlotSet`.
     slot_set: Signature,
     /// `mwl_array_new() -> *mut ArrayHeader`.
     array_new: Signature,
-    /// `mwl_array_get(array, key, out)` — the read primitive, whose result
-    /// travels through a caller-owned 16-byte slot rather than by value; see
-    /// `mwl_runtime::array`'s "the primitives compiled code calls" note for
-    /// why no `Value` crosses this boundary in a register.
-    array_get: Signature,
-    /// `mwl_array_get_index(array, index, out)` — [`Self::array_get`] reached
-    /// by the `i64` an `int` subscript already was, with no key string built
-    /// at all while the array is packed. `mwl_ir::ir::InstKind::ArrayGet`'s
-    /// key operand says which of the two applies, and `mwl-ir`'s module doc
-    /// § *an array key is a `string`, and an `int` subscript no longer spells
-    /// it* is the decision.
-    array_get_index: Signature,
-    /// `mwl_array_set(array, key, value) -> *mut ArrayHeader`.
+    /// `mwl_array_set(array, key, value) -> *mut ArrayHeader`. There is no
+    /// read signature beside it: an `mwl_ir::ir::InstKind::ArrayGet` throws on
+    /// an absent key, so it travels the helper ABI ([`Self::helper`]) against
+    /// `mwl_array_required_get`, which tells a rendered key from an `int`
+    /// subscript by its own tag rather than by a second signature here.
     array_set: Signature,
     /// `mwl_array_set_index(array, index, value) -> *mut ArrayHeader` — the
-    /// write half of [`Self::array_get_index`].
+    /// write reached by the `i64` an `int` subscript already was, with no key
+    /// string built at all while the array is packed. `mwl-ir`'s module doc
+    /// § *an array key is a `string`, and an `int` subscript no longer spells
+    /// it* is the decision.
     array_set_index: Signature,
     /// `mwl_array_append(ctx, array, value, out) -> status` — the one array
     /// write that can fail, and so the one carrying ADR 0002's status shape
@@ -681,8 +676,9 @@ struct Signatures {
     /// `mwl_array_key_at(array, slot) -> *mut StrHeader`.
     array_key_at: Signature,
     /// `mwl_array_value_at(array, slot, out)` — the read primitive whose
-    /// result travels through a caller-owned 16-byte slot, exactly like
-    /// [`Self::array_get`].
+    /// result travels through a caller-owned 16-byte slot — see
+    /// `mwl_runtime::array`'s "the primitives compiled code calls" note for
+    /// why no `Value` crosses this boundary in a register.
     array_value_at: Signature,
 }
 
@@ -1015,23 +1011,19 @@ impl Signatures {
         let mut array_new = module.make_signature();
         array_new.returns.push(AbiParam::new(ptr));
 
-        let mut array_get = module.make_signature();
-        array_get.params.push(AbiParam::new(ptr)); // array
-        array_get.params.push(AbiParam::new(ptr)); // key
-        array_get.params.push(AbiParam::new(ptr)); // out
-
-        let mut array_set = array_get.clone();
+        let mut array_set = module.make_signature();
+        array_set.params.push(AbiParam::new(ptr)); // array
+        array_set.params.push(AbiParam::new(ptr)); // key
+        array_set.params.push(AbiParam::new(ptr)); // value
         array_set.returns.push(AbiParam::new(ptr));
 
-        // Spelled out rather than cloned from the key-taking pair: the middle
+        // Spelled out rather than cloned from the key-taking one: the middle
         // parameter is an `i64` index in the Rust signature, and only happens
         // to share `ptr`'s machine type on every target this crate builds for.
-        let mut array_get_index = module.make_signature();
-        array_get_index.params.push(AbiParam::new(ptr)); // array
-        array_get_index.params.push(AbiParam::new(types::I64)); // index
-        array_get_index.params.push(AbiParam::new(ptr)); // out
-
-        let mut array_set_index = array_get_index.clone();
+        let mut array_set_index = module.make_signature();
+        array_set_index.params.push(AbiParam::new(ptr)); // array
+        array_set_index.params.push(AbiParam::new(types::I64)); // index
+        array_set_index.params.push(AbiParam::new(ptr)); // value
         array_set_index.returns.push(AbiParam::new(ptr));
 
         let mut array_append = module.make_signature();
@@ -1081,8 +1073,6 @@ impl Signatures {
             slot_get,
             slot_set,
             array_new,
-            array_get,
-            array_get_index,
             array_set,
             array_set_index,
             array_append,

@@ -868,9 +868,9 @@ impl<'a> Lowering<'a> {
                 }
                 // Down the chain. Each row arrives owning one reference —
                 // `Helper::ArrayRowForWrite`'s whole job, since the
-                // `ArraySet` below consumes one and a plain
-                // `InstKind::ArrayGet` would both borrow and answer an absent
-                // key with a null.
+                // `ArraySet` below consumes one and an `InstKind::ArrayGet`
+                // would both borrow and *throw* on an absent key, where a
+                // write has to build the row.
                 let mut arrays: Vec<ValueId> = Vec::with_capacity(levels.len() + 1);
                 arrays.push(root_v);
                 for (level, key) in levels.iter().zip(&inner_keys) {

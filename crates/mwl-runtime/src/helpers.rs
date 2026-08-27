@@ -25,7 +25,10 @@
 //! branch on a tag byte is a cheap price for making that class of bug a
 //! `FATAL` with a message instead.
 //!
-//! Every `mwl_ir::Helper` variant now has an entry point here.
+//! Every `mwl_ir::Helper` variant now has an entry point here. One entry point
+//! here backs no `Helper` variant at all — [`mwl_array_required_get`], which
+//! `mwl_ir::InstKind::ArrayGet` names directly, and whose own doc comment says
+//! why an instruction rather than a conversion needs this signature.
 
 use subtle::ConstantTimeEq;
 
@@ -190,6 +193,70 @@ crate::mwl_helper! {
             crate::array::mwl_array_retain(ptr);
         }
         Ok(row)
+    }
+}
+
+/// The message an absent key is reported with, built only on the throwing
+/// edge — a read that finds its entry never renders its key at all.
+fn undefined_key(key: Value) -> Fault {
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Str argument owns a reference to a live allocation, \
+                  so it is live for this read"
+    )]
+    let rendered = match key.str_ptr() {
+        Some(ptr) => unsafe { String::from_utf8_lossy(MwlStr::bytes_of(ptr)).into_owned() },
+        None => match key.as_int() {
+            Some(index) => index.to_string(),
+            None => "?".to_owned(),
+        },
+    };
+    Fault::thrown(format!("undefined array key `{rendered}`"))
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::InstKind::ArrayGet` — the entry `args[1]` names in the array
+    /// `args[0]`, **borrowed**, or a throw when the key is absent.
+    ///
+    /// The one runtime entry point that is not a `mwl_ir::Helper` variant, for
+    /// the reason that instruction's own doc comment gives: a subscript read
+    /// is an instruction rather than a conversion, and it needs this module's
+    /// ADR 0002 signature only because it can now fail.
+    ///
+    /// PHP warns and yields `null` here. MWL has no `null` to put in an
+    /// `array<string>`, and the null-shaped value this used to answer with was
+    /// read by every consumer as its declared type — a string pointer, an
+    /// object pointer — so the failure was a null dereference below the
+    /// language rather than an error inside it. ADR 0007 § 7 row 11 records
+    /// the divergence, and it is row 8 (an undefined *variable* is a check-time
+    /// error) one storage kind along: absent storage is never a zero value.
+    ///
+    /// An absent key is told from a stored `null` by
+    /// [`crate::array::entry`]'s `Option`, so an `array<?string>` holding a
+    /// `null` at `"k"` reads that `null` back rather than throwing.
+    /// [`crate::array::mwl_array_get`] is the other read — the vivifying one
+    /// the *write* side descends through, whose absent-key answer is a fresh
+    /// row (`mwl_ir::Helper::ArrayRowForWrite`).
+    fn mwl_array_required_get(_ctx, args: [2]) {
+        let array = args[0]
+            .array_ptr()
+            .ok_or_else(|| wrong_tag("mwl_array_required_get", Tag::Array, args[0]))?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live \
+                      allocation, so it is live for this read, and so is the \
+                      Tag::Str key beside it"
+        )]
+        let found = unsafe {
+            if let Some(key) = args[1].str_ptr() {
+                crate::array::entry(array, MwlStr::bytes_of(key))
+            } else if let Some(index) = args[1].as_int() {
+                crate::array::entry_at_index(array, index)
+            } else {
+                return Err(wrong_tag("mwl_array_required_get", Tag::Str, args[1]));
+            }
+        };
+        found.ok_or_else(|| undefined_key(args[1]))
     }
 }
 
@@ -1209,6 +1276,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_str_truthy", address(mwl_str_truthy)),
         ("mwl_array_truthy", address(mwl_array_truthy)),
         ("mwl_array_row_for_write", address(mwl_array_row_for_write)),
+        ("mwl_array_required_get", address(mwl_array_required_get)),
         ("mwl_value_identical", address(mwl_value_identical)),
         ("mwl_numeric_eq", address(mwl_numeric_eq)),
         ("mwl_numeric_lt", address(mwl_numeric_lt)),

@@ -12,10 +12,10 @@ fn m(object) -> void {
     retain v1
     v2 = call Maker::rows(this: v1) ! bb2  ; array
     v3 = const.str "k"  ; string
-    v4 = array.get v2, v3  ; string
-    release v3
+    v4 = array.get v2, v3 ! bb3  ; string
     retain v4
     release v2
+    release v3
     release v1
     release v4
     release v0
@@ -24,6 +24,12 @@ fn m(object) -> void {
     release v0
     propagate "m() at t.mwl:7"
   bb2:
+    release v1
+    release v0
+    propagate "m() at t.mwl:8"
+  bb3:
+    release v2
+    release v3
     release v1
     release v0
     propagate "m() at t.mwl:8"

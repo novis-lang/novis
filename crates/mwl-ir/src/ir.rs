@@ -958,12 +958,20 @@ pub enum InstKind {
     /// [`Lowering::concat_operand`](crate::lower::Lowering::concat_operand)
     /// already gives `.`'s scalar operand rather than a new policy; that
     /// function's own doc comment says why an `i64` index cannot carry it.
-    /// Like
-    /// [`InstKind::FieldGet`], this does not model what happens when `key`
-    /// isn't actually present at runtime — PHP's own warning-and-`null`
-    /// read — since no `try`/`throw` lowering exists yet to express a checked
-    /// outcome (see the crate docs' known gaps); this instruction only
-    /// models the happy path where the key is present. Reads `array` without
+    ///
+    /// **An absent `key` throws**, so this is a *fallible* instruction and
+    /// carries ADR 0002's error edge like a call: it is emitted through
+    /// `crate::lower::Lowering::emit_fallible`, and `mwl-codegen` gives it the
+    /// same status check every helper call gets, against the runtime entry
+    /// point `mwl_array_required_get` — which is why the two representations
+    /// above are told apart there, by the key's own tag, rather than by
+    /// picking a symbol here. PHP warns and yields `null`; ADR 0007 § 7 row 11
+    /// records the divergence and that helper's doc comment says why the old
+    /// answer was a null dereference rather than a value. A stored `null` is
+    /// *not* an absent key and reads back unchanged. The write side asks the
+    /// same question and answers it differently — an absent key vivifies —
+    /// which is what [`Helper::ArrayRowForWrite`] exists for. Reads `array`
+    /// without
     /// retaining it, the same way `FieldGet` reads its `object` receiver — a
     /// caller copying the result into a second durable slot retains it
     /// there instead (`crate::lower::is_aliasing_read` now also matches
@@ -1210,10 +1218,12 @@ pub enum Helper {
     /// own** — a retain of what was there, or a freshly allocated empty
     /// array when the key is absent, which is PHP's auto-vivification.
     ///
-    /// It exists because [`InstKind::ArrayGet`] models only the happy path:
-    /// it *borrows*, and it answers a missing key with a null-shaped
-    /// [`crate::ty::Ty::Tagged`] the caller would then hand to an
-    /// [`InstKind::ArraySet`] as if it were an array. Folding the two into
+    /// It exists because a write asks the absent-key question and gets the
+    /// opposite answer to a read's: [`InstKind::ArrayGet`] *throws* there
+    /// (ADR 0007 § 7 row 11), while `$g[9][0] = 1` must build the row PHP
+    /// would have built. It also *borrows*, where a descent needs a reference
+    /// of its own to hand the [`InstKind::ArraySet`] on the way back up.
+    /// Folding the two into
     /// one entry point keeps the ownership uniform — the result is always
     /// exactly one owned reference, so the lowering emits no retain beside
     /// it — and it is why a nested write needs no branch in the IR at all.

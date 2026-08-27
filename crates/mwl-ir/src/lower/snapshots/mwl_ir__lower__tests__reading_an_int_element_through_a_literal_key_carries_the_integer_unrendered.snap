@@ -9,8 +9,12 @@ fn m(object, array) -> int {
     v1 = param 1  ; array
     ; stmt s0 @4:5-4:18
     v2 = const.int 0  ; int
-    v3 = array.get v1, v2  ; int
+    v3 = array.get v1, v2 ! bb1  ; int
     release v1
     release v0
     return v3
+  bb1:
+    release v1
+    release v0
+    propagate "m() at t.mwl:4"
 }

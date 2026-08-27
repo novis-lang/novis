@@ -247,9 +247,11 @@
 //!    its root holder plus one key per level, descends, and writes every
 //!    level back with the outermost last, auto-vivifying an absent row the
 //!    way PHP does. Neither
-//!    [`ir::InstKind::ArrayGet`] nor [`ir::InstKind::ArraySet`] models an
-//!    absent key at runtime — deferred wholesale, like every other checked
-//!    throw. A **static** property is narrower still: it reads, but
+//!    [`ir::InstKind::ArrayGet`] throws on an absent key (ADR 0007 § 7 row
+//!    11), which is the *read* side's answer to the same question this
+//!    vivifying descent asks; [`ir::InstKind::ArraySet`] models no absent key
+//!    at all, because a write is what makes one present. A **static** property
+//!    is narrower still: it reads, but
 //!    [`lower::Lowering`]'s assignment arm has no target for one, so
 //!    `C::$p = v` panics.
 //! 7. **Virtual dispatch resolves by name, not by slot.** An instance call

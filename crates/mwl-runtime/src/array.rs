@@ -1254,14 +1254,52 @@ pub unsafe extern "C" fn mwl_array_release(ptr: *mut ArrayHeader) {
     }
 }
 
-/// Reads the entry at `key` **without** retaining what it holds —
-/// `mwl_ir::InstKind::ArrayGet`.
+/// The entry at `key`, or `None` when the key is absent — the one lookup
+/// every read in this module is built out of, and the only one that tells an
+/// absent key from a stored `null`.
 ///
-/// A missing key reads back `null`, which is the only thing this instruction
-/// can do until `Core\Arr` and the checker settle what an absent key means
-/// (that variant's own doc comment names the gap). Neither the array nor the
-/// key is consumed, and the value written to `out` is *borrowed*: the array
-/// keeps its reference, so a caller that stores the result retains it itself.
+/// # Safety
+///
+/// `array` must refer to a live MWL array allocation.
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness is the caller's obligation to state"
+)]
+pub(crate) unsafe fn entry(array: *mut ArrayHeader, key: &[u8]) -> Option<Value> {
+    #[expect(unsafe_code, reason = "the caller guarantees the array is live")]
+    unsafe {
+        (*array).table.borrow().get(key)
+    }
+}
+
+/// [`entry`] for an integer key, answered straight out of a list-shaped
+/// array's `Vec<Value>` — see [`mwl_array_get_index`] for why that path
+/// exists.
+///
+/// # Safety
+///
+/// `array` must refer to a live MWL array allocation.
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness is the caller's obligation to state"
+)]
+pub(crate) unsafe fn entry_at_index(array: *mut ArrayHeader, index: i64) -> Option<Value> {
+    #[expect(unsafe_code, reason = "the caller guarantees the array is live")]
+    unsafe {
+        (*array).table.borrow().get_index(index)
+    }
+}
+
+/// Reads the entry at `key` **without** retaining what it holds, answering a
+/// missing key with `null`.
+///
+/// This is the *vivifying* read — the one `mwl_runtime::helpers::
+/// mwl_array_row_for_write` is built on, where an absent key means "build the
+/// row PHP would have built". A read written in source goes through
+/// `mwl_array_required_get` instead, which throws there
+/// (`mwl_ir::InstKind::ArrayGet`). Neither the array nor the key is consumed,
+/// and the value written to `out` is *borrowed*: the array keeps its
+/// reference, so a caller that stores the result retains it itself.
 ///
 /// # Safety
 ///
@@ -1281,8 +1319,7 @@ pub unsafe extern "C" fn mwl_array_get(
     #[expect(unsafe_code, reason = "the caller guarantees every pointee is live")]
     unsafe {
         let bytes = MwlStr::bytes_of(key);
-        let value = (*array).table.borrow().get(bytes).unwrap_or_default();
-        out.write(value);
+        out.write(entry(array, bytes).unwrap_or_default());
     }
 }
 
@@ -1311,8 +1348,7 @@ pub unsafe extern "C" fn mwl_array_get(
 pub unsafe extern "C" fn mwl_array_get_index(array: *mut ArrayHeader, index: i64, out: *mut Value) {
     #[expect(unsafe_code, reason = "the caller guarantees every pointee is live")]
     unsafe {
-        let value = (*array).table.borrow().get_index(index).unwrap_or_default();
-        out.write(value);
+        out.write(entry_at_index(array, index).unwrap_or_default());
     }
 }
 

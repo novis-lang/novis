@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 576 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 577 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 162, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -182,16 +182,31 @@
 > null) { $m->rows["0"] = "w"; }`) was rejected by cranelift, because `write_back_array`'s property
 > arm lowered the receiver and stored through it without the `untag_receiver` every other write
 > through a property already goes through — a `?T` local being one tagged slot wide however narrow a
-> condition proves it. **Unbuilt in the library**, none of it a registration gap:
-> `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing rows
-> (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification (`mwl_stdlib::hash`'s module doc),
-> and ADR 0086 § 1's substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
-> unbuilt, and out of this goal's scope** — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 §
-> 3; their work is M6, M7, M8 and M10. **M4S Part I is the floor, not the frontier**: conformance is
-> at 576 of the goal's new 750 and differential at 162 of 165, `python tools/gaps.py` still ranks
-> the thin classes, and a `Core` depth slice is a legitimate slice when a group is blocked — never a
-> reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is 31% classified
-> (`python tools/check-migration.py`).
+> condition proves it. **Reading an absent key throws now**, which closes the live abort the
+> previous group found on its way past: `InstKind::ArrayGet` answered a missing key with a
+> null-shaped value and every consumer read it as its declared type, so `array<string> $a = []; echo
+> $a["9"];` died in `mwl-runtime` on a null dereference — a non-unwinding panic, exit 0, nothing on
+> stderr. It is ADR 0007 § 7 **row 11** instead: PHP warns and yields `null`, MWL has no `null` to
+> put in an `array<string>`, and row 8's rule (absent storage is never a zero value) now holds at
+> runtime as well as at check time. A stored `null` in an `array<?T>` is **not** an absent key and
+> reads back unchanged, which is why the read is built on an `Option` from the table rather than on
+> the null-shaped answer. The instruction is fallible now — ADR 0002's error edge, `emit_fallible`,
+> a landing block — and `mwl-codegen` emits it as one helper call to `mwl_array_required_get` rather
+> than as a choice between two borrowing primitives, so the `Ty::Str`/`Ty::Int` key split is decided
+> by the key's own **tag** at runtime and the two read signatures are gone from `Signatures`. The
+> rendered key a `uint` subscript builds is staged on the owned-temporaries stack instead of
+> released inline, because the read below it can now leave through the landing block;
+> `tools/leak-check.sh` is green over a fixture that throws with one live. **Unbuilt in the
+> library**, none of it a registration gap: `Core\Json::decodeAs<T>`'s wider codec-reachable set and
+> its two default-bearing rows (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification
+> (`mwl_stdlib::hash`'s module doc), and ADR 0086 § 1's substitution table (M8,
+> `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, and out of this goal's scope** —
+> ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 § 3; their work is M6, M7, M8 and M10. **M4S
+> Part I is the floor, not the frontier**: conformance is at 577 of the goal's new 750 and
+> differential at 162 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
+> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
+> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
+> tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones

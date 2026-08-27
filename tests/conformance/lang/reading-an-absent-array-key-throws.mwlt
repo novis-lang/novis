@@ -1,0 +1,62 @@
+--TEST--
+Reading an array element whose key is absent throws, where PHP warns and yields null — ADR 0007 §§ 2, 7 row 11
+--FILE--
+<?mwl
+// ADR 0007 § 2: nothing converts by itself, and there is no `null` to put in
+// an `array<string>`. The present side of the bound first, so a case that
+// threw everywhere would fail here rather than look right.
+array<string> $a = ["x" => "y", "0" => "zero"];
+echo $a["x"], "|", $a["0"], "\n";
+
+// An `int` subscript names the same entry as its decimal (§ 5), and travels
+// unrendered — the absent half of that pair is asserted below.
+int $zero = 0;
+echo $a[$zero], "\n";
+
+// § 7 row 11: the throw is an ordinary `Throwable`, so it is catchable where
+// it is written rather than a warning nothing observes.
+try {
+    echo $a["nope"], "\n";
+} catch (Throwable $absent) {
+    echo "absent: ", $absent->message, "\n";
+}
+try {
+    int $seven = 7;
+    echo $a[$seven], "\n";
+} catch (Throwable $absentIndex) {
+    echo "absent: ", $absentIndex->message, "\n";
+}
+
+// A stored `null` is not an absent key: `array<?string>` holds one legally,
+// and reading it back is not the error above.
+array<?string> $maybe = ["k" => null, "j" => "here"];
+echo $maybe["k"] ?? "stored-null", "|", $maybe["j"] ?? "stored-null", "\n";
+try {
+    echo $maybe["gone"] ?? "stored-null", "\n";
+} catch (Throwable $absentNullable) {
+    echo "absent: ", $absentNullable->message, "\n";
+}
+
+// Every level of a nested read asks the question separately.
+array<array<string>> $grid = ["r" => ["c" => "v"]];
+echo $grid["r"]["c"], "\n";
+try {
+    echo $grid["r"]["gone"], "\n";
+} catch (Throwable $absentInner) {
+    echo "absent: ", $absentInner->message, "\n";
+}
+try {
+    echo $grid["gone"]["c"], "\n";
+} catch (Throwable $absentOuter) {
+    echo "absent: ", $absentOuter->message, "\n";
+}
+--EXPECT--
+y|zero
+zero
+absent: undefined array key `nope`
+absent: undefined array key `7`
+stored-null|here
+absent: undefined array key `gone`
+v
+absent: undefined array key `gone`
+absent: undefined array key `gone`
