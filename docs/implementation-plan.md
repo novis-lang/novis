@@ -72,11 +72,21 @@
 > branch contributes (`$v ?? throw new LogicError(…)` satisfies a `string`), a `yield` used as a
 > value is `E0448`, `spawn script` is `E0703` (ADR 0006's isolates are M5) and `require` used for
 > its value is `E0704` (`mwl-ir`'s known gap 22), which together leave `lower_expr`'s catch-all no
-> reachable target either. Three live tools **are** the worklist and no session re-derives one:
-> `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes
-> each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
-> `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
-> `docs/spec/02-php-migration.md`.
+> reachable target either. The two **operator** catch-alls one level down are now the same. Unary
+> `+` is the identity over `int`, `uint`, `float` and `decimal` and lowers to its operand with no
+> instruction at all, which is safe rather than a silent divergence only because `-`/`+`/`~` over an
+> operand ADR 0007 § 4 tabulates no row for — a `string`, a `bytes`, an `array<T>`, a `bool`,
+> `null`, a `callable`, an enum case — is now `E0705` where PHP would have converted it first, an
+> object keeping the "MWL has no operator overloading" sentence it already had; `@` error
+> suppression is `E0236` at the parser, ADR 0020 having made every failure a `Throwable` propagated
+> by checked return so there is no channel to mute, which leaves `UnaryOp`'s five variants as four
+> arms and one the parser never constructs. `BinaryOp`'s 22 are the scalar table's eighteen rows
+> plus `.`, `&&`, `||` and `??`, each of which `lower_expr` takes before the general `Binary` arm
+> that is that table's only caller, a compound assignment desugaring through the same four. Three
+> live tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
+> refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item N` for
+> one in full), `python tools/loop.py --list` prints the named `.mwlt` cases each stage still owes,
+> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

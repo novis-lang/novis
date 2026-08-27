@@ -1401,6 +1401,14 @@ is why" — is this file.
   six more, so the hook block reads as broken syntax rather than as the illegal default it
   follows. Copy the shape from
   `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.mwlt`.
+- **A parser refusal that yields `ExprKind::Error` doubles its own `--EXPECTF-ERROR--` block.**
+  `Error` types as `mixed`, so every binding fed by one reports an `E0401` right beside the refusal
+  that caused it — `@$n * 2` printed `E0236` *and* "expected `int`, found `mixed`" at the same span,
+  once per site, turning a four-site case into eight blocks of expectation that say nothing. Handing
+  the *operand* back in place of the whole prefix is the fix at the source and the better recovery
+  besides; the legacy cast in `mwl-syntax/src/parser/expr.rs`'s `parse_unary` keeps `Error` only
+  because `(int)$x` names a target type it cannot honestly produce a value of. Decide which of the
+  two a new refusal wants *before* writing the expected block, not after pasting it.
 
 ## Splitting a file that got too big
 
