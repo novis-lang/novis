@@ -702,8 +702,8 @@ pub(crate) fn check_stmt(
             subject,
             key,
             value,
+            value_by_ref,
             body,
-            ..
         } => {
             let subject_ty = check_expr(subject, None, live, scope, ctx, env);
             let source = crate::expr::foreach_source(subject_ty, subject.span, env);
@@ -717,6 +717,9 @@ pub(crate) fn check_stmt(
             }
             let value_ty = lower_optional_type(value.ty.as_ref(), ctx, env);
             crate::expr::check_foreach_value(&source, value_ty, value, env);
+            if *value_by_ref {
+                crate::expr::check_foreach_by_ref(&source, subject, value_ty, value, env);
+            }
             let value_name = strip_sigil(span_text(env.src, value.name)).to_owned();
             declare_binding(scope, &value_name, value_ty, value.name, false, env);
             body_live.insert(value_name);

@@ -683,15 +683,47 @@ impl<'a> Lowering<'a> {
     ///   of the body rather than the bottom precisely so that a `continue`'s
     ///   back edge needs no step of its own.
     ///
+    /// # `&$v` inverts the first of those three
+    ///
+    /// A by-reference value binding writes each element back into the array
+    /// being walked, so the loop must **not** hold a second reference: the
+    /// one thing the extra reference buys — ADR 0007 § 5 separating the array
+    /// on the first write, leaving the cursor on the snapshot — is exactly
+    /// what a `&$v` loop must not do. So the by-reference shape drops the
+    /// retain, walks the subject variable's *own* `Env` binding rather than a
+    /// reserved `foreach#N` one (`mwl_types`' `check_foreach_by_ref` refuses
+    /// every subject that is not a plain variable, so there is always one),
+    /// and releases nothing after the loop, the local's own exit sweep being
+    /// the single owner it always was.
+    ///
+    /// **Each write is a write-through, not a copy-back at the end of the
+    /// iteration.** Every rebinding of `$v` — `$v = e`, `$v .= e`, `$v++`, a
+    /// `&$v` argument's own copy-back, an element write `$v[0] = e` — also
+    /// stores the new value into the entry it came from, through
+    /// [`Self::write_through_element`] and the [`ByRefElement`] this pushes
+    /// around the body. Copy-back at the iteration's end would be one
+    /// [`InstKind::ArraySet`] instead of one per write, but it would have to
+    /// be emitted at every edge that ends an iteration and get the `return`
+    /// and the throwing ones right too — where PHP, whose `&$v` is a true
+    /// alias, has already written. Write-through is that alias, one store
+    /// later.
+    ///
+    /// The array's binding is re-pointed by every such write, because
+    /// [`InstKind::ArraySet`] consumes one reference and produces the one the
+    /// holder now owns (see [`Self::write_back_array`]). That is why the
+    /// subject's name gets a header phi like any reassigned local, and why
+    /// [`ByRefElement`] carries `Env` names rather than values: a write
+    /// inside the body is what the *next* iteration walks.
+    ///
     /// # Panics
     ///
     /// Panics naming the case for a subject that is not an `array<T>` (ADR
     /// 0053's `Iterable`/`Iterator` are a separate lowering, over a
-    /// user-visible interface rather than these primitives), for `&$v` by
-    /// reference, for a key binding declared as anything but `string` (ADR
-    /// 0007 § 5 makes every stored key a `string`; an `int` key binding needs
-    /// a string-to-int conversion nothing lowers yet), and for a binding with
-    /// no declared type at all, which `mwl_types` already diagnosed.
+    /// user-visible interface rather than these primitives), for a key
+    /// binding declared as anything but `string` (ADR 0007 § 5 makes every
+    /// stored key a `string`; an `int` key binding needs a string-to-int
+    /// conversion nothing lowers yet), and for a binding with no declared
+    /// type at all, which `mwl_types` already diagnosed.
     #[expect(
         clippy::too_many_arguments,
         reason = "the arguments are one `StmtKind::Foreach`'s own fields plus \
@@ -707,13 +739,6 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         env: &mut Env,
     ) {
-        assert!(
-            !value_by_ref,
-            "mwl-ir does not yet lower `foreach (… as &$v)`: a by-reference value binding writes \
-             back through the array it is walking, which is the one shape ADR 0007 § 5's \
-             copy-on-write separation has to be told not to separate; see the crate docs' known \
-             gaps"
-        );
         // ADR 0053 § 3's three shapes are three loops, and which one this is
         // was decided by the checker — `mwl-ir` cannot re-derive it, because
         // reaching `Iterable` through a base class needs the `ClassGraph`
@@ -728,6 +753,12 @@ impl<'a> Lowering<'a> {
             )
         });
         if drive != ForeachDrive::Array {
+            assert!(
+                !value_by_ref,
+                "mwl-ir: a `foreach (… as &$v)` over an `Iterable`/`Iterator` subject reached \
+                 lowering — a cursor has no element storage to write back to, and mwl_types \
+                 reports E0490 for one"
+            );
             assert!(
                 key.is_none(),
                 "mwl-ir: a `foreach` key binding over an `Iterable`/`Iterator` subject reached \
@@ -764,15 +795,31 @@ impl<'a> Lowering<'a> {
              `Iterable`/`Iterator` subjects are their own lowering (see the crate docs' known \
              gaps)"
         );
-        if self.aliasing_read(subject) {
+        if !value_by_ref && self.aliasing_read(subject) {
             self.emit_retain(*cur, array_v);
         }
 
         let seq = self.foreach_seq;
         self.foreach_seq += 1;
-        let array_name = format!("foreach#{seq}");
+        // A by-reference loop walks the subject variable's own binding — see
+        // this method's doc comment on why it must be that one slot and not a
+        // second reference to the same array.
+        let array_name = if value_by_ref {
+            let ExprKind::Variable(name_span) = &subject.kind else {
+                panic!(
+                    "mwl-ir: a `foreach (… as &$v)` subject at {:?} is not a plain variable — \
+                     mwl_types reports E0490 for one before this runs",
+                    subject.span
+                );
+            };
+            strip_sigil(span_text(self.src, *name_span)).to_owned()
+        } else {
+            let name = format!("foreach#{seq}");
+            env.insert(name.clone(), (array_v, Ty::Array));
+            name
+        };
         let cursor_name = format!("foreach#{seq}$cursor");
-        env.insert(array_name.clone(), (array_v, Ty::Array));
+        let slot_name = format!("foreach#{seq}$slot");
         let (zero_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
         env.insert(cursor_name.clone(), (zero_v, Ty::Int));
 
@@ -782,6 +829,13 @@ impl<'a> Lowering<'a> {
         let mut seen = FxHashSet::default();
         let mut reassigned = vec![cursor_name.clone()];
         seen.insert(cursor_name.clone());
+        // Every write through `&$v` re-points the subject's binding, and the
+        // syntactic scan below cannot see that — the write is spelled `$v`,
+        // not `$a`. Seeding it is what gives the next iteration the array the
+        // last one wrote into.
+        if value_by_ref && seen.insert(array_name.clone()) {
+            reassigned.push(array_name.clone());
+        }
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
         self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
 
@@ -825,7 +879,7 @@ impl<'a> Lowering<'a> {
         // Outside a generator the phi carries the same value and this is a
         // no-op.
         let cursor_v = header_env[&cursor_name].0;
-        let array_v = header_env[&array_name].0;
+        let array_v = self.loop_array(header_block, &header_env, &array_name);
         let (slot_v, _) = self.emit(
             header_block,
             Ty::Int,
@@ -872,7 +926,14 @@ impl<'a> Lowering<'a> {
             break_edges: Vec::new(),
             iteration_owned,
             carried: header_env.keys().cloned().collect(),
-            loop_private: vec![array_name.clone(), cursor_name.clone()],
+            // A by-reference loop's array *is* the subject's own binding, so
+            // it is not private to the loop and outlives it — only the cursor
+            // and the slot are reserved names to hide.
+            loop_private: if value_by_ref {
+                vec![cursor_name.clone(), slot_name.clone()]
+            } else {
+                vec![array_name.clone(), cursor_name.clone()]
+            },
             try_depth: self.try_stack.len(),
         });
 
@@ -911,9 +972,27 @@ impl<'a> Lowering<'a> {
         if value_ty.is_refcounted() {
             self.emit_retain(body_cur, v_v);
         }
-        body_env.insert(value_name, (v_v, value_ty));
+        body_env.insert(value_name.clone(), (v_v, value_ty));
 
+        if value_by_ref {
+            // The slot travels in the `Env` rather than as a `ValueId` for
+            // `Self::seed_generator_loop_carried`'s reason: a write to `$v`
+            // may sit after a `yield`, where the header's own definition has
+            // been spilled and reloaded. It is a `Ty::Int`, so it owns
+            // nothing and every sweep ignores it.
+            body_env.insert(slot_name.clone(), (slot_v, Ty::Int));
+            self.by_ref_elements.push(ByRefElement {
+                binding: value_name,
+                array: array_name.clone(),
+                slot: slot_name.clone(),
+            });
+        }
         self.lower_stmt(body, &mut body_cur, &mut body_env);
+        if value_by_ref {
+            self.by_ref_elements
+                .pop()
+                .expect("just pushed this loop's own by-reference binding above");
+        }
         let mut back_edges: Vec<(BlockId, Env)> = Vec::new();
         if !self.is_terminated(body_cur) {
             self.end_iteration(body_cur, &mut body_env);
@@ -944,13 +1023,120 @@ impl<'a> Lowering<'a> {
         }
 
         let mut exit_env = header_env.clone();
-        exit_env.remove(&array_name);
         exit_env.remove(&cursor_name);
+        exit_env.remove(&slot_name);
+        if !value_by_ref {
+            exit_env.remove(&array_name);
+        }
         let mut after_incoming: Vec<(BlockId, Env)> = vec![(header_block, exit_env.clone())];
         after_incoming.extend(frame.break_edges);
         *env = self.merge_envs(after_block, &after_incoming, &exit_env);
-        self.emit_release(after_block, array_v);
+        // The by-reference loop never took a reference of its own, so there
+        // is none to give back: what the subject's binding holds after the
+        // loop is the array every write-through re-pointed it at, and its own
+        // exit sweep releases that once.
+        if !value_by_ref {
+            self.emit_release(after_block, array_v);
+        }
         *cur = after_block;
+    }
+    /// The array a `foreach` is walking, read out of the [`Env`] name it is
+    /// bound under.
+    ///
+    /// One [`InstKind::RefLoad`] when that name is a `&$x` parameter's cell
+    /// (see [`Ty::Ref`]), the binding's own value otherwise. A by-reference
+    /// loop walks the subject's binding directly ([`Self::lower_foreach`]),
+    /// and a `&array<T>` parameter is as much a plain variable at the source
+    /// level as any local — so both shapes reach here, and the cell is the
+    /// one the write-through re-points.
+    fn loop_array(&mut self, cur: BlockId, env: &Env, name: &str) -> ValueId {
+        let &(v, ty) = env.get(name).unwrap_or_else(|| {
+            panic!("mwl-ir: `foreach` lost the `Env` binding `{name}` it walks")
+        });
+        if ty == Ty::Ref {
+            let pointee = self.pointee_of(name);
+            let (loaded, _) = self.emit(cur, pointee, InstKind::RefLoad { slot: v });
+            loaded
+        } else {
+            v
+        }
+    }
+    /// Re-points the same binding at the array an [`InstKind::ArraySet`] just
+    /// yielded — [`Self::loop_array`]'s other half, and
+    /// [`Self::write_back_array`]'s policy against a name rather than an
+    /// expression: no retain and no release, the reference consumed and the
+    /// one produced being the holder's same one.
+    fn store_loop_array(&mut self, cur: BlockId, env: &mut Env, name: &str, written: ValueId) {
+        let &(v, ty) = env.get(name).unwrap_or_else(|| {
+            panic!("mwl-ir: `foreach` lost the `Env` binding `{name}` it walks")
+        });
+        if ty == Ty::Ref {
+            self.emit_ref_store(cur, v, written);
+        } else {
+            // The array a loop walks may itself be an enclosing loop's `&$v`
+            // binding (`foreach ($grid as array<int> &$row) { foreach ($row
+            // as int &$cell) …`), and the separation the inner write just
+            // caused is exactly what the outer entry has to be told about.
+            // The recursion is one level per nesting level and terminates at
+            // the outermost subject, which is a name no binding owns.
+            self.write_through_element(cur, env, name, written, Ty::Array);
+            env.insert(name.to_owned(), (written, Ty::Array));
+        }
+    }
+    /// Writes `v` into the entry a `foreach (… as &$v)` binding came from,
+    /// when `name` is such a binding — the write-through
+    /// [`Self::lower_foreach`]'s doc comment describes, and nothing at all
+    /// for every other name, which is every name in a frame with no
+    /// by-reference loop open.
+    ///
+    /// Called from the three places that re-point a local's slot:
+    /// [`Self::bind_local_value`] (`$v = e` and every compound form),
+    /// [`Self::write_back_holder`] (a `&$v` argument's copy-back) and
+    /// [`Self::write_back_array`] (`$v[0] = e`). The binding keeps its own
+    /// reference and the array takes one of its own, so a refcounted value is
+    /// retained here and released with the binding at the end of the
+    /// iteration ([`LoopFrame::iteration_owned`]) — [`InstKind::ArrayKeyAt`]'s
+    /// fresh key is consumed by the [`InstKind::ArraySet`] and owes nothing
+    /// further.
+    pub(super) fn write_through_element(
+        &mut self,
+        cur: BlockId,
+        env: &mut Env,
+        name: &str,
+        v: ValueId,
+        ty: Ty,
+    ) {
+        if self.by_ref_elements.is_empty() {
+            return;
+        }
+        let Some(element) = self
+            .by_ref_elements
+            .iter()
+            .rev()
+            .find(|e| e.binding == name)
+        else {
+            return;
+        };
+        let (array_name, slot_name) = (element.array.clone(), element.slot.clone());
+        let &(slot_v, Ty::Int) = env.get(&slot_name).unwrap_or_else(|| {
+            panic!("mwl-ir: a `foreach (… as &$v)` body lost the cursor slot `{slot_name}`")
+        }) else {
+            panic!("mwl-ir: a `foreach` cursor slot is bound at `Ty::Int` and nothing rebinds it")
+        };
+        let array_v = self.loop_array(cur, env, &array_name);
+        let (key_v, _) = self.emit(
+            cur,
+            Ty::Str,
+            InstKind::ArrayKeyAt {
+                array: array_v,
+                slot: slot_v,
+            },
+        );
+        if ty.is_refcounted() {
+            self.emit_retain(cur, v);
+        }
+        let written = self.emit_array_set(cur, array_v, key_v, v);
+        self.store_loop_array(cur, env, &array_name, written);
     }
     /// `foreach ($subject as $v) body` over ADR 0053 § 3's other two shapes —
     /// an `Iterable<T>`, whose `iterate()` is called once for a fresh cursor,

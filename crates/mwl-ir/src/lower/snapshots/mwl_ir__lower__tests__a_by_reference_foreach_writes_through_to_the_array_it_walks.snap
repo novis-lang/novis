@@ -1,0 +1,40 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, array) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; array
+    ; stmt s0 @4:5-6:6
+    v2 = const.int 0  ; int
+    jump bb1
+  bb1:
+    v3 = phi [bb0: v2, bb2: v9]  ; int
+    v4 = phi [bb0: v1, bb2: v14]  ; array
+    v5 = array.next_slot v4, v3  ; int
+    v6 = const.int 0  ; int
+    v7 = ge v5, v6  ; bool
+    branch v7 -> bb2 (e0), bb3 (e1)
+  bb2:
+    v8 = const.int 1  ; int
+    v9 = add v5, v8  ; int
+    v10 = array.value_at v4, v5  ; int
+    ; stmt s1 @4:29-6:6
+    ; stmt s2 @5:7-5:19
+    v11 = const.int 1  ; int
+    v12 = add v10, v11 ! bb4  ; int
+    v13 = array.key_at v4, v5  ; string
+    v14 = array.set v4, v13, v12  ; array
+    safepoint
+    jump bb1
+  bb3:
+    release v4
+    release v0
+    return
+  bb4:
+    release v4
+    release v0
+    propagate "m() at t.mwl:5"
+}

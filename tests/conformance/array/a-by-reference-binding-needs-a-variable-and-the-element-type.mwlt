@@ -1,0 +1,51 @@
+--TEST--
+`foreach (… as &$v)` is refused over a subject with no storage to write back to, and over a binding wider than the element type — ADR 0053 § 3, ADR 0007 § 1
+--FILE--
+<?mwl
+// `&$v` writes each element back where it came from, so there has to be
+// somewhere to leave it: a temporary has none, and ADR 0053 § 1 gives a
+// cursor `advance()`/`current()` and no element storage at all. PHP refuses
+// both, the cursor by name. And a by-reference binding *writes* as well as
+// reads, so the covariance an ordinary `array<T>` read has — an `array<int>`
+// read as `mixed` — would store the wider type into the array.
+final class Seq implements Iterator<int> {
+    private int $n = 0;
+    public function advance(): bool {
+        $this->n = $this->n + 1;
+        return $this->n < 3;
+    }
+    public function current(): int {
+        return $this->n;
+    }
+}
+
+final class Rows {
+    public static function of(): array<int> {
+        return [1, 2];
+    }
+}
+
+foreach (Rows::of() as int &$fresh) {
+    $fresh = 0;
+}
+foreach (new Seq() as int &$step) {
+    $step = 0;
+}
+array<int> $counts = [1, 2];
+foreach ($counts as mixed &$wide) {
+    $wide = 0;
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0490]: only a variable can be iterated by reference
+   --> case.mwl:25:10
+%A
+error[E0490]: an `Iterable`/`Iterator` subject has no element to bind by reference
+   --> case.mwl:28:23
+%A
+error[E0491]: a by-reference binding over an `array<int>` needs the type `int` exactly, not `mixed`
+   --> case.mwl:32:21
+%A
+error: aborting due to 3 errors

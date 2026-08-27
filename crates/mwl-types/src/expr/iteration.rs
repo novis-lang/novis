@@ -254,6 +254,92 @@ pub(crate) fn check_foreach_value(
     }
 }
 
+/// The two extra obligations a `foreach (… as &$v)` value binding carries,
+/// beyond the ones [`check_foreach_value`] already checked for any binding.
+/// They are [`super::args::check_by_ref_arg`]'s two, arrived at from the same
+/// direction — `&$v` writes each element back where it came from, exactly as
+/// a `&$x` parameter writes its argument back.
+///
+/// 1. **The subject must be a plain variable holding an `array<T>`.** The
+///    write-back re-points the subject's own slot, so there has to be one:
+///    `foreach (rows() as &$v)` has nowhere to leave what the body wrote, and
+///    a cursor has no element storage at all (ADR 0053 § 1 gives
+///    `Iterator<T>` `advance()` and `current()`, neither of which is a place).
+///    PHP refuses both, the cursor by name.
+/// 2. **The binding's type must be the element type exactly.** A by-value
+///    binding may widen — reading an `array<Dog>` as an `Animal` is the same
+///    element covariance any array read has — but a by-reference one writes
+///    too, and writing an `Animal` into an `array<Dog>` is unsound. ADR 0007
+///    § 1's "no type ever changes by itself" leaves the two directions
+///    meeting only at `T` itself.
+///
+/// Obligation 2 is only reported when the binding would otherwise have been
+/// accepted, for [`super::args::check_by_ref_arg`]'s reason: a type that is
+/// not assignable at all already produced its own diagnostic at this span.
+pub(crate) fn check_foreach_by_ref(
+    source: &ForeachSource,
+    subject: &Expr,
+    declared: TypeId,
+    binding: &ForeachBinding,
+    env: &mut Env<'_>,
+) {
+    let value = match *source {
+        // Already diagnosed, or a `mixed` subject that carries no element
+        // type to be exact about — one mistake, one diagnostic.
+        ForeachSource::Unchecked => return,
+        ForeachSource::Cursor { .. } => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_FOREACH_BY_REF_SUBJECT,
+                    "an `Iterable`/`Iterator` subject has no element to bind by reference",
+                )
+                .with_primary(binding.span, "bound by reference here")
+                .with_help(
+                    "ADR 0053 § 1 gives a cursor exactly `advance()` and `current()`, so there \
+                     is no storage to write back to — drop the `&`, or iterate an `array<T>`",
+                ),
+            );
+            return;
+        }
+        ForeachSource::Array { value } => value,
+    };
+    if !matches!(subject.kind, ExprKind::Variable(_)) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_FOREACH_BY_REF_SUBJECT,
+                "only a variable can be iterated by reference",
+            )
+            .with_primary(subject.span, "this is not a variable")
+            .with_help(
+                "`&$v` writes each element back into the subject, so the subject has to name \
+                 storage that outlives the loop — bind it to a local first, or drop the `&`",
+            ),
+        );
+        return;
+    }
+    if declared != value && is_assignable(value, declared, env.interner, env.graph, env.signatures)
+    {
+        let (want, got) = (
+            env.interner.describe(value),
+            env.interner.describe(declared),
+        );
+        env.diags.report(
+            Diagnostic::error(
+                code::E_FOREACH_BY_REF_ELEMENT_TY,
+                format!(
+                    "a by-reference binding over an `array<{want}>` needs the type `{want}` \
+                     exactly, not `{got}`"
+                ),
+            )
+            .with_primary(binding.span, format!("this binds as `{got}`"))
+            .with_help(
+                "`&$v` writes back at the declared type, so widening on the way in would mean \
+                 storing that wider type into the array",
+            ),
+        );
+    }
+}
+
 /// Checks a `foreach` key binding — which today means refusing one over a
 /// cursor and nothing else.
 ///

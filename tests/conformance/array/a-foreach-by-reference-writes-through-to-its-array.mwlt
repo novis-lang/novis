@@ -1,0 +1,135 @@
+--TEST--
+`foreach (… as &$v)` writes each element back where it came from — at every exit an iteration has, through a nested loop, and through a `&$x` parameter — while a copy taken before the loop keeps what it was given (ADR 0007 § 5, ADR 0053 § 3)
+--FILE--
+<?mwl
+final class Walk {
+    // A `&$x` parameter and a `&$v` binding are the same rule from two
+    // sides: what the callee writes back reaches the entry too.
+    public static function bump(int &$n): void {
+        $n = $n + 100;
+    }
+    // An early `return` leaves the writes already made standing: the write
+    // happened where it was written, not at the end of the iteration.
+    public static function firstOnly(array<int> $xs): array<int> {
+        foreach ($xs as int &$v) {
+            $v = 0;
+            return $xs;
+        }
+        return $xs;
+    }
+}
+
+array<int> $doubled = [1, 2, 3];
+foreach ($doubled as int &$v) {
+    $v = $v * 2;
+}
+echo Core\Json::encode($doubled), "\n";
+
+// The binding still reads as an ordinary local: a second write in the same
+// iteration starts from what the first one left.
+array<int> $twice = [5, 6];
+foreach ($twice as int &$again) {
+    $again = $again + 1;
+    $again = $again + 1;
+}
+echo Core\Json::encode($twice), "\n";
+
+// Every key keeps its own kind — ADR 0007 § 5's `int`-looking keys stay
+// `int` and the rest stay strings, exactly as an ordinary element write
+// leaves them.
+array<int> $mixed = ["k" => 1, 2];
+foreach ($mixed as int &$m) {
+    $m = $m + 10;
+}
+echo Core\Json::encode($mixed), "\n";
+
+// A copy taken before the loop is separated by the first write, so it keeps
+// what it was given.
+array<int> $written = [1, 2, 3];
+array<int> $copy = $written;
+foreach ($written as int &$w) {
+    $w = 9;
+}
+echo Core\Json::encode($written), " ", Core\Json::encode($copy), "\n";
+
+// `break` and `continue` end an iteration without unwriting one.
+array<int> $stopped = [1, 2, 3, 4];
+foreach ($stopped as int &$s) {
+    if ($s == 3) {
+        break;
+    }
+    $s = 0;
+}
+echo Core\Json::encode($stopped), "\n";
+
+array<int> $skipped = [1, 2, 3];
+foreach ($skipped as int &$k) {
+    if ($k == 2) {
+        continue;
+    }
+    $k = 0;
+}
+echo Core\Json::encode($skipped), "\n";
+
+echo Core\Json::encode(Walk::firstOnly([7, 8])), "\n";
+
+// A throw out of the body leaves what the body had already written.
+array<string> $thrown = ["a", "b"];
+try {
+    foreach ($thrown as string &$t) {
+        $t = "z";
+        throw new RuntimeError("stop");
+    }
+} catch (Throwable $stop) {
+    echo "caught ", $stop->message, "\n";
+}
+echo Core\Json::encode($thrown), "\n";
+
+// Nested: the inner loop separates the row it is walking, and the outer
+// entry is re-pointed at that separated row.
+array<array<int>> $grid = [[1, 2], [3, 4]];
+foreach ($grid as array<int> &$row) {
+    foreach ($row as int &$cell) {
+        $cell = $cell * 10;
+    }
+}
+echo Core\Json::encode($grid), "\n";
+
+// A whole-row write through the binding reaches the outer array too.
+array<array<int>> $rows = [[1], [2]];
+foreach ($rows as array<int> &$only) {
+    $only["0"] = 8;
+}
+echo Core\Json::encode($rows), "\n";
+
+array<int> $bumped = [3, 4];
+foreach ($bumped as int &$b) {
+    Walk::bump($b);
+}
+echo Core\Json::encode($bumped), "\n";
+
+// The loop walks the subject's own binding, so an entry appended by the
+// body is reached — the opposite of the by-value loop, which keeps walking
+// the array it started on.
+array<int> $grown = [1];
+foreach ($grown as int &$g) {
+    if ($g == 1) {
+        $grown["1"] = 2;
+    }
+    $g = $g * 100;
+}
+echo Core\Json::encode($grown), "\n";
+--EXPECT--
+[2,4,6]
+[7,8]
+{"k":11,"0":12}
+[9,9,9] [1,2,3]
+[0,0,3,4]
+[0,2,0]
+[0,8]
+caught stop
+["z","b"]
+[[10,20],[30,40]]
+[[8],[8]]
+[103,104]
+[100,200]

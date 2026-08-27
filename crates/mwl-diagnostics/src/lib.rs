@@ -912,6 +912,23 @@ pub mod code {
     /// had to fill fixed parameters would leave a call's arity uncheckable.
     /// Write the fixed arguments out and let the spread supply the tail.
     pub const E_SPREAD_ARG_NOT_VARIADIC: Code = Code::new("E0489");
+    /// `foreach (… as &$v)` over a subject that is not a plain variable
+    /// holding an `array<T>` — a call's result, a literal, a property, or an
+    /// `Iterable`/`Iterator`.
+    ///
+    /// `&$v` writes each element back where it came from, so there has to be
+    /// a slot to write to. PHP refuses the same shapes, and a cursor is the
+    /// one it names outright ("an iterator cannot be used with foreach by
+    /// reference").
+    pub const E_FOREACH_BY_REF_SUBJECT: Code = Code::new("E0490");
+    /// A `foreach (… as T &$v)` whose `T` is not the subject's element type
+    /// exactly.
+    ///
+    /// A by-value binding may widen — reading an `array<Dog>` as an `Animal`
+    /// is sound — but a by-reference one also *writes*, and writing an
+    /// `Animal` into an `array<Dog>` is not. The two directions meet only at
+    /// the element type itself.
+    pub const E_FOREACH_BY_REF_ELEMENT_TY: Code = Code::new("E0491");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

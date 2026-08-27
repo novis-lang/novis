@@ -1100,6 +1100,15 @@ struct Lowering<'a> {
     /// [`lower_method`] seeds it, so the `Env` clones a landing block and a
     /// loop header take would only copy it needlessly.
     ref_locals: FxHashMap<String, Ty>,
+    /// Every `foreach (… as &$v)` whose body is being lowered right now,
+    /// innermost last — see [`ByRefElement`] and [`Lowering::lower_foreach`].
+    ///
+    /// A stack rather than a map because two nested by-reference loops may be
+    /// in scope at once and only the innermost binding of a name is visible;
+    /// pushed before the body is lowered and popped after, so it is empty for
+    /// every frame that has no such loop open and the write-through hook
+    /// costs one `is_empty` there.
+    by_ref_elements: Vec<ByRefElement>,
     /// By-reference arguments staged for the call currently being lowered,
     /// awaiting their copy-back — see [`Ty::Ref`] and
     /// [`Self::flush_ref_writebacks`].
@@ -1178,6 +1187,30 @@ enum RefHolder {
         /// The property's own name.
         field: String,
     },
+}
+
+/// One open `foreach (… as &$v)`: what a write to `$v` inside its body has to
+/// write *through*.
+///
+/// The whole by-reference loop is this record plus
+/// [`Lowering::write_through_element`], which is what
+/// [`Lowering::lower_foreach`]'s own doc comment calls write-through: every
+/// rebinding of `$v` also stores the new value into the entry `$v` came from,
+/// rather than one copy-back at the end of the iteration. Both names are
+/// [`Env`] names rather than values because the [`Env`] is what survives a
+/// header phi, a landing block's clone and a generator's spill/reload — the
+/// array's own binding is re-pointed by every write (ADR 0007 § 5's
+/// separation), so reading a stale [`ValueId`] here would write into the
+/// array the loop *started* on.
+struct ByRefElement {
+    /// The `$v` binding's name, as an assignment target names it.
+    binding: String,
+    /// The `Env` name the array being walked is bound under — the subject
+    /// variable's own, since the loop takes no second reference to it.
+    array: String,
+    /// The `Env` name the current entry's cursor slot is bound under, a
+    /// `Ty::Int` rebound at the top of every iteration.
+    slot: String,
 }
 
 /// What [`Lowering::lower_call_args`] produced: the values to pass.
@@ -1328,6 +1361,7 @@ impl<'a> Lowering<'a> {
             foreach_seq: 0,
             switch_seq: 0,
             ref_locals: FxHashMap::default(),
+            by_ref_elements: Vec::new(),
             pending_refs: Vec::new(),
             generator: None,
             closures: Vec::new(),
@@ -1797,6 +1831,10 @@ impl<'a> Lowering<'a> {
         {
             self.emit_release(cur, old_v);
         }
+        // `$v = e` where `$v` is a `foreach (… as &$v)` binding writes the
+        // entry too — see `Self::write_through_element`, and note that the
+        // header's own per-iteration binding does not come through here.
+        self.write_through_element(cur, env, &name, v, ty);
         env.insert(name, (v, ty));
     }
     /// Re-points whatever holds `base` at `written`, the array an
@@ -1853,6 +1891,9 @@ impl<'a> Lowering<'a> {
                 } else {
                     (written, Ty::Array)
                 };
+                // `$v[0] = e` where `$v` is a `foreach (… as &$v)` binding:
+                // the separated row is what the entry now holds.
+                self.write_through_element(*cur, env, &name, written, ty);
                 env.insert(name, (written, ty));
             }
             ExprKind::PropertyAccess { object, .. } => {
@@ -1952,6 +1993,10 @@ impl<'a> Lowering<'a> {
                 {
                     self.emit_release(cur, old_v);
                 }
+                // `f(&$v)` where `$v` is a `foreach (… as &$v)` binding: what
+                // the callee wrote back reaches the entry too, the same way
+                // an assignment to it does.
+                self.write_through_element(cur, env, name, written, ty);
                 env.insert(name.clone(), (written, ty));
             }
             RefHolder::Field {
@@ -5058,21 +5103,25 @@ class T {
 
     /// `foreach (… as &$v)` writes back through the array it is walking, which
     /// is the one shape copy-on-write separation has to be told *not* to
-    /// separate — out of scope, and named rather than mislowered.
+    /// separate. The snapshot is where that shows: no retain of the subject on
+    /// the way in and no release after the loop, an `array.key_at`/`array.set`
+    /// pair at the write rather than at the end of the iteration, and the
+    /// subject's own binding carrying a header phi over what the last
+    /// iteration wrote.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn a_by_reference_foreach_value_binding_is_still_out_of_scope() {
-        lower_first_method(
+    fn a_by_reference_foreach_writes_through_to_the_array_it_walks() {
+        let (f, map, file) = lower_first_method(
             "<?mwl
 class T {
   function m(array<int> $a): void {
     foreach ($a as int &$v) {
-      echo $v;
+      $v = $v + 1;
     }
   }
 }
 ",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// A Tier 0 `Core` member call: `core.call` naming the symbol

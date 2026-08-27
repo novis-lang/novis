@@ -76,7 +76,7 @@ use self::{
 // them.
 pub(crate) use self::{
     assign::{check_return, is_assignable},
-    iteration::{check_foreach_key, check_foreach_value, foreach_source},
+    iteration::{check_foreach_by_ref, check_foreach_key, check_foreach_value, foreach_source},
     literals::int_literal_digits,
     members::{check_unset_target, is_this_receiver},
     operators::{reject_disjoint_equality, require_stringable},
