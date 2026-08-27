@@ -852,6 +852,32 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
     CLASSES.iter().find(|class| class.name == name)
 }
 
+/// Whether a `Core`-owned class renders as text —
+/// [ADR 0028](../../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+/// § 1's question, asked here because a `Core` class has no other place to
+/// answer it: it declares no interfaces, so there is no `Stringable` for
+/// `mwl_types` to prove against, and its members are the rows above rather
+/// than entries in a class graph.
+///
+/// **Two rows answer yes, and they are two different rules.** A class the spec
+/// gives a `toString` renders through that member, which is ADR 0028 § 1
+/// exactly. A **sink carrier** renders through
+/// [ADR 0088](../../../../docs/adr/0088-output-sinks-and-escaping.md) § 5
+/// instead and has no such member: it is the sink's own value type, holding
+/// bytes that have *already* been through the sink, so `mwl_runtime` renders
+/// it as precisely those bytes and asks for no member at all. That roster is
+/// `mwl_runtime::is_carrier`'s and stays there — this reads it rather than
+/// copying it, so the two cannot disagree about `Core\Cli\Text`.
+///
+/// A name this registry does not know is not a `Core` class at all, and
+/// answers `false` — the caller's own diagnostic is the right answer for it
+/// too, since nothing here will resolve a member on it either.
+#[must_use]
+pub fn class_renders(name: &str) -> bool {
+    mwl_runtime::is_carrier(name)
+        || class(name).is_some_and(|class| class.members().any(|member| member.name == "toString"))
+}
+
 /// The closed roster of members whose helper is handed the **class written at
 /// the call site**, as an extra leading argument.
 ///

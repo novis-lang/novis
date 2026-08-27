@@ -1591,8 +1591,9 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
 
 /// ADR 0028 § 1's half of the row above: an object is stringifiable exactly
 /// where it provably implements the reserved global `Stringable`, with no
-/// property-walk fallback and no `__toString`. A `Core`-owned class is
-/// exempted here and decided by its own registry row at run time.
+/// property-walk fallback and no `__toString`. A `Core`-owned class is asked
+/// the same question of `mwl_stdlib::registry` instead, for the reason
+/// [`core_class_renders`] gives.
 ///
 /// Called on its own by the `as string` conversion, which is why it is a
 /// function rather than a branch of [`require_stringable`].
@@ -1601,6 +1602,19 @@ fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
         return;
     };
     if qname.is_core() {
+        if !core_class_renders(&qname) {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_CORE_CLASS_NOT_STRINGABLE,
+                    format!("`{qname}` cannot be converted to `string`; it has no `toString`"),
+                )
+                .with_primary(span, "converted to `string` here")
+                .with_help(
+                    "a `Core` class renders exactly where the spec gives it a `toString`, and \
+                     this one has none — call the member that answers the text you want",
+                ),
+            );
+        }
         return;
     }
     let stringable = QName::parse("Stringable");
@@ -1637,4 +1651,15 @@ fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
         );
         env.exprs.record_to_string(span, call);
     }
+}
+
+/// Whether a `Core`-owned class renders as text.
+///
+/// One line, because the answer is not this crate's to hold:
+/// [`mwl_stdlib::registry::class_renders`] is its one home, and that function's
+/// doc comment owns the two rules behind it. All this adds is the lookup key —
+/// a `Core` class is keyed on the name as written, which is what
+/// [`QName`]'s own rendering already is.
+fn core_class_renders(qname: &QName) -> bool {
+    mwl_stdlib::registry::class_renders(&qname.to_string())
 }

@@ -1253,6 +1253,22 @@ pub mod code {
     /// inside the sugar, and [`E_CLASS_CONVERSION_TARGET`] for a class
     /// target. The three never fire on the same expression.
     pub const E_NULLABLE_CONVERSION_CANNOT_FAIL: Code = Code::new("E0709");
+    /// A `Core`-owned class rendered as text where the spec gives it no
+    /// `toString` — an `echo`, an interpolation, a `.` operand or an
+    /// `as string`.
+    ///
+    /// ADR 0028 § 1 makes `Stringable` the one way an object renders, and a
+    /// `Core` class does not reach that rule the way a user class does: it
+    /// declares no interfaces, its members being `mwl_stdlib::registry`'s
+    /// rows, so that registry is the one home for which `Core` classes render
+    /// and this diagnostic is that answer read back at the site. Before it,
+    /// every `Core` class was exempted here and the miss fell through to a
+    /// runtime dispatch that could not see a native member at all.
+    ///
+    /// The sibling for a user class is [`E_STRINGABLE_REQUIRED`], which asks
+    /// the class graph the same question; the two never fire together,
+    /// because a class is `Core`-owned or it is not.
+    pub const E_CORE_CLASS_NOT_STRINGABLE: Code = Code::new("E0710");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

@@ -204,7 +204,7 @@
 //!    them adds [`ir::Helper`] variants dispatching on the tag, not a second
 //!    representation.
 //! 4. **One conversion row is missing, and ADR 0066's `as ?T` has no helper
-//!    for the two targets that produce a container.**
+//!    for the one target that produces a container.**
 //!    ADR 0007 § 2's free, total and checked scalar rows all lower, in both
 //!    the throwing form ([`lower::Lowering::convert`]) and ADR 0066's
 //!    non-throwing `as ?T` ([`lower::Lowering::convert_or_null`]). The row
@@ -218,15 +218,17 @@
 //!    does not exist at all (`$arr as ?int`) is `E_NO_CONVERSION`, that
 //!    table's closure asked of the `T` inside the sugar. What is left is the
 //!    other direction — a row § 3 calls **available** with no `?` helper to
-//!    run it, which is now the two targets that produce a *container*:
-//!    `$m as ?bytes` and `$m as ?array<T>`. Each is
+//!    run it, which is now `$m as ?array<T>` alone:
 //!    [`lower::Lowering::convert`]'s own missing row in its null-answering
-//!    spelling, so the two close together. The text target is closed:
+//!    spelling, so the two close together. Both text targets are closed:
 //!    [`ir::Helper::ToStringOrNull`] is [`ir::Helper::TaggedToString`]'s twin
 //!    over one implementation of ADR 0007 § 2's rows, answering `null` where
 //!    that one throws, and it takes `$b as ?string` with it — ADR 0009 § 3's
 //!    UTF-8 validation is a row that can fail, so the `bytes` source has a
-//!    `null` answer of its own rather than a second helper. The **class-target** refusal is the third of
+//!    `null` answer of its own rather than a second helper — and
+//!    [`ir::Helper::ToBytesOrNull`] is [`ir::Helper::TaggedToBytes`]'s twin
+//!    over that pair's other direction, the two rows a tag can take into a
+//!    `bytes` being the `string` and the `bytes` itself. The **class-target** refusal is the third of
 //!    § 3's —
 //!    `mwl_diagnostics::code::E_CLASS_CONVERSION_TARGET`, and it is absolute,
 //!    so no class reaches this crate through `as` at all. It used to carry a
@@ -373,14 +375,18 @@
 //!     static type names *no* class — an erased `object`, a `mixed`, any other
 //!     union — records nothing to resolve and is dispatched on its runtime
 //!     class instead, by `mwl_runtime::stringify` under
-//!     [`ir::Helper::TaggedToString`]. What is left is a `Core`-owned class:
-//!     `require_stringable` exempts it, and its members are native rather than
-//!     entries in a compiled method table, so that dispatch finds nothing and
-//!     the value throws where the spec gives the class a `toString` and it
-//!     should have rendered. Closing it is `mwl_stdlib::registry`'s half —
-//!     the standing decision in `docs/agent/loop-goal.md` says the registry
-//!     states which `Core` classes have one, and a class with none is refused
-//!     where it is written rather than throwing below.
+//!     [`ir::Helper::TaggedToString`]. What is left is the half of a
+//!     `Core`-owned class that *does* render. Its members are native rather
+//!     than entries in a compiled method table, so the runtime dispatch finds
+//!     nothing and the value throws where the spec gives the class a
+//!     `toString` and it should have rendered — closing that is
+//!     `mwl_stdlib::registry`'s half, a native call rather than an
+//!     `ir::InstKind::CallVirtual`. The *refusal* half is already closed and
+//!     is not here: `require_stringable` asks the registry which `Core`
+//!     classes have a `toString` and reports
+//!     `mwl_diagnostics::code::E_CORE_CLASS_NOT_STRINGABLE` at the site for
+//!     one that has none, so only a class that genuinely renders reaches this
+//!     gap.
 //! 14. **Two of the safepoint's four flags still do nothing.**
 //!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
 //!     back edge, and `mwl-codegen` lowers it to a real poll: `CPU_LIMIT` and
@@ -538,18 +544,20 @@
 //!     `string as bytes` is total and free, so it is an
 //!     [`ir::InstKind::Reinterpret`] over the same allocation and emits no
 //!     call, while `bytes as string` validates UTF-8 through
-//!     [`ir::Helper::BytesToString`] and throws rather than substituting.
+//!     [`ir::Helper::BytesToString`] and throws rather than substituting. An
+//!     operand whose static type names neither side of that pair takes it
+//!     from its runtime tag instead ([`ir::Helper::TaggedToBytes`]), which is
+//!     the only shape of `as bytes` that reaches a call at all.
 //!
-//!     What panics is three rows, and **those three are now the whole of
-//!     it**: every other operand/target pair naming no row of ADR 0007 § 2's
+//!     What panics is two rows, and **those two are now the whole of it**:
+//!     every other operand/target pair naming no row of ADR 0007 § 2's
 //!     closed table is `E0708` where it is written
 //!     (`mwl_types::expr::operators`' `reject_unconvertible`), so a pair that
 //!     arrives here is a missing lowering rather than a missing rule.
 //!
 //!     They are `array<T> as array<U>`, whose O(n) element walk is the one
-//!     row in that table that is not a single helper call; a
-//!     [`ty::Ty::Tagged`] operand converted to `bytes`, the one scalar target
-//!     with no runtime-tag row of its own; and a [`ty::Ty::Tagged`] operand
+//!     row in that table that is not a single helper call; and a
+//!     [`ty::Ty::Tagged`] operand
 //!     converted to an *object* — `$m as Plain` over a `mixed`, ADR 0007
 //!     § 6's checked way out of the one unchecked position, which needs a
 //!     runtime class identity [`ty::Ty::Object`] deliberately does not carry

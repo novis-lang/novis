@@ -1,0 +1,66 @@
+--TEST--
+All four rendering spellings agree that a `Core`-owned class the spec gives no `toString` is `E0710` where it is written, and none of them fires on one that has it — ADR 0028 § 1
+--FILE--
+<?mwl
+// ADR 0028 § 1 makes `Stringable` the one way an object renders. A `Core`
+// class declares no interfaces to prove it against — its members are
+// `mwl_stdlib::registry` rows backed by native symbols — so that registry
+// is the one home for which `Core` classes render, and one it gives no
+// `toString` is refused where it is written rather than below it.
+class Render {
+    public static function echoed(Core\Time\Instant $at): void {
+        echo $at;
+    }
+
+    public static function interpolated(Core\Time\Instant $at): string {
+        return "at $at";
+    }
+
+    public static function concatenated(Core\Time\Instant $at): string {
+        return "at " . $at;
+    }
+
+    public static function converted(Core\Time\Instant $at): string {
+        return $at as string;
+    }
+}
+
+// The control, and the reason this case asserts agreement rather than four
+// separate refusals: `Core\Uuid` is one the spec *does* give a `toString`,
+// so none of the four fires on it and the expectation below carries no
+// diagnostic for this line.
+class Ok {
+    public static function converted(Core\Uuid $id): string {
+        return $id as string;
+    }
+}
+--EXPECTF-ERROR--
+error[E0710]: `Core\Time\Instant` cannot be converted to `string`; it has no `toString`
+  --> %s:9:14
+  |
+9 |         echo $at;
+  |              ^^^ converted to `string` here
+  = help: a `Core` class renders exactly where the spec gives it a `toString`, and this one has none — call the member that answers the text you want
+
+error[E0710]: `Core\Time\Instant` cannot be converted to `string`; it has no `toString`
+   --> %s:13:20
+   |
+13 |         return "at $at";
+   |                    ^^^ converted to `string` here
+   = help: a `Core` class renders exactly where the spec gives it a `toString`, and this one has none — call the member that answers the text you want
+
+error[E0710]: `Core\Time\Instant` cannot be converted to `string`; it has no `toString`
+   --> %s:17:24
+   |
+17 |         return "at " . $at;
+   |                        ^^^ converted to `string` here
+   = help: a `Core` class renders exactly where the spec gives it a `toString`, and this one has none — call the member that answers the text you want
+
+error[E0710]: `Core\Time\Instant` cannot be converted to `string`; it has no `toString`
+   --> %s:21:16
+   |
+21 |         return $at as string;
+   |                ^^^ converted to `string` here
+   = help: a `Core` class renders exactly where the spec gives it a `toString`, and this one has none — call the member that answers the text you want
+
+error: aborting due to 4 errors
