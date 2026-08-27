@@ -64,6 +64,7 @@ Exactly PHP's own rule, applied to MWL's own type set:
 | `int` / `uint` | `0` | anything else |
 | `float` | `0.0` (including `-0.0`; `NAN` is truthy) | anything else |
 | `string` | `""` and exactly the one-character string `"0"` | every other string, including `"0.0"` and `"false"` |
+| `bytes` | empty, and **only** empty | every non-empty buffer, the one-octet `"0"` included |
 | `array<T>` | empty, for any `T` | one or more elements, regardless of their content |
 | class instance, `callable` | never | always |
 | enum case | never | always — see *4* |
@@ -72,6 +73,14 @@ Exactly PHP's own rule, applied to MWL's own type set:
 `null`/`never`/`void` cannot occur as a condition's static type in the first place outside `mixed`
 (ADR 0007 already keeps `void`/`never` out of value position); this table only needs to cover what can
 actually reach a condition.
+
+**The `bytes` row is the one PHP does not hand over, and it deliberately drops the `"0"` case.** PHP has no
+such type, so its `string` row is the only neighbour — but that row's one-character exception exists because
+PHP reads a string as a possible number, and [ADR 0009](0009-string-and-bytes.md) makes `bytes` the type that
+never converts to one. Carrying the quirk across would make a one-octet buffer falsy for a reason that does
+not apply to it, and it would do so silently, on the type most likely to be holding a length-prefixed frame
+whose first octet is arbitrary. Emptiness is the only question `bytes` answers here. A `bytes` reaching a
+condition through a `mixed` takes the same row, so the two spellings of one buffer never disagree.
 
 ### 3. Where the value is statically known, the check costs nothing at runtime
 

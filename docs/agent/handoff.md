@@ -2,60 +2,72 @@
 
 ## State
 
-**M4 — language completeness.** `true` and `false` are `bool`'s literal types: placed at a
-position that names one, widened to `bool` everywhere else, erased to `bool`'s
-representation, and tested for membership by an `as` exactly as ADR 0047 § 1's string and
-int atoms are. `closed_literal_set` builds its set in one fallible pass, so the catch-all
-that was on the worklist no longer exists. `convert` gained the widening row a
-heterogeneous set needs (`$s as 1|"a"`, `$s as mixed`) — one `InstKind::Tag`.
-`python tools/holes.py` is at **24 sites, 6 items**.
+**M4 — language completeness.** A `mixed` in a condition and `$m as bool` are ADR 0035
+§ 2's last table row now: one `Helper::ValueTruthy` reading the operand's tag, no untag
+(an unchecked one over an `int` payload is a pointer the next instruction dereferences).
+The runtime row already existed for native `Core` code, so the slice was reaching it from
+compiled code. `bytes` in a condition lowers too — the same panic one arm away, and a live
+abort — falsy iff **empty**, dropping the `"0"` case that is PHP's numeric-string rule.
+`truthy_convert` panics for `Ty::Void` alone now. `python tools/holes.py` reads **24
+sites, 6 items**, unchanged: it read 24 before this session as well, so both panics closed
+here were ones no item claimed, exactly as the previous handoff predicted for the first.
 
-`verify.py` 6 of 6 green — conformance **600**, differential **167**, 1631 unit tests.
-`tools/leak-check.sh` green over a fixture exercising all three new edges: the untag after
-a proven tag, the widening row over a borrowed operand in a loop and over a fresh one, and
-a throwing miss with a refcounted `mixed` live across it.
+`verify.py` 6 of 6 green — conformance **602**, differential **167**, 1632 unit tests.
+`tools/leak-check.sh` green over two fixtures covering the new refcount edges: a fresh
+`Ty::Tagged`/`Ty::Bytes` operand released after its one truthy read, a bare variable read
+not released, elvis reusing its operand as its value, a short-circuiting pair, and a throw
+with a refcounted operand live.
 
-Facts recorded where they belong rather than here: `mwl_types::ty::Ty::True` owns what the
-two `bool` singletons are; `Lowering::convert`'s doc comment owns the four shapes of row it
-lowers, the widening one included; `closed_literal_set`'s own comment owns why the target's
-atom list is walked once.
+Facts recorded where they belong rather than here: ADR 0035 § 2's table owns the `bytes`
+row and the paragraph under it owns why the `"0"` case is dropped;
+`mwl_runtime::value_truthy` owns the tag dispatch and its two callers;
+`mwl_ir::Helper::ValueTruthy` owns why it is the truthiness twin of `Helper::Identical`.
 
 ## Next group
 
-**The remaining aborts in `crates/mwl-ir/src/lower/expr.rs`**, the file this session had
-open, with `crates/mwl-runtime/src/helpers.rs` (where a new `Helper` is implemented),
-`crates/mwl-ir/src/ir.rs` (the `Helper` enum) and `crates/mwl-codegen/src/emit.rs` (its
-`Signatures` row). The first two are the same missing helper seen from two sides.
+**The remaining aborts in `crates/mwl-ir/src/lower/expr.rs`**, still the file this session
+had open, with `crates/mwl-ir/src/lower/mod.rs` (`emit_fallible`, `landing_block`) beside
+it. Item [1] below is fully designed in this handoff on purpose — two viable shapes were
+weighed with the whole file in context and the cheaper one is named, so the next session
+implements rather than re-derives.
 
-- [ ] **A `mixed` in a condition, and `$m as bool`** — `crates/mwl-ir/src/lower/expr.rs:1081`,
-      `truthy_convert`'s catch-all. `mixed $m = "a"; if ($m) { … }` aborts the process
-      today, which is ADR 0035's whole subject matter over ADR 0007 § 2's one unchecked
-      position. One runtime helper applying § 1's table to a tagged value, dispatching on
-      the tag the way `Helper::Identical` already does; `convert`'s `(_, Ty::Bool)` arm at
-      `expr.rs:1000` then reaches it for free. Not on `holes.py`'s list — it reads
-      `expr.rs` and attributes only the dispatch catch-all — so say so in the handoff if
-      the tool still misses it after.
-- [ ] **`as ?T` over a literal or enum target** — `crates/mwl-ir/src/lower/expr.rs:981`,
-      `convert_or_null`'s catch-all, whose message already names this as ADR 0066 § 1's
-      available form. `$x as ?"a"` aborts. It is the membership chain
-      `lower_conversion` now emits for every other target, answering `null` at the far end
-      instead of `Helper::LiteralMismatch` — `lower_literal_membership` at `expr.rs:4290`
-      is the thing to parameterize, not to copy.
-- [ ] **The `lower_expr` dispatch catch-all** — `crates/mwl-ir/src/lower/expr.rs:258`
-      (`holes.py` item 6). Its message lists what is lowered; measure which `ExprKind`
-      still reaches it with a scratch file before deciding, per the new playbook bullet.
+- [ ] **`as ?T` over a literal or enum target** — ADR 0066 § 3 row 2 makes it *available*
+      ("the non-throwing twin" of the checked conversion) and
+      `crates/mwl-ir/src/lower/expr.rs:983` panics instead. `lower_conversion`'s
+      `Some(target)` arm (`expr.rs:4030`) never consults `closed_literal_set`
+      (`expr.rs:4196`) at all, so a set target erases to its base and reaches
+      `convert_or_null`, whose match is `Int|Uint|Float|Decimal`.
+      **Two designs, and take the second.** (a) Redirect the checked lowering's error
+      edge to a null-producing block — elegant, generalizes to `array<T> as ?array<U>`,
+      but `landing_block` (`crates/mwl-ir/src/lower/mod.rs:1547`) ends in
+      `Terminator::Catch`/`Propagate` and a redirect must discard the pending `Throwable`,
+      which is `lower/exception.rs` plumbing and its refcount. (b) Mirror
+      `lower_conversion`'s non-nullable arm with two substitutions: give
+      `lower_literal_membership` (`expr.rs:4347`) a `miss: Option<BlockId>` parameter
+      (`None` = today's `Helper::LiteralMismatch` throw, `Some` = jump), and take the base
+      conversion through `convert_or_null` where it can fail. The `from == Ty::Tagged` and
+      non-enum case needs **no conversion at all**: membership runs first on the tag
+      (`expr.rs:4098` says why), and on a hit the operand *is* the `?T`, since both are
+      `Ty::Tagged`. Result joins with an `InstKind::Phi`; `lower_ternary` is the shape.
+- [ ] **The `lower_expr` dispatch catch-all** — `crates/mwl-ir/src/lower/expr.rs:258`.
+      Start by listing which `ExprKind` variants no arm above it names; each is either a
+      lowering or a diagnostic naming the rule, never a panic.
 - [ ] **A `Class::CONST` on a user-declared class** — `crates/mwl-ir/src/lower/expr.rs:247`.
-      The value is unmodeled in `mwl_types`, so this is a checker slice before it is a
-      lowering one; `E0498` is the next free code if it turns out to be a refusal.
+      **Not a lowering slice**: the panic says the value is unmodeled in `mwl_types`, so
+      the work starts in `crates/mwl-types` recording the constant's value and only then
+      adds the `ExprInfo` arm. Different file set — do it last, or in its own session.
 
 ## Backlog
 
-- A `Ty::Tagged` operand converted to `bytes` — no runtime-tag helper; `convert`'s own
-  panic at `crates/mwl-ir/src/lower/expr.rs:921` names it.
-- `array<T> as array<U>` — ADR 0007 § 2's last unbuilt conversion row, and the reason
-  several `Core` refusals cannot be reached from source (`docs/agent/playbook.md`).
-- `holes.py` item 25's two catch-alls: `decimal`/`never`/`iterable`/`self`/a shape/an
-  intersection as a *declared* type (`crates/mwl-ir/src/lower/mod.rs:2319`).
-- `Class::method(...)`, the first-class callable spelling — `mwl-ir` gap 1.
-- The two unattributed sites in `crates/mwl-codegen/src/ty.rs:116` and `:121`.
+- **An enum case in a `mixed` reads as its backing integer**, so a case backed by `0` is
+  falsy where ADR 0035 § 4 says truthy, and `Core\Reflect::typeOf` reports `int`. Fix is
+  ADR 0010 § 6's reserved enum tag, written by `mwl_codegen::ty::tag_of:99`, whose comment
+  deferred it only until the `mixed` representation was settled — which it now is.
+- `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing rows —
+  `mwl_stdlib::json`'s own module doc.
+- ADR 0088's qualifier classification — `mwl_stdlib::hash`'s module doc.
 - `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+- `python tools/gaps.py` still ranks the thin `Core` classes; a depth slice is legitimate
+  when a language group is blocked, never a reason to leave one unfinished.
+- The `[context]` manifest wanted nothing this session did not have, except ADR 0066 § 3,
+  which cost one `peek.py`. Add `'0066'` to `[context] adrs` if the next group is taken.

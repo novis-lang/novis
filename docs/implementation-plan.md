@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 600 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 602 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 167, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -443,11 +443,33 @@
 > conversion's result is a fresh value its consumer owns; `$s as mixed` is the same row written
 > plainly. A failed membership test names a `bool` operand as `true`/`false` now
 > (`mwl_runtime::rendered_operand`) rather than as "a `Bool` value". `python tools/holes.py` is down
-> to **24 sites and 6 items**. **M4S Part I is the floor, not the frontier**: conformance is at 600
-> of the goal's new 750 and differential at 167 of 165, `python tools/gaps.py` still ranks the thin
-> classes, and a `Core` depth slice is a legitimate slice when a group is blocked — never a reason
-> to leave a language item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
-> tools/check-migration.py`).
+> to **24 sites and 6 items**. **A `mixed` in a condition, and `$m as bool`, are ADR 0035 § 2's own
+> last table row now** rather than a process abort: `truthy_convert`'s arms are that table one
+> representation at a time, and the row for a value whose type the compiler erased is one
+> `Helper::ValueTruthy` reading the tag. The runtime side already existed —
+> `mwl_runtime::value_truthy` was written for native `Core` code holding a `Value` a closure
+> returned — so the whole slice was giving compiled code a way to reach a row that was already
+> correct, and its doc comment now names both callers instead of disclaiming the second. **No untag
+> is emitted**, for `ReceiverProof::Erased`'s reason: an unchecked one over an `int` payload is a
+> pointer the next instruction dereferences, so the whole tagged value travels to the helper. **One
+> divergence is now visible and is not this slice's to fix**: an enum case tagged into a `mixed`
+> reads as its backing integer, so `mixed $m = Rank::Bronze;` (backed by `0`) is falsy where ADR
+> 0035 § 4 makes every statically-typed case truthy. That is `mwl_codegen::ty::tag_of`'s decision —
+> ADR 0010 § 6 reserves an enum tag and nothing writes one — and its comment's premise ("deciding an
+> enum's tag would be deciding half the same question twice") has expired now that `mixed` *is*
+> `Ty::Tagged`; the backlog carries it, and `Core\Reflect::typeOf` over the same value is the same
+> gap by a second route. **`bytes` in a condition lowers too**, which was the same panic one arm
+> away and a live abort for `bytes $b = "abc" as bytes; if ($b) { … }`: it is falsy iff **empty**,
+> deliberately dropping the one-octet `"0"` case a `string` has only because PHP reads a string as a
+> possible number, and ADR 0009 makes `bytes` the type that never converts to one. ADR 0035 § 2's
+> table carries the row and the paragraph under it carries the reasoning;
+> `mwl_runtime::value_truthy`'s `Tag::Bytes` arm had already taken the same reading, so the two
+> spellings of one buffer agree by construction. `truthy_convert` panics for `Ty::Void` alone now,
+> which ADR 0007 keeps out of value position. **M4S Part I is the floor, not the frontier**:
+> conformance is at 602 of the goal's new 750 and differential at 167 of 165, `python tools/gaps.py`
+> still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a group is
+> blocked — never a reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is
+> 31% classified (`python tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones

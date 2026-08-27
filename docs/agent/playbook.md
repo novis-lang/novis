@@ -1603,6 +1603,15 @@ sibling in the same namespace unqualified.
   item's prose ("almost certainly a diagnostic rather than a lowering") was written from an
   inventory that could not see the assert. Read the whole function, and spend one scratch
   `.agent-tmp/*.mwl` per operand shape before believing an item that predicts its own answer.
+- **A `#[should_panic(expected = "known gaps")]` test is how a lowering hole is pinned, and closing the
+  hole turns it red rather than green.** `verify.py`'s `test` step failed on
+  `a_mixed_condition_still_panics_naming_the_gap` *after* the panic was replaced by a working lowering —
+  the diagnosis reads like a regression and is the opposite. `grep -n "should_panic" crates/<crate>/src`
+  for the shape you are about to build, before you build it: the test is the previous session's note that
+  this was deliberate, and the right move is to rewrite it as the snapshot test asserting what now
+  happens, not to delete it. `cargo insta test -p <crate> --lib` then writes the `.snap.new` files
+  (plain `cargo test` stops at the first one), and `git status --short | grep pending-snap` immediately
+  before `cargo insta accept` is what keeps a previous session's orphan out of the commit.
 
 ## Divergences and refusals already pinned
 
