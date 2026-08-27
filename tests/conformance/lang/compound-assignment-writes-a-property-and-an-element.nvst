@@ -1,7 +1,7 @@
 --TEST--
 a compound assignment reaches a property and an array element, not just a local
 --FILE--
-<?mwl
+<?nvs
 class Counter {
     public int $count;
     public string $log;

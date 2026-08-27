@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
-- **Scope:** which of PHP's bundled extensions MWL implements, and at which of
+- **Scope:** which of PHP's bundled extensions Novis implements, and at which of
   [ADR 0003](0003-extension-system.md)'s tiers; the decision procedure applied to any future stdlib
   candidate. Not in scope: the API of any individual `Core` class, which each stdlib milestone designs.
 - **Amends:** [0003](0003-extension-system.md) — the three tiers were defined by *what each is*, never by
@@ -11,12 +11,12 @@
   domain-class roster is extended, and § 5 adds a rule about what may claim the `Core` prefix at all.
 - **Amended by:** 0060, 0063, 0067, 0072, 0074, 0075, 0076, 0077, 0081, 0082, 0083, 0084, 0086, 0097
 
-> **In short:** MWL does not inherit PHP's extension partition. That partition tracks 1997 C build
+> **In short:** Novis does not inherit PHP's extension partition. That partition tracks 1997 C build
 > engineering — separate `.so` files, `dl()`, ini load order, per-module globals — not any property worth
 > preserving, which is why `ctype` is an extension and `str_pad` is not. A candidate is placed instead by
 > **six ordered tests** into one of five outcomes: **Core** (Tier 0, always present), **Native** (Tier 2,
 > statically linked in the default distribution, capability-gated and feature-flaggable), **Ext** (Tier 1,
-> a sandboxed `.mwlx`), **Dropped**, or **already answered by MWL's architecture**. The costs that decide
+> a sandboxed `.nvsx`), **Dropped**, or **already answered by Novis's architecture**. The costs that decide
 > this are **API surface** (priority 4) and the **unsandboxed dependency set** (priority 1) — not binary
 > size, and emphatically not runtime memory, which for an uncalled `Core` class is zero.
 
@@ -25,7 +25,7 @@
 - PHP's extension list is an accident of history the language now has to keep. It ships two MySQL APIs,
   four XML APIs, SHA-256 in both `hash` and `openssl`, and `iconv` alongside `mbstring`. Adopting its
   partition would import every one of those duplications along with the boundary.
-- **What "core bloat" costs in MWL is not what it costs in PHP.** A `Core\Zip` nobody calls is dead code in
+- **What "core bloat" costs in Novis is not what it costs in PHP.** A `Core\Zip` nobody calls is dead code in
   the binary, not a per-process module-globals struct instantiated at every startup. Per
   [ADR 0004](0004-memory-for-simplicity.md) footprint is the last thing protected anyway, so "it makes the
   runtime fatter" is close to a non-argument. Binary size is real but cheap: Cargo features cover it, and
@@ -50,11 +50,11 @@
 
 | Placement | Meaning |
 |---|---|
-| **Core** | Tier 0. Compiled into every `mwl` binary, reachable under the `Core` namespace, no build flag. |
+| **Core** | Tier 0. Compiled into every `nvs` binary, reachable under the `Core` namespace, no build flag. |
 | **Native** | Tier 2. Statically linked subsystem in the default distribution; gated at runtime by an [ADR 0005](0005-config-changeability.md) capability, removable at build time by a Cargo feature. |
-| **Ext** | Tier 1. A sandboxed `.mwlx` wasm component, first-party or third-party. |
+| **Ext** | Tier 1. A sandboxed `.nvsx` wasm component, first-party or third-party. |
 | **Dropped** | Not implemented at any tier. Structural closures live in [ADR 0052](0052-closed-doors.md); the rest are named in § 3 with their replacement. |
-| **Answered** | The problem is removed by MWL's architecture; there is nothing to port. |
+| **Answered** | The problem is removed by Novis's architecture; there is nothing to port. |
 
 ### 2. The six tests, applied in order
 
@@ -121,11 +121,11 @@ roster; `Core\Queue` by test 1 ([ADR 0084](0084-durable-background-jobs.md));
 ([ADR 0083](0083-persistent-connections-are-isolates.md)); and `Core\Api`'s emitter by test 1, since it
 reads the compiler's own route table ([ADR 0085](0085-openapi-is-generated-from-the-route-table.md)).
 `Core\Mail`'s **transport** and `Core\Storage`'s backends are Native by test 3 — they wait on the outside
-world — while composition and the backend-agnostic file API are the `mwl/web` package's.
+world — while composition and the backend-agnostic file API are the `nvs/web` package's.
 
 **A third-party package is a placement question this ADR now shares.**
 [ADR 0081](0081-packages-are-digests-resolution-is-a-maximum.md) gives § 1's Ext row a defined distribution
-channel — a `.mwlx` and a source package are named, resolved, pinned, granted and vendored identically, and
+channel — a `.nvsx` and a source package are named, resolved, pinned, granted and vendored identically, and
 only the payload differs — and a Tier 2 Native subsystem is still never a package.
 
 `Core\Zip` is Core rather than Ext despite passing test 5, because its real defects are not the
@@ -159,15 +159,15 @@ would be a second database API rather than a sixth driver.
 sorting 10,000 strings through a per-comparison boundary would be roughly 130,000 crossings.
 Locale-independent Unicode algorithms — case mapping, NFC/NFD normalization, grapheme segmentation — stay
 in `Core\Str`. And an **image component** (`gd`), test 5's headline case, which **carries `exif` rather
-than leaving it a separate `.mwlx`**: orientation and the rest of the tag set are read by the decoder
+than leaving it a separate `.nvsx`**: orientation and the rest of the tag set are read by the decoder
 already holding the file, so a second component would buy a second boundary crossing for one field.
 
 **Deferred indefinitely — Ext when and if demand appears, and not otherwise:** `bz2`, `xsl`, `yaml`, and
 the binary serialization formats `msgpack`, `cbor`, `igbinary`, `protobuf`. Every one is the pure codec
 case — no connection state, no privilege, hostile bytes — so the tier is right and only the schedule is
-open. Nothing in MWL depends on any of them: `Core\Compress` covers the three `Content-Encoding` formats,
+open. Nothing in Novis depends on any of them: `Core\Compress` covers the three `Content-Encoding` formats,
 `Core\Json` covers interchange, and `igbinary` in particular exists only to accelerate PHP's `serialize()`,
-which MWL does not have. Vendor-C database drivers (`oci8`, `odbc`, `pdo_dblib`, `pdo_firebird`) stay Tier 2
+which Novis does not have. Vendor-C database drivers (`oci8`, `odbc`, `pdo_dblib`, `pdo_firebird`) stay Tier 2
 built from source by the operator who needs them, never in a default binary and with no first-party work
 planned; `Core\Db`'s driver interface is what keeps that door open.
 
@@ -179,7 +179,7 @@ API. `filter`: its `filter_input` half dies with [ADR 0012](0012-no-superglobals
 *sanitizing* filters are half-escaping that produces the false confidence ADR 0024 exists to prevent, so
 only the genuine validators survive, as `Core\Validate`. `gettext` and `setlocale`, because they mutate
 **process-global** C state, which is unsound in a thread-per-core runtime and would leak across requests —
-translation is ICU MessageFormat with locale as an explicit argument, and **MWL has no ambient locale at
+translation is ICU MessageFormat with locale as an explicit argument, and **Novis has no ambient locale at
 all**. `pcntl`, whose `fork()` is a correctness hazard in a threaded process and whose use cases are already
 served by `spawn worker` ([ADR 0006](0006-isolated-script-execution.md)) and coroutines, leaving only a
 narrow `Core\Signal` for graceful shutdown. `imap`, which PHP itself demoted in 8.4. `phar`, replaced by
@@ -201,9 +201,9 @@ remaining users can compose `Core\Xml` with `Core\Http\Client`, and which PHP's 
 meaningfully maintained for years; `ftp`, a plaintext protocol in decline that `Core\Storage` and ADR 0058's
 outbound policy replace; and `ssh2`, where the credential handling is a priority-1 surface we decline to
 own and `Core\Process` can invoke a real `ssh` binary under `process.exec`. Outside the audience
-[ADR 0080](0080-the-audience-mwl-is-built-for.md) names at all: `snmp`, a device-monitoring tool whose
+[ADR 0080](0080-the-audience-nvs-is-built-for.md) names at all: `snmp`, a device-monitoring tool whose
 observability need `Core\Metrics` and [ADR 0076](0076-observability-export.md) serve from the other
-direction, and `enchant`, whose dictionaries a third-party `.mwlx` would carry the way the intl component
+direction, and `enchant`, whose dictionaries a third-party `.nvsx` would carry the way the intl component
 carries CLDR.
 
 **Answered by the architecture.** `opcache` ([ADR 0042](0042-on-disk-artifact-cache-format.md),
@@ -248,7 +248,7 @@ tier is therefore visible at the use site.
   protocol roster.
 - **Internationalization stops being coupled to runtime releases.** CLDR ships roughly twice a year, and
   PHP's ICU version is pinned to whatever the distribution built against — a chronic operational complaint.
-  A new `.mwlx` replaces it.
+  A new `.nvsx` replaces it.
 - **Tier 1's first-party roster is two components — image decoding and intl — and stays two.** That is what
   M9's verification demonstrates: an image codec makes the security claim legible in a way a compression
   benchmark does not. It is deliberately not a head start on a longer list. Everything else that was once
@@ -266,9 +266,9 @@ tier is therefore visible at the use site.
 
 ## Alternatives rejected
 
-- **Mirror PHP's extension list one-for-one.** Maximum familiarity and the simplest `mwl convert` story.
+- **Mirror PHP's extension list one-for-one.** Maximum familiarity and the simplest `nvs convert` story.
   Rejected: it imports every duplication named in *Context*, and the partition encodes C build constraints
-  MWL does not have.
+  Novis does not have.
 - **Everything in Core; no tiers for first-party code.** Simplest to document, and every program has every
   feature. Rejected on priority 1: it would put image and archive decoders — the exact code that
   historically turns an upload into arbitrary code execution — in-process with every in-flight request, and

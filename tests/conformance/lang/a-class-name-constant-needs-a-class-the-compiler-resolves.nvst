@@ -1,7 +1,7 @@
 --TEST--
 `::class` on a class side that is not statically known is `E0702`, and on a name that resolves to nothing is `E0303` — never a panic and never a folded guess (ADR 0011, ADR 0008)
 --FILE--
-<?mwl
+<?nvs
 // ADR 0011 puts every reflective question on `Core\Reflect`: an object
 // carries no name a program can read back, so a receiver's runtime class
 // is not something `::class` can answer.

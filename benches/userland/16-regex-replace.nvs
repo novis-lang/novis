@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // preg_replace over a string - the slug, the sanitiser, the whitespace collapse.
 class Bench {
     public static function run(int $rounds): int {

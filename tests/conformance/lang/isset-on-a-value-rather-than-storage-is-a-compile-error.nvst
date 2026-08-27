@@ -1,7 +1,7 @@
 --TEST--
 An `isset(...)` operand that names no storage is refused where it is written, and parentheses are transparent — ADR 0028 § 3
 --FILE--
-<?mwl
+<?nvs
 // PHP refuses the identical shape at compile time and its own message names
 // the replacement: `isset` asks whether *storage* holds something, and an
 // operand that is already a value has nothing to ask that ADR 0028 § 3's own
@@ -28,15 +28,15 @@ echo isset(($s)) ? "y" : "n", "\n";
 
 --EXPECTF-ERROR--
 error[E0498]: `isset` asks about storage, and this operand is a value
-   --> case.mwl:13:12
+   --> case.nvs:13:12
 %A
 error[E0498]: `isset` asks about storage, and this operand is a value
-   --> case.mwl:14:12
+   --> case.nvs:14:12
 %A
 error[E0498]: `isset` asks about storage, and this operand is a value
-   --> case.mwl:15:12
+   --> case.nvs:15:12
 %A
 error[E0498]: `isset` asks about storage, and this operand is a value
-   --> case.mwl:19:16
+   --> case.nvs:19:16
 %A
 error: aborting due to 4 errors

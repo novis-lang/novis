@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::overlay is PHP's array_replace and ::appendAll is its array_merge over lists, values and key order alike
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = ["x" => 1, "y" => 2];
 array<int> $b = ["y" => 9, "z" => 3];
 array<int> $c = ["x" => 7];

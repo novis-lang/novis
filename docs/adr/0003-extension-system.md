@@ -2,8 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
-- **Scope:** how third-party code is added to a running MWL without rebuilding it — the three tiers,
-  the `.mwlx` component format and its manifest, the WIT world, how a value crosses the guest
+- **Scope:** how third-party code is added to a running Novis without rebuilding it — the three tiers,
+  the `.nvsx` component format and its manifest, the WIT world, how a value crosses the guest
   boundary, and the isolation, limits and loading rules a guest runs under. Not in scope: which
   subsystem belongs at which tier, which is [0051](0051-standard-library-tiers.md); how a package is
   named, resolved and granted, which is [0081](0081-packages-are-digests-resolution-is-a-maximum.md).
@@ -12,8 +12,8 @@
   `x86_64-pc-windows-msvc`.
 - **Amended by:** 0011, 0051, 0052, 0055, 0064, 0078
 
-> **In short:** third-party extensions are sandboxed WebAssembly components (`.mwlx`), never
-> shared libraries loaded with `dlopen`. Three tiers: built-in (`mwl-stdlib`), wasm component, and
+> **In short:** third-party extensions are sandboxed WebAssembly components (`.nvsx`), never
+> shared libraries loaded with `dlopen`. Three tiers: built-in (`nvs-stdlib`), wasm component, and
 > statically linked native. Values cross as bounds-checked handles rather than pointers, instances
 > are fresh per request, and the guest gets no ambient authority. `dlopen` is rejected because it
 > would destroy both memory safety and request isolation, which are the two claims the product
@@ -21,7 +21,7 @@
 
 ## Context
 
-MWL needs to be extensible like PHP — a large built-in standard library plus precompiled extensions added
+Novis needs to be extensible like PHP — a large built-in standard library plus precompiled extensions added
 without rebuilding the runtime — under three requirements, in tension:
 
 1. **Easy to develop for.** PHP's C-only, manual-refcount extension API is why its extension ecosystem is
@@ -35,14 +35,14 @@ Requirements 2 and 3 are what decide this, and they point the same way.
 
 - **Native shared libraries (`.dll`/`.so`/`.dylib`) via `dlopen`** — the PHP/Python/Node model. Rejected:
   destroys memory safety (no sandbox, one bad write corrupts arbitrary memory) and request isolation (one
-  segfault takes down every in-flight request in MWL's single process); bypasses the capability system
+  segfault takes down every in-flight request in Novis's single process); bypasses the capability system
   since native code calls `open()`/`connect()` directly; cannot deliver requirement 3 since Rust has no
   stable ABI; and PHP's own extension CVE history is the empirical case against it.
 - **Rust dylibs with a versioned stable ABI (`abi_stable`).** Better ergonomics for Rust authors, but no
   sandbox, no capability enforcement, per-platform binaries — same rejection.
 - **Out-of-process extensions over IPC.** Excellent isolation, but a round trip costs microseconds — two to
   three orders of magnitude worse than the alternatives for fine-grained work.
-- **Extensions written in MWL itself.** Safe and portable (this is what `mwl pkg` distributes), but cannot
+- **Extensions written in Novis itself.** Safe and portable (this is what `nvs pkg` distributes), but cannot
   wrap an existing C or Rust library — the main reason extensions exist. Complementary, not a substitute.
 - **WebAssembly components.** Chosen — see *Decision* below.
 
@@ -51,17 +51,17 @@ Requirements 2 and 3 are what decide this, and they point the same way.
 A three-tier system. The tiers are not a compromise; each exists because it is the right answer for a
 different class of code.
 
-### Tier 0 — built-in (`mwl-stdlib`)
+### Tier 0 — built-in (`nvs-stdlib`)
 
 Compiled into the binary. Native speed, direct heap access, no boundary at all. This is where
 **fine-grained primitives** live: string and array operations, arithmetic and conversion helpers, anything
 whose total cost is comparable to a function call — each a `static` method on a `Core` domain class rather
 than a bare function ([ADR 0011](0011-functions-and-constants-are-class-members.md)).
 
-### Tier 1 — WebAssembly component extensions (`.mwlx`)
+### Tier 1 — WebAssembly component extensions (`.nvsx`)
 
-**The default and recommended path for third-party extensions.** A `.mwlx` file is a WebAssembly component
-carrying an `mwl.manifest` custom section — a single file, no archive.
+**The default and recommended path for third-party extensions.** A `.nvsx` file is a WebAssembly component
+carrying an `nvs.manifest` custom section — a single file, no archive.
 
 - **One binary, every platform.** Requirement 3, fully satisfied rather than partially.
 - **Memory-safe by construction.** A component cannot address host memory. Requirement 2's security half,
@@ -73,16 +73,16 @@ carrying an `mwl.manifest` custom section — a single file, no archive.
 
 ### Tier 2 — statically linked native extensions
 
-A Rust crate compiled into a custom `mwl` binary. For first-party subsystems that need raw sockets, TLS
+A Rust crate compiled into a custom `nvs` binary. For first-party subsystems that need raw sockets, TLS
 termination, or direct heap access: the database drivers, the regex engine, crypto. Native speed, and safe
 because it is safe Rust. Requires building from source, so it is an operator decision rather than something
 downloaded — which is exactly the right friction for code that runs unsandboxed.
 
-`mwl-db` and `mwl-regex` are Tier 2. That is not a workaround; it is where the standard library lives.
+`nvs-db` and `nvs-regex` are Tier 2. That is not a workaround; it is where the standard library lives.
 
 ### Interface: WIT and the Component Model
 
-MWL publishes a versioned world, `mwl:ext@1.0.0`. An extension implements it.
+Novis publishes a versioned world, `nvs:ext@1.0.0`. An extension implements it.
 
 This buys three things beyond convenience. Rich types — records, variants, lists, strings, results,
 resources — instead of marshalling everything through `i32`. Generated bindings in the author's language of
@@ -91,7 +91,7 @@ be recompiled for every minor engine release.
 
 #### Values cross the boundary as handles, never pointers
 
-MWL values stay in the host heap. The guest receives an opaque `value` resource — an index into a
+Novis values stay in the host heap. The guest receives an opaque `value` resource — an index into a
 per-call handle table that the host bounds-checks — and reads through host accessor functions.
 
 - The guest cannot forge a host pointer. It can only present an index, which is validated.
@@ -103,20 +103,20 @@ per-call handle table that the host bounds-checks — and reads through host acc
 #### Extension functions are statically typed
 
 At load time the host reads the manifest — declared classes, with their `static` methods and `const`
-members, and any `mwl.toml` directives the extension wants — and registers them into the compiler's symbol
+members, and any `nvs.toml` directives the extension wants — and registers them into the compiler's symbol
 table. There is no separate function- or constant-shaped registration: an extension follows the same
 class-only shape [ADR 0011](0011-functions-and-constants-are-class-members.md) requires of user code.
-Consequently `mwl check` **type-checks calls into extensions at compile time**, and codegen emits a direct
+Consequently `nvs check` **type-checks calls into extensions at compile time**, and codegen emits a direct
 call to the extension trampoline rather than a dynamic dispatch. PHP cannot do either.
 
 ### Isolation, limits and loading
 
-**Loading is root-controlled.** An `[[extension]]` entry in the root-owned `mwl.toml`, consistent with
+**Loading is root-controlled.** An `[[extension]]` entry in the root-owned `nvs.toml`, consistent with
 [the server-level configuration decision](README.md):
 
 ```toml
 [[extension]]
-path   = "image.mwlx"
+path   = "image.nvsx"
 sha256 = "…"
 ```
 
@@ -125,7 +125,7 @@ are precompiled binaries arriving from outside — the pin is a field of the ent
 convention over a repeated key, which is one of the reasons
 [0064](0064-configuration-file-format.md) chose a format with an array-of-tables shape.
 
-**The set is reloadable, not boot-only.** `mwl ctl reload` re-verifies every pin against the file on disk,
+**The set is reloadable, not boot-only.** `nvs ctl reload` re-verifies every pin against the file on disk,
 loads the manifests, and refuses the whole swap if any pin does not match — so a running server can gain,
 lose or replace an extension without dropping a request, and never on a binary that changed underneath its
 pin. Because the loaded set is folded into the `env_hash` that keys both compiled-unit caches, a changed set
@@ -142,7 +142,7 @@ pooling allocator, and is paid only for extensions a request actually calls. A t
 to three, so the realistic cost is 8–23 µs against a request budget measured in milliseconds.
 
 **Compiled once, shared everywhere.** An extension is compiled on first load into the same
-content-addressed artifact cache as MWL's own code, and the compiled module is shared across all cores via
+content-addressed artifact cache as Novis's own code, and the compiled module is shared across all cores via
 `Arc`.
 
 **Subject to the request's budget.** Epoch interruption ties guest execution to the per-request CPU cap;
@@ -150,21 +150,21 @@ spike #4 confirmed a deliberately infinite guest loop traps rather than hanging 
 `StoreLimits`. An extension therefore cannot starve its neighbours — again a stronger guarantee than a
 built-in native function currently has.
 
-**No ambient authority.** WASI is *not* granted by default. The guest receives only MWL's own
+**No ambient authority.** WASI is *not* granted by default. The guest receives only Novis's own
 capability-checked host functions, so an extension's filesystem and network access is governed by the same
-root-owned `mwl.toml` as script code. WASI is available as an opt-in world whose preopens are derived from
+root-owned `nvs.toml` as script code. WASI is available as an opt-in world whose preopens are derived from
 the capability grants.
 
 **Async composes.** Wasmtime's async support is implemented with stack switching, which is the same
-mechanism as MWL's stackful coroutines ([ADR 0002 corollary](0002-error-propagation.md)). An extension doing
-I/O suspends the request's coroutine like any other MWL function — no async colouring, no special case.
+mechanism as Novis's stackful coroutines ([ADR 0002 corollary](0002-error-propagation.md)). An extension doing
+I/O suspends the request's coroutine like any other Novis function — no async colouring, no special case.
 
 ### Why wasmtime rather than our own engine
 
-MWL already embeds Cranelift, so writing our own wasm engine is tempting and would share most of the
-backend. Rejected for the same reason MWL uses `hyper` instead of a hand-rolled protocol parser: the wasm
+Novis already embeds Cranelift, so writing our own wasm engine is tempting and would share most of the
+backend. Rejected for the same reason Novis uses `hyper` instead of a hand-rolled protocol parser: the wasm
 **validator** is security-critical, and a bug in it is a sandbox escape. Wasmtime is memory-safe Rust, is
-the most-audited wasm runtime available, and is built on the same Cranelift version MWL already pins —
+the most-audited wasm runtime available, and is built on the same Cranelift version Novis already pins —
 spike #4 established that the two coexist with no dependency conflict, and the paired bump to wasmtime 48
 + cranelift 0.135 re-confirmed it — both still resolve to one shared `cranelift-codegen`.
 
@@ -199,7 +199,7 @@ performance-critical first-party subsystems. The documentation must tell extensi
 coarse-grained APIs, because the boundary, not the compute, is what they control.
 
 **Not yet measured:** in-guest compute throughput relative to native. Cranelift-compiled wasm is generally
-within a small factor of native, but MWL should not ship a claim it has not measured. Benchmarking this
+within a small factor of native, but Novis should not ship a claim it has not measured. Benchmarking this
 per-extension is a deliverable of the extension milestone, not an assumption.
 
 ## Consequences
@@ -229,5 +229,5 @@ per-extension is a deliverable of the extension milestone, not an assumption.
 
 Reopen if in-guest compute throughput measures far worse than expected for a real workload, in which case
 the answer is to move that specific capability into Tier 0 or Tier 2 — not to open a `dlopen` path. Native
-dynamic loading should be reconsidered only if MWL abandons either the memory-safety claim or the
+dynamic loading should be reconsidered only if Novis abandons either the memory-safety claim or the
 single-process server model, at which point much else in this design changes too.

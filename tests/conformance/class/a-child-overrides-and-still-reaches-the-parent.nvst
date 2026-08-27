@@ -1,7 +1,7 @@
 --TEST--
 An override calls `parent::` for the behaviour it extends, through two levels of inheritance
 --FILE--
-<?mwl
+<?nvs
 class Shape {
     public string $name;
 

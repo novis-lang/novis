@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::unique keeps the first occurrence with its own key, and compares by identity rather than by spelling
 --FILE--
-<?mwl
+<?nvs
 array<int> $dupes = [1, 2, 1, 3, 2];
 var $once = Core\Arr::unique($dupes);
 echo Core\Str::join(Core\Arr::map($once, fn(int $v) => $v as string), ","), "\n";

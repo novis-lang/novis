@@ -1,7 +1,7 @@
 --TEST--
 Two nested `try` regions inside one loop body run their `finally` blocks innermost-first when a `break` or a `continue` leaves both
 --FILE--
-<?mwl
+<?nvs
 class Nest {
     public static function walk(): string {
         var $out = "";

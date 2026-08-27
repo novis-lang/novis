@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // json_encode on a nested payload — what every API response ends with.
 class Bench {
     public static function run(int $rounds): int {

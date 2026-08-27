@@ -51,13 +51,13 @@ three:
   while a panic is already unwinding aborts unconditionally, as does Rust's default allocation-failure
   handler. Both are reachable from request-sized data — the first through any `Drop` on a teardown path,
   the second through any engine-side buffer that grows with input.
-- **A signal.** [ADR 0020](0020-error-escalation-ladder.md) § 1 bounds recursion through *MWL* frames,
+- **A signal.** [ADR 0020](0020-error-escalation-ladder.md) § 1 bounds recursion through *Novis* frames,
   which is the case it was written for. Request data also drives recursion through *Rust* frames — a
   nested document handed to a decoder, a nested expression handed to the parser, and a nested value graph
   handed to `Drop` at request end, which runs after the request is over and therefore cannot be refused by
   any limit that acts on the request. A mapped file that is replaced underneath a reader is the same shape
   with a different signal.
-- **A core that never comes back.** Nothing here crashes. A safepoint bounds MWL code between helpers, but
+- **A core that never comes back.** Nothing here crashes. A safepoint bounds Novis code between helpers, but
   a helper whose runtime is O(input) is a single call with no safepoint inside it, and a blocking syscall
   on a thread-per-core runtime stalls every coroutine pinned to that core.
   [ADR 0056](0056-regex-engine-policy.md) already named this shape exactly right for one member — a
@@ -86,11 +86,11 @@ one that is not named is the one that gets discovered by an operator.
 
 ### 2. Containment does not end at the helper
 
-[ADR 0002](0002-error-propagation.md)'s `mwl_helper!` wrapper contains a panic raised beneath a JIT frame.
+[ADR 0002](0002-error-propagation.md)'s `nvs_helper!` wrapper contains a panic raised beneath a JIT frame.
 Code that runs on a worker with no request beneath it — the accept loop, the HTTP reader, the compiled-unit
 cache index — is outside it. **The worker task's root is wrapped in `catch_unwind` as well**, and the
 wrapper is applied by the task-spawning helper rather than written per call site, for the same reason
-`mwl_helper!` exists.
+`nvs_helper!` exists.
 
 Two outcomes, split on whether a request owns the fault:
 
@@ -131,14 +131,14 @@ remain, and both are reachable from request-sized data:
 
 ### 4. Depth is bounded on the engine's stack, not only on the script's
 
-[ADR 0020](0020-error-escalation-ladder.md) § 1 bounds recursion through MWL frames, where every user call
+[ADR 0020](0020-error-escalation-ladder.md) § 1 bounds recursion through Novis frames, where every user call
 is a real machine frame. The same request data recurses through *engine* frames in the decoders and in the
-parser, where the § 1 mechanism does not reach: its check is emitted at MWL function entry, and a decoder's
-recursion has no MWL frames in it at all.
+parser, where the § 1 mechanism does not reach: its check is emitted at Novis function entry, and a decoder's
+recursion has no Novis frames in it at all.
 
 **Every engine-side recursive descent over request data carries an explicit depth counter and refuses past
 its limit**, with the refusal reaching the caller as an ordinary catchable failure — a `413`-class
-condition for a body, a diagnostic for source. The limit is an `mwl.toml` directive per
+condition for a body, a diagnostic for source. The limit is an `nvs.toml` directive per
 [0064](0064-configuration-file-format.md), one per decoder rather than one shared number, because the
 depth that is reasonable for a JSON body is not the depth that is reasonable for a source file.
 
@@ -149,7 +149,7 @@ user-visible behaviour change, and it is visible only to a program that was alre
 
 ### 5. Time is bounded inside a helper, not only between helpers
 
-The safepoint poll bounds MWL code because it sits between calls. A helper whose runtime is O(its input) —
+The safepoint poll bounds Novis code because it sits between calls. A helper whose runtime is O(its input) —
 a sort, a scan, an encode, a hash over a large value — is one call, and a deadline that can only fire
 between calls cannot fire inside it.
 
@@ -167,7 +167,7 @@ design.
 Two constraints on where a poll may go, both about correctness rather than cost:
 
 - **The poll is supplied by a bounded-loop combinator, not remembered per helper.** Same reasoning as
-  `mwl_helper!` in [0002](0002-error-propagation.md): a helper adopts a shape and the shape carries the
+  `nvs_helper!` in [0002](0002-error-propagation.md): a helper adopts a shape and the shape carries the
   obligation, so a future member cannot omit it by not knowing about it.
 - **A poll site must be a point at which abandoning leaves the value consistent.** A sort cannot be
   abandoned mid-permutation and its array handed back. Where no such point exists inside the operation,

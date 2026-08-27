@@ -16,13 +16,13 @@
 
 # Every fixture the run touches. Stage 1's floor brings its own list; `goal-switch.py` unions them.
 files = [
-  "examples/hello.mwl", "examples/calls.mwl", "examples/throw.mwl", "examples/arith.mwl",
-  "examples/trace.mwl", "examples/uncaught.mwl", "examples/fatal.mwl",
-  "examples/objects.mwl", "examples/arrays.mwl", "examples/errors.mwl", "examples/hooks.mwl",
-  "examples/enums.mwl", "examples/iterate.mwl", "examples/core.mwl", "examples/report.mwl",
-  "examples/nullable.mwl", "examples/match.mwl",
-  "examples/text.mwl", "examples/numbers.mwl", "examples/dates.mwl", "examples/json.mwl",
-  "examples/collect.mwl",
+  "examples/hello.nvs", "examples/calls.nvs", "examples/throw.nvs", "examples/arith.nvs",
+  "examples/trace.nvs", "examples/uncaught.nvs", "examples/fatal.nvs",
+  "examples/objects.nvs", "examples/arrays.nvs", "examples/errors.nvs", "examples/hooks.nvs",
+  "examples/enums.nvs", "examples/iterate.nvs", "examples/core.nvs", "examples/report.nvs",
+  "examples/nullable.nvs", "examples/match.nvs",
+  "examples/text.nvs", "examples/numbers.nvs", "examples/dates.nvs", "examples/json.nvs",
+  "examples/collect.nvs",
 ]
 
 # What a session of this goal READS. `python tools/orient.py` slices exactly these out of the live
@@ -30,7 +30,7 @@ files = [
 # warning. loop-authoring.md § 2 is the rules, `python tools/orient.py --audit` is the price.
 #
 # THIS BLOCK STARTS NARROW ON PURPOSE and is expected to move through the goal, because M4B's stages
-# sit in genuinely different file sets -- Stage 2 is `mwl-syntax`, Stage 3 is a crate that does not
+# sit in genuinely different file sets -- Stage 2 is `nvs-syntax`, Stage 3 is a crate that does not
 # exist yet, Stage 5 is TypeScript. Naming all three up front prints two unread module maps every
 # session. The commented blocks below are the selectors each later stage wants; a session that opens
 # the first slice of a stage moves the comment markers and says so in the handoff.
@@ -40,18 +40,18 @@ modules = [
   # Stage 0 and Stage 2. The lexer is where trivia lands, `parser/mod.rs` holds the entry points and
   # the recovery contract, `parser/expr.rs` is where the synthesized member name is made, `ast.rs` is
   # what gains `MemberName::Missing`.
-  "crates/mwl-syntax/src/lexer.rs",
-  "crates/mwl-syntax/src/parser/mod.rs",
-  "crates/mwl-syntax/src/parser/expr.rs",
-  "crates/mwl-syntax/src/ast.rs",
+  "crates/nvs-syntax/src/lexer.rs",
+  "crates/nvs-syntax/src/parser/mod.rs",
+  "crates/nvs-syntax/src/parser/expr.rs",
+  "crates/nvs-syntax/src/ast.rs",
   # Stage 0 only -- drop these two once the catch-up list is empty.
-  "crates/mwl-ir/src/lower.rs",
+  "crates/nvs-ir/src/lower.rs",
 
   # -- Stage 3 (uncomment when item 10 opens; drop Stage 2's parser files at the same time) --
-  # "crates/mwl-lsp/src/**",
-  # "crates/mwl-diagnostics/src/source.rs",
-  # "crates/mwl-types/src/expr_table.rs",
-  # "crates/mwl-stdlib/src/registry.rs",
+  # "crates/nvs-lsp/src/**",
+  # "crates/nvs-diagnostics/src/source.rs",
+  # "crates/nvs-types/src/expr_table.rs",
+  # "crates/nvs-stdlib/src/registry.rs",
 
   # -- Stage 5 (uncomment when item 21 opens) --
   # `orient.py` reads `editors/*/src/**/*.ts` for its first `//`/JSDoc line the same way it reads a
@@ -78,7 +78,7 @@ adrs = [
 ]
 
 # Headings of docs/agent/conventions.md naming shapes this goal will write.
-shapes = ["A `.lspt` case", "A `.mwlt` test case", "A commit message", "A diagnostic"]
+shapes = ["A `.lspt` case", "A `.nvst` test case", "A commit message", "A diagnostic"]
 
 # Traps from docs/agent/playbook.md. An entry is a `##` heading (the whole section) or ONE bullet
 # named by its bold lead-in after a `>`. This is the pack's largest section and the only one that
@@ -97,7 +97,7 @@ playbook = [
   'Tooling > another session',
   'Tooling > another agent',
   'Tooling > a loop-goal.toml',
-  'Running things > target/release/mwl.exe is',
+  'Running things > target/release/nvs.exe is',
   'Running things > verify.py never',
 ]
 
@@ -109,12 +109,12 @@ plan = ["Open now", "Blocking"]
 milestones = ["M4B"]
 
 [valgrind]
-skip = ["examples/fatal.mwl", "examples/uncaught.mwl"]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 
 [wsl]
 # `/var/tmp`, not `/tmp`, which the distro clears at every WSL boot -- see loop-goal.toml's own [wsl]
 # block, and commands.md § *Fuzzing and callgrind on Windows* for what a target directory there costs.
-target_dir = "/var/tmp/mwl-target-wsl"
+target_dir = "/var/tmp/nvs-target-wsl"
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -126,8 +126,8 @@ target_dir = "/var/tmp/mwl-target-wsl"
 [[check]]
 kind = "cargo-named"
 stage = "0 catch-up"
-name = "mwl-ir (the four holes)"
-args = ["test", "-p", "mwl-ir"]
+name = "nvs-ir (the four holes)"
+args = ["test", "-p", "nvs-ir"]
 tests = [
   # Item 1 -- ADR 0027's first-class callable reaches lowering instead of panicking.
   "a_first_class_callable_lowers",
@@ -156,8 +156,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "2 keystone"
-name = "mwl-syntax (the lossless tree)"
-args = ["test", "-p", "mwl-syntax"]
+name = "nvs-syntax (the lossless tree)"
+args = ["test", "-p", "nvs-syntax"]
 tests = [
   # Item 5 -- the property the whole design rests on, over the corpus rather than one file.
   "tokens_and_trivia_reproduce_every_source_byte",
@@ -175,10 +175,10 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "2 keystone"
-name = "mwl-test (the shared section lexer)"
-args = ["test", "-p", "mwl-test"]
+name = "nvs-test (the shared section lexer)"
+args = ["test", "-p", "nvs-test"]
 tests = [
-  # Item 9 -- one section parser, two formats. A `.mwlt` case must be unaffected by the extraction.
+  # Item 9 -- one section parser, two formats. A `.nvst` case must be unaffected by the extraction.
   "the_section_lexer_reads_both_case_formats",
 ]
 
@@ -191,7 +191,7 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
-kind = "mwl-suite"
+kind = "nvs-suite"
 stage = "3 server"
 name = "lsp cases"
 args = ["lsp-test", "tests/lsp/"]
@@ -202,8 +202,8 @@ min_passing = 160
 [[check]]
 kind = "cargo-named"
 stage = "3 server"
-name = "mwl-lsp"
-args = ["test", "-p", "mwl-lsp"]
+name = "nvs-lsp"
+args = ["test", "-p", "nvs-lsp"]
 tests = [
   # Item 10 -- the one that is invisible on ASCII and wrong on every other file.
   "a_position_round_trips_through_utf16_and_utf8",
@@ -233,8 +233,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "4 cli"
-name = "mwl-cli (ast --json)"
-args = ["test", "-p", "mwl-cli"]
+name = "nvs-cli (ast --json)"
+args = ["test", "-p", "nvs-cli"]
 tests = [
   # Item 20 -- ADR 0040 § 3 assumed this existed. A frozen schema, and the resilient tree by default.
   "ast_json_matches_its_frozen_schema",
@@ -262,7 +262,7 @@ name = "vscode (headless)"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:headless"]
 # Three suites behind one script: the TextMate grammar snapshots, the contributions/allowlist test,
-# and the protocol round-trip against the real `mwl lsp` binary. Each names itself so a ledger line
+# and the protocol round-trip against the real `nvs lsp` binary. Each names itself so a ledger line
 # says which one broke.
 want = ["grammar:", "contributions:", "protocol:", "0 failing"]
 # `contributions:` covers more than it sounds like: the dependency allowlist, the absence of any
@@ -296,8 +296,8 @@ want = [".vsix"]
 [[check]]
 kind = "cargo-named"
 stage = "6 guards"
-name = "mwl-runtime (manifest policy)"
-args = ["test", "-p", "mwl-runtime"]
+name = "nvs-runtime (manifest policy)"
+args = ["test", "-p", "nvs-runtime"]
 tests = [
   # `tokio` does not enter this workspace -- ADR 0099 § 2, asserted rather than remembered, in the
   # same test shape that already holds `[profile.release] overflow-checks`.

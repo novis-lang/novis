@@ -1,7 +1,7 @@
 --TEST--
 `as ?string` renders exactly what `as string` renders and answers `null` only where that one throws, over every source (ADR 0066 § 1, ADR 0007 § 2, ADR 0009 § 3)
 --FILE--
-<?mwl
+<?nvs
 class Tag implements Stringable {
     public function toString(): string { return "<tag>"; }
 }

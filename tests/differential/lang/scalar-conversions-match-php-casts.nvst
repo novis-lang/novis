@@ -1,7 +1,7 @@
 --TEST--
 `as` renders the same text PHP's legacy cast does, on the rows where both succeed
 --FILE--
-<?mwl
+<?nvs
 echo "42" as int, "\n";
 echo "-7" as int, "\n";
 echo 3.0 as int, "\n";

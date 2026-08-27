@@ -2,7 +2,7 @@
 //! each rule lives in.
 //!
 //! [`check_expr`] takes an optional expected type: an
-//! [`mwl_syntax::ast::ExprKind::ArrayLiteral`] checked against an `array<T>`
+//! [`nvs_syntax::ast::ExprKind::ArrayLiteral`] checked against an `array<T>`
 //! target checks every element directly against `T` (ADR 0007 § 5 — "never
 //! inferred and then compared"); anything else infers its type bottom-up and,
 //! when an expected type was given, reports `E_TYPE_MISMATCH` on a mismatch
@@ -39,9 +39,9 @@
 //! now, and PHP's "an unset operand is tolerated" is answered by ADR 0007
 //! § 1 instead, every local being declared before it can be named at all.
 
-use mwl_diagnostics::{Diagnostic, SourceFile, Span, code};
-use mwl_hir::{ClassGraph, QName, SymbolKind};
-use mwl_syntax::ast::{
+use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
+use nvs_hir::{ClassGraph, QName, SymbolKind};
+use nvs_syntax::ast::{
     Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
     MemberName, NewTarget, ObjectLiteralField, StringPart, Type, TypeKind, UnaryOp,
 };
@@ -113,9 +113,9 @@ pub(crate) fn check_expr(
 ///
 /// Two shapes mean something in that position and nothing anywhere else, so
 /// this is where they are told apart rather than by threading a flag through
-/// the whole dispatch. Both mirror `mwl_ir::lower::Lowering::lower_expr_stmt`
+/// the whole dispatch. Both mirror `nvs_ir::lower::Lowering::lower_expr_stmt`
 /// exactly, and both look through parentheses for its reason: `(require 'a');`
-/// is the same statement, `mwl_syntax::ast::Expr::unparenthesized` being what
+/// is the same statement, `nvs_syntax::ast::Expr::unparenthesized` being what
 /// finds the root there too.
 ///
 /// * `yield $v;` — ADR 0053 § 4's suspension point, whose value nothing
@@ -186,7 +186,7 @@ pub(super) fn infer(
         // reported anything wrong, so there is nothing left to check here.
         ExprKind::Duration(_) => env
             .interner
-            .class(QName::parse(mwl_stdlib::time::DURATION_NAME)),
+            .class(QName::parse(nvs_stdlib::time::DURATION_NAME)),
         ExprKind::Str(span) => infer_str_literal(*span, expected, env),
         ExprKind::Interpolated(parts) => infer_interpolated(expr, parts, live, scope, ctx, env),
         ExprKind::Variable(span) => {
@@ -238,7 +238,7 @@ pub(super) fn infer(
             // that table leaves nothing to lower for.
             //
             // It is also a *write*, which is the half this arm used to leave
-            // out: `mwl_ir::lower` desugars `$x++` into the same `$x = $x + 1`
+            // out: `nvs_ir::lower` desugars `$x++` into the same `$x = $x + 1`
             // a compound assignment becomes, so the three targets
             // [`check_write_target`] refuses have no more of a place to put
             // `± 1` than they had to put an assigned value. Marking the
@@ -427,7 +427,7 @@ pub(super) fn infer(
         ExprKind::ClassNameConst { class } => {
             members::check_class_name_const(expr, class, ctx, env)
         }
-        // `mwl-ir` needs the element's declared type to lower an eventual
+        // `nvs-ir` needs the element's declared type to lower an eventual
         // indexed read/write instruction — see `crate::expr_table`'s own
         // module docs. Recorded only when `base_ty` statically resolved to a
         // known `Ty::Array` element type, never when it erased to `mixed`
@@ -478,7 +478,7 @@ pub(super) fn infer(
             // That is not the narrowing `E0482` asks an untested nullable for:
             // a `null` base under a `??` has an answer (`null`, and then the
             // right operand), which is exactly what PHP does with the whole
-            // chain. `mwl_array_optional_get` is where the runtime half of it
+            // chain. `nvs_array_optional_get` is where the runtime half of it
             // lives.
             let base_ty = if guarded {
                 env.interner.without_null(base_ty)
@@ -494,7 +494,7 @@ pub(super) fn infer(
                     // A guarded read answers `?elem_ty`, and that is the whole
                     // mechanism: `binary_result`'s `Coalesce` arm strips the
                     // `null` back off for the non-null branch, and the `null`
-                    // it leaves in the operand's type is what keeps `mwl-ir`'s
+                    // it leaves in the operand's type is what keeps `nvs-ir`'s
                     // `lower_coalesce` from short-circuiting a `??` whose left
                     // operand looked statically non-nullable.
                     env.exprs
@@ -543,7 +543,7 @@ pub(super) fn infer(
                 // PHP agrees on the behaviour (`UnhandledMatchError`, on every
                 // evaluation) and only disagrees on when it is said; refusing
                 // it here loses no program that ran, and it is what keeps
-                // `mwl_ir::lower::Lowering::lower_match` from having to invent
+                // `nvs_ir::lower::Lowering::lower_match` from having to invent
                 // a value for a phi with no incoming edge.
                 env.diags.report(
                     Diagnostic::error(
@@ -679,10 +679,10 @@ pub(super) fn infer(
         }
         // ADR 0021 § 3's **value** form. The statement form never reaches here
         // — `crate::locals::check_stmt` checks only the path for one, matching
-        // `mwl_ir::lower::Lowering::lower_expr_stmt`, which lowers the site to
-        // nothing because `mwl_hir::resolve_program` already walked the graph.
+        // `nvs_ir::lower::Lowering::lower_expr_stmt`, which lowers the site to
+        // nothing because `nvs_hir::resolve_program` already walked the graph.
         // So arriving at all is the proof this `require` was used for its
-        // value, and `mwl-ir`'s known gap 22 is why there is none to give.
+        // value, and `nvs-ir`'s known gap 22 is why there is none to give.
         ExprKind::Require { path } => {
             check_expr(path, None, live, scope, ctx, env);
             env.diags.report(
@@ -694,7 +694,7 @@ pub(super) fn infer(
                 .with_help(
                     "write `require '…';` as a statement — the target's declarations are \
                      already merged at compile time. ADR 0021 § 3's `mixed` value needs the \
-                     target's own top-level statements to run, which `mwl-ir`'s known gap 22 \
+                     target's own top-level statements to run, which `nvs-ir`'s known gap 22 \
                      is about",
                 ),
             );
@@ -709,7 +709,7 @@ pub(super) fn infer(
 /// `self`/`static`/`$this`'s type, resolved against the enclosing
 /// declaration. ADR 0010: an enum has no methods to reach this from in a
 /// well-formed program, but the parser still recovers a member it rejected
-/// with `E_ENUM_MEMBER_UNSUPPORTED` (see `mwl-syntax::parser::parse_enum_body`)
+/// with `E_ENUM_MEMBER_UNSUPPORTED` (see `nvs-syntax::parser::parse_enum_body`)
 /// and hands it to this checker anyway — so this must resolve the same way
 /// [`crate::lower::lower_type`]'s `self`/`static` atom already does, an
 /// enum-declared `qname` interning to `Ty::Enum` rather than `Ty::Class`.
@@ -723,7 +723,7 @@ pub(super) fn infer(
 /// subscript for a receiver problem the next call states properly. It is
 /// gated on the target chain because the *read* `echo $erased->rows["0"];`
 /// has no second diagnostic coming and `E0482` is the only thing standing
-/// between it and a panic in `mwl-ir`. All four write spellings mark that
+/// between it and a panic in `nvs-ir`. All four write spellings mark that
 /// chain — `unset($erased->rows["0"])` is a write for this purpose as much
 /// as for [`assign::check_write_target`]'s, and used to take both
 /// diagnostics because it was the one that did not.
@@ -757,9 +757,9 @@ fn refused_as_a_write_target(expr: &Expr, base: &Expr, env: &Env<'_>) -> bool {
 ///
 /// ADR 0007 § 5 keys an element read on the array's *declared* element type,
 /// which is the entry [`ExprInfo::Index`] carries and the only thing
-/// `mwl_ir::lower::Lowering::lower_index` has to lower against. A base with
+/// `nvs_ir::lower::Lowering::lower_index` has to lower against. A base with
 /// no element type therefore has nothing to read, and every one of these
-/// used to reach `mwl-ir` and panic there instead — a subscripted `mixed`,
+/// used to reach `nvs-ir` and panic there instead — a subscripted `mixed`,
 /// a subscripted scalar, and an *untested* `?array<T>`.
 ///
 /// The help splits three ways because the three have different answers, and

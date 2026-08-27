@@ -1,14 +1,14 @@
 --TEST--
 Core\Encoding's encodeText/decodeText/isValidText convert through a Charset exactly, and report rather than substitute — spec § 7, ADR 0009 § 3
 --FILE--
-<?mwl
+<?nvs
 // § 7: the text trio sits on the `bytes`<->`string` seam, over the WHATWG
 // Encoding Standard's index as `Core\Charset`. UTF-8 out is the octets a
 // `string` already holds (ADR 0009 § 3), so this is the identity spelling.
 // What each of the two throwing members *says* when it refuses, and the bounds
 // it says it at, is
-// `encoding-charset-conversion-names-the-character-it-cannot-spell.mwlt`.
-echo Core\Encoding::toHex(Core\Encoding::encodeText("mwl", Core\Charset::Utf8)), "\n";
+// `encoding-charset-conversion-names-the-character-it-cannot-spell.nvst`.
+echo Core\Encoding::toHex(Core\Encoding::encodeText("nvs", Core\Charset::Utf8)), "\n";
 
 // One character, three charsets, three widths.
 string $accented = "é";
@@ -16,7 +16,7 @@ echo Core\Encoding::toHex(Core\Encoding::encodeText($accented, Core\Charset::Lat
 echo Core\Encoding::toHex(Core\Encoding::encodeText($accented, Core\Charset::Utf16Le)), "\n";
 echo Core\Encoding::toHex(Core\Encoding::encodeText($accented, Core\Charset::Utf8)), "\n";
 
-// The three labels the standard folds into `windows-1252` and MWL keeps
+// The three labels the standard folds into `windows-1252` and Novis keeps
 // apart: `0x80` is the euro sign there, a C1 control in ISO-8859-1, and not
 // ASCII at all. Each answer is spelled back as UTF-8 so the case asserts
 // octets rather than a console's idea of them.
@@ -48,7 +48,7 @@ echo (Core\Encoding::isValidText(Core\Encoding::fromHex("ff"), Core\Charset::Utf
 echo (Core\Encoding::isValidText(Core\Encoding::fromHex("82"), Core\Charset::ShiftJis) ? "yes" : "no"), "\n";
 echo (Core\Encoding::isValidText($jis, Core\Charset::ShiftJis) ? "yes" : "no"), "\n";
 --EXPECT--
-6d776c
+6e7673
 e9
 e900
 c3a9

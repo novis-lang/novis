@@ -12,7 +12,7 @@
   [ADR 0012](0012-no-superglobals.md) — `Core\Script::args()`'s "deep-copied" now names this ADR's
   graph-copy operation explicitly, rather than an unnamed mechanism.
 
-> **In short:** MWL keeps two copy depths, not one, because PHP already drew that line and it is a real
+> **In short:** Novis keeps two copy depths, not one, because PHP already drew that line and it is a real
 > distinction, not an accident. **`clone`** is PHP's shallow, same-heap, single-level copy: it duplicates an
 > object's own declared storage one level deep, and any object reachable through it — directly or via an
 > array/collection property — keeps pointing at the same shared instance as the original, exactly as PHP's
@@ -24,7 +24,7 @@
 > depth is customizable per class: there is no `__clone`, and no `__serialize`/`__unserialize`/`__sleep`/
 > `__wakeup`. A copy always means what the language says it means, never what a class redefines it to —
 > the same closed-mechanism choice [ADR 0014](0014-property-observer.md) already made for property access.
-> `unserialize()` accepts only bytes MWL's own `serialize()` produced, refusing anything else outright.
+> `unserialize()` accepts only bytes Novis's own `serialize()` produced, refusing anything else outright.
 
 ## Context
 
@@ -111,19 +111,19 @@ sharing no mutable heap state with its source.
   the destination arena (or is moved rather than copied when the refcount is 1), with no intervening byte
   representation. This ADR changes no behavior here — it names the mechanism ADR 0006 already specified.
 - **Externalized, to bytes and back** — spelled `Core\Serialize::encode($x): bytes`, which runs the same
-  graph copy and encodes the result into MWL's own binary format, and `Core\Serialize::decode($b): mixed`,
+  graph copy and encodes the result into Novis's own binary format, and `Core\Serialize::decode($b): mixed`,
   which decodes it back into a live value by running the identical operation in reverse. They are class
   members like everything else ([ADR 0011](0011-functions-and-constants-are-class-members.md)) and take
   [ADR 0063](0063-core-api-conventions.md) R6's `encode`/`decode` pairing; PHP's bare `serialize`/
-  `unserialize` spellings do not exist. The wire format is private to MWL (see § 3) — this is a round-trip
+  `unserialize` spellings do not exist. The wire format is private to Novis (see § 3) — this is a round-trip
   pair, not a PHP-wire-format encoder.
 
-### 3. `unserialize()` accepts only MWL's own `serialize()` output
+### 3. `unserialize()` accepts only Novis's own `serialize()` output
 
 `unserialize()` is not a general-purpose deserializer for foreign or hand-crafted bytes. The accepted format
 is versioned and self-describing enough to be checked before any object is built:
 
-- A payload that does not carry MWL's format marker and version is refused outright — not best-effort
+- A payload that does not carry Novis's format marker and version is refused outright — not best-effort
   parsed, not partially accepted.
 - A payload naming a class the receiving side cannot resolve is refused, naming the class — identical to
   the graph copy's live-boundary rule in § 2.
@@ -144,14 +144,14 @@ is versioned and self-describing enough to be checked before any object is built
   during reconstruction, and reading a class that does not exist — and the resource cost of a hostile
   payload (a huge or deeply nested graph) is already bounded by the same `[limits] memory`/`cpu_time`
   ([ADR 0005](0005-config-changeability.md)) any other allocation-heavy call is. Revisit only if a use case
-  needs to `unserialize` genuinely foreign data (a different MWL build's format version, or another
+  needs to `unserialize` genuinely foreign data (a different Novis build's format version, or another
   system's payload entirely) — that is a wire-format compatibility question this ADR deliberately does not
   answer yet.
 
-PHP's open, cross-version wire format is not kept. A `mwl convert`-ported script that `serialize()`s data
+PHP's open, cross-version wire format is not kept. A `nvs convert`-ported script that `serialize()`s data
 for external storage (a cache, a queue payload, a session row) gets the same round-trip guarantee it had in
 PHP; a script that depends on reading *another system's* PHP-format bytes needs a human decision, the same
-class of `mwl convert` gap [ADR 0009](0009-string-and-bytes.md) and others already carry.
+class of `nvs convert` gap [ADR 0009](0009-string-and-bytes.md) and others already carry.
 
 ### 4. Why neither depth reopens ADR 0022's residual case
 
@@ -183,17 +183,17 @@ No amendment to ADR 0022 is needed; this section exists so a future reader does 
 - `clone` keeps its PHP-familiar, genuinely useful shallow behaviour — a ported class that relies on
   clone-then-shared-reference (the common case: cloning a node without cloning what it references) keeps
   working exactly as before.
-- No new capability grant, no new `mwl.toml` directive — existing memory/CPU limits already bound a hostile
+- No new capability grant, no new `nvs.toml` directive — existing memory/CPU limits already bound a hostile
   `unserialize()` payload's cost.
 
 **Negative**
 
 - **A class cannot customize `clone`, `serialize`, or `unserialize` at all.** A class that owns a resource
   and wants `clone` to duplicate it, or wants custom versioning logic in its serialized form, has no hook —
-  it needs an explicit method instead. This is a real capability PHP has and MWL does not, accepted for the
+  it needs an explicit method instead. This is a real capability PHP has and Novis does not, accepted for the
   same reason [ADR 0014](0014-property-observer.md) accepted it for `__get`/`__set`.
 - **`unserialize()` cannot read another system's PHP-format bytes**, or bytes from a differently-versioned
-  MWL build whose class shape has since changed. `mwl convert` gains a real gap here: a script reading
+  Novis build whose class shape has since changed. `nvs convert` gains a real gap here: a script reading
   externally-produced serialized PHP data needs a human rewrite, not a mechanical one.
 - **Two copy depths remain two things to learn** — the same "confusion risk" [ADR 0006](0006-isolated-script-execution.md)
   already flagged for `require` vs. `spawn script`; this ADR's diagnostics and docs should say, next to each
@@ -207,7 +207,7 @@ No amendment to ADR 0022 is needed; this section exists so a future reader does 
 - **Keep `__clone()` only, as the "safer," longer-standing PHP hook.** Rejected for the same reason as
   `__serialize`/`__unserialize`: still a class silently redefining a mechanical operation, and keeping one
   hook while rejecting two others is an arbitrary line to defend later.
-- **Keep PHP's open serialize wire format for `mwl convert` compatibility.** Rejected: the open format's
+- **Keep PHP's open serialize wire format for `nvs convert` compatibility.** Rejected: the open format's
   looseness (any well-shaped payload naming any resolvable class) is exactly what makes PHP's
   `unserialize()` attack surface possible even before a hook is considered; the closed, versioned format
   removes that independently of the no-hooks decision, at the cost of foreign-format compatibility.
@@ -234,6 +234,6 @@ Verification, in the order it becomes possible:
 - **M5** (concurrency and script isolates land): `serialize()`/`unserialize()` round-trip a cyclic value
   correctly; a closure, a reference, or a handle-holding object inside the value is refused with a diagnostic naming
   it, at the same site the isolate-boundary conformance suite already checks
-  ([ADR 0006](0006-isolated-script-execution.md)); bytes that are not MWL's own format, or that name a class
+  ([ADR 0006](0006-isolated-script-execution.md)); bytes that are not Novis's own format, or that name a class
   whose declared properties no longer match, are refused rather than partially accepted; the isolate-boundary
   and `serialize()` conformance suites share their graph-copy test fixtures rather than duplicating them.

@@ -1,7 +1,7 @@
 --TEST--
 A `fn` literal may not declare an `inout $x` parameter, in either body form — ADR 0031 § 2, § 4
 --FILE--
-<?mwl
+<?nvs
 // A by-reference parameter is a contract between a *call site* and a
 // declaration: the site stages the cell, hands over its address and copies
 // back afterwards. A closure's type is `callable` and nothing else (ADR 0031
@@ -27,12 +27,12 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0493]: a closure cannot take `$n` as `inout`
-  --> case.mwl:9:32
+  --> case.nvs:9:32
 %A
 error[E0493]: a closure cannot take `$a` as `inout`
-   --> case.mwl:12:32
+   --> case.nvs:12:32
 %A
 error[E0493]: a closure cannot take `$b` as `inout`
-   --> case.mwl:12:46
+   --> case.nvs:12:46
 %A
 error: aborting due to 3 errors

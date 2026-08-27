@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn name(object, int) -> string {
@@ -25,13 +25,13 @@ fn name(object, int) -> string {
     v7 = new LogicError via Throwable::constructor(v4, v6) ! bb4  ; object
     v8 = field.get v7, Throwable::location  ; string
     release v8
-    v9 = const.str "t.mwl:4"  ; string
+    v9 = const.str "t.nvs:4"  ; string
     field.set v7, Throwable::location, v9
     throw v7 -> bb5
   bb4:
     release v0
-    propagate "name() at t.mwl:4"
+    propagate "name() at t.nvs:4"
   bb5:
     release v0
-    propagate "name() at t.mwl:4"
+    propagate "name() at t.nvs:4"
 }

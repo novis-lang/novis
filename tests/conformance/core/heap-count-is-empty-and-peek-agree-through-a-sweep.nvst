@@ -1,7 +1,7 @@
 --TEST--
 `Core\Heap<T>`'s `count`, `isEmpty`, `peek` and its `foreach` cursor agree at every step of a push/pop sweep, counted rather than read off a line — docs/spec/01-core-library.md § 9, ADR 0013, ADR 0053 § 3
 --FILE--
-<?mwl
+<?nvs
 // § 9 gives the class five members and an iteration, and four of them are
 // independent readers of one question: how much is in there, and what comes
 // out next. `count` reads the entries array, `isEmpty` reads its length,
@@ -13,7 +13,7 @@
 final class Sweep {
     // A positive entry is a push of that value; `0` is a pop, guarded so a pop
     // against an empty heap is a step of the sweep rather than the throw
-    // `heap-holds-every-push-and-refuses-an-empty-read.mwlt` already pins.
+    // `heap-holds-every-push-and-refuses-an-empty-read.nvst` already pins.
     public static function run(Core\Heap<int> $h, array<int> $ops): int {
         int $size = 0;
         int $agreed = 0;

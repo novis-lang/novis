@@ -1,11 +1,11 @@
 --TEST--
 A shift's count is an operand of the operator rather than a bare width, so a mixed-signedness one is refused exactly as `&` refuses its own — ADR 0007 § 4
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 4's `& | ^ ~ << >>` row is "the operand type, preserved", and a
 // mixed-signedness pair has no preserved type to be — so `<<` and `>>` judge
 // their count by the row their left operand takes, in both directions. That
-// is not bookkeeping: `mwl-codegen`'s `emit_shift` reads *one* signedness for
+// is not bookkeeping: `nvs-codegen`'s `emit_shift` reads *one* signedness for
 // both of the two things it decides — whether to emit the negative-count
 // guard PHP's `Bit shift by negative number` comes from, and whether `>>` is
 // arithmetic or logical — and it is this refusal that makes reading one

@@ -1,7 +1,7 @@
 --TEST--
 `<`, `>`, `<=`, `>=`, `==` and `!=` over ints and strings render as PHP renders them
 --FILE--
-<?mwl
+<?nvs
 echo 1 < 2, "|", 2 < 1, "|", 2 <= 2, "|", 2 >= 3, "|\n";
 echo 5 > 4, "|", 4 > 5, "|\n";
 echo "a" == "a", "|", "a" == "b", "|", "a" != "b", "|\n";

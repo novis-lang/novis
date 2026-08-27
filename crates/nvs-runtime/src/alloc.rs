@@ -1,7 +1,7 @@
-//! MWL's own allocator: a per-thread cache of small blocks in front of
+//! Novis's own allocator: a per-thread cache of small blocks in front of
 //! [`System`].
 //!
-//! Every allocation MWL makes used to reach the platform heap directly, and on
+//! Every allocation Novis makes used to reach the platform heap directly, and on
 //! this tree one 32-byte `alloc`/`dealloc` round trip costs 28.7 ns —
 //! [`docs/perf/userland-gap.md`](../../../docs/perf/userland-gap.md) § A holds
 //! that measurement and the case-by-case attribution behind it. A string, an
@@ -47,12 +47,12 @@
 //!
 //! # Why it is registered only in optimized builds
 //!
-//! `crates/mwl-runtime/src/lib.rs` registers this as the `#[global_allocator]`
+//! `crates/nvs-runtime/src/lib.rs` registers this as the `#[global_allocator]`
 //! for non-test builds **that have `debug_assertions` off**. A recycled block
 //! is a block valgrind never sees freed, so pooling in a debug build would
 //! blunt exactly the tool this repository checks its refcount protocol with —
 //! `tools/leak-check.sh` and `tools/wsl-acceptance.sh`'s memory leg both build
-//! `-p mwl-cli` in debug, and the playbook's "exit 127 is a double release"
+//! `-p nvs-cli` in debug, and the playbook's "exit 127 is a double release"
 //! signal is the same instrument. A leak is unaffected either way (a value
 //! that is never released never enters the cache, so it is still *definitely
 //! lost*), but a use-after-free inside a recycled block is not, and priority 1

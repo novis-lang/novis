@@ -15,7 +15,7 @@
 > **In short:** `__toString` is replaced by a declared global `Stringable` interface
 > (`public function toString(): string`), the same treatment [0013](0013-comparable-interface.md) gave
 > ordering and [0014](0014-property-observer.md) gave property access. **`__destruct` does not exist in any
-> form** — MWL has no destructors, period; object cleanup is always an explicit method call. `__isset`/
+> form** — Novis has no destructors, period; object cleanup is always an explicit method call. `__isset`/
 > `__unset` need no replacement: [0014](0014-property-observer.md) already closed the ambient fallback they
 > depend on, so this ADR only has to say what `isset`/`unset` now mean on an object property — `isset`
 > reduces to the ordinary "not null" check every other binding already has, and **`unset()` on a declared
@@ -24,7 +24,7 @@
 > is removed with no replacement — `Core\Debug::dump` always shows a class's real declared properties and
 > their real current values. `__set_state` is removed with no replacement — reconstructing an object from
 > external data is already [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s job. `__autoload` gets
-> no decision at all: PHP itself removed it in 8.0, and MWL resolves every class reference statically at
+> no decision at all: PHP itself removed it in 8.0, and Novis resolves every class reference statically at
 > compile time, so there is no runtime moment left for it to attach to.
 
 ## Context
@@ -91,7 +91,7 @@ trigger is gone would misdescribe what is actually happening at the declaration 
 
 ### 2. `__destruct` — rejected outright, no replacement of any kind
 
-**MWL has no destructors.** A method named `__destruct` cannot even be declared:
+**Novis has no destructors.** A method named `__destruct` cannot even be declared:
 [ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule has never allowed a leading
 underscore, so the casing checker refuses the name outright before anything about destructors comes into
 play — the same fate [ADR 0014](0014-property-observer.md) § 6 gives `__call` (that section was itself
@@ -129,7 +129,7 @@ moment, because there is no destructor left to declare it in.
 **A suspended generator's `finally` is the one thing that does run when a refcount hits zero, and it is not
 a destructor.** [ADR 0053](0053-iteration-and-generators.md) § 4's state machine can be dropped while parked
 inside a `try { … yield … } finally { … }`, and PHP resumes such a generator in a return-like mode so the
-`finally` prints; MWL does the same, because PHP-compatible observable behaviour outranks simplicity in the
+`finally` prints; Novis does the same, because PHP-compatible observable behaviour outranks simplicity in the
 priority ordering. Nothing above is weakened by it: no class declares anything, no method name is
 recognized, no object gains a lifecycle hook, and the only code that runs is code the program had **already
 entered** and suspended inside — the release path resumes a frame rather than tearing an object down. Both
@@ -138,9 +138,9 @@ dropped rather than walking anything, and the first argument is met by *narrowin
 exception — a throw escaping such a `finally` is **discarded**, because a release is exactly the site that
 bullet says has no sound place to report one, and replacing the exception a landing pad is already carrying
 would lose the program's own failure to one it never asked for. That is a deliberate divergence from PHP,
-which reports it uncaught; `mwl_runtime::Ctx::with_pending_set_aside` is its one home, and surfacing it
+which reports it uncaught; `nvs_runtime::Ctx::with_pending_set_aside` is its one home, and surfacing it
 wants [0020](0020-error-escalation-ladder.md)'s ladder rather than a hook here.
-`mwl_ir::lower::generator`'s module doc owns the mechanism, and `mwl_runtime::object::dismantle` the
+`nvs_ir::lower::generator`'s module doc owns the mechanism, and `nvs_runtime::object::dismantle` the
 release end of it.
 
 ### 3. `__isset`/`__unset` need no replacement — and `unset()` on an object property is refused
@@ -180,7 +180,7 @@ once, with a type, definitely assigned: there is no "undefined again" state to p
 construct has nothing left to mean — assign `null` where the declared type is nullable, or let the binding
 go out of scope. `unset(rows()[$k])` is refused because § 5's copy-on-write separates the array before the
 entry goes and the separated copy needs a slot to be written back into, which is the same thing PHP means
-by refusing a temporary in a write context. Narrowing the operand this far is what leaves `mwl_ir`'s
+by refusing a temporary in a write context. Narrowing the operand this far is what leaves `nvs_ir`'s
 lowering one shape to lower and no shape to panic on.
 
 ### 4. `__debugInfo` — rejected, no replacement
@@ -209,9 +209,9 @@ resolution logic runs, same as every other double-underscore magic method this d
 ### 6. `__autoload` — moot, closing note only
 
 PHP itself removed `__autoload()` in 8.0 (replaced by `spl_autoload_register()`, itself not a magic method).
-It is noted here only so a future reader does not wonder why it is missing from the table above: MWL
+It is noted here only so a future reader does not wonder why it is missing from the table above: Novis
 resolves every class/interface/enum reference statically at compile time
-([implementation-plan.md](../implementation-plan.md) M2, `mwl-hir`'s `SymbolTable`), so there is no runtime
+([implementation-plan.md](../implementation-plan.md) M2, `nvs-hir`'s `SymbolTable`), so there is no runtime
 moment at which an unresolved class name could trigger a loader callback in the first place. This is a
 consequence of the static-resolution architecture already being built, not a new decision.
 
@@ -225,7 +225,7 @@ declaration. That is a decision rather than a consequence, and it is
 **Positive**
 
 - Closes the "magic methods" line item [0014](0014-property-observer.md) opened, across every remaining
-  case — a future contributor asking "what does MWL do with `__x`" now has exactly one table to check.
+  case — a future contributor asking "what does Novis do with `__x`" now has exactly one table to check.
 - `Stringable` costs nothing beyond an ordinary virtual call, already priced the same way
   [0013](0013-comparable-interface.md) and [0014](0014-property-observer.md) priced their own interfaces
   ([0004](0004-memory-for-simplicity.md)).
@@ -241,7 +241,7 @@ declaration. That is a decision rather than a consequence, and it is
 **Negative**
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: PHP source relying on `__toString` (mechanical rename to `Stringable`/`toString()`
-  for `mwl convert`, [M11](../implementation-plan.md)), `__destruct` (needs a human decision — an explicit
+  for `nvs convert`, [M11](../implementation-plan.md)), `__destruct` (needs a human decision — an explicit
   cleanup method, called from every place the original relied on implicit timing), `__isset`/`__unset`
   (mechanical removal, since [0014](0014-property-observer.md) already made the fallback they served
   unreachable), `__debugInfo` (mechanical removal), or `__set_state` (needs a human decision — points at
@@ -251,7 +251,7 @@ declaration. That is a decision rather than a consequence, and it is
   method — PHP's `__destruct` was a genuine, if unreliable, safety net for the case where a caller forgets.
   Accepted per § 2's argument that the net was never reliable to begin with once cycles or process shutdown
   were involved.
-- `unset($obj->nullableProp)` no longer works as an idiom for "reset the property"; `mwl convert` rewrites it
+- `unset($obj->nullableProp)` no longer works as an idiom for "reset the property"; `nvs convert` rewrites it
   to `$obj->nullableProp = null;` mechanically, but a non-nullable property has no equivalent at all —
   correctly, since [0022](0022-definite-property-initialization.md) never allowed such a property to be
   anything but initialized.
@@ -259,7 +259,7 @@ declaration. That is a decision rather than a consequence, and it is
 ## Alternatives rejected
 
 - **A declared `Disposable`/`Closeable` interface with scope-exit invocation.** No scope-exit-triggered call
-  exists anywhere else in MWL; see *Revisiting*.
+  exists anywhere else in Novis; see *Revisiting*.
 - **Keep `__destruct`, forbid throwing, skip it at request-heap teardown.** Still requires walking every live
   object whose refcount reaches zero mid-request — the per-object cost [0004](0004-memory-for-simplicity.md)'s
   wholesale drop avoids.
@@ -271,13 +271,13 @@ declaration. That is a decision rather than a consequence, and it is
   customization surface with no motivating problem.
   [0092](0092-one-diagnostic-record-three-renderings.md) § 7 reaffirms this rather than reopening it: its
   record model is closed, which is this refusal expressed as a data type.
-- **Keep PHP's open `var_export()`/`__set_state` format for `mwl convert`.** Same
+- **Keep PHP's open `var_export()`/`__set_state` format for `nvs convert`.** Same
   generated-code-as-data-format risk [0023](0023-clone-serialize-and-cross-boundary-copy.md) already closed
   for serialize.
 
 ## Revisiting
 
-- **A `Disposable`/scope-exit-cleanup construct**, if `mwl convert`'s M11 pass over real PHP `__destruct`
+- **A `Disposable`/scope-exit-cleanup construct**, if `nvs convert`'s M11 pass over real PHP `__destruct`
   usage shows a pattern common enough that "call an explicit method" is a systematic burden rather than an
   occasional one. Not decided here — see *Alternatives rejected*.
 - **Whether `Stringable` should have a stdlib-wide expectation** (e.g., every exception class implementing

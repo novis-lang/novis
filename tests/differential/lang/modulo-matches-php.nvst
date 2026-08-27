@@ -1,7 +1,7 @@
 --TEST--
 `%` over every sign combination prints what PHP's `%` prints
 --FILE--
-<?mwl
+<?nvs
 echo 7 % 3, "|", (-7) % 3, "|", 7 % (-3), "|", (-7) % (-3), "|\n";
 echo 6 % 3, "|", 0 % 5, "|\n";
 echo 1 + 7 % 3, "|", 10 - 7 % 3, "|\n";

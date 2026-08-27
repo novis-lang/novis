@@ -1,7 +1,7 @@
 --TEST--
 A `finally` around a generator's whole body fires once, after the last resume falls off the end — PHP's ordering exactly
 --FILE--
-<?mwl
+<?nvs
 class G {
     public static function guarded(int $n): Iterator<int> {
         try {

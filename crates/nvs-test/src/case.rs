@@ -1,4 +1,4 @@
-//! Parsing one `.mwlt` file into a [`Case`].
+//! Parsing one `.nvst` file into a [`Case`].
 //!
 //! The format is line-oriented: a section header is a line that is exactly
 //! `--NAME--`, and a section's body is every line after it up to the next
@@ -27,7 +27,7 @@ pub enum Oracle {
     /// `--ORACLE--`: a PHP twin whose standard output the case's own standard
     /// output must equal.
     Php(String),
-    /// `--ORACLE-DIVERGES--`: the one-line reason MWL deliberately differs
+    /// `--ORACLE-DIVERGES--`: the one-line reason Novis deliberately differs
     /// from PHP here, which is why this case has no twin to compare against.
     Diverges(String),
 }
@@ -47,16 +47,16 @@ pub struct AuxFile {
     pub body: String,
 }
 
-/// One parsed `.mwlt` file.
+/// One parsed `.nvst` file.
 #[derive(Debug, Clone)]
 pub struct Case {
     /// Where it was read from, for reporting.
     pub path: PathBuf,
     /// `--TEST--`, the one-line title.
     pub title: String,
-    /// `--SKIPIF--`, an MWL program whose output decides whether to run.
+    /// `--SKIPIF--`, an Novis program whose output decides whether to run.
     pub skipif: Option<String>,
-    /// `--FILE--`, the MWL program under test.
+    /// `--FILE--`, the Novis program under test.
     pub file: String,
     /// Every `--FILE <relative/path>--`, in the order they were written.
     pub aux: Vec<AuxFile>,
@@ -65,7 +65,7 @@ pub struct Case {
     /// `--EXPECT-ERROR--` or `--EXPECTF-ERROR--`, matched against standard
     /// error; its presence is also what says the run is expected to fail.
     pub expect_error: Option<Expectation>,
-    /// `--CLEAN--`, an MWL program run afterwards whose output is ignored.
+    /// `--CLEAN--`, an Novis program run afterwards whose output is ignored.
     pub clean: Option<String>,
     /// `--ORACLE--` or `--ORACLE-DIVERGES--`.
     pub oracle: Option<Oracle>,
@@ -84,7 +84,7 @@ impl Case {
     }
 }
 
-/// Why a `.mwlt` file could not be read as a case.
+/// Why a `.nvst` file could not be read as a case.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
     /// The one-line explanation, already phrased for a terminal.
@@ -144,7 +144,7 @@ const KNOWN: &[&str] = &[
 const NOT_YET: &[(&str, &str)] = &[
     (
         "INI",
-        "`mwl.toml` is not read until M6 (ADR 0064), so an --INI-- section cannot be honoured",
+        "`nvs.toml` is not read until M6 (ADR 0064), so an --INI-- section cannot be honoured",
     ),
     (
         "ARGS",
@@ -161,7 +161,7 @@ const TAKES_A_PATH: &str = "FILE";
 
 /// The names the runner writes into the working directory itself, which an
 /// auxiliary file therefore may not claim.
-const RESERVED_NAMES: &[&str] = &["case.mwl", "skipif.mwl", "clean.mwl", "oracle.php"];
+const RESERVED_NAMES: &[&str] = &["case.nvs", "skipif.nvs", "clean.nvs", "oracle.php"];
 
 /// Returns a header's section name and its argument, if `line` is a header.
 ///
@@ -217,7 +217,7 @@ fn aux_path(raw: &str) -> Result<String, String> {
     Ok(raw.to_owned())
 }
 
-/// Reads `text` as a `.mwlt` case named by `path`.
+/// Reads `text` as a `.nvst` case named by `path`.
 ///
 /// # Errors
 ///
@@ -352,7 +352,7 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
             let reason = reason.trim().to_owned();
             if reason.is_empty() {
                 return Err(err(
-                    "`--ORACLE-DIVERGES--` holds the one-line reason MWL differs from PHP here",
+                    "`--ORACLE-DIVERGES--` holds the one-line reason Novis differs from PHP here",
                     Some(line),
                 ));
             }
@@ -418,16 +418,16 @@ mod tests {
     use super::*;
 
     fn case(text: &str) -> Result<Case, ParseError> {
-        parse(Path::new("t.mwlt"), text)
+        parse(Path::new("t.nvst"), text)
     }
 
-    const MINIMAL: &str = "--TEST--\nthe title\n--FILE--\n<?mwl\necho 1;\n--EXPECT--\n1\n";
+    const MINIMAL: &str = "--TEST--\nthe title\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n";
 
     #[test]
     fn a_minimal_case_parses_into_its_three_sections() {
         let parsed = case(MINIMAL).expect("minimal case parses");
         assert_eq!(parsed.title, "the title");
-        assert_eq!(parsed.file, "<?mwl\necho 1;\n");
+        assert_eq!(parsed.file, "<?nvs\necho 1;\n");
         assert_eq!(parsed.expect, Some(Expectation::Exact("1\n".to_owned())));
         assert!(parsed.oracle.is_none());
         assert!(parsed.unsupported.is_none());
@@ -435,7 +435,7 @@ mod tests {
 
     #[test]
     fn a_body_line_that_looks_like_a_header_but_is_not_uppercase_stays_body() {
-        let parsed = case("--TEST--\nt\n--FILE--\n<?mwl\necho \"--a--\";\n--EXPECT--\n--a--\n")
+        let parsed = case("--TEST--\nt\n--FILE--\n<?nvs\necho \"--a--\";\n--EXPECT--\n--a--\n")
             .expect("mixed-case dashes are body text");
         assert!(parsed.file.contains("--a--"));
     }
@@ -461,20 +461,20 @@ mod tests {
 
     #[test]
     fn a_case_with_no_expectation_at_all_is_rejected() {
-        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n").expect_err("no expectation is rejected");
+        let e = case("--TEST--\nt\n--FILE--\n<?nvs\n").expect_err("no expectation is rejected");
         assert!(e.message.contains("no expectation"), "{e}");
     }
 
     #[test]
     fn exact_and_format_expectations_cannot_both_be_given() {
-        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--EXPECT--\n1\n--EXPECTF--\n%d\n")
+        let e = case("--TEST--\nt\n--FILE--\n<?nvs\n--EXPECT--\n1\n--EXPECTF--\n%d\n")
             .expect_err("two spellings of one answer are rejected");
         assert!(e.message.contains("two answers"), "{e}");
     }
 
     #[test]
     fn an_error_expectation_is_enough_on_its_own() {
-        let parsed = case("--TEST--\nt\n--FILE--\n<?mwl\nbad\n--EXPECTF-ERROR--\n%a\n")
+        let parsed = case("--TEST--\nt\n--FILE--\n<?nvs\nbad\n--EXPECTF-ERROR--\n%a\n")
             .expect("an error expectation stands alone");
         assert!(parsed.expects_failure());
         assert!(parsed.expect.is_none());
@@ -482,7 +482,7 @@ mod tests {
 
     #[test]
     fn an_oracle_stands_in_for_an_expectation() {
-        let parsed = case("--TEST--\nt\n--FILE--\n<?mwl\necho 1;\n--ORACLE--\n<?php\necho 1;\n")
+        let parsed = case("--TEST--\nt\n--FILE--\n<?nvs\necho 1;\n--ORACLE--\n<?php\necho 1;\n")
             .expect("an oracle is an expectation");
         assert_eq!(
             parsed.oracle,
@@ -492,12 +492,12 @@ mod tests {
 
     #[test]
     fn a_divergence_must_state_its_reason_and_its_own_expectation() {
-        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--ORACLE-DIVERGES--\nADR 0063 R7\n")
+        let e = case("--TEST--\nt\n--FILE--\n<?nvs\n--ORACLE-DIVERGES--\nADR 0063 R7\n")
             .expect_err("a divergence with no expectation is rejected");
         assert!(e.message.contains("states its own"), "{e}");
 
         let parsed = case(
-            "--TEST--\nt\n--FILE--\n<?mwl\necho 1;\n--EXPECT--\n1\n--ORACLE-DIVERGES--\nADR 0063 R7\n",
+            "--TEST--\nt\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n--ORACLE-DIVERGES--\nADR 0063 R7\n",
         )
         .expect("a divergence with an expectation parses");
         assert_eq!(
@@ -508,7 +508,7 @@ mod tests {
 
     #[test]
     fn the_two_oracle_sections_are_mutually_exclusive() {
-        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--EXPECT--\n1\n--ORACLE--\n<?php\n--ORACLE-DIVERGES--\nwhy\n")
+        let e = case("--TEST--\nt\n--FILE--\n<?nvs\n--EXPECT--\n1\n--ORACLE--\n<?php\n--ORACLE-DIVERGES--\nwhy\n")
             .expect_err("both oracle spellings at once is rejected");
         assert!(e.message.contains("two answers"), "{e}");
     }
@@ -516,7 +516,7 @@ mod tests {
     #[test]
     fn the_three_deferred_sections_parse_but_mark_the_case_unsupported() {
         for (name, needle) in [("INI", "M6"), ("ARGS", "M8"), ("ENV", "M8")] {
-            let text = format!("--TEST--\nt\n--{name}--\nx=1\n--FILE--\n<?mwl\n--EXPECT--\n\n");
+            let text = format!("--TEST--\nt\n--{name}--\nx=1\n--FILE--\n<?nvs\n--EXPECT--\n\n");
             let parsed = case(&text).expect("a deferred section still parses");
             let why = parsed.unsupported.expect("it marks the case unsupported");
             assert!(why.contains(needle), "{why}");
@@ -525,7 +525,7 @@ mod tests {
 
     #[test]
     fn an_empty_deferred_section_does_not_mark_the_case() {
-        let parsed = case("--TEST--\nt\n--ARGS--\n\n--FILE--\n<?mwl\n--EXPECT--\n\n")
+        let parsed = case("--TEST--\nt\n--ARGS--\n\n--FILE--\n<?nvs\n--EXPECT--\n\n")
             .expect("an empty deferred section parses");
         assert!(parsed.unsupported.is_none());
     }
@@ -533,17 +533,17 @@ mod tests {
     #[test]
     fn auxiliary_files_keep_their_paths_and_their_order() {
         let parsed = case(
-            "--TEST--\nt\n--FILE--\n<?mwl\nrequire './src/B.mwl';\n--FILE src/B.mwl--\n<?mwl\nautoload 'App' from './';\n--FILE src/App/Greeter.mwl--\n<?mwl\nclass Greeter {}\n--EXPECT--\n\n",
+            "--TEST--\nt\n--FILE--\n<?nvs\nrequire './src/B.nvs';\n--FILE src/B.nvs--\n<?nvs\nautoload 'App' from './';\n--FILE src/App/Greeter.nvs--\n<?nvs\nclass Greeter {}\n--EXPECT--\n\n",
         )
         .expect("auxiliary files parse");
-        assert_eq!(parsed.file, "<?mwl\nrequire './src/B.mwl';\n");
+        assert_eq!(parsed.file, "<?nvs\nrequire './src/B.nvs';\n");
         assert_eq!(
             parsed
                 .aux
                 .iter()
                 .map(|a| a.path.as_str())
                 .collect::<Vec<_>>(),
-            ["src/B.mwl", "src/App/Greeter.mwl"]
+            ["src/B.nvs", "src/App/Greeter.nvs"]
         );
         assert!(parsed.aux[0].body.contains("autoload"));
     }
@@ -551,14 +551,14 @@ mod tests {
     #[test]
     fn an_auxiliary_path_cannot_climb_out_of_the_case_directory() {
         for path in [
-            "../x.mwl",
-            "a/../x.mwl",
-            "/etc/x.mwl",
-            "C:/x.mwl",
-            "./x.mwl",
+            "../x.nvs",
+            "a/../x.nvs",
+            "/etc/x.nvs",
+            "C:/x.nvs",
+            "./x.nvs",
         ] {
             let text =
-                format!("--TEST--\nt\n--FILE--\n<?mwl\n--FILE {path}--\n<?mwl\n--EXPECT--\n\n");
+                format!("--TEST--\nt\n--FILE--\n<?nvs\n--FILE {path}--\n<?nvs\n--EXPECT--\n\n");
             let e = case(&text).expect_err("an escaping path is rejected");
             assert!(e.message.contains(path), "{e}");
         }
@@ -566,14 +566,14 @@ mod tests {
 
     #[test]
     fn an_auxiliary_path_cannot_claim_a_name_the_runner_writes() {
-        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--FILE case.mwl--\n<?mwl\n--EXPECT--\n\n")
+        let e = case("--TEST--\nt\n--FILE--\n<?nvs\n--FILE case.nvs--\n<?nvs\n--EXPECT--\n\n")
             .expect_err("the runner's own name is rejected");
         assert!(e.message.contains("the runner writes itself"), "{e}");
     }
 
     #[test]
     fn an_auxiliary_path_is_written_with_forward_slashes() {
-        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--FILE src\\B.mwl--\n<?mwl\n--EXPECT--\n\n")
+        let e = case("--TEST--\nt\n--FILE--\n<?nvs\n--FILE src\\B.nvs--\n<?nvs\n--EXPECT--\n\n")
             .expect_err("a backslash separator is rejected");
         assert!(e.message.contains("both legs"), "{e}");
     }
@@ -581,22 +581,22 @@ mod tests {
     #[test]
     fn the_same_auxiliary_path_cannot_be_written_twice() {
         let e = case(
-            "--TEST--\nt\n--FILE--\n<?mwl\n--FILE a.mwl--\n<?mwl\n--FILE a.mwl--\n<?mwl\n--EXPECT--\n\n",
+            "--TEST--\nt\n--FILE--\n<?nvs\n--FILE a.nvs--\n<?nvs\n--FILE a.nvs--\n<?nvs\n--EXPECT--\n\n",
         )
         .expect_err("a repeated auxiliary path is rejected");
-        assert!(e.message.contains("`--FILE a.mwl--` appears twice"), "{e}");
+        assert!(e.message.contains("`--FILE a.nvs--` appears twice"), "{e}");
     }
 
     #[test]
     fn an_empty_auxiliary_file_is_rejected() {
-        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--FILE a.mwl--\n\n--EXPECT--\n\n")
+        let e = case("--TEST--\nt\n--FILE--\n<?nvs\n--FILE a.nvs--\n\n--EXPECT--\n\n")
             .expect_err("an empty auxiliary file is rejected");
         assert!(e.message.contains("is empty"), "{e}");
     }
 
     #[test]
     fn only_the_file_section_takes_an_argument() {
-        let e = case("--TEST--\nt\n--FILE--\n<?mwl\n--EXPECT a.mwl--\n\n")
+        let e = case("--TEST--\nt\n--FILE--\n<?nvs\n--EXPECT a.nvs--\n\n")
             .expect_err("an argument on another section is rejected");
         assert!(e.message.contains("does not take an argument"), "{e}");
     }
@@ -604,7 +604,7 @@ mod tests {
     #[test]
     fn skipif_and_clean_survive_the_round_trip() {
         let parsed = case(
-            "--TEST--\nt\n--SKIPIF--\n<?mwl\necho \"skip why\";\n--FILE--\n<?mwl\n--EXPECT--\n\n--CLEAN--\n<?mwl\n",
+            "--TEST--\nt\n--SKIPIF--\n<?nvs\necho \"skip why\";\n--FILE--\n<?nvs\n--EXPECT--\n\n--CLEAN--\n<?nvs\n",
         )
         .expect("skipif and clean parse");
         assert!(parsed.skipif.expect("skipif").contains("skip why"));

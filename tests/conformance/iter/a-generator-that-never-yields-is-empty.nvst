@@ -1,7 +1,7 @@
 --TEST--
 A generator whose `yield` is never reached drives zero iterations, and one that yields inside a loop drives exactly as many as it ran — ADR 0053 § 3
 --FILE--
-<?mwl
+<?nvs
 class Steps {
     public static function none(): Iterator<int> {
         if (false) {

@@ -1,7 +1,7 @@
 --TEST--
 Unary `-` negates a variable, a call result and a float, and binds looser than `as` so a converted negation needs parentheses
 --FILE--
-<?mwl
+<?nvs
 class Neg {
     public static function of(int $x): int {
         return -$x;

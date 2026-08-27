@@ -20,9 +20,9 @@ cheap way to decide *which* bullets a given file set implies. That is this scrip
     python tools/playbook.py --check               # stale paths, colliding selectors, sizes
     python tools/playbook.py --dupes               # bullets that already say what another says
 
-A term is a path (`crates/mwl-ir/src/lower/expr.rs`), a crate (`mwl-ir`), a tool (`peek.py`) or a
+A term is a path (`crates/nvs-ir/src/lower/expr.rs`), a crate (`nvs-ir`), a tool (`peek.py`) or a
 plain word. A path is expanded to the things a bullet would actually spell -- the posix path, the
-file name, the stem, the crate in both `mwl-ir` and `mwl_ir` spellings -- so naming the handoff's
+file name, the stem, the crate in both `nvs-ir` and `nvs_ir` spellings -- so naming the handoff's
 own file set is enough.
 
 **This script never writes to the playbook.** Appending a bullet has one home already, and it is
@@ -56,7 +56,7 @@ PLAYBOOK = ROOT / "docs" / "agent" / "playbook.md"
 GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
 HANDOFF = ROOT / "docs" / "agent" / "handoff.md"
 
-#: A source path written into handoff prose, e.g. `crates/mwl-ir/src/lower/expr.rs:1876`.
+#: A source path written into handoff prose, e.g. `crates/nvs-ir/src/lower/expr.rs:1876`.
 HANDOFF_PATH = re.compile(r"\b((?:crates|tools|tests|benches|examples|fuzz)/[\w./-]+\.\w+)")
 
 #: Directories a bullet names when it names a *tracked* path. Anything matching one of these is
@@ -112,7 +112,7 @@ def shortest_key(bullet: dict, every: list[dict]) -> str:
 
 
 #: Path segments that carry no information about *which* work a bullet is about, because every
-#: path in the tree has them. Without this, `crates/mwl-diagnostics/src/lib.rs` expands to `src`
+#: path in the tree has them. Without this, `crates/nvs-diagnostics/src/lib.rs` expands to `src`
 #: and `lib`, and every bullet that mentions any Rust file at all scores a hit -- which is how a
 #: first run of `--goal` proposed 50 of 86 bullets and called it narrowing.
 GENERIC = {"src", "lib", "mod", "main", "crates", "tests", "docs", "tools", "benches", "rs", "md"}
@@ -127,8 +127,8 @@ def expand(term: str) -> set[str]:
         out.add(parts[-1])                                   # expr.rs
         out.add(parts[-1].rsplit(".", 1)[0])                 # expr
         if len(parts) >= 2 and parts[0] == "crates":
-            out.add(parts[1])                                # mwl-ir
-            out.add(parts[1].replace("-", "_"))              # mwl_ir
+            out.add(parts[1])                                # nvs-ir
+            out.add(parts[1].replace("-", "_"))              # nvs_ir
         if len(parts) >= 2:
             out.add(parts[-2])                               # lower
     else:
@@ -234,7 +234,7 @@ def run_gap(text: str, every: list[dict], floor: int) -> int:
     This is the check a narrowed manifest cannot do without: ranking against `[context] modules`
     answers "what does this GOAL touch", and the work in flight may have moved on. Measured the
     first time this ran, the manifest missed twelve bullets the next group implied -- including
-    two on the exact `mwl-ir`/`mwl-codegen` path the handoff named -- because `modules` still
+    two on the exact `nvs-ir`/`nvs-codegen` path the handoff named -- because `modules` still
     listed a closed stage's stdlib file set."""
     files = next_group_files()
     if not files:

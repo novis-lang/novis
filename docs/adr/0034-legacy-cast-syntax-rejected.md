@@ -27,7 +27,7 @@
   always the one this project would keep: every *other* checked conversion in ADR 0007 is spelled that way,
   including ones with no PHP-cast equivalent at all (`int → uint`).
 - The only cost is losing a slice of the "pragmatic superset" promise — a PHP file using `(int)$x` no longer
-  parses unconverted. Smaller than it looks: `mwl convert` (M11) already runs a mechanical rewrite pass for a
+  parses unconverted. Smaller than it looks: `nvs convert` (M11) already runs a mechanical rewrite pass for a
   dozen other rejected constructs; one more substitution (`(int)$x` → `$x as int`) is one more line in the
   same pass, not a new category of work.
 
@@ -70,16 +70,16 @@ facts are rows in [divergences.md](divergences.md), which is where the register 
 
 **Positive**
 
-- One conversion spelling, full stop — nothing to disambiguate in documentation, in `mwl-fmt`, or in a code
+- One conversion spelling, full stop — nothing to disambiguate in documentation, in `nvs-fmt`, or in a code
   review comment.
-- `mwl-syntax`'s AST loses a variant (`ExprKind::Cast`) and its type (`CastType`) that existed only to carry
+- `nvs-syntax`'s AST loses a variant (`ExprKind::Cast`) and its type (`CastType`) that existed only to carry
   a syntax choice with no semantic content of its own — every place that handled it duplicated handling
   already present for `Conversion` (`as`).
 - The diagnostic points at the exact fix, the same as every other rejected PHP construct in this project.
 
 **Negative**
 
-- **One more line item for `mwl convert`'s (M11) mechanical rewrite pass.** A PHP source file using
+- **One more line item for `nvs convert`'s (M11) mechanical rewrite pass.** A PHP source file using
   `(int)$x`-style casts needs that syntax rewritten to `as`, on top of every other rewrite the converter
   already performs. Purely mechanical — the cast's operand and target type are both already known at the
   syntax level — so it costs the converter a rule, not a design.
@@ -94,7 +94,7 @@ facts are rows in [divergences.md](divergences.md), which is where the register 
 - **Keep `(int)$x` as a permanent alias for `$x as int` (ADR 0007 § 2's original call).** The status quo
   ADR 0007 shipped with — argued above to buy nothing once the semantics already matched, and to cost a
   second spelling everywhere else in the language has refused one.
-- **Deprecate first, remove later** (accept with a warning for one milestone, then reject). MWL's casing
+- **Deprecate first, remove later** (accept with a warning for one milestone, then reject). Novis's casing
   checker and every other rejected-construct diagnostic in this project is a hard error with no warning
   tier ([ADR 0029](0029-identifier-casing-is-checked.md) § 3's reasoning applies here too); a staged removal
   would be the first exception; the standard library and any real userland code are still unwritten, which
@@ -105,15 +105,15 @@ facts are rows in [divergences.md](divergences.md), which is where the register 
 
 ## Verification
 
-- `crates/mwl-syntax/src/parser.rs`'s `legacy_cast_is_diagnosed` test asserts `E0225` for each of the seven
+- `crates/nvs-syntax/src/parser.rs`'s `legacy_cast_is_diagnosed` test asserts `E0225` for each of the seven
   legacy cast keywords; `not_nests_inside_a_rejected_cast_and_other_unary_operators` confirms the rejected
   form still consumes its operand (so `(int) !$x` does not leave `!$x` dangling for the rest of the parse to
   choke on).
-- `ExprKind::Cast` and `CastType` are removed from `crates/mwl-syntax/src/ast.rs`; every match arm across
-  `mwl-syntax`, `mwl-hir`, and `mwl-types` that previously listed `ExprKind::Cast` alongside `Conversion`/
+- `ExprKind::Cast` and `CastType` are removed from `crates/nvs-syntax/src/ast.rs`; every match arm across
+  `nvs-syntax`, `nvs-hir`, and `nvs-types` that previously listed `ExprKind::Cast` alongside `Conversion`/
   `Unary`/etc. for a generic "recurse into the operand" walk had that arm deleted, relying on exhaustiveness
   checking to catch anything missed.
-- `crates/mwl-types/src/expr.rs` no longer type-checks a cast node (it never runs, since one is never
+- `crates/nvs-types/src/expr.rs` no longer type-checks a cast node (it never runs, since one is never
   produced); its two fixtures that exercised `(string)$x` on a non-`Stringable` class were folded into the
   existing `as`-spelled equivalents (`as_string_on_a_non_stringable_object_is_diagnosed`, and the
   `a_class_implementing_stringable_converts_at_every_site_with_no_diagnostic` fixture dropped its

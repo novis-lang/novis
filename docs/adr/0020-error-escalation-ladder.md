@@ -8,13 +8,13 @@
   many of the handlers in between also fail
 - **Amended by:** 0033, 0076, 0086, 0092, 0106
 
-> **In short:** nothing MWL runs is ever silently dropped, but not everything is *caught* — those are
+> **In short:** nothing Novis runs is ever silently dropped, but not everything is *caught* — those are
 > different guarantees, and conflating them is what this ADR avoids. `FATAL` stays exactly what
 > [ADR 0002](0002-error-propagation.md) already fixed: uncatchable by an ordinary `catch`, because a
 > resource-limit report is not a `Throwable` at all — the type checker refuses `catch (Throwable $e)` from
 > ever seeing one. What changes is what happens *after* it reaches the boundary: a four-tier escalation
 > ladder, each tier getting a bounded, non-repeating chance to handle the failure before falling to the next.
-> Tier 1 and 2 are optional, request-local, user-registered hooks. Tier 3 is an operator-configured `.mwl`
+> Tier 1 and 2 are optional, request-local, user-registered hooks. Tier 3 is an operator-configured `.nvs`
 > script — an ordinary `spawn script` isolate, reused wholesale — that lets every error, including internal
 > panics and compile failures, be formatted and routed by application code in the language it is already
 > written in. Tier 4 is a hardcoded, script-free floor in the engine itself, so there is always a last line
@@ -48,7 +48,7 @@ record, through one shared native serialiser.**
 **The hierarchy itself is [docs/spec/01-core-library.md](../spec/01-core-library.md) § 10's, not this
 ADR's** — that section is the stdlib work this ADR deferred, and it is the one home for the class tree, the
 `message`/`previous`/`backtrace`/`location` members, and the fact that `Exception` and `Error` are not
-class names in MWL at all. What matters *here* is only that these classes are global, are the ordinary
+class names in Novis at all. What matters *here* is only that these classes are global, are the ordinary
 `catch` target for ordinary control flow, and include a **`ParseError`**, thrown when a file pulled in
 mid-execution (`require`, or a `spawn script` target that fails *after* its parent isolate is already
 running) fails to compile — an ordinary, catchable `Throwable` at the call site, matching PHP's own
@@ -72,7 +72,7 @@ not global, not ambient, dies with the request like every other per-request slot
 ([ADR 0008](0008-static-and-global.md), [ADR 0012](0012-no-superglobals.md)).
 
 It runs with a **reserved slice** of the request's own budget, carved out at request start and unavailable
-to ordinary execution — new `System`-class `mwl.toml` directives, illustrative names
+to ordinary execution — new `System`-class `nvs.toml` directives, illustrative names
 `[limits] fatal_reserve_memory` / `fatal_reserve_time`. `System`, not `Runtime`: this is the request's own
 safety net, and a script choosing its own net's size is exactly the case where the choice most needs to be
 made by someone other than the code that might be about to need it.
@@ -83,7 +83,7 @@ immediately — no second call, straight to tier 3.
 Internal-runtime-panic `FATAL`s **never reach this tier**, per the split below.
 
 **Call-stack depth is the fifth limit, and it is the one that would otherwise not reach the ladder at
-all.** MWL compiles natively, so every user call is a real machine frame — unlike PHP, whose VM does not
+all.** Novis compiles natively, so every user call is a real machine frame — unlike PHP, whose VM does not
 recurse the C stack for userland calls and whose recursion is therefore bounded by `memory_limit` and
 routinely runs 100k+ deep. Exhausting a native stack is a `SIGSEGV`, not a panic, so
 [ADR 0002](0002-error-propagation.md)'s `catch_unwind` does not contain it and nothing below is ever
@@ -113,9 +113,9 @@ ceiling actually sets is how deep a program may recurse and how much one runaway
 stopped, which at 1.32 ns per call is ≈86 µs either way. Stated as [ADR 0004](0004-memory-for-simplicity.md)
 requires: **8 MB of reserved address space per coroutine**, of which only the touched pages are resident.
 
-This bound is emitted at MWL function entry, so it reaches recursion through MWL frames and only those.
+This bound is emitted at Novis function entry, so it reaches recursion through Novis frames and only those.
 Request data also recurses through *engine* frames — a nested document in a decoder, a nested expression
-in the parser, a nested value graph in teardown — where no MWL frame exists to carry the check.
+in the parser, a nested value graph in teardown — where no Novis frame exists to carry the check.
 [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) §§ 3 and 4 bound those separately,
 with an explicit depth counter per decoder and an iterative teardown, and the two mechanisms together are
 what make "a request cannot exhaust a stack" true rather than true of one stack.
@@ -129,9 +129,9 @@ root itself, not a boundary [ADR 0006](0006-isolated-script-execution.md) has to
 
 Same zero-retry rule: a handler that itself faults falls straight to tier 3.
 
-### 3. The configured `.mwl` handler — an ordinary `spawn script` isolate, with one narrow exception
+### 3. The configured `.nvs` handler — an ordinary `spawn script` isolate, with one narrow exception
 
-A new `System`-class directive, illustrative name `[log] handler = 'path/to/handler.mwl'`. When set, it is
+A new `System`-class directive, illustrative name `[log] handler = 'path/to/handler.nvs'`. When set, it is
 invoked as a **`spawn script` isolate** — the exact mechanism [ADR 0006](0006-isolated-script-execution.md)
 already defines, fresh arena, fresh globals, its own config overlay, sharing nothing but compiled code —
 receiving one explicit argument (illustrative shape `Core\Fatal\ErrorReport`: kind, message, request id,
@@ -189,7 +189,7 @@ shell unusable has failed at the thing it exists for.
 
 A resource-limit `FATAL` means the *script* asked for too much — the runtime's own state is fine, and a
 request-level handler reacting to it (log with context, decide whether the job should be retried) is
-meaningful. An internal-runtime-panic `FATAL` means something in MWL's own Rust code broke its own invariant
+meaningful. An internal-runtime-panic `FATAL` means something in Novis's own Rust code broke its own invariant
 — the runtime's state at that point is exactly what cannot be trusted, and running more script code on top
 of it is the riskier move, not the safer one. So: **only a resource-limit `FATAL` reaches
 `Core\Fatal::onLimit`.** An internal panic goes straight to tier 3 (still user-formattable for ops, still
@@ -222,7 +222,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
 
 - **Entry file, at request/isolate start.** No frame ever existed, so tiers 1/2 never had the chance to
   register anything. Reported the same way any `FATAL`-class condition with no registered handler is:
-  straight to tier 3 (if configured) then tier 4. `mwl.toml` (not the never-started script) is what decides
+  straight to tier 3 (if configured) then tier 4. `nvs.toml` (not the never-started script) is what decides
   whether an HTTP response shows a generic page or detail — the request had no code path in which it could
   have decided differently. The directive is `[http.errors] detail = "generic" | "full"`, `Runtime`-class,
   and its default is selected by the run mode
@@ -257,7 +257,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
 - One narrow, explicitly-named exception to [ADR 0006](0006-isolated-script-execution.md)'s "an isolate
   spends its parent's budget" rule. Flagged here so it is read as a deliberate carve-out for exactly this
   purpose, not a precedent for isolates getting independent budgets generally.
-- New `mwl.toml` surface: `fatal_reserve_memory`/`fatal_reserve_time`, `[log] handler`,
+- New `nvs.toml` surface: `fatal_reserve_memory`/`fatal_reserve_time`, `[log] handler`,
   `handler_reserve_memory`/`handler_reserve_time`, `[log] target` — a cost against priority 4 (simplicity),
   accepted because the alternative is either an unloggable OOM or a log format that drifts between the engine
   and userland. As [ADR 0004](0004-memory-for-simplicity.md) requires stated: both reserves are small and

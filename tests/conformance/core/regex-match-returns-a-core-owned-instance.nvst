@@ -1,7 +1,7 @@
 --TEST--
 Spec § 5: `Core\Regex::match` answers a `?Match`, whose four members read the groups it captured
 --FILE--
-<?mwl
+<?nvs
 // ADR 0063 R3: there is no `$matches` out-parameter. The match *is* the
 // return value, and R5 makes "no match" `null` rather than a falsy int.
 var $found = Core\Regex::match("order 4711 shipped", "(?<kind>[a-z]+) (\\d+)");

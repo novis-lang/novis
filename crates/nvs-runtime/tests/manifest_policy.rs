@@ -4,11 +4,11 @@
 //! A profile flag leaves no trace a test could read back — `cargo test` builds
 //! the dev profile, so a release-only setting is invisible from inside the
 //! process — and the setting itself lives in a file no crate compiles. So the
-//! policy is pinned at its source, exactly as `mwl-codegen`'s `backend_policy`
+//! policy is pinned at its source, exactly as `nvs-codegen`'s `backend_policy`
 //! pins the Cranelift flags. Crude, and the only thing that actually fails when
 //! the line is deleted.
 //!
-//! This lives in `mwl-runtime` because this crate is where a wrapped size
+//! This lives in `nvs-runtime` because this crate is where a wrapped size
 //! computation does its damage: every allocation length, refcount and index the
 //! heap representation computes passes through here.
 

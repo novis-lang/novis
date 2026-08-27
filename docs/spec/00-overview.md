@@ -1,4 +1,4 @@
-# MWL Specification — 00: Overview and Surface Syntax
+# Novis Specification — 00: Overview and Surface Syntax
 
 - **Status:** Draft — the first spec document. It exists to fix *spelling* the ADRs deliberately left open;
   it does not restate any ADR's semantics, and where this document and an ADR ever disagree on wording, the
@@ -15,7 +15,7 @@
   file grows, and later spec files (`01-…`, `02-…`) are expected — it is not meant to be read as the whole
   language on its own.
 
-> **In short:** a `.mwl` file opens code mode with `<?mwl` or the short echo tag `<?=`; everything else is
+> **In short:** a `.nvs` file opens code mode with `<?nvs` or the short echo tag `<?=`; everything else is
 > inline HTML emitted verbatim, exactly like PHP. `require` shares
 > everything with the calling frame and `spawn script` shares nothing but compiled code — the two are
 > defined next to each other below so the difference cannot be missed the way
@@ -30,7 +30,7 @@
 
 ## 1. File modes and inline HTML
 
-A `.mwl` file (and a `.php` file, parsed under the same grammar — see the plan's M1 verification) is lexed
+A `.nvs` file (and a `.php` file, parsed under the same grammar — see the plan's M1 verification) is lexed
 in one of two modes, exactly as PHP is:
 
 - **HTML mode**, the default at the start of a file and after a closing `?>`. Every byte is emitted verbatim
@@ -39,24 +39,24 @@ in one of two modes, exactly as PHP is:
 
   | opens | leaves | meaning |
   |---|---|---|
-  | `<?mwl` | `?>` | ordinary code mode — the only code-mode open tag MWL keeps |
-  | `<?=` `expr` | `?>` | short-echo: exactly `<?mwl echo expr; ?>`, one expression, `;` optional before `?>` |
+  | `<?nvs` | `?>` | ordinary code mode — the only code-mode open tag Novis keeps |
+  | `<?=` `expr` | `?>` | short-echo: exactly `<?nvs echo expr; ?>`, one expression, `;` optional before `?>` |
 
   `<?php` is diagnosed rather than accepted: [ADR 0049](../adr/0049-single-open-tag-and-single-exit-keyword.md)
-  withdraws its earlier acceptance as a second spelling of `<?mwl`, now that a PHP file needs `mwl convert`
+  withdraws its earlier acceptance as a second spelling of `<?nvs`, now that a PHP file needs `nvs convert`
   regardless and a plain tag rename costs that tool nothing extra.
 
   A `?>` immediately followed by a single newline consumes that newline (PHP's rule, kept so a template line
   ending in `?>` does not emit a blank line). There is no closing-tag omission rule beyond that: an unclosed
-  `<?mwl` block simply runs to end of file, which is legal and is how a pure-code `.mwl` file with no inline
+  `<?nvs` block simply runs to end of file, which is legal and is how a pure-code `.nvs` file with no inline
   HTML is written.
 
-There is no dual short-open-tag ambiguity to resolve (PHP's long-deprecated bare `<?`): MWL never had it, so
+There is no dual short-open-tag ambiguity to resolve (PHP's long-deprecated bare `<?`): Novis never had it, so
 there is nothing to accept or reject.
 
 ## 2. Running another file: `require`, `eval`, and `spawn script`
 
-Two PHP-shaped ways to bring in code plus one MWL-only addition, and they isolate three different amounts.
+Two PHP-shaped ways to bring in code plus one Novis-only addition, and they isolate three different amounts.
 Defined here side by side because [ADR 0006](../adr/0006-isolated-script-execution.md) names exactly this
 confusion as the mistake worth heading off. [ADR 0021](../adr/0021-single-file-inclusion-construct.md)
 collapses PHP's four same-frame inclusion keywords to this one: `include`, `include_once`, and
@@ -64,9 +64,9 @@ collapses PHP's four same-frame inclusion keywords to this one: `include`, `incl
 
 | construct | isolation | resolution | status |
 |---|---|---|---|
-| `require 'path.mwl';` | **none** — same frame's globals, same statics, same output, same heap | statically resolved where the path is a literal (M2); a dynamic path falls back to a runtime resolve | kept, PHP semantics — throws on a missing/unparseable file, and runs every time control reaches it |
+| `require 'path.nvs';` | **none** — same frame's globals, same statics, same output, same heap | statically resolved where the path is a literal (M2); a dynamic path falls back to a runtime resolve | kept, PHP semantics — throws on a missing/unparseable file, and runs every time control reaches it |
 | `eval($source)` | n/a — there is no such construct | n/a | **rejected**, no diagnostic-with-replacement needed beyond *there is no `eval`*: a string has no stable identity, no cache key, and no path a `script.spawn` grant could name. [ADR 0052](../adr/0052-closed-doors.md) § 4 holds the full rejection and the four analyses `eval` would make unsound at once; see also [ADR 0006](../adr/0006-isolated-script-execution.md), *Alternatives rejected* |
-| `spawn script 'path.mwl' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time (M6) | new construct, grammar fixed below |
+| `spawn script 'path.nvs' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time (M6) | new construct, grammar fixed below |
 
 The rule of thumb the diagnostics should teach: **`require` runs code in this frame; `spawn script` runs a
 file as if it were its own request.** A "why can't the required/spawned code see my variable" question
@@ -120,7 +120,7 @@ spawn-option        := 'args'   ':' expr
 passed, awaited inline). The path `expr` must have static type `string`; it is evaluated once, at the spawn
 site, before the child isolate is created. `with(…)` reuses PHP's existing named-argument grammar verbatim —
 no new call-argument syntax was needed for it. Every key in *spawn-option* is optional; `spawn script
-'jobs/report.mwl';` with no `with(…)` clause at all is legal and spawns with inherited grants, no argument,
+'jobs/report.nvs';` with no `with(…)` clause at all is legal and spawns with inherited grants, no argument,
 and the parent's remaining budget.
 
 The expression's static type — an awaitable handle that a subsequent `await` turns into a `ScriptResult` —
@@ -255,7 +255,7 @@ is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, an
 
 - For the common case — a byte sequence that happens to be valid UTF-8, which is most binary-ish constants a
   program writes by hand (magic strings, protocol markers made of ASCII) — a plain string literal converts
-  for free: `"MWL1" as bytes`. [ADR 0009 § 3](../adr/0009-string-and-bytes.md) already makes `string as
+  for free: `"NVS1" as bytes`. [ADR 0009 § 3](../adr/0009-string-and-bytes.md) already makes `string as
   bytes` total and free, so this is not a new conversion rule, only its first literal-adjacent use.
 - For a byte sequence that is **not** valid UTF-8 — a raw binary constant, a fixed hash or key material
   written inline — the spelling is a `Core\Encoding` decoder, following
@@ -280,5 +280,5 @@ ADR owns.
   `spawn script`'s grammar needs to distinguish itself from them; M5 is where they get their own spec
   section.
 - If `.phpt`-corpus parsing (M1's verification) turns up a real PHP file using a short open tag (bare `<?`),
-  that is a decision to make then, not a gap in this document — MWL never had one to begin with, so adding
+  that is a decision to make then, not a gap in this document — Novis never had one to begin with, so adding
   one would be a new grammar choice, not a restatement of an existing one.

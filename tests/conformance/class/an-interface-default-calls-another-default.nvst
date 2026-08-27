@@ -1,7 +1,7 @@
 --TEST--
 One default method calls a second on the same interface, which reaches the implementor's own method — two hops, no override
 --FILE--
-<?mwl
+<?nvs
 interface Greets {
     public function name(): string;
 

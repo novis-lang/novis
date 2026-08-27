@@ -1,9 +1,9 @@
 --TEST--
 What counts as one member of a `Core\ObjectSet` is `==`'s own table, one row per representation: the numeric domain is one row, a string and an array compare by content, and an object only with itself — docs/spec/01-core-library.md § 9, ADR 0090 §§ 3, 4
 --FILE--
-<?mwl
+<?nvs
 // § 9 says these collections "key on identity", and ADR 0090 § 3's table is
-// what identity means — `mwl_runtime::identity` answers `==`, `Core\Arr::
+// what identity means — `nvs_runtime::identity` answers `==`, `Core\Arr::
 // contains` and this store from one comparison, so a set's membership is
 // exactly the equality the rest of the language already has.
 

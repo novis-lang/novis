@@ -1,7 +1,7 @@
 --TEST--
 A shape literal returned from an arrow body and one discarded as a statement are both written parenthesized — ADR 0036 § 2
 --FILE--
-<?mwl
+<?nvs
 // ADR 0036 § 2: the parser commits a statement-initial `{` to a block, and a
 // `{` straight after `=>` to a block body, so both positions spell a shape
 // literal `({...})`. That is the same fix JavaScript uses for the same

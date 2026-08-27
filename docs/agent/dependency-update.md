@@ -1,6 +1,6 @@
 # Dependency update prompt
 
-Reusable prompt for the sweep that keeps MWL current — crates, the Rust toolchain, CI actions, the developer
+Reusable prompt for the sweep that keeps Novis current — crates, the Rust toolchain, CI actions, the developer
 tooling and the PHP oracle. **Paste this whole file as the prompt** when you want a pass. Update it in place
 when a pass finds a step that is wrong or missing.
 
@@ -79,8 +79,8 @@ python tools/gen-attribution.py           # regenerate; commit the diff in the s
 Takes over two minutes; start it in the background:
 
 ```sh
-cargo test --release -p mwl-abi-probe
-cargo test --release -p mwl-abi-probe --features wasm-probe    # wasmtime moved
+cargo test --release -p nvs-abi-probe
+cargo test --release -p nvs-abi-probe --features wasm-probe    # wasmtime moved
 ```
 
 **C. If codegen, the runtime or the stdlib moved** — the end-to-end legs, both platforms plus the leak sweep:
@@ -93,8 +93,8 @@ python tools/loop.py --leg-only           # the Linux leg alone, when that is al
 **D. If a lexer/parser-adjacent crate moved:**
 
 ```sh
-wsl.exe -- bash -lc "cd /mnt/<drive>/<repo> && cargo +nightly fuzz run lex -- -max_total_time=300"
-wsl.exe -- bash -lc "cd /mnt/<drive>/<repo> && cargo +nightly fuzz run parse -- -max_total_time=300"
+wsl.exe -- bash -lc "cd /mnt/d/nvs && cargo +nightly fuzz run lex -- -max_total_time=300"
+wsl.exe -- bash -lc "cd /mnt/d/nvs && cargo +nightly fuzz run parse -- -max_total_time=300"
 ```
 
 **E. If the JIT backend moved,** refresh the callgrind instruction counts per
@@ -111,7 +111,7 @@ it.
 
 ## 4. When something breaks
 
-Ask one question: **can an MWL program author see it?** (ADR 0068 § 4.)
+Ask one question: **can an Novis program author see it?** (ADR 0068 § 4.)
 
 - **No — it is our insides.** Fix it: adapt the call sites, add an adapter, done. No approval, no version
   event, patch-level. This is the common case and it needs no ceremony.
@@ -119,7 +119,7 @@ Ask one question: **can an MWL program author see it?** (ADR 0068 § 4.)
   adapt behind our own adapter, compensate at the boundary, hold with a dated record, fork/vendor, replace,
   and only then ship the break. Record which step you stopped at in the report.
 
-**Stop and ask the user before** any of: shipping a break an MWL program can see (§ 5 step 7); forking or
+**Stop and ask the user before** any of: shipping a break an Novis program can see (§ 5 step 7); forking or
 vendoring (step 5); replacing a dependency (step 6); admitting a crate whose licence is outside
 [deny.toml](../../deny.toml)'s allow list, or a C dependency, which is
 [ADR 0051](../adr/0051-standard-library-tiers.md) § 4's two questions; or a guard-test failure that looks like
@@ -186,10 +186,10 @@ Needs you
 
 ## Tooling notes that cost a session to rediscover
 
-- `cargo test` does not always relink `target/debug/mwl.exe` — run `cargo build -p mwl-cli` before testing a
+- `cargo test` does not always relink `target/debug/nvs.exe` — run `cargo build -p nvs-cli` before testing a
   fixture by hand.
 - `wsl.exe` needs PowerShell and prefers a **script file**; a long inline `bash -lc "…"` mangles.
-- `cargo test --release -p mwl-abi-probe` takes over two minutes — background it.
+- `cargo test --release -p nvs-abi-probe` takes over two minutes — background it.
 - `python`, not `python3`.
 - Another agent may be editing this repo concurrently: stage your own paths explicitly and check
   `git show --stat` after committing.

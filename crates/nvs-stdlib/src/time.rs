@@ -36,8 +36,8 @@
 //! # One grammar for a duration, and it is not here
 //!
 //! The grammar `Duration::parse` accepts and `toString` emits is
-//! [`mwl_syntax::duration`], which the lexer calls for the source literal and
-//! `mwl.toml` will call for a duration-valued directive. ADR 0070 § 5 requires
+//! [`nvs_syntax::duration`], which the lexer calls for the source literal and
+//! `nvs.toml` will call for a duration-valued directive. ADR 0070 § 5 requires
 //! the three to share one implementation, and that module's own docs own why
 //! it sits in the syntax crate rather than this one.
 //!
@@ -52,10 +52,10 @@
 //! `Zone`'s one, and [`DATETIME`] owns why that rather than seven civil
 //! fields. A duration *literal* spends an allocation too: ADR 0070
 //! § 3's constant-pool folding wants an *immortal* value with no allocation at
-//! all, which is the same thing `mwl_runtime`'s own gap 3 owes a string
+//! all, which is the same thing `nvs_runtime`'s own gap 3 owes a string
 //! literal, so both close together rather than one growing a mechanism the
 //! other does not use. Until then `30s` is one
-//! [`mwl_core_time_duration_nanoseconds`] call on a folded constant, which is
+//! [`nvs_core_time_duration_nanoseconds`] call on a folded constant, which is
 //! already the whole grammar resolved at compile time.
 //!
 //! # Known gaps
@@ -68,7 +68,7 @@
 //!    here described a member the spec never had. **§ 4 itself is whole** —
 //!    `withTime`, its last row and its only one that *takes* a component view
 //!    rather than answering with one, is
-//!    [`mwl_core_time_datetime_with_time`].
+//!    [`nvs_core_time_datetime_with_time`].
 //! 2. **`$d->format` and `Core\Time::parse` compile their pattern per call.**
 //!    ADR 0057 makes both intrinsics whose literal pattern is prepared while
 //!    compiling; [`crate::cldr`]'s own gap 1 owns what that changes and what
@@ -81,12 +81,12 @@
 //!    declaration.** The spec says a `Duration` implements both and an
 //!    `Instant` implements `Comparable`; `compareTo` and `toString` are
 //!    registered and behave exactly as those interfaces require, but
-//!    `mwl_types`' reserved interfaces carry no member signatures yet, so
+//!    `nvs_types`' reserved interfaces carry no member signatures yet, so
 //!    `$a < $b` is still refused and `$d->compareTo($e)` is the spelling that
 //!    works. `"took " . $d` is not: ADR 0028 § 1's rendering is decided by the
 //!    registered `toString` rather than by a declaration, through
-//!    `mwl_types::expr::operators::require_stringable` where the operand's
-//!    type names this class and `mwl_stdlib::instance`'s descriptor renderer
+//!    `nvs_types::expr::operators::require_stringable` where the operand's
+//!    type names this class and `nvs_stdlib::instance`'s descriptor renderer
 //!    where it names none.
 
 use std::sync::OnceLock;
@@ -94,8 +94,8 @@ use std::sync::OnceLock;
 use jiff::civil::{self, Weekday};
 use jiff::tz::{Offset, TimeZone};
 use jiff::{SignedDuration, Timestamp, Zoned};
-use mwl_runtime::{Fault, MwlStr, ThrownClass, Value};
-use mwl_syntax::duration;
+use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
+use nvs_syntax::duration;
 
 use crate::registry::{Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy};
 
@@ -107,18 +107,18 @@ use crate::registry::{Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOpt
 /// declares it and every [`CoreTy::Instance`] naming it resolves against
 /// [`crate::registry::CLASSES`], so the two cannot drift apart.
 ///
-/// `mwl_types::expr` reads this same constant for the type of an
-/// [`mwl_syntax::ast::ExprKind::Duration`] literal, which is what makes ADR
+/// `nvs_types::expr` reads this same constant for the type of an
+/// [`nvs_syntax::ast::ExprKind::Duration`] literal, which is what makes ADR
 /// 0070 § 2's "the suffix *is* the type" one fact rather than two spellings.
 pub const DURATION_NAME: &str = r"Core\Time\Duration";
 
 /// The symbol behind `Core\Time\Duration::nanoseconds`, which is also how a
-/// duration **literal** reaches a value — `mwl_ir::lower` emits one
+/// duration **literal** reaches a value — `nvs_ir::lower` emits one
 /// `InstKind::CoreCall` to it with the folded nanosecond count.
 ///
-/// Named here rather than spelled in `mwl-ir` so that the registry row and the
+/// Named here rather than spelled in `nvs-ir` so that the registry row and the
 /// literal cannot come to mean different things.
-pub const FROM_NANOS_SYMBOL: &str = "mwl_core_time_duration_nanoseconds";
+pub const FROM_NANOS_SYMBOL: &str = "nvs_core_time_duration_nanoseconds";
 
 /// Spec § 4's `Core\Time\Duration` — an exact count of nanoseconds, and the
 /// one arithmetic that a DST boundary or a short month cannot change the
@@ -142,56 +142,56 @@ pub const DURATION: CoreClass = CoreClass {
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_microseconds",
+            symbol: "nvs_core_time_duration_microseconds",
         },
         CoreMethod {
             name: "milliseconds",
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_milliseconds",
+            symbol: "nvs_core_time_duration_milliseconds",
         },
         CoreMethod {
             name: "seconds",
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_seconds",
+            symbol: "nvs_core_time_duration_seconds",
         },
         CoreMethod {
             name: "minutes",
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_minutes",
+            symbol: "nvs_core_time_duration_minutes",
         },
         CoreMethod {
             name: "hours",
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_hours",
+            symbol: "nvs_core_time_duration_hours",
         },
         CoreMethod {
             name: "days",
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_days",
+            symbol: "nvs_core_time_duration_days",
         },
         CoreMethod {
             name: "weeks",
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_weeks",
+            symbol: "nvs_core_time_duration_weeks",
         },
         CoreMethod {
             name: "parse",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_parse",
+            symbol: "nvs_core_time_duration_parse",
         },
     ],
     instance: &[
@@ -200,70 +200,70 @@ pub const DURATION: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_duration_to_nanoseconds",
+            symbol: "nvs_core_time_duration_to_nanoseconds",
         },
         CoreMethod {
             name: "toMicroseconds",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_duration_to_microseconds",
+            symbol: "nvs_core_time_duration_to_microseconds",
         },
         CoreMethod {
             name: "toMilliseconds",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_duration_to_milliseconds",
+            symbol: "nvs_core_time_duration_to_milliseconds",
         },
         CoreMethod {
             name: "toSeconds",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_duration_to_seconds",
+            symbol: "nvs_core_time_duration_to_seconds",
         },
         CoreMethod {
             name: "plus",
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_plus",
+            symbol: "nvs_core_time_duration_plus",
         },
         CoreMethod {
             name: "minus",
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_minus",
+            symbol: "nvs_core_time_duration_minus",
         },
         CoreMethod {
             name: "multipliedBy",
             params: &[CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_multiplied_by",
+            symbol: "nvs_core_time_duration_multiplied_by",
         },
         CoreMethod {
             name: "negated",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_duration_negated",
+            symbol: "nvs_core_time_duration_negated",
         },
         CoreMethod {
             name: "compareTo",
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_duration_compare_to",
+            symbol: "nvs_core_time_duration_compare_to",
         },
         CoreMethod {
             name: "toString",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_time_duration_to_string",
+            symbol: "nvs_core_time_duration_to_string",
         },
     ],
     slots: &["nanos"],
@@ -292,42 +292,42 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// [`DURATION`]'s symbols.
 fn duration_address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        FROM_NANOS_SYMBOL => (mwl_core_time_duration_nanoseconds as *const ()).cast(),
-        "mwl_core_time_duration_microseconds" => {
-            (mwl_core_time_duration_microseconds as *const ()).cast()
+        FROM_NANOS_SYMBOL => (nvs_core_time_duration_nanoseconds as *const ()).cast(),
+        "nvs_core_time_duration_microseconds" => {
+            (nvs_core_time_duration_microseconds as *const ()).cast()
         }
-        "mwl_core_time_duration_milliseconds" => {
-            (mwl_core_time_duration_milliseconds as *const ()).cast()
+        "nvs_core_time_duration_milliseconds" => {
+            (nvs_core_time_duration_milliseconds as *const ()).cast()
         }
-        "mwl_core_time_duration_seconds" => (mwl_core_time_duration_seconds as *const ()).cast(),
-        "mwl_core_time_duration_minutes" => (mwl_core_time_duration_minutes as *const ()).cast(),
-        "mwl_core_time_duration_hours" => (mwl_core_time_duration_hours as *const ()).cast(),
-        "mwl_core_time_duration_days" => (mwl_core_time_duration_days as *const ()).cast(),
-        "mwl_core_time_duration_weeks" => (mwl_core_time_duration_weeks as *const ()).cast(),
-        "mwl_core_time_duration_parse" => (mwl_core_time_duration_parse as *const ()).cast(),
-        "mwl_core_time_duration_to_nanoseconds" => {
-            (mwl_core_time_duration_to_nanoseconds as *const ()).cast()
+        "nvs_core_time_duration_seconds" => (nvs_core_time_duration_seconds as *const ()).cast(),
+        "nvs_core_time_duration_minutes" => (nvs_core_time_duration_minutes as *const ()).cast(),
+        "nvs_core_time_duration_hours" => (nvs_core_time_duration_hours as *const ()).cast(),
+        "nvs_core_time_duration_days" => (nvs_core_time_duration_days as *const ()).cast(),
+        "nvs_core_time_duration_weeks" => (nvs_core_time_duration_weeks as *const ()).cast(),
+        "nvs_core_time_duration_parse" => (nvs_core_time_duration_parse as *const ()).cast(),
+        "nvs_core_time_duration_to_nanoseconds" => {
+            (nvs_core_time_duration_to_nanoseconds as *const ()).cast()
         }
-        "mwl_core_time_duration_to_microseconds" => {
-            (mwl_core_time_duration_to_microseconds as *const ()).cast()
+        "nvs_core_time_duration_to_microseconds" => {
+            (nvs_core_time_duration_to_microseconds as *const ()).cast()
         }
-        "mwl_core_time_duration_to_milliseconds" => {
-            (mwl_core_time_duration_to_milliseconds as *const ()).cast()
+        "nvs_core_time_duration_to_milliseconds" => {
+            (nvs_core_time_duration_to_milliseconds as *const ()).cast()
         }
-        "mwl_core_time_duration_to_seconds" => {
-            (mwl_core_time_duration_to_seconds as *const ()).cast()
+        "nvs_core_time_duration_to_seconds" => {
+            (nvs_core_time_duration_to_seconds as *const ()).cast()
         }
-        "mwl_core_time_duration_plus" => (mwl_core_time_duration_plus as *const ()).cast(),
-        "mwl_core_time_duration_minus" => (mwl_core_time_duration_minus as *const ()).cast(),
-        "mwl_core_time_duration_multiplied_by" => {
-            (mwl_core_time_duration_multiplied_by as *const ()).cast()
+        "nvs_core_time_duration_plus" => (nvs_core_time_duration_plus as *const ()).cast(),
+        "nvs_core_time_duration_minus" => (nvs_core_time_duration_minus as *const ()).cast(),
+        "nvs_core_time_duration_multiplied_by" => {
+            (nvs_core_time_duration_multiplied_by as *const ()).cast()
         }
-        "mwl_core_time_duration_negated" => (mwl_core_time_duration_negated as *const ()).cast(),
-        "mwl_core_time_duration_compare_to" => {
-            (mwl_core_time_duration_compare_to as *const ()).cast()
+        "nvs_core_time_duration_negated" => (nvs_core_time_duration_negated as *const ()).cast(),
+        "nvs_core_time_duration_compare_to" => {
+            (nvs_core_time_duration_compare_to as *const ()).cast()
         }
-        "mwl_core_time_duration_to_string" => {
-            (mwl_core_time_duration_to_string as *const ()).cast()
+        "nvs_core_time_duration_to_string" => {
+            (nvs_core_time_duration_to_string as *const ()).cast()
         }
         _ => return None,
     })
@@ -347,7 +347,7 @@ fn built(nanos: i64) -> Value {
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] naming the member — `mwl_types` has already checked the
+/// A [`Fault::fatal`] naming the member — `nvs_types` has already checked the
 /// declared type, so a wrong tag here is compiled code disagreeing with the
 /// registry rather than anything a program can write.
 fn count(args: &[Value], at: usize, member: &str) -> Result<i64, Fault> {
@@ -398,72 +398,72 @@ fn scaled(args: &[Value], member: &str, length: i64) -> Result<Value, Fault> {
 // The eight constructors, plus `parse`
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::nanoseconds(int $n): Duration`.
     ///
     /// Also where a **literal** lands: ADR 0070 § 3 folds `1h30m` to its
-    /// nanosecond count while compiling, and `mwl-ir` emits one call to this
+    /// nanosecond count while compiling, and `nvs-ir` emits one call to this
     /// with that constant — so the literal and the constructor cannot produce
     /// different values.
-    fn mwl_core_time_duration_nanoseconds(_ctx, args: [1]) {
+    fn nvs_core_time_duration_nanoseconds(_ctx, args: [1]) {
         Ok(built(count(args, 0, "nanoseconds")?))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::microseconds(int $n): Duration`.
-    fn mwl_core_time_duration_microseconds(_ctx, args: [1]) {
+    fn nvs_core_time_duration_microseconds(_ctx, args: [1]) {
         scaled(args, "microseconds", 1_000)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::milliseconds(int $n): Duration`.
-    fn mwl_core_time_duration_milliseconds(_ctx, args: [1]) {
+    fn nvs_core_time_duration_milliseconds(_ctx, args: [1]) {
         scaled(args, "milliseconds", 1_000_000)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::seconds(int $n): Duration`.
-    fn mwl_core_time_duration_seconds(_ctx, args: [1]) {
+    fn nvs_core_time_duration_seconds(_ctx, args: [1]) {
         scaled(args, "seconds", 1_000_000_000)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::minutes(int $n): Duration`.
-    fn mwl_core_time_duration_minutes(_ctx, args: [1]) {
+    fn nvs_core_time_duration_minutes(_ctx, args: [1]) {
         scaled(args, "minutes", 60 * 1_000_000_000)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::hours(int $n): Duration`.
-    fn mwl_core_time_duration_hours(_ctx, args: [1]) {
+    fn nvs_core_time_duration_hours(_ctx, args: [1]) {
         scaled(args, "hours", 60 * 60 * 1_000_000_000)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::days(int $n): Duration` — exactly 24 hours per
     /// day, never a calendar day (ADR 0070 § 1). A calendar step is
     /// `DateTime::plus($n, Unit::Day)`, which is a different type's member for
     /// exactly this reason.
-    fn mwl_core_time_duration_days(_ctx, args: [1]) {
+    fn nvs_core_time_duration_days(_ctx, args: [1]) {
         scaled(args, "days", 24 * 60 * 60 * 1_000_000_000)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::weeks(int $n): Duration` — exactly 168 hours, on
     /// the same reasoning as `days`.
-    fn mwl_core_time_duration_weeks(_ctx, args: [1]) {
+    fn nvs_core_time_duration_weeks(_ctx, args: [1]) {
         scaled(args, "weeks", 7 * 24 * 60 * 60 * 1_000_000_000)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::parse(string $text): Duration` — ADR 0070 § 5's
     /// run-time entry point into the *same* grammar the lexer reads, so
     /// `Duration::parse("1h30m")` and the literal `1h30m` are one value.
@@ -473,7 +473,7 @@ mwl_runtime::mwl_helper! {
     /// launderer for a `tainted` config string — the qualifier half of that is
     /// still owed, and `crate::regex`'s gap 2 owns why nothing in
     /// [`crate::registry`] can state it yet.
-    fn mwl_core_time_duration_parse(_ctx, args: [1]) {
+    fn nvs_core_time_duration_parse(_ctx, args: [1]) {
         let text = text_of(args, 0, "Core\\Time\\Duration::parse")?;
         match duration::parse(text) {
             Ok(nanos) => Ok(built(nanos)),
@@ -489,40 +489,40 @@ mwl_runtime::mwl_helper! {
 // The instance members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->toNanoseconds(): int` — the whole state, exactly.
-    fn mwl_core_time_duration_to_nanoseconds(_ctx, args: [1]) {
+    fn nvs_core_time_duration_to_nanoseconds(_ctx, args: [1]) {
         Ok(Value::int(nanos_of(args, 0, "toNanoseconds")?))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->toMicroseconds(): int`, truncating toward zero — `1500ns` is `1`
     /// and `-1500ns` is `-1`, which is what Rust's and PHP's integer division
     /// both already do, so nothing new has to be remembered.
-    fn mwl_core_time_duration_to_microseconds(_ctx, args: [1]) {
+    fn nvs_core_time_duration_to_microseconds(_ctx, args: [1]) {
         Ok(Value::int(nanos_of(args, 0, "toMicroseconds")? / 1_000))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->toMilliseconds(): int`, truncating toward zero.
-    fn mwl_core_time_duration_to_milliseconds(_ctx, args: [1]) {
+    fn nvs_core_time_duration_to_milliseconds(_ctx, args: [1]) {
         Ok(Value::int(nanos_of(args, 0, "toMilliseconds")? / 1_000_000))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->toSeconds(): int`, truncating toward zero.
-    fn mwl_core_time_duration_to_seconds(_ctx, args: [1]) {
+    fn nvs_core_time_duration_to_seconds(_ctx, args: [1]) {
         Ok(Value::int(nanos_of(args, 0, "toSeconds")? / 1_000_000_000))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->plus(Duration $other): Duration` — a fresh value, since ADR 0063
     /// R3 makes every `Core` member pure.
-    fn mwl_core_time_duration_plus(_ctx, args: [2]) {
+    fn nvs_core_time_duration_plus(_ctx, args: [2]) {
         let left = nanos_of(args, 0, "plus")?;
         let right = nanos_of(args, 1, "plus")?;
         left.checked_add(right)
@@ -531,10 +531,10 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->minus(Duration $other): Duration` — the spelling ADR 0070 § 4
     /// gives a backwards step, since `-7d` does not parse.
-    fn mwl_core_time_duration_minus(_ctx, args: [2]) {
+    fn nvs_core_time_duration_minus(_ctx, args: [2]) {
         let left = nanos_of(args, 0, "minus")?;
         let right = nanos_of(args, 1, "minus")?;
         left.checked_sub(right)
@@ -543,9 +543,9 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->multipliedBy(int $factor): Duration`.
-    fn mwl_core_time_duration_multiplied_by(_ctx, args: [2]) {
+    fn nvs_core_time_duration_multiplied_by(_ctx, args: [2]) {
         let nanos = nanos_of(args, 0, "multipliedBy")?;
         let factor = count(args, 1, "multipliedBy")?;
         nanos
@@ -555,13 +555,13 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->negated(): Duration`.
     ///
     /// The single value with no negation is `nanoseconds(i64::MIN)`, which
     /// throws rather than wrapping to itself — the one place this member can
     /// fail, and the reason it is written with `checked_neg` rather than `-`.
-    fn mwl_core_time_duration_negated(_ctx, args: [1]) {
+    fn nvs_core_time_duration_negated(_ctx, args: [1]) {
         nanos_of(args, 0, "negated")?
             .checked_neg()
             .map(built)
@@ -569,11 +569,11 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->compareTo(Duration $other): int` — `Comparable`'s member
     /// ([ADR 0013](../../../../docs/adr/0013-comparable-interface.md)),
     /// answering the sign of `$d - $other` without the subtraction's overflow.
-    fn mwl_core_time_duration_compare_to(_ctx, args: [2]) {
+    fn nvs_core_time_duration_compare_to(_ctx, args: [2]) {
         let left = nanos_of(args, 0, "compareTo")?;
         let right = nanos_of(args, 1, "compareTo")?;
         Ok(Value::int(match left.cmp(&right) {
@@ -584,14 +584,14 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->toString(): string` — `Stringable`'s member
     /// ([ADR 0028](../../../../docs/adr/0028-closing-the-remaining-magic-methods.md)),
     /// emitting ADR 0070 § 1's grammar so that a value round-trips through
     /// `parse`.
-    fn mwl_core_time_duration_to_string(_ctx, args: [1]) {
+    fn nvs_core_time_duration_to_string(_ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "toString")?;
-        Ok(Value::str(MwlStr::new(duration::render(nanos).as_bytes())))
+        Ok(Value::str(NvsStr::new(duration::render(nanos).as_bytes())))
     }
 }
 
@@ -608,9 +608,9 @@ pub const ZONE_NAME: &str = r"Core\Time\Zone";
 ///
 /// One `string` slot holding the zone's **id**: an IANA identifier
 /// (`"Europe/Berlin"`) for a region, or a `±HH:MM[:SS]` offset spelling for a
-/// [`mwl_core_time_zone_fixed`] one. The two cannot collide — no IANA
+/// [`nvs_core_time_zone_fixed`] one. The two cannot collide — no IANA
 /// identifier begins with a sign — so [`resolve_zone`] tells them apart by the
-/// first byte, and a `Zone` stays a value MWL can hold rather than a native
+/// first byte, and a `Zone` stays a value Novis can hold rather than a native
 /// handle ([`crate::instance`] owns why that matters).
 pub const ZONE: CoreClass = CoreClass {
     name: ZONE_NAME,
@@ -620,21 +620,21 @@ pub const ZONE: CoreClass = CoreClass {
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
-            symbol: "mwl_core_time_zone_of",
+            symbol: "nvs_core_time_zone_of",
         },
         CoreMethod {
             name: "fixed",
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
-            symbol: "mwl_core_time_zone_fixed",
+            symbol: "nvs_core_time_zone_fixed",
         },
         CoreMethod {
             name: "system",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
-            symbol: "mwl_core_time_zone_system",
+            symbol: "nvs_core_time_zone_system",
         },
     ],
     instance: &[CoreMethod {
@@ -642,14 +642,14 @@ pub const ZONE: CoreClass = CoreClass {
         params: &[CoreTy::Instance(INSTANT_NAME)],
         defaults: &[],
         return_ty: CoreTy::Instance(DURATION_NAME),
-        symbol: "mwl_core_time_zone_offset_at",
+        symbol: "nvs_core_time_zone_offset_at",
     }],
     slots: &["id"],
     constants: &[CoreConst {
         name: "UTC",
         ty: CoreTy::Instance(ZONE_NAME),
         value: Const::Built {
-            symbol: "mwl_core_time_zone_of",
+            symbol: "nvs_core_time_zone_of",
             args: &[Const::Str("UTC")],
         },
     }],
@@ -661,10 +661,10 @@ const ZONE_ID_SLOT: usize = 0;
 /// [`ZONE`]'s symbols.
 fn zone_address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_time_zone_of" => (mwl_core_time_zone_of as *const ()).cast(),
-        "mwl_core_time_zone_fixed" => (mwl_core_time_zone_fixed as *const ()).cast(),
-        "mwl_core_time_zone_system" => (mwl_core_time_zone_system as *const ()).cast(),
-        "mwl_core_time_zone_offset_at" => (mwl_core_time_zone_offset_at as *const ()).cast(),
+        "nvs_core_time_zone_of" => (nvs_core_time_zone_of as *const ()).cast(),
+        "nvs_core_time_zone_fixed" => (nvs_core_time_zone_fixed as *const ()).cast(),
+        "nvs_core_time_zone_system" => (nvs_core_time_zone_system as *const ()).cast(),
+        "nvs_core_time_zone_offset_at" => (nvs_core_time_zone_offset_at as *const ()).cast(),
         _ => return None,
     })
 }
@@ -695,63 +695,63 @@ pub const INSTANT: CoreClass = CoreClass {
             params: &[CoreTy::Instance(ZONE_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_instant_in",
+            symbol: "nvs_core_time_instant_in",
         },
         CoreMethod {
             name: "toEpochSeconds",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_instant_to_epoch_seconds",
+            symbol: "nvs_core_time_instant_to_epoch_seconds",
         },
         CoreMethod {
             name: "toEpochMillis",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_instant_to_epoch_millis",
+            symbol: "nvs_core_time_instant_to_epoch_millis",
         },
         CoreMethod {
             name: "toEpochMicros",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_instant_to_epoch_micros",
+            symbol: "nvs_core_time_instant_to_epoch_micros",
         },
         CoreMethod {
             name: "plus",
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
-            symbol: "mwl_core_time_instant_plus",
+            symbol: "nvs_core_time_instant_plus",
         },
         CoreMethod {
             name: "minus",
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
-            symbol: "mwl_core_time_instant_minus",
+            symbol: "nvs_core_time_instant_minus",
         },
         CoreMethod {
             name: "since",
             params: &[CoreTy::Instance(INSTANT_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_instant_since",
+            symbol: "nvs_core_time_instant_since",
         },
         CoreMethod {
             name: "compareTo",
             params: &[CoreTy::Instance(INSTANT_NAME)],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_instant_compare_to",
+            symbol: "nvs_core_time_instant_compare_to",
         },
         CoreMethod {
             name: "toIso",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_time_instant_to_iso",
+            symbol: "nvs_core_time_instant_to_iso",
         },
     ],
     slots: &["seconds", "nanos"],
@@ -766,23 +766,23 @@ const INSTANT_NANOS_SLOT: usize = 1;
 /// [`INSTANT`]'s symbols.
 fn instant_address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_time_instant_in" => (mwl_core_time_instant_in as *const ()).cast(),
-        "mwl_core_time_instant_to_epoch_seconds" => {
-            (mwl_core_time_instant_to_epoch_seconds as *const ()).cast()
+        "nvs_core_time_instant_in" => (nvs_core_time_instant_in as *const ()).cast(),
+        "nvs_core_time_instant_to_epoch_seconds" => {
+            (nvs_core_time_instant_to_epoch_seconds as *const ()).cast()
         }
-        "mwl_core_time_instant_to_epoch_millis" => {
-            (mwl_core_time_instant_to_epoch_millis as *const ()).cast()
+        "nvs_core_time_instant_to_epoch_millis" => {
+            (nvs_core_time_instant_to_epoch_millis as *const ()).cast()
         }
-        "mwl_core_time_instant_to_epoch_micros" => {
-            (mwl_core_time_instant_to_epoch_micros as *const ()).cast()
+        "nvs_core_time_instant_to_epoch_micros" => {
+            (nvs_core_time_instant_to_epoch_micros as *const ()).cast()
         }
-        "mwl_core_time_instant_plus" => (mwl_core_time_instant_plus as *const ()).cast(),
-        "mwl_core_time_instant_minus" => (mwl_core_time_instant_minus as *const ()).cast(),
-        "mwl_core_time_instant_since" => (mwl_core_time_instant_since as *const ()).cast(),
-        "mwl_core_time_instant_compare_to" => {
-            (mwl_core_time_instant_compare_to as *const ()).cast()
+        "nvs_core_time_instant_plus" => (nvs_core_time_instant_plus as *const ()).cast(),
+        "nvs_core_time_instant_minus" => (nvs_core_time_instant_minus as *const ()).cast(),
+        "nvs_core_time_instant_since" => (nvs_core_time_instant_since as *const ()).cast(),
+        "nvs_core_time_instant_compare_to" => {
+            (nvs_core_time_instant_compare_to as *const ()).cast()
         }
-        "mwl_core_time_instant_to_iso" => (mwl_core_time_instant_to_iso as *const ()).cast(),
+        "nvs_core_time_instant_to_iso" => (nvs_core_time_instant_to_iso as *const ()).cast(),
         _ => return None,
     })
 }
@@ -912,119 +912,119 @@ pub const DATETIME: CoreClass = CoreClass {
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_time_datetime_format",
+            symbol: "nvs_core_time_datetime_format",
         },
         CoreMethod {
             name: "plus",
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_datetime_plus",
+            symbol: "nvs_core_time_datetime_plus",
         },
         CoreMethod {
             name: "minus",
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_datetime_minus",
+            symbol: "nvs_core_time_datetime_minus",
         },
         CoreMethod {
             name: "next",
             params: &[CoreTy::Enum(WEEKDAY.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_datetime_next",
+            symbol: "nvs_core_time_datetime_next",
         },
         CoreMethod {
             name: "previous",
             params: &[CoreTy::Enum(WEEKDAY.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_datetime_previous",
+            symbol: "nvs_core_time_datetime_previous",
         },
         CoreMethod {
             name: "with",
             params: &[CoreTy::Options(WITH_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_datetime_with",
+            symbol: "nvs_core_time_datetime_with",
         },
         CoreMethod {
             name: "withTime",
             params: &[CoreTy::Instance(TIME_OF_DAY_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_datetime_with_time",
+            symbol: "nvs_core_time_datetime_with_time",
         },
         CoreMethod {
             name: "startOf",
             params: &[CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_datetime_start_of",
+            symbol: "nvs_core_time_datetime_start_of",
         },
         CoreMethod {
             name: "endOf",
             params: &[CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_datetime_end_of",
+            symbol: "nvs_core_time_datetime_end_of",
         },
         CoreMethod {
             name: "difference",
             params: &[CoreTy::Instance(DATETIME_NAME), CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_datetime_difference",
+            symbol: "nvs_core_time_datetime_difference",
         },
         CoreMethod {
             name: "toInstant",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
-            symbol: "mwl_core_time_datetime_to_instant",
+            symbol: "nvs_core_time_datetime_to_instant",
         },
         CoreMethod {
             name: "date",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
-            symbol: "mwl_core_time_datetime_date",
+            symbol: "nvs_core_time_datetime_date",
         },
         CoreMethod {
             name: "timeOfDay",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
-            symbol: "mwl_core_time_datetime_time_of_day",
+            symbol: "nvs_core_time_datetime_time_of_day",
         },
         CoreMethod {
             name: "zone",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(ZONE_NAME),
-            symbol: "mwl_core_time_datetime_zone",
+            symbol: "nvs_core_time_datetime_zone",
         },
         CoreMethod {
             name: "weekday",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Enum(WEEKDAY.name),
-            symbol: "mwl_core_time_datetime_weekday",
+            symbol: "nvs_core_time_datetime_weekday",
         },
         CoreMethod {
             name: "dayOfYear",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
-            symbol: "mwl_core_time_datetime_day_of_year",
+            symbol: "nvs_core_time_datetime_day_of_year",
         },
         CoreMethod {
             name: "isLeapYear",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_time_datetime_is_leap_year",
+            symbol: "nvs_core_time_datetime_is_leap_year",
         },
     ],
     slots: &["seconds", "nanos", "zone"],
@@ -1042,34 +1042,34 @@ const DATETIME_ZONE_SLOT: usize = 2;
 /// [`DATETIME`]'s symbols.
 fn datetime_address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_time_datetime_format" => (mwl_core_time_datetime_format as *const ()).cast(),
-        "mwl_core_time_datetime_plus" => (mwl_core_time_datetime_plus as *const ()).cast(),
-        "mwl_core_time_datetime_minus" => (mwl_core_time_datetime_minus as *const ()).cast(),
-        "mwl_core_time_datetime_next" => (mwl_core_time_datetime_next as *const ()).cast(),
-        "mwl_core_time_datetime_previous" => (mwl_core_time_datetime_previous as *const ()).cast(),
-        "mwl_core_time_datetime_with" => (mwl_core_time_datetime_with as *const ()).cast(),
-        "mwl_core_time_datetime_with_time" => {
-            (mwl_core_time_datetime_with_time as *const ()).cast()
+        "nvs_core_time_datetime_format" => (nvs_core_time_datetime_format as *const ()).cast(),
+        "nvs_core_time_datetime_plus" => (nvs_core_time_datetime_plus as *const ()).cast(),
+        "nvs_core_time_datetime_minus" => (nvs_core_time_datetime_minus as *const ()).cast(),
+        "nvs_core_time_datetime_next" => (nvs_core_time_datetime_next as *const ()).cast(),
+        "nvs_core_time_datetime_previous" => (nvs_core_time_datetime_previous as *const ()).cast(),
+        "nvs_core_time_datetime_with" => (nvs_core_time_datetime_with as *const ()).cast(),
+        "nvs_core_time_datetime_with_time" => {
+            (nvs_core_time_datetime_with_time as *const ()).cast()
         }
-        "mwl_core_time_datetime_start_of" => (mwl_core_time_datetime_start_of as *const ()).cast(),
-        "mwl_core_time_datetime_end_of" => (mwl_core_time_datetime_end_of as *const ()).cast(),
-        "mwl_core_time_datetime_difference" => {
-            (mwl_core_time_datetime_difference as *const ()).cast()
+        "nvs_core_time_datetime_start_of" => (nvs_core_time_datetime_start_of as *const ()).cast(),
+        "nvs_core_time_datetime_end_of" => (nvs_core_time_datetime_end_of as *const ()).cast(),
+        "nvs_core_time_datetime_difference" => {
+            (nvs_core_time_datetime_difference as *const ()).cast()
         }
-        "mwl_core_time_datetime_to_instant" => {
-            (mwl_core_time_datetime_to_instant as *const ()).cast()
+        "nvs_core_time_datetime_to_instant" => {
+            (nvs_core_time_datetime_to_instant as *const ()).cast()
         }
-        "mwl_core_time_datetime_date" => (mwl_core_time_datetime_date as *const ()).cast(),
-        "mwl_core_time_datetime_time_of_day" => {
-            (mwl_core_time_datetime_time_of_day as *const ()).cast()
+        "nvs_core_time_datetime_date" => (nvs_core_time_datetime_date as *const ()).cast(),
+        "nvs_core_time_datetime_time_of_day" => {
+            (nvs_core_time_datetime_time_of_day as *const ()).cast()
         }
-        "mwl_core_time_datetime_zone" => (mwl_core_time_datetime_zone as *const ()).cast(),
-        "mwl_core_time_datetime_weekday" => (mwl_core_time_datetime_weekday as *const ()).cast(),
-        "mwl_core_time_datetime_day_of_year" => {
-            (mwl_core_time_datetime_day_of_year as *const ()).cast()
+        "nvs_core_time_datetime_zone" => (nvs_core_time_datetime_zone as *const ()).cast(),
+        "nvs_core_time_datetime_weekday" => (nvs_core_time_datetime_weekday as *const ()).cast(),
+        "nvs_core_time_datetime_day_of_year" => {
+            (nvs_core_time_datetime_day_of_year as *const ()).cast()
         }
-        "mwl_core_time_datetime_is_leap_year" => {
-            (mwl_core_time_datetime_is_leap_year as *const ()).cast()
+        "nvs_core_time_datetime_is_leap_year" => {
+            (nvs_core_time_datetime_is_leap_year as *const ()).cast()
         }
         _ => return None,
     })
@@ -1093,21 +1093,21 @@ pub const TIME: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
-            symbol: "mwl_core_time_now",
+            symbol: "nvs_core_time_now",
         },
         CoreMethod {
             name: "monotonic",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(DURATION_NAME),
-            symbol: "mwl_core_time_monotonic",
+            symbol: "nvs_core_time_monotonic",
         },
         CoreMethod {
             name: "sleep",
             params: &[CoreTy::Instance(DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "mwl_core_time_sleep",
+            symbol: "nvs_core_time_sleep",
         },
         CoreMethod {
             name: "fromEpoch",
@@ -1121,21 +1121,21 @@ pub const TIME: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
-            symbol: "mwl_core_time_from_epoch",
+            symbol: "nvs_core_time_from_epoch",
         },
         CoreMethod {
             name: "fromIso",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Instance(INSTANT_NAME),
-            symbol: "mwl_core_time_from_iso",
+            symbol: "nvs_core_time_from_iso",
         },
         CoreMethod {
             name: "parse",
             params: &[CoreTy::Str, CoreTy::Str, CoreTy::Instance(ZONE_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_parse",
+            symbol: "nvs_core_time_parse",
         },
         CoreMethod {
             name: "at",
@@ -1169,7 +1169,7 @@ pub const TIME: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(DATETIME_NAME),
-            symbol: "mwl_core_time_at",
+            symbol: "nvs_core_time_at",
         },
     ],
     instance: &[],
@@ -1180,13 +1180,13 @@ pub const TIME: CoreClass = CoreClass {
 /// [`TIME`]'s symbols.
 fn time_address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_time_now" => (mwl_core_time_now as *const ()).cast(),
-        "mwl_core_time_monotonic" => (mwl_core_time_monotonic as *const ()).cast(),
-        "mwl_core_time_sleep" => (mwl_core_time_sleep as *const ()).cast(),
-        "mwl_core_time_from_epoch" => (mwl_core_time_from_epoch as *const ()).cast(),
-        "mwl_core_time_from_iso" => (mwl_core_time_from_iso as *const ()).cast(),
-        "mwl_core_time_parse" => (mwl_core_time_parse as *const ()).cast(),
-        "mwl_core_time_at" => (mwl_core_time_at as *const ()).cast(),
+        "nvs_core_time_now" => (nvs_core_time_now as *const ()).cast(),
+        "nvs_core_time_monotonic" => (nvs_core_time_monotonic as *const ()).cast(),
+        "nvs_core_time_sleep" => (nvs_core_time_sleep as *const ()).cast(),
+        "nvs_core_time_from_epoch" => (nvs_core_time_from_epoch as *const ()).cast(),
+        "nvs_core_time_from_iso" => (nvs_core_time_from_iso as *const ()).cast(),
+        "nvs_core_time_parse" => (nvs_core_time_parse as *const ()).cast(),
+        "nvs_core_time_at" => (nvs_core_time_at as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1249,7 +1249,7 @@ pub const DATE: CoreClass = CoreClass {
         params: &[CoreTy::Int, CoreTy::Uint, CoreTy::Uint],
         defaults: &[],
         return_ty: CoreTy::Instance(DATE_NAME),
-        symbol: "mwl_core_time_date_at",
+        symbol: "nvs_core_time_date_at",
     }],
     instance: &[
         CoreMethod {
@@ -1257,35 +1257,35 @@ pub const DATE: CoreClass = CoreClass {
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_time_date_format",
+            symbol: "nvs_core_time_date_format",
         },
         CoreMethod {
             name: "plus",
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
-            symbol: "mwl_core_time_date_plus",
+            symbol: "nvs_core_time_date_plus",
         },
         CoreMethod {
             name: "minus",
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
-            symbol: "mwl_core_time_date_minus",
+            symbol: "nvs_core_time_date_minus",
         },
         CoreMethod {
             name: "with",
             params: &[CoreTy::Options(DATE_WITH_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
-            symbol: "mwl_core_time_date_with",
+            symbol: "nvs_core_time_date_with",
         },
         CoreMethod {
             name: "compareTo",
             params: &[CoreTy::Instance(DATE_NAME)],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_date_compare_to",
+            symbol: "nvs_core_time_date_compare_to",
         },
     ],
     slots: &["year", "month", "day"],
@@ -1302,12 +1302,12 @@ const DATE_DAY_SLOT: usize = 2;
 /// [`DATE`]'s symbols.
 fn date_address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_time_date_at" => (mwl_core_time_date_at as *const ()).cast(),
-        "mwl_core_time_date_format" => (mwl_core_time_date_format as *const ()).cast(),
-        "mwl_core_time_date_plus" => (mwl_core_time_date_plus as *const ()).cast(),
-        "mwl_core_time_date_minus" => (mwl_core_time_date_minus as *const ()).cast(),
-        "mwl_core_time_date_with" => (mwl_core_time_date_with as *const ()).cast(),
-        "mwl_core_time_date_compare_to" => (mwl_core_time_date_compare_to as *const ()).cast(),
+        "nvs_core_time_date_at" => (nvs_core_time_date_at as *const ()).cast(),
+        "nvs_core_time_date_format" => (nvs_core_time_date_format as *const ()).cast(),
+        "nvs_core_time_date_plus" => (nvs_core_time_date_plus as *const ()).cast(),
+        "nvs_core_time_date_minus" => (nvs_core_time_date_minus as *const ()).cast(),
+        "nvs_core_time_date_with" => (nvs_core_time_date_with as *const ()).cast(),
+        "nvs_core_time_date_compare_to" => (nvs_core_time_date_compare_to as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1382,7 +1382,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
         params: &[CoreTy::Uint, CoreTy::Uint, CoreTy::Options(AT_OPTIONS)],
         defaults: &[],
         return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
-        symbol: "mwl_core_time_of_day_at",
+        symbol: "nvs_core_time_of_day_at",
     }],
     instance: &[
         CoreMethod {
@@ -1390,35 +1390,35 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_time_of_day_format",
+            symbol: "nvs_core_time_of_day_format",
         },
         CoreMethod {
             name: "plus",
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
-            symbol: "mwl_core_time_of_day_plus",
+            symbol: "nvs_core_time_of_day_plus",
         },
         CoreMethod {
             name: "minus",
             params: &[CoreTy::Int, CoreTy::Enum(UNIT.name)],
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
-            symbol: "mwl_core_time_of_day_minus",
+            symbol: "nvs_core_time_of_day_minus",
         },
         CoreMethod {
             name: "with",
             params: &[CoreTy::Options(TIME_OF_DAY_WITH_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Instance(TIME_OF_DAY_NAME),
-            symbol: "mwl_core_time_of_day_with",
+            symbol: "nvs_core_time_of_day_with",
         },
         CoreMethod {
             name: "compareTo",
             params: &[CoreTy::Instance(TIME_OF_DAY_NAME)],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_time_of_day_compare_to",
+            symbol: "nvs_core_time_of_day_compare_to",
         },
     ],
     slots: &["hour", "minute", "second", "nanos"],
@@ -1437,12 +1437,12 @@ const CLOCK_NANOS_SLOT: usize = 3;
 /// [`TIME_OF_DAY`]'s symbols.
 fn time_of_day_address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_time_of_day_at" => (mwl_core_time_of_day_at as *const ()).cast(),
-        "mwl_core_time_of_day_format" => (mwl_core_time_of_day_format as *const ()).cast(),
-        "mwl_core_time_of_day_plus" => (mwl_core_time_of_day_plus as *const ()).cast(),
-        "mwl_core_time_of_day_minus" => (mwl_core_time_of_day_minus as *const ()).cast(),
-        "mwl_core_time_of_day_with" => (mwl_core_time_of_day_with as *const ()).cast(),
-        "mwl_core_time_of_day_compare_to" => (mwl_core_time_of_day_compare_to as *const ()).cast(),
+        "nvs_core_time_of_day_at" => (nvs_core_time_of_day_at as *const ()).cast(),
+        "nvs_core_time_of_day_format" => (nvs_core_time_of_day_format as *const ()).cast(),
+        "nvs_core_time_of_day_plus" => (nvs_core_time_of_day_plus as *const ()).cast(),
+        "nvs_core_time_of_day_minus" => (nvs_core_time_of_day_minus as *const ()).cast(),
+        "nvs_core_time_of_day_with" => (nvs_core_time_of_day_with as *const ()).cast(),
+        "nvs_core_time_of_day_compare_to" => (nvs_core_time_of_day_compare_to as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1541,7 +1541,7 @@ fn nanos_between(later: Timestamp, earlier: Timestamp, member: &str) -> Result<i
 /// A fresh `Zone` with the id `id` — an IANA identifier, or a `±HH:MM[:SS]`
 /// offset spelling for a fixed zone. See [`ZONE`].
 fn zone_built(id: &str) -> Value {
-    crate::instance::build(&ZONE, [Value::str(MwlStr::new(id.as_bytes()))])
+    crate::instance::build(&ZONE, [Value::str(NvsStr::new(id.as_bytes()))])
 }
 
 /// The [`TimeZone`] the `Zone` in argument slot `at` names.
@@ -1551,7 +1551,7 @@ fn zone_built(id: &str) -> Value {
 /// A [`Fault::fatal`] for a slot that is not a string, and a
 /// [`Fault::thrown`] for an id the database no longer has — which only a
 /// database swapped under a live process can produce, since
-/// [`mwl_core_time_zone_of`] resolved it once already.
+/// [`nvs_core_time_zone_of`] resolved it once already.
 fn zone_of(args: &[Value], at: usize, member: &str) -> Result<TimeZone, Fault> {
     let object = crate::instance::receiver(args[at], &ZONE, member)?;
     let held = crate::instance::slot(object, ZONE_ID_SLOT);
@@ -1620,7 +1620,7 @@ fn render_offset(seconds: i32) -> String {
 // ============================================================================
 
 /// This process's monotonic origin, fixed at the first
-/// [`mwl_core_time_monotonic`] call.
+/// [`nvs_core_time_monotonic`] call.
 ///
 /// Process-wide rather than per-core so that two cores' readings are
 /// differences on one timeline, which is the only thing a monotonic clock is
@@ -1628,21 +1628,21 @@ fn render_offset(seconds: i32) -> String {
 /// synchronisation past the first call.
 static MONOTONIC_ORIGIN: OnceLock<std::time::Instant> = OnceLock::new();
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time::now(): Instant` — the wall clock, which replaces `time`,
     /// `microtime` and `date_create` at once.
-    fn mwl_core_time_now(_ctx, args: [0]) {
+    fn nvs_core_time_now(_ctx, args: [0]) {
         let _ = args;
         Ok(instant_built(Timestamp::now()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time::monotonic(): Duration` — for measuring, never for
     /// wall-clock, which is why it answers with a `Duration` and not an
     /// `Instant`: the value has no meaning except against another reading of
     /// the same clock.
-    fn mwl_core_time_monotonic(_ctx, args: [0]) {
+    fn nvs_core_time_monotonic(_ctx, args: [0]) {
         let _ = args;
         let origin = MONOTONIC_ORIGIN.get_or_init(std::time::Instant::now);
         Ok(built(
@@ -1651,7 +1651,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time::sleep(Duration $d): void`, replacing `sleep`, `usleep`,
     /// `time_nanosleep` and `time_sleep_until` — one member, because the four
     /// differ only in the unit a `Duration` already carries.
@@ -1661,7 +1661,7 @@ mwl_runtime::mwl_helper! {
     /// every caller computing a deadline wants. **Blocks the core thread** —
     /// this module's gap 3 owns why, and the signature does not change when
     /// M5's scheduler makes it a suspension point.
-    fn mwl_core_time_sleep(_ctx, args: [1]) {
+    fn nvs_core_time_sleep(_ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "sleep")?;
         if nanos > 0 {
             std::thread::sleep(std::time::Duration::from_nanos(nanos.unsigned_abs()));
@@ -1670,14 +1670,14 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time::fromEpoch(int $seconds, {nanos?: uint}): Instant`.
     ///
     /// The `nanos` option is added *after* the second, rather than written
     /// into the slot beside it, so that a negative second and a positive
     /// `nanos` mean what a reader expects — one nanosecond after
     /// `-1`, not one before it.
-    fn mwl_core_time_from_epoch(_ctx, args: [2]) {
+    fn nvs_core_time_from_epoch(_ctx, args: [2]) {
         let seconds = count(args, 0, "fromEpoch")?;
         let nanos = args[1].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
@@ -1705,7 +1705,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time::fromIso(string $text): Instant` — an ISO-8601 timestamp
     /// that carries its own offset, which is the whole of what `strtotime`
     /// replaces here. A relative expression is not accepted in either half
@@ -1713,13 +1713,13 @@ mwl_runtime::mwl_helper! {
     /// a zone.
     ///
     /// The refusal is a `ParseError` on the same rule
-    /// [`mwl_core_time_parse`] splits its two classes by: this member's one
+    /// [`nvs_core_time_parse`] splits its two classes by: this member's one
     /// argument is text, which arrives from somewhere else, so a text that
     /// does not spell a timestamp is the input's failure and not the call
     /// site's. The sentence past the member's own name is `jiff`'s, since it
     /// says which component it stopped at and nothing here could say it
     /// better.
-    fn mwl_core_time_from_iso(_ctx, args: [1]) {
+    fn nvs_core_time_from_iso(_ctx, args: [1]) {
         let text = text_of(args, 0, "Core\\Time::fromIso")?;
         text.parse::<Timestamp>()
             .map(instant_built)
@@ -1733,18 +1733,18 @@ mwl_runtime::mwl_helper! {
 // `Core\Time\Instant`'s members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$i->toEpochSeconds(): int` — replaces `getTimestamp` and `date("U")`.
-    fn mwl_core_time_instant_to_epoch_seconds(_ctx, args: [1]) {
+    fn nvs_core_time_instant_to_epoch_seconds(_ctx, args: [1]) {
         Ok(Value::int(instant_of(args, 0, "toEpochSeconds")?.as_second()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$i->toEpochMillis(): int` — one of `microtime(true)`'s two halves,
     /// as an exact integer rather than a `float` that loses the subsecond
     /// digits it was asked for.
-    fn mwl_core_time_instant_to_epoch_millis(_ctx, args: [1]) {
+    fn nvs_core_time_instant_to_epoch_millis(_ctx, args: [1]) {
         let at = instant_of(args, 0, "toEpochMillis")?;
         at.as_second()
             .checked_mul(1_000)
@@ -1761,9 +1761,9 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$i->toEpochMicros(): int` — `microtime`'s other half.
-    fn mwl_core_time_instant_to_epoch_micros(_ctx, args: [1]) {
+    fn nvs_core_time_instant_to_epoch_micros(_ctx, args: [1]) {
         let at = instant_of(args, 0, "toEpochMicros")?;
         at.as_second()
             .checked_mul(1_000_000)
@@ -1778,11 +1778,11 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$i->plus(Duration $d): Instant` — the exact arithmetic of § 4's two,
     /// so it crosses a DST boundary without noticing one. A calendar step is
     /// `DateTime::plus($n, Unit::Day)`.
-    fn mwl_core_time_instant_plus(_ctx, args: [2]) {
+    fn nvs_core_time_instant_plus(_ctx, args: [2]) {
         let at = instant_of(args, 0, "plus")?;
         let by = SignedDuration::from_nanos(nanos_of(args, 1, "plus")?);
         at.checked_add(by)
@@ -1791,9 +1791,9 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$i->minus(Duration $d): Instant`.
-    fn mwl_core_time_instant_minus(_ctx, args: [2]) {
+    fn nvs_core_time_instant_minus(_ctx, args: [2]) {
         let at = instant_of(args, 0, "minus")?;
         let by = SignedDuration::from_nanos(nanos_of(args, 1, "minus")?);
         at.checked_sub(by)
@@ -1802,24 +1802,24 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$i->since(Instant $earlier): Duration` — replaces `date_diff` and
     /// `DateInterval` arithmetic, with none of that type's "1 month" ambiguity
     /// because the answer is an exact count.
     ///
     /// Negative where `$earlier` is in fact later, which is what makes it the
     /// inverse of `plus` rather than an absolute distance.
-    fn mwl_core_time_instant_since(_ctx, args: [2]) {
+    fn nvs_core_time_instant_since(_ctx, args: [2]) {
         let later = instant_of(args, 0, "since")?;
         let earlier = instant_of(args, 1, "since")?;
         Ok(built(nanos_between(later, earlier, "since")?))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$i->compareTo(Instant $other): int` — `Comparable`'s member
     /// ([ADR 0013](../../../../docs/adr/0013-comparable-interface.md)).
-    fn mwl_core_time_instant_compare_to(_ctx, args: [2]) {
+    fn nvs_core_time_instant_compare_to(_ctx, args: [2]) {
         let left = instant_of(args, 0, "compareTo")?;
         let right = instant_of(args, 1, "compareTo")?;
         Ok(Value::int(match left.cmp(&right) {
@@ -1830,12 +1830,12 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$i->toIso(): string` — RFC 3339 in UTC, which is `date(DATE_ATOM)`'s
     /// replacement and the one rendering that needs no zone argument.
-    fn mwl_core_time_instant_to_iso(_ctx, args: [1]) {
+    fn nvs_core_time_instant_to_iso(_ctx, args: [1]) {
         let at = instant_of(args, 0, "toIso")?;
-        Ok(Value::str(MwlStr::new(at.to_string().as_bytes())))
+        Ok(Value::str(NvsStr::new(at.to_string().as_bytes())))
     }
 }
 
@@ -1843,12 +1843,12 @@ mwl_runtime::mwl_helper! {
 // `Core\Time\Zone`'s members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Zone::of(string $id): Zone` — an IANA identifier, replacing
     /// `DateTimeZone`. Throws on an unknown one rather than falling back to
     /// UTC, which is PHP's behaviour and the reason a mistyped zone there is a
     /// silent wrong answer.
-    fn mwl_core_time_zone_of(_ctx, args: [1]) {
+    fn nvs_core_time_zone_of(_ctx, args: [1]) {
         let id = text_of(args, 0, "Core\\Time\\Zone::of")?;
         // A sign-leading id is `fixed`'s spelling, not an IANA one, so `of`
         // refuses it: two ways to build one value is exactly what ADR 0063
@@ -1862,14 +1862,14 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Zone::fixed(Duration $offset): Zone` — for a timestamp that
     /// carries an offset instead of a region, which is every RFC 3339 string
     /// and no IANA identifier.
     ///
     /// A whole number of seconds, within the ±25:59:59 the IANA format itself
     /// allows; anything else throws rather than rounding.
-    fn mwl_core_time_zone_fixed(_ctx, args: [1]) {
+    fn nvs_core_time_zone_fixed(_ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "fixed")?;
         if nanos % 1_000_000_000 != 0 {
             return Err(out_of_range(
@@ -1889,14 +1889,14 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time\Zone::system(): Zone` — the host's configured zone,
     /// replacing `date_default_timezone_get`.
     ///
     /// **Not** an ambient default (§ 4): it is an ordinary value a program
     /// asks for and then passes explicitly, so a call site still names the
     /// zone it converts in. There is no `date_default_timezone_set`.
-    fn mwl_core_time_zone_system(_ctx, args: [0]) {
+    fn nvs_core_time_zone_system(_ctx, args: [0]) {
         let _ = args;
         let zone = TimeZone::system();
         Ok(match zone.iana_name() {
@@ -1909,13 +1909,13 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$z->offsetAt(Instant $i): Duration` — replaces `getOffset`.
     ///
     /// Takes the instant because an offset is not a property of a zone:
     /// `Europe/Berlin` is `+01:00` in January and `+02:00` in July, and a
     /// member that did not ask would have to pick one silently.
-    fn mwl_core_time_zone_offset_at(_ctx, args: [2]) {
+    fn nvs_core_time_zone_offset_at(_ctx, args: [2]) {
         let zone = zone_of(args, 0, "offsetAt")?;
         let at = instant_of(args, 1, "offsetAt")?;
         Ok(built(i64::from(zone.to_offset(at).seconds()) * 1_000_000_000))
@@ -1942,7 +1942,7 @@ fn datetime_built(at: &Zoned) -> Value {
         [
             Value::int(at.timestamp().as_second()),
             Value::int(i64::from(at.timestamp().subsec_nanosecond())),
-            Value::str(MwlStr::new(id.as_bytes())),
+            Value::str(NvsStr::new(id.as_bytes())),
         ],
     )
 }
@@ -2154,46 +2154,46 @@ fn floored(at: &Zoned, unit: jiff::Unit, scale: i64, member: &str) -> Result<Zon
         .map_err(|err| out_of_range(&format!(r"Core\Time\DateTime::{member}"), &err.to_string()))
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->format(string $pattern): string` — CLDR patterns
     /// ([`crate::cldr`]), replacing `date`, `gmdate`, `idate`, `strftime` and
     /// `date_format` at once.
     ///
     /// The pattern is compiled per call; ADR 0057 is what moves that to
     /// compile time for a literal one, and [`crate::cldr`]'s gap 1 owns it.
-    fn mwl_core_time_datetime_format(_ctx, args: [2]) {
+    fn nvs_core_time_datetime_format(_ctx, args: [2]) {
         let at = zoned_of(args, 0, "format")?;
         let pattern = text_of(args, 1, "Core\\Time\\DateTime::format")?;
         let pieces = crate::cldr::compile(pattern)
             .map_err(|why| Fault::thrown(format!("Core\\Time\\DateTime::format(): {why}")))?;
-        Ok(Value::str(MwlStr::new(
+        Ok(Value::str(NvsStr::new(
             crate::cldr::render(&pieces, &at).as_bytes(),
         )))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->plus(int $count, Unit $unit): DateTime` — § 4's *calendar* half,
     /// so adding `1, Unit::Month` lands on the same day-of-month clamped to
     /// the month's length, and crossing a DST boundary makes a 23- or 25-hour
     /// day. The exact half is `$d->toInstant()->plus(24h)`.
-    fn mwl_core_time_datetime_plus(_ctx, args: [3]) {
+    fn nvs_core_time_datetime_plus(_ctx, args: [3]) {
         stepped(args, "plus", 1)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->minus(int $count, Unit $unit): DateTime`.
-    fn mwl_core_time_datetime_minus(_ctx, args: [3]) {
+    fn nvs_core_time_datetime_minus(_ctx, args: [3]) {
         stepped(args, "minus", -1)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->next(Weekday $w): DateTime` — the nearest **strictly later** day
     /// with that weekday, time-of-day preserved. Replaces
     /// `strtotime("next monday")`.
-    fn mwl_core_time_datetime_next(_ctx, args: [2]) {
+    fn nvs_core_time_datetime_next(_ctx, args: [2]) {
         let at = zoned_of(args, 0, "next")?;
         let weekday = weekday_of(args, 1, "Core\\Time\\DateTime::next")?;
         at.nth_weekday(1, weekday)
@@ -2202,10 +2202,10 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
-    /// `$d->previous(Weekday $w): DateTime` — [`mwl_core_time_datetime_next`]
+nvs_runtime::nvs_helper! {
+    /// `$d->previous(Weekday $w): DateTime` — [`nvs_core_time_datetime_next`]
     /// backwards, and strictly earlier for the same reason.
-    fn mwl_core_time_datetime_previous(_ctx, args: [2]) {
+    fn nvs_core_time_datetime_previous(_ctx, args: [2]) {
         let at = zoned_of(args, 0, "previous")?;
         let weekday = weekday_of(args, 1, "Core\\Time\\DateTime::previous")?;
         at.nth_weekday(-1, weekday)
@@ -2214,13 +2214,13 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->with({year?, month?, day?, hour?, minute?, second?, nanos?}):
     /// DateTime` — replaces `setDate`, `setTime` and `setISODate`.
     ///
     /// An omitted option arrives as `Tag::Null` and leaves its field alone;
     /// see [`WITH_OPTIONS`] for why that is a tag rather than a sentinel.
-    fn mwl_core_time_datetime_with(_ctx, args: [8]) {
+    fn nvs_core_time_datetime_with(_ctx, args: [8]) {
         let at = zoned_of(args, 0, "with")?;
         let mut building = at.with();
         if let Some(year) = optional(args, 1, r"Core\Time\DateTime::with", "year")? {
@@ -2262,11 +2262,11 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->withTime(TimeOfDay $t): DateTime` — spec § 4's "common half of
     /// `with`, spelled as the operation it is".
     ///
-    /// The same body as [`mwl_core_time_datetime_with`] reached from a
+    /// The same body as [`nvs_core_time_datetime_with`] reached from a
     /// component view instead of an options bag, and the one call of the two
     /// that cannot be partial: a `TimeOfDay` carries all four clock fields, so
     /// `nanos` is replaced as surely as `hour` is and there is no
@@ -2277,7 +2277,7 @@ mwl_runtime::mwl_helper! {
     /// does — `jiff`'s compatible disambiguation, shifting forward by the gap
     /// — rather than throwing, since the civil time the program named is the
     /// one the zone skipped and the next real instant is what it meant.
-    fn mwl_core_time_datetime_with_time(_ctx, args: [2]) {
+    fn nvs_core_time_datetime_with_time(_ctx, args: [2]) {
         let at = zoned_of(args, 0, "withTime")?;
         let time = clock_of(args, 1, "withTime")?;
         at.with()
@@ -2288,23 +2288,23 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->startOf(Unit $u): DateTime`.
-    fn mwl_core_time_datetime_start_of(_ctx, args: [2]) {
+    fn nvs_core_time_datetime_start_of(_ctx, args: [2]) {
         let at = zoned_of(args, 0, "startOf")?;
         let (unit, scale) = unit_of(args, 1, "Core\\Time\\DateTime::startOf")?;
         Ok(datetime_built(&floored(&at, unit, scale, "startOf")?))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->endOf(Unit $u): DateTime` — the **last** instant of the unit,
     /// which is one nanosecond before the next one starts.
     ///
     /// A distinct operation from `startOf` at a DST boundary, which is § 4's
     /// stated reason both exist: the two are not a fixed distance apart on a
     /// day the zone lengthens or shortens.
-    fn mwl_core_time_datetime_end_of(_ctx, args: [2]) {
+    fn nvs_core_time_datetime_end_of(_ctx, args: [2]) {
         let at = zoned_of(args, 0, "endOf")?;
         let (unit, scale) = unit_of(args, 1, "Core\\Time\\DateTime::endOf")?;
         let start = floored(&at, unit, scale, "endOf")?;
@@ -2318,7 +2318,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->difference(DateTime $other, Unit $unit): int` — whole units from
     /// the receiver **to** `$other`, so an age is
     /// `$birth->difference($today, Unit::Year)` and a past date answers
@@ -2330,7 +2330,7 @@ mwl_runtime::mwl_helper! {
     /// alternative, refusing two different zones, would make the common case
     /// (a UTC timestamp against a user's local day) a throw rather than an
     /// answer, and there is no third zone either operand could name.
-    fn mwl_core_time_datetime_difference(_ctx, args: [3]) {
+    fn nvs_core_time_datetime_difference(_ctx, args: [3]) {
         let from = zoned_of(args, 0, "difference")?;
         let to = zoned_of(args, 1, "difference")?.with_time_zone(from.time_zone().clone());
         let (unit, scale) = unit_of(args, 2, "Core\\Time\\DateTime::difference")?;
@@ -2353,38 +2353,38 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->toInstant(): Instant` — free, since a `DateTime` already holds
     /// one ([`DATETIME`]).
-    fn mwl_core_time_datetime_to_instant(_ctx, args: [1]) {
+    fn nvs_core_time_datetime_to_instant(_ctx, args: [1]) {
         Ok(instant_built(zoned_of(args, 0, "toInstant")?.timestamp()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->date(): Date` — § 4's first component view, and the one that
     /// drops the zone as well as the time: the civil date this value reads as
     /// **where it is**, which is why a zone conversion first
     /// (`$d->toInstant()->in($z)->date()`) can answer a different day.
-    fn mwl_core_time_datetime_date(_ctx, args: [1]) {
+    fn nvs_core_time_datetime_date(_ctx, args: [1]) {
         Ok(date_built(zoned_of(args, 0, "date")?.datetime().date()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->timeOfDay(): TimeOfDay` — the other component view, and the one
     /// that is a wall clock reading rather than a point on any timeline: two
     /// zones can read `09:00` at once, which is exactly why it carries
     /// neither the date nor the zone.
-    fn mwl_core_time_datetime_time_of_day(_ctx, args: [1]) {
+    fn nvs_core_time_datetime_time_of_day(_ctx, args: [1]) {
         Ok(clock_built(zoned_of(args, 0, "timeOfDay")?.datetime().time()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->zone(): Zone` — the zone this civil time is in, which is never
     /// ambient and so is always one the program named.
-    fn mwl_core_time_datetime_zone(_ctx, args: [1]) {
+    fn nvs_core_time_datetime_zone(_ctx, args: [1]) {
         let at = zoned_of(args, 0, "zone")?;
         Ok(match at.time_zone().iana_name() {
             Some(name) => zone_built(name),
@@ -2393,10 +2393,10 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->weekday(): Weekday` — replaces `date("N")`, as the enum case
     /// rather than the number.
-    fn mwl_core_time_datetime_weekday(_ctx, args: [1]) {
+    fn nvs_core_time_datetime_weekday(_ctx, args: [1]) {
         let at = zoned_of(args, 0, "weekday")?;
         Ok(Value::int(i64::from(
             at.weekday().to_monday_zero_offset(),
@@ -2404,20 +2404,20 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->dayOfYear(): uint` — replaces `date("z")`, one-based where PHP's
     /// is zero-based, because every other day count in § 4 is one-based too.
-    fn mwl_core_time_datetime_day_of_year(_ctx, args: [1]) {
+    fn nvs_core_time_datetime_day_of_year(_ctx, args: [1]) {
         let at = zoned_of(args, 0, "dayOfYear")?;
         Ok(Value::uint(at.day_of_year().unsigned_abs().into()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->isLeapYear(): bool` — replaces `date("L")` and `checkdate`'s year
     /// half; the day half has no equivalent because an invalid date throws
     /// where it is built.
-    fn mwl_core_time_datetime_is_leap_year(_ctx, args: [1]) {
+    fn nvs_core_time_datetime_is_leap_year(_ctx, args: [1]) {
         Ok(Value::bool(zoned_of(args, 0, "isLeapYear")?.in_leap_year()))
     }
 }
@@ -2432,7 +2432,7 @@ mwl_runtime::mwl_helper! {
 /// [`count`] gives. `member` is the whole `Core\…::name` label, since both
 /// `with` members reach here.
 fn optional(args: &[Value], at: usize, member: &str, option: &str) -> Result<Option<i64>, Fault> {
-    if args[at].tag() == Some(mwl_runtime::Tag::Null) {
+    if args[at].tag() == Some(nvs_runtime::Tag::Null) {
         return Ok(None);
     }
     args[at]
@@ -2447,17 +2447,17 @@ fn optional(args: &[Value], at: usize, member: &str, option: &str) -> Result<Opt
         })
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$i->in(Zone $zone): DateTime` — the only instant→calendar conversion
     /// there is, and the reason § 4 needs no ambient timezone.
-    fn mwl_core_time_instant_in(_ctx, args: [2]) {
+    fn nvs_core_time_instant_in(_ctx, args: [2]) {
         let at = instant_of(args, 0, "in")?;
         let zone = zone_of(args, 1, "in")?;
         Ok(datetime_built(&Zoned::new(at, zone)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time::parse(string $text, string $format, Zone $zone): DateTime`
     /// — `DateTime::createFromFormat` and `strptime`, over [`crate::cldr`]'s
     /// patterns rather than PHP's letters.
@@ -2465,7 +2465,7 @@ mwl_runtime::mwl_helper! {
     /// The zone is the third argument rather than something the pattern can
     /// name, which is why a zonal field in the pattern is refused: two answers
     /// for one question is what ADR 0063 R20 leaves no room for.
-    fn mwl_core_time_parse(_ctx, args: [3]) {
+    fn nvs_core_time_parse(_ctx, args: [3]) {
         let text = text_of(args, 0, "Core\\Time::parse")?;
         let pattern = text_of(args, 1, "Core\\Time::parse")?;
         let zone = zone_of(args, 2, "parse")?;
@@ -2484,7 +2484,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Time::at(int $year, uint $month, uint $day, Zone $zone,
     /// {hour?, minute?, second?, nanos?}): DateTime` — replaces `mktime`,
     /// `gmmktime` and `DateTime::setDate`.
@@ -2494,7 +2494,7 @@ mwl_runtime::mwl_helper! {
     /// *compatible* disambiguation and the rule every other language's
     /// calendar library settled on. There is no `checkdate`: a date that does
     /// not exist at all throws here.
-    fn mwl_core_time_at(_ctx, args: [8]) {
+    fn nvs_core_time_at(_ctx, args: [8]) {
         let year = i16::try_from(count(args, 0, "at")?).map_err(|_| {
             out_of_range(r"Core\Time::at", "a year is within -9999..=9999")
         })?;
@@ -2661,10 +2661,10 @@ fn date_stepped(args: &[Value], member: &str, sign: i64) -> Result<Value, Fault>
         .map_err(|err| out_of_range(&label, &err.to_string()))
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Date::at(int $year, uint $month, uint $day): Date` — § 4's zone-free
     /// constructor, and the one place a date that does not exist throws.
-    fn mwl_core_time_date_at(_ctx, args: [3]) {
+    fn nvs_core_time_date_at(_ctx, args: [3]) {
         let label = r"Core\Time\Date::at";
         let year = args[0].as_int().ok_or_else(|| {
             Fault::fatal(format!(
@@ -2678,7 +2678,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->format(string $pattern): string` — [`crate::cldr`]'s patterns
     /// again, narrowed to the letters a date carries.
     ///
@@ -2686,7 +2686,7 @@ mwl_runtime::mwl_helper! {
     /// [`crate::cldr::date_fields_only`] owns why. What that leaves is a
     /// rendering that cannot depend on the zone the value is placed in, which
     /// is what makes UTC below an implementation detail rather than a default.
-    fn mwl_core_time_date_format(_ctx, args: [2]) {
+    fn nvs_core_time_date_format(_ctx, args: [2]) {
         let at = date_of(args, 0, "format")?;
         let pattern = text_of(args, 1, r"Core\Time\Date::format")?;
         let pieces = crate::cldr::compile(pattern)
@@ -2696,36 +2696,36 @@ mwl_runtime::mwl_helper! {
         let placed = at.to_zoned(TimeZone::UTC).map_err(|err| {
             Fault::fatal(format!("Core\\Time\\Date::format could not place `{at}`: {err}"))
         })?;
-        Ok(Value::str(MwlStr::new(
+        Ok(Value::str(NvsStr::new(
             crate::cldr::render(&pieces, &placed).as_bytes(),
         )))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->plus(int $count, Unit $unit): Date` — the same clamping calendar
-    /// step [`mwl_core_time_datetime_plus`] takes, so the last day of January
+    /// step [`nvs_core_time_datetime_plus`] takes, so the last day of January
     /// plus a month is the last day of February.
-    fn mwl_core_time_date_plus(_ctx, args: [3]) {
+    fn nvs_core_time_date_plus(_ctx, args: [3]) {
         date_stepped(args, "plus", 1)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->minus(int $count, Unit $unit): Date`.
-    fn mwl_core_time_date_minus(_ctx, args: [3]) {
+    fn nvs_core_time_date_minus(_ctx, args: [3]) {
         date_stepped(args, "minus", -1)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->with({year?, month?, day?}): Date` — an omitted option leaves its
     /// field, for [`WITH_OPTIONS`]'s reason.
     ///
     /// A combination that is not a date throws, exactly as the constructor
     /// does: `2024-02-29` with `{year: 2023}` has no answer to clamp to that
     /// is not a guess.
-    fn mwl_core_time_date_with(_ctx, args: [4]) {
+    fn nvs_core_time_date_with(_ctx, args: [4]) {
         let label = r"Core\Time\Date::with";
         let mut building = date_of(args, 0, "with")?.with();
         if let Some(year) = optional(args, 1, label, "year")? {
@@ -2753,10 +2753,10 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$d->compareTo(Date $other): int` — `Comparable`'s member, over the
     /// one order a civil date has.
-    fn mwl_core_time_date_compare_to(_ctx, args: [2]) {
+    fn nvs_core_time_date_compare_to(_ctx, args: [2]) {
         let left = date_of(args, 0, "compareTo")?;
         let right = date_of(args, 1, "compareTo")?;
         Ok(Value::int(match left.cmp(&right) {
@@ -2856,11 +2856,11 @@ fn clock_stepped(args: &[Value], member: &str, sign: i64) -> Result<Value, Fault
     Ok(clock_built(at.wrapping_add(span)))
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `TimeOfDay::at(uint $hour, uint $minute, {second?, nanos?}):
     /// TimeOfDay` — the zone-free constructor, with the two fields a wall
     /// clock usually leaves off defaulting to zero ([`AT_OPTIONS`]).
-    fn mwl_core_time_of_day_at(_ctx, args: [4]) {
+    fn nvs_core_time_of_day_at(_ctx, args: [4]) {
         let label = r"Core\Time\TimeOfDay::at";
         let hour = field_at(args, 0, label, "hour")?;
         let minute = field_at(args, 1, label, "minute")?;
@@ -2877,11 +2877,11 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$t->format(string $pattern): string` — [`crate::cldr`]'s patterns
     /// narrowed the other way, to the letters a clock carries
     /// ([`crate::cldr::time_fields_only`]).
-    fn mwl_core_time_of_day_format(_ctx, args: [2]) {
+    fn nvs_core_time_of_day_format(_ctx, args: [2]) {
         let at = clock_of(args, 0, "format")?;
         let pattern = text_of(args, 1, r"Core\Time\TimeOfDay::format")?;
         let pieces = crate::cldr::compile(pattern)
@@ -2896,31 +2896,31 @@ mwl_runtime::mwl_helper! {
             .map_err(|err| {
                 Fault::fatal(format!("Core\\Time\\TimeOfDay::format could not place `{at}`: {err}"))
             })?;
-        Ok(Value::str(MwlStr::new(
+        Ok(Value::str(NvsStr::new(
             crate::cldr::render(&pieces, &placed).as_bytes(),
         )))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$t->plus(int $count, Unit $unit): TimeOfDay` — see [`clock_stepped`]
     /// for what happens at midnight.
-    fn mwl_core_time_of_day_plus(_ctx, args: [3]) {
+    fn nvs_core_time_of_day_plus(_ctx, args: [3]) {
         clock_stepped(args, "plus", 1)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$t->minus(int $count, Unit $unit): TimeOfDay`.
-    fn mwl_core_time_of_day_minus(_ctx, args: [3]) {
+    fn nvs_core_time_of_day_minus(_ctx, args: [3]) {
         clock_stepped(args, "minus", -1)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$t->with({hour?, minute?, second?, nanos?}): TimeOfDay` — an omitted
     /// option leaves its field, for [`WITH_OPTIONS`]'s reason.
-    fn mwl_core_time_of_day_with(_ctx, args: [5]) {
+    fn nvs_core_time_of_day_with(_ctx, args: [5]) {
         let label = r"Core\Time\TimeOfDay::with";
         let mut building = clock_of(args, 0, "with")?.with();
         for (index, name) in [(1, "hour"), (2, "minute"), (3, "second")] {
@@ -2948,10 +2948,10 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$t->compareTo(TimeOfDay $other): int` — `Comparable`'s member, over
     /// the one order a clock reading has.
-    fn mwl_core_time_of_day_compare_to(_ctx, args: [2]) {
+    fn nvs_core_time_of_day_compare_to(_ctx, args: [2]) {
         let left = clock_of(args, 0, "compareTo")?;
         let right = clock_of(args, 1, "compareTo")?;
         Ok(Value::int(match left.cmp(&right) {

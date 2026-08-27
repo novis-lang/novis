@@ -1,7 +1,7 @@
 --TEST--
-Every member that orders through `mwl_stdlib::ordering`'s one helper refuses the same orderless pair and raises the same catchable throw, differing only in the member name it puts in front — docs/spec/01-core-library.md §§ 2, 3 and 9, ADR 0013 for the object case
+Every member that orders through `nvs_stdlib::ordering`'s one helper refuses the same orderless pair and raises the same catchable throw, differing only in the member name it puts in front — docs/spec/01-core-library.md §§ 2, 3 and 9, ADR 0013 for the object case
 --FILE--
-<?mwl
+<?nvs
 // The companion to the agreement case: seven members share one order, so they
 // must also share one *refusal*. A pair with no natural order — two different
 // representations, or anything that is not a scalar — raises `Fault::thrown`

@@ -1,7 +1,7 @@
 --TEST--
 A `for` whose body always leaves the frame never runs its step clause
 --FILE--
-<?mwl
+<?nvs
 class Scan {
     public static function firstOver(array<int> $xs, int $limit): int {
         var $i = 0;

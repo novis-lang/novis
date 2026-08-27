@@ -1,4 +1,4 @@
-# MWL autonomous work session
+# Novis autonomous work session
 
 You are one session of an unattended loop. A driver script starts a fresh session after you exit, so
 **everything the next session needs must be written to disk before you finish.** Nothing in your context
@@ -105,7 +105,7 @@ with the rest is the whole game.
   where to look, and *what to hand back* — `file.rs:NN` anchors and one line each, never pasted excerpts,
   because an excerpt in the answer charges your window for the reading you delegated. Worked shape:
 
-      Search only under crates/mwl-stdlib/src. Find every CoreMethod row whose return type is
+      Search only under crates/nvs-stdlib/src. Find every CoreMethod row whose return type is
       CoreTy::Instance. Return one line each: `file.rs:NN  Class::member  -> instance name`.
       No excerpts, no commentary. If you find none, say so.
 - **`python tools/verify.py` once, for the whole group.** A measured session ran it four times for one

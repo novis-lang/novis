@@ -1,7 +1,7 @@
 --TEST--
 A `continue` ends the iteration through the same exit a `break` uses, so every protected region it leaves runs its `finally` first
 --FILE--
-<?mwl
+<?nvs
 class Skip {
     public static function odd(): string {
         var $log = "";

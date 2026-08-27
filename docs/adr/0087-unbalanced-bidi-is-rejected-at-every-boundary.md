@@ -20,9 +20,9 @@
 - **Amended by:** 0092
 
 > **In short:** Trojan Source ([CVE-2021-42574](https://trojansource.codes/)) makes text render in an order
-> its bytes do not have, so a reviewer approves one program and the compiler builds another. MWL is already
+> its bytes do not have, so a reviewer approves one program and the compiler builds another. Novis is already
 > immune to two thirds of that paper: **identifiers are ASCII-only**
-> ([`lexer.rs`](../../crates/mwl-syntax/src/lexer.rs)), which removes homoglyph identifiers and bidi
+> ([`lexer.rs`](../../crates/nvs-syntax/src/lexer.rs)), which removes homoglyph identifiers and bidi
 > identifiers structurally, without a lint. What remains is comments, string literals, inline-HTML text and
 > runtime data. The attack condition in all four is the same and it is narrow: **a directional control that
 > opens a scope and is never closed before its span ends.** Balanced controls — what legitimate Arabic,
@@ -41,10 +41,10 @@
   on — is the thing being defeated. The paper's proof-of-concept exploits live in **comments and string
   literals**, which is why "our identifiers are ASCII" is not on its own an answer.
 - **Two of the three classes are already closed, and it is worth being exact about which.**
-  [`crates/mwl-syntax/src/lexer.rs`](../../crates/mwl-syntax/src/lexer.rs) admits `_` and
+  [`crates/nvs-syntax/src/lexer.rs`](../../crates/nvs-syntax/src/lexer.rs) admits `_` and
   `is_ascii_alphanumeric()` and nothing else, so a Cyrillic `а` cannot appear in an identifier and neither
   can U+202E. Rust needs `mixed_script_confusables` and `text_direction_codepoint_in_literal` as two
-  separate lints; MWL needs only the second, and this ADR is it.
+  separate lints; Novis needs only the second, and this ADR is it.
 - **The industry answer is already settled and is worth matching rather than re-deriving.** Rust 1.56.1
   shipped `text_direction_codepoint_in_literal`/`_in_comment` **deny-by-default**; GCC 12 shipped
   `-Wbidi-chars`, on by default for the unterminated case. Both draw the line at *unterminated*, not at
@@ -55,7 +55,7 @@
   It is also why the decision is taken now, while only one of the four callers is buildable: the others
   otherwise get argued again, from scratch, by whoever writes them.
 - **An incoherent posture would be worse than none.** A language whose headline is compile-time qualifiers
-  ([0080](0080-the-audience-mwl-is-built-for.md)) cannot guard its terminal output against display
+  ([0080](0080-the-audience-nvs-is-built-for.md)) cannot guard its terminal output against display
   deception and leave its web output open, when the escaper is a `Core` member either way.
 
 ## Decision
@@ -85,7 +85,7 @@ towards rejecting, never towards accepting, which is the safe direction for a se
 
 | Caller | Span | On failure | Lands |
 |---|---|---|---|
-| `mwl-syntax`'s lexer | one token — a string literal, a comment, or an inline-HTML run — **and additionally each line inside a multi-line one**, so a heredoc cannot hide a scope across its lines | **hard compile error**, no suppression | buildable now |
+| `nvs-syntax`'s lexer | one token — a string literal, a comment, or an inline-HTML run — **and additionally each line inside a multi-line one**, so a heredoc cannot hide a scope across its lines | **hard compile error**, no suppression | buildable now |
 | `Core\Cli`'s output sink ([0086](0086-core-cli-terminal-is-a-sink.md) § 1) | one `echo` operand or one `Cli::write` call | each unmatched control becomes `�` (U+FFFD) | M8 |
 | `Core\Html::escape` ([0024](0024-taint-tracking-for-injection-sinks.md) § 5) | one escape call | the same substitution | M7 |
 
@@ -117,7 +117,7 @@ table lookup — the eleven code points are a match arm.
   string, which is a deception with no mechanism behind it.
 - **Homoglyphs** — closed structurally by the ASCII identifier rule. Nothing to add, and a confusables
   table ([UTS #39](https://www.unicode.org/reports/tr39/)) would be dead weight.
-- **The full Bidirectional Algorithm**, per § 1 — MWL does not render text and has no business
+- **The full Bidirectional Algorithm**, per § 1 — Novis does not render text and has no business
   implementing UAX #9.
 - **`Core\Log`** — deliberately, and for the reason
   [0024](0024-taint-tracking-for-injection-sinks.md) § 4 already gives for `tainted`: the writer is a
@@ -126,19 +126,19 @@ table lookup — the eleven code points are a match arm.
 
 ## Consequences
 
-- **A PHP file containing an unterminated control does not convert.** `mwl convert` (M11) reports it as a
+- **A PHP file containing an unterminated control does not convert.** `nvs convert` (M11) reports it as a
   source error rather than carrying it across, which is the correct outcome and is worth stating so it is
   not filed as a converter bug.
-- **One diagnostic, one implementation, four callers.** The predicate lives in `mwl-syntax` beside the
+- **One diagnostic, one implementation, four callers.** The predicate lives in `nvs-syntax` beside the
   lexer that needs it first, and both `Core` sinks plus
   [0092](0092-one-diagnostic-record-three-renderings.md)'s record builder call it rather than
   reimplementing it. If a future session finds itself writing a second copy, that is the bug.
-- **MWL is fully closed against the Trojan Source paper** once all four callers exist — identifiers by
+- **Novis is fully closed against the Trojan Source paper** once all four callers exist — identifiers by
   construction, everything else by this rule. That is a claim worth being able to make plainly, and
-  [0080](0080-the-audience-mwl-is-built-for.md)'s audience is exactly the one that asks.
+  [0080](0080-the-audience-nvs-is-built-for.md)'s audience is exactly the one that asks.
 - **A cost this ADR accepts:** an editor or diff viewer that does not itself neutralize these controls will
-  still misrender an MWL file *before* the compiler ever sees it. The check catches it at build time, not
-  at review time, so it protects the merge and not the reading. Closing that properly is `mwl-lsp`'s
+  still misrender an Novis file *before* the compiler ever sees it. The check catches it at build time, not
+  at review time, so it protects the merge and not the reading. Closing that properly is `nvs-lsp`'s
   ([0016](0016-ide-integration.md)) and is not scheduled here.
 
 ## Alternatives rejected
@@ -150,8 +150,8 @@ table lookup — the eleven code points are a match arm.
 - **A warning rather than an error at the lexer.** A warning nobody fails a build on is not a control, and
   [ADR 0029](0029-identifier-casing-is-checked.md) already settled that this project does not have a
   suppression story for spelling rules.
-- **Handle it only in `mwl fmt`.** [ADR 0039](0039-canonical-code-formatting.md) fixes that `fmt` is never
-  wired into `mwl check`, so a formatter-only rule is one an attacker's PR simply does not run.
+- **Handle it only in `nvs fmt`.** [ADR 0039](0039-canonical-code-formatting.md) fixes that `fmt` is never
+  wired into `nvs check`, so a formatter-only rule is one an attacker's PR simply does not run.
 - **Handle it only at the sinks, not in source.** Inverts the severity: the source case is the one with a
   CVE and a working exploit against code review, and the runtime cases are display deception.
 - **Implement UAX #9 properly**, per § 1.
@@ -162,12 +162,12 @@ table lookup — the eleven code points are a match arm.
 - The predicate's own unit tests: balanced `LRE…PDF` and `RLI…PDI` accepted; each of the seven openers
   unterminated, rejected; a stray `PDF`/`PDI` with no opener accepted, since it closes nothing and opens
   nothing; `LRM`/`RLM` accepted anywhere.
-- A `.mwlt` case per source span — a comment, a single-quoted literal, a double-quoted literal with
+- A `.nvst` case per source span — a comment, a single-quoted literal, a double-quoted literal with
   interpolation, a heredoc whose scope opens on one line and closes on the next (**rejected**, per § 2's
   per-line rule), and an inline-HTML run — each asserting a compile error naming this ADR.
-- A `.mwlt` case with a genuinely balanced Arabic string literal, asserting it **compiles and round-trips
+- A `.nvst` case with a genuinely balanced Arabic string literal, asserting it **compiles and round-trips
   unchanged**. This is the case that fails if someone later "simplifies" the rule to a blanket ban.
-- The Trojan Source paper's own `commenting-out` and `stretched-string` patterns, transliterated to MWL, as
+- The Trojan Source paper's own `commenting-out` and `stretched-string` patterns, transliterated to Novis, as
   named fixtures.
 - At the sinks (M7/M8): a fixture writing an unterminated `RLO` asserts `�` in the frozen output, and one
   writing balanced Arabic asserts the text survives byte-for-byte.

@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // map / filter / reduce over a list - the pipeline that replaced the foreach.
 class Bench {
     public static function run(int $size, int $rounds): int {

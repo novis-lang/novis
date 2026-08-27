@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 class Report {
     public static function tally(array<string> $words): array<int> {
         array<int> $counts = [];

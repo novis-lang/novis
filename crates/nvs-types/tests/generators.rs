@@ -1,12 +1,12 @@
 //! ADR 0053 §§ 4-5: what makes a body a generator, and what `yield` refuses.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 /// ADR 0053 § 4: a body containing `yield` is a generator, its declared
 /// return type must be `Iterator<T>`, and each operand is checked
@@ -14,7 +14,7 @@ use mwl_diagnostics::code;
 #[test]
 fn a_generator_declaring_iterator_of_its_yield_type_checks_clean() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class G {\n\
          \x20 static function upTo(int $n): Iterator<int> {\n\
          \x20\x20 var $i = 1;\n\
@@ -30,7 +30,7 @@ fn a_generator_declaring_iterator_of_its_yield_type_checks_clean() {
 #[test]
 fn a_generator_declaring_anything_but_a_cursor_is_diagnosed() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class G {\n\
          \x20 static function bad(): int { yield 1; }\n\
          }\n",
@@ -48,7 +48,7 @@ fn a_generator_declaring_anything_but_a_cursor_is_diagnosed() {
 #[test]
 fn a_generator_with_a_wrong_return_type_reports_exactly_once() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class G {\n\
          \x20 static function bad(): int { yield 1; yield 2; }\n\
          }\n",
@@ -64,7 +64,7 @@ fn a_generator_with_a_wrong_return_type_reports_exactly_once() {
 #[test]
 fn a_yield_operand_must_satisfy_the_declared_element_type() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class G {\n\
          \x20 static function g(): Iterator<int> { yield \"x\"; }\n\
          }\n",
@@ -79,7 +79,7 @@ fn a_yield_operand_must_satisfy_the_declared_element_type() {
 #[test]
 fn a_generator_returning_a_value_is_diagnosed() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class G {\n\
          \x20 static function g(): Iterator<int> { yield 1; return 5; }\n\
          }\n",
@@ -96,7 +96,7 @@ fn a_generator_returning_a_value_is_diagnosed() {
 #[test]
 fn a_generator_may_stop_early_with_a_bare_return() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class G {\n\
          \x20 static function g(): Iterator<int> { yield 1; return; }\n\
          }\n",
@@ -108,7 +108,7 @@ fn a_generator_may_stop_early_with_a_bare_return() {
 /// generator to belong to.
 #[test]
 fn a_yield_outside_any_generator_is_diagnosed() {
-    let diags = check_src("<?mwl\nyield 3;\n");
+    let diags = check_src("<?nvs\nyield 3;\n");
     assert!(
         diags
             .iter()
@@ -122,7 +122,7 @@ fn a_yield_outside_any_generator_is_diagnosed() {
 fn yield_from_and_a_keyed_yield_are_both_refused() {
     for body in ["yield from G::g();", "yield 1 => 2;"] {
         let diags = check_src(&format!(
-            "<?mwl\nclass G {{\n  static function g(): Iterator<int> {{ {body} }}\n}}\n"
+            "<?nvs\nclass G {{\n  static function g(): Iterator<int> {{ {body} }}\n}}\n"
         ));
         assert!(
             diags
@@ -138,7 +138,7 @@ fn yield_from_and_a_keyed_yield_are_both_refused() {
 #[test]
 fn a_mixed_subject_is_neither_checked_nor_refused() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class T {\n\
          \x20 function m(mixed $x): void {\n\
          \x20\x20 foreach ($x as string $s) { echo $s; }\n\

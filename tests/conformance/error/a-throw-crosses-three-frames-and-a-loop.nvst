@@ -1,7 +1,7 @@
 --TEST--
 A throw unwinds three checked-return frames at once, and the output produced before it survives — ADR 0002
 --FILE--
-<?mwl
+<?nvs
 class Chain {
     public static function top(int $n): int {
         return Chain::middle($n) + 1;

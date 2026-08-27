@@ -1,7 +1,7 @@
 --TEST--
 `break` and `continue` in a while loop end up where PHP's do
 --FILE--
-<?mwl
+<?nvs
 var $i = 0;
 var $sum = 0;
 while ($i < 100) {

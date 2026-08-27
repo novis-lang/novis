@@ -1,7 +1,7 @@
 --TEST--
 a single-quoted string takes its bytes literally — no interpolation, no escape but the quote itself
 --FILE--
-<?mwl
+<?nvs
 string $raw = 'a\nb $notInterpolated';
 echo $raw, "\n";
 echo 'single "quotes" inside', "\n";

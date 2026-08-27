@@ -1,7 +1,7 @@
 --TEST--
 `& | ^ ~ << >>` hold their algebraic identities over a swept table, `>>` reads its operand's signedness, and the five compound forms are their binary forms — ADR 0007 § 4
 --FILE--
-<?mwl
+<?nvs
 // The differential case beside this one pins the `int` arm against PHP's own
 // output. What is left, and what this asks, is the half PHP cannot answer:
 // the `uint` arm, where `>>` is logical rather than arithmetic, and the

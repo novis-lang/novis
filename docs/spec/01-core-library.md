@@ -1,4 +1,4 @@
-# MWL Specification — 01: The `Core` library
+# Novis Specification — 01: The `Core` library
 
 **This file is authoritative for every `Core` signature.** It is the member list
 [ADR 0011 § 2](../adr/0011-functions-and-constants-are-class-members.md) deferred and
@@ -14,9 +14,9 @@ instance method. The `public static function` prefix is omitted throughout; `Cor
 `length(string $s): uint`.
 
 The **Replaces** column names the PHP built-ins an entry subsumes. It is one of the two inputs to
-[02-php-migration.md](02-php-migration.md), which is the complete PHP-name → outcome table `mwl convert`
+[02-php-migration.md](02-php-migration.md), which is the complete PHP-name → outcome table `nvs convert`
 (M11) is generated from and the only place that can answer "did we drop something real": this file states
-what MWL *has*, and that one accounts for every PHP name MWL does not.
+what Novis *has*, and that one accounts for every PHP name Novis does not.
 
 **Qualifier** is the [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)/[0033](../adr/0033-secret-qualifier-for-confidential-values.md)
 classification, and every member has one:
@@ -29,7 +29,7 @@ classification, and every member has one:
 | **neutral** | the result never carries a qualifier from the argument (a `bool`, a count, a hash of a secret) |
 
 A blank cell here means *contagious was chosen*, never *nobody looked*: the classification is declared per
-parameter in `mwl-stdlib`'s member registry, an unclassified `string`/`bytes` parameter **refuses** a
+parameter in `nvs-stdlib`'s member registry, an unclassified `string`/`bytes` parameter **refuses** a
 tainted argument, and a member that ships with one fails that crate's own test suite
 ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 2). Which parameters are
 sinks follows from that ADR's § 1 predicate — *the content becomes an instruction something executes,
@@ -115,7 +115,7 @@ second member name. `{natural: true}` selects a **different ordering**, not a va
 `Arr::sort($a, {comparator: fn($x, $y) => Str::compare($x, $y, {natural: true})})`. `strncmp`'s
 length-limited form is `Str::slice` first.
 
-`strcoll` and every locale-sensitive comparison are **not** here: MWL has no ambient locale
+`strcoll` and every locale-sensitive comparison are **not** here: Novis has no ambient locale
 ([ADR 0051](../adr/0051-standard-library-tiers.md)), and locale-aware collation is the intl extension's
 batch-shaped API.
 
@@ -284,7 +284,7 @@ actually wants are `fillKeys`.
 ### Combining and set operations
 
 Three members combine arrays, and **each treats every key the same way** — there is no member named
-`merge`, and `array + array` does not compile. The rules, the key order each produces and `mwl convert`'s
+`merge`, and `array + array` does not compile. The rules, the key order each produces and `nvs convert`'s
 rewrite table are [ADR 0069](../adr/0069-array-combination-is-key-type-independent.md).
 
 | Member | Signature | Replaces | Q |
@@ -408,7 +408,7 @@ Constants: `PI`, `TAU`, `E`, `EPSILON`, `INT_MAX`, `INT_MIN`, `UINT_MAX`, `FLOAT
 `INFINITY` — replacing `M_PI`, `M_E`, `PHP_INT_MAX`, `PHP_FLOAT_EPSILON` and the rest of PHP's global
 constants ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)).
 
-`Math::format` takes explicit separators because MWL has no ambient locale; locale-correct number
+`Math::format` takes explicit separators because Novis has no ambient locale; locale-correct number
 formatting is intl's `NumberFormatter` equivalent, at Tier 1.
 
 `log1p` and `expm1` are **not** folded into `log`/`exp`: they exist for precision near zero, which an
@@ -450,16 +450,16 @@ one is taken — `Time::parse`'s `$format` and every `format(string $pattern)` b
 R11's four grammars, per `Core\Str::format`'s note in § 1; the `$text` being parsed is data and stays
 contagious. **Patterns are CLDR** (`yyyy-MM-dd HH:mm:ss`,
 `EEEE, d MMMM yyyy`), not PHP's `date()` letters: both grammars are closed and the argument is almost
-always a literal, so `mwl convert` rewrites one into the other mechanically, and the intl extension needs
+always a literal, so `nvs convert` rewrites one into the other mechanically, and the intl extension needs
 CLDR anyway. The same patterns serve `DateTime::format`. The **subset** of CLDR field letters implemented,
 and the fact that a name renders in CLDR's root locale because there is no `setlocale`
-([ADR 0051](../adr/0051-standard-library-tiers.md)), are `crates/mwl-stdlib/src/cldr.rs`'s own docs; a
+([ADR 0051](../adr/0051-standard-library-tiers.md)), are `crates/nvs-stdlib/src/cldr.rs`'s own docs; a
 letter outside the subset is a diagnostic naming itself, never a silent literal.
 
 PHP's free-form `strtotime` is **not** implemented, in either half. Every expression it accepts is a typed
 call:
 
-| PHP | MWL |
+| PHP | Novis |
 |---|---|
 | `strtotime("now")` | `Time::now()->in($z)` |
 | `strtotime("+3 days")` | `Time::now()->in($z)->plus(3, Unit::Day)` — or `Time::now()->plus(72h)` for an exact offset |
@@ -634,10 +634,10 @@ no `bytes` literal — see [00-overview § 5](00-overview.md).
 The member *names* pair up; three of the *signatures* deliberately do not, because a byte string carries
 less than a text one. `at` answers a `uint` rather than a one-byte buffer, `indexOf` has no
 `caseInsensitive` option, and `compare` answers an ordering `int`.
-`crates/mwl-stdlib/src/bytes.rs` owns all three and why.
+`crates/nvs-stdlib/src/bytes.rs` owns all three and why.
 
 Enums: `Charset` — one case per encoding in the **WHATWG Encoding Standard**, which is what `encoding_rs`
-implements, named in MWL casing: `Utf8`, `Utf16Le`, `Utf16Be`, `Latin1`, `Windows1252`, `Ascii`,
+implements, named in Novis casing: `Utf8`, `Utf16Le`, `Utf16Be`, `Latin1`, `Windows1252`, `Ascii`,
 `ShiftJis`, `EucJp`, `Gbk`, `Big5`, `EucKr`, and the rest of that document's index. The roster is that
 standard's, not a list this file curates, so adding an encoding is a dependency update rather than a design
 decision — and `iconv`'s open-ended `//TRANSLIT` and `//IGNORE` suffixes have no equivalent, since a
@@ -648,7 +648,7 @@ is a guess about a mislabelled document. `Ascii` and `Latin1` are cases of their
 `Windows1252`, which is what the standard resolves those labels to; the three disagree over `0x80`-`0x9f`,
 and `isValidText($b, Charset::Ascii)` — the `mb_check_encoding` call the table above replaces — would
 otherwise be true of every byte string. And `replacement` is absent, since a case that maps every input to
-an error is surface with no meaning behind it. `crates/mwl-stdlib/src/encoding.rs` owns both, and which
+an error is surface with no meaning behind it. `crates/nvs-stdlib/src/encoding.rs` owns both, and which
 cases it converts itself rather than delegating.
 
 ## 8. `Core\Path`
@@ -934,14 +934,14 @@ including which milestone each piece lands in; this file fixes only the roster's
 
 **`Core\Serialize::decode` is a `tainted` sink**, which is the whole reason the class is worth having
 rather than deferring to `Core\Json`. `unserialize()` on attacker-controlled bytes is PHP's most
-productive remote-code-execution class; MWL has already removed its gadget machinery — no `__wakeup`, no
+productive remote-code-execution class; Novis has already removed its gadget machinery — no `__wakeup`, no
 `__destruct`, no `__toString` hook ([ADR 0028](../adr/0028-closing-the-remaining-magic-methods.md)) — and
 refusing the qualifier closes the input side structurally rather than by advice. What remains without the
 sink is not code execution but **type confusion** — a payload that reconstructs a `User` with
 `isAdmin: true`, bypassing the constructor — which is why contagion would be the wrong classification: the
 danger is the object graph itself, not a string that later reaches an output sink. Bytes the program
 serialized and stored are not `tainted` and decode normally; bytes that arrived from outside are refused,
-and no launderer exists for them today. The format is versioned, self-describing and MWL's own; it is not
+and no launderer exists for them today. The format is versioned, self-describing and Novis's own; it is not
 compatible with PHP's, and there is no hook to customise it
 ([ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md)).
 
@@ -1020,7 +1020,7 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   `echo` is the sixth, HTML-only path, and mixing it with any of the five on one response is a compile
   error ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 4).
 - `Core\Server`: the request's own environment — replacing `$_SERVER` — plus `traceId(): string`, which is
-  present on every request whether or not the trace is sampled and is MWL's only request identifier
+  present on every request whether or not the trace is sampled and is Novis's only request identifier
   ([ADR 0076](../adr/0076-observability-export.md)), and `isDraining(): bool`, true once graceful shutdown
   has begun ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 5).
 - `Core\Session`: `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25 `session_*`
@@ -1060,7 +1060,7 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 | `Core\Debug` | `dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls | `dump`/`render`: [0092](../adr/0092-one-diagnostic-record-three-renderings.md); the probes: [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
 | `Core\Signal` | graceful shutdown only. What remains of `pcntl_*` after `fork` is refused | [0051](../adr/0051-standard-library-tiers.md) |
 | `Core\Os` | process and host facts (`pid`, `hostname`, `cpuCount`, `memoryUsage`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `memory_get_usage`, `getrusage`, `sys_getloadavg` | [0051](../adr/0051-standard-library-tiers.md) |
-| `Core\Config` | `set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `mwl.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses | [0005](../adr/0005-config-changeability.md), [0064](../adr/0064-configuration-file-format.md) |
+| `Core\Config` | `set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses | [0005](../adr/0005-config-changeability.md), [0064](../adr/0064-configuration-file-format.md) |
 
 ## 17. Documents and formats
 
@@ -1210,7 +1210,7 @@ process loses the work.
 
 ## Counting the result
 
-| | PHP | MWL |
+| | PHP | Novis |
 |---|---|---|
 | Global functions / `Core` members | ~1,900 | ~450 |
 | Sort functions | 11 + `array_multisort` | 2 |

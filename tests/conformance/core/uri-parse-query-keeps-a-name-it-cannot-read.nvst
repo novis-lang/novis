@@ -1,7 +1,7 @@
 --TEST--
 `Core\Uri::parseQuery` at the edges of a name: an empty pair contributes nothing, a valueless one contributes the empty string, and a malformed or unusual name is kept whole rather than repaired — spec § 12
 --FILE--
-<?mwl
+<?nvs
 // The two ends of "is there a pair here at all": nothing at all, and a string
 // that is only separators, both answer the empty array. A pair with a name and
 // no `=` is a pair — its value is the empty string, exactly as `a=` is.
@@ -14,7 +14,7 @@ echo Core\Json::encode(Core\Uri::parseQuery("a")), "|",
 // under, and inventing one would file two of them together.
 echo Core\Json::encode(Core\Uri::parseQuery("=1")), "\n";
 
-// `mwl_stdlib::uri`'s module doc: a name is a path only when it is a non-empty
+// `nvs_stdlib::uri`'s module doc: a name is a path only when it is a non-empty
 // base followed by complete `[…]` groups, so a name that is not becomes one
 // literal key. PHP repairs `a[b` into `a_b`; keeping it is what makes the
 // answer say what actually arrived.

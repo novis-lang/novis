@@ -1,7 +1,7 @@
 --TEST--
 A shape field write lands on the field it names and is checked against the concrete field's own declared type — ADR 0036 §§ 3-4
 --FILE--
-<?mwl
+<?nvs
 // ADR 0036 § 4's write half, mirroring the read: a shape has no declaring
 // class, so the write is keyed on the *name* rather than on a fixed offset.
 class Move {

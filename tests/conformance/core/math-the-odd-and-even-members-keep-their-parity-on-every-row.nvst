@@ -1,9 +1,9 @@
 --TEST--
 Nine Core\Math members are exactly odd and two exactly even on every row of two swept tables, atanh is odd only to within a rounding step, and NaN is the one input where no member's parity can be asked — docs/spec/01-core-library.md § 3
 --FILE--
-<?mwl
+<?nvs
 // Almost nothing about a transcendental member can be asserted across hosts:
-// math-trigonometry-and-angle-conversion.mwlt has to pick arguments whose
+// math-trigonometry-and-angle-conversion.nvst has to pick arguments whose
 // answers are exact, because MSVC's libm and glibc's are free to round the rest
 // differently. Parity is the exception — where the member computes `f(-$x)` by
 // the same steps as `f($x)`, `sin(-$x) == 0.0 - sin($x)` is either exactly true

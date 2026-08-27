@@ -1,15 +1,15 @@
-//! Fixtures shared by `mwl-codegen`'s end-to-end tests.
+//! Fixtures shared by `nvs-codegen`'s end-to-end tests.
 //!
 //! Each `tests/*.rs` file is its own binary, so the four helpers these tests
 //! were written against live here and are reached through `mod common;`. They
 //! moved out of the single `compile_and_run.rs` unchanged except for becoming
 //! `pub(crate)`.
 //!
-//! Every test that uses them goes through the *real* pipeline — `mwl-syntax`,
-//! `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-codegen` — rather than hand-building
+//! Every test that uses them goes through the *real* pipeline — `nvs-syntax`,
+//! `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-codegen` — rather than hand-building
 //! IR, because the property worth guarding is that the five crates agree. That
 //! is also why the assertions are on output bytes and statuses rather than on
-//! generated instructions: what `mwl run` prints is the observable contract,
+//! generated instructions: what `nvs run` prints is the observable contract,
 //! and `benches/abi-probe` is where instruction-level costs are held.
 
 #![allow(
@@ -20,12 +20,12 @@
               differs per file"
 )]
 
-use mwl_diagnostics::{Diagnostics, SourceMap};
+use nvs_diagnostics::{Diagnostics, SourceMap};
 
 /// The runtime surface every area's tests reach for, re-exported so a test
 /// file needs one `use common::*;` rather than an import line per area that
 /// drifts from what that area actually asserts on.
-pub(crate) use mwl_runtime::{
+pub(crate) use nvs_runtime::{
     Ctx, DebugFlags, EXITED, FATAL, FaultSite, OK, STACK_RESERVE, SafepointFlags, THROWN, Value,
     call,
 };
@@ -36,32 +36,32 @@ pub(crate) use mwl_runtime::{
 /// Front-end diagnostics are a panic rather than an error: every fixture below
 /// is meant to type-check, so a diagnostic is a broken fixture, not an outcome
 /// under test.
-pub(crate) fn compile(source: &str) -> Result<mwl_codegen::Unit, mwl_codegen::CodegenError> {
-    mwl_codegen::compile(&lower(source))
+pub(crate) fn compile(source: &str) -> Result<nvs_codegen::Unit, nvs_codegen::CodegenError> {
+    nvs_codegen::compile(&lower(source))
 }
 
 /// Runs the whole front end over `source` and lowers it — every class method
 /// plus the script frame — without compiling it.
-pub(crate) fn lower(source: &str) -> mwl_ir::Program {
+pub(crate) fn lower(source: &str) -> nvs_ir::Program {
     let mut map = SourceMap::new();
-    let id = map.add("test.mwl", source);
+    let id = map.add("test.nvs", source);
     let src = map.file(id);
 
     let mut diags = Diagnostics::new();
-    let stmts = mwl_syntax::parse_file(src, &mut diags);
-    let module = mwl_hir::resolve_file(&stmts, src, &mut diags);
-    let mut interner = mwl_types::TypeInterner::new();
-    let mut exprs = mwl_types::ExprTypeTable::new();
-    let files = [mwl_types::ProgramFile { src, stmts: &stmts }];
-    let enums = mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+    let stmts = nvs_syntax::parse_file(src, &mut diags);
+    let module = nvs_hir::resolve_file(&stmts, src, &mut diags);
+    let mut interner = nvs_types::TypeInterner::new();
+    let mut exprs = nvs_types::ExprTypeTable::new();
+    let files = [nvs_types::ProgramFile { src, stmts: &stmts }];
+    let enums = nvs_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
     assert!(
         !diags.has_errors(),
         "the fixture does not type-check: {:?}",
         diags.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
     );
 
-    let layouts = mwl_types::build_class_layouts(&files, &module.graph);
-    mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &enums, &layouts)
+    let layouts = nvs_types::build_class_layouts(&files, &module.graph);
+    nvs_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &enums, &layouts)
 }
 
 /// Compiles and runs `source` against `ctx`, returning the compiled status.

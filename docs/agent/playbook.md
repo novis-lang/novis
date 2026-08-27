@@ -11,7 +11,7 @@ about 2.4k tokens of stable lore as if it were state, and reworded it a little e
 
 **Scope.** A rule that binds every agent goes in [AGENTS.md](../../AGENTS.md). A decision with reasoning
 goes in an ADR. How a subsystem works goes in that crate's own module doc comment. The *shape* of
-something you are about to write — a commit message, a `.mwlt` case, a `Core` member, an ADR — is
+something you are about to write — a commit message, a `.nvst` case, a `Core` member, an ADR — is
 [conventions.md](conventions.md). What is left — "this looks like it should work and does not, and here
 is why" — is this file.
 
@@ -68,14 +68,14 @@ is why" — is this file.
   about 10k of context, twice the cost of the edit itself, and the Edit tool never triggers it. So the
   heredoc/`splice.py` route is for an edit Edit genuinely cannot express (a non-unique anchor, a
   whole-field rewrite), not a shortcut for one it can.
-- **`cargo test` does not always relink `target/debug/mwl.exe`** — `cargo build -p mwl-cli` before running
-  a fixture or a `.mwlt` case by hand, or a stale binary reports a member you just registered as `mixed`.
+- **`cargo test` does not always relink `target/debug/nvs.exe`** — `cargo build -p nvs-cli` before running
+  a fixture or a `.nvst` case by hand, or a stale binary reports a member you just registered as `mixed`.
 - **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles, and WSL's
   default shell has no `grep`/`sed` on `PATH` from a bare `bash -c`. Whole suite:
   `python tools/loop.py --leg-only` (background it; minutes) — every fixture, both suites and the
   valgrind sweep against a Linux build, and it needs no script because it drives `wsl.exe` for you.
   One fixture: `tools/leak-check.sh <paths>` — a file passed by path, for the reason above — and it
-  takes `.mwl` files only, so a `.mwlt` passed to it reports a failure that is not a leak.
+  takes `.nvs` files only, so a `.nvst` passed to it reports a failure that is not a leak.
 - **Another agent may be editing this repo at the same time.** Check the ADR directory for the next free
   number immediately before writing one, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud
@@ -97,7 +97,7 @@ is why" — is this file.
   path dies at parse time with nothing about the real edit in the message. Use the Edit tool for a
   targeted replacement, or `splice.py` with a Write-tool patch file.
 - **A test failing in a file your slice never touched is probably inherited, not caused.** A red
-  `-p mwl-stdlib --lib` arrived this session from the previous one's `validate.rs`, and the first
+  `-p nvs-stdlib --lib` arrived this session from the previous one's `validate.rs`, and the first
   instinct — "my registry rows broke something" — costs a bisect. `git status --short` showing that
   file unmodified is the whole diagnosis. Fix it, but in **its own commit**, so `git log` does not
   read as though the feature slice touched it.
@@ -127,14 +127,14 @@ is why" — is this file.
 - **`/tmp` is not the same directory to Bash and to Python here.** A file written by `>` in the Bash tool is
   invisible to a `python -` heredoc in the same call, which resolves `/tmp` to `%TEMP%`. Stage a scratch
   file under `.agent-tmp/` — both halves agree on a repo-relative path.
-- **`mwl-ir` cannot name `mwl_hir::QName`** — `mwl-hir` is a *dev*-dependency there, on purpose, so a
-  lowering helper that wants one in its signature does not compile even though `mwl_types::Ty::Enum`
+- **`nvs-ir` cannot name `nvs_hir::QName`** — `nvs-hir` is a *dev*-dependency there, on purpose, so a
+  lowering helper that wants one in its signature does not compile even though `nvs_types::Ty::Enum`
   hands it a `&QName` to pattern-match. Destructure it at the call site and pass what the callee actually
-  needs (an `&EnumInfo`, or the name already rendered with `to_string`); `mwl_types` re-exports the enum
+  needs (an `&EnumInfo`, or the name already rendered with `to_string`); `nvs_types` re-exports the enum
   and layout tables but not `QName`, and adding the dependency to get one is the wrong direction.
-- **Teaching `mwl-ir` a new receiver or value shape is two edits, and the second one panics somewhere
+- **Teaching `nvs-ir` a new receiver or value shape is two edits, and the second one panics somewhere
   else.** Recording a new `ExprInfo` variant gets the *access* lowering; what still fails is
-  `erase_checked_ty`, which owns the `mwl_types::ty::Ty` → `mwl_ir::Ty` representation map, and whose
+  `erase_checked_ty`, which owns the `nvs_types::ty::Ty` → `nvs_ir::Ty` representation map, and whose
   panic names "a resolved call's parameter or return type" — so the message points at a call boundary,
   a `var` binding or a `foreach` element rather than at the feature you just built. `Ty::Shape` needed
   exactly that: `ExprInfo::ShapeProperty` plus one arm erasing a shape to `Ty::Object`.
@@ -146,7 +146,7 @@ is why" — is this file.
   and codegen fails much later on a `New` naming a label the table has no entry for. Grep the take
   sites, not the struct field.
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>`; a renamed
-  test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe` takes over two minutes.
+  test needs its old `.snap` deleted. `cargo test --release -p nvs-abi-probe` takes over two minutes.
 - **One call reads many places: `python tools/peek.py A.rs:120-160 B.rs:@sym C.md:"## 4"`.** Locators are
   `120-160`, `120+30`, `@symbol`, `re:pattern` (`re:pattern:3` for context lines), `"## Heading"`, or
   nothing for a whole file under 400 lines; the path may be a glob, so one target can sweep a crate.
@@ -196,10 +196,10 @@ is why" — is this file.
   corrected rather than the toml.
 - **An untracked *directory* under `benches/` breaks the whole cargo workspace, and the first symptom
   is a stale binary.** The root manifest globs `members = ["crates/*", "benches/*"]`, so
-  `benches/userland/` — MWL and PHP benchmark *sources*, left untracked by an earlier session — made
+  `benches/userland/` — Novis and PHP benchmark *sources*, left untracked by an earlier session — made
   every `cargo` invocation die with `failed to read benches/userland/Cargo.toml` before a single crate
   was read. Piped through `| tail -3` the error scrolls past, `$?` belongs to `tail`, and the run that
-  follows uses whatever `target/debug/mwl.exe` was built last, so the session diagnoses a phantom
+  follows uses whatever `target/debug/nvs.exe` was built last, so the session diagnoses a phantom
   language bug instead. `cargo metadata --no-deps >/dev/null; echo $?` is the one-call check, and the
   fix is an `exclude = [...]` line beside the glob. The same hazard waits for any new non-crate
   directory under a globbed member path.
@@ -220,15 +220,15 @@ is why" — is this file.
   toml wins over a **plan field** (the bullet above), because both are status; it does not win over an
   ADR, because only one of those is a decision. One `peek.py <adr>:"## 4"` before writing the member
   settles it, and the comment is the thing to fix. Implementing what the comment said would have put a
-  per-class equality hook in `mwl_runtime::identity` and re-opened an ADR from inside the loop.
+  per-class equality hook in `nvs_runtime::identity` and re-opened an ADR from inside the loop.
 - **`verify.py` can be red on a tree you did not touch, and `fmt` is where it happens.** A docs-only
-  session hit `cargo fmt --check` failing on committed code — a four-line `mwl_array_get_index` signature
+  session hit `cargo fmt --check` failing on committed code — a four-line `nvs_array_get_index` signature
   rustfmt wanted on one line — which means the slice that added it was committed without step 3 ever being
   green. Do not treat that as "my change broke it" and do not skip the fix: it is one hunk, it goes in its
   own commit named for what it is, and the session's own slices stay clean. Check the blast radius first
   with `grep -c "^Diff in" .agent-tmp/verify-fmt.log` — one file means fix it here, a dozen means say so in
   the handoff instead of reformatting the workspace inside an unrelated slice.
-- **Widening an operand's *representation* in `mwl-ir` moves a refcount decision you did not edit.**
+- **Widening an operand's *representation* in `nvs-ir` moves a refcount decision you did not edit.**
   `lower_array_key` returned `(ValueId, bool)` where the `bool` meant "aliases storage someone else
   owns", and its four call sites read the `false` case as "a fresh buffer this frame owes a release
   for" — two different facts that happened to coincide while every key was a `Ty::Str`. The moment an
@@ -246,7 +246,7 @@ is why" — is this file.
   write is one to delete.
 - **`INSTA_FORCE_UPDATE=1` rewrites every snapshot in the crate, not the failing ones.** Two
   lowering snapshots needed new content this session; the run came back with **86** modified files,
-  because every other `.snap` still carried `source: crates/mwl-ir/src/lower.rs` from before that
+  because every other `.snap` still carried `source: crates/nvs-ir/src/lower.rs` from before that
   module was carved into `lower/mod.rs` and the forced update refreshed that header too. Nothing
   failed and nothing was wrong — it is just 84 files of churn inside a feature commit. Use plain
   `INSTA_UPDATE=always cargo test -p <crate>` (no `FORCE`), or sort it out afterwards with
@@ -266,7 +266,7 @@ is why" — is this file.
 - **A `goal check:` line that repeats verbatim across sessions *is* the work, whatever the handoff
   says.** The acceptance test short-circuits at its first failure, so everything after that check is
   not red — it is unmeasured, which reads identically from the ledger. Sessions 0014–0030 of the
-  2026-08-26 run all reported `mwl-runtime (string capacity): test '…' did not run`, and for those
+  2026-08-26 run all reported `nvs-runtime (string capacity): test '…' did not run`, and for those
   seventeen sessions Stage 4's two counts, Stage 5's guards, the WSL leg and the valgrind sweep
   never ran: the case counts the ledger quotes were session prose rather than the gate, and the run
   could not have stopped even had the goal been reached. That one was a stale *spec* — `loop.py`
@@ -324,7 +324,7 @@ is why" — is this file.
   nothing and left a wrong count in two places. Before adding to any roster, grep for the total:
   `grep -rn "holds .* names\|forcing case\|opens with exactly" docs/adr/`. The fix that sticks is a
   **table in the owning ADR** plus a rule that amending ADRs say "joins the list" and state no
-  number — 0071 § 1 is now that table, and it names `mwl_types::derive::ATTRIBUTES` as the registry
+  number — 0071 § 1 is now that table, and it names `nvs_types::derive::ATTRIBUTES` as the registry
   it must agree with.
 - **A registry-reading tool can be blind to most of the registry and say so in a confident total.**
   `gaps.py`'s `CLASS_RE` matched only the inline spelling `CoreClass { name: r"Core\Arr"`, and the
@@ -354,15 +354,15 @@ is why" — is this file.
 - **An ADR index **Decision** cell is derived from the ADR's own title, not written.** `adr.py --check` reports the whole index table stale when a cell says anything else, and the message names `--index` without saying why the row you just added is the one it dislikes. `python tools/adr.py --index | grep NNNN` prints the row it wants; paste that. Writing a richer sentence there and letting the title stay short is the natural move and it fails every time.
 - **`alloc::Pooled` recycles a freed block, so a memory checker over it cannot see a
   use-after-free — and exactly one leg of four is affected.** ASAN and valgrind both work on memory
-  that reaches `free`: one poisons it and quarantines it, the other unmaps it. A block MWL frees
+  that reaches `free`: one poisons it and quarantines it, the other unmaps it. A block Novis frees
   goes onto the per-thread size-class cache instead, so a read through a dangling pointer lands in
   live, mapped memory and neither tool says a word. The leg that matters is **`cargo test -p
-  mwl-runtime`**, where `cfg(test)` installs `counting_alloc` over `Pooled` — the crate holding
+  nvs-runtime`**, where `cfg(test)` installs `counting_alloc` over `Pooled` — the crate holding
   most of this tree's `unsafe` was the one whose own tests checked the least. `--features
-  mwl-runtime/sanitizer` swaps the backing allocator for the platform heap, and the `asan` CI job
+  nvs-runtime/sanitizer` swaps the backing allocator for the platform heap, and the `asan` CI job
   passes it. **The easy mistake is extending that conclusion to the other three, which are all
-  fine**: `tools/loop.py`'s valgrind sweep runs `target/debug/mwl` and a debug build is deliberately
-  left on the platform heap, and `mwl-codegen`/`mwl-stdlib` link the runtime with `cfg(test)` off,
+  fine**: `tools/loop.py`'s valgrind sweep runs `target/debug/nvs` and a debug build is deliberately
+  left on the platform heap, and `nvs-codegen`/`nvs-stdlib` link the runtime with `cfg(test)` off,
   so every one of those sees every free already. Before changing any of it, read `counting_alloc`'s
   module doc, which is the home of the reasoning — the wrong version of this bullet costs a session
   either way round.
@@ -371,8 +371,8 @@ is why" — is this file.
   `Inst::on_error` edge, and the build then failed twice a long way from the change.
   `benches/abi-probe/tests/perf_guards.rs`'s `a_typed_arithmetic_loop_contains_no_call` counts
   machine-code `call`s against IR probe/safepoint sites, and each new edge adds *two* — the
-  cold block's `mwl_raise_new` and the landing block's `mwl_trace_push` — so its accounting
-  needs a term per category, not a bumped number. And `mwl-ir`'s
+  cold block's `nvs_raise_new` and the landing block's `nvs_trace_push` — so its accounting
+  needs a term per category, not a bumped number. And `nvs-ir`'s
   `a_hook_body_reaching_its_own_property_touches_the_slot_directly` asserted "the body does not
   contain this function's name", which a landing block's `propagate "Box::$n::get() at …"` frame
   label now satisfies without any recursion existing; read for a `call` naming it instead. Both
@@ -386,7 +386,7 @@ is why" — is this file.
   costs two more calls. That is AGENTS.md rule 1 collecting its price: use Edit for anything
   whose anchor is prose. A heredoc is still fine when every matched byte is ASCII, which is
   what the `Helper::X => "symbol"` table edits in this session were.
-- **`mwl-ir` cannot synthesize a local**, so "evaluate the base into a temporary and rewrite the
+- **`nvs-ir` cannot synthesize a local**, so "evaluate the base into a temporary and rewrite the
   target over that" is not a move a lowering has. `ExprKind::Variable` holds a `Span` and
   `lower_expr` reads the name back out of `self.src`, so a name no source file spells has no
   representation at all — and `ExprKind::Int` is a span too, which is the same wall an increment's
@@ -398,11 +398,11 @@ is why" — is this file.
   when it could not be re-read.
 - **`InstKind::ArrayGet` answers a missing key with `Value::default()`, so any lowering that
   descends through one and then treats the result as a pointer aborts the process.** The
-  symptom is not a null-deref: it is *"an MWL array pointer is never null"* followed by
-  *"panic in a function that cannot unwind"* and exit 127, from inside `mwl_array_set` —
+  symptom is not a null-deref: it is *"an Novis array pointer is never null"* followed by
+  *"panic in a function that cannot unwind"* and exit 127, from inside `nvs_array_set` —
   which reads as a runtime bug in the array module rather than as the missing feature it is,
   because the frame that produced the null is three instructions upstream and long gone.
-  `mwl_array_get`/`mwl_array_get_index` both end in `.unwrap_or_default()`; that is the whole
+  `nvs_array_get`/`nvs_array_get_index` both end in `.unwrap_or_default()`; that is the whole
   recognition test. The general shape of the fix is a helper whose ownership answer is the
   *same* in the present and the absent case — `Helper::ArrayRowForWrite` retains what it found
   or allocates what it did not, so the caller emits no retain and needs no branch — and the
@@ -425,7 +425,7 @@ is why" — is this file.
   printed three sites and had four: the closure-capture panic is in `lower/expr.rs`, which item
   17 anchors, so it is listed there and the item reads as closed when its headline half is not
   written. The tool's totals are right; only the attribution is a guess. When an item's prose
-  names a shape, grep the shape (`grep -rn '&\$x' crates/mwl-ir/src`) before believing the site
+  names a shape, grep the shape (`grep -rn '&\$x' crates/nvs-ir/src`) before believing the site
   list is the whole item.
 - **`holes.py` counts a site by the *words* in its message, so an assert that has become an
   internal-consistency check still reads as a hole until it stops saying "does not lower".** The
@@ -436,12 +436,12 @@ is why" — is this file.
   lowering: … refuses this where it is written, as `E0494`"). Skip it and the worklist you quote in
   the plan is one higher than the tree.
 - **`Lowering::untag_receiver` is unchecked, so a *new* erased receiver may not go through it.**
-  Every tagged receiver that reached a member used to arrive with a tag `mwl_types` had already
+  Every tagged receiver that reached a member used to arrive with a tag `nvs_types` had already
   proved — a narrowed `?T`, a `?->`'s non-`null` arm — so the untag compares nothing and
   `open_nullsafe` does it for its caller without being asked. A `mixed` receiver is the first with
   no such proof, and the failure mode is not a panic you would see in a test log: `Untag` over an
   `int` payload is a pointer the next instruction dereferences. `ReceiverProof` in
-  `crates/mwl-ir/src/lower/expr.rs` is the switch, and the check belongs in the runtime helper that
+  `crates/nvs-ir/src/lower/expr.rs` is the switch, and the check belongs in the runtime helper that
   already checks the *name* rather than in a fallible untag of its own — a throwing untag would
   have to have the receiver staged as an owned temporary before it, which is an ordering nothing
   else in that file has.
@@ -450,12 +450,12 @@ is why" — is this file.
   `lower_property_access`'s catch-all said "erased to a plain `object` or to a shape that does not
   name this field", and the worklist recorded the one live route as a `mixed` receiver — but
   `int $i = 5; echo $i->name;` reached the identical line, because *every* receiver
-  `class_qname_of` cannot resolve falls through the same hole. Three `mwl run` calls on scratch
+  `class_qname_of` cannot resolve falls through the same hole. Three `nvs run` calls on scratch
   files, one per receiver family, cost less than the fix did and are what turned a one-answer slice
   into two: a lowering for the case that must be deferred, a diagnostic for the ones a declared
   type already answers. Do that sweep before deciding what a refusal site owes.
 - **Only the *outermost* annotation has a recorded checked type, so `lower_decl_type` over a
-  nested `Type` node silently answers from the AST instead.** `mwl_types::lower::lower_type`
+  nested `Type` node silently answers from the AST instead.** `nvs_types::lower::lower_type`
   calls `record_type` once, at its own entry point, and recurses through `lower_type_at_depth`
   without recording — so a lowering that reaches *inside* an annotation (`?T`'s target, a
   union's member, an `array<T>`'s element) gets `lower_decl_type`'s `match &ty.kind` fallback,
@@ -468,10 +468,10 @@ is why" — is this file.
   the class side is taken off the value walk first.** `Class::method()`, `Class::CONST`,
   `Class::$prop`, `Class::class` and `$x instanceof Class` all carry the class as an ordinary
   `Expr` whose kind is `ExprKind::ConstFetch` — and `self`/`static`/`parent` are the same three
-  shapes by a second route — so both walkers that see one, `mwl_hir::members::walk_expr` and
-  `mwl_types::expr::check_expr`, recurse into it and an arm added for "a bare name is not a
-  value" reports there too. `mwl_hir::members::walk_class_side` is the fix on the resolver side,
-  one helper over five call sites; `mwl_types` has the identical five
+  shapes by a second route — so both walkers that see one, `nvs_hir::members::walk_expr` and
+  `nvs_types::expr::check_expr`, recurse into it and an arm added for "a bare name is not a
+  value" reports there too. `nvs_hir::members::walk_class_side` is the fix on the resolver side,
+  one helper over five call sites; `nvs_types` has the identical five
   (`expr/mod.rs:264`, `:292`, `expr/calls.rs:143`, `expr/members.rs:85`, `:211`) and has not
   needed it only because its arms answer `mixed` in silence. Nothing catches this: it builds, and
   the first sign is a conformance case that used to pass reporting an extra error.
@@ -479,7 +479,7 @@ is why" — is this file.
   which to retain it.** Every other assignment target leaves the target itself owning what was
   stored — a local's slot, an `inout` pointee, a field, an array entry — so a lowering that wants a
   second owner of the stored value can retain once the store has run, and four of the five arms of
-  `Lowering::lower_store` are safe that way. A `set` hook is a **call**, and `mwl-ir`'s argument
+  `Lowering::lower_store` are safe that way. A `set` hook is a **call**, and `nvs-ir`'s argument
   convention gives the callee the reference: a retain emitted after that call can read a value the
   hook already released, and nothing catches it — it builds, it runs, and only a valgrind fixture
   whose hook *discards* its argument shows anything. That is why `lower_store` takes an
@@ -513,44 +513,44 @@ is why" — is this file.
   `object` as a declared type each run end to end today, and the sites attributed to them are
   `lower_expr`'s and `emit_binop`'s "got {other:?}" arms, which will still be there when the last
   hole closes. The tool ranks *candidates*; the ground truth is four lines in a scratch
-  `.agent-tmp/*.mwl` and one `mwl run`, and that is what a session should spend before it picks
+  `.agent-tmp/*.nvs` and one `nvs run`, and that is what a session should spend before it picks
   an item off the list. `holes.py --cases` is the half that does not lie — a named case either
   exists on disk or does not.
-- **A fact `mwl-ir` and `mwl-runtime` both need lives in one of them and is held to the other by a
-  test in `mwl-codegen`.** Neither crate names the other — `mwl-ir` depends on `mwl-syntax`/
-  `mwl-types`/`mwl-diagnostics` and nothing below, and `mwl-runtime` depends on neither — so a
-  shared constant has no crate to live in that both can see. `mwl-codegen` sees both, which is why
+- **A fact `nvs-ir` and `nvs-runtime` both need lives in one of them and is held to the other by a
+  test in `nvs-codegen`.** Neither crate names the other — `nvs-ir` depends on `nvs-syntax`/
+  `nvs-types`/`nvs-diagnostics` and nothing below, and `nvs-runtime` depends on neither — so a
+  shared constant has no crate to live in that both can see. `nvs-codegen` sees both, which is why
   `FN_INVOKE`/`CLOSURE_INVOKE` and `FN_ARITY`/`CLOSURE_ARITY_SLOT` are each a pair with a codegen
   test between them rather than one definition. A whole *table* travels the same way: the closure
-  parameter-tag nibbles are `mwl_ir::lower::param_tag_nibble` on the writing side and plain
-  `mwl_runtime::Tag` discriminants on the reading side, held together by
-  `param_tag_nibbles_are_the_runtime_tag_bytes` in `crates/mwl-codegen/src/ty.rs`. Reaching for a
-  new dependency edge to avoid the pair is the wrong direction; a `pub fn` in `mwl-ir` plus a
-  `#[test]` in `mwl-codegen` is the shape that already exists.
+  parameter-tag nibbles are `nvs_ir::lower::param_tag_nibble` on the writing side and plain
+  `nvs_runtime::Tag` discriminants on the reading side, held together by
+  `param_tag_nibbles_are_the_runtime_tag_bytes` in `crates/nvs-codegen/src/ty.rs`. Reaching for a
+  new dependency edge to avoid the pair is the wrong direction; a `pub fn` in `nvs-ir` plus a
+  `#[test]` in `nvs-codegen` is the shape that already exists.
 
-- **A closure object's slot layout has a third party, and it is a test in `mwl-stdlib`.**
-  `closure_of` in `crates/mwl-stdlib/tests/allocation_policy.rs` hand-builds a closure — a class
+- **A closure object's slot layout has a third party, and it is a test in `nvs-stdlib`.**
+  `closure_of` in `crates/nvs-stdlib/tests/allocation_policy.rs` hand-builds a closure — a class
   with the reserved slots and a Rust `invoke` — so a `Core` member can be handed a `callable` with
-  no compiler in front of it. Adding a reserved slot in `mwl-ir` therefore breaks it, and the
+  no compiler in front of it. Adding a reserved slot in `nvs-ir` therefore breaks it, and the
   failure arrives as `field slot N is out of range for a class with N slots` from
-  `mwl_runtime::object`, three crates from the edit. `grep -rn CLOSURE_ARITY_SLOT --include=*.rs
+  `nvs_runtime::object`, three crates from the edit. `grep -rn CLOSURE_ARITY_SLOT --include=*.rs
   crates/` finds every builder in one call; do that before moving the layout, not after.
-- **`mwl_ir::Ty` is `#[non_exhaustive]`, so a `match` on it outside `mwl-ir` cannot be
+- **`nvs_ir::Ty` is `#[non_exhaustive]`, so a `match` on it outside `nvs-ir` cannot be
   exhaustive** — the "a new representation is a decision, not a default" guard can only live in
-  `mwl-ir` itself, and `mwl_ir::lower::param_tag_nibble` already *is* that guard. `mwl-codegen`'s
+  `nvs-ir` itself, and `nvs_ir::lower::param_tag_nibble` already *is* that guard. `nvs-codegen`'s
   `ty.rs` cannot hold a second copy: both `clif_ty` and `tag_of` end in a `_ =>` arm because the
   compiler requires one there.
 - **A hole item names one spelling, and the panic can be under a different one.** Item 29 says
   `$a?->b = v` panics; it has been `E0479` since `c5a8761`, and what still panicked was
   `$a?->b++` — `check_write_target` was called from the plain and compound assignment arms and
   not from `PreIncDec`/`PostIncDec`. Three scratch files (`= v`, `+= v`, `++`) run against
-  `target/debug/mwl.exe` in one call told the whole story, where editing the site the item named
+  `target/debug/nvs.exe` in one call told the whole story, where editing the site the item named
   would have closed nothing. Ask every spelling that reaches the same lowering before you believe
   the item's, and `git log -S` on the code the item quotes says whether its half already landed.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/…` from the Bash tool needs `MSYS_NO_PATHCONV=1` in front of it.**
+- **`wsl.exe -- bash /mnt/d/nvs/…` from the Bash tool needs `MSYS_NO_PATHCONV=1` in front of it.**
   Git Bash rewrites a `/mnt/…` argument into a Windows path *before* `wsl.exe` sees it, so
   `tools/leak-check.sh`'s own documented invocation fails with
-  `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory`, which reads
+  `bash: C:/Program Files/Git/mnt/d/nvs/tools/leak-check.sh: No such file or directory`, which reads
   as a missing file rather than as a mangled argument. The prefix is the whole fix; the script and
   the paths it is handed are right.
 - **A `splice.py` anchor copied out of `peek.py`'s output can carry a line break `peek` added.**
@@ -572,22 +572,22 @@ is why" — is this file.
   when a new row makes a uniform emit site fallible, the scratch file to write is one that throws
   from inside the new row and catches it — not one that checks the row's own value.
 - **A `Core` class can render as text without a `toString` row, and the second rule is
-  `mwl_runtime::is_carrier`.** A refusal written off the registry's member rosters alone
+  `nvs_runtime::is_carrier`.** A refusal written off the registry's member rosters alone
   looks right, compiles, and then turns four green `Core\Out::capture` cases red at the
   full verify: `Core\Cli\Text` is a **sink carrier**, so ADR 0088 § 5 renders it as the
   bytes it already holds — `value_to_string`'s own `Tag::Object` arm does it, asking for
   no member at all — and `Core\Html\Markup` is the other one. So "which `Core` classes
-  render" is two rosters, not one; `mwl_stdlib::registry::class_renders` is where they
-  are joined, and `mwl-types` has no `mwl-runtime` dependency to reach the second
+  render" is two rosters, not one; `nvs_stdlib::registry::class_renders` is where they
+  are joined, and `nvs-types` has no `nvs-runtime` dependency to reach the second
   directly. The general shape: a rule stated over `registry.rs`'s rows is not the whole
-  rule wherever `mwl_runtime` answers for a class on its own.
+  rule wherever `nvs_runtime` answers for a class on its own.
 - **A diagnostic constant named in a doc comment may not exist**, so a `grep` for the name is not
   evidence that the rule behind it is future work. `reject_unrelated_class_conversion`'s own comment
   named `E_MARKUP_NOT_LITERAL`; the code is `E_MARKUP_REQUIRES_LITERAL`, it lives in
-  `mwl_types::expr::quals`, and ADR 0024 § 5's `"lit" as Core\Html\Markup` is a **checked row
+  `nvs_types::expr::quals`, and ADR 0024 § 5's `"lit" as Core\Html\Markup` is a **checked row
   today** — even though `Core\Html` declares no class and the conversion still panics one crate
-  down, which is what makes it look unimplemented from `mwl run`. Grep
-  `crates/mwl-diagnostics/src/lib.rs` for the band's `Code::new` rows, or the crate's own `tests/`
+  down, which is what makes it look unimplemented from `nvs run`. Grep
+  `crates/nvs-diagnostics/src/lib.rs` for the band's `Code::new` rows, or the crate's own `tests/`
   for the behaviour: a name in prose is a pointer somebody wrote, not a fact the tree holds.
 - **A `loop-goal.toml` check runs before the program legs only if its `stage` string starts with `0`.**
   `tools/loop.py:830` builds its catch-up class with `str(c.get("stage", "")).startswith("0")` — nothing
@@ -627,40 +627,40 @@ is why" — is this file.
   insta strips. `diff` each pair first: that is the review the tool would have shown you, and the
   neighbouring bullet's warning about accepting a *previous* session's leftovers applies to a
   by-hand sweep exactly as much.
-- **A new `mwl_ir::Helper` variant is four edits and the fourth one is not a `match`.** Three are
-  exhaustive matches the compiler makes you write — the variant itself, `mwl-ir`'s `print.rs` name and
-  `mwl-codegen`'s symbol name — and the fourth is a row in `mwl_runtime::helpers::symbols()`, a hand-kept
+- **A new `nvs_ir::Helper` variant is four edits and the fourth one is not a `match`.** Three are
+  exhaustive matches the compiler makes you write — the variant itself, `nvs-ir`'s `print.rs` name and
+  `nvs-codegen`'s symbol name — and the fourth is a row in `nvs_runtime::helpers::symbols()`, a hand-kept
   `Vec` nothing checks. Miss it and the workspace builds clean, every unit test passes, and the first
   program that reaches the helper dies inside `cranelift-jit` with *"can't resolve symbol
-  mwl_your_helper"*, which reads like a linker problem rather than a missing line. Grep the symbol name
+  nvs_your_helper"*, which reads like a linker problem rather than a missing line. Grep the symbol name
   you just added and expect **three** hits outside the runtime's own definition.
 
 ## Running things
 
-- **Verification is one call:** `python tools/verify.py` — build, fmt, test, the two `.mwlt` trees and
+- **Verification is one call:** `python tools/verify.py` — build, fmt, test, the two `.nvst` trees and
   clippy in order, stopping at
   the first failure, ~10 lines when green. `-p <crate>` scopes it, `--fast` drops clippy and fmt for a
   mid-work check, and every step's full output lands in `.agent-tmp/verify-<step>.log` either way.
 - **The whole acceptance test in one command:** `python tools/loop.py --goal-only` (both legs plus the
   valgrind sweep, naming the first failure), or `--list` to see it without running it.
-- **One case, quickly:** `mwl test tests/conformance/core/str-case-members.mwlt`, or
-  `mwl test tests/ --filter str-` over the tree.
-- **A scratch `.mwl` under `.agent-tmp/` run with `mwl run` is the fastest way to find out whether a shape
+- **One case, quickly:** `nvs test tests/conformance/core/str-case-members.nvst`, or
+  `nvs test tests/ --filter str-` over the tree.
+- **A scratch `.nvs` under `.agent-tmp/` run with `nvs run` is the fastest way to find out whether a shape
   lowers**, and is worth doing before writing a batch of cases around it. A scratch file is top-level
-  statements, like `examples/*.mwl` — there is no `Main::main` entry point, and a `for` header takes
+  statements, like `examples/*.nvs` — there is no `Main::main` entry point, and a `for` header takes
   *expressions* only, so the loop variable is declared on the line above it.
-- **`mwl run` printing the right output and exiting **127** is a heap corruption at teardown**, not a
+- **`nvs run` printing the right output and exiting **127** is a heap corruption at teardown**, not a
   missing command: Windows reports a double release that way, with nothing on stderr. So check `$?` on a
   scratch run rather than reading the output and moving on — a refcount bug is otherwise completely silent
   until the WSL valgrind leg catches it. `try { … } catch (Throwable $e) { … $e->message … }` **does**
-  lower at file scope now, which is what `tests/conformance/core/time-datetime-is-a-civil-time-in-a-zone.mwlt`
+  lower at file scope now, which is what `tests/conformance/core/time-datetime-is-a-civil-time-in-a-zone.nvst`
   and both `Date`/`TimeOfDay` cases write; the class-method shape
-  `tests/conformance/lang/a-lossy-conversion-throws.mwlt` uses is no longer needed for that.
+  `tests/conformance/lang/a-lossy-conversion-throws.nvst` uses is no longer needed for that.
 - **A leak whose "definitely lost" size is `16 + strlen(a literal in the probe)` is a temporary abandoned
-  on a throwing edge, and the allocating stack carrying no `mwl_` frame at all is the confirmation.** That
+  on a throwing edge, and the allocating stack carrying no `nvs_` frame at all is the confirmation.** That
   is the whole recognition test, and it is worth knowing because bisecting to it costs an hour. Most of
   those are now closed: a call's arguments and receiver, and the operands of `.`, an interpolation and an
-  `echo`, all go on `mwl_ir::lower::Lowering`'s owned-temporaries stack and are released on both edges. A
+  `echo`, all go on `nvs_ir::lower::Lowering`'s owned-temporaries stack and are released on both edges. A
   probe that `catch`es a throw from a `Core` member taking a `string` is therefore *green* now and is a
   fair leak check. What is still open is narrower and named in that field's own doc comment (an argument
   being **transferred** when a later one throws) plus the producers that still release inline — a
@@ -670,21 +670,21 @@ is why" — is this file.
   because `lower_property_access`/`lower_index` retain what they read and release the base, and
   `Lowering::aliasing_read` therefore recurses into both a property access's and an index's own base
   and answers `false` for these shapes. So a consumer must not retain such a read a second time —
-  every retain decision in `mwl-ir` already goes through `aliasing_read`, and a new one that reaches
+  every retain decision in `nvs-ir` already goes through `aliasing_read`, and a new one that reaches
   for the syntactic `is_aliasing_read` instead is how the double-retain gets back in.
-- **`verify.py` executes the `.mwlt` trees, so nothing else needs running before the wrap.** Its
-  `conformance` and `differential` steps are `target/debug/mwl test tests/<tree>` — the very
+- **`verify.py` executes the `.nvst` trees, so nothing else needs running before the wrap.** Its
+  `conformance` and `differential` steps are `target/debug/nvs test tests/<tree>` — the very
   command `tools/loop.py`'s acceptance check judges a session by — and their two lines are the
   counts the plan's fields quote. Fourteen seconds for both. So after a green `verify.py` there is
-  no `mwl test tests/conformance` to run, no `mwl test tests/`, and above all **no
-  `cargo build --release -p mwl-cli`**: that is 125s for a less faithful answer, and one measured
+  no `nvs test tests/conformance` to run, no `nvs test tests/`, and above all **no
+  `cargo build --release -p nvs-cli`**: that is 125s for a less faithful answer, and one measured
   run spent 8% of its entire wall clock on it across nine sessions. This bullet used to say the
   opposite — `cargo test`'s `conformance_coverage.rs` asserts only that a case *exists* naming each
   registry member, so a rewritten case body could leave every verify step green and fail at
   `loop.py` a stage later. That hole is what the two steps close. While *writing* a case, one at a
-  time is still fastest: `./target/debug/mwl.exe test <path>`, under a second.
+  time is still fastest: `./target/debug/nvs.exe test <path>`, under a second.
 - **A before/after measurement is worth a `git stash`, and the base half is what makes it an
-  A/B rather than two readings** — stash, `cargo build --release -p mwl-cli`, `bench.py <cases>
+  A/B rather than two readings** — stash, `cargo build --release -p nvs-cli`, `bench.py <cases>
   --reps 9`, pop, rebuild. Item 22's base run reproduced the ledger's own sweep to within 0.02×
   on every row, which is the check that the pair is comparable; without it a 0.72× → 0.91× move
   is indistinguishable from a quiet machine. Two costs to budget for: the two release rebuilds
@@ -697,12 +697,12 @@ is why" — is this file.
   from every row, that run's ratios are all shifted — one such sweep read `20-method-dispatch`
   at 0.67× and the clean re-run put it back at 0.71×. Re-run before quoting, and do not reason
   about a 5% row move from a sweep carrying that note.
-- **A `#[global_allocator]` in a test target must be `#[cfg(debug_assertions)]`.** `mwl-runtime`
+- **A `#[global_allocator]` in a test target must be `#[cfg(debug_assertions)]`.** `nvs-runtime`
   installs its pooled allocator under `all(not(test), not(debug_assertions))`, so a second one in a
-  `mwl-stdlib` test binary links fine under `cargo test` and fails to link under
+  `nvs-stdlib` test binary links fine under `cargo test` and fails to link under
   `cargo test --release` with *"cannot define multiple global allocators"*. `verify.py` runs the
   debug profile, so the guard runs; the release profile compiles it out.
-  `crates/mwl-stdlib/tests/allocation_policy.rs` is the worked example, and counting allocations is
+  `crates/nvs-stdlib/tests/allocation_policy.rs` is the worked example, and counting allocations is
   worth the setup — it turned "I think this allocates once" into a test.
 
 - **A release build relinking the runtime moves a bench row by about ±6%, with no code change.**
@@ -711,10 +711,10 @@ is why" — is this file.
   A/B on a single row is only worth reading when the delta is well past that, and the *median* is
   the statistic to quote. Re-run the base binary once before believing a small regression.
 - **`python tools/verify.py` is not deterministic, and the one test that makes it so is a real
-  use-after-free rather than a flake to re-run past.** `-p mwl-codegen --test throwing`'s
+  use-after-free rather than a flake to re-run past.** `-p nvs-codegen --test throwing`'s
   `an_uncaught_throw_leaves_the_status_and_the_message_on_the_context` fails about 7% of runs inside
   `verify.py` and 22 of 40 run on its own, either as a wrong `ctx.pending()` message or as a bare
-  *"misaligned pointer dereference"* panic in `crates/mwl-runtime/src/object.rs:1220` with nothing
+  *"misaligned pointer dereference"* panic in `crates/nvs-runtime/src/object.rs:1220` with nothing
   naming the throw. So a red `verify.py` in a session that touched no Rust is worth **one** re-run to
   identify — and if that is the test, it is inherited: say so and leave it to the slice that owns it,
   because a second green run does not mean the tree is clean.
@@ -722,40 +722,40 @@ is why" — is this file.
   nowhere near the cause.** Compiled code bakes each `ClassDesc`'s *address* in as a constant, so an
   exception object left on the context points into the `Rc<ClassTable>` the `Unit` owns and nothing else
   keeps alive. Drop the unit first and `ctx.pending()` reads freed memory — intermittently a wrong message,
-  intermittently a *misaligned pointer dereference* inside `mwl_runtime::object::drop_one`, which is the
+  intermittently a *misaligned pointer dereference* inside `nvs_runtime::object::drop_one`, which is the
   release walking garbage slot counts. This is what made `verify.py` non-deterministic for several
-  sessions (28 of 40 runs of one `mwl-codegen` test, 7% inside `verify.py`), and the reason it looked like
-  a flake is that `mwl run` never hits it — `mwl-cli` installs the table. **`mwl_codegen::Unit::install_in`
+  sessions (28 of 40 runs of one `nvs-codegen` test, 7% inside `verify.py`), and the reason it looked like
+  a flake is that `nvs run` never hits it — `nvs-cli` installs the table. **`nvs_codegen::Unit::install_in`
   is now the one spelling and its doc comment is the rule**: call it before running any of a unit's code,
   whether or not you care about `catch`. A harness that builds a `Ctx`, runs a unit and then reads anything
   off the context is the shape to watch for.
 
-- **`tools/leak-check.sh` used to report a fixture's own non-zero exit as a leak.** `examples/uncaught.mwl`
+- **`tools/leak-check.sh` used to report a fixture's own non-zero exit as a leak.** `examples/uncaught.nvs`
   ends in an uncaught throw and so exits 1 by design, which under valgrind's `--error-exitcode=1` was
   indistinguishable from a definite leak — the `definitely lost: 0 bytes in 0 blocks` line printed right
-  beside the "failure" was the only tell. It uses 97 now, a status no MWL program produces, so a throwing
+  beside the "failure" was the only tell. It uses 97 now, a status no Novis program produces, so a throwing
   fixture is a fair leak subject.
-- **`target/release/mwl.exe` is whatever the *last* session built, and rebuilding it costs two
-  minutes for a verdict the debug binary already gives.** A `.mwlt` case a stale binary fails may
+- **`target/release/nvs.exe` is whatever the *last* session built, and rebuilding it costs two
+  minutes for a verdict the debug binary already gives.** A `.nvst` case a stale binary fails may
   simply predate it — one session's was two hours and four commits old and reported
-  `str-replace-and-pad-are-the-identity-at-their-own-bound.mwlt` failing on a `Core\Str::padStart`
+  `str-replace-and-pad-are-the-identity-at-their-own-bound.nvst` failing on a `Core\Str::padStart`
   line nothing in the session had touched. The fix is **not** the release rebuild it used to be:
-  `cargo build --release -p mwl-cli` is 125s here (thin LTO at `codegen-units = 1` relinks the world
+  `cargo build --release -p nvs-cli` is 125s here (thin LTO at `codegen-units = 1` relinks the world
   for a one-line edit), nine sessions of one run paid it, and that was 8% of the whole run's clock.
-  Build `cargo build -p mwl-cli` and run `target/debug/mwl.exe` instead — 2s once `verify.py` has
+  Build `cargo build -p nvs-cli` and run `target/debug/nvs.exe` instead — 2s once `verify.py` has
   built, and it is the *same* binary `tools/loop.py`'s acceptance check judges you by, so it is the
   more faithful answer as well as the cheap one. `git status --short` showing the case unmodified
   says the failure was not *caused* here, which is the neighbouring bullet's rule; only a current
   binary says it is not real.
-- **A scratch `.mwl` still needs its `<?mwl` tag, and without one the panic names a construct you did
+- **A scratch `.nvs` still needs its `<?nvs` tag, and without one the panic names a construct you did
   not write.** A file under `.agent-tmp/` that opens straight into `echo` lowers as a single
-  `InlineHtml(0:0..139)` statement and dies in `mwl-ir`'s control-flow slice listing every statement it
+  `InlineHtml(0:0..139)` statement and dies in `nvs-ir`'s control-flow slice listing every statement it
   *does* lower — which reads as "`echo` is unsupported" rather than "this file is all text". The
-  `.mwlt` harness supplies the tag for you inside `--FILE--`, so the omission only ever bites on a
+  `.nvst` harness supplies the tag for you inside `--FILE--`, so the omission only ever bites on a
   scratch run, which is exactly where a session is trying to find out whether a shape lowers.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works from
+- **`wsl.exe -- bash /mnt/d/nvs/tools/leak-check.sh …` fails from the Bash tool and works from
   PowerShell.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe` ever
-  sees it, so the documented command arrives as `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/
+  sees it, so the documented command arrives as `bash: C:/Program Files/Git/mnt/d/nvs/tools/
   leak-check.sh: No such file or directory` — a path no document mentions, which reads as a missing
   script rather than as the MSYS path translation it is. The script's own header shows the
   invocation and cannot show this, because it is the *caller's* shell that mangles it. Run the
@@ -778,39 +778,39 @@ is why" — is this file.
   cost less than reading either function, so run the item's spellings **before** designing
   anything — the panic a worklist item names is often not the one that fires.
 - **A new `Core` member owes four things**, and the third is the one that bites: the registry row, the
-  `mwl_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
-  symbol, not a link error), and a `.mwlt` case that calls it — `crates/mwl-stdlib/tests/conformance_coverage.rs` fails
-  `cargo test -p mwl-stdlib` without one. An instance member is covered by a case writing `->name(`.
+  `nvs_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
+  symbol, not a link error), and a `.nvst` case that calls it — `crates/nvs-stdlib/tests/conformance_coverage.rs` fails
+  `cargo test -p nvs-stdlib` without one. An instance member is covered by a case writing `->name(`.
   [conventions.md](conventions.md) writes all four out; `python tools/brief.py`'s *anchors* block
   resolves each spelling to a file and line.
 - **A spec §§ 1-12 member owes a *fifth* thing: striking its line from
-  `crates/mwl-stdlib/tests/spec-members-outstanding.txt`.** That file is the outstanding-member ratchet
-  `crates/mwl-stdlib/tests/spec_registry_coverage.rs` reads, and the test fails on a **stale** line — one naming a member
+  `crates/nvs-stdlib/tests/spec-members-outstanding.txt`.** That file is the outstanding-member ratchet
+  `crates/nvs-stdlib/tests/spec_registry_coverage.rs` reads, and the test fails on a **stale** line — one naming a member
   that is registered now — exactly as loudly as on an unregistered member the file does not list. So the
   failure you see after landing a member is not a regression; it is the list telling you it did not
   shrink. Its keys are `§<section> <the spec's own Member-cell spelling>`, which is why `§1 chunk` and
   `§2 chunk` are two different lines.
-- **A `Core` instance's slots hold only values MWL already holds, so a member wanting native mutable
+- **A `Core` instance's slots hold only values Novis already holds, so a member wanting native mutable
   state has to accumulate instead** — there is no destructor to free a `sha2::Sha256` context with, and
   `digest 0.10` cannot serialize one into a slot. The COW-correct read/write of a slot that holds an
   array is `identity_store::borrow`/`edit`/`replace`, which are generic over `(receiver, index, class,
   member)` despite that module being named for § 9's store; `instance::set_slot` is the raw write and
   `instance::slot` the borrowed read. `Core\Hash\Stream` is the worked example.
 - **A new domain module is `mod`, not `pub mod`, so its `CLASS`/`NAME` are `pub(crate)`.** The
-  workspace warns `unreachable_pub`, and half of `mwl-stdlib`'s modules are `pub mod` while the newer
+  workspace warns `unreachable_pub`, and half of `nvs-stdlib`'s modules are `pub mod` while the newer
   half is not — copying `uuid.rs`'s `pub const NAME` into a privately-declared module is a warning at
   build time, before `verify.py` says anything. `objmap.rs:36` is the shape to copy.
 - **A `Core` symbol that is not a member breaks `every_registered_member_has_an_implementation_address`.**
-  `mwl_stdlib::symbols()` used to be exactly one entry per `CLASSES` member, and that test asserts the
+  `nvs_stdlib::symbols()` used to be exactly one entry per `CLASSES` member, and that test asserts the
   count — so a constructor symbol from `registry::CONSTRUCTORS`, or anything else chained in beside the
   members, has to be added to the sum on the test's right-hand side in the same edit. The failure is a
-  bare `left: 213, right: 211` in `-p mwl-stdlib --lib`, with nothing naming the symbol.
+  bare `left: 213, right: 211` in `-p nvs-stdlib --lib`, with nothing naming the symbol.
 - **A `CoreTy::Array(&CoreTy::Uint)` parameter receives `Tag::Int` elements**, so a helper that reads
   each one through `as_uint` alone answers the member's most obvious call site with a fatal. A written
   `[97, 98]` type-checks against `array<uint>` and stays int-tagged all the way into the helper — a
   scalar `uint` parameter does not have this problem, because the call site materializes the literal at
   the declared type. Read both tags (`str.rs`'s `code_point`), and probe the literal spelling in a
-  scratch `.mwl` before writing the case.
+  scratch `.nvs` before writing the case.
 - **A registry row's arity and its helper's `args: [N]` are two numbers that must agree**, and an
   options bag flattens to one argument per option — so `round(float, {precision, mode})` is
   `args: [3]`. A **variadic tail is one argument**, whatever the call writes. **An instance member's
@@ -818,10 +818,10 @@ is why" — is this file.
   an index-out-of-bounds panic at the first call.
 - **A member on `registry::WRITTEN_CLASS_MEMBERS` takes one argument its row does not declare** — the
   class its call site wrote, in slot 0 — so its helper's `args: [N]` is `params` + 1 (+ the options bag's
-  flattening). `crates/mwl-stdlib/tests/conformance_coverage.rs` looks for such a member spelled `Class::name<`, not
+  flattening). `crates/nvs-stdlib/tests/conformance_coverage.rs` looks for such a member spelled `Class::name<`, not
   `Class::name(`, because that is what every call site writes.
 - **Registering a `Core` class narrows `Core`'s blanket trust for that name.** An unregistered
-  `Core\X::y()` is waved through by `mwl_hir::members`; once `X` is in `registry::CLASSES`, an unknown
+  `Core\X::y()` is waved through by `nvs_hir::members`; once `X` is in `registry::CLASSES`, an unknown
   member on it is a diagnostic. So adding a class can turn a fixture that "compiled" into one that
   reports — which is the point, but check the fixtures that name it.
 - **A new dependency owes three things**: a `[workspace.dependencies]` line with a comment saying why that
@@ -836,14 +836,14 @@ is why" — is this file.
   nothing else, and `CoreTy::Union`'s doc says "legal in **either** direction" outright. One
   `grep -n 'fn [a-z_]*(' registry.rs` over the test names costs one call and settles it; designing around
   a constraint that is not there costs a member's whole surface.
-- **Adding a row to `mwl_hir::errors::TREE` fails a test in `mwl-ir`, and the message names neither
+- **Adding a row to `nvs_hir::errors::TREE` fails a test in `nvs-ir`, and the message names neither
   the tree nor the class you added.** Spec § 10's exception tree is restated as a hard-coded label
   list in `lower/mod.rs`'s `a_file_with_no_class_still_carries_every_compiler_declared_class`, so
   `RecursionError` arrived as a bare `left: [... 12 names ...]` / `right: [... 11 names ...]` diff in
-  `-p mwl-ir --lib` with nothing pointing back at the one-line `errors.rs` edit that caused it. The
-  full roster a new § 10 class owes is: the `TREE` row, `mwl_runtime::ThrownClass`'s variant, its
+  `-p nvs-ir --lib` with nothing pointing back at the one-line `errors.rs` edit that caused it. The
+  full roster a new § 10 class owes is: the `TREE` row, `nvs_runtime::ThrownClass`'s variant, its
   `name()` arm, its `ALL` entry, that assertion, and the spec's own tree drawing. Nothing else
-  restates it — `mwl_types::error_lib` seeds whatever `TREE` holds.
+  restates it — `nvs_types::error_lib` seeds whatever `TREE` holds.
 - **A second *read* is not cheaper than the `memcpy` it saves, at `Core\Str` sizes.** Both obvious
   ways to make a result's length exact before writing it measured as losses, and each cost a full
   release build plus a bench sweep to find out: counting `Core\Str::replace`'s matches with a second
@@ -852,26 +852,26 @@ is why" — is this file.
   to **0.45×**. Both are arithmetic now and both rows are far above where they started. The rule to
   carry: reach for arithmetic or for a good capacity guess, never for "measure it first" — and if a
   member's length genuinely costs a data-structure walk to learn, as `Core\Str::join`'s does, leave
-  it alone. `crates/mwl-stdlib/src/str.rs` § *A result is written once* holds all of it.
+  it alone. `crates/nvs-stdlib/src/str.rs` § *A result is written once* holds all of it.
 - **`Value::as_str_bytes` and `Value::as_text` make the *same* tag check, so a `from_utf8` after the
   first can never catch anything.** Both go through `Value::str_ptr`, which answers for `Tag::Str`
   alone — and since `Tag::Bytes` became its own row over the shared allocation, a `bytes` argument
-  reaches neither. Sixteen sites in `mwl-stdlib` carried the pair anyway, and `json.rs`'s carried a
+  reaches neither. Sixteen sites in `nvs-stdlib` carried the pair anyway, and `json.rs`'s carried a
   doc comment saying it was where "the caller passed binary data into a text format" got caught,
   which had quietly stopped being true. A defence a later ADR made unreachable reads exactly like a
   live one, and grepping for the *tag* it claims to catch is the cheap way to tell them apart.
-  `crates/mwl-stdlib/tests/allocation_policy.rs`'s `no_member_revalidates_a_string_argument` is the
+  `crates/nvs-stdlib/tests/allocation_policy.rs`'s `no_member_revalidates_a_string_argument` is the
   source scan that keeps the pair out now.
 - **The WSL valgrind leg has to be launched from PowerShell, not from the Bash tool.** `wsl.exe --
-  bash /mnt/<drive>/<repo>/tools/leak-check.sh <case>` under Git Bash dies with *"bash: C:/Program
-  Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory"* — MSYS rewrites any argument
+  bash /mnt/d/nvs/tools/leak-check.sh <case>` under Git Bash dies with *"bash: C:/Program
+  Files/Git/mnt/d/nvs/tools/leak-check.sh: No such file or directory"* — MSYS rewrites any argument
   that looks like a POSIX path into a Windows one before `wsl.exe` ever sees it, and the error names
   a path nobody typed. The same command through the PowerShell tool runs unchanged; `MSYS_NO_PATHCONV=1`
   is the other way. This is one call's worth of confusion every time a session adds a refcount edge.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it
+- **`wsl.exe -- bash /mnt/d/nvs/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it
   when the Bash tool is what runs it.** Git Bash rewrites the `/mnt/...` argument into
   `C:/Program Files/Git/mnt/...` before `wsl.exe` ever sees it, and the failure reads as a missing
-  script rather than as a mangled path — *`bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh:
+  script rather than as a mangled path — *`bash: C:/Program Files/Git/mnt/d/nvs/tools/leak-check.sh:
   No such file or directory`*. The file-passed-by-path shape `commands.md` documents is otherwise
   unchanged, and the PowerShell tool needs no prefix.
 - **A roster probe binds its subject; it never `echo`s it, and it gets one panic per run.**
@@ -883,13 +883,13 @@ is why" — is this file.
   enumerates all of the *refused* shapes, while lowering panics on the first shape that gets
   that far, so each panicking shape costs its own edit-and-run. Put the shapes you expect to
   be refused in one file and the ones you expect to lower in another.
-- **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it when
-  it goes through the Bash tool**, which is Git Bash: without it the `/mnt/<drive>/<repo>/...` argument is
-  rewritten to `C:/Program Files/Git/mnt/<drive>/<repo>/...` before `wsl.exe` ever sees it, and the failure reads
+- **`wsl.exe -- bash /mnt/d/nvs/tools/leak-check.sh …` needs `MSYS_NO_PATHCONV=1` in front of it when
+  it goes through the Bash tool**, which is Git Bash: without it the `/mnt/d/nvs/...` argument is
+  rewritten to `C:/Program Files/Git/mnt/d/nvs/...` before `wsl.exe` ever sees it, and the failure reads
   as a missing script rather than as a mangled path. PowerShell passes it through unchanged.
 - **`tools/leak-check.sh` has to be run from PowerShell, not from the Bash tool.** `wsl.exe -- bash
-  /mnt/<drive>/<repo>/tools/leak-check.sh <fixture>` is the spelling `commands.md` gives, and under Git Bash
-  it fails with `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or
+  /mnt/d/nvs/tools/leak-check.sh <fixture>` is the spelling `commands.md` gives, and under Git Bash
+  it fails with `bash: C:/Program Files/Git/mnt/d/nvs/tools/leak-check.sh: No such file or
   directory` — MSYS rewrites any argument that looks like an absolute POSIX path into a Windows one
   before `wsl.exe` ever sees it. The same command from the PowerShell tool runs unchanged. Prefixing
   `MSYS_NO_PATHCONV=1` also works, but the shorter rule is that anything handing `/mnt/...` to
@@ -899,7 +899,7 @@ is why" — is this file.
   release anyway silently loses the retain: an `inout` parameter is a `Ty::Ref` cell, not
   refcounted, and `return $s;` inside `function grow(inout string $s)` handed the caller a value
   with no owner at
-  all, which the caller's own discard then freed while the staged slot still pointed at it. `mwl
+  all, which the caller's own discard then freed while the staged slot still pointed at it. `nvs
   run` printed the right answer and exited **127**. Two things are worth keeping from the hour it
   cost: an exit 127 is worth `git stash`-ing *before* you assume it is yours — this one predated
   the session that found it by a long way — and a `return`/`release_all_locals` exemption keyed on
@@ -927,7 +927,7 @@ is why" — is this file.
   a typed local one line above and pass it, which is what every existing case already does; a scratch probe
   written the obvious way fails at the checker before it ever reaches the member you are testing.
 - **A case cannot index into an `array<mixed>`'s elements, and `Core\Json::encode` is the way round
-  it.** `$q["b"] as array<string>` panics `mwl-ir` outright — *"got `Tagged as Array`"*, ADR 0007 § 2's
+  it.** `$q["b"] as array<string>` panics `nvs-ir` outright — *"got `Tagged as Array`"*, ADR 0007 § 2's
   `array<T> as array<U>` row being the one still missing — so a member answering a nested shape has no
   spelling that reaches past the first level. `Core\Json::encode($q)` renders the whole structure in one
   line and it is byte-identical to PHP's `json_encode` over `parse_str`'s array, which makes it the
@@ -935,7 +935,7 @@ is why" — is this file.
   lower.
 - **A named class does not satisfy a shape type**, whatever its properties are called: `View::y(new
   Point(3, 4))` against a `{y: int}` parameter is `E0401: expected {y: int}, found Point`. ADR 0036 § 3's
-  width subtyping is shape-to-shape only (`mwl_types::expr::assign`), so the *one* way a shape receiver's
+  width subtyping is shape-to-shape only (`nvs_types::expr::assign`), so the *one* way a shape receiver's
   static layout differs from the value's own is a narrower shape — which is the only widening a case
   testing § 4's name-keyed read can write. Several doc comments claimed the class direction worked; they
   were wrong and are fixed, so do not design a case around it.
@@ -950,37 +950,37 @@ is why" — is this file.
   one exception: every level of a subscript chain below a `??` is guarded, so `$a["nope"]["j"] ?? "d"`
   and `$m["k"] ?? "d"` over a plain `?array<string> $m = null;` both answer `"d"` with no test at all.
 - **Registering a `Core` member and writing its conformance case are one slice, not two.**
-  `crates/mwl-stdlib/tests/conformance_coverage.rs` fails the moment a registry row has no `.mwlt` case
+  `crates/nvs-stdlib/tests/conformance_coverage.rs` fails the moment a registry row has no `.nvst` case
   calling it, so a plan that lands the rows in one session and the cases in another leaves the tree red
-  in between — and `verify.py` reports it as a `-p mwl-stdlib` test failure with nothing about the
+  in between — and `verify.py` reports it as a `-p nvs-stdlib` test failure with nothing about the
   member in the message. A class constant counts too: `Core\Path::SEPARATOR` needs a case that writes it.
-- **A multi-file `.mwlt` case works now — but only the entry file's statements run.**
+- **A multi-file `.nvst` case works now — but only the entry file's statements run.**
   `--FILE <relative/path>--` repeats and writes another file into the case's working directory
-  (`crates/mwl-test`'s module doc), and `mwl-cli`'s `front_end` resolves, checks and lowers the whole
-  `require`/`autoload` graph, so a class declared in a second file is reachable from `mwl run`. What a
+  (`crates/nvs-test`'s module doc), and `nvs-cli`'s `front_end` resolves, checks and lowers the whole
+  `require`/`autoload` graph, so a class declared in a second file is reachable from `nvs run`. What a
   second file contributes is its *declarations*: a bare `echo` at its file scope compiles and prints
-  nothing (`mwl-ir` gap 22). So a case pins the second file by *using* what it declares, never by what it
+  nothing (`nvs-ir` gap 22). So a case pins the second file by *using* what it declares, never by what it
   echoes on its own.
 - **A `--EXPECTF-ERROR--` case must not also *use* what the broken declaration would have provided.**
   Diagnostics are ordered by phase, not by file, so an `E0303` from the entry point's reference is printed
   *before* the resolution error the case exists to pin, and the block no longer matches at its first line.
   A compile-error case's entry file should do the least that reaches the diagnostic — often a bare
   `require` and nothing else. Between two diagnostics `%A` covers the span, notes included.
-- **A rule added to `mwl_syntax::check_declarations` reaches far less of the corpus than a grep
-  suggests.** Only `mwl-cli` and `mwl_hir::requires` call that walk, so every `mwl-types` fixture, every
-  parser test and every `mwl-codegen` fixture goes straight past it — ADR 0094's estimated "sixty inline
+- **A rule added to `nvs_syntax::check_declarations` reaches far less of the corpus than a grep
+  suggests.** Only `nvs-cli` and `nvs_hir::requires` call that walk, so every `nvs-types` fixture, every
+  parser test and every `nvs-codegen` fixture goes straight past it — ADR 0094's estimated "sixty inline
   snippets to rewrite" turned out to be eleven, all in `casing.rs`'s own tests. Grep for the *callers*
-  before budgeting a corpus rewrite; a `<?mwl` snippet in a Rust string is not automatically subject to
+  before budgeting a corpus rewrite; a `<?nvs` snippet in a Rust string is not automatically subject to
   everything the compiler enforces.
-- **A row the checker accepts is not a row that runs.** `mwl-codegen` refuses a binary operator over two
+- **A row the checker accepts is not a row that runs.** `nvs-codegen` refuses a binary operator over two
   representations with *"does not lower a binary operator over mismatched representations"*. Equality is
   out of that hole, and so is ADR 0007 § 4's whole promotion table: `$n + $f`, `$n * $f`, `$n ** $f`,
-  `$n < $f`, `$n <=> $f` and `$u + $f` all run today, `mwl-ir` having widened the narrower operand before
+  `$n < $f`, `$n <=> $f` and `$u + $f` all run today, `nvs-ir` having widened the narrower operand before
   the instruction is emitted. The ordering half of the hole is closed at the *checker* now (`E0715`, the
   neighbouring bullet), so what still reaches this refusal is a mismatched pair no widening exists for and
   no diagnostic names — a `Ty::Tagged` operand under an operator, mostly. So a conformance case
   written straight off an ADR's compiling rows can still fail at run time: run the rows in a scratch
-  `.agent-tmp/*.mwl` before writing the case, and if one does not lower, pin it in the crate's own
+  `.agent-tmp/*.nvs` before writing the case, and if one does not lower, pin it in the crate's own
   `tests/` and say in the case comment why it is not here.
 - **`"…" as bytes` is how a case writes a `bytes` it can read, and `Core\Encoding::fromHex("…")` is how
   it writes one it cannot.** There is no `bytes` literal at all (`00-overview` § 5), so those are the two
@@ -997,7 +997,7 @@ is why" — is this file.
   neighbouring trap too: a `Core` member answering `uint` (`Core\Str::length`) in `$int + …` is `E0407`,
   not a widening.
 - **`emit_binop`'s `integral` set is `Int | Uint | Bool`, so an enum operand needs the reinterpretation
-  first.** `==` over two enum values lowers today because `mwl-ir` compares one representation down —
+  first.** `==` over two enum values lowers today because `nvs-ir` compares one representation down —
   `InstKind::Reinterpret` to the backing integer is free, and it is the row `$m as int` already uses — so
   a new lowering that emits a `BinOp` over `Ty::Enum` directly still fails with *"a `Eq` over
   representation Enum(Int)"*.
@@ -1006,8 +1006,8 @@ is why" — is this file.
   subtracting from the very count Stage 4 measures. Verify against PHP while authoring — `php -r '…'` is
   enough to settle a semantics question, and it is on `PATH` under Windows *and* inside the WSL distro
   ([docs/setup.md](../setup.md)) — then drop the section or put the case in
-  `tests/differential/`, which is where an oracle belongs. The `.mwlt` format
-  is `crates/mwl-test`'s module doc; a `--EXPECTF-ERROR--` block must reproduce the diagnostic's own
+  `tests/differential/`, which is where an oracle belongs. The `.nvst` format
+  is `crates/nvs-test`'s module doc; a `--EXPECTF-ERROR--` block must reproduce the diagnostic's own
   indentation, which widens with the line number. A trailing space before a `\n` is unreliable in an
   `--EXPECT--` block — echo a sentinel character after it.
 - **The `php` on Windows `PATH` has no `mbstring`**, so every `mb_*` oracle a `Core\Str` slice reaches
@@ -1017,10 +1017,10 @@ is why" — is this file.
   Unicode rows, cite the UCD table the member implements (folding is UAX #44's `C`+`F` mappings) and
   say so in the case's comment; do not silently assert whatever the implementation printed. WSL's
   `php` may have the extension — worth one `php -m | grep mbstring` before writing the rows off.
-- **A `mwl-types` test that asserts an interned type's `describe` string is fragile.** A union orders its
+- **A `nvs-types` test that asserts an interned type's `describe` string is fragile.** A union orders its
   members by type id, so registering a member anywhere can flip `T|null` to `null|T`. Compare against
   `interner.make_union([...])` instead.
-- **`MwlStr::from_raw`/`MwlArray::from_raw` return an *owning* handle.** Reading a refcount through one in
+- **`NvsStr::from_raw`/`NvsArray::from_raw` return an *owning* handle.** Reading a refcount through one in
   a unit test releases a reference when it drops — wrap it in `std::mem::ManuallyDrop`, or the test ends in
   a heap corruption rather than an assertion failure. `crate::arr::borrowed` is that wrapper for an
   argument, and `crate::instance::slot` is the borrowed read of an object's slot.
@@ -1032,7 +1032,7 @@ is why" — is this file.
   a compile-time invariant belongs in `const _: () = assert!(…);`, not a `#[test]`.
 - **A property's declared default runs now, and the constant is checked — but only a literal or `[]`
   is one.** `public int $n = 4;` reaches the slot of every fresh instance, inherited defaults
-  included, because `mwl_runtime::MwlObj::new` writes a per-class image the descriptor carries; there
+  included, because `nvs_runtime::NvsObj::new` writes a per-class image the descriptor carries; there
   is no IR instruction for it and nothing between `new`'s allocation and its constructor call. What
   is *refused* is everything else: `= null`, an enum case, a `decimal`, a non-empty array literal and
   a `Class::CONST` are all `E0472`, so a case reaching for one gets a diagnostic rather than a wrong
@@ -1044,39 +1044,39 @@ is why" — is this file.
   differently-typed collections needs two names.
 - **`live_bytes()` cannot see an allocation that is freed again inside the call under test**, so a
   guard named "…allocates no key" written as a `live_bytes` delta passes whether or not the key was
-  built. `mwl_array_set` renders an `MwlStr`, hands it to the packed arm, which has no use for it,
+  built. `nvs_array_set` renders an `NvsStr`, hands it to the packed arm, which has no use for it,
   and drops it before returning — live delta zero, exactly like the index-taking pair that never
   allocated at all. `counting_alloc::allocated_bytes()` is the monotone total that tells the two
   apart, and any measured claim about a *transient* cost needs it rather than `live_bytes`. The
   control matters as much as the claim: assert the old spelling **does** allocate in the same test,
   or a broken counter reads as a passing guard.
-- **A compiled function called with an empty argument slice faults.** `mwl_runtime::call(f, &mut
+- **A compiled function called with an empty argument slice faults.** `nvs_runtime::call(f, &mut
   ctx, &[])` on a *method* looked like the obvious way to observe a return value, and it is an
   access violation (`0xc0000005`, a bare `STATUS_ACCESS_VIOLATION` from `cargo test` with no test
   name attached) — the callee reads its argument slot whether or not it declared one, and `&[]`
   hands it a dangling pointer. Give the fixture's method one parameter it ignores and pass
-  `Value::int(0)`; `mwl-codegen`'s `stack_limit.rs` fixtures all declare one, which is why nothing
+  `Value::int(0)`; `nvs-codegen`'s `stack_limit.rs` fixtures all declare one, which is why nothing
   had hit this. `run_with`/`output_of` are unaffected — the script frame is entered the same way but
   never faulted, so the crash arrives only when a test reaches for `unit.function("Class::member")`.
 - **An allocation guard over a member that *builds* something measures the result's own storage
   first.** A `counting_alloc::allocated_bytes` delta over one `map`-shaped walk into a fresh
-  `MwlArray` read 448 bytes with no key rendered at all: the output's own `Vec` doubling on the way
+  `NvsArray` read 448 bytes with no key rendered at all: the output's own `Vec` doubling on the way
   to 16 entries is an allocation the guard cannot tell from the one it exists to catch. Walk twice
   and measure the *second* pass, where every write lands at a position that already exists — then
   the only thing left that can allocate is the thing under test.
   `a_callback_that_does_not_want_a_key_synthesizes_none` is the shape.
 - **A `cargo test` that dies with a bare `STATUS_ACCESS_VIOLATION` may not reproduce**, so run it
-  again before bisecting. One arrived in `-p mwl-codegen --test throwing` on the first run after a
+  again before bisecting. One arrived in `-p nvs-codegen --test throwing` on the first run after a
   relink and never returned in four subsequent runs, including the full workspace sweep; the
   `.loop` logs hold an identical one-off in `--test strings`. The deterministic cause below (an
   empty argument slice) reproduces every time, which is how the two are told apart.
-- **A test binary outside `mwl-runtime` cannot reach `counting_alloc`** — that module is `#[cfg(test)]` and
-  its `allocated_bytes` is `pub(crate)`, so a `mwl-codegen` or `mwl-stdlib` integration test that wants to
+- **A test binary outside `nvs-runtime` cannot reach `counting_alloc`** — that module is `#[cfg(test)]` and
+  its `allocated_bytes` is `pub(crate)`, so a `nvs-codegen` or `nvs-stdlib` integration test that wants to
   measure allocations installs **its own** `#[global_allocator]` in the test file, gated
-  `#[cfg(debug_assertions)]`. The gate is not decoration: `mwl-runtime` registers its pooled allocator in
+  `#[cfg(debug_assertions)]`. The gate is not decoration: `nvs-runtime` registers its pooled allocator in
   every `not(test)` *optimized* build, so an ungated one makes `cargo test --release` fail to link rather
-  than fail a test. `crates/mwl-stdlib/tests/allocation_policy.rs:135` and
-  `crates/mwl-codegen/tests/arrays.rs`'s `Counting` are the two copies of the shape.
+  than fail a test. `crates/nvs-stdlib/tests/allocation_policy.rs:135` and
+  `crates/nvs-codegen/tests/arrays.rs`'s `Counting` are the two copies of the shape.
 
 - **Measure compiled code's allocations as a difference between two run lengths, never as an absolute
   zero.** A run allocates its array, its locals and its output buffer once whatever the loop count is, so
@@ -1084,12 +1084,12 @@ is why" — is this file.
   allocated" is, and it is the same claim, because a per-access cost is O(accesses) and a setup cost cancels
   out of the difference. Pair it with a control arm that *does* allocate per access — the same accesses
   through a rendered key — or a counter stuck at zero passes the test for you.
-- **A `-p mwl-stdlib` test can hand a `Core` member a real `callable` without a compiler in front of
-  it.** `mwl_runtime::call_closure` reads exactly two things off a closure value — slot
+- **A `-p nvs-stdlib` test can hand a `Core` member a real `callable` without a compiler in front of
+  it.** `nvs_runtime::call_closure` reads exactly two things off a closure value — slot
   `CLOSURE_ARITY_SLOT`, and the `CLOSURE_INVOKE` method's address in its class — so a
   `ClassTable::define` + `set_methods` pair with a plain `unsafe extern "C" fn` is a whole closure, and
   everything else in `lower_closure`'s representation is captured state a native callback does not
-  have. `crates/mwl-stdlib/tests/allocation_policy.rs`'s `closure_of` is the shape; leak the table,
+  have. `crates/nvs-stdlib/tests/allocation_policy.rs`'s `closure_of` is the shape; leak the table,
   because a descriptor's address is its identity. The callee owes the exit sweep — release the
   receiver and each parameter, which `call_closure` retained on the way in — or the case leaks one
   reference per element and the WSL valgrind leg catches it much later.
@@ -1115,7 +1115,7 @@ is why" — is this file.
   `catch` in a case its own name (`$capped`, `$zero`, `$beyond`), which is what the older `Core\Json` case
   already does. In the same family: `Core\Str::repeat` takes a `uint`, so a `for` counter declared `int`
   needs `Core\Str::repeat("[", $d as uint)` and not `$d` — the diagnostic is `E0401`, at the argument.
-- **A `.mwlt` case's own helper has to be a `public static function` inside a class.** A case is top-level
+- **A `.nvst` case's own helper has to be a `public static function` inside a class.** A case is top-level
   statements, so the instinct when two steps want the same rendering is a plain `function render(...)` at
   file scope — which is `E0215: a function must be a method` (ADR 0011 § 1), caught only when the case is
   run. Wrap it in a `final class` and call it `Render::pairs($m)`; a compiler-owned generic type
@@ -1132,29 +1132,29 @@ is why" — is this file.
   (`E0414`), and `foreach ($rows as string $row)` over the literal directly is `E0401` for the same
   reason. Counting agreements into an `int` declared above the loop is how the sweep is then asserted,
   since there is no compound assignment either.
-- **Deepening a `.mwlt` case in place does not move Stage 4's count.** The gate counts case *files*, so a
+- **Deepening a `.nvst` case in place does not move Stage 4's count.** The gate counts case *files*, so a
   depth slice that rewrites an existing thin case makes real progress the acceptance test cannot see —
-  `mwl test tests/conformance` read 478 both before and after two sessions' worth of work. Land the new
+  `nvs test tests/conformance` read 478 both before and after two sessions' worth of work. Land the new
   claim as its **own file**, named for the claim, and leave the thin case where it is with a one-line
   comment pointing at the deep one. Splitting after the fact is free; noticing after the run is not.
 - **An `--ORACLE--` helper must not be named after a PHP built-in, and the failure does not say so.**
   `pos` is an alias of `current()`, so a case whose oracle declared `function pos(int|false $f)` failed
   with `--ORACLE--: PHP exited 255` and **`php stderr: <empty>`** — PHP writes *Cannot redeclare
-  function* to stdout, which the runner is comparing rather than reporting. The MWL half compiles and
+  function* to stdout, which the runner is comparing rather than reporting. The Novis half compiles and
   runs, so the failure reads as a broken PHP install. Name an oracle helper for what it renders
   (`render`, `show`) and check `php -r 'var_dump(function_exists("<name>"));'` if in doubt; `key`,
   `next`, `end`, `reset`, `current` and `compact` are the other easy collisions.
 - **A differential case checks itself, so write the rows and run it rather than pricing PHP's answer
   by hand first.** An `--ORACLE--` case's failure output prints both columns side by side, which is
   the whole comparison in one call; three `php -r '…'` calls spent pre-computing what a matching case
-  was going to assert told this session nothing the first `mwl test <case>` did not. Reach for
-  `php -r` for the *divergence* half instead, where the frozen `--EXPECT--` is MWL's own output and
+  was going to assert told this session nothing the first `nvs test <case>` did not. Reach for
+  `php -r` for the *divergence* half instead, where the frozen `--EXPECT--` is Novis's own output and
   PHP's answer only appears in the case's prose — that is the one place the runner cannot check the
   sentence you wrote.
-- **An `int` literal does not reach an `array<float>`'s element type**, so a differential case about MWL's *one numeric domain* has to declare the subject `array<int|float>`. `Core\Arr::contains($floats, 1)` against an `array<float>` is `E0401: expected float, found int` at the argument — the needle is typed `T`, and the widening `1 == 1.0` gets in an expression is not one an argument position performs. Declaring `array<int|float> $numeric = [1.0, 2.5];` makes `T` the union, the literal fits, and `contains($numeric, 1)` then answers `true` — which is the ADR 0090 § 3 row worth pinning, since `in_array(1, [1.0], true)` is `false` and the loose `in_array(1, [1.0])` is `true`, so MWL matches neither of PHP's two modes.
-- **A `Core` member's refusal is a `FATAL:` line on standard error, not a `Throwable`, so `try`/`catch` cannot pin it.** `Fault::fatal` is what `key_bytes` and every argument-shape guard in `mwl-stdlib` raise, and it unwinds past `catch (Throwable $e)` untouched: a case wrapping `Core\Arr::countBy($floats)` in a `try` prints nothing from its handler and exits 1. Pin it with `--EXPECT-ERROR--` instead, whose presence is also what tells the runner this case's run is *meant* to fail — the stdout before the fatal still has to match `--EXPECT--`, so the agreeing rows can sit in the same case. Get the message by running the scratch under `2>` and `cat -A`: it is one line, `FATAL: ` then the member's own text, and it can carry an internal detail (`got tag 4`) that no other section would let you assert.
+- **An `int` literal does not reach an `array<float>`'s element type**, so a differential case about Novis's *one numeric domain* has to declare the subject `array<int|float>`. `Core\Arr::contains($floats, 1)` against an `array<float>` is `E0401: expected float, found int` at the argument — the needle is typed `T`, and the widening `1 == 1.0` gets in an expression is not one an argument position performs. Declaring `array<int|float> $numeric = [1.0, 2.5];` makes `T` the union, the literal fits, and `contains($numeric, 1)` then answers `true` — which is the ADR 0090 § 3 row worth pinning, since `in_array(1, [1.0], true)` is `false` and the loose `in_array(1, [1.0])` is `true`, so Novis matches neither of PHP's two modes.
+- **A `Core` member's refusal is a `FATAL:` line on standard error, not a `Throwable`, so `try`/`catch` cannot pin it.** `Fault::fatal` is what `key_bytes` and every argument-shape guard in `nvs-stdlib` raise, and it unwinds past `catch (Throwable $e)` untouched: a case wrapping `Core\Arr::countBy($floats)` in a `try` prints nothing from its handler and exits 1. Pin it with `--EXPECT-ERROR--` instead, whose presence is also what tells the runner this case's run is *meant* to fail — the stdout before the fatal still has to match `--EXPECT--`, so the agreeing rows can sit in the same case. Get the message by running the scratch under `2>` and `cat -A`: it is one line, `FATAL: ` then the member's own text, and it can carry an internal detail (`got tag 4`) that no other section would let you assert.
 - **A `Core` member's *ordering* refusal is the other kind of `Fault` and a `catch` does reach it.**
-  `Fault::thrown` — what `mwl_stdlib::ordering::compare_values` raises for a pair with no natural
+  `Fault::thrown` — what `nvs_stdlib::ordering::compare_values` raises for a pair with no natural
   order, and so what `Core\Arr::min`/`max`/`sort` raise over a mixed-type subject — unwinds as an
   ordinary `Throwable`, so `try { … } catch (Throwable $e) { echo "refused\n"; }` at file scope
   prints and the case carries on. That is the opposite of the neighbouring bullet's `Fault::fatal`,
@@ -1163,7 +1163,7 @@ is why" — is this file.
   the helper, not by the member, so check the `Fault::` constructor at the site rather than assuming.
 
 - **A `?bool` cannot be tested for truth, so a member answering one has no `yn` rendering at all.**
-  `if ($found as bool)` on a `?bool` parameter panics `mwl-ir`'s truthy-condition slice at
+  `if ($found as bool)` on a `?bool` parameter panics `nvs-ir`'s truthy-condition slice at
   `lower/expr.rs:1036` with *"got Tagged"* — the `as bool` does not narrow the binding out of
   `Ty::Tagged`, and the guarded-branch conversion that works for `?int` and `?string`
   (`return $found as string;`) has no counterpart here because the condition is what fails. The
@@ -1179,7 +1179,7 @@ is why" — is this file.
 
 - **An `--ORACLE--` case must never `echo` a `NAN`.** PHP 8.4 and later emit *"Warning: unexpected NAN value
   was coerced to string"* onto the same stream as the output, so the oracle's expectation carries a warning
-  MWL's side has no way to print and the case fails on a row that actually agrees. `INF` is fine. Render the
+  Novis's side has no way to print and the case fails on a row that actually agrees. `INF` is fine. Render the
   value through a guard instead — `$v == $v` is false for exactly one `float`, on both sides — and echo a
   sentinel, which is what `math-int-div-and-mod-match-intdiv-and-fmod`'s `Show::real` does.
 
@@ -1187,7 +1187,7 @@ is why" — is this file.
   runtime at all.** `Core\Math::min`, `max` and `clamp` declare every parameter and their return as one
   `Var("T")`, so `Core\Math::min(0, "a")` and even `Core\Math::min(2, 1.5)` are `E0401` at the *second*
   argument — which reads as "this member rejects the pair" when what is actually wanted is
-  `mwl_stdlib::ordering::compare_values`'s throw. Declare the union on the bindings (`int|string $zero = 0;`)
+  `nvs_stdlib::ordering::compare_values`'s throw. Declare the union on the bindings (`int|string $zero = 0;`)
   and the same call becomes the runtime refusal the case is trying to pin. In the same family: a `float`
   parameter does not widen an `int` literal, so `Core\Math::mod(7, 2.0)` is `E0401` and `7 as float` or a
   `float` binding is the spelling.
@@ -1198,7 +1198,7 @@ is why" — is this file.
   *repairs* rather than refuses is a candidate. That is usually the signal to split the case, putting
   the repaired inputs in an `--ORACLE-DIVERGES--` file with a frozen `--EXPECT--` and leaving only the
   quiet rows under `--ORACLE--`. Check by running the oracle body through `php -r` while authoring: a
-  notice is visible there and invisible in the `.mwlt` diff, which reports only that the two outputs
+  notice is visible there and invisible in the `.nvst` diff, which reports only that the two outputs
   differ.
 - **A frozen `--EXPECT--` cannot hold a decomposed grapheme cluster, and nothing warns you.** `"cafe\u{0301}"` sliced at its last cluster renders as `é` — byte-identical in a terminal to the precomposed `é` a keyboard types into the expectation block, and a different string. The case reads as passing-looking and fails with an "expected"/"actual" pair whose two halves are visually the same, which is a long minute to diagnose. Echo `Core\Encoding::toHex($s as bytes)` for any cell whose content is not plainly ASCII; the hex is also the thing a reader of a grapheme-versus-byte case wants to see. The neighbouring rule about a trailing space before a `\n` is the same class of trap.
 - **A `?string` does not narrow into a `string` return position, and the fix is `as` rather than a
@@ -1234,7 +1234,7 @@ is why" — is this file.
   rather than as the missing row it is. Render such a case with `Core\Arr::count` for the shape and
   a separate `Core\Encoding::toHex` for each buffer, and keep `Json::encode` for the numeric
   formats, where it prints the whole list in one line.
-- **A `.mwlt` helper cannot take a `Core` enum parameter, and the diagnostic names the same type
+- **A `.nvst` helper cannot take a `Core` enum parameter, and the diagnostic names the same type
   twice.** `public static function m(string $s, Core\Charset $c)` called with `Core\Charset::Ascii`
   is `E0401`, reading *expected `Core\Charset`, found `Core\Charset`* — a source-declared annotation does
   not unify with the registry's own `CoreTy::Enum`, and a `mixed` parameter is refused just as hard
@@ -1255,7 +1255,7 @@ is why" — is this file.
   `Throwable`s, so a `catch (Throwable $e)` reaches both and says nothing about either; the clause
   that discriminates is spelled with the bare class name — `catch (LogicError $e)`, `catch
   (ParseError $e)` — and two such clauses on one `try` compile at file scope, each needing its own
-  binding name like any other. The roster of names is `mwl_runtime::throwable::ThrownClass`'s own
+  binding name like any other. The roster of names is `nvs_runtime::throwable::ThrownClass`'s own
   doc comment, one `///` line per class, which is cheaper to read than spec § 10's tree. What makes
   this worth a case rather than a row is that one member throwing two classes is a *partition*:
   `Core\Time::parse` answers `LogicError` for its pattern argument and `ParseError` for its text,
@@ -1283,9 +1283,9 @@ is why" — is this file.
   `array<array<string>>` parameter and an `array<string>` `{header:}`, and all four ways round it
   fail — `array<array<mixed>>` is `E0401` at the argument, a `mixed` cell is `E0401` inside the
   literal, a whole `mixed` argument is `E0401` at the parameter, and the cast that would launder
-  it panics `mwl-ir` at `crates/mwl-ir/src/lower/expr.rs:877` (`array<T> as array<U>` is the
+  it panics `nvs-ir` at `crates/nvs-ir/src/lower/expr.rs:877` (`array<T> as array<U>` is the
   conversion row still missing). The tool's own header says an entry is a candidate rather than a
-  plan; this is the cheapest way to judge one, and it is four `mwl run` calls on a scratch file
+  plan; this is the cheapest way to judge one, and it is four `nvs run` calls on a scratch file
   rather than a written case that will not compile.
 - **`Core\Bytes::join`'s allocation refusal cannot be reached from source, and the obvious probe
   reports the wrong member.** Its size is the sum of parts that must already be in memory, so a case
@@ -1294,7 +1294,7 @@ is why" — is this file.
   The row looks like a `join` assertion and pins `fill` twice. The reachable count-shaped refusals are
   `Core\Str::repeat`, `Core\Str::padStart`/`padEnd`, `Core\Bytes::repeat`, `Core\Bytes::fill` and
   `Core\Random`'s two; a member whose size is a *product* reaches both sentences (past `isize::MAX` is
-  `mwl_runtime::affordable`'s, below it the allocator's), while one whose size is its own `uint`
+  `nvs_runtime::affordable`'s, below it the allocator's), while one whose size is its own `uint`
   argument — `fill` — can only ever reach the second.
 - **An agreement case gets its sweep from a `mixed`-taking helper and `Core\Json::encode`, not from
   a closure.** The shape with the most room left is the one that asks one question of many members
@@ -1310,8 +1310,8 @@ is why" — is this file.
 
 - **Do not put an append past `9223372036854775806` in a case: it kills the run.** A key of
   `9223372036854775807` followed by `$a[] = v` trips `Table::append`'s
-  `"the append counter never names a live key"` `debug_assert` (`crates/mwl-runtime/src/array.rs:395`)
-  and `mwl run` dies mid-file, so every later row of the case is lost and the failure reads as the
+  `"the append counter never names a live key"` `debug_assert` (`crates/nvs-runtime/src/array.rs:395`)
+  and `nvs run` dies mid-file, so every later row of the case is lost and the failure reads as the
   harness rather than as the bound being probed. The last *accepted* append is the one after a key
   of `9223372036854775806`, which lands at `9223372036854775807`; the plan's `Open now` owns why the
   first refused one is a crash rather than PHP's `Error`.
@@ -1321,7 +1321,7 @@ is why" — is this file.
   die rather than disagree. The way through is the shape `Core\Path::normalize` already uses: write
   the oracle as a **second implementation in PHP**, which for these two is four lines of Euclid and
   is not the thing under test. That still closes the gap, because `gaps.py --differential` looks for
-  a call to the **MWL member** in `tests/differential/`, not for the twin's name in the oracle —
+  a call to the **Novis member** in `tests/differential/`, not for the twin's name in the oracle —
   so the judgement about whether the twin is reachable is entirely the session's. The same check is
   what the `mbstring` bullet above is a second instance of.
 - **A counter declared `uint` cannot be incremented by a literal**: `uint $n = 0; $n = $n + 1;` is
@@ -1336,7 +1336,7 @@ is why" — is this file.
   divergence written as the four paragraphs it wants to be has to be folded back into a single
   paragraph before it will run. Write it as one line from the start and use a capitalised lead-in
   (`THE INTEGER BAND:`) where a `**bold**` heading would otherwise have earned a paragraph break —
-  `json-decode-refuses-the-number-band-json_decode-degrades.mwlt` is the worked shape. The `--TEST--`
+  `json-decode-refuses-the-number-band-json_decode-degrades.nvst` is the worked shape. The `--TEST--`
   line has the same rule and always did; this is the block that looks like it does not.
 - **`Core\Str::length` counts characters, and a CRLF is one of them** — so it is the wrong ruler for
   a round trip. A `Core\Csv` probe measuring `"a\r\nb"` read 3 on both sides and the obvious reading
@@ -1353,9 +1353,9 @@ is why" — is this file.
   square root of the *same* double and IEEE 754 requires them to agree — a property of the table, not of
   the host. The same test applies to any "these two spellings answer the same thing" float case.
 - **No `Core` member accepts a `tainted` or `secret` argument today, so a qualifier case is written out
-  of operators alone.** ADR 0088's classification is on no `mwl-stdlib` member row yet, so every
+  of operators alone.** ADR 0088's classification is on no `nvs-stdlib` member row yet, so every
   `string`/`bytes` parameter is a plain `CoreTy::Str`/`Bytes` and the one-directional widening in
-  `mwl_types::expr::assign` refuses the qualified form at the argument — `Core\Str::length($tainted)` is
+  `nvs_types::expr::assign` refuses the qualified form at the argument — `Core\Str::length($tainted)` is
   `E0401: expected 'string', found 'tainted string'`, which reads like a bug in the case and is not one.
   What a qualified value *can* be asked is concatenation, interpolation, `==`/`!=`, `echo`, and the `as`
   conversions, and that is enough for the agreement shape: build the plain twin beside it and count the
@@ -1375,7 +1375,7 @@ is why" — is this file.
   arguments that are exact — and it is still not enough when the member's own formula is asymmetric.
 
 - **`int as float` is checked and refuses past 2^53, not past `int`'s own range.**
-  `mwl_runtime`'s `int_to_float` is `value.unsigned_abs() <= F64_EXACT_INT_LIMIT`, so
+  `nvs_runtime`'s `int_to_float` is `value.unsigned_abs() <= F64_EXACT_INT_LIMIT`, so
   `Core\Math::INT_MIN as float` throws `cannot convert `int` -9223372036854775808 to `float`` even
   though -2^63 is exactly representable as a double. A case sweeping a `float`-typed member over an
   `int` table is therefore bounded at ±9007199254740992, and reaching `int`'s own extremes on the
@@ -1384,7 +1384,7 @@ is why" — is this file.
   disagree, so an *irrational* cube root's round trip cannot be frozen either way.**
   `Core\Math::cbrt(2.0)` cubed is exactly `2.0` under glibc on the WSL leg and
   `-1.1102230246252E-15` short of it under MSVC natively — measured, in the session that wrote
-  `math-a-root-and-a-logarithm-undo-themselves-only-where-the-answer-is-exact.mwlt`. `sqrt` is the
+  `math-a-root-and-a-logarithm-undo-themselves-only-where-the-answer-is-exact.nvst`. `sqrt` is the
   only root member the standard requires to be correctly rounded, which makes it the only one whose
   inexact rows are the same on every conforming platform: `sqrt(2.0)` squared is
   `4.4408920985006E-16` over 2 everywhere. A *perfect* cube does round trip on both legs — 18 rows
@@ -1401,8 +1401,8 @@ is why" — is this file.
   `Core\Math::abs` answers the `int|float` union and not a `float`. `-0.0` echoes as `-0` and is
   read through `1.0 / $x` when it has to be told from `0.0`, as the parity case does.
 - **A float landmark is exact on both legs, and `php` inside WSL says so without a Linux build of
-  `mwl`.** PHP calls the same libm Rust's `f64` methods do, so
-  `wsl.exe -- bash -lc "php /mnt/<drive>/<repo>/.agent-tmp/rows.php"` answers the "does glibc round this the
+  `nvs`.** PHP calls the same libm Rust's `f64` methods do, so
+  `wsl.exe -- bash -lc "php /mnt/d/nvs/.agent-tmp/rows.php"` answers the "does glibc round this the
   same way MSVC does" question in one call, against the two minutes a cross-build costs. Measured
   that way and safe to assert as *equalities*, on both legs: `acos(-1.0) == PI`, `asin(1.0) == PI /
   2.0`, `acos(0.0) == PI / 2.0`, `atan(1.0) == PI / 4.0`, `cos(PI) == -1.0`, `sin(PI / 2.0) == 1.0`,
@@ -1436,7 +1436,7 @@ is why" — is this file.
   hyperbolic member having no domain to leave on that side.
 - **A spread argument lowers now, so a case that composes a variadic member composes it.**
   `Core\Path::join(...Core\Path::split($p))` is how `path.rs`'s own doc comment writes the round
-  trip, and it used to panic `mwl-ir`; it does not any more. The fold this bullet used to prescribe
+  trip, and it used to panic `nvs-ir`; it does not any more. The fold this bullet used to prescribe
   — a `public static function` helper walking the `array<string>` — is still what a case reaches for
   when the *pieces* are the subject, and two spellings inside it are still worth knowing: an array is
   indexed by the *string* of the offset (`$parts["0"]`, `$parts[$i as string]` inside a loop), and
@@ -1457,7 +1457,7 @@ is why" — is this file.
   `join(split($p)) == normalize($p)` fails on 8 of 20 ordinary rows.
 - **A `!= null` guard does not re-type a nullable local for an *argument* position; `as string` inside
   the guarded branch is what does.** ADR 0066's narrowing is what lets `->` reach a member of a `?Foo`,
-  and `tests/conformance/lang/a-null-test-narrows-a-nullable-local.mwlt` only ever pinned that shape —
+  and `tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst` only ever pinned that shape —
   so `Core\Str::replace($r, …)` inside `if ($r != null)`, where `$r` came from a `?string` member like
   `Core\Path::relativeTo`, is `E0401: expected string, found string|null`, and declaring the local
   `?string` instead of `var` changes nothing. Two spellings do work and both are worth preferring to a
@@ -1466,13 +1466,13 @@ is why" — is this file.
   `$r ?? "<null>"` where the value is only being echoed — which is also how a case prints the refusal
   itself, since `echo` has no `null` row.
 - **A green conformance case can be pinning the bug you are about to fix.**
-  `reading-an-absent-array-key-throws.mwlt` asserted `$maybe["gone"] ?? "stored-null"` *throws* —
+  `reading-an-absent-array-key-throws.nvst` asserted `$maybe["gone"] ?? "stored-null"` *throws* —
   it was written to pin ADR 0007 § 7 row 11 and reached for `??` as a convenient way to spell
   the read, freezing the exact divergence from PHP that row was not claiming. So when a case
   goes red under a fix, check its expectation against PHP (`php -r '…'`) before adjusting
   either side: a `--EXPECT--` block is only as authoritative as the session that wrote it, and
   a case using a construct incidentally is where a wrong one hides.
-- **`python tools/loop.py --list` names the exact `.mwlt` *filenames* each stage owes, and a case
+- **`python tools/loop.py --list` names the exact `.nvst` *filenames* each stage owes, and a case
   written under a different name does not count toward them.** `python tools/holes.py --item N`
   prints the same names under "cases that may belong to it", which is the cheapest place to see them
   — one call, before writing the case rather than after. Two cases went in as
@@ -1492,7 +1492,7 @@ is why" — is this file.
   prints `did not throw ` and *then* lands in the `catch`, so the expected output grows a
   fragment that reads like the case failing open. Bind the call above the `echo` —
   `var $past = Core\Arr::map($edge, $half); echo "did not throw ", ...;` — which is why the
-  `.mwlt` cases beside it do.
+  `.nvst` cases beside it do.
 - **Two `catch` bindings of the same name at file scope are fine only while they name the same
   class.** `catch (LogicError $e)` twice compiles, and so do fourteen of them — which is what makes
   a counted refusal sweep possible at all, since a closure cannot be called through the variable
@@ -1514,18 +1514,18 @@ is why" — is this file.
   a `{ get => …; set { … } }` block after a default is then a *parse* error that cascades into
   six more, so the hook block reads as broken syntax rather than as the illegal default it
   follows. Copy the shape from
-  `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.mwlt`.
+  `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.nvst`.
 - **A parser refusal that yields `ExprKind::Error` doubles its own `--EXPECTF-ERROR--` block.**
   `Error` types as `mixed`, so every binding fed by one reports an `E0401` right beside the refusal
   that caused it — `@$n * 2` printed `E0236` *and* "expected `int`, found `mixed`" at the same span,
   once per site, turning a four-site case into eight blocks of expectation that say nothing. Handing
   the *operand* back in place of the whole prefix is the fix at the source and the better recovery
-  besides; the legacy cast in `mwl-syntax/src/parser/expr.rs`'s `parse_unary` keeps `Error` only
+  besides; the legacy cast in `nvs-syntax/src/parser/expr.rs`'s `parse_unary` keeps `Error` only
   because `(int)$x` names a target type it cannot honestly produce a value of. Decide which of the
   two a new refusal wants *before* writing the expected block, not after pasting it.
 - **`lower_first_method` lowers `T`'s *first* method, so a lowering fixture puts the method
   under test first and its helpers after it.** The instinct is to declare the callee at the
-  top the way a `.mwlt` case does, and the snapshot that comes back is then the callee's own
+  top the way a `.nvst` case does, and the snapshot that comes back is then the callee's own
   three-line body — which looks like a lowering that produced nothing rather than like the
   wrong function, because a `static function m(): void { }` lowers to exactly a `safepoint`, a
   `param` per declaration and a `return`. Recognizing it costs one `cargo insta` cycle;
@@ -1534,9 +1534,9 @@ is why" — is this file.
   failure mode is a *missing* line rather than a wrong one.**
   `a-finally-runs-when-its-catch-body-throws` was handed over as the group's easy third
   slice — no Rust — and the shapes ran, exited 0 and printed something plausible: the
-  `finally;` marker was simply absent from every line. Freezing what `mwl run` printed
+  `finally;` marker was simply absent from every line. Freezing what `nvs run` printed
   would have pinned the divergence as the expectation. So run a new case's shapes in a
-  scratch `.agent-tmp/*.mwl`, write the same program as `.php`, and **diff the two** before
+  scratch `.agent-tmp/*.nvs`, write the same program as `.php`, and **diff the two** before
   filling in `--EXPECT--` — a conformance case takes no `--ORACLE--`, which is exactly why
   its expectation is the one nothing else checks against PHP.
 
@@ -1558,7 +1558,7 @@ is why" — is this file.
   name is the test's module path, so `parser::tests::foo` becoming `parser::tests::stmt::foo` needs the
   `.snap` moved *and* its `source:` line updated. Do that by hand instead of accepting the `.new`, and the
   diff stays a rename rather than a delete plus an unreviewable add.
-- **A big file hides doc comments attached to the wrong item.** Two of `mwl-types`' were 120 lines from the
+- **A big file hides doc comments attached to the wrong item.** Two of `nvs-types`' were 120 lines from the
   function they described, invisible in a 3.5k-line file and obvious the moment it became eight. When a
   carve leaves a doc block stranded above an unrelated item, that is a bug the split found, not one it
   made.
@@ -1566,7 +1566,7 @@ is why" — is this file.
   plan: each paragraph already names the rule it belongs to. What is left in `mod.rs` afterwards is its
   charter — see AGENTS.md's length-target table for why the charter is the part that matters.
 
-## Writing MWL itself
+## Writing Novis itself
 
 **The traps that cost the most time are not gaps.** A `"%1$s"` template must be written in **single**
 quotes or the `$s` interpolates; `as` binds tighter than every binary operator *and* than unary minus,
@@ -1593,9 +1593,9 @@ sibling in the same namespace unqualified.
   the driver refuses to *start* a run under 10 GB free and says what to run — but if you are the one who
   hits it, `python tools/disk.py --clean` is the answer, not `cargo clean`.
 - **A `#[global_allocator]` declared in a *library* crate is only picked up by a binary that
-  actually links that crate.** `mwl_runtime::alloc::Pooled` is registered from `mwl-runtime`'s
+  actually links that crate.** `nvs_runtime::alloc::Pooled` is registered from `nvs-runtime`'s
   own `lib.rs`, so every binary in the workspace gets it — except one whose sources never name
-  `mwl_runtime`, because rustc links an `--extern` crate lazily and an unlinked crate is not in
+  `nvs_runtime`, because rustc links an `--extern` crate lazily and an unlinked crate is not in
   the graph the allocator is chosen from. `benches/abi-probe/tests/perf_guards.rs` happens to
   name it; a *new* test binary measuring allocation might not, and would then silently measure
   the platform heap. `an_allocation_round_trip_stays_in_the_pooled_cost_class` is written to fail
@@ -1608,22 +1608,22 @@ sibling in the same namespace unqualified.
 - **A block-bodied closure must write its return type, and `fn () => { … }` is `E0450`.** The
   spelling is `fn (): void => { echo "x"; }` — an *expression*-bodied closure infers its type from
   the expression, a block-bodied one cannot, and every `Core` member taking a `callable` whose
-  callback does work rather than computing a value meets this. `examples/collect.mwl`'s
+  callback does work rather than computing a value meets this. `examples/collect.nvs`'s
   `Core\Out::capture` line was written the short way and sat there uncompiled for several
   sessions, which is the next bullet's fault as much as this one's.
 
 - **One compile error hides every later one, so "the first red fixture line" moves *backwards* as
-  you fix it.** `examples/collect.mwl` was recorded in three places as failing at line 47 on a
+  you fix it.** `examples/collect.nvs` was recorded in three places as failing at line 47 on a
   missing `Core\Out::capture`; the truth was a **parse** error at 47 that suppressed name
   resolution entirely, and behind it sat a `Core\Uuid::isValid` at line 29 that the spec says does
-  not exist and an `Arr::first` subscript at 45 that panics `mwl-ir`. Budget a fixture as "run it
+  not exist and an `Arr::first` subscript at 45 that panics `nvs-ir`. Budget a fixture as "run it
   again after every fix until it exits 0", not as "one report, one slice" — and do not trust a
   handoff's claim about which line a fixture stops at without running it.
 - **`var` takes no type annotation, and writing one costs four diagnostics a line.** `var string $s = …`
   is not a declaration with a redundant type: the parser reads `var`, expects a name, finds `string`, and
   emits `E0101` twice, `E0102`, a third `E0101` and then an `E0406` claiming `$` is already declared — per
   line, so a six-line scratch file came back with 24 errors and none of them said "a `var` has no type".
-  The two spellings are `var $s = …` (inferred, and what every `.mwlt` case writes) and `string $s = …`
+  The two spellings are `var $s = …` (inferred, and what every `.nvst` case writes) and `string $s = …`
   (declared). The sentence to look for in the wall of output is the second `E0101`'s, "`var` infers its
   type from the initializer".
 - **`int`'s own minimum has no literal spelling, so a case pinning a 64-bit field's lower bound
@@ -1634,9 +1634,9 @@ sibling in the same namespace unqualified.
   argument that can be written, and the honest row asserts the reach — `-9223372036854775807` and
   `18446744073709551615` both landing in the field — instead of inventing a refusal that cannot
   exist. Narrower widths (`C`, `n`, `v`, `N`, `V`) have both sides spellable and should assert them.
-- **The first-class callable spelling `Class::method(...)` panics `mwl-ir` outright** — *"a static call
+- **The first-class callable spelling `Class::method(...)` panics `nvs-ir` outright** — *"a static call
   has no resolved target recorded in the typed-expression table"*, which reads like a checker/lowering
-  mismatch rather than a missing feature. It is the same hole as `mwl-ir` gap 1: a case cannot name one
+  mismatch rather than a missing feature. It is the same hole as `nvs-ir` gap 1: a case cannot name one
   callback and hand it to several members, so every callback in a sweep is written inline at its call
   site. A `public static function` in the case file is still callable *directly*; it is only the
   reference-to-it that does not exist.
@@ -1673,13 +1673,13 @@ sibling in the same namespace unqualified.
   throw in no other. A `?uint` needs the same cast for a different reason (there is no `uint` row in
   `echo`), so one `Show::render(?T $found): string` covers both and is worth copying between cases.
 - **A `--release` acceptance check costs a thin-LTO relink of every test binary in the package, not
-  just the one holding the guard.** Touching `crates/mwl-runtime/src/lib.rs` and rebuilding
-  `mwl-abi-probe` measured 200s for the package and 133s for `--test perf_guards` alone: five binaries
+  just the one holding the guard.** Touching `crates/nvs-runtime/src/lib.rs` and rebuilding
+  `nvs-abi-probe` measured 200s for the package and 133s for `--test perf_guards` alone: five binaries
   at ~17s of link each, over ~116s of compiling six crates at `codegen-units = 1`. So a `--release`
   check in `loop-goal.toml` names its test *file*, and anything in the package that is not a cost
-  guard gets a second, debug check — 29s for all of `mwl-abi-probe`, with the guards skipping
+  guard gets a second, debug check — 29s for all of `nvs-abi-probe`, with the guards skipping
   themselves through `#[cfg_attr(debug_assertions, ignore)]`. Do not reach for a cheaper profile
-  instead: the cost class is a claim about the profile MWL ships, so `lto`/`codegen-units` are the
+  instead: the cost class is a claim about the profile Novis ships, so `lto`/`codegen-units` are the
   measurement and not overhead on it. What is left after narrowing is a build, and a build overlaps:
   `loop.py` starts it before the native build and runs the check last, which took a cold sweep from
   326s to 183s. Two cargos on one `target/` do not block each other — only the registry's package
@@ -1710,35 +1710,35 @@ sibling in the same namespace unqualified.
   calling one through the variable holding it lowers too (it used to panic). `array<callable>
   $filters = [fn (Core\Cli\Text $c): int => 7, ...];` then `foreach ($filters as callable
   $filter) { ... Core\Out::capture($body, {through: $filter}) ... }` lowers and runs, because the
-  call is the runtime's (`mwl_runtime::call_closure`) and not a lowered `Call` — which is what
+  call is the runtime's (`nvs_runtime::call_closure`) and not a lowered `Call` — which is what
   turns a sweep over eight closures into a sweep rather than eight copies of one block. Two
   spellings to get right on the way: a **block-bodied** `fn` must declare its return type
   (`E0450`: `fn (): void => { ... }`), an expression-bodied one takes the expression's; and a
   `mixed` is **not** implicitly assignable to a narrower type, so `array<string> $row = ["a",
   $cell];` over a `mixed $cell` is `E0401` at the element.
-- **An integer literal past `int` lowers in a `uint` *argument* and panics `mwl-ir` inside an
+- **An integer literal past `int` lowers in a `uint` *argument* and panics `nvs-ir` inside an
   `array<uint>` literal.** `Core\Random::bytes(9223372036854775808)` is fine — the parameter's
   declared type is what decides how the literal lowers — but `array<uint> $counts = [1,
-  9223372036854775808];` dies with *"mwl-ir: integer literal `9223372036854775808` doesn't fit an
+  9223372036854775808];` dies with *"nvs-ir: integer literal `9223372036854775808` doesn't fit an
   `int`"*, an element position carrying no such expectation. So a sweep table whose rows run past
   `i64::MAX` has to *compute* them rather than write them, and the multiplier is the second half of
   the trap: `$n * 2` over a `uint` is `E0407` and then `E0401`, the literal `2` being an `int` with
   no representable common type, so the case declares `uint $two = 2;` and multiplies by that.
 - **One `RuntimeSig` may name the signature two different runtime symbols are declared under, and
-  changing one symbol's Rust declaration then miscompiles the other in silence.** `mwl_array_unset`
+  changing one symbol's Rust declaration then miscompiles the other in silence.** `nvs_array_unset`
   was emitted through `RuntimeSig::ArrayAppend` because both happened to be two pointers in and one
-  pointer back; the moment `mwl_array_append` grew ADR 0002's `(ctx, …, out) -> status` shape, that
-  reuse would have declared `mwl_array_unset` to Cranelift with four parameters and an `i32` return
+  pointer back; the moment `nvs_array_append` grew ADR 0002's `(ctx, …, out) -> status` shape, that
+  reuse would have declared `nvs_array_unset` to Cranelift with four parameters and an `i32` return
   and nothing — not the Rust compiler, not `clippy`, not a codegen test — would have said so, because
   `Linkage::Import` never checks a declaration against the definition. So before editing an
-  `extern "C"` in `mwl-runtime`, grep `crates/mwl-codegen/src/emit.rs` for its `RuntimeSig::` variant
+  `extern "C"` in `nvs-runtime`, grep `crates/nvs-codegen/src/emit.rs` for its `RuntimeSig::` variant
   and check whether a *second* `runtime_ref` call names it; if one does, give that symbol its own
-  entry in `Signatures` first. `mwl_str_concat`/`mwl_str_append`/`mwl_str_concat_n` and the
-  `mwl_throwable_*` pair are the other shared entries, and their doc comments say the sharing is
+  entry in `Signatures` first. `nvs_str_concat`/`nvs_str_append`/`nvs_str_concat_n` and the
+  `nvs_throwable_*` pair are the other shared entries, and their doc comments say the sharing is
   deliberate.
 - **A closure passed to a `Core` member may call a static method in its body, and `"\u{0000}"` is
   how a case writes a NUL.** Two spellings the neighbouring bullets make one doubt, both measured in
-  a scratch `.mwl` and both fine: the closure trap is only about calling a closure *through the
+  a scratch `.nvs` and both fine: the closure trap is only about calling a closure *through the
   variable holding it*, so `fn (int $a, int $b): int => Key::magnitude($a) - Key::magnitude($b)`
   handed to `new Core\Heap<int>(...)` — and the identical body handed to `Core\Arr::sort`'s `{by}` —
   lowers and runs, which is what lets one rule be written twice and the two members asked to agree
@@ -1766,7 +1766,7 @@ sibling in the same namespace unqualified.
 - **A `Core` member declared `CoreTy::Union(NUMBER)` answers `int|float|decimal`, and that union is a
   *representation* no binary operator will meet a plain `int` or `float` across.** `Core\Math::abs` is
   the one a sweep reaches for first: `Core\Math::abs($n) == Core\Math::max($n, 0 - $n)` type-checks and
-  then dies at run time with *"mwl-codegen does not lower a binary operator over mismatched
+  then dies at run time with *"nvs-codegen does not lower a binary operator over mismatched
   representations"*, and passing it on to a member that wants one arm — `Core\Math::isNan(Core\Math::abs($x))`
   — is `E0401: expected float, found int|float|decimal` at compile time instead. Write
   `Core\Math::abs($x) as int` / `as float` at every use; the cast is free, and which arm to write is
@@ -1784,32 +1784,32 @@ sibling in the same namespace unqualified.
   `array<T>` element — and the diagnostic prints the same name on both sides.** `array<Core\Unit>
   $units = [Core\Unit::Day]` and `public static function step(Core\Unit $u)` are each `E0401:
   expected `Core\Unit`, found `Core\Unit``, because the registry interns the name as an enum type
-  (`crates/mwl-types/src/core_lib.rs:292`) and the source-written annotation resolves to something
+  (`crates/nvs-types/src/core_lib.rs:292`) and the source-written annotation resolves to something
   else. A **user-declared** `enum Mode: int { Fast = 0, }` works in both positions, so the hole is
   specific to `Core\Unit`, `Core\Order` and their siblings. What this costs a case is the sweep
-  shape: a table of units cannot be iterated, so a `.mwlt` that steps by several units writes the
+  shape: a table of units cannot be iterated, so a `.nvst` that steps by several units writes the
   case literal at each `plus`/`minus` call site inside a loop over the *other* dimension, which is
   what both `Core\Time\Date` and `Core\Time\TimeOfDay`'s agreement cases do.
 - **A local's name is checked, and the diagnostic is `E0112`.** `int $words_n = …` in a case is
   *"local variable names must be camelCase, e.g. `wordsN`"*, with the rename spelled out in the
   suggestion — so a snake_case counter or table name costs a whole run of the case to learn
   something the name itself could have avoided. Reach for `$wordsN`, `$firstOrdered`,
-  `$mathMinRefused` from the first draft; a `.mwlt` case tends to want several near-identical names
+  `$mathMinRefused` from the first draft; a `.nvst` case tends to want several near-identical names
   at once (one `catch` binding per clause, since they are all function-scoped) and that is exactly
   where the underscore creeps in.
 - **ADR 0007 § 2's one implicit conversion was not implemented at all, and it reads as a
   division problem until you probe a plain assignment.** `float $x = $n;` over an `int $n`
-  was `E0401: expected float, found int` — `mwl_types::expr::assign::is_assignable` had no
+  was `E0401: expected float, found int` — `nvs_types::expr::assign::is_assignable` had no
   `int`/`uint` → `float` row and no rule for a *union* source against a non-union target, so
   ADR 0007 § 4's `int|float` quotient could not reach a declared `float` either. Both rows are
-  there now, with `mwl_ir::lower::Lowering::coerce` performing the conversion — and that is
+  there now, with `nvs_ir::lower::Lowering::coerce` performing the conversion — and that is
   the shape of the trap for anything similar: the widening **throws** above 2^53, so it could
   not live in `coerce` until `&Env` was threaded through all 17 of its call sites *and*
   `close_nullsafe`, which had none of its own. A conversion that can fail needs the frame's
   landing block, and `coerce` was written when none of its rows could fail.
 - **A shift count carries its operand's signedness, so a `uint` shift needs a `uint` count.**
   `$u << 64` is `E0407: int and uint have no representable common type in arithmetic`, because
-  `mwl_types::expr::operators::bitwise_result` refuses a mixed-signedness pair for all five
+  `nvs_types::expr::operators::bitwise_result` refuses a mixed-signedness pair for all five
   binary bitwise rows and a count is just the right-hand operand. Declare `uint $width = 64;`
   and shift by that. On the `int` arm a *negative* count is the one refusal PHP has —
   `ArithmeticError: Bit shift by negative number` — and a count of 64 or more answers `0`
@@ -1823,7 +1823,7 @@ sibling in the same namespace unqualified.
   what makes it a `decimal`.
 - **An enum is not spelled the way PHP spells it, and an enum case is not a property
   default.** `enum Mode: int { case Read = 1; }` parses as a *class* and reports eight
-  errors on four lines, none of which says "wrong enum syntax": the MWL shape is
+  errors on four lines, none of which says "wrong enum syntax": the Novis shape is
   `enum Mode { Read = 1, Write = 2 }` — bare names, commas, no `case` keyword — and the
   backing type is `enum Mask: uint { … }`, which is the only way to reach `EnumRepr::Uint`
   since a case past `int` is `E0437` under the default backing. Then
@@ -1857,7 +1857,7 @@ sibling in the same namespace unqualified.
   element to the array as the next element is already occupied"*. A **call** argument
   spread (`f(...$a)`) lowers now too — into a variadic tail at a resolved target, and
   through `Helper::CallClosureArray` at a `callable`.
-- **A local's slot is re-pointed in four places in `mwl_ir::lower`, and a rule hooked into
+- **A local's slot is re-pointed in four places in `nvs_ir::lower`, and a rule hooked into
   `bind_local_value` catches three.** That function is the funnel for `$x = e` and every
   compound form; `write_back_holder` (an `inout` argument's copy-back) and `write_back_array`
   (`$x[0] = e`) `env.insert` directly and each needs the hook of its own. The fourth is a
@@ -1865,7 +1865,7 @@ sibling in the same namespace unqualified.
   re-points the array binding by hand, so with three hooks in place a nested
   `foreach ($grid as … inout $row) { foreach ($row as … inout $cell) … }` updated the row and never
   told the grid — it builds, every single-level case passes, and the wrong answer is a
-  silently un-updated outer array. `grep -n "env.insert(" crates/mwl-ir/src/lower/` is the
+  silently un-updated outer array. `grep -n "env.insert(" crates/nvs-ir/src/lower/` is the
   whole check, and it is worth doing for any rule phrased as "whenever this name is
   rebound".
 - **A `holes.py` site's panic message names one route, and the `assert!` four lines below it is
@@ -1875,7 +1875,7 @@ sibling in the same namespace unqualified.
   the operator exists for. Only a `panic!`/`todo!`/`unimplemented!` is *counted* as a site, so the
   item's prose ("almost certainly a diagnostic rather than a lowering") was written from an
   inventory that could not see the assert. Read the whole function, and spend one scratch
-  `.agent-tmp/*.mwl` per operand shape before believing an item that predicts its own answer.
+  `.agent-tmp/*.nvs` per operand shape before believing an item that predicts its own answer.
 - **A `#[should_panic(expected = "known gaps")]` test is how a lowering hole is pinned, and closing the
   hole turns it red rather than green.** `verify.py`'s `test` step failed on
   `a_mixed_condition_still_panics_naming_the_gap` *after* the panic was replaced by a working lowering —
@@ -1910,12 +1910,12 @@ sibling in the same namespace unqualified.
   disagree, so the scratch file that judges one has to make them disagree.
 - **A closure's declared parameter types are checked by nobody, and a mismatch is an arbitrary
   dereference rather than a fault.** `Core\Arr::map($ints, fn (string $s): string => $s)` over an
-  `array<int>` dies inside `mwl-runtime`'s `string.rs` on a misaligned pointer, and `$f(1)` on a
+  `array<int>` dies inside `nvs-runtime`'s `string.rs` on a misaligned pointer, and `$f(1)` on a
   `fn (string $s)` does the same now that a direct call lowers: ADR 0031 § 1 gives `callable` no
   parameter list, so nothing compares a call site against the body it reaches and the compiled
   `invoke` reads each slot at its own declared representation. So a case or a fixture that hands a
   closure to a `Core` member must spell the element type and the parameter type *the same*, and a
-  crash with no MWL frame in it is this before it is anything else. `mwl_runtime::closure`'s module
+  crash with no Novis frame in it is this before it is anything else. `nvs_runtime::closure`'s module
   doc owns the hole and what closing it costs.
 - **An integer literal in an array-literal element position keeps `int`, whatever the array's
   declared element type says.** `array<uint> $u = [7, 8];` compiles and its elements carry the
@@ -1930,9 +1930,9 @@ sibling in the same namespace unqualified.
   is then `E0405: `M` has no property named `name`` from anywhere, including inside the class — so
   a scratch file that reaches for one gets a diagnostic naming the *property* and reads as a typo
   rather than as the missing feature it is. Declare the field (`public string $name = "m";`) when
-  the case only needs an object with a field; `tests/conformance/core/out-capture-refuses-a-through-that-answers-anything-but-the-carrier.mwlt`'s
+  the case only needs an object with a field; `tests/conformance/core/out-capture-refuses-a-through-that-answers-anything-but-the-carrier.nvst`'s
   `Impostor` has a promoted one and gets away with it only because it never reads it.
-- **An MWL enum case carries no `case` keyword**, so PHP's `enum Colour: int { case Red = 1; }`
+- **An Novis enum case carries no `case` keyword**, so PHP's `enum Colour: int { case Red = 1; }`
   is `enum Colour: int { Red = 1, }` here — commas, not semicolons. Getting it wrong does not
   say so: the parser reports `E0220` *"an enum declares only cases and an optional backing
   type"* pointing at the `{`, then `E0101` *"expected a class member"* at the `case`, then one
@@ -1942,7 +1942,7 @@ sibling in the same namespace unqualified.
 - **A property default may not be an array with entries in it** — `public array<string> $rows =
   ["a" => "x"];` is `E0472` (*"a property default must be a `array<string>` literal"*, which reads
   as if the literal were mistyped), and `[]` is the only array a declaration may carry. So a scratch
-  file or a `.mwlt` case that wants a pre-filled array property fills it with element writes after
+  file or a `.nvst` case that wants a pre-filled array property fills it with element writes after
   the `new`, or in `constructor` — and the same rule bites a `public static` one, where there is no
   constructor to fall back on and the writes have to be top-level statements.
 - **A panic's message names the shape it was written for, not the shape that reaches it.**
@@ -1951,7 +1951,7 @@ sibling in the same namespace unqualified.
   earlier — `$o->name = "z"` through a plain `object`, a `mixed` and a shape all run, and
   both of § 4's write throws (missing name, wrong type for the field's *real* declared type)
   fire correctly. What actually reached it was a **computed member name** and an undeclared
-  property on a class kind the checker excused. Four scratch `.mwl` files under `.agent-tmp/`
+  property on a class kind the checker excused. Four scratch `.nvs` files under `.agent-tmp/`
   found that in one call each; reading the message and believing it would have rebuilt a
   feature that was already there. Enumerate the arms of whatever *records* the table entry
   and probe one program per arm, before taking the panic's own account of itself.
@@ -1961,7 +1961,7 @@ sibling in the same namespace unqualified.
   `type` — reached the catch-all from source the checker happily accepted, and one of them
   (`autoload` in the *entry* file) is spelled in a passing conformance case, just from a
   `require`d file whose statements never lower. Grep the enum's variant list, subtract the arms,
-  then write one scratch `.mwl` per survivor and run it: six `mwl run` calls settled thirteen
+  then write one scratch `.nvs` per survivor and run it: six `nvs run` calls settled thirteen
   variants, where reading the arms would only have re-derived the claim. The same subtraction is
   what turns the residue into the doc comment the panic then carries.
 - **Inside a `namespace`, a qualified name resolves *relative* to it — including `Core\`.** A file
@@ -1972,22 +1972,22 @@ sibling in the same namespace unqualified.
   then `Str::length(...)`, or write the leading `\`. The same rule is why `App\User::class` inside
   `namespace App;` is `App\App\User` — PHP resolves both exactly this way, so it is a trap rather
   than a divergence.
-- **Widening what the *checker* accepts for an integer literal opens a hole in `mwl-ir` one
+- **Widening what the *checker* accepts for an integer literal opens a hole in `nvs-ir` one
   crate down.** `lower_int_literal` decides `ConstInt` versus `ConstUint` from the
   `expected: Option<Ty>` its *caller* threads, not from anything the checker recorded — so a
   literal the checker newly places at `uint` still lowers as an `int` and panics with
-  *"mwl-ir: integer literal `…` doesn't fit an `int`"* wherever the position hands no `Ty`
+  *"nvs-ir: integer literal `…` doesn't fit an `int`"* wherever the position hands no `Ty`
   down. `lower_binary` passes `Some(lty)` to its right operand and only the whole
   expression's `expected` to its left, which is why the left-hand digit run was the half that
   fell over while `$u - 18446744073709551615` was already fine. The two crates have to make
   the same placement, and the checker's half alone is not the feature.
-- **A new `mwl_ir::Helper` row needs a *fourth* edit, and the three obvious ones all build
+- **A new `nvs_ir::Helper` row needs a *fourth* edit, and the three obvious ones all build
   clean without it.** The variant, `print.rs`'s name and `emit.rs`'s `helper_symbol` string are
-  what a session looks for; what nothing points at is `mwl_runtime::helpers`' symbol table,
+  what a session looks for; what nothing points at is `nvs_runtime::helpers`' symbol table,
   the `(name, address)` list the JIT resolves against. Miss it and the whole workspace
   compiles, every unit test passes, and the *first program that reaches the new row* dies
-  inside cranelift with `can't resolve symbol mwl_<name>` and no MWL frame anywhere in the
-  message. `grep -n "mwl_call_closure" crates/` names all four sites at once.
+  inside cranelift with `can't resolve symbol nvs_<name>` and no Novis frame anywhere in the
+  message. `grep -n "nvs_call_closure" crates/` names all four sites at once.
 - **`inout ...$rest` does not parse, and spreading into a variadic `inout` tail is accepted in
   silence.** `Parser::parse_arg` tests for `...` *before* it eats `inout`, so the marked spelling
   eats the word and then fails on the ellipsis — `E0714` plus five lines of `E0101`/`E0102`
@@ -2009,7 +2009,7 @@ every session. Nothing below was reworded on the way.
 - **A member answering a value rather than an array has no key rule to diverge over at all**, which
   is why `min`/`max` and `reduce` match PHP over a map as readily as over a list; what parts them
   from their twins is PHP's loose comparison — `min([0, "a"])` is `0`, and two numeral strings
-  compare numerically — and `array_reduce`'s callback taking exactly two arguments where MWL's
+  compare numerically — and `array_reduce`'s callback taking exactly two arguments where Novis's
   takes the key third.
 - **Four other twins sit outside the key rule**: `array_unique` renumbers nothing at all, so the
   divergence there is `SORT_STRING`'s comparison by *spelling*; `array_count_values` names a bucket
@@ -2024,7 +2024,7 @@ every session. Nothing below was reworded on the way.
   shape the rest take: nothing there has a key rule, so a member either agrees with its twin
   outright or parts over a *tie*, a *conversion*, a *guard* or a *repair*.
 - **PHP's two-argument `min` answers its second argument on a tie and its `max` answers its
-  first**, where `mwl_stdlib::math::pick` answers the first to both — visible wherever two equal
+  first**, where `nvs_stdlib::math::pick` answers the first to both — visible wherever two equal
   values are distinguishable, `min(1000000000000000000, 1.0e18)` being the sharpest — and
   `f64::total_cmp` separates `-0.0` from `0.0` where PHP's `<` calls them equal.
 - **`Core\Math::mod` throws on a zero divisor where `fmod` answers `NAN`**, spec § 3 making a
@@ -2037,7 +2037,7 @@ every session. Nothing below was reworded on the way.
   subnormal, and every one of those renders byte-identically on both sides; `hypot` and `atan2`
   agree on the four signed-zero quadrants, on the infinite ones, and on the magnitude where
   `sqrt($x * $x + $y * $y)` overflows and `hypot` does not.
-- **The one guard this added is `log`'s *base***, which PHP has and MWL did not: a base not greater
+- **The one guard this added is `log`'s *base***, which PHP has and Novis did not: a base not greater
   than zero is a `Fault::thrown` where PHP raises a `ValueError`, and base `1.0` is `NAN` on both
   sides rather than the infinity `ln($n) / ln(1.0)` would answer.
 - **The base pair and the two predicates are closed too, and each parts from its twins over a
@@ -2062,17 +2062,17 @@ every session. Nothing below was reworded on the way.
   PHP's spelling a whole-degree round trip lands back on its angle for 19 of 22 sampled angles and
   under the std one for 13, so the ulp is what a ported program comparing a round trip actually
   sees. AGENTS.md's priority 2 — PHP-compatible *observable* behaviour — is what decides it, and
-  the accuracy spent is stated in `mwl_stdlib::math`'s own doc comments at both members.
+  the accuracy spent is stated in `nvs_stdlib::math`'s own doc comments at both members.
 - **`Core\Math::gcd` and `::lcm` have no callable twin on either leg**: neither the Windows `php`
   nor WSL's has `gmp`, so `gmp_gcd`/`gmp_lcm` are undefined functions and an oracle case for those
   two has to compute its expectation with an explicit Euclidean loop in PHP or be left out of the
   count.
-- **MWL's `float` rendering is PHP's**, precision 14 with trailing zeros trimmed — `sqrt(2.0)`
+- **Novis's `float` rendering is PHP's**, precision 14 with trailing zeros trimmed — `sqrt(2.0)`
   prints `1.4142135623731`, `exp(-745.0)` prints `4.9406564584125E-324` and `0.1 + 0.2` prints
   `0.3` on both sides — so a `Core\Math` oracle case may echo a float directly and needs no
   formatting, but never a `NAN`, which PHP 8.4 and later warn about coercing to a string.
 - **`Core\Str`'s twins part from PHP over a *unit* before they part over anything else**, and
-  `slice`/`replaceRange` is the worked pair: `mwl_stdlib::granularity::DEFAULT` is
+  `slice`/`replaceRange` is the worked pair: `nvs_stdlib::granularity::DEFAULT` is
   `Unit::Grapheme`, so a member's `int $offset` and `?int $length` count clusters where `substr`
   counts bytes and `mb_substr` counts code points. Inside ASCII with no carriage return all three
   units coincide, which is why the whole offset/length sign table — 10 offsets × 9 lengths, both
@@ -2107,7 +2107,7 @@ every session. Nothing below was reworded on the way.
   only ordering two strings have at all, since `<` over two `string`s does not lower.
 - **`reverse` and `chunk` are closed, and on those two the unit is the *whole* disagreement**,
   since neither takes an offset: `strrev` and `str_split` walk bytes, so their answer for any
-  subject outside ASCII is not well-formed UTF-8 and therefore not a value MWL can hold at all —
+  subject outside ASCII is not well-formed UTF-8 and therefore not a value Novis can hold at all —
   which is why neither member is offered a compatibility spelling back to its twin, there being
   nothing there a port could want. Over ASCII both agree with their twins outright, and what each
   agreeing file pins is the *properties* rather than the rows: `reverse` is its own involution over
@@ -2122,7 +2122,7 @@ every session. Nothing below was reworded on the way.
   from their twins is the piece *count* — `Core\Str::chunk($s, 1)` answers `Core\Str::length($s)`
   pieces where `str_split($s, 1)` answers `strlen($s)` of them.
 - **`replaceAll` and `wrap` are closed too, and each is a fold whose two twins disagree with *each
-  other* rather than with MWL.** `replaceAll` folds `str_replace`'s array form and `strtr`, which
+  other* rather than with Novis.** `replaceAll` folds `str_replace`'s array form and `strtr`, which
   read one table two ways: `strtr` scans the subject once and takes the longest needle matching at
   each position, never rescanning what it produced, where `str_replace` runs each pair over the
   whole subject in turn and feeds every earlier replacement to every later pair.
@@ -2150,7 +2150,7 @@ every session. Nothing below was reworded on the way.
   one item of the closed section that is not counted.
 - **`codePoints` and `fromCodePoint` close the section, and they are the one pair whose unit the
   *member* chose rather than one the class default imposed**: `codePoints` is `Unit::CodePoint` on
-  purpose, `mwl_core_str_code_points`'s doc comment being the home of why, so it parts from
+  purpose, `nvs_core_str_code_points`'s doc comment being the home of why, so it parts from
   `Core\Str::length` on exactly the subjects where a cluster holds more than one scalar value —
   four of seven sampled, `\r\n` among them, which is the one place inside ASCII the two units
   disagree. Inside ASCII the byte-wise half of PHP's pair answers the same question, so `str_split`
@@ -2164,7 +2164,7 @@ every session. Nothing below was reworded on the way.
   argument with `% 256`, which makes `chr(55296)`, `chr(1114112)` and `chr(0)` one byte and the
   function not injective past 255 — with no diagnostic. `fromCodePoint` refuses instead: a
   surrogate in `55296..=57343` and anything past `1114111` are a catchable `Fault::thrown`
-  (`mwl_stdlib::str::scalar_value`), never a substituted U+FFFD, ADR 0009 § 3's
+  (`nvs_stdlib::str::scalar_value`), never a substituted U+FFFD, ADR 0009 § 3's
   checked-not-repaired rule reaching a code point exactly as it reaches a buffer.
 - **PHP is retreating from the wrap from its own end**: on 8.5.9 `chr()` *deprecates* an argument
   outside `0..255`, and the notice it prints to stdout is itself why that half cannot be an oracle
@@ -2231,7 +2231,7 @@ every session. Nothing below was reworded on the way.
   say what they stopped at: `at`'s index against the length it is outside of, `chunk`'s size,
   `countOf`'s needle, and which of `wrap`'s two options, whose width pair is the sharper because
   the same width of 0 is an answer or a throw depending only on `cutLongWords`.
-- **`Core\Str::at`'s message was the one in `mwl-stdlib` missing the `()` every sibling writes**
+- **`Core\Str::at`'s message was the one in `nvs-stdlib` missing the `()` every sibling writes**
   and now has it. What the two cases add past their rows is counted. `Latin1` is the one charset
   with no refusal at all, so it reads every one of the 256 octets and each returns as the octet it
   went in as, while `Ascii` reads exactly half — the same bound stated as a partition rather than
@@ -2260,7 +2260,7 @@ every session. Nothing below was reworded on the way.
   refuses — and every refusal but the empty one quotes what it was handed. Twelve paths against one
   extension leave the nameless ones exactly the six roots, a *trailing* separator not being one,
   each naming the path back.
-- **Spec § 4's three `format` members read one pattern compiler** (`mwl_stdlib::cldr`) and each
+- **Spec § 4's three `format` members read one pattern compiler** (`nvs_stdlib::cldr`) and each
   wraps its refusal in its own name, which is the half of the sentence the neighbouring § 4 cases
   never asserted: an unknown letter, an unterminated quote and `V` at any count but two are one
   grammar spoken in three names. What the two zone-free halves do not share is the narrowing, which
@@ -2331,7 +2331,7 @@ every session. Nothing below was reworded on the way.
   `LogicError`, the class saying the value was built by the program rather than handed to it by the
   world, and each is wrapped in the member's own name. The three sentences are frozen and two of
   them are new here: a non-finite `float` is quoted the way `echo` spells it, `NAN` and `INF`
-  through `mwl_runtime::php_float_to_string` rather than Rust's `inf`, and a value whose tag has no
+  through `nvs_runtime::php_float_to_string` rather than Rust's `inf`, and a value whose tag has no
   spelling is named by `Tag::describe` — ``a `bytes` value has no JSON encoding`` — where it
   reported a tag *number* only this crate can read, that arm being where a `bytes` argument lands
   as `Encodable::text`'s own doc comment already said.
@@ -2381,8 +2381,8 @@ every session. Nothing below was reworded on the way.
   a partition and is counted: of the eight answers a `through` can give exactly the identity is
   accepted, all seven refusals are wrapped in the member's own name, and nothing the refusing seven
   captured reaches the program's output, the capture level being closed on both edges.
-- **`--errors` names no catchable site a case can still assert anywhere in `mwl-stdlib`.**
-  `random.rs:333` was reachable after all: `mwl_runtime::affordable` refuses only a size past
+- **`--errors` names no catchable site a case can still assert anywhere in `nvs-stdlib`.**
+  `random.rs:333` was reachable after all: `nvs_runtime::affordable` refuses only a size past
   `isize::MAX`, so every count at or below it that the allocator cannot serve reaches the *second*
   check, and the bound between the two is one count wide with a different sentence on each side of
   it.
@@ -2406,14 +2406,14 @@ every session. Nothing below was reworded on the way.
   array<U>` does not lower — so no program can put a non-`string` in a cell, and the column that
   refusal names cannot be reached until that conversion row lands.
 - **Every count-shaped producer in the library draws fallibly now, and the last of them needed a
-  runtime seam rather than a call-site fix.** `mwl_runtime::affordable` refuses only a size past
+  runtime seam rather than a call-site fix.** `nvs_runtime::affordable` refuses only a size past
   `isize::MAX`, so every count below it that the machine cannot serve used to reach an infallible
-  `MwlStr::build`, `vec![…; n]`, `slice::repeat` or `Vec::push` and abort — exit 127, nothing on
+  `NvsStr::build`, `vec![…; n]`, `slice::repeat` or `Vec::push` and abort — exit 127, nothing on
   stderr, nothing catchable, every in-flight request with it. Measured, not deduced:
   `Core\Arr::fill(1000000000000, 0)` printed an allocator abort and now throws and is caught, as
   `Core\Str::repeat("x", 1000000000000)` already did.
-- **The fallible half of the string seam is `MwlStr::try_build`**
-  (`crates/mwl-runtime/src/string.rs:317`), which answers `None` where `MwlStr::build` aborts and
+- **The fallible half of the string seam is `NvsStr::try_build`**
+  (`crates/nvs-runtime/src/string.rs:317`), which answers `None` where `NvsStr::build` aborts and
   is **exact-capacity only**: a writer past its capacity still grows through the aborting
   `StrWriter::grow`, which is why `built` stays the spelling for a member whose capacity is a bound
   on a subject already in memory rather than a count off its own call site. `Core\Str`'s three
@@ -2421,7 +2421,7 @@ every session. Nothing below was reworded on the way.
   `reserved`/`produced_fallibly` (`bytes.rs:459`, `:434`) — the `Vec` reserved with `try_reserve`,
   amortized because `join` reaches it once per part, and the copy out through `try_build` as well,
   since that second allocation is as able to fail as the first and both are live at that moment.
-- **The array half is `MwlArray::try_reserve`** (`crates/mwl-runtime/src/array.rs:789`), which is
+- **The array half is `NvsArray::try_reserve`** (`crates/nvs-runtime/src/array.rs:789`), which is
   the same bargain over the entry storage instead of over a payload: `Vec::try_reserve` in the
   packed form, both of the hash form's vectors otherwise, and what it makes infallible is the entry
   storage's growth and nothing else — the hash form's append also renders and allocates a key, so a
@@ -2436,7 +2436,7 @@ every session. Nothing below was reworded on the way.
   length being the size; and `Core\Bytes::join`'s is not reachable from source at all, its parts
   having to be in memory already to sum past it.
 - **The agreement is asserted now**
-  (`tests/conformance/core/count-shaped-producers-refuse-alike.mwlt`): eight members answer a size
+  (`tests/conformance/core/count-shaped-producers-refuse-alike.nvst`): eight members answer a size
   they can serve, the seven that can reach the policy seam speak one sentence there word for word,
   and the allocator's sentence partitions the eight by the noun each names — 3 `string`, 2
   `buffer`, 3 `array` — with every message checked to begin with its own member's name, so a member
@@ -2458,7 +2458,7 @@ every session. Nothing below was reworded on the way.
   where PHP reads an integer** (`json-decode-refuses-the-number-band-json_decode-degrades`). The
   refusal band is exactly `i64::MAX`+1 ..= `u64::MAX`: `9223372036854775807` is read exactly by both,
   `9223372036854775808` and `18446744073709551615` throw here and become floats there, and
-  `18446744073709551616` is widened by *both* — that upper edge is `mwl_stdlib::json`'s gap 1 rather
+  `18446744073709551616` is widened by *both* — that upper edge is `nvs_stdlib::json`'s gap 1 rather
   than a rule, since `serde_json` has already made an `f64` of a longer literal before the visitor
   sees it. There is no negative half of the band: `int`'s floor is read exactly and one below it is
   widened by both, because the only refusing visitor arm is the unsigned one. `1e999` refuses here at
@@ -2481,7 +2481,7 @@ every session. Nothing below was reworded on the way.
   refuses with "its magnitude is one past the largest" (ADR 0007's no-silent-promotion rule). A case
   asserting the divergence should assert that the derivation *answered* and `abs` *refused*, not what the
   arithmetic wrapped to — the overflow policy is a different member's question and pinning it here would
-  make this case fail for the wrong reason. `math-abs-and-sign-are-the-ordering-trio-and-part-from-it-only-where-they-refuse.mwlt`
+  make this case fail for the wrong reason. `math-abs-and-sign-are-the-ordering-trio-and-part-from-it-only-where-they-refuse.nvst`
   is the shape.
 - **`Core\Uri`'s four percent-coders are inverse in three of their four cross-directions, and the
   fourth is the space.** `decodeFormValue` reads `%20` as well as `+`, so it undoes
@@ -2493,17 +2493,17 @@ every session. Nothing below was reworded on the way.
   a `string`, so `decodeComponent("%FF")` throws (`uri.rs`'s gap 2). In the same family, the one
   `Uri` for which the seven readers do not recompose to `toString()` is one whose port was written
   empty: `http://h:/p` reports `port()` of `null` because § 3.2.3's empty port is not a port, so a
-  `with` that never mentions the port drops the `:` — `mwl_core_uri_with`'s own doc comment names
+  `with` that never mentions the port drops the `:` — `nvs_core_uri_with`'s own doc comment names
   this as the single place a round trip through `with` is not the identity. Both are pinned now.
 - **Seven members share one total order, and it is asserted by counting agreements between them.**
   `Core\Arr::sort`/`min`/`max`, `Core\Math::min`/`max`/`clamp` and `Core\Heap` all reach
-  `mwl_stdlib::ordering::compare_values`, so over one table the sorted pair's two ends are
+  `nvs_stdlib::ordering::compare_values`, so over one table the sorted pair's two ends are
   `Core\Math`'s two answers, `Core\Arr::min`/`max` name those same ends, `clamp` treats each value
   as inside the pair's own interval, and a heap's `peek` is the smaller whichever way round the two
   were pushed — 432 agreements over 36 ordered pairs, for a `string` table and an `int` one alike.
   A heap drained by `pop` is `Core\Arr::sort`'s sequence entry for entry, which is the same order
   applied n log n times. Pinned by
-  `tests/conformance/core/ordering-is-one-total-order-shared-by-arr-math-and-heap.mwlt`.
+  `tests/conformance/core/ordering-is-one-total-order-shared-by-arr-math-and-heap.nvst`.
 - **The ordering refusal is one throw in one wording, and a case only reaches it through `mixed`.**
   `Core\Math::min("a", 1)` never runs — `T` unifies at the first argument, so the second is
   `E0401: expected string, found int` — so both halves of an orderless pair have to be laundered
@@ -2513,9 +2513,9 @@ every session. Nothing below was reworded on the way.
   and a `catch (Throwable …)` reaches all of them. All seven agree about refusing string/int,
   null/int, bool/int, null/string, bool/string and array/int, and about accepting an ordered pair.
   Pinned by
-  `tests/conformance/core/ordering-refuses-a-pair-with-no-order-once-for-all-seven-members.mwlt`.
+  `tests/conformance/core/ordering-refuses-a-pair-with-no-order-once-for-all-seven-members.nvst`.
 - **`continue 2` inside a `switch` is PHP's *idiomatic* spelling, not an exotic one, so counting
-  `continue N` over loops alone silently breaks ported code.** MWL already reads a bare `continue`
+  `continue N` over loops alone silently breaks ported code.** Novis already reads a bare `continue`
   inside a `switch` as continuing the enclosing loop (docs/adr/README.md), and the obvious
   generalization — count loop frames and skip `switch` frames — compiles, passes every existing test,
   and then rejects `foreach { switch { case: continue 2; } }` outright with "names more than the 1
@@ -2523,7 +2523,7 @@ every session. Nothing below was reworded on the way.
   one. The rule that is PHP-identical everywhere PHP accepts the level: count **every** frame the way
   PHP does, then walk *outward* from the frame the level lands on to the nearest loop — level 1
   reduces to the bare-`continue` rule already decided, and nothing new is invented. One
-  `.agent-tmp/*.mwl` scratch run beside `php` on the same file is what found it; the checker alone
+  `.agent-tmp/*.nvs` scratch run beside `php` on the same file is what found it; the checker alone
   would have shipped the divergence.
 - **Check every spelling against `php -r` before deciding a family is refused, because PHP does
   not always agree with itself.** `echo $a[];` is *"Cannot use [] for reading"* and `unset($a[])`
@@ -2533,10 +2533,10 @@ every session. Nothing below was reworded on the way.
   10), not a sentence in a doc comment. Three `php -r` calls settled what an hour of reasoning from
   the first two would have got wrong.
 - **Turning a panic into a diagnostic breaks the tests that pinned the panic, and they do not look
-  like your change.** `mwl-ir`'s `#[should_panic(expected = "known gaps")]` guard failed with
+  like your change.** `nvs-ir`'s `#[should_panic(expected = "known gaps")]` guard failed with
   *"panic did not contain expected string"* while printing the new diagnostic, and
-  `mwl-types`' `expr_table` fixture failed at its own `assert!(!diags.has_errors())` helper —
-  neither names the feature. Delete the guard (the `.mwlt` case is its replacement) and split the
+  `nvs-types`' `expr_table` fixture failed at its own `assert!(!diags.has_errors())` helper —
+  neither names the feature. Delete the guard (the `.nvst` case is its replacement) and split the
   fixture helper so the one test whose point *is* the diagnostic gets the `Diagnostics` back.
 - **A new refusal in `check_expr` fires before `check_write_target`, so it double-reports every
   receiver that already has a better code.** `$erased->rows["0"] = "z"` printed E0482 *and* E0480;

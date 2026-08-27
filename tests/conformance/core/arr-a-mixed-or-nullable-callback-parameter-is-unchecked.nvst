@@ -1,12 +1,12 @@
 --TEST--
 A `mixed` or `?T` closure parameter admits every argument, so a Core\Arr callback declaring one is never refused while its non-nullable twin always is — ADR 0007 § 2, ADR 0069 § 5
 --FILE--
-<?mwl
-// The depth claim is *a bound asserted on both sides*. `mwl_runtime` checks a
+<?nvs
+// The depth claim is *a bound asserted on both sides*. `nvs_runtime` checks a
 // closure's arguments against the tags the closure declared, and the tag it
 // compares is the parameter's **representation**, not its declared type: a
 // `?T` and a `mixed` both erase to one tagged slot, which admits every tag by
-// construction (`mwl_ir::lower::param_tag_nibble`'s own doc comment owns why).
+// construction (`nvs_ir::lower::param_tag_nibble`'s own doc comment owns why).
 // So "unchecked" is the answer here rather than a hole, and the way to pin an
 // answer that consists of nothing happening is to name the refusal it sits
 // next to: each declaration below is written twice, bare and nullable, over

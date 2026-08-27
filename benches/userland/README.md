@@ -1,14 +1,14 @@
 # The userland benchmark suite
 
-Twenty-odd pieces of ordinary web-and-CLI code, each written once per engine: `NN-slug.mwl`,
+Twenty-odd pieces of ordinary web-and-CLI code, each written once per engine: `NN-slug.nvs`,
 `NN-slug.php`, `NN-slug.py` and `NN-slug.ts`. They are not micro-benchmarks of the runtime — [ADR 0026](../../docs/adr/0026-performance-measurement-methodology.md)
 owns *that* measurement, counted in instructions so it compares across machines. These are the loops a
 person actually writes: build a string, tally an array, sort a table, match a regex, encode a payload.
 
-**Python is here because MWL's CLI claim is made against Python**, and this project does not publish an
-unmeasured claim — [ADR 0100](../../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md)
+**Python is here because Novis's CLI claim is made against Python**, and this project does not publish an
+unmeasured claim — [ADR 0100](../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
 § 5 is the decision. **Bun is here because it is the hardest engine to beat**, and a suite that only
-measured engines MWL wins against would stop being evidence. `--engines` is how you narrow the roster,
+measured engines Novis wins against would stop being evidence. `--engines` is how you narrow the roster,
 and an engine you have not installed is narrowed away rather than left to fail every case.
 
 Run them with one call:
@@ -17,7 +17,7 @@ Run them with one call:
 python tools/bench.py                    # every case, every engine, side by side
 python tools/bench.py 05 regex           # only the cases whose name contains these
 python tools/bench.py --check            # do all four agree? (no timing)
-python tools/bench.py --engines mwl,php  # narrow the roster; mwl is always in it
+python tools/bench.py --engines nvs,php  # narrow the roster; nvs is always in it
 python tools/bench.py --php-mode default # PHP as installed, not with opcache+JIT
 ```
 
@@ -26,7 +26,7 @@ what a case **is**.
 
 ## What a case is
 
-Files with the same stem, one per engine, and nothing else — no manifest, no registration. The `.mwl` file
+Files with the same stem, one per engine, and nothing else — no manifest, no registration. The `.nvs` file
 is what defines a case; a missing `.py` or `.php` twin skips that engine with a warning rather than
 silently reading as agreement:
 
@@ -42,7 +42,7 @@ silently reading as agreement:
   is a fair fight between each language's normal spelling, not a transliteration of one into the others.
 - **The only exceptions are arithmetic that has to agree**, because the byte-identical gate below is a
   correctness requirement and not a style choice. There are two kinds, each carrying a comment saying why
-  ([ADR 0100](../../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5):
+  ([ADR 0100](../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 5):
   - **Python floors `%` where the other three truncate it toward zero.** `01-arith-loop` and
     `19-object-property` run a negative total, so their Python twins spell the truncated remainder out in
     a named helper. Their TypeScript twins need nothing — JavaScript truncates.
@@ -71,7 +71,7 @@ the symptom.
 
 ## Reading the numbers
 
-- `mwl ms` / `php ms` are whole-process wall clock, **min** of N reps after a discarded warm-up. Minimum,
+- `nvs ms` / `php ms` are whole-process wall clock, **min** of N reps after a discarded warm-up. Minimum,
   because every source of noise on a desktop adds time and none subtracts it; the median is checked
   against it and the harness says so out loud when the two diverge.
 - `<engine> work` subtracts `00-baseline`, the empty program. Every engine pays to start a process and
@@ -79,14 +79,14 @@ the symptom.
   `total` answers "what does this script cost me at the prompt"; `work` answers "how fast is the
   language". **For a CLI claim the headline is `total` and for a language claim it is `work`**, and
   quoting either without saying which is the misuse
-  [ADR 0100](../../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 2 forbids.
-- `php/mwl`, `py/mwl` and `bun/mwl` are ratios of the `work` figures: **above 1.00 means MWL is faster.**
+  [ADR 0100](../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 2 forbids.
+- `php/nvs`, `py/nvs` and `bun/nvs` are ratios of the `work` figures: **above 1.00 means Novis is faster.**
 
 Two things the table cannot say for itself:
 
 - **A ratio is one machine, one moment.** Wall clock is not comparable across machines, which is the whole
   reason ADR 0026 counts instructions instead. Quote a ratio with the host it came from, or don't quote it.
-- **A ratio can depend on the size.** `03-string-concat` was the standing example — MWL's `.=` was
+- **A ratio can depend on the size.** `03-string-concat` was the standing example — Novis's `.=` was
   quadratic where PHP's was flat, so that case's ratio was a statement about 20,000 rows and nothing
   else. It no longer is: the string gained capacity and n-ary concatenation, and
   [docs/perf/userland-gap.md](../../docs/perf/userland-gap.md) owns what that closed and what is left.
@@ -100,7 +100,7 @@ project's own target is stated against PHP *with* JIT and a comparison against a
 slower proves nothing. `--php-mode default` runs it exactly as installed, which is what a CLI user
 actually gets. The mode is recorded in every JSON record so a history file cannot silently mix the two.
 
-MWL is always the **release** binary: `tools/bench.py` refuses a `target/debug/` build by name, because a
+Novis is always the **release** binary: `tools/bench.py` refuses a `target/debug/` build by name, because a
 debug build measures its own assertions. Nothing in this suite builds anything — the binary on disk is the
 binary that runs, and the harness warns when it is older than the newest file under `crates/`.
 

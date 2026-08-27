@@ -8,8 +8,8 @@ mod common;
 
 use common::*;
 
-/// The three-frame throw `examples/throw.mwl` runs, verbatim.
-const THROWS: &str = "<?mwl
+/// The three-frame throw `examples/throw.nvs` runs, verbatim.
+const THROWS: &str = "<?nvs
 class Deep {
     public static function level3(): void {
         throw new LogicError(\"boom\");
@@ -23,17 +23,17 @@ class Deep {
 }
 ";
 
-/// A helper names the class its failure lands in as a `mwl_runtime::ThrownClass`,
-/// and `mwl-runtime` depends on nothing — so this is the one place the roster
-/// and `mwl_hir::errors::TREE` are held together. A class named here but absent
+/// A helper names the class its failure lands in as a `nvs_runtime::ThrownClass`,
+/// and `nvs-runtime` depends on nothing — so this is the one place the roster
+/// and `nvs_hir::errors::TREE` are held together. A class named here but absent
 /// there would degrade silently to `RuntimeError`
-/// (`mwl_runtime::Ctx::set_runtime_error_class` says why it degrades rather
+/// (`nvs_runtime::Ctx::set_runtime_error_class` says why it degrades rather
 /// than fails).
 #[test]
 fn every_thrown_class_is_in_the_compiler_s_exception_tree() {
-    for class in mwl_runtime::ThrownClass::ALL {
+    for class in nvs_runtime::ThrownClass::ALL {
         assert!(
-            mwl_hir::errors::is_exception_class(class.name()),
+            nvs_hir::errors::is_exception_class(class.name()),
             "{} is not in the exception tree",
             class.name()
         );
@@ -41,7 +41,7 @@ fn every_thrown_class_is_in_the_compiler_s_exception_tree() {
     // The default is the one every bare `Fault::thrown` lands in, and
     // `Unit::runtime_error_class` looks it up by exactly this name.
     assert_eq!(
-        mwl_runtime::ThrownClass::default().name(),
+        nvs_runtime::ThrownClass::default().name(),
         "RuntimeError",
         "the default class is what `Ctx::set_runtime_error_class` installs"
     );
@@ -49,19 +49,19 @@ fn every_thrown_class_is_in_the_compiler_s_exception_tree() {
 
 #[test]
 fn the_runtime_and_the_compiler_agree_on_every_throwable_slot() {
-    use mwl_hir::errors::PROPERTIES;
+    use nvs_hir::errors::PROPERTIES;
 
-    assert_eq!(PROPERTIES.len(), mwl_runtime::SLOT_COUNT);
-    assert_eq!(PROPERTIES[mwl_runtime::MESSAGE_SLOT], "message");
-    assert_eq!(PROPERTIES[mwl_runtime::PREVIOUS_SLOT], "previous");
-    assert_eq!(PROPERTIES[mwl_runtime::BACKTRACE_SLOT], "backtrace");
-    assert_eq!(PROPERTIES[mwl_runtime::LOCATION_SLOT], "location");
+    assert_eq!(PROPERTIES.len(), nvs_runtime::SLOT_COUNT);
+    assert_eq!(PROPERTIES[nvs_runtime::MESSAGE_SLOT], "message");
+    assert_eq!(PROPERTIES[nvs_runtime::PREVIOUS_SLOT], "previous");
+    assert_eq!(PROPERTIES[nvs_runtime::BACKTRACE_SLOT], "backtrace");
+    assert_eq!(PROPERTIES[nvs_runtime::LOCATION_SLOT], "location");
 
     // And the labels lowering emits actually resolve to those slots, for a
     // *user* subclass as much as for the root — which is the property that
     // lets the runtime reach `backtrace` on a value it knows nothing about.
     let program = lower(
-        "<?mwl
+        "<?nvs
 class MyError extends IOError {
   public int $code;
            function constructor(int $code) {
@@ -83,13 +83,13 @@ class MyError extends IOError {
     // ADR 0071 § 5's `issues` is the one property any class below the root
     // declares, and the runtime writes it by index too — so its slot is held
     // by the same agreement the four above are.
-    assert_eq!(mwl_hir::errors::ISSUES_SLOT, mwl_runtime::ISSUES_SLOT);
+    assert_eq!(nvs_hir::errors::ISSUES_SLOT, nvs_runtime::ISSUES_SLOT);
     let parse = program
         .classes
         .iter()
         .find(|c| c.label == "ParseError")
         .expect("ParseError should be in the class table");
-    assert_eq!(parse.fields[mwl_runtime::ISSUES_SLOT], "issues");
+    assert_eq!(parse.fields[nvs_runtime::ISSUES_SLOT], "issues");
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn an_uncaught_throw_leaves_the_status_and_the_message_on_the_context() {
 
 #[test]
 fn the_backtrace_names_every_frame_the_throw_left_in_order() {
-    // Resolved from MWL's own frame chain — each frame's error path pushes its
+    // Resolved from Novis's own frame chain — each frame's error path pushes its
     // own label — never from the platform unwinder, which ADR 0002 makes
     // unavailable through a JIT frame in the first place.
     let mut ctx = Ctx::buffered();
@@ -138,7 +138,7 @@ fn the_backtrace_names_every_frame_the_throw_left_in_order() {
 #[test]
 fn a_caught_throw_stops_the_backtrace_at_the_frame_that_handled_it() {
     // The trace holds the frames the exception actually unwound *out of*, so a
-    // `catch` in the calling frame never appears in it — `mwl_runtime::throwable`
+    // `catch` in the calling frame never appears in it — `nvs_runtime::throwable`
     // owns that rule and why it differs from PHP's construction-time snapshot.
     let source = format!(
         "{THROWS}\ntry {{\n    Deep::level3();\n}} catch (Throwable $e) {{\n    \
@@ -170,7 +170,7 @@ fn an_exit_is_caught_by_nothing_and_carries_the_status_it_named() {
     // `FATAL` is that the code it named survives to the request boundary.
     // docs/adr/README.md § Decisions taken at project start owns both.
     let mut ctx = Ctx::buffered();
-    let source = "<?mwl\ntry {\n    exit(3);\n} catch (Throwable $e) {\n    \
+    let source = "<?nvs\ntry {\n    exit(3);\n} catch (Throwable $e) {\n    \
                   echo \"caught\";\n} finally {\n    echo \"finally\";\n}\n";
     assert_eq!(run_with(&mut ctx, source).unwrap_err(), EXITED);
     assert_eq!(ctx.exit_code(), 3);
@@ -182,12 +182,12 @@ fn a_bare_exit_is_status_zero_and_a_string_operand_is_written_first() {
     // PHP's two spellings of one construct: `exit(n)` names a status, and
     // `exit("…")` writes a message and leaves the status at zero.
     let mut ctx = Ctx::buffered();
-    assert_eq!(run_with(&mut ctx, "<?mwl\nexit;\n").unwrap_err(), EXITED);
+    assert_eq!(run_with(&mut ctx, "<?nvs\nexit;\n").unwrap_err(), EXITED);
     assert_eq!(ctx.exit_code(), 0);
 
     let mut ctx = Ctx::buffered();
     assert_eq!(
-        run_with(&mut ctx, "<?mwl\nexit(\"bye\");\n").unwrap_err(),
+        run_with(&mut ctx, "<?nvs\nexit(\"bye\");\n").unwrap_err(),
         EXITED
     );
     assert_eq!(ctx.exit_code(), 0);
@@ -199,7 +199,7 @@ fn a_frame_that_throws_releases_the_strings_it_still_held() {
     // The error path's refcount cleanup, observed rather than assumed: the
     // caught exception's message is the only allocation still alive once the
     // dust settles, so a landing block that skipped its releases would leave
-    // the local's buffer behind. `mwl-ir`'s landing blocks are what put the
+    // the local's buffer behind. `nvs-ir`'s landing blocks are what put the
     // releases there; this checks the backend actually emits them.
     let source = format!(
         "{THROWS}\ntry {{\n    string $held = \"kept alive\";\n    Deep::level1();\n    \

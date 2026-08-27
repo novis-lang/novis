@@ -15,7 +15,7 @@
 //!   [`crate::ty::Ty::Enum`] carries it (see that variant's own doc comment for
 //!   why it is part of the type's identity rather than a side lookup);
 //! * a case's value is what `EnumName::CaseName` *is* — ADR 0010 § 3's "a case
-//!   is an integer constant, inlined at every use site" — so `mwl-ir` reads it
+//!   is an integer constant, inlined at every use site" — so `nvs-ir` reads it
 //!   back through [`crate::expr_table::ExprInfo::EnumCase`] and emits a plain
 //!   constant, with no storage, no descriptor and no allocation anywhere.
 //!
@@ -33,8 +33,8 @@
 //! `int`/`uint`, a case value that is not an integer literal, and one that does
 //! not fit the backing type (including an auto-increment that runs off the end
 //! of the range). `enum Name: string`, `implements`, and a member other than a
-//! case are all rejected by `mwl-syntax`'s parser instead — see
-//! `mwl_syntax::parser::parse_enum_backing_type` and its neighbours.
+//! case are all rejected by `nvs-syntax`'s parser instead — see
+//! `nvs_syntax::parser::parse_enum_backing_type` and its neighbours.
 //!
 //! # What it costs
 //!
@@ -43,9 +43,9 @@
 //! dropped with the rest of the check run's tables. Nothing survives into the
 //! compiled artifact but the constants themselves.
 
-use mwl_diagnostics::{Diagnostic, SourceFile, Span, code};
-use mwl_hir::QName;
-use mwl_syntax::ast::{
+use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
+use nvs_hir::QName;
+use nvs_syntax::ast::{
     EnumDecl, Expr, ExprKind, NamespaceDecl, Stmt, StmtKind, Type, TypeAtom, TypeKind, UnaryOp,
 };
 use rustc_hash::FxHashMap;
@@ -126,7 +126,7 @@ impl EnumTable {
 /// required it, so a per-file table would answer `None` there.
 pub(crate) fn build_enum_table(
     files: &[crate::ProgramFile<'_>],
-    diags: &mut mwl_diagnostics::Diagnostics,
+    diags: &mut nvs_diagnostics::Diagnostics,
 ) -> EnumTable {
     let mut table = EnumTable::default();
     seed_core(&mut table);
@@ -136,22 +136,22 @@ pub(crate) fn build_enum_table(
     table
 }
 
-/// Adds every `mwl_stdlib::registry::ENUMS` entry, before any declaration is
+/// Adds every `nvs_stdlib::registry::ENUMS` entry, before any declaration is
 /// walked.
 ///
 /// The same "seed a table rather than special-case `Core`" arrangement
 /// [`crate::core_lib`] uses for members, and it buys the same thing: nothing
 /// downstream — not [`EnumTable::case`], not `crate::expr`'s
-/// `ClassConstAccess` arm, not `mwl-ir` — learns that a `Core` enum is
+/// `ClassConstAccess` arm, not `nvs-ir` — learns that a `Core` enum is
 /// different from a declared one.
 ///
 /// Seeded first so a *declared* `Core\Order` would overwrite it rather than
 /// the other way round. That cannot happen today: `Core` is the reserved
 /// namespace ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)),
-/// and a program declaring into it is a question for `mwl-hir`'s resolver,
+/// and a program declaring into it is a question for `nvs-hir`'s resolver,
 /// not something this table should answer by silently winning.
 fn seed_core(table: &mut EnumTable) {
-    for declared in mwl_stdlib::registry::ENUMS {
+    for declared in nvs_stdlib::registry::ENUMS {
         let cases = declared
             .cases
             .iter()
@@ -172,7 +172,7 @@ fn collect(
     src: &SourceFile,
     namespace: &[String],
     table: &mut EnumTable,
-    diags: &mut mwl_diagnostics::Diagnostics,
+    diags: &mut nvs_diagnostics::Diagnostics,
 ) {
     let mut current_ns = namespace.to_vec();
     for stmt in stmts {
@@ -199,7 +199,7 @@ fn collect(
 fn resolve_enum(
     decl: &EnumDecl,
     src: &SourceFile,
-    diags: &mut mwl_diagnostics::Diagnostics,
+    diags: &mut nvs_diagnostics::Diagnostics,
 ) -> EnumInfo {
     let backing = backing_of(decl.backing.as_ref(), diags);
     let mut cases = FxHashMap::default();
@@ -235,12 +235,12 @@ fn resolve_enum(
 
 /// ADR 0010 § 2: `int` unless `: uint` is written.
 ///
-/// `enum Name: string` is already reported by `mwl-syntax`'s parser, so this
+/// `enum Name: string` is already reported by `nvs-syntax`'s parser, so this
 /// only has to catch every *other* non-integer spelling — which the parser
 /// deliberately leaves to "a later check" (see
-/// `mwl_syntax::parser::parse_enum_backing_type`). A `string` backing falls
+/// `nvs_syntax::parser::parse_enum_backing_type`). A `string` backing falls
 /// through to `int` here with no second diagnostic.
-fn backing_of(ty: Option<&Type>, diags: &mut mwl_diagnostics::Diagnostics) -> EnumBacking {
+fn backing_of(ty: Option<&Type>, diags: &mut nvs_diagnostics::Diagnostics) -> EnumBacking {
     let Some(ty) = ty else {
         return EnumBacking::Int;
     };
@@ -275,7 +275,7 @@ fn literal_value(
     expr: &Expr,
     backing: EnumBacking,
     src: &SourceFile,
-    diags: &mut mwl_diagnostics::Diagnostics,
+    diags: &mut nvs_diagnostics::Diagnostics,
 ) -> Option<EnumValue> {
     let (negated, span) = match &expr.kind {
         ExprKind::Int(span) => (false, *span),
@@ -305,7 +305,7 @@ fn literal_value(
     value
 }
 
-fn not_a_literal(span: Span, diags: &mut mwl_diagnostics::Diagnostics) -> Option<EnumValue> {
+fn not_a_literal(span: Span, diags: &mut nvs_diagnostics::Diagnostics) -> Option<EnumValue> {
     diags.report(
         Diagnostic::error(
             code::E_ENUM_CASE_VALUE_NOT_LITERAL,
@@ -317,7 +317,7 @@ fn not_a_literal(span: Span, diags: &mut mwl_diagnostics::Diagnostics) -> Option
     None
 }
 
-fn out_of_range(span: Span, backing: EnumBacking, diags: &mut mwl_diagnostics::Diagnostics) {
+fn out_of_range(span: Span, backing: EnumBacking, diags: &mut nvs_diagnostics::Diagnostics) {
     let name = match backing {
         EnumBacking::Int => "int",
         EnumBacking::Uint => "uint",
@@ -362,7 +362,7 @@ fn successor_of(value: EnumValue) -> Option<EnumValue> {
 }
 
 /// Splits an integer-literal span into its radix and digit run — the third
-/// copy of `mwl_ir::lower::int_literal_digits`, for the reason
+/// copy of `nvs_ir::lower::int_literal_digits`, for the reason
 /// `crate::expr`'s own copy already states: the magnitude has to be known
 /// here, at check time, and sharing across the crate boundary would invert
 /// this crate's dependency direction.
@@ -385,15 +385,15 @@ fn int_literal_digits(src: &SourceFile, span: Span) -> (u32, String) {
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::{Diagnostics, SourceMap};
+    use nvs_diagnostics::{Diagnostics, SourceMap};
 
     use super::{EnumBacking, EnumTable, EnumValue, build_enum_table};
 
     fn table(source: &str) -> (EnumTable, Diagnostics) {
         let mut map = SourceMap::new();
-        let id = map.add("test.mwl", source);
+        let id = map.add("test.nvs", source);
         let mut diags = Diagnostics::new();
-        let stmts = mwl_syntax::parse_file(map.file(id), &mut diags);
+        let stmts = nvs_syntax::parse_file(map.file(id), &mut diags);
         let table = build_enum_table(
             &[crate::ProgramFile {
                 src: map.file(id),
@@ -405,12 +405,12 @@ mod tests {
     }
 
     fn case(table: &EnumTable, name: &str, case: &str) -> Option<EnumValue> {
-        table.case(&mwl_hir::QName::parse(name), case)
+        table.case(&nvs_hir::QName::parse(name), case)
     }
 
     #[test]
     fn cases_auto_increment_from_zero() {
-        let (table, diags) = table("<?mwl\nenum Rank { Bronze, Silver, Gold }\n");
+        let (table, diags) = table("<?nvs\nenum Rank { Bronze, Silver, Gold }\n");
         assert!(!diags.has_errors());
         assert_eq!(case(&table, "Rank", "Bronze"), Some(EnumValue::Int(0)));
         assert_eq!(case(&table, "Rank", "Silver"), Some(EnumValue::Int(1)));
@@ -419,7 +419,7 @@ mod tests {
 
     #[test]
     fn an_explicit_value_resets_the_counter() {
-        let (table, diags) = table("<?mwl\nenum E { A, B = 10, C }\n");
+        let (table, diags) = table("<?nvs\nenum E { A, B = 10, C }\n");
         assert!(!diags.has_errors());
         assert_eq!(case(&table, "E", "A"), Some(EnumValue::Int(0)));
         assert_eq!(case(&table, "E", "B"), Some(EnumValue::Int(10)));
@@ -428,10 +428,10 @@ mod tests {
 
     #[test]
     fn a_uint_backing_is_recorded_and_its_cases_are_uint() {
-        let (table, diags) = table("<?mwl\nenum P: uint { Read = 0b001, Write = 0b010 }\n");
+        let (table, diags) = table("<?nvs\nenum P: uint { Read = 0b001, Write = 0b010 }\n");
         assert!(!diags.has_errors());
         assert_eq!(
-            table.backing_of(&mwl_hir::QName::parse("P")),
+            table.backing_of(&nvs_hir::QName::parse("P")),
             EnumBacking::Uint
         );
         assert_eq!(case(&table, "P", "Read"), Some(EnumValue::Uint(1)));
@@ -440,7 +440,7 @@ mod tests {
 
     #[test]
     fn a_negative_case_value_is_accepted_for_an_int_backing() {
-        let (table, diags) = table("<?mwl\nenum E { A = -1, B }\n");
+        let (table, diags) = table("<?nvs\nenum E { A = -1, B }\n");
         assert!(!diags.has_errors());
         assert_eq!(case(&table, "E", "A"), Some(EnumValue::Int(-1)));
         assert_eq!(case(&table, "E", "B"), Some(EnumValue::Int(0)));
@@ -448,37 +448,37 @@ mod tests {
 
     #[test]
     fn a_negative_case_value_is_refused_for_a_uint_backing() {
-        let (_, diags) = table("<?mwl\nenum E: uint { A = -1 }\n");
+        let (_, diags) = table("<?nvs\nenum E: uint { A = -1 }\n");
         assert!(
             diags
                 .iter()
-                .any(|d| d.code == Some(mwl_diagnostics::code::E_ENUM_CASE_VALUE_OUT_OF_RANGE))
+                .any(|d| d.code == Some(nvs_diagnostics::code::E_ENUM_CASE_VALUE_OUT_OF_RANGE))
         );
     }
 
     #[test]
     fn a_non_literal_case_value_is_refused() {
-        let (_, diags) = table("<?mwl\nenum E { A = 1 + 1 }\n");
+        let (_, diags) = table("<?nvs\nenum E { A = 1 + 1 }\n");
         assert!(
             diags
                 .iter()
-                .any(|d| d.code == Some(mwl_diagnostics::code::E_ENUM_CASE_VALUE_NOT_LITERAL))
+                .any(|d| d.code == Some(nvs_diagnostics::code::E_ENUM_CASE_VALUE_NOT_LITERAL))
         );
     }
 
     #[test]
     fn a_non_integer_backing_type_is_refused() {
-        let (_, diags) = table("<?mwl\nenum E: float { A }\n");
+        let (_, diags) = table("<?nvs\nenum E: float { A }\n");
         assert!(
             diags
                 .iter()
-                .any(|d| d.code == Some(mwl_diagnostics::code::E_ENUM_BACKING_NOT_INTEGER))
+                .any(|d| d.code == Some(nvs_diagnostics::code::E_ENUM_BACKING_NOT_INTEGER))
         );
     }
 
     #[test]
     fn an_enum_inside_a_namespace_block_is_keyed_by_its_resolved_name() {
-        let (table, diags) = table("<?mwl\nnamespace App { enum Rank { Bronze } }\n");
+        let (table, diags) = table("<?nvs\nnamespace App { enum Rank { Bronze } }\n");
         assert!(!diags.has_errors());
         assert_eq!(case(&table, "App\\Rank", "Bronze"), Some(EnumValue::Int(0)));
     }

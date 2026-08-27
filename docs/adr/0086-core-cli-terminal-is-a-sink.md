@@ -39,7 +39,7 @@
 > writes raw, which is what keeps [ADR 0063](0063-core-api-conventions.md) R11's *exactly four grammars*
 > true. **A prompt is a `Core` member** — `ask`, `confirm`, `select<T>`, `multiSelect<T>`, `secret` —
 > because raw mode is unreachable from userland with [0052](0052-closed-doors.md)'s FFI door shut, so if
-> `Core` does not ship it MWL cannot have it; `secret()` returns a `secret string`, so a password read at a
+> `Core` does not ship it Novis cannot have it; `secret()` returns a `secret string`, so a password read at a
 > prompt cannot be echoed, logged or serialized. **In-place output is a scoped live region**, never a
 > cursor primitive, so the runtime owns resize, repaint and restoration. And **`#[Command]` builds the
 > command table while compiling**, exactly as [0077](0077-compile-time-routing.md)'s `#[Route]` builds the
@@ -52,9 +52,9 @@
   members: `arguments`, `readLine`, `isTty`, `terminalWidth`. That is enough to write a filter and not
   enough to write a tool anyone enjoys using.
 - **Userland cannot close it.** Every other ecosystem answers this with packages — clap, chalk, inquirer,
-  indicatif. MWL cannot: an arrow-key `select` needs terminal raw mode, [0052](0052-closed-doors.md) closes
+  indicatif. Novis cannot: an arrow-key `select` needs terminal raw mode, [0052](0052-closed-doors.md) closes
   FFI permanently, and [0003](0003-extension-system.md) puts extensions in a wasm sandbox with no tty. **If
-  `Core` does not ship the interactive half, MWL does not have it at any tier.** That is a stronger
+  `Core` does not ship the interactive half, Novis does not have it at any tier.** That is a stronger
   argument than convenience and it is why this is Tier 0 rather than a package under
   [0081](0081-packages-are-digests-resolution-is-a-maximum.md).
 - **Terminal escape injection is live, not historical.** One researcher found twelve CVEs across terminals
@@ -66,8 +66,8 @@
   it. Separately, CVE-2019-9535 sat in iTerm2 for seven years and was exploitable by `curl`ing an
   attacker-controlled URL or displaying a web-server log. The published exploit chains ran through
   `kubectl`, `git`, `less` and Python's `http.server` — none of which escaped control characters in data
-  they printed, and all of which are the shape of program MWL exists to make easy.
-- **MWL can close it more cheaply than anyone else.** [0012](0012-no-superglobals.md) plus
+  they printed, and all of which are the shape of program Novis exists to make easy.
+- **Novis can close it more cheaply than anyone else.** [0012](0012-no-superglobals.md) plus
   [0024](0024-taint-tracking-for-injection-sinks.md) mean the compiler already knows which values came from
   outside. No other language has that, which is why "escape your terminal output" has stayed advice
   everywhere else.
@@ -79,7 +79,7 @@
   less. That asymmetry is what makes the default affordable, and it is why § 1 substitutes rather than
   deletes.
 - **The audience makes it load-bearing rather than cosmetic.**
-  [0080](0080-the-audience-mwl-is-built-for.md) names the multi-tenant and regulated platform as MWL's
+  [0080](0080-the-audience-nvs-is-built-for.md) names the multi-tenant and regulated platform as Novis's
   first serious user. The deploy scripts, tenant-migration tools and log triage such a team writes are
   precisely the programs that print data they did not author, to a terminal belonging to an operator with
   production credentials.
@@ -141,7 +141,7 @@ template, a CLDR date pattern, a `pack` format. Both obvious styling designs wou
 inline-HTML lexer mode ([0049](0049-single-open-tag-and-single-exit-keyword.md)). So styling is typed
 values, and the count stays four.
 
-```mwl
+```nvs
 var $warn = Cli\Style::of({color: Cli\Color::YELLOW, bold: true});
 Cli::write(Cli\Text::styled("deleting ", $warn) + Cli\Text::plain($path));
 ```
@@ -150,7 +150,7 @@ Cli::write(Cli\Text::styled("deleting ", $warn) + Cli\Text::plain($path));
   integer type does not fit a set with sixteen million members. The sixteen named colours are class
   constants — `Color::RED` is exactly as short at the use site as an enum case would be — and
   `Color::rgb(uint, uint, uint)` and `Color::index(uint)` construct the rest. A `Core` class constant that
-  is an instance is machinery `mwl-stdlib` already has.
+  is an instance is machinery `nvs-stdlib` already has.
 - **`Cli\Style::of({color?, background?, bold?, dim?, italic?, underline?, strikethrough?})`** — R5's `of`
   for a canonical construction, R2's one trailing shape for the options.
 - **`Cli\Text` is peer to `Core\Html\Markup`.** `Text::plain(string)` and
@@ -214,13 +214,13 @@ Four properties fall out of rules that already exist:
 "no spelling for an unbounded wait" applied to a second surface: a CLI that hangs in CI waiting for an
 answer nobody can give is the same failure as an outbound request with no deadline.
 
-Under `mwl test` ([0079](0079-testing-is-a-language-feature.md)), prompts drain a scripted answer queue
+Under `nvs test` ([0079](0079-testing-is-a-language-feature.md)), prompts drain a scripted answer queue
 supplied by the test rather than reading a terminal, so an interactive flow is assertable instead of
 untestable.
 
 ### 5. In-place output is a scoped live region
 
-```mwl
+```nvs
 Cli::live(fn($live) => {
     foreach ($files as $f) {
         $live->set([Cli\Text::plain("scanning {$f}")]);
@@ -259,7 +259,7 @@ Structurally identical to [ADR 0077](0077-compile-time-routing.md), with the rou
 command table and reusing the same program enumeration
 ([0061](0061-compile-time-autoload-and-program-discovery.md) § 3):
 
-```mwl
+```nvs
 #[Command(name: "deploy", about: "Push the current build")]
 public static function deploy(
     string $target,
@@ -344,11 +344,11 @@ stopped does not exist here, so stopping would be cargo-culting its shape rather
 - **Two new dependencies, at M8, not now.** `crossterm` for raw mode, key events and resize, and
   `unicode-width` for UAX #11 columns. Both are pure Rust, so [deny.toml](../../deny.toml)'s default is
   satisfied and [0051](0051-standard-library-tiers.md) § 4 does not apply — that test gates *C*
-  dependencies. `anstyle` and `anstream` are already workspace dependencies for `mwl-diagnostics` and cover
+  dependencies. `anstyle` and `anstream` are already workspace dependencies for `nvs-diagnostics` and cover
   § 3's Windows VT enabling and the strip-when-not-a-terminal path. Both new crates are added when the
   milestone that uses them starts, per AGENTS.md, and both owe a notice regeneration under
-  [0065](0065-third-party-attribution-and-mwl-info.md).
-- **MWL removes the most-installed third-party dependency in every other ecosystem.** A CLI with parsed
+  [0065](0065-third-party-attribution-and-nvs-info.md).
+- **Novis removes the most-installed third-party dependency in every other ecosystem.** A CLI with parsed
   arguments, generated help, completions, colour and prompts has no `require` line at all.
 - **A second sink means a second place to get laundering wrong.** The mitigation is that § 1 has no
   laundering step on the ordinary path — the sink is safe by default and `escape` exists for the program
@@ -381,7 +381,7 @@ stopped does not exist here, so stopping would be cargo-culting its shape rather
 
 ## Verification
 
-One `.mwlt` case per rule, plus these, which are the ones that would fail silently:
+One `.nvst` case per rule, plus these, which are the ones that would fail silently:
 
 - **§ 1** — a fixture `echo`ing a string containing `ESC]52;c;…BEL`, `\r`, and a C1 code point asserts the
   frozen output holds `␛`, `␍` and `�` and **no** byte below 0x20 but `LF`/`TAB`. A second case asserts the

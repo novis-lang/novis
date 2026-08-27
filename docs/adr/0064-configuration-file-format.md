@@ -1,4 +1,4 @@
-# ADR 0064 — Configuration is TOML, in `mwl.toml`
+# ADR 0064 — Configuration is TOML, in `nvs.toml`
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -6,18 +6,18 @@
   `Core\Config` accessor that replaces PHP's `ini_set`/`ini_get`/`ini_restore`. It does **not** touch
   [0005](0005-config-changeability.md)'s directive registry, changeability classes, ceilings or
   request-local overlay — every one of those is unchanged and still lives only there.
-- **Amends:** [0005](0005-config-changeability.md) — the file is `mwl.toml`, its blocks are TOML tables,
+- **Amends:** [0005](0005-config-changeability.md) — the file is `nvs.toml`, its blocks are TOML tables,
   and `ini_set`/`ini_get`/`ini_restore` are named `Core\Config::set`/`::get`/`::restore`.
-  [0003](0003-extension-system.md) — `extension = image.mwlx` becomes an `[[extension]]` array-of-tables
+  [0003](0003-extension-system.md) — `extension = image.nvsx` becomes an `[[extension]]` array-of-tables
   entry carrying its own hash pin. [0006](0006-isolated-script-execution.md) — `script.spawn`'s
   `:`-joined root list becomes a TOML array. [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
   — `[debug] mode`'s comma-separated string becomes a TOML array.
 - **Amended by:** 0070, 0072, 0073, 0074, 0076, 0078, 0081, 0091, 0092, 0097, 0103, 0104, 0105
 
-> **In short:** MWL's server configuration is a TOML file named `mwl.toml`, read through the `toml` crate
-> and `serde` — at boot, and again on each `mwl ctl reload`
+> **In short:** Novis's server configuration is a TOML file named `nvs.toml`, read through the `toml` crate
+> and `serde` — at boot, and again on each `nvs ctl reload`
 > ([0078](0078-config-reload-and-control-socket.md)). INI was inherited from PHP without an argument and does not survive one: it has
-> no specification, so MWL would have to define and fuzz its own dialect, and it has exactly one value
+> no specification, so Novis would have to define and fuzz its own dialect, and it has exactly one value
 > type — string — which is the defect [0007](0007-explicit-type-system.md) rejects in the language itself.
 > Four directives the current ADRs already specify are booleans, lists or repeated records encoded as
 > strings; TOML types all four with syntax it already has. `ini_set`/`ini_get`/`ini_restore` become
@@ -27,7 +27,7 @@
 ## Context
 
 - `.ini` came from PHP by inheritance, not by decision: `php.ini` is the file an operator recognises. That
-  familiarity is thinner than it looks. MWL's directive set shares almost no key names with `php.ini` —
+  familiarity is thinner than it looks. Novis's directive set shares almost no key names with `php.ini` —
   `[limits.hard]`, `[capabilities]`, the per-app blocks, `cache.dir`, `opcache.validate` are all new — so no
   existing `php.ini` is copy-pastable under any syntax. What actually transfers is the *shape* of a
   sectioned key/value file, which TOML has too.
@@ -45,25 +45,25 @@
     ([0006](0006-isolated-script-execution.md)) — a list written `PATH`-style. It is **broken on Windows**,
     where every absolute path contains the separator, and nothing in the ADR noticed because the format
     offered no shape that would have.
-  - `extension = image.mwlx` plus a hash pin ([0003](0003-extension-system.md)) — a repeated record with
+  - `extension = image.nvsx` plus a hash pin ([0003](0003-extension-system.md)) — a repeated record with
     two fields, which INI has no shape for at all.
   Each is a mini-grammar to specify, parse, fuzz and diagnose. TOML has a boolean, an integer, an array and
   an array-of-tables, all already parsed by the crate.
 
 ## Decision
 
-### 1. The file is `mwl.toml`, and it is TOML
+### 1. The file is `nvs.toml`, and it is TOML
 
 Read into the directive registry through the `toml` crate with `serde` derive — at boot, and again on each
-`mwl ctl reload` ([0078](0078-config-reload-and-control-socket.md)), which parses and validates a whole
+`nvs ctl reload` ([0078](0078-config-reload-and-control-socket.md)), which parses and validates a whole
 replacement snapshot before publishing it and leaves the running one untouched if any part fails. Pure Rust,
 no C, and already inside the dependency set [deny.toml](../../deny.toml) audits, because Cargo's own
 manifests are TOML — this adds no new dependency class.
 
-**`mwl.toml` names the root of a tree, not the whole configuration.**
+**`nvs.toml` names the root of a tree, not the whole configuration.**
 [0102](0103-configuration-is-a-tree-of-files.md) owns where that root is found, how `[[include]]` pulls in
 further files, the order they are merged in, the ownership every one of them must pass, and the
-`mwl config` verbs that report the result. Everything below is the syntax each of those files is written
+`nvs config` verbs that report the result. Everything below is the syntax each of those files is written
 in, which is the same whether there is one of them or ten.
 
 [ADR 0005](0005-config-changeability.md)'s layout is unchanged; only its spelling moves:
@@ -104,10 +104,10 @@ mode = ["coverage", "branch"]          # [] is off
 [capabilities]               # RuntimeTighten, deny-by-default
 script.spawn = ["/srv/www/jobs", "/srv/www/app/tasks", "C:\\srv\\jobs"]
 process.exec = true
-debug.trace  = ["/var/log/mwl/trace"]
+debug.trace  = ["/var/log/nvs/trace"]
 
 [[extension]]                # System
-path   = "image.mwlx"
+path   = "image.nvsx"
 sha256 = "…"
 ```
 
@@ -124,7 +124,7 @@ rests on to accept a precompiled binary from outside.
 
 This ADR owns the *format*; every block's directives, defaults and changeability class are argued in the
 ADR that adds them, and [0005](0005-config-changeability.md) owns the class model. The complete list, so
-that a reader of `mwl.toml` has one place to start:
+that a reader of `nvs.toml` has one place to start:
 
 | Block | Owner |
 |---|---|
@@ -162,17 +162,17 @@ override, which [0103 § 3](0103-configuration-is-a-tree-of-files.md) allows and
 with both origins — the property this section protects is that no assignment is *silently* shadowed, and
 inside one file the only way to hold that is to refuse.
 
-### 4. `mwl.toml` is not a project manifest
+### 4. `nvs.toml` is not a project manifest
 
 [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) rejected "a manifest file
-(`mwl.toml`/`mwl.json`), found by walking up from the entry file". **That rejection stands**, and it is
+(`nvs.toml`/`nvs.json`), found by walking up from the entry file". **That rejection stands**, and it is
 about discovery and lifetime rather than syntax. The file decided here is a root-owned deployment file,
 **never searched for by walking up from a source file** and holding no source-tree state — an `[autoload]`
 table is still refused for exactly the reason ADR 0061 gives. Sharing an extension with `Cargo.toml` is not
 a collision; the name, the location and the owner all differ.
 
 Where the file is *found* is [0103 § 1](0103-configuration-is-a-tree-of-files.md)'s: a path the operator
-hands the host, else `./mwl.toml` — exactly one directory, and never a walk upward. What makes a file in a
+hands the host, else `./nvs.toml` — exactly one directory, and never a walk upward. What makes a file in a
 working directory safe to read there is that ADR's § 6 ownership refusal, the resolved absolute path
 announced at boot, and [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)'s installer
 refusing a service whose config came from a working directory. The walking-up rejection this section rests
@@ -181,10 +181,10 @@ on is untouched by any of it.
 ### 5. `ini_set` is `Core\Config::set`
 
 [ADR 0011](0011-functions-and-constants-are-class-members.md) forces this independently of the format —
-`ini_set`, `ini_get`, `ini_restore` and `ini_get_all` are free functions, and MWL has none. The names go
+`ini_set`, `ini_get`, `ini_restore` and `ini_get_all` are free functions, and Novis has none. The names go
 with the file:
 
-| PHP | MWL |
+| PHP | Novis |
 |---|---|
 | `ini_set($k, $v)` | `Core\Config::set(string $name, string $value): bool` |
 | `ini_get($k)` | `Core\Config::get(string $name): ?string` |
@@ -203,7 +203,7 @@ establishes, where a prepared and a runtime path cannot diverge because there is
 ## Consequences
 
 - **Cost, as [0004](0004-memory-for-simplicity.md) requires it be stated: none on the request path.** The
-  parse happens at boot and again only when an operator runs `mwl ctl reload`, over a file measured in
+  parse happens at boot and again only when an operator runs `nvs ctl reload`, over a file measured in
   kilobytes — never per request, and never polled from a request-serving core. What a live snapshot costs in
   memory is [0078](0078-config-reload-and-control-socket.md)'s to state, not this ADR's.
 - **What the operator loses:** the `.ini` extension. **What they gain:** editor validation and
@@ -222,7 +222,7 @@ change for every deployment.
 
 - **Keep INI.** The status quo, and its one argument is operator familiarity that § *Context* shows is
   skin-deep. Against it: no specification, one value type, four directives already encoding non-strings as
-  strings, a live Windows bug in one of them, and a dialect MWL would have to own forever.
+  strings, a live Windows bug in one of them, and a dialect Novis would have to own forever.
 - **YAML.** Indentation-significant, and the only candidate with both a parser-CVE record and a documented
   value ambiguity (`no` parsing as `false`, an unquoted version number as a float). A root-owned file that
   grants capabilities is the last place to accept a format where a value's *type* depends on how it was
@@ -231,13 +231,13 @@ change for every deployment.
   JSONC is JSON plus one non-standard extension, which re-enters the no-specification problem INI has.
 - **KDL, RON, HCL.** An operator would meet the format for the first time here, and their editor would not
   validate it. Nothing any of them offers over TOML is reachable at this file's size.
-- **Dhall, or configuration written in MWL itself.** Both make the configuration file a program.
+- **Dhall, or configuration written in Novis itself.** Both make the configuration file a program.
   [ADR 0052](0052-closed-doors.md) closed `eval`; a configuration language with functions and imports
   reopens it in the one file that is root-owned and read before any sandbox exists.
 - **Bare integers with implied units (`memory = 134217728`).** Drops the suffix parser at the cost of a
   file nobody can edit confidently — and the parser has to exist anyway for `Core\Config::set`.
 - **Accepting both `.ini` and `.toml`.** Two formats to specify, parse and test, so that nobody has to
-  learn one; and a deployment could then hold both with no rule for which wins. Nothing in MWL gets a
+  learn one; and a deployment could then hold both with no rule for which wins. Nothing in Novis gets a
   second spelling ([0015](0015-no-name-aliasing.md) is the same instinct one layer up); configuration is
   not where to start.
 
@@ -252,7 +252,7 @@ question and not this one.
 
 In M6, alongside [0005](0005-config-changeability.md)'s own list:
 
-- A `mwl.toml` with a duplicate key is refused at boot, with the line named.
+- A `nvs.toml` with a duplicate key is refused at boot, with the line named.
 - An unknown directive is refused (`E0601`), never ignored.
 - `[limits.hard] memory = false` removes the ceiling; `memory = "2G"` enforces it.
 - `[capabilities] script.spawn` given a Windows absolute path (`C:\\srv\\jobs`) resolves as one root — a

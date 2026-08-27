@@ -1,7 +1,7 @@
 --TEST--
 ADR 0056: a pattern the linear engine cannot express still runs, and exhausting the backtracking budget throws
 --FILE--
-<?mwl
+<?nvs
 // The linear tier cannot express a lookahead or a backreference, so both of
 // these reach the second engine — and answer, rather than being refused.
 echo (Core\Regex::matches("foobar", "foo(?=bar)") as string), "|\n";

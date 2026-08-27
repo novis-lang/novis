@@ -40,7 +40,7 @@ concerned, and on Windows they are different core counts (WSL2 takes its CPU and
 `.wslconfig`, not from the host). An entry is re-probed when the host name changes, when the format
 version moves, or after `STALE_DAYS`, which is the cheap way to notice a `.wslconfig` edit.
 
-`MWL_JOBS` overrides every width; `MWL_VALGRIND_JOBS` overrides the sweep's alone. Both are for a
+`NVS_JOBS` overrides every width; `NVS_VALGRIND_JOBS` overrides the sweep's alone. Both are for a
 one-off -- neither is written back to the cache.
 """
 
@@ -123,9 +123,9 @@ PROBE_SH = (
 #: than an estimate -- and what one worker holds, which is where the memory cap comes from.
 SAMPLE_SH = (
     "; if command -v /usr/bin/time >/dev/null 2>&1; then "
-    "/usr/bin/time -o /tmp/mwl-machine-probe -f 'sample_s %e sample_rss_kb %M' "
+    "/usr/bin/time -o /tmp/nvs-machine-probe -f 'sample_s %e sample_rss_kb %M' "
     "sh -c '{sample}' >/dev/null 2>&1; echo sample_code $?; "
-    "cat /tmp/mwl-machine-probe 2>/dev/null; rm -f /tmp/mwl-machine-probe; fi"
+    "cat /tmp/nvs-machine-probe 2>/dev/null; rm -f /tmp/nvs-machine-probe; fi"
 )
 
 
@@ -285,7 +285,7 @@ def remember(context, **fields):
 
 def jobs(context, *, ceiling=None, probe=None, envs=(), refresh=False):
     """The width for work in `context`: an override if one is set, the policy otherwise."""
-    forced = override(*envs, "MWL_JOBS")
+    forced = override(*envs, "NVS_JOBS")
     if forced:
         return max(1, min(forced, ceiling)) if ceiling else forced
     p = profile(context, probe=probe, refresh=refresh)
@@ -315,8 +315,8 @@ def show(doc, as_json):
         stamp = e.get("probed", "?") + (" (stale)" if stale(e) else "")
         print(f"{name:<9} {e.get('cores', 0):>5} {mem:>8} {secs:>8} {rss:>11}  {w:>5}  {stamp}")
     print(f"\n  {int(FRACTION * 100)}% of the cores the work sees, floor {FLOOR}, capped by the "
-          f"item count and by\n  free memory. MWL_JOBS overrides every width for one run; "
-          f"MWL_VALGRIND_JOBS the sweep's.")
+          f"item count and by\n  free memory. NVS_JOBS overrides every width for one run; "
+          f"NVS_VALGRIND_JOBS the sweep's.")
     return 0
 
 

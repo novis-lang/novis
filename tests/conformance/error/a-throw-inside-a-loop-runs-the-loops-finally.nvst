@@ -1,7 +1,7 @@
 --TEST--
 A local written inside a protected region carries across a loop's back edge — the loop-header phi covers `try`, `catch` and `finally` alike
 --FILE--
-<?mwl
+<?nvs
 class Tally {
     public static function protectedBody(int $n): int {
         int $sum = 0;

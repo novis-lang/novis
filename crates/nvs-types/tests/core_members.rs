@@ -1,12 +1,12 @@
-//! A `Core` member call — `mwl_stdlib::registry`'s signatures reached through the ordinary call path, including ADR 0063 R2's options bag.
+//! A `Core` member call — `nvs_stdlib::registry`'s signatures reached through the ordinary call path, including ADR 0063 R2's options bag.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 /// A `Core` member resolves through the signature table
 /// `crate::core_lib` seeded, so its return type reaches the binding it is
@@ -206,7 +206,7 @@ fn an_object_literal_outside_an_options_position_is_still_a_shape() {
 #[test]
 fn a_call_may_omit_a_parameter_that_has_a_default() {
     let diags = check_src(
-        "<?mwl\nclass Box {\n  static function scale(int $n, int $by = 3): int { return $n * $by; }\n\
+        "<?nvs\nclass Box {\n  static function scale(int $n, int $by = 3): int { return $n * $by; }\n\
          \n  function m(): void { echo Box::scale(5); echo Box::scale(5, 2); }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
@@ -215,7 +215,7 @@ fn a_call_may_omit_a_parameter_that_has_a_default() {
 #[test]
 fn a_call_that_omits_a_required_parameter_is_still_diagnosed() {
     let diags = check_src(
-        "<?mwl\nclass Box {\n  static function scale(int $n, int $by = 3): int { return $n * $by; }\n\
+        "<?nvs\nclass Box {\n  static function scale(int $n, int $by = 3): int { return $n * $by; }\n\
          \n  function m(): void { echo Box::scale(); }\n}\n",
     );
     let arity = diags
@@ -230,7 +230,7 @@ fn a_call_that_omits_a_required_parameter_is_still_diagnosed() {
 #[test]
 fn a_call_passing_more_arguments_than_parameters_is_diagnosed() {
     let diags = check_src(
-        "<?mwl\nclass Box {\n  static function scale(int $n, int $by = 3): int { return $n * $by; }\n\
+        "<?nvs\nclass Box {\n  static function scale(int $n, int $by = 3): int { return $n * $by; }\n\
          \n  function m(): void { echo Box::scale(1, 2, 3); }\n}\n",
     );
     assert!(

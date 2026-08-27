@@ -1,7 +1,7 @@
 --TEST--
 A concrete base method calling `$this->m()` reaches the subclass's override — the template-method shape, with `parent::` staying non-virtual beside it
 --FILE--
-<?mwl
+<?nvs
 class Report {
     public function title(): string {
         return "report";

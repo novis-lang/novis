@@ -9,24 +9,24 @@
 //! diagnostic here rather than those two's silent `mixed` fallback, since a
 //! *type* position naming an unresolvable class is a real authoring mistake
 //! the same way an out-of-class `self`/`static` already is. A `Name`
-//! atom resolves via [`mwl_hir::resolve_ref`] — the same
-//! unqualified/qualified/fully-qualified resolution every `mwl-hir` resolver
-//! already shares — then checks [`mwl_hir::AliasTable`] first (an alias is
+//! atom resolves via [`nvs_hir::resolve_ref`] — the same
+//! unqualified/qualified/fully-qualified resolution every `nvs-hir` resolver
+//! already shares — then checks [`nvs_hir::AliasTable`] first (an alias is
 //! "resolved eagerly," per ADR 0015 § 5, so its expansion is substituted
 //! in and lowered recursively rather than kept as a name), falling back to
-//! [`mwl_hir::SymbolTable`] to decide between a class-shaped atom (a class or
+//! [`nvs_hir::SymbolTable`] to decide between a class-shaped atom (a class or
 //! interface — the type grammar does not distinguish them) and an enum. A
 //! name that resolves to neither, and is not trusted as a `Core`
-//! reference or one of [`mwl_hir::errors`]' exception classes
-//! ([`mwl_hir::QName::is_reserved_global_class`]), is `E_UNDEFINED_CLASS`.
+//! reference or one of [`nvs_hir::errors`]' exception classes
+//! ([`nvs_hir::QName::is_reserved_global_class`]), is `E_UNDEFINED_CLASS`.
 //!
 //! `array<...>` nesting is bounded at depth 32 (ADR 0007 § 5) — past that,
 //! lowering stops and reports `E_ARRAY_TYPE_TOO_DEEP` rather than recursing
 //! further, so a pathological type cannot make lowering superlinear.
 
-use mwl_diagnostics::{Diagnostic, Span, code};
-use mwl_hir::SymbolKind;
-use mwl_syntax::ast::{ImplementsClause, Name, Type, TypeAtom, TypeKind};
+use nvs_diagnostics::{Diagnostic, Span, code};
+use nvs_hir::SymbolKind;
+use nvs_syntax::ast::{ImplementsClause, Name, Type, TypeAtom, TypeKind};
 
 use crate::ty::TypeId;
 use crate::{Ctx, Env, span_text};
@@ -37,7 +37,7 @@ const MAX_ARRAY_DEPTH: u32 = 32;
 /// scope.
 pub(crate) fn lower_type(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     let id = lower_type_at_depth(ty, 0, ctx, env);
-    // Persisted for `mwl-ir`, which lowers a declared type off the AST and so
+    // Persisted for `nvs-ir`, which lowers a declared type off the AST and so
     // cannot resolve a name-shaped atom for itself — see
     // `crate::expr_table::ExprTypeTable::declared_ty`. Recorded here, at the
     // one entry point every annotation goes through, rather than at each of
@@ -48,7 +48,7 @@ pub(crate) fn lower_type(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId 
 
 /// Lowers an optional declared type, e.g. a `foreach` binding or destructure
 /// leaf that omitted its type (already diagnosed elsewhere, per
-/// [`mwl_syntax::ast::ForeachBinding::ty`]'s own doc), defaulting to `mixed`.
+/// [`nvs_syntax::ast::ForeachBinding::ty`]'s own doc), defaulting to `mixed`.
 ///
 /// A plain `ty.map_or_else(|| env.interner.mixed(), |t| lower_type(t, ctx,
 /// env))` does not borrow-check: the two closures would each need their own
@@ -221,7 +221,7 @@ fn negate_magnitude(magnitude: u64) -> Option<i64> {
 /// The enum test is [`crate::expr::members::infer_class_const`]'s, verbatim: a
 /// `Core`-owned enum has no [`SymbolKind::Enum`] entry — nothing declared it —
 /// but it is in the same [`crate::enums::EnumTable`], seeded from
-/// `mwl_stdlib::registry::ENUMS`.
+/// `nvs_stdlib::registry::ENUMS`.
 ///
 /// **Known gap:** the left-hand name is resolved directly rather than through
 /// [`Env::aliases`] first, so a `type M = Mode;` alias written as `M::Read`
@@ -237,7 +237,7 @@ fn lower_member_type(
     env: &mut Env<'_>,
 ) -> TypeId {
     let text = span_text(env.src, name.span);
-    let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+    let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
     let case = span_text(env.src, member).to_owned();
 
     let is_enum = matches!(env.symbols.get(&qname), Some(sym) if sym.kind == SymbolKind::Enum)
@@ -275,7 +275,7 @@ fn lower_member_type(
 /// name nothing declares is `E_UNKNOWN_MEMBER`. Each recovers as `mixed`,
 /// since neither leaves a narrower type that could honestly be meant.
 fn lower_class_const_type(
-    qname: &mwl_hir::QName,
+    qname: &nvs_hir::QName,
     name: &str,
     span: Span,
     env: &mut Env<'_>,
@@ -316,7 +316,7 @@ fn lower_class_const_type(
 
 /// ADR 0047 § 2's "a constant backed by a non-scalar type is not eligible, and
 /// using one this way is a diagnostic naming the eligible types."
-fn report_not_const(span: Span, qname: &mwl_hir::QName, name: &str, env: &mut Env<'_>) -> TypeId {
+fn report_not_const(span: Span, qname: &nvs_hir::QName, name: &str, env: &mut Env<'_>) -> TypeId {
     env.diags.report(
         Diagnostic::error(
             code::E_LITERAL_TYPE_NOT_CONST,
@@ -337,7 +337,7 @@ fn report_not_const(span: Span, qname: &mwl_hir::QName, name: &str, env: &mut En
 /// [`crate::expr::members::report_unknown_member`] gives the identical mistake
 /// on the expression side, reported here rather than shared because that one is
 /// `pub(super)` to `expr` and this position is not one of its callers.
-fn report_unknown(span: Span, qname: &mwl_hir::QName, name: &str, kind: &str, env: &mut Env<'_>) {
+fn report_unknown(span: Span, qname: &nvs_hir::QName, name: &str, kind: &str, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_UNKNOWN_MEMBER,
@@ -416,7 +416,7 @@ fn resolve_parent(span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
 ///
 /// Deliberately *not* [`lower_type`] over a synthesized name atom, for one
 /// reason: an `implements` entry naming something undeclared is already
-/// `mwl_hir::hierarchy`'s diagnostic, and routing through the type lowerer
+/// `nvs_hir::hierarchy`'s diagnostic, and routing through the type lowerer
 /// would report it a second time. What is checked here is only what the
 /// hierarchy resolver cannot see — that the name takes type arguments at all,
 /// and that it was given the right number.
@@ -424,9 +424,9 @@ pub(crate) fn lower_implemented_interface(
     clause: &ImplementsClause,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) -> (mwl_hir::QName, Vec<TypeId>) {
+) -> (nvs_hir::QName, Vec<TypeId>) {
     let text = span_text(env.src, clause.name.span);
-    let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+    let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
     let args: Vec<TypeId> = clause
         .type_args
         .iter()
@@ -452,7 +452,7 @@ pub(crate) fn lower_implemented_interface(
 
 /// `E_TYPE_ARGS_NOT_GENERIC`, from the two positions a type-argument list can
 /// be written in — a name in type position, and an `implements` entry.
-fn report_not_generic(qname: &mwl_hir::QName, span: Span, env: &mut Env<'_>) {
+fn report_not_generic(qname: &nvs_hir::QName, span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_TYPE_ARGS_NOT_GENERIC,
@@ -474,21 +474,21 @@ fn report_not_generic(qname: &mwl_hir::QName, span: Span, env: &mut Env<'_>) {
 ///
 /// Two rosters, because ADR 0007 § 3 makes "which name may carry a list" a
 /// resolution question and there are two kinds of compiler-owned answer.
-/// [`mwl_stdlib::registry::GENERIC_CLASSES`] holds spec § 9's collections,
+/// [`nvs_stdlib::registry::GENERIC_CLASSES`] holds spec § 9's collections,
 /// named in full because `Core\ObjectSet` is the only spelling there is.
-/// [`mwl_hir::interfaces::RESERVED`] holds ADR 0053 § 2's two interfaces,
+/// [`nvs_hir::interfaces::RESERVED`] holds ADR 0053 § 2's two interfaces,
 /// named by their short name and only as a single global segment — so a user
 /// interface that happens to be called `Iterable` in its own namespace is not
-/// one, which [`mwl_hir::QName::is_reserved_global_interface`] already
+/// one, which [`nvs_hir::QName::is_reserved_global_interface`] already
 /// requires.
-fn generic_params(qname: &mwl_hir::QName) -> Option<&'static [&'static str]> {
-    if let Some(params) = mwl_stdlib::registry::class_type_params(&qname.to_string()) {
+fn generic_params(qname: &nvs_hir::QName) -> Option<&'static [&'static str]> {
+    if let Some(params) = nvs_stdlib::registry::class_type_params(&qname.to_string()) {
         return Some(params);
     }
     if !qname.is_reserved_global_interface() {
         return None;
     }
-    mwl_hir::interfaces::type_params(qname.short_name()).filter(|params| !params.is_empty())
+    nvs_hir::interfaces::type_params(qname.short_name()).filter(|params| !params.is_empty())
 }
 
 /// Checks a compiler-owned generic interface's type-argument count and
@@ -500,7 +500,7 @@ fn generic_params(qname: &mwl_hir::QName) -> Option<&'static [&'static str]> {
 /// an empty list is already the shape every non-generic name has, so nothing
 /// downstream meets a case it has no rule for.
 fn lower_generic_interface(
-    qname: mwl_hir::QName,
+    qname: nvs_hir::QName,
     params: &'static [&'static str],
     args: Vec<TypeId>,
     span: Span,
@@ -519,7 +519,7 @@ fn lower_generic_interface(
         )
         .with_primary(span, format!("write `{qname}<{names}>`"))
         .with_help(
-            if mwl_stdlib::registry::class_type_params(&qname.to_string()).is_some() {
+            if nvs_stdlib::registry::class_type_params(&qname.to_string()).is_some() {
                 format!(
                     "`docs/spec/01-core-library.md` § 9 declares `{qname}<{names}>`; the arguments \
                  are positional, and nothing about a `Core` collection infers them"
@@ -544,7 +544,7 @@ fn resolve_name_type(
     env: &mut Env<'_>,
 ) -> TypeId {
     let text = span_text(env.src, name.span);
-    let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+    let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
 
     // Lowered up front, and unconditionally: an argument written on a name
     // that turns out not to be generic is still a type the author wrote, and
@@ -594,10 +594,10 @@ fn resolve_name_type(
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::{Diagnostics, SourceMap, code};
-    use mwl_hir::resolve_file;
-    use mwl_syntax::ast::{StmtKind, Type};
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::{Diagnostics, SourceMap, code};
+    use nvs_hir::resolve_file;
+    use nvs_syntax::ast::{StmtKind, Type};
+    use nvs_syntax::parse_file;
 
     use super::*;
     use crate::ty::{Ty, TypeInterner};
@@ -609,7 +609,7 @@ mod tests {
     /// method body.
     fn lower_alias(src: &str) -> (TypeId, TypeInterner, Diagnostics) {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -666,14 +666,14 @@ mod tests {
 
     #[test]
     fn scalars_lower_to_their_own_singleton() {
-        let (id, interner, diags) = lower_alias("<?mwl\ntype Probe = uint;\n");
+        let (id, interner, diags) = lower_alias("<?nvs\ntype Probe = uint;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         assert_eq!(*interner.get(id), Ty::Uint);
     }
 
     #[test]
     fn nullable_lowers_to_a_union_with_null() {
-        let (id, interner, diags) = lower_alias("<?mwl\nclass Foo {}\ntype Probe = ?Foo;\n");
+        let (id, interner, diags) = lower_alias("<?nvs\nclass Foo {}\ntype Probe = ?Foo;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         assert_eq!(interner.describe(id).split('|').count(), 2);
     }
@@ -683,7 +683,7 @@ mod tests {
         // A bare `type Probe = Foo;` is itself rejected by ADR 0015 § 6 (a
         // type alias aliasing a single bare class), so this wraps it in
         // `array<...>` to exercise class-name resolution instead.
-        let (id, interner, diags) = lower_alias("<?mwl\nclass Foo {}\ntype Probe = array<Foo>;\n");
+        let (id, interner, diags) = lower_alias("<?nvs\nclass Foo {}\ntype Probe = array<Foo>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let Ty::Array(elem) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
@@ -695,7 +695,7 @@ mod tests {
     fn a_reserved_global_exception_class_resolves_with_no_declaration() {
         // ADR 0020 § 0: `Exception` never needs a source declaration —
         // trusted the same way a `Core\*` name is.
-        let (id, interner, diags) = lower_alias("<?mwl\ntype Probe = array<LogicError>;\n");
+        let (id, interner, diags) = lower_alias("<?nvs\ntype Probe = array<LogicError>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let Ty::Array(elem) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
@@ -706,7 +706,7 @@ mod tests {
     #[test]
     fn an_enum_name_resolves_to_an_enum_type() {
         let (id, interner, diags) =
-            lower_alias("<?mwl\nenum Status: uint { Active }\ntype Probe = array<Status>;\n");
+            lower_alias("<?nvs\nenum Status: uint { Active }\ntype Probe = array<Status>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let Ty::Array(elem) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
@@ -716,7 +716,7 @@ mod tests {
 
     #[test]
     fn an_undeclared_name_is_diagnosed() {
-        let (_id, _interner, diags) = lower_alias("<?mwl\ntype Probe = Missing;\n");
+        let (_id, _interner, diags) = lower_alias("<?nvs\ntype Probe = Missing;\n");
         assert!(
             diags
                 .iter()
@@ -727,14 +727,14 @@ mod tests {
     #[test]
     fn a_type_alias_is_substituted_recursively() {
         let (id, interner, diags) =
-            lower_alias("<?mwl\ntype Inner = uint;\ntype Probe = array<Inner>;\n");
+            lower_alias("<?nvs\ntype Inner = uint;\ntype Probe = array<Inner>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         assert_eq!(interner.describe(id), "array<uint>");
     }
 
     #[test]
     fn array_nesting_past_32_deep_is_diagnosed() {
-        let mut src = "<?mwl\ntype Probe = ".to_owned();
+        let mut src = "<?nvs\ntype Probe = ".to_owned();
         for _ in 0..40 {
             src.push_str("array<");
         }

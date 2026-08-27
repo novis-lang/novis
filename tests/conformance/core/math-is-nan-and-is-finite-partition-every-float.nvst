@@ -1,10 +1,10 @@
 --TEST--
 Core\Math::isNan and isFinite agree on a partition of every float a member can answer, spec § 3
 --FILE--
-<?mwl
+<?nvs
 // Spec § 3's two predicates are the only members that ask *about* a float
 // rather than compute one, and they exist because a domain error here is
-// IEEE's answer and not a throw (`mwl_stdlib::math`'s module doc). Between
+// IEEE's answer and not a throw (`nvs_stdlib::math`'s module doc). Between
 // them they are supposed to carve every `float` into three classes — `NaN`,
 // finite, and an infinity — with no value in two of them and none in none.
 //

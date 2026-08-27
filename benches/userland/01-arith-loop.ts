@@ -1,5 +1,5 @@
 // A hot integer loop: the arithmetic every counter, accumulator and offset walk is made of.
-// JavaScript's `%` truncates toward zero exactly as PHP's and MWL's do, so this case needs no
+// JavaScript's `%` truncates toward zero exactly as PHP's and Novis's do, so this case needs no
 // helper the way its Python twin does -- see the README's note on arithmetic that has to agree.
 
 function run(rounds: number): number {

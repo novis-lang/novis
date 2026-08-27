@@ -1,7 +1,7 @@
 --TEST--
 Core\Time::fromIso accepts only a text that carries its own offset and refuses the rest as a ParseError under its own name — spec §§ 4, 10
 --FILE--
-<?mwl
+<?nvs
 // § 4 gives `fromIso` the half of `strtotime` that reads an ISO-8601
 // timestamp, so what it needs is an *absolute* point and the text has to
 // carry its own offset. A civil time with none is `Core\Time::parse`'s

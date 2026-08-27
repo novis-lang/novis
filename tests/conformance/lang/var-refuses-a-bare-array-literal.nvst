@@ -1,13 +1,13 @@
 --TEST--
 `var` infers from anything but a bare array literal, which has no target type to check its elements against — ADR 0037 § 2
 --FILE--
-<?mwl
+<?nvs
 var $xs = [1, 2, 3];
 echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0414]: `var` cannot infer an array literal's element type
-  --> case.mwl:2:11
+  --> case.nvs:2:11
 %A
 error: aborting due to 1 error

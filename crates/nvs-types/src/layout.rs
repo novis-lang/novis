@@ -1,35 +1,35 @@
 //! Every declared class's **field slot order** and its flattened set of
-//! supertypes — the second thing this crate publishes for `mwl-ir` to read
+//! supertypes — the second thing this crate publishes for `nvs-ir` to read
 //! back, alongside [`crate::expr_table`].
 //!
-//! # Why it lives here and not in `mwl-ir`
+//! # Why it lives here and not in `nvs-ir`
 //!
 //! Exactly [`crate::expr_table`]'s reasoning, and no new one: a slot order has
 //! to put an ancestor's properties before a subclass's own
-//! (`mwl_runtime::object`'s layout rule), which needs the resolved
-//! [`ClassGraph`] — and `mwl-ir` deliberately does not depend on `mwl-hir` at
-//! all. So the *resolution* happens once, here, and `mwl-ir` copies the answer
-//! into `mwl_ir::ir::Class` rather than re-deriving it.
+//! (`nvs_runtime::object`'s layout rule), which needs the resolved
+//! [`ClassGraph`] — and `nvs-ir` deliberately does not depend on `nvs-hir` at
+//! all. So the *resolution* happens once, here, and `nvs-ir` copies the answer
+//! into `nvs_ir::ir::Class` rather than re-deriving it.
 //!
 //! # What it is not
 //!
 //! Not a byte layout. This table says *which slot index* a field occupies and
-//! nothing about how wide one is, because `mwl_runtime::object` makes every
+//! nothing about how wide one is, because `nvs_runtime::object` makes every
 //! slot the same width — see that module's own docs for the decision and its
-//! cost. `mwl-codegen` turns a slot index into an offset through
-//! `mwl_runtime::field_offset`, so the arithmetic exists in exactly one place.
+//! cost. `nvs-codegen` turns a slot index into an offset through
+//! `nvs_runtime::field_offset`, so the arithmetic exists in exactly one place.
 //!
 //! # Declaration order is the slot order
 //!
 //! A class's own properties occupy slots in the order they are written, after
 //! every slot its ancestors already claimed. That makes a recompile of an
 //! unchanged file reproduce the same layout — the same stability property
-//! `mwl_ir::ids` needs for a probe id, for the same reason: an artifact cached
+//! `nvs_ir::ids` needs for a probe id, for the same reason: an artifact cached
 //! under ADR 0042 must still describe the code it is paired with.
 //!
 //! A `static` property claims no slot: ADR 0008 makes it class storage, not
 //! instance storage. A *hooked* property (ADR 0014 § 1) does claim one, even
-//! when nothing ever reads it — MWL has no virtual/backed split, and
+//! when nothing ever reads it — Novis has no virtual/backed split, and
 //! [`crate::signatures::PropertyHooks`] owns that decision and what it
 //! spends.
 //!
@@ -43,13 +43,13 @@
 //! * **An enum has no entry.** ADR 0010 makes an enum a closed integer value
 //!   type, not an instance with fields.
 //! * **Only the classes declared in the files walked are present.** A `Core`
-//!   class has no source declaration and therefore no layout; `mwl-stdlib`
+//!   class has no source declaration and therefore no layout; `nvs-stdlib`
 //!   owns those, and they are native Rust rather than field-slot objects
 //!   (`docs/agent/loop-goal.md`).
 
-use mwl_diagnostics::SourceFile;
-use mwl_hir::{ClassGraph, QName};
-use mwl_syntax::ast::{ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind};
+use nvs_diagnostics::SourceFile;
+use nvs_hir::{ClassGraph, QName};
+use nvs_syntax::ast::{ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind};
 use rustc_hash::FxHashMap;
 
 use crate::span_text;
@@ -57,7 +57,7 @@ use crate::span_text;
 /// A namespace name's segments — the same one-liner [`crate::check`] and
 /// [`crate::signatures`] each keep for themselves, kept here too rather than
 /// exported: it is two lines, and hoisting it would only move the duplication.
-fn qname_segments(src: &SourceFile, name: &mwl_syntax::ast::Name) -> Vec<String> {
+fn qname_segments(src: &SourceFile, name: &nvs_syntax::ast::Name) -> Vec<String> {
     QName::parse(span_text(src, name.span)).segments().to_vec()
 }
 
@@ -70,14 +70,14 @@ pub struct ClassLayout {
     /// Every *other* class and interface an instance of this one also is,
     /// rendered the same way [`ClassLayout`]'s own key is. Transitive, and
     /// deliberately excluding the class itself — `instanceof` checks identity
-    /// separately (`mwl_runtime::ClassDesc::conforms_to`).
+    /// separately (`nvs_runtime::ClassDesc::conforms_to`).
     pub conforms: Vec<String>,
     /// Every method callable on an instance of this class, as `(method name,
     /// declaring class label)` — its own first, then the nearest ancestor
     /// declaring each name it does not. Only methods with a *body*: an
     /// abstract or bodiless interface method has no code to name.
     ///
-    /// This is what `mwl_runtime::ClassDesc::method` answers a
+    /// This is what `nvs_runtime::ClassDesc::method` answers a
     /// `static::method(...)` dispatch from, so the precedence has to be the
     /// language's: a class's own override, then its superclass chain, then an
     /// interface default (ADR 0043 § 2). A depth-first walk that takes
@@ -96,7 +96,7 @@ impl ClassLayout {
 /// Every declared class's [`ClassLayout`], keyed by its rendered `Class`/
 /// `Ns\Class` label — the same rendering
 /// [`crate::expr_table::ExprTypeTable::method_label`] uses for a method
-/// label's class half, so `mwl-ir` can match a `New`/`FieldGet` target against
+/// label's class half, so `nvs-ir` can match a `New`/`FieldGet` target against
 /// it without re-spelling a namespace.
 #[derive(Debug, Default)]
 pub struct ClassLayoutTable {
@@ -138,11 +138,11 @@ impl ClassLayoutTable {
 }
 
 /// Builds the layout of every class and interface declared in any file of
-/// `files`, plus the two rosters no source declares — `mwl_hir::errors`'
-/// exception tree and `mwl_hir::interfaces`' global interfaces.
+/// `files`, plus the two rosters no source declares — `nvs_hir::errors`'
+/// exception tree and `nvs_hir::interfaces`' global interfaces.
 ///
-/// `graph` is the already-resolved hierarchy `mwl_hir::resolve_file` or
-/// `mwl_hir::resolve_program` produced for the same set of files — the one
+/// `graph` is the already-resolved hierarchy `nvs_hir::resolve_file` or
+/// `nvs_hir::resolve_program` produced for the same set of files — the one
 /// thing this pass cannot derive from the AST, since an `extends Foo`
 /// reference has to be resolved against the active namespace and imports.
 /// The set is walked whole before any layout is assembled: a subclass in one
@@ -150,7 +150,7 @@ impl ClassLayoutTable {
 /// table would place its own properties at slot zero.
 ///
 /// A class whose ancestor chain is broken (an unresolved or cyclic `extends`,
-/// both of which `mwl_hir::hierarchy` has already diagnosed) simply gets a
+/// both of which `nvs_hir::hierarchy` has already diagnosed) simply gets a
 /// layout built from as much of the chain as resolves, rather than being
 /// omitted: this pass never reports a diagnostic of its own, so leaving a hole
 /// would turn an already-reported error into a second, unexplained failure
@@ -163,18 +163,18 @@ pub fn build_class_layouts(
     let mut own: FxHashMap<QName, Vec<String>> = FxHashMap::default();
     let mut own_methods: FxHashMap<QName, Vec<String>> = FxHashMap::default();
     // The exception tree first: it has no source declaration to collect from
-    // (`mwl_hir::errors`), and a user class extending it needs its four slots
+    // (`nvs_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
-    for (name, _) in mwl_hir::errors::TREE {
-        let fields = mwl_hir::errors::own_properties(name)
+    for (name, _) in nvs_hir::errors::TREE {
+        let fields = nvs_hir::errors::own_properties(name)
             .iter()
             .map(|p| (*p).to_owned())
             .collect();
         // These constructors are synthesized rather than written
-        // (`mwl_ir::lower::exception`), so they are the methods with a body
+        // (`nvs_ir::lower::exception`), so they are the methods with a body
         // that no source walk can find. One per class that declares
-        // properties of its own — `mwl_hir::errors::declares_constructor`.
-        let methods = if mwl_hir::errors::declares_constructor(name) {
+        // properties of its own — `nvs_hir::errors::declares_constructor`.
+        let methods = if nvs_hir::errors::declares_constructor(name) {
             vec!["constructor".to_owned()]
         } else {
             Vec::new()
@@ -183,14 +183,14 @@ pub fn build_class_layouts(
         own_methods.insert(QName::parse(name), methods);
     }
     // The compiler-declared global interfaces, for the same reason and on the
-    // same terms (`mwl_hir::interfaces`): nothing declares `Stringable` in
+    // same terms (`nvs_hir::interfaces`): nothing declares `Stringable` in
     // source, but `$x instanceof Stringable` needs a descriptor to point at
     // and `class S implements Stringable` needs the edge to it in `conforms`,
     // which `collect_conforms` only keeps for a label the table has an entry
     // for. Both lists are empty: an interface declares no property, and every
     // member on these four is bodiless (`crate::iter_lib`), so there is no
     // code for a descriptor's method table to name.
-    for (name, _) in mwl_hir::interfaces::RESERVED {
+    for (name, _) in nvs_hir::interfaces::RESERVED {
         own.insert(QName::parse(name), Vec::new());
         own_methods.insert(QName::parse(name), Vec::new());
     }
@@ -253,7 +253,7 @@ fn collect_own(
             // An interface declares no instance property (ADR 0043 § 2 gives
             // it method bodies, not state), but it still needs an entry: it is
             // a legal `instanceof` target and a legal `catch` type, so
-            // `mwl-codegen` must have a descriptor to point at. Its *default*
+            // `nvs-codegen` must have a descriptor to point at. Its *default*
             // method bodies are real code, though, so they are collected the
             // same way a class's are.
             StmtKind::InterfaceDecl(decl) => {
@@ -268,7 +268,7 @@ fn collect_own(
 
 /// One declaration's own method names — only those with a body, since a
 /// bodiless one has no compiled code for a descriptor to point at.
-fn own_methods(members: &[mwl_syntax::ast::ClassMember], src: &SourceFile) -> Vec<String> {
+fn own_methods(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<String> {
     members
         .iter()
         .filter_map(|member| match &member.kind {
@@ -281,7 +281,7 @@ fn own_methods(members: &[mwl_syntax::ast::ClassMember], src: &SourceFile) -> Ve
 }
 
 /// One declaration's own instance-property names, in declaration order.
-fn own_properties(members: &[mwl_syntax::ast::ClassMember], src: &SourceFile) -> Vec<String> {
+fn own_properties(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<String> {
     members
         .iter()
         .filter_map(|member| match &member.kind {
@@ -390,16 +390,16 @@ fn collect_conforms(
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::{Diagnostics, SourceMap};
-    use mwl_hir::resolve_file;
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::{Diagnostics, SourceMap};
+    use nvs_hir::resolve_file;
+    use nvs_syntax::parse_file;
 
     use super::*;
 
     /// Parses and resolves `src`, then builds its layout table.
     fn layouts(src: &str) -> ClassLayoutTable {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -417,7 +417,7 @@ mod tests {
     #[test]
     fn a_plain_class_gets_its_properties_in_declaration_order() {
         let table = layouts(
-            "<?mwl\nclass Point {\n  public int $x;\n  public int $y;\n  \
+            "<?nvs\nclass Point {\n  public int $x;\n  public int $y;\n  \
              function constructor(int $x, int $y) { $this->x = $x; $this->y = $y; }\n}\n",
         );
         let layout = table.get("Point").expect("Point has a layout");
@@ -431,7 +431,7 @@ mod tests {
     #[test]
     fn a_subclass_slots_follow_its_parents() {
         let table = layouts(
-            "<?mwl\nclass Animal {\n  public int $legs;\n  \
+            "<?nvs\nclass Animal {\n  public int $legs;\n  \
              function constructor(int $legs) { $this->legs = $legs; }\n}\n\
              class Dog extends Animal {\n  public string $name;\n  \
              function constructor(string $name) { parent::constructor(4); $this->name = $name; }\n}\n",
@@ -447,7 +447,7 @@ mod tests {
     #[test]
     fn three_levels_stack_in_declaration_order() {
         let table = layouts(
-            "<?mwl\nclass A { public int $a; function constructor() { $this->a = 1; } }\n\
+            "<?nvs\nclass A { public int $a; function constructor() { $this->a = 1; } }\n\
              class B extends A { public int $b; function constructor() { $this->b = 2; } }\n\
              class C extends B { public int $c; function constructor() { $this->c = 3; } }\n",
         );
@@ -458,7 +458,7 @@ mod tests {
     #[test]
     fn an_interface_has_an_entry_with_no_slots() {
         let table = layouts(
-            "<?mwl\ninterface Greets { public function greet(): string; }\n\
+            "<?nvs\ninterface Greets { public function greet(): string; }\n\
              class Dog implements Greets {\n  public string $name;\n  \
              function constructor(string $name) { $this->name = $name; }\n  \
              public function greet(): string { return $this->name; }\n}\n",
@@ -468,19 +468,19 @@ mod tests {
         assert_eq!(table.get("Dog").expect("Dog").conforms, ["Greets"]);
     }
 
-    /// The four `mwl_hir::interfaces` names have no source declaration at
+    /// The four `nvs_hir::interfaces` names have no source declaration at
     /// all, so without the seeding in [`build_class_layouts`] an implementor's
     /// `conforms` would name a label the table has no entry for — and
-    /// `mwl-codegen` drops exactly those edges, leaving `$m instanceof
+    /// `nvs-codegen` drops exactly those edges, leaving `$m instanceof
     /// Stringable` with nothing to test against.
     #[test]
     fn a_reserved_global_interface_has_an_entry_and_an_implementor_keeps_the_edge() {
         let table = layouts(
-            "<?mwl\nclass Money implements Stringable {\n  \
+            "<?nvs\nclass Money implements Stringable {\n  \
              public function toString(): string { return \"m\"; }\n}\n\
              class Coin extends Money {\n}\n",
         );
-        for (name, _) in mwl_hir::interfaces::RESERVED {
+        for (name, _) in nvs_hir::interfaces::RESERVED {
             let layout = table.get(name).expect("a reserved interface has a layout");
             assert!(layout.fields.is_empty(), "{name} claims a slot");
         }
@@ -494,7 +494,7 @@ mod tests {
     #[test]
     fn an_interfaces_own_parents_are_flattened_in() {
         let table = layouts(
-            "<?mwl\ninterface Named { public function name(): string; }\n\
+            "<?nvs\ninterface Named { public function name(): string; }\n\
              interface Greets extends Named { public function greet(): string; }\n\
              class Dog implements Greets {\n  \
              public function name(): string { return \"rex\"; }\n  \
@@ -507,7 +507,7 @@ mod tests {
     #[test]
     fn a_static_property_claims_no_slot() {
         let table = layouts(
-            "<?mwl\nclass Counter {\n  public static int $total;\n  public int $count;\n  \
+            "<?nvs\nclass Counter {\n  public static int $total;\n  public int $count;\n  \
              function constructor() { $this->count = 0; }\n}\n",
         );
         assert_eq!(table.get("Counter").expect("Counter").fields, ["count"]);
@@ -516,7 +516,7 @@ mod tests {
     #[test]
     fn a_namespaced_class_is_keyed_by_its_full_label() {
         let table = layouts(
-            "<?mwl\nnamespace App\\Model;\nclass User {\n  public string $email;\n  \
+            "<?nvs\nnamespace App\\Model;\nclass User {\n  public string $email;\n  \
              function constructor(string $email) { $this->email = $email; }\n}\n",
         );
         assert!(table.get("User").is_none());
@@ -529,7 +529,7 @@ mod tests {
     #[test]
     fn a_redeclared_property_reuses_its_inherited_slot() {
         let table = layouts(
-            "<?mwl\nclass A { public int $v; function constructor() { $this->v = 1; } }\n\
+            "<?nvs\nclass A { public int $v; function constructor() { $this->v = 1; } }\n\
              class B extends A { public int $v; public int $w; \
              function constructor() { $this->v = 2; $this->w = 3; } }\n",
         );
@@ -537,23 +537,23 @@ mod tests {
     }
 
     /// A file declaring nothing still gets both rosters no source declares,
-    /// and nothing else — `mwl_hir::errors`' classes and
-    /// `mwl_hir::interfaces`' interfaces exist in every program, with the
+    /// and nothing else — `nvs_hir::errors`' classes and
+    /// `nvs_hir::interfaces`' interfaces exist in every program, with the
     /// exception root's four slots inherited at the same indices by every one
     /// of its subclasses.
     #[test]
     fn a_file_declaring_nothing_yields_exactly_the_two_compiler_owned_rosters() {
-        let table = layouts("<?mwl\necho \"hi\";\n");
+        let table = layouts("<?nvs\necho \"hi\";\n");
         assert_eq!(
             table.len(),
-            mwl_hir::errors::TREE.len() + mwl_hir::interfaces::RESERVED.len()
+            nvs_hir::errors::TREE.len() + nvs_hir::interfaces::RESERVED.len()
         );
-        for (name, _) in mwl_hir::errors::TREE {
+        for (name, _) in nvs_hir::errors::TREE {
             let layout = table.get(name).unwrap_or_else(|| panic!("{name}"));
             // The root's own row *is* `PROPERTIES`; every other row adds to it.
-            let mut want: Vec<&str> = mwl_hir::errors::PROPERTIES.to_vec();
-            if *name != mwl_hir::errors::ROOT {
-                want.extend(mwl_hir::errors::own_properties(name));
+            let mut want: Vec<&str> = nvs_hir::errors::PROPERTIES.to_vec();
+            if *name != nvs_hir::errors::ROOT {
+                want.extend(nvs_hir::errors::own_properties(name));
             }
             assert_eq!(layout.fields, want, "{name}");
             assert_eq!(layout.slot_of("backtrace"), Some(2), "{name}");
@@ -563,15 +563,15 @@ mod tests {
                 .get("ParseError")
                 .expect("ParseError")
                 .slot_of("issues"),
-            Some(mwl_hir::errors::ISSUES_SLOT)
+            Some(nvs_hir::errors::ISSUES_SLOT)
         );
     }
 
     /// A user class extending the tree gets its own slots *after* the root's,
-    /// which is what makes `mwl_runtime::throwable`'s fixed slot indices hold.
+    /// which is what makes `nvs_runtime::throwable`'s fixed slot indices hold.
     #[test]
     fn a_user_exception_class_appends_its_slots_after_the_roots() {
-        let table = layouts("<?mwl\nclass MyError extends IOError { public int $code; }\n");
+        let table = layouts("<?nvs\nclass MyError extends IOError { public int $code; }\n");
         let layout = table.get("MyError").expect("MyError");
         assert_eq!(
             layout.fields,

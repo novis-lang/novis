@@ -1,15 +1,15 @@
 --TEST--
 Core\Str::slice and ::replaceRange read one window the way substr and substr_replace read theirs, over every sign of every argument, and the two members compose into the identity PHP's pair also holds
 --FILE--
-<?mwl
+<?nvs
 // Spec § 1's `slice` and `replaceRange` rows. Both members read their
 // `int $offset` and `?int $length` through one shared helper — `window` in
-// `mwl_stdlib::str`, whose own doc comment owns the sign rule — so what is
+// `nvs_stdlib::str`, whose own doc comment owns the sign rule — so what is
 // worth pinning is not two members' arithmetic but that the single reading
 // they share is PHP's, at every sign and past every end.
 //
 // The subject here is ASCII on purpose. `Core\Str::slice` counts in grapheme
-// clusters (ADR 0009 § 2, `mwl_stdlib::granularity::DEFAULT`), `substr`
+// clusters (ADR 0009 § 2, `nvs_stdlib::granularity::DEFAULT`), `substr`
 // counts bytes and `mb_substr` counts code points; inside ASCII with no
 // carriage return all three units are the same unit, which is exactly what
 // `granularity::one_byte_per_grapheme` asserts. So this file is the whole

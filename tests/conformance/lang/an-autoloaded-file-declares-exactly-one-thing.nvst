@@ -1,18 +1,18 @@
 --TEST--
 a second top-level declaration in an autoloaded file does not compile — ADR 0061 § 2
 --FILE--
-<?mwl
+<?nvs
 // Nothing names `App\Stowaway`. If a file reached by a prefix could carry it
 // anyway, whether that class exists in the program would depend on whether
 // something referenced `App\Pair` first — so the rule is checked when the
 // file is loaded, not when the extra name is used.
-require './src/Bootstrap.mwl';
+require './src/Bootstrap.nvs';
 echo App\Pair::from(), "\n";
---FILE src/Bootstrap.mwl--
-<?mwl
+--FILE src/Bootstrap.nvs--
+<?nvs
 autoload 'App' from './';
---FILE src/Pair.mwl--
-<?mwl
+--FILE src/Pair.nvs--
+<?nvs
 namespace App;
 
 class Pair

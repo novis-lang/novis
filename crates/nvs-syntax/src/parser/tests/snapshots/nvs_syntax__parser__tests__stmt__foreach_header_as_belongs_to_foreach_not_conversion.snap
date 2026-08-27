@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-syntax/src/parser/tests/stmt.rs
+source: crates/nvs-syntax/src/parser/tests/stmt.rs
 expression: s
 ---
 Stmt {

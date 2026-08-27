@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::lastIndexOf matches strrpos and strripos, and its {before} bound is a search of the prefix (ADR 0063 R5, R20)
 --FILE--
-<?mwl
+<?nvs
 // The mirror of `str-index-of-matches-strpos`: absence is `null` here too, so
 // both sides render it as `none` and what is compared is the position.
 final class Show {

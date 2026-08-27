@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Run MWL snippets against PHP, several at a time, in the shape a `.mwlt` case already has.
+"""Run Novis snippets against PHP, several at a time, in the shape a `.nvst` case already has.
 
-    python tools/try.py .agent-tmp/promo.mwlt .agent-tmp/div.mwlt .agent-tmp/shift.mwlt
-    python tools/try.py .agent-tmp/*.mwlt              # the whole scratch pad
-    python tools/try.py --keep .agent-tmp/promo.mwlt   # leave the generated .mwl/.php behind
+    python tools/try.py .agent-tmp/promo.nvst .agent-tmp/div.nvst .agent-tmp/shift.nvst
+    python tools/try.py .agent-tmp/*.nvst              # the whole scratch pad
+    python tools/try.py --keep .agent-tmp/promo.nvst   # leave the generated .nvs/.php behind
 
-Each argument is a file in the `.mwlt` shape -- `--TEST--`, `--FILE--`, and optionally
-`--ORACLE--` -- or, when it holds no markers at all, a bare `<?mwl` snippet. For each one this
-runs the MWL binary; where there is an `--ORACLE--` it runs PHP over that too and says whether the
+Each argument is a file in the `.nvst` shape -- `--TEST--`, `--FILE--`, and optionally
+`--ORACLE--` -- or, when it holds no markers at all, a bare `<?nvs` snippet. For each one this
+runs the Novis binary; where there is an `--ORACLE--` it runs PHP over that too and says whether the
 two agree, with the first line they differ on.
 
 ## Why this exists
 
 Measured over a 33-session run, sessions made **370 calls that ran a snippet, 335 of them
-distinct** -- 9.6 a session. Every one was the same shape: heredoc a scratch `.mwl` into
+distinct** -- 9.6 a session. Every one was the same shape: heredoc a scratch `.nvs` into
 `.agent-tmp`, run it, then hand-write a `php -r` beside it to see what PHP does. Two costs sit in
 that, and this addresses both.
 
@@ -24,19 +24,19 @@ wide as `tools/machine.py` says this box may go, printed back in the order they 
 
 The second is correctness, and it matters more. **Priority 2 is PHP-compatible observable
 behaviour**, and a hand-written `php -r` twin is a *translation* -- performed under time pressure,
-by the same agent that wrote the MWL, at the moment it most wants the answer to be yes. A twin
-that quietly differs from the MWL it is checking proves nothing and reads exactly like proof. Here
+by the same agent that wrote the Novis, at the moment it most wants the answer to be yes. A twin
+that quietly differs from the Novis it is checking proves nothing and reads exactly like proof. Here
 the twin is a section of the same file, run by the same tool that will run it in
 `tests/differential/`, printed side by side.
 
 That is the other half of the shape: an experiment that comes out right **is already the case**.
-Give the file a `--TEST--` line, move it under `tests/differential/`, and `mwl test` runs the same
+Give the file a `--TEST--` line, move it under `tests/differential/`, and `nvs test` runs the same
 two programs the same way -- no second translation step, which is where the twin used to drift.
-`conventions.md` § *A `.mwlt` test case* is the format's home; this file never restates it.
+`conventions.md` § *A `.nvst` test case* is the format's home; this file never restates it.
 
 Nothing here judges. A snippet that fails to compile prints its diagnostic, a twin that diverges
 prints both outputs, and the exit status is 0 unless a snippet could not be *read* -- because
-"MWL and PHP disagree" is the finding, not an error.
+"Novis and PHP disagree" is the finding, not an error.
 """
 
 from __future__ import annotations
@@ -54,9 +54,9 @@ import machine  # noqa: E402  -- same directory; how wide anything runs has one 
 
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".agent-tmp"
-BINARY = ROOT / "target" / "debug" / ("mwl.exe" if os.name == "nt" else "mwl")
+BINARY = ROOT / "target" / "debug" / ("nvs.exe" if os.name == "nt" else "nvs")
 
-#: A `--SECTION--` line in a `.mwlt` file. `crates/mwl-test/src/case.rs` is the authority on the
+#: A `--SECTION--` line in a `.nvst` file. `crates/nvs-test/src/case.rs` is the authority on the
 #: full roster; only the three below mean anything here, and an unknown one is ignored rather
 #: than refused -- this is a scratch pad, not the case runner.
 SECTION_RE = re.compile(r"^--([A-Z][A-Z0-9-]*)--\s*$", re.M)
@@ -67,7 +67,7 @@ TIMEOUT = 30
 
 
 def sections(text: str) -> dict[str, str]:
-    """`{SECTION: body}` for a `.mwlt` file, or `{"FILE": text}` for a bare snippet."""
+    """`{SECTION: body}` for a `.nvst` file, or `{"FILE": text}` for a bare snippet."""
     marks = list(SECTION_RE.finditer(text))
     if not marks:
         return {"FILE": text}
@@ -91,15 +91,15 @@ def run(cmd: list[str], cwd: Path) -> tuple[str, int]:
 
 
 def first_difference(a: str, b: str) -> str:
-    """The first line the two outputs disagree on, as `mwl` / `php` beside each other."""
+    """The first line the two outputs disagree on, as `nvs` / `php` beside each other."""
     left, right = a.split("\n"), b.split("\n")
     for n, (x, y) in enumerate(zip(left, right), start=1):
         if x != y:
             return (f"    first difference at line {n}\n"
-                    f"      mwl: {x[:90]!r}\n"
+                    f"      nvs: {x[:90]!r}\n"
                     f"      php: {y[:90]!r}")
     if len(left) != len(right):
-        longer, who = (left, "mwl") if len(left) > len(right) else (right, "php")
+        longer, who = (left, "nvs") if len(left) > len(right) else (right, "php")
         at = min(len(left), len(right))
         return (f"    both agree for {at} line(s); {who} then has "
                 f"{abs(len(left) - len(right))} more, starting {longer[at][:90]!r}")
@@ -107,14 +107,14 @@ def first_difference(a: str, b: str) -> str:
 
 
 def one(path: Path, keep: bool, php: str, stem: str) -> tuple[bool, list[str]]:
-    """Run one snippet. True when MWL and its twin agree, or when there is no twin to disagree.
+    """Run one snippet. True when Novis and its twin agree, or when there is no twin to disagree.
 
     Returns its output instead of printing it: several snippets run at once, and interleaved
     blocks would be unreadable. `main` prints them back in the order they were asked for, so the
     concurrency is invisible in the answer -- which is the only property it must have.
 
     `stem` names this snippet's generated files. It is not `path.stem`, because two arguments may
-    share one and two workers writing `.agent-tmp/try-x.mwl` at the same time is a race.
+    share one and two workers writing `.agent-tmp/try-x.nvs` at the same time is a race.
     """
     out: list[str] = []
     try:
@@ -132,12 +132,12 @@ def one(path: Path, keep: bool, php: str, stem: str) -> tuple[bool, list[str]]:
         return True, out
 
     TMP.mkdir(parents=True, exist_ok=True)
-    mwl_file = TMP / f"try-{stem}.mwl"
-    mwl_file.write_text(body.lstrip("\n"), encoding="utf-8", newline="")
-    mwl_out, mwl_code = run([str(BINARY), "run", str(mwl_file)], ROOT)
+    nvs_file = TMP / f"try-{stem}.nvs"
+    nvs_file.write_text(body.lstrip("\n"), encoding="utf-8", newline="")
+    nvs_out, nvs_code = run([str(BINARY), "run", str(nvs_file)], ROOT)
 
-    out.append(f"  mwl  exit {mwl_code}")
-    out.extend(f"    | {line}" for line in mwl_out.rstrip("\n").split("\n"))
+    out.append(f"  nvs  exit {nvs_code}")
+    out.extend(f"    | {line}" for line in nvs_out.rstrip("\n").split("\n"))
 
     diverges = parts.get("ORACLE-DIVERGES")
     if diverges is not None:
@@ -146,7 +146,7 @@ def one(path: Path, keep: bool, php: str, stem: str) -> tuple[bool, list[str]]:
 
     twin = parts.get("ORACLE")
     if twin is None:
-        out.append("  no `--ORACLE--`: this ran MWL only. A twin here is what makes the answer")
+        out.append("  no `--ORACLE--`: this ran Novis only. A twin here is what makes the answer")
         out.append("  evidence rather than an opinion -- and makes the file a differential case.")
         return True, out
 
@@ -158,16 +158,16 @@ def one(path: Path, keep: bool, php: str, stem: str) -> tuple[bool, list[str]]:
     out.extend(f"    | {line}" for line in php_out.rstrip("\n").split("\n"))
 
     if not keep:
-        for f in (mwl_file, php_file):
+        for f in (nvs_file, php_file):
             try:
                 f.unlink()
             except OSError:
                 pass
 
-    agree = mwl_out == php_out
+    agree = nvs_out == php_out
     out.append("  MATCH" if agree else "  DIFFER")
     if not agree:
-        out.append(first_difference(mwl_out, php_out))
+        out.append(first_difference(nvs_out, php_out))
     return agree, out
 
 
@@ -176,9 +176,9 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("files", nargs="+", metavar="FILE",
-                    help="`.mwlt`-shaped snippets, or bare `<?mwl` ones; as many as you have questions")
+                    help="`.nvst`-shaped snippets, or bare `<?nvs` ones; as many as you have questions")
     ap.add_argument("--keep", action="store_true",
-                    help="leave the generated .mwl/.php under .agent-tmp/ instead of removing them")
+                    help="leave the generated .nvs/.php under .agent-tmp/ instead of removing them")
     ap.add_argument("--php", default="php", help="the PHP executable (default `php`)")
     opts = ap.parse_args()
 
@@ -189,7 +189,7 @@ def main() -> int:
 
     if not BINARY.exists():
         print(f"try.py: {BINARY.relative_to(ROOT)} is not built.")
-        print("        `cargo build -p mwl-cli` first -- and note that `verify.py` builds it too,")
+        print("        `cargo build -p nvs-cli` first -- and note that `verify.py` builds it too,")
         print("        so a snippet run right after a green verification needs nothing.")
         return 2
 
@@ -204,7 +204,7 @@ def main() -> int:
     # `tools/machine.py` decides it -- half the cores, at most one worker per snippet. This is the
     # second half of "in one call": the call stopped being nine round trips when this file was
     # written, and stops being nine sequential runs here.
-    jobs = machine.jobs("local", ceiling=len(paths), envs=("MWL_TRY_JOBS",))
+    jobs = machine.jobs("local", ceiling=len(paths), envs=("NVS_TRY_JOBS",))
 
     agreed = 0
     with ThreadPoolExecutor(max_workers=jobs) as pool:

@@ -1,7 +1,7 @@
 --TEST--
 a constructor call is arity-checked like any other call, and the extra argument is reported at the call site
 --FILE--
-<?mwl
+<?nvs
 class Box {
     public int $n;
 
@@ -15,6 +15,6 @@ echo $b->n, "\n";
 
 --EXPECTF-ERROR--
 error[E0402]: expected 1 argument(s), found 2
-  --> case.mwl:9:10
+  --> case.nvs:9:10
 %A
 error: aborting due to 1 error

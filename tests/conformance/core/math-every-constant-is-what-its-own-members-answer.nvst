@@ -1,11 +1,11 @@
 --TEST--
 Every Core\Math constant is what the class's own members answer at a landmark, spec § 3 and ADR 0011 § 1
 --FILE--
-<?mwl
+<?nvs
 // The *agreement* shape (conventions.md): every constant is asked of the
 // members that share its rule, so a constant that drifted from the library it
 // belongs to fails here while still printing a plausible number on its own.
-// `math-constants-are-class-constants.mwlt` is the thin case that only pins
+// `math-constants-are-class-constants.nvst` is the thin case that only pins
 // each one as a class constant; this is where each is pinned to a member.
 //
 // Every float row below is a landmark whose answer is exactly representable —

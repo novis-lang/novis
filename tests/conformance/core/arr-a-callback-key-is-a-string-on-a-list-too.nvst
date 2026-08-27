@@ -1,12 +1,12 @@
 --TEST--
 Every Core\Arr callback is handed its key as a `string` over a list, where the key is a position, and every one of them refuses an `int $k` — ADR 0069 § 5, ADR 0007 §§ 2, 5
 --FILE--
-<?mwl
+<?nvs
 // The depth claim is *agreement about a type*. ADR 0069 § 5 makes the `$key` a
 // callback receives a `string` in every member and over every array shape, and
 // a list is the one shape where that costs something: `SlotKey::Index` holds
 // the position, so the decimal is rendered for the call and for nothing else
-// (`crates/mwl-stdlib/src/arr.rs`'s module doc owns the mechanism). A member
+// (`crates/nvs-stdlib/src/arr.rs`'s module doc owns the mechanism). A member
 // that handed the position on unrendered would still answer plausibly on its
 // own line — the keys would read the same — so what is asserted here is both
 // sides of the rule at once: every member accepts `string $k` over a list and
@@ -62,7 +62,7 @@ echo Core\Arr::find($list, fn(int $v, string $k) => $k == "2") ?? -1, "|",
 echo Core\Str::join(Core\Arr::keys(Core\Arr::sort($list,
     {by: fn(int $v, string $k) => $k, preserveKeys: true})), ","), "\n";
 
-// The other half. `mwl_runtime::call_closure` checks each argument against the
+// The other half. `nvs_runtime::call_closure` checks each argument against the
 // tags the closure declared, so a callback writing `int $k` throws
 // `LogicError` — ADR 0007 § 2 has no implicit `string` → `int` conversion, and
 // the only widening it does admit runs the other way. Both counters are

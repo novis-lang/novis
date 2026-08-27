@@ -48,8 +48,8 @@ inference failed to resolve. `var` avoids all three: it is not a solver — it n
 is *used* later, only at its initializer, and it always terminates in one synthesis pass with no
 back-tracking. The IR gains no `Unknown`; by the time a `var` declaration is checked it already carries a
 concrete `TypeId`, the same one a written-out annotation would have produced. The only new code is in the
-checker's `LocalDecl` handling (`crates/mwl-types/src/locals.rs`) and the parser's statement dispatch
-(`crates/mwl-syntax/src/parser.rs`); nothing in `mwl-hir`, IR lowering, or codegen needs to know `var` ever
+checker's `LocalDecl` handling (`crates/nvs-types/src/locals.rs`) and the parser's statement dispatch
+(`crates/nvs-syntax/src/parser.rs`); nothing in `nvs-hir`, IR lowering, or codegen needs to know `var` ever
 existed, because by the time any of them run, it doesn't — every binding they see is already concretely
 typed.
 
@@ -59,7 +59,7 @@ typed.
 
 - Removes the most common source of ADR 0007's verbosity complaint — a local whose type is obvious from
   its initializer (`var $count = 0;`, `var $user = new User();`) no longer needs it spelled out twice.
-- Lands in the language itself rather than only in `mwl convert`'s M11 migration pass, so hand-written MWL
+- Lands in the language itself rather than only in `nvs convert`'s M11 migration pass, so hand-written Novis
   gets the same ergonomics a converted PHP file would.
 - Zero backend or runtime cost: this is resolved entirely at check time, before any IR exists.
 
@@ -83,13 +83,13 @@ typed.
   a target, per ADR 0007 § 5). Rejected because it silently produces a binding that can never usefully hold
   anything without a further `as`, which is a worse trap than a clear diagnostic at the declaration site.
 - **A distinct keyword instead of reusing PHP 4's `var`.** `var` was already a reserved token with no
-  meaning in MWL — PHP 4's property declarator use is vanishingly rare in modern code and unhandled by this
+  meaning in Novis — PHP 4's property declarator use is vanishingly rare in modern code and unhandled by this
   parser regardless — so reusing it needed no lexer change and collides with nothing.
 
 ## Verification
 
-- `crates/mwl-syntax/src/parser.rs`: `var $n = 0;` parses to `LocalDecl { ty: None, .. }`; `var $n;` (no
+- `crates/nvs-syntax/src/parser.rs`: `var $n = 0;` parses to `LocalDecl { ty: None, .. }`; `var $n;` (no
   initializer) is `E_EXPECTED_TOKEN` naming `=`.
-- `crates/mwl-types/src/check.rs`: `var $n = 1;` fixes `$n` to `int` (a later `string` assignment is
+- `crates/nvs-types/src/check.rs`: `var $n = 1;` fixes `$n` to `int` (a later `string` assignment is
   `E_TYPE_MISMATCH`); `var $x = new Foo();` recovers `Foo`'s own members; redeclaring a `var` local is
   `E_REDECLARED_LOCAL` like any other; `var $rows = [1, 2];` is `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`.

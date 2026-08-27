@@ -1,5 +1,5 @@
 //! The IR's own value-representation type lattice — deliberately smaller and
-//! flatter than `mwl_types::ty::Ty`, and not the same type.
+//! flatter than `nvs_types::ty::Ty`, and not the same type.
 //!
 //! The checker's `Ty` exists to make `is_assignable` reject the *wrong*
 //! program: it carries qualifiers (`tainted`, `secret`), full nominal class
@@ -26,16 +26,16 @@
 //! [`Ty::Array`] is next: a bare, opaque representation exactly like
 //! [`Ty::Object`] — no boxed/interned element type — since no lowering
 //! decision made so far needs to branch on an array's *element* type at this
-//! IR level (`mwl_types::ty::Ty::Array(TypeId)` already enforces that at
+//! IR level (`nvs_types::ty::Ty::Array(TypeId)` already enforces that at
 //! check time; erasing it here is the same "representation, not identity"
 //! split [`Ty::Object`] already draws for a class/enum). [`Ty::Object`] is
 //! the one other non-scalar representation that exists, and is now
-//! functional: `mwl_runtime::object` gives it a heap shape, and
+//! functional: `nvs_runtime::object` gives it a heap shape, and
 //! [`crate::ir::Program::classes`] carries the per-class slot order this
 //! per-value lattice has no room for. Widening lowering further adds
 //! variants to this enum; it does not replace the "erase checker
 //! qualifiers" design itself. [`Ty::Tagged`] is the one variant that is not a
-//! machine representation of a single MWL type at all — it is the *tagged*
+//! machine representation of a single Novis type at all — it is the *tagged*
 //! representation every type whose runtime shape is not statically known
 //! erases to: `mixed`, `?T`, and any other union. Its own doc comment is the
 //! home for that decision, its cost, and the three instructions that widen
@@ -58,11 +58,11 @@ pub enum Ty {
     ///
     /// # The representation
     ///
-    /// **A `mwl_runtime::Value` carrying `Tag::Decimal`**, which is to say the
+    /// **A `nvs_runtime::Value` carrying `Tag::Decimal`**, which is to say the
     /// same register pair [`Self::Tagged`] travels in and the same sixteen
     /// bytes — not a shape of its own. The mantissa does not fit the payload
     /// half alone, so it spills into the bytes a `Value` otherwise calls
-    /// padding; `mwl_runtime::decimal`'s own module docs are the one home for
+    /// padding; `nvs_runtime::decimal`'s own module docs are the one home for
     /// the bit positions and for why one shape was chosen over two.
     ///
     /// The consequence worth knowing here: [`crate::ir::InstKind::Tag`] and
@@ -87,7 +87,7 @@ pub enum Ty {
     /// ADR 0054 § *Consequences* names as the real implementation cost.
     /// Inlining the equal-scale `+`, `-` and comparison that ADR anticipates
     /// is a backend optimization, recorded as a known gap in
-    /// `mwl_runtime::decimal`, not a semantic difference.
+    /// `nvs_runtime::decimal`, not a semantic difference.
     Decimal,
     /// `null` — the one value of its own type, and the whole of what an
     /// **absent** argument is.
@@ -95,7 +95,7 @@ pub enum Ty {
     /// Deliberately *not* the same thing as [`Self::Tagged`]. This is the
     /// static type of the literal `null` and of an **absent** argument: one
     /// value, known at compile time, represented as a `Tag::Null` tag byte
-    /// over a zero payload — exactly what `mwl_runtime::Value::null` builds
+    /// over a zero payload — exactly what `nvs_runtime::Value::null` builds
     /// and what every helper already receives in the receiver slot of a
     /// static call. A binding *declared* `?T` is the other thing, and is
     /// [`Self::Tagged`]: it has to hold either representation at different
@@ -106,14 +106,14 @@ pub enum Ty {
     Null,
     /// A function returning nothing.
     Void,
-    /// A reference to a class instance — every `mwl_types::ty::Ty::Class`/
+    /// A reference to a class instance — every `nvs_types::ty::Ty::Class`/
     /// `Ty::Enum` erases to this one opaque representation, with no class
     /// identity carried in the IR at all: a call's or `new`'s actual target
     /// is already resolved to a concrete label by
-    /// `mwl_types::expr_table::ExprTypeTable` before lowering ever reaches
+    /// `nvs_types::expr_table::ExprTypeTable` before lowering ever reaches
     /// it (see `crate::lower`'s module docs), so nothing downstream of that
     /// needs to ask "which class is this?" again. Its heap shape is
-    /// `mwl_runtime::object`'s: a refcounted header plus one uniform
+    /// `nvs_runtime::object`'s: a refcounted header plus one uniform
     /// 16-byte slot per declared property, laid out ancestors-first. The slot
     /// *order* is the one class fact this representation deliberately does
     /// not carry — it is per-class rather than per-value, so it lives in
@@ -138,7 +138,7 @@ pub enum Ty {
     /// content: same retain/release treatment at a local's declare/reassign/
     /// scope-exit lifecycle, a call argument/parameter, a returned value, and
     /// a compile-time-known property read/write. Unlike [`Self::Str`],
-    /// nothing in `mwl-syntax`'s grammar constructs a *fresh* `bytes` value
+    /// nothing in `nvs-syntax`'s grammar constructs a *fresh* `bytes` value
     /// yet — there is no `bytes` literal syntax (no `b"..."` form or
     /// equivalent), so every `bytes` value a fixture can lower today
     /// originates as a parameter or a property read, both
@@ -171,14 +171,14 @@ pub enum Ty {
     ///
     /// # The representation
     ///
-    /// Exactly `mwl_runtime::Value`: a tag byte, seven bytes of padding, and
+    /// Exactly `nvs_runtime::Value`: a tag byte, seven bytes of padding, and
     /// an eight-byte payload. In a register it is **one register pair** — the
     /// low half is the value's first eight bytes (the tag byte and its
     /// padding), the high half is the payload — which is the little-endian
     /// memory image of that struct, so materializing one into a call's
     /// argument slot is one store per half and no reshuffling at all.
-    /// `mwl_codegen::ty::clif_ty` names the machine type; the *layout* is
-    /// `mwl_runtime::value`'s, and this variant deliberately adds no second
+    /// `nvs_codegen::ty::clif_ty` names the machine type; the *layout* is
+    /// `nvs_runtime::value`'s, and this variant deliberately adds no second
     /// one.
     ///
     /// # Why `mixed` and `?T` are one representation, not two
@@ -199,7 +199,7 @@ pub enum Ty {
     /// flight. Nothing is allocated: the tag rides *with* the value, so a
     /// `?int` is still a register pair rather than a pointer to a box. On top
     /// of that a retain or release of one is an out-of-line call to
-    /// `mwl_runtime::mwl_value_retain`/`mwl_value_release`, which branches on
+    /// `nvs_runtime::nvs_value_retain`/`nvs_value_release`, which branches on
     /// the tag, where a statically-typed value calls the exact primitive its
     /// representation names. That is priority 5 spent to buy priority 2 in
     /// [AGENTS.md](../../../AGENTS.md)'s ordering, on the same terms the
@@ -215,7 +215,7 @@ pub enum Ty {
     /// [`crate::lower::Lowering::coerce`] is the one place the first two are
     /// emitted, at every boundary carrying a declared type. A
     /// [`crate::ir::Helper`] may branch on the tag as well, but only out of
-    /// line, inside `mwl-runtime` — [`crate::ir::Helper::TaggedToString`] is
+    /// line, inside `nvs-runtime` — [`crate::ir::Helper::TaggedToString`] is
     /// the first, and that arrangement is what keeps the number of tag layouts
     /// compiled code knows about at exactly one.
     ///
@@ -255,14 +255,14 @@ pub enum Ty {
     /// Not refcounted, no allocation, no descriptor: ADR 0010 § 3's "a case is
     /// an integer constant, inlined at every use site."
     ///
-    /// Materialized into a `mwl_runtime::Value` it takes `Tag::Int`/`Tag::Uint`
+    /// Materialized into a `nvs_runtime::Value` it takes `Tag::Int`/`Tag::Uint`
     /// rather than a tag of its own, which ADR 0010 § 6 does reserve. The tag
     /// only has to answer "which type is this?" for a value whose static type
     /// is *not* known — the `mixed` case — and that is the same still-open
     /// representation question [`Self::Tagged`] names. Deciding an enum's tag
     /// ahead of it would be deciding half of it twice.
     Enum(EnumRepr),
-    /// The address of one 16-byte `mwl_runtime::Value` cell — what a `&T`
+    /// The address of one 16-byte `nvs_runtime::Value` cell — what a `&T`
     /// parameter is, and the only thing this representation is ever used for.
     ///
     /// # The representation decision
@@ -324,13 +324,13 @@ pub enum Ty {
     /// sweep, and updating the `crate::lower::TryFrame` edge's captured `Env`
     /// so a `catch` handler's phis see the written-back binding.
     ///
-    /// Materialized into a `mwl_runtime::Value` it takes the same shape
+    /// Materialized into a `nvs_runtime::Value` it takes the same shape
     /// [`Self::ClassDesc`] does — a `Tag::Null` tag byte with the address in
-    /// the payload half — and for the same reason: it is not an MWL value at
+    /// the payload half — and for the same reason: it is not an Novis value at
     /// all, so nothing sweeping a `Value` may mistake it for a heap reference.
     Ref,
-    /// A `mwl_runtime::ClassDesc` address — the *class* a frame was called on,
-    /// not a value of any MWL type at all.
+    /// A `nvs_runtime::ClassDesc` address — the *class* a frame was called on,
+    /// not a value of any Novis type at all.
     ///
     /// This is late static binding's whole representation. It is produced by
     /// [`crate::ir::InstKind::ClassDescConst`] (a class named in source),
@@ -342,12 +342,12 @@ pub enum Ty {
     /// return value.
     ///
     /// Not refcounted — a descriptor is owned by the compiled unit's class
-    /// table for that unit's whole life (`mwl_runtime::object`), so there is
+    /// table for that unit's whole life (`nvs_runtime::object`), so there is
     /// nothing to retain and nothing to free. Materialized into a
-    /// `mwl_runtime::Value` it keeps a `Tag::Null` tag byte and carries the
+    /// `nvs_runtime::Value` it keeps a `Tag::Null` tag byte and carries the
     /// address in the payload half, which is why nothing sweeping a `Value`
     /// can ever mistake one for a heap reference — see
-    /// `mwl_runtime::object`'s own docs for that decision.
+    /// `nvs_runtime::object`'s own docs for that decision.
     ClassDesc,
 }
 
@@ -369,16 +369,16 @@ impl Ty {
     /// allocation that needs a matching retain/release around every point it
     /// is copied into or dropped from a durable slot — see
     /// [`crate::lower`]'s module docs for exactly what "durable slot" means
-    /// today. [`Self::Object`] joined the list once `mwl_runtime::object`
+    /// today. [`Self::Object`] joined the list once `nvs_runtime::object`
     /// gave an instance a real allocation to free: an object local, argument,
     /// return value or field now carries exactly the retain/release a string
-    /// already did, through `mwl_object_retain`/`mwl_object_release`.
+    /// already did, through `nvs_object_retain`/`nvs_object_release`.
     /// [`Self::Tagged`] is on the list for a reason one level further removed:
     /// a tagged value's *actual* payload might be refcounted (a string, an
     /// array, an object) or not (a scalar, `null`), and which one it is is
     /// exactly what its tag says — so the retain/release is emitted
     /// unconditionally and the **runtime** branches, through
-    /// `mwl_runtime::mwl_value_retain`/`mwl_value_release`. That is what makes
+    /// `nvs_runtime::nvs_value_retain`/`nvs_value_release`. That is what makes
     /// every insertion point this method gates need no tagged-specific arm.
     #[must_use]
     pub fn is_refcounted(self) -> bool {

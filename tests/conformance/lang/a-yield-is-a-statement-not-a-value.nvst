@@ -1,7 +1,7 @@
 --TEST--
 A `yield` written where a value is consumed is `E0448`, the same code its three other missing spellings take — ADR 0053 § 5 gives a generator no `send()`, so there is nothing for a resumed `yield` to hand back
 --FILE--
-<?mwl
+<?nvs
 class Counter {
     // ADR 0053 § 5 gives a generator no `send()`, so a resumed `yield`
     // has nothing to hand back — the statement form is the whole of what

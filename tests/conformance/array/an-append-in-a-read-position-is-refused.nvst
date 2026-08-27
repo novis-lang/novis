@@ -1,12 +1,12 @@
 --TEST--
 `$a[]` is refused everywhere but as an assignment target, PHP's "Cannot use [] for reading" taken at compile time — ADR 0007 § 7 row 10, ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 // `[]` names the key one past the highest integer key, which is an answer only
 // where a value is being put there. PHP refuses `echo $a[];` and `unset($a[])`
 // at compile time for exactly that reason. `$a[] .= "x"` is the one spelling
 // PHP accepts — it appends, because the element that is not there yet reads as
-// `""` — and ADR 0007 § 7 row 10 declines that coercion, so MWL refuses it
+// `""` — and ADR 0007 § 7 row 10 declines that coercion, so Novis refuses it
 // alongside the other two rather than inventing a zero value for an absent
 // element. An append written *inside* a subscript is a read of the inner one
 // and not a second target, so the walk that legitimizes a target chain never
@@ -22,15 +22,15 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0481]: `[]` can only be assigned to
-   --> case.mwl:13:6
+   --> case.nvs:13:6
 %A
 error[E0481]: `[]` can only be assigned to
-   --> case.mwl:14:7
+   --> case.nvs:14:7
 %A
 error[E0481]: `[]` can only be assigned to
-   --> case.mwl:15:1
+   --> case.nvs:15:1
 %A
 error[E0481]: `[]` can only be assigned to
-   --> case.mwl:16:4
+   --> case.nvs:16:4
 %A
 error: aborting due to 4 errors

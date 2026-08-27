@@ -1,7 +1,7 @@
 --TEST--
 A conversion into a `uint`-backed enum runs on that backing type whatever the operand started as — ADR 0010 § 5, ADR 0007 § 2
 --FILE--
-<?mwl
+<?nvs
 enum Signal: uint {
     Stop = 10,
     Go = 20,

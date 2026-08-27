@@ -1,7 +1,7 @@
 --TEST--
 A `return` inside a `try` runs the `finally` on its way out — from a method body and from inside a loop, without the returned value changing
 --FILE--
-<?mwl
+<?nvs
 class Fin {
     public static function straight(): string {
         try {

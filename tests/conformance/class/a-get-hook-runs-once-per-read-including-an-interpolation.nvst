@@ -1,7 +1,7 @@
 --TEST--
 a `get` hook with a body runs on every read, and an interpolated `$obj->prop` is one of them — ADR 0014 § 1
 --FILE--
-<?mwl
+<?nvs
 class Counter {
     public int $hits = 0;
 

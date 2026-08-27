@@ -1,7 +1,7 @@
 --TEST--
 Spec § 4: each `Core\Time\Duration` unit is a fixed length (ADR 0070 § 1), asserted at both sides of every carry and at both sides of the type's own range
 --FILE--
-<?mwl
+<?nvs
 // Each unit is a fixed number of nanoseconds (ADR 0070 § 1), and the place
 // that number is observable is where the rendering carries: one count below
 // the next unit's length still renders in its own unit, and the count that

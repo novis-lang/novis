@@ -2,7 +2,7 @@
 //!
 //! ## Why a subprocess
 //!
-//! Every program a case names is run by spawning the `mwl` binary, not by
+//! Every program a case names is run by spawning the `nvs` binary, not by
 //! calling the compiler in-process. It costs a process launch per case, and
 //! buys three things worth more than that: a case that hits a contained
 //! engine failure ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md))
@@ -11,13 +11,13 @@
 //! PHP oracle is reached exactly the same way, so the differential leg is not
 //! a second mechanism.
 //!
-//! ## Why the program is always called `case.mwl`
+//! ## Why the program is always called `case.nvs`
 //!
 //! A diagnostic renders the path it was given, so an absolute temporary path
 //! would put a machine-specific string into every expectation that covers a
 //! compile error. The program is written into a fresh directory as
-//! `case.mwl`, and the child's working directory is that directory, so the
-//! rendered path is exactly `case.mwl` on both CI legs.
+//! `case.nvs`, and the child's working directory is that directory, so the
+//! rendered path is exactly `case.nvs` on both CI legs.
 
 use std::ffi::OsStr;
 use std::fs;
@@ -31,8 +31,8 @@ use crate::expect::{matches, normalize, shown};
 /// How the runner reaches the two binaries it drives.
 #[derive(Debug, Clone)]
 pub struct Options {
-    /// The `mwl` binary that runs each case.
-    pub mwl: PathBuf,
+    /// The `nvs` binary that runs each case.
+    pub nvs: PathBuf,
     /// The PHP binary a `--ORACLE--` case is compared against.
     pub php: PathBuf,
     /// Run only cases whose path or title contains this.
@@ -47,7 +47,7 @@ impl Options {
     /// Fails when the running executable's own path cannot be determined.
     pub fn from_current_exe() -> io::Result<Self> {
         Ok(Self {
-            mwl: std::env::current_exe()?,
+            nvs: std::env::current_exe()?,
             php: PathBuf::from("php"),
             filter: None,
         })
@@ -103,7 +103,7 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
     }
 
     if let Some(source) = &case.skipif {
-        match run_mwl(opts, workdir, "skipif.mwl", source) {
+        match run_nvs(opts, workdir, "skipif.nvs", source) {
             Err(error) => return Outcome::Fail(vec![format!("--SKIPIF--: {error}")]),
             Ok(output) => {
                 let text = String::from_utf8_lossy(&output.stdout);
@@ -126,13 +126,13 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         // `--CLEAN--`'s whole job is tidying up after the case; its own
         // output is not an expectation and a failure in it must not turn a
         // passing case red.
-        let _ = run_mwl(opts, workdir, "clean.mwl", source);
+        let _ = run_nvs(opts, workdir, "clean.nvs", source);
     }
     outcome
 }
 
 fn judge(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
-    let output = match run_mwl(opts, workdir, "case.mwl", &case.file) {
+    let output = match run_nvs(opts, workdir, "case.nvs", &case.file) {
         Ok(output) => output,
         Err(error) => return Outcome::Fail(vec![format!("could not run the case: {error}")]),
     };
@@ -189,9 +189,9 @@ fn judge(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
                         &String::from_utf8_lossy(&oracle.stderr),
                     ));
                 } else if normalize(&theirs) != normalize(&stdout) {
-                    report.push("MWL and its PHP twin printed different things".to_owned());
+                    report.push("Novis and its PHP twin printed different things".to_owned());
                     report.push(indented("php", &theirs));
-                    report.push(indented("mwl", &stdout));
+                    report.push(indented("nvs", &stdout));
                 }
             }
         }
@@ -219,10 +219,10 @@ fn write_aux(workdir: &Path, relative: &str, body: &str) -> io::Result<()> {
     fs::write(target, body)
 }
 
-/// Writes `source` into `workdir` as `name` and runs `mwl run` on it.
-fn run_mwl(opts: &Options, workdir: &Path, name: &str, source: &str) -> io::Result<Output> {
+/// Writes `source` into `workdir` as `name` and runs `nvs run` on it.
+fn run_nvs(opts: &Options, workdir: &Path, name: &str, source: &str) -> io::Result<Output> {
     fs::write(workdir.join(name), source)?;
-    spawn(&opts.mwl, &["run".as_ref(), name.as_ref()], workdir)
+    spawn(&opts.nvs, &["run".as_ref(), name.as_ref()], workdir)
 }
 
 /// Writes `source` into `workdir` as `oracle.php` and runs PHP on it.
@@ -265,14 +265,14 @@ mod tests {
 
     #[test]
     fn an_auxiliary_file_lands_under_the_directories_its_path_names() {
-        let root = std::env::temp_dir().join(format!("mwl-test-aux-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("nvs-test-aux-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("a fresh working directory");
 
-        write_aux(&root, "src/App/Greeter.mwl", "<?mwl\n").expect("it writes");
-        let written = fs::read_to_string(root.join("src").join("App").join("Greeter.mwl"))
+        write_aux(&root, "src/App/Greeter.nvs", "<?nvs\n").expect("it writes");
+        let written = fs::read_to_string(root.join("src").join("App").join("Greeter.nvs"))
             .expect("it is where the path said");
-        assert_eq!(written, "<?mwl\n");
+        assert_eq!(written, "<?nvs\n");
 
         let _ = fs::remove_dir_all(&root);
     }

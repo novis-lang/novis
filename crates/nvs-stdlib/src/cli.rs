@@ -15,7 +15,7 @@
 //! One slot, holding the bytes as they came out of the sink. **No member at
 //! all**, which is deliberate rather than unfinished: everything a program does
 //! with a `Text` today it does by producing one (`Core\Out::capture`) or by
-//! writing one out (`echo`, whose row is `mwl_runtime::value_to_string`'s
+//! writing one out (`echo`, whose row is `nvs_runtime::value_to_string`'s
 //! carrier arm). `Text::plain`, `Text::styled`, `Text + Text`, `Cli\Style` and
 //! `Cli\Color` are [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md)
 //! § 2's and land with the rest of `Core\Cli` at M8, together with the sink's
@@ -43,12 +43,12 @@ use crate::registry::CoreClass;
 /// The class's fully-qualified name, as
 /// [`CoreTy::Instance`](crate::registry::CoreTy::Instance) spells it.
 ///
-/// Taken from `mwl_runtime::CARRIER_CLI_TEXT` rather than written again here:
+/// Taken from `nvs_runtime::CARRIER_CLI_TEXT` rather than written again here:
 /// the *sink* decides what its carrier is (ADR 0088 § 3), the sink lives in
-/// `mwl-runtime`, and `mwl_runtime::value_to_string` renders whatever that
+/// `nvs-runtime`, and `nvs_runtime::value_to_string` renders whatever that
 /// constant names. Two spellings could disagree and the render would silently
 /// stop happening.
-pub(crate) const NAME: &str = mwl_runtime::CARRIER_CLI_TEXT;
+pub(crate) const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
 
 /// Spec § 13's `Core\Cli\Text`, as much of it as ADR 0088 § 5 needs — see the
 /// module docs for why that is a slot and no members.
@@ -62,7 +62,7 @@ pub(crate) const TEXT: CoreClass = CoreClass {
 
 /// A `Core\Cli\Text` carrying `text`, which must be a `Tag::Str` value the
 /// caller is transferring — the one producer, called by [`crate::out`].
-pub(crate) fn built(text: mwl_runtime::Value) -> mwl_runtime::Value {
+pub(crate) fn built(text: nvs_runtime::Value) -> nvs_runtime::Value {
     crate::instance::build(&TEXT, [text])
 }
 
@@ -70,17 +70,17 @@ pub(crate) fn built(text: mwl_runtime::Value) -> mwl_runtime::Value {
 mod tests {
     use super::*;
 
-    /// `mwl_runtime::CARRIER_TEXT_SLOT` is the index this class's registered
-    /// layout gives `text`, and this class's name is one `mwl_runtime` renders
+    /// `nvs_runtime::CARRIER_TEXT_SLOT` is the index this class's registered
+    /// layout gives `text`, and this class's name is one `nvs_runtime` renders
     /// — the two facts that make `echo` of a captured carrier work, and
     /// neither of them checkable from the crate that acts on them.
     #[test]
     fn the_carrier_slot_matches_the_registered_layout() {
-        assert_eq!(TEXT.slot("text"), mwl_runtime::CARRIER_TEXT_SLOT);
-        assert!(mwl_runtime::is_carrier(NAME));
+        assert_eq!(TEXT.slot("text"), nvs_runtime::CARRIER_TEXT_SLOT);
+        assert!(nvs_runtime::is_carrier(NAME));
     }
 
-    /// The carrier holds exactly one slot: `mwl_runtime::value_to_string`
+    /// The carrier holds exactly one slot: `nvs_runtime::value_to_string`
     /// renders slot 0 and nothing else, so a second one would be invisible to
     /// the only consumer there is.
     #[test]

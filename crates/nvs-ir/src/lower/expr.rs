@@ -14,7 +14,7 @@
 
 use super::*;
 
-/// What `mwl_types::expr_table::ExprInfo::ShapeProperty` resolved for one
+/// What `nvs_types::expr_table::ExprInfo::ShapeProperty` resolved for one
 /// `$shape->field` access, read or write, carried as one argument because the
 /// three parts are only ever used together — see
 /// [`Lowering::lower_shape_property_access`] and
@@ -26,7 +26,7 @@ pub(super) struct ShapeField {
     /// Its position in the *receiver's* sorted shape — the runtime's hint,
     /// and not the answer through a widened view.
     pub(super) slot: u32,
-    /// Its declared type, still in `mwl_types`' interner.
+    /// Its declared type, still in `nvs_types`' interner.
     pub(super) ty: TypeId,
 }
 
@@ -63,7 +63,7 @@ impl<'a> Lowering<'a> {
             return (v, ty);
         }
         match &expr.kind {
-            // `(expr)` is fully transparent — `mwl_types::expr::check_expr`'s
+            // `(expr)` is fully transparent — `nvs_types::expr::check_expr`'s
             // own `ExprKind::Paren` arm just recurses with the same
             // `expected`, and this does the same for lowering. Needed for
             // `!($a && $b)`-shaped input at all: `!` binds tighter than
@@ -120,14 +120,14 @@ impl<'a> Lowering<'a> {
             // own doc comment for the one subtlety plain N-ary `.`-folding
             // wouldn't force into the open on its own, and for how a heredoc's
             // own flexible-indentation strip fits into that fold. Never a
-            // nowdoc: `mwl_syntax::parser::collapse_string_parts` only ever
+            // nowdoc: `nvs_syntax::parser::collapse_string_parts` only ever
             // reaches `Interpolated` when at least one interpolation site
             // was used, which a nowdoc's body can never contain.
             ExprKind::Interpolated(parts) => {
                 let raw = span_text(self.src, expr.span);
                 assert!(
                     raw.starts_with('"') || raw.starts_with("<<<"),
-                    "mwl-ir only lowers a double-quoted or heredoc-sourced Interpolated string — \
+                    "nvs-ir only lowers a double-quoted or heredoc-sourced Interpolated string — \
                      got {raw:?}; see the crate docs' known gaps"
                 );
                 self.lower_interpolated_parts(parts, expr.span, env, cur)
@@ -136,8 +136,8 @@ impl<'a> Lowering<'a> {
                 let name = strip_sigil(span_text(self.src, *span));
                 let &(v, ty) = env.get(name).unwrap_or_else(|| {
                     panic!(
-                        "mwl-ir: undeclared local `${name}` — lower_method trusts its input \
-                         already passed mwl_types::check_program"
+                        "nvs-ir: undeclared local `${name}` — lower_method trusts its input \
+                         already passed nvs_types::check_program"
                     )
                 });
                 // An `inout $x` parameter binds an address, not a value: reading it
@@ -229,17 +229,17 @@ impl<'a> Lowering<'a> {
             // inlined at every use site"; ADR 0011's `Core\Math::PI` is the
             // same rule for a class constant. So each lowers to exactly the
             // constant a literal would, with no storage, no descriptor and no
-            // allocation. `mwl_types` resolved the value — the enum's
-            // auto-increment rule for one, `mwl_stdlib::registry`'s own row
+            // allocation. `nvs_types` resolved the value — the enum's
+            // auto-increment rule for one, `nvs_stdlib::registry`'s own row
             // for the other — into `ExprInfo::EnumCase`/`ExprInfo::CoreConst`;
             // a **user-declared** class's constant records neither and is
             // still unlowered.
             ExprKind::ClassConstAccess { .. } => match self.exprs.lookup(expr.span) {
                 Some(ExprInfo::EnumCase { value }) => match value {
-                    mwl_types::EnumValue::Int(n) => {
+                    nvs_types::EnumValue::Int(n) => {
                         self.emit(*cur, Ty::Enum(EnumRepr::Int), InstKind::ConstInt(*n))
                     }
-                    mwl_types::EnumValue::Uint(n) => {
+                    nvs_types::EnumValue::Uint(n) => {
                         self.emit(*cur, Ty::Enum(EnumRepr::Uint), InstKind::ConstUint(*n))
                     }
                 },
@@ -251,9 +251,9 @@ impl<'a> Lowering<'a> {
                     self.emit_const_arg(&value, env, *cur)
                 }
                 _ => panic!(
-                    "mwl-ir: a `Class::CONST` at {:?} with no resolved enum case or `Core` \
+                    "nvs-ir: a `Class::CONST` at {:?} with no resolved enum case or `Core` \
                      constant recorded in the typed-expression table — a user-declared class \
-                     constant's value is unmodeled in `mwl_types` (see its own known gaps), so \
+                     constant's value is unmodeled in `nvs_types` (see its own known gaps), so \
                      there is nothing to lower it to",
                     expr.span
                 ),
@@ -261,11 +261,11 @@ impl<'a> Lowering<'a> {
             // `Foo::class` — the class's own fully qualified name, and a
             // `Ty::Str` constant with no storage behind it, exactly like the
             // two constants one arm above. The *name* is resolved by
-            // `mwl_types::expr::members::check_class_name_const` and travels
+            // `nvs_types::expr::members::check_class_name_const` and travels
             // in the same `ExprInfo::CoreConst` a `Core` class constant does,
             // for two reasons that point the same way: a constant is inlined
             // at its use site whichever of the three it is, and this crate
-            // cannot name a `mwl_hir::QName` to do the resolution itself.
+            // cannot name a `nvs_hir::QName` to do the resolution itself.
             //
             // The lookup only misses in a compilation that has already
             // aborted — the checker records a name for every `::class` it
@@ -304,7 +304,7 @@ impl<'a> Lowering<'a> {
             // that was there.
             //
             // Neither owes a retain. Every target that reaches lowering is
-            // numeric (`mwl_types`' `E0474` refuses the rest), and
+            // numeric (`nvs_types`' `E0474` refuses the rest), and
             // `Self::emit_const_one` names the four representations that
             // leaves — `int`, `uint`, `float`, `decimal` — none of which is
             // [`Ty::is_refcounted`].
@@ -335,7 +335,7 @@ impl<'a> Lowering<'a> {
             ExprKind::Isset(operands) => (self.lower_isset(operands, env, cur), Ty::Bool),
             // `empty($x)` is `!$x` — ADR 0035 § 2's truthy table negated — so
             // it *is* `Self::lower_not`, down to the release a fresh operand
-            // owes. `mwl_types::expr::presence` marks its subscripts guarded,
+            // owes. `nvs_types::expr::presence` marks its subscripts guarded,
             // which is what makes `empty($a["nope"])` answer `true`.
             ExprKind::Empty(operand) => (self.lower_not(operand, env, cur), Ty::Bool),
             // `Class::$prop` — one load out of the request's own static slot.
@@ -364,7 +364,7 @@ impl<'a> Lowering<'a> {
             //   survive to a compilation that lowers.
             // * a bare `NAME` (`ConstFetch`) is `E0319` — ADR 0011 § 3 gives
             //   a constant no home but a class — and `self`/`static`/`parent`
-            //   used as a *value* are `E0321`, both from `mwl_hir::members`.
+            //   used as a *value* are `E0321`, both from `nvs_hir::members`.
             //   All four still appear as the class *side* of a `::`, which is
             //   not this dispatch's business: `walk_class_side` skips them and
             //   the arms above read the checker's own resolution instead.
@@ -375,7 +375,7 @@ impl<'a> Lowering<'a> {
             //   pass) one used as a *value*, ADR 0053 § 5 giving a generator
             //   no `send()` for it to answer with. The statement form goes
             //   through `Self::lower_yield` one file over, reached from
-            //   `mwl_types::expr::check_expr_stmt`'s matching split.
+            //   `nvs_types::expr::check_expr_stmt`'s matching split.
             // * `spawn script` is `E0703` and `require` used for its value is
             //   `E0704`, both because nothing below this crate compiles them
             //   yet — ADR 0006's isolates arrive at M5, and the value form of
@@ -390,7 +390,7 @@ impl<'a> Lowering<'a> {
             //
             // That subtraction is the proof; the message below is not.
             other => panic!(
-                "mwl-ir: unreachable — `ExprKind::{other:?}` reached the expression lowering \
+                "nvs-ir: unreachable — `ExprKind::{other:?}` reached the expression lowering \
                  dispatch; see this arm's own comment for the roster it subtracts"
             ),
         }
@@ -399,7 +399,7 @@ impl<'a> Lowering<'a> {
     /// order, with no separator and no escaping: `docs/agent/loop-goal.md`
     /// records that ADR 0024 § 5's auto-escaping sink is the HTTP *response*
     /// write, not this one, and that whether `echo` under a future
-    /// `mwl serve` becomes that sink is an M7 decision this does not
+    /// `nvs serve` becomes that sink is an M7 decision this does not
     /// pre-empt.
     ///
     /// Each operand is converted to [`Ty::Str`] by [`Self::concat_operand`]
@@ -442,13 +442,13 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
         }
     }
-    /// A run of literal text between `?>` and the next `<?mwl` — spec
+    /// A run of literal text between `?>` and the next `<?nvs` — spec
     /// `00-overview.md` § 1 — written to the request's output verbatim.
     ///
     /// The span points straight at the source bytes, so there is nothing to
     /// cook: unlike a string literal it carries no quotes and no escape
     /// sequences, and unlike [`Self::lower_echo`]'s operands it is never
-    /// converted or escaped on the way out. `mwl_syntax::Lexer::lex_code`
+    /// converted or escaped on the way out. `nvs_syntax::Lexer::lex_code`
     /// already swallowed the one newline immediately after `?>`, and
     /// `lex_html` pushes no token at all for an empty run, so the text this
     /// receives is exactly what the page owes and never the empty string.
@@ -460,8 +460,8 @@ impl<'a> Lowering<'a> {
     /// [`InstKind::ConstStr`] is a fresh value with exactly one use, so it
     /// goes on [`Self::owned_temporaries`] and is released on both edges.
     ///
-    /// Nothing here is file-scope-specific: `?>`/`<?mwl` reopen and reclose
-    /// code mode anywhere a statement is expected (`mwl_syntax::ast::StmtKind::InlineHtml`),
+    /// Nothing here is file-scope-specific: `?>`/`<?nvs` reopen and reclose
+    /// code mode anywhere a statement is expected (`nvs_syntax::ast::StmtKind::InlineHtml`),
     /// and a run inside a loop body lowers into that body like any other
     /// statement.
     pub(super) fn lower_inline_html(&mut self, span: Span, cur: &mut BlockId, env: &mut Env) {
@@ -487,7 +487,7 @@ impl<'a> Lowering<'a> {
     /// PHP's own difference between `print` and `echo` is that `print` is an
     /// *expression*: it takes one operand rather than a list, and its value is
     /// always the integer `1`, which is what makes `$ok && print "…"` and
-    /// `$n = print "…"` legal there. `mwl_types::expr` already types it
+    /// `$n = print "…"` legal there. `nvs_types::expr` already types it
     /// `int`, so the whole of it here is the write plus that constant — no
     /// second output path, and the same [`Helper::EchoStr`] failure edge.
     ///
@@ -508,7 +508,7 @@ impl<'a> Lowering<'a> {
     /// `exit;` and `exit(...)` — ADR 0002's status vocabulary, plus one.
     ///
     /// The whole construct is a single [`Helper::Exit`] call whose *success*
-    /// is `mwl_runtime::EXITED`: the ordinary status check `mwl-codegen`
+    /// is `nvs_runtime::EXITED`: the ordinary status check `nvs-codegen`
     /// emits after it takes this site's error edge, so the frame's live
     /// locals are released in its landing block and the status travels on
     /// through every caller's own check. No `catch` sees it and **no
@@ -520,7 +520,7 @@ impl<'a> Lowering<'a> {
     ///
     /// The operand carries PHP's two spellings at once: an `int` is the
     /// process status, and a `string` is a message written first, after which
-    /// the status is `0`. `mwl_types::expr` refuses everything else, so the
+    /// the status is `0`. `nvs_types::expr` refuses everything else, so the
     /// branch here is on the operand's already-checked representation and
     /// needs no third case.
     ///
@@ -576,7 +576,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// Lowers one `.` operand and, if it isn't already [`Ty::Str`], converts
-    /// it through a new [`InstKind::HelperCall`] — `mwl_types::expr::
+    /// it through a new [`InstKind::HelperCall`] — `nvs_types::expr::
     /// check_expr`'s own `require_stringable` already accepts a scalar or a
     /// `Stringable`-implementing object on either side of `.` (PHP-style
     /// implicit stringification); this crate can express the scalar half
@@ -674,7 +674,7 @@ impl<'a> Lowering<'a> {
                 // carrier arrives. Both are decided by the value's *runtime*
                 // class rather than its static one, so this is the same
                 // dispatched conversion a `Ty::Tagged` operand takes —
-                // `mwl_runtime::stringify` calls the class's own `toString`
+                // `nvs_runtime::stringify` calls the class's own `toString`
                 // where it has one, renders a carrier where it is one, and
                 // throws otherwise.
                 None => {
@@ -700,11 +700,11 @@ impl<'a> Lowering<'a> {
             // `Ty::Object` through ADR 0028 § 1's `toString`.
             //
             // Four are refused a phase up by
-            // `mwl_types::expr::operators::require_stringable`, the one check
+            // `nvs_types::expr::operators::require_stringable`, the one check
             // every implicit site goes through, each naming the spelling that
             // says what was meant: `Ty::Bytes` (ADR 0009 § 3 grants
             // `as string` and nothing implicit), `Ty::Array` (PHP prints
-            // `"Array"` and a notice; MWL names `Core\Json::encode`),
+            // `"Array"` and a notice; Novis names `Core\Json::encode`),
             // `Ty::Enum` (ADR 0010 § 3's named integer, `$case as int`) and
             // `Ty::Void` (a call with no value at all).
             //
@@ -716,7 +716,7 @@ impl<'a> Lowering<'a> {
             // staging an `inout $x` argument, which goes straight to the callee.
             // That subtraction is the proof; the message below is not.
             other => panic!(
-                "mwl-ir: unreachable — a `{other:?}` operand reached the implicit `string` \
+                "nvs-ir: unreachable — a `{other:?}` operand reached the implicit `string` \
                  conversion; see this arm's own comment for the roster it subtracts"
             ),
         }
@@ -725,7 +725,7 @@ impl<'a> Lowering<'a> {
     /// ADR 0028 § 1's implicit `toString()`, for an operand that lowered to a
     /// [`Ty::Object`]. `.`, an interpolated piece, `echo`/`print` and
     /// `as string` all reach it, because
-    /// `mwl_types::expr::operators::require_stringable` is the single check
+    /// `nvs_types::expr::operators::require_stringable` is the single check
     /// all four go through — so it is also the single place that records the
     /// resolved target, under the operand's own span.
     ///
@@ -735,7 +735,7 @@ impl<'a> Lowering<'a> {
     /// the operand's static type names a class to resolve against, so a missing
     /// one means it named none — an erased `object` (ADR 0036 § 4) or a union
     /// — or that it named ADR 0088 § 5's sink carrier, the one rendering class
-    /// with no `toString` member at all, whose bytes `mwl_runtime::stringify`
+    /// with no `toString` member at all, whose bytes `nvs_runtime::stringify`
     /// hands back as they are.
     ///
     /// The *user-declared* call is ordinary in every respect, exactly as
@@ -765,7 +765,7 @@ impl<'a> Lowering<'a> {
         // on both edges. Nothing is dispatched on the runtime class because a
         // `Core` class is final by construction: the registry's row is the only
         // `toString` it can have.
-        if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
+        if let Some(symbol) = nvs_types::core_symbol_of(&call.class, &call.method) {
             let mark = self.temporaries_mark();
             if !self.aliasing_read(expr) {
                 self.own_temporary(receiver);
@@ -844,7 +844,7 @@ impl<'a> Lowering<'a> {
     /// `null` at runtime, so no guard is opened at all and `?->` lowers to
     /// exactly what `->` does: the same short-circuit
     /// [`Self::lower_coalesce`] applies to a left operand that cannot be
-    /// `null`, and the reason `mwl_types` gives such an access no `null` in
+    /// `null`, and the reason `nvs_types` gives such an access no `null` in
     /// its type either.
     ///
     /// The narrowing [`InstKind::Untag`] cannot fail — the branch above it
@@ -927,7 +927,7 @@ impl<'a> Lowering<'a> {
     /// it, so `if ($m !== null) { $m->text(); }` reads a tagged value and
     /// hands it to a call that wants an object. The [`InstKind::Untag`] here
     /// is what makes that the object again, and it is **unchecked on
-    /// purpose**: `mwl_types::locals`' narrowing is what proves the tag, the
+    /// purpose**: `nvs_types::locals`' narrowing is what proves the tag, the
     /// same way the `?->` branch above proves it with a test. Reaching here
     /// with an un-narrowed receiver is impossible — the checker either
     /// refuses it (`E0459`) or records no resolved target at all, and the
@@ -953,9 +953,9 @@ impl<'a> Lowering<'a> {
     /// proves about it, so *every* consumer of such a read — a subscript base,
     /// a `foreach` subject, an array-write root, a call argument, a receiver —
     /// would otherwise have to narrow for itself, and one forgotten site is a
-    /// cranelift rejection rather than a panic. `mwl_types` therefore records
+    /// cranelift rejection rather than a panic. `nvs_types` therefore records
     /// the narrowing on the read's own span
-    /// (`mwl_types::expr_table::ExprInfo::NarrowedRead`) and it is discharged
+    /// (`nvs_types::expr_table::ExprInfo::NarrowedRead`) and it is discharged
     /// **once, here**, where the value is produced — which is what leaves no
     /// site to forget. [`Self::untag_receiver`] is the same move written for
     /// the one consumer that predates this, and is a no-op once this has run.
@@ -968,7 +968,7 @@ impl<'a> Lowering<'a> {
     ///
     /// A residue that erases to [`Ty::Tagged`] itself (a `?(A|B)` narrowed to
     /// `A|B`) is left alone: there is no representation to change, exactly as
-    /// `mwl-codegen`'s own `Untag`-to-tagged identity has it.
+    /// `nvs-codegen`'s own `Untag`-to-tagged identity has it.
     pub(super) fn untag_narrowed(
         &mut self,
         span: Span,
@@ -995,14 +995,14 @@ impl<'a> Lowering<'a> {
     /// own value with the `null` the short-circuiting arm answers.
     ///
     /// The merged value is always [`Ty::Tagged`], which is what `?T` erases
-    /// to and what `mwl_types` typed the whole access as. `value`/`ty` are
+    /// to and what `nvs_types` typed the whole access as. `value`/`ty` are
     /// whatever the member access produced in `*cur` — which need not be the
     /// block [`Self::open_nullsafe`] handed back, since an argument may
     /// itself have branched.
     ///
     /// A `void` member has nothing to merge: both arms simply rejoin, and the
     /// value handed back is the unusable one the call produced — the same
-    /// reason `mwl_types` unions no `null` into a `void` member's type.
+    /// reason `nvs_types` unions no `null` into a `void` member's type.
     pub(super) fn close_nullsafe(
         &mut self,
         guard: Option<NullsafeGuard>,
@@ -1063,8 +1063,8 @@ impl<'a> Lowering<'a> {
         let (non_null, result) = match self.exprs.lookup(whole.span) {
             Some(ExprInfo::Coalesce { non_null, result }) => (*non_null, *result),
             _ => panic!(
-                "mwl-ir: a `??` at {:?} has no recorded result type — either it wasn't checked \
-                 with the same table, or `mwl_types::expr` stopped recording one",
+                "nvs-ir: a `??` at {:?} has no recorded result type — either it wasn't checked \
+                 with the same table, or `nvs_types::expr` stopped recording one",
                 whole.span
             ),
         };
@@ -1164,7 +1164,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_and`] uses, and the recursion is over the tail rather
     /// than a fold so a three-operand `isset` short-circuits at either point.
     ///
-    /// No operand can *throw* on absence: `mwl_types::expr::presence` marks
+    /// No operand can *throw* on absence: `nvs_types::expr::presence` marks
     /// every subscript level under an `isset` in `Env::coalesce_guarded`, the
     /// same set `??` fills, so ADR 0007 § 7 row 11's throw is off for exactly
     /// the reads this construct exists to ask about.
@@ -1176,7 +1176,7 @@ impl<'a> Lowering<'a> {
     ) -> ValueId {
         let (first, rest) = operands
             .split_first()
-            .expect("mwl-ir: `mwl_syntax`'s `parse_isset` always parses at least one operand");
+            .expect("nvs-ir: `nvs_syntax`'s `parse_isset` always parses at least one operand");
         let first_v = self.lower_isset_operand(first, env, cur);
         if rest.is_empty() {
             return first_v;
@@ -1286,7 +1286,7 @@ impl<'a> Lowering<'a> {
     /// The same retain question applies to every `then`/`else` branch, not
     /// just elvis's reused `cond`: every consumer of this method's own result
     /// ([`Self::bind_local`], `return`) treats it as an ordinary fresh value —
-    /// [`is_aliasing_read`] never lists [`mwl_syntax::ast::ExprKind::Ternary`]
+    /// [`is_aliasing_read`] never lists [`nvs_syntax::ast::ExprKind::Ternary`]
     /// — so this method has to guarantee that itself. A branch whose own
     /// expression [`is_aliasing_read`] (a bare variable, a compile-time-known
     /// property or array-element read) is retained right there, converting a
@@ -1398,7 +1398,7 @@ impl<'a> Lowering<'a> {
     /// instruction is emitted and the representation is returned unchanged.
     /// A mismatched set joins at [`Ty::Tagged`], and that is not a choice
     /// made here — the checker has already typed the whole expression as the
-    /// *union* of its branches (`mwl_types::expr::check_expr`'s `Ternary` arm
+    /// *union* of its branches (`nvs_types::expr::check_expr`'s `Ternary` arm
     /// interns one), and `erase_checked_ty` erases a union whose members do
     /// not share a representation to exactly [`Ty::Tagged`]. This performs
     /// that erasure rather than inventing a type the rest of the crate would
@@ -1456,7 +1456,7 @@ impl<'a> Lowering<'a> {
     /// * **There is no fallthrough**, so each arm body block is entered only
     ///   from its own labels and leaves straight for the merge.
     /// * **No arm matching throws.** PHP raises `UnhandledMatchError`;
-    ///   `mwl_hir::errors`' tree is closed and has no such entry, so this
+    ///   `nvs_hir::errors`' tree is closed and has no such entry, so this
     ///   raises the entry that already means "a bug in the program",
     ///   `LogicError` (`docs/spec/01-core-library.md` § 10). The message names
     ///   the construct rather than the unmatched value: rendering an arbitrary
@@ -1479,7 +1479,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics for a label whose representation differs from the subject's,
     /// and — as an engine invariant, not a refusal — for a `match` with no
-    /// arms at all, which `mwl_types` refuses as `E0476` before this crate
+    /// arms at all, which `nvs_types` refuses as `E0476` before this crate
     /// ever sees it.
     pub(super) fn lower_match(
         &mut self,
@@ -1491,7 +1491,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         assert!(
             !arms.is_empty(),
-            "an arm-less `match` reached lowering — this is a bug in mwl-types, whose \
+            "an arm-less `match` reached lowering — this is a bug in nvs-types, whose \
              `E0476` refuses one where it is written precisely so that this crate never \
              has to invent a value for a merge phi with no incoming edge"
         );
@@ -1520,7 +1520,7 @@ impl<'a> Lowering<'a> {
                 let (cond_v, cond_ty) = self.lower_expr(cond, Some(subj_ty), env, &mut test_cur);
                 assert_eq!(
                     cond_ty, subj_ty,
-                    "mwl-ir lowers a `match` label only at the subject's own representation — \
+                    "nvs-ir lowers a `match` label only at the subject's own representation — \
                      got {cond_ty:?} against a {subj_ty:?} subject; see the crate docs' known \
                      gaps"
                 );
@@ -1642,14 +1642,14 @@ impl<'a> Lowering<'a> {
     /// shared, not-yet-lowerable case — this is not primarily a new gap, just
     /// the same one reached from a second syntax). A `StringPart::Text` piece
     /// cooks straight to a fresh [`InstKind::ConstStr`] via
-    /// [`mwl_types::string_lit::cook_double_quoted_text`] — the same routine
+    /// [`nvs_types::string_lit::cook_double_quoted_text`] — the same routine
     /// [`cook_str_literal`] delegates to for a plain double-quoted `Str`,
     /// since a `Text` run's escape grammar is identical either way (see that
     /// function's own doc comment) — unless `whole_span` opens with `<<<`
     /// (a heredoc; never a nowdoc, see this function's caller), in which
     /// case each `Text` run first goes through
-    /// [`mwl_types::string_lit::dedent_heredoc_run`] against the one
-    /// [`mwl_types::string_lit::heredoc_shape`] computed for the whole
+    /// [`nvs_types::string_lit::dedent_heredoc_run`] against the one
+    /// [`nvs_types::string_lit::heredoc_shape`] computed for the whole
     /// literal, exactly the way [`cook_heredoc_str`] dedents a `Str`-collapsed
     /// heredoc's own single run — `body_start` is true only for `parts`'
     /// own first entry, and `is_last_run` only for the last `StringPart::Text`
@@ -1676,18 +1676,18 @@ impl<'a> Lowering<'a> {
     pub(super) fn lower_interpolated_parts(
         &mut self,
         parts: &[StringPart],
-        whole_span: mwl_diagnostics::Span,
+        whole_span: nvs_diagnostics::Span,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         assert!(
             !parts.is_empty(),
-            "mwl-syntax's collapse_string_parts only ever produces ExprKind::Interpolated for a \
+            "nvs-syntax's collapse_string_parts only ever produces ExprKind::Interpolated for a \
              non-empty parts vec"
         );
         let is_heredoc = span_text(self.src, whole_span).starts_with("<<<");
         let indent = if is_heredoc {
-            mwl_types::string_lit::heredoc_shape(self.src, whole_span)
+            nvs_types::string_lit::heredoc_shape(self.src, whole_span)
                 .0
                 .indent
         } else {
@@ -1706,8 +1706,8 @@ impl<'a> Lowering<'a> {
             let piece = match part {
                 StringPart::Text(span) => {
                     let s = if is_heredoc {
-                        let mut issues = Vec::new(); // discarded: mwl_types::check_program already reported these
-                        let dedented = mwl_types::string_lit::dedent_heredoc_run(
+                        let mut issues = Vec::new(); // discarded: nvs_types::check_program already reported these
+                        let dedented = nvs_types::string_lit::dedent_heredoc_run(
                             self.src,
                             &indent,
                             *span,
@@ -1715,9 +1715,9 @@ impl<'a> Lowering<'a> {
                             Some(i) == last_text_idx,
                             &mut issues,
                         );
-                        mwl_types::string_lit::cook_double_quoted_text_str(&dedented, *span).0
+                        nvs_types::string_lit::cook_double_quoted_text_str(&dedented, *span).0
                     } else {
-                        mwl_types::string_lit::cook_double_quoted_text(self.src, *span).0
+                        nvs_types::string_lit::cook_double_quoted_text(self.src, *span).0
                     };
                     (self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0, false)
                 }
@@ -1760,11 +1760,11 @@ impl<'a> Lowering<'a> {
     /// ADR 0007 § 5 is unchanged by this: every key still *is* a `string`
     /// and `$a[8]` is still `$a["8"]`. What changed is that reaching it no
     /// longer renders the decimal. A [`Ty::Int`] subscript is handed to the
-    /// instruction as the `int` it already was, and `mwl-codegen` calls
-    /// `mwl_array_get_index`/`mwl_array_set_index`, which answer from the
+    /// instruction as the `int` it already was, and `nvs-codegen` calls
+    /// `nvs_array_get_index`/`nvs_array_set_index`, which answer from the
     /// packed form with nothing rendered and nothing allocated and
     /// synthesize a key only where the array is already `Hashed` — exactly
-    /// the case that was building one anyway (`mwl_runtime::array`'s module
+    /// the case that was building one anyway (`nvs_runtime::array`'s module
     /// doc, *the ABI was the part that expired*).
     ///
     /// A [`Ty::Uint`] subscript still renders, deliberately: that ABI's
@@ -1780,10 +1780,10 @@ impl<'a> Lowering<'a> {
     /// Also used, identically, for an array literal's explicit `key =>`
     /// element (see [`ir::InstKind::ArrayNew`]'s own doc comment). A
     /// `float`, `bool`, or `null` key is a compile-time rejection
-    /// `mwl_types::expr::check_array_key_type` now enforces at both call
+    /// `nvs_types::expr::check_array_key_type` now enforces at both call
     /// sites (an `Index` subscript and an array-literal explicit key alike),
     /// so the `other` arm below is an internal-invariant panic — unreachable
-    /// for anything that already passed `mwl_types::check_program` — rather
+    /// for anything that already passed `nvs_types::check_program` — rather
     /// than a live known gap.
     ///
     /// Returns the key value, **the representation it is in** — `Ty::Str` or
@@ -1816,7 +1816,7 @@ impl<'a> Lowering<'a> {
                 (sv, Ty::Str, false)
             }
             other => panic!(
-                "mwl-ir: an array key lowered to {other:?} — mwl_types::check_program is trusted \
+                "nvs-ir: an array key lowered to {other:?} — nvs_types::check_program is trusted \
                  to have already rejected a float/bool/null key (ADR 0007 § 5) at both the \
                  subscript and array-literal explicit-key sites, so this should be unreachable"
             ),
@@ -1826,8 +1826,8 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_array_key`], forced all the way to a [`Ty::Str`] key.
     ///
     /// [`ir::InstKind::ArrayUnset`] is the one key-taking array instruction
-    /// with no index-shaped runtime primitive beside it — `mwl-runtime`
-    /// added `mwl_array_get_index` and `mwl_array_set_index` and no third —
+    /// with no index-shaped runtime primitive beside it — `nvs-runtime`
+    /// added `nvs_array_get_index` and `nvs_array_set_index` and no third —
     /// so `unset($a[$i])` renders the decimal here rather than having
     /// codegen discover it cannot. Widening the runtime ABI to close that
     /// is a separate decision, not a side effect of this one; ADR 0042's
@@ -1855,12 +1855,12 @@ impl<'a> Lowering<'a> {
 
     /// ADR 0007 § 4, mirroring the checker's own rule: a bare integer
     /// literal means `uint` exactly where that's the expected type,
-    /// `int` otherwise. `mwl_types::expr::literals::infer_int_literal`
+    /// `int` otherwise. `nvs_types::expr::literals::infer_int_literal`
     /// enforces ADR 0007 § 4's magnitude rule
     /// at check time — too large for `int` is only legal where `uint`
     /// is expected, and too large even for `uint`'s full `u64` range
     /// is a diagnostic regardless — so `lower_method`'s usual "trusts
-    /// its input already passed `mwl_types::check_program`" contract
+    /// its input already passed `nvs_types::check_program`" contract
     /// (see the crate docs) covers this too: the `unwrap_or_else`
     /// panics below are unreachable for anything the checker accepted,
     /// the same defensive-invariant shape as `Env::get`'s own panic on
@@ -1876,10 +1876,10 @@ impl<'a> Lowering<'a> {
         if expected == Some(Ty::Decimal) || self.placed_at_decimal(expr.span) {
             // ADR 0054 § 2's placing rule, integer half: an integer
             // literal is scale 0 by construction, so only the mantissa
-            // can overflow — and `mwl_types` has already reported that
+            // can overflow — and `nvs_types` has already reported that
             // if it did.
             let mantissa = u128::from_str_radix(&digits, radix).unwrap_or_else(|_| {
-                panic!("mwl-ir: integer literal `{digits}` doesn't fit a `decimal`")
+                panic!("nvs-ir: integer literal `{digits}` doesn't fit a `decimal`")
             });
             return self.emit(
                 *cur,
@@ -1893,12 +1893,12 @@ impl<'a> Lowering<'a> {
         }
         if expected == Some(Ty::Uint) {
             let n: u64 = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
-                panic!("mwl-ir: integer literal `{digits}` doesn't fit a `uint`")
+                panic!("nvs-ir: integer literal `{digits}` doesn't fit a `uint`")
             });
             self.emit(*cur, Ty::Uint, InstKind::ConstUint(n))
         } else {
             let n: i64 = i64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
-                panic!("mwl-ir: integer literal `{digits}` doesn't fit an `int`")
+                panic!("nvs-ir: integer literal `{digits}` doesn't fit an `int`")
             });
             self.emit(*cur, Ty::Int, InstKind::ConstInt(n))
         }
@@ -1918,7 +1918,7 @@ impl<'a> Lowering<'a> {
         // survive rather than being rounded through an `f64` first.
         if expected == Some(Ty::Decimal) || self.placed_at_decimal(expr.span) {
             let (mantissa, scale) = decimal_literal_parts(&digits).unwrap_or_else(|| {
-                panic!("mwl-ir: float literal `{digits}` doesn't fit a `decimal`")
+                panic!("nvs-ir: float literal `{digits}` doesn't fit a `decimal`")
             });
             return self.emit(
                 *cur,
@@ -1932,21 +1932,21 @@ impl<'a> Lowering<'a> {
         }
         let n: f64 = digits
             .parse()
-            .unwrap_or_else(|_| panic!("mwl-ir: float literal `{digits}` failed to parse"));
+            .unwrap_or_else(|_| panic!("nvs-ir: float literal `{digits}` failed to parse"));
         self.emit(*cur, Ty::Float, InstKind::ConstFloat(n))
     }
 
     /// ADR 0070 § 3: the grammar is resolved while compiling, so what
     /// reaches the IR is one folded nanosecond count. The value it
     /// becomes is built by the *same* `Core` member a written
-    /// `Duration::nanoseconds($n)` calls — `mwl_stdlib::time`'s
+    /// `Duration::nanoseconds($n)` calls — `nvs_stdlib::time`'s
     /// `FROM_NANOS_SYMBOL`, named there rather than spelled here — so a
     /// literal and a computed count cannot come to mean different
     /// things.
     ///
     /// § 3 also wants no allocation at all: a constant-pool entry with
     /// an immortal header, which is exactly what a string literal is
-    /// owed by `mwl-runtime`'s own gap 3. Both close together; until
+    /// owed by `nvs-runtime`'s own gap 3. Both close together; until
     /// then this is one call on a constant.
     fn lower_duration_literal(
         &mut self,
@@ -1955,9 +1955,9 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let text = span_text(self.src, span);
-        let nanos = mwl_syntax::duration::parse(text).unwrap_or_else(|err| {
+        let nanos = nvs_syntax::duration::parse(text).unwrap_or_else(|err| {
             panic!(
-                "mwl-ir: duration literal `{text}` does not parse ({}) — the lexer \
+                "nvs-ir: duration literal `{text}` does not parse ({}) — the lexer \
                  only produces this token for text that does",
                 err.message()
             )
@@ -1967,7 +1967,7 @@ impl<'a> Lowering<'a> {
             *cur,
             Ty::Object,
             InstKind::CoreCall {
-                symbol: mwl_types::CORE_DURATION_FROM_NANOS,
+                symbol: nvs_types::CORE_DURATION_FROM_NANOS,
                 args: vec![count],
             },
             env,
@@ -1981,7 +1981,7 @@ impl<'a> Lowering<'a> {
     /// `Self::concat_operand` first, which converts a scalar through
     /// a new `InstKind::HelperCall` when it isn't already `Ty::Str`,
     /// and a `Stringable`-object operand through the `toString()`
-    /// `mwl_types::expr::operators::require_stringable` resolved for
+    /// `nvs_types::expr::operators::require_stringable` resolved for
     /// it. `concat_operand` also reports
     /// whether the value it hands back aliases storage a durable slot
     /// still owns; an operand that doesn't (a literal, a nested
@@ -2075,9 +2075,9 @@ impl<'a> Lowering<'a> {
         }) = self.exprs.lookup(expr.span)
         else {
             panic!(
-                "mwl-ir: the `fn` literal at {:?} has no resolved closure recorded in \
+                "nvs-ir: the `fn` literal at {:?} has no resolved closure recorded in \
                  the typed-expression table — did this program pass \
-                 mwl_types::check_program with the same table?",
+                 nvs_types::check_program with the same table?",
                 expr.span
             );
         };
@@ -2107,8 +2107,8 @@ impl<'a> Lowering<'a> {
         for name in names {
             let &(v, ty) = env.get(&name).unwrap_or_else(|| {
                 panic!(
-                    "mwl-ir: the closure at {:?} captures `${name}`, which is not bound \
-                     in the enclosing frame — mwl_types records a capture only for a \
+                    "nvs-ir: the closure at {:?} captures `${name}`, which is not bound \
+                     in the enclosing frame — nvs_types records a capture only for a \
                      name its own scope resolved",
                     expr.span
                 )
@@ -2151,16 +2151,16 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::New { class, ctor, .. }) = self.exprs.lookup(expr.span) else {
             panic!(
-                "mwl-ir: `new` at {:?} has no resolved class recorded in the \
+                "nvs-ir: `new` at {:?} has no resolved class recorded in the \
                  typed-expression table — did this program pass \
-                 mwl_types::check_program with the same table?",
+                 nvs_types::check_program with the same table?",
                 expr.span
             );
         };
         let target_label = class.to_string();
         // The declaring class, not the constructed one: `new Dog(...)`
         // on a `Dog` with no `constructor` of its own invokes
-        // `Animal::constructor`. Only `mwl_types` resolved that, so
+        // `Animal::constructor`. Only `nvs_types` resolved that, so
         // the label is carried rather than re-derived downstream.
         let ctor_label = ctor
             .as_ref()
@@ -2168,13 +2168,13 @@ impl<'a> Lowering<'a> {
         // A `Core`-owned class is built by a native helper rather than by an
         // `InstKind::New`: nothing below this crate holds a descriptor for
         // one, because a `Core` class is in no program's class list.
-        // `mwl_stdlib::instance`'s module docs own that decision; here it is
+        // `nvs_stdlib::instance`'s module docs own that decision; here it is
         // the same `InstKind::CoreCall` a static `Core` member lowers to,
         // with the same **borrowed** arguments — which is why this branch
         // lowers them itself rather than sharing the transferred ones below.
-        // `mwl_stdlib::registry::CONSTRUCTORS` is what gives it a signature to
+        // `nvs_stdlib::registry::CONSTRUCTORS` is what gives it a signature to
         // check them against: `new Core\Heap<T>($by)` carries one.
-        if let Some(symbol) = mwl_types::core_constructor_symbol(&target_label) {
+        if let Some(symbol) = nvs_types::core_constructor_symbol(&target_label) {
             let mark = self.temporaries_mark();
             let values = match ctor {
                 Some(call) => {
@@ -2224,14 +2224,14 @@ impl<'a> Lowering<'a> {
             None => {
                 let CallArgs::List(list) = args else {
                     panic!(
-                        "mwl-ir: `new {target_label}(...)` has no resolved constructor \
+                        "nvs-ir: `new {target_label}(...)` has no resolved constructor \
                          but wasn't called with a plain argument list — {args:?}"
                     );
                 };
                 assert!(
                     list.is_empty(),
-                    "mwl-ir: `new {target_label}(...)` has no resolved constructor but \
-                     was called with arguments — mwl_types doesn't yet enforce a \
+                    "nvs-ir: `new {target_label}(...)` has no resolved constructor but \
+                     was called with arguments — nvs_types doesn't yet enforce a \
                      zero-arity check here (see its own known gaps), so this crate \
                      cannot trust it was rejected upstream"
                 );
@@ -2240,7 +2240,7 @@ impl<'a> Lowering<'a> {
         };
         // `new static()` — ADR-free by construction: the class comes
         // from this frame's called class rather than from the label
-        // `mwl_types` resolved, which is the enclosing class and so
+        // `nvs_types` resolved, which is the enclosing class and so
         // would allocate the *base* through two levels of
         // inheritance. `new self()`/`new parent()`/`new Foo()` all
         // name a fixed class and keep the constant form.
@@ -2279,7 +2279,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
             panic!(
-                "mwl-ir: an instance method call at {:?} has no resolved target \
+                "nvs-ir: an instance method call at {:?} has no resolved target \
                  recorded in the typed-expression table — either it wasn't checked \
                  with the same table, or its receiver was a `mixed`, a union or a \
                  scalar, which the checker does not yet refuse (an *erased* one is \
@@ -2292,9 +2292,9 @@ impl<'a> Lowering<'a> {
         // same `InstKind::CoreCall`, the same borrowed arguments, with
         // the receiver in argument slot 0. Resolved through the
         // identical `ResolvedCall` up to this point, which is why
-        // `mwl_types` seeds a signature table rather than special-
-        // casing `Core`; see `mwl_stdlib::registry::CoreTy::Instance`.
-        if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
+        // `nvs_types` seeds a signature table rather than special-
+        // casing `Core`; see `nvs_stdlib::registry::CoreTy::Instance`.
+        if let Some(symbol) = nvs_types::core_symbol_of(&call.class, &call.method) {
             let sig = ArgSig::of_helper(call);
             let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
@@ -2341,7 +2341,7 @@ impl<'a> Lowering<'a> {
         // A `static` method reached through an instance
         // (`$obj->staticMethod()`, which PHP allows) takes no
         // receiver: its parameter 0 is the *called* class, which here
-        // is the receiver's own — see `mwl_runtime::object`'s module
+        // is the receiver's own — see `nvs_runtime::object`'s module
         // docs. Nothing is retained for it; a descriptor is not
         // refcounted.
         let receiver_v = if is_static {
@@ -2353,7 +2353,7 @@ impl<'a> Lowering<'a> {
             v
         } else {
             // The receiver is parameter 0, so it is an ordinary
-            // argument for ownership purposes: MWL's convention is
+            // argument for ownership purposes: Novis's convention is
             // that the caller retains an aliasing argument and the
             // callee releases every refcounted parameter at scope exit
             // (see `Self::release_all_locals`). `$this->m()` and
@@ -2389,7 +2389,7 @@ impl<'a> Lowering<'a> {
         //
         // A resolved declaration some subtype **overrides** names the
         // wrong one: `$base->m()` on a value that is really a `Child`
-        // must run `Child::m`. `mwl_types` answers that whole-program
+        // must run `Child::m`. `nvs_types` answers that whole-program
         // question once (`ResolvedCall::overridden`), so the ordinary
         // case — a method nothing overrides — still binds straight to
         // a label and pays nothing. A `static` method reached through
@@ -2433,7 +2433,7 @@ impl<'a> Lowering<'a> {
     /// null-pointer write into a field slot, not a diagnostic.
     ///
     /// The `::`'s left-hand side decides the *called* class the callee
-    /// sees (`mwl_runtime::object`'s late-static-binding decision):
+    /// sees (`nvs_runtime::object`'s late-static-binding decision):
     /// `Foo::m()` sets it to `Foo`, `self::`/`parent::` forward this
     /// frame's, and `static::m()` additionally resolves the target
     /// itself at run time through `InstKind::CallVirtual`.
@@ -2447,35 +2447,35 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
             panic!(
-                "mwl-ir: a static call at {:?} has no resolved target recorded in the \
+                "nvs-ir: a static call at {:?} has no resolved target recorded in the \
                  typed-expression table — did this program pass \
-                 mwl_types::check_program with the same table?",
+                 nvs_types::check_program with the same table?",
                 expr.span
             );
         };
         // A Tier 0 `Core` member is native Rust behind a helper
-        // symbol, not a compiled MWL function, so it takes a
+        // symbol, not a compiled Novis function, so it takes a
         // different instruction and a different argument-ownership
         // rule — see `InstKind::CoreCall`, which owns both. Resolved
         // through the identical `ResolvedCall` up to this point,
-        // which is the whole reason `mwl_types` seeds a signature
+        // which is the whole reason `nvs_types` seeds a signature
         // table rather than special-casing `Core` at each call site.
-        if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
+        if let Some(symbol) = nvs_types::core_symbol_of(&call.class, &call.method) {
             let sig = ArgSig::of_helper(call);
             let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
-            // A member on `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS`
+            // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`
             // is handed the class its call site wrote, as argument 0 —
             // that roster owns the ABI. A descriptor is not
             // refcounted, so it is neither retained nor released here.
             let written_class =
-                mwl_types::core_takes_written_class(&call.class.to_string(), &call.method).then(
+                nvs_types::core_takes_written_class(&call.class.to_string(), &call.method).then(
                     || {
                         let label = call.written_class.as_ref().unwrap_or_else(|| {
                             panic!(
-                                "mwl-ir: `{}::{}` needs the class written at its call site, \
-                         and mwl_types recorded none — did this program pass \
-                         mwl_types::check_program with the same table?",
+                                "nvs-ir: `{}::{}` needs the class written at its call site, \
+                         and nvs_types recorded none — did this program pass \
+                         nvs_types::check_program with the same table?",
                                 call.class, call.method
                             )
                         });
@@ -2527,7 +2527,7 @@ impl<'a> Lowering<'a> {
             // A static callee has no `$this`, so its receiver slot
             // carries the *called* class instead — an explicitly named
             // one sets it, `self::`/`parent::`/`static::` forward this
-            // frame's. See `mwl_runtime::object`'s module docs.
+            // frame's. See `nvs_runtime::object`'s module docs.
             Some(match &named_class {
                 Some(label) => {
                     let (v, _) = self.emit(
@@ -2548,8 +2548,8 @@ impl<'a> Lowering<'a> {
             // checker has already refused for a non-static target.
             let &(this_v, this_ty) = env.get("this").unwrap_or_else(|| {
                 panic!(
-                    "mwl-ir: `{target_label}` is not static but is reached from a frame \
-                     with no `$this` — mwl_types is expected to have refused that"
+                    "nvs-ir: `{target_label}` is not static but is reached from a frame \
+                     with no `$this` — nvs_types is expected to have refused that"
                 )
             });
             if this_ty.is_refcounted() {
@@ -2632,7 +2632,7 @@ impl<'a> Lowering<'a> {
         let Some(ExprInfo::StaticProperty { class, name, ty }) = self.exprs.lookup(expr.span)
         else {
             panic!(
-                "mwl-ir: a static property access at {:?} has no resolved declaring class \
+                "nvs-ir: a static property access at {:?} has no resolved declaring class \
                  recorded in the typed-expression table — it wasn't checked with the same table",
                 expr.span
             );
@@ -2657,7 +2657,7 @@ impl<'a> Lowering<'a> {
     /// Panics when the typed-expression table holds neither entry for this
     /// access. That is an internal-consistency check with no reachable
     /// target rather than a hole:
-    /// `mwl_types::expr::members::check_property_member` records an entry for
+    /// `nvs_types::expr::members::check_property_member` records an entry for
     /// every access it returns from and refuses the rest, and its own doc
     /// comment is that proof's only home. `lower_store`'s `PropertyAccess`
     /// arm asserts the same thing from the write side.
@@ -2673,8 +2673,8 @@ impl<'a> Lowering<'a> {
         // hook is a call to that hook's compiled function, with the
         // receiver in the ordinary parameter-0 slot — see
         // `lower_property_hook`. A property with only a `set` hook
-        // still reads its own slot, since MWL's hooked properties are
-        // always backed (`mwl_types::signatures::PropertyHooks` owns
+        // still reads its own slot, since Novis's hooked properties are
+        // always backed (`nvs_types::signatures::PropertyHooks` owns
         // that decision), so both shapes recover the same three
         // fields and only the `get` label decides between them.
         // An ADR 0036 § 4 shape receiver naming one of its own fields is the
@@ -2700,10 +2700,10 @@ impl<'a> Lowering<'a> {
                 ..
             }) => (class, name, *ty, get.clone()),
             _ => panic!(
-                "mwl-ir: a property access at {:?} has neither a resolved declaring class \
+                "nvs-ir: a property access at {:?} has neither a resolved declaring class \
                   nor an ADR 0036 § 4 erased entry recorded in the typed-expression table, \
                   so it was not checked with the same table — \
-                  `mwl_types::expr::members::check_property_member` records one for every \
+                  `nvs_types::expr::members::check_property_member` records one for every \
                   access it returns from and refuses the rest, and its own doc comment \
                   carries that proof",
                 expr.span
@@ -2786,7 +2786,7 @@ impl<'a> Lowering<'a> {
     /// of `{x: …, y: …}` anywhere in the unit names the same synthesized
     /// class and the table carries one copy of it ([`super::lower_file`]
     /// dedups). Sorted because that is the order
-    /// `mwl_types::ty::TypeInterner::shape` interns a shape's fields in, and
+    /// `nvs_types::ty::TypeInterner::shape` interns a shape's fields in, and
     /// therefore the order [`InstKind::SlotGet`]'s index counts through: the
     /// read side resolved its slot number from the checker's field list, so
     /// the write side has to lay the slots out the same way. That agreement
@@ -2795,7 +2795,7 @@ impl<'a> Lowering<'a> {
     /// Nothing else is synthesized. The class is methodless, conforms to
     /// nothing and declares no constructor — the literal assigns every field
     /// itself, which is ADR 0022 § 2's definite-assignment obligation
-    /// discharged by construction — so `mwl-codegen` defines it through
+    /// discharged by construction — so `nvs-codegen` defines it through
     /// `Classes::define` like any other class and no codegen knows a shape
     /// exists.
     ///
@@ -2813,7 +2813,7 @@ impl<'a> Lowering<'a> {
     ///
     /// The assert on a literal that writes one field name twice is an
     /// internal-consistency check rather than a gap: a shape's fields are a
-    /// set, so `mwl_types::expr::literals::check_object_literal` refuses the
+    /// set, so `nvs_types::expr::literals::check_object_literal` refuses the
     /// repeat where it is written as `E0494` and nothing that reaches here
     /// carries one. It stays because the disagreement it would otherwise hide
     /// is silent — the interned shape reads the first of the pair and the
@@ -2834,7 +2834,7 @@ impl<'a> Lowering<'a> {
         assert!(
             sorted.len() == names.len(),
             "an object literal writing one field name twice reached lowering: a shape's \
-             fields are a set, so `mwl_types::expr::literals::check_object_literal` refuses \
+             fields are a set, so `nvs_types::expr::literals::check_object_literal` refuses \
              the repeat where it is written, as `E0494` — the interned shape reads the \
              first of the pair while this class carries one slot per name, and there is no \
              layout the two sides agree on"
@@ -2873,7 +2873,7 @@ impl<'a> Lowering<'a> {
 
     /// `$issue->path` — the shape half of [`Self::lower_property_access`]
     /// (ADR 0036 § 4). A shape value is anonymous and methodless, so there is
-    /// no declaring class, no hook question and no label; what `mwl_types`
+    /// no declaring class, no hook question and no label; what `nvs_types`
     /// resolved is the field's *name* plus its position in the receiver's own
     /// sorted field list, and `InstKind::SlotGet` keys on the first and takes
     /// the second as a hint — see that variant's docs for why a widened view
@@ -3034,7 +3034,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        // `&value` never arrives here, at any depth: `mwl_types` refuses it as
+        // `&value` never arrives here, at any depth: `nvs_types` refuses it as
         // `E0483`, because ADR 0031 § 2 and ADR 0023 between them leave an
         // aliasing element no owner, so it is a shape the language does not
         // have rather than one this function has not learned.
@@ -3122,18 +3122,18 @@ impl<'a> Lowering<'a> {
     /// `$arr[$i]` — the element's declared type comes from
     /// `self.exprs`, exactly like a property access's declaring
     /// class: a base that declares no element type has no
-    /// `ExprInfo::Index` entry at all, and `mwl_types` refuses one as
+    /// `ExprInfo::Index` entry at all, and `nvs_types` refuses one as
     /// `E0482` where it is written, so the panic here is an invariant
     /// check rather than a gap. `base[]` (`index`
     /// is `None`) has no meaning as a read at all — it is PHP's
-    /// append syntax, assignment-target-only — and `mwl_types`
+    /// append syntax, assignment-target-only — and `nvs_types`
     /// refuses it as `E0481` where it is written, so the arm here is
     /// an invariant check that no source file can reach.
     ///
     /// A read the checker marked **coalesce-guarded** — any level of the
     /// subscript chain under a `??`, so a guarded read's own base may be
     /// another one and may therefore be `null` at run time, which
-    /// `mwl_array_optional_get` answers with `null` again — takes
+    /// `nvs_array_optional_get` answers with `null` again — takes
     /// [`AbsentKey::Null`] instead of the throwing answer ADR
     /// 0007 § 7 row 11 gives every other read, and is therefore infallible and
     /// [`Ty::Tagged`]. That representation is not a widening for its own sake:
@@ -3149,15 +3149,15 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let Some(index) = index else {
             panic!(
-                "mwl-ir reached `$a[]` as a read expression — append syntax (`index` \
-                 is `None`) is assignment-target-only and `mwl_types` refuses every \
+                "nvs-ir reached `$a[]` as a read expression — append syntax (`index` \
+                 is `None`) is assignment-target-only and `nvs_types` refuses every \
                  other position as `E0481`, so this body was not checked"
             );
         };
         let Some(ExprInfo::Index { elem_ty, guarded }) = self.exprs.lookup(expr.span) else {
             panic!(
-                "mwl-ir: an array-index read at {:?} has no resolved element type \
-                 recorded in the typed-expression table — `mwl_types` refuses a base \
+                "nvs-ir: an array-index read at {:?} has no resolved element type \
+                 recorded in the typed-expression table — `nvs_types` refuses a base \
                  that declares none as `E0482`, so this body was not checked with the \
                  same table",
                 expr.span
@@ -3244,7 +3244,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::InstanceOf { class }) = self.exprs.lookup(expr.span) else {
             panic!(
-                "mwl-ir: an `instanceof` at {:?} has no resolved class recorded in the \
+                "nvs-ir: an `instanceof` at {:?} has no resolved class recorded in the \
                  typed-expression table — it wasn't checked with the same table, every \
                  right-hand side naming no declared class being `E0496` or `E0303` at \
                  the checker",
@@ -3255,7 +3255,7 @@ impl<'a> Lowering<'a> {
         let (value, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
             matches!(ty, Ty::Object | Ty::Tagged),
-            "mwl-ir lowers `instanceof` only against a subject that can hold an object — \
+            "nvs-ir lowers `instanceof` only against a subject that can hold an object — \
              got representation {ty:?}, every subject whose declared type cannot being \
              `E0497` at the checker"
         );
@@ -3291,7 +3291,7 @@ impl<'a> Lowering<'a> {
         let (v, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
             matches!(ty, Ty::Object),
-            "mwl-ir lowers `clone` only for an object — got representation {ty:?}. ADR \
+            "nvs-ir lowers `clone` only for an object — got representation {ty:?}. ADR \
              0023 § 1 scopes `clone` to an object; an array is already a copy-on-write \
              value, and a scalar has nothing to copy"
         );
@@ -3312,7 +3312,7 @@ impl<'a> Lowering<'a> {
 /// nothing else in this file does.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum ReceiverProof {
-    /// `mwl_types` proved the tag before this ever ran: a narrowed `?T`, the
+    /// `nvs_types` proved the tag before this ever ran: a narrowed `?T`, the
     /// non-`null` arm of a `?->`, a receiver whose declared type is a class.
     /// The tagged slot is one [`InstKind::Untag`] away from the object, and
     /// that untag is unchecked on purpose — see [`Lowering::untag_receiver`].

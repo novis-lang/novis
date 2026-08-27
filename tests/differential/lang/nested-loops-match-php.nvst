@@ -1,7 +1,7 @@
 --TEST--
 Two nested `while` loops with an inner `break` produce PHP's exact sequence
 --FILE--
-<?mwl
+<?nvs
 int $i = 0;
 int $total = 0;
 while ($i < 4) {

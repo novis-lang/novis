@@ -1,7 +1,7 @@
 --TEST--
 Spec § 4: `format` and `parse` share one CLDR pattern grammar, and it is closed
 --FILE--
-<?mwl
+<?nvs
 // § 4's patterns are CLDR (`yyyy-MM-dd`), never PHP's `date()` letters — and
 // `format` and `parse` read the same closed grammar, so what one writes the
 // other reads back.

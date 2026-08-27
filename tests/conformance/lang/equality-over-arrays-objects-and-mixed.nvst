@@ -1,7 +1,7 @@
 --TEST--
 `==` over an array, an object and a `mixed` — ordered and element-wise, by identity, and a mismatched runtime pairing is `false` — ADR 0090 §§ 3, 5
 --FILE--
-<?mwl
+<?nvs
 class Point {
     public function constructor(public int $x) {}
 }

@@ -1,5 +1,5 @@
 //! A test-only global allocator that counts live — and, separately, total —
-//! bytes on the calling thread, in front of the allocator MWL actually ships.
+//! bytes on the calling thread, in front of the allocator Novis actually ships.
 //!
 //! It exists for one guard: `object::tests::an_acyclic_object_graph_releases_
 //! every_allocation`, the leak check `docs/agent/loop-goal.md` Stage 5 names. A
@@ -26,7 +26,7 @@
 //! That recycling is invisible to a memory checker, and this crate's own test
 //! binary is the one build where it matters. ASAN finds a use-after-free by
 //! poisoning freed memory and holding it in quarantine, which it can only do
-//! for a block that reaches `free`. A block MWL frees goes onto the size-class
+//! for a block that reaches `free`. A block Novis frees goes onto the size-class
 //! cache instead, so ASAN never poisons it and a read through a dangling
 //! pointer lands in live, legitimately-mapped memory and says nothing. That is
 //! exactly the refcount bug the sanitizer is there for.
@@ -39,9 +39,9 @@
 //! path a release binary takes. The CI job named `asan` is the only caller.
 //!
 //! **No other leg needs it.** `tools/loop.py`'s valgrind sweep runs
-//! `target/debug/mwl`, and a debug build is deliberately left on the platform
+//! `target/debug/nvs`, and a debug build is deliberately left on the platform
 //! heap ([`crate`] § *the allocator itself*), so that sweep sees every free
-//! already. `mwl-codegen` and `mwl-stdlib` link this crate with `cfg(test)`
+//! already. `nvs-codegen` and `nvs-stdlib` link this crate with `cfg(test)`
 //! off, which is the same story. `cfg(test)` here is the one place the pool is
 //! installed under a checker.
 //!
@@ -83,7 +83,7 @@ pub(crate) fn live_bytes() -> isize {
 /// [`live_bytes`] cannot see an allocation that is freed again before the
 /// call under test returns, and a *transient* allocation is exactly what
 /// `array::tests::an_integer_subscript_allocates_no_key` exists to catch: the
-/// key-taking primitives build an `MwlStr` and drop it inside one call, so
+/// key-taking primitives build an `NvsStr` and drop it inside one call, so
 /// their live delta is zero and their total delta is not.
 pub(crate) fn allocated_bytes() -> usize {
     TOTAL.with(Cell::get)

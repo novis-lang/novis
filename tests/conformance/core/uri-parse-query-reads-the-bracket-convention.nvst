@@ -1,7 +1,7 @@
 --TEST--
 `Core\Uri::parseQuery` reads PHP's bracket convention in full and answers `array<mixed>` — spec § 12
 --FILE--
-<?mwl
+<?nvs
 // docs/spec/01-core-library.md § 12: `a[]=1&a[]=2` builds a list under one
 // key, `a[b]=c` builds a map, and the two nest to any depth. Every value is
 // therefore a `string` *or* a nested array, which is why the row is
@@ -17,7 +17,7 @@ echo Core\Json::encode(Core\Uri::parseQuery("a=1&a[]=2")), "\n";
 echo Core\Json::encode(Core\Uri::parseQuery("a[]=1&a=2")), "\n";
 
 // `[]` takes the next key after the highest integer one already written, which
-// is the counter `mwl_runtime`'s arrays keep and PHP calls nNextFreeElement.
+// is the counter `nvs_runtime`'s arrays keep and PHP calls nNextFreeElement.
 echo Core\Json::encode(Core\Uri::parseQuery("a[]=1&a[3]=x&a[]=y")), "\n";
 
 // Both halves of a pair are read with the form decoder: `+` is a space, and

@@ -12,7 +12,7 @@
 //!   one function and ended in another, which is why inspecting it takes
 //!   `ob_get_level` and a loop. Here the two ends are the two ends of one call,
 //!   so the stack is an implementation detail — it lives on
-//!   `mwl_runtime::Ctx` ([`Ctx::begin_capture`](mwl_runtime::Ctx::begin_capture))
+//!   `nvs_runtime::Ctx` ([`Ctx::begin_capture`](nvs_runtime::Ctx::begin_capture))
 //!   and no program can observe an unbalanced one.
 //! * **It always swallows.** Nothing `$fn` echoes reaches the sink below.
 //!   `ob_start($callback)`'s invisible pass-through has no equivalent: re-
@@ -28,7 +28,7 @@
 //! One buffer per open capture, holding what that level has captured so far,
 //! plus the one `Core\Cli\Text` instance the member answers with — both charged
 //! to the request and both freed with it. A request that never captures pays
-//! one not-taken branch per `echo`, which `mwl_runtime::Ctx`'s own
+//! one not-taken branch per `echo`, which `nvs_runtime::Ctx`'s own
 //! `captures` field states.
 //!
 //! # Known gap
@@ -40,7 +40,7 @@
 //!    plumbing is complete and tested; what is missing is on the other side of
 //!    [`crate::cli`]'s own gap 2.
 
-use mwl_runtime::{Fault, MwlObj, MwlStr, Tag, Value};
+use nvs_runtime::{Fault, NvsObj, NvsStr, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
@@ -68,7 +68,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         params: &[CoreTy::Callable, CoreTy::Options(CAPTURE_OPTIONS)],
         defaults: &[],
         return_ty: CoreTy::Instance(crate::cli::NAME),
-        symbol: "mwl_core_out_capture",
+        symbol: "nvs_core_out_capture",
     }],
     instance: &[],
     slots: &[],
@@ -79,12 +79,12 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_out_capture" => (mwl_core_out_capture as *const ()).cast(),
+        "nvs_core_out_capture" => (nvs_core_out_capture as *const ()).cast(),
         _ => return None,
     })
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Out::capture(callable $fn, {through?: callable}): Core\Cli\Text`
     /// — see the module docs.
     ///
@@ -93,9 +93,9 @@ mwl_runtime::mwl_helper! {
     /// capture that stayed open would silently swallow the rest of the
     /// request's output, which is the worst failure this member could have.
     /// That is why the closure's result is bound rather than `?`-ed.
-    fn mwl_core_out_capture(ctx, args: [2]) {
+    fn nvs_core_out_capture(ctx, args: [2]) {
         ctx.begin_capture();
-        let outcome = mwl_runtime::call_closure(ctx, args[0], &[]);
+        let outcome = nvs_runtime::call_closure(ctx, args[0], &[]);
         let captured = ctx.end_capture().unwrap_or_default();
         // The body's own return value is discarded — `capture` answers what was
         // written, not what was computed — so its reference ends here.
@@ -112,14 +112,14 @@ mwl_runtime::mwl_helper! {
             }
             Err(fault) => return Err(fault),
         }
-        let text = crate::cli::built(Value::str(MwlStr::new(&captured)));
+        let text = crate::cli::built(Value::str(NvsStr::new(&captured)));
         // ADR 0088 § 5's `{through:}` — the transform takes and answers the
         // same carrier, so the reference in `text` is transferred into the
         // call and whatever comes back is what this member answers.
         if matches!(args[1].tag(), Some(Tag::Null) | None) {
             return Ok(text);
         }
-        let transformed = mwl_runtime::call_closure(ctx, args[1], &[text]);
+        let transformed = nvs_runtime::call_closure(ctx, args[1], &[text]);
         #[expect(
             unsafe_code,
             reason = "`call_closure` takes its own reference to each argument, \
@@ -172,7 +172,7 @@ fn not_the_carrier(value: Value) -> Option<String> {
                   for this borrow; the handle is never dropped, so the reference \
                   is not released twice"
     )]
-    let object = std::mem::ManuallyDrop::new(unsafe { MwlObj::from_raw(ptr) });
+    let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
     (object.class_name() != crate::cli::NAME).then(|| {
         let name = object.class_name();
         format!("an instance of `{name}`")
@@ -183,8 +183,8 @@ fn not_the_carrier(value: Value) -> Option<String> {
 mod tests {
     use super::*;
 
-    /// The registered row is what `mwl-types` seeds and what
-    /// `mwl_ir::lower_call_args` flattens against, so its shape is worth
+    /// The registered row is what `nvs-types` seeds and what
+    /// `nvs_ir::lower_call_args` flattens against, so its shape is worth
     /// pinning beside the helper's own `args: [2]`.
     #[test]
     fn capture_takes_a_callable_and_one_option_and_answers_the_carrier() {

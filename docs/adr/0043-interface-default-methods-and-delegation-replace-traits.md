@@ -7,7 +7,7 @@
   method, or a **private** helper visible only to that interface's own method bodies), and each entry in a
   class's `implements` list may carry an optional `by $field;` suffix that delegates every method that
   interface requires to a named property. Also settles the one conflict rule both new mechanisms share, and
-  the `mwl convert` (M11) migration path from every PHP trait shape.
+  the `nvs convert` (M11) migration path from every PHP trait shape.
 - **Amends:** [0015](0015-no-name-aliasing.md) — § 3 ("Trait composition's `as` clause is gone; only
   `insteadof` remains") is withdrawn in full: there is no trait composition left to have an `as` clause or an
   `insteadof` fallback about. [0022](0022-definite-property-initialization.md) — the "own, inherited, or
@@ -16,12 +16,12 @@
 - **Amended by:** none.
 
 > **In short:** PHP traits bundle two unrelated things — sharing *behavior* across otherwise-unrelated
-> classes, and sharing *state* — under one flattening-plus-`insteadof` mechanism. MWL already has the right
+> classes, and sharing *state* — under one flattening-plus-`insteadof` mechanism. Novis already has the right
 > vehicle for the first (an `interface`, the same construct `Comparable`, `Stringable` and `PropertyObserver`
 > already use); this ADR lets an interface method carry a body — public ones are **default methods**,
-> callable and overridable exactly like any inherited method, and MWL adds one small, well-precedented
+> callable and overridable exactly like any inherited method, and Novis adds one small, well-precedented
 > extra: a `private` interface method, visible only to that interface's own bodies, for the internal-helper
-> shape a trait private method covers. For the second — shared *state* — MWL adds explicit **delegation**:
+> shape a trait private method covers. For the second — shared *state* — Novis adds explicit **delegation**:
 > `class Post implements Timestamped by $timestamps` tells the compiler to forward every method
 > `Timestamped` requires to the ordinary property `$timestamps`, whose declared type must itself implement
 > `Timestamped`. Both mechanisms share one conflict rule: if a method name is reachable from more than one
@@ -29,7 +29,7 @@
 > no `insteadof`, because there is no implicit winner to pick between two equally-valid sources. `trait`,
 > class-body `use Trait;`, and `insteadof` are removed from the grammar outright, each a parse-time
 > diagnostic naming the replacement — the same shape [ADR 0034](0034-legacy-cast-syntax-rejected.md) already
-> gives legacy casts. `mwl convert` (M11) has a fully mechanical rewrite for the common, stateless trait
+> gives legacy casts. `nvs convert` (M11) has a fully mechanical rewrite for the common, stateless trait
 > shape and for the stateful shape; only PHP's per-class-copied trait *static* property and a trait method
 > that calls back into an *unrelated* method of its host class have no mechanical destination, named
 > honestly in *Decision § 6* rather than glossed over.
@@ -41,7 +41,7 @@
   *properties* the same way, silently duplicated per consuming class (and, for a `static` trait property,
   duplicated *per class* in a way many PHP developers find genuinely surprising). `insteadof` exists only to
   arbitrate (a); it says nothing about (b).
-- MWL already answers "how does unrelated code share behavior" once, and answers it with a type: an
+- Novis already answers "how does unrelated code share behavior" once, and answers it with a type: an
   `interface`. [ADR 0013](0013-comparable-interface.md)'s `Comparable`, [ADR 0014](0014-property-observer.md)'s
   `PropertyObserver`, and [ADR 0028](0028-closing-the-remaining-magic-methods.md)'s `Stringable` are all
   proof this project already prefers "declare a capability as an interface" over "declare an ambient
@@ -50,7 +50,7 @@
   [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)'s reflection surface.
 - [ADR 0015](0015-no-name-aliasing.md) § 3 already narrowed trait composition once — dropping the `as`
   rename/visibility clause, keeping `insteadof` — but that was a narrowing of PHP's mechanism, not a
-  replacement of it. `crates/mwl-hir`'s `hierarchy.rs` and `members.rs` already implement that narrowed
+  replacement of it. `crates/nvs-hir`'s `hierarchy.rs` and `members.rs` already implement that narrowed
   version: a `TraitDecl` AST node, `SymbolKind::Trait`, trait-use flattening into a class's member table, and
   `insteadof`-based conflict resolution (`check_trait_conflicts`, `E_TRAIT_METHOD_CONFLICT`). This ADR
   supersedes that code's design, not merely its ADR citation — see *Consequences* for exactly what needs
@@ -60,8 +60,8 @@
   Kotlin's `by` interface delegation (`class Derived(b: Base) : Base by b`, the compiler synthesizing
   forwarding methods to a named value). Go's struct embedding and Rust's `delegate`/`ambassador` crates are
   further evidence the "forward an interface to a field" shape is common enough to deserve first-class
-  syntax rather than being left to hand-written boilerplate. Neither is an MWL invention; this ADR is a
-  deliberate composition of two existing, well-tested ideas onto MWL's own type system.
+  syntax rather than being left to hand-written boilerplate. Neither is an Novis invention; this ADR is a
+  deliberate composition of two existing, well-tested ideas onto Novis's own type system.
 
 ## Decision
 
@@ -84,7 +84,7 @@ class Foo { use A, B { A::hello insteadof B; } }                // rejected
 Each of the three produces a parse-time diagnostic — `E_TRAIT_NOT_SUPPORTED` — naming §§ 2–4 below by name
 (default/private interface methods for shared behavior, `by` delegation for shared state), the same shape
 [ADR 0034](0034-legacy-cast-syntax-rejected.md) already gives legacy casts and
-[ADR 0021](0021-single-file-inclusion-construct.md) gives `include`/`require_once`. `mwl-syntax`'s AST loses
+[ADR 0021](0021-single-file-inclusion-construct.md) gives `include`/`require_once`. `nvs-syntax`'s AST loses
 `TraitDecl`, `UseTraitMember`, `TraitAdaptation`/`TraitAdaptationKind`, and `TraitMethodRef` — there is no
 node left to carry, since none of the three constructs produces one any more.
 
@@ -207,7 +207,7 @@ specific source explicitly:
 - To call a specific delegate's implementation explicitly: ordinary property access,
   `$this->timestamps->touch()` — no new syntax needed at all, since a delegate is just a real object.
 
-### 6. Migration path from PHP traits (`mwl convert`, M11)
+### 6. Migration path from PHP traits (`nvs convert`, M11)
 
 Every PHP trait shape maps to one of the following. The first two are fully mechanical; the last two need a
 human decision, named honestly rather than silently attempted:
@@ -229,7 +229,7 @@ human decision, named honestly rather than silently attempted:
    TimestampsImpl $timestamps; constructor(...) { …; $this->timestamps = new TimestampsImpl(); } }` —
    inserting a field and a constructor assignment, merged into an existing constructor if the class already
    has one. Mechanical, but — like [ADR 0015](0015-no-name-aliasing.md) § 7's "group top-level functions into
-   a generated class" case — it changes the shape of the surrounding code enough that `mwl convert` flags it
+   a generated class" case — it changes the shape of the surrounding code enough that `nvs convert` flags it
    for human review rather than applying it silently.
 3. **`insteadof`, either shape** — `use A, B { A::hello insteadof B; }` becomes an explicit override calling
    the winner by name: `public function hello(): void { return A::hello(); }` for the stateless case (§ 5's
@@ -238,12 +238,12 @@ human decision, named honestly rather than silently attempted:
    the `as`-rename case, retargeted from a trait method call to an interface/delegate call.
 4. **A trait's `static` property** has no destination at all: PHP's per-consuming-class-copied trait static
    is exactly the ambient, silently-duplicated state [ADR 0008](0008-static-and-global.md) already forbids in
-   general, independent of traits. `mwl convert` emits a `TODO` naming the property, requiring a human choice
+   general, independent of traits. `nvs convert` emits a `TODO` naming the property, requiring a human choice
    between a real `static` property owned by one class or instance state carried through delegation.
 5. **A trait method that calls back into an *unrelated* method of its consuming class** — one not covered by
    any abstract method the trait itself declares — has no mechanical translation once the trait becomes a
    real, independent object under § 6.2: the generated tracker class has no reference to the class delegating
-   to it, and cannot acquire one without changing the shape of the code by hand. `mwl convert` emits a `TODO`
+   to it, and cannot acquire one without changing the shape of the code by hand. `nvs convert` emits a `TODO`
    naming the call site; a human passes whatever callback or interface the tracker actually needs into its
    own constructor instead. This is the one genuine capability PHP's implicit, unbounded trait `$this` had
    that this ADR's design does not reproduce automatically — named here rather than glossed over, per this
@@ -287,14 +287,14 @@ human decision, named honestly rather than silently attempted:
   per delegated interface, per class instance — the cost of the delegate object itself, plus that one
   pointer, replaces PHP's per-class-*copied* trait property, which is not free either; this is not a net-new
   cost class, just an explicit and inspectable one instead of an implicit one.
-- **Existing `mwl-hir`/`mwl-syntax` code implementing ADR 0015 § 3's narrower design is now superseded, not
-  merely re-cited.** `crates/mwl-syntax/src/ast.rs`'s `TraitDecl`/`UseTraitMember`/`TraitAdaptation*`/
+- **Existing `nvs-hir`/`nvs-syntax` code implementing ADR 0015 § 3's narrower design is now superseded, not
+  merely re-cited.** `crates/nvs-syntax/src/ast.rs`'s `TraitDecl`/`UseTraitMember`/`TraitAdaptation*`/
   `TraitMethodRef`, its parser production and casing rules in `parser.rs`/`casing.rs`/`token.rs`;
-  `crates/mwl-hir`'s `SymbolKind::Trait` (`symbol.rs`), the `TraitDecl` arms and trait-use flattening in
+  `crates/nvs-hir`'s `SymbolKind::Trait` (`symbol.rs`), the `TraitDecl` arms and trait-use flattening in
   `resolve.rs`/`members.rs`/`requires.rs`, and `hierarchy.rs`'s entire trait-use/`insteadof` resolution
   (`trait_refs`, `trait_methods`, `check_trait_conflicts`, `E_TRAIT_METHOD_CONFLICT`) — all of that has now
   been removed (a follow-up session; see the M1 *Verification* bullet below), along with the matching
-  trait-ancestor flattening `crates/mwl-types/src/signatures.rs` had grown for ADR 0022 §2's constructor
+  trait-ancestor flattening `crates/nvs-types/src/signatures.rs` had grown for ADR 0022 §2's constructor
   check. The new default-method/private-method/`by`-delegation *resolution* (§§ 2–5) — as opposed to the
   grammar that merely parses it — still needs building; that is M2's follow-up below, not yet started.
 - One more grammar extension to an existing call form (§ 5's `InterfaceName::method()`), a small addition to
@@ -328,7 +328,7 @@ human decision, named honestly rather than silently attempted:
 
 ## Revisiting
 
-- **Whether `mwl convert` should attempt § 6.5's host-callback case automatically** by inferring a minimal
+- **Whether `nvs convert` should attempt § 6.5's host-callback case automatically** by inferring a minimal
   callback interface from the unrelated calls a trait body makes. Deferred: needs real ported code to argue
   the shape from, the same deferral [ADR 0015](0015-no-name-aliasing.md) *Revisiting* already uses for its
   own converter UX questions.
@@ -339,24 +339,24 @@ human decision, named honestly rather than silently attempted:
 Verification, in the order it becomes possible:
 
 - **M1 (follow-up — implemented):** the parser rejects `trait`, class-body `use TraitName, ...;`, and
-  `insteadof` with `E_TRAIT_NOT_SUPPORTED` naming this ADR; `mwl-syntax`'s AST drops `TraitDecl`,
+  `insteadof` with `E_TRAIT_NOT_SUPPORTED` naming this ADR; `nvs-syntax`'s AST drops `TraitDecl`,
   `UseTraitMember`, `TraitAdaptation`/`TraitAdaptationKind`, `TraitMethodRef`. New grammar parses: an
   interface method with a body (`public` or `private` — already fell out of the existing shared class-body
   grammar with no parser change needed), and `by $field` as an optional suffix on one `implements` entry
-  (a new `ImplementsClause` AST node, recorded but not yet resolved). `mwl-hir`/`mwl-types`'s own
+  (a new `ImplementsClause` AST node, recorded but not yet resolved). `nvs-hir`/`nvs-types`'s own
   now-stale trait-flattening code (`hierarchy.rs`'s trait-use/`insteadof` resolution,
   `signatures.rs`'s trait-ancestor flattening in `own_required_properties`/`own_lateinit_properties`, and
   every `StmtKind::TraitDecl`/`ClassMemberKind::UseTrait` match arm) was removed alongside the AST nodes,
   since the workspace has to build — but no *new* default/private-method or `by`-delegation resolution was
   added; that is still M2's job below.
-- **M2 (follow-up — partially implemented):** `crates/mwl-hir`'s trait-specific code (§ *Consequences,
+- **M2 (follow-up — partially implemented):** `crates/nvs-hir`'s trait-specific code (§ *Consequences,
   Negative* names every file) is already removed, done as part of the M1 slice above rather than held back
   for this one — the workspace has to build once the AST nodes are gone. **Landed in a later session:**
-  default-method inheritance and overriding fell out of `mwl-types::signatures::resolve_method`'s existing
+  default-method inheritance and overriding fell out of `nvs-types::signatures::resolve_method`'s existing
   `extends`/`implements` ancestor walk with no new code needed (it already checks a class's own signature
   table — an override — before ever walking to an implemented interface's default), confirmed rather than
   merely assumed via a fixture (`a_default_interface_method_is_inherited_and_callable`,
-  `a_class_can_override_a_default_interface_method` in `crates/mwl-types/src/check.rs`); "`$this` inside an
+  `a_class_can_override_a_default_interface_method` in `crates/nvs-types/src/check.rs`); "`$this` inside an
   interface's own method body resolves only against that interface's own declared members" likewise already
   followed from `check_method` typing `$this` as `class_of_ctx(ctx, ...)` — the *interface's* `QName` when
   checking an `InterfaceDecl`'s own body, never the implementing class's — locked in by
@@ -368,7 +368,7 @@ Verification, in the order it becomes possible:
   the `MethodCall` and `StaticCall` sites whenever the resolved owner differs from the checking context's own
   class — covering both `$this->helper()` from an implementing class and the qualified
   `InterfaceName::helper()` form (§ 5's grammar) reaching in from outside. Four new fixtures in
-  `crates/mwl-types/src/check.rs` cover: visible from the declaring interface's own other default method,
+  `crates/nvs-types/src/check.rs` cover: visible from the declaring interface's own other default method,
   refused via `$this->` from an implementing class, and refused via the qualified call form. **Still
   outstanding:** `by`-delegation type-matching and forwarding-method synthesis, and the
   `E_INTERFACE_MEMBER_CONFLICT` diagnostic for a method reachable from more than one default/delegated source
@@ -377,6 +377,6 @@ Verification, in the order it becomes possible:
   the former lands. A `by`-target field's definite-assignment obligation is expected to be ordinary
   [ADR 0022](0022-definite-property-initialization.md)/[ADR 0038](0038-lateinit-property-modifier.md), no
   special case, once delegation itself exists.
-- **M11:** `mwl convert` performs § 6.1's and § 6.2's mechanical rewrites (the latter flagged for review),
+- **M11:** `nvs convert` performs § 6.1's and § 6.2's mechanical rewrites (the latter flagged for review),
   § 6.3's `insteadof`-equivalent override synthesis, and emits the `TODO` diagnostics § 6.4/§ 6.5 describe for
   the two shapes with no mechanical destination.

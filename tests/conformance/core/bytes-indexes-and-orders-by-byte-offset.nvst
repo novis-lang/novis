@@ -1,7 +1,7 @@
 --TEST--
 Spec § 7: `Core\Bytes`'s indexing half counts in bytes where `Core\Str`'s members of the same name count characters — ADR 0009 § 1, ADR 0063 R5/R6/R8
 --FILE--
-<?mwl
+<?nvs
 class Probe {
     // ADR 0063 R4/R5: the declared return type is `uint`, not `?uint`, so an
     // index that addresses nothing throws rather than answering a sentinel.
@@ -49,7 +49,7 @@ echo "[", Core\Encoding::toHex(Core\Bytes::slice($png, 4, -6)), "]\n";
 
 // `indexOf` answers `?uint`: absence is `null`, so PHP's `strpos(...) == false`
 // bug family has no spelling here. There is no `caseInsensitive` option — a
-// `bytes` carries no charset, which is what `crates/mwl-stdlib/src/bytes.rs`
+// `bytes` carries no charset, which is what `crates/nvs-stdlib/src/bytes.rs`
 // records.
 bytes $crlf = Core\Encoding::fromHex("0d0a");
 echo (Core\Bytes::indexOf($png, $crlf) ?? 99) as string, "|\n";

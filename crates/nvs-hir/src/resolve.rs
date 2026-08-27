@@ -2,8 +2,8 @@
 //!
 //! See the crate's module docs for what this covers and what M2 still needs.
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use mwl_syntax::ast::{Name, NamespaceDecl, Stmt, StmtKind, TypeAliasDecl, TypeAtom, TypeKind};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_syntax::ast::{Name, NamespaceDecl, Stmt, StmtKind, TypeAliasDecl, TypeAtom, TypeKind};
 use rustc_hash::FxHashMap;
 
 use crate::qname::QName;
@@ -12,7 +12,7 @@ use crate::symbol::{Symbol, SymbolKind, SymbolTable};
 /// One `use Path\To\Name;` import, checked against the declarations collected
 /// from every file [`Resolver::collect_declarations`] has seen so far.
 ///
-/// A target under `Core` ([`QName::is_core`]) is always trusted — `mwl-hir`
+/// A target under `Core` ([`QName::is_core`]) is always trusted — `nvs-hir`
 /// has no declarations for the built-in stdlib to check against yet.
 #[derive(Clone, Debug)]
 pub struct Import {
@@ -30,7 +30,7 @@ pub struct Import {
     pub resolved: bool,
 }
 
-/// Everything `mwl-hir` resolves out of one or more parsed files, for this
+/// Everything `nvs-hir` resolves out of one or more parsed files, for this
 /// slice of M2: every declared class/interface/enum/type alias under its
 /// fully-qualified name, every `use` import checked against that set, and the
 /// class hierarchy (`extends`/`implements`) resolved to real symbols.
@@ -280,14 +280,14 @@ pub fn resolve_file(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) -
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::SourceMap;
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::SourceMap;
+    use nvs_syntax::parse_file;
 
     use super::*;
 
     fn resolve(src: &str) -> (Module, Diagnostics) {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn a_top_level_class_is_declared_in_the_global_namespace() {
-        let (module, diags) = resolve("<?mwl\nclass Foo {}\n");
+        let (module, diags) = resolve("<?nvs\nclass Foo {}\n");
         assert!(!diags.has_errors());
         let sym = module.symbols.get(&QName::parse("Foo")).unwrap();
         assert_eq!(sym.kind, SymbolKind::Class);
@@ -305,14 +305,14 @@ mod tests {
 
     #[test]
     fn statement_form_namespace_qualifies_the_rest_of_the_file() {
-        let (module, diags) = resolve("<?mwl\nnamespace App\\Models;\nclass User {}\n");
+        let (module, diags) = resolve("<?nvs\nnamespace App\\Models;\nclass User {}\n");
         assert!(!diags.has_errors());
         assert!(module.symbols.contains(&QName::parse("App\\Models\\User")));
     }
 
     #[test]
     fn block_form_namespace_does_not_leak_into_what_follows() {
-        let (module, diags) = resolve("<?mwl\nnamespace App { class A {} }\nclass B {}\n");
+        let (module, diags) = resolve("<?nvs\nnamespace App { class A {} }\nclass B {}\n");
         assert!(!diags.has_errors());
         assert!(module.symbols.contains(&QName::parse("App\\A")));
         assert!(module.symbols.contains(&QName::parse("B")));
@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn duplicate_declarations_in_the_same_namespace_are_diagnosed() {
-        let (module, diags) = resolve("<?mwl\nclass Foo {}\nclass Foo {}\n");
+        let (module, diags) = resolve("<?nvs\nclass Foo {}\nclass Foo {}\n");
         assert!(
             diags
                 .iter()
@@ -333,7 +333,7 @@ mod tests {
     #[test]
     fn the_same_short_name_in_different_namespaces_is_not_a_duplicate() {
         let (module, diags) =
-            resolve("<?mwl\nnamespace A;\nclass Foo {}\nnamespace B;\nclass Foo {}\n");
+            resolve("<?nvs\nnamespace A;\nclass Foo {}\nnamespace B;\nclass Foo {}\n");
         assert!(!diags.has_errors());
         assert_eq!(module.symbols.len(), 2);
     }
@@ -341,7 +341,7 @@ mod tests {
     #[test]
     fn a_use_import_resolves_against_a_declaration_from_earlier_in_the_file() {
         let (module, diags) =
-            resolve("<?mwl\nnamespace App;\nclass User {}\nnamespace App\\Http;\nuse App\\User;\n");
+            resolve("<?nvs\nnamespace App;\nclass User {}\nnamespace App\\Http;\nuse App\\User;\n");
         assert!(!diags.has_errors());
         let import = &module.imports[0];
         assert!(import.resolved);
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn a_use_import_of_an_undeclared_name_is_unresolved() {
-        let (module, diags) = resolve("<?mwl\nuse Some\\Missing\\Thing;\n");
+        let (module, diags) = resolve("<?nvs\nuse Some\\Missing\\Thing;\n");
         assert!(!module.imports[0].resolved);
         assert!(
             diags
@@ -361,14 +361,14 @@ mod tests {
 
     #[test]
     fn a_use_import_under_core_is_trusted_without_a_declaration() {
-        let (module, diags) = resolve("<?mwl\nuse Core\\Str;\n");
+        let (module, diags) = resolve("<?nvs\nuse Core\\Str;\n");
         assert!(!diags.has_errors());
         assert!(module.imports[0].resolved);
     }
 
     #[test]
     fn two_imports_of_the_same_short_name_in_one_scope_are_diagnosed() {
-        let (_module, diags) = resolve("<?mwl\nuse Core\\Foo;\nuse Core\\Other\\Foo;\n");
+        let (_module, diags) = resolve("<?nvs\nuse Core\\Foo;\nuse Core\\Other\\Foo;\n");
         assert!(
             diags
                 .iter()
@@ -379,7 +379,7 @@ mod tests {
     #[test]
     fn a_new_namespace_statement_resets_the_import_scope() {
         let (_module, diags) =
-            resolve("<?mwl\nnamespace A;\nuse Core\\Foo;\nnamespace B;\nuse Core\\Foo;\n");
+            resolve("<?nvs\nnamespace A;\nuse Core\\Foo;\nnamespace B;\nuse Core\\Foo;\n");
         assert!(
             !diags.has_errors(),
             "each namespace statement gets a fresh use scope: {diags:?}"
@@ -388,7 +388,7 @@ mod tests {
 
     #[test]
     fn aliasing_a_single_bare_class_is_rejected() {
-        let (_module, diags) = resolve("<?mwl\nclass Foo {}\ntype Id = Foo;\n");
+        let (_module, diags) = resolve("<?nvs\nclass Foo {}\ntype Id = Foo;\n");
         assert!(
             diags
                 .iter()
@@ -399,7 +399,7 @@ mod tests {
     #[test]
     fn aliasing_a_shape_around_a_class_is_accepted() {
         let (_module, diags) =
-            resolve("<?mwl\nclass Foo {}\ntype MaybeFoo = ?Foo;\ntype Ids = array<Foo>;\n");
+            resolve("<?nvs\nclass Foo {}\ntype MaybeFoo = ?Foo;\ntype Ids = array<Foo>;\n");
         assert!(
             !diags
                 .iter()
@@ -409,7 +409,7 @@ mod tests {
 
     #[test]
     fn aliasing_a_scalar_is_accepted() {
-        let (_module, diags) = resolve("<?mwl\ntype UserId = uint;\n");
+        let (_module, diags) = resolve("<?nvs\ntype UserId = uint;\n");
         assert!(!diags.has_errors());
     }
 }

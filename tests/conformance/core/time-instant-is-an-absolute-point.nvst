@@ -1,7 +1,7 @@
 --TEST--
 Spec § 4: an `Instant` is an absolute point with no zone, and moves only by an exact `Duration`
 --FILE--
-<?mwl
+<?nvs
 // An ISO-8601 timestamp carries its own offset, which is the whole of what
 // `strtotime` replaces here — a relative expression is accepted in neither
 // half of § 4.
@@ -32,7 +32,7 @@ echo $at->compareTo($later) as string, "|", $later->compareTo($at) as string, "|
 
 // ADR 0063 R4: failure throws rather than answering a wrong value. Which
 // texts `fromIso` accepts, and in what class it refuses the rest, is
-// time-from-iso-needs-an-offset-and-refuses-as-a-parse-error.mwlt.
+// time-from-iso-needs-an-offset-and-refuses-as-a-parse-error.nvst.
 try {
     echo Core\Time::fromIso("yesterday")->toIso(), "|\n";
 } catch (Throwable $e) {

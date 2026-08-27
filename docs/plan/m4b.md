@@ -1,22 +1,22 @@
-# M4B — Minimal `mwl-lsp`, syntax highlighting and the VS Code extension (~3 weeks)
+# M4B — Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks)
 
 Pulled ahead of M10 by [ADR 0040](../adr/0040-vscode-deep-tooling-and-resilient-parsing.md) so real-world
-testing in an editor starts the moment M4 makes MWL a usable CLI language, rather than after M5–M9.
+testing in an editor starts the moment M4 makes Novis a usable CLI language, rather than after M5–M9.
 [ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) settles the four things that ADR left
 open or specified against a parser that turned out to be shaped differently; where the two disagree, 0099
 is the current rule and 0040's body has been folded to match.
 
-**The tree.** `mwl-syntax` gains a **lossless parse result** — the same one grammar and the same AST, plus
+**The tree.** `nvs-syntax` gains a **lossless parse result** — the same one grammar and the same AST, plus
 a `trivia` vector (every comment and whitespace run, by span) and a `SyntaxIndex` answering byte offset →
 innermost node and its ancestors. `tokens ⊕ trivia` reproduces the file byte-for-byte, which is the
-losslessness `mwl fmt` needs at M10; recovery becomes explicit (`MemberName::Missing`, a span on
+losslessness `nvs fmt` needs at M10; recovery becomes explicit (`MemberName::Missing`, a span on
 `ExprKind::Error`) so a consumer never has to infer "did the user write this name or did the parser invent
-it at the cursor". There is **no second parser and no second tree**: `mwl check`/`mwl run` are that same
+it at the cursor". There is **no second parser and no second tree**: `nvs check`/`nvs run` are that same
 parse followed by "refuse if anything was reported", which is what they already do.
 
-**The server.** `crates/mwl-lsp` — `lsp-server` and `lsp-types`, **synchronous, no tokio** — speaking LSP
-over stdio behind a `mwl lsp` subcommand. Nine requests and no more: `publishDiagnostics` (the existing
-`mwl check` pipeline), `hover` (declared type, a `Core` member's registry signature, a declaration's own
+**The server.** `crates/nvs-lsp` — `lsp-server` and `lsp-types`, **synchronous, no tokio** — speaking LSP
+over stdio behind a `nvs lsp` subcommand. Nine requests and no more: `publishDiagnostics` (the existing
+`nvs check` pipeline), `hover` (declared type, a `Core` member's registry signature, a declaration's own
 doc comment out of the trivia layer), `definition`, `completion` (keywords, members off a resolved
 receiver including `Core` classes, enum cases after `Type::`, in-scope variables — **no** workspace symbol
 search, that needs M10's indexing), `semanticTokens/full`, `documentSymbol`, and three that are
@@ -25,7 +25,7 @@ projections of data the tree already holds rather than features built on it: `se
 code actions**, admitted because their replacement text already sits in `Diagnostic::suggestions`: the
 casing fix ([0029](../adr/0029-identifier-casing-is-checked.md)/[0030](../adr/0030-no-leading-underscores-constructor-spelling.md))
 and `(int)$x` → `$x as int` ([0034](../adr/0034-legacy-cast-syntax-rejected.md)). Beside the nine standard
-requests sits exactly **one of MWL's own**, `mwl/redactions`, answering the ranges the editor conceals —
+requests sits exactly **one of Novis's own**, `nvs/redactions`, answering the ranges the editor conceals —
 a literal or interpolation slot whose static type carries `secret`
 ([0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) §§ 1–2). It is
 not a token modifier: that channel degrades to "whatever the theme thinks", and a security default may not
@@ -37,7 +37,7 @@ while its literal is being typed.
 end runs parse → resolve → types with no gate, so today one typo yields a *spurious* `E0301` reported
 above the `E0102` that caused it. A file that produced a lexer or parser diagnostic publishes those and
 its declaration diagnostics and suppresses `E03xx`/`E04xx` **for that file only** — presentation, not
-analysis, and `mwl check` is untouched. Position encoding is negotiated per LSP 3.17; `mwl-diagnostics`
+analysis, and `nvs check` is untouched. Position encoding is negotiated per LSP 3.17; `nvs-diagnostics`
 grows `utf16_col` beside its existing `char`-counting `line_col`, because position arithmetic has one
 home. Document sync is `Full`, analysis is debounced and cancellable, editing one document re-analyses
 every open document whose graph contains it, and the unit of analysis is one open document as its own
@@ -46,56 +46,56 @@ writes to stdout** — stdio is the wire, and that invariant holds today only by
 a test.
 
 **Syntax highlighting, which is two layers and not one feature.** A **TextMate grammar** gives colour the
-instant a file opens, before the server exists: the dual-mode `<?mwl`/`<?php`/`<?=`/`?>` openers with
+instant a file opens, before the server exists: the dual-mode `<?nvs`/`<?php`/`<?=`/`?>` openers with
 inline HTML outside them, heredoc and nowdoc with interpolation only in the former, type annotations in
 every slot the grammar allows one including ADR 0036's inline shapes, the `tainted`/`secret` qualifiers
-and `decimal`, MWL's own keywords (`spawn`, `spawn script`, `autoload`, `type`, `by`, property hooks),
-ADR 0070's duration literals, and `#[...]` attributes told apart from `#` comments — and **nothing MWL
+and `decimal`, Novis's own keywords (`spawn`, `spawn script`, `autoload`, `type`, `by`, property hooks),
+ADR 0070's duration literals, and `#[...]` attributes told apart from `#` comments — and **nothing Novis
 rejects may be coloured as valid** (`===`, legacy casts, `|>`, the alternative colon syntax). Then
 **semantic tokens** colour what a regex structurally cannot know: `defaultLibrary` on a `Core` class,
-enum members, type aliases, and two modifiers of MWL's own — **`tainted` and `secret`** — so a qualified
+enum members, type aliases, and two modifiers of Novis's own — **`tainted` and `secret`** — so a qualified
 value is visibly qualified at every use site, which is the cheapest teaching surface ADRs
 [0024](../adr/0024-taint-tracking-for-injection-sinks.md) and
-[0033](../adr/0033-secret-qualifier-for-confidential-values.md) have. **MWL ships no colours** — colour is
+[0033](../adr/0033-secret-qualifier-for-confidential-values.md) have. **Novis ships no colours** — colour is
 the user's theme's — so both layers ship *names*, every one of them from the standard TextMate vocabulary
 or LSP's standard legend, because a theme styles only names it recognises and an invented scope renders as
 unstyled body text. The two custom modifiers reach a theme through `semanticTokenScopes`, and the
-extension contributes no colour-customization defaults at all. A **second grammar** colours `.mwlt` and
-`.lspt` themselves — sections, with MWL embedded in the four that hold a program (`--FILE--`,
+extension contributes no colour-customization defaults at all. A **second grammar** colours `.nvst` and
+`.lspt` themselves — sections, with Novis embedded in the four that hold a program (`--FILE--`,
 `--FILE <path>--`, `--SKIPIF--`, `--CLEAN--`), PHP in `--ORACLE--`, and `--EXPECTF--`/`--EXPECTF-ERROR--`'s
 `%` escapes as escapes; every other section is literal text with only its delimiter coloured. Which
-sections exist and what each holds is [`crates/mwl-test`](../../crates/mwl-test/src/lib.rs)'s module doc,
+sections exist and what each holds is [`crates/nvs-test`](../../crates/nvs-test/src/lib.rs)'s module doc,
 not this paragraph. Nearly free, and the grammar whose audience is this project's own loop, currently
 reading hundreds of those files as flat grey text. It is **colour only** — the server's unit of analysis is
-one `.mwl` document and a `.mwlt` case is not a program, so a `--FILE--` body gets no hover, completion,
+one `.nvs` document and a `.nvst` case is not a program, so a `--FILE--` body gets no hover, completion,
 diagnostics or semantic tokens; projecting sections into virtual documents is an M10 question, not a cheap
 extension of this.
 
-**The extension.** `editors/vscode`, a TypeScript package outside the Cargo workspace: `.mwl` registration
+**The extension.** `editors/vscode`, a TypeScript package outside the Cargo workspace: `.nvs` registration
 (**and not `.php`**), `language-configuration.json` — whose `wordPattern` must include `$`, or
-double-clicking `$total` selects `total` — the two grammars above, `mwl lsp` spawning via
+double-clicking `$total` selects `total` — the two grammars above, `nvs lsp` spawning via
 `vscode-languageclient` with a configurable path falling back to `PATH`, a `LanguageStatusItem` for server
-health and version, `mwl run`/`mwl test` as Tasks **with a `problemMatcher`** over the diagnostic
+health and version, `nvs run`/`nvs test` as Tasks **with a `problemMatcher`** over the diagnostic
 renderer's existing format, so a failure is a clickable Problems-panel entry rather than terminal text,
-and an AST explorer panel backed by **`mwl ast --json --resilient`** — which is built here, because
+and an AST explorer panel backed by **`nvs ast --json --resilient`** — which is built here, because
 `--json` does not exist today and `{stmts:#?}` has no stability contract. The extension refuses a binary
 whose version it does not understand rather than answering confusingly, and holds **no language logic**,
 enforced by a dependency-allowlist test rather than by review. The setting and command identifiers
-(`mwl.path`, `mwl.lsp.enable`, `mwl.lsp.debounce`, `mwl.lsp.trace.server`, `mwl.secrets.redact`,
-`mwl.taint.mark`; `mwl.run`, `mwl.test`, `mwl.showAst`, `mwl.restartServer`, `mwl.revealSecret`,
-`mwl.hideSecrets`) are frozen at M4B because they are public API — a rename breaks a user's
+(`nvs.path`, `nvs.lsp.enable`, `nvs.lsp.debounce`, `nvs.lsp.trace.server`, `nvs.secrets.redact`,
+`nvs.taint.mark`; `nvs.run`, `nvs.test`, `nvs.showAst`, `nvs.restartServer`, `nvs.revealSecret`,
+`nvs.hideSecrets`) are frozen at M4B because they are public API — a rename breaks a user's
 `settings.json` silently. **A `secret` literal is concealed by default** — blurred in place, the character
 cells kept, so every edit still addresses the real text — and a reveal is per range and dies when the
 editor closes, because the threat is an unattended screen and no API reports one
 ([0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md)). `tainted`
-is decorated only if the user asks (`mwl.taint.mark`, default `off`): a glyph is *added content*, and how
+is decorated only if the user asks (`nvs.taint.mark`, default `off`): a glyph is *added content*, and how
 a construct looks stays the theme's call. The AST panel inherits the same placeholder in
-`mwl ast --json` itself, or it prints in a webview the credential the buffer behind it is hiding. Extension id `mwl-lang.mwl`; `package-lock.json` is committed because
+`nvs ast --json` itself, or it prints in a webview the credential the buffer behind it is hiding. Extension id `nvs-lang.nvs`; `package-lock.json` is committed because
 `npm ci` needs it; CI produces an installable `.vsix`; **nothing is published** —
 [ADR 0016](../adr/0016-ide-integration.md) *Revisiting* keeps that open.
 
-**How editor behaviour is checked.** A **`.lspt` case** is the sibling of `.mwlt`: the same section lexer,
-a `<|>` cursor, a `--REQUEST--` line and a frozen canonical `--EXPECT--` rendering, run by **`mwl
+**How editor behaviour is checked.** A **`.lspt` case** is the sibling of `.nvst`: the same section lexer,
+a `<|>` cursor, a `--REQUEST--` line and a frozen canonical `--EXPECT--` rendering, run by **`nvs
 lsp-test`** printing the same `N passed, M failed` line — so the loop gates editor behaviour through the
 check kind it already has. Coverage is **inferred** from the node each cursor resolved to, never declared,
 and `every_request_answers_every_construct` fails naming each empty cell of the request × construct
@@ -103,7 +103,7 @@ matrix. Extension tests run in two tiers: headless Node every iteration (grammar
 `vscode-textmate`, a contributions/allowlist test, a protocol round-trip against the real binary), and
 `@vscode/test-electron` in the real extension host once per green tree.
 
-**Not here:** format-on-save (`mwl fmt` is M10 — [ADR 0039](../adr/0039-canonical-code-formatting.md)),
+**Not here:** format-on-save (`nvs fmt` is M10 — [ADR 0039](../adr/0039-canonical-code-formatting.md)),
 rename, extract refactorings, workspace symbol search, inlay hints, signature help, `documentHighlight`,
 the Test Explorer, profiler visualization, debugger UI, and any code action whose fix a diagnostic does
 not already compute. The last two of those look adjacent to what M4B does build and are not:
@@ -112,10 +112,10 @@ and inlay hints encode idioms still moving through M5–M9. No PhpStorm work at 
 entirely at M10 per [ADR 0016](../adr/0016-ide-integration.md).
 
 **Verify:** concatenating tokens and trivia in offset order reproduces every file in `examples/`, `tests/`
-and the vendored `php-src` corpus byte-for-byte. Parsing every prefix of every `examples/*.mwl` at a token
+and the vendored `php-src` corpus byte-for-byte. Parsing every prefix of every `examples/*.nvs` at a token
 boundary panics on none, answers a `SyntaxIndex` lookup at the final offset on all, and reports a
 diagnostic on each prefix that is genuinely incomplete; a fuzz target over truncated and mid-edit inputs
-finds no panic in five minutes. `mwl lsp-test tests/lsp/` reports `0 failed` and the coverage matrix has
+finds no panic in five minutes. `nvs lsp-test tests/lsp/` reports `0 failed` and the coverage matrix has
 no empty cell — including a case per request proving that an unclosed brace or a trailing `->` does not
 stop diagnostics, hover, completion or semantic tokens working on the well-formed code around it, which is
 ADR 0040's core claim. A full re-analysis of a 1,000-line document stays under the named latency bound —
@@ -125,11 +125,11 @@ and every scope it emits is on the standard-name allowlist. The gate of *Diagnos
 case in both directions — gated, `E0102` and not `E0301`; with `phase=all`, both. A position round-trips
 through both encodings on a multi-byte line, a BOM document answers correct offsets, and a CRLF document's
 columns match an LF one's; `println!` appears in no crate the server links; editing a required file
-re-publishes the requiring document's diagnostics untouched. The extension activates on `.mwl` and not on
+re-publishes the requiring document's diagnostics untouched. The extension activates on `.nvs` and not on
 `.php`, shows TextMate colour before the server answers and semantic colour after, registers a legend
 equal to the one the server declares, round-trips all nine standard requests and both code actions with no
 language logic in its own source, conceals a `secret` literal on open and reveals exactly the one range
-`mwl.revealSecret` is fired on while a second secret in the same file stays hidden, decorates nothing for
-`tainted` at the default setting, prints the placeholder rather than the literal in `mwl ast --json`, exposes `mwl run`/`mwl test` as Tasks whose failures populate the Problems panel,
-selects `$total` whole on a double-click, opens a `.mwlt` case coloured, and renders the AST panel for a
+`nvs.revealSecret` is fired on while a second secret in the same file stays hidden, decorates nothing for
+`tainted` at the default setting, prints the placeholder rather than the literal in `nvs ast --json`, exposes `nvs run`/`nvs test` as Tasks whose failures populate the Problems panel,
+selects `$total` whole on a double-click, opens a `.nvst` case coloured, and renders the AST panel for a
 file that does not compile. `tokio` appears in neither `Cargo.toml` nor `Cargo.lock`.

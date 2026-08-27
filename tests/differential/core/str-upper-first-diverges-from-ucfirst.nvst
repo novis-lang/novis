@@ -3,13 +3,13 @@ Core\Str::upperFirst/lowerFirst are Unicode-aware where ucfirst/lcfirst are byte
 --ORACLE-DIVERGES--
 ADR 0009: `string` is guaranteed-valid UTF-8, so the first *character* is case-mapped; `ucfirst` maps the first *byte* and leaves any multi-byte one alone.
 --FILE--
-<?mwl
-echo Core\Str::upperFirst("mwl rocks"), "\n";
-echo Core\Str::lowerFirst("MWL"), "\n";
+<?nvs
+echo Core\Str::upperFirst("nvs rocks"), "\n";
+echo Core\Str::lowerFirst("NVS"), "\n";
 echo Core\Str::upperFirst("élan"), "\n";
 echo Core\Str::lowerFirst("Élan"), "\n";
 --EXPECT--
-Mwl rocks
-mWL
+Nvs rocks
+nVS
 Élan
 élan

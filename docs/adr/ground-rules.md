@@ -14,13 +14,13 @@ spellings rejected, and the reasoning.
 
 ## Implementation invariants
 
-- **MWL is built first for platforms that run code, and data, they do not control** — so the framework and
+- **Novis is built first for platforms that run code, and data, they do not control** — so the framework and
   the dependency story outrank new breadth, the pitch is isolation and qualifiers rather than speed, and no
-  document may claim PHP compatibility ([0080](0080-the-audience-mwl-is-built-for.md)).
+  document may claim PHP compatibility ([0080](0080-the-audience-nvs-is-built-for.md)).
 - **Memory is spent to buy security, semantics, latency and simplicity, in that order** — and never to
   buy a leak: what is spent stays attributable to a request, under an enforceable cap, and O(in-flight)
   rather than O(requests served) ([0004](0004-memory-for-simplicity.md)).
-- **`unsafe` is forbidden workspace-wide**; only `mwl-runtime`, `mwl-codegen`, `mwl-stdlib` and
+- **`unsafe` is forbidden workspace-wide**; only `nvs-runtime`, `nvs-codegen`, `nvs-stdlib` and
   `benches/abi-probe` opt down to `deny` with narrow, reasoned allows ([Cargo.toml](../../Cargo.toml)).
 - **Nothing unwinds through a JIT frame** — every call returns a checked status
   ([0002](0002-error-propagation.md)).
@@ -34,9 +34,9 @@ spellings rejected, and the reasoning.
   ([README.md](README.md) § *Decisions taken at project start*).
 - **Architecture assumptions are tested, not remembered** — [benches/abi-probe/](../../benches/abi-probe/)
   guards them on every CI run; if one fails, revisit the ADR it points at rather than the threshold.
-- **Every third-party notice MWL owes is generated, committed and embedded in the binary**
-  ([0065](0065-third-party-attribution-and-mwl-info.md)).
-- **Dependencies stay current, and from 0.1.0 a break in one is absorbed rather than forwarded to MWL
+- **Every third-party notice Novis owes is generated, committed and embedded in the binary**
+  ([0065](0065-third-party-attribution-and-nvs-info.md)).
+- **Dependencies stay current, and from 0.1.0 a break in one is absorbed rather than forwarded to Novis
   programs** — until then, update anything freely; the sweep is a pass the *user* fires, never an agent
   ([0068](0068-dependency-currency-and-the-version-contract.md),
   [docs/agent/dependency-update.md](../agent/dependency-update.md)).
@@ -58,7 +58,7 @@ spellings rejected, and the reasoning.
 - **`string` is guaranteed-valid UTF-8 and counts grapheme clusters; binary data is the separate `bytes`
   type, counting bytes** ([0009](0009-string-and-bytes.md)).
 - **A duration is a literal — `30s`, `1h30m`** — typed `Core\Time\Duration`, folded to a constant, and
-  written in the one grammar `Duration::parse` and `mwl.toml` share
+  written in the one grammar `Duration::parse` and `nvs.toml` share
   ([0070](0070-duration-literals.md)).
 - **`decimal` is a scalar, not a class**, and `decimal ⊕ float` is a compile error
   ([0054](0054-decimal-scalar-type.md)).
@@ -91,7 +91,7 @@ spellings rejected, and the reasoning.
 - **A property access runs its own hook, then a declared `PropertyObserver`** — an undeclared property is
   always a hard error, and `__call`/`__callStatic` do not exist
   ([0014](0014-property-observer.md)).
-- **`Stringable` replaces `__toString`, and MWL has no destructors, `__debugInfo` or `__set_state`**
+- **`Stringable` replaces `__toString`, and Novis has no destructors, `__debugInfo` or `__set_state`**
   ([0028](0028-closing-the-remaining-magic-methods.md)).
 - **`callable` is satisfied by exactly one shape of value, a closure, and there is no `__invoke`**
   ([0027](0027-callable-is-closures-only.md)).
@@ -113,8 +113,8 @@ spellings rejected, and the reasoning.
 - **`==` is the only equality operator, it never converts, and two statically disjoint types do not
   compile** — strings, arrays and objects each take the strict reading
   ([0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md)).
-- **`<?mwl` is the only code-mode open tag and `exit` the only termination keyword** — `<?=` is sugar for
-  `<?mwl echo`, not a second tag ([0049](0049-single-open-tag-and-single-exit-keyword.md)).
+- **`<?nvs` is the only code-mode open tag and `exit` the only termination keyword** — `<?=` is sugar for
+  `<?nvs echo`, not a second tag ([0049](0049-single-open-tag-and-single-exit-keyword.md)).
 - **`[...]` is the only destructuring spelling**
   ([0050](0050-list-destructuring-spelling-rejected.md)).
 - **Identifier casing is a hard compiler error with no suppression**, checked on the leading character only
@@ -214,8 +214,8 @@ spellings rejected, and the reasoning.
 - **A dependency is a content-addressed archive resolved by minimal version selection, no package code runs
   before your program does, and a package's capabilities are granted one line at a time rather than
   inherited** ([0081](0081-packages-are-digests-resolution-is-a-maximum.md)).
-- **MWL ships its own framework, split by ADR 0051's six tests** — privileged halves in `Core`, the
-  opinionated layer as the `mwl/web` package, no ORM and no runtime container
+- **Novis ships its own framework, split by ADR 0051's six tests** — privileged halves in `Core`, the
+  opinionated layer as the `nvs/web` package, no ORM and no runtime container
   ([0082](0082-the-first-party-framework.md)).
 - **A background job is a row in a `Core\Db` table, so an enqueue commits with the write that caused it**,
   and delivery is at-least-once with bounded retries
@@ -225,7 +225,7 @@ spellings rejected, and the reasoning.
 - **`#[Json\Derive]`/`#[Db\Derive]` generate a codec from a class's declared properties, and a failed decode
   reports every bad field at once** — a compiler-recognized attribute is matched by name, unlike
   `Core\Attributes` retrieval ([0071](0071-derived-codecs.md)).
-- **Configuration is TOML, in a root-owned `mwl.toml`**
+- **Configuration is TOML, in a root-owned `nvs.toml`**
   ([0064](0064-configuration-file-format.md)); it states defaults, not ceilings
   ([0005](0005-config-changeability.md)).
 - **A run mode is `development` or `production`, defaults to production, and only selects the defaults of
@@ -234,10 +234,10 @@ spellings rejected, and the reasoning.
 - **Every developer-facing output is one closed record the sink in force renders as plaintext, JSON or
   HTML** — no call site names a format, and a dump reaches a response body only in development mode
   ([0092](0092-one-diagnostic-record-three-renderings.md)).
-- **`mwl ctl reload` replaces the whole config snapshot over a local socket — no control port, no token** —
+- **`nvs ctl reload` replaces the whole config snapshot over a local socket — no control port, no token** —
   and a directive that still needs a restart is named in the result rather than ignored
   ([0078](0078-config-reload-and-control-socket.md)).
-- **`mwl service` registers this binary with the platform's service manager, storing one verbatim argv, and
+- **`nvs service` registers this binary with the platform's service manager, storing one verbatim argv, and
   the installer is a sink that refuses any subcommand but `serve`/`run`**
   ([0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)).
 - **`Core\Task::all`/`::map` return with nothing still running, and `afterResponse` keeps the request tree
@@ -271,17 +271,17 @@ spellings rejected, and the reasoning.
   ([0042](0042-on-disk-artifact-cache-format.md)).
 - **A portable single-file executable ships source appended to the host binary**
   ([0048](0048-portable-single-file-executables.md)).
-- **`mwl fmt` has one unconfigurable style, never reflows, and is never wired into `mwl check`**
+- **`nvs fmt` has one unconfigurable style, never reflows, and is never wired into `nvs check`**
   ([0039](0039-canonical-code-formatting.md)).
-- **`mwl fmt` changes layout only — it never renames, never supplies a missing keyword, and never reorders
+- **`nvs fmt` changes layout only — it never renames, never supplies a missing keyword, and never reorders
   class members; an editor composes it with quick fixes on save, which is a client concern**
   ([0039](0039-canonical-code-formatting.md) §§ 9-11,
   [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3).
-- **`mwl convert` is one deterministic rule table read through two modes, and an "identical" rewrite is one
+- **`nvs convert` is one deterministic rule table read through two modes, and an "identical" rewrite is one
   a differential case against the PHP oracle proves**
   ([0089](0089-convert-is-one-rule-table-with-two-modes.md)).
-- **`mwl-syntax` exposes a second, lossless, error-recovering parse entry point for editor tooling only**
-  ([0040](0040-vscode-deep-tooling-and-resilient-parsing.md)); IDE smarts live once, in `mwl-lsp`
+- **`nvs-syntax` exposes a second, lossless, error-recovering parse entry point for editor tooling only**
+  ([0040](0040-vscode-deep-tooling-and-resilient-parsing.md)); IDE smarts live once, in `nvs-lsp`
   ([0016](0016-ide-integration.md)).
 - **A wasm32 browser target is a second codegen backend behind the same IR, not a second language**
   ([0025](0025-wasm-browser-target.md)).
@@ -292,22 +292,22 @@ spellings rejected, and the reasoning.
   ([0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md)); scalars still gain no methods
   ([0063](0063-core-api-conventions.md) R19).
 - **One grammar and one tree: the resilient parse is the AST plus a trivia layer and an offset index,
-  `mwl-lsp` is synchronous on `lsp-server`/`lsp-types` so no async runtime enters the workspace, an LSP
+  `nvs-lsp` is synchronous on `lsp-server`/`lsp-types` so no async runtime enters the workspace, an LSP
   answer is frozen as a `.lspt` case, and syntax highlighting is two layers with two tests**
   ([0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
 - **The editor offers a value only where the compiler already derived it for another reason** — a route
   name, a config directive, an `#[Api]` field — never from a convention scan, an annotation dialect or a
-  network request, which is the whole of MWL's framework support; one workspace index answers references,
+  network request, which is the whole of Novis's framework support; one workspace index answers references,
   occurrence highlight, CodeLens, type hierarchy and unused-member dimming; and an inline-HTML region gets
-  the editor's own HTML/CSS/JS services but **no** formatter beside `mwl fmt`
+  the editor's own HTML/CSS/JS services but **no** formatter beside `nvs fmt`
   ([0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md)).
 - **A `secret` value's bytes are concealed in the editor by default, on ranges the server computes and the
   client only draws; `tainted` gets no default decoration, because how a construct looks is the user's
   theme's to decide** ([0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md);
   the token modifiers themselves are [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 4).
-- **Against Python MWL claims the tool that gets handed over, never speed or replacement: a file opening
+- **Against Python Novis claims the tool that gets handed over, never speed or replacement: a file opening
   `#!` starts in code mode with no tag, there is no REPL, and the userland suite measures three engines**
-  ([0100](0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md)).
+  ([0100](0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)).
 - **The configuration is a tree of files resolved as one ordered stream where later wins and every override
   is reported; every file in it must be unwritable by any account but its owner, and an absent `optional`
   include puts that check on the directory that would hold it**

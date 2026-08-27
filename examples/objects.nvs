@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 interface Greets {
     public function name(): string;
 

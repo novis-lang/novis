@@ -31,7 +31,7 @@ fn stack_probes_are_enabled() {
     // call-stack limit wearing a different name.
     assert!(
         backend().contains(r#"("enable_probestack", "true")"#),
-        "mwl-codegen no longer enables Cranelift's stack probes. Cranelift's own default is \
+        "nvs-codegen no longer enables Cranelift's stack probes. Cranelift's own default is \
          off, so deleting the flag silently reopens the stack-clash window on any frame over \
          4 KiB. If this is deliberate, the reasoning belongs beside the flag in `Jit::new`."
     );
@@ -49,7 +49,7 @@ fn a_frame_over_the_probe_threshold_compiles_and_runs() {
     // roughly fifty statements at a script's file scope and is why this is a
     // run rather than another source grep.
     let mut source = String::from(
-        "<?mwl
+        "<?nvs
 class Pad {
     public static function tag(int $n): string {
         return \"x\";

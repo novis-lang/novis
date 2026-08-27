@@ -1,7 +1,7 @@
 --TEST--
 `break` and `continue` bind to the innermost enclosing loop, and locals written before either still carry out of it
 --FILE--
-<?mwl
+<?nvs
 class Grid {
     public static function upto(int $rows, int $cols): string {
         var $out = "";

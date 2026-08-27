@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::format writes a hundred decimals and refuses the hundred-and-first, naming the count it was handed — spec § 3
 --FILE--
-<?mwl
+<?nvs
 // The bound, named on both sides. A hundred decimals is past every digit an
 // `f64` distinguishes, so the cap costs no caller an answer it could have
 // used; what it buys is a result whose size is a function of the *value*

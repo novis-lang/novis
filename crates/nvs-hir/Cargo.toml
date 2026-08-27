@@ -1,6 +1,6 @@
 [package]
-name = "mwl-hir"
-description = "HIR for MWL: name resolution, namespaces, class graph, symbol table"
+name = "nvs-hir"
+description = "HIR for Novis: name resolution, namespaces, class graph, symbol table"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,8 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
-mwl-diagnostics.workspace = true
-mwl-syntax.workspace = true
+nvs-diagnostics.workspace = true
+nvs-syntax.workspace = true
 rustc-hash.workspace = true
 
 [lints]

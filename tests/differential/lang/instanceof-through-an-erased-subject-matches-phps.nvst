@@ -1,7 +1,7 @@
 --TEST--
 `instanceof` through a subject whose tag nothing proved answers exactly what PHP answers — every supertype for an object, and `false` for every other tag including `null` — ADR 0007 § 2
 --FILE--
-<?mwl
+<?nvs
 final class Ask {
     // `bool as string` renders `false` as the empty string, so a row of
     // predicates read through it silently loses its false columns.

@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::sqrt, ::exp and ::log answer exactly what PHP's sqrt, exp and log do, including at the domain edges IEEE answers with NAN or an infinity, and ::log's base option folds log10 and log2 the same way PHP's second argument does
 --FILE--
-<?mwl
+<?nvs
 // Spec § 3's `sqrt`, `exp` and `log` rows. The first two are one PHP function
 // each; `log` is three — `log`, `log10` and `log2` — folded into one member by
 // a `{base?: float}` option whose default is `E`. So what this case asks is
@@ -14,7 +14,7 @@ Core\Math::sqrt, ::exp and ::log answer exactly what PHP's sqrt, exp and log do,
 // The *base's* domain is the one place a guard exists, and both languages have
 // one: a base that is not greater than zero is refused rather than answered
 // with the signed zero or the `NaN` that `ln($n) / ln($base)` would produce.
-// PHP raises a `ValueError` and MWL a `Fault::thrown`, so what is asserted
+// PHP raises a `ValueError` and Novis a `Fault::thrown`, so what is asserted
 // there is that a `Throwable` handler reaches it, exactly as
 // `math-int-div-and-mod-match-intdiv-and-fmod` asserts its two refusals.
 
@@ -66,7 +66,7 @@ echo Show::real(Core\Math::log(-1.0)), " ", Show::real(Core\Math::log($nan)), "\
 echo Core\Math::log(100.0, {base: 10.0}), " ", Core\Math::log(1024.0, {base: 2.0}), " ", Core\Math::log(81.0, {base: 3.0}), " ", Core\Math::log(8.0, {base: 0.5}), "\n";
 
 // Naming `E` explicitly is the same answer as leaving the option off, because
-// PHP's ratio divides by `log(M_E)`, which is exactly `1.0`, where MWL takes
+// PHP's ratio divides by `log(M_E)`, which is exactly `1.0`, where Novis takes
 // the `ln` shortcut. Two routes, one value.
 echo Core\Math::log(100.0, {base: Core\Math::E}), " ", Core\Math::log(100.0), "\n";
 
@@ -78,7 +78,7 @@ echo Core\Math::log(100.0, {base: Core\Math::E}), " ", Core\Math::log(100.0), "\
 echo Show::real(Core\Math::log(8.0, {base: 1.0})), " ", Show::real(Core\Math::log(8.0, {base: $nan})), " ", Core\Math::log(8.0, {base: $huge}), "\n";
 
 // The two bases that are refused rather than answered. PHP raises a
-// `ValueError`; MWL raises a `Fault::thrown`. The class differs, so what is
+// `ValueError`; Novis raises a `Fault::thrown`. The class differs, so what is
 // asserted is that a `Throwable` handler reaches each of them.
 try {
     var $atZero = Core\Math::log(8.0, {base: 0.0});

@@ -1,6 +1,6 @@
 # cargo-deny configuration. Run: cargo deny check
 #
-# The point of this file is that MWL's memory-safety and supply-chain claims are
+# The point of this file is that Novis's memory-safety and supply-chain claims are
 # enforced by CI rather than by good intentions.
 
 [graph]
@@ -23,11 +23,11 @@ yanked = "deny"
 ignore = []
 
 # ---------------------------------------------------------------------------
-# Licences. MWL itself ships as MIT; anything we link must be compatible with
+# Licences. Novis itself ships as MIT; anything we link must be compatible with
 # distributing a permissively licensed binary. Apache-2.0 dependencies are
 # fine (cranelift and wasmtime are Apache-2.0 WITH LLVM-exception).
 #
-# This list decides what MWL may *link*. What it must then *ship* — the
+# This list decides what Novis may *link*. What it must then *ship* — the
 # reproduced notice for each component — is ADR 0065 and its generator,
 # `tools/gen-attribution.py`, whose `PREFERENCE` must name exactly the
 # identifiers below, in preference order. The generator fails if the two ever
@@ -50,7 +50,7 @@ allow = [
     "Unlicense",        # public-domain dedication; the `regex` family's other half
 ]
 confidence-threshold = 0.93
-# Copyleft that would infect MWL's own licensing is simply absent from `allow`,
+# Copyleft that would infect Novis's own licensing is simply absent from `allow`,
 # so it fails closed rather than needing an explicit deny list.
 
 [[licenses.exceptions]]

@@ -9,15 +9,15 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use mwl_diagnostics::{Diagnostics, SourceMap};
-use mwl_syntax::parse_file;
+use nvs_diagnostics::{Diagnostics, SourceMap};
+use nvs_syntax::parse_file;
 
 fuzz_target!(|data: &[u8]| {
     let Ok(text) = std::str::from_utf8(data) else {
         return;
     };
     let mut map = SourceMap::new();
-    let id = map.add("fuzz.mwl", text.to_string());
+    let id = map.add("fuzz.nvs", text.to_string());
     let mut diags = Diagnostics::new();
     let _ = parse_file(map.file(id), &mut diags);
 });

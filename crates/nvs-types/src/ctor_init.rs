@@ -40,7 +40,7 @@
 //!   this module has no model of a hook's body at all.
 //! - A promoted constructor-parameter property (`function constructor(public
 //!   int $x) {}`) is not recorded as a property anywhere yet
-//!   (`mwl_hir::members`'s and `crate::signatures`'s own pre-existing gap),
+//!   (`nvs_hir::members`'s and `crate::signatures`'s own pre-existing gap),
 //!   so it neither needs nor gets a definite-assignment check here — this
 //!   mirrors, rather than fixes, that gap.
 //! - [`scan_expr`] only descends into a handful of common composite
@@ -56,9 +56,9 @@
 //!   constructor unchanged in that case, and this slice does not model that
 //!   inheritance.
 
-use mwl_diagnostics::{Diagnostic, Span, code};
-use mwl_hir::QName;
-use mwl_syntax::ast::{
+use nvs_diagnostics::{Diagnostic, Span, code};
+use nvs_hir::QName;
+use nvs_syntax::ast::{
     AssignOp, CallArgs, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
 };
 use rustc_hash::FxHashSet;
@@ -485,16 +485,16 @@ fn scan_call_args(args: &CallArgs, state: &mut InitState, env: &Env<'_>) {
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::{Diagnostics, SourceMap, code};
-    use mwl_hir::resolve_file;
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::{Diagnostics, SourceMap, code};
+    use nvs_hir::resolve_file;
+    use nvs_syntax::parse_file;
 
     use crate::expr_table::ExprTypeTable;
     use crate::ty::TypeInterner;
 
     fn check_src(src: &str) -> Diagnostics {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -517,7 +517,7 @@ mod tests {
 
     #[test]
     fn a_class_with_no_constructor_and_no_default_is_diagnosed() {
-        let diags = check_src("<?mwl\nclass Foo {\n  public int $count;\n}\n");
+        let diags = check_src("<?nvs\nclass Foo {\n  public int $count;\n}\n");
         assert!(
             diags
                 .iter()
@@ -528,20 +528,20 @@ mod tests {
 
     #[test]
     fn a_class_with_no_constructor_but_an_inline_default_is_fine() {
-        let diags = check_src("<?mwl\nclass Foo {\n  public int $count = 0;\n}\n");
+        let diags = check_src("<?nvs\nclass Foo {\n  public int $count = 0;\n}\n");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn a_class_with_no_constructor_but_a_nullable_property_is_fine() {
-        let diags = check_src("<?mwl\nclass Foo {\n  public ?int $count;\n}\n");
+        let diags = check_src("<?nvs\nclass Foo {\n  public ?int $count;\n}\n");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn a_constructor_assigning_every_property_is_fine() {
         let diags = check_src(
-            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor(int $c) {\n    $this->count = $c;\n  }\n}\n",
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor(int $c) {\n    $this->count = $c;\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
@@ -549,7 +549,7 @@ mod tests {
     #[test]
     fn a_constructor_leaving_a_property_unassigned_on_one_branch_is_diagnosed() {
         let diags = check_src(
-            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor(bool $flag) {\n    if ($flag) {\n      $this->count = 1;\n    }\n  }\n}\n",
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor(bool $flag) {\n    if ($flag) {\n      $this->count = 1;\n    }\n  }\n}\n",
         );
         assert!(
             diags
@@ -562,7 +562,7 @@ mod tests {
     #[test]
     fn a_constructor_assigning_on_both_if_branches_is_fine() {
         let diags = check_src(
-            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor(bool $flag) {\n    if ($flag) {\n      $this->count = 1;\n    } else {\n      $this->count = 2;\n    }\n  }\n}\n",
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor(bool $flag) {\n    if ($flag) {\n      $this->count = 1;\n    } else {\n      $this->count = 2;\n    }\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
@@ -570,7 +570,7 @@ mod tests {
     #[test]
     fn a_subclass_constructor_skipping_parent_constructor_is_diagnosed() {
         let diags = check_src(
-            "<?mwl\nclass Base {\n  public int $id;\n  function constructor(int $id) {\n    $this->id = $id;\n  }\n}\nclass Sub extends Base {\n  function constructor() {\n  }\n}\n",
+            "<?nvs\nclass Base {\n  public int $id;\n  function constructor(int $id) {\n    $this->id = $id;\n  }\n}\nclass Sub extends Base {\n  function constructor() {\n  }\n}\n",
         );
         assert!(
             diags
@@ -583,14 +583,14 @@ mod tests {
     #[test]
     fn a_subclass_constructor_calling_parent_constructor_is_fine() {
         let diags = check_src(
-            "<?mwl\nclass Base {\n  public int $id;\n  function constructor(int $id) {\n    $this->id = $id;\n  }\n}\nclass Sub extends Base {\n  function constructor(int $id) {\n    parent::constructor($id);\n  }\n}\n",
+            "<?nvs\nclass Base {\n  public int $id;\n  function constructor(int $id) {\n    $this->id = $id;\n  }\n}\nclass Sub extends Base {\n  function constructor(int $id) {\n    parent::constructor($id);\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn a_hooked_property_is_exempt_from_the_check() {
-        let diags = check_src("<?mwl\nclass Foo {\n  public int $count { get => 1; }\n}\n");
+        let diags = check_src("<?nvs\nclass Foo {\n  public int $count { get => 1; }\n}\n");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
@@ -600,7 +600,7 @@ mod tests {
     #[test]
     fn a_lateinit_property_is_exempt_from_the_constructor_check() {
         let diags = check_src(
-            "<?mwl\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function constructor() {\n  }\n}\n",
+            "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function constructor() {\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
@@ -611,7 +611,7 @@ mod tests {
     #[test]
     fn a_switch_with_default_and_a_break_in_every_case_satisfies_the_property() {
         let diags = check_src(
-            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor(int $x) {\n    switch ($x) {\n      case 1:\n        $this->count = 1;\n        break;\n      default:\n        $this->count = 2;\n        break;\n    }\n  }\n}\n",
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor(int $x) {\n    switch ($x) {\n      case 1:\n        $this->count = 1;\n        break;\n      default:\n        $this->count = 2;\n        break;\n    }\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
@@ -621,7 +621,7 @@ mod tests {
     #[test]
     fn a_switch_with_no_default_does_not_satisfy_the_property() {
         let diags = check_src(
-            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor(int $x) {\n    switch ($x) {\n      case 1:\n        $this->count = 1;\n        break;\n    }\n  }\n}\n",
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor(int $x) {\n    switch ($x) {\n      case 1:\n        $this->count = 1;\n        break;\n    }\n  }\n}\n",
         );
         assert!(
             diags
@@ -636,7 +636,7 @@ mod tests {
     #[test]
     fn a_try_and_its_catch_both_assigning_satisfies_the_property() {
         let diags = check_src(
-            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (LogicError $e) {\n      $this->count = 2;\n    }\n  }\n}\n",
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (LogicError $e) {\n      $this->count = 2;\n    }\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
@@ -646,7 +646,7 @@ mod tests {
     #[test]
     fn a_try_whose_catch_does_not_assign_does_not_satisfy_the_property() {
         let diags = check_src(
-            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (LogicError $e) {\n    }\n  }\n}\n",
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (LogicError $e) {\n    }\n  }\n}\n",
         );
         assert!(
             diags

@@ -1,6 +1,6 @@
 //! Seeding the checker's signature table with `Core`.
 //!
-//! `mwl_stdlib::registry` is the one home for what a `Core` member's signature
+//! `nvs_stdlib::registry` is the one home for what a `Core` member's signature
 //! *is*; this is the one place that turns it into the same
 //! [`ClassSignature`](crate::signatures::ClassSignature) a user-declared class
 //! produces. Everything after that point is unchanged machinery:
@@ -16,23 +16,23 @@
 //!   `Core\Arr::count($a)` is the only reachable spelling and
 //!   `$a->count()` resolves to nothing, as ADR 0063 R20 ("no operation is
 //!   reachable two ways") requires.
-//! * A name `mwl_stdlib` does not register does not exist. Before this
-//!   existed, `mwl_hir::QName::is_core` made every `Core\…` reference trusted
+//! * A name `nvs_stdlib` does not register does not exist. Before this
+//!   existed, `nvs_hir::QName::is_core` made every `Core\…` reference trusted
 //!   and unchecked; a registered class is now checked like any other, while
 //!   an unregistered one stays trusted so the rest of the spec's §§ 1–12 can
 //!   still be *written* in a fixture before it is implemented. That trust is
 //!   the thing to remove once the registry is complete.
 
-use mwl_hir::QName;
-use mwl_hir::interfaces::{ITERABLE, ITERATOR};
-use mwl_stdlib::registry::{CLASSES, Const, CoreTy};
+use nvs_hir::QName;
+use nvs_hir::interfaces::{ITERABLE, ITERATOR};
+use nvs_stdlib::registry::{CLASSES, Const, CoreTy};
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
-/// Adds every `mwl_stdlib::registry::CLASSES` entry to `table`.
+/// Adds every `nvs_stdlib::registry::CLASSES` entry to `table`.
 ///
 /// Called once, at the head of
 /// [`build_signatures`](crate::signatures::build_signatures), so a `Core`
@@ -54,26 +54,26 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
             );
         }
         // A `Core` class is constructible only where
-        // `mwl_stdlib::registry::CONSTRUCTORS` says so, and that roster's row
+        // `nvs_stdlib::registry::CONSTRUCTORS` says so, and that roster's row
         // is a `CoreMethod` like any other — so `new Core\Heap<T>($by)` is
         // arity- and type-checked by exactly the machinery every other `Core`
         // call goes through, rather than by a second rule reachable only from
         // `new`. It is an *instance* member, because the receiver a compiled
         // call would pass is the instance being built; nothing resolves it as
         // a static one.
-        if let Some(new) = mwl_stdlib::registry::constructor_of(class.name) {
+        if let Some(new) = nvs_stdlib::registry::constructor_of(class.name) {
             methods.insert(new.name.to_owned(), method_sig(new, false, interner));
         }
         // No properties, for either kind: a `Core` instance's slots are
-        // `mwl-stdlib`'s layout rather than a surface a program reads, so
+        // `nvs-stdlib`'s layout rather than a surface a program reads, so
         // `$match->groups` is an unknown member and `$match->groups()` is the
-        // member. `mwl_stdlib::registry::CoreTy::Instance` owns why.
+        // member. `nvs_stdlib::registry::CoreTy::Instance` owns why.
         table.seed_class(qname.clone(), FxHashMap::default(), methods);
         // The one thing a `Core` class says about a hierarchy, and it says it
-        // to `foreach`: `mwl_stdlib::registry::ITERABLES` is the roster, and a
+        // to `foreach`: `nvs_stdlib::registry::ITERABLES` is the roster, and a
         // row's element may be one of the class's own type variables, which
         // `crate::expr::iteration` substitutes the receiver's arguments into.
-        if let Some(elem) = mwl_stdlib::registry::iterable_element(class.name) {
+        if let Some(elem) = nvs_stdlib::registry::iterable_element(class.name) {
             let elem = lower(elem, interner);
             table.seed_implements(qname, QName::parse(ITERABLE), vec![elem]);
         }
@@ -82,7 +82,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
 
 /// One registry row as the checker's own signature.
 fn method_sig(
-    method: &mwl_stdlib::registry::CoreMethod,
+    method: &nvs_stdlib::registry::CoreMethod,
     is_static: bool,
     interner: &mut TypeInterner,
 ) -> MethodSig {
@@ -118,14 +118,14 @@ fn method_sig(
         // R20): a static one through its class name, an instance
         // one through a value. The registry states which by which
         // roster the row is written in — see
-        // `mwl_stdlib::registry::CoreClass::instance`.
+        // `nvs_stdlib::registry::CoreClass::instance`.
         is_static,
         interface_private: false,
         // Every registered row is part of `Core`'s surface — the
         // registry has no way to write an internal one, so there
         // is nothing here for ADR 0094's levels to say.
-        visibility: mwl_syntax::ast::Visibility::Public,
-        // Native Rust behind a helper symbol, not a compiled MWL
+        visibility: nvs_syntax::ast::Visibility::Public,
+        // Native Rust behind a helper symbol, not a compiled Novis
         // function — but it is code, so a call never needs to go
         // looking for an override.
         has_body: true,
@@ -135,13 +135,13 @@ fn method_sig(
 /// The symbol a resolved `Core` call is reachable at, or `None` if `qname`
 /// names no registered class or `method` no registered member.
 ///
-/// `mwl-ir` reads this to lower a resolved static call whose target is a
+/// `nvs-ir` reads this to lower a resolved static call whose target is a
 /// `Core` member into the helper-shaped instruction that reaches it — the one
 /// piece of a `Core` call that is genuinely not the same as a user-declared
-/// one, since there is no compiled MWL function to name.
+/// one, since there is no compiled Novis function to name.
 #[must_use]
 pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
-    let class = mwl_stdlib::registry::class(&qname.to_string())?;
+    let class = nvs_stdlib::registry::class(&qname.to_string())?;
     class
         .members()
         .find(|candidate| candidate.name == method)
@@ -169,7 +169,7 @@ pub(crate) fn constant(
     name: &str,
     interner: &mut TypeInterner,
 ) -> Option<(TypeId, ConstArg)> {
-    let found = mwl_stdlib::registry::class(&qname.to_string())?.constant(name)?;
+    let found = nvs_stdlib::registry::class(&qname.to_string())?.constant(name)?;
     Some((lower(&found.ty, interner), lower_const(&found.value)))
 }
 
@@ -179,11 +179,11 @@ pub(crate) fn constant(
 /// describe.
 #[must_use]
 pub(crate) fn is_registered(qname: &QName) -> bool {
-    mwl_stdlib::registry::class(&qname.to_string()).is_some()
+    nvs_stdlib::registry::class(&qname.to_string()).is_some()
 }
 
 /// A registry row's end-aligned `CoreMethod::defaults` as the per-parameter
-/// [`MethodSig::defaults`] the checker and `mwl-ir` read — a run of `None` for
+/// [`MethodSig::defaults`] the checker and `nvs-ir` read — a run of `None` for
 /// the required parameters, then one entry per declared default.
 ///
 /// The two spellings differ on purpose: the registry states the shorter one
@@ -193,11 +193,11 @@ pub(crate) fn is_registered(qname: &QName) -> bool {
 /// rule, which is why the slice is taken from the end rather than the start.
 ///
 /// A trailing options bag gets its entry **synthesized** here from the bag's
-/// own [`CoreOption::default`](mwl_stdlib::registry::CoreOption::default)s
+/// own [`CoreOption::default`](nvs_stdlib::registry::CoreOption::default)s
 /// rather than read from `defaults`, which is what makes the bag optional
 /// without a registry row ever saying so twice — see
-/// `mwl_stdlib::registry::CoreTy::Options`.
-fn defaults_of(method: &mwl_stdlib::registry::CoreMethod) -> Vec<Option<ConstArg>> {
+/// `nvs_stdlib::registry::CoreTy::Options`.
+fn defaults_of(method: &nvs_stdlib::registry::CoreMethod) -> Vec<Option<ConstArg>> {
     let positional = method.positional().len();
     let required = positional - method.defaults.len();
     (0..method.params.len())
@@ -234,10 +234,10 @@ fn lower_const(value: &Const) -> ConstArg {
         Const::EmptyArray => ConstArg::EmptyArray,
         // ADR 0010 § 3: the case *is* its integer constant, so what a call
         // site materializes is that constant — the same value the enum table
-        // hands `mwl-ir` for a written `Core\Order::Asc`. Resolved here rather
+        // hands `nvs-ir` for a written `Core\Order::Asc`. Resolved here rather
         // than written into the row so the two cannot disagree.
         Const::EnumCase(name, case) => ConstArg::Int(
-            mwl_stdlib::registry::core_enum(name)
+            nvs_stdlib::registry::core_enum(name)
                 .and_then(|found| {
                     found
                         .cases
@@ -246,11 +246,11 @@ fn lower_const(value: &Const) -> ConstArg {
                 })
                 .map(|(_, value)| *value)
                 .unwrap_or_else(|| {
-                    panic!("mwl-stdlib defaults an option to `{name}::{case}`, which it does not register")
+                    panic!("nvs-stdlib defaults an option to `{name}::{case}`, which it does not register")
                 }),
         ),
         // An instance has no constant form, so what is carried across is the
-        // call that builds one — `mwl_stdlib::registry::Const::Built` owns why
+        // call that builds one — `nvs_stdlib::registry::Const::Built` owns why
         // that is still an inlined constant.
         Const::Built { symbol, args } => ConstArg::Built {
             symbol,
@@ -260,7 +260,7 @@ fn lower_const(value: &Const) -> ConstArg {
         // yet has no safe `ConstArg` to become, so it fails loudly here rather
         // than silently defaulting a parameter to the wrong value. Both tables
         // are in this workspace, so reaching it is a build-time oversight.
-        ref other => panic!("mwl-types has no ConstArg for the registry default {other:?}"),
+        ref other => panic!("nvs-types has no ConstArg for the registry default {other:?}"),
     }
 }
 
@@ -313,7 +313,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // the reason the enum arm above is an ordinary enum type: `seed` has
         // already put the class in this very table, so `resolve_method` finds
         // `$match->text()` through the machinery `$animal->name()` goes
-        // through, and `mwl-ir` lowers the value to `Ty::Object`.
+        // through, and `nvs-ir` lowers the value to `Ty::Object`.
         CoreTy::Instance(name) => interner.class(QName::parse(name)),
         // ADR 0053 § 3's three iterable shapes, interned as the union of all
         // three — [`CoreTy::Iterated`] owns why an `array<T>` is one of them
@@ -342,7 +342,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // `?T` is `null|T` and nothing else — the checker has no separate
         // nullable type, so a registry row's `?T` and a source-written `?T`
         // are the *same* interned id, and everything downstream (assignability,
-        // `??`, `mwl_ir::lower_checked_ty`'s `Ty::Tagged`) meets one shape.
+        // `??`, `nvs_ir::lower_checked_ty`'s `Ty::Tagged`) meets one shape.
         CoreTy::Nullable(inner) => {
             let inner = lower(inner, interner);
             let null = interner.null();
@@ -373,7 +373,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
 mod tests {
     use super::*;
     use crate::signatures::resolve_method;
-    use mwl_hir::ClassGraph;
+    use nvs_hir::ClassGraph;
 
     #[test]
     fn a_registered_member_resolves_with_its_declared_shape() {
@@ -481,7 +481,7 @@ mod tests {
     /// The bag's two halves, both derived from one registry row: the
     /// parameter's type carries the option names and types, and its
     /// [`MethodSig::defaults`] entry carries each option's default. Nothing in
-    /// `mwl_stdlib::registry` states either twice, so this is the one place
+    /// `nvs_stdlib::registry` states either twice, so this is the one place
     /// they could disagree.
     #[test]
     fn an_options_bag_lowers_to_one_parameter_and_one_synthesized_default() {
@@ -639,7 +639,7 @@ mod tests {
     fn a_registered_member_names_the_symbol_its_implementation_lives_at() {
         assert_eq!(
             symbol_of(&QName::parse(r"Core\Arr"), "count"),
-            Some("mwl_core_arr_count")
+            Some("nvs_core_arr_count")
         );
         assert_eq!(symbol_of(&QName::parse(r"Core\Arr"), "nope"), None);
         assert_eq!(symbol_of(&QName::parse("Animal"), "count"), None);

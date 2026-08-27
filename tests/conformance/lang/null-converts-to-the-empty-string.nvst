@@ -1,7 +1,7 @@
 --TEST--
 `null as string` is the empty string, and the static `null`, a `?string` holding one and `echo` all agree — ADR 0007 § 2
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 2's "anything → `string`" row at `null`. PHP renders it as the
 // empty string, and a `?string` holding one already did here through
 // `Helper::TaggedToString`, so the *statically* `null` operand — the same

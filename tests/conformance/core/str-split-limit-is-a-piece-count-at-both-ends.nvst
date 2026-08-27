@@ -1,7 +1,7 @@
 --TEST--
 Spec § 1: `Core\Str::split`'s `{limit}` is a piece count asserted at both ends — the exact count, one past it, and the negative that drops every piece
 --FILE--
-<?mwl
+<?nvs
 // Four pieces, so the limit's own boundary is 4: one below caps and leaves the
 // tail unsplit, exactly 4 is the whole split, and one past it can do no more.
 string $csv = "a,b,c,d";

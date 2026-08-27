@@ -10,7 +10,7 @@
 //!
 //! # Two encodings, because PHP has two and the wire has two
 //!
-//! The pair split is not an accident of PHP's history that MWL is copying. A
+//! The pair split is not an accident of PHP's history that Novis is copying. A
 //! percent-encoded *URI component* (RFC 3986 § 2.1) and an
 //! `application/x-www-form-urlencoded` *form value* (WHATWG URL § 5) are
 //! genuinely different encodings, and they disagree on one byte that matters:
@@ -40,7 +40,7 @@
 //! older set, and PHP's two functions each follow their own specification.
 //! AGENTS.md ranks PHP-compatible observable behaviour (priority 2) above
 //! simplicity of the implementation (priority 4), and the cost of collapsing
-//! the two sets is paid by whoever compares a signature MWL computed against
+//! the two sets is paid by whoever compares a signature Novis computed against
 //! one PHP computed — an HMAC over a form body differs by one byte and nothing
 //! says why. Both spellings decode identically, so nothing is lost by matching.
 //!
@@ -134,7 +134,7 @@
 //! The shape is what makes the return type `array<mixed>`: a value is a
 //! `string` **or** a nested `array<mixed>`, and no more precise element type
 //! exists to write. `Core\Arr::keys` over the answer is still `array<string>`,
-//! because every MWL array key is a `string` already.
+//! because every Novis array key is a `string` already.
 //!
 //! Two things PHP does here are deliberately **not** reproduced, and both are
 //! substitutions rather than structure:
@@ -158,7 +158,7 @@
 //! are load-bearing for real forms: `a=1&a=2` keeps the last value, `a=1&a[]=2`
 //! replaces the scalar with a list and `a[]=1&a=2` replaces the list with the
 //! scalar, and `a[]=1&a[3]=x&a[]=y` numbers its appends 0, 3, 4 — the last
-//! because [`MwlArray::append`] already keeps PHP's next-free-integer counter.
+//! because [`NvsArray::append`] already keeps PHP's next-free-integer counter.
 //!
 //! `buildQuery` writes the same convention back, matching `http_build_query`
 //! down to its escaping: a nested value goes under its whole path, and the
@@ -309,7 +309,7 @@
 //!    `bytes as string` row would do one line later, so no program is denied
 //!    an answer it could have used. `parseQuery` throws on the same octets for
 //!    the same reason, for a name as well as for a value. The runtime half of
-//!    this is no longer missing — `mwl_runtime::Tag` has its `Bytes` row now —
+//!    this is no longer missing — `nvs_runtime::Tag` has its `Bytes` row now —
 //!    so what remains is a spec question: § 12's table writes `: string` for
 //!    both decoders, and changing it is a spec slice rather than a runtime
 //!    one. This is the one place this module diverges from PHP, whose strings
@@ -321,7 +321,7 @@ use fluent_uri::component::{Authority, Scheme};
 use fluent_uri::pct_enc::EStr;
 use fluent_uri::resolve::ResolveError;
 use fluent_uri::{ParseErrorKind, Uri, UriRef};
-use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
+use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
@@ -348,56 +348,56 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
-            symbol: "mwl_core_uri_parse",
+            symbol: "nvs_core_uri_parse",
         },
         CoreMethod {
             name: "tryParse",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
-            symbol: "mwl_core_uri_try_parse",
+            symbol: "nvs_core_uri_try_parse",
         },
         CoreMethod {
             name: "encodeComponent",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_uri_encode_component",
+            symbol: "nvs_core_uri_encode_component",
         },
         CoreMethod {
             name: "decodeComponent",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_uri_decode_component",
+            symbol: "nvs_core_uri_decode_component",
         },
         CoreMethod {
             name: "encodeFormValue",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_uri_encode_form_value",
+            symbol: "nvs_core_uri_encode_form_value",
         },
         CoreMethod {
             name: "decodeFormValue",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_uri_decode_form_value",
+            symbol: "nvs_core_uri_decode_form_value",
         },
         CoreMethod {
             name: "parseQuery",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
-            symbol: "mwl_core_uri_parse_query",
+            symbol: "nvs_core_uri_parse_query",
         },
         CoreMethod {
             name: "buildQuery",
             params: &[CoreTy::Array(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_uri_build_query",
+            symbol: "nvs_core_uri_build_query",
         },
     ],
     instance: &[
@@ -406,56 +406,56 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "mwl_core_uri_scheme",
+            symbol: "nvs_core_uri_scheme",
         },
         CoreMethod {
             name: "userInfo",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "mwl_core_uri_user_info",
+            symbol: "nvs_core_uri_user_info",
         },
         CoreMethod {
             name: "host",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "mwl_core_uri_host",
+            symbol: "nvs_core_uri_host",
         },
         CoreMethod {
             name: "port",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Int),
-            symbol: "mwl_core_uri_port",
+            symbol: "nvs_core_uri_port",
         },
         CoreMethod {
             name: "path",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_uri_path",
+            symbol: "nvs_core_uri_path",
         },
         CoreMethod {
             name: "query",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "mwl_core_uri_query",
+            symbol: "nvs_core_uri_query",
         },
         CoreMethod {
             name: "fragment",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "mwl_core_uri_fragment",
+            symbol: "nvs_core_uri_fragment",
         },
         CoreMethod {
             name: "toString",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_uri_to_string",
+            symbol: "nvs_core_uri_to_string",
         },
         CoreMethod {
             name: "with",
@@ -493,21 +493,21 @@ pub const CLASS: CoreClass = CoreClass {
             ])],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
-            symbol: "mwl_core_uri_with",
+            symbol: "nvs_core_uri_with",
         },
         CoreMethod {
             name: "resolve",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
-            symbol: "mwl_core_uri_resolve",
+            symbol: "nvs_core_uri_resolve",
         },
         CoreMethod {
             name: "compareTo",
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_uri_compare_to",
+            symbol: "nvs_core_uri_compare_to",
         },
     ],
     slots: &[
@@ -539,25 +539,25 @@ const FRAGMENT_SLOT: usize = 7;
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_uri_parse" => (mwl_core_uri_parse as *const ()).cast(),
-        "mwl_core_uri_try_parse" => (mwl_core_uri_try_parse as *const ()).cast(),
-        "mwl_core_uri_scheme" => (mwl_core_uri_scheme as *const ()).cast(),
-        "mwl_core_uri_user_info" => (mwl_core_uri_user_info as *const ()).cast(),
-        "mwl_core_uri_host" => (mwl_core_uri_host as *const ()).cast(),
-        "mwl_core_uri_port" => (mwl_core_uri_port as *const ()).cast(),
-        "mwl_core_uri_path" => (mwl_core_uri_path as *const ()).cast(),
-        "mwl_core_uri_query" => (mwl_core_uri_query as *const ()).cast(),
-        "mwl_core_uri_fragment" => (mwl_core_uri_fragment as *const ()).cast(),
-        "mwl_core_uri_to_string" => (mwl_core_uri_to_string as *const ()).cast(),
-        "mwl_core_uri_with" => (mwl_core_uri_with as *const ()).cast(),
-        "mwl_core_uri_resolve" => (mwl_core_uri_resolve as *const ()).cast(),
-        "mwl_core_uri_compare_to" => (mwl_core_uri_compare_to as *const ()).cast(),
-        "mwl_core_uri_encode_component" => (mwl_core_uri_encode_component as *const ()).cast(),
-        "mwl_core_uri_decode_component" => (mwl_core_uri_decode_component as *const ()).cast(),
-        "mwl_core_uri_encode_form_value" => (mwl_core_uri_encode_form_value as *const ()).cast(),
-        "mwl_core_uri_decode_form_value" => (mwl_core_uri_decode_form_value as *const ()).cast(),
-        "mwl_core_uri_parse_query" => (mwl_core_uri_parse_query as *const ()).cast(),
-        "mwl_core_uri_build_query" => (mwl_core_uri_build_query as *const ()).cast(),
+        "nvs_core_uri_parse" => (nvs_core_uri_parse as *const ()).cast(),
+        "nvs_core_uri_try_parse" => (nvs_core_uri_try_parse as *const ()).cast(),
+        "nvs_core_uri_scheme" => (nvs_core_uri_scheme as *const ()).cast(),
+        "nvs_core_uri_user_info" => (nvs_core_uri_user_info as *const ()).cast(),
+        "nvs_core_uri_host" => (nvs_core_uri_host as *const ()).cast(),
+        "nvs_core_uri_port" => (nvs_core_uri_port as *const ()).cast(),
+        "nvs_core_uri_path" => (nvs_core_uri_path as *const ()).cast(),
+        "nvs_core_uri_query" => (nvs_core_uri_query as *const ()).cast(),
+        "nvs_core_uri_fragment" => (nvs_core_uri_fragment as *const ()).cast(),
+        "nvs_core_uri_to_string" => (nvs_core_uri_to_string as *const ()).cast(),
+        "nvs_core_uri_with" => (nvs_core_uri_with as *const ()).cast(),
+        "nvs_core_uri_resolve" => (nvs_core_uri_resolve as *const ()).cast(),
+        "nvs_core_uri_compare_to" => (nvs_core_uri_compare_to as *const ()).cast(),
+        "nvs_core_uri_encode_component" => (nvs_core_uri_encode_component as *const ()).cast(),
+        "nvs_core_uri_decode_component" => (nvs_core_uri_decode_component as *const ()).cast(),
+        "nvs_core_uri_encode_form_value" => (nvs_core_uri_encode_form_value as *const ()).cast(),
+        "nvs_core_uri_decode_form_value" => (nvs_core_uri_decode_form_value as *const ()).cast(),
+        "nvs_core_uri_parse_query" => (nvs_core_uri_parse_query as *const ()).cast(),
+        "nvs_core_uri_build_query" => (nvs_core_uri_build_query as *const ()).cast(),
         _ => return None,
     })
 }
@@ -674,7 +674,7 @@ fn decode(text: &str, form: Form) -> Vec<u8> {
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member. Compiled code wrote the tag and
-/// `mwl_types` already checked the declared type, so a slot holding anything
+/// `nvs_types` already checked the declared type, so a slot holding anything
 /// else is a runtime-contract violation rather than anything a program can
 /// cause — the same treatment [`crate::path`] gives its own arguments.
 ///
@@ -692,7 +692,7 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 
 /// `text` as an owned `string` value.
 fn produced(text: &str) -> HelperResult {
-    Ok(Value::str(MwlStr::new(text.as_bytes())))
+    Ok(Value::str(NvsStr::new(text.as_bytes())))
 }
 
 /// `octets` as text, or a throw where they are not UTF-8. `subject` names
@@ -794,7 +794,7 @@ fn port_of(authority: &Authority<'_>, member: &str) -> Result<Option<u16>, Fault
 ///
 /// [`port_of`]'s. It runs **before** the first allocation on purpose: a
 /// [`Value`] is not released by falling out of scope, so a refused port
-/// halfway through the slot array would strand every `MwlStr` built before it.
+/// halfway through the slot array would strand every `NvsStr` built before it.
 fn built(reference: &UriRef<&str>, member: &str) -> HelperResult {
     let authority = reference.authority();
     let port = match authority {
@@ -802,19 +802,19 @@ fn built(reference: &UriRef<&str>, member: &str) -> HelperResult {
         None => None,
     };
     let text = |held: Option<&str>| {
-        held.map_or_else(Value::null, |held| Value::str(MwlStr::new(held.as_bytes())))
+        held.map_or_else(Value::null, |held| Value::str(NvsStr::new(held.as_bytes())))
     };
     Ok(crate::instance::build(
         &CLASS,
         [
-            Value::str(MwlStr::new(reference.as_str().as_bytes())),
+            Value::str(NvsStr::new(reference.as_str().as_bytes())),
             text(reference.scheme().map(Scheme::as_str)),
             text(authority.and_then(|held| held.userinfo()).map(EStr::as_str)),
             // Present-but-empty where `//` was written with nothing after it,
             // which is the distinction `parse_url`'s array cannot hold.
             text(authority.as_ref().map(Authority::host)),
             port.map_or_else(Value::null, |port| Value::int(i64::from(port))),
-            Value::str(MwlStr::new(reference.path().as_str().as_bytes())),
+            Value::str(NvsStr::new(reference.path().as_str().as_bytes())),
             text(reference.query().map(EStr::as_str)),
             text(reference.fragment().map(EStr::as_str)),
         ],
@@ -873,7 +873,7 @@ fn held<'a>(slots: &'a [Value], index: usize, member: &str) -> Result<Option<&'a
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] where the slot holds something else. `mwl_types` checked
+/// A [`Fault::fatal`] where the slot holds something else. `nvs_types` checked
 /// the declared type, so that is a runtime-contract violation.
 fn written<'a>(value: &'a Value, option: &str) -> Result<Option<&'a str>, Fault> {
     if matches!(value.tag(), Some(Tag::Null)) {
@@ -887,7 +887,7 @@ fn written<'a>(value: &'a Value, option: &str) -> Result<Option<&'a str>, Fault>
     })
 }
 
-/// The seven components [`mwl_core_uri_with`] wrote its text out of — what the
+/// The seven components [`nvs_core_uri_with`] wrote its text out of — what the
 /// result must still parse back to.
 ///
 /// A recomposition is a concatenation, so the *grammar* is still
@@ -1122,7 +1122,7 @@ struct Equivalent {
 ///
 /// Every slot read here is [`crate::instance::slot`]'s **borrow**, so nothing
 /// is retained and nothing needs releasing on either edge — the same treatment
-/// [`mwl_core_uri_resolve`] gives its own receiver.
+/// [`nvs_core_uri_resolve`] gives its own receiver.
 fn equivalent(args: &[Value], at: usize, member: &str) -> Result<Equivalent, Fault> {
     let object = crate::instance::receiver(args[at], &CLASS, member)?;
     let slots: [Value; 8] = std::array::from_fn(|index| crate::instance::slot(object, index));
@@ -1163,8 +1163,8 @@ enum Index<'a> {
     /// `a[k]` — the key written between the brackets, never empty, since
     /// empty brackets are [`Self::Next`].
     At(&'a [u8]),
-    /// `a[]` — whatever key [`MwlArray::append`] assigns next, which is the
-    /// counter PHP calls `nNextFreeElement` and MWL's arrays already keep.
+    /// `a[]` — whatever key [`NvsArray::append`] assigns next, which is the
+    /// counter PHP calls `nNextFreeElement` and Novis's arrays already keep.
     Next,
 }
 
@@ -1219,16 +1219,16 @@ fn path_of(name: &[u8]) -> Option<(&[u8], Vec<Index<'_>>)> {
 /// a refcount of one and mutates in place rather than separating. That is what
 /// makes the whole parse O(input) — retaining a second reference would make
 /// every descent copy the subtree it descends into.
-fn branch(parent: &mut MwlArray, key: Option<&[u8]>) -> ManuallyDrop<MwlArray> {
+fn branch(parent: &mut NvsArray, key: Option<&[u8]>) -> ManuallyDrop<NvsArray> {
     if let Some(key) = key
         && let Some(existing) = parent.get(key).and_then(Value::array_ptr)
     {
         return crate::arr::borrowed(existing);
     }
-    let fresh = Value::array(MwlArray::new());
+    let fresh = Value::array(NvsArray::new());
     let address = fresh.array_ptr().expect("just built from an array");
     match key {
-        Some(key) => parent.set(MwlStr::new(key), fresh),
+        Some(key) => parent.set(NvsStr::new(key), fresh),
         None => parent.append(fresh),
     }
     let child = crate::arr::borrowed(address);
@@ -1246,13 +1246,13 @@ fn branch(parent: &mut MwlArray, key: Option<&[u8]>) -> ManuallyDrop<MwlArray> {
 /// Iterative rather than recursive on purpose: the path's depth is the
 /// caller's text, so a recursive descent would let a query string choose this
 /// process's stack depth. The arrays it builds are freed through
-/// `mwl_runtime::release`'s worklist, which is iterative for the same reason,
+/// `nvs_runtime::release`'s worklist, which is iterative for the same reason,
 /// so nesting is bounded by the input's length and by nothing else — PHP's
 /// `max_input_nesting_level` has no equivalent here because it does not need
 /// one.
-fn insert(out: &mut MwlArray, base: &[u8], path: &[Index<'_>], value: Value) {
+fn insert(out: &mut NvsArray, base: &[u8], path: &[Index<'_>], value: Value) {
     let Some((last, descents)) = path.split_last() else {
-        out.set(MwlStr::new(base), value);
+        out.set(NvsStr::new(base), value);
         return;
     };
     let mut current = branch(out, Some(base));
@@ -1261,7 +1261,7 @@ fn insert(out: &mut MwlArray, base: &[u8], path: &[Index<'_>], value: Value) {
         current = next;
     }
     match last.key() {
-        Some(key) => current.set(MwlStr::new(key), value),
+        Some(key) => current.set(NvsStr::new(key), value),
         None => current.append(value),
     }
 }
@@ -1274,8 +1274,8 @@ fn insert(out: &mut MwlArray, base: &[u8], path: &[Index<'_>], value: Value) {
 /// arrived over the wire.
 struct Level {
     /// The entries, borrowed — `build` only reads, and the argument owns them.
-    array: ManuallyDrop<MwlArray>,
-    /// The next slot to look at, which [`MwlArray::next_slot`] advances.
+    array: ManuallyDrop<NvsArray>,
+    /// The next slot to look at, which [`NvsArray::next_slot`] advances.
     slot: usize,
     /// How many bytes of the running name are this array's own path. Each of
     /// its entries writes its own key after exactly that much.
@@ -1284,7 +1284,7 @@ struct Level {
 
 /// One value's text for the right-hand side of a pair.
 ///
-/// ADR 0007 § 2's conversion rows through `mwl_runtime::value_to_string`, with
+/// ADR 0007 § 2's conversion rows through `nvs_runtime::value_to_string`, with
 /// one deliberate exception: `false` writes `0` rather than the empty string
 /// that `false as string` answers. `http_build_query` makes the same exception,
 /// and it is the right one here — the wire has no booleans, an empty value is
@@ -1302,7 +1302,7 @@ fn scalar_text(value: Value, member: &str) -> Result<Vec<u8>, Fault> {
     if let Some(set) = value.as_bool() {
         return Ok(if set { b"1".to_vec() } else { b"0".to_vec() });
     }
-    let text = mwl_runtime::value_to_string(value).map_err(|_| {
+    let text = nvs_runtime::value_to_string(value).map_err(|_| {
         Fault::thrown(format!(
             "Core\\Uri::{member}(): a parameter's value is neither a scalar nor a nested array, \
              so there is no text a query string could write it as"
@@ -1335,7 +1335,7 @@ fn scalar_text(value: Value, member: &str) -> Result<Vec<u8>, Fault> {
 /// # Errors
 ///
 /// [`scalar_text`]'s, for a value with no text form.
-fn build(root: *mut mwl_runtime::ArrayHeader, member: &str) -> Result<String, Fault> {
+fn build(root: *mut nvs_runtime::ArrayHeader, member: &str) -> Result<String, Fault> {
     let mut out = String::new();
     let mut name: Vec<u8> = Vec::new();
     let mut stack = vec![Level {
@@ -1388,7 +1388,7 @@ fn build(root: *mut mwl_runtime::ArrayHeader, member: &str) -> Result<String, Fa
 // The members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uri::parse(string $uri): Uri` — replacing PHP's `parse_url`.
     ///
     /// Takes a URI *reference*, reports rather than normalizes, and throws on
@@ -1400,17 +1400,17 @@ mwl_runtime::mwl_helper! {
     /// component, this answers an object whose readers are `?string`, so
     /// "absent" is a value the type system knows about rather than an index
     /// that is not there. ADR 0063 R5's reading of `?T` is the same one.
-    fn mwl_core_uri_parse(_ctx, args: [1]) {
+    fn nvs_core_uri_parse(_ctx, args: [1]) {
         let text = text_of(args, "parse")?;
 
         built(&read(text, "parse")?, "parse")
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uri::tryParse(string $uri): ?Uri` —
     /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
-    /// § 3a: [`mwl_core_uri_parse`] exactly, with `null` where it throws.
+    /// § 3a: [`nvs_core_uri_parse`] exactly, with `null` where it throws.
     ///
     /// It is `parse` and not a second reader, which is the whole reason R17
     /// allows the question "is this text a URI" one spelling and this is it:
@@ -1427,7 +1427,7 @@ mwl_runtime::mwl_helper! {
     /// Only a *thrown* fault becomes `null`. A `Fault::Fatal` — a wrong
     /// argument tag, an engine invariant — is not a failed parse and
     /// propagates unchanged.
-    fn mwl_core_uri_try_parse(_ctx, args: [1]) {
+    fn nvs_core_uri_try_parse(_ctx, args: [1]) {
         let text = text_of(args, "tryParse")?;
 
         match read(text, "tryParse") {
@@ -1438,75 +1438,75 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->scheme(): ?string` — `null` for a relative reference, and never
     /// case-folded: RFC 3986 § 3.1 makes a scheme case-insensitive to
     /// *compare*, which is a different thing from rewriting what was sent.
-    fn mwl_core_uri_scheme(_ctx, args: [1]) {
+    fn nvs_core_uri_scheme(_ctx, args: [1]) {
         component(args, "scheme", SCHEME_SLOT)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->userInfo(): ?string` — the whole `user:password` subcomponent as
     /// written, or `null` where no `@` was.
     ///
     /// One reader rather than `parse_url`'s two keys, because RFC 3986
     /// § 3.2.1 deprecates the `user:password` form outright and a member that
     /// split it would be a member that suggested writing one.
-    fn mwl_core_uri_user_info(_ctx, args: [1]) {
+    fn nvs_core_uri_user_info(_ctx, args: [1]) {
         component(args, "userInfo", USER_INFO_SLOT)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->host(): ?string` — `null` where no authority was written, `""`
     /// where an empty one was (`file:///tmp`), and an IPv6 literal still
     /// inside its brackets, since that is what the host component is.
-    fn mwl_core_uri_host(_ctx, args: [1]) {
+    fn nvs_core_uri_host(_ctx, args: [1]) {
         component(args, "host", HOST_SLOT)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->port(): ?int` — `null` where none was written *and* where an
     /// empty one was, which is [`port_of`]'s one departure from giving back
     /// exactly what came in.
-    fn mwl_core_uri_port(_ctx, args: [1]) {
+    fn nvs_core_uri_port(_ctx, args: [1]) {
         component(args, "port", PORT_SLOT)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->path(): string` — never `null`, because RFC 3986 § 3.3's path is
     /// not optional: a URI with nothing between its authority and its query
     /// has the empty path, and `""` is that path rather than the absence of
     /// one.
-    fn mwl_core_uri_path(_ctx, args: [1]) {
+    fn nvs_core_uri_path(_ctx, args: [1]) {
         component(args, "path", PATH_SLOT)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->query(): ?string` — the raw query, with no `?`, still encoded.
-    /// [`mwl_core_uri_parse_query`] is what turns it into an array.
+    /// [`nvs_core_uri_parse_query`] is what turns it into an array.
     ///
     /// `null` and `""` are different answers here: `?` written with nothing
     /// after it is an empty query, and no `?` at all is no query.
-    fn mwl_core_uri_query(_ctx, args: [1]) {
+    fn nvs_core_uri_query(_ctx, args: [1]) {
         component(args, "query", QUERY_SLOT)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->fragment(): ?string` — the raw fragment, with no `#`, still
-    /// encoded. `null` and `""` differ for [`mwl_core_uri_query`]'s reason.
-    fn mwl_core_uri_fragment(_ctx, args: [1]) {
+    /// encoded. `null` and `""` differ for [`nvs_core_uri_query`]'s reason.
+    fn nvs_core_uri_fragment(_ctx, args: [1]) {
         component(args, "fragment", FRAGMENT_SLOT)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->toString(): string` — the reference this `Uri` was parsed from,
     /// byte for byte.
     ///
@@ -1518,12 +1518,12 @@ mwl_runtime::mwl_helper! {
     /// `echo $uri` reaches it too — through the native call the checker
     /// resolves where the operand's type names this class, and through
     /// [`crate::instance`]'s descriptor renderer where it names none.
-    fn mwl_core_uri_to_string(_ctx, args: [1]) {
+    fn nvs_core_uri_to_string(_ctx, args: [1]) {
         component(args, "toString", TEXT_SLOT)
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri` —
     /// replacing reassembly by hand.
     ///
@@ -1542,7 +1542,7 @@ mwl_runtime::mwl_helper! {
     /// port drops the `:` that was written — RFC 3986 § 3.2.3's own
     /// instruction, and the one place a round trip through `with` is not the
     /// identity.
-    fn mwl_core_uri_with(_ctx, args: [7]) {
+    fn nvs_core_uri_with(_ctx, args: [7]) {
         let receiver = crate::instance::receiver(args[0], &CLASS, "with")?;
         let slots: [Value; 8] =
             std::array::from_fn(|index| crate::instance::slot(receiver, index));
@@ -1580,7 +1580,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->resolve(string $reference): Uri` — RFC 3986 § 5's reference
     /// resolution, which PHP has no function for at all.
     ///
@@ -1595,7 +1595,7 @@ mwl_runtime::mwl_helper! {
     /// **opaque** base, one with a rootless path and no authority
     /// (`mailto:a@b`), has no path to merge a relative reference into and
     /// throws saying so.
-    fn mwl_core_uri_resolve(_ctx, args: [2]) {
+    fn nvs_core_uri_resolve(_ctx, args: [2]) {
         let receiver = crate::instance::receiver(args[0], &CLASS, "resolve")?;
         let slots: [Value; 8] =
             std::array::from_fn(|index| crate::instance::slot(receiver, index));
@@ -1639,7 +1639,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uri->compareTo(Uri $other): int` — `Comparable`'s member
     /// ([ADR 0013](../../../../docs/adr/0013-comparable-interface.md)), over
     /// the two references' RFC 3986 § 6.2.2 normal forms.
@@ -1656,7 +1656,7 @@ mwl_runtime::mwl_helper! {
     /// before the member returns. Bounded by the two references' own lengths,
     /// which is why the normal forms are computed per call rather than cached
     /// in an eighth slot every `Uri` would pay for and most would never read.
-    fn mwl_core_uri_compare_to(_ctx, args: [2]) {
+    fn nvs_core_uri_compare_to(_ctx, args: [2]) {
         let left = equivalent(args, 0, "compareTo")?;
         let right = equivalent(args, 1, "compareTo")?;
         Ok(Value::int(match left.cmp(&right) {
@@ -1667,7 +1667,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uri::encodeComponent(string $s): string` — replacing PHP's
     /// `rawurlencode`.
     ///
@@ -1681,18 +1681,18 @@ mwl_runtime::mwl_helper! {
     /// of its position in the path, and a value holding an `&` cannot open a
     /// second query pair. Escaping only the unsafe-looking bytes is how the
     /// injection this member exists to prevent gets back in.
-    fn mwl_core_uri_encode_component(_ctx, args: [1]) {
+    fn nvs_core_uri_encode_component(_ctx, args: [1]) {
         let text = text_of(args, "encodeComponent")?;
 
         produced(&encode(text.as_bytes(), Form::Component))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uri::decodeComponent(string $s): string` — replacing PHP's
     /// `rawurldecode`.
     ///
-    /// The exact inverse of [`mwl_core_uri_encode_component`] for text that
+    /// The exact inverse of [`nvs_core_uri_encode_component`] for text that
     /// member produced. A `+` is a literal `+`, which is the whole reason this
     /// is a different member from `decodeFormValue` rather than an option on
     /// one: reading a form value with this decoder turns every space the user
@@ -1700,38 +1700,38 @@ mwl_runtime::mwl_helper! {
     ///
     /// A malformed escape decodes to itself and non-UTF-8 octets throw — the
     /// module docs and gap 2 own both.
-    fn mwl_core_uri_decode_component(_ctx, args: [1]) {
+    fn nvs_core_uri_decode_component(_ctx, args: [1]) {
         let text = text_of(args, "decodeComponent")?;
 
         decoded(decode(text, Form::Component), "decodeComponent")
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uri::encodeFormValue(string $s): string` — replacing PHP's
     /// `urlencode`.
     ///
     /// **For a value in an `application/x-www-form-urlencoded` payload**: a
     /// query-string pair or a POST body. A space becomes `+` and `~` becomes
     /// `%7E`, which are the two bytes this member's set differs from
-    /// [`mwl_core_uri_encode_component`]'s on; the module docs own why the
+    /// [`nvs_core_uri_encode_component`]'s on; the module docs own why the
     /// difference is kept rather than collapsed.
     ///
     /// A program building a whole query string reaches for `Uri::buildQuery`
     /// instead (gap 3), which writes the `=` and the `&` as well. This member
     /// is one side of one pair.
-    fn mwl_core_uri_encode_form_value(_ctx, args: [1]) {
+    fn nvs_core_uri_encode_form_value(_ctx, args: [1]) {
         let text = text_of(args, "encodeFormValue")?;
 
         produced(&encode(text.as_bytes(), Form::FormValue))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uri::decodeFormValue(string $s): string` — replacing PHP's
     /// `urldecode`.
     ///
-    /// The inverse of [`mwl_core_uri_encode_form_value`]: `+` is a space, and
+    /// The inverse of [`nvs_core_uri_encode_form_value`]: `+` is a space, and
     /// `%2B` is the `+` the user actually typed. Both spellings of a space
     /// therefore read, since `%20` is still an escape — which is what makes
     /// this the right decoder for a query string written by something that
@@ -1739,20 +1739,20 @@ mwl_runtime::mwl_helper! {
     ///
     /// A malformed escape decodes to itself and non-UTF-8 octets throw — the
     /// module docs and gap 2 own both.
-    fn mwl_core_uri_decode_form_value(_ctx, args: [1]) {
+    fn nvs_core_uri_decode_form_value(_ctx, args: [1]) {
         let text = text_of(args, "decodeFormValue")?;
 
         decoded(decode(text, Form::FormValue), "decodeFormValue")
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uri::parseQuery(string $query): array<mixed>` — replacing PHP's
     /// `parse_str`, which it **returns** rather than populating variables
     /// with.
     ///
     /// Pairs are separated by `&`, each pair by its first `=`, and both halves
-    /// are read with [`mwl_core_uri_decode_form_value`]'s decoder — so a `+`
+    /// are read with [`nvs_core_uri_decode_form_value`]'s decoder — so a `+`
     /// is a space on both sides of the `=`. A pair with no `=` at all has the
     /// empty string for its value, and one whose name decodes to nothing is
     /// dropped, both as PHP does.
@@ -1768,10 +1768,10 @@ mwl_runtime::mwl_helper! {
     /// octets that are not UTF-8. Every value in the answer is a `string` or a
     /// nested `array<mixed>`, which is what the spec's `array<mixed>` says and
     /// why it is not `array<string>`.
-    fn mwl_core_uri_parse_query(_ctx, args: [1]) {
+    fn nvs_core_uri_parse_query(_ctx, args: [1]) {
         let query = text_of(args, "parseQuery")?;
 
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         for pair in query.split('&') {
             let (written_name, written_value) = pair.split_once('=').unwrap_or((pair, ""));
             let name = text_from(
@@ -1787,10 +1787,10 @@ mwl_runtime::mwl_helper! {
                 "parseQuery",
                 "the decoded value of a query parameter",
             )?;
-            let value = Value::str(MwlStr::new(value.as_bytes()));
+            let value = Value::str(NvsStr::new(value.as_bytes()));
             match path_of(name.as_bytes()) {
                 Some((base, path)) => insert(&mut out, base, &path, value),
-                None => out.set(MwlStr::new(name.as_bytes()), value),
+                None => out.set(NvsStr::new(name.as_bytes()), value),
             }
         }
 
@@ -1798,11 +1798,11 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uri::buildQuery(array<mixed> $parameters): string` — replacing
     /// PHP's `http_build_query`.
     ///
-    /// [`mwl_core_uri_parse_query`]'s inverse over the same bracket
+    /// [`nvs_core_uri_parse_query`]'s inverse over the same bracket
     /// convention, so `buildQuery(parseQuery($q))` answers a query string that
     /// parses back to the same array. It is not `$q` byte for byte, and cannot
     /// be: a query string has more than one spelling for the same parameters,
@@ -1818,7 +1818,7 @@ mwl_runtime::mwl_helper! {
     ///
     /// [`scalar_text`]'s throw, for a value that is neither a scalar nor a
     /// nested array.
-    fn mwl_core_uri_build_query(_ctx, args: [1]) {
+    fn nvs_core_uri_build_query(_ctx, args: [1]) {
         let parameters = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Uri::buildQuery expected {:?}, got tag {}",
@@ -1833,7 +1833,7 @@ mwl_runtime::mwl_helper! {
 
 #[cfg(test)]
 mod tests {
-    use mwl_runtime::{Ctx, OutputSink, Value, call};
+    use nvs_runtime::{Ctx, OutputSink, Value, call};
 
     use super::{Form, encode};
 
@@ -1844,7 +1844,7 @@ mod tests {
         subject: &str,
     ) -> Result<String, i32> {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let argument = Value::str(mwl_runtime::MwlStr::new(subject.as_bytes()));
+        let argument = Value::str(nvs_runtime::NvsStr::new(subject.as_bytes()));
         let answer = call(member, &mut ctx, &[argument]);
         let out = answer.map(|value| {
             let text = String::from_utf8(
@@ -1879,14 +1879,14 @@ mod tests {
         let subject: String = (0..=127_u8).map(char::from).chain(['é', '→']).collect();
         for (encoder, decoder) in [
             (
-                super::mwl_core_uri_encode_component
+                super::nvs_core_uri_encode_component
                     as unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
-                super::mwl_core_uri_decode_component
+                super::nvs_core_uri_decode_component
                     as unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
             ),
             (
-                super::mwl_core_uri_encode_form_value,
-                super::mwl_core_uri_decode_form_value,
+                super::nvs_core_uri_encode_form_value,
+                super::nvs_core_uri_decode_form_value,
             ),
         ] {
             let encoded = run(encoder, &subject).expect("an encoder never fails");
@@ -1950,8 +1950,8 @@ mod tests {
     /// `Core\Uri::parseQuery(query)`, rendered by [`rendered`].
     fn parsed(query: &str) -> Result<String, i32> {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let argument = Value::str(mwl_runtime::MwlStr::new(query.as_bytes()));
-        let answer = call(super::mwl_core_uri_parse_query, &mut ctx, &[argument]);
+        let argument = Value::str(nvs_runtime::NvsStr::new(query.as_bytes()));
+        let answer = call(super::nvs_core_uri_parse_query, &mut ctx, &[argument]);
         let out = answer.map(|value| {
             let text = rendered(value);
             #[expect(unsafe_code, reason = "this frame owns the array the helper built")]
@@ -2023,14 +2023,14 @@ mod tests {
     /// both members are specified against, run through the same boundary.
     fn rebuilt(query: &str) -> Result<String, i32> {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let argument = Value::str(mwl_runtime::MwlStr::new(query.as_bytes()));
-        let parsed = call(super::mwl_core_uri_parse_query, &mut ctx, &[argument]);
+        let argument = Value::str(nvs_runtime::NvsStr::new(query.as_bytes()));
+        let parsed = call(super::nvs_core_uri_parse_query, &mut ctx, &[argument]);
         #[expect(unsafe_code, reason = "this frame owns the argument it built")]
         unsafe {
             argument.release();
         }
         let parsed = parsed?;
-        let built = call(super::mwl_core_uri_build_query, &mut ctx, &[parsed]);
+        let built = call(super::nvs_core_uri_build_query, &mut ctx, &[parsed]);
         #[expect(unsafe_code, reason = "this frame owns the array `parseQuery` built")]
         unsafe {
             parsed.release();
@@ -2105,8 +2105,8 @@ mod tests {
     /// throws rather than substituting — gap 2, and ADR 0009 § 3's rule.
     #[test]
     fn a_non_utf8_octet_throws_rather_than_being_replaced() {
-        assert!(run(super::mwl_core_uri_decode_component, "a%FFb").is_err());
-        assert!(run(super::mwl_core_uri_decode_form_value, "%C3%28").is_err());
+        assert!(run(super::nvs_core_uri_decode_component, "a%FFb").is_err());
+        assert!(run(super::nvs_core_uri_decode_form_value, "%C3%28").is_err());
     }
 
     /// PHP leaves a `%` that does not begin two hex digits exactly as it
@@ -2122,7 +2122,7 @@ mod tests {
             ("%2f", "/"),
         ] {
             assert_eq!(
-                run(super::mwl_core_uri_decode_component, subject).expect("no throw"),
+                run(super::nvs_core_uri_decode_component, subject).expect("no throw"),
                 expected
             );
         }
@@ -2134,7 +2134,7 @@ mod tests {
     /// host, a port that matches the scheme's default, dot segments, an
     /// escape that did not need escaping — and none of it moves.
     ///
-    /// A `.mwlt` case pins the components one at a time; this pins that the
+    /// A `.nvst` case pins the components one at a time; this pins that the
     /// *text* is untouched, which is the assertion that fails the day someone
     /// swaps the crate underneath.
     #[test]
@@ -2285,7 +2285,7 @@ mod tests {
             let text = super::recompose(&composed);
             let reference = super::read(&text, "with").expect("the recomposition still parses");
             let refused = super::unmoved(&composed, &reference).expect_err("the component moved");
-            let mwl_runtime::Fault::Thrown(_, message) = refused else {
+            let nvs_runtime::Fault::Thrown(_, message) = refused else {
                 panic!("`with` throws rather than faulting");
             };
             assert!(
@@ -2317,8 +2317,8 @@ mod tests {
     /// `Core\Uri::parse($text)`, as the instance value the caller then owns.
     fn uri_of(text: &str) -> Value {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let argument = Value::str(mwl_runtime::MwlStr::new(text.as_bytes()));
-        let uri = call(super::mwl_core_uri_parse, &mut ctx, &[argument])
+        let argument = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));
+        let uri = call(super::nvs_core_uri_parse, &mut ctx, &[argument])
             .expect("every subject here is a URI reference");
         #[expect(unsafe_code, reason = "this frame owns the argument it built")]
         unsafe {
@@ -2331,7 +2331,7 @@ mod tests {
     fn compared(left: &str, right: &str) -> i64 {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let (left, right) = (uri_of(left), uri_of(right));
-        let answer = call(super::mwl_core_uri_compare_to, &mut ctx, &[left, right])
+        let answer = call(super::nvs_core_uri_compare_to, &mut ctx, &[left, right])
             .expect("comparing two `Uri`s never throws")
             .as_int()
             .expect("`compareTo` answers an `int`");
@@ -2351,7 +2351,7 @@ mod tests {
     fn own_text(text: &str) -> String {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let uri = uri_of(text);
-        let answer = call(super::mwl_core_uri_to_string, &mut ctx, &[uri])
+        let answer = call(super::nvs_core_uri_to_string, &mut ctx, &[uri])
             .expect("`toString` reads a slot and never throws");
         let out = String::from_utf8(
             answer

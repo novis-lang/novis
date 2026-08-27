@@ -1,14 +1,14 @@
 --TEST--
 Every Core\Arr callback is offered ($value, $key) and trimmed to what it declared, so the two spellings of one function agree — spec § 2
 --FILE--
-<?mwl
+<?nvs
 // The depth claim is *agreement*, not another row of answers. Spec § 2 gives
 // this class one callback protocol — every callback receives `($value, $key)`
 // and may declare fewer parameters, which is what removes PHP's
 // `ARRAY_FILTER_USE_KEY`/`ARRAY_FILTER_USE_BOTH` pair — and
-// `mwl_runtime::call_closure` trims the tail to the arity the closure wrote.
-// Four members read `mwl_runtime::closure_arity` themselves and skip building
-// a key nobody declared (`crates/mwl-stdlib/src/arr.rs`'s module doc, and
+// `nvs_runtime::call_closure` trims the tail to the arity the closure wrote.
+// Four members read `nvs_runtime::closure_arity` themselves and skip building
+// a key nobody declared (`crates/nvs-stdlib/src/arr.rs`'s module doc, and
 // `docs/perf/userland-gap.md` § D); the rest always offer both. That split is
 // exactly where one member could drift from the protocol while still
 // answering plausibly on its own line, so what is asserted below is that the

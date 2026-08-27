@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::contains and keyOf answer about the first identical entry, never a loose match
 --FILE--
-<?mwl
+<?nvs
 array<int> $nums = [4, 8, 15, 8];
 array<int> $empty = [];
 array<string> $words = ["b" => "bee", "a" => "ay", "c" => "bee"];

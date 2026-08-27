@@ -1,7 +1,7 @@
 --TEST--
-The two shapes a `static` property has no honest answer for: no initializer on a non-nullable declaration (`E0409`, ADR 0022 § 2's rule against storage nothing assigns), and `static::$prop`, whose called class PHP resolves at run time and MWL fixes at compile time (`E0499`)
+The two shapes a `static` property has no honest answer for: no initializer on a non-nullable declaration (`E0409`, ADR 0022 § 2's rule against storage nothing assigns), and `static::$prop`, whose called class PHP resolves at run time and Novis fixes at compile time (`E0499`)
 --FILE--
-<?mwl
+<?nvs
 class Counter {
     // No constructor can discharge this: the storage is the request's, not
     // any instance's, so the declaration is the only place it can be given

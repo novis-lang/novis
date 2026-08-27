@@ -1,19 +1,19 @@
 --TEST--
 a `discover` glob whose `*` is not one whole path segment does not compile — ADR 0061 § 1
 --FILE--
-<?mwl
+<?nvs
 // A typo that silently discovers nothing is the worst outcome on offer, so a
 // glob's own shape is checked rather than its yield: exactly one `*`,
 // occupying a whole path segment. Both malformed spellings below are
 // reported from the same run, and nothing here names a discovered class —
 // the shape is refused before any directory is scanned.
-require './bootstrap.mwl';
---FILE bootstrap.mwl--
-<?mwl
+require './bootstrap.nvs';
+--FILE bootstrap.nvs--
+<?nvs
 autoload discover './plugin-*/src';
 autoload discover './*/*/src';
---FILE Plugin/src/Tool.mwl--
-<?mwl
+--FILE Plugin/src/Tool.nvs--
+<?nvs
 namespace Plugin;
 
 // What a well-formed './*/src' would have found.

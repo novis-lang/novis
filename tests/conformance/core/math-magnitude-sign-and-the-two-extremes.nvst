@@ -1,12 +1,12 @@
 --TEST--
 Core\Math::abs, sign, min, max and clamp answer over both arms of `int|float`
 --FILE--
-<?mwl
+<?nvs
 echo Core\Math::abs(-7), "|", Core\Math::abs(7), "|", Core\Math::abs(-7.5), "\n";
 // `sign` is `$n <=> 0`, and `-0.0` is zero. That both members are the ordering
 // trio written another way on every row, and that each parts from it only at
 // the one value it refuses, is swept in
-// math-abs-and-sign-are-the-ordering-trio-and-part-from-it-only-where-they-refuse.mwlt.
+// math-abs-and-sign-are-the-ordering-trio-and-part-from-it-only-where-they-refuse.nvst.
 echo Core\Math::sign(-3), "|", Core\Math::sign(0), "|", Core\Math::sign(2.5), "|",
      Core\Math::sign(-0.0), "\n";
 

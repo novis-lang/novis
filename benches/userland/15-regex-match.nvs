@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // preg_match with capture groups - how userland parses a log line, a header or an id.
 class Bench {
     public static function run(int $rounds): int {

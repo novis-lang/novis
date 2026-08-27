@@ -13,7 +13,7 @@
 > cannot express — fall to a second, backtracking tier under a **step budget that throws** when exhausted.
 > PHP's equivalent, `pcre.backtrack_limit`, makes `preg_match` return `false`, a falsy value approximately
 > nobody checks, so a denial-of-service mitigation silently becomes a wrong answer. Which tier a **literal**
-> pattern lands in is decided at compile time, so `mwl check` can report — or, under a stricter `mwl.toml`,
+> pattern lands in is decided at compile time, so `nvs check` can report — or, under a stricter `nvs.toml`,
 > refuse — a backtracking pattern on a request path. That is a class of DoS PHP cannot see at all.
 
 ## Context
@@ -46,7 +46,7 @@ The backtracking tier runs under a bounded step count. Exhausting it throws an o
 and never truncates the search. Per [ADR 0020](0020-error-escalation-ladder.md) this is an ordinary throw,
 not a resource-limit fatal — the request may catch it and answer 400.
 
-The budget's default is set in `mwl.toml` under [ADR 0005](0005-config-changeability.md)'s ordinary rules.
+The budget's default is set in `nvs.toml` under [ADR 0005](0005-config-changeability.md)'s ordinary rules.
 The linear tier has no budget, because it needs none.
 
 ### 3. A literal pattern is tiered at compile time
@@ -56,8 +56,8 @@ validated and compiled during checking, and its compiled program is stored in th
 consequences follow, none of which costs anything at run time:
 
 - **A malformed pattern is a compile error**, not a runtime throw on the first request that reaches it.
-- **The tier is known statically.** `mwl check` reports which patterns require backtracking.
-- **An `mwl.toml` setting can refuse them.** `[regex] backtracking = "allow" | "warn" | "deny"` makes a
+- **The tier is known statically.** `nvs check` reports which patterns require backtracking.
+- **An `nvs.toml` setting can refuse them.** `[regex] backtracking = "allow" | "warn" | "deny"` makes a
   backtracking pattern respectively silent, a warning, or a compile-time error. An operator running
   untrusted or high-volume code can set `deny` and know that no request can be made to backtrack at all.
 
@@ -95,12 +95,12 @@ The accepted syntax is PCRE's, across both tiers, with these fixed points:
   patterns it can express, which is most of them, and it removes an entire DoS class from those call sites
   rather than mitigating it.
 - **Some existing PHP patterns move to the slower tier**, and a few are refused outright. Migration is
-  visible rather than silent: `mwl check` names each one, so a codebase can be audited before it runs.
+  visible rather than silent: `nvs check` names each one, so a codebase can be audited before it runs.
 - **`[regex] backtracking = "deny"` is a deployable posture**, not an aspiration — a hosting provider or a
   high-volume service can adopt it and get a compile-time guarantee. Nothing comparable exists in PHP.
 - **A pattern built from user input now requires an explicit, greppable assertion.** This will surface real
   code that today builds patterns from request data, which is the point.
-- **`mwl convert` (M11)** rewrites `preg_*` calls to `Core\Regex`, and emits a diagnostic — not a silent
+- **`nvs convert` (M11)** rewrites `preg_*` calls to `Core\Regex`, and emits a diagnostic — not a silent
   translation — for a `preg_last_error()` check, since the condition it tested is now a throw.
 
 ## Alternatives rejected
@@ -121,13 +121,13 @@ The accepted syntax is PCRE's, across both tiers, with these fixed points:
 
 ## Verification
 
-- **Done (M4S).** §§ 1, 2 and 5 run: `crates/mwl-stdlib/src/regex.rs` binds both engines and chooses the
-  tier from the pattern, and `tests/conformance/core/regex-tiers-and-the-backtracking-budget.mwlt` holds
+- **Done (M4S).** §§ 1, 2 and 5 run: `crates/nvs-stdlib/src/regex.rs` binds both engines and chooses the
+  tier from the pattern, and `tests/conformance/core/regex-tiers-and-the-backtracking-budget.nvst` holds
   that a lookahead and a backreference both still answer, that exhausting the budget **throws** rather
   than returning a falsy value, and that a pattern neither engine can compile throws rather than matching
   nothing. That module's own gap list owns what § 5's roster still owes.
 - **Owed, and what each waits on.** § 3's compile-time tiering — a malformed *literal* pattern as a
-  compile error, `mwl check` naming the backtracking ones, and `[regex] backtracking = "deny"` — needs
+  compile error, `nvs check` naming the backtracking ones, and `[regex] backtracking = "deny"` — needs
   [ADR 0057](0057-intrinsic-literal-folding.md)'s folding pass and M6's configuration. § 4's sink — a
   tainted pattern refused while a tainted subject is accepted and produces tainted matches — needs a
   qualifier the `Core` signature registry can state.

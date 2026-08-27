@@ -13,7 +13,7 @@
   caller in § 2 below, with identical grant, limit and argument rules; the isolate itself is the same
   `Isolate`, not a second isolation path.
   [0072](0072-core-task-structured-concurrency.md) § 6 — `afterResponse` and a connection isolate are the
-  two things in MWL that outlive a response, and § 6 below states the difference so they are not confused,
+  two things in Novis that outlive a response, and § 6 below states the difference so they are not confused,
   the way [docs/spec/00-overview.md](../spec/00-overview.md) § 2 does for `require` and `spawn script`.
   [0074](0074-http-defaults-safe-and-finite.md) — its "no spelling for an unbounded outbound wait" rule
   extends to a connection's idle, lifetime and send timeouts, all finite with nothing configured.
@@ -26,7 +26,7 @@
 
 > **In short:** an upgraded connection is **its own root isolate** — the same `Isolate` a request and a
 > `spawn script` child already are, with its own memory, CPU and time budget, sharing nothing but compiled
-> code. It is opened the way a script is spawned: `Core\Socket::upgrade('sockets/chat.mwl', with(args: …))`
+> code. It is opened the way a script is spawned: `Core\Socket::upgrade('sockets/chat.nvs', with(args: …))`
 > **names a file**, not a closure, so [ADR 0006](0006-isolated-script-execution.md)'s existing rules for
 > grants, limits, arguments and path checking are reused whole and nothing crosses the boundary except
 > values copied by [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s graph copy. Inside, code is
@@ -44,11 +44,11 @@
   compiled code survives it ([0006](0006-isolated-script-execution.md),
   [0017](0017-hot-reload-without-restart.md)). A WebSocket is by definition the thing that does not end
   there, so it had to be designed rather than implemented.
-- **It is not optional for the audience.** [ADR 0080](0080-the-audience-mwl-is-built-for.md)'s multi-tenant
+- **It is not optional for the audience.** [ADR 0080](0080-the-audience-nvs-is-built-for.md)'s multi-tenant
   platforms want live dashboards, per-tenant push, progress streams and collaborative surfaces. A 2026 web
   language without a persistent-connection story reads as unfinished regardless of what else it has.
-- **The obvious designs each import something MWL does not have.** A callback handler
-  (`onOpen`/`onMessage`/`onClose`) is the shape every language with coloured async settles on, and MWL has
+- **The obvious designs each import something Novis does not have.** A callback handler
+  (`onOpen`/`onMessage`/`onClose`) is the shape every language with coloured async settles on, and Novis has
   stackful coroutines precisely so it does not need it. A dedicated connection worker pool is a second
   execution model to specify, secure and test. A connection that is "a request that never ends" makes the
   request budget meaningless.
@@ -91,7 +91,7 @@ never the credential that proved it.
 #[Route(path: "/live/chat/{room}", method: Http\Method::Get)]
 public static function chat(string $room): Http\Response {
     var $user = Web\Auth::require();                       // an ordinary authenticated request
-    return Core\Socket::upgrade('sockets/chat.mwl', with(
+    return Core\Socket::upgrade('sockets/chat.nvs', with(
         args:   {room: $room, userId: $user->id},
         limits: {memory: 8mb, idle: 5m},
         grants: {},                                        // narrowed: this socket needs nothing
@@ -116,8 +116,8 @@ public static function chat(string $room): Http\Response {
 ### 3. Inside, it is a loop
 
 ```php
-<?mwl
-// sockets/chat.mwl — a connection isolate.
+<?nvs
+// sockets/chat.nvs — a connection isolate.
 var $conn = Core\Socket::current();
 var $room = Core\Script::args()->room as string;
 
@@ -129,7 +129,7 @@ while (var $msg = $conn->receive()) {                 // suspends; no colour, no
 ```
 
 - **`receive()` suspends the coroutine** and returns `?Socket\Message` — `null` when the peer closed. There
-  is no handler interface, no event registration and no second control-flow style, because MWL's stackful
+  is no handler interface, no event registration and no second control-flow style, because Novis's stackful
   coroutines make the straight-line loop the *simple* implementation rather than a nicer-looking one.
 - **`send()` suspends until the frame is buffered**, and throws on the send timeout rather than waiting
   forever ([0074](0074-http-defaults-safe-and-finite.md)).
@@ -202,7 +202,7 @@ place two spellings could appear for one job:
   ([0017](0017-hot-reload-without-restart.md), [0042](0042-on-disk-artifact-cache-format.md)). This is the
   same rule a long request already follows, applied to a longer-lived thing, and it means a deploy does not
   break open connections — it drains them.
-- **Graceful shutdown and `mwl ctl reload`** ([0078](0078-config-reload-and-control-socket.md)) close
+- **Graceful shutdown and `nvs ctl reload`** ([0078](0078-config-reload-and-control-socket.md)) close
   connections with a defined code after a drain period, so a client's reconnect logic sees a clean close
   rather than a reset.
 
@@ -214,7 +214,7 @@ place two spellings could appear for one job:
   *Consequences to accept* already says deployments are sized by concurrency; this adds a second axis to
   that sentence.
 - **Ten thousand idle connections cost ten thousand arenas.** For the target audience's scale that is
-  affordable; for a chat product with a million idle clients it is not, and MWL would be the wrong choice.
+  affordable; for a chat product with a million idle clients it is not, and Novis would be the wrong choice.
   Saying so plainly here is better than discovering it in a benchmark.
 - **There is no way to broadcast without `Core\Topic`**, and no way for one connection to reach another
   directly. That is restrictive and it is the point — it is what keeps a connection an isolate rather than
@@ -233,12 +233,12 @@ place two spellings could appear for one job:
   answered it, WebSocket costs the framing and little else, and deferring would leave a checkbox unticked
   for no saving.
 - **A callback handler interface** (`onOpen`/`onMessage`/`onClose`). Familiar from every coloured-async
-  runtime. Rejected because MWL bought stackful coroutines specifically so that control flow could stay
+  runtime. Rejected because Novis bought stackful coroutines specifically so that control flow could stay
   straight-line, and adopting a callback shape here would be the language arguing with itself.
 - **A dedicated connection worker pool outside the request path.** Best raw throughput at very high
   connection counts. Rejected because it is a second execution model — its own scheduling, its own
   isolation story, its own security review — to serve a scale
-  [0080](0080-the-audience-mwl-is-built-for.md)'s audience does not have.
+  [0080](0080-the-audience-nvs-is-built-for.md)'s audience does not have.
 - **A connection as a suspended request.** The smallest change, and superficially elegant. Rejected because
   a request's budget, teardown and observability all assume it ends; stretching that to hours makes every
   one of those meaningless, and the "request" would hold a session and a cookie jar for the lifetime of the
@@ -279,7 +279,7 @@ place two spellings could appear for one job:
   Each is a fixture that would not compile if the qualifier were wrong.
 - **Reload:** an open connection survives an edit to its own source file and continues on its original
   compiled unit; a connection opened after the swap runs the new one.
-- **Shutdown:** `mwl ctl reload` and graceful shutdown close connections with the defined code after the
+- **Shutdown:** `nvs ctl reload` and graceful shutdown close connections with the defined code after the
   drain period, and no connection isolate outlives the drain.
 - **Bounds:** every timeout and cap in § 7 has a default that applies with nothing configured, asserted the
   way [0074](0074-http-defaults-safe-and-finite.md)'s defaults already are.

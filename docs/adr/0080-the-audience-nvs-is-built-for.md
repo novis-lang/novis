@@ -1,18 +1,18 @@
-# ADR 0080 — MWL is built for platforms that run code, and data, they do not control
+# ADR 0080 — Novis is built for platforms that run code, and data, they do not control
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
-- **Scope:** who MWL's first serious user is, what that ranks first when two slices compete, the three claims
+- **Scope:** who Novis's first serious user is, what that ranks first when two slices compete, the three claims
   the project makes about itself, and the explicit answer to *why this does not end where Hack ended*. Not
   in scope: any language semantics — this ADR changes no rule and adds no surface. It decides what gets
   built next and what the documentation says, which is why it is here rather than in a README.
 - **Amends:** [docs/plan/design.md](../plan/design.md) § *Context* — its motivation
-  paragraph named PHP's execution model as the reason MWL exists; § 2 below replaces that framing, because
+  paragraph named PHP's execution model as the reason Novis exists; § 2 below replaces that framing, because
   two of its three premises have since been answered inside PHP itself. The plan's *Consequences to accept*
   keeps every entry it had; nothing there was wrong, and § 5 below adds the one it was missing.
 - **Amended by:** 0089, 0100
 
-> **In short:** MWL's first serious user is the **multi-tenant or regulated platform** — a team whose
+> **In short:** Novis's first serious user is the **multi-tenant or regulated platform** — a team whose
 > process runs code, or holds data, that the team did not write and cannot fully trust: SaaS platforms with
 > customer-authored logic, agencies hosting many clients in one fleet, fintech and health backends where a
 > leaked secret is a reportable event, plugin and marketplace hosts. For that user, compile-time taint
@@ -25,17 +25,17 @@
 > them. Three things follow and each is binding. **The pitch is isolation, qualifiers and uncoloured
 > suspension — never "faster than PHP"**, a claim two of whose three premises PHP has since answered. **The
 > PHP-shaped syntax is an on-ramp, never a compatibility promise**, and no document may imply otherwise.
-> And **the two things standing between MWL and that user are not language features** — they are a
+> And **the two things standing between Novis and that user are not language features** — they are a
 > dependency story ([0081](0081-packages-are-digests-resolution-is-a-maximum.md)) and a framework
 > ([0082](0082-the-first-party-framework.md)), which is why both were decided before more `Core` breadth.
 
 ## Context
 
-- **The market MWL is entering is not short of languages.** By served sites, PHP holds 70.6% of those with
+- **The market Novis is entering is not short of languages.** By served sites, PHP holds 70.6% of those with
   a known server-side language, ahead of Ruby 6.7%, JavaScript 5.9%, Java 5.4% and ASP.NET 4.4% (W3Techs,
   August 2026). By developers building backends the order is different — JavaScript, Python, Java, C#, then
   PHP — and Python is the fastest riser (Stack Overflow, 2025). Either ranking puts five incumbents ahead
-  of MWL with fifteen-year ecosystems. **Neither ranking has ever been changed by a language being better.**
+  of Novis with fifteen-year ecosystems. **Neither ranking has ever been changed by a language being better.**
 - **Two of the three premises the plan was founded on have been answered inside PHP.** The plan's overview
   named "process-per-request or worker-pool models, no in-language parallelism, no way to run code in
   isolation short of another process". Persistent-worker runtimes are now the default recommendation in the
@@ -48,12 +48,12 @@
   Adoption outside Meta peaked early and collapsed; it is now effectively internal. It did not fail on
   engineering quality. It failed because its dialect diverged far enough that the package ecosystem stopped
   working, and **once the packages stop working, a type system does not cover its own cost.**
-- **MWL diverges further than Hack did, deliberately and correctly.** Hack kept traits, `__call`, free
+- **Novis diverges further than Hack did, deliberately and correctly.** Hack kept traits, `__call`, free
   functions and `ArrayAccess`. [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md),
   [0014](0014-property-observer.md), [0011](0011-functions-and-constants-are-class-members.md) and
   [0053](0053-iteration-and-generators.md) remove all four. Every one of those decisions is right on its
   own terms and none should be revisited — but together they mean **the existing PHP ecosystem is not
-  reachable from MWL at any price**, and a plan that quietly hopes otherwise is planning on a thing that
+  reachable from Novis at any price**, and a plan that quietly hopes otherwise is planning on a thing that
   cannot happen.
 - **The languages that did win from a standing start won on something unobtainable elsewhere.** Elixir had
   the BEAM's fault tolerance *and* a framework people wanted on day one. Go had one binary and a deployment
@@ -61,7 +61,7 @@
   capitulated and shipped npm compatibility — the clearest available evidence that **security alone does
   not move a language**, and that the ecosystem question is answered before the safety question is even
   asked. Crystal is the control case: technically excellent, a decade old, still niche, ecosystem-starved.
-- **The one property nobody else can retrofit is the one MWL already has.** Taint as a *type qualifier*
+- **The one property nobody else can retrofit is the one Novis already has.** Taint as a *type qualifier*
   checked while compiling is a paid commercial product category in every incumbent language, sold as an
   external scanner precisely because those languages cannot express it. `secret` is the same shape. Neither
   can be added to PHP, Python, Node, Java or C# without breaking every program those languages already run.
@@ -72,16 +72,16 @@
 
 ### 1. The audience, stated narrowly enough to be actionable
 
-MWL's first serious user runs, in one process, code or data with more than one trust level:
+Novis's first serious user runs, in one process, code or data with more than one trust level:
 
-| The user | What makes MWL the answer rather than an option |
+| The user | What makes Novis the answer rather than an option |
 |---|---|
 | SaaS platforms running customer-authored logic — rules, templates, integrations, formulas | `spawn script` isolates without a second process ([0006](0006-isolated-script-execution.md)); wasm extensions rather than `dlopen` ([0003](0003-extension-system.md)); enforceable per-isolate budgets |
 | Agencies and hosts running many clients on one fleet | Per-request isolation is the default rather than an achievement; a compromised tenant reaches nothing ([0017](0017-hot-reload-without-restart.md), [0059](0059-cross-request-state-is-explicit.md)) |
 | Fintech, health, public-sector backends | `secret` refused by output, logs, dumps, `Throwable` messages and serialization ([0033](0033-secret-qualifier-for-confidential-values.md)); injection is a compile error ([0024](0024-taint-tracking-for-injection-sinks.md)); `decimal` is a scalar ([0054](0054-decimal-scalar-type.md)) |
 | Plugin and marketplace hosts | Per-package capabilities ([0081](0081-packages-are-digests-resolution-is-a-maximum.md) § 4) plus sandboxed extensions — a dependency's authority is declared and narrowed, never ambient |
 
-**The list continues in [0100](0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 1 with
+**The list continues in [0100](0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 1 with
 one more row, ranked below every row here** — the internal and ops tooling those same teams write in Python
 today. It buys nothing new: it is this table's purchase spent on a program with no HTTP request in it, and
 where the two compete for a slice, the rows above win.
@@ -92,7 +92,7 @@ first rather than the larger ones behind it.
 
 ### 2. The three claims, and the one that is retired
 
-MWL claims exactly three things about itself, and each is a property no incumbent can add later:
+Novis claims exactly three things about itself, and each is a property no incumbent can add later:
 
 1. **Injection and secret leakage are compile errors**, not findings from a scanner run afterwards.
 2. **A request, a scheduled job, a connection and an untrusted script are each an isolate**, in one process,
@@ -111,13 +111,13 @@ itself first.
 
 The syntax stays as every ADR already defines it. What this decides is the *claim* attached to it:
 
-- **Permitted:** that MWL is familiar to a PHP developer, that `<?mwl` and inline HTML work the way they
-  expect, that `mwl convert` mechanically rewrites much of an application's own code.
+- **Permitted:** that Novis is familiar to a PHP developer, that `<?nvs` and inline HTML work the way they
+  expect, that `nvs convert` mechanically rewrites much of an application's own code.
 - **Forbidden in any document, error message or landing page:** "PHP compatible", "drop-in", "runs your PHP",
   "migrate your Laravel app", or any phrasing a reader could reasonably take as a promise that existing
   packages, frameworks or code run. The plan's *Consequences to accept* already says existing PHP does not
   run unconverted; this makes that a rule about how the project speaks, not only a fact it knows.
-- **`mwl convert` (M11) is a porting aid for an application's own code**, not a migration guarantee, and
+- **`nvs convert` (M11) is a porting aid for an application's own code**, not a migration guarantee, and
   its documentation must lead with what it cannot do: it cannot turn a facade into a declared method, a
   trait into [0043](0043-interface-default-methods-and-delegation-replace-traits.md) delegation, or an
   active-record model into a definitely-initialized class ([0022](0022-definite-property-initialization.md)).
@@ -131,16 +131,16 @@ The syntax stays as every ADR already defines it. What this decides is the *clai
 The honest answer, recorded here so no future contributor has to reconstruct it:
 
 - **Hack tried to keep the ecosystem and lost it anyway.** Its value proposition depended on a compatibility
-  it could not hold. MWL does not depend on that compatibility at any point, so it cannot be lost —
+  it could not hold. Novis does not depend on that compatibility at any point, so it cannot be lost —
   the cost is paid once, at the start, deliberately, and every ADR that raises it is right to.
-- **Hack shipped a language; MWL ships a language and the batteries.**
+- **Hack shipped a language; Novis ships a language and the batteries.**
   [ADR 0082](0082-the-first-party-framework.md) exists because "a good language plus an empty registry" is
   the position Hack, Crystal and a dozen others occupied. A first-party framework means a new user's first
   question is answered by what is in the box.
-- **Hack's differentiator was a type system, which PHP then largely acquired.** MWL's differentiator is a
+- **Hack's differentiator was a type system, which PHP then largely acquired.** Novis's differentiator is a
   set of properties PHP structurally cannot acquire — § 2's three claims. A competitor cannot close that
   gap with a minor release.
-- **Hack had one user and built for it.** MWL names a *segment* whose requirement is the thing MWL is
+- **Hack had one user and built for it.** Novis names a *segment* whose requirement is the thing Novis is
   already best at, and builds for that segment before the larger, less winnable ones.
 
 If a future session finds one of these four no longer true, this ADR is what needs revisiting — not the
@@ -183,14 +183,14 @@ When two slices compete for a session, the one serving § 1's user wins. Concret
 ## Alternatives rejected
 
 - **Target PHP teams modernising.** The largest pool by an order of magnitude, and the natural reading of
-  a PHP-shaped syntax. Rejected because the value on offer is conditional on a migration MWL cannot
+  a PHP-shaped syntax. Rejected because the value on offer is conditional on a migration Novis cannot
   perform: they cannot bring their framework, their packages, or the majority of their code, and the
   ADRs that make that true are all correct. This is precisely Hack's position, attempted with vastly
   greater resources.
 - **Target general greenfield backends, competing with Go, Node and FastAPI on merit.** The biggest market
   and the most honest fight. Rejected as a *first* audience because it offers no wedge: a team choosing
-  Go today is not choosing it for something MWL uniquely provides, so the comparison is decided by ecosystem
-  and hiring, which MWL loses. It is the natural *second* audience.
+  Go today is not choosing it for something Novis uniquely provides, so the comparison is decided by ecosystem
+  and hiring, which Novis loses. It is the natural *second* audience.
 - **Refuse to name an audience and build the best language available.** The default, and what the project
   was doing. Rejected because it silently ranks slices by what is interesting rather than by what is
   blocking, and because it produced a plan with 79 ADRs of language design, no dependency story and no
@@ -221,7 +221,7 @@ falsifiable:
   sentence explicitly denying it. This is the one mechanically checkable clause and it should become a row
   in `tools/check-links.py`'s neighbourhood when a landing page exists.
 - **The plan's overview states § 2's three claims** and no longer leads with PHP's execution model.
-- **The first example a new user meets** (`mwl new`, [0082](0082-the-first-party-framework.md) § 5)
+- **The first example a new user meets** (`nvs new`, [0082](0082-the-first-party-framework.md) § 5)
   produces a running application whose code shows a qualifier doing its job — not a benchmark.
 - **M4S/M7 fixtures demonstrate § 1's table**, each already required by the ADR that owns it: an isolate
   that cannot widen its parent's grant (0006), a `tainted` value refused at a sink (0024), a `secret`

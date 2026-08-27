@@ -1,12 +1,12 @@
 //! `int`/`uint` arithmetic and integer-literal placement — ADR 0007 § 4.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 /// ADR 0035: a condition — `if`/`while`/`for`'s middle clause/`?:`/`&&`/
 /// `||`/`!` — accepts any type at all, judged by PHP's full truthy table
@@ -90,7 +90,7 @@ fn a_literal_too_large_for_uint_is_diagnosed_even_where_uint_is_expected() {
     );
 }
 
-/// The magnitude check applies to every base `mwl-syntax`'s lexer cooks,
+/// The magnitude check applies to every base `nvs-syntax`'s lexer cooks,
 /// not just decimal — a hex literal one bit past `uint`'s 64-bit range.
 #[test]
 fn a_hex_literal_too_large_for_uint_is_diagnosed() {

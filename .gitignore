@@ -6,9 +6,9 @@
 # Cargo
 Cargo.lock.bak
 
-# MWL artifact cache (content-addressed native code; never committed)
-/.mwl-cache
-*.mwlo
+# Novis artifact cache (content-addressed native code; never committed)
+/.nvs-cache
+*.nvso
 
 # Insta snapshot review leftovers
 *.snap.new
@@ -20,7 +20,7 @@ Cargo.lock.bak
 /fuzz/artifacts
 
 # Local-only real-world PHP corpus for the M1 corpus-parse test
-# (crates/mwl-syntax/tests/corpus_parse.rs) — never committed.
+# (crates/nvs-syntax/tests/corpus_parse.rs) — never committed.
 /php-src
 
 # Profiling / benchmark output
@@ -43,8 +43,8 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# Local developer config (mwl.toml is server config; keep local overrides out)
-/mwl.local.toml
+# Local developer config (nvs.toml is server config; keep local overrides out)
+/nvs.local.toml
 /.env
 
 # Machine-local agent/tool settings

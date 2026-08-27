@@ -1,25 +1,25 @@
 //! Per-class property and method signatures — the groundwork the M2
 //! follow-up list's item 1 named as blocking property/method-call/`new`
-//! expression typing: `mwl_hir::members` only ever checked whether a member
+//! expression typing: `nvs_hir::members` only ever checked whether a member
 //! *exists*, never what type it has, since that needed this crate's type
 //! table in the first place.
 //!
 //! [`build_signatures`] walks a file once, ahead of any body-checking, the
 //! same shape [`crate::check::check_program`] itself walks (mirroring
-//! `mwl_hir::members`'s own two-pass split): a property's declared type and
+//! `nvs_hir::members`'s own two-pass split): a property's declared type and
 //! a method's parameter/return types are lowered the same way
 //! `check::check_method` lowers a method body's own parameters, into a
 //! [`SignatureTable`] every method body is then checked against.
 //! [`resolve_property`]/[`resolve_method`] look a name up on a class and,
 //! failing that, walk its `extends`/`implements` ancestors via
-//! [`mwl_hir::ClassGraph`] — the same ancestor walk
-//! `mwl_hir::members::member_declared` already does for existence-only
+//! [`nvs_hir::ClassGraph`] — the same ancestor walk
+//! `nvs_hir::members::member_declared` already does for existence-only
 //! checking.
 //!
 //! **Known gaps:**
 //! - A promoted constructor-parameter property (`function constructor(public
 //!   int $x) {}`) is not recorded as a property here, matching
-//!   `mwl_hir::members`'s own member table, which has the same gap. Its
+//!   `nvs_hir::members`'s own member table, which has the same gap. Its
 //!   visibility is therefore not enforced either, since [`is_visible_from`]
 //!   is only reached for a property this table found.
 //!   A method has no such gap: [`MethodSig::visibility`] records ADR 0094's
@@ -33,9 +33,9 @@
 //!   `Class::CONST` stays `mixed` regardless of receiver, same as before
 //!   this module existed.
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use mwl_hir::{ClassGraph, QName, SymbolKind};
-use mwl_syntax::ast::{
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_hir::{ClassGraph, QName, SymbolKind};
+use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind,
     Visibility,
 };
@@ -56,7 +56,7 @@ pub struct MethodSig {
     pub params: Vec<TypeId>,
     /// Each parameter's own name without the `$`, positionally — or `None`
     /// where the signature has no names to be called by at all, which is every
-    /// `Core` member (`mwl_stdlib::registry` records a row's parameter types
+    /// `Core` member (`nvs_stdlib::registry` records a row's parameter types
     /// and never its names) and the synthesized `Throwable` constructor.
     ///
     /// `None` is not `Some(vec![])`, and the difference is the whole reason
@@ -98,7 +98,7 @@ pub struct MethodSig {
     /// any: ADR 0007 § 1 parks user-declared generics, so
     /// [`build_signatures`] always writes an empty list here. It is *not* the
     /// list of every variable the signature mentions — an inferred one
-    /// ([`mwl_stdlib::registry::CoreTy::Var`]) is bound from an argument's
+    /// ([`nvs_stdlib::registry::CoreTy::Var`]) is bound from an argument's
     /// type and is deliberately not writable, so the two kinds are separated
     /// at the registry and stay separated here.
     pub type_params: Vec<String>,
@@ -128,7 +128,7 @@ pub struct MethodSig {
     /// ADR 0094 § 1's level, as this declaration wrote it — `public` where
     /// nothing did, which is every synthesized and `Core`-installed method
     /// (only user source can write a keyword at all) and every user
-    /// declaration `mwl_syntax::check_declarations` is already refusing with
+    /// declaration `nvs_syntax::check_declarations` is already refusing with
     /// `E_MISSING_VISIBILITY`.
     ///
     /// Stored on the signature rather than in a side map the way
@@ -269,7 +269,7 @@ impl MethodSig {
 ///
 /// PHP 8.4 splits hooked properties into "backed" (some hook body mentions
 /// `$this->thatSameProperty`, so the slot is kept) and "virtual" (no hook
-/// mentions it, so the slot is dropped). MWL keeps the slot either way —
+/// mentions it, so the slot is dropped). Novis keeps the slot either way —
 /// [`crate::layout`] gives every declared property a slot, hooked or not —
 /// which is why nothing here records backedness. The trade is one machine
 /// word per instance for a property whose hooks never touch storage, bought
@@ -280,7 +280,7 @@ impl MethodSig {
 /// hooked property, so it is O(in-flight objects), not O(traffic).
 ///
 /// The observable consequence is that ADR 0014 § 1's "same as PHP 8.4" holds
-/// for every program PHP accepts, and MWL additionally accepts one PHP
+/// for every program PHP accepts, and Novis additionally accepts one PHP
 /// rejects: writing to a property whose hooks never mention it stores into
 /// that slot instead of being refused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -301,10 +301,10 @@ pub struct PropertyHooks {
 /// `$` is what keeps a hook label out of any method's namespace: a class name
 /// never contains `::`, so `A::$b::get` can only ever be a hook.
 #[must_use]
-pub fn hook_label(class: &QName, name: &str, kind: mwl_syntax::ast::PropertyHookKind) -> String {
+pub fn hook_label(class: &QName, name: &str, kind: nvs_syntax::ast::PropertyHookKind) -> String {
     let accessor = match kind {
-        mwl_syntax::ast::PropertyHookKind::Get => "get",
-        mwl_syntax::ast::PropertyHookKind::Set => "set",
+        nvs_syntax::ast::PropertyHookKind::Get => "get",
+        nvs_syntax::ast::PropertyHookKind::Set => "set",
     };
     format!("{class}::${name}::{accessor}")
 }
@@ -313,7 +313,7 @@ pub fn hook_label(class: &QName, name: &str, kind: mwl_syntax::ast::PropertyHook
 /// `Ns\Class::$prop::get`. `None` for any string that is not a hook label.
 ///
 /// The inverse lives beside the spelling for the same reason the spelling is
-/// centralised at all: `mwl-ir` has to name the field a `set => expr;` hook
+/// centralised at all: `nvs-ir` has to name the field a `set => expr;` hook
 /// stores into, and it holds the hook's label but has no `QName` machinery of
 /// its own to rebuild one from. Splitting here keeps both halves of the
 /// format in one file, so a change to it cannot leave the two disagreeing.
@@ -350,7 +350,7 @@ pub struct ClassSignature {
     ///
     /// Own properties only, exactly like every other map here: an inherited
     /// property's default belongs to the class that declared it, and the two
-    /// are joined against the flattened slot order in `mwl_ir::lower`, which
+    /// are joined against the flattened slot order in `nvs_ir::lower`, which
     /// is the one place both this table and `crate::layout`'s slots are in
     /// hand. `crate::defaults` owns what a default may be and where it ends up
     /// at run time; a `static` property is excluded, since it occupies no
@@ -363,12 +363,12 @@ pub struct ClassSignature {
     /// Separate from [`Self::property_defaults`] because the two are joined
     /// against different things: an instance default is written into a slot of
     /// the flattened *layout*, and a static's is materialized once per request
-    /// into `mwl_runtime::Ctx`'s own slot vector (that module's docs own the
+    /// into `nvs_runtime::Ctx`'s own slot vector (that module's docs own the
     /// lifetime). A static property is never inherited into a second slot —
     /// `Sub::$count` and `Base::$count` are the one storage PHP makes them —
     /// so this is read per declaring class and never flattened.
     ///
-    /// Every static appears, initializer or not: this is what `mwl_ir::lower`
+    /// Every static appears, initializer or not: this is what `nvs_ir::lower`
     /// enumerates the program's slots from, so a static missing here has no
     /// storage at all. A `None` initializer is one ADR 0022 § 2 required no
     /// default of — a nullable or `lateinit` static — and its slot starts each
@@ -395,9 +395,9 @@ pub struct ClassSignature {
     /// arguments for every interface but `Iterable`/`Iterator`, which is
     /// every interface in the language today except those two.
     ///
-    /// [`mwl_hir::ClassGraph`] already records *which* interfaces a class
+    /// [`nvs_hir::ClassGraph`] already records *which* interfaces a class
     /// implements, and is the right table for a reachability question. This
-    /// one exists because the arguments need [`TypeId`]s, which `mwl-hir` has
+    /// one exists because the arguments need [`TypeId`]s, which `nvs-hir` has
     /// no interner for — so a question like "what does a `foreach` over a
     /// `Counter` yield" is answered here and the plain "does `Counter` reach
     /// `Iterable` at all" stays there.
@@ -411,7 +411,7 @@ pub struct ClassSignature {
     /// never heard of: a class cannot know who extends it. Empty for the
     /// overwhelming majority of classes, which is the point — an
     /// instance call only pays for a name lookup where the language
-    /// actually admits two answers (`mwl_ir::ir::InstKind::CallVirtual`).
+    /// actually admits two answers (`nvs_ir::ir::InstKind::CallVirtual`).
     pub overridden_methods: FxHashSet<String>,
 }
 
@@ -466,7 +466,7 @@ impl SignatureTable {
     /// `required_properties` stays empty on purpose. ADR 0022's obligation is
     /// a check on a *written* constructor, and neither caller has one — a
     /// `Core` class has no state at all, and `Throwable`'s constructor is
-    /// synthesized by `mwl_ir::lower`.
+    /// synthesized by `nvs_ir::lower`.
     pub(crate) fn seed_class(
         &mut self,
         qname: QName,
@@ -483,7 +483,7 @@ impl SignatureTable {
     /// which [`resolve_iteration_element`] and [`resolve_interface_args`] read.
     ///
     /// Separate from `seed_class` because only `Core`'s § 9 collections have
-    /// anything to say here (`mwl_stdlib::registry::ITERABLES`), and threading
+    /// anything to say here (`nvs_stdlib::registry::ITERABLES`), and threading
     /// an empty vector through every other seeded class would say nothing four
     /// hundred times.
     pub(crate) fn seed_implements(&mut self, qname: QName, interface: QName, args: Vec<TypeId>) {
@@ -500,7 +500,7 @@ impl SignatureTable {
 /// [`mark_overridden_methods`] runs, because an override is a fact about the
 /// *program*: a subclass in a `require`d file overriding a method declared in
 /// the entry file is exactly the case a per-file table would answer wrong,
-/// and it decides `Call` against `CallVirtual` in `mwl-ir`.
+/// and it decides `Call` against `CallVirtual` in `nvs-ir`.
 ///
 /// This writes into its own `table` return value rather than `env.signatures`
 /// — the [`Env`] this function builds internally points `signatures` at an
@@ -511,7 +511,7 @@ impl SignatureTable {
 /// immutably through the same `Env` at once.
 pub fn build_signatures(
     files: &[crate::ProgramFile<'_>],
-    module: &mwl_hir::Module,
+    module: &nvs_hir::Module,
     enums: &crate::enums::EnumTable,
     consts: &crate::consts::ConstTable,
     interner: &mut crate::ty::TypeInterner,
@@ -558,10 +558,10 @@ pub fn build_signatures(
 /// The question — "can a call that statically resolves to `Owner::m` land on
 /// a different body at run time" — is one no single declaration can answer,
 /// because it is about subtypes it has never heard of. So it is asked here,
-/// once per program, rather than per call site: `mwl_types::expr` records the
+/// once per program, rather than per call site: `nvs_types::expr` records the
 /// answer on every [`crate::expr_table::ResolvedCall`] it builds, and
-/// `mwl-ir` reads it back to pick
-/// [`InstKind::Call`](../../mwl_ir/ir/enum.InstKind.html) or `CallVirtual`.
+/// `nvs-ir` reads it back to pick
+/// [`InstKind::Call`](../../nvs_ir/ir/enum.InstKind.html) or `CallVirtual`.
 ///
 /// A redeclaration counts whether or not it has a body of its own: an
 /// `abstract` override still means a *further* subclass supplies one, and
@@ -611,7 +611,7 @@ fn supertypes(qname: &QName, graph: &ClassGraph) -> Vec<QName> {
     })
 }
 
-fn qname_segments(src: &SourceFile, name: &mwl_syntax::ast::Name) -> Vec<String> {
+fn qname_segments(src: &SourceFile, name: &nvs_syntax::ast::Name) -> Vec<String> {
     QName::parse(span_text(src, name.span)).segments().to_vec()
 }
 
@@ -696,7 +696,7 @@ fn collect_stmts(
 /// read here: `private(set)` is the *write* half of ADR 0094 § 3's pair, and
 /// the read half is always the plain keyword written alongside it.
 ///
-/// `None` where nothing was written — which `mwl_syntax::check_declarations`
+/// `None` where nothing was written — which `nvs_syntax::check_declarations`
 /// already reports as `E_MISSING_VISIBILITY`, so this only has to not invent
 /// a level for source that is already being refused.
 fn declared_visibility(modifiers: &[Modifier]) -> Option<Visibility> {
@@ -749,7 +749,7 @@ fn collect_members(
                     .and_then(|expr| crate::defaults::eval_property_default(expr, ty, env));
                 // A `static` property occupies no instance slot, so its
                 // constant goes to the other vector — the one
-                // `mwl_runtime::Ctx` arms once per request rather than once
+                // `nvs_runtime::Ctx` arms once per request rather than once
                 // per `new`. See `ClassSignature::static_property_defaults`.
                 let is_static_property = p.modifiers.contains(&Modifier::Static);
                 let sig = table.entry(qname.clone());
@@ -868,7 +868,7 @@ fn collect_members(
 /// A variadic parameter never carries a default — `...$rest` already accepts
 /// zero arguments — so it is skipped rather than diagnosed for having none.
 fn collect_defaults(
-    params: &[mwl_syntax::ast::Param],
+    params: &[nvs_syntax::ast::Param],
     types: &[TypeId],
     env: &mut Env<'_>,
 ) -> Vec<Option<crate::defaults::ConstArg>> {
@@ -909,8 +909,8 @@ fn declared_hooks(p: &PropertyMember) -> PropertyHooks {
             continue;
         }
         match hook.kind {
-            mwl_syntax::ast::PropertyHookKind::Get => out.get = true,
-            mwl_syntax::ast::PropertyHookKind::Set => out.set = true,
+            nvs_syntax::ast::PropertyHookKind::Get => out.get = true,
+            nvs_syntax::ast::PropertyHookKind::Set => out.set = true,
         }
     }
     out
@@ -959,7 +959,7 @@ fn check_lateinit_property(p: &PropertyMember, ty: TypeId, env: &mut Env<'_>) {
 
 /// Looks `name` up as a property on `qname`, falling back to walking its
 /// `extends`/`implements` ancestors — the same shape
-/// `mwl_hir::members::member_declared` already walks for existence-only
+/// `nvs_hir::members::member_declared` already walks for existence-only
 /// checking, generalised to return the type found rather than a bool.
 #[must_use]
 pub fn resolve_property(
@@ -1038,7 +1038,7 @@ pub fn property_visibility(owner: &QName, name: &str, table: &SignatureTable) ->
 /// receiver's static type: `$other->secret` inside `Secret`'s own method is
 /// legal precisely because visibility is a property of where the code is
 /// written. `protected` reaches down an `extends`/`implements` chain via
-/// [`mwl_hir::implements_interface`] — the same ancestor walk
+/// [`nvs_hir::implements_interface`] — the same ancestor walk
 /// [`resolve_property_owned`] used to find the declaration in the first
 /// place — and never up one: a superclass does not see a subclass's members.
 #[must_use]
@@ -1052,7 +1052,7 @@ pub fn is_visible_from(
         Visibility::Public => true,
         Visibility::Private => accessing == Some(owner),
         Visibility::Protected => accessing
-            .is_some_and(|from| from == owner || mwl_hir::implements_interface(from, owner, graph)),
+            .is_some_and(|from| from == owner || nvs_hir::implements_interface(from, owner, graph)),
     }
 }
 
@@ -1120,7 +1120,7 @@ fn resolve_method_rec(
 /// silently see nothing.
 ///
 /// The type argument is what makes this a signature-table question rather
-/// than a [`mwl_hir::ClassGraph`] one — that graph records *which* interfaces
+/// than a [`nvs_hir::ClassGraph`] one — that graph records *which* interfaces
 /// a class reaches and has no interner to record the argument in.
 #[must_use]
 pub fn resolve_iteration_element(
@@ -1137,10 +1137,10 @@ pub fn resolve_iteration_element(
 /// when it reaches `target` at no arguments at all, `None` when it does not
 /// reach it.
 ///
-/// [`mwl_hir::hierarchy::implements_interface`] answers the *reachability*
+/// [`nvs_hir::hierarchy::implements_interface`] answers the *reachability*
 /// half of the same question and is the right table for it; this one exists
 /// for [`ClassSignature::implements`]'s reason — the arguments need
-/// [`TypeId`]s `mwl-hir` has no interner for. So `Nums implements
+/// [`TypeId`]s `nvs-hir` has no interner for. So `Nums implements
 /// Iterator<int>` is reachable-from-`Iterator` there and `[int]` here, which
 /// is what lets [`crate::expr::is_assignable`] accept a `Nums` where an
 /// `Iterator<int>` is declared and refuse it where an `Iterator<string>` is.
@@ -1203,10 +1203,10 @@ fn resolve_iteration_rec(
             if !interface.is_reserved_global_interface() {
                 continue;
             }
-            if interface.short_name() == mwl_hir::interfaces::ITERABLE {
+            if interface.short_name() == nvs_hir::interfaces::ITERABLE {
                 return Some((interface.clone(), elem));
             }
-            if interface.short_name() == mwl_hir::interfaces::ITERATOR {
+            if interface.short_name() == nvs_hir::interfaces::ITERATOR {
                 cursor.get_or_insert((interface.clone(), elem));
             }
         }
@@ -1266,16 +1266,16 @@ pub fn own_lateinit_properties(qname: &QName, table: &SignatureTable) -> FxHashS
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::SourceMap;
-    use mwl_hir::resolve_file;
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::SourceMap;
+    use nvs_hir::resolve_file;
+    use nvs_syntax::parse_file;
 
     use super::*;
     use crate::ty::TypeInterner;
 
-    fn build(src: &str) -> (SignatureTable, mwl_hir::Module, TypeInterner, Diagnostics) {
+    fn build(src: &str) -> (SignatureTable, nvs_hir::Module, TypeInterner, Diagnostics) {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -1294,7 +1294,7 @@ mod tests {
 
     #[test]
     fn a_property_type_is_recorded() {
-        let (table, _module, interner, _diags) = build("<?mwl\nclass Foo { public int $count; }\n");
+        let (table, _module, interner, _diags) = build("<?nvs\nclass Foo { public int $count; }\n");
         let ty = table
             .get(&QName::parse("Foo"))
             .and_then(|sig| sig.properties.get("count"))
@@ -1306,7 +1306,7 @@ mod tests {
     #[test]
     fn a_method_signature_is_recorded() {
         let (table, _module, interner, _diags) =
-            build("<?mwl\nclass Foo { function greet(string $name): bool { return true; } }\n");
+            build("<?nvs\nclass Foo { function greet(string $name): bool { return true; } }\n");
         let sig = table
             .get(&QName::parse("Foo"))
             .and_then(|sig| sig.methods.get("greet"))
@@ -1323,7 +1323,7 @@ mod tests {
     #[test]
     fn a_method_is_marked_overridden_only_where_something_overrides_it() {
         let (table, _module, _interner, _diags) = build(
-            "<?mwl
+            "<?nvs
              interface Shape { function area(): int; function label(): string { return \"s\"; } }
              class Root { function kind(): string { return \"root\"; }              function alone(): int { return 1; } }
              class Middle extends Root {}
@@ -1346,7 +1346,7 @@ mod tests {
     #[test]
     fn a_property_is_resolved_through_an_ancestor() {
         let (table, module, interner, _diags) =
-            build("<?mwl\nclass Base { public int $count; }\nclass Sub extends Base {}\n");
+            build("<?nvs\nclass Base { public int $count; }\nclass Sub extends Base {}\n");
         let ty = resolve_property(&QName::parse("Sub"), "count", &table, &module.graph)
             .expect("inherited property resolves");
         assert_eq!(interner.describe(ty), "int");
@@ -1355,7 +1355,7 @@ mod tests {
     #[test]
     fn a_method_is_resolved_through_an_ancestor() {
         let (table, module, interner, _diags) = build(
-            "<?mwl\nclass Base { function hello(): int { return 1; } }\nclass Sub extends Base {}\n",
+            "<?nvs\nclass Base { function hello(): int { return 1; } }\nclass Sub extends Base {}\n",
         );
         let (owner, sig) = resolve_method(&QName::parse("Sub"), "hello", &table, &module.graph)
             .expect("inherited method resolves");
@@ -1365,7 +1365,7 @@ mod tests {
 
     #[test]
     fn an_undeclared_member_does_not_resolve() {
-        let (table, module, _interner, _diags) = build("<?mwl\nclass Foo {}\n");
+        let (table, module, _interner, _diags) = build("<?nvs\nclass Foo {}\n");
         assert!(resolve_property(&QName::parse("Foo"), "missing", &table, &module.graph).is_none());
         assert!(resolve_method(&QName::parse("Foo"), "missing", &table, &module.graph).is_none());
     }
@@ -1385,7 +1385,7 @@ mod tests {
     #[test]
     fn a_parameter_default_is_evaluated_once_into_the_declared_type() {
         let (table, _module, _interner, diags) = build(
-            "<?mwl\nclass Box {\n  function scale(int $n, uint $by = 3, float $bias = -1.5, \
+            "<?nvs\nclass Box {\n  function scale(int $n, uint $by = 3, float $bias = -1.5, \
              string $tag = \"x\\ty\", bool $on = true): void {}\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
@@ -1407,7 +1407,7 @@ mod tests {
     #[test]
     fn a_method_with_no_defaults_requires_every_parameter() {
         let (table, _module, _interner, _diags) =
-            build("<?mwl\nclass Box { function pair(int $a, int $b): void {} }\n");
+            build("<?nvs\nclass Box { function pair(int $a, int $b): void {} }\n");
         let sig = sig_of(&table, "Box", "pair");
         assert_eq!(sig.required(), 2);
         assert_eq!(sig.defaults, vec![None, None]);
@@ -1416,7 +1416,7 @@ mod tests {
     #[test]
     fn a_non_literal_parameter_default_is_refused() {
         let (_table, _module, _interner, diags) =
-            build("<?mwl\nclass Box { function scale(int $n = 1 + 1): void {} }\n");
+            build("<?nvs\nclass Box { function scale(int $n = 1 + 1): void {} }\n");
         assert!(
             diags
                 .iter()
@@ -1431,7 +1431,7 @@ mod tests {
     #[test]
     fn a_null_parameter_default_is_refused_for_now() {
         let (_table, _module, _interner, diags) =
-            build("<?mwl\nclass Box { function scale(?int $n = null): void {} }\n");
+            build("<?nvs\nclass Box { function scale(?int $n = null): void {} }\n");
         assert!(
             diags
                 .iter()
@@ -1443,7 +1443,7 @@ mod tests {
     #[test]
     fn a_default_of_the_wrong_type_is_refused() {
         let (_table, _module, _interner, diags) =
-            build("<?mwl\nclass Box { function scale(int $n = \"three\"): void {} }\n");
+            build("<?nvs\nclass Box { function scale(int $n = \"three\"): void {} }\n");
         assert!(
             diags
                 .iter()
@@ -1455,7 +1455,7 @@ mod tests {
     #[test]
     fn a_required_parameter_after_an_optional_one_is_refused() {
         let (_table, _module, _interner, diags) =
-            build("<?mwl\nclass Box { function scale(int $a = 1, int $b): void {} }\n");
+            build("<?nvs\nclass Box { function scale(int $a = 1, int $b): void {} }\n");
         assert!(
             diags
                 .iter()
@@ -1470,7 +1470,7 @@ mod tests {
     #[test]
     fn a_variadic_tail_after_an_optional_parameter_is_accepted() {
         let (_table, _module, _interner, diags) =
-            build("<?mwl\nclass Box { function scale(int $a = 1, int ...$rest): void {} }\n");
+            build("<?nvs\nclass Box { function scale(int $a = 1, int ...$rest): void {} }\n");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
@@ -1481,7 +1481,7 @@ mod tests {
     #[test]
     fn a_lateinit_class_typed_property_is_excluded_from_required_properties() {
         let (table, _module, _interner, diags) =
-            build("<?mwl\nclass Logger {}\nclass Widget { public lateinit Logger $logger; }\n");
+            build("<?nvs\nclass Logger {}\nclass Widget { public lateinit Logger $logger; }\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let sig = table
             .get(&QName::parse("Widget"))
@@ -1493,7 +1493,7 @@ mod tests {
     #[test]
     fn lateinit_on_a_scalar_property_is_diagnosed() {
         let (_table, _module, _interner, diags) =
-            build("<?mwl\nclass Widget { public lateinit int $count; }\n");
+            build("<?nvs\nclass Widget { public lateinit int $count; }\n");
         assert!(
             diags
                 .iter()
@@ -1505,7 +1505,7 @@ mod tests {
     #[test]
     fn lateinit_on_a_nullable_property_is_diagnosed() {
         let (_table, _module, _interner, diags) =
-            build("<?mwl\nclass Logger {}\nclass Widget { public lateinit ?Logger $logger; }\n");
+            build("<?nvs\nclass Logger {}\nclass Widget { public lateinit ?Logger $logger; }\n");
         assert!(
             diags
                 .iter()
@@ -1517,7 +1517,7 @@ mod tests {
     #[test]
     fn lateinit_on_a_promoted_parameter_is_diagnosed() {
         let (_table, _module, _interner, diags) = build(
-            "<?mwl\nclass Logger {}\nclass Widget {\n  function constructor(public lateinit Logger $logger) {}\n}\n",
+            "<?nvs\nclass Logger {}\nclass Widget {\n  function constructor(public lateinit Logger $logger) {}\n}\n",
         );
         assert!(
             diags
@@ -1530,7 +1530,7 @@ mod tests {
     #[test]
     fn lateinit_combined_with_readonly_is_diagnosed() {
         let (_table, _module, _interner, diags) = build(
-            "<?mwl\nclass Logger {}\nclass Widget { public lateinit readonly Logger $logger; }\n",
+            "<?nvs\nclass Logger {}\nclass Widget { public lateinit readonly Logger $logger; }\n",
         );
         assert!(
             diags

@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 var $utc = Core\Time\Zone::UTC;
 var $start = Core\Time::parse("2024-02-28 23:30:00", "yyyy-MM-dd HH:mm:ss", $utc);
 

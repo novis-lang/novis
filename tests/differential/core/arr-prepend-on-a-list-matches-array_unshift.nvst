@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::prepend puts its values in front in written order exactly as array_unshift does, on the list subjects where the two key rules coincide
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's front end against its PHP twin, on the subjects where they agree.
 // `prepend` renumbers every key because an entry put in *front* of an existing
 // one has no non-arbitrary key to keep — `"0"` is the only candidate and the
@@ -33,7 +33,7 @@ echo Render::of(Core\Arr::prepend($list, 7)), "\n";
 echo Render::of(Core\Arr::prepend($empty, 7, 8)), "\n";
 
 // A gapped list: every key is an integer, so `array_unshift` renumbers all of
-// them and lands on MWL's answer — the agreement here is the whole reason this
+// them and lands on Novis's answer — the agreement here is the whole reason this
 // case can claim the divergence is about key *types* and not about gaps.
 array<int> $gapped = [10, 20, 30, 40];
 unset($gapped["1"]);

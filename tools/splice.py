@@ -12,7 +12,7 @@ from files written with the Write tool, never from the command line.
 
 A **patch file** holds the blocks, in conflict-marker form, each under the file it edits:
 
-    --- crates/mwl-ir/src/lower/expr.rs
+    --- crates/nvs-ir/src/lower/expr.rs
     <<<<<<< OLD
     the exact text to find
     =======
@@ -23,7 +23,7 @@ A **patch file** holds the blocks, in conflict-marker form, each under the file 
     =======
     its replacement
     >>>>>>> NEW
-    --- crates/mwl-types/src/expr/mod.rs
+    --- crates/nvs-types/src/expr/mod.rs
     <<<<<<< OLD
     a block in a different file
     =======

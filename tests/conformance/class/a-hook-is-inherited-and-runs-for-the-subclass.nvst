@@ -1,7 +1,7 @@
 --TEST--
 a subclass inherits the base's hooks, so a method it declares reads through the same `get` an outside read goes through
 --FILE--
-<?mwl
+<?nvs
 class Base {
     public int $n {
         get => $this->n * 2;

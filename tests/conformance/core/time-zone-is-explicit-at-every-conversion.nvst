@@ -1,7 +1,7 @@
 --TEST--
 Spec § 4: a `Zone` is an explicit value, and an offset is a property of a zone at an instant
 --FILE--
-<?mwl
+<?nvs
 // § 4 has no ambient timezone: a `Zone` is an ordinary value, and an offset is
 // a property of a zone **at an instant** rather than of the zone alone.
 var $utc = Core\Time\Zone::of("UTC");

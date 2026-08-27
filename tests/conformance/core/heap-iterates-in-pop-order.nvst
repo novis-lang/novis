@@ -1,7 +1,7 @@
 --TEST--
 A `foreach` over a `Core\Heap<T>` yields `pop` order under the ordering in force and consumes nothing — docs/spec/01-core-library.md § 9, ADR 0053 §§ 1, 3
 --FILE--
-<?mwl
+<?nvs
 Core\Heap<int> $ascending = new Core\Heap<int>();
 $ascending->push(5);
 $ascending->push(1);

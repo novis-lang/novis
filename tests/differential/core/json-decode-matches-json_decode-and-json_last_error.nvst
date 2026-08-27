@@ -1,7 +1,7 @@
 --TEST--
 Core\Json::decode round-trips every JSON value to the same text json_decode and json_encode do, refuses exactly what json_last_error reports, and its maxDepth option counts json_decode's $depth argument
 --FILE--
-<?mwl
+<?nvs
 // Spec § 6's `decode` row names `json_decode`, `json_last_error`,
 // `json_last_error_msg` and `$depth` as the four things it replaces, and this
 // case asks all four. There is no `$associative` flag — `decode` is always the

@@ -1,7 +1,7 @@
 --TEST--
 `list(...)` is refused, with `[...]` named as the only destructuring spelling — ADR 0050
 --FILE--
-<?mwl
+<?nvs
 array<int> $pair = [1, 2];
 list($a, $b) = $pair;
 echo $a, "\n";
@@ -9,6 +9,6 @@ echo $a, "\n";
 
 --EXPECTF-ERROR--
 error[E0230]: `list(...)` is not supported
-  --> case.mwl:3:1
+  --> case.nvs:3:1
 %A
 error: aborting due to 4 errors

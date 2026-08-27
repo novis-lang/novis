@@ -16,7 +16,7 @@ use super::*;
 /// The reserved `Env` name a closure's `invoke` binds its own captured-
 /// environment object under — the receiver, so that
 /// [`Lowering::release_all_locals`] releases it at every exit with no
-/// closure-specific cleanup path. `#` cannot appear in an MWL identifier, so
+/// closure-specific cleanup path. `#` cannot appear in an Novis identifier, so
 /// it can never collide with a capture or a parameter.
 pub(super) const FN_SELF: &str = "fn#self";
 
@@ -34,7 +34,7 @@ pub(super) struct PendingClosure {
     pub(super) class: String,
     /// The literal itself.
     pub(super) fn_expr: FnExpr,
-    /// Every captured binding, in the order `mwl_types` recorded it — which
+    /// Every captured binding, in the order `nvs_types` recorded it — which
     /// is the field order of the class above, so the two sides agree by
     /// construction rather than by both sorting the same way.
     pub(super) captures: Vec<(String, Ty)>,
@@ -49,7 +49,7 @@ pub(super) struct PendingClosure {
 /// stored in the object the literal builds; that constant owns the encoding
 /// and why the object carries it at all. Parameters past
 /// [`FN_PARAM_TAGS_CAPACITY`] contribute no nibble, which is what makes
-/// `mwl_runtime::call_closure` refuse the call rather than pass an argument it
+/// `nvs_runtime::call_closure` refuse the call rather than pass an argument it
 /// cannot judge.
 ///
 /// # Panics
@@ -110,12 +110,12 @@ pub(super) fn drain_closures(
 /// field per captured binding, one method, no supertypes. That is the whole
 /// design, and it is a reuse decision rather than a new mechanism —
 /// refcounting, field slots, class descriptors and the indirect call through
-/// [`mwl_runtime::mwl_class_method`] all already exist for ordinary objects,
+/// [`nvs_runtime::nvs_class_method`] all already exist for ordinary objects,
 /// and a closure needs exactly those four things and nothing else. The
 /// alternative, a dedicated code-pointer-plus-environment header, would be a
 /// second refcounted heap shape for the runtime to know about, a second thing
-/// `mwl_runtime::object::dismantle` has to sweep, and a second call path in
-/// `mwl-codegen` — for no capability the object shape does not already have.
+/// `nvs_runtime::object::dismantle` has to sweep, and a second call path in
+/// `nvs-codegen` — for no capability the object shape does not already have.
 ///
 /// The cost is stated rather than hidden: one heap allocation per evaluation
 /// of a `fn` literal, plus one 16-byte slot per captured binding, plus a
@@ -127,7 +127,7 @@ pub(super) fn drain_closures(
 /// The receiver is parameter 0, exactly as it is for a declared method, so
 /// the closure's own environment reaches its body through the same
 /// [`InstKind::Param`] any method's `$this` does — and calling one is an
-/// ordinary MWL method call at the ABI level, which is what lets a native
+/// ordinary Novis method call at the ABI level, which is what lets a native
 /// `Core` member invoke a closure with no closure-specific entry point.
 ///
 /// # Ownership
@@ -147,7 +147,7 @@ pub(super) fn drain_closures(
 ///
 /// The assert on an `inout $x` parameter is an internal-consistency check rather
 /// than a gap: `callable` carries no parameter list for a call site to read
-/// (ADR 0031 § 4), so `mwl_types::expr::calls` refuses one as `E0493` and
+/// (ADR 0031 § 4), so `nvs_types::expr::calls` refuses one as `E0493` and
 /// nothing that reaches here declares one.
 ///
 /// # Returns
@@ -179,7 +179,7 @@ pub(super) fn lower_closure(
     let mut param_tys = vec![Ty::Object];
 
     // The captures first, so a parameter of the same name — which shadows one,
-    // per `mwl_types::expr::calls::check_fn_literal` — overwrites it rather than the
+    // per `nvs_types::expr::calls::check_fn_literal` — overwrites it rather than the
     // other way round.
     for (name, ty) in captures {
         let (v, _) = low.emit(
@@ -207,7 +207,7 @@ pub(super) fn lower_closure(
             !p.inout,
             "a closure with an `inout $x` parameter reached lowering: a closure's type is \
              `callable` and carries no parameter list, so there is no call site that could \
-             know to stage the cell — `mwl_types::expr::calls` refuses this where it is \
+             know to stage the cell — `nvs_types::expr::calls` refuses this where it is \
              written, as `E0493`"
         );
         let decl_ty =
@@ -294,7 +294,7 @@ pub(super) fn lower_closure(
 /// `None` where nothing can check it. Two callers ask the same question: a
 /// closure parameter's entry check below, and
 /// [`Lowering::lower_checked_downcast`](super::Lowering::lower_checked_downcast),
-/// ADR 0007 § 6's checked way out of `mixed`. `mwl_types` refuses the `None`
+/// ADR 0007 § 6's checked way out of `mixed`. `nvs_types` refuses the `None`
 /// case at the conversion (`E0711`), so the second caller's `None` is a
 /// conversion this crate has no lowering for rather than a shape it declines.
 ///
@@ -305,8 +305,8 @@ pub(super) fn lower_closure(
 /// [`super::param_tag_nibble`] for the four-bit half of the same question.
 ///
 /// A `Core` class is the one named class that answers `None`: it has no
-/// descriptor in the unit — `mwl_codegen`'s class table is built from
-/// `mwl_types::layout`, which holds the declared tree — so an `instanceof`
+/// descriptor in the unit — `nvs_codegen`'s class table is built from
+/// `nvs_types::layout`, which holds the declared tree — so an `instanceof`
 /// against one has nothing to compare and does not exist as a spelling either
 /// (`E0496` at the checker). That leaves a `Core\Cli\Text $c` parameter
 /// checked for objecthood alone, which `docs/adr/README.md` § *Decisions taken
@@ -318,7 +318,7 @@ pub(super) fn declared_class(
 ) -> Option<String> {
     let id = exprs.declared_ty(ty.span)?;
     match checked_types.get(id) {
-        // `QName` is destructured here rather than passed on: `mwl-hir` is a
+        // `QName` is destructured here rather than passed on: `nvs-hir` is a
         // dev-dependency of this crate, so a helper naming the type in its
         // signature would not compile.
         CheckedTy::Class(qname, _) if !qname.is_core() => Some(qname.to_string()),
@@ -329,20 +329,20 @@ pub(super) fn declared_class(
 /// The class check one class-declared closure parameter runs at the body's
 /// first block, returning the block the body continues in.
 ///
-/// `mwl_runtime::closure::check_param_tags` compares representations, and a
+/// `nvs_runtime::closure::check_param_tags` compares representations, and a
 /// four-bit nibble has no room for a class label, so every class name arrives
 /// as the same "an object" — a lie a named-class binding then reads and writes
 /// at a *fixed offset*, which is a type confusion rather than a wrong answer.
 /// `docs/adr/README.md` § *Decisions taken at project start* owns why the
 /// closure's entry is the boundary that pays: one
-/// `mwl_runtime::object::MwlObj::is_instance_of` per class-declared parameter
+/// `nvs_runtime::object::NvsObj::is_instance_of` per class-declared parameter
 /// per call, in the one position nothing else looked, rather than a name-keyed
 /// fetch at every named-class property access in every program.
 ///
 /// The refusal is the sentence `check_param_tags` already writes, with the
 /// declared class where a representation would be. What arrived is *not*
 /// named: no IR instruction reads an object's class name — the runtime's
-/// `mwl_object_class_name` has no [`InstKind`] wrapping it — and adding one to
+/// `nvs_object_class_name` has no [`InstKind`] wrapping it — and adding one to
 /// widen a message is a new value shape for a diagnostic's sake. The ADR
 /// paragraph records that as the message's known limit.
 fn check_param_class(

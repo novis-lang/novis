@@ -1,7 +1,7 @@
 --TEST--
 Spec § 1: `Core\Str::slice` and `::replaceRange` read one window, so substituting a window with its own content is the identity for every sign of every argument
 --FILE--
-<?mwl
+<?nvs
 // Both members read their `$offset` and `?int $length` through one shared
 // reading of ADR 0063 R8's sign rule, and the whole point of sharing it is
 // this invariant: `replaceRange` puts back exactly what `slice` takes out.

@@ -1,7 +1,7 @@
 --TEST--
 `$e->location` is a readonly property naming the file and line of the `throw`, not an accessor — the loop goal's exception surface, spec § 10
 --FILE--
-<?mwl
+<?nvs
 class Site {
     public static function early(): string {
         try {
@@ -23,5 +23,5 @@ class Site {
 echo Site::early(), "\n";
 echo Site::later(), "\n";
 --EXPECT--
-case.mwl:5
-case.mwl:13
+case.nvs:5
+case.nvs:13

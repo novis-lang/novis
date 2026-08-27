@@ -1,7 +1,7 @@
 --TEST--
 `Core\ObjectMap<K, V>` keys on identity, `get` answers `?V`, and `keys`/`values` pair up positionally — docs/spec/01-core-library.md § 9
 --FILE--
-<?mwl
+<?nvs
 final class Tag {
     public string $name;
 

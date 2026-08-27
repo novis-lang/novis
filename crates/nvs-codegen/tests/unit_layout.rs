@@ -12,10 +12,10 @@ use common::*;
 fn every_lowered_method_is_compiled_under_its_class_qualified_name() {
     // The label a call's target is rendered from and the name its callee is
     // compiled under are the same string by construction — see
-    // `mwl_types::expr_table::ExprTypeTable::method_label`. A namespace is
+    // `nvs_types::expr_table::ExprTypeTable::method_label`. A namespace is
     // where the two would drift apart if they were spelled twice.
     let unit = compile(
-        "<?mwl\nnamespace App;\nclass Math {\n    public static function id(int $n): int {\n        return $n;\n    }\n}\necho \\App\\Math::id(7);\n",
+        "<?nvs\nnamespace App;\nclass Math {\n    public static function id(int $n): int {\n        return $n;\n    }\n}\necho \\App\\Math::id(7);\n",
     )
     .expect("the fixture compiles");
     assert!(unit.function("App\\Math::id").is_some(), "{unit:?}");
@@ -24,12 +24,12 @@ fn every_lowered_method_is_compiled_under_its_class_qualified_name() {
 
 #[test]
 fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
-    // What `mwl run --dump-asm` prints. The two structural claims worth
-    // holding: every compiled frame gets a section headed by its MWL name, and
+    // What `nvs run --dump-asm` prints. The two structural claims worth
+    // holding: every compiled frame gets a section headed by its Novis name, and
     // the section carries the probe sites this backend emits unconditionally —
     // so a disassembly cannot silently be of some differently-configured
     // second compile.
-    let text = mwl_codegen::disassemble(&lower("<?mwl\necho \"Hello, World!\";\n"))
+    let text = nvs_codegen::disassemble(&lower("<?nvs\necho \"Hello, World!\";\n"))
         .expect("the fixture compiles");
 
     assert!(text.starts_with("; <script>\n"), "{text}");
@@ -41,8 +41,8 @@ fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
 
 #[test]
 fn disassembling_an_unlowered_shape_reports_it_rather_than_printing_half_a_unit() {
-    let error = mwl_codegen::disassemble(&lower(
-        "<?mwl\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n",
+    let error = nvs_codegen::disassemble(&lower(
+        "<?nvs\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n",
     ))
     .unwrap_err();
     assert!(error.to_string().contains("Mod"), "{error}");
@@ -56,7 +56,7 @@ fn an_unlowered_shape_is_an_error_naming_it_rather_than_a_panic() {
     // matters is that the backend *says so* instead of panicking or, worse,
     // emitting something.
     let error =
-        compile("<?mwl\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n").unwrap_err();
+        compile("<?nvs\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n").unwrap_err();
     let message = error.to_string();
     assert!(message.contains("Mod"), "{message}");
 }

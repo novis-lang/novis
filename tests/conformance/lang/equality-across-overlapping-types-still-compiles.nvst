@@ -1,7 +1,7 @@
 --TEST--
 Disjointness, not identity of types, is what `==` refuses — every pair that can hold one value still compiles, ADR 0090 §§ 2 and 6
 --FILE--
-<?mwl
+<?nvs
 // A literal against its base type, which the table's literal row keeps
 // compiling.
 int $n = 1;

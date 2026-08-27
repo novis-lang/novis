@@ -1,7 +1,7 @@
 --TEST--
 `$m as Plain` tests the runtime class and throws where `instanceof` answers false, ADR 0007 §§ 2 and 6
 --FILE--
-<?mwl
+<?nvs
 class Plain { public int $n = 7; }
 interface Shape { public function sides(): int; }
 class Square implements Shape { public function sides(): int { return 4; } }

@@ -1,7 +1,7 @@
 --TEST--
 A `break` leaves a protected region, so that region's `finally` runs before the loop exits — and a `finally` enclosing the whole loop is not re-entered
 --FILE--
-<?mwl
+<?nvs
 class Search {
     public static function stopAt(int $target): string {
         var $log = "";

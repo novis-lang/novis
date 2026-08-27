@@ -1,7 +1,7 @@
 --TEST--
 `break` and `continue` out of a protected region run its `finally` in exactly the order PHP runs it, one level and two
 --FILE--
-<?mwl
+<?nvs
 class Exits {
     public static function flat(): string {
         var $out = "";

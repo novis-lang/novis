@@ -1,7 +1,7 @@
 --TEST--
 Core\Random::pick, sample and shuffle draw over array<T> — every element survives a shuffle, a sample is distinct, and an oversized one throws — spec § 11, ADR 0063 R4 and R5
 --FILE--
-<?mwl
+<?nvs
 // A random answer cannot be asserted, so every line here pins an invariant of
 // the draw rather than the draw itself. `Draw` exists because a `catch` does
 // not lower at file scope.

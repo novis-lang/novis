@@ -1,4 +1,4 @@
-# ADR 0027 — `callable` is satisfied only by a closure; MWL has no `__invoke`
+# ADR 0027 — `callable` is satisfied only by a closure; Novis has no `__invoke`
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -12,7 +12,7 @@
 
 > **In short:** `callable` means **a closure value — nothing else.** PHP's three dynamic spellings — a bare
 > string (`"strlen"`), an `"Class::method"` string, and a `[$obj, 'method']` array — are all rejected with a
-> diagnostic pointing at first-class callable syntax. **MWL has no `__invoke` and no other mechanism for
+> diagnostic pointing at first-class callable syntax. **Novis has no `__invoke` and no other mechanism for
 > calling an object with `()` syntax** — `$obj(...)` is a diagnostic whenever `$obj` is not a closure, full
 > stop, regardless of what methods its class declares. No new syntax was introduced: PHP 8.1's first-class
 > callable syntax (`Foo::bar(...)`, `$obj->method(...)`, `self::`/`static::`/`parent::method(...)`) already
@@ -27,7 +27,7 @@
   the same problem [0012](0012-no-superglobals.md) closed for superglobals and
   [0015](0015-no-name-aliasing.md) closed for renaming: unresolvable by a reader, checker, or IDE without
   re-implementing PHP's own lookup rules.
-- PHP 8.1's first-class callable syntax already solves the authoring half and already parses in MWL; the
+- PHP 8.1's first-class callable syntax already solves the authoring half and already parses in Novis; the
   open question was only whether `callable` should *also* accept the spellings that syntax replaced.
 - `__invoke` is closed too, not kept as a fifth shape: `$obj(...)` names *no method at all* at the call
   site, the same hidden-dispatch problem [0014](0014-property-observer.md) already closed, and it would
@@ -53,11 +53,11 @@ $sum = $fn(1, 2);                  // kept — calling a callable is unaffected
 
 class Adder {
     public function add(int $a, int $b): int { return $a + $b; }
-    // public function __invoke(...): int { ... }   // rejected — no such method exists in MWL
+    // public function __invoke(...): int { ... }   // rejected — no such method exists in Novis
 }
 $adder = new Adder();
 $sum = $adder->add(1, 2);          // kept — call the named method directly
-$sum = $adder(1, 2);               // rejected — "Adder is not callable; MWL has no `__invoke`"
+$sum = $adder(1, 2);               // rejected — "Adder is not callable; Novis has no `__invoke`"
 
 // rejected — each names a value this ADR closes off; the diagnostic names the replacement
 $fn = 'strlen';                    // bare string — "use `Core\Str::length(...)`"
@@ -72,7 +72,7 @@ have to interpret.
 
 ### 2. First-class callable syntax is the only reference-taking spelling
 
-MWL keeps exactly one way to take a reference to a declared method: PHP 8.1's `Name(...)` syntax. No
+Novis keeps exactly one way to take a reference to a declared method: PHP 8.1's `Name(...)` syntax. No
 `Foo::method::ref`-style spelling, and no reuse of `::class` for this — `::class` stays a
 class-name-to-string operator, unrelated to producing a callable value. Adding a second reference-taking
 spelling next to one that already does the job is what [0015](0015-no-name-aliasing.md) argues against.
@@ -84,13 +84,13 @@ answered and does not reopen it.
 
 ### 3. Diagnostics
 
-- A string passed where `callable` is expected → *a string is not callable in MWL; take a reference with
+- A string passed where `callable` is expected → *a string is not callable in Novis; take a reference with
   first-class callable syntax instead — `Core\Str::length(...)`*
-- `[$obj, 'method']` (or `[ClassName::class, 'method']`) → *an array is not callable in MWL; use
+- `[$obj, 'method']` (or `[ClassName::class, 'method']`) → *an array is not callable in Novis; use
   `$obj->method(...)` (or `ClassName::method(...)`)*
-- `$obj(...)` where `$obj` is any non-callable value → *`ClassName` is not callable; MWL has no `__invoke`
+- `$obj(...)` where `$obj` is any non-callable value → *`ClassName` is not callable; Novis has no `__invoke`
   — call a named method instead, e.g. `$obj->methodName(...)`*
-- `public function __invoke(...)` declared in a class → *`__invoke` has no special meaning in MWL and does
+- `public function __invoke(...)` declared in a class → *`__invoke` has no special meaning in Novis and does
   not make instances callable; rename it to a method with a name callers write explicitly*
 
 ## Consequences
@@ -111,7 +111,7 @@ answered and does not reopen it.
 **Negative**
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers.
-  Mechanical for `mwl convert` in the string/array cases — rewrite to the equivalent first-class-callable
+  Mechanical for `nvs convert` in the string/array cases — rewrite to the equivalent first-class-callable
   expression — except where the string was itself dynamic. The `__invoke` case needs a human decision
   unconditionally: rename the method, and rewrite every `$obj(...)` call site.
 - The stdlib's `callable`-typed signatures now reject a caller passing PHP's spellings or an invokable
@@ -142,4 +142,4 @@ answered and does not reopen it.
 - **M2** (done): a corpus entry for each rejected spelling — a bare string, an `"Class::method"` string, and
   a `[$obj, 'method']` array — passed where `callable` is the declared type, each refused with a diagnostic
   naming the replacement; `$obj(...)` refused for every non-callable `$obj`, including one whose class
-  declares a method named `__invoke`. `mwl_types::expr` holds the checks.
+  declares a method named `__invoke`. `nvs_types::expr` holds the checks.

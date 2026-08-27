@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::min and max answer what PHP's two-argument min and max answer wherever the two arguments share one ordered type, argument order and the nesting of the variadic form included
 --FILE--
-<?mwl
+<?nvs
 // Spec § 3's `min`/`max` rows, in the two-argument form. PHP's variadic
 // `min(1, 2, 3)` has no member at all (ADR 0063 R17): the two-argument form
 // nests, and the array form is `Core\Arr::min`, so those two are the whole
@@ -9,7 +9,7 @@ Core\Math::min and max answer what PHP's two-argument min and max answer whereve
 //
 // The two members do not ask the same question. PHP compares with `<`, the
 // loose comparison, so what it orders depends on how a value is *written*;
-// `Core\Math::min` orders by `mwl_stdlib::ordering::compare_values`, the same
+// `Core\Math::min` orders by `nvs_stdlib::ordering::compare_values`, the same
 // total order `Core\Arr::min` walks an array with. Those two coincide exactly
 // where both arguments share one ordered type and neither string is a numeral,
 // which is every row here.
@@ -49,7 +49,7 @@ echo Core\Math::min(-2, 0), " ", Core\Math::max(-2, 0), "\n";
 // tie rule itself is the other case's first row, where the two are told apart.
 echo Core\Math::min(4, 4), " ", Core\Math::max(4, 4), "\n";
 
-// Strings, where PHP's `<` falls back to `strcmp` and MWL's ordering is
+// Strings, where PHP's `<` falls back to `strcmp` and Novis's ordering is
 // bytewise: the same answer, as long as neither operand is a numeral.
 echo Core\Math::min("pear", "apple"), " ", Core\Math::max("pear", "apple"), "\n";
 
@@ -61,12 +61,12 @@ echo Core\Math::min("Ann", "ann"), " ", Core\Math::max("Ann", "ann"), "\n";
 // shorter string is the smaller one, and length alone does not decide it.
 echo Core\Math::min("abc", "ab"), " ", Core\Math::max("abc", "ab"), "\n";
 
-// Floats, where MWL's `f64::total_cmp` and PHP's `<` agree on every pair that
+// Floats, where Novis's `f64::total_cmp` and PHP's `<` agree on every pair that
 // is neither a `NaN` nor a signed zero — the signed zero being the other
 // case's second row.
 echo Core\Math::min(2.5, 0.5), " ", Core\Math::max(2.5, 0.5), "\n";
 
-// The one pair of representations MWL's ordering lets cross, and the one PHP
+// The one pair of representations Novis's ordering lets cross, and the one PHP
 // compares numerically rather than by spelling: an `int` against a `float`.
 // Both parameters and the return are one `CoreTy::Var("T")`, so `T` binds to
 // the first argument's type and the literal spelling `Core\Math::min(2, 1.5)`

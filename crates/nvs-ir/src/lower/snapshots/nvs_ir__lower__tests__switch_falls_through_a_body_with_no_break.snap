@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn pick(object, int) -> int {
@@ -39,8 +39,8 @@ fn pick(object, int) -> int {
     jump bb3
   bb7:
     release v0
-    propagate "pick() at t.mwl:8"
+    propagate "pick() at t.nvs:8"
   bb8:
     release v0
-    propagate "pick() at t.mwl:11"
+    propagate "pick() at t.nvs:11"
 }

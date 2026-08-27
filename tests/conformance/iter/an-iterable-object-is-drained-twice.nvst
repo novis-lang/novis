@@ -1,7 +1,7 @@
 --TEST--
 `Iterable::iterate()` hands out a fresh `Iterator` per `foreach`, so the same object can be walked twice — ADR 0053 § 1
 --FILE--
-<?mwl
+<?nvs
 class CountUp implements Iterator<int> {
     public int $next;
     public int $limit;

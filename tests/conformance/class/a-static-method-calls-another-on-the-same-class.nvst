@@ -1,7 +1,7 @@
 --TEST--
 A static method reaches its siblings by class name, and recursion through one terminates
 --FILE--
-<?mwl
+<?nvs
 class Nums {
     public static function factorial(int $n): int {
         if ($n <= 1) {

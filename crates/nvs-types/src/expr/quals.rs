@@ -214,15 +214,15 @@ pub(super) fn is_literal_string(expr: &Expr) -> bool {
 }
 
 /// Whether `qname` is `Throwable` or reaches it by walking its `extends`
-/// chain — the same reachability question [`mwl_hir::implements_interface`]
+/// chain — the same reachability question [`nvs_hir::implements_interface`]
 /// already answers for `Comparable`/`Stringable`.
 ///
 /// One root is enough because spec § 10 makes `Throwable` the only one:
 /// every other exception class, seeded or user-declared, descends from it
-/// through links `mwl_hir::seed_exception_tree` put in the graph.
+/// through links `nvs_hir::seed_exception_tree` put in the graph.
 pub(super) fn is_throwable_shaped(qname: &QName, graph: &ClassGraph) -> bool {
-    let root = QName::parse(mwl_hir::errors::ROOT);
-    *qname == root || mwl_hir::implements_interface(qname, &root, graph)
+    let root = QName::parse(nvs_hir::errors::ROOT);
+    *qname == root || nvs_hir::implements_interface(qname, &root, graph)
 }
 
 /// ADR 0033 § 4: a `Throwable`-shaped class's constructor message argument

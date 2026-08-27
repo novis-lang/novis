@@ -1,8 +1,8 @@
 --TEST--
 Core\Math::format groups, rounds half away from zero, and writes no separator unless asked
 --FILE--
-<?mwl
-// MWL has no ambient locale, so the group separator defaults to empty rather
+<?nvs
+// Novis has no ambient locale, so the group separator defaults to empty rather
 // than to number_format's comma.
 echo Core\Math::format(1234567.891), "|", Core\Math::format(1234567), "\n";
 echo Core\Math::format(1234567.891, {decimals: 2, groupSeparator: ","}), "\n";

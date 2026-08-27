@@ -22,9 +22,9 @@
 //! and telling that apart from a name nothing declares is what lets
 //! [`crate::lower`] report the right one of ADR 0047 § 2's two mistakes.
 
-use mwl_diagnostics::SourceFile;
-use mwl_hir::QName;
-use mwl_syntax::ast::{
+use nvs_diagnostics::SourceFile;
+use nvs_hir::QName;
+use nvs_syntax::ast::{
     ClassDecl, ClassMemberKind, ConstMember, ExprKind, NamespaceDecl, Stmt, StmtKind, UnaryOp,
 };
 use rustc_hash::FxHashMap;
@@ -70,10 +70,10 @@ impl ConstTable {
         &self,
         qname: &QName,
         name: &str,
-        graph: &mwl_hir::ClassGraph,
+        graph: &nvs_hir::ClassGraph,
     ) -> Option<&ConstValue> {
         // Bounded by the same depth `crate::lower` bounds an `array<...>` at,
-        // for the same reason: a cyclic `extends` is `mwl_hir::hierarchy`'s
+        // for the same reason: a cyclic `extends` is `nvs_hir::hierarchy`'s
         // diagnostic, and this walk must terminate whether or not it fired.
         let mut frontier = vec![qname.clone()];
         for _ in 0..MAX_ANCESTOR_DEPTH {
@@ -186,7 +186,7 @@ fn fold_const(c: &ConstMember, src: &SourceFile) -> ConstValue {
 /// second integer grammar. `None` for a magnitude no `int` holds, which the
 /// caller records as ineligible: ADR 0047 § 1's atom is an `int` literal, so a
 /// value outside `int` has no literal type to be.
-fn int_value(span: mwl_diagnostics::Span, negated: bool, src: &SourceFile) -> Option<i64> {
+fn int_value(span: nvs_diagnostics::Span, negated: bool, src: &SourceFile) -> Option<i64> {
     let (radix, digits) = crate::expr::int_literal_digits(src, span);
     let magnitude = u64::from_str_radix(&digits, radix).ok()?;
     if negated {

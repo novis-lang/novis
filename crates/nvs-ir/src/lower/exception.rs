@@ -29,7 +29,7 @@ impl<'a> Lowering<'a> {
         let (v, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
             matches!(ty, Ty::Object),
-            "mwl-ir lowers `throw` only for an exception object — got representation {ty:?}; \
+            "nvs-ir lowers `throw` only for an exception object — got representation {ty:?}; \
              see the crate docs' known gaps"
         );
         if self.aliasing_read(inner) {
@@ -44,12 +44,12 @@ impl<'a> Lowering<'a> {
     ///
     /// **The throw site, not the construction site**, and deliberately so: the
     /// backtrace beside it holds the frames the exception *unwound out of*
-    /// rather than a snapshot taken at `new` (see `mwl_runtime::throwable`'s
+    /// rather than a snapshot taken at `new` (see `nvs_runtime::throwable`'s
     /// own docs for why ADR 0002's checked-return convention makes that the
     /// cheap shape), so a `location` naming the construction site would be the
     /// one field disagreeing with everything around it.
     ///
-    /// The write goes through the *root* class label. `mwl_runtime::object`
+    /// The write goes through the *root* class label. `nvs_runtime::object`
     /// lays a subclass's slots after its parent's, so a slot resolved against
     /// `Throwable` is valid for every exception class there can be — which is
     /// the same property that lets the runtime reach `backtrace` at all.
@@ -148,7 +148,7 @@ impl<'a> Lowering<'a> {
             }
         }
 
-        // The phis first, then the binding: `mwl-codegen` requires a block's
+        // The phis first, then the binding: `nvs-codegen` requires a block's
         // phis to be its leading run, and `merge_envs` appends.
         let dispatch_env = self.merge_envs(handler_block, &frame.edges, env);
         let (thrown_v, _) = self.emit(handler_block, Ty::Object, InstKind::TakeThrown);
@@ -309,7 +309,7 @@ impl<'a> Lowering<'a> {
         bound: Option<&str>,
         dispatch_env: &Env,
     ) {
-        // The phis first, then the take: `mwl-codegen` requires a block's phis
+        // The phis first, then the take: `nvs-codegen` requires a block's phis
         // to be its leading run.
         let mut env = self.merge_envs(reraise, edges, dispatch_env);
         let (thrown, _) = self.emit(reraise, Ty::Object, InstKind::TakeThrown);
@@ -398,11 +398,11 @@ impl<'a> Lowering<'a> {
     /// The class label a `catch` clause tests against.
     ///
     /// Deliberately the *written* text rather than a resolved `QName`: this
-    /// crate never depends on `mwl-hir`, and
+    /// crate never depends on `nvs-hir`, and
     /// [ADR 0015](../../../docs/adr/0015-no-name-aliasing.md) forbids import
     /// renaming, so a bare `LogicError` in source is the global `LogicError`
     /// and nothing else. A leading `\\` is stripped, since
-    /// `mwl_types::layout` keys a class by its rendered `QName`, which never
+    /// `nvs_types::layout` keys a class by its rendered `QName`, which never
     /// carries one.
     ///
     /// # Known gap
@@ -411,7 +411,7 @@ impl<'a> Lowering<'a> {
     /// file's namespace at check time and against nothing here, so its label
     /// will not match the layout table's. That is the same missing resolution
     /// [`InstKind::InstanceOf`] avoided by having the checker record the
-    /// answer, and the same fix applies — `mwl_types` recording a resolved
+    /// answer, and the same fix applies — `nvs_types` recording a resolved
     /// `QName` per clause.
     pub(super) fn catch_clause_type(&self, clause: &CatchClause) -> String {
         span_text(self.src, clause.ty.span)
@@ -435,16 +435,16 @@ impl<'a> Lowering<'a> {
 /// value semantics) — so copying any of them into a new durable slot needs a
 /// retain. A fresh literal, `new`, or a call's own result already has exactly
 /// one natural owner and needs none.
-/// The root exception class's label — the one `mwl_types::layout` keys its
+/// The root exception class's label — the one `nvs_types::layout` keys its
 /// four slots under, and the one every `FieldGet`/`FieldSet` on an exception
 /// resolves through.
 ///
 /// A slot resolved against the root is valid for every subclass
-/// (`mwl_runtime::object` lays a subclass's slots after its parent's), so
+/// (`nvs_runtime::object` lays a subclass's slots after its parent's), so
 /// lowering never has to know which exception class it actually holds. The
-/// tree's own home is `mwl_hir::errors`; this crate depends on neither
-/// `mwl-hir` nor `mwl-types`' name resolution, so it restates the one label it
-/// needs — `mwl-codegen`'s
+/// tree's own home is `nvs_hir::errors`; this crate depends on neither
+/// `nvs-hir` nor `nvs-types`' name resolution, so it restates the one label it
+/// needs — `nvs-codegen`'s
 /// `the_runtime_and_the_compiler_agree_on_every_throwable_slot` holds the
 /// three copies together.
 pub(super) const THROWABLE_ROOT: &str = "Throwable";
@@ -468,19 +468,19 @@ pub(super) const THROWABLE_CTOR: &str = "Throwable::constructor";
 
 /// `ParseError`, the one class below the root that declares a property —
 /// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's `issues`.
-/// `mwl_hir::errors::OWN_PROPERTIES` is that roster's home; this crate depends
-/// on neither `mwl-hir` nor `mwl-types`, so it restates the two names it needs.
+/// `nvs_hir::errors::OWN_PROPERTIES` is that roster's home; this crate depends
+/// on neither `nvs-hir` nor `nvs-types`, so it restates the two names it needs.
 pub(super) const PARSE_ERROR: &str = "ParseError";
 
 /// `ParseError::$issues`.
 pub(super) const ISSUES_FIELD: &str = "issues";
 
-/// The MWL functions with no source text: one constructor per exception class
+/// The Novis functions with no source text: one constructor per exception class
 /// that declares state of its own.
 ///
-/// They cannot be written in MWL — `backtrace` is grown by the runtime as a
+/// They cannot be written in Novis — `backtrace` is grown by the runtime as a
 /// throw propagates, so a source declaration would need a body with no legal
-/// spelling (`mwl_hir::errors` owns that reasoning). What each does is small
+/// spelling (`nvs_hir::errors` owns that reasoning). What each does is small
 /// enough to build by hand: store the message and the `previous` the options
 /// bag flattened into parameter 2, start an empty backtrace, and put a
 /// placeholder in `location` that [`Lowering::write_throw_location`]
@@ -511,7 +511,7 @@ pub(super) fn synthesized_exception_constructors() -> Vec<Function> {
 /// The receiver, the message and the `previous` option are all *transferred*
 /// to this frame by the call convention, so all three are released at the exit
 /// — each field takes its own reference first. A tagged `null` retains and
-/// releases as a no-op, which `mwl_runtime::mwl_value_retain` decides at run
+/// releases as a no-op, which `nvs_runtime::nvs_value_retain` decides at run
 /// time rather than this lowering deciding it here.
 fn exception_constructor(class: &str, extra: &[&str]) -> Function {
     let mut ids = IdGen::default();

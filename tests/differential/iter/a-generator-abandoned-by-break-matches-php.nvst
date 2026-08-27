@@ -1,7 +1,7 @@
 --TEST--
 Breaking out of a `foreach` over a generator stops its body at the `yield` it is suspended on, printing what PHP prints
 --FILE--
-<?mwl
+<?nvs
 class G {
     public static function noisy(int $n): Iterator<int> {
         int $i = 0;

@@ -6,7 +6,7 @@
 //! level's binding power is where it sits in that call graph and nowhere else.
 //! `as` binds tighter than any binary operator (ADR 0007 § 2), and
 //! `and`/`or`/`xor` are caught at the bottom of the chain rather than parsed,
-//! since `&&`/`||` are the only logical connectives MWL keeps (ADR 0045).
+//! since `&&`/`||` are the only logical connectives Novis keeps (ADR 0045).
 //!
 //! Beyond the operators: `match`, closures and arrow functions (ADR 0031's one
 //! literal, `fn`, plus the `function` forms it refuses), generators
@@ -35,7 +35,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// unary operator, down to a primary expression. Every other production
     /// that needs "an expression" calls this. A stray `and`/`or`/`xor`
     /// keyword is also caught here — see [`Self::parse_low_or`] — since
-    /// `&&`/`||` are the only logical connectives MWL keeps
+    /// `&&`/`||` are the only logical connectives Novis keeps
     /// ([ADR 0045](../../../docs/adr/0045-and-or-xor-keyword-operators-rejected.md)).
     #[must_use]
     pub fn parse_expr(&mut self) -> Expr {
@@ -103,7 +103,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// individually for that reason.
     /// The guarded recursion entry above [`Self::parse_assignment`] — see
     /// [`Self::guarded`]. Also where a stray `and`/`or`/`xor` keyword is
-    /// caught: MWL never gave them PHP's lower-precedence meaning distinct
+    /// caught: Novis never gave them PHP's lower-precedence meaning distinct
     /// from `&&`/`||`, so each occurrence is diagnosed in place
     /// ([ADR 0045](../../../docs/adr/0045-and-or-xor-keyword-operators-rejected.md))
     /// and folded into an `ExprKind::Error`, consuming its right-hand operand
@@ -127,7 +127,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             let span = lhs.span.to(rhs.span);
             let help = match replacement {
                 Some(r) => {
-                    format!("use `{r}` instead — it is the only logical connective MWL keeps")
+                    format!("use `{r}` instead — it is the only logical connective Novis keeps")
                 }
                 None => {
                     "there is no direct replacement — write `(a || b) && !(a && b)`, or `a != b` \
@@ -142,7 +142,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 )
                 .with_primary(
                     op_span,
-                    "MWL keeps exactly one spelling for each logical connective",
+                    "Novis keeps exactly one spelling for each logical connective",
                 )
                 .with_help(help),
             );
@@ -158,7 +158,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// the one syntactic gate every write spelling passes through.
     ///
     /// An **increment** needs it for the same reason an assignment does, and
-    /// used not to have it: `mwl_ir::lower` desugars `$x++` into the
+    /// used not to have it: `nvs_ir::lower` desugars `$x++` into the
     /// `$x = $x + 1` a compound assignment becomes, so a target it cannot
     /// write to is a target it cannot read-modify-write either, and
     /// `$h->rows()++` reached that rewrite's own assertion instead of a
@@ -171,7 +171,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// and `($a)++` outright, at parse time, and the only spelling that does
     /// write through them is a whole subscript chain (`($a)[0] = 2`, whose
     /// target is the `Index` this already admits) — which
-    /// `mwl_types::expr::assign::check_write_target` then resolves with
+    /// `nvs_types::expr::assign::check_write_target` then resolves with
     /// [`Expr::unparenthesized`], at the level where it means something.
     fn require_write_target(&mut self, target: &Expr) {
         if !is_assignable(target) {
@@ -447,7 +447,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     code::E_LEGACY_CAST_UNSUPPORTED,
                     format!("`({spelling})expr` is not supported"),
                 )
-                .with_primary(span, "MWL keeps exactly one conversion spelling")
+                .with_primary(span, "Novis keeps exactly one conversion spelling")
                 .with_help(format!(
                     "use `expr as {spelling}` — it throws instead of silently truncating"
                 )),
@@ -845,7 +845,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// ADR 0014 § 5's compile-time half, over the *spelling* rather than over
-    /// the name: MWL has no way to compute which member is meant. The rule's
+    /// the name: Novis has no way to compute which member is meant. The rule's
     /// runtime-throw half is unaffected — it belongs to the two ways a name
     /// still arrives late, a reflection-based get/set and ADR 0036 § 4's
     /// erased receiver, and neither is spelled with one of these.
@@ -886,7 +886,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// marker again at the call site, and it goes outside a named argument's
     /// `name:` for the same reason it goes outside the parameter's type: it
     /// marks the binding, not the value. Whether it is *required* here needs
-    /// the callee's signature and so belongs to `mwl_types` (E0713/E0714).
+    /// the callee's signature and so belongs to `nvs_types` (E0713/E0714).
     pub(super) fn parse_arg(&mut self) -> Arg {
         let start = self.peek().span;
         if self.eat(TokenKind::Ellipsis).is_some() {
@@ -1563,7 +1563,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `function (...) { ... }` / `function (...) use (...) { ... }`: not a
-    /// spelling MWL keeps at all (ADR 0031 § 1) — `fn` covers both a block
+    /// spelling Novis keeps at all (ADR 0031 § 1) — `fn` covers both a block
     /// and an expression body, so there is nothing left for a second
     /// literal to do. Recovers by parsing the whole shape (params, an
     /// optional `use` clause, an optional return type, the block) so the
@@ -1590,7 +1590,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 code::E_FUNCTION_CLOSURE_UNSUPPORTED,
                 "anonymous `function` literals are not supported",
             )
-            .with_primary(function_span, "MWL keeps exactly one closure literal")
+            .with_primary(function_span, "Novis keeps exactly one closure literal")
             .with_help(
                 "use `fn(...) => ...` (an expression body) or `fn(...) => { ... }` (a block body)",
             ),
@@ -1791,7 +1791,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `exit`, optionally with a status/message argument. `die` reaches here
-    /// too (both keywords dispatch to this method) but is rejected — MWL
+    /// too (both keywords dispatch to this method) but is rejected — Novis
     /// keeps exactly one process-termination keyword. See ADR 0049 § 1.
     pub(super) fn parse_exit(&mut self) -> Expr {
         let is_die = self.at_keyword(Keyword::Die);
@@ -1813,7 +1813,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 Diagnostic::error(code::E_DIE_UNSUPPORTED, "`die` is not supported")
                     .with_primary(
                         span,
-                        "use `exit` instead — it is the only process-termination keyword MWL keeps",
+                        "use `exit` instead — it is the only process-termination keyword Novis keeps",
                     )
                     .with_help(
                         "`exit` accepts the same optional status/message argument `die` did",
@@ -1857,7 +1857,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let span = start.to(self.last_span);
         self.diags.report(
             Diagnostic::error(code::E_EVAL_UNSUPPORTED, "`eval` is not supported")
-                .with_primary(span, "MWL compiles ahead of execution")
+                .with_primary(span, "Novis compiles ahead of execution")
                 .with_help(
                     "give the code a path: `require` it to share this frame, or `spawn script` \
                      it to isolate it",
@@ -1948,7 +1948,10 @@ impl<'src, 'd> Parser<'src, 'd> {
                 code::E_INCLUDE_FAMILY_UNSUPPORTED,
                 format!("`{spelling}` is not supported"),
             )
-            .with_primary(span, "MWL keeps exactly one same-frame inclusion construct")
+            .with_primary(
+                span,
+                "Novis keeps exactly one same-frame inclusion construct",
+            )
             .with_help(
                 "use `require` — it already throws on a missing file and runs every time it is \
                  reached",

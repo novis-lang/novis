@@ -1,15 +1,15 @@
-//! The typed-expression table — the architecture decision `mwl-ir` widening
+//! The typed-expression table — the architecture decision `nvs-ir` widening
 //! past scalars needed before it could lower a call, `new`, or a member
 //! access: see `docs/agent/handoff.md`'s history for the two options this
-//! was weighed against (`mwl-ir` depending on `mwl-types` and duplicating its
+//! was weighed against (`nvs-ir` depending on `nvs-types` and duplicating its
 //! resolution logic, versus this crate publishing a persisted result
-//! `mwl-ir` reads back) and why the second was chosen.
+//! `nvs-ir` reads back) and why the second was chosen.
 //!
 //! # What this is, and why it's shaped this way
 //!
 //! [`expr::infer`](crate::expr::infer) already resolves a call's or `new`'s
 //! target — walking [`crate::signatures::SignatureTable`] and
-//! [`mwl_hir::ClassGraph`] to find the actual declaring class and its
+//! [`nvs_hir::ClassGraph`] to find the actual declaring class and its
 //! [`crate::signatures::MethodSig`] — but until now threw that resolution
 //! away the moment it returned a [`crate::ty::TypeId`]. [`ExprTypeTable`] is
 //! where [`crate::check::check_program`] persists it instead: one
@@ -17,45 +17,45 @@
 //! type) a later pass needs and cannot cheaply re-derive from the AST alone.
 //!
 //! This is a narrow, deliberately incomplete table — it exists to answer
-//! exactly the questions `mwl-ir`'s widening needed answered, not to become a
+//! exactly the questions `nvs-ir`'s widening needed answered, not to become a
 //! second, general-purpose typed-AST. [`ExprInfo::Property`] is the first
 //! instance of the pattern this module's docs originally predicted: widening
-//! `mwl-ir` further (array access, `match`/ternary result identity, ...) is
+//! `nvs-ir` further (array access, `match`/ternary result identity, ...) is
 //! expected to keep growing [`ExprInfo`] with one new variant per question,
 //! each populated at its own `expr::infer`/`check_property_access`-style call
 //! site — not to replace this shape. See the crate's own known-gaps list for
 //! exactly which expression shapes have no entry here yet.
 //!
-//! # Why a lookup is keyed by [`mwl_diagnostics::Span`], not assignment order
+//! # Why a lookup is keyed by [`nvs_diagnostics::Span`], not assignment order
 //!
 //! [`ExprId`] is a real, stable id — assigned once, in the order
 //! [`crate::check::check_program`]'s single left-to-right AST walk first
 //! records each entry, and never reused. But a consumer in another crate
-//! (`mwl-ir`) cannot re-derive *that* order for itself: its own lowering walk
+//! (`nvs-ir`) cannot re-derive *that* order for itself: its own lowering walk
 //! is a second, independently-shaped traversal of the same AST (for example,
 //! it may skip a dynamic member-name sub-expression this crate's checker
 //! still visits), so "the Nth entry this crate recorded" and "the Nth
-//! call-shaped node `mwl-ir` visits" are not guaranteed to line up. The one
+//! call-shaped node `nvs-ir` visits" are not guaranteed to line up. The one
 //! thing both crates *do* agree on without coordinating their walk order is
-//! the source [`mwl_diagnostics::Span`] each AST node already carries — so
+//! the source [`nvs_diagnostics::Span`] each AST node already carries — so
 //! [`ExprTypeTable::lookup`] takes a span, not an id, and [`ExprId`] itself is
-//! never constructed outside this module. This mirrors why `mwl-ir`'s own
-//! [`ids`](../mwl_ir/ids/index.html) module numbers `StmtId`/`EdgeId` from a
+//! never constructed outside this module. This mirrors why `nvs-ir`'s own
+//! [`ids`](../nvs_ir/ids/index.html) module numbers `StmtId`/`EdgeId` from a
 //! *single* deterministic walk rather than letting two passes agree on
 //! numbering independently — the same hazard, resolved the other way because
 //! here the two walks unavoidably live in two different crates.
 //!
 //! # What it costs
 //!
-//! One [`ExprInfo`] (a resolved [`mwl_hir::QName`] plus a handful of already-
+//! One [`ExprInfo`] (a resolved [`nvs_hir::QName`] plus a handful of already-
 //! interned [`crate::ty::TypeId`]s) and one span-keyed hash-map entry per
 //! recorded call/`new` in the compiled file — attributable to the request
 //! that compiled it, freed with the rest of the check run's tables, and paid
 //! once per compile rather than per request the compiled code later serves
 //! (ADR 0017's cache makes a compile a rare event, not a per-request cost).
 
-use mwl_diagnostics::Span;
-use mwl_hir::QName;
+use nvs_diagnostics::Span;
+use nvs_hir::QName;
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
@@ -74,7 +74,7 @@ pub struct ExprId(u32);
 /// `Class::method(...)`), or `new`'s own constructor invocation — whenever
 /// [`crate::signatures::resolve_method`] found a declared signature for it.
 /// Deliberately does not record *whether* it needs a receiver value at the
-/// call site: that is a property of which [`mwl_syntax::ast::ExprKind`]
+/// call site: that is a property of which [`nvs_syntax::ast::ExprKind`]
 /// produced the entry (a method call needs one, a static call or a
 /// constructor invocation does not), which the caller already knows from the
 /// AST node it looked this entry up for.
@@ -91,23 +91,23 @@ pub struct ResolvedCall {
     /// Which parameters are declared `inout $x`, positional —
     /// [`crate::signatures::MethodSig::inout`]. ADR 0107 § 2 puts the word at
     /// the call site too, so `Adder::bump(inout $n)` does say which arguments
-    /// these are — but it says it in the *source*, and `mwl-ir` lowers a
+    /// these are — but it says it in the *source*, and `nvs-ir` lowers a
     /// resolved call rather than re-resolving one, so the agreement this
     /// checker enforced (`E0713`/`E0714`) is recorded here rather than
-    /// re-derived from a signature `mwl-ir` no longer holds. It is what
+    /// re-derived from a signature `nvs-ir` no longer holds. It is what
     /// decides whether to stage a one-slot temporary and copy back — see
-    /// `mwl_ir::ir::InstKind::RefSlot`.
+    /// `nvs_ir::ir::InstKind::RefSlot`.
     pub inout: Vec<bool>,
     /// Whether the last parameter is variadic — [`crate::signatures::MethodSig::variadic`].
     pub variadic: bool,
     /// Each parameter's evaluated default, positional —
     /// [`crate::signatures::MethodSig::defaults`]. Recorded for
     /// [`Self::inout`]'s reason, one step further: a call site's own syntax
-    /// says nothing at all about a parameter it *omitted*, so `mwl-ir` has no
+    /// says nothing at all about a parameter it *omitted*, so `nvs-ir` has no
     /// way to know either that the callee has more parameters than there are
     /// arguments, or what to pass for them. It materializes one constant per
     /// missing trailing position from this list — see
-    /// `mwl_types::defaults` for why the caller does that rather than the
+    /// `nvs_types::defaults` for why the caller does that rather than the
     /// callee.
     pub defaults: Vec<Option<crate::defaults::ConstArg>>,
     /// Whether the resolved method is `static` —
@@ -135,19 +135,19 @@ pub struct ResolvedCall {
     /// `None`: those three forward the caller's called class rather than
     /// setting a new one.
     ///
-    /// Recorded rather than left to `mwl-ir` for [`ExprInfo::InstanceOf`]'s
+    /// Recorded rather than left to `nvs-ir` for [`ExprInfo::InstanceOf`]'s
     /// reason: resolving a bare `LeafRegistry` against the active namespace
-    /// and imports needs context only this crate and `mwl-hir` have.
+    /// and imports needs context only this crate and `nvs-hir` have.
     pub static_class: Option<QName>,
     /// The class named by the **first written type argument**, for a member on
-    /// `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS` — `Core\Json::decodeAs<User>`
+    /// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` — `Core\Json::decodeAs<User>`
     /// records `User`, and every other call records `None`.
     ///
     /// A type argument is erased like every other one
     /// ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md)), so this
     /// is deliberately not "what `T` bound to": it is the one fact a *native*
     /// member needs that erasure removes, namely which class's
-    /// `mwl_runtime::ClassDesc` to build an instance of. `mwl-ir` turns it
+    /// `nvs_runtime::ClassDesc` to build an instance of. `nvs-ir` turns it
     /// into an `InstKind::ClassDescConst` ahead of the call's own arguments;
     /// that roster's docs own the ABI half.
     pub written_class: Option<QName>,
@@ -156,21 +156,21 @@ pub struct ResolvedCall {
     /// the label [`Self::class`] names —
     /// [`crate::signatures::ClassSignature::overridden_methods`], recorded
     /// here for the same reason [`Self::inout`] is: it is a whole-program
-    /// question about declarations the call site cannot see, and `mwl-ir`
+    /// question about declarations the call site cannot see, and `nvs-ir`
     /// has no class graph to ask.
     ///
     /// `false` is the common case and the fast one — the call binds to a
     /// compiled label. `true` sends it through
-    /// `mwl_ir::ir::InstKind::CallVirtual` with that label as the fallback.
+    /// `nvs_ir::ir::InstKind::CallVirtual` with that label as the fallback.
     pub overridden: bool,
     /// Which parameter each **written** argument fills, in the order the call
-    /// site wrote them — one entry per [`mwl_syntax::ast::Arg`].
+    /// site wrote them — one entry per [`nvs_syntax::ast::Arg`].
     ///
     /// For a plain positional list this is `[Param(0), Param(1), …]` and says
     /// nothing new. It exists for the two shapes where an argument's position
     /// is not its parameter's: `name: value` fills the parameter its name
     /// resolved to, and `...$rest` fills the variadic tail with the subject's
-    /// own entries. `mwl-ir` cannot re-derive either — a name resolves against
+    /// own entries. `nvs-ir` cannot re-derive either — a name resolves against
     /// [`crate::signatures::MethodSig::param_names`], which the IR has no
     /// access to — so the mapping is settled once, here, by the checker that
     /// already had to do it to type the arguments at all.
@@ -189,20 +189,20 @@ pub enum ArgSlot {
     /// last one.
     Spread(usize),
     /// The argument fills no parameter, and a diagnostic already said why.
-    /// A consumer never sees one: `mwl-ir` runs only on a program that
+    /// A consumer never sees one: `nvs-ir` runs only on a program that
     /// reported nothing.
     Unresolved,
 }
 
-/// One resolved expression a later pass (today, only `mwl-ir`) needs more
+/// One resolved expression a later pass (today, only `nvs-ir`) needs more
 /// than just a [`TypeId`] for. `#[non_exhaustive]`: expect new variants as
-/// `mwl-ir` widens past what this first slice needed — see the module docs.
+/// `nvs-ir` widens past what this first slice needed — see the module docs.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum ExprInfo {
     /// A resolved instance or static method call. Carried by an
-    /// [`mwl_syntax::ast::ExprKind::MethodCall`] or
-    /// [`mwl_syntax::ast::ExprKind::StaticCall`] whose receiver/class side
+    /// [`nvs_syntax::ast::ExprKind::MethodCall`] or
+    /// [`nvs_syntax::ast::ExprKind::StaticCall`] whose receiver/class side
     /// resolved to a known signature.
     Call(ResolvedCall),
     /// `new Target(...)`. `ctor` is `None` for a class with no explicit
@@ -237,7 +237,7 @@ pub enum ExprInfo {
     },
     /// A resolved `Class::$prop` access, read or write — the static
     /// counterpart of [`ExprInfo::Property`], and recorded for the same reason:
-    /// `mwl-ir` has no way of its own to turn the written class expression
+    /// `nvs-ir` has no way of its own to turn the written class expression
     /// (`self`, `static`, `parent` or a name) into the label the storage is
     /// keyed on.
     ///
@@ -302,7 +302,7 @@ pub enum ExprInfo {
     /// position in the shape's own field list. That list is sorted by name
     /// when the type is interned ([`crate::ty::TypeInterner::shape`]), and
     /// every producer of a shape value lays its slots out in the same order
-    /// (`mwl_stdlib::instance::shape`'s roster is that side of the
+    /// (`nvs_stdlib::instance::shape`'s roster is that side of the
     /// agreement), so the index resolved here is the offset the read
     /// actually needs — no layout table is consulted at all.
     ///
@@ -322,7 +322,7 @@ pub enum ExprInfo {
         /// *static* shape and a widened view's is not the value's own.
         name: String,
         /// The field's position in the shape's sorted field list — a hint the
-        /// runtime tries first, not the answer. See `mwl_ir::InstKind::SlotGet`.
+        /// runtime tries first, not the answer. See `nvs_ir::InstKind::SlotGet`.
         slot: u32,
         /// The field's own declared type.
         ty: TypeId,
@@ -353,7 +353,7 @@ pub enum ExprInfo {
         /// is carved back out — a `$a["k"] ?? "d"` that threw would refuse the
         /// very spelling PHP offers for the safe read. Recorded here because
         /// the question is about the *expression tree*, which only this crate
-        /// walks: `mwl-ir` sees one subscript at a time and would have to
+        /// walks: `nvs-ir` sees one subscript at a time and would have to
         /// re-derive its parent to ask it. A guarded read's type is
         /// `?elem_ty`, which is what puts the `null` this promises inside the
         /// left operand's static type and stops
@@ -365,16 +365,16 @@ pub enum ExprInfo {
     /// inside `if ($m != null) { … }`, where [`crate::locals`]' `narrow`
     /// proved the binding cannot be `null` on this path.
     ///
-    /// Keyed by the [`mwl_syntax::ast::ExprKind::Variable`] read's own span,
+    /// Keyed by the [`nvs_syntax::ast::ExprKind::Variable`] read's own span,
     /// which carries no other entry, and it is the whole of what makes a
-    /// narrowing usable below the checker. `mwl-ir` gives a `?T` local one
-    /// `mwl_ir::ty::Ty::Tagged` slot whatever a condition later proves about
+    /// narrowing usable below the checker. `nvs-ir` gives a `?T` local one
+    /// `nvs_ir::ty::Ty::Tagged` slot whatever a condition later proves about
     /// it, so every *consumer* of such a read — a call receiver, a subscript
     /// base, a `foreach` subject, an argument — would otherwise have to narrow
     /// for itself, and one forgotten site is a cranelift rejection rather than
     /// a panic. Recording the fact at the read means it is discharged **once,
     /// where the value is produced**, leaving no site to forget:
-    /// `mwl_ir::lower::Lowering::lower_expr`'s `Variable` arm is that one site.
+    /// `nvs_ir::lower::Lowering::lower_expr`'s `Variable` arm is that one site.
     ///
     /// Recorded only where the narrowing actually changed the answer, so a
     /// read of an ordinary non-nullable binding carries no entry at all.
@@ -386,9 +386,9 @@ pub enum ExprInfo {
     },
     /// `$a ?? $b`, keyed by the whole binary expression's own span.
     ///
-    /// Recorded rather than left to `mwl-ir` because both types it needs are
+    /// Recorded rather than left to `nvs-ir` because both types it needs are
     /// answers only this crate has. The left operand's representation is
-    /// `mwl_ir::Ty::Tagged` by then — a `?T` erases everything but the tag —
+    /// `nvs_ir::Ty::Tagged` by then — a `?T` erases everything but the tag —
     /// so lowering the non-`null` arm has to be *told* which representation to
     /// narrow to; and the result type is `null`-stripped-lhs unioned with rhs,
     /// which is a canonicalization only [`crate::ty::TypeInterner`] performs.
@@ -407,9 +407,9 @@ pub enum ExprInfo {
     /// short-circuiting one every other operand pair uses.
     ///
     /// Carries nothing, because there is nothing to carry: the question
-    /// `mwl-ir` asks is a single bit, and it cannot ask it for itself.
+    /// `nvs-ir` asks is a single bit, and it cannot ask it for itself.
     /// [`crate::ty::Ty`]'s qualifier lives in the checker's type and
-    /// `mwl_ir::ty::Ty` has no room for it — a `secret string` and a `string`
+    /// `nvs_ir::ty::Ty` has no room for it — a `secret string` and a `string`
     /// are one representation, which is exactly what ADR 0033 § 1 promises
     /// and why the erasure is right. So the *presence of this entry* is the
     /// whole message, the way [`Self::EnumCase`] carries a value the AST
@@ -425,13 +425,13 @@ pub enum ExprInfo {
     /// `$x instanceof $classNameExpr` form: there is no compile-time-known
     /// class to name, exactly the way [`ExprInfo::Property`] records nothing
     /// for an erased receiver — but unlike that receiver, the form is refused
-    /// where it is written (`E0496`), so no program `mwl-ir` sees reaches an
+    /// where it is written (`E0496`), so no program `nvs-ir` sees reaches an
     /// unrecorded entry. An enum, a `Core` class and a name resolving to
     /// nothing are refused on the same pass, the last as the ordinary `E0303`.
     ///
     /// Recorded rather than left to the consumer because resolving a bare
     /// `Animal` to `Ns\Animal` needs the namespace and import context only
-    /// this crate and `mwl-hir` have — `mwl-ir` deliberately depends on
+    /// this crate and `nvs-hir` have — `nvs-ir` deliberately depends on
     /// neither.
     InstanceOf {
         /// The class or interface tested against.
@@ -441,7 +441,7 @@ pub enum ExprInfo {
     ///
     /// ADR 0010 § 3 makes a case "an integer constant, inlined at every use
     /// site" — so this is the *value*, resolved once by [`crate::enums`] and
-    /// read back by `mwl-ir` as a plain constant. Recorded rather than left to
+    /// read back by `nvs-ir` as a plain constant. Recorded rather than left to
     /// the consumer for [`ExprInfo::InstanceOf`]'s reason and one more: the
     /// enum's name needs namespace/import context only this crate has, and the
     /// auto-increment rule that gives an unwritten case its value needs the
@@ -464,7 +464,7 @@ pub enum ExprInfo {
     ///
     /// Never recorded for a **user-declared** class's constant, whose value is
     /// unmodeled (see [`crate::expr`]'s own known gaps) — only
-    /// `mwl_stdlib::registry` states a constant's value today.
+    /// `nvs_stdlib::registry` states a constant's value today.
     CoreConst {
         /// The constant's value, in its declared type.
         value: ConstArg,
@@ -475,7 +475,7 @@ pub enum ExprInfo {
     /// A closure's *type* is [`crate::ty::Ty::Callable`] and says nothing
     /// about it — ADR 0031 § 4 keeps that type opaque, and ADR 0027 already
     /// fixed what may satisfy it. So everything lowering one needs is here
-    /// instead: the class label `mwl-ir` synthesizes the closure's captured
+    /// instead: the class label `nvs-ir` synthesizes the closure's captured
     /// environment as, the outer bindings that environment holds, and the
     /// value the body produces.
     ///
@@ -485,8 +485,8 @@ pub enum ExprInfo {
     /// and an expression body's return type is inferred from that body, which
     /// is the checker's job by definition.
     Closure {
-        /// The label of the class `mwl-ir` synthesizes for this closure's
-        /// captured environment. Contains a `$`, which no MWL identifier may,
+        /// The label of the class `nvs-ir` synthesizes for this closure's
+        /// captured environment. Contains a `$`, which no Novis identifier may,
         /// so it can never collide with a declared class.
         class: String,
         /// Every outer binding the body reads or writes, in first-touch
@@ -503,7 +503,7 @@ pub enum ExprInfo {
 }
 
 /// Which of ADR 0053 § 3's three subject shapes a `foreach` is walking, and
-/// therefore which loop `mwl-ir` emits.
+/// therefore which loop `nvs-ir` emits.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ForeachDrive {
     /// An `array<T>`: walked slot by slot with no interface call and no
@@ -583,7 +583,7 @@ impl ExprTypeTable {
     /// capture list and its return type.
     ///
     /// The one accessor here that iterates rather than looks a span up:
-    /// `mwl-ir` reaches a closure through the literal it is lowering, but a
+    /// `nvs-ir` reaches a closure through the literal it is lowering, but a
     /// test (and, later, anything that has to enumerate the synthesized
     /// classes) has no span to start from.
     pub fn closures(&self) -> impl Iterator<Item = (&str, &Vec<(String, TypeId)>, TypeId)> {
@@ -610,9 +610,9 @@ impl ExprTypeTable {
     ///
     /// This is the one entry here keyed by a declaration rather than an
     /// expression, and it is deliberate: the label has to be spelled from a
-    /// fully-resolved [`QName`], and `mwl-ir` — which names the function it
-    /// lowers — cannot compute one, because it does not depend on `mwl-hir`
-    /// at all (see `mwl_ir::lower`'s module docs). Recording it here, at the
+    /// fully-resolved [`QName`], and `nvs-ir` — which names the function it
+    /// lowers — cannot compute one, because it does not depend on `nvs-hir`
+    /// at all (see `nvs_ir::lower`'s module docs). Recording it here, at the
     /// point [`crate::check`] already holds the class's `QName`, is what
     /// makes a call's `target` and its callee's name agree *by construction*
     /// rather than by two crates spelling a namespace the same way.
@@ -633,8 +633,8 @@ impl ExprTypeTable {
     ///
     /// Keyed by a class label rather than a span, for [`Self::method_label`]'s
     /// reason one step further: the fact is about a *declaration*, and the one
-    /// consumer (`mwl_ir::lower::lower_file`, joining it against the slot order
-    /// in `mwl_types::layout`) reaches it by label, never by AST node.
+    /// consumer (`nvs_ir::lower::lower_file`, joining it against the slot order
+    /// in `nvs_types::layout`) reaches it by label, never by AST node.
     #[must_use]
     pub fn codec(&self, label: &str) -> Option<&crate::derive::DerivedCodec> {
         self.codecs.get(label)
@@ -645,7 +645,7 @@ impl ExprTypeTable {
     /// copied across at check time.
     ///
     /// Copied rather than read straight out of the signature table because
-    /// `mwl-ir` is handed this table and not that one, and threading a second
+    /// `nvs-ir` is handed this table and not that one, and threading a second
     /// one through `lower_program` would change every caller for a fact that
     /// already has a home here beside [`Self::record_codec`].
     pub(crate) fn record_property_defaults(
@@ -661,7 +661,7 @@ impl ExprTypeTable {
     /// program that writes no `= expr` on a property.
     ///
     /// **Own only**: an inherited property's default is recorded under the
-    /// class that declared it, so `mwl_ir::lower` walks a class's own entry
+    /// class that declared it, so `nvs_ir::lower` walks a class's own entry
     /// and then its ancestors' — see [`Self::codec`] for why this is keyed by
     /// label.
     #[must_use]
@@ -686,7 +686,7 @@ impl ExprTypeTable {
     ///
     /// **Own only**, and unlike [`Self::property_defaults`] never joined with
     /// an ancestor's: `Sub::$count` and the `Base::$count` it inherits are one
-    /// storage, held under `Base`'s label, so `mwl_ir::lower` enumerates each
+    /// storage, held under `Base`'s label, so `nvs_ir::lower` enumerates each
     /// class's own entry and stops there.
     #[must_use]
     pub fn static_properties(&self, label: &str) -> &[(String, Option<crate::defaults::ConstArg>)] {
@@ -705,7 +705,7 @@ impl ExprTypeTable {
     /// The class labelled `label`'s own declared property types, by name.
     ///
     /// **Own only**, joined against the flattened slot order the same way
-    /// [`Self::property_defaults`] is — see `mwl_ir::lower`'s `field_reprs`,
+    /// [`Self::property_defaults`] is — see `nvs_ir::lower`'s `field_reprs`,
     /// which is what ADR 0036 § 4's erased *write* check is built out of: a
     /// name this list does not carry leaves that slot unchecked rather than
     /// mistyped.
@@ -734,10 +734,10 @@ impl ExprTypeTable {
     /// span need two maps; this is the same reason [`Self::record_method`]
     /// and [`Self::record_type`] have theirs.
     ///
-    /// Recorded rather than left to `mwl-ir` for [`ExprInfo::InstanceOf`]'s
+    /// Recorded rather than left to `nvs-ir` for [`ExprInfo::InstanceOf`]'s
     /// reason: reaching `Iterable` through a base class is a
     /// [`crate::signatures::resolve_iteration_element`] walk over
-    /// [`mwl_hir::ClassGraph`], which `mwl-ir` does not depend on.
+    /// [`nvs_hir::ClassGraph`], which `nvs-ir` does not depend on.
     #[must_use]
     pub fn foreach_drive(&self, span: Span) -> Option<ForeachDrive> {
         self.foreach.get(&span).copied()
@@ -762,10 +762,10 @@ impl ExprTypeTable {
     /// call *it* is, and the `toString` it then stringifies through is a
     /// second, independent fact about the same span.
     ///
-    /// Recorded rather than left to `mwl-ir` for [`ExprInfo::InstanceOf`]'s
+    /// Recorded rather than left to `nvs-ir` for [`ExprInfo::InstanceOf`]'s
     /// reason: an implicit conversion site is not a call expression, so the
     /// consumer has no call node to resolve, and walking
-    /// [`mwl_hir::ClassGraph`] for the declaring class is not something that
+    /// [`nvs_hir::ClassGraph`] for the declaring class is not something that
     /// crate can do at all.
     #[must_use]
     pub fn to_string_call(&self, span: Span) -> Option<&ResolvedCall> {
@@ -778,18 +778,18 @@ impl ExprTypeTable {
         self.types.insert(span, ty);
     }
 
-    /// The resolved type of the annotation whose [`mwl_syntax::ast::Type`]
+    /// The resolved type of the annotation whose [`nvs_syntax::ast::Type`]
     /// node sits at `span` — a parameter's, a local declaration's, a `catch`
     /// clause's, or an `as` conversion's target.
     ///
     /// The second entry here keyed by a declaration rather than an expression,
-    /// and for [`Self::method_label`]'s reason: `mwl-ir` lowers a declared
-    /// type straight off the AST (`mwl_ir::lower::lower_decl_type`), which
+    /// and for [`Self::method_label`]'s reason: `nvs-ir` lowers a declared
+    /// type straight off the AST (`nvs_ir::lower::lower_decl_type`), which
     /// works for every atom that *is* its own answer — `int`, `array<T>`, a
     /// plain class name — but not for one whose meaning depends on
     /// resolution. An enum name is the first such atom: ADR 0010 makes
     /// `Rank $r` an integer binding, and telling that apart from `Dog $d`
-    /// needs the symbol table, which `mwl-ir` does not have. So the
+    /// needs the symbol table, which `nvs-ir` does not have. So the
     /// resolution happens once, here, at the same
     /// [`crate::lower::lower_type`] call the checker already makes.
     #[must_use]
@@ -800,13 +800,13 @@ impl ExprTypeTable {
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::SourceMap;
+    use nvs_diagnostics::SourceMap;
 
     use super::*;
 
     fn span(n: u32) -> Span {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", "");
+        let file = map.add("t.nvs", "");
         Span::new(file, n, n + 1)
     }
 
@@ -837,13 +837,13 @@ mod tests {
 
     // The tests below drive the real `check_program` pipeline end to end,
     // rather than constructing an `ExprInfo` by hand — proving this module's
-    // actual producer (`crate::expr::infer`) records the shape `mwl-ir`'s
+    // actual producer (`crate::expr::infer`) records the shape `nvs-ir`'s
     // consumer (next session's own widening) will read back.
 
-    use mwl_diagnostics::Diagnostics;
-    use mwl_hir::resolve_file;
-    use mwl_syntax::ast::{ClassMemberKind, StmtKind};
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::Diagnostics;
+    use nvs_hir::resolve_file;
+    use nvs_syntax::ast::{ClassMemberKind, StmtKind};
+    use nvs_syntax::parse_file;
 
     use crate::span_text;
     use crate::ty::TypeInterner;
@@ -862,7 +862,7 @@ mod tests {
     /// assertion, for the one fixture whose whole point is the diagnostic.
     fn check_fixture(src: &str) -> (ExprTypeTable, Span, Diagnostics) {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -915,7 +915,7 @@ mod tests {
     #[test]
     fn a_new_with_a_constructor_records_the_resolved_call() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass Foo {\n  function constructor(int $x) {}\n}\nclass T {\n  function m(): void {\n    new Foo(1);\n  }\n}\n",
+            "<?nvs\nclass Foo {\n  function constructor(int $x) {}\n}\nclass T {\n  function m(): void {\n    new Foo(1);\n  }\n}\n",
         );
         let Some(ExprInfo::New { class, ctor, .. }) = exprs.lookup(span) else {
             panic!("expected a recorded `New` entry");
@@ -929,7 +929,7 @@ mod tests {
     #[test]
     fn a_new_with_no_constructor_records_no_resolved_ctor() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    new Foo();\n  }\n}\n",
+            "<?nvs\nclass Foo {}\nclass T {\n  function m(): void {\n    new Foo();\n  }\n}\n",
         );
         let Some(ExprInfo::New { class, ctor, .. }) = exprs.lookup(span) else {
             panic!("expected a recorded `New` entry");
@@ -941,10 +941,10 @@ mod tests {
     #[test]
     fn an_inherited_constructor_records_the_class_that_declares_it() {
         // `new Bar()` allocates a `Bar` and calls `Foo::constructor`. Naming
-        // `Bar::constructor` instead leaves `mwl-codegen` looking for a
+        // `Bar::constructor` instead leaves `nvs-codegen` looking for a
         // function the unit never compiled.
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass Foo {\n  function constructor() {}\n}\nclass Bar extends Foo {}\nclass T {\n  function m(): void {\n    new Bar();\n  }\n}\n",
+            "<?nvs\nclass Foo {\n  function constructor() {}\n}\nclass Bar extends Foo {}\nclass T {\n  function m(): void {\n    new Bar();\n  }\n}\n",
         );
         let Some(ExprInfo::New { class, ctor, .. }) = exprs.lookup(span) else {
             panic!("expected a recorded `New` entry");
@@ -957,7 +957,7 @@ mod tests {
     #[test]
     fn an_instanceof_records_the_resolved_class() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass Foo {}\nclass T {\n  function m(Foo $f): bool {\n    return $f instanceof Foo;\n  }\n}\n",
+            "<?nvs\nclass Foo {}\nclass T {\n  function m(Foo $f): bool {\n    return $f instanceof Foo;\n  }\n}\n",
         );
         let Some(ExprInfo::InstanceOf { class }) = exprs.lookup(span) else {
             panic!("expected a recorded `InstanceOf` entry");
@@ -967,17 +967,17 @@ mod tests {
 
     /// The dynamic form records nothing *and* is refused where it is written:
     /// ADR 0007 § 2 has no dynamic class names, so there is no entry for
-    /// `mwl-ir` to read and no program that reaches it.
+    /// `nvs-ir` to read and no program that reaches it.
     #[test]
     fn a_dynamic_instanceof_records_nothing_and_is_refused() {
         let (exprs, span, diags) = check_fixture(
-            "<?mwl\nclass Foo {}\nclass T {\n  function m(Foo $f, string $n): bool {\n    return $f instanceof $n;\n  }\n}\n",
+            "<?nvs\nclass Foo {}\nclass T {\n  function m(Foo $f, string $n): bool {\n    return $f instanceof $n;\n  }\n}\n",
         );
         assert!(exprs.lookup(span).is_none());
         assert!(
             diags
                 .iter()
-                .any(|d| d.code == Some(mwl_diagnostics::code::E_INSTANCEOF_NOT_A_CLASS)),
+                .any(|d| d.code == Some(nvs_diagnostics::code::E_INSTANCEOF_NOT_A_CLASS)),
             "{diags:?}"
         );
     }
@@ -985,7 +985,7 @@ mod tests {
     #[test]
     fn a_static_call_records_the_resolved_call() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass T {\n  static function make(): int { return 1; }\n  function m(): void {\n    self::make();\n  }\n}\n",
+            "<?nvs\nclass T {\n  static function make(): int { return 1; }\n  function m(): void {\n    self::make();\n  }\n}\n",
         );
         let Some(ExprInfo::Call(call)) = exprs.lookup(span) else {
             panic!("expected a recorded `Call` entry");
@@ -998,7 +998,7 @@ mod tests {
     #[test]
     fn an_instance_method_call_records_the_resolved_call() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass T {\n  function a(int $x): int { return $x; }\n  function m(): void {\n    $this->a(1);\n  }\n}\n",
+            "<?nvs\nclass T {\n  function a(int $x): int { return $x; }\n  function m(): void {\n    $this->a(1);\n  }\n}\n",
         );
         let Some(ExprInfo::Call(call)) = exprs.lookup(span) else {
             panic!("expected a recorded `Call` entry");
@@ -1011,7 +1011,7 @@ mod tests {
     #[test]
     fn a_property_access_through_a_known_class_records_the_resolved_property() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass T {\n  public int $count = 0;\n  function m(): int {\n    return $this->count;\n  }\n}\n",
+            "<?nvs\nclass T {\n  public int $count = 0;\n  function m(): int {\n    return $this->count;\n  }\n}\n",
         );
         let Some(ExprInfo::Property { class, name, .. }) = exprs.lookup(span) else {
             panic!("expected a recorded `Property` entry");
@@ -1028,7 +1028,7 @@ mod tests {
     #[test]
     fn a_hooked_property_access_records_its_accessors_instead_of_the_slot() {
         let (exprs, span) = check_and_find_expr_span(concat!(
-            "<?mwl\nclass T {\n",
+            "<?nvs\nclass T {\n",
             "  public int $hits;\n",
             "  public int $doubled { get => $this->hits * 2; set(int $v) { $this->hits = $v; } }\n",
             "  function constructor(int $hits) { $this->hits = $hits; }\n",
@@ -1056,7 +1056,7 @@ mod tests {
     #[test]
     fn a_hooked_property_read_inside_its_own_hook_records_the_plain_slot() {
         let (exprs, _span) = check_and_find_expr_span(concat!(
-            "<?mwl\nclass T {\n",
+            "<?nvs\nclass T {\n",
             "  public int $n { get => $this->n + 1; }\n",
             "  function constructor() { }\n",
             "  function m(): int { return 0; }\n}\n",
@@ -1082,7 +1082,7 @@ mod tests {
     #[test]
     fn a_property_access_through_a_shape_receiver_records_its_slot() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass T {\n  function m({path: string, message: string} $i): string {\n    return $i->path;\n  }\n}\n",
+            "<?nvs\nclass T {\n  function m({path: string, message: string} $i): string {\n    return $i->path;\n  }\n}\n",
         );
         assert!(matches!(
             exprs.lookup(span),
@@ -1097,7 +1097,7 @@ mod tests {
     #[test]
     fn a_property_access_naming_a_field_the_shape_lacks_records_the_name_alone() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass T {\n  function m({path: string} $i): mixed {\n    return $i->nope;\n  }\n}\n",
+            "<?nvs\nclass T {\n  function m({path: string} $i): mixed {\n    return $i->nope;\n  }\n}\n",
         );
         let Some(ExprInfo::ShapeProperty { name, slot, .. }) = exprs.lookup(span) else {
             panic!("expected a recorded `ShapeProperty` entry");
@@ -1112,7 +1112,7 @@ mod tests {
     #[test]
     fn a_property_access_through_a_plain_object_receiver_records_the_name_alone() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass T {\n  function m(object $o): mixed {\n    return $o->x;\n  }\n}\n",
+            "<?nvs\nclass T {\n  function m(object $o): mixed {\n    return $o->x;\n  }\n}\n",
         );
         let Some(ExprInfo::ShapeProperty { name, slot, .. }) = exprs.lookup(span) else {
             panic!("expected a recorded `ShapeProperty` entry");
@@ -1123,7 +1123,7 @@ mod tests {
     #[test]
     fn an_array_index_through_a_known_element_type_records_the_element_type() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?mwl\nclass T {\n  function m(array<int> $a): int {\n    return $a[0];\n  }\n}\n",
+            "<?nvs\nclass T {\n  function m(array<int> $a): int {\n    return $a[0];\n  }\n}\n",
         );
         // The recorded `elem_ty` is a `TypeId` from `check_and_find_expr_span`'s
         // own internal interner, which it doesn't hand back — same reason the
@@ -1137,18 +1137,18 @@ mod tests {
     /// An array subscript through a `mixed`-erased base records nothing —
     /// mirroring [`ExprInfo::Property`]'s own "nothing compile-time-known to
     /// read" treatment of a shape/plain-`object` receiver — and, since there
-    /// is then no element type for `mwl-ir` to lower against, `E0482` refuses
+    /// is then no element type for `nvs-ir` to lower against, `E0482` refuses
     /// it where it is written rather than leaving that crate to panic.
     #[test]
     fn an_array_index_through_a_mixed_base_records_nothing_and_is_refused() {
         let (exprs, span, diags) = check_fixture(
-            "<?mwl\nclass T {\n  function m(): mixed {\n    return T::UNTYPED[0];\n  }\n  const UNTYPED = 1;\n}\n",
+            "<?nvs\nclass T {\n  function m(): mixed {\n    return T::UNTYPED[0];\n  }\n  const UNTYPED = 1;\n}\n",
         );
         assert!(exprs.lookup(span).is_none());
         assert_eq!(diags.iter().count(), 1);
         assert_eq!(
             diags.iter().next().and_then(|d| d.code.as_ref()),
-            Some(&mwl_diagnostics::code::E_SUBSCRIPT_ON_NON_ARRAY)
+            Some(&nvs_diagnostics::code::E_SUBSCRIPT_ON_NON_ARRAY)
         );
     }
 }

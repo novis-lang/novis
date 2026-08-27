@@ -45,7 +45,7 @@
   constant is added, which is exactly the kind of implicit, drifting surface the project's "state a fact
   once, visibly" principle already argues against elsewhere (e.g. [ADR 0021](0021-single-file-inclusion-construct.md),
   [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md)).
-- MWL already has two pieces of the real answer, both previously scoped narrower than they needed to be:
+- Novis already has two pieces of the real answer, both previously scoped narrower than they needed to be:
   - [ADR 0007](0007-explicit-type-system.md) § 3 already has `true`/`false` as literal atoms sitting inside
     ordinary unions — `bool` was always, quietly, "the union of its two literal values." Nothing before this
     ADR generalised that to `string`/`int`.
@@ -243,7 +243,7 @@ at run time.
   Naming the exact constants or cases (*2*, *3*) gives the same ergonomic win — "reuse an existing group of
   values" — without either problem.
 - **An `#[ExpectedValues(...)]`-style attribute**, now that [ADR 0046](0046-attributes-shape-literal-metadata.md)
-  gives MWL a real attribute mechanism. Rejected: ADR 0046's attributes are inert, retained metadata with no
+  gives Novis a real attribute mechanism. Rejected: ADR 0046's attributes are inert, retained metadata with no
   enforcement of their own — building a real "one of these values" check on top of one would mean writing an
   entirely new compiler-recognised-attribute enforcement pass (checking every assignment/call against a
   payload) that duplicates what the ordinary type checker already does for a declared type, as a second,
@@ -285,7 +285,7 @@ Verification, in the order it becomes possible:
   type position as one atom whose two meanings the checker tells apart, needing no production beyond what
   [ADR 0010](0010-enums-are-a-value-type.md) § 4 already established for `ClassName`/`EnumName` ambiguity.
   *7*'s two refusals are diagnosed by name rather than as "expected a type": a `float` literal, and an
-  interpolated string. `mwl-syntax`'s `a_string_literal_is_a_type_atom`,
+  interpolated string. `nvs-syntax`'s `a_string_literal_is_a_type_atom`,
   `an_int_literal_is_a_type_atom_with_or_without_a_sign`,
   `literal_atoms_union_and_take_the_nullable_sugar`,
   `a_class_constant_or_enum_case_parses_in_type_position`,
@@ -293,12 +293,12 @@ Verification, in the order it becomes possible:
   `a_literal_type_declares_a_local_without_swallowing_literal_expressions` and
   `a_literal_type_declares_a_parameter`.
 - **M2, first half (landed)**: all three atoms **intern** rather than being refused —
-  `mwl_types::ty::Ty::StringLiteral`, `IntLiteral` and `EnumCase`, the last of them deliberately not the
+  `nvs_types::ty::Ty::StringLiteral`, `IntLiteral` and `EnumCase`, the last of them deliberately not the
   second (*3*). *2*'s fold resolves a declared class constant's value through
-  `mwl_types::consts::ConstTable` and a `Core` one through the registry, diagnosing an ineligible value
-  by name; *5*'s "zero additional runtime representation" is `mwl_ir::lower::lower_checked_ty`'s three
+  `nvs_types::consts::ConstTable` and a `Core` one through the registry, diagnosing an ineligible value
+  by name; *5*'s "zero additional runtime representation" is `nvs_ir::lower::lower_checked_ty`'s three
   erasure arms, so nothing below the checker learns a new type.
-  `crates/mwl-types/tests/literal_types.rs`. `E0457` (`E_LITERAL_TYPE_UNCHECKED`), which refused the three
+  `crates/nvs-types/tests/literal_types.rs`. `E0457` (`E_LITERAL_TYPE_UNCHECKED`), which refused the three
   atoms while only the grammar existed, is **retired**.
 - **M2**: a corpus covering every row of *4*'s table — a literal/case-subset type widening for free; a
   checked conversion both succeeding and throwing, for a literal union and a case-subset union alike; a

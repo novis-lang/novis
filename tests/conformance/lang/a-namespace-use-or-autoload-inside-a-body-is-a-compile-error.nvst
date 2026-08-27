@@ -1,7 +1,7 @@
 --TEST--
 A `use`, `autoload`, `type` or `namespace` written inside a body is `E0233`, never a panic — docs/adr/README.md § *Decisions taken at project start*
 --FILE--
-<?mwl
+<?nvs
 // A declaration is in effect before any code runs, so a body is the one place
 // it has no reading at all.
 class Outer {
@@ -42,7 +42,7 @@ error[E0233]: a nested `type` declaration is not supported
    |
 13 |     type Handle = int;
    |          ^^^^^^ `Handle` would only exist once control reached this statement
-   = help: move `Handle` out to file scope — every type in MWL is declared before any code runs, so a name's existence never depends on control flow
+   = help: move `Handle` out to file scope — every type in Novis is declared before any code runs, so a name's existence never depends on control flow
 
 error[E0233]: a nested `namespace` declaration is not supported
    --> %s:17:15

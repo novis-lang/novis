@@ -1,7 +1,7 @@
 --TEST--
 `new static()` and `static::` resolve to the called class through two levels of inheritance
 --FILE--
-<?mwl
+<?nvs
 class Registry {
     public static function tag(): string {
         return "base";

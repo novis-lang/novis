@@ -12,7 +12,7 @@
 //! `docs/agent/loop-goal.md`'s standing decision that type variables stay
 //! compiler-owned. [`check_written_type_args`] takes the `<...>` a call site
 //! wrote and binds it, but only where the registry marks the variable
-//! [`Written`](mwl_stdlib::registry::CoreTy::Written); [`check_generic_args`]
+//! [`Written`](nvs_stdlib::registry::CoreTy::Written); [`check_generic_args`]
 //! infers every other one from the arguments themselves, and a call site
 //! restating one of those would be a second, unchecked spelling of a fact the
 //! arguments already settle.
@@ -35,7 +35,7 @@ use super::*;
 /// [`ExprKind::New`]'s arm reads the first one back to feed
 /// [`reject_secret_throwable_message`] without a second,
 /// diagnostic-duplicating pass over the same expression — and beside it the
-/// [`ArgSlot`] mapping, which is the fact `mwl-ir` cannot re-derive and so the
+/// [`ArgSlot`] mapping, which is the fact `nvs-ir` cannot re-derive and so the
 /// one thing this pass has to hand down: a name resolves against
 /// [`MethodSig::param_names`], which no later pass holds.
 ///
@@ -208,7 +208,7 @@ fn declared_for(slot: ArgSlot, sig: &MethodSig, interner: &mut TypeInterner) -> 
 ///    [`MethodSig::param_names`] owns why a `Core` member has none
 ///    (`E_NAMED_ARG_NO_PARAM_NAMES`).
 /// 3. The name must reach a parameter a call can fill by name, which excludes
-///    a `...$rest` tail: MWL builds that array at the call site out of the
+///    a `...$rest` tail: Novis builds that array at the call site out of the
 ///    arguments written into it, so a name has nowhere to be recorded
 ///    (`E_UNKNOWN_ARG_NAME`). This is the one rule PHP does not share — it
 ///    collects an unmatched name into the variadic as a string key.
@@ -479,12 +479,12 @@ pub(super) fn check_arg(
 /// produces an `E_TYPE_MISMATCH` for the same span.
 ///
 /// **Why the literal must be written here.** A bag has no runtime
-/// representation at all: `mwl_ir::lower::lower_call_args` flattens it into
+/// representation at all: `nvs_ir::lower::lower_call_args` flattens it into
 /// one ordinary argument per declared option, taking the written value where
 /// there is one and the option's default where there is not. A variable
 /// holding a shape could not be flattened without a per-call runtime lookup
 /// per option, which is the allocation-on-the-common-path that
-/// `mwl_stdlib::registry`'s own docs record rejecting.
+/// `nvs_stdlib::registry`'s own docs record rejecting.
 pub(super) fn check_options_arg(
     value: &Expr,
     options_ty: TypeId,
@@ -562,8 +562,8 @@ pub(super) fn option_names(options: &[(String, TypeId)]) -> String {
 /// 1. **It must be a writable place.** The callee writes back through the
 ///    reference, so the argument has to name storage that survives the call.
 ///    Two shapes do: a bare local, and a compile-time-known property. Those
-///    are exactly the two `mwl_ir::lower::Lowering::write_back_ref` can
-///    re-point, and the same two `mwl_ir::lower::is_aliasing_read` already
+///    are exactly the two `nvs_ir::lower::Lowering::write_back_ref` can
+///    re-point, and the same two `nvs_ir::lower::is_aliasing_read` already
 ///    recognises as durable storage.
 /// 2. **Its type must be exactly the parameter's.** An ordinary argument may
 ///    widen on the way in (`int` into a `float` parameter); a by-reference one
@@ -773,7 +773,7 @@ pub(super) fn check_generic_args(
 }
 
 /// The index of `sig`'s trailing options-bag parameter, if it has one — ADR
-/// 0063 R2 puts at most one, and always last, which `mwl_stdlib::registry`'s
+/// 0063 R2 puts at most one, and always last, which `nvs_stdlib::registry`'s
 /// own `an_options_bag_is_last_and_never_empty` holds mechanically.
 pub(super) fn options_param(sig: &MethodSig, interner: &TypeInterner) -> Option<usize> {
     let last = sig.params.len().checked_sub(1)?;
@@ -792,7 +792,7 @@ pub(super) fn options_param(sig: &MethodSig, interner: &TypeInterner) -> Option<
 /// only where the compiler owns the declaration.
 ///
 /// Only a variable the registry marks
-/// [`Written`](mwl_stdlib::registry::CoreTy::Written) is writable. An
+/// [`Written`](nvs_stdlib::registry::CoreTy::Written) is writable. An
 /// *inferred* one is bound from an argument's type by [`check_generic_args`]
 /// below, and letting a call site restate it would be a second, unchecked
 /// spelling of a fact the arguments already settle — `Core\Arr::first<string>`
@@ -857,7 +857,7 @@ pub(super) fn check_written_type_args(
     (Some(sig.substituted(&bindings, env.interner)), written)
 }
 
-/// The class a member on `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS` was
+/// The class a member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` was
 /// asked to build, reporting `E_TYPE_ARG_NOT_A_CLASS` when what was written is
 /// not a class at all.
 ///
@@ -871,7 +871,7 @@ pub(super) fn written_class_of(
     call_span: Span,
     env: &mut Env<'_>,
 ) -> Option<QName> {
-    if !mwl_stdlib::registry::takes_written_class(&owner.to_string(), method) {
+    if !nvs_stdlib::registry::takes_written_class(&owner.to_string(), method) {
         return None;
     }
     let first = *written.first()?;
@@ -914,7 +914,7 @@ pub(super) fn report_type_arg_count(sig: &MethodSig, member: &str, span: Span, e
 /// `$cursor->current()` on a receiver typed `Iterator<int>` resolves to
 /// `current(): T`, and there is no argument list to read `T` out of: the
 /// binding is the receiver's. So the declaring interface's parameter names
-/// (from [`mwl_hir::interfaces`], the one roster) are zipped against the
+/// (from [`nvs_hir::interfaces`], the one roster) are zipped against the
 /// receiver's written arguments and the signature is rewritten concrete
 /// before a single argument is checked — the same guarantee the argument-side
 /// path already gives, that a type variable never survives a call site.
@@ -943,8 +943,8 @@ pub(super) fn substitute_receiver_args(
     // `Core`-owned generic class is named in full, because `Core\ObjectSet` is
     // the only spelling there is. Neither can answer for the other's names, so
     // the fallback is a fallback rather than a merged table.
-    let Some(params) = mwl_hir::interfaces::type_params(qname.short_name())
-        .or_else(|| mwl_stdlib::registry::class_type_params(&qname.to_string()))
+    let Some(params) = nvs_hir::interfaces::type_params(qname.short_name())
+        .or_else(|| nvs_stdlib::registry::class_type_params(&qname.to_string()))
     else {
         return sig.clone();
     };

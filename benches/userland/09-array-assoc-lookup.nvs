@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // String-keyed insert and read back — the cache, the index, the lookup table.
 class Bench {
     public static function run(int $entries): int {

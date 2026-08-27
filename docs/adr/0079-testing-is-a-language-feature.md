@@ -2,12 +2,12 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
-- **Scope:** the testing capability MWL programs use — how a test is declared, discovered, isolated,
-  parameterized, doubled, timed and reported, and what `mwl test` does with a program's own tests. It does
-  **not** decide: the `.mwlt` conformance format or how MWL's own suite is written
-  ([crates/mwl-test](../../crates/mwl-test/src/lib.rs)'s module doc, unchanged and § 23 below); how
+- **Scope:** the testing capability Novis programs use — how a test is declared, discovered, isolated,
+  parameterized, doubled, timed and reported, and what `nvs test` does with a program's own tests. It does
+  **not** decide: the `.nvst` conformance format or how Novis's own suite is written
+  ([crates/nvs-test](../../crates/nvs-test/src/lib.rs)'s module doc, unchanged and § 23 below); how
   coverage is collected or exported ([0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md));
-  how MWL's *own implementation* is measured over time
+  how Novis's *own implementation* is measured over time
   ([0026](0026-performance-measurement-methodology.md)); the VS Code Test Explorer
   ([0040](0040-vscode-deep-tooling-and-resilient-parsing.md)).
 - **Amends:** [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) — its probe sites
@@ -17,9 +17,9 @@
 - **Amended by:** 0092
 
 > **In short:** PHP has no built-in test framework, and the userland one everybody uses builds its mocks by
-> generating source and calling `eval`. MWL closed `eval` ([0052](0052-closed-doors.md)), so that road does
+> generating source and calling `eval`. Novis closed `eval` ([0052](0052-closed-doors.md)), so that road does
 > not exist here — which turns out to be the good news, because everything PHPUnit reaches for `eval` and
-> reflection to fake, MWL can do at compile time with types. A test is an ordinary method carrying
+> reflection to fake, Novis can do at compile time with types. A test is an ordinary method carrying
 > `#[Test]`; the runner's table is built **while compiling**, exactly as `#[Route]`'s is
 > ([0077](0077-compile-time-routing.md)), so a duplicate or malformed test is a compile error rather than a
 > silent skip. Every test runs in **its own isolate** ([0006](0006-isolated-script-execution.md)), so state
@@ -32,7 +32,7 @@
 > randomness and UUIDs are declared on the test and applied to its isolate. Property-based testing derives
 > its generators from declared parameter types. `#[Bench]` reports the **deterministic counter stream** —
 > statements, calls, allocations, bytes, GC cycles — which is bit-identical across machines and OSes,
-> because it counts MWL's semantic work rather than a CPU's instructions. `mwl test --mutate` closes the
+> because it counts Novis's semantic work rather than a CPU's instructions. `nvs test --mutate` closes the
 > loop by asking whether any test would have noticed the code being wrong.
 
 ## Context
@@ -44,7 +44,7 @@
   first-class framework is the only way the compiler's knowledge can be brought to bear on it.
 - **Almost nothing about PHPUnit's mechanism ports.** Mock generation is `eval` on generated source; private
   access is reflection; data providers are `array<array<mixed>>`; process isolation is a rarely-used
-  escape hatch. Each of those is either closed to MWL or strictly improvable with types.
+  escape hatch. Each of those is either closed to Novis or strictly improvable with types.
 - **The machinery this needs mostly exists.** [0006](0006-isolated-script-execution.md) gives a cheap
   isolate that shares nothing but compiled code. [0077](0077-compile-time-routing.md) proves an attribute
   can build a table while compiling and reject a bad entry as a diagnostic.
@@ -61,12 +61,12 @@
 
 ### 1. A test is a `#[Test]` method, and the table is built while compiling
 
-Every function in MWL is a method ([0011](0011-functions-and-constants-are-class-members.md)), so a test is
+Every function in Novis is a method ([0011](0011-functions-and-constants-are-class-members.md)), so a test is
 a method on an ordinary class. `#[Test]` marks it. There is no naming convention, no base class to extend
 and no interface to implement: nothing about a test is inferred from spelling, which is the same position
 [0029](0029-identifier-casing-is-checked.md) takes everywhere else.
 
-```mwl
+```nvs
 class UserTest {
     #[Test]
     public function aNameIsTrimmed(): void {
@@ -99,7 +99,7 @@ counter incremented by one test reads its initial value in the next, always, wit
 
 This is not a hardening measure bolted onto a sequential runner; it is the reason the runner can be
 parallel at all. PHPUnit's `@runInSeparateProcess` costs a process fork and is therefore reached for once
-per suite, if ever. An isolate is cheap enough to be the default, so MWL gets total isolation *and*
+per suite, if ever. An isolate is cheap enough to be the default, so Novis gets total isolation *and*
 parallelism from one decision.
 
 Two consequences follow and are dealt with below: shared expensive setup needs an answer (§ 8), and
@@ -111,14 +111,14 @@ same way a request does, and a runaway test is terminated rather than left to co
 
 ### 3. A test may live beside the code it tests, and never reaches a built binary
 
-A `#[Test]` method may be declared in any file — in `src/User.mwl` next to `User`, or in a separate tree.
+A `#[Test]` method may be declared in any file — in `src/User.nvs` next to `User`, or in a separate tree.
 The compiler decides what a test is by the attribute, never by the path.
 
-`mwl test` compiles and runs them. **`mwl run` and `mwl build` do not lower them at all**: a `#[Test]`
+`nvs test` compiles and runs them. **`nvs run` and `nvs build` do not lower them at all**: a `#[Test]`
 method, its `#[Fixture]` methods, its data rows, its assertion messages and its doubles are absent from a
 built artifact. Production pays nothing, and no test surface is reachable at runtime.
 
-`mwl check` *does* type-check test code, so a test cannot rot silently while the code around it changes.
+`nvs check` *does* type-check test code, so a test cannot rot silently while the code around it changes.
 This is the one place tests and non-tests are treated alike, and deliberately so.
 
 ### 4. `Core\Test` is generic, subject-first, and has three equality members
@@ -127,7 +127,7 @@ The assertion surface is static members on `Core\Test`, in the shape
 [0063](0063-core-api-conventions.md) requires of every `Core` member: **subject first**, one trailing
 options shape, nothing mutates, failure throws.
 
-```mwl
+```nvs
 Core\Test::assertEquals($user->name, "ada");
 Core\Test::assertTrue($user->isActive, {message: "a fresh user is active"});
 Core\Test::assertNull($user->deletedAt);
@@ -143,7 +143,7 @@ failure report labels both sides by name rather than by position, so a reversed 
 **Assertions are generic, and a type mismatch is a compile error.** This is the capability PHPUnit
 structurally cannot have, and the main reason this belongs in the language rather than in a package:
 
-```mwl
+```nvs
 Core\Test::assertEquals($user->age, "36");
 // E0xxx: `assertEquals` compares two values of the same type; `$actual` is `int`
 //        and `$expected` is `string`.
@@ -151,7 +151,7 @@ Core\Test::assertEquals($user->age, "36");
 ```
 
 **Finding the right assertion is the LSP's job, not the API's.** The roster is wide, and a wide static
-roster is the usual argument for a fluent chain instead. It is the wrong fix here: `mwl-lsp` knows the
+roster is the usual argument for a fluent chain instead. It is the wrong fix here: `nvs-lsp` knows the
 subject's type at the call site, so it ranks `assertStartsWith` above `assertCount` when the first argument
 is a `string` ([0016](0016-ide-integration.md)). Completion ranking is a tooling concern; restructuring a
 `Core` API to compensate for tooling that does not exist yet would be paying for it twice.
@@ -160,7 +160,7 @@ Three equality members, and which one you asked for is always visible at the cal
 
 | Member | Compares |
 |---|---|
-| `assertSame` | identity, via `mwl_runtime::identity` |
+| `assertSame` | identity, via `nvs_runtime::identity` |
 | `assertEquals` | value: scalars natively; objects **only** if they implement `Comparable` |
 | `assertEqualsDeep` | an explicit structural walk of properties, arrays and shapes, with a diff |
 
@@ -168,7 +168,7 @@ Three equality members, and which one you asked for is always visible at the cal
 ([0013](0013-comparable-interface.md)) is a **compile error naming `assertEqualsDeep`**. There is no
 silent property-walk fallback, for the same reason 0013 refused one for ordering: a comparison that
 quietly changes meaning when a class gains a field is a bug you find years later. The walk exists —
-refusing it would make MWL worse than what people are migrating from — but it is a member you name.
+refusing it would make Novis worse than what people are migrating from — but it is a member you name.
 
 ### 5. A failure is a catchable `Throwable`, and the runner keeps a ledger the catch cannot erase
 
@@ -176,7 +176,7 @@ refusing it would make MWL worse than what people are migrating from — but it 
 user-written composite assertion, a retry wrapper, a soft-assert block and any test *of* an assertion all
 need to intercept one.
 
-```mwl
+```nvs
 public function assertValidUser(User $u): void {
     try {
         Core\Test::assertTrue($u->isActive);
@@ -190,7 +190,7 @@ Every assertion **also** records its outcome into a per-test ledger the test's o
 At the end of a test the runner reads the ledger, not the exception state. So the classic
 silently-passing test does not exist here:
 
-```mwl
+```nvs
 try { Core\Test::assertEquals($a, $b); } catch (Throwable $t) { }
 // FAILED  1 assertion failed and was caught without Core\Test::expectFailure().
 ```
@@ -234,7 +234,7 @@ There is no `#[Before]`: the constructor already is it, and it is a better one t
 body runs. There is no `#[BeforeAll]`/`#[AfterAll]`: across isolates they would either lie or need § 8's
 machinery, and § 8 is the honest spelling of what they were for.
 
-```mwl
+```nvs
 class UserTest {
     private Repo $repo;
 
@@ -263,7 +263,7 @@ Total isolation would make expensive setup cost N times without an answer. The a
 parameter of its type. The copy is [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s one graph-copy
 operation — the same one `spawn` uses — so its cost is a known quantity rather than a new mechanism.
 
-```mwl
+```nvs
 class RepoTest {
     #[Fixture]
     public static function schema(): Schema {
@@ -292,7 +292,7 @@ handle — is refused at compile time by the same rule that governs the `spawn` 
 checker matches against the method's parameters **by name and by type**. Each row is its own reported,
 separately isolated case.
 
-```mwl
+```nvs
 #[TestWith(input: "  ada ", want: "ada")]
 #[TestWith(input: "ADA",    want: "ada")]
 #[TestWith(input: "",       want: "")]
@@ -315,11 +315,11 @@ resolve by type and rows by name.
 ### 10. A double is a shape of closures, structurally checked against an interface
 
 PHPUnit builds a mock by generating class source and `eval`-ing it. [0052](0052-closed-doors.md) closed
-`eval`, and there is no FFI, so MWL cannot do that and will not gain a way to. What it has instead is
+`eval`, and there is no FFI, so Novis cannot do that and will not gain a way to. What it has instead is
 better: shapes ([0036](0036-anonymous-object-shapes.md)), closures
 ([0031](0031-callable-is-the-only-closure-type.md)) and a checker that can compare a shape to an interface.
 
-```mwl
+```nvs
 interface Clock { public function now(): Instant; }
 
 var $clock = Core\Test::double<Clock>({
@@ -338,7 +338,7 @@ implementation — the same shape [0043](0043-interface-default-methods-and-dele
 `implements Interface by $field;` already gives, reached without declaring a class.
 
 Note what this design does **not** need: a builder, a matcher mini-language, a generated class appearing in
-backtraces, and any notion of a "nice" or "loose" mock. The last one is not a choice we made — MWL is
+backtraces, and any notion of a "nice" or "loose" mock. The last one is not a choice we made — Novis is
 strictly typed, so a double of `now(): Instant` has nothing legal to return by default. Every double is
 strict because nothing else is expressible.
 
@@ -347,7 +347,7 @@ strict because nothing else is expressible.
 A double records the calls made to it; you assert on them afterwards, with ordinary assertions, in the
 order the test reads.
 
-```mwl
+```nvs
 var $mailer = Core\Test::double<Mailer>({ send: fn(string $to): void => {} });
 
 $service->register("ada@example.com");
@@ -365,10 +365,10 @@ longer where the problem is.
 
 `Core\Random\Seeded` already exists as a separate *type* so that a reproducible generator cannot be reached
 for in production. Time had no equivalent. Rather than add a `Clock` parameter to every time-aware class in
-every MWL program forever, the isolate's clock and generator are configured **on the test declaration**,
+every Novis program forever, the isolate's clock and generator are configured **on the test declaration**,
 where they are visible:
 
-```mwl
+```nvs
 #[Test(at: "2026-01-01T00:00:00Z", seed: 42)]
 public function itExpiresAfterAnHour(): void {
     var $t  = Core\Time::now();       // exactly 2026-01-01T00:00:00Z
@@ -381,7 +381,7 @@ public function itExpiresAfterAnHour(): void {
 
 This does not violate [0008](0008-static-and-global.md)'s "nothing holds state behind a function's back":
 the clock is *isolate configuration*, declared at the test and inert everywhere else, in the same category
-as a timezone set in `mwl.toml`. `#[Test]` methods do not exist in a built binary at all (§ 3), so nothing
+as a timezone set in `nvs.toml`. `#[Test]` methods do not exist in a built binary at all (§ 3), so nothing
 about this reaches production even in principle.
 
 ### 13. Property-based testing, with generators derived from declared types
@@ -392,7 +392,7 @@ declared types** — including user classes, by the same declaration walk
 rather than in a package: only the compiler can walk a declared type, so an extension's version would need
 a hand-written generator per type, which is exactly the boilerplate that keeps property testing rare.
 
-```mwl
+```nvs
 #[Property(cases: 1000)]
 public function encodeThenDecodeRoundTrips(string $name, int $age): void {
     var $u = new User($name, $age);
@@ -405,7 +405,7 @@ A failure **shrinks** to a minimal counterexample and reports the seed that repr
 ```
 FAILED after 37 cases, shrunk to:
   $name = "\u{0}"   $age = 0
-  reproduce: mwl test --seed 8814327
+  reproduce: nvs test --seed 8814327
 ```
 
 `#[Property(gen: {age: Core\Test\Gen::int(0, 130)})]` narrows a single parameter's generator where the
@@ -415,10 +415,10 @@ that only holds for ASCII is a property that is not true.
 
 ### 14. Snapshots are inline, and the updater writes into the test
 
-`Core\Test::assertMatchesInline($value, "...")` holds the expected value in the source file. `mwl test
+`Core\Test::assertMatchesInline($value, "...")` holds the expected value in the source file. `nvs test
 --update` splices the produced value in.
 
-```mwl
+```nvs
 #[Test]
 public function itRendersTheSummary(): void {
     Core\Test::assertMatchesInline($report->render(), """
@@ -443,11 +443,11 @@ Windows benchmarking their own program.
 The remedy that *is* available costs almost nothing, because
 [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) already compiles a probe at every
 statement boundary and every call site, and its profiler already observes every call rather than sampling.
-**Those probes gain a counting mode.** What they count is MWL's own semantic work, which is bit-identical
+**Those probes gain a counting mode.** What they count is Novis's own semantic work, which is bit-identical
 on Windows, Linux and macOS, on x86 and on ARM, because it has nothing to do with a CPU:
 
 ```
-$ mwl test --bench
+$ nvs test --bench
 encodingALargeUser
   statements     18,204        exact
   calls           1,097        exact
@@ -456,7 +456,7 @@ encodingALargeUser
   gc cycles           0        exact
   wall-clock       1.84 µs     advisory
 
-$ mwl test --bench --against baseline.json
+$ nvs test --bench --against baseline.json
   statements   18,204 -> 12,880   -29.2%
   bytes        96,512 -> 40,960   -57.6%
   wall-clock     1.84 -> 1.31 µs  (advisory)
@@ -473,9 +473,9 @@ CI may gate on the exact rows. It may not gate on wall-clock, and the output say
 ([0041](0041-timeline-export-and-gc-spawn-trace-events.md)), and `#[Bench]`. Adding a fourth number would
 mean adding a fifth place to look.
 
-The counters are comparable **across machines, not across MWL versions**: M12's optimising tier will
+The counters are comparable **across machines, not across Novis versions**: M12's optimising tier will
 eliminate work, so the same program's statement count will fall between releases. That is the correct
-behaviour for "did my algorithm improve" and the wrong measure for "did MWL get faster" — which is exactly
+behaviour for "did my algorithm improve" and the wrong measure for "did Novis get faster" — which is exactly
 the question [0026](0026-performance-measurement-methodology.md) already owns, so the split between the two
 ADRs stays clean rather than overlapping.
 
@@ -489,7 +489,7 @@ Because § 12 already puts the clock under the test's control, a `Duration` slee
 instantly. That makes retry, backoff and timeout logic — some of the most error-prone code anyone writes,
 and the least tested — testable in microseconds:
 
-```mwl
+```nvs
 #[Test(at: "2026-01-01T00:00:00Z")]
 public function itRetriesWithBackoff(): void {
     var $t = Core\Task::spawn(fn() => $client->fetchWithRetry($url));
@@ -520,7 +520,7 @@ opaque driver error.
 [0077](0077-compile-time-routing.md)'s compiled table and the real middleware chain — no socket, no port,
 microseconds per test. It exercises the actual routing rather than a mock of it.
 
-```mwl
+```nvs
 #[Test]
 public function itReturnsTheUser(): void {
     var $rs = Core\Test::request(Http\Method::Get, "/users/1",
@@ -545,15 +545,15 @@ because they answer measurably different questions.
 A `#[Test]` method may reach `private` and `protected` members of classes declared **in the same file**.
 A test in a separate file is held to the public contract.
 
-```mwl
-// src/User.mwl
+```nvs
+// src/User.nvs
 class User { private function normalize(string $s): string { } }
 
 class UserTest {                                 // same file: allowed
     #[Test] public function itNormalizes(): void { (new User("ada"))->normalize(" x "); }
 }
 
-// tests/UserTest.mwl
+// tests/UserTest.nvs
 // E0xxx: `normalize` is private to `User`. Test the public surface, or co-locate the test.
 ```
 
@@ -570,7 +570,7 @@ put the test next to the code; everything at a distance tests behaviour. The rul
 - **A leaked task fails** (§ 16), and **a deadlocked DB test names its counterparty** (§ 17).
 - **Report order is declaration order**, even though execution is parallel and unordered. Total isolation (§ 2) makes execution order semantically irrelevant, so nothing is bought by randomizing it and stable output is worth a great deal.
 
-### 21. `mwl test --mutate` asks whether any test would have noticed
+### 21. `nvs test --mutate` asks whether any test would have noticed
 
 Coverage reports that a line ran. It says nothing about whether an assertion would have objected had the
 line been wrong — a suite at full line coverage routinely fails to detect most introduced defects. Mutation
@@ -578,10 +578,10 @@ testing is the measurement that closes that gap: make a small, deliberate change
 tests, and record whether anything failed.
 
 ```
-$ mwl test --mutate src/Cart.mwl
+$ nvs test --mutate src/Cart.nvs
   63 mutants   58 killed   4 survived   1 timed out   MSI 92.1%   (4m 12s)
 
-  SURVIVED  src/Cart.mwl:41
+  SURVIVED  src/Cart.nvs:41
     -  if ($qty >= $stock) { throw new OutOfStock(); }
     +  if ($qty >  $stock) { throw new OutOfStock(); }
     covered by 6 tests, killed by none
@@ -604,19 +604,19 @@ where it is implemented, not here, so that adding an operator does not amend thi
 ### 22. Human output by default; JUnit XML and a versioned JSON for machines
 
 Following [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s reasoning exactly —
-it chose Clover and lcov over an MWL-native format because those are what existing dashboards ingest:
+it chose Clover and lcov over an Novis-native format because those are what existing dashboards ingest:
 
 ```
-$ mwl test
+$ nvs test
   UserTest
     ✓ a name is trimmed                0.4 ms
     ✗ an empty name is refused         0.2 ms
 
   1 failed, 23 passed, 2 skipped, 1 flaky in 41 ms
 
-$ mwl test --format=junit > results.xml     # every CI system ingests this
-$ mwl test --format=json  > results.json    # versioned schema
-$ mwl test --coverage=clover:cov.xml        # unchanged, ADR 0018
+$ nvs test --format=junit > results.xml     # every CI system ingests this
+$ nvs test --format=json  > results.json    # versioned schema
+$ nvs test --coverage=clover:cov.xml        # unchanged, ADR 0018
 ```
 
 The JSON schema is versioned and documented, and carries what JUnit XML has nowhere to put: a structured
@@ -625,15 +625,15 @@ coverage** — which is also what § 21 consumes. The VS Code Test Explorer
 ([0040](0040-vscode-deep-tooling-and-resilient-parsing.md)) reads that schema rather than parsing human
 text.
 
-### 23. `.mwlt` is not this, and does not become this
+### 23. `.nvst` is not this, and does not become this
 
-[crates/mwl-test](../../crates/mwl-test/src/lib.rs)'s `.mwlt` format is unchanged and stays what it is: a
+[crates/nvs-test](../../crates/nvs-test/src/lib.rs)'s `.nvst` format is unchanged and stays what it is: a
 whole-program, expected-stdout conformance case, a deliberate superset of PHP's `.phpt` so that importing
-PHP's corpus at M11 stays mechanical. It is how **MWL's own conformance to its specification** is proven,
+PHP's corpus at M11 stays mechanical. It is how **Novis's own conformance to its specification** is proven,
 including the `--ORACLE--` differential comparison against real PHP.
 
-`#[Test]` is how **a program written in MWL** tests itself. The two formats answer different questions and
-are not unified, now or later. `mwl test` runs both — a path of `.mwlt` files, or a program's compiled test
+`#[Test]` is how **a program written in Novis** tests itself. The two formats answer different questions and
+are not unified, now or later. `nvs test` runs both — a path of `.nvst` files, or a program's compiled test
 table — and reports them the same way.
 
 ### 24. Milestones
@@ -671,16 +671,16 @@ neither blocks anything else.
   suite costs what a ten-test suite does at any instant.
 - **Migrating a PHPUnit suite is real work, and mostly in three places.** Argument order reverses (§ 4).
   Mocks become closure shapes (§ 10). Tests that depended on shared state between cases will fail, loudly,
-  which is the point. `mwl convert` (M11) can mechanise the first and detect the third; it cannot write the
+  which is the point. `nvs convert` (M11) can mechanise the first and detect the third; it cannot write the
   second, and should say so rather than guess.
 - **Compile time grows for test builds only**, by the table build (§ 1), the fixture and data-row checks
-  (§§ 8–9), and the double conformance check (§ 10). `mwl build` does none of it.
+  (§§ 8–9), and the double conformance check (§ 10). `nvs build` does none of it.
 
 ## Alternatives rejected
 
 - **A `test` keyword.** `test "a name is trimmed" { ... }` reads better than an attribute. It costs new
-  grammar, a second scoping rule, and a construct `mwl fmt`, `mwl-lsp`, `mwl-syntax`'s resilient parser and
-  `mwl convert` must each learn — for a readability gain over a mechanism (`#[Route]`) the language already
+  grammar, a second scoping rule, and a construct `nvs fmt`, `nvs-lsp`, `nvs-syntax`'s resilient parser and
+  `nvs convert` must each learn — for a readability gain over a mechanism (`#[Route]`) the language already
   has and already understands.
 - **PHPUnit's `test*` naming convention.** Rejected on the same grounds as
   [0029](0029-identifier-casing-is-checked.md): the compiler does not read meaning out of spelling. A
@@ -693,7 +693,7 @@ neither blocks anything else.
   `new Core\ObjectMap<Tag, int>()` already occupies, so 0007's parking of user-defined generics does not
   block it. What blocks it is the benefit. A chain's advantage over a static roster is **type-scoped
   matchers** — `startsWith` offered on `Assertion<string>` and not on `Assertion<int>` — and that requires
-  members existing only at certain instantiations, i.e. specialization, which MWL does not have and which no
+  members existing only at certain instantiations, i.e. specialization, which Novis does not have and which no
   ADR has ever parked or contemplated. Without it every matcher is declared on `Assertion<T>` for all `T`,
   so `Core\Test::that(5)->startsWith("x")` checks the *prefix* and not the *subject*: it compiles and fails
   when run, where `Core\Test::assertStartsWith(5, "x")` is a compile error. The chain is therefore
@@ -732,12 +732,12 @@ neither blocks anything else.
 - **Failures that escalate past `catch`** via [0020](0020-error-escalation-ladder.md). Strongest guarantee,
   and it makes user-written assertion helpers, retry wrappers and soft-assert blocks impossible to express.
   § 5's ledger delivers the guarantee without the loss.
-- **Unifying `.mwlt` with `#[Test]`.** They answer different questions; § 23 says so once so that nobody
+- **Unifying `.nvst` with `#[Test]`.** They answer different questions; § 23 says so once so that nobody
   re-opens it.
 
 ## Revisiting
 
-- **The fluent matcher chain becomes worth reconsidering if, and only if, MWL gains member specialization
+- **The fluent matcher chain becomes worth reconsidering if, and only if, Novis gains member specialization
   on a generic class** — matchers existing at some instantiations of `Assertion<T>` and not others. Roster
   size is *not* the trigger, and neither is developer preference: without specialization a chain type-checks
   strictly less than § 4's static roster, so a wider roster is an argument for better completion ranking,
@@ -758,8 +758,8 @@ neither blocks anything else.
   non-`public`, unsatisfiable parameter, `skip: true` — each asserting a diagnostic that names this ADR.
 - **§ 2:** a two-test class where the first writes a `static` and the second asserts it reads its initial
   value; a suite whose tests each allocate to the cap, asserting the parent budget is what bounds them.
-- **§ 3:** `mwl build` on a file containing a `#[Test]` produces an artifact in which neither the method
-  symbol nor any assertion message string appears; `mwl check` on the same file reports a type error inside
+- **§ 3:** `nvs build` on a file containing a `#[Test]` produces an artifact in which neither the method
+  symbol nor any assertion message string appears; `nvs check` on the same file reports a type error inside
   the test body.
 - **§ 4:** `assertEquals(int, string)` is a diagnostic; `assertEquals` on a non-`Comparable` object is a
   diagnostic naming `assertEqualsDeep`; `assertSame` distinguishes two structurally equal objects. Plus one

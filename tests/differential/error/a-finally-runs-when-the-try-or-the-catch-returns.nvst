@@ -1,7 +1,7 @@
 --TEST--
 A `return` from inside a `try`, from inside a loop's `try`, and from inside a `catch` clause each run the `finally` on the way out, exactly as PHP's do
 --FILE--
-<?mwl
+<?nvs
 class Fin {
     public static function straight(): string {
         try {

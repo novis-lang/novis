@@ -1,4 +1,4 @@
-//! Lexer and parser for MWL.
+//! Lexer and parser for Novis.
 //!
 //! # Layout
 //!
@@ -7,8 +7,8 @@
 //! - [`ast`] — the AST the parser produces: the full type, expression,
 //!   statement and declaration grammar M1's plan names.
 //! - [`parser`] — the recursive-descent parser covering that whole grammar.
-//!   [`parse_file`] is the whole-file entry point (the `mwl-cli` crate's
-//!   `mwl ast` uses it); [`Parser`] and [`parse_expression`] are for callers
+//!   [`parse_file`] is the whole-file entry point (the `nvs-cli` crate's
+//!   `nvs ast` uses it); [`Parser`] and [`parse_expression`] are for callers
 //!   that want less than a whole file.
 //! - [`casing`] — [`check_declarations`], the two rules a parsed file's
 //!   declarations answer on their own: ADR 0029/0030's identifier casing and
@@ -19,16 +19,16 @@
 //!   it a hard error, and `Core\Html::escape` (M7) and `Core\Cli`'s sink (M8)
 //!   substitute `U+FFFD` for what it names.
 //! - [`duration`] — ADR 0070's duration grammar, the one place `30s` is
-//!   defined. Public because it is shared: `mwl-stdlib`'s
-//!   `Core\Time\Duration::parse` and (at M6) `mwl.toml`'s reader both call in,
+//!   defined. Public because it is shared: `nvs-stdlib`'s
+//!   `Core\Time\Duration::parse` and (at M6) `nvs.toml`'s reader both call in,
 //!   which is what stops the three from drifting.
 //!
 //! ```
-//! use mwl_diagnostics::{Diagnostics, SourceMap};
-//! use mwl_syntax::{tokenize, TokenKind};
+//! use nvs_diagnostics::{Diagnostics, SourceMap};
+//! use nvs_syntax::{tokenize, TokenKind};
 //!
 //! let mut map = SourceMap::new();
-//! let file = map.add("hello.mwl", "<?mwl\necho \"hi\";\n");
+//! let file = map.add("hello.nvs", "<?nvs\necho \"hi\";\n");
 //! let mut diags = Diagnostics::new();
 //! let tokens = tokenize(map.file(file), &mut diags);
 //!
@@ -47,7 +47,7 @@
 //!   just `g(f($x))`), so it adds no expressiveness a nested call or a local variable doesn't already
 //!   give, while costing a new operator with its own precedence tier and a special-cased RHS shape
 //!   (reusing the `...` first-class-callable placeholder from ADR 0027). It also undercuts its own
-//!   usual justification here: ADR 0011 makes every function a method, so idiomatic MWL code already
+//!   usual justification here: ADR 0011 makes every function a method, so idiomatic Novis code already
 //!   reaches for `->` chaining instead of PHP's global-function nesting, which is the pain `|>` exists
 //!   to solve in vanilla PHP. Do not add a `Pipe`/`|>` token or an `ExprKind::Pipe` node.
 //!
@@ -63,7 +63,7 @@
 //!   disambiguation: a block whose first statement would have been a label (`{ done: ... }`) matches
 //!   the same one-token-past-`{` lookahead an attempted object literal does, so it is now diagnosed
 //!   as "needs parentheses" instead of whatever the (already broken, since labels don't parse) prior
-//!   behavior was — not a regression on real code, since no MWL/PHP program relies on an unparsed
+//!   behavior was — not a regression on real code, since no Novis/PHP program relies on an unparsed
 //!   construct, but worth knowing if label support is ever added.
 //! - **A local variable declaration typed with a bare inline shape type** (`{x: int} $point;`) is not
 //!   parsed — statement-initial `{` already commits to a block ([ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)

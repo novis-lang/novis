@@ -1,7 +1,7 @@
 --TEST--
 `Core\Uri::buildQuery` writes what `parseQuery` reads, and the pair round-trips — spec § 12
 --FILE--
-<?mwl
+<?nvs
 // docs/spec/01-core-library.md § 12: `buildQuery` is `parseQuery`'s inverse
 // over one bracket convention. A nested value is written under its whole
 // bracket path, with the indexes spelled out and the structural brackets

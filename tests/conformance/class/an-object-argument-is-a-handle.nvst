@@ -1,7 +1,7 @@
 --TEST--
 An object passed to a method is the caller's object; assigning it to a second name does not copy it
 --FILE--
-<?mwl
+<?nvs
 class Box {
     public int $value;
 

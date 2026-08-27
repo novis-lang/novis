@@ -1,7 +1,7 @@
 --TEST--
 A method that calls itself returns correctly at every depth, and two methods can recurse through each other
 --FILE--
-<?mwl
+<?nvs
 class Fib {
     public static function of(int $n): int {
         if ($n < 2) {

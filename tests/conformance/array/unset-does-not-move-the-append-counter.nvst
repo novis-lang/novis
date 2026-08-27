@@ -1,9 +1,9 @@
 --TEST--
 The append counter only ever counts up: a removal never lowers it, in either representation, and only a canonical decimal key raises it — ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 // `$a[]` appends under PHP's "highest integer key used so far, plus one",
-// which `mwl_runtime::array`'s `Table::next_index` holds. Two things about it
+// which `nvs_runtime::array`'s `Table::next_index` holds. Two things about it
 // are easy to get wrong and neither shows up on a single row:
 //
 //   * it is carried by *both* representations, because a packed array cannot
@@ -23,9 +23,9 @@ The append counter only ever counts up: a removal never lowers it, in either rep
 // identically; the case carries no --ORACLE-- because CI's runners have no PHP.
 //
 // That the two shapes agree about everything else is
-// tests/conformance/core/arr-readers-agree-across-both-array-shapes.mwlt;
+// tests/conformance/core/arr-readers-agree-across-both-array-shapes.nvst;
 // the thin version of the removal claim is
-// append-does-not-reuse-an-index-unset-freed.mwlt in this directory.
+// append-does-not-reuse-an-index-unset-freed.nvst in this directory.
 
 final class Render {
     public static function of(array<string> $a): string {

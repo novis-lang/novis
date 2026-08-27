@@ -1,7 +1,7 @@
 --TEST--
 An `array<T>` property is a value: reading it into a local and writing to that local leaves the object's own array untouched
 --FILE--
-<?mwl
+<?nvs
 class Bag {
     public array<int> $items;
 

@@ -16,22 +16,22 @@ the frontier.
 
 ## What "no holes" means here, and why it is checkable
 
-A hole is a shape that **compiles in the front end and then refuses below it** — `mwl-ir` panics naming
-itself, `mwl-codegen` refuses two representations, or the checker types an expression it has no lowering
+A hole is a shape that **compiles in the front end and then refuses below it** — `nvs-ir` panics naming
+itself, `nvs-codegen` refuses two representations, or the checker types an expression it has no lowering
 for. Each of the crate module docs' *Known gaps* lists is an inventory of them, and this goal's item list
 is that inventory ordered and grouped.
 
 A shape is **closed** when it either
 
-1. runs, with a fixture or a `.mwlt` case pinning what it prints, **or**
+1. runs, with a fixture or a `.nvst` case pinning what it prints, **or**
 2. is refused by a **diagnostic that names the rule** — a numbered `E`-code and the ADR behind it.
 
 The second is not a loophole. `goto` is refused by ADR 0008 § 5 and by-reference capture by ADR 0031 § 2;
 a language that refuses them with a diagnostic has no hole, while one that falls through to a generic parse
 error or a lowering panic does. **What may never close an item is a panic**, however well it names itself.
 
-The mechanical end gate is Stage 8's `every_refusal_is_a_diagnostic_or_decided`: it reads `mwl-ir`'s and
-`mwl-codegen`'s own sources for refusal sites and fails naming any that is not on the allowlist frozen in
+The mechanical end gate is Stage 8's `every_refusal_is_a_diagnostic_or_decided`: it reads `nvs-ir`'s and
+`nvs-codegen`'s own sources for refusal sites and fails naming any that is not on the allowlist frozen in
 the test. **That allowlist may never grow.** Every entry on it is a decision in this file's
 § *Standing decisions* with its ADR; adding an entry to make a run go green is the one move this goal
 forbids outright. `python tools/holes.py` prints the same inventory as a worklist, mapped to the items
@@ -48,49 +48,49 @@ from here.**
 The items, grouped by the file set they share. `lower_binary` and `emit_binop` are the two ends of almost
 all of it — one group, several sessions.
 
-1. **ADR 0007 § 4's promotion table runs.** `1 + 1.5` does not compile today: `mwl_types` gives `$n + $f`
-   a result type without converting either side, so both operands reach `mwl-codegen` in two
+1. **ADR 0007 § 4's promotion table runs.** `1 + 1.5` does not compile today: `nvs_types` gives `$n + $f`
+   a result type without converting either side, so both operands reach `nvs-codegen` in two
    representations and are refused there. The widening *is* the semantics rather than an approximation of
-   it, so it belongs in `mwl-ir`'s existing conversion rows, not in the backend.
-   `crates/mwl-ir/src/lower/operator.rs:470` (`lower_binary`), `crates/mwl-ir/src/lower/mod.rs:1731`
-   (`coerce`), `crates/mwl-types/src/expr/operators.rs:403` (`arithmetic_result`),
-   `crates/mwl-codegen/src/emit.rs:1008` (`emit_binop`). Same table decides `$n < $f`, which is the
-   ordering half of the row and is refused the same way. `mwl-ir` gap 19, `mwl-codegen` gap 9.
+   it, so it belongs in `nvs-ir`'s existing conversion rows, not in the backend.
+   `crates/nvs-ir/src/lower/operator.rs:470` (`lower_binary`), `crates/nvs-ir/src/lower/mod.rs:1731`
+   (`coerce`), `crates/nvs-types/src/expr/operators.rs:403` (`arithmetic_result`),
+   `crates/nvs-codegen/src/emit.rs:1008` (`emit_binop`). Same table decides `$n < $f`, which is the
+   ordering half of the row and is refused the same way. `nvs-ir` gap 19, `nvs-codegen` gap 9.
 2. **Integer `/` compiles.** ADR 0007 § 4 types `int / int` as `int|float` — PHP-exact, `6/3` an integer
    and `7/2` not. `Ty::Tagged` is the representation and `clif_ty` already gives it a machine type; what is
-   missing is the operator picking at runtime, and `mwl_types` widening that union to `float` at a binding,
+   missing is the operator picking at runtime, and `nvs_types` widening that union to `float` at a binding,
    which is what makes `float $avg = $sum / $n;` the ADR's own worked example.
-   `crates/mwl-codegen/src/emit.rs:1008`, `crates/mwl-types/src/expr/operators.rs:96` (`binary_result`).
-   `mwl-codegen` gap 5.
+   `crates/nvs-codegen/src/emit.rs:1008`, `crates/nvs-types/src/expr/operators.rs:96` (`binary_result`).
+   `nvs-codegen` gap 5.
 3. **Integer `+`/`-`/`*` throw `ArithmeticError` on overflow instead of wrapping.** ADR 0007 § 4 calls this
    the divergence from PHP it is least willing to trade, and the mechanism exists: integer `%`'s zero
-   divisor already raises inline through `mwl_runtime::mwl_raise_new` and takes `mwl_ir::ir::Inst::on_error`'s
+   divisor already raises inline through `nvs_runtime::nvs_raise_new` and takes `nvs_ir::ir::Inst::on_error`'s
    edge, which is the shape a checked `iadd` wants. Three emit sites, one error edge each.
-   `crates/mwl-codegen/src/emit.rs:1008`, `crates/mwl-ir/src/ir.rs:248` (`InstKind`). `mwl-codegen` gap 8.
+   `crates/nvs-codegen/src/emit.rs:1008`, `crates/nvs-ir/src/ir.rs:248` (`InstKind`). `nvs-codegen` gap 8.
 4. **The bitwise operators exist.** `&`, `|`, `^`, `<<`, `>>` have no `ir::BinOp` variant at all, and unary
-   `~` no `InstKind`; the grammar has had all six since M1 (`mwl_syntax::ast::BinaryOp`,
+   `~` no `InstKind`; the grammar has had all six since M1 (`nvs_syntax::ast::BinaryOp`,
    `UnaryOp::BitNot`). Adding the variants gives `&=`, `|=`, `^=`, `<<=`, `>>=` their compound forms for
    free, because `lower_compound_assignment` rewrites `$x op= e` into the `$x = $x op e` it means.
-   `crates/mwl-ir/src/ir.rs:1470` (`BinOp`), `crates/mwl-ir/src/lower/operator.rs:470`,
-   `crates/mwl-ir/src/lower/stmt.rs:331`. `mwl-ir` gap 16.
+   `crates/nvs-ir/src/ir.rs:1470` (`BinOp`), `crates/nvs-ir/src/lower/operator.rs:470`,
+   `crates/nvs-ir/src/lower/stmt.rs:331`. `nvs-ir` gap 16.
 5. **`**` and `**=` exist**, over every numeric row but the one ADR 0054 § 3 already refuses (a `decimal`
-   base, which `mwl_types` reports). Same three files as item 4.
+   base, which `nvs_types` reports). Same three files as item 4.
 6. **`<=>` answers for a scalar.** It has no `decimal` row and no `int` one either — every scalar operand
    reaches `lower_expr`'s panic, and only ADR 0013's *object* form lowers today. ADR 0013's own
    `object_comparison_result` is the shape to match: `-1`/`0`/`1`, and the same three comparisons
-   `lower_decimal_binary` already rewrites into six. `crates/mwl-ir/src/lower/operator.rs:43`, beside
-   the object row at `:139`; the dispatch that panics is `crates/mwl-ir/src/lower/expr.rs:50`.
-   `mwl-ir` gap 15.
+   `lower_decimal_binary` already rewrites into six. `crates/nvs-ir/src/lower/operator.rs:43`, beside
+   the object row at `:139`; the dispatch that panics is `crates/nvs-ir/src/lower/expr.rs:50`.
+   `nvs-ir` gap 15.
 7. **`$x++` and `--$x` lower**, in both positions, and with them the compound forms that inherit the same
    hole. Two things have to be split out of `lower_reassignment` first: the target's *address* computation,
    so `f()->count += 1` evaluates `f()` once where the rewrite reads it twice, and the increment's `1`,
    which has no source span to build an `ExprKind::Int` from and so cannot be desugared into an AST node
-   the way every other compound form is. `crates/mwl-ir/src/lower/stmt.rs:415` (`lower_reassignment`),
-   `:706` (`is_reevaluable_target`), `:331`. `mwl-ir` gap 16.
+   the way every other compound form is. `crates/nvs-ir/src/lower/stmt.rs:415` (`lower_reassignment`),
+   `:706` (`is_reevaluable_target`), `:331`. `nvs-ir` gap 16.
 8. **`==` over two enum values compiles.** `Enum(Int)` is not on `emit_binop`'s integral list, so the
-   comparison `mwl-ir` lowers is refused in the backend; the enum-to-backing reinterpretation
+   comparison `nvs-ir` lowers is refused in the backend; the enum-to-backing reinterpretation
    `lower_literal_membership` already does for a membership chain is the same move.
-   `crates/mwl-codegen/src/emit.rs:1008`. `mwl-codegen` gap 9's second shape.
+   `crates/nvs-codegen/src/emit.rs:1008`. `nvs-codegen` gap 9's second shape.
 
 ## Stage 1 — the floor
 
@@ -100,129 +100,129 @@ it has to change a floor fixture's expected output has found a bug in its own sl
 
 ## Stage 2 — the operator fixture
 
-`examples/operators.mwl`, which is Stage 0's item list as one program. It is listed separately so the
+`examples/operators.nvs`, which is Stage 0's item list as one program. It is listed separately so the
 ledger distinguishes "the unit guards are green" from "the program runs".
 
 ## Stage 3 — control flow and calls
 
 9. **`do`/`while` lowers.** `lower_while` with the branch moved below the body, and nothing new to build.
-   `crates/mwl-ir/src/lower/control.rs:102`. `mwl-ir` gap 1.
+   `crates/nvs-ir/src/lower/control.rs:102`. `nvs-ir` gap 1.
 10. **`break 2` and `continue 2` lower**, and a level past the enclosing nesting is a diagnostic rather
-    than a panic — `mwl_types` does not check loop nesting at all today.
-    `crates/mwl-ir/src/lower/control.rs:1365` and `:1375`, `crates/mwl-ir/src/lower/mod.rs:4212`.
+    than a panic — `nvs_types` does not check loop nesting at all today.
+    `crates/nvs-ir/src/lower/control.rs:1365` and `:1375`, `crates/nvs-ir/src/lower/mod.rs:4212`.
 11. **A ternary or a `match` whose arms lower to two representations widens to one.** Neither has a
     recorded result type to widen its arms to, which is the one thing `ExprInfo::Coalesce` supplies for
-    `??`; closing it is that same recording in `mwl_types` plus `coerce` on each arm.
-    `crates/mwl-ir/src/lower/expr.rs:1616` (`lower_match`), `crates/mwl-ir/src/lower/mod.rs:1552`.
-    `mwl-ir` gap 5.
+    `??`; closing it is that same recording in `nvs_types` plus `coerce` on each arm.
+    `crates/nvs-ir/src/lower/expr.rs:1616` (`lower_match`), `crates/nvs-ir/src/lower/mod.rs:1552`.
+    `nvs-ir` gap 5.
 12. **A `finally` runs when a `catch` clause's own body throws.** Every other exit from a protected region
-    already runs it, `return`/`break`/`continue` included. `crates/mwl-ir/src/lower/exception.rs:123`
-    (`lower_try`), which owns the whole policy. `mwl-ir` gap 2, `mwl-codegen` gap 0.
+    already runs it, `return`/`break`/`continue` included. `crates/nvs-ir/src/lower/exception.rs:123`
+    (`lower_try`), which owns the whole policy. `nvs-ir` gap 2, `nvs-codegen` gap 0.
 13. **An abandoned generator runs the `finally` it is suspended inside.** Settled in
     § *Standing decisions*: a resume-to-unwind entry point, not a destructor.
-    `crates/mwl-ir/src/lower/generator.rs:99`. `mwl-ir` gap 18.
+    `crates/nvs-ir/src/lower/generator.rs:99`. `nvs-ir` gap 18.
 14. **Every value fresh on the throw path is released.** A landing block sweeps the frame's locals and its
     owned-temporaries stack, but a producer that releases its fresh value inline — a normalized subscript
     key, a `match` subject — is not on that stack and leaks; so does an argument being *transferred* when a
-    later one throws. `crates/mwl-ir/src/lower/mod.rs:1467` (`landing_block`), and `Lowering`'s own field
-    doc for the second shape. `mwl-ir` gap 2's tail.
+    later one throws. `crates/nvs-ir/src/lower/mod.rs:1467` (`landing_block`), and `Lowering`'s own field
+    doc for the second shape. `nvs-ir` gap 2's tail.
 15. **`$f(...)` calls the closure the variable holds.** A closure literal lowers; the only caller today is
-    native `Core` code going through `mwl_runtime::mwl_closure_call`.
-    `crates/mwl-ir/src/lower/closure.rs:114`. `mwl-ir` gap 9.
-16. **A named argument and a spread argument type-check and lower.** `mwl_types` does not positionally
+    native `Core` code going through `nvs_runtime::nvs_closure_call`.
+    `crates/nvs-ir/src/lower/closure.rs:114`. `nvs-ir` gap 9.
+16. **A named argument and a spread argument type-check and lower.** `nvs_types` does not positionally
     check either, so there is no resolved per-argument type to lower against — the checker's half lands
     first. A variadic signature is already done (`lower_variadic_tail`).
-    `crates/mwl-ir/src/lower/call.rs:77`, `:219`. `mwl-ir` gap 8.
-17. **A `...spread` array-literal element lowers.** `crates/mwl-ir/src/lower/expr.rs:3339`. The `&value`
+    `crates/nvs-ir/src/lower/call.rs:77`, `:219`. `nvs-ir` gap 8.
+17. **A `...spread` array-literal element lowers.** `crates/nvs-ir/src/lower/expr.rs:3339`. The `&value`
     element is refused by decision instead — see § *Standing decisions*.
 18. **An `inout` argument lowers in any expression position.** The copy-back is emitted at the enclosing
     statement because that is the nearest scope holding an `&mut Env`, so such a call lowers only as a bare
-    expression statement or an assignment's right-hand side today. `crates/mwl-ir/src/lower/mod.rs:1090`
-    (`pending_refs`). `mwl-ir` gap 10.
+    expression statement or an assignment's right-hand side today. `crates/nvs-ir/src/lower/mod.rs:1090`
+    (`pending_refs`). `nvs-ir` gap 10.
 19. **A closure or generator may be written where an `inout` parameter is in scope.** ADR 0031 § 2 gives the
     language no by-reference *capture*, so what closes here is capturing such a parameter's **value** —
-    today the whole shape panics. `crates/mwl-ir/src/lower/closure.rs:160`,
-    `crates/mwl-ir/src/lower/generator.rs:155` and `:470`.
-20. **`foreach (… as inout $v)` lowers.** `crates/mwl-ir/src/lower/control.rs:712`.
+    today the whole shape panics. `crates/nvs-ir/src/lower/closure.rs:160`,
+    `crates/nvs-ir/src/lower/generator.rs:155` and `:470`.
+20. **`foreach (… as inout $v)` lowers.** `crates/nvs-ir/src/lower/control.rs:712`.
 
 ## Stage 4 — assignment targets, `mixed`, and the conversion table
 
 21. **`C::$p = v` writes a static property**, and a declared default reaches one. A static property reads
     today; `Lowering`'s assignment arm has no target for one, and the per-class instance image
-    `MwlObj::new` writes skips a static slot entirely. `crates/mwl-ir/src/lower/stmt.rs:415`.
-    `mwl-ir` gap 6.
+    `NvsObj::new` writes skips a static slot entirely. `crates/nvs-ir/src/lower/stmt.rs:415`.
+    `nvs-ir` gap 6.
 22. **A nested `$grid[0][1] = v` writes back.** The separated inner array has to be written into the outer
-    one, and only a local or a known property is a place `mwl-ir` can write back to today; reading
-    `$grid[0][1]` already works. `crates/mwl-ir/src/lower/mod.rs:1713`. `mwl-ir` gap 6.
+    one, and only a local or a known property is a place `nvs-ir` can write back to today; reading
+    `$grid[0][1]` already works. `crates/nvs-ir/src/lower/mod.rs:1713`. `nvs-ir` gap 6.
 23. **A property's declared default accepts more than a literal.** `= null`, an enum case, a `decimal`, a
     non-empty array literal and a `Class::CONST` are all `E0472` today. Widen the accepted set to every
     compile-time constant ADR 0046 § 2 already defines one as.
-    `crates/mwl-diagnostics/src/lib.rs:738` (`E_PROPERTY_DEFAULT_NOT_LITERAL`).
+    `crates/nvs-diagnostics/src/lib.rs:738` (`E_PROPERTY_DEFAULT_NOT_LITERAL`).
 24. **Arithmetic on a tagged operand runs.** A `Ty::Tagged` value can be built, carried and narrowed but
     not dispatched on: arithmetic on a `mixed`, ADR 0035's truthy table (which is `?bool` tested for
     truth), and an array access through a tagged base each panic naming themselves. Each closes as an
-    `ir::Helper` variant dispatching on the tag — `mwl_runtime::value_truthy` is already the answer for the
-    second — and never as a second representation. `crates/mwl-ir/src/ir.rs:1180` (`Helper`).
-    `mwl-ir` gap 3.
+    `ir::Helper` variant dispatching on the tag — `nvs_runtime::value_truthy` is already the answer for the
+    second — and never as a second representation. `crates/nvs-ir/src/ir.rs:1180` (`Helper`).
+    `nvs-ir` gap 3.
 25. **`object` as a declared type has a representation arm.** `erase_checked_ty` maps a *named* class to
     `Ty::Object`, and the checker's own ADR 0007 § 3 `object` top reaches no arm at all, so
     `object $o = $obj;` panics. The representation is not in question — it is the same pointer — and the
     arm is one line; what a session owes is the check that nothing below reads a class *label* off an
-    operand it would now receive without one. `crates/mwl-ir/src/lower/mod.rs:2206`. `mwl-ir` gap 21.
+    operand it would now receive without one. `crates/nvs-ir/src/lower/mod.rs:2206`. `nvs-ir` gap 21.
 26. **`bool as int` and `bool as string` run**, with ADR 0007 § 2's remaining non-scalar rows beside them:
     `array<T> as array<U>`'s element walk — the one row in that table that is not a single helper call —
     and a `Ty::Tagged` operand converted to `bytes`, the one target with no runtime-tag row.
-    `crates/mwl-ir/src/lower/convert.rs:60` (`convert`). `mwl-ir` gap 20.
+    `crates/nvs-ir/src/lower/convert.rs:60` (`convert`). `nvs-ir` gap 20.
 27. **ADR 0066 § 3's two refusals are diagnostics.** `as ?T` where the conversion cannot fail
     (`$i as ?string`) or does not exist at all (`$arr as ?int`) is a **compile error** by that ADR;
-    `mwl_types` refuses neither, so both reach lowering and panic naming the ADR.
-    `crates/mwl-ir/src/lower/convert.rs:402` (`convert_or_null`) is where they arrive; the fix is in
-    `mwl_types`. `mwl-ir` gap 4.
+    `nvs_types` refuses neither, so both reach lowering and panic naming the ADR.
+    `crates/nvs-ir/src/lower/convert.rs:402` (`convert_or_null`) is where they arrive; the fix is in
+    `nvs_types`. `nvs-ir` gap 4.
 28. ~~**`echo $someCoreObject` answers or is diagnosed.**~~ **Done**, both halves and behind an erased
-    operand too. `mwl_stdlib::registry::class_renders` is the one answer to "which `Core` classes does
+    operand too. `nvs_stdlib::registry::class_renders` is the one answer to "which `Core` classes does
     ADR 0028 § 1 make stringifiable", and it has two rows: a class the spec gives a `toString`, and a
     sink carrier that renders through ADR 0088 § 5 with no member at all. `require_stringable` reads it
-    and refuses the rest where they are written (`E0710`); `mwl-ir` emits the native call the member
+    and refuses the rest where they are written (`E0710`); `nvs-ir` emits the native call the member
     written out takes. Where the operand's static type names *no* class there is nothing to resolve, so
-    the runtime decides: `mwl_stdlib::instance` puts that same registered `toString` on the class's
-    descriptor as `ClassDesc::renderer` and `mwl_runtime::stringify` asks for it before the compiled
+    the runtime decides: `nvs_stdlib::instance` puts that same registered `toString` on the class's
+    descriptor as `ClassDesc::renderer` and `nvs_runtime::stringify` asks for it before the compiled
     method table a `Core` class has no entry in. One implementation, reached two ways — the two
     agreement tests are `a_core_class_stringifies_exactly_where_the_registry_says_so` and
     `every_rendering_class_carries_a_renderer_or_is_a_carrier`.
 29. **A nullsafe assignment target is a diagnostic.** `$a?->b = v` panics; PHP refuses it outright and
-    `mwl_types` does not diagnose it. Same for an array-element write through a hooked property — see
-    § *Standing decisions* for both. `crates/mwl-ir/src/lower/mod.rs:1702`.
+    `nvs_types` does not diagnose it. Same for an array-element write through a hooked property — see
+    § *Standing decisions* for both. `crates/nvs-ir/src/lower/mod.rs:1702`.
 
 ## Stage 5 — the declared M4 features with no slice at all
 
 30. **`PropertyObserver` runs** — ADR 0014 §§ 2–3, the half M4 names beside the hooks. The interface name
-    is known to `mwl-syntax` and `mwl-hir` and appears in **no** other crate: no checker rule, no lowering,
+    is known to `nvs-syntax` and `nvs-hir` and appears in **no** other crate: no checker rule, no lowering,
     no runtime. Hooks themselves are done and are not this item. The `abi-probe` guard
     `a_class_without_a_property_observer_costs_nothing_extra` already exists and must stay green.
 31. **ADR 0043's `by`-delegation runs.** Its syntax and its default/private-method slice landed; the
     delegation itself did not.
 32. **ADR 0046 §§ 4–6 run** — `Core\Attributes::get<T>`/`::all<T>`, the structural compile-time retrieval,
     § 5's ambiguity error, and § 6's explicit call-site type argument. The attach grammar has parsed since
-    M1 (`crates/mwl-syntax/src/ast.rs:419`); M4 names the call-site `<T>` here even though the retrieval
+    M1 (`crates/nvs-syntax/src/ast.rs:419`); M4 names the call-site `<T>` here even though the retrieval
     body waits for M8.
 33. **ADR 0092 and `Core\Debug::dump` land**, including ADR 0033's redaction of a `secret`-qualified
     property, which that ADR's own *Verification* defers to M4 by name.
 34. **Inline HTML at file scope lowers.** The lowering is the `Helper::EchoStr` call `echo` already emits
-    over the raw span; it is out only because `mwl_types` treats `InlineHtml` as a no-op too, so landing it
-    widens two crates at once. `mwl-ir` gap 13.
+    over the raw span; it is out only because `nvs_types` treats `InlineHtml` as a no-op too, so landing it
+    widens two crates at once. `nvs-ir` gap 13.
 35. **A `require`d file's own top-level statements run**, and ADR 0021 § 3's value form
-    (`$c = require './config.mwl';`) has an arm. `lower_program` gives a script frame to `files[0]` and
+    (`$c = require './config.nvs';`) has an arm. `lower_program` gives a script frame to `files[0]` and
     takes only the *declarations* of every other file. The shape that closes both is one frame per file,
-    called from the site. `crates/mwl-ir/src/lower/mod.rs:387`. `mwl-ir` gap 22.
+    called from the site. `crates/nvs-ir/src/lower/mod.rs:387`. `nvs-ir` gap 22.
 36. **A `FATAL` releases the frame's locals.** A `THROWN` does; an outcome no cleanup path and no `catch`
-    can act on gets no landing block at all. `mwl_ir::ir::Inst::on_error` owns the asymmetry.
-    `mwl-codegen` gap 3.
+    can act on gets no landing block at all. `nvs_ir::ir::Inst::on_error` owns the asymmetry.
+    `nvs-codegen` gap 3.
 
 ## Stage 6 — the checker and the front end
 
 37. **ADR 0007 § 6's other three narrowing spellings.** `== null`/`!= null` over a plain local narrows;
     `instanceof`, a comparison against a literal-typed value and `match (true)` do not, and the residue is
-    restricted to a class. `crates/mwl-types/src/locals.rs` owns the rule and what invalidates one.
+    restricted to a class. `crates/nvs-types/src/locals.rs` owns the rule and what invalidates one.
 38. **Exhaustive control-flow reachability** — "every path through this non-`void` function returns", and
     `switch`/`try` bodies contributing to definite assignment after them rather than conservatively
     nothing.
@@ -230,24 +230,24 @@ ledger distinguishes "the unit guards are green" from "the program runs".
     promoted constructor-parameter property, a class with no explicit `constructor` held to a
     zero-argument arity check on `new`, and a `foreach` **key** binding declared at anything but `string`
     (ADR 0007 § 5 gives an array one stored key type, so it is always wrong, and today it type-checks and
-    then trips an assertion in `mwl-ir`). `crates/mwl-types/src/expr/mod.rs`, `signatures`.
+    then trips an assertion in `nvs-ir`). `crates/nvs-types/src/expr/mod.rs`, `signatures`.
 40. **One equality-operand compatibility pass.** No general check exists for any type pair today — not
     `int` against `uint`, not two different enums — which is why singling enums out was declined. ADR 0090
     § 2's `reject_disjoint_equality` is the one-sided half that exists; this is the rest of it.
-41. **References declare the same type on both sides.** `mwl_types` does not require it.
+41. **References declare the same type on both sides.** `nvs_types` does not require it.
 42. **Each unparsed front-end construct parses or is refused by name**: grouped `use` and
     `use function`/`use const` (settle against ADR 0015 and do whichever it says), a `goto` target label
     (ADR 0008 § 5 refuses `goto` — the label must be refused by the same diagnostic rather than falling
     through), a bare inline shape type on a local declaration, and an enum case whose name is a reserved
-    keyword spelling. `crates/mwl-syntax/src/lib.rs` § *Known gaps* is the list.
+    keyword spelling. `crates/nvs-syntax/src/lib.rs` § *Known gaps* is the list.
 
-## Stage 7 — `#[Test]`, the testing capability MWL programs use
+## Stage 7 — `#[Test]`, the testing capability Novis programs use
 
 43. **ADR 0079 lands** — `#[Test]` and the table the compiler builds from it, `#[Fixture]`, `#[TestWith]`,
     the generic `Core\Test` assertion roster, the ledger behind a catchable failure, and the human/JUnit/JSON
     reporters. That ADR's § 24 milestone table says which pieces land later; everything it puts at M4 is in
-    scope here and nothing else is. **`.mwlt` and `#[Test]` answer different questions and are never
-    unified** (§ 23) — `mwl-test` is built and is not this item.
+    scope here and nothing else is. **`.nvst` and `#[Test]` answer different questions and are never
+    unified** (§ 23) — `nvs-test` is built and is not this item.
 
 This stage is last because it is the only one that adds a *surface* rather than closing a hole, and because
 every assertion in that roster is written against the operator table Stage 0 lands.
@@ -263,7 +263,7 @@ the corpus grew with the features rather than around them, and the previous goal
 ## Acceptance
 
 **The checks live in [`loop-goal.toml`](loop-goal.toml), and only there.** Every fixture, its exact expected
-output, every suite, every named guard test and the `.mwlt` cases each item owes are in that file as data;
+output, every suite, every named guard test and the `.nvst` cases each item owes are in that file as data;
 the driver reads it directly. Read it, or `python tools/loop.py --list`.
 
 Every check must pass. Nothing else counts as done — not a passing unit test, not a session claiming
@@ -290,10 +290,10 @@ Every one of these is settled. Implement it; do not re-open it.
   divergence is not kept. **This is not a destructor and does not re-open ADR 0028 § 2**: no user code
   runs that the program did not already suspend inside, no `__destruct` is recognized, and no class gains
   a lifecycle hook. The session that lands it folds one sentence into ADR 0028 § 2 saying so, and records
-  the mechanism in `mwl_ir::lower::generator`'s module doc. Fallback if the state machine cannot express
+  the mechanism in `nvs_ir::lower::generator`'s module doc. Fallback if the state machine cannot express
   it: keep the divergence, pin it in `tests/differential/` as a named, deliberate difference, and say so
   in ADR 0028 § 2 — never leave it undocumented.
-- **`int / int` widens at the binding, not at the operator.** `mwl_types` widens `int|float` to `float`
+- **`int / int` widens at the binding, not at the operator.** `nvs_types` widens `int|float` to `float`
   where a binding, parameter or return declares one, exactly as ADR 0007 § 4's worked example spells it.
   The operator itself keeps the union.
 - **Overflow throws `ArithmeticError`.** ADR 0007 § 4 already decided it; the cost is three checked emit
@@ -306,15 +306,15 @@ Every one of these is settled. Implement it; do not re-open it.
   ADR 0023 fixes what a copy means; an aliasing array element has no owner in either. It is refused by a
   diagnostic naming this decision, and that is what closes item 17's other half.
 - **A `Core` class is stringifiable exactly where the spec gives it a `toString`.**
-  `mwl_stdlib::registry` states it, `require_stringable` reads it, and a `Core` class with none is an
+  `nvs_stdlib::registry` states it, `require_stringable` reads it, and a `Core` class with none is an
   ordinary `E`-code at the `echo` rather than a panic below it.
 - **The named/spread argument checker half lands before the lowering half**, in that order, in
-  `mwl_types` — a lowering with no resolved per-argument type to lower against is how gap 8 got here.
+  `nvs_types` — a lowering with no resolved per-argument type to lower against is how gap 8 got here.
 - **`object` erases to the same pointer a named class does.** The representation is settled; only the
   "does anything below read a class label" check is work.
 - **Not in scope, and not holes**: virtual dispatch by slot rather than by name (a lookup cost, M12), a
   `br_table` for a dense `switch` (M12), string-literal deduplication in a unit's data section
-  (`mwl-codegen` gap 4), freeing executable memory (ADR 0017, M6), ADR 0018's `BRANCH` probe and the
+  (`nvs-codegen` gap 4), freeing executable memory (ADR 0017, M6), ADR 0018's `BRANCH` probe and the
   `COLLECT`/`DEBUG_BREAK` safepoint flags (no collector and no debugger exist to hand a frame to), a cycle
   collector (decided against, ADR 0004), ADR 0024 § 4's sink list and ADR 0033's `Core\Log` inspection
   (both need `Core` classes that arrive at M7/M8), and ADRs 0091, 0093, 0097 and 0100 § 3 (M6, M7, M8,

@@ -1,9 +1,9 @@
 --TEST--
 `.=` appends into the string's own buffer, and never into one a second binding still holds — ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 // A `string` local nothing else holds is appended to in place
-// (`mwl_ir::ir::InstKind::StrAppend`, `mwl_runtime`'s `mwl_str_append`); one a
+// (`nvs_ir::ir::InstKind::StrAppend`, `nvs_runtime`'s `nvs_str_append`); one a
 // second binding holds separates copy-on-write first, exactly as an array
 // element write does under ADR 0007 § 5.
 var $a = "grow";

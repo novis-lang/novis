@@ -24,7 +24,7 @@ impl<'a> Lowering<'a> {
     ///   to its own backing `int`/`uint` is an [`InstKind::Reinterpret`],
     ///   which ADR 0010 § 5 spells out as "total, free ... same
     ///   representation, reinterpreted." ADR 0009 § 3's `string as bytes` is
-    ///   the third one, free for the same reason: one `MwlStr` allocation
+    ///   the third one, free for the same reason: one `NvsStr` allocation
     ///   under two tags, minus the UTF-8 promise.
     /// * **Total.** A scalar to `string` reuses the same [`Helper`]
     ///   conversions `.` concatenation already goes through
@@ -114,7 +114,7 @@ impl<'a> Lowering<'a> {
             }
             // ADR 0009 § 3's total row: `string as bytes` is free, because a
             // `bytes` *is* the `string`'s allocation minus the UTF-8 promise
-            // (`Ty::Bytes`, and `mwl_runtime::Value::bytes`). Valid UTF-8 is
+            // (`Ty::Bytes`, and `nvs_runtime::Value::bytes`). Valid UTF-8 is
             // already a valid byte sequence, so there is nothing to check and
             // nothing to copy — one `Reinterpret`, exactly as ADR 0010 § 5's
             // enum row above, and the tag only differs where a `Ty::Tagged`
@@ -194,7 +194,7 @@ impl<'a> Lowering<'a> {
             // reason: an operand whose static type named no class to resolve
             // against — the erased `object` of ADR 0036 § 4, or a `Core`-owned
             // class — is decided by its *runtime* class instead, which is what
-            // `mwl_runtime::stringify` is. Answering that here and something
+            // `nvs_runtime::stringify` is. Answering that here and something
             // else at `echo` would make one value render two ways depending on
             // which spelling read it.
             (Ty::Object, Ty::Str) => match self.lower_to_string_call(operand, v, env, cur) {
@@ -256,7 +256,7 @@ impl<'a> Lowering<'a> {
             // names a row — the same arrangement `Ty::Tagged`'s `string` and
             // `decimal` targets above already use. Each throws where
             // `Helper::ToIntOrNull` answers `null`, over one shared row set in
-            // `mwl_runtime`.
+            // `nvs_runtime`.
             | (Ty::Tagged, Ty::Int | Ty::Uint | Ty::Float) => {
                 let helper = match (from, to) {
                     (_, Ty::Decimal) => Helper::ToDecimal,
@@ -343,12 +343,12 @@ impl<'a> Lowering<'a> {
                 out
             }
             // One shape reaches here, and it is a missing *lowering*:
-            // `mwl_types`' `reject_unconvertible` refuses every pair ADR 0007
+            // `nvs_types`' `reject_unconvertible` refuses every pair ADR 0007
             // § 2's closed table has no row for (`E0708`), and every object
             // target with no class to test against (`E0711`), so this is no
             // longer where a missing rule is discovered.
             _ => panic!(
-                "mwl-ir lowers ADR 0007 § 2's scalar conversion rows, ADR 0009 § 3's `string` ↔ \
+                "nvs-ir lowers ADR 0007 § 2's scalar conversion rows, ADR 0009 § 3's `string` ↔ \
                  `bytes` pair, both of ADR 0010 § 5's enum ones, a `Ty::Tagged` operand into \
                  every scalar target among them and into `bytes`, and every operand into a \
                  tagged target — got `{from:?} as {to:?}`. One row is still missing and is the \
@@ -392,7 +392,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics for a row ADR 0066 § 3 calls **available** and this crate has no
     /// `?` helper to run — `$m as ?array<T>`.
-    /// Both of that section's *refusals* are `mwl_types`' now, so neither
+    /// Both of that section's *refusals* are `nvs_types`' now, so neither
     /// reaches here: a conversion that cannot fail is `E0709` and a pair
     /// naming no row is `E0708`, both where the conversion is written. The
     /// remaining target is the same missing lowering [`Self::convert`]'s own
@@ -410,8 +410,8 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let helper = match to {
             _ if from == to => panic!(
-                "mwl-ir: `{from:?} as ?{to:?}` — one representation on both sides, and \
-                 `mwl_types` has refused every pair of that shape whose conversion cannot fail \
+                "nvs-ir: `{from:?} as ?{to:?}` — one representation on both sides, and \
+                 `nvs_types` has refused every pair of that shape whose conversion cannot fail \
                  (`E0709`). What is left is two *different* checked types sharing one \
                  representation: a `?T` whose `T` is itself a union, which erases to one \
                  `Ty::Tagged` the same way `mixed` does. `array<T> as ?array<U>` is not among \
@@ -425,10 +425,10 @@ impl<'a> Lowering<'a> {
             Ty::Str => Helper::ToStringOrNull,
             Ty::Bytes => Helper::ToBytesOrNull,
             other => panic!(
-                "mwl-ir lowers ADR 0066's `as ?T` for the checked scalar targets and for \
+                "nvs-ir lowers ADR 0066's `as ?T` for the checked scalar targets and for \
                  `bytes`, and through `Self::lower_nullable_membership` for ADR 0047's literal \
                  and enum-case ones — got `{from:?} as ?{other:?}`. Both of § 3's refusals are \
-                 `mwl_types`' now (`E0709` for a row that cannot fail, `E0708` for a pair naming \
+                 `nvs_types`' now (`E0709` for a row that cannot fail, `E0708` for a pair naming \
                  no row), so what reaches here is a row that exists, can fail, and has no `?` \
                  helper to run it: the object target `Lowering::convert`'s own catch-all already \
                  names. The `array<U>` target had been the other one and is \
@@ -565,7 +565,7 @@ impl<'a> Lowering<'a> {
                 .0
             }
             other => panic!(
-                "mwl-ir's truthy-condition slice only converts a `bool`, a scalar, `null`, \
+                "nvs-ir's truthy-condition slice only converts a `bool`, a scalar, `null`, \
                  `Ty::Array`, `Ty::Object` or a tagged value — got {other:?}; see the crate \
                  docs' known gaps"
             ),
@@ -633,7 +633,7 @@ impl<'a> Lowering<'a> {
         //
         // Every `as ?T` that reaches here is a row of ADR 0007 § 2's table or
         // one of ADR 0047's types. A **class** target never does: ADR 0066
-        // § 3's class row is absolute, so `mwl_types` has already refused it
+        // § 3's class row is absolute, so `nvs_types` has already refused it
         // with `E0473`. That row used to carry a two-class exception — the
         // parse roster, `$s as ?Core\Uri` — lowered here to one non-member
         // `CoreCall` on a symbol the expression table had to carry, since
@@ -645,7 +645,7 @@ impl<'a> Lowering<'a> {
                 // No placement here, unlike the arm below: placing a
                 // literal at the target would make `3 as ?uint` the
                 // `from == to` shape ADR 0066 § 3 calls a compile
-                // error, which `mwl_types` does not refuse yet, so it
+                // error, which `nvs_types` does not refuse yet, so it
                 // would panic where it now converts.
                 let (v, from) = self.lower_expr(inner, None, env, cur);
                 // ADR 0066 § 3's one **available** row with no `?` helper of
@@ -683,7 +683,7 @@ impl<'a> Lowering<'a> {
                 // position, so a numeric literal written directly
                 // under one takes `T` as its target rather than being
                 // typed first and converted afterwards. Mirrors
-                // `mwl_types::expr::check_expr`'s own `Conversion`
+                // `nvs_types::expr::check_expr`'s own `Conversion`
                 // arm, operand shape included — without it
                 // `19.99 as decimal` would round-trip through an
                 // `f64` and lose everything past ~17 digits.
@@ -722,7 +722,7 @@ impl<'a> Lowering<'a> {
                 // hand the `int`s through under the other declaration.
                 //
                 // A `None` here is that free row and belongs to it: the one
-                // element type `mwl_types` lets through undescribed is a class
+                // element type `nvs_types` lets through undescribed is a class
                 // in `array<Foo> as array<Foo>`, where the two sides are the
                 // identical type and there is nothing to check.
                 if let Some(tags) = self
@@ -747,7 +747,7 @@ impl<'a> Lowering<'a> {
                 // other operand is converted first instead, so the
                 // comparison is over one representation and stays a
                 // `BinOp::Eq` machine compare rather than
-                // `mwl-codegen`'s refusal of a mismatched pair.
+                // `nvs-codegen`'s refusal of a mismatched pair.
                 //
                 // An **enum** target is deliberately not in that first
                 // case, whether the set is § 3's named subset or the whole
@@ -773,7 +773,7 @@ impl<'a> Lowering<'a> {
                     // rather could not, since `Helper::Identical` compared
                     // tags first. The test *is* the check, so what is left is
                     // one unchecked `Untag`: the same shape
-                    // `Self::untag_narrowed` emits over a tag `mwl_types`
+                    // `Self::untag_narrowed` emits over a tag `nvs_types`
                     // proved, on a tag this chain proved instead.
                     if to == Ty::Bool {
                         let (out, _) = self.emit(*cur, Ty::Bool, InstKind::Untag { operand: v });
@@ -812,18 +812,18 @@ impl<'a> Lowering<'a> {
     /// Nothing new is needed to express it, which is why this is a shape
     /// rather than a helper. [`InstKind::InstanceOf`] already takes a tagged
     /// subject and already answers `false` for a tag that is not an object at
-    /// all (`mwl_codegen`'s `emit_instanceof` routes one through
-    /// `mwl_value_instanceof` for exactly that), so the row is a test, a
+    /// all (`nvs_codegen`'s `emit_instanceof` routes one through
+    /// `nvs_value_instanceof` for exactly that), so the row is a test, a
     /// [`Terminator::Throw`] on the false edge and one free
     /// [`InstKind::Untag`] on the true one. A [`Helper`] row could not have
-    /// carried it: helper arguments are stored as `mwl_runtime::Value`s, and a
+    /// carried it: helper arguments are stored as `nvs_runtime::Value`s, and a
     /// class descriptor is not one.
     ///
     /// The throw is a `RuntimeError` and not the `LogicError` a closure
     /// parameter's identical check raises
     /// ([`super::closure`]'s `check_param_class`): this is the `as` operator,
     /// whose every other checked row throws that class through
-    /// `mwl_runtime::helpers`' `does_not_fit`, and an operand out of `mixed` is
+    /// `nvs_runtime::helpers`' `does_not_fit`, and an operand out of `mixed` is
     /// untrusted input rather than a call written wrong. What arrived is not
     /// named in the message, for the reason that function's doc comment
     /// records — no [`InstKind`] reads an object's class name.
@@ -940,7 +940,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics for an operand representation that is neither an array nor a
     /// tagged value: ADR 0007 § 2 gives no other operand a row into an array,
-    /// and `mwl_types` refuses each where it is written (`E0708`).
+    /// and `nvs_types` refuses each where it is written (`E0708`).
     #[expect(
         clippy::too_many_arguments,
         reason = "the same context `lower_conversion` itself threads, plus the one bit that \
@@ -958,7 +958,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         assert!(
             matches!(from, Ty::Array | Ty::Tagged),
-            "mwl-ir lowers ADR 0007 § 2's `array<T> as array<U>` row from an array or from a \
+            "nvs-ir lowers ADR 0007 § 2's `array<T> as array<U>` row from an array or from a \
              tagged value — got representation {from:?}, every other operand being `E0708` at \
              the checker"
         );
@@ -1009,7 +1009,7 @@ impl<'a> Lowering<'a> {
     /// * The target is not a closed set. One wider atom — `string`, or the
     ///   `null` an `as ?T` adds — is a member the operand may reach, so there
     ///   is nothing to test against. This mirrors `closed_set_atoms` in
-    ///   `mwl_types::expr::operators`, which decides the same question for
+    ///   `nvs_types::expr::operators`, which decides the same question for
     ///   § 6's compile-time half.
     /// * The operand already names one value, which the checker has therefore
     ///   already settled: a singleton operand outside the set is `E0469`/
@@ -1020,7 +1020,7 @@ impl<'a> Lowering<'a> {
     /// * The target is a whole enum and `from` is already that enum's own
     ///   representation, so every value the operand can hold is a case by
     ///   construction. It is the *same* enum and not merely one with the same
-    ///   backing type, because `mwl_types` refuses a conversion between two
+    ///   backing type, because `nvs_types` refuses a conversion between two
     ///   different enums outright (`reject_enum_to_enum_conversion`).
     fn closed_literal_set(&self, ty: &Type, inner: &Expr, from: Ty) -> Option<AcceptedSet> {
         let target = self.exprs.declared_ty(ty.span)?;
@@ -1056,16 +1056,16 @@ impl<'a> Lowering<'a> {
             && let CheckedTy::Enum(qname, backing) = types.get(*target)
         {
             let repr = match backing {
-                mwl_types::EnumBacking::Int => EnumRepr::Int,
-                mwl_types::EnumBacking::Uint => EnumRepr::Uint,
+                nvs_types::EnumBacking::Int => EnumRepr::Int,
+                nvs_types::EnumBacking::Uint => EnumRepr::Uint,
             };
             if from == Ty::Enum(repr) {
                 return None;
             }
             let info = self.enums.get(qname).unwrap_or_else(|| {
                 panic!(
-                    "mwl-ir: `{qname}` is an interned enum type with no entry in the run's \
-                     enum table — `mwl_types` interns one only for an enum it resolved, so \
+                    "nvs-ir: `{qname}` is an interned enum type with no entry in the run's \
+                     enum table — `nvs_types` interns one only for an enum it resolved, so \
                      the two tables disagree"
                 )
             });
@@ -1093,15 +1093,15 @@ impl<'a> Lowering<'a> {
                 CheckedTy::False => Some(LiteralAtom::Bool(false)),
                 // § 3's enum-case subset. The checked type names the enum and
                 // the case but deliberately not the value (see
-                // `mwl_types::ty::Ty::EnumCase`'s own doc comment for why
+                // `nvs_types::ty::Ty::EnumCase`'s own doc comment for why
                 // folding it to an int literal would reopen ADR 0010 § 5), so
                 // the constant comes from the run's own enum table — the one
                 // place it still exists by the time lowering runs.
                 CheckedTy::EnumCase(qname, _, case) => {
                     let value = self.enums.case(qname, case).unwrap_or_else(|| {
                         panic!(
-                            "mwl-ir: `{qname}::{case}` is an interned enum-case type with no \
-                             entry in the run's enum table — `mwl_types` interns one only for a \
+                            "nvs-ir: `{qname}::{case}` is an interned enum-case type with no \
+                             entry in the run's enum table — `nvs_types` interns one only for a \
                              case it resolved, so the two tables disagree"
                         )
                     });
@@ -1129,7 +1129,7 @@ impl<'a> Lowering<'a> {
     /// the *whole* `?T` with `null` dropped.
     ///
     /// Read off the whole annotation and not off the `T` inside it, because
-    /// only the whole one was recorded: `mwl_types::lower::lower_type` calls
+    /// only the whole one was recorded: `nvs_types::lower::lower_type` calls
     /// [`ExprTypeTable::record_type`] once, at its own entry point, so a
     /// nested `Type` node has no entry at all and
     /// [`lower_decl_type`] would fall back to answering `?Mode`'s target from
@@ -1155,7 +1155,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// Whether a conversion's operand names exactly one value, so that
-    /// `mwl_types::expr::operators::reject_impossible_literal_conversion` has
+    /// `nvs_types::expr::operators::reject_impossible_literal_conversion` has
     /// already decided this conversion's outcome at compile time.
     ///
     /// The same three expression shapes that checker's own
@@ -1185,7 +1185,7 @@ impl<'a> Lowering<'a> {
     /// tag over it — so this is the free [`InstKind::Reinterpret`] row 1 of
     /// that ADR's *5* already uses for `$m as int`, emitting no machine
     /// instruction at all. Every comparison over an enum goes through it,
-    /// because `mwl-codegen`'s `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool`
+    /// because `nvs-codegen`'s `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool`
     /// and carries no `Ty::Enum` row: ADR 0047 § 5's membership chain, and
     /// ADR 0090 § 2's `==` between two cases of one enum.
     ///
@@ -1317,8 +1317,8 @@ impl<'a> Lowering<'a> {
     ///
     /// A chain and not one runtime call over an encoded set, because the set
     /// is small, closed and compile-time-known: each arm is a `BinOp::Eq`,
-    /// which `mwl-codegen` turns into a machine comparison for an integer and
-    /// a direct two-pointer `mwl_str_eq` for a string. One helper call over an
+    /// which `nvs-codegen` turns into a machine comparison for an integer and
+    /// a direct two-pointer `nvs_str_eq` for a string. One helper call over an
     /// encoded set would instead pay ADR 0002's calling convention *and* parse
     /// that encoding on every conversion. Only a [`Ty::Tagged`] operand pays a
     /// call, and it pays exactly the one ADR 0090 § 5 already charges a
@@ -1360,10 +1360,10 @@ impl<'a> Lowering<'a> {
                 // At the enum's *backing* scalar, not at `Ty::Enum` — see
                 // the reinterpret above for why the comparison happens one
                 // representation down.
-                LiteralAtom::EnumCase(mwl_types::EnumValue::Int(n)) => {
+                LiteralAtom::EnumCase(nvs_types::EnumValue::Int(n)) => {
                     (InstKind::ConstInt(*n), Ty::Int)
                 }
-                LiteralAtom::EnumCase(mwl_types::EnumValue::Uint(n)) => {
+                LiteralAtom::EnumCase(nvs_types::EnumValue::Uint(n)) => {
                     (InstKind::ConstUint(*n), Ty::Uint)
                 }
             };
@@ -1454,8 +1454,8 @@ impl<'a> Lowering<'a> {
 ///
 /// A free function rather than a method because it needs nothing of the
 /// lowering state: `name` is the enum's resolved name already rendered, which
-/// is how this stays clear of `mwl_hir::QName` — this crate does not depend on
-/// `mwl-hir`, and [`Lowering::closed_literal_set`] holds the one reference to
+/// is how this stays clear of `nvs_hir::QName` — this crate does not depend on
+/// `nvs-hir`, and [`Lowering::closed_literal_set`] holds the one reference to
 /// one long enough to do the table lookup itself.
 ///
 /// **Sorted by the case's own constant**, which is not cosmetic:
@@ -1465,16 +1465,16 @@ impl<'a> Lowering<'a> {
 /// ordinary declaration — no `= n` clause anywhere, values auto-incrementing
 /// from 0 (ADR 0010 § 2) — reads back in the order it was written; the name
 /// breaks a tie, so the order is total either way.
-fn whole_enum_set(info: &mwl_types::EnumInfo, name: &str) -> AcceptedSet {
-    let mut cases: Vec<(&str, mwl_types::EnumValue)> = info
+fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> AcceptedSet {
+    let mut cases: Vec<(&str, nvs_types::EnumValue)> = info
         .cases
         .iter()
         .map(|(case, value)| (case.as_str(), *value))
         .collect();
     cases.sort_by_key(|(case, value)| {
         let ordinal = match value {
-            mwl_types::EnumValue::Int(n) => i128::from(*n),
-            mwl_types::EnumValue::Uint(n) => i128::from(*n),
+            nvs_types::EnumValue::Int(n) => i128::from(*n),
+            nvs_types::EnumValue::Uint(n) => i128::from(*n),
         };
         (ordinal, *case)
     });
@@ -1510,7 +1510,7 @@ struct AcceptedSet {
 /// One member of an [`AcceptedSet`], already reduced to the constant that
 /// tests for it.
 ///
-/// § 3's enum case keeps its [`mwl_types::EnumValue`] rather than collapsing
+/// § 3's enum case keeps its [`nvs_types::EnumValue`] rather than collapsing
 /// into [`Self::Int`]: the backing type decides both the constant's
 /// instruction and its representation, and an enum's tag is not `Ty::Int`
 /// even where its backing is (see [`Ty::Enum`]).
@@ -1520,7 +1520,7 @@ enum LiteralAtom {
     /// `true` or `false` — ADR 0007 § 3's two `bool` singletons, whose
     /// closed set is the smallest one this crate builds.
     Bool(bool),
-    EnumCase(mwl_types::EnumValue),
+    EnumCase(nvs_types::EnumValue),
 }
 
 /// The `T` of an `as ?T` annotation, or `None` for any other target.

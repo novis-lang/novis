@@ -1,7 +1,7 @@
 --TEST--
 `$uri->with` accepts a port at both ends of the TCP range and refuses one past it, refuses any component that does not survive its own recomposition, and tells an empty component from an absent one — spec § 12
 --FILE--
-<?mwl
+<?nvs
 // RFC 3986 § 3.2.3 admits any run of digits as a port, so the bound is the one
 // a TCP port actually has: both ends are inside it, and one past the top has no
 // `int` the reader could answer with.

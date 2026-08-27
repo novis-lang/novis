@@ -29,7 +29,7 @@ use crate::value::{Tag, Value};
 /// An allocation whose reference count has just reached zero and which has not
 /// been taken apart yet.
 ///
-/// A string is deliberately not a variant: it owns no MWL value, so it can
+/// A string is deliberately not a variant: it owns no Novis value, so it can
 /// never extend the graph, and [`step_field`] frees one outright.
 pub(crate) enum Dying {
     Object(*mut object::ObjHeader),
@@ -39,8 +39,8 @@ pub(crate) enum Dying {
 /// Drops the one reference `value` owns, freeing it and everything it solely
 /// owns.
 ///
-/// The single entry point: [`Value::release`], `mwl_object_release` and
-/// `mwl_array_release` all end up here, so there is exactly one place a graph
+/// The single entry point: [`Value::release`], `nvs_object_release` and
+/// `nvs_array_release` all end up here, so there is exactly one place a graph
 /// is dismantled.
 ///
 /// # Safety
@@ -129,11 +129,11 @@ pub(crate) unsafe fn step_field(value: Value) -> Option<Dying> {
             #[expect(
                 unsafe_code,
                 reason = "the caller guarantees this value owns one reference \
-                          to a live allocation; a string owns no MWL value, so \
+                          to a live allocation; a string owns no Novis value, so \
                           freeing it can never extend the graph"
             )]
             unsafe {
-                crate::string::mwl_str_release(ptr);
+                crate::string::nvs_str_release(ptr);
             }
             None
         }

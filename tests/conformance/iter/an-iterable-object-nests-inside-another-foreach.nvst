@@ -1,7 +1,7 @@
 --TEST--
 Two `foreach` loops over the same `Iterable` object nest without sharing a cursor — ADR 0053
 --FILE--
-<?mwl
+<?nvs
 class Countdown implements Iterable<int> {
     private int $from;
 

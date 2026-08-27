@@ -2,7 +2,7 @@
 
 
 def trunc_mod(a: int, b: int) -> int:
-    """PHP and MWL truncate `%` toward zero; Python floors it, and this case's total goes negative
+    """PHP and Novis truncate `%` toward zero; Python floors it, and this case's total goes negative
     on the first iteration. ADR 0100 § 5 names this as the one exception to writing each case in
     its own language's idiom -- the byte-identical gate requires the arithmetic to agree."""
     r = a % b

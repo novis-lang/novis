@@ -1,7 +1,7 @@
 --TEST--
 A class implements two interfaces at once, inherits one's default method body, and a subclass overrides it while still reaching it through `parent::` — ADR 0043 § 2
 --FILE--
-<?mwl
+<?nvs
 interface Named {
     public function name(): string;
 

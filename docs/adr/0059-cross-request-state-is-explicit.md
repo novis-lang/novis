@@ -68,7 +68,7 @@ is single-threaded — an optimisation, not a semantic change, and it must not b
 ### 3. Memory: charged to the core, capped, and stated
 
 Cache memory is **not attributable to a request**. It is charged to the core that holds it and capped by an
-`mwl.toml` directive under [ADR 0005](0005-config-changeability.md)'s ordinary rules; exceeding the cap
+`nvs.toml` directive under [ADR 0005](0005-config-changeability.md)'s ordinary rules; exceeding the cap
 evicts rather than failing an allocation.
 
 Stated in the form [ADR 0004](0004-memory-for-simplicity.md) requires: the local tier costs
@@ -101,7 +101,7 @@ no program ever reads it to make a decision and its values are approximate aggre
 ## Consequences
 
 - **APCu-shaped code does not port mechanically.** An application using APCu as a coordination mechanism
-  needs its caching layer reconsidered, not rewritten line by line. `mwl convert` (M11) emits a diagnostic
+  needs its caching layer reconsidered, not rewritten line by line. `nvs convert` (M11) emits a diagnostic
   naming both tiers rather than guessing which was meant — guessing wrong in the "it was actually a lock"
   direction produces a silent correctness bug, which is the one outcome a converter must never risk.
 - **Cache hit rates are lower than a single shared segment's**, by roughly the core count for
@@ -139,5 +139,5 @@ no program ever reads it to make a decision and its values are approximate aggre
   memory it holds is reported against the core rather than against any in-flight request — checked against
   the same accounting the request memory cap uses.
 - **M8:** configuring `Core\Session` onto the local tier is a configuration-time error naming § 4.
-- **M11:** an APCu call in `mwl convert`'s corpus produces a diagnostic naming both tiers, never a
+- **M11:** an APCu call in `nvs convert`'s corpus produces a diagnostic naming both tiers, never a
   translation.

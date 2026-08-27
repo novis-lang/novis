@@ -1,7 +1,7 @@
 --TEST--
 An anonymous `{name: value}` literal builds a methodless object whose fields read back by name (ADR 0036 §§ 2 and 4)
 --FILE--
-<?mwl
+<?nvs
 // ADR 0036 § 2: each literal's precise type is a compiler-synthesized class
 // with exactly the fields written, each field's type inferred from its own
 // initializer. § 4: a field the shape names is proven present, so reading it

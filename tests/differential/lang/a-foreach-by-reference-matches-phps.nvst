@@ -1,7 +1,7 @@
 --TEST--
 `foreach (… as inout $v)` agrees with PHP on what the array holds afterwards: the separation a copy forces, an entry the body appends, an exit through `break` or a throw, and a nested row
 --FILE--
-<?mwl
+<?nvs
 final class Walk {
     public static function bump(inout int $n): void {
         $n = $n + 100;

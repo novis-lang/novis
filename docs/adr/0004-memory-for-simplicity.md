@@ -5,7 +5,7 @@
 - **Amended by:** 0005, 0059
 - **Scope:** project-wide; constrains every later design decision rather than one subsystem
 
-> **In short:** memory is the resource MWL spends to buy security, semantics, latency and
+> **In short:** memory is the resource Novis spends to buy security, semantics, latency and
 > simplicity, in that order. It is *not* licence to leak: memory must stay attributable to a
 > request, under an enforceable cap, and O(in-flight) rather than O(requests served). The ordering
 > itself is restated in [AGENTS.md](../../AGENTS.md); before invoking this ADR to justify a design,
@@ -13,17 +13,17 @@
 
 ## Context
 
-MWL executes web requests and CLI programs on server- or developer-class machines, where RAM is cheap and
+Novis executes web requests and CLI programs on server- or developer-class machines, where RAM is cheap and
 easy to size for in advance — not an embedded target. What is actually scarce:
 
 - **The security surface** — one process serves every request, so a sandbox escape or cross-request leak
   is a bug in all of them, not one.
-- **Latency on the request path** — a request budget is measured in milliseconds, and everything MWL does
+- **Latency on the request path** — a request budget is measured in milliseconds, and everything Novis does
   per call, per value and per allocation is spent out of it.
 - **Human attention** — how much of the language and implementation a developer/maintainer must hold in
   their head; every invariant enforced by discipline rather than by construction draws from this account.
 
-RAM can be bought; an invariant every future contributor has to remember cannot, and the places MWL is most
+RAM can be bought; an invariant every future contributor has to remember cannot, and the places Novis is most
 likely to be wrong — unsafe modules, codegen call sites, the sandbox boundary — are exactly where a
 memory-saving trick would have to live. The project has already made this trade at least six times (see
 *Where this already applies* below), each argued separately, which lets a reviewer show the smaller-memory
@@ -32,7 +32,7 @@ once puts the burden of proof where it belongs.
 
 ## Decision
 
-**When a design trades memory footprint against security, semantics, latency or simplicity, MWL pays the
+**When a design trades memory footprint against security, semantics, latency or simplicity, Novis pays the
 memory.**
 
 The ordering, highest first. A lower item is spent to buy a higher one, never the reverse:
@@ -46,7 +46,7 @@ The ordering, highest first. A lower item is spent to buy a higher one, never th
    safe, correct and fast, the one a reader has to think less about wins even if it holds more bytes.
 5. **Memory footprint.** Last, and spent deliberately to buy any of the above.
 
-Stated as a non-goal, because it is the part that gets assumed: **MWL is not a low-footprint runtime.** It
+Stated as a non-goal, because it is the part that gets assumed: **Novis is not a low-footprint runtime.** It
 does not target `no_std`, microcontrollers, or minimum-RSS deployments, and there will be no cut-down build
 that trades semantics for size. "Uses less memory" is not on its own an argument for a change. "Uses less
 memory and is no more complicated" is simply a better design, needs no appeal to this ADR, and is always
@@ -57,7 +57,7 @@ welcome.
 Memory is a currency, not a landfill. Three bounds, and one review obligation.
 
 **Bounded, not merely modest.** Every per-request allocation stays under a cap the runtime can *enforce* —
-the `[limits.hard]` memory ceiling in the root-owned `mwl.toml` for script code, which a request may spend up
+the `[limits.hard]` memory ceiling in the root-owned `nvs.toml` for script code, which a request may spend up
 to but not past ([0005](0005-config-changeability.md)), and `StoreLimits` for wasm guests. Those
 caps exist so that a hostile or buggy request cannot exhaust the host, which makes them priority 1, and
 this ADR does not touch them. Spending generously *inside* a cap is the point of the ADR; a design whose
@@ -68,7 +68,7 @@ isolation.
 when that work ends. Growth proportional to the number of requests a process has served is a leak, and no
 ordering makes a leak acceptable. Where a cost can be *reserved* rather than *committed* it should be: the
 coroutine stack is lazily grown, which is the only reason 64 KiB per task is affordable at the tens of
-thousands of in-flight tasks MWL targets (`benches/abi-probe/benches/coroutine.rs`).
+thousands of in-flight tasks Novis targets (`benches/abi-probe/benches/coroutine.rs`).
 
 **Footprint, not traffic.** Bytes held are cheap; bytes moved are not. An extra cache miss or an allocation
 on a hot path is a *latency* cost and is governed by priority 3, not priority 5, however much it looks like
@@ -86,7 +86,7 @@ remembered* ([the ADR index](README.md)), applied to cost instead of behaviour.
 
 ### Where this already applies
 
-Every row is a decision MWL has taken, not an aspiration. This ADR names what they have in common.
+Every row is a decision Novis has taken, not an aspiration. This ADR names what they have in common.
 
 | decision | memory paid | what it buys |
 |---|---|---|
@@ -105,7 +105,7 @@ Every row is a decision MWL has taken, not an aspiration. This ADR names what th
   lower-memory option is now arguing against this ADR, which is the right place for that argument.
 - PHP-compatible semantics stay reachable. Most of what makes them expensive is memory — 16-byte values,
   copy-on-write, per-request heaps. A footprint-first project would have to compromise on observable
-  behaviour to get them; MWL does not have to.
+  behaviour to get them; Novis does not have to.
 - Fewer remembered invariants, therefore a smaller unsafe surface. The tricks this ADR declines are
   precisely the ones that would need auditing.
 - The trade-off is visible to operators as a sizing question rather than as unexplained resident memory.
@@ -116,7 +116,7 @@ Every row is a decision MWL has taken, not an aspiration. This ADR names what th
   *concurrency* rather than with request rate. Operators must size for concurrency — tasks × stack, plus
   concurrent requests × their cap — so deployment documentation has to state that shape rather than quote a
   single typical RSS.
-- MWL will lose hello-world-RSS comparisons against interpreters. It should not contest them; the honest
+- Novis will lose hello-world-RSS comparisons against interpreters. It should not contest them; the honest
   comparison is throughput and latency per core at a given concurrency, with isolation intact.
 - The rule is quotable as an excuse. "ADR 0004 says memory is cheap" is not an argument for an unbounded
   cache, a leak, or an uncapped buffer. The three bounds above are the answer, and a review should ask for
@@ -124,14 +124,14 @@ Every row is a decision MWL has taken, not an aspiration. This ADR names what th
 
 ## Revisiting
 
-Reopen this if MWL takes on a deployment target where memory is the billed or hard-limited unit: per-tenant
+Reopen this if Novis takes on a deployment target where memory is the billed or hard-limited unit: per-tenant
 containers sized in tens of MiB, serverless instances with a fixed sub-128 MiB budget, or embedded use. Then
 footprint moves from priority 5 to a product requirement, and several rows of the table come back into
 question — most obviously the 64 KiB stack, which is what bounds in-flight concurrency per GiB. That would
 be a change of direction, not a tuning exercise, and it should be made deliberately.
 
 Unlike [0002](0002-error-propagation.md) and [0003](0003-extension-system.md), nothing here can be checked
-by a test: this is a statement of what MWL is for, and it changes only when that changes. The second bound
+by a test: this is a statement of what Novis is for, and it changes only when that changes. The second bound
 *can* be checked, and should be — a soak test asserting that a server's resident memory returns to its
 baseline after a burst of traffic distinguishes memory spent from memory leaked, and belongs in the
 built-in HTTP server milestone for that reason.

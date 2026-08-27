@@ -1,9 +1,9 @@
 //! The coverage gate `docs/agent/loop-goal.md`'s Stage 4 names: every `Core`
-//! member this crate registers is called by at least one `.mwlt` case under
+//! member this crate registers is called by at least one `.nvst` case under
 //! `tests/conformance/`.
 //!
 //! A registry row and an implementation together still prove nothing about
-//! *behaviour* — `crates/mwl-stdlib/src/lib.rs` says a half-added member
+//! *behaviour* — `crates/nvs-stdlib/src/lib.rs` says a half-added member
 //! cannot link, and this says a member cannot be added without a case that
 //! runs it. It is the one check that reads across the crate boundary, which is
 //! why it is an integration test rather than a `#[cfg(test)]` module: it needs
@@ -11,7 +11,7 @@
 //!
 //! **The enumerable set is what is registered, not what the spec owes.**
 //! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) §§ 1-12
-//! is the work list and `mwl-stdlib`'s known gap 1 tracks how much of it is on
+//! is the work list and `nvs-stdlib`'s known gap 1 tracks how much of it is on
 //! disk; a member the registry does not hold is not yet a member, and the
 //! compiler refuses to resolve a call to one, so there is nothing here to
 //! check. What this forbids is the other order: registering a member, then
@@ -21,16 +21,16 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use mwl_stdlib::registry;
+use nvs_stdlib::registry;
 
-/// Every `.mwlt` file under `dir`, recursively, in no particular order.
+/// Every `.nvst` file under `dir`, recursively, in no particular order.
 fn cases(dir: &Path, into: &mut Vec<PathBuf>) {
     let entries = fs::read_dir(dir).unwrap_or_else(|err| panic!("{}: {err}", dir.display()));
     for entry in entries {
         let path = entry.expect("a readable directory entry").path();
         if path.is_dir() {
             cases(&path, into);
-        } else if path.extension().is_some_and(|ext| ext == "mwlt") {
+        } else if path.extension().is_some_and(|ext| ext == "nvst") {
             into.push(path);
         }
     }
@@ -67,7 +67,7 @@ fn every_part_one_member_has_a_conformance_case() {
     for path in &paths {
         let text =
             fs::read_to_string(path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-        let case = mwl_test::case::parse(path, &text)
+        let case = nvs_test::case::parse(path, &text)
             .unwrap_or_else(|err| panic!("{}: {err}", path.display()));
         source.push_str(&case.file);
         source.push('\n');

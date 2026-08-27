@@ -1,7 +1,7 @@
 --TEST--
 one `compareTo` drives `<`, `>`, `<=`, `>=` and `<=>` alike, and its sign is what each of them reads — ADR 0013 § 2
 --FILE--
-<?mwl
+<?nvs
 class Version implements Comparable {
     public int $n;
 

@@ -1,7 +1,7 @@
 --TEST--
 A `switch` compares every label in order, falls through a body with no `break`, and reaches `default` last wherever it is written
 --FILE--
-<?mwl
+<?nvs
 class Grade {
     public static function tier(string $letter): string {
         switch ($letter) {

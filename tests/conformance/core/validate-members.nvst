@@ -1,10 +1,10 @@
 --TEST--
 `Core\Validate`'s six members draw the lines spec § 12's prose states, and `{version?: 4|6}` is ADR 0047 § 1's literal union rather than an `int`
 --FILE--
-<?mwl
+<?nvs
 // docs/spec/01-core-library.md § 12: "isEmail, isIp(string $s,
 // {version?: 4|6}), isMac, isDomain, isAscii, isPrintable — all
-// (subject, ...): bool, all neutral." `crates/mwl-stdlib/src/validate.rs`'s
+// (subject, ...): bool, all neutral." `crates/nvs-stdlib/src/validate.rs`'s
 // own module doc owns where each line falls and every divergence from
 // `filter_var` it takes deliberately.
 
@@ -40,7 +40,7 @@ echo "domain ",
 // `isIp` with no option takes either family; `{version: 4}` and
 // `{version: 6}` take exactly one. `{version: 5}` does not compile at all,
 // which is the whole reason the option is `4|6` — the type it is refused
-// against is pinned by `mwl-types`' own `core_lib` tests, since a passing
+// against is pinned by `nvs-types`' own `core_lib` tests, since a passing
 // conformance case cannot also hold a compile error.
 echo "ip ",
      (Core\Validate::isIp("192.0.2.1") ? "y" : "n"),
@@ -72,7 +72,7 @@ echo "mac ",
      "\n";
 
 // The byte half. `isAscii` is the encoding question and `isPrintable` is the
-// character one: an MWL `string` is UTF-8, so `café` is printable text here
+// character one: an Novis `string` is UTF-8, so `café` is printable text here
 // where PHP's byte-wise `ctype_print` said `false`, and both members answer
 // `true` for the empty string where every `ctype_*` answers `false`. A tab is
 // general category `Cc` and so is not printable, exactly as in PHP.

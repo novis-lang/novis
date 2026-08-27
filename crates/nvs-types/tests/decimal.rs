@@ -8,7 +8,7 @@
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 /// ADR 0054 § 2: a fractional literal is untyped until placed, and takes
 /// `decimal` or `float` from the position it lands in. Both spellings of the
@@ -143,7 +143,7 @@ fn power_on_a_decimal_is_diagnosed() {
 #[test]
 fn a_decimal_class_constant_is_accepted() {
     let diags = check_src(
-        "<?mwl\nclass Tax {\n  public const decimal VAT = 0.19;\n  \
+        "<?nvs\nclass Tax {\n  public const decimal VAT = 0.19;\n  \
          function m(): void { echo 1; }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");

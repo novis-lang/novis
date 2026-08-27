@@ -1,7 +1,7 @@
 --TEST--
 `Core\Csv::parse`'s terminator edges: a trailing newline never changes what a document holds, and only terminators is no records at all — spec § 12's second table
 --FILE--
-<?mwl
+<?nvs
 // Every CSV generator writes a terminator after its last record and a good
 // many do not, so the reader's first edge is that the two are the same
 // document. That is asserted by *counting* over a table rather than read off
@@ -51,7 +51,7 @@ echo "none=", Core\Arr::count(Core\Csv::parse("")),
 // ...and the shortest documents that *are* a record. Two bytes of quote is a
 // record of one empty field, which is the field a blank line cannot express
 // and the reason `Core\Csv::format` of that one record is not a round trip
-// (`csv-format-then-parse-is-the-identity-over-awkward-records.mwlt`).
+// (`csv-format-then-parse-is-the-identity-over-awkward-records.nvst`).
 var $quoted = Core\Csv::parse("\"\"");
 echo "quoted=", Core\Arr::count($quoted), " fields=", Core\Arr::count($quoted["0"]),
      " len=", Core\Str::length($quoted["0"]["0"]), "\n";

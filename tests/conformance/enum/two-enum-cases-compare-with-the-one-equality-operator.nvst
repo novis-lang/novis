@@ -1,7 +1,7 @@
 --TEST--
 `==` and `!=` over two cases of one enum answer their backing integers' comparison — ADR 0090 §§ 2, 3 and ADR 0010 §§ 3, 5
 --FILE--
-<?mwl
+<?nvs
 enum Rank {
     Bronze,
     Silver,

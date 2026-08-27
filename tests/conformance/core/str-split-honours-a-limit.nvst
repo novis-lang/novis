@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::split's `{limit}` caps the piece count when positive and drops from the end when negative
 --FILE--
-<?mwl
+<?nvs
 array<string> $all = Core\Str::split("a,b,c,d", ",");
 echo Core\Str::join($all, "|"), "\n";
 

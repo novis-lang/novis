@@ -1,7 +1,7 @@
 --TEST--
 `=`, `⊕=`, an increment and `unset()` agree on an element target whose holder is no slot, and each takes exactly one diagnostic — ADR 0007 § 5, ADR 0014 § 1, ADR 0036 § 4
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 5 separates an array before an element of it is written, and the
 // separated copy has to land back in whatever held it. Three holders have no
 // slot for it to land in — `?->`, whose `null` is not a place, ADR 0014 § 1's
@@ -62,39 +62,39 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0479]: `?->` cannot be written through
-   --> case.mwl:41:1
+   --> case.nvs:41:1
 %A
 error[E0478]: an array element cannot be written through the hooked property `counts`
-   --> case.mwl:42:1
+   --> case.nvs:42:1
 %A
 error[E0480]: an array element cannot be written through the erased property `counts`
-   --> case.mwl:43:1
+   --> case.nvs:43:1
 %A
 error[E0479]: `?->` cannot be written through
-   --> case.mwl:45:1
+   --> case.nvs:45:1
 %A
 error[E0478]: an array element cannot be written through the hooked property `counts`
-   --> case.mwl:46:1
+   --> case.nvs:46:1
 %A
 error[E0480]: an array element cannot be written through the erased property `counts`
-   --> case.mwl:47:1
+   --> case.nvs:47:1
 %A
 error[E0479]: `?->` cannot be written through
-   --> case.mwl:49:1
+   --> case.nvs:49:1
 %A
 error[E0478]: an array element cannot be written through the hooked property `counts`
-   --> case.mwl:50:1
+   --> case.nvs:50:1
 %A
 error[E0480]: an array element cannot be written through the erased property `counts`
-   --> case.mwl:51:1
+   --> case.nvs:51:1
 %A
 error[E0479]: `?->` cannot be written through
-   --> case.mwl:53:7
+   --> case.nvs:53:7
 %A
 error[E0478]: an array element cannot be written through the hooked property `counts`
-   --> case.mwl:54:7
+   --> case.nvs:54:7
 %A
 error[E0480]: an array element cannot be written through the erased property `counts`
-   --> case.mwl:55:7
+   --> case.nvs:55:7
 %A
 error: aborting due to 12 errors

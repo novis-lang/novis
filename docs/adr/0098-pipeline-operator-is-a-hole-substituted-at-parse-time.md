@@ -19,8 +19,8 @@
 > name resolution, the type checker, taint and `secret`, [0057](0057-intrinsic-literal-folding.md)'s
 > literal folding, IR lowering, codegen — sees a node it already handles and none of them changes. This is
 > deliberately **not** PHP 8.5's `|>`, which applies a unary *callable* resolved at run time: that design
-> needs free functions MWL does not have ([0011](0011-functions-and-constants-are-class-members.md)),
-> callable spellings MWL closed ([0027](0027-callable-is-closures-only.md)), and a closure wrapper at
+> needs free functions Novis does not have ([0011](0011-functions-and-constants-are-class-members.md)),
+> callable spellings Novis closed ([0027](0027-callable-is-closures-only.md)), and a closure wrapper at
 > nearly every `Core` call site because R2 puts an options bag on most members. The shared spelling is kept
 > and the PHP *shape* is rejected by name, which is the same move
 > [0034](0034-legacy-cast-syntax-rejected.md), [0045](0045-and-or-xor-keyword-operators-rejected.md) and
@@ -29,9 +29,9 @@
 ## Context
 
 - **The cost being removed is reading order, not name length.** `Core` members compose by nesting, and a
-  three-deep composition reads inside-out: `tests/conformance/core/arr-map-and-filter-keep-their-keys.mwlt`
+  three-deep composition reads inside-out: `tests/conformance/core/arr-map-and-filter-keep-their-keys.nvst`
   writes `Core\Str::join(Core\Arr::values(Core\Arr::map($kept, fn(int $n) => $n as string)), ",")`, and
-  `examples/text.mwl` and `examples/numbers.mwl` each carry two more. A `use`-shorthand for `Core` members
+  `examples/text.nvs` and `examples/numbers.nvs` each carry two more. A `use`-shorthand for `Core` members
   — floated in [0011](0011-functions-and-constants-are-class-members.md) § *Revisiting* — shortens the
   names and leaves the order exactly as it was.
 - **The obvious fix is forbidden and should stay forbidden.** Methods on scalars (`$s->trim()`) is what
@@ -80,7 +80,7 @@ surrounding operator.
 ### 2. Precedence
 
 `|>` binds **tighter than every binary operator and looser than unary**, inserted between
-`parse_multiplicative` and `parse_not` in [`mwl_syntax::parser::expr`](../../crates/mwl-syntax/src/parser/expr.rs)'s
+`parse_multiplicative` and `parse_not` in [`nvs_syntax::parser::expr`](../../crates/nvs-syntax/src/parser/expr.rs)'s
 chain. The four cases this fixes, each of which a looser placement gets wrong:
 
 | written | groups as |
@@ -92,20 +92,20 @@ chain. The four cases this fixes, each of which a looser placement gets wrong:
 
 ### 3. The hole is `$_`
 
-`$_` is free for a reason already written down: `mwl_syntax::casing` rejects an identifier made entirely of
+`$_` is free for a reason already written down: `nvs_syntax::casing` rejects an identifier made entirely of
 underscores, naming PHP's conventional `$_` where it does it, under
 [0030](0030-no-leading-underscores-constructor-spelling.md). The parser turns `$_` into its own node before
 casing sees a variable, so nothing there changes.
 
-It wears a `$` because it **is** a binding, and in MWL a binding wears a `$`. Hack's `$$` was rejected for
-this slot: `$$name` is PHP's variable-variable spelling, which MWL refuses with a named diagnostic, and
+It wears a `$` because it **is** a binding, and in Novis a binding wears a `$`. Hack's `$$` was rejected for
+this slot: `$$name` is PHP's variable-variable spelling, which Novis refuses with a named diagnostic, and
 reusing the token for something unrelated is the collision this repository does not make.
 
 ### 4. Three diagnostics, in the parser band
 
 | code | when | what it says |
 |---|---|---|
-| `E0124` | the right side of `\|>` contains no `$_` | *the right side of `\|>` needs the hole `$_` — write `Str::trim($_)`*. **When the right side is first-class callable syntax** (`Foo::bar(...)`) or a closure value, it adds: *PHP 8.5's `\|>` applies a callable; MWL's substitutes `$_`* |
+| `E0124` | the right side of `\|>` contains no `$_` | *the right side of `\|>` needs the hole `$_` — write `Str::trim($_)`*. **When the right side is first-class callable syntax** (`Foo::bar(...)`) or a closure value, it adds: *PHP 8.5's `\|>` applies a callable; Novis's substitutes `$_`* |
 | `E0125` | `$_` appears more than once on one right side | *`$_` may appear exactly once — bind the value to a local instead* |
 | `E0126` | `$_` appears outside the right side of a `\|>` | *`$_` is the pipeline hole and has no meaning here* |
 
@@ -138,19 +138,19 @@ turn what makes the emitted AST identical to the nested spelling's.
   compile-time determinism.
 - It reaches what a fluent method could not: any argument slot, an instance method (`$_->group(1)`), an
   index (`$_["email"]`), a closure in a variable, `new`.
-- The implementation is confined to `mwl-syntax`. `ExprKind::StaticCall` is consumed by `mwl-hir`'s
-  `members`/`requires`, `mwl-types`' `ctor_init`/`lateinit`/`expr_table` and `mwl-ir`'s `lower::expr`, and
+- The implementation is confined to `nvs-syntax`. `ExprKind::StaticCall` is consumed by `nvs-hir`'s
+  `members`/`requires`, `nvs-types`' `ctor_init`/`lateinit`/`expr_table` and `nvs-ir`'s `lower::expr`, and
   none of them sees a new node.
 
 **Negative**
 
 - **One more operator on the surface** — priority 4, spent deliberately. It is the whole cost.
-- **Two ways to write one composition.** `mwl fmt` canonicalizes neither, by
+- **Two ways to write one composition.** `nvs fmt` canonicalizes neither, by
   [0039](0039-canonical-code-formatting.md)'s never-reflow rule. This is a style question a project settles,
   not a correctness one, and it is the reason R17's carve-out had to be made explicit rather than assumed.
 - **A shared spelling with PHP that means something else.** `$s |> Str::trim(...)` is valid PHP and an
   error here. Caught at compile time, never silently, by `E0124` — but it is a real divergence on a token
-  a PHP developer already knows, and the first one MWL takes rather than rejects outright.
+  a PHP developer already knows, and the first one Novis takes rather than rejects outright.
 - **A chain through a `?T` is broken today.** R4 makes `?T` returns common, and until *Revisiting*'s `?|>`
   exists such a chain needs an `if` — which is what the deferral is betting is rare enough to wait.
 
@@ -159,10 +159,10 @@ turn what makes the emitted AST identical to the nested spelling's.
 - **Methods on scalars** (`$s->trim()->upper()`), the JavaScript shape. Rejected on R19, and independently
   on the authority-at-the-call-site argument in *Context*: it erases the class name, needs a scalar-to-`Core`
   map in the checker rather than a parser desugar, has to answer for a `mixed` receiver where `->` already
-  means instance access, and gives `mwl fmt` two spellings with no canonical one.
+  means instance access, and gives `nvs fmt` two spellings with no canonical one.
 - **PHP 8.5's semantics under the same token.** Rejected in *Context*: it needs `Class::method(...)` as a
   value at every step — a spelling that exists ([0027](0027-callable-is-closures-only.md)) but that
-  `mwl-ir` does not lower today — and R2's trailing options bag means most `Core` members are not unary, so
+  `nvs-ir` does not lower today — and R2's trailing options bag means most `Core` members are not unary, so
   nearly every step would carry a closure wrapper and read worse than the nesting it replaces.
 - **First-argument insertion**, no hole (Elixir, Gleam). Terser, and R1 makes it correct for every `Core`
   member. Rejected: it cannot reach a second slot (`Arr::contains($haystack, $needle)`), it makes a call
@@ -173,7 +173,7 @@ turn what makes the emitted AST identical to the nested spelling's.
   contender — costs the recognition `|>` carries across ten languages while *still* requiring `|>` in the
   lexer as a rejected token to catch the PHP habit. Two tokens and two diagnostics against one and one.
 - **`$$` as the hole**, Hack's spelling. Rejected in § 3: it collides with the variable-variable spelling
-  MWL refuses by name.
+  Novis refuses by name.
 - **A `use function`-style shorthand for `Core` members** ([0011](0011-functions-and-constants-are-class-members.md)
   § *Revisiting*). Not an alternative to this at all — it shortens names and leaves reading order untouched —
   and it remains open on its own terms.

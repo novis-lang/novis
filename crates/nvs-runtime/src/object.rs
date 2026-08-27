@@ -1,8 +1,8 @@
-//! MWL's class instance: one heap allocation, a two-word header, and the
+//! Novis's class instance: one heap allocation, a two-word header, and the
 //! object's fields inline behind it — plus the [`ClassDesc`] every instance
 //! points back at.
 //!
-//! This is the representation `mwl_ir::ty::Ty::Object` lowers to, and the one
+//! This is the representation `nvs_ir::ty::Ty::Object` lowers to, and the one
 //! thing nearly everything else in M4 waits on (`docs/agent/loop-goal.md`). It
 //! follows [`crate::string`]'s shape deliberately: one allocation, a
 //! [`Cell`]-refcounted header, and the payload behind it at a fixed offset
@@ -48,15 +48,15 @@
 //! A [`ClassDesc`]'s [`field_count`](ClassDesc::field_count) is the *total*
 //! across the whole inheritance chain, and a class's own properties occupy the
 //! slots after its parent's. So a slot index computed against a base class is
-//! valid for every subclass — which is what lets `mwl_ir::InstKind::FieldGet`
+//! valid for every subclass — which is what lets `nvs_ir::InstKind::FieldGet`
 //! keep naming the *declaring* class rather than the receiver's runtime one.
 //!
 //! # Decision: `ClassDesc` is opaque, and its address is the class identity
 //!
 //! Compiled code never reads a field of one. It passes the pointer to
-//! [`mwl_object_new`] and [`mwl_object_instanceof`], and those are the only
+//! [`nvs_object_new`] and [`nvs_object_instanceof`], and those are the only
 //! two operations that exist. So the struct is an ordinary Rust type, not a
-//! `#[repr(C)]` one, and `mwl-codegen` bakes each descriptor's address into
+//! `#[repr(C)]` one, and `nvs-codegen` bakes each descriptor's address into
 //! the code it emits as a constant — the normal JIT move, and the reason there
 //! is no registry lookup on the allocation path.
 //!
@@ -75,7 +75,7 @@
 //! already has an implicit receiver there, and a static method's caller
 //! already fills it — with `null`, because a static method has no `$this`.
 //! That slot now carries the late-static-binding class instead: the tag byte
-//! stays [`Tag::Null`] (as an MWL *value* the slot still holds nothing, so
+//! stays [`Tag::Null`] (as an Novis *value* the slot still holds nothing, so
 //! nothing sweeping a `Value` ever sees a class descriptor) and the payload
 //! half carries the [`ClassDesc`] address. Compiled code reads the payload
 //! without consulting the tag, exactly as it already does for every other
@@ -87,7 +87,7 @@
 //!
 //! **A descriptor carries its methods by name.** [`ClassDesc::method`] binary-
 //! searches a flattened, name-sorted table — every method the class declares
-//! plus every one it inherits, own-first — and `mwl-codegen` fills it in after
+//! plus every one it inherits, own-first — and `nvs-codegen` fills it in after
 //! `finalize_definitions`, which is the first moment a compiled function has
 //! an address.
 //!
@@ -95,7 +95,7 @@
 //! call shape that reaches it today is `static::method()`/`new static()`,
 //! where the class is unknown until run time. An ordinary `$obj->method()` is
 //! still resolved statically from the receiver's declared type
-//! (`mwl-codegen`'s known gap 1), so nothing on the hot path pays for this.
+//! (`nvs-codegen`'s known gap 1), so nothing on the hot path pays for this.
 //! Turning that gap into real virtual dispatch wants a compile-time slot index
 //! rather than a name — a separate decision, on a table this one already
 //! builds.
@@ -115,17 +115,17 @@
 //!
 //! # Decision: a null payload *is* `null`
 //!
-//! A refcounted representation's null pointer means MWL's `null`, and every
-//! retain/release primitive treats it as a no-op — [`mwl_object_retain`],
-//! [`mwl_object_release`], and [`crate::mwl_str_retain`]/
-//! [`crate::mwl_str_release`] alike.
+//! A refcounted representation's null pointer means Novis's `null`, and every
+//! retain/release primitive treats it as a no-op — [`nvs_object_retain`],
+//! [`nvs_object_release`], and [`crate::nvs_str_retain`]/
+//! [`crate::nvs_str_release`] alike.
 //!
 //! This is not a defensive check. It is the state a field slot is *in* between
-//! [`MwlObj::new`] zeroing it and the constructor's first assignment — unless
-//! the property declared a default, which [`MwlObj::new`] writes over the zero
+//! [`NvsObj::new`] zeroing it and the constructor's first assignment — unless
+//! the property declared a default, which [`NvsObj::new`] writes over the zero
 //! before anything else runs ([`ClassDesc::defaults`]). Either way that first
 //! assignment releases whatever the slot previously held
-//! (`mwl_ir::lower::lower_reassignment`), and on the first write there is
+//! (`nvs_ir::lower::lower_reassignment`), and on the first write there is
 //! nothing there. Compiled code reads the payload half of the slot without
 //! consulting its tag — the field's static type already settled what it holds
 //! — so what reaches the primitive is a null pointer, not a `Tag::Null`
@@ -134,7 +134,7 @@
 //! The same rule is what a nullable `?T` will lower to, so paying one
 //! perfectly-predicted branch per refcount operation buys both cases at once.
 //! The alternative — teaching lowering which assignment is a property's
-//! *first* — needs `mwl_types::ctor_init`'s flow analysis threaded into the
+//! *first* — needs `nvs_types::ctor_init`'s flow analysis threaded into the
 //! IR, to remove a branch that costs nothing measurable.
 //!
 //! # What a shape write checks
@@ -151,10 +151,10 @@
 //! declared type itself is deliberately not carried:
 //!
 //! * The class a shape literal constructs is named for its **field names
-//!   alone** (`$shape{x,y}`, `mwl_ir::lower::shape_class_label`), so `{x: 1}`
+//!   alone** (`$shape{x,y}`, `nvs_ir::lower::shape_class_label`), so `{x: 1}`
 //!   and `{x: "s"}` are one class. A declared *type* per slot would have to
 //!   mint a class per name-and-type tuple — a bigger class table, a second
-//!   naming scheme for `mwl_stdlib` to keep in step with, and all of it read
+//!   naming scheme for `nvs_stdlib` to keep in step with, and all of it read
 //!   by one instruction.
 //! * A tag closes the failure that matters most: representation confusion,
 //!   where a slot's payload is loaded as the wrong machine type. That is a
@@ -173,12 +173,12 @@
 //!    compare against and the check must not reject a legal write.
 //! 4. **Two literals that share their field names but not their types** fall
 //!    back to case 3 for the slots they disagree on;
-//!    `mwl_ir::lower::Lowering::record_shape_class` degrades the tag rather
+//!    `nvs_ir::lower::Lowering::record_shape_class` degrades the tag rather
 //!    than picking whichever literal it saw first.
 //! 5. **A class with no layout of its own** — a closure's environment, a
 //!    generator's state — carries no tags, because nothing declares its slots
 //!    in source for a type to come from. A *named* class does carry them: an
-//!    erased receiver reaches any class at all, so `mwl_ir::lower`'s
+//!    erased receiver reaches any class at all, so `nvs_ir::lower`'s
 //!    `field_reprs` joins every layout's slots against the declared property
 //!    types the checker recorded.
 //!
@@ -204,7 +204,7 @@ use crate::value::{Tag, Value};
 /// directly: a [`ClassTable`] owns every descriptor, so the `conforms`
 /// pointers below always refer to descriptors that outlive this one.
 pub struct ClassDesc {
-    /// The class's rendered name, as `mwl_ir` labels it (`Class` or
+    /// The class's rendered name, as `nvs_ir` labels it (`Class` or
     /// `Ns\Class`). Used by diagnostics and by `Core\Reflect` later; never by
     /// dispatch, which is resolved at compile time.
     name: String,
@@ -230,7 +230,7 @@ pub struct ClassDesc {
     /// Every method callable on an instance of this class — its own plus
     /// every inherited one — as `(name, code address)`, sorted by name so
     /// [`ClassDesc::method`] is a binary search. Empty until
-    /// [`ClassTable::set_methods`] fills it, which `mwl-codegen` does after
+    /// [`ClassTable::set_methods`] fills it, which `nvs-codegen` does after
     /// the unit is finalized: see this module's docs for why a name and not a
     /// slot index.
     methods: Vec<(String, *const u8)>,
@@ -239,9 +239,9 @@ pub struct ClassDesc {
     /// `#[Json\Derive]`, which is the default and costs one empty `Vec` per
     /// descriptor.
     ///
-    /// Compiled in rather than reflected: `mwl_types::derive` reads the
-    /// attribute, `mwl-codegen` copies the answer here, and
-    /// `mwl_stdlib::json`'s encoder and decoder walk it. Filled by
+    /// Compiled in rather than reflected: `nvs_types::derive` reads the
+    /// attribute, `nvs-codegen` copies the answer here, and
+    /// `nvs_stdlib::json`'s encoder and decoder walk it. Filled by
     /// [`ClassTable::set_codec`].
     codec: Vec<CodecField>,
     /// How many parameters this class's `constructor` declares — what a
@@ -259,10 +259,10 @@ pub struct ClassDesc {
     /// most of them. Filled by [`ClassTable::set_defaults`].
     ///
     /// This is the whole of what a property initializer *is* at run time:
-    /// [`MwlObj::new`] writes these slots straight after nulling them, so a
+    /// [`NvsObj::new`] writes these slots straight after nulling them, so a
     /// default reaches an instance however it was built — a compiled `new`,
     /// [`construct`] from native code, or ADR 0071's derived decoder. Compiled
-    /// code emits no initializer at all; `mwl_types::defaults` owns why.
+    /// code emits no initializer at all; `nvs_types::defaults` owns why.
     defaults: Vec<(usize, FieldDefault)>,
     /// The one [`Tag`] each field slot's *declared* type admits, in slot
     /// order, or `None` for a slot whose declared type admits more than one —
@@ -275,7 +275,7 @@ pub struct ClassDesc {
     ///
     /// This is the whole of § 4's *"a write's incoming value is checked
     /// against the field's real, concrete declared type"* — see
-    /// [`mwl_object_slot_set`], which is its only reader, and this module's
+    /// [`nvs_object_slot_set`], which is its only reader, and this module's
     /// docs § *What a shape write checks* for what a tag does not catch and
     /// why the declared type itself is not here. Filled by
     /// [`ClassTable::set_field_tags`]. **Cost:** one byte-sized `Option<Tag>`
@@ -287,12 +287,12 @@ pub struct ClassDesc {
     /// no `toString`.
     ///
     /// Not a [`Self::methods`] row, and the difference is the calling
-    /// convention rather than the lookup: that table holds *compiled* MWL
+    /// convention rather than the lookup: that table holds *compiled* Novis
     /// functions, which release their parameters, while a native `Core` member
     /// is an ADR 0002 helper and **borrows** its arguments. One table cannot
     /// hold both without a caller having to know which it drew — so the
     /// convention is encoded in which field the address came out of. Filled by
-    /// [`ClassTable::set_render`], which only `mwl-stdlib` calls; read by
+    /// [`ClassTable::set_render`], which only `nvs-stdlib` calls; read by
     /// [`crate::dispatch::call_render`], which [`crate::stringify`] asks
     /// before the method table. **Cost:** one pointer per class, once per
     /// process, not per instance.
@@ -312,16 +312,16 @@ pub struct ClassDesc {
 
 /// The name of the resume-to-unwind entry point on a generator's state class,
 /// which is the whole of what [`dismantle`] knows about
-/// `mwl_ir::lower::generator`'s transform — that module's `GEN_UNWIND_METHOD`
+/// `nvs_ir::lower::generator`'s transform — that module's `GEN_UNWIND_METHOD`
 /// is the same string, and its doc comment owns why the name is unspellable.
 ///
-/// Restated here rather than shared: this crate depends on neither `mwl-ir`
-/// nor `mwl-codegen`, and the class label and field names of that transform
+/// Restated here rather than shared: this crate depends on neither `nvs-ir`
+/// nor `nvs-codegen`, and the class label and field names of that transform
 /// are restated in the same direction for the same reason.
 pub const GENERATOR_UNWIND_METHOD: &str = "gen#unwind";
 
 /// One property default's already-evaluated value — the closed set
-/// `mwl_types::defaults::ConstArg` can reach from a *written* property
+/// `nvs_types::defaults::ConstArg` can reach from a *written* property
 /// declaration, which is that enum minus the shapes only `Core`'s own
 /// signature table produces.
 ///
@@ -330,8 +330,8 @@ pub const GENERATOR_UNWIND_METHOD: &str = "gen#unwind";
 /// would then have to be careful to retain it — an invariant paid for on every
 /// allocation, in exchange for saving one `strlen`-sized copy on a class that
 /// declares a string default. AGENTS.md's ordering puts that the other way
-/// round. **Cost:** one [`crate::MwlStr`] allocation per instance per
-/// string-defaulted property, and one empty [`crate::MwlArray`] per instance
+/// round. **Cost:** one [`crate::NvsStr`] allocation per instance per
+/// string-defaulted property, and one empty [`crate::NvsArray`] per instance
 /// per array-defaulted one — the same allocation the constructor assignment it
 /// replaces was already making.
 #[derive(Clone, Debug)]
@@ -345,10 +345,10 @@ pub enum FieldDefault {
     /// `float`
     Float(f64),
     /// `string`, already cooked — the octets the slot's fresh
-    /// [`crate::MwlStr`] holds.
+    /// [`crate::NvsStr`] holds.
     Str(String),
     /// `[]` — a fresh empty array, which is the only array constant there is
-    /// (`mwl_types::defaults::ConstArg::EmptyArray`).
+    /// (`nvs_types::defaults::ConstArg::EmptyArray`).
     EmptyArray,
 }
 
@@ -362,8 +362,8 @@ impl FieldDefault {
             Self::Int(v) => Value::int(*v),
             Self::Uint(v) => Value::uint(*v),
             Self::Float(v) => Value::float(*v),
-            Self::Str(s) => Value::str(crate::MwlStr::new(s.as_bytes())),
-            Self::EmptyArray => Value::array(crate::MwlArray::new()),
+            Self::Str(s) => Value::str(crate::NvsStr::new(s.as_bytes())),
+            Self::EmptyArray => Value::array(crate::NvsArray::new()),
         }
     }
 }
@@ -398,7 +398,7 @@ pub enum CodecTy {
     Mixed,
     /// A declared type this decoder has no case for yet — an `array<T>`, a
     /// nested class, an enum, a `decimal`, an `Instant`. Encoding one still
-    /// works; decoding into one is `mwl_stdlib::json`'s own known gap, and it
+    /// works; decoding into one is `nvs_stdlib::json`'s own known gap, and it
     /// faults naming the field rather than guessing a value.
     Opaque,
 }
@@ -407,9 +407,9 @@ pub enum CodecTy {
 /// read from, the constructor position it is written to, and what a decode
 /// must produce for it.
 ///
-/// One struct shared by all four crates that touch it — `mwl_types::derive`
-/// produces the declaration half, `mwl_ir::lower::lower_file` joins the slot
-/// and constructor indices in, `mwl-codegen` copies it here — so a field
+/// One struct shared by all four crates that touch it — `nvs_types::derive`
+/// produces the declaration half, `nvs_ir::lower::lower_file` joins the slot
+/// and constructor indices in, `nvs-codegen` copies it here — so a field
 /// added to the wire contract cannot reach the runtime under a different
 /// shape than it left the checker.
 #[derive(Clone, Debug)]
@@ -496,7 +496,7 @@ impl ClassDesc {
     /// — or `None` if nothing in the chain declares a *body* for it.
     ///
     /// `None` is an ordinary answer, not a failure: an interface method with
-    /// no default body has no code, and [`mwl_class_method`]'s caller supplies
+    /// no default body has no code, and [`nvs_class_method`]'s caller supplies
     /// the statically resolved target as the fallback.
     #[must_use]
     pub fn method(&self, name: &str) -> Option<*const u8> {
@@ -574,16 +574,16 @@ pub struct ClassId(usize);
 ///
 /// Each descriptor is boxed, so its address is stable for the table's whole
 /// life even as later classes are defined — which is what lets
-/// [`ClassTable::desc`] hand out a pointer `mwl-codegen` embeds in machine
+/// [`ClassTable::desc`] hand out a pointer `nvs-codegen` embeds in machine
 /// code.
 ///
 /// The table must outlive every instance of every class it defines, and every
-/// compiled function that can allocate one. `mwl-codegen`'s compiled unit is
+/// compiled function that can allocate one. `nvs-codegen`'s compiled unit is
 /// the natural owner.
 #[derive(Debug, Default)]
 pub struct ClassTable {
     /// Boxed individually, and deliberately so: `ClassTable::desc` hands out a
-    /// raw pointer that `mwl-codegen` bakes into machine code, and a
+    /// raw pointer that `nvs-codegen` bakes into machine code, and a
     /// `Vec<ClassDesc>` would move every descriptor the next `define` reallocs.
     /// `clippy::vec_box` cannot see that the indirection *is* the point.
     #[expect(
@@ -660,7 +660,7 @@ impl ClassTable {
     /// Separate from [`ClassTable::define`] on [`ClassTable::set_defaults`]'
     /// terms exactly: a slot's *name* is the same fact as its existence, while
     /// what its declared type admits is a second table's answer that
-    /// `mwl-codegen` maps out of `mwl_ir::Ty` on the way here.
+    /// `nvs-codegen` maps out of `nvs_ir::Ty` on the way here.
     ///
     /// # Panics
     ///
@@ -685,13 +685,13 @@ impl ClassTable {
     /// Fills in `id`'s declared property defaults — see [`ClassDesc::defaults`].
     ///
     /// Separate from [`ClassTable::define`] on exactly [`ClassTable::set_codec`]'s
-    /// terms: the fact comes from a different `mwl-ir` table, and there is no
+    /// terms: the fact comes from a different `nvs-ir` table, and there is no
     /// compiled address to wait for.
     ///
     /// # Panics
     ///
     /// If `id` does not belong to this table, or if a slot index is out of
-    /// range for the class — which would mean `mwl-ir` joined a default
+    /// range for the class — which would mean `nvs-ir` joined a default
     /// against the wrong layout, and writing past the allocation is not a
     /// failure to discover at run time.
     pub fn set_defaults(&mut self, id: ClassId, defaults: Vec<(usize, FieldDefault)>) {
@@ -711,8 +711,8 @@ impl ClassTable {
     /// [`ClassDesc::codec`].
     ///
     /// Separate from [`ClassTable::define`] only because the two facts come
-    /// from two different `mwl-ir` tables; unlike [`ClassTable::set_methods`]
-    /// there is no address to wait for, so `mwl-codegen` calls this straight
+    /// from two different `nvs-ir` tables; unlike [`ClassTable::set_methods`]
+    /// there is no address to wait for, so `nvs-codegen` calls this straight
     /// after defining the class.
     ///
     /// # Panics
@@ -732,7 +732,7 @@ impl ClassTable {
     ///
     /// Separate from [`ClassTable::define`] because a compiled function has no
     /// address until its module is finalized, which is long after every class
-    /// is defined. `mwl-codegen` calls this in its own `finish`.
+    /// is defined. `nvs-codegen` calls this in its own `finish`.
     ///
     /// # Panics
     ///
@@ -756,7 +756,7 @@ impl ClassTable {
     ///
     /// `address` is an ADR 0002 helper that takes the instance as its one
     /// argument and **borrows** it, which is what separates this from
-    /// [`ClassTable::set_methods`]; `mwl_stdlib::instance` is its only caller,
+    /// [`ClassTable::set_methods`]; `nvs_stdlib::instance` is its only caller,
     /// because a class whose renderer is native is a `Core` class by
     /// definition and that crate is where the registry saying so lives.
     ///
@@ -795,7 +795,7 @@ impl ClassTable {
 
     /// The id of the class named `name`, or `None` if this table defines none.
     ///
-    /// A linear scan: the one caller is `mwl-codegen` looking up a single
+    /// A linear scan: the one caller is `nvs-codegen` looking up a single
     /// compiler-owned class once per compiled unit, which is not a place a
     /// second index would pay for itself.
     #[must_use]
@@ -813,12 +813,12 @@ impl ClassTable {
     }
 }
 
-/// The header sitting in front of every MWL object's field slots.
+/// The header sitting in front of every Novis object's field slots.
 ///
 /// `#[repr(C)]` because compiled code reads these fields at fixed offsets.
 /// Never construct one by value — it is only ever the first
 /// `size_of::<ObjHeader>()` bytes of a larger allocation made by
-/// [`MwlObj::new`], and moving it would leave the fields behind.
+/// [`NvsObj::new`], and moving it would leave the fields behind.
 #[repr(C)]
 #[derive(Debug)]
 pub struct ObjHeader {
@@ -842,7 +842,7 @@ pub const FIELD_STRIDE: usize = std::mem::size_of::<Value>();
 
 /// Byte offset of field slot `index`, relative to the [`ObjHeader`] pointer.
 ///
-/// This is the one place the arithmetic lives, so `mwl-codegen` queries the
+/// This is the one place the arithmetic lives, so `nvs-codegen` queries the
 /// layout rather than restating it.
 ///
 /// # Panics
@@ -868,22 +868,22 @@ fn obj_layout(field_count: usize) -> Layout {
 
 const _: () = assert!(std::mem::align_of::<Value>() <= std::mem::align_of::<ObjHeader>());
 
-/// An owning handle to one reference of an MWL object.
+/// An owning handle to one reference of an Novis object.
 ///
 /// Cloning retains, dropping releases — so Rust-side code (helpers, tests, and
-/// eventually `mwl-stdlib`) manipulates objects without writing a refcount
-/// operation by hand, exactly the way [`crate::MwlStr`] already works.
+/// eventually `nvs-stdlib`) manipulates objects without writing a refcount
+/// operation by hand, exactly the way [`crate::NvsStr`] already works.
 /// Compiled code instead calls the
-/// [`mwl_object_new`]/[`mwl_object_retain`]/[`mwl_object_release`] primitives.
+/// [`nvs_object_new`]/[`nvs_object_retain`]/[`nvs_object_release`] primitives.
 ///
 /// Neither `Send` nor `Sync`, by construction — see [`crate::string`]'s own
 /// docs for the reasoning, which is identical here.
 #[repr(transparent)]
-pub struct MwlObj {
+pub struct NvsObj {
     ptr: NonNull<ObjHeader>,
 }
 
-impl MwlObj {
+impl NvsObj {
     /// Allocates a fresh instance of `class` with a reference count of one and
     /// every field slot `null`.
     ///
@@ -891,7 +891,7 @@ impl MwlObj {
     /// released *before* its constructor finished — a `throw` partway through
     /// one — sweeps well-formed values.
     /// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
-    /// makes that state unobservable to MWL code; this only makes it safe to
+    /// makes that state unobservable to Novis code; this only makes it safe to
     /// free.
     ///
     /// # Safety
@@ -902,7 +902,7 @@ impl MwlObj {
     /// # Panics
     ///
     /// Aborts the process through [`handle_alloc_error`] if the allocator
-    /// fails — see [`crate::MwlStr::new`] for why that is the honest behaviour
+    /// fails — see [`crate::NvsStr::new`] for why that is the honest behaviour
     /// until a per-request arena exists.
     #[must_use]
     #[expect(
@@ -923,16 +923,16 @@ impl MwlObj {
         object
     }
 
-    /// The allocation half of [`MwlObj::new`]: a fresh instance with every
+    /// The allocation half of [`NvsObj::new`]: a fresh instance with every
     /// slot `null` and **no** default applied.
     ///
-    /// Its own entry point for exactly one caller — [`mwl_object_clone`],
+    /// Its own entry point for exactly one caller — [`nvs_object_clone`],
     /// which overwrites every slot with the source's value and would otherwise
     /// allocate a default string only to release it one line later.
     ///
     /// # Safety
     ///
-    /// As [`MwlObj::new`].
+    /// As [`NvsObj::new`].
     #[must_use]
     #[expect(
         unsafe_code,
@@ -983,7 +983,7 @@ impl MwlObj {
     pub fn field_count(&self) -> usize {
         #[expect(
             unsafe_code,
-            reason = "an object's descriptor outlives it by `MwlObj::new`'s own \
+            reason = "an object's descriptor outlives it by `NvsObj::new`'s own \
                       safety contract"
         )]
         unsafe {
@@ -992,7 +992,7 @@ impl MwlObj {
     }
 
     /// Reads field slot `index` **without** taking a reference to whatever it
-    /// holds — the borrow-shaped read `mwl_ir::InstKind::FieldGet` performs.
+    /// holds — the borrow-shaped read `nvs_ir::InstKind::FieldGet` performs.
     ///
     /// # Panics
     ///
@@ -1049,7 +1049,7 @@ impl MwlObj {
     /// Overwrites field slot `index` with `value`, releasing whatever it held.
     ///
     /// Takes over `value`'s reference: the object owns it afterwards, exactly
-    /// the way `mwl_ir::InstKind::FieldSet`'s caller-side retain arranges.
+    /// the way `nvs_ir::InstKind::FieldSet`'s caller-side retain arranges.
     ///
     /// # Panics
     ///
@@ -1084,7 +1084,7 @@ impl MwlObj {
     pub fn class_name(&self) -> &str {
         #[expect(
             unsafe_code,
-            reason = "an object's descriptor outlives it by `MwlObj::new`'s own \
+            reason = "an object's descriptor outlives it by `NvsObj::new`'s own \
                       safety contract"
         )]
         unsafe {
@@ -1128,7 +1128,7 @@ impl MwlObj {
     /// compiled code holds.
     ///
     /// The caller now owns exactly one reference and must eventually pass the
-    /// pointer to [`mwl_object_release`] or [`MwlObj::from_raw`].
+    /// pointer to [`nvs_object_release`] or [`NvsObj::from_raw`].
     #[must_use]
     pub fn into_raw(self) -> *mut ObjHeader {
         let ptr = self.ptr.as_ptr();
@@ -1136,17 +1136,17 @@ impl MwlObj {
         ptr
     }
 
-    /// Reclaims a reference previously given up by [`MwlObj::into_raw`].
+    /// Reclaims a reference previously given up by [`NvsObj::into_raw`].
     ///
     /// # Safety
     ///
-    /// `ptr` must be a pointer produced by [`MwlObj::into_raw`] (or by
-    /// [`mwl_object_new`]) whose reference has not already been released, and
+    /// `ptr` must be a pointer produced by [`NvsObj::into_raw`] (or by
+    /// [`nvs_object_new`]) whose reference has not already been released, and
     /// it must not be reclaimed twice.
     ///
     /// # Panics
     ///
-    /// If `ptr` is null, which no MWL object pointer ever is.
+    /// If `ptr` is null, which no Novis object pointer ever is.
     #[must_use]
     #[expect(
         unsafe_code,
@@ -1154,7 +1154,7 @@ impl MwlObj {
     )]
     pub unsafe fn from_raw(ptr: *mut ObjHeader) -> Self {
         Self {
-            ptr: NonNull::new(ptr).expect("an MWL object pointer is never null"),
+            ptr: NonNull::new(ptr).expect("an Novis object pointer is never null"),
         }
     }
 
@@ -1162,7 +1162,7 @@ impl MwlObj {
     ///
     /// # Safety
     ///
-    /// `ptr` must refer to a live MWL object allocation.
+    /// `ptr` must refer to a live Novis object allocation.
     #[must_use]
     #[expect(
         unsafe_code,
@@ -1179,7 +1179,7 @@ impl MwlObj {
     ///
     /// # Safety
     ///
-    /// `ptr` must refer to a live MWL object allocation.
+    /// `ptr` must refer to a live Novis object allocation.
     #[must_use]
     #[expect(
         unsafe_code,
@@ -1193,14 +1193,14 @@ impl MwlObj {
     }
 }
 
-impl Clone for MwlObj {
+impl Clone for NvsObj {
     fn clone(&self) -> Self {
         bump(self.ptr.as_ptr());
         Self { ptr: self.ptr }
     }
 }
 
-impl Drop for MwlObj {
+impl Drop for NvsObj {
     fn drop(&mut self) {
         #[expect(
             unsafe_code,
@@ -1212,9 +1212,9 @@ impl Drop for MwlObj {
     }
 }
 
-impl fmt::Debug for MwlObj {
+impl fmt::Debug for NvsObj {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MwlObj")
+        f.debug_struct("NvsObj")
             .field("class", &self.class_name())
             .field("refcount", &self.refcount())
             .field("fields", &self.field_count())
@@ -1226,7 +1226,7 @@ impl fmt::Debug for MwlObj {
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL object allocation with more than `index`
+/// `ptr` must refer to a live Novis object allocation with more than `index`
 /// field slots.
 #[expect(
     unsafe_code,
@@ -1234,7 +1234,7 @@ impl fmt::Debug for MwlObj {
               obligation to state"
 )]
 unsafe fn field_ptr(ptr: *mut ObjHeader, index: usize) -> *mut Value {
-    // A debug-only bound, and deliberately not a release one. `mwl-codegen`
+    // A debug-only bound, and deliberately not a release one. `nvs-codegen`
     // resolves the slot at compile time from the same `ir::Class::fields` list
     // that built this object's descriptor (`Classes::define`), so the two
     // cannot disagree about a *count*; what this catches is the narrower case
@@ -1243,7 +1243,7 @@ unsafe fn field_ptr(ptr: *mut ObjHeader, index: usize) -> *mut Value {
     // receiver type the checker got wrong. Measured at ~1.4% of a
     // field-heavy program to carry into release, which buys too little for
     // the price when the conformance suite and both fuzz targets run debug.
-    // The erased path does not need this: `mwl_object_slot_get` reads the
+    // The erased path does not need this: `nvs_object_slot_get` reads the
     // slot off the receiver's own descriptor by name.
     #[cfg(debug_assertions)]
     {
@@ -1252,7 +1252,7 @@ unsafe fn field_ptr(ptr: *mut ObjHeader, index: usize) -> *mut Value {
             reason = "the caller guarantees the allocation is live, so its \
                       descriptor is too"
         )]
-        let count = unsafe { (*MwlObj::class_of(ptr)).field_count() };
+        let count = unsafe { (*NvsObj::class_of(ptr)).field_count() };
         assert!(
             index < count,
             "field slot {index} is out of range for a class with {count} slots"
@@ -1261,7 +1261,7 @@ unsafe fn field_ptr(ptr: *mut ObjHeader, index: usize) -> *mut Value {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees the slot is inside the allocation, and \
-                  `MwlObj::new` initialized every one of them"
+                  `NvsObj::new` initialized every one of them"
     )]
     unsafe {
         ptr.cast::<u8>().add(field_offset(index)).cast::<Value>()
@@ -1284,7 +1284,7 @@ fn bump(ptr: *mut ObjHeader) {
             .refcount
             .get()
             .checked_add(1)
-            .expect("an MWL object's reference count cannot overflow a usize"),
+            .expect("an Novis object's reference count cannot overflow a usize"),
     );
 }
 
@@ -1296,7 +1296,7 @@ fn bump(ptr: *mut ObjHeader) {
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL object allocation whose reference the caller
+/// `ptr` must refer to a live Novis object allocation whose reference the caller
 /// owns.
 #[expect(
     unsafe_code,
@@ -1318,7 +1318,7 @@ pub(crate) unsafe fn drop_one(ptr: *mut ObjHeader) -> bool {
 ///
 /// # Safety
 ///
-/// `root` must refer to a live MWL object allocation whose reference the
+/// `root` must refer to a live Novis object allocation whose reference the
 /// caller owns, and must not be released twice.
 #[expect(
     unsafe_code,
@@ -1353,7 +1353,7 @@ pub unsafe fn release_graph(root: *mut ObjHeader) {
 /// is optional:
 ///
 /// - **The count is resurrected to one first.** `gen#unwind` borrows argument
-///   0 (`mwl_ir::lower::generator::lower_generator_unwind` owns why), so it
+///   0 (`nvs_ir::lower::generator::lower_generator_unwind` owns why), so it
 ///   retains and `advance()` releases on its way out — a pair that would cross
 ///   zero, and re-enter the release path on the allocation already being
 ///   dismantled, if it started from the zero this function is handed. The
@@ -1366,7 +1366,7 @@ pub unsafe fn release_graph(root: *mut ObjHeader) {
 ///
 /// # Safety
 ///
-/// `ptr` must refer to an MWL object allocation whose reference count reached
+/// `ptr` must refer to an Novis object allocation whose reference count reached
 /// zero in [`drop_one`], and must be dismantled exactly once.
 #[expect(
     unsafe_code,
@@ -1381,7 +1381,7 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
                   allocated with, before the header is freed"
     )]
     unsafe {
-        let class = MwlObj::class_of(ptr);
+        let class = NvsObj::class_of(ptr);
         if let Some(target) = (*class).unwind_entry() {
             unwind_abandoned(ptr, target);
         }
@@ -1400,7 +1400,7 @@ pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::releas
 ///
 /// # Safety
 ///
-/// `ptr` must refer to an MWL object allocation whose reference count reached
+/// `ptr` must refer to an Novis object allocation whose reference count reached
 /// zero, whose class carries `target` as its [`GENERATOR_UNWIND_METHOD`] row.
 #[expect(
     unsafe_code,
@@ -1430,7 +1430,7 @@ unsafe fn unwind_abandoned(ptr: *mut ObjHeader, target: *const u8) {
 
 /// Allocates a fresh instance of `class` with a reference count of one, every
 /// field slot `null`, and then every slot that declares one holding its
-/// default ([`ClassDesc::defaults`]) — `mwl_ir::InstKind::New`'s allocation
+/// default ([`ClassDesc::defaults`]) — `nvs_ir::InstKind::New`'s allocation
 /// half.
 ///
 /// # Safety
@@ -1443,10 +1443,10 @@ unsafe fn unwind_abandoned(ptr: *mut ObjHeader, target: *const u8) {
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_object_new(class: *const ClassDesc) -> *mut ObjHeader {
+pub unsafe extern "C" fn nvs_object_new(class: *const ClassDesc) -> *mut ObjHeader {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     unsafe {
-        MwlObj::new(class).into_raw()
+        NvsObj::new(class).into_raw()
     }
 }
 
@@ -1460,13 +1460,13 @@ pub unsafe extern "C" fn mwl_object_new(class: *const ClassDesc) -> *mut ObjHead
 /// through the original. That is the whole of what `clone` means; deep copying
 /// is `serialize`/`unserialize`'s recursive graph copy, a different operation.
 ///
-/// No hook runs. ADR 0023 makes `__clone` one of the magic methods MWL does
+/// No hook runs. ADR 0023 makes `__clone` one of the magic methods Novis does
 /// not have, so this is the entire operation — nothing here can throw, which
 /// is why it wears no checked-return shape.
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL object allocation the caller holds a
+/// `ptr` must refer to a live Novis object allocation the caller holds a
 /// reference to for the duration of the call.
 #[expect(
     unsafe_code,
@@ -1474,7 +1474,7 @@ pub unsafe extern "C" fn mwl_object_new(class: *const ClassDesc) -> *mut ObjHead
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader {
+pub unsafe extern "C" fn nvs_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader {
     if ptr.is_null() {
         return std::ptr::null_mut();
     }
@@ -1484,8 +1484,8 @@ pub unsafe extern "C" fn mwl_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader
                   reference to, so borrowing it for this copy is sound"
     )]
     let (source, copy) = unsafe {
-        let source = MwlObj::from_raw(ptr);
-        let copy = MwlObj::alloc(source.class());
+        let source = NvsObj::from_raw(ptr);
+        let copy = NvsObj::alloc(source.class());
         (source, copy)
     };
     for index in 0..source.field_count() {
@@ -1506,18 +1506,18 @@ pub unsafe extern "C" fn mwl_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader
     copy.into_raw()
 }
 
-/// Adds a reference — `mwl_ir::InstKind::Retain` for a `Ty::Object` operand.
+/// Adds a reference — `nvs_ir::InstKind::Retain` for a `Ty::Object` operand.
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL object allocation.
+/// `ptr` must refer to a live Novis object allocation.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw object pointer whose liveness the \
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_object_retain(ptr: *mut ObjHeader) {
+pub unsafe extern "C" fn nvs_object_retain(ptr: *mut ObjHeader) {
     if ptr.is_null() {
         return;
     }
@@ -1525,11 +1525,11 @@ pub unsafe extern "C" fn mwl_object_retain(ptr: *mut ObjHeader) {
 }
 
 /// Drops a reference, freeing the object and everything it solely owns if it
-/// was the last — `mwl_ir::InstKind::Release` for a `Ty::Object` operand.
+/// was the last — `nvs_ir::InstKind::Release` for a `Ty::Object` operand.
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL object allocation whose reference this
+/// `ptr` must refer to a live Novis object allocation whose reference this
 /// caller owns, and must not be released twice.
 #[expect(
     unsafe_code,
@@ -1537,7 +1537,7 @@ pub unsafe extern "C" fn mwl_object_retain(ptr: *mut ObjHeader) {
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_object_release(ptr: *mut ObjHeader) {
+pub unsafe extern "C" fn nvs_object_release(ptr: *mut ObjHeader) {
     #[expect(unsafe_code, reason = "the caller guarantees it owns the reference")]
     unsafe {
         release_graph(ptr);
@@ -1548,12 +1548,12 @@ pub unsafe extern "C" fn mwl_object_release(ptr: *mut ObjHeader) {
 ///
 /// A null `ptr` answers `false`, the same "a null payload *is* `null`"
 /// treatment every retain/release primitive here already gives one — and the
-/// reason a `catch` dispatch stays safe when `mwl_take_thrown` hands back
+/// reason a `catch` dispatch stays safe when `nvs_take_thrown` hands back
 /// nothing (see `crate::throwable`).
 ///
 /// # Safety
 ///
-/// `ptr` must be null or refer to a live MWL object allocation, and `class`
+/// `ptr` must be null or refer to a live Novis object allocation, and `class`
 /// to a live descriptor.
 #[expect(
     unsafe_code,
@@ -1561,7 +1561,7 @@ pub unsafe extern "C" fn mwl_object_release(ptr: *mut ObjHeader) {
               whose liveness the signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_object_instanceof(
+pub unsafe extern "C" fn nvs_object_instanceof(
     ptr: *const ObjHeader,
     class: *const ClassDesc,
 ) -> bool {
@@ -1570,16 +1570,16 @@ pub unsafe extern "C" fn mwl_object_instanceof(
     }
     #[expect(unsafe_code, reason = "the caller guarantees both pointees are live")]
     unsafe {
-        (*MwlObj::class_of(ptr)).conforms_to(class)
+        (*NvsObj::class_of(ptr)).conforms_to(class)
     }
 }
 
-/// [`mwl_object_instanceof`] over a subject whose tag nothing proved — a
+/// [`nvs_object_instanceof`] over a subject whose tag nothing proved — a
 /// `mixed`, or a `?Box` no test narrowed, which is the shape `$x instanceof
 /// Box` exists to interrogate.
 ///
 /// The subject arrives as a whole [`Value`] by address, the same shape
-/// [`mwl_object_slot_get`]'s receiver takes and for the same reason: an
+/// [`nvs_object_slot_get`]'s receiver takes and for the same reason: an
 /// unchecked untag in compiled code would dereference an `int` payload. Unlike
 /// that fetch there is nothing to throw about — a tag that is not an object
 /// simply answers `false`, which is PHP's own answer, and a subject whose
@@ -1595,7 +1595,7 @@ pub unsafe extern "C" fn mwl_object_instanceof(
               neither of whose liveness the signature can express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_value_instanceof(
+pub unsafe extern "C" fn nvs_value_instanceof(
     subject: *const Value,
     class: *const ClassDesc,
 ) -> bool {
@@ -1609,7 +1609,7 @@ pub unsafe extern "C" fn mwl_value_instanceof(
     };
     #[expect(unsafe_code, reason = "the caller guarantees both pointees are live")]
     unsafe {
-        mwl_object_instanceof(ptr, class)
+        nvs_object_instanceof(ptr, class)
     }
 }
 
@@ -1639,7 +1639,7 @@ pub unsafe extern "C" fn mwl_value_instanceof(
               byte range whose liveness the signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_class_method(
+pub unsafe extern "C" fn nvs_class_method(
     class: *const ClassDesc,
     name: *const u8,
     len: usize,
@@ -1661,9 +1661,9 @@ pub const CONSTRUCTOR: &str = "constructor";
 
 /// Builds an instance of `class` by running its own `constructor` — what a
 /// native member does where compiled code would emit
-/// `mwl_ir::ir::InstKind::New`.
+/// `nvs_ir::ir::InstKind::New`.
 ///
-/// **Every argument's reference is transferred**, exactly as an ordinary MWL
+/// **Every argument's reference is transferred**, exactly as an ordinary Novis
 /// call's is: the callee releases each of its parameters at scope exit, so the
 /// caller hands over values it owns and never releases them again. That holds
 /// on the error paths too — an argument is consumed whether or not the
@@ -1686,7 +1686,7 @@ pub const CONSTRUCTOR: &str = "constructor";
 ///
 /// # Safety
 ///
-/// `class` must refer to a live descriptor whose method table `mwl-codegen`
+/// `class` must refer to a live descriptor whose method table `nvs-codegen`
 /// has already filled.
 #[expect(
     unsafe_code,
@@ -1710,13 +1710,13 @@ pub unsafe fn construct(
     #[expect(
         unsafe_code,
         reason = "the address came out of a live descriptor's method table, which \
-                  `mwl-codegen` fills only with compiled functions of exactly this \
+                  `nvs-codegen` fills only with compiled functions of exactly this \
                   signature"
     )]
-    let target: crate::abi::MwlFn = unsafe { std::mem::transmute::<*const u8, _>(target) };
+    let target: crate::abi::NvsFn = unsafe { std::mem::transmute::<*const u8, _>(target) };
 
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
-    let object = unsafe { MwlObj::new(class) };
+    let object = unsafe { NvsObj::new(class) };
     let value = Value::object(object);
     #[expect(
         unsafe_code,
@@ -1761,20 +1761,20 @@ fn release_all(values: &[Value]) {
     }
 }
 
-crate::mwl_helper! {
-    /// The floor under [`mwl_class_method`]: what a call to a method with no
+crate::nvs_helper! {
+    /// The floor under [`nvs_class_method`]: what a call to a method with no
     /// body reaches when the receiver's own class declares no override either.
     ///
     /// An `abstract` method and a bodiless interface method name no compiled
     /// function, so a call resolving to one has no static target to fall back
-    /// to — `mwl_ir::ir::InstKind::CallVirtual` passes this instead of a null
+    /// to — `nvs_ir::ir::InstKind::CallVirtual` passes this instead of a null
     /// pointer, which would turn a compiler bug into a jump to address zero.
     /// Reaching it is an engine fault, never user error: the checker refuses a
     /// concrete class that leaves an interface method unimplemented.
     ///
     /// Takes no arguments *by declaration* — it is called with whatever the
     /// original call site passed, and reads none of them.
-    fn mwl_abstract_method(_ctx, _args: [0]) {
+    fn nvs_abstract_method(_ctx, _args: [0]) {
         Err(Fault::fatal(
             "internal error: a method with no body was called, and no class in the \
              receiver's chain declared one"
@@ -1783,36 +1783,36 @@ crate::mwl_helper! {
     }
 }
 
-/// The class name of the object at `ptr`, as a fresh MWL string —
+/// The class name of the object at `ptr`, as a fresh Novis string —
 /// `Core\Reflect`'s eventual `nameOf`, and what a diagnostic renders.
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL object allocation.
+/// `ptr` must refer to a live Novis object allocation.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw object pointer whose liveness the \
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_object_class_name(
+pub unsafe extern "C" fn nvs_object_class_name(
     ptr: *const ObjHeader,
 ) -> *mut crate::string::StrHeader {
     #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
-    let name = unsafe { (*MwlObj::class_of(ptr)).name() };
-    crate::string::MwlStr::new(name.as_bytes()).into_raw()
+    let name = unsafe { (*NvsObj::class_of(ptr)).name() };
+    crate::string::NvsStr::new(name.as_bytes()).into_raw()
 }
 
 /// Reads field slot `index` off the object at `ptr`, **without** retaining
-/// what it holds — `mwl_ir::InstKind::FieldGet`'s out-of-line form.
+/// what it holds — `nvs_ir::InstKind::FieldGet`'s out-of-line form.
 ///
 /// Compiled code loads the slot inline using [`field_offset`] once
-/// `mwl-codegen` emits the arithmetic; this exists so the layout is exercised
+/// `nvs-codegen` emits the arithmetic; this exists so the layout is exercised
 /// from Rust and so a `mixed`-typed read has a single entry point.
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL object allocation whose class has more than
+/// `ptr` must refer to a live Novis object allocation whose class has more than
 /// `index` field slots.
 #[expect(
     unsafe_code,
@@ -1820,11 +1820,11 @@ pub unsafe extern "C" fn mwl_object_class_name(
               the signature cannot bound"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_object_field_get(ptr: *mut ObjHeader, index: usize) -> Value {
+pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize) -> Value {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees the allocation is live and the slot is \
-                  in range; `MwlObj::new` initialized every slot"
+                  in range; `NvsObj::new` initialized every slot"
     )]
     unsafe {
         *field_ptr(ptr, index)
@@ -1833,16 +1833,16 @@ pub unsafe extern "C" fn mwl_object_field_get(ptr: *mut ObjHeader, index: usize)
 
 /// Reads the field *named* `name` off the object at `ptr`, writing what the
 /// slot holds to `out` — [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)
-/// § 4's name-keyed fetch, and `mwl_ir::InstKind::SlotGet`'s whole emission.
+/// § 4's name-keyed fetch, and `nvs_ir::InstKind::SlotGet`'s whole emission.
 ///
-/// The name arrives as static bytes `mwl-codegen` put in the unit's data
-/// section rather than as an [`crate::MwlStr`]: a read through a shape must not
+/// The name arrives as static bytes `nvs-codegen` put in the unit's data
+/// section rather than as an [`crate::NvsStr`]: a read through a shape must not
 /// cost an allocation, and the name is a compile-time constant on every path
 /// that reaches here.
 ///
 /// **Borrows.** `out` receives the slot's value without a retain, exactly as
 /// an inline `FieldGet` load does, so a consumer that outlives the receiver
-/// owes it the retain — see `mwl_ir::InstKind::SlotGet`.
+/// owes it the retain — see `nvs_ir::InstKind::SlotGet`.
 ///
 /// `hint` is the slot the static type said the field was at; see
 /// [`ClassDesc::field_slot`] for what it buys and when it is wrong.
@@ -1877,7 +1877,7 @@ pub unsafe extern "C" fn mwl_object_field_get(ptr: *mut ObjHeader, index: usize)
               range, neither of which the signature can bound"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_object_slot_get(
+pub unsafe extern "C" fn nvs_object_slot_get(
     ctx: *mut Ctx,
     receiver: *const Value,
     name: *const u8,
@@ -1915,7 +1915,7 @@ pub unsafe extern "C" fn mwl_object_slot_get(
             reason = "the caller guarantees the allocation is live, so its descriptor \
                       is too"
         )]
-        let desc = unsafe { &*MwlObj::class_of(ptr) };
+        let desc = unsafe { &*NvsObj::class_of(ptr) };
         let Some(slot) = desc.field_slot(name, hint) else {
             return Err(Fault::thrown(format!(
                 "`{}` has no field `{name}`",
@@ -1938,25 +1938,25 @@ pub unsafe extern "C" fn mwl_object_slot_get(
     }
 }
 
-/// `$issue->path = "x";` — [`mwl_object_slot_get`]'s write half, and
+/// `$issue->path = "x";` — [`nvs_object_slot_get`]'s write half, and
 /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's whole
 /// write rule: the slot is found by **name** on the receiver's own descriptor,
 /// the incoming value is checked against what that class declares the field to
 /// hold, and **no field is ever created** — a name the concrete class does not
 /// carry is the same catchable throw a read raises, never a new slot.
 ///
-/// **Borrows.** Unlike [`mwl_object_field_set`], which takes over its caller's
+/// **Borrows.** Unlike [`nvs_object_field_set`], which takes over its caller's
 /// reference, this retains what it stores and leaves the caller's own alone:
 /// the write can throw *after* its operands are in hand, and a transferred
-/// reference on that edge has no owner left to release it. `mwl_ir::lower`
+/// reference on that edge has no owner left to release it. `nvs_ir::lower`
 /// stages a freshly-built value as an ordinary temporary instead, which both
-/// exits already sweep — see `mwl_ir::InstKind::SlotSet`.
+/// exits already sweep — see `nvs_ir::InstKind::SlotSet`.
 ///
 /// What the slot held is released, so the caller emits no read-back-and-drop
 /// pair the way an inline `FieldSet` needs one.
 ///
 /// `hint` is the slot the static type said the field was at, exactly as in
-/// [`mwl_object_slot_get`]; `out` receives a null and exists only because
+/// [`nvs_object_slot_get`]; `out` receives a null and exists only because
 /// [`crate::run_helper`] writes one.
 ///
 /// # Errors
@@ -1969,7 +1969,7 @@ pub unsafe extern "C" fn mwl_object_slot_get(
 /// this module's docs for what it does not catch.
 ///
 /// A third when the receiver is not an object at all, in PHP's own wording —
-/// [`mwl_object_slot_get`]'s own third, and reachable for the same one reason.
+/// [`nvs_object_slot_get`]'s own third, and reachable for the same one reason.
 ///
 /// # Safety
 ///
@@ -1982,7 +1982,7 @@ pub unsafe extern "C" fn mwl_object_slot_get(
               address, neither of which the signature can bound"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_object_slot_set(
+pub unsafe extern "C" fn nvs_object_slot_set(
     ctx: *mut Ctx,
     receiver: *const Value,
     name: *const u8,
@@ -2021,7 +2021,7 @@ pub unsafe extern "C" fn mwl_object_slot_set(
             reason = "the caller guarantees the allocation is live, so its descriptor \
                       is too"
         )]
-        let desc = unsafe { &*MwlObj::class_of(ptr) };
+        let desc = unsafe { &*NvsObj::class_of(ptr) };
         let Some(slot) = desc.field_slot(name, hint) else {
             return Err(Fault::thrown(format!(
                 "`{}` has no field `{name}`",
@@ -2069,11 +2069,11 @@ pub unsafe extern "C" fn mwl_object_slot_set(
 
 /// Overwrites field slot `index` on the object at `ptr`, releasing whatever it
 /// held and taking over `value`'s reference —
-/// `mwl_ir::InstKind::FieldSet`'s out-of-line form.
+/// `nvs_ir::InstKind::FieldSet`'s out-of-line form.
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL object allocation whose class has more than
+/// `ptr` must refer to a live Novis object allocation whose class has more than
 /// `index` field slots, and `value` must own the reference it transfers.
 #[expect(
     unsafe_code,
@@ -2082,7 +2082,7 @@ pub unsafe extern "C" fn mwl_object_slot_set(
               express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_object_field_set(ptr: *mut ObjHeader, index: usize, value: Value) {
+pub unsafe extern "C" fn nvs_object_field_set(ptr: *mut ObjHeader, index: usize, value: Value) {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees the allocation is live and the slot is \
@@ -2101,10 +2101,10 @@ const _: () = assert!(Tag::Object as u8 == 7);
 mod tests {
     use super::*;
     use crate::counting_alloc;
-    use crate::string::MwlStr;
+    use crate::string::NvsStr;
 
     /// A table with `Animal`, `Dog extends Animal`, and a `Greets` interface
-    /// `Dog` implements — the shape `examples/objects.mwl` needs.
+    /// `Dog` implements — the shape `examples/objects.nvs` needs.
     fn hierarchy() -> (ClassTable, ClassId, ClassId, ClassId) {
         let mut table = ClassTable::new();
         let greets = table.define("Greets", &[] as &[&str], &[]);
@@ -2127,7 +2127,7 @@ mod tests {
     fn a_fresh_object_has_one_reference_and_null_fields() {
         let (table, _animal, dog, _greets) = hierarchy();
         #[expect(unsafe_code, reason = "the table outlives the object")]
-        let object = unsafe { MwlObj::new(table.desc(dog)) };
+        let object = unsafe { NvsObj::new(table.desc(dog)) };
         assert_eq!(object.refcount(), 1);
         assert_eq!(object.class_name(), "Dog");
         assert_eq!(object.field_count(), 2);
@@ -2143,9 +2143,9 @@ mod tests {
         // name reaches the caller's fallback rather than null, and that a
         // descriptor nobody filled in is a fallback rather than a crash.
         let (mut table, animal, dog, _greets) = hierarchy();
-        let base: *const u8 = (mwl_object_new as *const ()).cast();
-        let over: *const u8 = (mwl_object_retain as *const ()).cast();
-        let miss: *const u8 = (mwl_object_release as *const ()).cast();
+        let base: *const u8 = (nvs_object_new as *const ()).cast();
+        let over: *const u8 = (nvs_object_retain as *const ()).cast();
+        let miss: *const u8 = (nvs_object_release as *const ()).cast();
         table.set_methods(animal, vec![("describe".to_owned(), base)]);
         table.set_methods(
             dog,
@@ -2161,16 +2161,16 @@ mod tests {
 
             let name = "describe";
             assert_eq!(
-                mwl_class_method(table.desc(dog), name.as_ptr(), name.len(), miss),
+                nvs_class_method(table.desc(dog), name.as_ptr(), name.len(), miss),
                 over
             );
             let absent = "bark";
             assert_eq!(
-                mwl_class_method(table.desc(animal), absent.as_ptr(), absent.len(), miss),
+                nvs_class_method(table.desc(animal), absent.as_ptr(), absent.len(), miss),
                 miss
             );
             assert_eq!(
-                mwl_class_method(std::ptr::null(), name.as_ptr(), name.len(), miss),
+                nvs_class_method(std::ptr::null(), name.as_ptr(), name.len(), miss),
                 miss
             );
         }
@@ -2181,7 +2181,7 @@ mod tests {
         let mut table = ClassTable::new();
         let marker = table.define("Marker", &[] as &[&str], &[]);
         #[expect(unsafe_code, reason = "the table outlives the object")]
-        let object = unsafe { MwlObj::new(table.desc(marker)) };
+        let object = unsafe { NvsObj::new(table.desc(marker)) };
         assert_eq!(object.field_count(), 0);
         assert_eq!(object.refcount(), 1);
     }
@@ -2190,7 +2190,7 @@ mod tests {
     fn cloning_retains_and_dropping_releases() {
         let (table, animal, _dog, _greets) = hierarchy();
         #[expect(unsafe_code, reason = "the table outlives the object")]
-        let object = unsafe { MwlObj::new(table.desc(animal)) };
+        let object = unsafe { NvsObj::new(table.desc(animal)) };
         let second = object.clone();
         assert_eq!(object.refcount(), 2);
         drop(second);
@@ -2202,12 +2202,12 @@ mod tests {
         let (table, animal, dog, greets) = hierarchy();
         #[expect(unsafe_code, reason = "the table outlives the objects")]
         unsafe {
-            let pet = MwlObj::new(table.desc(dog));
+            let pet = NvsObj::new(table.desc(dog));
             assert!(pet.is_instance_of(table.desc(dog)));
             assert!(pet.is_instance_of(table.desc(animal)));
             assert!(pet.is_instance_of(table.desc(greets)));
 
-            let plain = MwlObj::new(table.desc(animal));
+            let plain = NvsObj::new(table.desc(animal));
             assert!(plain.is_instance_of(table.desc(animal)));
             assert!(!plain.is_instance_of(table.desc(dog)));
             assert!(!plain.is_instance_of(table.desc(greets)));
@@ -2223,7 +2223,7 @@ mod tests {
         let leaf = table.define("Leaf", &[] as &[&str], &[mid]);
         #[expect(unsafe_code, reason = "the table outlives the object")]
         unsafe {
-            let object = MwlObj::new(table.desc(leaf));
+            let object = NvsObj::new(table.desc(leaf));
             for ancestor in [leaf, mid, base, named] {
                 assert!(object.is_instance_of(table.desc(ancestor)));
             }
@@ -2233,9 +2233,9 @@ mod tests {
     #[test]
     fn setting_a_field_releases_what_it_replaced() {
         let (table, animal, _dog, _greets) = hierarchy();
-        let name = MwlStr::new(b"rex");
+        let name = NvsStr::new(b"rex");
         #[expect(unsafe_code, reason = "the table outlives the object")]
-        let object = unsafe { MwlObj::new(table.desc(animal)) };
+        let object = unsafe { NvsObj::new(table.desc(animal)) };
 
         object.set_field(0, Value::str(name.clone()));
         assert_eq!(name.refcount(), 2);
@@ -2249,9 +2249,9 @@ mod tests {
     #[test]
     fn dropping_an_object_releases_every_field_it_owns() {
         let (table, animal, _dog, _greets) = hierarchy();
-        let name = MwlStr::new(b"cat");
+        let name = NvsStr::new(b"cat");
         #[expect(unsafe_code, reason = "the table outlives the object")]
-        let object = unsafe { MwlObj::new(table.desc(animal)) };
+        let object = unsafe { NvsObj::new(table.desc(animal)) };
         object.set_field(0, Value::str(name.clone()));
         assert_eq!(name.refcount(), 2);
         drop(object);
@@ -2263,20 +2263,20 @@ mod tests {
         let (table, animal, _dog, _greets) = hierarchy();
         #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
         unsafe {
-            let raw = mwl_object_new(table.desc(animal));
-            mwl_object_retain(raw);
-            assert_eq!(MwlObj::refcount_of(raw), 2);
-            assert!(mwl_object_instanceof(raw, table.desc(animal)));
+            let raw = nvs_object_new(table.desc(animal));
+            nvs_object_retain(raw);
+            assert_eq!(NvsObj::refcount_of(raw), 2);
+            assert!(nvs_object_instanceof(raw, table.desc(animal)));
 
-            mwl_object_field_set(raw, 0, Value::int(7));
-            assert_eq!(mwl_object_field_get(raw, 0).as_int(), Some(7));
+            nvs_object_field_set(raw, 0, Value::int(7));
+            assert_eq!(nvs_object_field_get(raw, 0).as_int(), Some(7));
 
-            let class_name = MwlStr::from_raw(mwl_object_class_name(raw));
+            let class_name = NvsStr::from_raw(nvs_object_class_name(raw));
             assert_eq!(class_name.as_bytes(), b"Animal");
 
-            mwl_object_release(raw);
-            assert_eq!(MwlObj::refcount_of(raw), 1);
-            mwl_object_release(raw);
+            nvs_object_release(raw);
+            assert_eq!(NvsObj::refcount_of(raw), 1);
+            nvs_object_release(raw);
         }
     }
 
@@ -2285,8 +2285,8 @@ mod tests {
         let (table, animal, dog, _greets) = hierarchy();
         #[expect(unsafe_code, reason = "the table outlives the objects")]
         unsafe {
-            let inner = MwlObj::new(table.desc(animal));
-            let outer = MwlObj::new(table.desc(dog));
+            let inner = NvsObj::new(table.desc(animal));
+            let outer = NvsObj::new(table.desc(dog));
             outer.set_field(0, Value::object(inner.clone()));
             assert_eq!(inner.refcount(), 2);
             drop(outer);
@@ -2304,23 +2304,23 @@ mod tests {
         let (table, animal, dog, _greets) = hierarchy();
         #[expect(unsafe_code, reason = "the table outlives every object below")]
         unsafe {
-            let shared = MwlObj::new(table.desc(animal));
-            let original = MwlObj::new(table.desc(dog));
+            let shared = NvsObj::new(table.desc(animal));
+            let original = NvsObj::new(table.desc(dog));
             original.set_field(0, Value::object(shared.clone()));
-            original.set_field(1, Value::str(MwlStr::new(b"name")));
+            original.set_field(1, Value::str(NvsStr::new(b"name")));
             assert_eq!(shared.refcount(), 2);
 
-            // Through raw pointers rather than `MwlObj::clone`, which would
+            // Through raw pointers rather than `NvsObj::clone`, which would
             // bump the very counts this is measuring.
             let original_ptr = original.into_raw();
-            let copy_ptr = mwl_object_clone(original_ptr);
+            let copy_ptr = nvs_object_clone(original_ptr);
             assert_ne!(
                 copy_ptr.cast_const(),
                 original_ptr.cast_const(),
                 "`clone` must be a second allocation"
             );
-            let original = MwlObj::from_raw(original_ptr);
-            let copy = MwlObj::from_raw(copy_ptr);
+            let original = NvsObj::from_raw(original_ptr);
+            let copy = NvsObj::from_raw(copy_ptr);
             assert_eq!(copy.class_name(), original.class_name());
             assert_eq!(copy.refcount(), 1);
             // The slot is shared, not copied — a third owner of `shared`.
@@ -2330,7 +2330,7 @@ mod tests {
 
             // Overwriting a slot on the copy leaves the original's alone —
             // "single-level" is the other half of the rule.
-            copy.set_field(1, Value::str(MwlStr::new(b"copy")));
+            copy.set_field(1, Value::str(NvsStr::new(b"copy")));
             assert_eq!(original.field(1).as_str_bytes(), Some(b"name".as_slice()));
         }
     }
@@ -2345,17 +2345,17 @@ mod tests {
         {
             #[expect(unsafe_code, reason = "the table outlives every object below")]
             unsafe {
-                let shared = MwlObj::new(table.desc(animal));
-                shared.set_field(0, Value::str(MwlStr::new(b"shared")));
-                let original = MwlObj::new(table.desc(dog));
+                let shared = NvsObj::new(table.desc(animal));
+                shared.set_field(0, Value::str(NvsStr::new(b"shared")));
+                let original = NvsObj::new(table.desc(dog));
                 original.set_field(0, Value::object(shared.clone()));
-                original.set_field(1, Value::str(MwlStr::new(b"name")));
+                original.set_field(1, Value::str(NvsStr::new(b"name")));
                 drop(shared);
 
                 let raw = original.into_raw();
-                let copy = MwlObj::from_raw(mwl_object_clone(raw));
+                let copy = NvsObj::from_raw(nvs_object_clone(raw));
                 drop(copy);
-                drop(MwlObj::from_raw(raw));
+                drop(NvsObj::from_raw(raw));
             }
         }
         assert_eq!(
@@ -2380,18 +2380,18 @@ mod tests {
             unsafe {
                 // A chain 512 deep, each node also owning a string, plus one
                 // node referenced twice so a shared subgraph is covered too.
-                let shared = MwlObj::new(table.desc(animal));
-                shared.set_field(0, Value::str(MwlStr::new(b"shared")));
+                let shared = NvsObj::new(table.desc(animal));
+                shared.set_field(0, Value::str(NvsStr::new(b"shared")));
 
-                let mut head = MwlObj::new(table.desc(dog));
+                let mut head = NvsObj::new(table.desc(dog));
                 head.set_field(0, Value::object(shared.clone()));
-                head.set_field(1, Value::str(MwlStr::new(b"node 0")));
+                head.set_field(1, Value::str(NvsStr::new(b"node 0")));
                 for depth in 1..512 {
-                    let next = MwlObj::new(table.desc(dog));
+                    let next = NvsObj::new(table.desc(dog));
                     next.set_field(0, Value::object(head));
                     next.set_field(
                         1,
-                        Value::str(MwlStr::new(format!("node {depth}").as_bytes())),
+                        Value::str(NvsStr::new(format!("node {depth}").as_bytes())),
                     );
                     head = next;
                 }
@@ -2414,9 +2414,9 @@ mod tests {
         let link = table.define("Link", &["next"], &[]);
         #[expect(unsafe_code, reason = "the table outlives every object below")]
         unsafe {
-            let mut head = MwlObj::new(table.desc(link));
+            let mut head = NvsObj::new(table.desc(link));
             for _ in 1..200_000 {
-                let next = MwlObj::new(table.desc(link));
+                let next = NvsObj::new(table.desc(link));
                 next.set_field(0, Value::object(head));
                 head = next;
             }
@@ -2428,7 +2428,7 @@ mod tests {
     fn a_debug_rendering_names_the_class() {
         let (table, animal, _dog, _greets) = hierarchy();
         #[expect(unsafe_code, reason = "the table outlives the object")]
-        let object = unsafe { MwlObj::new(table.desc(animal)) };
+        let object = unsafe { NvsObj::new(table.desc(animal)) };
         let rendered = format!("{object:?}");
         assert!(rendered.contains("Animal"), "{rendered}");
         assert!(rendered.contains("refcount: 1"), "{rendered}");
@@ -2437,7 +2437,7 @@ mod tests {
     /// ADR 0036 § 4's name-keyed fetch: the hint is tried first and is right
     /// where the receiver's shape is the value's own, wrong through a widened
     /// view — and a name the class does not carry answers `None`, which is
-    /// what `mwl_object_slot_get` turns into a catchable throw.
+    /// what `nvs_object_slot_get` turns into a catchable throw.
     #[test]
     fn a_field_is_found_by_name_whether_or_not_the_hint_is_right() {
         let mut table = ClassTable::new();

@@ -1,6 +1,6 @@
 [package]
-name = "mwl-runtime"
-description = "MWL runtime: the ADR 0002 helper ABI, the tagged value representation, refcounted strings, and the per-request context"
+name = "nvs-runtime"
+description = "Novis runtime: the ADR 0002 helper ABI, the tagged value representation, refcounted strings, and the per-request context"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -25,7 +25,7 @@ sanitizer = []
 [dependencies]
 bitflags.workspace = true
 # ADR 0033 § 5's `secret == secret` is a constant-time comparison, and this
-# crate cannot call `mwl-stdlib`, where `Core\Hash::equals` already uses the
+# crate cannot call `nvs-stdlib`, where `Core\Hash::equals` already uses the
 # same crate for the same reason — the workspace manifest's own comment beside
 # `subtle` states it: an optimiser is free to turn the obvious loop back into
 # an early exit, and that barrier is the whole point of the dependency.

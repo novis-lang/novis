@@ -1,14 +1,14 @@
 --TEST--
 Core\Arr::reverse renumbers every key, and {preserveKeys: true} keeps every one
 --FILE--
-<?mwl
+<?nvs
 array<string> $a = ["x" => "one", "10" => "two", "y" => "three"];
 
 // The values come back in the opposite order either way.
 echo Core\Str::join(Core\Arr::reverse($a), ","), "\n";
 echo Core\Str::join(Core\Arr::reverse($a, {preserveKeys: true}), ","), "\n";
 
-// The keys are where MWL and PHP part company: `array_reverse` renumbers the
+// The keys are where Novis and PHP part company: `array_reverse` renumbers the
 // integer keys and silently keeps the string ones, which is the key-type-
 // dependent behaviour ADR 0069 § 3 removes. The default discards *every* key.
 echo Core\Str::join(Core\Arr::keys(Core\Arr::reverse($a)), ","), "\n";

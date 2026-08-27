@@ -1,7 +1,7 @@
 --TEST--
 Spec § 4: `Core\Time\Duration`'s eight constructors are for a computed count, and its arithmetic is exact
 --FILE--
-<?mwl
+<?nvs
 // The eight constructors exist for a count that is not known while compiling;
 // a constant one is ADR 0070's literal, and the two agree exactly.
 var $n = 2;

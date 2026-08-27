@@ -1,13 +1,13 @@
 --TEST--
 `require` is the only same-frame inclusion construct, so `include` is refused before its target is even looked for — ADR 0021
 --FILE--
-<?mwl
-include "other.mwl";
+<?nvs
+include "other.nvs";
 echo "after\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0221]: `include` is not supported
-  --> case.mwl:2:1
+  --> case.nvs:2:1
 %A
 error: aborting due to 1 error

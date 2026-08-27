@@ -1,7 +1,7 @@
 --TEST--
 Three levels of inheritance, each overriding one member and reaching the level above it with `parent::`
 --FILE--
-<?mwl
+<?nvs
 class Base {
     public function tag(): string {
         return "base";

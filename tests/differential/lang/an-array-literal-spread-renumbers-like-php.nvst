@@ -1,7 +1,7 @@
 --TEST--
 `[...$a]` renumbers an integer-looking key and preserves every other one, exactly as PHP does — ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 // Two lists concatenate: every key of both is integer-looking, so every
 // entry is appended under the destination's own counter.
 array<string> $a = ["x", "y"];

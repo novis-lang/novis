@@ -1,7 +1,7 @@
 --TEST--
 `foreach` drives the cursor's *runtime* class: a subclass overriding `current()` changes what a base-typed cursor yields, and a second `foreach` over a fresh one starts over — ADR 0053 § 1
 --FILE--
-<?mwl
+<?nvs
 class Counter implements Iterator<int> {
     public int $at;
     public int $stop;

@@ -1,7 +1,7 @@
 --TEST--
 A `Core\ObjectSet` swept with scattered removals keeps every survivor findable and every removal absent, and its algebra agrees with the set built directly from the survivors — docs/spec/01-core-library.md § 9
 --FILE--
-<?mwl
+<?nvs
 final class Tag {
     public string $name;
 
@@ -35,7 +35,7 @@ echo $set->count(), "\n";
 // line: a tag is in the set exactly when it was not dropped. A removal that
 // left the store's chain sparse would fail here and nowhere else, since it is
 // the *later* members of a chain that stop being reachable
-// (`crates/mwl-stdlib/src/identity_store.rs`).
+// (`crates/nvs-stdlib/src/identity_store.rs`).
 int $wrong = 0;
 int $i = 0;
 foreach ($tags as Tag $tag) {

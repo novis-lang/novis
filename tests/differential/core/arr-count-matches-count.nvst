@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::count over a list agrees with PHP's count()
 --FILE--
-<?mwl
+<?nvs
 echo Core\Arr::count([]), "\n";
 echo Core\Arr::count(["a"]), "\n";
 echo Core\Arr::count(["a", "b", "c"]), "\n";

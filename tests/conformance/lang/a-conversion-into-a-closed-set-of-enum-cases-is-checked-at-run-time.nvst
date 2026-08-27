@@ -1,7 +1,7 @@
 --TEST--
 A checked `as` into a closed set of enum cases tests membership at run time and throws naming the set — ADR 0047 §§ 3, 4 and 6
 --FILE--
-<?mwl
+<?nvs
 enum Mode {
     Read = 1,
     Write = 2,

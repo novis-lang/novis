@@ -1,14 +1,14 @@
 --TEST--
 Core\Arr::reduce folds what array_reduce folds, the argument order, the walk direction and the untouched empty seed included
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `array_reduce` row. Both members take `($carry, $value)` in that
 // order and walk left to right, so every fold below is the same program twice —
-// what MWL adds is a third parameter PHP's callback cannot declare, and
+// what Novis adds is a third parameter PHP's callback cannot declare, and
 // `arr-reduce-offers-the-key-where-array_reduce-offers-two-arguments` owns that.
 //
 // `$initial` is a required argument here and an optional one there
-// (`mwl_core_arr_reduce`'s doc comment, "`U` is bound by `$initial`"): the seed
+// (`nvs_core_arr_reduce`'s doc comment, "`U` is bound by `$initial`"): the seed
 // is what binds the fold's type, so there is nothing for it to default to. Every
 // row therefore passes one on both sides, which is the only shape the two share.
 array<int> $nums = [3, 8, 5];

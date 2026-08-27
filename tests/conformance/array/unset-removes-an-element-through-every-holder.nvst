@@ -1,7 +1,7 @@
 --TEST--
 `unset()` reaches an element through each of the three holders a separated array can be written back into, and through a nested chain — ADR 0007 § 5, ADR 0028 § 3
 --FILE--
-<?mwl
+<?nvs
 class Holder {
     public static array<string> $rows = [];
     public array<string> $own = [];

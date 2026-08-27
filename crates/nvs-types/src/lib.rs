@@ -1,7 +1,7 @@
-//! The MWL type checker (ADR 0007) — M2's last open thread. See
+//! The Novis type checker (ADR 0007) — M2's last open thread. See
 //! `docs/implementation-plan.md`'s M2 paragraph and `docs/agent/handoff.md`
 //! for how this crate grew: a full type checker covering every ADR M2
-//! assigns to `mwl-types` was too large for one slice, so the first slice
+//! assigns to `nvs-types` was too large for one slice, so the first slice
 //! covered ADR 0007 §§ 1-4 in full (declared-type recording, per-local
 //! definite assignment, the interned type grammar, the arithmetic
 //! result-type table) plus enough of §§ 5-6 to satisfy the earliest corpus
@@ -14,9 +14,9 @@
 //! - [`ty`] — [`ty::Ty`]/[`ty::TypeId`]/[`ty::TypeInterner`]: the interned
 //!   type representation everything else in this crate is built on.
 //! - [`lower`] — [`lower::lower_type`]: resolves a parsed
-//!   [`mwl_syntax::ast::Type`] into a [`ty::TypeId`], including
+//!   [`nvs_syntax::ast::Type`] into a [`ty::TypeId`], including
 //!   `self`/`static`, `type`-alias substitution (the first real consumer of
-//!   [`mwl_hir::AliasTable`]), and ADR 0007 § 5's depth-32 array-nesting
+//!   [`nvs_hir::AliasTable`]), and ADR 0007 § 5's depth-32 array-nesting
 //!   bound.
 //! - [`signatures`] — [`signatures::build_signatures`]/
 //!   [`signatures::resolve_property`]/[`signatures::resolve_method`]: every
@@ -40,10 +40,10 @@
 //!   argument checking against a resolved `constructor`), and
 //!   `match`/ternary as the union of their branches' types. See [`expr`]'s
 //!   own docs for exactly which receiver shapes resolve and which
-//!   diagnostics belong to this crate versus `mwl_hir::members`.
+//!   diagnostics belong to this crate versus `nvs_hir::members`.
 //! - [`check`] — [`check::check_program`]: the entry point, walking a
-//!   resolved [`mwl_hir::Module`]'s classes and methods the same way
-//!   [`mwl_hir::members`] already does, seeding each method body's
+//!   resolved [`nvs_hir::Module`]'s classes and methods the same way
+//!   [`nvs_hir::members`] already does, seeding each method body's
 //!   [`locals::LocalScope`] from its lowered parameters (`$this` included,
 //!   typed as the enclosing class) and checking every `return` against the
 //!   lowered return type.
@@ -55,16 +55,16 @@
 //!   framing asks for, rather than reusing `locals`'s code directly (the two
 //!   passes track different per-path state and don't share a walker).
 //! - [`expr_table`] — [`expr_table::ExprTypeTable`]: the typed-expression
-//!   table `mwl-ir` reads a call's/`new`'s resolved target from once it needs
+//!   table `nvs-ir` reads a call's/`new`'s resolved target from once it needs
 //!   to lower one — see that module's own docs for the full design and why
-//!   `mwl-ir` reads this instead of depending on [`signatures`]/[`ClassGraph`]
+//!   `nvs-ir` reads this instead of depending on [`signatures`]/[`ClassGraph`]
 //!   directly.
 //! - [`derive`] — `derive::check_class_derive`: ADR 0071's derive pass —
 //!   which classes carry `#[Json\Derive]`, matched *nominally* against a
 //!   closed `Core`-owned list, and what the field list and wire keys of each
 //!   are. Runs from [`check`]'s walk because that is what holds the namespace
 //!   and import set a nominal match needs; its answer is recorded in
-//!   [`expr_table`] and joined against [`layout`]'s slot order by `mwl-ir`.
+//!   [`expr_table`] and joined against [`layout`]'s slot order by `nvs-ir`.
 //! - [`consts`] — [`consts::build_const_table`]: every declared class
 //!   constant's folded compile-time value, built beside [`enums`] and read
 //!   only where ADR 0047 § 2's `Foo::CONST` appears in *type* position. See
@@ -72,14 +72,14 @@
 //!   than dropped.
 //! - [`layout`] — [`layout::build_class_layouts`]: every declared class's
 //!   instance-field *slot order* and its flattened supertype set, the second
-//!   thing this crate publishes for `mwl-ir` to read back. See that module's
+//!   thing this crate publishes for `nvs-ir` to read back. See that module's
 //!   own docs for why the resolution has to happen here rather than there.
 //! - [`string_lit`] — [`string_lit::cook_double_quoted_text`]: cooks a
 //!   double-quoted string literal's (or an interpolated-heredoc text run's)
 //!   escapes into the `string` it denotes, diagnosing the two ways cooking
 //!   can fail — an out-of-range `\u{...}` codepoint, or a byte escape
 //!   sequence that isn't valid UTF-8. `pub`, and reused directly by
-//!   `mwl-ir`'s own lowering rather than duplicated — see that module's own
+//!   `nvs-ir`'s own lowering rather than duplicated — see that module's own
 //!   docs for why this one, unlike `expr`'s `int_literal_digits`, is shared.
 //! - [`lateinit`] — [`lateinit::check_class_lateinit_reads`]: ADR 0038's
 //!   `lateinit` property modifier. `signatures::build_signatures` validates
@@ -99,10 +99,10 @@
 //!   value-shape checking) and ADR 0033 §§ 2-4 (`secret`, the same shape on
 //!   an independent axis — its § 1 grammar landed in M1) are all now done —
 //!   as is § 5's constant-time `==`, whose share of the work is this crate's
-//!   alone to do: the qualifier does not survive `mwl_ir::ty::Ty`, so
+//!   alone to do: the qualifier does not survive `nvs_ir::ty::Ty`, so
 //!   [`expr::operators`] records
 //!   [`expr_table::ExprInfo::SecretEquality`] at a comparison with a `secret`
-//!   operand and `mwl-ir` picks the helper from that —
+//!   operand and `nvs-ir` picks the helper from that —
 //!   see [`expr`]'s own module docs for the first two, and for how the first
 //!   two's machinery is shared with `secret` rather than duplicated:
 //!   concatenation/interpolation poison their result on each axis
@@ -140,7 +140,7 @@
 //!   access on any receiver other than `$this` is checked" half turned out to
 //!   already be done: [`expr::members::check_property_access`] reports
 //!   `E_UNKNOWN_MEMBER` for exactly that shape (see its own module docs) —
-//!   `mwl_hir::members`'s and this module's known-gap notes were just stale
+//!   `nvs_hir::members`'s and this module's known-gap notes were just stale
 //!   about it. ADR 0022 (definite *property*
 //!   initialization) is now done for the shapes its own M2 corpus names —
 //!   see [`ctor_init`]'s docs for what is deliberately still out of scope
@@ -179,7 +179,7 @@
 //!   rule, what invalidates one and the two places the walk deliberately
 //!   refuses to prove anything. The residue is unrestricted — dropping
 //!   `null` leaves an array, a scalar or a class alike, and
-//!   [`expr_table::ExprInfo::NarrowedRead`] is what carries that to `mwl-ir`.
+//!   [`expr_table::ExprInfo::NarrowedRead`] is what carries that to `nvs-ir`.
 //!   `instanceof`, a comparison against a literal-typed value and
 //!   `match (true)` do not narrow yet — the same conservative direction as
 //!   the row above: a missing narrowing is a diagnostic, never a wrong
@@ -189,7 +189,7 @@
 //!   promoted constructor-parameter property, and a named/spread call
 //!   argument's positional checking — see [`signatures`]/[`expr`]'s own
 //!   known-gaps lists. A `Core` class's constant is not among them: it is
-//!   stated by `mwl_stdlib::registry::CoreConst` and resolved by [`expr`]'s
+//!   stated by `nvs_stdlib::registry::CoreConst` and resolved by [`expr`]'s
 //!   `ClassConstAccess` arm. Neither is a user constant in *type* position:
 //!   ADR 0047 § 2 folds one to its own literal type, over [`consts`], which
 //!   holds the constant's **value** rather than its declared type and so does
@@ -199,7 +199,7 @@
 //! - A `foreach` **key** binding declared at anything but `string` is not
 //!   diagnosed here. ADR 0007 § 5 gives an array one stored key type, so
 //!   `foreach ($a as int $k => …)` is always wrong; today it type-checks and
-//!   then trips `mwl_ir`'s assertion instead of getting a diagnostic.
+//!   then trips `nvs_ir`'s assertion instead of getting a diagnostic.
 
 pub mod check;
 pub(crate) mod conformance;
@@ -229,14 +229,14 @@ pub use derive::{DerivedCodec, DerivedField};
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
-pub use mwl_stdlib::registry::constructor_symbol as core_constructor_symbol;
-pub use mwl_stdlib::registry::takes_written_class as core_takes_written_class;
-pub use mwl_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
-pub use mwl_stdlib::{CodecField, CodecTy, FieldDefault};
+pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
+pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
+pub use nvs_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
+pub use nvs_stdlib::{CodecField, CodecTy, FieldDefault};
 pub use ty::{Ty, TypeId, TypeInterner};
 
-use mwl_diagnostics::{SourceFile, Span};
-use mwl_hir::{AliasTable, ClassGraph, QName, SymbolTable};
+use nvs_diagnostics::{SourceFile, Span};
+use nvs_hir::{AliasTable, ClassGraph, QName, SymbolTable};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::signatures::SignatureTable;
@@ -249,19 +249,19 @@ use crate::signatures::SignatureTable;
 /// [`layout::build_class_layouts`] — and [`check::check_program`] itself take
 /// a *slice* of these rather than one file, because a `require` graph is one
 /// program: a class declared in one file is referenced from another, so the
-/// tables have to be complete before any body is checked. `mwl_hir::Loaded`
+/// tables have to be complete before any body is checked. `nvs_hir::Loaded`
 /// is where the CLI's slice comes from, in entry-first load order.
 #[derive(Debug, Clone, Copy)]
 pub struct ProgramFile<'a> {
     /// The file's source text, for every span this walk resolves.
     pub src: &'a SourceFile,
     /// Its whole parsed body — top-level statements and declarations alike.
-    pub stmts: &'a [mwl_syntax::ast::Stmt],
+    pub stmts: &'a [nvs_syntax::ast::Stmt],
 }
 
 /// The namespace/`use`/enclosing-class scope active at whatever point in the
 /// AST is currently being lowered or checked — mirrors
-/// [`mwl_hir::members`]'s `Ctx`, for the same reason: this changes as the
+/// [`nvs_hir::members`]'s `Ctx`, for the same reason: this changes as the
 /// walk descends into a new namespace or class body, while [`Env`]'s tables
 /// stay fixed for the whole run.
 pub(crate) struct Ctx<'a> {
@@ -283,14 +283,14 @@ pub(crate) struct Ctx<'a> {
     /// One field answers both of `yield`'s questions: whether it is legal
     /// here at all, and what its operand has to satisfy. `crate::check`'s
     /// `check_method` is the only place it is ever set, from
-    /// `mwl_syntax::ast::is_generator_body` plus the declared return type.
+    /// `nvs_syntax::ast::is_generator_body` plus the declared return type.
     pub generator_elem: Option<crate::ty::TypeId>,
 }
 
 /// The read-only tables, the source text, the type interner and the
 /// diagnostics sink every lowering/checking function needs — bundled so a
 /// recursive call threads one argument instead of seven, same idiom as
-/// [`mwl_hir::members`]'s `Env`.
+/// [`nvs_hir::members`]'s `Env`.
 pub(crate) struct Env<'a> {
     pub symbols: &'a SymbolTable,
     pub aliases: &'a AliasTable,
@@ -320,10 +320,10 @@ pub(crate) struct Env<'a> {
     pub consts: &'a crate::consts::ConstTable,
     pub src: &'a SourceFile,
     pub interner: &'a mut TypeInterner,
-    /// Where a call's/`new`'s resolved target is persisted for `mwl-ir` to
+    /// Where a call's/`new`'s resolved target is persisted for `nvs-ir` to
     /// read back later — see [`crate::expr_table`]'s own module docs.
     pub exprs: &'a mut crate::expr_table::ExprTypeTable,
-    pub diags: &'a mut mwl_diagnostics::Diagnostics,
+    pub diags: &'a mut nvs_diagnostics::Diagnostics,
     /// How many ADR 0031 `fn` closure literals this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label
     /// unique. One counter for the whole run rather than one per body,
@@ -366,7 +366,7 @@ pub(crate) struct Env<'a> {
     /// it is inside that check: the `ExprKind::Index` arm answers `?elem_ty`
     /// for a guarded read and records the fact on its
     /// [`crate::expr_table::ExprInfo::Index`] entry, which is what makes an
-    /// absent key `null` rather than a throw down in `mwl-ir`.
+    /// absent key `null` rather than a throw down in `nvs-ir`.
     ///
     /// **Every level of the chain is marked, not just the outermost one.**
     /// PHP reads `$a["k"]["j"] ?? "d"` as "`"d"` unless every level is there",

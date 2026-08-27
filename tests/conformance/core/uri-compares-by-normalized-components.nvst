@@ -1,7 +1,7 @@
 --TEST--
 `$uri->compareTo` normalizes both references per RFC 3986 § 6.2.2 and then compares components, while `parse` still reports what was written — spec § 12, ADR 0013, ADR 0090 § 4
 --FILE--
-<?mwl
+<?nvs
 // § 6.2.2.1 and § 6.2.2.2: the scheme and the host fold to lower case, and an
 // escape that spells an unreserved character is that character. `parse` still
 // reports what was written, which is what the second line pins.

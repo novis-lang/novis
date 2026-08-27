@@ -1,7 +1,7 @@
 --TEST--
 `Core\Regex::replace`'s replacement is `$1`/`${name}`/`$$` and nothing else — `\1` stays literal, a reference to a group that does not exist expands to empty, and `${1}` is how a digit follows a group — docs/spec/01-core-library.md § 4, ADR 0056 § 4
 --FILE--
-<?mwl
+<?nvs
 // `$0` is the whole match and `$1`… are the numbered groups, counted in the
 // order the pattern opens them.
 echo Core\Regex::replace("2026-08-24", "(\\d+)-(\\d+)-(\\d+)", "[$0] $3/$2/$1"), "\n";
@@ -15,9 +15,9 @@ echo Core\Regex::replace("2026-08", "(?P<year>\\d{4})-(?P<month>\\d{2})", "${mon
 echo Core\Regex::replace("7", "(\\d)", "$$$1"), "\n";
 
 // PHP's `\1` is **not** a group reference here and stays exactly as written:
-// inside a double-quoted MWL string `\1` is already the lexer's escape, so
+// inside a double-quoted Novis string `\1` is already the lexer's escape, so
 // accepting it would make one replacement mean two things depending on the
-// quote it was written with (`crates/mwl-stdlib/src/regex.rs`).
+// quote it was written with (`crates/nvs-stdlib/src/regex.rs`).
 echo Core\Regex::replace("7", "(\\d)", "\\1"), "\n";
 
 // A reference that names no group expands to the empty string rather than

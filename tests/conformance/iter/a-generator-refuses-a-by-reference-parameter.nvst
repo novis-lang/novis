@@ -1,7 +1,7 @@
 --TEST--
 A method whose body contains `yield` may not declare an `inout $x` parameter, while an ordinary method beside it still may — ADR 0053 § 4
 --FILE--
-<?mwl
+<?nvs
 // An `inout $x` parameter addresses a cell the *call site* stages for the duration
 // of the call, and what makes that sound is that the callee's frame dies
 // first. A generator inverts it: calling one runs none of the body, it
@@ -33,9 +33,9 @@ foreach (Feed::walk(inout $seen, inout $seen) as int $v) {
 
 --EXPECTF-ERROR--
 error[E0492]: a generator cannot take `$seen` as `inout`
-   --> case.mwl:11:43
+   --> case.nvs:11:43
 %A
 error[E0492]: a generator cannot take `$last` as `inout`
-   --> case.mwl:11:60
+   --> case.nvs:11:60
 %A
 error: aborting due to 2 errors

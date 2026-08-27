@@ -1,7 +1,7 @@
 --TEST--
 Rendering a value whose type is only known at runtime gives PHP's own answer for every scalar and for `null`
 --FILE--
-<?mwl
+<?nvs
 mixed $m = 5;
 echo "int=", $m, "\n";
 $m = 0 - 7;

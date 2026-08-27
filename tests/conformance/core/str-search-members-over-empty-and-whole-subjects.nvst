@@ -1,7 +1,7 @@
 --TEST--
 Core\Str's three predicates answer for an empty subject, an empty needle and a needle equal to the whole subject
 --FILE--
-<?mwl
+<?nvs
 class Ask {
     public static function of(string $subject, string $needle): string {
         var $out = "";

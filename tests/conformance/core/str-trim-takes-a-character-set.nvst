@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::trim's `{characters}` replaces the default whitespace set for all three trim members
 --FILE--
-<?mwl
+<?nvs
 echo "[", Core\Str::trim("xxhixx", {characters: "x"}), "]\n";
 echo "[", Core\Str::trimStart("xxhixx", {characters: "x"}), "]\n";
 echo "[", Core\Str::trimEnd("xxhixx", {characters: "x"}), "]\n";

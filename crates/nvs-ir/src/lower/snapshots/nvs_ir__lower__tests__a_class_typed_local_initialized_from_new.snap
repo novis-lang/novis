@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/nvs-ir/src/lower.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn make(object) -> object {
@@ -13,5 +13,5 @@ fn make(object) -> object {
     return v1
   bb1:
     release v0
-    propagate "make() at t.mwl:5"
+    propagate "make() at t.nvs:5"
 }

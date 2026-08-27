@@ -1,7 +1,7 @@
 --TEST--
 A generator's parameters are bound when it is called — and the state object it returns is an `Iterator`, drained once and never rewound
 --FILE--
-<?mwl
+<?nvs
 class Ladder {
     public static function steps(int $from, int $to): Iterator<int> {
         int $i = $from;

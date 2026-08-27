@@ -2,7 +2,7 @@
 //! § 3's three iterable shapes from native code.
 //!
 //! `Core\Arr::from` is the first member whose parameter is *whatever `foreach`
-//! accepts* — `mwl_stdlib::registry::CoreTy::Iterated`, which owns why an
+//! accepts* — `nvs_stdlib::registry::CoreTy::Iterated`, which owns why an
 //! `array<T>` is one of the three — and this is the one place such an argument
 //! is read. All three arrive in one 16-byte [`Value`]: an `array<T>` as
 //! [`Tag::Array`](crate::Tag::Array), an `Iterable<T>` or an `Iterator<T>` as
@@ -12,7 +12,7 @@
 //! # Why the cursor is driven by name
 //!
 //! `iterate`, `advance` and `current` are bodiless declarations
-//! (`mwl_types::iter_lib`), so no compiled function exists for a *call site* to
+//! (`nvs_types::iter_lib`), so no compiled function exists for a *call site* to
 //! name — the class the member is handed decides, and it is a class this crate
 //! knows nothing about. [`crate::object`]'s descriptor carries exactly the
 //! table that answers it, and [`crate::call_closure`] already reaches a
@@ -40,13 +40,13 @@
 use std::mem::ManuallyDrop;
 
 use crate::abi::Fault;
-use crate::array::{ArrayHeader, MwlArray};
+use crate::array::{ArrayHeader, NvsArray};
 use crate::ctx::Ctx;
 use crate::dispatch::method_address;
 use crate::value::Value;
 
 /// `Iterable<T>`'s sole member (ADR 0053 § 1) — a fresh cursor over the same
-/// sequence. Must agree with `mwl_types::iter_lib`'s seeded spelling.
+/// sequence. Must agree with `nvs_types::iter_lib`'s seeded spelling.
 pub const ITERATE: &str = "iterate";
 
 /// `Iterator<T>`'s "move to the next element, `false` once exhausted" member
@@ -77,7 +77,7 @@ pub const CURRENT: &str = "current";
 /// object, or the object declares none of the members its interface owes —
 /// both engine faults: the checker admits only ADR 0053 § 3's three shapes
 /// here, and a class claiming one of the two interfaces owes its members by
-/// `mwl_types::conformance`.
+/// `nvs_types::conformance`.
 pub fn drain(
     ctx: &mut Ctx,
     sequence: Value,
@@ -106,7 +106,7 @@ fn drain_array(array: *mut ArrayHeader, limit: Option<usize>) -> Vec<Value> {
     )]
     // `ManuallyDrop`, because `from_raw` hands back an *owning* handle and the
     // reference being read through here belongs to the caller's argument slot.
-    let subject = ManuallyDrop::new(unsafe { MwlArray::from_raw(array) });
+    let subject = ManuallyDrop::new(unsafe { NvsArray::from_raw(array) });
 
     let mut out = Vec::new();
     let mut from = 0usize;
@@ -217,7 +217,7 @@ fn pump(
 }
 
 /// [`method_address`] where the member is owed rather than optional — the two
-/// `Iterator<T>` halves, which `mwl_types::conformance` already made a
+/// `Iterator<T>` halves, which `nvs_types::conformance` already made a
 /// compile error to omit.
 fn required_member(receiver: Value, name: &str, what: &str) -> Result<*const u8, Fault> {
     method_address(receiver, name, what)?.ok_or_else(|| {

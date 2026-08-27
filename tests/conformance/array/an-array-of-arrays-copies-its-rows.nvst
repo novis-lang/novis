@@ -1,7 +1,7 @@
 --TEST--
 Copying a row out of an array of arrays copies it; writing through the copy leaves the grid alone
 --FILE--
-<?mwl
+<?nvs
 array<array<int>> $grid = [[1, 2], [3, 4]];
 echo $grid[0][0], "|", $grid[0][1], "|", $grid[1][0], "|", $grid[1][1], "|\n";
 

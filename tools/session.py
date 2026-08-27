@@ -51,7 +51,7 @@ docs are on disk before anything is staged.
     ## State
     ...the whole handoff body, verbatim, replacing the file...
 
-    ## commit: crates/mwl-ir/src/lower/expr.rs crates/mwl-ir/src/ir.rs
+    ## commit: crates/nvs-ir/src/lower/expr.rs crates/nvs-ir/src/ir.rs
     feat(ir): the subject line
 
     The body, if there is one.
@@ -803,13 +803,13 @@ def record_pack() -> None:
 
 
 def counts() -> dict[str, int]:
-    def mwlt(sub: str) -> int:
+    def nvst(sub: str) -> int:
         d = ROOT / "tests" / sub
-        return len(list(d.rglob("*.mwlt"))) if d.is_dir() else 0
+        return len(list(d.rglob("*.nvst"))) if d.is_dir() else 0
     adrs = sorted((DOCS / "adr").glob("[0-9][0-9][0-9][0-9]-*.md"))
     return {
-        "conformance": mwlt("conformance"),
-        "differential": mwlt("differential"),
+        "conformance": nvst("conformance"),
+        "differential": nvst("differential"),
         "adrs": len(adrs),
         "highest_adr": int(adrs[-1].name[:4]) if adrs else 0,
     }
@@ -997,7 +997,7 @@ def template() -> int:
     say("REPLACE. Where the work stands now -- not the path taken to get here.")
     say("")
     say("## Next group")
-    say("- [ ] **The claim** -- anchored, as `crates/mwl-stdlib/src/arr.rs:2084`, so the next")
+    say("- [ ] **The claim** -- anchored, as `crates/nvs-stdlib/src/arr.rs:2084`, so the next")
     say("      session does not re-derive what this one already had open.")
     say("")
     say("## Backlog")

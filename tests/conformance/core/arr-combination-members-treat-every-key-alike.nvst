@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::overlay, ::overlayDeep, ::underlay and ::appendAll combine by the member's name and never by a key's type, per ADR 0069 § 1
 --FILE--
-<?mwl
+<?nvs
 // ADR 0069 § 1: four members, each doing one thing to every key alike.
 // `Core\Json::encode` pins the values *and* the key order in one line, and the
 // order is half of what the ADR is about.
@@ -18,7 +18,7 @@ echo Core\Json::encode(Core\Arr::underlay($base, $layer)), "\n";
 
 // The two are not each other with the arguments flipped: `overlay($layer,
 // $base)` holds the same entries as `underlay($base, $layer)` in a different
-// order, and an MWL array is insertion-ordered.
+// order, and an Novis array is insertion-ordered.
 echo Core\Json::encode(Core\Arr::overlay($layer, $base)), "\n";
 
 // `appendAll` discards every key and always answers a list, whatever the
@@ -57,7 +57,7 @@ echo Core\Json::encode(Core\Arr::appendAll($left, $right)), "\n";
 echo Core\Json::encode($base), Core\Json::encode($layer), "\n";
 
 // A layer of a second element type is what the `array<T|U>` return exists for;
-// `crates/mwl-stdlib/src/arr.rs`'s module doc owns that spelling.
+// `crates/nvs-stdlib/src/arr.rs`'s module doc owns that spelling.
 array<string> $names = ["a" => "x", "z" => "y"];
 echo Core\Json::encode(Core\Arr::overlay($names, $third)), "\n";
 --EXPECT--

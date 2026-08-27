@@ -1,16 +1,16 @@
 //! A member reference that is not a call: a property access, a class
 //! constant, an enum case — and which receiver shapes this checker diagnoses
-//! rather than `mwl_hir`.
+//! rather than `nvs_hir`.
 //!
 //! **Diagnosing a missing member is split by receiver, not duplicated.** A
 //! `self::`/`static::`/`parent::`/explicit-class-name static call, static
 //! property, or class constant is already checked for existence by
-//! `mwl_hir::members`, so this module only recovers its *type* there and adds
+//! `nvs_hir::members`, so this module only recovers its *type* there and adds
 //! no second diagnostic. A `$this->prop` property access is the same story
-//! (`mwl_hir::members` already reports `E_UNDEFINED_PROPERTY` for it). Every
+//! (`nvs_hir::members` already reports `E_UNDEFINED_PROPERTY` for it). Every
 //! other receiver shape — an instance method call regardless of receiver, and
 //! a property access on anything but `$this` — has never been checked by
-//! `mwl_hir` at all (it has no static type to check against), so this module
+//! `nvs_hir` at all (it has no static type to check against), so this module
 //! reports `E_UNKNOWN_MEMBER` for those directly.
 //!
 //! **A member that exists is then checked for being reachable.** ADR 0094's
@@ -21,7 +21,7 @@
 //!
 //! [`check_property_access`]'s shape/`object`/`mixed` arms are ADR 0036 § 4
 //! whole: a field a shape names types cleanly with no diagnostic either way,
-//! and records the slot `mwl-ir` reads it at
+//! and records the slot `nvs-ir` reads it at
 //! ([`crate::expr_table::ExprInfo::ShapeProperty`]); a name it doesn't list,
 //! a plain `object` receiver, and a `mixed` one are silently `mixed` rather
 //! than `E_UNKNOWN_MEMBER`, and record the same entry carrying the written
@@ -63,10 +63,10 @@ use super::*;
 /// `Ty::EnumCase`, the same take-your-type-from-the-position rule
 /// `crate::expr::literals` states in full;
 /// `Core\Math::PI` is ADR 0011's class constant, recovered as the declared type
-/// of the `mwl_stdlib::registry::CoreConst` row. A **user-declared** class's
+/// of the `nvs_stdlib::registry::CoreConst` row. A **user-declared** class's
 /// constant is still unmodeled (`mixed`) — see the crate docs' known gaps —
 /// because nothing collects one into a signature table to look it up in.
-/// `mwl_hir::members` has already checked that every one of the three exists,
+/// `nvs_hir::members` has already checked that every one of the three exists,
 /// so this only recovers the type.
 #[expect(
     clippy::too_many_arguments,
@@ -88,7 +88,7 @@ pub(super) fn infer_class_const(
     let qname = resolve_class_expr(class, ctx, env);
     // A `Core`-owned enum has no `SymbolKind::Enum` entry — nothing declared it
     // — but it is in the same enum table, seeded from
-    // `mwl_stdlib::registry::ENUMS`, so asking that table is the one question
+    // `nvs_stdlib::registry::ENUMS`, so asking that table is the one question
     // that answers both. `crate::enums::seed_core` owns why there is one table
     // rather than two.
     let is_enum = qname.as_ref().is_some_and(|qname| {
@@ -97,9 +97,9 @@ pub(super) fn infer_class_const(
     });
     match qname {
         Some(qname) if is_enum => {
-            // ADR 0010 § 3: the case *is* its integer constant, so `mwl-ir`
+            // ADR 0010 § 3: the case *is* its integer constant, so `nvs-ir`
             // needs the value, not just the type — see `ExprInfo::EnumCase`. A
-            // name `mwl_hir::members` already reported as undeclared records
+            // name `nvs_hir::members` already reported as undeclared records
             // nothing.
             let case = span_text(env.src, name).to_owned();
             if let Some(value) = env.enums.case(&qname, &case) {
@@ -107,11 +107,11 @@ pub(super) fn infer_class_const(
             } else if qname.is_core() {
                 // One of the three places `Core`'s blanket trust is *narrowed*
                 // rather than relied on — [`super::calls::infer_static_call`]
-                // does the same for a member name: `mwl_hir::members` waves a
+                // does the same for a member name: `nvs_hir::members` waves a
                 // `Core\…::Anything` through because nothing declares it, but
-                // `mwl_stdlib::registry::ENUMS` states every case a `Core` enum
+                // `nvs_stdlib::registry::ENUMS` states every case a `Core` enum
                 // has, so a name that is not one is knowably wrong here. Without
-                // this the mistake reaches `mwl-ir` as a `Class::CONST` with no
+                // this the mistake reaches `nvs-ir` as a `Class::CONST` with no
                 // value recorded, which panics.
                 report_unknown_member(class.span, &qname, &case, "case", env);
             }
@@ -121,7 +121,7 @@ pub(super) fn infer_class_const(
             // `crate::expr::literals` applies to a `string`/`int` literal,
             // reached here because § 3's atom is a *case*, not a literal of
             // its backing value. `ExprInfo::EnumCase` is recorded either way,
-            // so `mwl-ir` sees the same integer constant it always did.
+            // so `nvs-ir` sees the same integer constant it always did.
             let placed = placed_literal(
                 expected,
                 env.interner,
@@ -132,7 +132,7 @@ pub(super) fn infer_class_const(
         // ADR 0011's class constant, on a `Core` class the registry states. The
         // *value* is recorded, not just the type, for exactly ADR 0010 § 3's
         // reason one line above: a constant is inlined at every use site, so
-        // `mwl-ir` needs the constant itself and there is no storage to read it
+        // `nvs-ir` needs the constant itself and there is no storage to read it
         // from at run time.
         Some(qname) if qname.is_core() => {
             let constant = span_text(env.src, name).to_owned();
@@ -163,7 +163,7 @@ pub(super) fn infer_class_const(
 /// arm.
 ///
 /// A bare `Foo` on the right is a class name, not a constant read — recorded
-/// here so `mwl-ir` never has to resolve one (see
+/// here so `nvs-ir` never has to resolve one (see
 /// `crate::expr_table::ExprInfo::InstanceOf`). Anything else is the dynamic
 /// form, which still checks as an ordinary expression and records nothing.
 ///
@@ -171,10 +171,10 @@ pub(super) fn infer_class_const(
 /// global exception classes, and one of the reserved global interfaces — the
 /// last two have no declaration to find in `env.symbols`, and
 /// `crate::layout::build_class_layouts` seeds a descriptor for each so
-/// `mwl-codegen` has something to test against.
+/// `nvs-codegen` has something to test against.
 ///
 /// Every other spelling is refused where it is written rather than left for
-/// `mwl-ir` to find nothing recorded and panic. There are four, and they split
+/// `nvs-ir` to find nothing recorded and panic. There are four, and they split
 /// by whose rule they break: a name resolving to nothing is the ordinary
 /// `E_UNDEFINED_CLASS` (`new Undeclared()` reports exactly that);
 /// a `Core` class, an enum and the dynamic `$x instanceof $name` form are
@@ -209,7 +209,7 @@ pub(super) fn infer_instanceof(
     let ExprKind::ConstFetch(name) = &class.kind else {
         // ADR 0007 § 2: a class name is written, never computed — the line
         // `$$var` and `eval` are already on. Nothing below could resolve one
-        // either: `mwl-codegen` bakes a descriptor address in as a constant.
+        // either: `nvs-codegen` bakes a descriptor address in as a constant.
         check_expr(class, None, live, scope, ctx, env);
         env.diags.report(
             Diagnostic::error(
@@ -218,14 +218,14 @@ pub(super) fn infer_instanceof(
             )
             .with_primary(class.span, "not a class name")
             .with_help(
-                "MWL has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` \
+                "Novis has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` \
                  and `eval`) — write the class, or branch on the names you accept",
             ),
         );
         return env.interner.bool_ty();
     };
     let text = span_text(env.src, name.span);
-    let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+    let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
     let declared = env.symbols.get(&qname);
     if matches!(declared, Some(sym) if sym.kind == SymbolKind::Enum) {
         env.diags.report(
@@ -324,20 +324,20 @@ pub(super) fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QNam
 }
 
 /// Whether `object` is exactly the `$this` variable — the one receiver shape
-/// `mwl_hir::members` already diagnoses a missing property on, so
+/// `nvs_hir::members` already diagnoses a missing property on, so
 /// [`infer`]'s `PropertyAccess` arm must not diagnose it a second time.
-pub(crate) fn is_this_receiver(object: &Expr, src: &mwl_diagnostics::SourceFile) -> bool {
+pub(crate) fn is_this_receiver(object: &Expr, src: &nvs_diagnostics::SourceFile) -> bool {
     matches!(&object.kind, ExprKind::Variable(span) if span_text(src, *span) == "$this")
 }
 
 /// Resolves a `Class::…`-side expression to the class it names, the same way
-/// `mwl_hir::members::check_member_ref` does for existence checking:
+/// `nvs_hir::members::check_member_ref` does for existence checking:
 /// `self`/`static` against the enclosing class, `parent` against its first
 /// `extends` link, an explicit name via the same unqualified/qualified/
 /// fully-qualified lookup every resolver in this codebase shares. A dynamic
 /// class side (a variable, a parenthesized expression, ...) has no statically
 /// knowable class and resolves to `None` — callers fall back to `mixed` with
-/// no diagnostic, matching `mwl_hir::members`'s own silent skip for the same
+/// no diagnostic, matching `nvs_hir::members`'s own silent skip for the same
 /// shape.
 pub(super) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QName> {
     match &class_expr.kind {
@@ -348,7 +348,7 @@ pub(super) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>
         }
         ExprKind::ConstFetch(name) => {
             let text = span_text(env.src, name.span);
-            Some(mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports))
+            Some(nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports))
         }
         _ => None,
     }
@@ -360,20 +360,20 @@ pub(super) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>
 /// written name against the file's imports and namespace and hands back the
 /// fully qualified name, with no runtime step and no requirement that the
 /// class be loaded. [`resolve_class_expr`] is the same resolution a static
-/// call's class side already gets, and [`mwl_hir::QName`]'s `Display` renders
+/// call's class side already gets, and [`nvs_hir::QName`]'s `Display` renders
 /// it the way PHP does — `App\User`, no leading `\` — so the value is recorded
-/// here rather than left for `mwl-ir` to re-derive from a name it cannot even
-/// spell (`mwl-hir` is a dev-dependency there).
+/// here rather than left for `nvs-ir` to re-derive from a name it cannot even
+/// spell (`nvs-hir` is a dev-dependency there).
 ///
 /// Recording it as [`ExprInfo::CoreConst`] is deliberate reuse rather than a
 /// near-miss: that variant means "an ADR 0011 constant, inlined at its use
 /// site, whose value is here because there is no storage to read it back
-/// from," which is exactly what this is. `mwl-ir` materializes it through the
+/// from," which is exactly what this is. `nvs-ir` materializes it through the
 /// same `emit_const_arg` a parameter default already goes through.
 ///
 /// The class side is **not** checked as a value. Doing so would report
 /// `E0319`/`E0321` on every `Foo::class` in the program, for the same reason
-/// `mwl_hir::members::walk_class_side` skips the four name-shaped expressions.
+/// `nvs_hir::members::walk_class_side` skips the four name-shaped expressions.
 /// A side that resolves to nothing is a *dynamic* one — `$obj::class`,
 /// `($e)::class` — and is [`code::E_CLASS_NAME_CONST_NOT_STATIC`]: an object
 /// carries no name a program can read back. The type stays `string` either
@@ -409,11 +409,11 @@ pub(super) fn check_class_name_const(
     }
     match resolve_class_expr(class, ctx, env) {
         Some(qname) => {
-            // A *written* name is checked for existing, which is where MWL
+            // A *written* name is checked for existing, which is where Novis
             // parts company with PHP: PHP folds `Bogus::class` to `"Bogus"`
             // with no complaint at all, because the string is on its way to
             // `new $name` or `$name::m()` and the question is answered there.
-            // MWL has neither spelling (ADR 0011), so a name that resolves to
+            // Novis has neither spelling (ADR 0011), so a name that resolves to
             // nothing is a typo with nowhere left to be caught — the same
             // mistake and the same code `new Undeclared()` already takes.
             // `self`/`static`/`parent` resolve through the enclosing
@@ -496,7 +496,7 @@ pub(super) fn check_property_access(
 /// type, plus the `null` the short-circuiting arm answers with.
 ///
 /// A receiver that is not nullable in the first place gains nothing — `?->`
-/// on it is exactly `->`, which is also what `mwl-ir` lowers it to. Neither
+/// on it is exactly `->`, which is also what `nvs-ir` lowers it to. Neither
 /// does a `void` member: there is no `?void`, the value is unusable either
 /// way, and unioning one would make every `$obj?->doThing();` statement carry
 /// a type nothing can consume.
@@ -531,7 +531,7 @@ pub(super) fn strip_nullsafe_receiver(
     // A plain `->` on a receiver that may be `null` is refused rather than
     // resolved against its non-`null` half. Two reasons, and the second is the
     // load-bearing one: PHP throws at run time for exactly this, and
-    // `mwl-ir` has no lowering for it at all — `class_qname_of` answers
+    // `nvs-ir` has no lowering for it at all — `class_qname_of` answers
     // nothing for a union, so no target is recorded and lowering panics naming
     // the span.
     //
@@ -562,7 +562,7 @@ pub(super) fn strip_nullsafe_receiver(
 ///
 /// # Every access this returns from records an entry, or is refused
 ///
-/// `mwl_ir::lower` reads a `PropertyAccess` back out of
+/// `nvs_ir::lower` reads a `PropertyAccess` back out of
 /// [`crate::expr_table`] and has no fallback for a span with no entry — its
 /// read arm (`lower_property_access`) and its write arm (`lower_store`'s
 /// `PropertyAccess`) both panic there. This is the only function that decides,
@@ -570,7 +570,7 @@ pub(super) fn strip_nullsafe_receiver(
 /// else. The split is exhaustive over the two questions an access asks:
 ///
 /// - **The member name.** A computed one (`->$name`, `->{expr}`) never reaches
-///   lowering: `mwl_syntax`'s `Parser::parse_member_name` refuses the spelling
+///   lowering: `nvs_syntax`'s `Parser::parse_member_name` refuses the spelling
 ///   itself as `E0235`, so the [`MemberName::Ident`] arm below is the only one
 ///   a compiled program takes. ADR 0014 § 5 owns why.
 /// - **The receiver's type.** A [`Ty::Shape`] records [`ExprInfo::ShapeProperty`]
@@ -585,7 +585,7 @@ pub(super) fn strip_nullsafe_receiver(
 ///   `E_NULLABLE_RECEIVER` on the way in.
 ///
 /// The one return with no entry and no diagnostic of its own is `$this->name`
-/// for a name the class does not declare, which `mwl_hir::members` already
+/// for a name the class does not declare, which `nvs_hir::members` already
 /// refused as `E_UNDEFINED_PROPERTY` before this ran.
 #[expect(
     clippy::too_many_arguments,
@@ -625,7 +625,7 @@ pub(super) fn check_property_member(
     // thing an erased access has. What differs is what rides along: a field
     // the receiver's own shape lists contributes its slot as the hint the
     // runtime tries first and its declared type as the result; an erased one
-    // hints slot 0 and answers `mixed`, leaving `mwl_runtime::ClassDesc::
+    // hints slot 0 and answers `mixed`, leaving `nvs_runtime::ClassDesc::
     // field_slot`'s by-name search — and § 4's catchable missing-name throw —
     // as the whole of the resolution.
     //
@@ -635,7 +635,7 @@ pub(super) fn check_property_member(
     // an object, and does that object carry this name — to the same run-time,
     // catchable throw. What a `mixed` receiver does *not* share with the
     // other three is a proven tag, so the fetch sees the tagged value itself
-    // (`mwl_ir::ir::InstKind::SlotGet`, whose receiver operand is therefore
+    // (`nvs_ir::ir::InstKind::SlotGet`, whose receiver operand is therefore
     // not always a `Ty::Object`).
     match env.interner.get(object_ty).clone() {
         Ty::Shape(fields) => {
@@ -648,7 +648,7 @@ pub(super) fn check_property_member(
             // subtyping, which is the one way a value's shape and its
             // receiver's differ — it is not, which is why § 4 keys the fetch
             // on the **name** and this records one; the slot rides along as
-            // the hint the runtime tries first (`mwl_ir::InstKind::SlotGet`).
+            // the hint the runtime tries first (`nvs_ir::InstKind::SlotGet`).
             let (slot, ty) = fields
                 .iter()
                 .position(|(n, _)| *n == name)
@@ -718,24 +718,24 @@ pub(super) fn check_property_member(
                                 crate::signatures::hook_label(
                                     &owner,
                                     &name,
-                                    mwl_syntax::ast::PropertyHookKind::Get,
+                                    nvs_syntax::ast::PropertyHookKind::Get,
                                 )
                             }),
                             set: hooks.set.then(|| {
                                 crate::signatures::hook_label(
                                     &owner,
                                     &name,
-                                    mwl_syntax::ast::PropertyHookKind::Set,
+                                    nvs_syntax::ast::PropertyHookKind::Set,
                                 )
                             }),
                         },
                     );
                     return ty;
                 }
-                // `mwl-ir` needs this access's resolved declaring class to
+                // `nvs-ir` needs this access's resolved declaring class to
                 // lower an eventual field-read instruction — see
                 // `crate::expr_table`'s own module docs. The key must match
-                // `mwl-ir`'s lookup exactly: `object.span.to(*name_span)` is
+                // `nvs-ir`'s lookup exactly: `object.span.to(*name_span)` is
                 // precisely how the parser built the enclosing
                 // `PropertyAccess` expression's own span (see
                 // `Parser::parse_new_target_expr`'s `?->`/`->` arm), so
@@ -753,19 +753,19 @@ pub(super) fn check_property_member(
             }
             None => {
                 // `$this->missing` is already `E_UNDEFINED_PROPERTY`
-                // from `mwl_hir::members` — every other receiver
+                // from `nvs_hir::members` — every other receiver
                 // shape has never been checked before this.
                 //
                 // A `Core` class and the reserved exception tree used to be
                 // excused here alongside it, and that was the one shape a
                 // property write had no refusal in front of: nothing was
-                // diagnosed and nothing was recorded, so `mwl_ir::lower`
+                // diagnosed and nothing was recorded, so `nvs_ir::lower`
                 // reached a `PropertyAccess` with no table entry and panicked.
                 // Neither excuse survives inspection — the exception tree's
                 // own properties *are* in `env.signatures` (`$e->message`
                 // resolves through this same call), and no `Core` class
                 // declares an instance property at all
-                // (`mwl_stdlib::registry` is the whole surface, and it is
+                // (`nvs_stdlib::registry` is the whole surface, and it is
                 // members-only), so `None` on either means exactly what it
                 // means on a user class: the name is not declared.
                 if !is_this_receiver(object, env.src) {
@@ -832,7 +832,7 @@ pub(super) fn check_property_member(
 /// - **Everything else** — a bare local, a subscript of a temporary, a literal
 ///   — is `E0234` ([`report_unset_not_an_element`]).
 ///
-/// Nothing is left over: `mwl_ir::lower::Lowering::lower_unset` lowers the
+/// Nothing is left over: `nvs_ir::lower::Lowering::lower_unset` lowers the
 /// second bullet and panics on anything else, and this is what makes that
 /// panic unreachable.
 pub(crate) fn check_unset_target(
@@ -890,7 +890,7 @@ pub(crate) fn check_unset_target(
     }
 }
 
-/// The three roots `mwl_ir::lower::Lowering::write_back_array` can re-point,
+/// The three roots `nvs_ir::lower::Lowering::write_back_array` can re-point,
 /// which is what makes them the three holders an `unset()` may reach through:
 /// ADR 0007 § 5 separates the array before the entry is removed, and the
 /// separated copy has to land back in a slot that outlives the statement.
@@ -922,7 +922,7 @@ fn report_unset_not_an_element(operand: &Expr, subscripted: bool, env: &mut Env<
     } else {
         (
             "this is not an array element",
-            "`unset()` removes an array entry and nothing else — every MWL binding is declared \
+            "`unset()` removes an array entry and nothing else — every Novis binding is declared \
              with a type and definitely assigned (ADR 0007 § 1), so there is no way to make one \
              undefined again; assign `null` where the declared type is nullable, or let the \
              binding go out of scope",
@@ -972,11 +972,11 @@ pub(super) fn check_member_visibility(
     span: Span,
     owner: &QName,
     member: &str,
-    level: mwl_syntax::ast::Visibility,
+    level: nvs_syntax::ast::Visibility,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    use mwl_syntax::ast::Visibility;
+    use nvs_syntax::ast::Visibility;
 
     if crate::signatures::is_visible_from(level, owner, ctx.current_class, env.graph) {
         return;

@@ -1,7 +1,7 @@
 --TEST--
-A caught throw's message is the string PHP's getMessage() returns, though MWL spells it as a property
+A caught throw's message is the string PHP's getMessage() returns, though Novis spells it as a property
 --FILE--
-<?mwl
+<?nvs
 class Parser {
     public static function positive(int $n): int {
         if ($n < 0) {

@@ -1,7 +1,7 @@
 --TEST--
 ADR 0054 § 4: every conversion into and out of decimal is exact or throws, and a float is read at the value it prints as
 --FILE--
-<?mwl
+<?nvs
 // Into `decimal`: an integer is always exact, a string must be an exact
 // literal in full, and a float is read at the value it *prints* as -- so
 // `0.1` is `0.1`, not `0.1000000000000000055...`.

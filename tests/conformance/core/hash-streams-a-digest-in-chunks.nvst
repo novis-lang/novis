@@ -1,7 +1,7 @@
 --TEST--
 `Core\Hash::stream` accumulates a digest across `update` calls and is consumed by `finish` — spec § 11, ADR 0009 §§ 1 and 3
 --FILE--
-<?mwl
+<?nvs
 // § 11: the incremental form answers exactly what the one-shot member would
 // over the concatenation of everything fed to it, which is the property that
 // makes it substitutable for `Core\Hash::of`.

@@ -13,7 +13,7 @@
   than adding to it.
 - **Amended by:** 0011, 0012, 0046, 0090
 
-> **In short:** MWL's `enum` ignores PHP's design and follows C#'s instead — an enum declares a new, closed,
+> **In short:** Novis's `enum` ignores PHP's design and follows C#'s instead — an enum declares a new, closed,
 > named **integer** type. A case is a compile-time constant of that type, never a singleton object, so an
 > enum has no methods, no interfaces, no `::cases()` / `::from()` / `::tryFrom()`, and needs no runtime
 > storage whatsoever. Every enum has exactly one underlying integer type — `int` by default, or `uint` when
@@ -23,8 +23,8 @@
 > lists, which is the whole point: `enum Status { Active, Banned }` then `public Status $status;` or
 > `public const Status DEFAULT = Status::Active;` is the requirement this ADR exists to satisfy. Converting
 > between an enum and its underlying type goes through the one operator ADR 0007 already has (`as`), checked
-> and throwing on a value no case names — which is where MWL diverges from C# too: C# lets any integer be
-> cast into an enum type even when no case names it, and MWL refuses that as loudly as it refuses
+> and throwing on a value no case names — which is where Novis diverges from C# too: C# lets any integer be
+> cast into an enum type even when no case names it, and Novis refuses that as loudly as it refuses
 > `(int)"abc" → 0`.
 
 ## Context
@@ -32,7 +32,7 @@
 - PHP's enum (8.1) is a class in a trench coat: each case is a singleton instance, an enum can implement
   interfaces and declare methods referencing `$this`, and a backed enum exposes `::from()`/`::tryFrom()`/
   `::cases()` — PHP reused the one construct it had (the class) for lack of a lighter-weight nominal type.
-- MWL follows C# instead, as a definitive decision: `enum Color { Red, Green, Blue }` is just an integer
+- Novis follows C# instead, as a definitive decision: `enum Color { Red, Green, Blue }` is just an integer
   with names attached at compile time — no object, no allocation, no methods, no interface. PHP's model is
   disregarded entirely.
 - **Priorities 1/4 (security, simplicity):** a closed set of named values checked at the same boundary as
@@ -74,11 +74,11 @@ equality (*5*) and there is no identity to collide.
 ### 2. Exactly one underlying integer type per enum — the pure/backed split is gone
 
 PHP has three shapes: a pure enum (no backing value, only identity), a backed enum with an `int` value, and
-a backed enum with a `string` value. MWL collapses all three into one: **every enum has an underlying
+a backed enum with a `string` value. Novis collapses all three into one: **every enum has an underlying
 integer type**, `int` unless `: uint` is written. There is no pure enum and no string-backed enum.
 
 - **No pure enum.** PHP's pure enum exists because cases are objects with identity — comparing them needs
-  no backing value. MWL's cases are integers; the "no backing value" case is simply "the auto-incrementing
+  no backing value. Novis's cases are integers; the "no backing value" case is simply "the auto-incrementing
   default nobody overrode," not a separate kind of declaration. A program that only ever compares cases
   never has to look at the underlying integer, so nothing is lost by always having one.
 - **No `string` backing.** C# enums are integral only, and the reason transfers directly: an underlying
@@ -89,7 +89,7 @@ integer type**, `int` unless `: uint` is written. There is no pure enum and no s
 
 ### 3. A case is a compile-time constant, not an object
 
-| PHP enum | MWL enum |
+| PHP enum | Novis enum |
 |---|---|
 | a case is a singleton instance, allocated once, reached by pointer | a case is an integer constant, inlined at every use site, no allocation |
 | an enum may implement interfaces | **rejected** — an enum declares only cases and an optional backing type |
@@ -164,13 +164,13 @@ the descriptor is interned once per distinct enum in the program, not per value 
 
 ### 7. Deliberate divergences, gathered in one place
 
-| # | PHP | MWL |
+| # | PHP | Novis |
 |---|---|---|
 | 1 | a case is a singleton object with identity | a case is an integer constant; equality is value equality, there is no identity |
 | 2 | an enum may implement interfaces and declare methods | rejected outright — an enum has cases and an optional backing type, nothing else |
 | 3 | pure enums (no backing value) and backed enums (`int` or `string`) are different declarations | one shape: every enum has an underlying `int` (default) or `uint`; no `string` backing |
 | 4 | `::cases()`, `::from()`, `::tryFrom()`, `->value`, `->name` | replaced by the one checked conversion operator `as`; name/value introspection deferred, see *Revisiting* |
-| 5 | (C#, for comparison) casting an arbitrary integer into an enum type always succeeds, even for a value no case names | `as` into an enum throws on a value no case names — checked, like every other MWL conversion |
+| 5 | (C#, for comparison) casting an arbitrary integer into an enum type always succeeds, even for a value no case names | `as` into an enum throws on a value no case names — checked, like every other Novis conversion |
 
 Row 5 is listed even though it is a divergence *from the model this ADR is named after*, not from PHP,
 because the brief's own priority ordering said so first: priority 1 does not relax because the requirement
@@ -199,7 +199,7 @@ named a language to imitate rather than one to stay compatible with.
 
 - **A structural break from PHP's enum**, on top of the nine in [ADR 0007](0007-explicit-type-system.md) §
   7: a PHP enum with methods, an implemented interface, or a `string` backing type does not convert
-  mechanically. `mwl convert` ([M11](../implementation-plan.md)) can rewrite case declarations and
+  mechanically. `nvs convert` ([M11](../implementation-plan.md)) can rewrite case declarations and
   `->value` reads, but a method on an enum must become a `static` method on some other class, taking the
   enum as a parameter — there is no standalone-function destination to begin with
   ([ADR 0011](0011-functions-and-constants-are-class-members.md)) — and an implemented interface has no
@@ -226,7 +226,7 @@ named a language to imitate rather than one to stay compatible with.
 - **Keep `string` as an allowed backing type, matching PHP's backed enums.** Rejected in *Decision § 2*:
   reintroduces a heap-allocated case for something a `match` over the enum already gives for free.
 - **Keep the pure/backed split as two distinct declaration forms.** Rejected in *Decision § 2*: the split
-  exists in PHP only because a pure enum has no integer to fall back on; every MWL enum has one by
+  exists in PHP only because a pure enum has no integer to fall back on; every Novis enum has one by
   construction.
 - **A `#[Flags]`-style attribute enabling bitwise operators directly on an enum type**, matching C#.
   Deferred, not rejected — a separate design question; see *Revisiting*. The attribute *mechanism* it would

@@ -1,16 +1,16 @@
 --TEST--
 `Core\Bytes::pack` names the last value each field holds beside the first it refuses, and narrows precision where it refuses range — spec § 7, ADR 0009 § 3, ADR 0063 R4
 --FILE--
-<?mwl
+<?nvs
 // Spec § 7's `pack(string $format, mixed ...$values): bytes`. ADR 0063 R4 makes
 // a value the field cannot hold a throw rather than a wrap, and ADR 0009 § 3 is
 // why there is no truncating third option — so every bound below is asserted on
 // both sides, the last accepted value named beside the first refused one.
 //
-// `bytes-pack-writes-explicit-width-fields.mwlt` pins one octet bound and
+// `bytes-pack-writes-explicit-width-fields.nvst` pins one octet bound and
 // reports it as "threw"; this case pins each bound's own message, because a
 // field that stopped one value early prints plausibly against either half
-// alone. `crates/mwl-stdlib/src/bytes.rs` owns the three sites.
+// alone. `crates/nvs-stdlib/src/bytes.rs` owns the three sites.
 
 final class Field {
     public static function hex(string $format, mixed $a): string {

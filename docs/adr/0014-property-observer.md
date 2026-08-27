@@ -17,7 +17,7 @@
 
 > **In short:** PHP has two disconnected ways to intercept property access — 8.4's per-property hooks, and
 > the ambient `__get`/`__set` pair, which fires only for a property that does not exist or is not
-> accessible, triggered purely by a method with that exact name being present on the class. MWL keeps the
+> accessible, triggered purely by a method with that exact name being present on the class. Novis keeps the
 > first, replaces the second, and removes the case PHP's version exists to catch: **accessing an undeclared
 > property is a hard error**, so there is nothing left for `__get`/`__set` to fall back onto. In its place
 > is a new global interface, **`PropertyObserver`**, with `onPropertyGet(string $name, mixed $value): void`
@@ -133,7 +133,7 @@ already treats as free relative to every other method call in the language.
 
 ### 5. Accessing an undeclared property is always a hard error — no `__get`/`__set` fallback
 
-MWL has no dynamic properties: every property is declared with a type, per
+Novis has no dynamic properties: every property is declared with a type, per
 [ADR 0007](0007-explicit-type-system.md), and that list is exhaustive for a given class. Naming one that is
 not on the list:
 
@@ -148,7 +148,7 @@ not on the list:
 A name arrives late in exactly two ways, and a *computed property-access expression* is not one of them.
 `$obj->$name` and `$obj->{$expr}` are refused where they are written, `E0235`, in front of the parentheses of
 a call as much as on a property — the sibling of `$$name`'s own refusal one level in, and the access-side
-twin of the computed shape key [ADR 0036](0036-anonymous-object-shapes.md) § 2 already refuses. MWL has no
+twin of the computed shape key [ADR 0036](0036-anonymous-object-shapes.md) § 2 already refuses. Novis has no
 spelling that computes which member is meant: a name only known when the statement runs defeats the
 resolution every access below the checker is built on, and it is the one construct that would let a
 request-controlled string pick which field to read or write, which priority 1 does not trade.
@@ -160,7 +160,7 @@ what the compiler cannot see. Both throw for a name the concrete class does not 
 additionally checks the incoming value against the field's real declared type.
 
 Either way, `PropertyObserver` is never consulted for a name that does not exist — unlike PHP, where
-`__get`/`__set` exist *specifically* for that case. There is no path in MWL from "the name is wrong" to any
+`__get`/`__set` exist *specifically* for that case. There is no path in Novis from "the name is wrong" to any
 user code running at all.
 
 ### 6. `__call`/`__callStatic` — not recognized by name, no replacement offered
@@ -200,7 +200,7 @@ any other call.
 **Negative**
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: PHP source relying on `__get`/`__set` firing for undefined access, or on
-  `__call`/`__callStatic`, does not convert unconverted. `mwl convert` ([M11](../implementation-plan.md))
+  `__call`/`__callStatic`, does not convert unconverted. `nvs convert` ([M11](../implementation-plan.md))
   must flag these as a `TODO` for a human — see *Alternatives rejected* for why that flag belongs there and
   not in the compiler itself.
 - `PropertyObserver`'s methods cannot change what a read returns or what a write stores. A PHP class that
@@ -225,7 +225,7 @@ any other call.
   hook-decided value creates an ordering question with no non-arbitrary answer; keeping it strictly
   observational (`void`) removes the question entirely.
 - **A language-level diagnostic on declaring `__call`/`__callStatic`.** Rejected as a permanent compiler
-  feature — a one-off lint with no general principle behind it, when `mwl convert` ([M11](../implementation-plan.md))
+  feature — a one-off lint with no general principle behind it, when `nvs convert` ([M11](../implementation-plan.md))
   already has the full context to explain why the conversion has no mechanical destination.
 - **Threading the pre-write value into `onPropertySet` alongside the committed one**, so an observer can
   compare old and new. Deferred rather than rejected — see *Revisiting*.
@@ -240,10 +240,10 @@ Deferred deliberately, each needing its own argument:
 - **Per-property hook semantics themselves** — hook visibility and the interaction with `readonly` and
   asymmetric visibility — belong to `docs/spec/`, unwritten as of this ADR. This document fixes only where
   hooks sit relative to `PropertyObserver`, not their own internal rules. **Virtual vs. backed is no longer
-  among them:** MWL keeps the slot for every hooked property, so PHP 8.4's split does not exist here, and
-  `mwl_types::signatures::PropertyHooks`' own doc comment holds that decision, what it spends and what it
+  among them:** Novis keeps the slot for every hooked property, so PHP 8.4's split does not exist here, and
+  `nvs_types::signatures::PropertyHooks`' own doc comment holds that decision, what it spends and what it
   makes newly legal.
-- **`mwl convert`'s exact `TODO` wording** for PHP source that declares `__get`/`__set` (does the original
+- **`nvs convert`'s exact `TODO` wording** for PHP source that declares `__get`/`__set` (does the original
   logic look like observation, convertible to `PropertyObserver`, or computation, belonging in a per-property
   hook?) and for `__call`/`__callStatic` (no mechanical destination at all). Belongs with M11's own design,
   not this ADR.
@@ -254,17 +254,17 @@ Verification, in the order it becomes possible:
   parses with the grammar M1 already gives interfaces — nothing new here, since this ADR adds no new syntax
   beyond an ordinary interface declaration.
 - **M2**: the checker refuses a property access naming anything not declared on the class (or an ancestor)
-  with a diagnostic, for every literal-identifier access, on every receiver — `mwl_hir::members` for
-  `$this` (`E_UNDEFINED_PROPERTY`), `mwl-types::expr::check_property_access` for every other statically
+  with a diagnostic, for every literal-identifier access, on every receiver — `nvs_hir::members` for
+  `$this` (`E_UNDEFINED_PROPERTY`), `nvs-types::expr::check_property_access` for every other statically
   resolvable receiver (`E_UNKNOWN_MEMBER`) — joining the diagnostic corpus
   [ADR 0007](0007-explicit-type-system.md)'s own M2 entry already builds; a method named `__call` or
-  `__callStatic` never reaches any resolution logic at all, since `mwl-syntax`'s casing check
+  `__callStatic` never reaches any resolution logic at all, since `nvs-syntax`'s casing check
   ([ADR 0029](0029-identifier-casing-is-checked.md)) already refuses the name itself.
 - **M4**, § 1's half: each hook body compiles to its own function and a read/write of a hooked property is
   a call to it rather than a slot touch, with the receiver in the ordinary parameter-0 slot — so a hooked
   access costs no new instruction, no new calling convention and no dispatch-table entry. Inside a hook the
   property is its own backing slot, which is what makes a hook that transforms a stored value terminate.
-  `mwl-codegen`'s `a_property_hook_runs_on_every_read_and_write_of_its_property` holds all of it end to end.
+  `nvs-codegen`'s `a_property_hook_runs_on_every_read_and_write_of_its_property` holds all of it end to end.
 - **M4**: a class implementing `PropertyObserver` runs its property's own hook (or storage) first and
   `onPropertyGet`/`onPropertySet` second, for both hooked and un-hooked properties, including a throwing
   observer method propagating correctly through [ADR 0002](0002-error-propagation.md)'s checked-return path;

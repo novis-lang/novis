@@ -1,7 +1,7 @@
 --TEST--
 A `foreach` nested in a `foreach` binds each level's own key and value — ADR 0007 § 5 types the key `string`
 --FILE--
-<?mwl
+<?nvs
 array<array<int>> $grid = ["top" => [1, 2, 3], "bottom" => [4, 5]];
 int $total = 0;
 foreach ($grid as string $name => array<int> $row) {

@@ -1,5 +1,5 @@
-//! MWL's CFG/SSA IR: the one representation between the checked AST and
-//! `mwl-codegen`, carrying explicit safepoints, refcount operations and
+//! Novis's CFG/SSA IR: the one representation between the checked AST and
+//! `nvs-codegen`, carrying explicit safepoints, refcount operations and
 //! runtime-helper calls, with a stable per-statement and per-edge id
 //! ([ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)).
 //!
@@ -57,21 +57,21 @@
 //!   join whose back edge is not known until its body is lowered.
 //! - **IR types are representation-level, not the checker's types.** See
 //!   [`ty`]'s own module docs for why [`ty::Ty`] is a small, flat lattice
-//!   rather than a reuse of `mwl_types::ty::Ty`.
-//! - **This crate depends on `mwl-types` only for its typed-expression table,
-//!   never on `mwl-hir`'s class graph directly.** Every *declared* type is read
+//!   rather than a reuse of `nvs_types::ty::Ty`.
+//! - **This crate depends on `nvs-types` only for its typed-expression table,
+//!   never on `nvs-hir`'s class graph directly.** Every *declared* type is read
 //!   straight off the AST (ADR 0007 § 1 requires it spelled out, so no name
 //!   resolution is needed). What genuinely is absent from the AST is a call's
 //!   *resolved target* — which class declares the callee, and its parameter
-//!   and return types — so `mwl_types::expr_table::ExprTypeTable` publishes
+//!   and return types — so `nvs_types::expr_table::ExprTypeTable` publishes
 //!   that, keyed by source span, and lowering reads it back. The alternative,
 //!   re-running class-hierarchy resolution here, would have duplicated
-//!   `mwl-types`. Lowering **trusts** that its input already passed
-//!   `mwl_types::check_program` with the same tables, and panics naming an
+//!   `nvs-types`. Lowering **trusts** that its input already passed
+//!   `nvs_types::check_program` with the same tables, and panics naming an
 //!   unsupported shape rather than diagnosing.
 //! - **A receiver is an implicit first parameter, not a special case.** Every
 //!   lowered method carries `$this` at [`ir::Function::params`] index 0,
-//!   whether or not the body reads it — mirroring `mwl_types`' own
+//!   whether or not the body reads it — mirroring `nvs_types`' own
 //!   `check_method`. A separate `Option<ValueId>` would have needed `Env`'s
 //!   `$this` lookup to take a different path than every other local, for a
 //!   value that behaves exactly like an ordinary parameter.
@@ -87,7 +87,7 @@
 //!   every live slot is released at frame exit, and a binding **control flow
 //!   drops** is released at the point it disappears — a local declared inside
 //!   a loop body or inside one `if` branch. That last half was missed until
-//!   `examples/report.mwl`'s valgrind leg found it, which is why AGENTS.md
+//!   `examples/report.nvs`'s valgrind leg found it, which is why AGENTS.md
 //!   says to run `tools/leak-check.sh` against a fixture exercising any new
 //!   refcount edge.
 //! - **A closed, engine-owned runtime helper gets [`ir::InstKind::HelperCall`]
@@ -115,7 +115,7 @@
 //!   it — an `int` key owns nothing to retain or release. ADR 0007 § 5 is
 //!   untouched by any of this; every key still *is* a `string`, `"08"` is
 //!   still distinct from `"8"`, and `$a[8]` is still `$a["8"]`. What moved is
-//!   only where the decimal is produced, which is `mwl_runtime::array`'s
+//!   only where the decimal is produced, which is `nvs_runtime::array`'s
 //!   packed form deciding it never has to be. Two subscripts still render:
 //!   a `uint`, because the runtime's index ABI is an `i64` and a `uint` above
 //!   `i64::MAX` has no `i64` spelling naming the same key, and any key
@@ -136,7 +136,7 @@
 //!   *write-through* descent — one runtime entry point that takes the whole
 //!   key chain, walks it holding the parent's borrow rather than a reference,
 //!   and separates only where the count genuinely says it must — which is a
-//!   `mwl-runtime` ABI question (M9 freezes that surface) and not a lowering
+//!   `nvs-runtime` ABI question (M9 freezes that surface) and not a lowering
 //!   one. Nothing depends on the copy happening, so it can be taken away
 //!   without changing an observable.
 //!
@@ -178,7 +178,7 @@
 //!    [`ir::InstKind::Tag`]/[`ir::InstKind::Untag`] at every boundary carrying
 //!    a declared type ([`lower::Lowering::coerce`]); and `??`
 //!    ([`lower::Lowering::lower_coalesce`]), whose non-`null` arm narrows
-//!    against the type `mwl_types::expr_table::ExprInfo::Coalesce` records.
+//!    against the type `nvs_types::expr_table::ExprInfo::Coalesce` records.
 //!    ADR 0066's `as ?T` ([`lower::Lowering::convert_or_null`]) is the first
 //!    thing here that *reads* a tag instead — its helper dispatches on the
 //!    operand's, which is what a `mixed` source costs, and is the shape the
@@ -189,7 +189,7 @@
 //!    a `null` constant — and a *read* of the local that test narrowed is one
 //!    unchecked [`ir::InstKind::Untag`] at the read itself
 //!    ([`lower::Lowering::untag_narrowed`], off
-//!    `mwl_types::expr_table::ExprInfo::NarrowedRead`; `mwl_types::locals`
+//!    `nvs_types::expr_table::ExprInfo::NarrowedRead`; `nvs_types::locals`
 //!    owns the proof). Narrowing there rather than at each consumer is what
 //!    lets a subscript base, a `foreach` subject, an array-write root and an
 //!    argument all see the narrow representation with no site to forget;
@@ -202,7 +202,7 @@
 //!    tags name and *throw* where that closed table names none — the one
 //!    comparison helper family carrying ADR 0002's error edge, and its own doc
 //!    comment is that decision's home. A subscript through a tagged base is no
-//!    longer here either: `mwl_types` refuses it where it is written
+//!    longer here either: `nvs_types` refuses it where it is written
 //!    (`E0482`), an `array<T>` binding being what has an element type to check
 //!    a read against.
 //!    What does not: **arithmetic** on a `mixed`, which is the one reading of
@@ -218,9 +218,9 @@
 //!    it throws on a value no case names, which needs the declaration's case
 //!    set carried to the check, and nothing here expresses one. `EnumName` ↔
 //!    `string` is not a gap — ADR 0010 § 5 leaves it out of the language.
-//!    ADR 0066 § 3's own refusals are all `mwl_types`' and none reaches here:
+//!    ADR 0066 § 3's own refusals are all `nvs_types`' and none reaches here:
 //!    a conversion that cannot fail (`$i as ?string`) is
-//!    `mwl_diagnostics::code::E_NULLABLE_CONVERSION_CANNOT_FAIL` and one that
+//!    `nvs_diagnostics::code::E_NULLABLE_CONVERSION_CANNOT_FAIL` and one that
 //!    does not exist at all (`$arr as ?int`) is `E_NO_CONVERSION`, that
 //!    table's closure asked of the `T` inside the sugar. What is left is the
 //!    other direction — a row § 3 calls **available** with no `?` helper to
@@ -237,7 +237,7 @@
 //!    over that pair's other direction, the two rows a tag can take into a
 //!    `bytes` being the `string` and the `bytes` itself. The **class-target** refusal is the third of
 //!    § 3's —
-//!    `mwl_diagnostics::code::E_CLASS_CONVERSION_TARGET`, and it is absolute,
+//!    `nvs_diagnostics::code::E_CLASS_CONVERSION_TARGET`, and it is absolute,
 //!    so no class reaches this crate through `as` at all. It used to carry a
 //!    two-class exception, the *parse roster*, lowered here to one
 //!    [`ir::InstKind::CoreCall`] on a symbol the expression table had to carry
@@ -246,14 +246,14 @@
 //! 5. **A ternary — or a `match` — whose branches lower to two different
 //!    [`ty::Ty`] representations panics.** Neither has a recorded result type
 //!    to widen its arms to, which is the one thing
-//!    `mwl_types::expr_table::ExprInfo::Coalesce` supplies for `??` — so
+//!    `nvs_types::expr_table::ExprInfo::Coalesce` supplies for `??` — so
 //!    closing it is that same recording, plus [`lower::Lowering::coerce`] on
 //!    each arm. *Where* a short-circuit may
 //!    appear is no longer a restriction: [`lower::Lowering::lower_expr`] owns
 //!    a `&mut BlockId` and lowers its own sub-expressions through itself, so
 //!    `&&`/`||`/`!`/ternary/`??` compose inside a call argument, an array
 //!    element, a `.` operand or an `echo` operand alike.
-//! 6. **Array access is compile-time-known-target-only, and `mwl_types` now
+//! 6. **Array access is compile-time-known-target-only, and `nvs_types` now
 //!    says so rather than leaving it here; property access is not
 //!    compile-time-known-target-only any more.** A subscript whose base
 //!    declares no element type — a `mixed`, a scalar, a `?array<T>` no test
@@ -268,7 +268,7 @@
 //!    **name-keyed** fetch, which is therefore right through a widened view
 //!    too — or one [`ir::InstKind::SlotSet`], which additionally checks the
 //!    incoming value's tag against what the concrete class declares the field
-//!    to hold; `mwl_runtime::object`'s docs § *What a shape write checks*
+//!    to hold; `nvs_runtime::object`'s docs § *What a shape write checks*
 //!    state what that granularity misses. The erased ones differ only in what
 //!    the checker could record: no slot to hint (so `0`, which the runtime's
 //!    by-name search corrects) and no type (so [`ir::Ty::Tagged`]), which
@@ -283,7 +283,7 @@
 //!    constructs, as an instance of the class [`lower::shape_class_label`]
 //!    names. Nullsafe `?->` *reads* — a call and a property alike, over
 //!    the one guard [`lower::Lowering::open_nullsafe`] opens — but a nullsafe
-//!    assignment target (`$a?->b = v`) is `E0479` in `mwl_types`, which is
+//!    assignment target (`$a?->b = v`) is `E0479` in `nvs_types`, which is
 //!    what PHP refuses too. An array-element write through a hooked property
 //!    is `E0478` and one through an erased property `E0480`, both for the
 //!    reason those codes' own rows state, and one whose root is no place at
@@ -291,7 +291,7 @@
 //!    entry the same `check_write_target` grew and the one shape
 //!    [`lower::Lowering::write_back_array`]'s catch-all was still reached
 //!    through. Parentheses are not such a root:
-//!    `mwl_syntax::ast::Expr::unparenthesized` is what every walk on this path
+//!    `nvs_syntax::ast::Expr::unparenthesized` is what every walk on this path
 //!    uses to find the holder, so `($a)["0"] = v` writes `$a` as it does in
 //!    PHP. An *increment* is a write like any
 //!    other and earns whichever of those three its own target does: `$a?->b++`
@@ -312,8 +312,8 @@
 //! 7. **Virtual dispatch resolves by name, not by slot.** An instance call
 //!    lowers to [`ir::InstKind::Call`] — bound to the statically resolved
 //!    label — only when nothing in the program overrides that declaration;
-//!    `mwl_types` answers that whole-program question once, per call, as
-//!    `mwl_types::expr_table::ResolvedCall::overridden`. When something does,
+//!    `nvs_types` answers that whole-program question once, per call, as
+//!    `nvs_types::expr_table::ResolvedCall::overridden`. When something does,
 //!    and for the two shapes with no static answer at all (`static::`/`new
 //!    static`, and a call resolving to a body-less declaration), the call
 //!    goes through [`ir::InstKind::CallVirtual`]/[`ir::InstKind::NewDynamic`]
@@ -323,7 +323,7 @@
 //!    cost, not a correctness gap.
 //! 9. **A closure literal lowers, and so does `$f(...)`; what nothing checks
 //!    is the argument *types*.** The call is one [`ir::Helper::CallClosure`]
-//!    — `mwl_runtime::call_closure`, the same entry point native `Core` code
+//!    — `nvs_runtime::call_closure`, the same entry point native `Core` code
 //!    reaches a callback through, so there is one body and not a second
 //!    convention beside it ([`lower::Lowering::lower_closure_call`]). ADR 0031
 //!    § 3's self-name is still parsed and ignored. A `...` argument goes
@@ -335,7 +335,7 @@
 //!    crate's to close and is older than this lowering — a `callable` carries
 //!    no parameter list (§ 1), so a closure declaring `string $s` reads a
 //!    caller's `int` payload as a pointer whether that caller is `$f(1)` or
-//!    `Core\Arr::map` over an `array<int>`; `mwl_runtime::closure`'s module
+//!    `Core\Arr::map` over an `array<int>`; `nvs_runtime::closure`'s module
 //!    doc owns it and states what closing it costs. Neither half of `inout $x` is
 //!    a gap any more: a closure *capturing* an enclosing `inout $x` parameter takes
 //!    § 2's by-value snapshot of the cell — one [`ir::InstKind::RefLoad`] at
@@ -350,21 +350,21 @@
 //!     share an allocation with ([`lower::lower_checked_ty`]), and ADR 0033
 //!     § 5's constant-time `==` reaches every pair whose two operands are
 //!     both that representation, through [`ir::Helper::SecretEq`] and the
-//!     `mwl_types::expr_table::ExprInfo::SecretEquality` the checker records
+//!     `nvs_types::expr_table::ExprInfo::SecretEquality` the checker records
 //!     at the comparison. What that arm declines is the pair where one side
 //!     is [`ty::Ty::Tagged`]: it has no buffer to read, so the comparison
 //!     falls to [`ir::Helper::Identical`] and short-circuits. ADR 0033 § 2's
 //!     poisoning makes the shape rare, and closing it means teaching
-//!     `mwl_runtime::value_identical` the property rather than adding a
+//!     `nvs_runtime::value_identical` the property rather than adding a
 //!     lowering arm.
 //! 14. **Two of the safepoint's four flags still do nothing.**
 //!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
-//!     back edge, and `mwl-codegen` lowers it to a real poll: `CPU_LIMIT` and
+//!     back edge, and `nvs-codegen` lowers it to a real poll: `CPU_LIMIT` and
 //!     `CANCEL` stop the request, and the function-entry site also carries
 //!     ADR 0020 § 1's call-stack compare. `COLLECT` and `DEBUG_BREAK` are
 //!     cleared and otherwise ignored — there is no collector and no debugger
 //!     to hand the frame to. Nothing in this crate is what is missing; see
-//!     `mwl_runtime::mwl_safepoint`.
+//!     `nvs_runtime::nvs_safepoint`.
 //! 15. **`decimal` lowers, but `<=>` over one does not.** ADR 0054's scalar
 //!     has a representation now — [`ty::Ty::Decimal`], the same register pair
 //!     [`ty::Ty::Tagged`] travels in, whose own doc comment owns the decision —
@@ -376,7 +376,7 @@
 //!     either — `<=>` reaches [`lower::Lowering::lower_expr`]'s panic for every
 //!     scalar operand, and only ADR 0013's *object* form lowers. `**` is not a
 //!     gap: ADR 0054 § 3 makes a `decimal` base a compile error, and
-//!     `mwl_types` reports it.
+//!     `nvs_types` reports it.
 //! 16. **A compound assignment inherits whatever its binary form is missing,
 //!     which today is `**=` and nothing else.**
 //!     [`lower::Lowering::lower_compound_assignment`] rewrites
@@ -394,11 +394,11 @@
 //!     ([`lower::Lowering::stage_target_address`]): staging is what makes a
 //!     target re-readable, and it is also what gives the implicit `1` a
 //!     representation to be emitted at, that `1` having no source span to
-//!     build an [`mwl_syntax::ast::ExprKind::Int`] from. So
+//!     build an [`nvs_syntax::ast::ExprKind::Int`] from. So
 //!     `Box::make()->count += 1` calls `make()` once, and
 //!     [`lower::Lowering::lower_read_modify_write`]'s own assertion has no
 //!     reachable target left at all — its doc comment carries that proof, and
-//!     `tests/conformance/lang/a-compound-assignments-target-is-evaluated-once.mwlt`
+//!     `tests/conformance/lang/a-compound-assignments-target-is-evaluated-once.nvst`
 //!     the observable half.
 //!
 //!     One level further down was open until the same staging reached it: an
@@ -411,28 +411,28 @@
 //!     address itself, and `stage_address_of` descends a property or element
 //!     level rather than staging the level's *value*, which is what leaves the
 //!     slot visible to the write-back at all. Pinned by
-//!     `tests/conformance/lang/an-element-writes-holder-is-evaluated-once.mwlt`.
+//!     `tests/conformance/lang/an-element-writes-holder-is-evaluated-once.nvst`.
 //! 17. **The environment is one flat, function-wide map**, so a nested block
 //!     declaring a local that shadows an outer one is not distinguished from a
 //!     reassignment. Not observable for any program in scope today, but worth
 //!     knowing before trusting `Env` further.
 //! 18. **An abandoned generator's `finally` runs; a throw escaping one is
 //!     dropped.** `{name}$gen::gen#unwind` is on every generator's state class
-//!     and in its method table, and `mwl_runtime::object::dismantle` calls it
+//!     and in its method table, and `nvs_runtime::object::dismantle` calls it
 //!     on the way past: it raises the `gen#unwind` flag and re-enters
 //!     `advance()`, whose resume block for a suspension inside a
 //!     `finally`-owning region takes the unwind arm and runs exactly what
 //!     `return;` runs at that point. [`lower::generator::lower_generator`]
 //!     § *An abandoned generator runs its `finally`* owns the mechanism, and
 //!     [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
-//!     § 2 records why it is not the destructor MWL does not have. What is
+//!     § 2 records why it is not the destructor Novis does not have. What is
 //!     left is one divergence, and it is the runtime's: a release has no error
 //!     edge, so an exception a `finally` raises on that path is discarded
 //!     where PHP reports it uncaught —
-//!     `mwl_runtime::Ctx::with_pending_set_aside` argues why losing it beats
+//!     `nvs_runtime::Ctx::with_pending_set_aside` argues why losing it beats
 //!     replacing the exception actually in flight, and surfacing it wants ADR
-//!     0020's ladder. `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.mwlt`
-//!     and `tests/differential/iter/an-abandoned-generators-finally-matches-phps.mwlt`
+//!     0020's ladder. `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst`
+//!     and `tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst`
 //!     pin the rest.
 //! 19. **ADR 0090 is built; what a cross-representation pair still cannot do
 //!     is *arithmetic*.** Every row of §§ 2, 3 and 5 lowers: `===`/`!==` no
@@ -440,13 +440,13 @@
 //!     [`lower::Lowering::lower_null_identity`]'s tag test, a same-
 //!     representation pair is [`ir::BinOp::Eq`]/[`ir::BinOp::NotEq`], a
 //!     `string`, `array` or `object` pair is that `BinOp` with the row's own
-//!     comparison chosen in `mwl-codegen`, a `mixed` or union operand is § 5's
+//!     comparison chosen in `nvs-codegen`, a `mixed` or union operand is § 5's
 //!     [`ir::Helper::Identical`], and § 2's numeric row — the one pairing
 //!     whose two operands hold two *representations* — is
 //!     [`ir::Helper::NumericEq`], settled in
-//!     [`lower::Lowering::lower_binary`] rather than in `mwl-codegen`, whose
+//!     [`lower::Lowering::lower_binary`] rather than in `nvs-codegen`, whose
 //!     "a `BinOp` has one representation" invariant therefore still holds.
-//!     The disjoint-operand refusal of § 2 is `mwl_types`' half, not this
+//!     The disjoint-operand refusal of § 2 is `nvs_types`' half, not this
 //!     crate's.
 //!
 //!     The same mismatch under a *different* operator is closed too, and it
@@ -479,13 +479,13 @@
 //!     [`lower::Lowering::lower_literal_membership`] emits — a comparison per
 //!     member, throwing through [`ir::Helper::LiteralMismatch`] with the
 //!     accepted set named. § 3's enum-case subset is in that set now: every
-//!     lowering entry point takes the run's `mwl_types::EnumTable` (handed
-//!     back by `mwl_types::check_program` rather than rebuilt, so ADR 0010
+//!     lowering entry point takes the run's `nvs_types::EnumTable` (handed
+//!     back by `nvs_types::check_program` rather than rebuilt, so ADR 0010
 //!     § 1/§ 2's declaration errors are not reported twice), which is where a
 //!     case's constant lives — [`ir::ExprInfo::EnumCase`] carries one only for
 //!     a case written as an *expression*, and a case named in a **type** has
 //!     no expression to record one against. An enum operand is reinterpreted
-//!     to its backing integer for the chain, because `mwl-codegen` lowers
+//!     to its backing integer for the chain, because `nvs-codegen` lowers
 //!     `BinOp::Eq` over `Ty::Int`/`Ty::Uint` and not over `Ty::Enum`.
 //!
 //!     ADR 0010 § 5's other direction runs too, so that section is whole for
@@ -500,7 +500,7 @@
 //!     recursion inside [`lower::Lowering::convert`] rather than a row per
 //!     source, so `$f as Rank` and `$s as Rank` each throw naming whichever
 //!     of the two steps failed. An operand already at the enum's own
-//!     representation is skipped entirely: `mwl_types` refuses a conversion
+//!     representation is skipped entirely: `nvs_types` refuses a conversion
 //!     between two *different* enums, so it names a case by construction.
 //!
 //!     A [`ty::Ty::Tagged`] source is no longer the hole it was: it is one
@@ -509,7 +509,7 @@
 //!     [`ir::Helper::ToDecimal`], and [`ir::Helper::TaggedToInt`] with its
 //!     unsigned and `float` twins, each throwing exactly where ADR 0066's
 //!     [`ir::Helper::ToIntOrNull`] answers `null` over the same rows in
-//!     `mwl_runtime`. So `$any as int` runs, and `$any as Mode` and
+//!     `nvs_runtime`. So `$any as int` runs, and `$any as Mode` and
 //!     `$any as Mode::Read|Mode::Write` run through it: the recursion above
 //!     converts the operand to the enum's backing scalar first, and the
 //!     membership chain is unchanged.
@@ -526,7 +526,7 @@
 //!
 //!     What panics is one row, and **it is now the whole of it**: every other
 //!     operand/target pair naming no row of ADR 0007 § 2's closed table is
-//!     `E0708` where it is written (`mwl_types::expr::operators`'
+//!     `E0708` where it is written (`nvs_types::expr::operators`'
 //!     `reject_unconvertible`), and every object target with no class to test
 //!     against is `E0711` beside it, so a pair that arrives here is a missing
 //!     lowering rather than a missing rule.
@@ -543,7 +543,7 @@
 //!     the same four bits a closure parameter's entry check compares — to
 //!     [`ir::Helper::ToArrayOf`], which walks the elements against it.
 //!     [`ir::Helper::ToArrayOfOrNull`] is ADR 0066's spelling of the same
-//!     walk, out of one implementation. The buffer is not copied: an MWL
+//!     walk, out of one implementation. The buffer is not copied: an Novis
 //!     array is copy-on-write, so the result is the operand's own allocation
 //!     under one more reference and ADR 0007 § 5's invariance is bought with
 //!     tag tests rather than with bytes moved. An element type a tag cannot
@@ -560,9 +560,9 @@
 //!     [`ir::Terminator::Throw`] on the false edge and one free
 //!     [`ir::InstKind::Untag`] on the true one. A helper could not have
 //!     carried it anyway: helper arguments are stored as
-//!     `mwl_runtime::Value`s, and a class descriptor is not one. Every other
+//!     `nvs_runtime::Value`s, and a class descriptor is not one. Every other
 //!     object target names no class to test against — plain `object`, a
-//!     shape, a `callable`, a `Core` class — and `mwl_types` refuses those
+//!     shape, a `callable`, a `Core` class — and `nvs_types` refuses those
 //!     from a non-object operand where they are written (`E0711`). The
 //!     *statically* typed downcasts are in neither list and always ran:
 //!     `object as Plain` and `Comparable as Cell` are one representation on
@@ -572,7 +572,7 @@
 //!     the answer `concat_operand` already gave the same value.
 //!
 //!     A statically settled operand needs no check and already worked, since
-//!     `mwl_types` refuses `E0470` before lowering ever sees it. `as ?"a"`
+//!     `nvs_types` refuses `E0470` before lowering ever sees it. `as ?"a"`
 //!     ([ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)'s
 //!     non-throwing form) runs no membership test either: its yield-`null`
 //!     miss arm has no shared representation with its hit arm, so it needs a
@@ -592,8 +592,8 @@
 //!     `require` in statement position lowers to nothing, because the graph is
 //!     already resolved by the time lowering starts. So a required file that
 //!     writes `echo "loaded";` at file scope compiles and stays silent, and
-//!     ADR 0021 § 3's value form (`$c = require 'config.mwl';`) is refused
-//!     where it is written — `E0704`, from `mwl_types::expr`, whose statement/
+//!     ADR 0021 § 3's value form (`$c = require 'config.nvs';`) is refused
+//!     where it is written — `E0704`, from `nvs_types::expr`, whose statement/
 //!     value split mirrors [`lower::Lowering::lower_expr_stmt`]'s. The
 //!     shape that closes both is one frame per file, called from the site, and
 //!     the open question it raises is whether that frame shares the caller's
@@ -610,14 +610,14 @@ pub mod ty;
 pub use ir::{Function, Program};
 pub use ty::Ty;
 
-use mwl_diagnostics::{SourceFile, Span};
+use nvs_diagnostics::{SourceFile, Span};
 
 pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {
     src.span_text(span).unwrap_or_default()
 }
 
 /// Strips a variable's leading `$` sigil, if present — the same idiom
-/// `mwl-types` uses.
+/// `nvs-types` uses.
 pub(crate) fn strip_sigil(s: &str) -> &str {
     s.strip_prefix('$').unwrap_or(s)
 }

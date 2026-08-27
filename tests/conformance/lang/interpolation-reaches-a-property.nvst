@@ -1,7 +1,7 @@
 --TEST--
 `{$obj->prop}` interpolates a property, and a bare `$name` interpolates a local
 --FILE--
-<?mwl
+<?nvs
 class Point {
     public int $x;
     public int $y;

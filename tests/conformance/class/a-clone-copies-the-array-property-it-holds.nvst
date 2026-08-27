@@ -1,7 +1,7 @@
 --TEST--
 an array property is a value, so a clone's append leaves the original's array — and the array the constructor was handed — alone
 --FILE--
-<?mwl
+<?nvs
 class Row {
     public array<int> $cells;
 

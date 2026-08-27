@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::replace takes `{caseInsensitive}` and `{limit}` in one options bag — ADR 0063 R2
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::replace("aAaA", "a", "-"), "\n";
 echo Core\Str::replace("aAaA", "a", "-", {caseInsensitive: true}), "\n";
 echo Core\Str::replace("aAaA", "a", "-", {caseInsensitive: true, limit: 2}), "\n";

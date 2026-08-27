@@ -1,7 +1,7 @@
 --TEST--
 Nested `finally` blocks run innermost first, on the way out of a throw and on the ordinary path alike
 --FILE--
-<?mwl
+<?nvs
 class Trace {
     public static function thrown(): string {
         var $log = "";

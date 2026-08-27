@@ -27,7 +27,7 @@
 //! **What it spends:** two array allocations per map, and two entries per
 //! pair — see [`crate::identity_store`] for the per-entry figure.
 
-use mwl_runtime::{Fault, MwlArray, MwlStr, ObjHeader, Value};
+use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
 use crate::registry::{CoreClass, CoreMethod, CoreTy};
@@ -36,17 +36,17 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy};
 pub(crate) const NAME: &str = r"Core\ObjectMap";
 
 /// The linker symbol `new Core\ObjectMap<K, V>()` lowers to — see
-/// [`crate::registry::CONSTRUCTORS`], which is the roster `mwl-ir` reads.
-pub(crate) const NEW_SYMBOL: &str = "mwl_core_object_map_new";
+/// [`crate::registry::CONSTRUCTORS`], which is the roster `nvs-ir` reads.
+pub(crate) const NEW_SYMBOL: &str = "nvs_core_object_map_new";
 
 /// The symbol behind `Iterable<K>::iterate()`, reached by name through this
 /// class's method table rather than as a registered member — see
 /// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
-pub(crate) const ITERATE_SYMBOL: &str = "mwl_core_object_map_iterate";
+pub(crate) const ITERATE_SYMBOL: &str = "nvs_core_object_map_iterate";
 
 /// `new Core\ObjectMap<K, V>()` — the constructor
 /// [`crate::registry::CONSTRUCTORS`] registers, which takes nothing: a map's
-/// order is its insertion order and its keying is `mwl_runtime::identity`'s,
+/// order is its insertion order and its keying is `nvs_runtime::identity`'s,
 /// so there is nothing to give it.
 pub(crate) const NEW: CoreMethod = CoreMethod {
     name: "constructor",
@@ -78,63 +78,63 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Var("K"), CoreTy::Var("V")],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "mwl_core_object_map_set",
+            symbol: "nvs_core_object_map_set",
         },
         CoreMethod {
             name: "get",
             params: &[CoreTy::Var("K")],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("V")),
-            symbol: "mwl_core_object_map_get",
+            symbol: "nvs_core_object_map_get",
         },
         CoreMethod {
             name: "has",
             params: &[CoreTy::Var("K")],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_object_map_has",
+            symbol: "nvs_core_object_map_has",
         },
         CoreMethod {
             name: "remove",
             params: &[CoreTy::Var("K")],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "mwl_core_object_map_remove",
+            symbol: "nvs_core_object_map_remove",
         },
         CoreMethod {
             name: "count",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
-            symbol: "mwl_core_object_map_count",
+            symbol: "nvs_core_object_map_count",
         },
         CoreMethod {
             name: "isEmpty",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_object_map_is_empty",
+            symbol: "nvs_core_object_map_is_empty",
         },
         CoreMethod {
             name: "keys",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("K")),
-            symbol: "mwl_core_object_map_keys",
+            symbol: "nvs_core_object_map_keys",
         },
         CoreMethod {
             name: "values",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("V")),
-            symbol: "mwl_core_object_map_values",
+            symbol: "nvs_core_object_map_values",
         },
         CoreMethod {
             name: "clear",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "mwl_core_object_map_clear",
+            symbol: "nvs_core_object_map_clear",
         },
     ],
     slots: &["keys", "values"],
@@ -150,17 +150,17 @@ const VALUES: usize = 1;
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        NEW_SYMBOL => (mwl_core_object_map_new as *const ()).cast(),
-        "mwl_core_object_map_set" => (mwl_core_object_map_set as *const ()).cast(),
-        "mwl_core_object_map_get" => (mwl_core_object_map_get as *const ()).cast(),
-        "mwl_core_object_map_has" => (mwl_core_object_map_has as *const ()).cast(),
-        "mwl_core_object_map_remove" => (mwl_core_object_map_remove as *const ()).cast(),
-        "mwl_core_object_map_count" => (mwl_core_object_map_count as *const ()).cast(),
-        "mwl_core_object_map_is_empty" => (mwl_core_object_map_is_empty as *const ()).cast(),
-        "mwl_core_object_map_keys" => (mwl_core_object_map_keys as *const ()).cast(),
-        "mwl_core_object_map_values" => (mwl_core_object_map_values as *const ()).cast(),
-        "mwl_core_object_map_clear" => (mwl_core_object_map_clear as *const ()).cast(),
-        ITERATE_SYMBOL => (mwl_core_object_map_iterate as *const ()).cast(),
+        NEW_SYMBOL => (nvs_core_object_map_new as *const ()).cast(),
+        "nvs_core_object_map_set" => (nvs_core_object_map_set as *const ()).cast(),
+        "nvs_core_object_map_get" => (nvs_core_object_map_get as *const ()).cast(),
+        "nvs_core_object_map_has" => (nvs_core_object_map_has as *const ()).cast(),
+        "nvs_core_object_map_remove" => (nvs_core_object_map_remove as *const ()).cast(),
+        "nvs_core_object_map_count" => (nvs_core_object_map_count as *const ()).cast(),
+        "nvs_core_object_map_is_empty" => (nvs_core_object_map_is_empty as *const ()).cast(),
+        "nvs_core_object_map_keys" => (nvs_core_object_map_keys as *const ()).cast(),
+        "nvs_core_object_map_values" => (nvs_core_object_map_values as *const ()).cast(),
+        "nvs_core_object_map_clear" => (nvs_core_object_map_clear as *const ()).cast(),
+        ITERATE_SYMBOL => (nvs_core_object_map_iterate as *const ()).cast(),
         _ => return None,
     })
 }
@@ -185,23 +185,23 @@ fn at(receiver: *mut ObjHeader, key: Value, member: &str) -> Result<(Vec<u8>, bo
     Ok(store::locate(&keys, key))
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `new Core\ObjectMap<K, V>()` — a fresh empty map.
     ///
     /// Reached as a symbol rather than as a registered `constructor` member,
     /// for the reason [`crate::instance`]'s module docs give.
-    fn mwl_core_object_map_new(_ctx, _args: [0]) {
+    fn nvs_core_object_map_new(_ctx, _args: [0]) {
         Ok(crate::instance::build(
             &CLASS,
             [
-                Value::array(MwlArray::new()),
-                Value::array(MwlArray::new()),
+                Value::array(NvsArray::new()),
+                Value::array(NvsArray::new()),
             ],
         ))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::set(K $key, V $value): void` — associates
     /// `$value` with `$key`, replacing whatever `$key` held.
     ///
@@ -209,7 +209,7 @@ mwl_runtime::mwl_helper! {
     /// keeps a rewritten entry where it was, so re-setting an existing key
     /// would release and re-store an identical value for nothing, and would
     /// be the one place the two stores could drift apart.
-    fn mwl_core_object_map_set(_ctx, args: [3]) {
+    fn nvs_core_object_map_set(_ctx, args: [3]) {
         let receiver = map_of(args[0], "set")?;
         let (key, value) = (args[1], args[2]);
         let (chain, present) = at(receiver, key, "set")?;
@@ -224,7 +224,7 @@ mwl_runtime::mwl_helper! {
                 unsafe {
                     key.retain();
                 }
-                keys.set(MwlStr::new(&chain), key);
+                keys.set(NvsStr::new(&chain), key);
             })?;
         }
         store::edit(receiver, VALUES, &CLASS, "set", |values| {
@@ -237,14 +237,14 @@ mwl_runtime::mwl_helper! {
                 value.retain();
             }
             // Releases what this key held, which is what makes a re-`set`
-            // replace rather than leak — `MwlArray::set`'s own contract.
-            values.set(MwlStr::new(&chain), value);
+            // replace rather than leak — `NvsArray::set`'s own contract.
+            values.set(NvsStr::new(&chain), value);
         })?;
         Ok(Value::null())
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::get(K $key): ?V` — what `$key` holds, or `null`
     /// where the map holds no key identical to it.
     ///
@@ -253,7 +253,7 @@ mwl_runtime::mwl_helper! {
     /// key is therefore indistinguishable from one that holds nothing — the
     /// same ambiguity `$a[$k] ?? $d` has over an array, and `has` is the
     /// spelling that resolves it.
-    fn mwl_core_object_map_get(_ctx, args: [2]) {
+    fn nvs_core_object_map_get(_ctx, args: [2]) {
         let receiver = map_of(args[0], "get")?;
         let (chain, present) = at(receiver, args[1], "get")?;
         if !present {
@@ -264,7 +264,7 @@ mwl_runtime::mwl_helper! {
         #[expect(
             unsafe_code,
             reason = "the store owns the reference and outlives this call, so \
-                      the value handed back to MWL code needs one of its own"
+                      the value handed back to Novis code needs one of its own"
         )]
         unsafe {
             held.retain();
@@ -273,24 +273,24 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::has(K $key): bool` — whether the map holds a
     /// key identical to `$key`.
-    fn mwl_core_object_map_has(_ctx, args: [2]) {
+    fn nvs_core_object_map_has(_ctx, args: [2]) {
         let receiver = map_of(args[0], "has")?;
         let (_, present) = at(receiver, args[1], "has")?;
         Ok(Value::bool(present))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::remove(K $key): void` — drops `$key` and what
     /// it held, and does nothing where the map holds no such key.
     ///
     /// [`store::vacate`] on each store in turn, and the two agree on which
     /// entry moves into the hole because their key sets are identical — this
     /// module's alignment invariant.
-    fn mwl_core_object_map_remove(_ctx, args: [2]) {
+    fn nvs_core_object_map_remove(_ctx, args: [2]) {
         let receiver = map_of(args[0], "remove")?;
         let (chain, present) = at(receiver, args[1], "remove")?;
         if !present {
@@ -305,9 +305,9 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::count(): uint` — how many pairs the map holds.
-    fn mwl_core_object_map_count(_ctx, args: [1]) {
+    fn nvs_core_object_map_count(_ctx, args: [1]) {
         let receiver = map_of(args[0], "count")?;
         let keys = store::borrow(receiver, KEYS, &CLASS, "count")?;
         let count = u64::try_from(keys.count()).expect("an entry count fits in a `uint`");
@@ -315,50 +315,50 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::isEmpty(): bool` — whether the map holds no
     /// pairs.
-    fn mwl_core_object_map_is_empty(_ctx, args: [1]) {
+    fn nvs_core_object_map_is_empty(_ctx, args: [1]) {
         let receiver = map_of(args[0], "isEmpty")?;
         let keys = store::borrow(receiver, KEYS, &CLASS, "isEmpty")?;
         Ok(Value::bool(keys.is_empty()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::keys(): array<K>` — every key, as a list.
     ///
     /// A list rather than a map keyed by anything: an `array<T>` keys on
     /// `int|string` (ADR 0063 § 4), which is the whole reason this class
     /// exists, so there is no key here to preserve. Position pairs with
-    /// [`mwl_core_object_map_values`]'s.
-    fn mwl_core_object_map_keys(_ctx, args: [1]) {
+    /// [`nvs_core_object_map_values`]'s.
+    fn nvs_core_object_map_keys(_ctx, args: [1]) {
         let receiver = map_of(args[0], "keys")?;
         let keys = store::borrow(receiver, KEYS, &CLASS, "keys")?;
         Ok(Value::array(store::listed(&keys)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::values(): array<V>` — every value, as a list,
-    /// in the order [`mwl_core_object_map_keys`] answers its keys.
-    fn mwl_core_object_map_values(_ctx, args: [1]) {
+    /// in the order [`nvs_core_object_map_keys`] answers its keys.
+    fn nvs_core_object_map_values(_ctx, args: [1]) {
         let receiver = map_of(args[0], "values")?;
         let values = store::borrow(receiver, VALUES, &CLASS, "values")?;
         Ok(Value::array(store::listed(&values)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Iterable<K>::iterate(): Iterator<K>` — a cursor over a snapshot of the
     /// map's keys.
     ///
     /// Not a registered member: it is reached by name through this class's
     /// method table, so its receiver is **transferred** rather than borrowed —
     /// [`crate::cursor`]'s module docs own both halves of that.
-    fn mwl_core_object_map_iterate(_ctx, args: [1]) {
-        let cursor = map_of(args[0], mwl_runtime::sequence::ITERATE).and_then(|receiver| {
-            let keys = store::borrow(receiver, KEYS, &CLASS, mwl_runtime::sequence::ITERATE)?;
+    fn nvs_core_object_map_iterate(_ctx, args: [1]) {
+        let cursor = map_of(args[0], nvs_runtime::sequence::ITERATE).and_then(|receiver| {
+            let keys = store::borrow(receiver, KEYS, &CLASS, nvs_runtime::sequence::ITERATE)?;
             Ok(crate::cursor::over(store::listed(&keys)))
         });
         crate::cursor::consume(args[0]);
@@ -366,9 +366,9 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::clear(): void` — drops every pair.
-    fn mwl_core_object_map_clear(_ctx, args: [1]) {
+    fn nvs_core_object_map_clear(_ctx, args: [1]) {
         let receiver = map_of(args[0], "clear")?;
         store::replace(receiver, KEYS);
         store::replace(receiver, VALUES);
@@ -380,10 +380,10 @@ mwl_runtime::mwl_helper! {
 mod tests {
     use super::*;
 
-    use mwl_runtime::{Ctx, MwlFn, call};
+    use nvs_runtime::{Ctx, NvsFn, call};
 
     /// Runs `member` with `map` as the receiver and `rest` past it.
-    fn on(map: Value, member: MwlFn, rest: &[Value]) -> Value {
+    fn on(map: Value, member: NvsFn, rest: &[Value]) -> Value {
         let mut ctx = Ctx::buffered();
         let mut args = vec![map];
         args.extend_from_slice(rest);
@@ -416,37 +416,37 @@ mod tests {
     #[test]
     fn the_two_stores_stay_paired_through_set_and_remove() {
         let mut ctx = Ctx::buffered();
-        let map = call(mwl_core_object_map_new, &mut ctx, &[]).expect("a fresh map does not throw");
+        let map = call(nvs_core_object_map_new, &mut ctx, &[]).expect("a fresh map does not throw");
 
         for n in 1..=3i64 {
             on(
                 map,
-                mwl_core_object_map_set,
+                nvs_core_object_map_set,
                 &[Value::int(n), Value::int(n * 10)],
             );
         }
         on(
             map,
-            mwl_core_object_map_set,
+            nvs_core_object_map_set,
             &[Value::int(2), Value::int(99)],
         );
-        assert_eq!(on(map, mwl_core_object_map_count, &[]).as_uint(), Some(3));
-        assert_eq!(ints(on(map, mwl_core_object_map_keys, &[])), vec![1, 2, 3]);
+        assert_eq!(on(map, nvs_core_object_map_count, &[]).as_uint(), Some(3));
+        assert_eq!(ints(on(map, nvs_core_object_map_keys, &[])), vec![1, 2, 3]);
         assert_eq!(
-            ints(on(map, mwl_core_object_map_values, &[])),
+            ints(on(map, nvs_core_object_map_values, &[])),
             vec![10, 99, 30]
         );
 
-        on(map, mwl_core_object_map_remove, &[Value::int(1)]);
-        assert_eq!(on(map, mwl_core_object_map_count, &[]).as_uint(), Some(2));
-        let keys = ints(on(map, mwl_core_object_map_keys, &[]));
-        let values = ints(on(map, mwl_core_object_map_values, &[]));
+        on(map, nvs_core_object_map_remove, &[Value::int(1)]);
+        assert_eq!(on(map, nvs_core_object_map_count, &[]).as_uint(), Some(2));
+        let keys = ints(on(map, nvs_core_object_map_keys, &[]));
+        let values = ints(on(map, nvs_core_object_map_values, &[]));
         for (key, value) in keys.iter().zip(&values) {
             let expected = if *key == 2 { 99 } else { key * 10 };
             assert_eq!(*value, expected, "key {key} lost its value");
         }
         assert_eq!(
-            on(map, mwl_core_object_map_get, &[Value::int(1)]).as_int(),
+            on(map, nvs_core_object_map_get, &[Value::int(1)]).as_int(),
             None
         );
 

@@ -1,7 +1,7 @@
 --TEST--
 An enum case converts to the integer it names, and cases compare by that integer — ADR 0010
 --FILE--
-<?mwl
+<?nvs
 enum Rank {
     Bronze,
     Silver,

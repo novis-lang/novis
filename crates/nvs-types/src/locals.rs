@@ -5,7 +5,7 @@
 //!
 //! This is a structural walk of the AST, not a CFG — the milestone has no IR
 //! yet, and every other check in this crate already walks the tree directly
-//! (mirroring [`mwl_hir::members`]'s own shape). [`check_block`] threads two
+//! (mirroring [`nvs_hir::members`]'s own shape). [`check_block`] threads two
 //! kinds of state through that walk: [`LocalScope`], one shared table for
 //! the *whole* function body (declaration is function-scoped — a name
 //! declared inside an `if` is visible, though not necessarily definitely
@@ -38,8 +38,8 @@
 //! [`Narrowing`], which records what it installed so it can tell the two
 //! apart).
 //!
-//! Two rules keep that sound, and both are load-bearing because `mwl-ir`
-//! turns a narrowed receiver into an *unchecked* `mwl_ir::ir::InstKind::Untag`:
+//! Two rules keep that sound, and both are load-bearing because `nvs-ir`
+//! turns a narrowed receiver into an *unchecked* `nvs_ir::ir::InstKind::Untag`:
 //!
 //! * **Every path that can change what a local holds calls
 //!   [`LocalScope::overwrite`]**, which drops the narrowing and answers the
@@ -59,7 +59,7 @@
 //! **Every `?T` narrows, to whatever dropping `null` leaves** — see
 //! [`narrow`] for the restriction that used to sit here, and for what lifted
 //! it: the narrowing is recorded on the variable read's own span
-//! ([`crate::expr_table::ExprInfo::NarrowedRead`]) and `mwl-ir` discharges it
+//! ([`crate::expr_table::ExprInfo::NarrowedRead`]) and `nvs-ir` discharges it
 //! once, where the value is produced, rather than at each consumer.
 //!
 //! **Known gaps**, beyond the ones `crate` docs already name: a `switch`
@@ -77,10 +77,10 @@
 //! The decision is `docs/adr/README.md` § *Decisions taken at project start*:
 //! a name whose existence depends on control flow has no reading the static
 //! class table can give it. Nothing below the checker ever sees one, which
-//! is why `mwl_ir::lower::stmt`'s dispatch does not carry an arm for it.
+//! is why `nvs_ir::lower::stmt`'s dispatch does not carry an arm for it.
 
-use mwl_diagnostics::{Diagnostic, Span, code};
-use mwl_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stmt, StmtKind};
+use nvs_diagnostics::{Diagnostic, Span, code};
+use nvs_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stmt, StmtKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::expr::{
@@ -130,7 +130,7 @@ pub(crate) struct LocalScope {
 /// about the body rather than about the enclosing scope — so `available`
 /// holds every name that *could* be captured, and `used` accumulates the ones
 /// a read or a write actually reached, in first-touch order. That order is
-/// what `mwl-ir` lays the closure object's fields out in, so it has to be
+/// what `nvs-ir` lays the closure object's fields out in, so it has to be
 /// deterministic; a set would not be.
 ///
 /// `used` is a [`RefCell`] because [`crate::expr::check_expr`] takes
@@ -197,7 +197,7 @@ impl LocalScope {
     /// [`Self::declared_ty`] deliberately answers the narrowed type without
     /// saying that it *is* one, which is right for every check it feeds. The
     /// one caller that needs to know the difference is `crate::expr`'s
-    /// variable-read arm, because the fact has to reach `mwl-ir` on the read's
+    /// variable-read arm, because the fact has to reach `nvs-ir` on the read's
     /// own span — see [`crate::expr_table::ExprInfo::NarrowedRead`].
     pub(crate) fn narrowed_ty(&self, name: &str) -> Option<TypeId> {
         self.narrowed.borrow().get(name).copied()
@@ -211,7 +211,7 @@ impl LocalScope {
     /// narrowed type would refuse it; dropping the narrowing is what makes a
     /// later `$m->x()` in that same block a diagnostic again. The module docs
     /// list every caller — a new one that forgets this is the one way a
-    /// narrowing can go stale, and `mwl-ir` trusts it unconditionally.
+    /// narrowing can go stale, and `nvs-ir` trusts it unconditionally.
     pub(crate) fn overwrite(&self, name: &str) -> Option<TypeId> {
         self.narrowed.borrow_mut().remove(name);
         for layer in self.shadowed.borrow_mut().iter_mut() {
@@ -292,16 +292,16 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
     match &cond.kind {
         ExprKind::Paren(inner) => null_test(inner),
         ExprKind::Unary {
-            op: mwl_syntax::ast::UnaryOp::Not,
+            op: nvs_syntax::ast::UnaryOp::Not,
             expr: inner,
         } => null_test(inner).map(|(span, non_null)| (span, !non_null)),
         ExprKind::Binary { op, lhs, rhs }
             if matches!(
                 op,
-                mwl_syntax::ast::BinaryOp::Eq | mwl_syntax::ast::BinaryOp::NotEq
+                nvs_syntax::ast::BinaryOp::Eq | nvs_syntax::ast::BinaryOp::NotEq
             ) =>
         {
-            let non_null = *op == mwl_syntax::ast::BinaryOp::NotEq;
+            let non_null = *op == nvs_syntax::ast::BinaryOp::NotEq;
             match (&lhs.kind, &rhs.kind) {
                 (ExprKind::Variable(span), ExprKind::Null)
                 | (ExprKind::Null, ExprKind::Variable(span)) => Some((*span, non_null)),
@@ -319,13 +319,13 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// That is what ADR 0066's body describes, and every residue takes it — a
 /// class, an `array<T>`, a scalar, or a union of them.
 ///
-/// This used to be restricted to a single-class residue, because `mwl-ir`
-/// lowers a `?T` local's slot as [`Ty::Tagged`](mwl_ir::ty::Ty) whatever the
+/// This used to be restricted to a single-class residue, because `nvs-ir`
+/// lowers a `?T` local's slot as [`Ty::Tagged`](nvs_ir::ty::Ty) whatever the
 /// checker later proves about it, and the only *consumer* that narrowed back
 /// out of one was a call receiver. What lifted the restriction is that the
 /// narrowing is now recorded on the variable read's own span
 /// ([`crate::expr_table::ExprInfo::NarrowedRead`]) and discharged once, where
-/// `mwl-ir` produces the value, rather than at each consumer that wants it —
+/// `nvs-ir` produces the value, rather than at each consumer that wants it —
 /// so a subscript base, a `foreach` subject, an array-write root and an
 /// argument all see the narrow representation with no site left to forget.
 fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Narrowing {
@@ -526,10 +526,10 @@ fn reaches_a_loop(targets: &[bool], n: usize) -> bool {
 ///
 /// That last rule is where `continue` differs, and it is not a second
 /// decision: a level landing on a `switch` walks outward to the enclosing
-/// loop, which is MWL's already-settled reading of a bare `continue` inside a
-/// `switch` (`mwl_ir::lower::Lowering::lower_switch`'s doc comment is its
+/// loop, which is Novis's already-settled reading of a bare `continue` inside a
+/// `switch` (`nvs_ir::lower::Lowering::lower_switch`'s doc comment is its
 /// home) generalized to a written level. It makes `continue 2` inside a
-/// `switch` — PHP's own idiomatic spelling — mean in MWL what it means in
+/// `switch` — PHP's own idiomatic spelling — mean in Novis what it means in
 /// PHP.
 fn check_exit_level(
     level: Option<&Expr>,
@@ -929,7 +929,7 @@ pub(crate) fn check_stmt(
         StmtKind::Global(_) | StmtKind::Goto(_) | StmtKind::StaticLocal { .. } => {
             // Already rejected constructs (ADR 0008 § 5 / "makes the CFG
             // unstructured") — nothing downstream ever acts on them, same as
-            // `mwl_hir::members`'s own walk.
+            // `nvs_hir::members`'s own walk.
         }
         // A declaration only ever reaches this walk from *inside* a body:
         // `crate::check::check_stmts` matches every one of these at file scope
@@ -952,7 +952,7 @@ pub(crate) fn check_stmt(
         StmtKind::UseDecl(decl) => nested_declaration("use", decl.path.span, false, env),
         StmtKind::AutoloadDecl(decl) => nested_declaration("autoload", decl.span, false, env),
         StmtKind::TopLevelFunction(_) | StmtKind::TopLevelConst(_) => {
-            // `E0215`/`E0216` from `mwl_hir::members` already refuse these at
+            // `E0215`/`E0216` from `nvs_hir::members` already refuse these at
             // every scope, by the rule they actually break (ADR 0011 § 1: a
             // function is a method, a constant belongs to a class), so a
             // second diagnostic here would only say it worse.
@@ -965,7 +965,7 @@ pub(crate) fn check_stmt(
 /// is rather than left to panic below the checker.
 ///
 /// All seven spellings share one code because they break one rule: every
-/// declaration in MWL is in effect before any code runs, so "which statements
+/// declaration in Novis is in effect before any code runs, so "which statements
 /// have run by now" is a question none of the tables below can answer. `kind`
 /// is the keyword as written, so the message reads back the source.
 ///
@@ -989,7 +989,7 @@ fn nested_declaration(kind: &str, at: Span, introduces_a_name: bool, env: &mut E
                 format!("`{name_text}` would only exist once control reached this statement"),
             )
             .with_help(format!(
-                "move `{name_text}` out to file scope — every type in MWL is declared before any \
+                "move `{name_text}` out to file scope — every type in Novis is declared before any \
                  code runs, so a name's existence never depends on control flow"
             ))
     } else {
@@ -1032,7 +1032,7 @@ fn nested_declaration(kind: &str, at: Span, introduces_a_name: bool, env: &mut E
 ///
 /// It also **records each leaf's element type in the expression table under
 /// the leaf's own span**, the same [`ExprInfo::Index`] entry `crate::expr`
-/// records for a subscript, because `mwl_ir::lower` lowers the read at the
+/// records for a subscript, because `nvs_ir::lower` lowers the read at the
 /// element's representation and coerces to the declared one, and a
 /// destructuring statement writes no expression it could hang that on.
 fn walk_destructure_target(
@@ -1106,7 +1106,7 @@ fn walk_destructure_target(
 /// A destructuring element's explicit `key =>`, checked as the array key it
 /// is — the same [`code::E_ARRAY_KEY_INVALID_TYPE`] question a subscript and an
 /// array literal's explicit key both already answer, asked here because
-/// `mwl_ir::lower::Lowering::lower_array_key` trusts all three call sites
+/// `nvs_ir::lower::Lowering::lower_array_key` trusts all three call sites
 /// alike and panics on a key it cannot render.
 fn check_destructure_key(
     key: Option<&Expr>,

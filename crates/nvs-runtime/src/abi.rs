@@ -13,7 +13,7 @@
 //! branches on it, and every helper wraps its body in `catch_unwind`, which is
 //! what contains a runtime panic to one request instead of the process.
 //!
-//! Both halves are supplied by [`mwl_helper!`] rather than left to a
+//! Both halves are supplied by [`nvs_helper!`] rather than left to a
 //! convention, for the reason that ADR's *Corollary* gives: `extern "C"`
 //! rather than `extern "C-unwind"` and the `catch_unwind` wrapper are each a
 //! silent, per-helper correctness cliff, and a macro cannot forget either.
@@ -26,11 +26,11 @@ use crate::value::Value;
 /// Success. The result has been written through the `out` pointer.
 pub const OK: i32 = 0;
 
-/// An MWL-level exception is pending in [`Ctx`]. A `catch` may handle it.
+/// An Novis-level exception is pending in [`Ctx`]. A `catch` may handle it.
 pub const THROWN: i32 = 1;
 
 /// Unrecoverable: a resource limit, or an internal error caught at a helper
-/// boundary. Propagates to the request boundary, and MWL code cannot catch it
+/// boundary. Propagates to the request boundary, and Novis code cannot catch it
 /// ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)).
 pub const FATAL: i32 = 2;
 
@@ -45,24 +45,24 @@ pub const FATAL: i32 = 2;
 /// rather than a `FATAL` carrying a code.
 pub const EXITED: i32 = 3;
 
-/// A compiled MWL function.
+/// A compiled Novis function.
 ///
 /// `unsafe` because the three pointers carry a contract the type cannot
 /// express: each must be non-null, aligned and valid for the duration of the
 /// call, `args` must point at as many values as the callee's arity, and `out`
 /// must be writable. Compiled code satisfies this by construction; hand
 /// callers go through [`call`].
-pub type MwlFn = unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32;
+pub type NvsFn = unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32;
 
-/// A runtime helper. Identical to [`MwlFn`] — that identity is the point of
+/// A runtime helper. Identical to [`NvsFn`] — that identity is the point of
 /// having one convention.
-pub type HelperFn = MwlFn;
+pub type HelperFn = NvsFn;
 
 /// How a helper body reports a failure.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Fault {
-    /// An MWL exception a `catch` may handle; becomes [`THROWN`].
+    /// An Novis exception a `catch` may handle; becomes [`THROWN`].
     ///
     /// The class is which of spec § 10's tree the promoted object is built
     /// from, so `Core\Json::decode("{oops}")` is caught by
@@ -95,7 +95,7 @@ pub enum Fault {
     /// [`Self::Thrown`] built here would call [`Ctx::set_pending`] a second
     /// time and replace the exception object the callee raised with a bare
     /// string. Reached from [`crate::call_closure`], which is the one place a
-    /// helper calls compiled MWL code, and from `mwl_exit`, whose *success* is
+    /// helper calls compiled Novis code, and from `nvs_exit`, whose *success* is
     /// [`EXITED`] and which has already recorded the status on the context.
     Pending(i32),
 }
@@ -182,11 +182,11 @@ pub fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
 
 /// What a helper body returns: the result value, or a [`Fault`].
 ///
-/// A helper invoked purely for its effect — `mwl_ir::Helper::EchoStr` is the
+/// A helper invoked purely for its effect — `nvs_ir::Helper::EchoStr` is the
 /// only one so far — returns [`Value::null`].
 pub type HelperResult = Result<Value, Fault>;
 
-/// The body of every helper, shared so [`mwl_helper!`] expands to one line.
+/// The body of every helper, shared so [`nvs_helper!`] expands to one line.
 ///
 /// Kept public because the macro's expansion names it, not because callers
 /// should reach for it directly.
@@ -199,7 +199,7 @@ pub type HelperResult = Result<Value, Fault>;
 #[expect(
     unsafe_code,
     reason = "this is the one place the helper ABI's pointer contract is \
-              discharged; every helper reaches it through `mwl_helper!`"
+              discharged; every helper reaches it through `nvs_helper!`"
 )]
 pub unsafe fn run_helper<F>(
     ctx: *mut Ctx,
@@ -298,7 +298,7 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> std::borrow::Cow<'stat
     }
 }
 
-/// Defines a runtime helper with MWL's calling convention.
+/// Defines a runtime helper with Novis's calling convention.
 ///
 /// The body is written against safe references — `&mut Ctx` and a `&[Value]`
 /// of exactly the declared arity — and returns a [`HelperResult`]. Everything
@@ -306,21 +306,21 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> std::borrow::Cow<'stat
 /// result through `out`, recording a message in [`Ctx`]) is supplied.
 ///
 /// ```
-/// use mwl_runtime::{Ctx, Fault, Value, call, mwl_helper};
+/// use nvs_runtime::{Ctx, Fault, Value, call, nvs_helper};
 ///
-/// mwl_helper! {
+/// nvs_helper! {
 ///     /// Doubles an `int`.
-///     fn mwl_double(_ctx, args: [1]) {
+///     fn nvs_double(_ctx, args: [1]) {
 ///         let n = args[0].as_int().ok_or_else(|| Fault::fatal("not an int"))?;
 ///         Ok(Value::int(n * 2))
 ///     }
 /// }
 ///
 /// let mut ctx = Ctx::buffered();
-/// assert_eq!(call(mwl_double, &mut ctx, &[Value::int(21)]).unwrap().as_int(), Some(42));
+/// assert_eq!(call(nvs_double, &mut ctx, &[Value::int(21)]).unwrap().as_int(), Some(42));
 /// ```
 #[macro_export]
-macro_rules! mwl_helper {
+macro_rules! nvs_helper {
     (
         $(#[$meta:meta])*
         fn $name:ident($ctx:ident, $args:ident: [$arity:expr]) $body:block
@@ -331,7 +331,7 @@ macro_rules! mwl_helper {
         ///
         /// `ctx`, `args` and `out` must each be non-null, aligned and valid for
         /// the duration of the call; `args` must point at as many values as
-        /// this helper's arity; and `out` must be writable. Compiled MWL code
+        /// this helper's arity; and `out` must be writable. Compiled Novis code
         /// satisfies this by construction — hand callers go through
         /// [`call`](crate::call).
         #[allow(
@@ -365,15 +365,15 @@ macro_rules! mwl_helper {
 
 /// Calls a compiled function or a helper from Rust.
 ///
-/// The safe wrapper hand callers — this crate's tests, `mwl-codegen`'s tests,
-/// and eventually `mwl run` itself — use instead of building the three
+/// The safe wrapper hand callers — this crate's tests, `nvs-codegen`'s tests,
+/// and eventually `nvs run` itself — use instead of building the three
 /// pointers by hand.
 ///
 /// # Errors
 ///
 /// The [`THROWN`] or [`FATAL`] status, with the message left in `ctx` for the
 /// caller to [`Ctx::take_pending`].
-pub fn call(function: MwlFn, ctx: &mut Ctx, args: &[Value]) -> Result<Value, i32> {
+pub fn call(function: NvsFn, ctx: &mut Ctx, args: &[Value]) -> Result<Value, i32> {
     let mut out = Value::null();
     // What the release path reaches a context through, since a decrement
     // carries none — `crate::ctx::CurrentCtx` owns the argument.
@@ -390,58 +390,58 @@ pub fn call(function: MwlFn, ctx: &mut Ctx, args: &[Value]) -> Result<Value, i32
 
 #[cfg(test)]
 mod tests {
-    // `mwl_helper!` emits `pub` entry points; inside this private test module
+    // `nvs_helper!` emits `pub` entry points; inside this private test module
     // they are deliberately unreachable from outside the crate.
     #![allow(unreachable_pub)]
 
     use super::*;
     use crate::value::Tag;
 
-    mwl_helper! {
+    nvs_helper! {
         /// Returns its one argument unchanged.
-        fn mwl_test_identity(_ctx, args: [1]) {
+        fn nvs_test_identity(_ctx, args: [1]) {
             Ok(args[0])
         }
     }
 
-    mwl_helper! {
+    nvs_helper! {
         /// Reports whether it was handed an empty argument slice.
-        fn mwl_test_arity_zero(_ctx, args: [0]) {
+        fn nvs_test_arity_zero(_ctx, args: [0]) {
             Ok(Value::bool(args.is_empty()))
         }
     }
 
-    mwl_helper! {
+    nvs_helper! {
         /// Always throws.
-        fn mwl_test_throws(_ctx, _args: [0]) {
+        fn nvs_test_throws(_ctx, _args: [0]) {
             Err(Fault::thrown("thrown from a helper"))
         }
     }
 
-    mwl_helper! {
+    nvs_helper! {
         /// Always fatal.
-        fn mwl_test_fatal(_ctx, _args: [0]) {
+        fn nvs_test_fatal(_ctx, _args: [0]) {
             Err(Fault::fatal("fatal from a helper"))
         }
     }
 
-    mwl_helper! {
+    nvs_helper! {
         /// Panics with a `&'static str`.
-        fn mwl_test_panics_static(_ctx, _args: [0]) {
+        fn nvs_test_panics_static(_ctx, _args: [0]) {
             panic!("a static panic message")
         }
     }
 
-    mwl_helper! {
+    nvs_helper! {
         /// Panics with an owned `String`.
-        fn mwl_test_panics_owned(_ctx, _args: [0]) {
+        fn nvs_test_panics_owned(_ctx, _args: [0]) {
             panic!("an owned panic message: {}", 7)
         }
     }
 
-    mwl_helper! {
+    nvs_helper! {
         /// Writes to the request's output, proving the context is reachable.
-        fn mwl_test_writes(ctx, _args: [0]) {
+        fn nvs_test_writes(ctx, _args: [0]) {
             ctx.write_output(b"written").map_err(|e| Fault::fatal(e.to_string()))?;
             Ok(Value::null())
         }
@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn a_helper_returns_its_result_through_out() {
         let mut ctx = Ctx::buffered();
-        let value = call(mwl_test_identity, &mut ctx, &[Value::int(5)]).unwrap();
+        let value = call(nvs_test_identity, &mut ctx, &[Value::int(5)]).unwrap();
         assert_eq!(value.as_int(), Some(5));
         assert_eq!(ctx.pending(), None);
     }
@@ -458,21 +458,21 @@ mod tests {
     #[test]
     fn a_zero_arity_helper_gets_an_empty_slice_not_a_null_deref() {
         let mut ctx = Ctx::buffered();
-        let value = call(mwl_test_arity_zero, &mut ctx, &[]).unwrap();
+        let value = call(nvs_test_arity_zero, &mut ctx, &[]).unwrap();
         assert_eq!(value.as_bool(), Some(true));
     }
 
     #[test]
     fn a_thrown_fault_becomes_thrown_with_its_message() {
         let mut ctx = Ctx::buffered();
-        assert_eq!(call(mwl_test_throws, &mut ctx, &[]).unwrap_err(), THROWN);
+        assert_eq!(call(nvs_test_throws, &mut ctx, &[]).unwrap_err(), THROWN);
         assert_eq!(ctx.take_pending().as_deref(), Some("thrown from a helper"));
     }
 
     #[test]
     fn a_fatal_fault_becomes_fatal_with_its_message() {
         let mut ctx = Ctx::buffered();
-        assert_eq!(call(mwl_test_fatal, &mut ctx, &[]).unwrap_err(), FATAL);
+        assert_eq!(call(nvs_test_fatal, &mut ctx, &[]).unwrap_err(), FATAL);
         assert_eq!(ctx.take_pending().as_deref(), Some("fatal from a helper"));
     }
 
@@ -483,7 +483,7 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         assert_eq!(
-            call(mwl_test_panics_static, &mut ctx, &[]).unwrap_err(),
+            call(nvs_test_panics_static, &mut ctx, &[]).unwrap_err(),
             FATAL
         );
         assert_eq!(
@@ -492,7 +492,7 @@ mod tests {
         );
 
         assert_eq!(
-            call(mwl_test_panics_owned, &mut ctx, &[]).unwrap_err(),
+            call(nvs_test_panics_owned, &mut ctx, &[]).unwrap_err(),
             FATAL
         );
         assert_eq!(
@@ -510,21 +510,21 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         assert_eq!(
-            call(mwl_test_panics_static, &mut ctx, &[]).unwrap_err(),
+            call(nvs_test_panics_static, &mut ctx, &[]).unwrap_err(),
             FATAL
         );
         let _ = ctx.take_pending();
 
         panic::set_hook(previous);
 
-        let value = call(mwl_test_identity, &mut ctx, &[Value::bool(true)]).unwrap();
+        let value = call(nvs_test_identity, &mut ctx, &[Value::bool(true)]).unwrap();
         assert_eq!(value.tag(), Some(Tag::Bool));
     }
 
     #[test]
     fn a_helper_reaches_the_requests_own_output() {
         let mut ctx = Ctx::buffered();
-        call(mwl_test_writes, &mut ctx, &[]).unwrap();
+        call(nvs_test_writes, &mut ctx, &[]).unwrap();
         assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b"written"[..]));
     }
 }

@@ -1,7 +1,7 @@
 --TEST--
 `& | ^ ~ << >>` answer PHP's own values, including the two rules a machine shift does not give — ADR 0007 § 4
 --FILE--
-<?mwl
+<?nvs
 int $six = 6;
 int $three = 3;
 int $one = 1;

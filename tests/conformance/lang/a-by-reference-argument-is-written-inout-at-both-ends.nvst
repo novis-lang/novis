@@ -1,7 +1,7 @@
 --TEST--
 `inout` is written before the parameter's type and again at the argument, in every declaration and call-site position either one has — ADR 0107 §§ 1, 2
 --FILE--
-<?mwl
+<?nvs
 // ADR 0107 § 1 puts the word in the modifier slot, before the type, so it
 // reads the same on a static method, an instance method and a `foreach`
 // value binding. § 2 writes it again at the argument, which is the half a
@@ -68,7 +68,7 @@ echo Core\Json::encode($xs), "\n";
 
 // A destructuring leaf is the fourth position the word parses in, and the one
 // where it is then refused — see
-// `a-by-reference-array-element-is-a-diagnostic.mwlt`, whose `[&$x]` twin
+// `a-by-reference-array-element-is-a-diagnostic.nvst`, whose `[&$x]` twin
 // takes the same code for the same reason.
 array<int> $pair = [7, 9];
 int $first = $pair["0"];

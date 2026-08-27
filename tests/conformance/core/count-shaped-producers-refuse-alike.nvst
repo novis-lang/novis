@@ -1,10 +1,10 @@
 --TEST--
 The eight count-shaped producers agree — each answers a size it can serve, and each refuses one it cannot in the same class, named for its own member and spelled by which of the two bounds the count crossed — spec §§ 1, 2, 7, ADR 0063 R4
 --FILE--
-<?mwl
+<?nvs
 // Eight members take a count and turn it into one allocation whose size that
 // count decides. Two checks stand between the count and the allocator, and
-// they answer different questions: `mwl_runtime::affordable` is the policy
+// they answer different questions: `nvs_runtime::affordable` is the policy
 // seam and refuses only a size past `isize::MAX`, while every size below it
 // that the machine cannot actually serve is the allocator refusing. Both are
 // throws. An infallible draw at either point is an abort instead, which takes

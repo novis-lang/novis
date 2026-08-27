@@ -1,13 +1,13 @@
-# ADR 0040 — The VS Code extension is a deep, first-class client; `mwl-syntax` gains a resilient parse mode; a minimal `mwl-lsp` moves ahead of M10
+# ADR 0040 — The VS Code extension is a deep, first-class client; `nvs-syntax` gains a resilient parse mode; a minimal `nvs-lsp` moves ahead of M10
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
 - **Scope:** the VS Code half of [ADR 0016](0016-ide-integration.md) only — the PhpStorm plugin, and
-  0016's "one server, two thin clients" split, are untouched. Covers: (1) pulling a minimal `mwl-lsp` and
+  0016's "one server, two thin clients" split, are untouched. Covers: (1) pulling a minimal `nvs-lsp` and
   `editors/vscode` ahead of M10 into a new milestone, **M4B**, right after M4's "usable CLI language"; (2)
   the full v1 feature catalog for the VS Code extension — inspections, refactorings, completion depth, a
   Test Explorer with coverage, an AST panel, profiler visualization, debugger UI — each tagged with the
-  language/runtime feature it is staged behind; (3) a required addition to `mwl-syntax`: a second,
+  language/runtime feature it is staged behind; (3) a required addition to `nvs-syntax`: a second,
   error-recovering parse mode, alongside the existing strict one, needed for usable completion on a file
   that is mid-edit.
 - **Amends:** [0016](0016-ide-integration.md) — § 3 below reverses its § 4 deferral of debugger-UI
@@ -17,15 +17,15 @@
 - **Amended by:** 0099, 0108
 
 > **In short:** VS Code is the reference client, and it is getting real depth, not a thin LSP passthrough
-> with a grammar file. A **minimal `mwl-lsp`** (diagnostics, hover, go-to-definition, basic completion) and
+> with a grammar file. A **minimal `nvs-lsp`** (diagnostics, hover, go-to-definition, basic completion) and
 > the **`editors/vscode` extension** move out of M10 into a new milestone, **M4B**, placed right after M4 —
 > the point the plan already calls "a usable CLI language" — so real programs can be written and tested in
-> VS Code from that point on, not from M10 onward. M10 still exists and still lands `mwl fmt`/`mwl dap`/the
-> profiler/`mwl pkg`, but its remaining VS Code work is now the *deep* half: inspections and quick fixes,
+> VS Code from that point on, not from M10 onward. M10 still exists and still lands `nvs fmt`/`nvs dap`/the
+> profiler/`nvs pkg`, but its remaining VS Code work is now the *deep* half: inspections and quick fixes,
 > refactorings, richer completion, a native Test Explorer with coverage, an AST/reflection panel, a
 > profiler view, and DAP editor wiring — each one named below against the specific milestone or ADR that
 > has to land first, so nothing here is a promise with no delivery date and nothing blocks on the hardest
-> piece. The one change that reaches back into the compiler: `mwl-syntax` gains a **lossless parse
+> piece. The one change that reaches back into the compiler: `nvs-syntax` gains a **lossless parse
 > result** — a tree that keeps a usable shape around a syntax error — because a document mid-keystroke is
 > syntactically invalid most of the time, and "keep completion working anyway" is not achievable by
 > layering something on top of an all-or-nothing parser afterward. That was originally specified as a
@@ -64,11 +64,11 @@
     JavaScript debugger) — it is not a generic profiler-visualization surface a third-party language can
     plug into directly. The generic, widely-supported answer is the open **speedscope** JSON format:
     speedscope.app renders it standalone, and a thin VS Code command can shell out to it or embed it,
-    without MWL building a bespoke flamegraph renderer.
+    without Novis building a bespoke flamegraph renderer.
   - **Debug Adapter Protocol (DAP)** is a wire protocol, not a UI: any DAP-compliant adapter gets VS Code's
     existing breakpoints/call-stack/variables/watch UI for free via a `DebugAdapterDescriptorFactory` and a
     `launch.json` schema contribution. No custom debugger UI needs to be built — the work is entirely the
-    adapter (`mwl dap`, already planned) plus the small amount of editor-side registration glue.
+    adapter (`nvs dap`, already planned) plus the small amount of editor-side registration glue.
 
 ## Decision
 
@@ -79,12 +79,12 @@ cross-references to M5 through M14 across other ADRs for a purely additive miles
 low-churn instinct [AGENTS.md](../../AGENTS.md) already applies to documentation. M4B pulls forward,
 **scoped down to a minimal subset**, work that M10 was going to do anyway:
 
-- `crates/mwl-lsp` — created here, not at M10 — built on `lsp-server` and `lsp-types`, **synchronously and
+- `crates/nvs-lsp` — created here, not at M10 — built on `lsp-server` and `lsp-types`, **synchronously and
   with no async runtime** ([ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 2; `tower-lsp`,
   which earlier drafts of this ADR and of M10 named, would put tokio into a workspace that has
   deliberately never had one). Six requests, and the list is closed:
-  `textDocument/publishDiagnostics` (by running the existing `mwl check` pipeline against the resilient
-  parse of *Decision § 2*), `textDocument/hover` (declared types from `mwl-types`, a `Core` member's
+  `textDocument/publishDiagnostics` (by running the existing `nvs check` pipeline against the resilient
+  parse of *Decision § 2*), `textDocument/hover` (declared types from `nvs-types`, a `Core` member's
   registry signature, and a declaration's own doc comment out of the trivia layer),
   `textDocument/definition`, `textDocument/completion` restricted to keywords, members off a resolved
   receiver type and enum cases (no cross-file symbol search yet — that needs the workspace-indexing work
@@ -93,14 +93,14 @@ low-churn instinct [AGENTS.md](../../AGENTS.md) already applies to documentation
   text already sits in `Diagnostic::suggestions`, which closes this ADR's own *Revisiting* question about
   landing one or two cheap ones early. A `LanguageStatusItem` shows server health/version per the research
   above.
-- `editors/vscode` — created here, not at M10 — the TextMate grammar, `.mwl` registration and
-  `language-configuration.json` from ADR 0016 § 2, `mwl lsp` process spawning, and `mwl run`/`mwl test` as
+- `editors/vscode` — created here, not at M10 — the TextMate grammar, `.nvs` registration and
+  `language-configuration.json` from ADR 0016 § 2, `nvs lsp` process spawning, and `nvs run`/`nvs test` as
   VS Code Tasks. Semantic tokens are **in** — [ADR 0099 § 4](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
   owns the two-layer split and the token legend, whose `tainted`/`secret` modifiers are the point of the
-  layer rather than a detail of it. **Not yet included:** format-on-save (`mwl fmt` doesn't exist until
+  layer rather than a detail of it. **Not yet included:** format-on-save (`nvs fmt` doesn't exist until
   M10 — [ADR 0039](0039-canonical-code-formatting.md)), rename, and any code action beyond the two above —
   the boundary is that M4B ships the fixes a diagnostic already computes and no others.
-- `mwl-lsp` and `editors/vscode` are **one crate/one package each across both milestones** — M10 extends
+- `nvs-lsp` and `editors/vscode` are **one crate/one package each across both milestones** — M10 extends
   the same crate and the same extension in place rather than standing up a second "real" implementation
   next to a throwaway M4B prototype. Building a disposable prototype and discarding it at M10 was
   considered and rejected — see *Alternatives rejected*.
@@ -108,12 +108,12 @@ low-churn instinct [AGENTS.md](../../AGENTS.md) already applies to documentation
 M10's remaining VS Code scope after M4B lands is everything in *Decision § 4* below. M10's PhpStorm scope
 is entirely unchanged from [ADR 0016](0016-ide-integration.md).
 
-### 2. `mwl-syntax` gains a resilient, error-recovering parse mode
+### 2. `nvs-syntax` gains a resilient, error-recovering parse mode
 
 A live editor spends most of its time with a syntactically invalid document — mid-statement, an unclosed
 brace, a half-typed identifier. M4B's completion/hover cannot go dark every time that happens, and it will
-happen on nearly every keystroke. `mwl-syntax`'s existing parser is built for whole-file compilation
-(`mwl check`/`mwl run`) and has no such mode today.
+happen on nearly every keystroke. `nvs-syntax`'s existing parser is built for whole-file compilation
+(`nvs check`/`nvs run`) and has no such mode today.
 
 This was first specified as a second parse mode producing a `rowan`-shaped CST beside the AST, modeled on
 rust-analyzer's approach from *Context*. [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 1
@@ -121,27 +121,27 @@ narrowed that after reading the parser: it is **already** infallible in the sens
 `parse_*` method returns a node rather than a `Result`, a missing token is reported at the empty span
 where it should have been without consuming what follows, and `$u->` with nothing after it already parses
 to a property access whose name was synthesized at the cursor. `rowan` exists because a typed AST is
-*lossy by construction*; MWL's is not once trivia is retained beside it. So the addition is:
+*lossy by construction*; Novis's is not once trivia is retained beside it. So the addition is:
 
 - **Trivia, from one site.** The lexer's `skip_trivia` — the single function that consumes whitespace,
   `//`, `#` and `/* */` — records each as a `Trivia { kind, span }` instead of only advancing.
   Concatenating tokens and trivia in offset order then reproduces the file byte-for-byte, which is the
-  losslessness `mwl fmt` needs at M10 to keep [ADR 0039](0039-canonical-code-formatting.md) § 4's promise
+  losslessness `nvs fmt` needs at M10 to keep [ADR 0039](0039-canonical-code-formatting.md) § 4's promise
   that comments survive formatting.
 - **Explicit recovery.** A node the parser synthesized says so (`MemberName::Missing`, a span on
   `ExprKind::Error`) rather than being inferable from an empty span, because completion's whole behaviour
   turns on telling a name the user wrote from one the parser invented at the cursor.
 - **An offset index.** One walk builds a `SyntaxIndex` answering "the innermost node at this offset, and
-  its ancestors", so `mwl-lsp` maps a cursor back to a syntax node — even inside a malformed region —
+  its ancestors", so `nvs-lsp` maps a cursor back to a syntax node — even inside a malformed region —
   without a second position-mapping mechanism.
-- **One grammar and one tree.** `mwl check`, `mwl run` and every other compile path keep their behaviour
+- **One grammar and one tree.** `nvs check`, `nvs run` and every other compile path keep their behaviour
   exactly, as that same parse followed by "refuse if anything was reported" — which is what they already
-  do. There is no second entry point to keep in step with the grammar, and `mwl fmt` reads the same tree
+  do. There is no second entry point to keep in step with the grammar, and `nvs fmt` reads the same tree
   at M10.
 - **Where this lands relative to the priority ordering in [AGENTS.md](../../AGENTS.md):** it spends very
   little simplicity — one lexer flag, two node kinds and an index — and buys nothing on security,
   correctness or the request path (priorities 1–3), because none of it is linked into the compiled
-  artifact `mwl run` produces. What it *does* give up is `rowan`'s nearly-free incremental reparse, so
+  artifact `nvs run` produces. What it *does* give up is `rowan`'s nearly-free incremental reparse, so
   every analysis reparses the document; ADR 0099 § 6's latency guard is what keeps that a measured trade
   rather than an assumption.
 
@@ -154,22 +154,22 @@ that stops working on the first typo, which is the exact failure this ADR exists
 Every feature below is a real commitment, not an aspiration — but each is tagged with what has to exist
 first, so the catalog is honest about sequencing rather than implying all of it lands at once.
 
-**Available from M4B (minimal `mwl-lsp`, no further dependency):**
+**Available from M4B (minimal `nvs-lsp`, no further dependency):**
 
-- Syntax highlighting in both layers — TextMate baseline, then semantic tokens once `mwl-lsp` responds;
+- Syntax highlighting in both layers — TextMate baseline, then semantic tokens once `nvs-lsp` responds;
   [ADR 0099 § 4](0099-the-resilient-tree-is-the-ast-plus-trivia.md) lists what each layer must colour and,
-  as importantly, the constructs MWL rejects that neither may colour as valid. Plus diagnostics, hover,
+  as importantly, the constructs Novis rejects that neither may colour as valid. Plus diagnostics, hover,
   go-to-definition, keyword/member completion, document symbols, the two code actions of *Decision § 1*,
-  `mwl run`/`mwl test` as Tasks, and a `LanguageStatusItem`.
-- **An AST explorer panel**, backed by `mwl ast` in `crates/mwl-cli` — which ships the `--json` flag and a
+  `nvs run`/`nvs test` as Tasks, and a `LanguageStatusItem`.
+- **An AST explorer panel**, backed by `nvs ast` in `crates/nvs-cli` — which ships the `--json` flag and a
   frozen schema for it **at M4B**, since M1 shipped only the command and its `{stmts:#?}` debug output,
   which has no stability contract ([ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7). A
   tree view renders that output for the active file, resilient tree by default so the panel works on a
   file that does not compile. This does not need `Core\Ast` ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md))
-  at all — that's the *language-level* reflective parse a running MWL program calls; the *editor* panel is
-  simpler and can shell out to the CLI the same way `mwl check` already backs diagnostics.
+  at all — that's the *language-level* reflective parse a running Novis program calls; the *editor* panel is
+  simpler and can shell out to the CLI the same way `nvs check` already backs diagnostics.
 
-**Gated on M10 (the LSP's remaining scope — workspace indexing, `mwl-fmt`, `mwl dap`, the profiler):**
+**Gated on M10 (the LSP's remaining scope — workspace indexing, `nvs-fmt`, `nvs dap`, the profiler):**
 
 - **Inspections and quick fixes** as LSP code actions, each backed by a diagnostic the checker already
   emits or will emit: a casing violation offers "rename to `camelCase`/`PascalCase`"
@@ -188,10 +188,10 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   successful parse: a mis-ordered qualifier, a legacy cast and a `var $x` property are all parse-or-
   declaration errors, so a fix that fired only on a clean parse would never fire on the file that needs it.
   And they are **off by default but composable with format-on-save**: the extension registers them under
-  `source.fixAll.mwl`, which VS Code runs through `editor.codeActionsOnSave` independently of
+  `source.fixAll.nvs`, which VS Code runs through `editor.codeActionsOnSave` independently of
   `editor.formatOnSave`, so a developer who opts in gets the layout *and* the fixes on one keystroke while
-  `mwl fmt` itself stays layout-only. [ADR 0039](0039-canonical-code-formatting.md) § 9 owns that boundary
-  and why it is worth keeping — `mwl fmt --check` must fail for exactly one reason. PhpStorm's *Reformat
+  `nvs fmt` itself stays layout-only. [ADR 0039](0039-canonical-code-formatting.md) § 9 owns that boundary
+  and why it is worth keeping — `nvs fmt --check` must fail for exactly one reason. PhpStorm's *Reformat
   Code* dialog, with its own per-action checkboxes, is the same composition through a different client.
 - **Refactorings** as LSP requests: workspace-wide rename, extract-to-method/variable, organize-imports
   restricted to reordering and removing unused `use` statements — never introducing a rename or alias, per
@@ -199,20 +199,20 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 - **Deeper completion**: signature help, cross-file/workspace symbol search, auto-import limited to
   inserting the correct fully-qualified name (never an alias, same ADR 0015 constraint), inlay hints for
   `var`-inferred types ([ADR 0037](0037-var-local-type-inference.md)) and call-site parameter names.
-- Format-on-save and the format commands, wired to `mwl fmt` once it exists
+- Format-on-save and the format commands, wired to `nvs fmt` once it exists
   ([ADR 0039](0039-canonical-code-formatting.md)) — unchanged from ADR 0016 § 2.
-- **A native Test Explorer**, using VS Code's finalized Testing API, wired to `mwl test`/`.mwlt`, with
+- **A native Test Explorer**, using VS Code's finalized Testing API, wired to `nvs test`/`.nvst`, with
   **coverage** fed through VS Code's own `FileCoverage` API from the Clover/lcov exporters M10 already
   builds ([ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)) — no custom
   gutter-rendering code, per the research in *Context*.
-- **Profiler visualization**: `mwl run --profile` emits its sampling-profiler output in the open
-  **speedscope** JSON format (in addition to whatever machine-readable format `mwl` itself wants); a "View
+- **Profiler visualization**: `nvs run --profile` emits its sampling-profiler output in the open
+  **speedscope** JSON format (in addition to whatever machine-readable format `nvs` itself wants); a "View
   Profile" command opens it in speedscope.app or an embedded webview that speaks the same format. No
   bespoke flamegraph renderer is built from scratch, per the research in *Context*.
 - **Debugger UI wiring for VS Code**: a `DebugAdapterDescriptorFactory` and a `launch.json` configuration
-  schema targeting `mwl dap`. This **reverses** [ADR 0016](0016-ide-integration.md) § 4's deferral for VS
-  Code specifically — `mwl dap` already ships in M10, DAP is a protocol VS Code already renders a full UI
-  for, and "staged behind its dependency" means once `mwl dap` exists in the same milestone, wiring it up
+  schema targeting `nvs dap`. This **reverses** [ADR 0016](0016-ide-integration.md) § 4's deferral for VS
+  Code specifically — `nvs dap` already ships in M10, DAP is a protocol VS Code already renders a full UI
+  for, and "staged behind its dependency" means once `nvs dap` exists in the same milestone, wiring it up
   is the small remaining step, not a separate fast-follow. **PhpStorm's debugger UI wiring stays deferred**
   exactly as ADR 0016 states — this ADR does not reach into the PhpStorm side at all.
 - **Finding a symbol's other uses, and the four features that are the same index**:
@@ -220,19 +220,19 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   `typeHierarchy`, and unused-member dimming — one workspace index answering five requests, never five
   walks ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 1).
   `references` is in this list because it was missing from it, not because it was deferred.
-- **Completion from the tables the compiler already builds** — route names and their parameters, `mwl.toml`
+- **Completion from the tables the compiler already builds** — route names and their parameters, `nvs.toml`
   directives, `#[Api]` fields — under one closed rule: the server offers a value only where the compiler
   already derives that value for another reason, and never from a convention scan, an annotation dialect or
   a network request
   ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 2).
-  That rule is MWL's whole answer to "framework support", and it is why no per-framework module enters
-  `mwl-lsp`.
+  That rule is Novis's whole answer to "framework support", and it is why no per-framework module enters
+  `nvs-lsp`.
 - **HTML, CSS and JavaScript services inside an inline-HTML region**, forwarded to VS Code's own language
-  services across region boundaries the server reports (`mwl/regions`) — Emmet, tag closing and renaming,
-  the colour picker, validation. **Formatting is excluded**, so `mwl fmt` stays the only formatter that
-  touches a `.mwl` file
+  services across region boundaries the server reports (`nvs/regions`) — Emmet, tag closing and renaming,
+  the colour picker, validation. **Formatting is excluded**, so `nvs fmt` stays the only formatter that
+  touches a `.nvs` file
   ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 3,
-  [ADR 0039](0039-canonical-code-formatting.md) § 9). This is not a small addition for MWL specifically:
+  [ADR 0039](0039-canonical-code-formatting.md) § 9). This is not a small addition for Novis specifically:
   [ADR 0082](0082-the-first-party-framework.md) makes inline HTML the template engine, so this region is
   where an application's markup is written.
 - **Three code actions that generate rather than fix** — implement missing members, override a method,
@@ -242,32 +242,32 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   logpoints, exception filters, stepping exclusions, path mappings, the value returned after a step out,
   and a `spawn`ed isolate presented as a thread
   ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 5).
-  Those are `mwl dap`'s work rather than the extension's; the editor renders each for free once the adapter
+  Those are `nvs dap`'s work rather than the extension's; the editor renders each for free once the adapter
   reports it.
-- **`mwl check --json`**, and a `mwl.check.scope` of `"workspace"` — which is what the unused-member
+- **`nvs check --json`**, and a `nvs.check.scope` of `"workspace"` — which is what the unused-member
   dimming above needs in order to be correct rather than merely quiet
   ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 6).
 
-**Gated on M9 (`.mwlx` extensions exist):**
+**Gated on M9 (`.nvsx` extensions exist):**
 
-- `mwl ext build`/`inspect`/`verify` surfaced as VS Code Tasks/commands, and a read-only webview rendering
-  `mwl ext inspect`'s manifest/capability output. Lands whenever M9's tooling exists — in practice
+- `nvs ext build`/`inspect`/`verify` surfaced as VS Code Tasks/commands, and a read-only webview rendering
+  `nvs ext inspect`'s manifest/capability output. Lands whenever M9's tooling exists — in practice
   alongside or after M10's editor work, since M9 already precedes M10 in the plan.
 
 **Named but not committed to any milestone (see *Revisiting*):**
 
 - A live, debug-session object/value inspector built on `Core\Reflect` ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)) — distinct from the static AST panel above, this needs both the stdlib
-  reflection surface (M7/M8) and `mwl dap` (M10) to exist together, and a design for how a DAP `variables`
+  reflection surface (M7/M8) and `nvs dap` (M10) to exist together, and a design for how a DAP `variables`
   request surfaces a reflected object graph.
 - A request-tree visualization for `spawn`/`spawn script` ([ADR 0006](0006-isolated-script-execution.md))
-  during a debug session — this would need `mwl dap` to expose isolate/task-tree structure through a
+  during a debug session — this would need `nvs dap` to expose isolate/task-tree structure through a
   custom DAP extension, which is a real protocol-design question, not just editor glue.
 
 ## Consequences
 
 **Positive**
 
-- Real MWL programs can be written and debugged-by-inspection (diagnostics/hover/completion, even without
+- Real Novis programs can be written and debugged-by-inspection (diagnostics/hover/completion, even without
   a debugger yet) in VS Code from M4B onward — roughly five milestones earlier than ADR 0016's plan — which
   is the whole point: the language gets exercised by a real editor while M5–M9 are still being built,
   surfacing rough edges in the type system, stdlib shape and diagnostics wording while they are still cheap
@@ -275,10 +275,10 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 - The feature catalog in *Decision § 3* answers "how deep does VS Code support go" concretely, with no
   feature left as an unscoped "eventually" — each has either a milestone or an explicit *Revisiting* entry.
 - Reusing VS Code's native Test Coverage API, `LanguageStatusItem`, and DAP's existing debugger UI, and the
-  open speedscope format for profiling, means MWL avoids building and maintaining four different pieces of
+  open speedscope format for profiling, means Novis avoids building and maintaining four different pieces of
   UI infrastructure that already exist and are already maintained elsewhere — a direct instance of
   [AGENTS.md](../../AGENTS.md)'s simplicity priority.
-- The resilient parse of *Decision § 2* is additive to `mwl-syntax` and never touches the compiled
+- The resilient parse of *Decision § 2* is additive to `nvs-syntax` and never touches the compiled
   artifact's code path. It reaches the same properties an existing, heavily-used language tool
   (rust-analyzer's `rowan`) validated at scale for the identical problem — always a tree, every byte
   recoverable, an offset maps to a node — without a second tree, because this parser was already
@@ -293,7 +293,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   smaller number in the test. What is *not* a cost any more, and was in this ADR's first draft: there is
   no second parser entry point to keep in step with every M2–M4 grammar change, because there is only one
   grammar and one tree.
-- M4B is new scope inserted into the plan, not free: a minimal `mwl-lsp` and `editors/vscode` have to be
+- M4B is new scope inserted into the plan, not free: a minimal `nvs-lsp` and `editors/vscode` have to be
   built, tested and kept working through M5–M9 even though nothing in those milestones depends on them —
   the same "keep it running" burden any early-shipped surface carries.
 - M10's estimate needs revising: it no longer includes the *minimal* VS Code work (moved to M4B), but it
@@ -320,7 +320,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   most.
 - **Build custom UI for coverage gutters and profiler flamegraphs instead of VS Code's native Test Coverage
   API and the speedscope format.** Rejected: both already exist, are already maintained, and building
-  MWL-specific equivalents is pure unnecessary scope against the simplicity priority.
+  Novis-specific equivalents is pure unnecessary scope against the simplicity priority.
 - **Renumber M5–M14 to M6–M15 to fit M4B in sequence.** Rejected: ~30 cross-references to those milestone
   numbers exist across other ADRs; renumbering them is pure churn for a naming preference, not a
   correctness requirement — "M4B" reads unambiguously as "between M4 and M5."
@@ -333,7 +333,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 - **A live, `Core\Reflect`-backed debug-time object inspector**, and **a request-tree visualization for
   `spawn`/isolates during a debug session** — both named in *Decision § 3*'s uncommitted list, pending the
   stdlib/DAP prerequisites they need and, for the request tree, a DAP protocol-extension design.
-- ~~**Whether M4B's minimal `mwl-lsp` should also carry one or two cheap code actions early.**~~
+- ~~**Whether M4B's minimal `nvs-lsp` should also carry one or two cheap code actions early.**~~
   **Closed** by [ADR 0099 § 3](0099-the-resilient-tree-is-the-ast-plus-trivia.md): exactly two — casing
   and `(int)$x` → `$x as int` — and the boundary that stops it creeping back toward M10's catalog is not
   a judgement about cost but a fact about the code, namely that a M4B code action exists only where the
@@ -342,13 +342,13 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   **Closed** by [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) *Verification*: it does,
   and it is separate from the existing whole-file `parse` target because a truncated input is a different
   shape of input. Beside it, and running where the fuzzer does not, is an in-tree sweep over every prefix
-  of every `examples/*.mwl` at a token boundary.
+  of every `examples/*.nvs` at a token boundary.
 
 Verification, in the order it becomes possible:
 
-- **M4B:** the VS Code extension activates on `.mwl` — and not on `.php` — shows TextMate colour
-  immediately and semantic-token colour once `mwl-lsp` responds; all six requests of *Decision § 1* and
-  both code actions round-trip through `mwl-lsp`; the AST panel renders `mwl ast --json`'s tree for the
+- **M4B:** the VS Code extension activates on `.nvs` — and not on `.php` — shows TextMate colour
+  immediately and semantic-token colour once `nvs-lsp` responds; all six requests of *Decision § 1* and
+  both code actions round-trip through `nvs-lsp`; the AST panel renders `nvs ast --json`'s tree for the
   active file, including while that file does not compile; typing an incomplete statement (unclosed brace,
   trailing `->`) does not stop completion from working on the well-formed code around it — the resilient
   parse's core claim, tested directly. [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
@@ -356,8 +356,8 @@ Verification, in the order it becomes possible:
   snapshot and the latency bound; each of those is what makes one of the claims above checkable by exit
   code rather than by looking at an editor.
 - **M10:** every inspection/quick-fix/refactoring in *Decision § 3* round-trips as an LSP code action or
-  rename request with no logic duplicated into the extension; format-on-save matches `mwl fmt --check`
-  byte-for-byte; the Test Explorer runs `.mwlt` cases and shows coverage sourced from the Clover/lcov
+  rename request with no logic duplicated into the extension; format-on-save matches `nvs fmt --check`
+  byte-for-byte; the Test Explorer runs `.nvst` cases and shows coverage sourced from the Clover/lcov
   exporters; a captured profile opens correctly in speedscope; a breakpoint set in VS Code's UI hits in
-  JIT-compiled code with correct variable values via the wired-up `mwl dap` adapter — with no
-  MWL-authored debugger UI code, only the descriptor factory and schema contribution.
+  JIT-compiled code with correct variable values via the wired-up `nvs dap` adapter — with no
+  Novis-authored debugger UI code, only the descriptor factory and schema contribution.

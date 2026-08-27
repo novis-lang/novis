@@ -1,7 +1,7 @@
 --TEST--
 Assigning an array copies it, so writing through one name never shows up under the other
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

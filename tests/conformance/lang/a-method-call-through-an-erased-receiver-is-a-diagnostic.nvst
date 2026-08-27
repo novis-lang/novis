@@ -1,7 +1,7 @@
 --TEST--
 A method called on a plain `object` or on a shape is `E0477` where it is written, never a panic below it — ADR 0007 § 3, ADR 0036 § 4
 --FILE--
-<?mwl
+<?nvs
 final class Point {
     public int $x = 1;
     public function scaled(int $by): int {

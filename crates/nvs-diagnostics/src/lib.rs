@@ -1,14 +1,14 @@
-//! Source positions, source maps and diagnostics for MWL.
+//! Source positions, source maps and diagnostics for Novis.
 //!
 //! Every later stage of the compiler depends on this crate and nothing else
 //! depends on those stages, which keeps the dependency graph a line rather than
 //! a web.
 //!
 //! ```
-//! use mwl_diagnostics::{code, Diagnostic, Diagnostics, Renderer, SourceMap, Span};
+//! use nvs_diagnostics::{code, Diagnostic, Diagnostics, Renderer, SourceMap, Span};
 //!
 //! let mut map = SourceMap::new();
-//! let file = map.add("greet.mwl", "<?mwl\necho $undefined;\n");
+//! let file = map.add("greet.nvs", "<?nvs\necho $undefined;\n");
 //!
 //! let mut sink = Diagnostics::new();
 //! sink.report(
@@ -84,9 +84,9 @@ pub mod code {
     /// § 2 — a comment, a string literal or an inline-HTML run, and each line
     /// of a multi-line one. There is no suppression.
     pub const E_UNBALANCED_BIDI: Code = Code::new("E0008");
-    /// An `<?mwl` open tag in a file that opens with `#!` and is therefore
+    /// An `<?nvs` open tag in a file that opens with `#!` and is therefore
     /// already in code mode, before any `?>` has left it, per
-    /// [ADR 0100](../../../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md)
+    /// [ADR 0100](../../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
     /// § 3. Reserved by that ADR and reported once its lexer slice lands.
     pub const E_TAG_IN_SHEBANG_FILE: Code = Code::new("E0009");
 
@@ -133,7 +133,7 @@ pub mod code {
     pub const E_BAD_CONST_CASING: Code = Code::new("E0113");
     /// A method literally named `__construct` —
     /// [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md)
-    /// §§ 2-3: MWL's constructor is spelled `constructor`, an ordinary
+    /// §§ 2-3: Novis's constructor is spelled `constructor`, an ordinary
     /// `camelCase` method name needing no exception of its own.
     pub const E_LEGACY_CONSTRUCTOR_SPELLING: Code = Code::new("E0114");
     /// `secret` applied to anything other than `string`/`bytes` — the
@@ -183,13 +183,13 @@ pub mod code {
     pub const E_AUTOLOAD_PATH_NOT_LITERAL: Code = Code::new("E0123");
 
     // --- E02xx rejected PHP constructs -------------------------------------
-    // MWL accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
+    // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
     // are recognised — so the diagnostic can be precise and suggest a
     // replacement — and are then rejected. Most parse first; the two that a
     // *lexical* rule refuses (`E_RESERVED_SPELLING_CASE`,
     // `E_IDENTITY_OPERATOR_UNSUPPORTED`) are named where they are recognised,
     // which is the lexer. See docs/spec.
-    /// `eval()`: MWL compiles ahead of execution.
+    /// `eval()`: Novis compiles ahead of execution.
     pub const E_EVAL_UNSUPPORTED: Code = Code::new("E0201");
     /// `$$name` and `${$name}`: defeats name resolution and type inference.
     pub const E_VARIABLE_VARIABLE: Code = Code::new("E0202");
@@ -199,7 +199,7 @@ pub mod code {
     pub const E_GLOBAL_UNSUPPORTED: Code = Code::new("E0204");
     /// `extract()`: introduces bindings whose names are not known statically.
     pub const E_EXTRACT_UNSUPPORTED: Code = Code::new("E0205");
-    /// A PHP C extension that has no MWL equivalent.
+    /// A PHP C extension that has no Novis equivalent.
     pub const E_UNSUPPORTED_EXTENSION: Code = Code::new("E0206");
     /// A `preg` pattern using a construct the pure-Rust engine cannot express.
     pub const E_UNSUPPORTED_REGEX: Code = Code::new("E0207");
@@ -237,7 +237,7 @@ pub mod code {
     /// body: an enum declares only cases and an optional backing type — see
     /// ADR 0010 § 3.
     pub const E_ENUM_MEMBER_UNSUPPORTED: Code = Code::new("E0220");
-    /// `include`, `include_once`, or `require_once`: MWL keeps exactly one
+    /// `include`, `include_once`, or `require_once`: Novis keeps exactly one
     /// same-frame inclusion construct, `require` — see ADR 0021.
     pub const E_INCLUDE_FAMILY_UNSUPPORTED: Code = Code::new("E0221");
     /// An anonymous `function (...) { ... }` literal, with or without a
@@ -266,21 +266,21 @@ pub mod code {
     /// exist at all. `E_TRAIT_METHOD_CONFLICT` (also ADR 0015 § 3) is
     /// retired for the same reason; the new default-method/delegation
     /// conflict diagnostic (`E_INTERFACE_MEMBER_CONFLICT`, ADR 0043 § 7)
-    /// arrives with `mwl-hir`'s follow-up resolution work, not with this
+    /// arrives with `nvs-hir`'s follow-up resolution work, not with this
     /// diagnostic.
     pub const E_TRAIT_NOT_SUPPORTED: Code = Code::new("E0227");
-    /// `die`, in any position `exit` is also accepted: MWL keeps exactly one
+    /// `die`, in any position `exit` is also accepted: Novis keeps exactly one
     /// process-termination keyword. See ADR 0049 § 1.
     pub const E_DIE_UNSUPPORTED: Code = Code::new("E0228");
-    /// The `<?php` open tag: MWL keeps exactly one code-mode open tag,
-    /// `<?mwl` (plus the short-echo `<?=`). See ADR 0049 § 2.
+    /// The `<?php` open tag: Novis keeps exactly one code-mode open tag,
+    /// `<?nvs` (plus the short-echo `<?=`). See ADR 0049 § 2.
     pub const E_PHP_OPEN_TAG_UNSUPPORTED: Code = Code::new("E0229");
-    /// `list(...)` as a destructuring target: MWL keeps exactly one
+    /// `list(...)` as a destructuring target: Novis keeps exactly one
     /// destructuring spelling, `[...]`. See ADR 0050.
     pub const E_LIST_DESTRUCTURING_UNSUPPORTED: Code = Code::new("E0230");
     /// A reserved lexical spelling written in anything but lower case —
-    /// `<?MWL` rather than `<?mwl`. PHP matches its reserved spellings
-    /// case-insensitively; MWL accepts exactly one spelling of each, so a
+    /// `<?NVS` rather than `<?nvs`. PHP matches its reserved spellings
+    /// case-insensitively; Novis accepts exactly one spelling of each, so a
     /// program's meaning never depends on the case a reserved word was typed
     /// in. See [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 2. A mis-cased *keyword* (`IF`, `TRUE`) gets no diagnostic of its
@@ -288,7 +288,7 @@ pub mod code {
     /// `IF` a legal class name the lexer cannot tell apart from a mis-typed
     /// `if`.
     pub const E_RESERVED_SPELLING_CASE: Code = Code::new("E0231");
-    /// PHP's `===`/`!==` — MWL keeps exactly one equality operator, `==`, and
+    /// PHP's `===`/`!==` — Novis keeps exactly one equality operator, `==`, and
     /// its negation `!=`. See
     /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 1. This is the one construct in this band the *lexer* reports rather
@@ -299,9 +299,9 @@ pub mod code {
     /// A `class`, `interface` or `enum` declaration written inside a function
     /// body, a property hook or a nested block. PHP declares such a type when
     /// the statement *runs*, so whether the name exists depends on control
-    /// flow; MWL resolves every type name against a static table built before
+    /// flow; Novis resolves every type name against a static table built before
     /// any code runs. See `docs/adr/README.md`
-    /// § *Decisions taken at project start*, and `mwl_types::locals`' module
+    /// § *Decisions taken at project start*, and `nvs_types::locals`' module
     /// doc for the walk that reports it.
     pub const E_NESTED_TYPE_DECLARATION_UNSUPPORTED: Code = Code::new("E0233");
     /// An `unset()` operand that is not an array element of a named holder —
@@ -345,7 +345,7 @@ pub mod code {
     /// [ADR 0107](../../../docs/adr/0107-by-reference-parameters-are-spelled-inout-at-both-ends.md)
     /// retires `&` as a by-reference marker: the two binding modes it spelled
     /// are written `inout`, before the type and again at the call site, and
-    /// the two *returning* forms have no replacement at all — MWL hands back
+    /// the two *returning* forms have no replacement at all — Novis hands back
     /// a value, never a place. `&` keeps its other jobs unchanged, so `$a &
     /// $b` is still bitwise AND and `A&B` is still an intersection type.
     ///
@@ -399,8 +399,8 @@ pub mod code {
     /// without a type checker.
     pub const E_UNDEFINED_PROPERTY: Code = Code::new("E0313");
     /// A `require` whose literal path resolves on disk only because the
-    /// filesystem is case-insensitive — `require 'mailer.mwl';` finding
-    /// `Mailer.mwl`. Reported on Windows/macOS so the same source is not a
+    /// filesystem is case-insensitive — `require 'mailer.nvs';` finding
+    /// `Mailer.nvs`. Reported on Windows/macOS so the same source is not a
     /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see
     /// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 3, which extends
@@ -446,7 +446,7 @@ pub mod code {
     pub const E_NO_FREE_FUNCTION: Code = Code::new("E0320");
     /// `self`, `static` or `parent` written where a value is expected, rather
     /// than on the left of a `::`. Each of the three names a *class*, and a
-    /// class is not a value in MWL — there is no class-object reflection
+    /// class is not a value in Novis — there is no class-object reflection
     /// handle ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
     /// puts every reflective question on `Core\Reflect` instead).
     pub const E_CLASS_NAME_NOT_A_VALUE: Code = Code::new("E0321");
@@ -483,7 +483,7 @@ pub mod code {
     /// both provably the same class implementing the reserved global
     /// `Comparable` interface — either one side doesn't implement it, or the
     /// two sides are different classes even though both do; see ADR 0013
-    /// §§ 3-4. PHP's implicit property-walk fallback has no MWL equivalent.
+    /// §§ 3-4. PHP's implicit property-walk fallback has no Novis equivalent.
     pub const E_COMPARISON_REQUIRES_COMPARABLE: Code = Code::new("E0411");
     /// An object used at an implicit string-conversion site (interpolation,
     /// concatenation, `echo`/`print`, `as string`/`(string)`) whose static
@@ -525,7 +525,7 @@ pub mod code {
     /// A `[$obj, 'method']`-shaped array passed where `callable` is the
     /// declared type. See ADR 0027 § 1.
     pub const E_CALLABLE_ARRAY_UNSUPPORTED: Code = Code::new("E0419");
-    /// `$obj(...)` where `$obj`'s static type is not `callable` — MWL has no
+    /// `$obj(...)` where `$obj`'s static type is not `callable` — Novis has no
     /// `__invoke`, so no class ever makes `()` mean anything else. See
     /// ADR 0027 § 1.
     pub const E_NOT_CALLABLE: Code = Code::new("E0420");
@@ -591,13 +591,13 @@ pub mod code {
     /// mirrors) requires the marker's own indentation to be one or the
     /// other, never both, since a body line's leading whitespace must match
     /// it byte-for-byte to be stripped. See
-    /// `mwl_types::string_lit::heredoc_shape`.
+    /// `nvs_types::string_lit::heredoc_shape`.
     pub const E_HEREDOC_MIXED_INDENT: Code = Code::new("E0432");
     /// A non-blank heredoc/nowdoc body line has less leading whitespace than
     /// its own closing marker — PHP 7.3's "flexible heredoc" rule requires
     /// every body line to start with at least the marker's own indentation
     /// so it can be stripped uniformly. A line that is entirely empty is
-    /// exempt from this check. See `mwl_types::string_lit::dedent_heredoc_run`.
+    /// exempt from this check. See `nvs_types::string_lit::dedent_heredoc_run`.
     pub const E_HEREDOC_INSUFFICIENT_INDENT: Code = Code::new("E0433");
     /// A `float`, `bool`, or `null` array key — an explicit `key =>` in an
     /// array literal today, and eventually an `$a[...]` subscript once that
@@ -641,9 +641,9 @@ pub mod code {
     /// A `<...>` type-argument list written after a name that takes no type
     /// parameters. ADR 0007 § 1 parks user-declared generics, and two doors
     /// open in that wall — ADR 0053 § 2's compiler-owned generic interfaces,
-    /// which `mwl_hir::interfaces::RESERVED` rosters, and a `Core` member
+    /// which `nvs_hir::interfaces::RESERVED` rosters, and a `Core` member
     /// whose spec signature writes one (`Core\Json::decodeAs<T>`), which
-    /// `mwl_stdlib::registry::CoreTy::Written` marks. Everything else lands
+    /// `nvs_stdlib::registry::CoreTy::Written` marks. Everything else lands
     /// here: a `type` alias (ADR 0015 gives one no parameters of its own), a
     /// user-declared method, and a `Core` member that infers its variables
     /// from its arguments instead.
@@ -694,11 +694,11 @@ pub mod code {
     /// itself" does not ask the compiler to grow.
     pub const E_CLOSURE_RETURN_TYPE_REQUIRED: Code = Code::new("E0450");
     /// A parameter default (`function f(int $n = ...)`) that is not a literal
-    /// of the parameter's own declared type, optionally negated. MWL evaluates
+    /// of the parameter's own declared type, optionally negated. Novis evaluates
     /// a default once, at signature collection, and materializes it at the
     /// call site that omitted it — so it has to be a constant this compiler
     /// can emit, not PHP's general constant *expression*. See
-    /// `mwl_types::defaults`, which owns the accepted set and the two shapes
+    /// `nvs_types::defaults`, which owns the accepted set and the two shapes
     /// (`null`, an enum case) it is expected to grow next.
     pub const E_PARAM_DEFAULT_NOT_LITERAL: Code = Code::new("E0451");
     /// A parameter with no default declared *after* one that has a default.
@@ -728,7 +728,7 @@ pub mod code {
     pub const E_DECIMAL_LITERAL_OUT_OF_RANGE: Code = Code::new("E0456");
     // `E0457` (`E_LITERAL_TYPE_UNCHECKED`) is **retired**, not reused.
     // [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md)'s three
-    // atoms intern as real types now (`mwl_types::lower::lower_atom`), so there
+    // atoms intern as real types now (`nvs_types::lower::lower_atom`), so there
     // is nothing left for it to refuse.
     /// A `Core` **instance** member written as a static call —
     /// `Core\Regex\Match::text($m)` rather than `$m->text()`. ADR 0063 R20
@@ -739,10 +739,10 @@ pub mod code {
     pub const E_CORE_INSTANCE_MEMBER_CALLED_STATICALLY: Code = Code::new("E0458");
     /// A plain `->` on a receiver whose type includes `null` — `?->`, or a
     /// `!= null` test around it, is how a member of one is reached. PHP
-    /// throws for this at run time; MWL refuses it while compiling, because
+    /// throws for this at run time; Novis refuses it while compiling, because
     /// `?T` is one union with no class to resolve a member against. Inside a
     /// block a `!= null`/`== null` test proved the receiver non-`null`
-    /// (`mwl_types::locals`' narrowing) this does not fire at all — until
+    /// (`nvs_types::locals`' narrowing) this does not fire at all — until
     /// something in that block assigns the local again, which takes the
     /// narrowing back off.
     pub const E_NULLABLE_RECEIVER: Code = Code::new("E0459");
@@ -769,7 +769,7 @@ pub mod code {
     pub const E_DERIVE_FIELD_ATTRIBUTE: Code = Code::new("E0464");
     /// A type argument written where the member needs a *class* rather than
     /// any type — `Core\Json::decodeAs<int>`. The members that do are
-    /// `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS`, and each of them reaches
+    /// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`, and each of them reaches
     /// the written class's runtime descriptor from native code, which only a
     /// class has.
     pub const E_TYPE_ARG_NOT_A_CLASS: Code = Code::new("E0465");
@@ -813,7 +813,7 @@ pub mod code {
     pub const E_MEMBER_NOT_VISIBLE: Code = Code::new("E0471");
     /// `public int $n = "no";` — a property's inline default is evaluated once,
     /// at signature collection, into the constant every fresh instance's slot
-    /// is written with (`mwl_types::defaults`), so it has to be a literal of
+    /// is written with (`nvs_types::defaults`), so it has to be a literal of
     /// the property's own declared type. Its own code rather than
     /// [`E_PARAM_DEFAULT_NOT_LITERAL`] because the two accept different sets:
     /// a property may be defaulted to `[]` and a parameter may not.
@@ -829,7 +829,7 @@ pub mod code {
     /// An earlier revision of that ADR admitted those two as a *parse roster*
     /// where `$s as ?Core\Uri` compiled; § 3 withdrew it, and § 3a's
     /// `Core\Uri::tryParse` is the member that answers a parse instead — which
-    /// the help names for a class in `mwl_stdlib::registry::TRY_PARSE_CLASSES`.
+    /// the help names for a class in `nvs_stdlib::registry::TRY_PARSE_CLASSES`.
     pub const E_CLASS_CONVERSION_TARGET: Code = Code::new("E0473");
     /// `++`/`--` on a binding that is not one of ADR 0007 § 4's numeric
     /// types.
@@ -838,7 +838,7 @@ pub mod code {
     /// through `"a"`→`"b"`→`"aa"` is a divergence this takes deliberately:
     /// § 2 says a declared type never changes and § 4's table has no row that
     /// produces `"b"` from a `string` and a `1`, so there is no arithmetic
-    /// here to lower. `mwl_types::expr::operators`' module doc is that
+    /// here to lower. `nvs_types::expr::operators`' module doc is that
     /// decision's home.
     pub const E_INCREMENT_NOT_NUMERIC: Code = Code::new("E0474");
     /// A `break`/`continue` whose level names no target it can jump to: a
@@ -848,12 +848,12 @@ pub mod code {
     /// PHP refuses all four at compile time too, and for the same reason:
     /// `break N` resolves to a *statically known* enclosing statement, so a
     /// level that names none has nothing to lower to.
-    /// `mwl_types::locals` is where the enclosing depth is counted.
+    /// `nvs_types::locals` is where the enclosing depth is counted.
     pub const E_BREAK_LEVEL: Code = Code::new("E0475");
     /// A `match` written with no arms at all.
     ///
     /// PHP parses one and throws `UnhandledMatchError` on every evaluation,
-    /// so the construct has no reachable value there either. MWL refuses it
+    /// so the construct has no reachable value there either. Novis refuses it
     /// where it is written instead: a `match` is an *expression*, and one
     /// whose every path throws has nothing for the position it sits in to
     /// bind, pass or return. Nothing that worked is lost — a written arm, or
@@ -918,7 +918,7 @@ pub mod code {
     ///
     /// `$a[] .= "x"` is the one spelling PHP accepts and this refuses, and
     /// it is ADR 0007 § 7 row 10: PHP appends because the element that is
-    /// not there yet reads as `""`, and no rule in MWL makes an absent
+    /// not there yet reads as `""`, and no rule in Novis makes an absent
     /// element read as a zero value — which is § 7 row 8 one storage kind
     /// along, not a new judgement.
     pub const E_APPEND_IN_READ_POSITION: Code = Code::new("E0481");
@@ -931,7 +931,7 @@ pub mod code {
     /// scalar, an object, or a `?array<T>` a `!== null` test has not
     /// narrowed — has no element to name and nothing to check against.
     /// PHP answers `null` with a warning for most of these, which is § 7
-    /// row 8's family; MWL refuses at check time instead. A `string` is not
+    /// row 8's family; Novis refuses at check time instead. A `string` is not
     /// an exception: ADR 0009 § 2 indexes one by grapheme cluster through
     /// `Core\Str`, not through a subscript.
     pub const E_SUBSCRIPT_ON_NON_ARRAY: Code = Code::new("E0482");
@@ -940,7 +940,7 @@ pub mod code {
     /// the same answer.
     ///
     /// PHP's `[&$x]` stores a reference, so writing the element writes
-    /// `$x` too. MWL has nowhere to put one: ADR 0031 § 2 removed
+    /// `$x` too. Novis has nowhere to put one: ADR 0031 § 2 removed
     /// by-reference capture, so no binding aliases another, and ADR 0023
     /// fixes what a copy means, so an element is a copy at the point the
     /// literal is evaluated. An aliasing element would therefore have no
@@ -953,7 +953,7 @@ pub mod code {
     ///
     /// A spread element contributes the subject's *entries* to the literal
     /// being built, so a subject with no entries has nothing to contribute.
-    /// PHP's `[...$s]` over a string is a `TypeError` at run time; MWL's
+    /// PHP's `[...$s]` over a string is a `TypeError` at run time; Novis's
     /// element types are declared, so it is a diagnostic instead. Where the
     /// literal does have an expected element type the mismatch is reported
     /// as an ordinary [`E_TYPE_MISMATCH`] against `array<T>` instead, which
@@ -963,7 +963,7 @@ pub mod code {
     pub const E_SPREAD_SUBJECT_NOT_AN_ARRAY: Code = Code::new("E0484");
     /// `name: value` at a call whose target names none of its parameters.
     ///
-    /// A `Core` member's parameters are types in `mwl_stdlib::registry` and
+    /// A `Core` member's parameters are types in `nvs_stdlib::registry` and
     /// nothing else — the rows carry no names, deliberately, because ADR 0063
     /// R2 already gives every `Core` member its by-name surface as a trailing
     /// options bag (`{limit: 4}`). So there is no name to call one by, and
@@ -976,7 +976,7 @@ pub mod code {
     /// its `...$rest` tail.
     ///
     /// PHP collects an unmatched named argument into a variadic parameter as a
-    /// string-keyed entry. MWL's variadic tail is an ordinary `array<T>` built
+    /// string-keyed entry. Novis's variadic tail is an ordinary `array<T>` built
     /// at the call site from the arguments written into it, so a name has
     /// nowhere to be recorded — and a caller that wants a keyed entry writes
     /// the array itself.
@@ -1049,7 +1049,7 @@ pub mod code {
     ///
     /// PHP warns and yields `null` here; ADR 0007 § 7 row 13 makes it a
     /// check-time error instead, for row 8's reason: a declared type is what
-    /// makes the answer knowable before the program runs, and nothing in MWL
+    /// makes the answer knowable before the program runs, and nothing in Novis
     /// makes an absent thing read as a zero value. `mixed` is the one receiver
     /// that keeps PHP's *timing* — ADR 0007 § 2's one unchecked position, so
     /// it defers to ADR 0036 § 4's name-keyed fetch and its catchable throw.
@@ -1090,12 +1090,12 @@ pub mod code {
     /// included), a static property, and any of those in parentheses.
     pub const E_ISSET_NOT_A_VARIABLE: Code = Code::new("E0498");
     /// `static::$prop` — late static binding on a *static property*, whose
-    /// storage MWL resolves at compile time.
+    /// storage Novis resolves at compile time.
     ///
     /// PHP re-resolves the name against the **called** class, so a subclass
     /// that redeclares the property gets its own storage through this
-    /// spelling and the parent's through `self::`. MWL's slot is fixed where
-    /// the access is written (`mwl_ir::ir::StaticProp`), which answers the
+    /// spelling and the parent's through `self::`. Novis's slot is fixed where
+    /// the access is written (`nvs_ir::ir::StaticProp`), which answers the
     /// same as PHP for every class that does *not* redeclare and differs
     /// silently for one that does — so the spelling is refused rather than
     /// left to diverge, per `AGENTS.md`'s priority 2. `self::$prop` and a
@@ -1111,13 +1111,13 @@ pub mod code {
     pub const E_STATIC_PROPERTY_LATE_BOUND: Code = Code::new("E0499");
 
     // --- E05xx IR and codegen ----------------------------------------------
-    /// The IR verifier rejected a function. Always an MWL bug.
+    /// The IR verifier rejected a function. Always an Novis bug.
     pub const E_IR_INVALID: Code = Code::new("E0501");
     /// Cranelift could not compile a function.
     pub const E_CODEGEN_FAILED: Code = Code::new("E0502");
 
     // --- E06xx configuration and capabilities ------------------------------
-    /// An `mwl.toml` directive that does not exist, or an invalid value.
+    /// An `nvs.toml` directive that does not exist, or an invalid value.
     pub const E_BAD_DIRECTIVE: Code = Code::new("E0601");
     /// A `Core\Config::set` the directive's changeability class refuses: a `System`
     /// directive, widening a `RuntimeTighten` one, or exceeding a hard ceiling.
@@ -1146,12 +1146,12 @@ pub mod code {
     ///
     /// Parentheses are **not** a temporary: `($a)["0"] = "y"` writes `$a["0"]`
     /// here exactly as it does in PHP, because
-    /// `mwl_syntax::ast::Expr::unparenthesized` is what finds the root.
+    /// `nvs_syntax::ast::Expr::unparenthesized` is what finds the root.
     pub const E_ELEMENT_WRITE_ROOT_NOT_A_PLACE: Code = Code::new("E0700");
     /// A reference assignment, `$a = &$b;`.
     ///
     /// PHP binds the two names to one slot, so a later write through either
-    /// is seen through the other. MWL has nowhere to put that: ADR 0031 § 2
+    /// is seen through the other. Novis has nowhere to put that: ADR 0031 § 2
     /// removed by-reference capture, so no binding aliases another, and
     /// ADR 0023 fixes what a copy means, so the right-hand side is a copy at
     /// the point the assignment runs. The same reasoning already refuses
@@ -1184,7 +1184,7 @@ pub mod code {
     /// `::class` written on a class side that is not statically known —
     /// `$obj::class`, `($e)::class`, and `static::class`.
     ///
-    /// PHP answers the *runtime* class in all three. MWL's `Foo::class` is a
+    /// PHP answers the *runtime* class in all three. Novis's `Foo::class` is a
     /// compile-time constant string and nothing else: an object carries no
     /// name a program can read back (ADR 0011 puts every reflective question
     /// on `Core\Reflect`), so there is no value to hand back for the first
@@ -1203,14 +1203,14 @@ pub mod code {
     /// rather than accepted and dropped, which is the only reading that
     /// cannot silently do nothing.
     pub const E_SPAWN_SCRIPT_UNLOWERED: Code = Code::new("E0703");
-    /// `require` used for its **value** — `$c = require 'config.mwl';`,
+    /// `require` used for its **value** — `$c = require 'config.nvs';`,
     /// ADR 0021 § 3's `mixed`.
     ///
-    /// The statement form is whole: `mwl_hir::resolve_program` walks the
+    /// The statement form is whole: `nvs_hir::resolve_program` walks the
     /// `require` graph at compile time and the site lowers to nothing. What
     /// the value form needs is a *frame per file*, called from the site, so
     /// the target's own top-level statements run and its `return` has
-    /// somewhere to come from — `mwl_ir`'s known gap 22, whose open question
+    /// somewhere to come from — `nvs_ir`'s known gap 22, whose open question
     /// is whether that frame shares the caller's locals. This code is what
     /// that gap's session removes.
     pub const E_REQUIRE_VALUE_UNLOWERED: Code = Code::new("E0704");
@@ -1224,7 +1224,7 @@ pub mod code {
     /// over a `string` where PHP produces a number.
     ///
     /// An object takes `E_TYPE_MISMATCH` instead, one branch earlier in
-    /// `mwl_types::expr::operators::reject_unary_arith_operand`: "MWL has no
+    /// `nvs_types::expr::operators::reject_unary_arith_operand`: "Novis has no
     /// operator overloading" is the sentence that author needs, not "convert
     /// it first".
     pub const E_UNARY_ARITH_NOT_NUMERIC: Code = Code::new("E0705");
@@ -1242,7 +1242,7 @@ pub mod code {
     ///
     /// What it replaces is worse than a refusal: `1.5 & 1.5` used to answer
     /// `1.5`, a bit-and over the `f64`'s own representation, where PHP answers
-    /// the `int` `1`; a `decimal` operand panicked `mwl-ir`'s ADR 0054 § 3
+    /// the `int` `1`; a `decimal` operand panicked `nvs-ir`'s ADR 0054 § 3
     /// table instead.
     pub const E_BITWISE_NOT_INTEGER: Code = Code::new("E0706");
     /// A `bytes`, an `array<T>`, an enum case or a `void` call used where a
@@ -1259,7 +1259,7 @@ pub mod code {
     ///
     /// `null` is **not** here: it renders as the empty string, which is both
     /// PHP's answer and the one a `?string` holding `null` already gets at run
-    /// time — `mwl_ir::lower::expr`'s `concat_operand` owns that row.
+    /// time — `nvs_ir::lower::expr`'s `concat_operand` owns that row.
     pub const E_NO_STRING_FORM: Code = Code::new("E0707");
     /// An `expr as T` whose operand and target name no row of ADR 0007 § 2's
     /// conversion table, nor of the three ADRs that table delegates rows to —
@@ -1298,7 +1298,7 @@ pub mod code {
     ///
     /// ADR 0028 § 1 makes `Stringable` the one way an object renders, and a
     /// `Core` class does not reach that rule the way a user class does: it
-    /// declares no interfaces, its members being `mwl_stdlib::registry`'s
+    /// declares no interfaces, its members being `nvs_stdlib::registry`'s
     /// rows, so that registry is the one home for which `Core` classes render
     /// and this diagnostic is that answer read back at the site. Before it,
     /// every `Core` class was exempted here and the miss fell through to a
@@ -1355,7 +1355,7 @@ pub mod code {
     /// That table orders the numeric types against each other and, through
     /// ADR 0013, two objects of one class that implements `Comparable`. It
     /// is a *closed* list, and everything else PHP orders it orders by
-    /// converting first — which MWL never does by itself. A `string`, a
+    /// converting first — which Novis never does by itself. A `string`, a
     /// `bytes`, an `array<T>`, a `callable`, an enum case and `null` therefore
     /// have no `<` at all, and each help names the member that does say what
     /// was meant: `Core\Str::compare` for text, `as int` for an enum case.

@@ -1,7 +1,7 @@
 --TEST--
 Assigning over an existing key replaces the value in place — the key keeps its position in the iteration order
 --FILE--
-<?mwl
+<?nvs
 array<int> $m = ["a" => 1, "b" => 2, "c" => 3];
 $m["a"] = 10;
 $m["c"] = 30;

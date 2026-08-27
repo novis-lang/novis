@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::find and findKey answer what array_find and array_find_key answer, once absence is rendered the same on both sides
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `array_find`/`array_find_key` rows. Both members answer `?T` and
 // `?string`, and PHP's two answer `mixed|null` and `int|string|null`, so a case
 // that compared the *representation* would be comparing `echo`'s rendering of

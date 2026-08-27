@@ -1,7 +1,7 @@
 --TEST--
 An assignment used as a value agrees with PHP on what it answers and on where the write lands — the target's own value, never a re-read — ADR 0007 §§ 2 and 5
 --FILE--
-<?mwl
+<?nvs
 final class Box { public string $name = "-"; }
 final class Echoes {
     public static function of(string $s): string {

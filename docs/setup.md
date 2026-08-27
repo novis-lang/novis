@@ -33,11 +33,11 @@ the distro — the native leg is the primary one, and the distro reaches it over
 | Python 3.11+ | Everything in `tools/`. No third-party package is ever required. | `python --version` |
 | The `claude` CLI on `PATH` — **the unattended loop only** | `tools/loop.py` spawns one `claude -p` per session and finds it with `shutil.which("claude")`. With nothing on `PATH` it falls back to the bare name and the run dies on session 1 with `FileNotFoundError: [WinError 2]`, *after* printing the launch line and building the orientation pack — so it reads like a loop bug rather than a missing install. **An IDE extension does not count.** The VS Code extension carries its own `claude` binary inside its versioned extension directory and never puts it on `PATH`, so a machine that runs Claude Code all day can still have none; `claude install stable`, runnable from that bundled binary, lands one in `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows) that updates itself independently of the editor. Nothing else in the tree spawns a session — `verify.py`, `--goal-only` and `--leg-only` never do. | `python -c "import shutil; print(shutil.which('claude'))"` — the CLI's own `--version` can pass on a shell alias that `loop.py` cannot see |
 | PHP on `PATH`, at the version in [the plan](implementation-plan.md)'s status block § *Toolchain* — that field is the version's one home, and it reads 8.5 today | The differential oracle. A `tests/differential/` case runs its `--ORACLE--` twin under real PHP and compares stdout, so a machine without it **skips** those cases instead of failing them. It is also the fastest way to settle a semantics question while authoring: `php -r '…'`. | `php -v` |
-| Node.js 20 LTS or newer, with `npm` — **from M4B onward** | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `mwl lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
-| Bun — **optional, benchmarks only** | The fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case ([ADR 0100](adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5). Nothing else in the tree reads it: without Bun, run `python tools/bench.py --engines mwl,php,python` and the suite is otherwise unchanged. No build, test or loop session touches it. Its Windows installer does not always land on `PATH`; `python tools/bench.py --bun <path>` takes the executable explicitly. | `bun --version` |
+| Node.js 20 LTS or newer, with `npm` — **from M4B onward** | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `nvs lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
+| Bun — **optional, benchmarks only** | The fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case ([ADR 0100](adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 5). Nothing else in the tree reads it: without Bun, run `python tools/bench.py --engines nvs,php,python` and the suite is otherwise unchanged. No build, test or loop session touches it. Its Windows installer does not always land on `PATH`; `python tools/bench.py --bun <path>` takes the executable explicitly. | `bun --version` |
 | VS Code — **from M4B onward** | Two different things. `@vscode/test-electron` downloads its **own** pinned build into `editors/vscode/.vscode-test/` for the extension-host tier, so a system install is not what that test runs against; the system install is what you drive the extension in by hand, which is the entire point of pulling M4B ahead of M10. Fetch the test build once (below) and nothing afterwards touches the network. | `code --version` |
 
-MWL generates native code, so "it compiles here" is a weaker claim in this repository than in most. CI
+Novis generates native code, so "it compiles here" is a weaker claim in this repository than in most. CI
 builds all three supported targets — `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu`,
 `aarch64-apple-darwin` — and a developer machine is expected to cover two of them (see below).
 
@@ -53,7 +53,7 @@ The primary development platform, and the only one with real setup:
    acceptance run's second leg, which exists because a JIT is exactly where a calling-convention
    divergence between two targets hides.
 
-One-time setup inside the distro, which mounts the repo at `/mnt/<drive>/<repo>`:
+One-time setup inside the distro, which mounts the repo at `/mnt/d/nvs`:
 
 ```sh
 sudo apt-get update && sudo apt-get install -y build-essential clang valgrind
@@ -65,9 +65,9 @@ cargo install cargo-fuzz --locked
 
 ### PHP goes in the distro too, at the same version
 
-The oracle's whole value is that a difference in output is attributable to **MWL**. If Windows runs 8.5 and
+The oracle's whole value is that a difference in output is attributable to **Novis**. If Windows runs 8.5 and
 the distro runs 8.3, a differential case that passes on one leg and fails on the other says nothing about
-MWL's code generation — which is the only question the second leg exists to answer. So both sides carry
+Novis's code generation — which is the only question the second leg exists to answer. So both sides carry
 PHP, and the major *and* minor must match:
 
 ```sh
@@ -106,10 +106,10 @@ fourth if anyone will work in this tree interactively.
    [docs/agent/conventions.md](agent/conventions.md) § *A commit message*.
 2. **A git identity**, if the machine has no global one — `git config user.name` and `user.email`. Every
    session ends in commits, so a machine that cannot commit cannot finish one.
-3. **The PHP corpus** — optional, and silently so. `crates/mwl-syntax/tests/corpus_parse.rs` walks a
+3. **The PHP corpus** — optional, and silently so. `crates/nvs-syntax/tests/corpus_parse.rs` walks a
    directory tree of real-world `.php` files and asserts only that the parser does not panic; a file it
    cannot read is counted and skipped, and with no corpus at all it **skips** rather than fails. Point
-   `MWL_PHP_CORPUS` at any tree of `.php` files, or drop one at `php-src/` in the workspace root, which is
+   `NVS_PHP_CORPUS` at any tree of `.php` files, or drop one at `php-src/` in the workspace root, which is
    gitignored for the purpose and needs no environment variable.
 
    **`php-src/` is that path's name, not the `php/php-src` repository.** Cloning the interpreter's own
@@ -140,7 +140,7 @@ side's, above.
 
 ## What does not travel, and should not
 
-`.loop/`, `.agent-tmp/`, `target/` and `.mwl-cache/` are gitignored, and copying one to the new machine is
+`.loop/`, `.agent-tmp/`, `target/` and `.nvs-cache/` are gitignored, and copying one to the new machine is
 worse than leaving it: `.loop/goal-green.json` remembers which expensive checks were green *for a given
 tree and toolchain fingerprint*, and it re-earns itself on the first run. `.agent-tmp/` is scratch. A stale
 green is what costs a debugging session, so do not archive them "just in case".
@@ -148,8 +148,8 @@ green is what costs a debugging session, so do not archive them "just in case".
 ## Proving the machine is set up
 
 ```sh
-python tools/verify.py                                   # build, fmt, test, the .mwlt trees, clippy, the extension
-cargo run -q -p mwl-cli -- test tests/differential/       # must report 0 skipped
+python tools/verify.py                                   # build, fmt, test, the .nvst trees, clippy, the extension
+cargo run -q -p nvs-cli -- test tests/differential/       # must report 0 skipped
 python tools/loop.py --leg-only                          # the whole Linux leg; drives WSL on Windows
 ```
 

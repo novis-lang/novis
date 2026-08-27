@@ -1,7 +1,7 @@
 --TEST--
 An array crosses a call boundary by value in both directions — a callee's writes never reach the caller's array, and the caller's writes never reach what it was handed back
 --FILE--
-<?mwl
+<?nvs
 class Rows {
     public array<int> $held;
 

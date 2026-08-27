@@ -1,7 +1,7 @@
 --TEST--
 Core\Uri::compareTo agrees with RFC 3986 § 6.2.2 written out by hand over parse_url, which is what a PHP program comparing two URLs has to write for itself
 --FILE--
-<?mwl
+<?nvs
 // PHP has no member to be differential against here — `parse_url` decomposes
 // and nothing recombines or normalizes — so the oracle is § 6.2.2 written out
 // in PHP over `parse_url`'s keys. That makes this a genuine second

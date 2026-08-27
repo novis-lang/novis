@@ -11,10 +11,10 @@ write side, where runs of consecutive `Edit` calls were costing 10.3 turns a ses
 So this is batching as a *tool*. One call, N targets, N answers -- and the batching happens
 whether or not anyone thought about it.
 
-    python tools/peek.py crates/mwl-ir/src/lower/expr.rs:3065-3120 \\
-                         crates/mwl-types/src/expr/members.rs:@lower_shape_property_access \\
+    python tools/peek.py crates/nvs-ir/src/lower/expr.rs:3065-3120 \\
+                         crates/nvs-types/src/expr/members.rs:@lower_shape_property_access \\
                          docs/adr/0036-shapes.md:"## 4" \\
-                         "crates/mwl-runtime/src/*.rs:/slot_get/"
+                         "crates/nvs-runtime/src/*.rs:/slot_get/"
 
 Target forms, all of them `path` followed by `:` and a locator:
 
@@ -32,8 +32,8 @@ Target forms, all of them `path` followed by `:` and a locator:
 `path` may be a glob (`crates/**/*.rs`), in which case the locator runs against every match --
 which is how you sweep a regex across a crate without a second call.
 
-    python tools/peek.py --locate mwl_object_slot_get SlotSet ClassDesc
-    python tools/peek.py --outline crates/mwl-ir/src/lower/mod.rs
+    python tools/peek.py --locate nvs_object_slot_get SlotSet ClassDesc
+    python tools/peek.py --outline crates/nvs-ir/src/lower/mod.rs
 
 `--locate` is the other half: symbols in, `file:line  <the defining line>` out, and no bodies at
 all. It is what a handoff's `## Next group` file set is made of, and what the tail of a session
@@ -94,7 +94,7 @@ DEFINITION = [
 ]
 
 SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".agent-tmp", ".loop"}
-TEXT_SUFFIXES = {".rs", ".py", ".md", ".toml", ".mwl", ".mwlt", ".txt", ".json", ".yml",
+TEXT_SUFFIXES = {".rs", ".py", ".md", ".toml", ".nvs", ".nvst", ".txt", ".json", ".yml",
                  ".yaml", ".sh", ".ps1", ".snap", ".php", ".lock", ".cfg", ".ini"}
 
 # What `--outline` prints one line for: the seams of a file, and nothing inside them. A `fn`, a
@@ -107,8 +107,8 @@ OUTLINE = re.compile(
     r")"
 )
 
-#: Python's seams, kept separate because `class Adder` is also MWL, and this repository's Rust is
-#: full of MWL fixtures in string literals -- matching them turned a `lower/mod.rs` outline into
+#: Python's seams, kept separate because `class Adder` is also Novis, and this repository's Rust is
+#: full of Novis fixtures in string literals -- matching them turned a `lower/mod.rs` outline into
 #: a list of test classes.
 OUTLINE_PY = re.compile(r"^(?P<indent>\s*)(?P<sig>(?:async\s+)?(?:def|class)\s+\w+)")
 

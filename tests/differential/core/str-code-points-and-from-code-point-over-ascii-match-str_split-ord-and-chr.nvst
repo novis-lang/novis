@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::codePoints and Core\Str::fromCodePoint answer what str_split+ord and chr answer over the whole 0..127 table, both directions round-trip on every code point, and both members are injective there
 --FILE--
-<?mwl
+<?nvs
 // Spec § 1's `codePoints` and `fromCodePoint` rows. The twins the spec names
 // are `mb_str_split`/`mb_ord` and `chr`/`mb_chr`, and the `mb_*` half is not
 // callable on the Windows leg at all — but inside ASCII it is not needed,
@@ -22,7 +22,7 @@ Core\Str::codePoints and Core\Str::fromCodePoint answer what str_split+ord and c
 // rest of the file asserts properties, because a row of answers is the
 // weakest thing a sweep can say. Note the first line begins `000102…`: a NUL
 // is an ordinary code point here and the string that holds it is an ordinary
-// string, MWL text being a counted buffer rather than a C string.
+// string, Novis text being a counted buffer rather than a C string.
 int $base = 0;
 for (; $base <= 112; $base = $base + 16) {
     string $line = "";
@@ -89,10 +89,10 @@ array<string> $rows = ["", "a", "Hi!", "abcdef", "Hello, World!", "12 34", "  x 
 // a cell rather than a gap. **This counts with `Core\Arr::count` over
 // `codePoints` and not with `Core\Str::length`**, and the last two rows are
 // why: `Core\Str::length` counts grapheme clusters
-// (`mwl_stdlib::granularity::DEFAULT`), and CR followed by LF is *one*
+// (`nvs_stdlib::granularity::DEFAULT`), and CR followed by LF is *one*
 // cluster and *two* code points. That pair is the one place inside ASCII
 // where the class default and this member's unit part company, which is
-// exactly why the member exists (`mwl_core_str_code_points`'s doc comment).
+// exactly why the member exists (`nvs_core_str_code_points`'s doc comment).
 foreach ($rows as string $row) {
     echo "[", Core\Arr::count(Core\Str::codePoints($row)), "]";
 }
@@ -111,7 +111,7 @@ echo Core\Json::encode(Core\Str::codePoints($rows["10"])), "\n";
 //
 // * **Through the array member.** `fromCodePoints(codePoints($s))` is `$s`,
 //   which is the pair's own stated inverse relationship
-//   (`mwl_core_str_from_code_points`'s doc comment).
+//   (`nvs_core_str_from_code_points`'s doc comment).
 // * **One code point at a time.** Concatenating `fromCodePoint` over each
 //   element of `codePoints($s)` reproduces `$s` as well, so the array member
 //   is a fused spelling of the singular one and not a second answer. This is

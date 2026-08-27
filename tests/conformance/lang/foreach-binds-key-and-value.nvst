@@ -1,7 +1,7 @@
 --TEST--
 `foreach` binds the value alone or the key and the value, and the loop leaves the array untouched
 --FILE--
-<?mwl
+<?nvs
 array<int> $ages = ["ann" => 31, "bob" => 24, "cy" => 45];
 
 var $names = "";

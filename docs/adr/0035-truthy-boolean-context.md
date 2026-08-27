@@ -7,7 +7,7 @@
   ternary/elvis operator's condition, and `&&`/`||`/`!`'s operand(s); the runtime rule those positions use to
   turn an arbitrary value into a branch decision.
 - **Amends:** none. [ADR 0007](0007-explicit-type-system.md) never stated a rule for these positions —
-  `mwl-types`' `check_stmt` already passes `expected: None` for every condition, and nothing enforced or
+  `nvs-types`' `check_stmt` already passes `expected: None` for every condition, and nothing enforced or
   rejected any type there. This ADR is the first to say so on purpose, closing a gap ADR 0007 left open
   rather than reopening a decision it made.
 - **Amended by:** 0090
@@ -17,7 +17,7 @@
 > for any operand type, and at runtime resolve exactly PHP's own truthy table: `null`, `false`, `0`, `0.0`,
 > `""`, and the string `"0"` are falsy; an empty `array<T>` (of any `T`) is falsy; every other value —
 > including every object, callable and enum case, and every array with at least one element
-> regardless of its contents — is truthy. This is the **one** place MWL performs an implicit, PHP-shaped
+> regardless of its contents — is truthy. This is the **one** place Novis performs an implicit, PHP-shaped
 > conversion on a value's declared type; everywhere else — assigning into a `bool`-typed parameter, property,
 > return, or local; `==`/`match` — ADR 0007's rule is untouched: an explicit `as bool` or comparison is
 > still required, and nothing narrower than a condition gets this exception.
@@ -31,7 +31,7 @@
 - Priority 1 doesn't actually require the strict reading: the risk ADR 0007 § 2 closes is a *declared type
   silently changing*. A truthiness test produces no value and changes no binding's type, so it can't produce
   a "wrong answer far from its cause." PHP's one real footgun here — `"0"` falsy but `"0.0"`/`"false"` truthy
-  — is a string-legibility complaint, not a type-safety hole, and no worse in MWL than it already is in PHP.
+  — is a string-legibility complaint, not a type-safety hole, and no worse in Novis than it already is in PHP.
 - The rejected alternatives (below) either reintroduce the ceremony this decision removes, or draw a line
   inside PHP's truthy table with no principled edge — worse than either keeping the whole table or dropping
   it entirely.
@@ -55,7 +55,7 @@ narrow, named carve-out rather than a hole in ADR 0007: nothing here lets a `str
 
 ### 2. The truthy table
 
-Exactly PHP's own rule, applied to MWL's own type set:
+Exactly PHP's own rule, applied to Novis's own type set:
 
 | type | falsy | truthy |
 |---|---|---|
@@ -96,9 +96,9 @@ is the typed one" shape ADR 0007 § 6 already commits to for every other `mixed`
 PHP's class-like construct — but real PHP source never observes an enum case as falsy: PHP enum cases are
 objects, and PHP has no mechanism to make an object falsy at all, so every ported `if ($status)` where
 `$status` is an enum case has only ever meant "always true." Judging an enum case by its backing integer
-instead (a case backed by `0` reads falsy) would be the "more internally consistent" choice on MWL's own
+instead (a case backed by `0` reads falsy) would be the "more internally consistent" choice on Novis's own
 representation, but it would silently change the behavior of every such condition relative to both PHP and
-MWL's own enum semantics as observed from outside `Core\Reflect`. Enum truthiness therefore follows the
+Novis's own enum semantics as observed from outside `Core\Reflect`. Enum truthiness therefore follows the
 object rule (always truthy), not the integer rule its backing type might suggest.
 
 ### 5. What stays unaffected
@@ -116,7 +116,7 @@ already test null-vs-not, an entirely separate axis from truthiness, and are lik
 
 - Every "is this set" condition ported from real PHP — `if ($rows)`, `while ($line)`, `if ($err)`,
   `$user && $user->active`, `!$items` — type-checks and runs with its original meaning, with zero rewriting
-  needed by `mwl convert` (M11) for this shape specifically, unlike the mechanical rewrites ADR 0034 and
+  needed by `nvs convert` (M11) for this shape specifically, unlike the mechanical rewrites ADR 0034 and
   every other rejected-construct ADR require.
 - The exception is small and precisely bounded — six syntax positions, one table — rather than a general
   "anything convertible to bool converts implicitly" rule that would have no natural edge.
@@ -134,7 +134,7 @@ already test null-vs-not, an entirely separate axis from truthiness, and are lik
   position list being short, fixed, and syntactically obvious (a condition always looks like a condition).
 - **An enum case's truthiness is arguably surprising given ADR 0010's own representation** — a case backed
   by `0` still reads truthy. Argued deliberately in *4* as matching every ported program's actual
-  expectation over matching MWL's internal representation.
+  expectation over matching Novis's internal representation.
 
 ## Alternatives rejected
 
@@ -147,7 +147,7 @@ already test null-vs-not, an entirely separate axis from truthiness, and are lik
 - **Full truthy table for `if`/`while`/ternary only — `&&`/`||`/`!` still require `bool` operands.** Rejected:
   `$user && $user->active` is at least as common a ported idiom as a bare `if`, and splitting the position
   list this way means the same value is bare in one spot and rejected two tokens later.
-- **Judging an enum case by its backing integer.** Rejected in *Decision § 4*: matches MWL's own
+- **Judging an enum case by its backing integer.** Rejected in *Decision § 4*: matches Novis's own
   representation but not what any real program has ever observed an enum case's truthiness to mean.
 
 ## Revisiting
@@ -161,9 +161,9 @@ already test null-vs-not, an entirely separate axis from truthiness, and are lik
 
 Verification, in the order it becomes possible:
 
-- **M2** (now): `mwl-types`' `check_stmt` passes no expected type into a condition
-  (`crates/mwl-types/src/locals.rs`'s `StmtKind::If`/`StmtKind::While` arms already call `check_expr(cond,
-  None, …)`), and `crates/mwl-types/src/check.rs`'s `a_non_bool_condition_is_never_a_type_mismatch` locks in
+- **M2** (now): `nvs-types`' `check_stmt` passes no expected type into a condition
+  (`crates/nvs-types/src/locals.rs`'s `StmtKind::If`/`StmtKind::While` arms already call `check_expr(cond,
+  None, …)`), and `crates/nvs-types/src/check.rs`'s `a_non_bool_condition_is_never_a_type_mismatch` locks in
   that a `string`/`int`/`array<T>` condition, and `&&`/`||`/`!` over mixed operand types, never produce
   `E_TYPE_MISMATCH`. `for`'s middle clause and the ternary/elvis condition share the same unconstrained
   `check_expr` call once statement/expression checking reaches them.

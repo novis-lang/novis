@@ -5,14 +5,14 @@
 - **Scope:** how the running configuration is assembled — where the root file is found, `[[include]]`,
   the order in which files are merged, what a relative path means, the ownership check every config
   input must pass, how a secret reaches a directive, which CLI flags may override one, and the
-  `mwl config` verbs that make the result auditable. It does **not** decide the file's *syntax*, which
+  `nvs config` verbs that make the result auditable. It does **not** decide the file's *syntax*, which
   stays [0064](0064-configuration-file-format.md)'s, nor the directive registry, changeability classes
   or the per-request overlay, which stay [0005](0005-config-changeability.md)'s, nor what an
   application *is*, which is [0104](0104-an-application-is-an-entry-file-path.md)'s.
 - **Amends:** [0064](0064-configuration-file-format.md) — § 1 gains the include tree and the resolution
   order; § 3's duplicate-key refusal gains its cross-file boundary; § 4's "a path the operator hands the
-  host" becomes the four-step resolution of § 1 below, `./mwl.toml` included.
-  [0078](0078-config-reload-and-control-socket.md) § 3 — `mwl ctl reload` is no longer the only
+  host" becomes the four-step resolution of § 1 below, `./nvs.toml` included.
+  [0078](0078-config-reload-and-control-socket.md) § 3 — `nvs ctl reload` is no longer the only
   operation; reload re-walks the whole tree and re-runs § 6's checks.
   [0067](0067-core-db.md) § 4 — `password` gains a `password_file` sibling.
   [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 3 and
@@ -23,7 +23,7 @@
   directory is refused.
 
 > **In short:** the configuration is a **tree of TOML files**, not one file. A root file is named by
-> `--config` (repeatable) or found as `./mwl.toml`, and pulls in more with `[[include]]`, by `path` or by
+> `--config` (repeatable) or found as `./nvs.toml`, and pulls in more with `[[include]]`, by `path` or by
 > `dir`. Resolution is one ordered stream — each file's own keys, then its includes, depth-first — and
 > **later wins**, so an include overrides the file that pulled it in and every override is recorded with
 > both origins. A duplicate key *inside* one file is still refused; across files it is the point.
@@ -48,7 +48,7 @@
   to refuse". Inside one file a duplicate can only be a mistake. Across an `[[include]]` line the
   operator typed, an override is the stated intent — so the property to preserve is not *no override*
   but *no invisible override*, and that is a reporting obligation rather than a refusal.
-- **"Root-owned `mwl.toml`" was an assumption nothing checked.** The phrase carries real weight in about
+- **"Root-owned `nvs.toml`" was an assumption nothing checked.** The phrase carries real weight in about
   fifteen ADRs: it is why an operator-written database address is pre-approved
   ([0067](0067-core-db.md) § 6), why an extension hash pin is worth anything
   ([0003](0003-extension-system.md)), why a capability grant means what it says. Meanwhile the *cache*
@@ -64,7 +64,7 @@
 
 ## Decision
 
-### 1. The root of the tree: `--config`, else `./mwl.toml`, else the shipped defaults
+### 1. The root of the tree: `--config`, else `./nvs.toml`, else the shipped defaults
 
 Four steps, first hit wins:
 
@@ -72,29 +72,29 @@ Four steps, first hit wins:
    list resolved by § 3 exactly as an include list is. A `--config` naming a file that does not exist is
    always a hard refusal — optionality is a property a file declares about *its* includes (§ 6), never
    something argv can assert.
-2. `./mwl.toml` — **exactly one directory, never a walk upward.** Any explicit `--config` disables this
+2. `./nvs.toml` — **exactly one directory, never a walk upward.** Any explicit `--config` disables this
    step entirely, so an operator naming files never gets a surprise merge with whatever is in the
    working directory.
 3. Otherwise the shipped defaults, which are a complete and valid configuration: capabilities deny-all,
    `[mode] default = "production"`.
 
 There is no platform path, no build-time path and no lookup beside the binary; § *Alternatives rejected*
-argues each. Whatever wins is **canonicalized to an absolute path once, at boot, and stored** — `mwl ctl
+argues each. Whatever wins is **canonicalized to an absolute path once, at boot, and stored** — `nvs ctl
 reload` re-reads that stored path and never re-resolves the working directory, so a deployment that
 replaced its directory under a running process reloads the file the operator can see rather than an
 unlinked inode. The resolved path and every file the tree reached are printed at boot:
 
 ```console
-$ mwl serve
-info: configuration ./mwl.toml -> /srv/www/app/mwl.toml
+$ nvs serve
+info: configuration ./nvs.toml -> /srv/www/app/nvs.toml
 info: resolved from 5 files
-info:   /srv/www/app/mwl.toml
+info:   /srv/www/app/nvs.toml
 info:   /srv/www/app/conf.d/10-limits.toml
 info:   /srv/www/app/conf.d/20-db.toml
-info:   /etc/mwl/local.toml
+info:   /etc/nvs/local.toml
 ```
 
-**`./mwl.toml` is the part of this that [0064 § 4](0064-configuration-file-format.md) previously
+**`./nvs.toml` is the part of this that [0064 § 4](0064-configuration-file-format.md) previously
 forbade**, and the reason it moves is § 6 rather than convenience. 0064's objection was a configuration
 file *discovered* near a document root, in a directory the serving account can write — which is the
 confused-deputy shape PHP spent two decades on with `.htaccess` and `.user.ini`. Three things close it
@@ -103,7 +103,7 @@ can write; the resolved absolute path is announced, so reading the wrong file is
 rather than silent; and
 [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)'s installer refuses to store a
 service whose config came from the working directory, so production always carries an absolute
-`--config`. What survives is one narrow case — an interactively-started `mwl serve` in a directory the
+`--config`. What survives is one narrow case — an interactively-started `nvs serve` in a directory the
 runtime account can write — and it is stated as a consequence below rather than defended.
 
 ### 2. `[[include]]` takes a `path` or a `dir`
@@ -119,7 +119,7 @@ path = "conf.d/production.toml"
 dir = "conf.d"                    # every *.toml directly inside, ascending by filename
 
 [[include]]
-path = "/etc/mwl/local.toml"
+path = "/etc/nvs/local.toml"
 optional = true                   # absent is fine; see § 6
 ```
 
@@ -141,7 +141,7 @@ at the point the operator wants overridden.
 
 `[0064 § 3](0064-configuration-file-format.md)`'s refusal keeps its original scope: **a duplicate key
 within one file is still an error.** What replaces it across files is an obligation, not a permission —
-every override is recorded with both origins, surfaced in the boot log and in full by `mwl config dump
+every override is recorded with both origins, surfaced in the boot log and in full by `nvs config dump
 --origin` (§ 9). This is the whole of what makes "later wins" acceptable in a file that grants
 capabilities; without the record it is the silent-shadowing failure 0064 refused INI for, and it should
 be read as a condition on this section rather than as a separate feature.
@@ -167,17 +167,17 @@ resolves relative to the directory of the file the value appears in. A path give
 resolves against the working directory, because that is what a shell argument means.
 
 ```toml
-# /etc/mwl/mwl.toml
+# /etc/nvs/nvs.toml
 [[include]]
-path = "conf.d/db.toml"            # -> /etc/mwl/conf.d/db.toml
+path = "conf.d/db.toml"            # -> /etc/nvs/conf.d/db.toml
 
-# /etc/mwl/conf.d/db.toml
+# /etc/nvs/conf.d/db.toml
 [db.main]
-path = "data/app.sqlite"           # -> /etc/mwl/conf.d/data/app.sqlite
+path = "data/app.sqlite"           # -> /etc/nvs/conf.d/data/app.sqlite
 ```
 
 One rule shared with `[[include]]`, and the only one under which a config directory survives being copied
-or relocated whole. The resolved absolute path is what the boot log and `mwl config dump` print, so the
+or relocated whole. The resolved absolute path is what the boot log and `nvs config dump` print, so the
 rule never has to be applied in a reader's head.
 
 ### 6. Ownership is the trust boundary, and `optional` moves the check to the directory
@@ -187,7 +187,7 @@ must not be group- or world-writable.** Its containing directory must not be gro
 either. This is the same check [0042 § 5](0042-on-disk-artifact-cache-format.md) applies to the cache
 directory and [0078 § 3](0078-config-reload-and-control-socket.md) to the socket directory, applied where
 it matters most; a failure is a refusal to start, naming the path and the mode, and it is re-run on every
-`mwl ctl reload`. On Windows the equivalent is an ACL check, and which ACEs it accepts is M6's to state.
+`nvs ctl reload`. On Windows the equivalent is an ACL check, and which ACEs it accepts is M6's to state.
 
 Because that boundary is uniform, **any file in the tree may set any directive**, `System` class
 included: capabilities, `[limits.hard]`, `[mode] ceiling` and `[[extension]]` entries are as legitimate in
@@ -201,11 +201,11 @@ half a configuration and the server comes up looking healthy. And because an abs
 check, **the check falls on the directory that would contain it**:
 
 ```console
-E06xx: [[include]] /etc/mwl/local.toml is optional, but /etc/mwl is group-writable
+E06xx: [[include]] /etc/nvs/local.toml is optional, but /etc/nvs is group-writable
        (mode 0775, group `deploy`)
        an absent optional include is a standing slot that anyone able to write that
        directory may later fill with root-owned configuration
-       fix: chmod 0755 /etc/mwl
+       fix: chmod 0755 /etc/nvs
 ```
 
 That refusal is the whole security argument for the feature. An optional include is a promise that a file
@@ -237,10 +237,10 @@ The permission rule splits, because the platforms disagree with the strict answe
 world-writable is a refusal** like any config input, since another account able to rewrite the file
 chooses the credential the server connects with. Group- or world-*readable* is a `W1xxx` warning naming the
 mode, not a refusal, because Docker Compose mounts secrets `0444` and Kubernetes secret volumes default to
-`0644` — inside a container that is the norm, on a shared host it is not, and MWL cannot tell which it is
+`0644` — inside a container that is the norm, on a shared host it is not, and Novis cannot tell which it is
 in. Integrity is enforced; confidentiality is advised.
 
-The value is never logged and never printed: `mwl config dump` renders it `<secret>` and names the file it
+The value is never logged and never printed: `nvs config dump` renders it `<secret>` and names the file it
 came from, which is [0033](0033-secret-qualifier-for-confidential-values.md)'s type-level meaning applied
 one layer below the language.
 
@@ -256,7 +256,7 @@ directive.
 which is [0064](0064-configuration-file-format.md)'s reason for refusing to accept two file formats one
 layer up; it would put values into argv, which is world-readable through `ps` and `/proc/*/cmdline`, so a
 secret could be set there in a way § 6's file-ownership model has no equivalent of; and the ergonomic case
-for it mostly disappeared at § 1, where every project directory acquired a `./mwl.toml` for free.
+for it mostly disappeared at § 1, where every project directory acquired a `./nvs.toml` for free.
 
 A flag **replaces the global value** and per-app blocks still layer over it
 ([0104](0104-an-application-is-an-entry-file-path.md)). The whole stack, outermost first:
@@ -269,28 +269,28 @@ shipped defaults
        -> Core\Config::set  (per-request overlay, ADR 0005, unchanged)
 ```
 
-So `mwl serve --mode=development` on a mixed host does not drag an application that pins `production`
+So `nvs serve --mode=development` on a mixed host does not drag an application that pins `production`
 along with it, and `[mode] ceiling` still bounds what any of them may select.
 
-### 9. `mwl config check`, `mwl config dump`, `mwl ctl config`
+### 9. `nvs config check`, `nvs config dump`, `nvs ctl config`
 
 § 3's precedence is only safe while it is auditable, so the reporting is part of this decision rather than
 tooling around it. `config` is a namespace beside `ctl` and `service`
 ([0093 § 2](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)), and stays out of
-`mwl check`, which checks source.
+`nvs check`, which checks source.
 
 ```console
-$ mwl config check --config /etc/mwl/mwl.toml
+$ nvs config check --config /etc/nvs/nvs.toml
 ok: 5 files, 47 directives set, 3 overrides, 1 warning
 
-$ mwl config dump --origin
+$ nvs config dump --origin
 limits.memory             = "512M"    prod.toml:4   (overrides base.toml:2)
 limits.hard.memory        = "2G"      base.toml:9
 capabilities.process.exec = true      conf.d/host.toml:3
 db.main.password          = <secret>  /run/secrets/db_password (conf.d/20-db.toml:5)
 
-$ mwl config dump --toml > effective.toml     # one canonical file, for diffing environments
-$ mwl ctl config --origin                     # what the running process actually holds
+$ nvs config dump --toml > effective.toml     # one canonical file, for diffing environments
+$ nvs ctl config --origin                     # what the running process actually holds
 ```
 
 `check` and `dump` are offline and need no server, so a config tree is validated in CI before it is
@@ -302,20 +302,20 @@ read.
 ## Consequences
 
 - **Cost, as [0004](0004-memory-for-simplicity.md) requires it be stated: none on the request path.** The
-  whole tree is parsed at boot and on `mwl ctl reload`, over files measured in kilobytes. What it adds to
+  whole tree is parsed at boot and on `nvs ctl reload`, over files measured in kilobytes. What it adds to
   a live snapshot is the origin map — one `(file, line)` per directive set, plus the overrides — which is
   bounded by the number of directives, not by traffic, and is what § 9 reads.
-- **The interactive `mwl serve` in a writable directory is a real remaining hole.** If the account the
-  runtime runs as can write the directory it was started in, that account can write the `./mwl.toml` it
+- **The interactive `nvs serve` in a writable directory is a real remaining hole.** If the account the
+  runtime runs as can write the directory it was started in, that account can write the `./nvs.toml` it
   reads. § 6's check passes, because the file's owner *is* the runtime account. The service path is where
   production lives and 0093's installer closes it there; on a developer's machine the account already owns
   the process. This is stated rather than defended: an operator who wants it closed passes `--config`.
 - **A correct configuration can now fail to boot because of a directory's mode.** That is the intended
   behaviour of § 6 and it will be somebody's confusing afternoon, which is why the diagnostic names the
   path, the mode, the group and the fix.
-- **`mwl.toml` becomes a filename that appears in project directories**, where [0081](0081-packages-are-digests-resolution-is-a-maximum.md)
+- **`nvs.toml` becomes a filename that appears in project directories**, where [0081](0081-packages-are-digests-resolution-is-a-maximum.md)
   forbids one inside a *package*. That refusal is unchanged and unaffected — a package is not a working
-  directory — but the social pressure to commit a `mwl.toml` is new, and the answer is that committing a
+  directory — but the social pressure to commit a `nvs.toml` is new, and the answer is that committing a
   development config is fine and deploying it is what `--config` is for.
 - **Two rules where there was one**, in two places: duplicate keys (within a file versus across files) and
   arrays (values versus `[[tables]]`). Both are the same shape — the cross-file rule extends what the
@@ -323,7 +323,7 @@ read.
 
 ## Alternatives rejected
 
-- **A platform default path (`/etc/mwl/mwl.toml`).** The conventional answer, and it loses to `./mwl.toml`
+- **A platform default path (`/etc/nvs/nvs.toml`).** The conventional answer, and it loses to `./nvs.toml`
   only because two implicit lookups are worse than one; the deployments that want a fixed path are exactly
   the ones running under a service manager, which carries `--config` anyway.
 - **A config path baked in at build time**, nginx's `--conf-path`. Genuinely good, and rejected for the
@@ -335,7 +335,7 @@ read.
   an upgrade under a live process. [0048 § 1](0048-portable-single-file-executables.md) had already closed
   the strongest argument for it by refusing to bundle a serving deployment at all.
 - **Walking up from the entry file to find a manifest.** [0061](0061-compile-time-autoload-and-program-discovery.md)
-  rejected it and that rejection stands; § 1's single-directory `./mwl.toml` is deliberately one step short
+  rejected it and that rejection stands; § 1's single-directory `./nvs.toml` is deliberately one step short
   of it, and the step is not taken.
 - **Refusing any cross-file duplicate — an include may only add keys no other file set.** Preserves
   0064 § 3 untouched and is the safest thing here, but it removes the reason to split files: a host-local
@@ -363,7 +363,7 @@ read.
 
 ## Revisiting
 
-Reopen § 1 if `./mwl.toml` turns out to be read in production deployments in practice — the boot line
+Reopen § 1 if `./nvs.toml` turns out to be read in production deployments in practice — the boot line
 naming the resolved path is what would show it, and the answer would be to confine the working-directory
 step to the terminal-attached subcommands rather than to remove it. Reopen § 4's split if a third array
 shape appears that fits neither half.
@@ -375,15 +375,15 @@ own lists:
 
 - A config file that is group-writable, world-writable, or owned by a third account refuses the boot,
   naming path and mode; so does one whose directory is group-writable. Both are re-checked on
-  `mwl ctl reload`, and a failure there leaves the previous snapshot serving.
-- `--config` naming a missing file refuses; `./mwl.toml` missing does not, and the shipped-defaults line
+  `nvs ctl reload`, and a failure there leaves the previous snapshot serving.
+- `--config` naming a missing file refuses; `./nvs.toml` missing does not, and the shipped-defaults line
   appears in the boot log. The resolved absolute path is logged in both cases.
-- `mwl ctl reload` after the working directory has been replaced re-reads the stored absolute path.
+- `nvs ctl reload` after the working directory has been replaced re-reads the stored absolute path.
 - An `[[include]]` cycle is refused with the chain named; depth past 8 is refused as depth rather than as
   a cycle; an entry with both `path` and `dir`, or neither, is refused.
 - `dir` reads only `*.toml` directly inside, in ascending filename order, and a second file added to that
   directory changes the resolved value in exactly the position its name implies.
-- The same key in two files resolves to the later one, and `mwl config dump --origin` names both.
+- The same key in two files resolves to the later one, and `nvs config dump --origin` names both.
   The same key twice in one file still refuses (`E0601`).
 - `[capabilities] script.spawn` in a later file replaces the earlier list; a second `[[schedule]]` in an
   included file appends. A capability grant in an included file takes effect.
@@ -394,8 +394,8 @@ own lists:
 - `password_file` yields the file's content with one trailing newline stripped and interior or edge spaces
   preserved; empty, whitespace-only, non-UTF-8 and oversized files refuse; setting both `password` and
   `password_file` refuses; a group-writable secret file refuses and a world-readable one warns.
-  `mwl config dump` prints `<secret>` and never the value.
-- `mwl serve --mode=development` overrides the file and is itself overridden by a matching `[[app]]`
+  `nvs config dump` prints `<secret>` and never the value.
+- `nvs serve --mode=development` overrides the file and is itself overridden by a matching `[[app]]`
   block's `mode`; `--set` is not an option the CLI accepts.
-- `mwl config check` exits non-zero on each refusal above with no server running, and `mwl ctl config`
+- `nvs config check` exits non-zero on each refusal above with no server running, and `nvs ctl config`
   reports the live snapshot including an `optional` include that appeared after boot.

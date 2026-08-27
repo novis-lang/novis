@@ -1,12 +1,12 @@
 //! Escape cooking and heredoc/nowdoc indentation, checked at the literal rather than at run time.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 /// A `\u{...}` escape naming a codepoint past Unicode's `0x10FFFF` scalar
 /// ceiling has no UTF-8 encoding — `crate::string_lit`'s own

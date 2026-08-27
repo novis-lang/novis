@@ -71,8 +71,8 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     pub(super) fn parse_statement_inner(&mut self) -> Stmt {
         // --- HTML-mode round trip, spec 00-overview.md § 1 ---------------------
-        // `?>`/`<?mwl` can reopen or reclose code mode anywhere a statement is
-        // expected, not just at file scope — e.g. `if ($x) { ?>html<?mwl }` is
+        // `?>`/`<?nvs` can reopen or reclose code mode anywhere a statement is
+        // expected, not just at file scope — e.g. `if ($x) { ?>html<?nvs }` is
         // legal, exactly as in PHP. Skip every bare tag token here; stop at
         // the first token that is either real inline HTML (one `InlineHtml`
         // statement) or ordinary code. Nothing here recurses into
@@ -80,11 +80,11 @@ impl<'src, 'd> Parser<'src, 'd> {
         // the file ends right after `?>`.
         loop {
             match self.peek().kind {
-                TokenKind::CloseTag | TokenKind::OpenTagMwl => {
+                TokenKind::CloseTag | TokenKind::OpenTagNvs => {
                     self.bump();
                 }
                 TokenKind::OpenTagPhp => {
-                    // ADR 0049 § 2: `<?mwl` is the only code-mode open tag —
+                    // ADR 0049 § 2: `<?nvs` is the only code-mode open tag —
                     // the lexer still recognizes `<?php` (same reason `eval`
                     // still lexes as a keyword) purely so this can name the
                     // fix instead of misreading it as inline HTML.
@@ -96,9 +96,9 @@ impl<'src, 'd> Parser<'src, 'd> {
                         )
                         .with_primary(
                             span,
-                            "use `<?mwl` instead — it is the only code-mode open tag MWL keeps",
+                            "use `<?nvs` instead — it is the only code-mode open tag Novis keeps",
                         )
-                        .with_help("`<?mwl` accepts exactly the same code that followed `<?php`"),
+                        .with_help("`<?nvs` accepts exactly the same code that followed `<?php`"),
                     );
                 }
                 TokenKind::InlineHtml => {
@@ -119,7 +119,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let start = self.peek().span;
         match self.peek().kind {
             // A tag token above can leave us sitting on the enclosing block's
-            // `}` or on EOF (`<?mwl if ($x) { ?><?php }`, or a file that ends
+            // `}` or on EOF (`<?nvs if ($x) { ?><?php }`, or a file that ends
             // right after `?>`). The caller's own loop (`parse_block`,
             // `parse_file`) is what notices and stops, not this function.
             TokenKind::RBrace | TokenKind::Eof => Stmt {
@@ -559,7 +559,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `<?= expr (';')? ?>` — spec § 1: exactly `<?mwl echo expr; ?>`, one
+    /// `<?= expr (';')? ?>` — spec § 1: exactly `<?nvs echo expr; ?>`, one
     /// expression, and unlike every other statement form the `;` is optional
     /// right before the closing tag. `?>` is left for `parse_statement`'s next
     /// call to consume, matching how an ordinary `echo` leaves the following
@@ -777,7 +777,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             )
             .with_primary(
                 stmt.span,
-                "use `[...]` instead — it is the only destructuring spelling MWL keeps",
+                "use `[...]` instead — it is the only destructuring spelling Novis keeps",
             )
             .with_help("the element grammar is identical inside either bracket (ADR 0050)"),
         );

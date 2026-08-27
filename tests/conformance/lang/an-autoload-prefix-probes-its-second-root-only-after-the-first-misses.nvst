@@ -1,20 +1,20 @@
 --TEST--
 one prefix's roots are probed in declaration order and the first hit wins — ADR 0061 § 1
 --FILE--
-<?mwl
+<?nvs
 // `App` has two homes. `App\Greeter` exists under both, so the first root
 // answers and the second is never consulted; `App\Extra` exists only under
 // the second, so the miss under the first is a miss rather than a failure.
 // That pair is the Composer rule, and it is what makes an override directory
 // in front of a vendor tree work.
-require './bootstrap.mwl';
+require './bootstrap.nvs';
 echo App\Greeter::from(), "\n";
 echo App\Extra::from(), "\n";
---FILE bootstrap.mwl--
-<?mwl
+--FILE bootstrap.nvs--
+<?nvs
 autoload 'App' from './override', './vendor';
---FILE override/Greeter.mwl--
-<?mwl
+--FILE override/Greeter.nvs--
+<?nvs
 namespace App;
 
 class Greeter
@@ -24,8 +24,8 @@ class Greeter
         return "the first root";
     }
 }
---FILE vendor/Greeter.mwl--
-<?mwl
+--FILE vendor/Greeter.nvs--
+<?nvs
 namespace App;
 
 // Shadowed by the same name under the first root, so never loaded.
@@ -36,8 +36,8 @@ class Greeter
         return "the second root";
     }
 }
---FILE vendor/Extra.mwl--
-<?mwl
+--FILE vendor/Extra.nvs--
+<?nvs
 namespace App;
 
 class Extra

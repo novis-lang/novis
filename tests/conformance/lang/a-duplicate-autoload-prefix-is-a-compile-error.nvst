@@ -1,19 +1,19 @@
 --TEST--
 one prefix declared by two explicit `autoload` statements does not compile — ADR 0061 § 1
 --FILE--
-<?mwl
+<?nvs
 // Two roots for one prefix is the ordered-probe form on the line above; two
 // *statements* for one prefix is not, because nothing says which is first
 // once the map is the union of every declaration in the bootstrap chain. One
 // prefix has one home, and both sites are named so the fix is obvious.
-require './bootstrap.mwl';
+require './bootstrap.nvs';
 echo App\Greeter::from(), "\n";
---FILE bootstrap.mwl--
-<?mwl
+--FILE bootstrap.nvs--
+<?nvs
 autoload 'App' from './override';
 autoload 'App' from './vendor';
---FILE override/Greeter.mwl--
-<?mwl
+--FILE override/Greeter.nvs--
+<?nvs
 namespace App;
 
 class Greeter
@@ -23,8 +23,8 @@ class Greeter
         return "the first root";
     }
 }
---FILE vendor/Greeter.mwl--
-<?mwl
+--FILE vendor/Greeter.nvs--
+<?nvs
 namespace App;
 
 class Greeter

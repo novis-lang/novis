@@ -1,7 +1,7 @@
 --TEST--
 `{$name}` interpolates where a bare `$name` would swallow the following characters
 --FILE--
-<?mwl
+<?nvs
 string $name = "world";
 int $count = 3;
 

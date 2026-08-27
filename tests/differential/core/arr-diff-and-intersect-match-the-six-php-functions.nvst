@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::diff and ::intersect under each SetOn case match array_diff, array_diff_key and array_diff_assoc and their intersect siblings
 --FILE--
-<?mwl
+<?nvs
 // Only the rows where PHP's string-cast comparison cannot differ from strict
 // identity: every value here is an `int` and every key a distinct name. The
 // rows where the two *do* differ are a divergence rather than a match, and

@@ -11,11 +11,11 @@ use common::*;
 #[test]
 fn a_closure_is_reachable_through_the_method_table() {
     // ADR 0031 end to end: `Core\Arr::filter` is native Rust and reaches the
-    // closure through `mwl_runtime::call_closure`, which resolves
-    // `mwl_runtime::CLOSURE_INVOKE` against the receiver's descriptor — so
-    // this fails the moment `mwl-ir`'s label for that method and the
+    // closure through `nvs_runtime::call_closure`, which resolves
+    // `nvs_runtime::CLOSURE_INVOKE` against the receiver's descriptor — so
+    // this fails the moment `nvs-ir`'s label for that method and the
     // runtime's stop agreeing.
-    let source = "<?mwl
+    let source = "<?nvs
 array<int> $nums = [1, 2, 3, 4, 5, 6];
 var $big = Core\\Arr::filter($nums, fn(int $n): bool => $n > 3);
 echo Core\\Arr::count($big);
@@ -26,11 +26,11 @@ echo Core\\Arr::count($big);
 #[test]
 fn a_closure_object_carries_its_own_arity_in_slot_zero() {
     // The two-parameter predicate and the one-parameter one run over the same
-    // array through the same `Core` member. `mwl_runtime::CLOSURE_ARITY_SLOT`
-    // is what tells them apart, so a disagreement with `mwl_ir::lower`'s
+    // array through the same `Core` member. `nvs_runtime::CLOSURE_ARITY_SLOT`
+    // is what tells them apart, so a disagreement with `nvs_ir::lower`'s
     // `FN_ARITY` field order shows up here as a wrong count or a fault, not as
     // a silent extra argument.
-    let source = "<?mwl
+    let source = "<?nvs
 array<string> $a = [\"keep\" => \"x\", \"drop\" => \"y\"];
 var $byKey = Core\\Arr::filter($a, fn(string $v, string $k): bool => $k == \"keep\");
 var $byValue = Core\\Arr::filter($a, fn(string $v): bool => $v == \"y\");
@@ -43,7 +43,7 @@ echo Core\\Arr::count($byKey), \"|\", Core\\Arr::count($byValue);
 fn a_closure_captures_an_outer_local_by_value() {
     // ADR 0031 § 2: the snapshot is taken when the literal is evaluated, so
     // reassigning the captured local afterwards does not reach the closure.
-    let source = "<?mwl
+    let source = "<?nvs
 int $floor = 3;
 array<int> $nums = [1, 2, 3, 4, 5, 6];
 var $f = fn(int $n): bool => $n > $floor;
@@ -58,7 +58,7 @@ fn a_closure_capturing_a_string_in_a_loop_leaks_nothing() {
     // Ten thousand closure objects, each holding one retained capture. A
     // missing release in `lower_closure`'s exit sweep leaks a buffer per
     // iteration; a doubled one crashes here.
-    let source = "<?mwl
+    let source = "<?nvs
 array<int> $nums = [1, 2, 3];
 var $i = 0;
 var $seen = 0;
@@ -75,10 +75,10 @@ echo $seen;
 
 #[test]
 fn a_closure_that_throws_propagates_out_of_the_core_member_that_called_it() {
-    // `mwl_runtime::Fault::Pending` is what keeps the exception the closure
+    // `nvs_runtime::Fault::Pending` is what keeps the exception the closure
     // raised intact: a `Fault::Thrown` built inside `call_closure` would
     // replace it with a bare message from the helper.
-    let source = "<?mwl
+    let source = "<?nvs
 class Boom {
     public static function check(int $n): bool {
         throw new LogicError(\"nope\");
@@ -101,7 +101,7 @@ try {
 /// The mismatch lands on the *third* entry on purpose, so `Core\Arr::filter`
 /// is two kept entries into its walk when the check refuses — which is what
 /// gives the leak guard a partial result to abandon.
-const MISMATCH: &str = "<?mwl
+const MISMATCH: &str = "<?nvs
 callable $wantsString = fn (string $s): bool => $s != \"zzz\";
 array<mixed> $mixed = [\"a\", \"b\", 3];
 ";
@@ -110,9 +110,9 @@ array<mixed> $mixed = [\"a\", \"b\", 3];
 fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called_it() {
     // ADR 0031 § 1: a `callable` carries no parameter list, so nothing above
     // the call site saw what this closure requires and
-    // `mwl_runtime::call_closure` is the only thing that can refuse the
+    // `nvs_runtime::call_closure` is the only thing that can refuse the
     // argument. Caught as `LogicError` specifically, which is the half
-    // `tests/conformance/lang/a-closure-argument-is-checked-against-its-parameter-type.mwlt`
+    // `tests/conformance/lang/a-closure-argument-is-checked-against-its-parameter-type.nvst`
     // cannot pin: it catches `Throwable`, and the widening row beside this one
     // throws `ArithmeticError` past 2^53 — a `Throwable` catch cannot tell the
     // two apart.
@@ -132,7 +132,7 @@ fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called
 
     // Uncaught, the throw is an ordinary `THROWN` status carrying the same
     // message — never a `Fault::Fatal`, which is what the check reserves for a
-    // compiler bug (`mwl_runtime::closure`'s `check_param_tags`).
+    // compiler bug (`nvs_runtime::closure`'s `check_param_tags`).
     let mut ctx = Ctx::buffered();
     let uncaught = format!("{MISMATCH}Core\\Arr::filter($mixed, $wantsString);\n");
     assert_eq!(run_with(&mut ctx, &uncaught).unwrap_err(), THROWN);
@@ -147,16 +147,16 @@ fn an_int_argument_widens_into_a_float_parameter_and_is_refused_past_two_to_the_
     // ADR 0007 § 2's one implicit conversion, reached from the caller no
     // written `as float` ever passes through: `Core\Arr::map` hands a native
     // `int` to a closure whose parameter is declared `float`, and
-    // `mwl_runtime::call_closure` converts it in place because no checker saw
+    // `nvs_runtime::call_closure` converts it in place because no checker saw
     // this call site to insert it — a `callable` carries no parameter list
     // (ADR 0031 § 1).
     //
     // `Core\Json::encode` is the assertion rather than an `echo` of the
     // number: it renders a `float` with a trailing `.0`, so an `int` that
     // arrived unconverted would print `4503599627370496` and fail here. That
-    // is the half the `.mwlt` case of the same name reads off `$half(7)`'s own
+    // is the half the `.nvst` case of the same name reads off `$half(7)`'s own
     // rendering instead.
-    let source = "<?mwl
+    let source = "<?nvs
 callable $half = fn (float $f): float => $f / 2.0;
 
 // 2^53 is the last integer an `f64` holds exactly, so it is the last one this
@@ -167,7 +167,7 @@ echo Core\\Json::encode(Core\\Arr::map($ints, $half)), \"\\n\";
 
 // The first refused one, one past that bound. Caught as `ArithmeticError`
 // specifically — ADR 0007 § 4's class for a numeric overflow, and the
-// distinction a `catch (Throwable)` in a `.mwlt` case cannot make against the
+// distinction a `catch (Throwable)` in a `.nvst` case cannot make against the
 // `LogicError` the mismatched-tag row throws.
 array<int> $edge = [1, 9007199254740993];
 try {
@@ -195,12 +195,12 @@ echo Core\\Json::encode(Core\\Arr::map($uints, $half)), \"\\n\";
 
 /// An allocator that counts live bytes on the calling thread, so the guard
 /// below measures what the abandoned partial result costs rather than reading
-/// `mwl_stdlib::arr`'s claim that `MwlArray`'s drop frees it.
+/// `nvs_stdlib::arr`'s claim that `NvsArray`'s drop frees it.
 ///
 /// Thread-local, and `#[cfg(debug_assertions)]`, for the two reasons
 /// `arrays.rs`'s own counter states: a test binary runs its tests
 /// concurrently, and a `#[global_allocator]` is chosen once per binary — an
-/// optimized build of this one already has `mwl-runtime`'s pooled allocator.
+/// optimized build of this one already has `nvs-runtime`'s pooled allocator.
 /// `cargo test`, the profile `tools/verify.py` runs, is a debug build.
 #[cfg(debug_assertions)]
 struct Counting;
@@ -242,7 +242,7 @@ fn bytes(size: usize) -> isize {
 }
 
 /// Both directions go through one place, so the counter cannot grow a second
-/// convention. Wrapping for the reason `mwl_runtime::counting_alloc` gives:
+/// convention. Wrapping for the reason `nvs_runtime::counting_alloc` gives:
 /// the count is a balance, and a signed one stays readable if it ever dips.
 #[cfg(debug_assertions)]
 fn note(delta: isize) {
@@ -273,11 +273,11 @@ fn live_bytes_of_run(source: &str) -> isize {
 #[test]
 #[cfg(debug_assertions)]
 fn the_partial_result_a_mismatched_argument_abandons_leaks_nothing() {
-    // The half a `.mwlt` case cannot see. `Core\Arr::filter` is two kept
-    // entries into its walk when `mwl_runtime::call_closure` refuses the
-    // third, and `mwl_core_arr_filter`'s doc claims the early return itself
-    // frees the partial result and the entry's key, since `MwlArray` and
-    // `MwlStr` release on drop. A missed release leaks that array plus the two
+    // The half a `.nvst` case cannot see. `Core\Arr::filter` is two kept
+    // entries into its walk when `nvs_runtime::call_closure` refuses the
+    // third, and `nvs_core_arr_filter`'s doc claims the early return itself
+    // frees the partial result and the entry's key, since `NvsArray` and
+    // `NvsStr` release on drop. A missed release leaks that array plus the two
     // string buffers it retained, every iteration.
     //
     // Measured as a *slope* rather than against a fixed bound: a run's own
@@ -285,7 +285,7 @@ fn the_partial_result_a_mismatched_argument_abandons_leaks_nothing() {
     // must not cost ten times anything. Both runs hold 8 bytes today — the
     // buffer the echoed count lands in — and the slack below is what tells
     // that apart from a leak. Calibrated rather than guessed: leaking the
-    // partial result with a `std::mem::forget` on `mwl_core_arr_filter`'s own
+    // partial result with a `std::mem::forget` on `nvs_core_arr_filter`'s own
     // error path moves the pair to 46,388 and 467,788 bytes, a slope of
     // 421 KiB over the extra 1,800 iterations.
     let source = |iterations: u32| {

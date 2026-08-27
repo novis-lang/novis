@@ -1,7 +1,7 @@
 --TEST--
 `Core\Out::capture` swallows what its closure echoes, nests by call nesting and answers the sink's carrier rather than a `string` — spec § 12, ADR 0088 §§ 3 and 5
 --FILE--
-<?mwl
+<?nvs
 // § 12: the buffer is scoped to a closure, so `ob_start`/`ob_get_clean`'s
 // global stack has no equivalent and neither does implicit flushing.
 var $captured = Core\Out::capture(fn (): void => {

@@ -1,20 +1,20 @@
 //! Class-typed positions: what a derived class and a cursor class satisfy.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
-/// MWL's one nominal subtyping rule: a value of a derived class satisfies
+/// Novis's one nominal subtyping rule: a value of a derived class satisfies
 /// a position declared at any class or interface it reaches through
 /// `extends`/`implements`. See `crate::expr::assign::class_satisfied`.
 #[test]
 fn a_derived_class_satisfies_a_position_declared_at_its_base() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Animal {}\n\
          class Dog extends Animal {}\n\
          class T {\n\
@@ -29,7 +29,7 @@ fn a_derived_class_satisfies_a_position_declared_at_its_base() {
 #[test]
 fn an_unrelated_class_still_fails_a_class_typed_position() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Animal {}\n\
          class Rock {}\n\
          class T {\n\
@@ -49,7 +49,7 @@ fn an_unrelated_class_still_fails_a_class_typed_position() {
 #[test]
 fn a_cursor_class_satisfies_the_interface_it_implements_at_that_argument() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Nums implements Iterator<int> {\n\
          \x20 function advance(): bool { return false; }\n\
          \x20 function current(): int { return 1; }\n\
@@ -65,7 +65,7 @@ fn a_cursor_class_satisfies_the_interface_it_implements_at_that_argument() {
 #[test]
 fn a_cursor_class_is_refused_at_a_different_type_argument() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Nums implements Iterator<int> {\n\
          \x20 function advance(): bool { return false; }\n\
          \x20 function current(): int { return 1; }\n\

@@ -1,7 +1,7 @@
 --TEST--
 A checked `as` into a closed set of literals tests membership at run time and throws naming the set — ADR 0047 §§ 4, 5 and 6
 --FILE--
-<?mwl
+<?nvs
 class Mode {
     // § 4's checked row: `mixed` into a closed set throws unless the value
     // equals one of the named literals. It never *converts* to reach one —

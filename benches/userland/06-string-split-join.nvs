@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // explode/implode round trips - how userland parses a CSV line, a path or a header.
 class Bench {
     public static function run(int $rounds): int {

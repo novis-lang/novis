@@ -27,18 +27,18 @@
   `(int)$_GET['id']` on `"abc"` is `0` (often a valid row id); `PHP_INT_MAX + 1` becomes a precision-losing
   `float`; `settype()` invalidates every later assumption; `$a[8]`/`$a["8"]`/`$a["08"]` split across two key
   domains.
-- That is worse for MWL on three priorities: **security** (untrusted input coercing to a wrong-but-valid
+- That is worse for Novis on three priorities: **security** (untrusted input coercing to a wrong-but-valid
   value is the shape of many IDOR bugs), **latency** (a statically known type is what lets the backend emit
   a native instruction instead of a tag-dispatching helper), and **simplicity** (gradual typing means two
   type systems to keep in agreement, an `Unknown` in the IR, and a soundness boundary — mandatory
-  declaration deletes all three, and `mwl-types` becomes a checker rather than a solver).
+  declaration deletes all three, and `nvs-types` becomes a checker rather than a solver).
 - **The 64-bit gap:** PHP's only integer is signed `i64`, but web software needs the other half —
   `BIGINT UNSIGNED` keys, snowflake ids, nanosecond timestamps, WIT's `u32`/`u64`. A distinct `uint` costs
   nothing extra in the value layout, since the tagged value already carries a `u64` payload.
 
 ## Decision
 
-**MWL is statically and explicitly typed. Every binding declares its type; no binding's type ever changes;
+**Novis is statically and explicitly typed. Every binding declares its type; no binding's type ever changes;
 a value's type changes only through an explicit, checked conversion. `mixed` is the single opt-out, and it
 is opt-out from checking, not from safety.**
 
@@ -158,14 +158,14 @@ class/interface name, an enum's name, an enum case ([0047](0047-literal-and-enum
 compiler-owned generic interface — `Iterator<User>` — and nothing else
 ([0053](0053-iteration-and-generators.md) § 2).
 
-`object` is the opaque top of every class type, and a `{a: int}` shape type is MWL's one structurally
+`object` is the opaque top of every class type, and a `{a: int}` shape type is Novis's one structurally
 checked type ([0036](0036-anonymous-object-shapes.md)). `callable` is opaque as to signature — there is no
 `callable(int): string` — and is satisfied by exactly one shape of value, a closure
 ([0031](0031-callable-is-the-only-closure-type.md)). Calling through one is a dynamic call with
 runtime-checked arguments, at `mixed`'s cost. Deferred, not rejected; see *Revisiting*.
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()` —
-`Core\IO\File`, `Core\Process\Child` — which is what makes MWL's lack of destructors
+`Core\IO\File`, `Core\Process\Child` — which is what makes Novis's lack of destructors
 ([0028](0028-closing-the-remaining-magic-methods.md)) coherent, and what
 [`docs/spec/01-core-library.md`](../spec/01-core-library.md) § 14 already states.
 
@@ -207,7 +207,7 @@ is the one case that cannot be answered where it is written, so it is answered f
 they do not, carrying the diagnostic's own wording. That is
 [ADR 0036](0036-anonymous-object-shapes.md) § 4's deferral — the checked answer of an erased operand is a
 throw, never a silent value — applied to this table rather than to a member access, and
-`mwl_ir::ir::Helper::ValueLt` is its one home. Two consequences fall out of the tag being all there is: two
+`nvs_ir::ir::Helper::ValueLt` is its one home. Two consequences fall out of the tag being all there is: two
 objects behind two `mixed`s throw, because `Comparable::compareTo` is dispatched from the class the *site*
 named, and an enum case orders as the integer [ADR 0047](0047-literal-and-union-types.md) § 5 spends no
 representation on hiding — the written spelling is still refused, which is where the author is told to say
@@ -343,7 +343,7 @@ diagnostic, not a runtime check.
 Priority 2 is PHP-compatible observable behaviour, so every departure is listed here rather than discovered
 later. Each is reachable in PHP only *because* a binding somewhere is untyped:
 
-| # | PHP | MWL |
+| # | PHP | Novis |
 |---|---|---|
 | 1 | array keys are `int` or `string` | always `string`; which subscripts collide is unchanged, but `Core\Arr::keys()` returns strings |
 | 2 | one integer type | `int` and `uint`, reported distinctly by `Core\Reflect::typeOf` |
@@ -356,12 +356,12 @@ later. Each is reachable in PHP only *because* a binding somewhere is untyped:
 | 9 | a function, method or closure may omit its return type | mandatory on every one of them — `void` or `never` stated explicitly when there is no value |
 | 10 | `$a[] .= "x"` appends, the element that is not there yet reading as `""` | refused at check time (`E0481`), like every other read of `[]` — nothing makes an absent element read as a zero value, which is row 8 one storage kind along |
 | 11 | reading an absent array key warns and yields `null` | **throws** — there is no `null` to put in an `array<string>`, so row 8's rule holds at runtime too: absent storage is never a zero value. A stored `null` in an `array<?T>` is not an absent key and reads back unchanged. **`$a["k"] ?? $d` is the one exception and is PHP-identical**: `??` means "absent or `null`, without the warning", so the guarded read yields `$d` rather than throwing — refusing there would refuse the spelling PHP offers for exactly this, and the throw is what makes it worth writing. The guard covers **every level of the chain under it**, so `$a["k"]["j"] ?? $d` yields `$d` for an absent key at either depth, and a `null` base needs no `!= null` test in that one position |
-| 12 | `f(...["k" => "v", "0" => "z"])` is a fatal *"Cannot use positional argument after named argument during unpacking"* | accepted — the tail is built by the one spread rule in *5*, so the string key is preserved and the integer-looking one is renumbered under the tail's own append counter. PHP refuses it because it re-reads a string key as a `name:`; MWL's variadic tail *is* the array, and a name never reaches it ([0063](0063-core-api-conventions.md) R2 is the by-name surface), so there is nothing for a later key to be out of order with. Every spread PHP does accept is byte-identical, string keys included |
+| 12 | `f(...["k" => "v", "0" => "z"])` is a fatal *"Cannot use positional argument after named argument during unpacking"* | accepted — the tail is built by the one spread rule in *5*, so the string key is preserved and the integer-looking one is renumbered under the tail's own append counter. PHP refuses it because it re-reads a string key as a `name:`; Novis's variadic tail *is* the array, and a name never reaches it ([0063](0063-core-api-conventions.md) R2 is the by-name surface), so there is nothing for a later key to be out of order with. Every spread PHP does accept is byte-identical, string keys included |
 | 13 | `$i->name` on an `int` warns *"Attempt to read property"* and yields `null` | refused where it is written (`E0495`) — row 8's rule at the one storage kind a declared type already answers before the program runs. A union naming no single class takes the same code, having no one property set to resolve against. **`mixed` is the exception and keeps PHP's timing**: it is *2*'s one unchecked position, so `$m->name` defers to [ADR 0036](0036-anonymous-object-shapes.md) § 4's name-keyed fetch, which throws — in PHP's own wording — for a receiver that turns out not to be an object, and for a name its class does not carry |
 
-| 14 | `1 instanceof Box` answers `false`, PHP having no declaration to read | refused where it is written (`E0497`) — a declared scalar, `array<T>`, enum or union naming no class already answered, so the test is dead code that reads as a live question, which is the same call [ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) makes for two statically disjoint types under `==`. **`mixed`, `object`, a shape and any union holding a class keep the run-time test**, and every non-object tag answers `false` there exactly as PHP does — deferring is what *2*'s one unchecked position is for. The class side is not a divergence at all: PHP's dynamic `$x instanceof $name` has no MWL spelling, *2* having already rejected computed names, and it is `E0496` beside an enum and a `Core` class |
+| 14 | `1 instanceof Box` answers `false`, PHP having no declaration to read | refused where it is written (`E0497`) — a declared scalar, `array<T>`, enum or union naming no class already answered, so the test is dead code that reads as a live question, which is the same call [ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) makes for two statically disjoint types under `==`. **`mixed`, `object`, a shape and any union holding a class keep the run-time test**, and every non-object tag answers `false` there exactly as PHP does — deferring is what *2*'s one unchecked position is for. The class side is not a divergence at all: PHP's dynamic `$x instanceof $name` has no Novis spelling, *2* having already rejected computed names, and it is `E0496` beside an enum and a `Core` class |
 
-| 15 | `f()[0] = 2` writes the element into the temporary the call returned and discards it — no warning, no notice, nothing observable | refused where it is written (`E0700`) — *5* separates the array before the element is written, and a temporary is nowhere for the separated copy to be written back into. The only statement this costs is one that could not have done anything, PHP's write being unobservable by construction, so no program that ran is lost. Every root that *is* storage is unaffected: a local, a property, a static property — and the receiver under a property is evaluated exactly once, PHP's own count, however deep the chain and whichever spelling writes it. A **temporary receiver's** property is included, which is the one direction this row runs the other way: 8.5.9 refuses `(new Box())->rows[0] = 2` at compile time (*"Cannot use temporary expression in write context"*) while accepting `make()->rows[0] = 2`, and MWL accepts both, the field being a slot in a heap object either way. Accepting where PHP refuses loses no program that ran. Parentheses are transparent on both sides — `($a)[0] = 2` writes `$a[0]` here exactly as it does in PHP |
+| 15 | `f()[0] = 2` writes the element into the temporary the call returned and discards it — no warning, no notice, nothing observable | refused where it is written (`E0700`) — *5* separates the array before the element is written, and a temporary is nowhere for the separated copy to be written back into. The only statement this costs is one that could not have done anything, PHP's write being unobservable by construction, so no program that ran is lost. Every root that *is* storage is unaffected: a local, a property, a static property — and the receiver under a property is evaluated exactly once, PHP's own count, however deep the chain and whichever spelling writes it. A **temporary receiver's** property is included, which is the one direction this row runs the other way: 8.5.9 refuses `(new Box())->rows[0] = 2` at compile time (*"Cannot use temporary expression in write context"*) while accepting `make()->rows[0] = 2`, and Novis accepts both, the field being a slot in a heap object either way. Accepting where PHP refuses loses no program that ran. Parentheses are transparent on both sides — `($a)[0] = 2` writes `$a[0]` here exactly as it does in PHP |
 
 The consequence to plan around: the imported `.phpt` corpus (M11) will have a **structurally lower** pass
 rate than a compatibility-first design would, and failures in these fifteen classes are intentional
@@ -384,7 +384,7 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
 
 - **PHP source no longer runs unconverted, and this is the real price.** PHP has no syntax for the type of a
   local, a `foreach` binding, or a destructuring target, so no existing PHP file satisfies the declaration
-  requirement. Migration goes through `mwl convert`. For a plain local,
+  requirement. Migration goes through `nvs convert`. For a plain local,
   [0037](0037-var-local-type-inference.md)'s `var` means the converter can emit that instead of running its
   own inference pass; a `foreach` binding and a destructuring target still have no type-eliding spelling.
 - **Verbosity.** `array<array<int|string>> $rows` at every declaration is a cost against priority 4. A
@@ -425,7 +425,7 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
   boundaries where a caller's type genuinely cannot be inferred already write it —
   `Core\Json::decodeAs<User>` and `Core\Db`'s `queryAs<T>`. Library code is the real consumer, and *5*
   already hands parametricity to both library tiers the compiler declares: `Core`, and from M9 an
-  extension's WIT world. One case is left uncovered — **a pure-MWL third-party package** — so that is the
+  extension's WIT world. One case is left uncovered — **a pure-Novis third-party package** — so that is the
   one thing measured.
   - **The test**, fired once the package manager ships and never before: across the published packages,
     count the API members whose return type had to widen to `object` or `mixed` because it depends on the

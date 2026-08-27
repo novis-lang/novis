@@ -1,5 +1,5 @@
-<?mwl
-// json_decode then read the fields - MWL validates into a declared type where PHP hands back a map.
+<?nvs
+// json_decode then read the fields - Novis validates into a declared type where PHP hands back a map.
 #[Core\Json\Derive]
 class Order {
     public int $id;

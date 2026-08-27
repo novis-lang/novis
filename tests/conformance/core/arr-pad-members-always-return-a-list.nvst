@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::padStart and ::padEnd reach the asked-for size and always return a list
 --FILE--
-<?mwl
+<?nvs
 array<string> $a = ["x" => "one", "y" => "two"];
 
 // The padding lands on the side the member names, which is what replaces the

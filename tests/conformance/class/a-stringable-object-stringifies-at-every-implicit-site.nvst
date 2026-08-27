@@ -1,7 +1,7 @@
 --TEST--
 Interpolation, `.`, `echo` and `as string` each call the operand's `toString()`, dispatching on its runtime class — ADR 0028 § 1
 --FILE--
-<?mwl
+<?nvs
 // ADR 0028 § 1 names exactly four positions that implicitly convert to
 // `string`, and one resolved `toString()` serves all four.
 class Label implements Stringable {

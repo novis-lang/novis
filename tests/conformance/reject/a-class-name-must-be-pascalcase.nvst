@@ -1,7 +1,7 @@
 --TEST--
 a class declared in lower case is a hard compiler error, checked on the leading character only — ADR 0029 § 1
 --FILE--
-<?mwl
+<?nvs
 class thing {
     public static function go(): int {
         return 1;
@@ -12,6 +12,6 @@ echo thing::go(), "\n";
 
 --EXPECTF-ERROR--
 error[E0110]: `thing` must be PascalCase, e.g. `Thing`
-  --> case.mwl:2:7
+  --> case.nvs:2:7
 %A
 error: aborting due to 1 error

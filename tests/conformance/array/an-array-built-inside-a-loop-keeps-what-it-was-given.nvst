@@ -1,7 +1,7 @@
 --TEST--
 An array accumulated across loop iterations — appended to, keyed by a computed string, and read back after the loop ends
 --FILE--
-<?mwl
+<?nvs
 class Build {
     public static function squares(int $upTo): array<int> {
         array<int> $out = [];

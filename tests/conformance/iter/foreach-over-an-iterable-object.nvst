@@ -1,7 +1,7 @@
 --TEST--
 `foreach` over an object calls `Iterable::iterate` once and drains the iterator it returns — ADR 0053
 --FILE--
-<?mwl
+<?nvs
 class Countdown implements Iterable<int> {
     private int $from;
 

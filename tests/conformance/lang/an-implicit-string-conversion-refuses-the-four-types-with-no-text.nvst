@@ -1,7 +1,7 @@
 --TEST--
 `echo`, `.`, an interpolated piece and `.=` agree that `bytes`, `array<T>`, an enum case and a `void` call have no string form — ADR 0007 § 2, ADR 0009 § 3, ADR 0010 § 3
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 2's "anything → `string`" row is total for scalars and needs
 // `Stringable` for an object. These four types it does not reach at all, and
 // the four *implicit* sites — `echo`, `.`, an interpolated piece and `.=` —

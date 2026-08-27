@@ -1,7 +1,7 @@
 --TEST--
 a `set` hook that throws is an ordinary throw from the assignment, and the property keeps the value it had — ADR 0014 § 1
 --FILE--
-<?mwl
+<?nvs
 class Temp {
     public int $celsius {
         get => $this->celsius;

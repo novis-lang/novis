@@ -3,7 +3,7 @@
 
 use std::collections::hash_map::Entry;
 
-use mwl_diagnostics::Span;
+use nvs_diagnostics::Span;
 use rustc_hash::FxHashMap;
 
 use crate::qname::QName;
@@ -113,13 +113,13 @@ impl SymbolTable {
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::SourceMap;
+    use nvs_diagnostics::SourceMap;
 
     use super::*;
 
     fn sym(name: &str, kind: SymbolKind) -> Symbol {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", "x");
+        let file = map.add("t.nvs", "x");
         Symbol {
             kind,
             qname: QName::parse(name),

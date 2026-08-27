@@ -1,7 +1,7 @@
 --TEST--
 Nested `finally` blocks run innermost first, on the throwing path and the quiet one alike, in the same order PHP runs them
 --FILE--
-<?mwl
+<?nvs
 class Trace {
     public static function thrown(): string {
         var $log = "";

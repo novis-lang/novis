@@ -1,7 +1,7 @@
 --TEST--
 A drive is `C:` and a separator, read the same way on either leg, and only the base's drive ever survives a Core\Path::join — spec § 8
 --FILE--
-<?mwl
+<?nvs
 // Spec § 8: the separator a member *emits* is the one platform-dependent
 // thing here, and what a member *accepts* is one grammar everywhere. A drive
 // is the half of that grammar the other leg has no filesystem for, so it is

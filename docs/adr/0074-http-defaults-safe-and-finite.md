@@ -36,7 +36,7 @@
 
 ## Context
 
-- MWL already removes whole classes of bug by making the safe thing the only representable thing — SQL
+- Novis already removes whole classes of bug by making the safe thing the only representable thing — SQL
   injection ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)), SSRF
   ([ADR 0058](0058-outbound-request-policy.md)), shell injection
   ([ADR 0044](0044-core-process-argv-only-no-shell.md)), ReDoS
@@ -56,7 +56,7 @@
 - **Outbound, the unbounded call is how one slow dependency becomes an outage.** PHP's `curl` defaults to
   no timeout at all; `file_get_contents` defaults to `default_socket_timeout`, which is 60 seconds and which
   nobody knows. A handler waiting forever on a third-party API holds a worker, and enough of them hold every
-  worker. MWL's request-level `wall_time` bounds the damage, but only after the fact and only per request —
+  worker. Novis's request-level `wall_time` bounds the damage, but only after the fact and only per request —
   it does not stop the dependency's latency from becoming the application's.
 - **Retry is the other half of the same problem, and adding it naively makes things worse.** Unjittered
   retries synchronise into a thundering herd against a service that is already struggling; a per-attempt
@@ -83,7 +83,7 @@ Applied to every response the M7 server writes, with no configuration present. T
 rather than transcription:
 
 - **HSTS is emitted when the effective scheme is `https`, and not otherwise.** A browser ignores it on a
-  plaintext connection anyway, so emitting it there would be noise. MWL never terminates TLS itself
+  plaintext connection anyway, so emitting it there would be noise. Novis never terminates TLS itself
   ([0097](0097-development-server-and-proxied-origin.md) § 1), so in practice the effective scheme is the
   one a **trusted** proxy asserts through `X-Forwarded-Proto` (0097 § 6) — with `trusted_proxies` empty the
   scheme is `http` and no HSTS is sent, which is the safe direction for a header that cannot be revoked from
@@ -91,12 +91,12 @@ rather than transcription:
   development over plain HTTP is unaffected by anything in this section.
 - **`hsts_subdomains` defaults to `false`.** `includeSubDomains` is the HSTS setting that has actually taken
   deployments down — a sibling subdomain on plain HTTP becomes unreachable, for a year, with no way to
-  revoke it from the client. Whether a domain's subdomains are all TLS-only is knowledge MWL does not have.
+  revoke it from the client. Whether a domain's subdomains are all TLS-only is knowledge Novis does not have.
 - **There is no default `Content-Security-Policy` beyond `frame-ancestors`.** A `default-src` policy that
   is wrong breaks the page silently and is the single most abandoned security header there is; a policy
   that is right is application-specific. `frame-ancestors 'none'` is the one directive that is safe for
   every application, because it governs who may frame the response rather than what the response may load.
-  The XSS half of what a CSP buys is closed structurally in MWL by
+  The XSS half of what a CSP buys is closed structurally in Novis by
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 5's auto-escaping HTML sink, which is a stronger
   guarantee than a policy header and does not depend on being configured.
 
@@ -149,7 +149,7 @@ that rule meet at the same header and are otherwise independent.
 
 ### 4. Every directive is `Runtime`, and `setHeader` still wins
 
-All three blocks are [ADR 0005](0005-config-changeability.md) **`Runtime`** class: `mwl.toml` states the
+All three blocks are [ADR 0005](0005-config-changeability.md) **`Runtime`** class: `nvs.toml` states the
 default a request starts with, a request may set any value for itself, and the change is discarded when the
 request ends. `Core\Response::setHeader` additionally overrides a policy-owned header on **one** response
 with no configuration involved at all.
@@ -279,13 +279,13 @@ regardless, and refusing it would buy nothing.
   no diagnostic, which is how CSP gets disabled permanently after one incident. Framing is the safe subset
   and it is the one shipped.
 - **`hsts_subdomains = true` by default.** Stronger. Rejected: it is unrevocable from the client for the
-  max-age, and MWL does not know whether the sibling subdomains are TLS-only.
+  max-age, and Novis does not know whether the sibling subdomains are TLS-only.
 - **Make the policy blocks `RuntimeTighten`.** Rejected in § 4: `setHeader` already exists, so it forbids
   legitimate per-route policy while preventing nothing.
 - **Warn on `*` + credentials rather than refusing.** Rejected: the configuration has no correct meaning,
   and a boot warning is read once.
-- **Edge concerns in `mwl.toml` too** — request-size caps, per-IP connection limits, slow-loris timeouts.
-  Rejected as this ADR's business: a proxy in front of MWL does those earlier and better, which is the same
+- **Edge concerns in `nvs.toml` too** — request-size caps, per-IP connection limits, slow-loris timeouts.
+  Rejected as this ADR's business: a proxy in front of Novis does those earlier and better, which is the same
   line [ADR 0075](0075-core-ratelimit.md) draws for flood limiting. M7 still caps a request body, because
   that is memory it allocates itself ([ADR 0097](0097-development-server-and-proxied-origin.md) § 8, where
   the cap is `[limits] request_body` rather than a directive of its own). **That line covers size and rate,
@@ -295,7 +295,7 @@ regardless, and refusing it would buy nothing.
   which also caps a multipart **part count**, a cost in bookkeeping that no body-size cap bounds. And it
   does not cover **waiting**: this ADR's own rule that an unbounded default is a defect applies to a
   connection too, so the four idle timeouts in
-  [ADR 0097](0097-development-server-and-proxied-origin.md) § 5 are MWL's, not a proxy's.
+  [ADR 0097](0097-development-server-and-proxied-origin.md) § 5 are Novis's, not a proxy's.
 - **A per-attempt timeout instead of one covering deadline.** What most HTTP clients offer. Rejected: three
   attempts at a "5-second timeout" is a fifteen-second call, and the caller reasoned about five.
 - **Configurable jitter, including off.** Rejected: the one setting whose wrong value harms a service that

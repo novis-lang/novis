@@ -1,7 +1,7 @@
 --TEST--
 `$a[8]` and `$a["8"]` name one key, and `"08"` stays a different one — ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

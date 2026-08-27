@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::gcd and Core\Math::lcm answer what Euclid's algorithm written out in PHP does, over both signs, both zeros and the magnitude where the least common multiple stops fitting an int
 --FILE--
-<?mwl
+<?nvs
 // Spec § 3's `gcd` and `lcm` rows name `gmp_gcd` and `gmp_lcm` as the twins,
 // and neither can be asked here: `gmp` is a PHP extension, absent from the
 // `php` on this host's PATH, so a case calling it would die rather than
@@ -114,7 +114,7 @@ foreach ($table as int $a) {
 echo $commutes, " ", $divides, " ", $multiple, " ", $product, " ", $pairs, "\n";
 --ORACLE--
 <?php
-function mwl_gcd(int $a, int $b): int {
+function nvs_gcd(int $a, int $b): int {
     $a = $a < 0 ? -$a : $a;
     $b = $b < 0 ? -$b : $b;
     while ($b != 0) {
@@ -125,36 +125,36 @@ function mwl_gcd(int $a, int $b): int {
     return $a;
 }
 
-function mwl_lcm(int $a, int $b) {
+function nvs_lcm(int $a, int $b) {
     $a = $a < 0 ? -$a : $a;
     $b = $b < 0 ? -$b : $b;
     if ($a == 0 || $b == 0) {
         return 0;
     }
-    return intdiv($a, mwl_gcd($a, $b)) * $b;
+    return intdiv($a, nvs_gcd($a, $b)) * $b;
 }
 
 function show_lcm(int $a, int $b): string {
-    $r = mwl_lcm($a, $b);
+    $r = nvs_lcm($a, $b);
     if (is_float($r)) {
         return "refused";
     }
     return (string) $r;
 }
 
-echo mwl_gcd(12, 18), " ", mwl_gcd(48, 18), " ", mwl_gcd(17, 5), " ", mwl_gcd(270, 192), "\n";
-echo mwl_lcm(4, 6), " ", mwl_lcm(21, 6), " ", mwl_lcm(17, 5), " ", mwl_lcm(270, 192), "\n";
+echo nvs_gcd(12, 18), " ", nvs_gcd(48, 18), " ", nvs_gcd(17, 5), " ", nvs_gcd(270, 192), "\n";
+echo nvs_lcm(4, 6), " ", nvs_lcm(21, 6), " ", nvs_lcm(17, 5), " ", nvs_lcm(270, 192), "\n";
 
-echo mwl_gcd(0, 5), " ", mwl_gcd(5, 0), " ", mwl_gcd(0, 0), "\n";
-echo mwl_lcm(0, 5), " ", mwl_lcm(5, 0), " ", mwl_lcm(0, 0), "\n";
+echo nvs_gcd(0, 5), " ", nvs_gcd(5, 0), " ", nvs_gcd(0, 0), "\n";
+echo nvs_lcm(0, 5), " ", nvs_lcm(5, 0), " ", nvs_lcm(0, 0), "\n";
 
-echo mwl_gcd(-12, 18), " ", mwl_gcd(12, -18), " ", mwl_gcd(-12, -18), "\n";
-echo mwl_lcm(-4, 6), " ", mwl_lcm(4, -6), " ", mwl_lcm(-4, -6), "\n";
+echo nvs_gcd(-12, 18), " ", nvs_gcd(12, -18), " ", nvs_gcd(-12, -18), "\n";
+echo nvs_lcm(-4, 6), " ", nvs_lcm(4, -6), " ", nvs_lcm(-4, -6), "\n";
 
-echo mwl_gcd(7, 49), " ", mwl_lcm(7, 49), " ", mwl_gcd(9, 28), " ", mwl_lcm(9, 28), "\n";
+echo nvs_gcd(7, 49), " ", nvs_lcm(7, 49), " ", nvs_gcd(9, 28), " ", nvs_lcm(9, 28), "\n";
 
 echo show_lcm(4611686018427387904, 2), " ", show_lcm(4611686018427387904, 3), "\n";
-echo mwl_gcd(4611686018427387904, 3), " ", mwl_gcd(4611686018427387904, 2), "\n";
+echo nvs_gcd(4611686018427387904, 3), " ", nvs_gcd(4611686018427387904, 2), "\n";
 
 $table = [0, 1, 2, 6, 12, 18, 35, 49, -8, -15];
 $commutes = 0;
@@ -165,9 +165,9 @@ $pairs = 0;
 foreach ($table as $a) {
     foreach ($table as $b) {
         $pairs = $pairs + 1;
-        $g = mwl_gcd($a, $b);
-        $l = mwl_lcm($a, $b);
-        if ($g == mwl_gcd($b, $a) && $l == mwl_lcm($b, $a)) {
+        $g = nvs_gcd($a, $b);
+        $l = nvs_lcm($a, $b);
+        if ($g == nvs_gcd($b, $a) && $l == nvs_lcm($b, $a)) {
             $commutes = $commutes + 1;
         }
         if ($g == 0) {

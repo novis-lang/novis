@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::sort over `array<string>` orders lexicographically, reverses under `{order}`, and reorders by a `{by}` projection
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<string> $a): string {
         var $out = "";

@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::first and last answer what reset and end answer, without PHP's internal array pointer (ADR 0063 R5)
 --FILE--
-<?mwl
+<?nvs
 // ADR 0063 R5: the empty array answers `null` rather than throwing, because
 // asking a possibly-empty array for its first entry is not a failure. PHP's
 // `reset`/`end` answer `false` for the same case, so — as in
@@ -17,7 +17,7 @@ class Show {
 }
 
 // PHP's three spellings of `first` all move or read an internal array pointer
-// and MWL has none (spec § 2), so every row here reads the ends of a *value*:
+// and Novis has none (spec § 2), so every row here reads the ends of a *value*:
 // no call below depends on where a previous one left a cursor, which is what
 // makes the two comparable at all.
 array<int> $list = [10, 20, 30];

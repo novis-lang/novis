@@ -1,7 +1,7 @@
 --TEST--
 a nested `$grid[0][1] = v` separates every level it descends, leaves every row it did not name alone, and auto-vivifies an absent key the way PHP does — ADR 0007 §§ 2, 5
 --FILE--
-<?mwl
+<?nvs
 final class Board {
     public array<array<string>> $cells = [];
 

@@ -1,7 +1,7 @@
 --TEST--
 `%` takes the dividend's sign, as PHP's does, and binds tighter than `+`
 --FILE--
-<?mwl
+<?nvs
 echo 7 % 3, "|", (-7) % 3, "|", 7 % (-3), "|", (-7) % (-3), "|\n";
 echo 6 % 3, "|", 0 % 5, "|\n";
 echo 1 + 7 % 3, "|", 10 - 7 % 3, "|\n";

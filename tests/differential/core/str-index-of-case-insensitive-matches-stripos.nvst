@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::indexOf's {caseInsensitive} option selects between strpos and stripos on the same call (ADR 0063 R20)
 --FILE--
-<?mwl
+<?nvs
 // ADR 0063 R20: one member with an option replaces PHP's `strpos`/`stripos`
 // pair rather than carrying a second spelling of one operation. So the claim
 // here is not "indexOf can search case-insensitively" — it is that the *same

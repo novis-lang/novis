@@ -1,4 +1,4 @@
-//! Architecture invariants and cost baselines for MWL's execution model.
+//! Architecture invariants and cost baselines for Novis's execution model.
 //!
 //! This crate is not part of the compiler. It exists because three decisions in
 //! `docs/adr/` rest on how Cranelift, `corosensei` and Wasmtime actually behave
@@ -20,7 +20,7 @@
 //!
 //! # The ABI under test
 //!
-//! Every compiled MWL function and every runtime helper has one shape:
+//! Every compiled Novis function and every runtime helper has one shape:
 //!
 //! ```text
 //! extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32
@@ -45,14 +45,14 @@ use cranelift_module::{FuncId, Linkage, Module};
 /// Success. The result has been written through the `out` pointer.
 pub const OK: i32 = 0;
 
-/// An MWL-level exception is pending in [`Ctx::pending`]. A `catch` may handle it.
+/// An Novis-level exception is pending in [`Ctx::pending`]. A `catch` may handle it.
 pub const THROWN: i32 = 1;
 
 /// Unrecoverable: a resource limit, or an internal error caught at a helper
-/// boundary. Propagates to the request boundary and MWL code cannot catch it.
+/// boundary. Propagates to the request boundary and Novis code cannot catch it.
 pub const FATAL: i32 = 2;
 
-/// Mirrors MWL's planned 16-byte tagged value.
+/// Mirrors Novis's planned 16-byte tagged value.
 ///
 /// NaN-boxing is deliberately not used: PHP semantics require the full `i64`
 /// range, which will not fit alongside a tag in 64 bits.
@@ -95,7 +95,7 @@ pub enum Waiting {
 /// The coroutine yielder type used throughout the probe.
 pub type Yield = Yielder<(), Waiting>;
 
-/// Per-request state, passed to every MWL function and helper.
+/// Per-request state, passed to every Novis function and helper.
 ///
 /// Deliberately shaped like the real `Ctx` will be: it carries the coroutine
 /// yielder (so any helper can suspend without the language needing `async`), the
@@ -173,19 +173,19 @@ impl Default for Ctx {
     }
 }
 
-/// A compiled MWL function.
+/// A compiled Novis function.
 ///
 /// `unsafe` because the three pointers carry a contract the type cannot express:
 /// each must be non-null, aligned, and valid for the duration of the call, and
 /// `out` must be writable. Compiled code satisfies this by construction; hand
 /// callers should go through [`call`], which is a safe wrapper.
-pub type MwlFn = unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32;
+pub type NvsFn = unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32;
 
 // ---------------------------------------------------------------------------
 // Runtime helpers
 // ---------------------------------------------------------------------------
 
-/// Defines a runtime helper with MWL's helper ABI.
+/// Defines a runtime helper with Novis's helper ABI.
 ///
 /// Two details are load-bearing and easy to get wrong by hand, which is why this
 /// is a macro rather than a convention:
@@ -206,7 +206,7 @@ macro_rules! probe_helper {
         /// # Safety
         ///
         /// `ctx`, `arg` and `out` must each be non-null, aligned and valid for
-        /// the duration of the call, and `out` must be writable. Compiled MWL
+        /// the duration of the call, and `out` must be writable. Compiled Novis
         /// code satisfies this by construction.
         #[allow(
             unsafe_code,
@@ -225,7 +225,7 @@ macro_rules! probe_helper {
                     reason = "codegen guarantees these pointers are valid, \
                               non-null and non-aliasing for the call's duration"
                 )]
-                // SAFETY: `ctx`, `arg` and `out` come from compiled MWL code,
+                // SAFETY: `ctx`, `arg` and `out` come from compiled Novis code,
                 // which always passes a live request context, a readable
                 // argument slot and a writable result slot.
                 let ($ctx, $arg, $out): (&mut Ctx, Value, &mut Value) =
@@ -262,7 +262,7 @@ probe_helper! {
     /// Doubles its argument, with two deliberate escape hatches used by the
     /// invariant tests:
     ///
-    /// * `42` raises an ordinary MWL exception ([`THROWN`]).
+    /// * `42` raises an ordinary Novis exception ([`THROWN`]).
     /// * `99` panics, standing in for a bug in the runtime, which must surface
     ///   as [`FATAL`] rather than killing the process.
     fn probe_double(ctx, arg, out) {
@@ -270,7 +270,7 @@ probe_helper! {
         let n = arg.as_int();
         if n == 42 {
             // Borrowed, not allocated — see `Ctx::pending`.
-            ctx.pending = Some("MwlError: helper refused 42".into());
+            ctx.pending = Some("NvsError: helper refused 42".into());
             return THROWN;
         }
         if n == 99 {
@@ -297,7 +297,7 @@ probe_helper! {
         let n = arg.as_int();
         if n == 42 {
             // Borrowed, not allocated — see `Ctx::pending`.
-            ctx.pending = Some("MwlError: helper refused 42".into());
+            ctx.pending = Some("NvsError: helper refused 42".into());
             return THROWN;
         }
         if n == 99 {
@@ -324,7 +324,7 @@ probe_helper! {
 }
 
 /// The slow path behind an [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-/// § 1 probe site — the shape `mwl_runtime::mwl_probe_stmt` has, reduced to
+/// § 1 probe site — the shape `nvs_runtime::nvs_probe_stmt` has, reduced to
 /// the one thing this probe needs to observe.
 ///
 /// It returns nothing: a coverage probe cannot fail, so unlike a helper there
@@ -377,11 +377,11 @@ impl Helper {
 // JIT harness
 // ---------------------------------------------------------------------------
 
-/// Compiles chains of native frames that use MWL's calling convention.
+/// Compiles chains of native frames that use Novis's calling convention.
 ///
 /// Each frame calls the next, checks the returned status, and either copies the
 /// 16-byte result up or returns the status onward — exactly the code shape
-/// `mwl-codegen` will emit.
+/// `nvs-codegen` will emit.
 pub struct Probe {
     module: JITModule,
     ctx: codegen::Context,
@@ -410,7 +410,7 @@ impl Probe {
         let mut flags = settings::builder();
         flags.set("use_colocated_libcalls", "false").unwrap();
         flags.set("is_pic", "false").unwrap();
-        // Match what MWL's baseline tier will ask for, so the measured costs
+        // Match what Novis's baseline tier will ask for, so the measured costs
         // correspond to shipped code rather than to a debug configuration.
         flags.set("opt_level", "speed").unwrap();
 
@@ -433,7 +433,7 @@ impl Probe {
         }
     }
 
-    /// The MWL function signature: `(ctx, arg, out) -> status`.
+    /// The Novis function signature: `(ctx, arg, out) -> status`.
     fn signature(&self) -> Signature {
         let ptr = types::I64;
         let mut sig = self.module.make_signature();
@@ -464,7 +464,7 @@ impl Probe {
     ///
     /// Panics if `depth` is 0, or if Cranelift rejects the generated IR, which
     /// would be a bug in this harness.
-    pub fn compile_chain(&mut self, depth: usize, helper: Helper) -> MwlFn {
+    pub fn compile_chain(&mut self, depth: usize, helper: Helper) -> NvsFn {
         self.compile_probe_chain(depth, helper, 0, false)
     }
 
@@ -496,7 +496,7 @@ impl Probe {
         helper: Helper,
         stmts: usize,
         probe: bool,
-    ) -> MwlFn {
+    ) -> NvsFn {
         assert!(depth > 0, "a chain needs at least one frame");
         let sig = self.signature();
         let probe_sig = self.probe_signature();
@@ -547,7 +547,7 @@ impl Probe {
                 // call — see this method's own doc comment.
                 for stmt in 0..stmts {
                     if probe {
-                        // ADR 0018 § 1's site, exactly as `mwl-codegen` emits
+                        // ADR 0018 § 1's site, exactly as `nvs-codegen` emits
                         // it: one load of the context's flags word, one
                         // branch predicted not taken, and an out-of-line call
                         // that never runs while every bit is off. `MemFlagsData`
@@ -623,10 +623,10 @@ impl Probe {
                       signature a few lines above"
         )]
         // SAFETY: `callee` was declared with `self.signature()`, which is
-        // `MwlFn`'s signature, and `finalize_definitions` has made the code
+        // `NvsFn`'s signature, and `finalize_definitions` has made the code
         // executable.
         unsafe {
-            std::mem::transmute::<*const u8, MwlFn>(code)
+            std::mem::transmute::<*const u8, NvsFn>(code)
         }
     }
 }
@@ -639,15 +639,15 @@ impl Default for Probe {
 
 /// Calls `f` with a fresh result slot and returns `(status, result)`.
 ///
-/// The safe wrapper over [`MwlFn`]: deriving the three pointers from live
+/// The safe wrapper over [`NvsFn`]: deriving the three pointers from live
 /// references is what discharges that type's safety contract, so probes never
 /// need an `unsafe` block of their own.
-pub fn call(f: MwlFn, ctx: &mut Ctx, arg: Value) -> (i32, Value) {
+pub fn call(f: NvsFn, ctx: &mut Ctx, arg: Value) -> (i32, Value) {
     let mut out = Value::default();
     #[allow(
         unsafe_code,
         reason = "the three pointers are derived from live, non-aliasing \
-                  references in this frame, which is exactly MwlFn's contract"
+                  references in this frame, which is exactly NvsFn's contract"
     )]
     // SAFETY: `ctx`, `arg` and `out` are borrowed from locals that outlive the
     // call, are non-null and aligned, and `out` is a unique mutable borrow.
@@ -668,7 +668,7 @@ pub struct CoroutineRun<R> {
 
 /// Runs `body` on its own stack, driving it to completion.
 ///
-/// This is what MWL's scheduler will do when it enters a task: publish the
+/// This is what Novis's scheduler will do when it enters a task: publish the
 /// yielder into the request context so that *any* helper can suspend, then
 /// resume until the task finishes. Because the yielder is reached through the
 /// context rather than through a function's signature, nothing in the call chain

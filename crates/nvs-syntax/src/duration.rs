@@ -8,13 +8,13 @@
 //! # Why the grammar lives in the *syntax* crate
 //!
 //! § 5 names three places that must agree — the source literal, the run-time
-//! `Core\Time\Duration::parse`, and a duration-valued `mwl.toml` directive —
+//! `Core\Time\Duration::parse`, and a duration-valued `nvs.toml` directive —
 //! and says the three share one parser so a grammar change cannot land in one
 //! and miss the others. Exactly one of the three is lexical, so exactly one
-//! crate is forced: the lexer cannot reach `mwl-stdlib` without the front end
-//! depending on the runtime heap, while `mwl-stdlib` reaching *here* is an edge
+//! crate is forced: the lexer cannot reach `nvs-stdlib` without the front end
+//! depending on the runtime heap, while `nvs-stdlib` reaching *here* is an edge
 //! [ADR 0019](../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
-//! already owes for `Core\Ast`. So this is `mwl-syntax`'s, and the other two
+//! already owes for `Core\Ast`. So this is `nvs-syntax`'s, and the other two
 //! call in.
 //!
 //! # What it produces

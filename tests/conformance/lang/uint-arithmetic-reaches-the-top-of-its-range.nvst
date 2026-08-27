@@ -1,7 +1,7 @@
 --TEST--
 `uint` holds and prints 2^64 − 1, and an explicit `as uint` is what lets an `int` literal join the arithmetic
 --FILE--
-<?mwl
+<?nvs
 uint $u = 18446744073709551615;
 echo $u, "\n";
 echo $u - (1 as uint), "\n";

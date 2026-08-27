@@ -1,14 +1,14 @@
-//! MWL's array: [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
+//! Novis's array: [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
 //! § 5's insertion-ordered, string-keyed hash, refcounted and copy-on-write.
 //!
-//! This is what `mwl_ir::ty::Ty::Array` lowers to, and the other half of M4's
+//! This is what `nvs_ir::ty::Ty::Array` lowers to, and the other half of M4's
 //! Stage 1 gate — `Core\Arr`'s whole contract rests on it
 //! (`docs/agent/loop-goal.md`).
 //!
 //! # Decision: the representation is opaque to compiled code
 //!
-//! [`crate::MwlStr`] and [`crate::MwlObj`] both publish byte offsets so
-//! `mwl-codegen` can load a field or a payload byte inline. An array
+//! [`crate::NvsStr`] and [`crate::NvsObj`] both publish byte offsets so
+//! `nvs-codegen` can load a field or a payload byte inline. An array
 //! publishes exactly one, [`ARRAY_REFCOUNT_OFFSET`], and nothing else:
 //! every operation on it — a read, a write, an append, an iteration step — is
 //! an out-of-line call to one of the primitives at the bottom of this file.
@@ -29,7 +29,7 @@
 //! Array keys are the single most likely place attacker-controlled bytes
 //! become hash inputs — a form field, a JSON object, a query string. PHP's own
 //! hashtable produced a real remote-DoS CVE that way, and a fast non-keyed
-//! hasher (`FxHash`, the one `mwl-codegen` uses for its compiler-internal
+//! hasher (`FxHash`, the one `nvs-codegen` uses for its compiler-internal
 //! tables) is trivially floodable. So this map keeps std's per-process-seeded
 //! SipHash: priority 1 over priority 3, the one direction the ordering allows.
 //! It also means this module adds no dependency at all.
@@ -40,7 +40,7 @@
 //! `Vec<Value>` and nothing else — no index map, no key strings. The first
 //! operation that breaks that invariant — a `"08"`, a gap, a non-numeric key,
 //! an `unset` anywhere but the end — converts it to the hash form above, which
-//! is PHP's own arrangement. [`key_at`](MwlArray::key_at) synthesizes the
+//! is PHP's own arrangement. [`key_at`](NvsArray::key_at) synthesizes the
 //! decimal on demand, so `foreach ($a as $v)`, which never asks for a key,
 //! never pays for one.
 //!
@@ -52,7 +52,7 @@
 //!
 //! The reason it is not an optimisation to schedule later, measured on this
 //! tree against the PHP 8.5.9 oracle on the same machine — and PHP's figures
-//! include VM opcode dispatch that compiled MWL does not pay, so the
+//! include VM opcode dispatch that compiled Novis does not pay, so the
 //! comparison already flatters the interpreter:
 //!
 //! | | PHP 8.5.9 | this module, unpacked |
@@ -63,16 +63,16 @@
 //! | `foreach ($a as $v)` | 21.0 ns | 4.9 ns |
 //!
 //! The 219.5 ns is 37.2 rendering the index to a decimal `String`, 43.1
-//! allocating the [`MwlStr`](crate::MwlStr) key, 23.1 hashing and probing, and
+//! allocating the [`NvsStr`](crate::NvsStr) key, 23.1 hashing and probing, and
 //! the rest index-map insert and growth. A `Vec<Value>` push is 1.9 ns and an
 //! index 0.34 ns. The assoc and iteration rows are healthy and this changes
 //! neither.
 //!
 //! **The ABI was the part that expired, and the addition has landed.**
-//! [`mwl_array_get`] and [`mwl_array_set`] take a `*const StrHeader`, so
+//! [`nvs_array_get`] and [`nvs_array_set`] take a `*const StrHeader`, so
 //! compiled code calling *those* must build a key string first and a packed
 //! form would have to parse the decimal back out — pointless. So
-//! [`mwl_array_get_index`] and [`mwl_array_set_index`] now sit beside them,
+//! [`nvs_array_get_index`] and [`nvs_array_set_index`] now sit beside them,
 //! taking the `i64` the subscript already was and answering from the packed
 //! form with nothing rendered and nothing allocated; they degrade to a
 //! synthesized key only where the shape is already `Hashed`, which is exactly
@@ -84,13 +84,13 @@
 //! artifacts and M9's WIT signatures do.
 //!
 //! **What still calls the key-taking pair for an integer subscript is
-//! `mwl-codegen`.** `mwl_ir::lower::Lowering::lower_array_key` normalizes an
+//! `nvs-codegen`.** `nvs_ir::lower::Lowering::lower_array_key` normalizes an
 //! `int`/`uint` subscript to its decimal string through `Helper::IntToString`
 //! before `InstKind::ArrayGet`/`ArraySet` ever reaches codegen, so the key's
 //! representation at the emit site is already `Ty::Str` and the allocation has
-//! already happened. Routing `$a[$i]` here is therefore an `mwl-ir` change —
+//! already happened. Routing `$a[$i]` here is therefore an `nvs-ir` change —
 //! letting those two instructions carry a `Ty::Int`/`Ty::Uint` key and
-//! dispatching on it in `mwl_codegen::emit` — not a codegen-local one.
+//! dispatching on it in `nvs_codegen::emit` — not a codegen-local one.
 //!
 //! What it spends, as [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)
 //! requires: **nothing — it saves.** A list drops two of its three allocations
@@ -125,7 +125,7 @@
 //! When it was higher, the entry storage is copied, every key and value in it
 //! retained, the caller's reference dropped, and the fresh copy returned.
 //!
-//! [`MwlArray`] expresses the same protocol safely: its mutators take
+//! [`NvsArray`] expresses the same protocol safely: its mutators take
 //! `&mut self` and re-point the handle, which is why nothing outside this
 //! module writes a separation by hand.
 //!
@@ -135,32 +135,32 @@
 //! *"Cannot add element to the array as the next element is already
 //! occupied"* once the append counter names a live key, which
 //! [`Table::note_index`]'s saturation at `i64::MAX` is the only way to reach.
-//! MWL matches that refusal rather than PHP's older silent overwrite, so
-//! [`mwl_array_append`] needs somewhere to put a failure — and the
+//! Novis matches that refusal rather than PHP's older silent overwrite, so
+//! [`nvs_array_append`] needs somewhere to put a failure — and the
 //! pointer-in, pointer-out shape every other primitive here has does not have
 //! one.
 //!
 //! It therefore takes [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s
 //! shape instead — `(ctx, array, value, out) -> status`, the array it yields
 //! travelling through a caller-owned pointer-wide slot the way
-//! `mwl_object_slot_set`'s result does — and it is the **only** array
-//! primitive that does. `mwl_ir::ir::InstKind::ArrayAppend` carries an
-//! `Inst::on_error` edge to match, and `mwl-codegen` gives `mwl_array_unset`
+//! `nvs_object_slot_set`'s result does — and it is the **only** array
+//! primitive that does. `nvs_ir::ir::InstKind::ArrayAppend` carries an
+//! `Inst::on_error` edge to match, and `nvs-codegen` gives `nvs_array_unset`
 //! its own signature rather than the one it used to borrow from this.
 //!
 //! What the refusal costs is stated here because the section above promises
 //! the opposite: **the occupancy test runs before the copy-on-write
-//! separation** ([`MwlArray::try_append`]), so a refused append leaves the
+//! separation** ([`NvsArray::try_append`]), so a refused append leaves the
 //! caller's pointer live and still owning the reference it was handed, and
 //! compiled code has nothing to re-point on the error path. One comparison on
 //! every append pays for it — an unsaturated counter is strictly greater than
 //! every integer key in use, so only a counter *at* `i64::MAX` ever reaches
 //! the lookup behind it.
 //!
-//! [`MwlArray::append`] keeps the infallible signature every `Core` producer's
+//! [`NvsArray::append`] keeps the infallible signature every `Core` producer's
 //! `out.append(…)` calls, because an array a call is building from index 0
 //! cannot reach that state; it panics rather than overwriting where one
-//! somehow does, which `mwl_helper!`'s `catch_unwind` contains to a single
+//! somehow does, which `nvs_helper!`'s `catch_unwind` contains to a single
 //! request. A `debug_assert` stood there before, which meant a release build
 //! silently overwrote a live entry — the one place an array could lose a
 //! value.
@@ -188,12 +188,12 @@ use std::collections::HashMap;
 use std::fmt;
 use std::ptr::NonNull;
 
-use crate::string::{MwlStr, StrHeader};
+use crate::string::{NvsStr, StrHeader};
 use crate::value::Value;
 
 /// One key/value pair, owning one reference to each.
 pub(crate) struct Entry {
-    pub(crate) key: MwlStr,
+    pub(crate) key: NvsStr,
     pub(crate) value: Value,
 }
 
@@ -242,7 +242,7 @@ struct Hashed {
     /// Key to position in [`Hashed::entries`]. Holds its own reference to each
     /// key, which is the same allocation the entry holds: a key is stored
     /// twice as a pointer, never twice as bytes.
-    index: HashMap<MwlStr, usize>,
+    index: HashMap<NvsStr, usize>,
     /// How many of [`Hashed::entries`] are `Some` — the array's `count()`.
     live: usize,
 }
@@ -329,7 +329,7 @@ impl Table {
             let packed = std::mem::take(values);
             let mut hashed = Hashed::default();
             for (index, value) in packed.into_iter().enumerate() {
-                let displaced = hashed.set(MwlStr::new(index.to_string().as_bytes()), value);
+                let displaced = hashed.set(NvsStr::new(index.to_string().as_bytes()), value);
                 debug_assert!(displaced.is_none(), "a packed key appears exactly once");
             }
             self.shape = Shape::Hashed(hashed);
@@ -341,7 +341,7 @@ impl Table {
     }
 
     /// The value at `key`, borrowed: no reference is added, the same way
-    /// `mwl_ir::ir::InstKind::FieldGet` reads a property.
+    /// `nvs_ir::ir::InstKind::FieldGet` reads a property.
     fn get(&self, key: &[u8]) -> Option<Value> {
         match &self.shape {
             Shape::Packed(values) => values.get(packed_index(key)?).copied(),
@@ -361,7 +361,7 @@ impl Table {
     /// the next one; anything else degrades first. The `key` it was handed is
     /// dropped rather than stored in that case — the packed form has no use for
     /// it, which is the whole saving.
-    fn set(&mut self, key: MwlStr, value: Value) -> Option<Value> {
+    fn set(&mut self, key: NvsStr, value: Value) -> Option<Value> {
         self.note_key(key.as_bytes());
         if let Shape::Packed(values) = &mut self.shape
             && let Some(slot) = packed_index(key.as_bytes()).filter(|slot| *slot <= values.len())
@@ -407,7 +407,7 @@ impl Table {
             }
             return Some(std::mem::replace(&mut values[slot], value));
         }
-        let key = MwlStr::new(index.to_string().as_bytes());
+        let key = NvsStr::new(index.to_string().as_bytes());
         self.hashed_mut().set(key, value)
     }
 
@@ -442,7 +442,7 @@ impl Table {
             self.next_index = Some(counter.saturating_add(1));
             return Ok(());
         }
-        let key = MwlStr::new(counter.to_string().as_bytes());
+        let key = NvsStr::new(counter.to_string().as_bytes());
         self.note_key(key.as_bytes());
         let displaced = self.hashed_mut().set(key, value);
         debug_assert!(
@@ -453,7 +453,7 @@ impl Table {
     }
 
     /// Room for `additional` more entries in whichever form is held, or
-    /// `false` — [`MwlArray::try_reserve`] owns what the answer promises.
+    /// `false` — [`NvsArray::try_reserve`] owns what the answer promises.
     fn try_reserve(&mut self, additional: usize) -> bool {
         match &mut self.shape {
             Shape::Packed(values) => values.try_reserve(additional).is_ok(),
@@ -491,10 +491,10 @@ impl Table {
     /// The key at `slot`, as a fresh reference the caller owns — synthesized
     /// from the position itself in the packed form, so `foreach ($a as $v)`,
     /// which never asks, never pays for one.
-    fn key_at(&self, slot: usize) -> Option<MwlStr> {
+    fn key_at(&self, slot: usize) -> Option<NvsStr> {
         match &self.shape {
             Shape::Packed(values) => {
-                (slot < values.len()).then(|| MwlStr::new(slot.to_string().as_bytes()))
+                (slot < values.len()).then(|| NvsStr::new(slot.to_string().as_bytes()))
             }
             Shape::Hashed(hashed) => hashed.at(slot).map(|entry| entry.key.clone()),
         }
@@ -550,7 +550,7 @@ impl Table {
 
     /// Empties the table, handing back every value it held for the caller to
     /// release — [`dismantle`]'s half of freeing an array. Each key is an
-    /// ordinary string owning no MWL value, so dropping the storage frees the
+    /// ordinary string owning no Novis value, so dropping the storage frees the
     /// keys directly.
     fn take_values(&mut self) -> Vec<Value> {
         match &mut self.shape {
@@ -570,7 +570,7 @@ impl Table {
 
 impl Hashed {
     /// The value at `key`, borrowed: no reference is added, the same way
-    /// `mwl_ir::ir::InstKind::FieldGet` reads a property.
+    /// `nvs_ir::ir::InstKind::FieldGet` reads a property.
     fn get(&self, key: &[u8]) -> Option<Value> {
         let slot = *self.index.get(key)?;
         self.entries[slot].as_ref().map(|entry| entry.value)
@@ -579,7 +579,7 @@ impl Hashed {
     /// Inserts or overwrites, taking over `key`'s and `value`'s references and
     /// handing back whatever it displaced for the caller to release. The
     /// append counter is [`Table`]'s, and is already up to date by here.
-    fn set(&mut self, key: MwlStr, value: Value) -> Option<Value> {
+    fn set(&mut self, key: NvsStr, value: Value) -> Option<Value> {
         if let Some(&slot) = self.index.get(key.as_bytes()) {
             let entry = self.entries[slot]
                 .as_mut()
@@ -701,13 +701,13 @@ impl fmt::Debug for ArrayHeader {
     }
 }
 
-/// A key as the array's own shape holds it — [`MwlArray::slot_key`]'s answer.
+/// A key as the array's own shape holds it — [`NvsArray::slot_key`]'s answer.
 ///
-/// [`MwlArray::key_at`] answers every key as an [`MwlStr`], which means a
+/// [`NvsArray::key_at`] answers every key as an [`NvsStr`], which means a
 /// packed list renders a decimal and allocates one per entry. A caller that
 /// only means to *store* the entry under the same key, or to pass the key on
 /// to a callback that may not want it, does not need that string built: the
-/// `Index` arm carries the position itself, and [`MwlArray::set_index`] takes
+/// `Index` arm carries the position itself, and [`NvsArray::set_index`] takes
 /// it without rendering anything. `docs/perf/userland-gap.md` § D is the
 /// measurement, and `Core\Arr`'s `map`/`filter`/`reduce` are the callers.
 ///
@@ -720,7 +720,7 @@ pub enum SlotKey {
     Index(i64),
     /// A hashed array already holds its key as a string, so this is a
     /// reference to the one it holds and not a fresh rendering.
-    Str(MwlStr),
+    Str(NvsStr),
 }
 
 impl SlotKey {
@@ -728,30 +728,30 @@ impl SlotKey {
     /// hold — the allocation § D exists to avoid making where nothing asks
     /// for one, paid here where something does.
     #[must_use]
-    pub fn to_str(&self) -> MwlStr {
+    pub fn to_str(&self) -> NvsStr {
         match self {
-            Self::Index(index) => MwlStr::new(index.to_string().as_bytes()),
+            Self::Index(index) => NvsStr::new(index.to_string().as_bytes()),
             Self::Str(key) => key.clone(),
         }
     }
 }
 
-/// An owning handle to one reference of an MWL array.
+/// An owning handle to one reference of an Novis array.
 ///
 /// Cloning retains, dropping releases, and a mutator separates first when the
 /// handle is not the only owner — so Rust-side code (helpers, tests, and
-/// `mwl-stdlib`'s `Core\Arr`) never writes the copy-on-write protocol by hand.
+/// `nvs-stdlib`'s `Core\Arr`) never writes the copy-on-write protocol by hand.
 /// Compiled code instead calls the primitives at the bottom of this file,
 /// which are the same operations with the ownership left implicit.
 ///
 /// Neither `Send` nor `Sync`, by construction — see [`crate::string`]'s own
 /// docs for the reasoning, which is identical here.
 #[repr(transparent)]
-pub struct MwlArray {
+pub struct NvsArray {
     ptr: NonNull<ArrayHeader>,
 }
 
-impl MwlArray {
+impl NvsArray {
     /// A fresh empty array with a reference count of one.
     #[must_use]
     pub fn new() -> Self {
@@ -813,7 +813,7 @@ impl MwlArray {
 
     /// Writes `value` at `key`, taking over both references and separating
     /// first if this handle is not the only owner.
-    pub fn set(&mut self, key: MwlStr, value: Value) {
+    pub fn set(&mut self, key: NvsStr, value: Value) {
         self.make_unique();
         let displaced = self.header().table.borrow_mut().set(key, value);
         if let Some(old) = displaced {
@@ -829,7 +829,7 @@ impl MwlArray {
 
     /// The value stored at the integer key `index`, borrowed rather than
     /// retained, and reached with no key string built at all while the array
-    /// is a list — [`mwl_array_get_index`].
+    /// is a list — [`nvs_array_get_index`].
     #[must_use]
     pub fn get_index(&self, index: i64) -> Option<Value> {
         self.header().table.borrow().get_index(index)
@@ -837,7 +837,7 @@ impl MwlArray {
 
     /// Writes `value` at the integer key `index`, taking over its reference,
     /// separating first if this handle is not the only owner, and building no
-    /// key string while the array is a list — [`mwl_array_set_index`].
+    /// key string while the array is a list — [`nvs_array_set_index`].
     pub fn set_index(&mut self, index: i64, value: Value) {
         self.make_unique();
         let displaced = self.header().table.borrow_mut().set_index(index, value);
@@ -860,7 +860,7 @@ impl MwlArray {
     /// The occupancy test runs **before** the copy-on-write separation, so a
     /// refusal leaves this handle's allocation — and therefore the raw pointer
     /// its caller holds — exactly as it was. That is what lets
-    /// [`mwl_array_append`] report PHP's refusal without its caller having to
+    /// [`nvs_array_append`] report PHP's refusal without its caller having to
     /// re-point anything: the reference the call was given is still the one the
     /// caller's slot names. See this module's *the append is the one array
     /// write with a fault channel*.
@@ -903,7 +903,7 @@ impl MwlArray {
     /// allocator, and an allocator that refuses inside [`Vec::push`] is an
     /// abort: the process and every in-flight request with it, for a refusal
     /// the caller may well want to handle. This is
-    /// [`MwlStr::try_build`](crate::MwlStr::try_build)'s bargain over the entry
+    /// [`NvsStr::try_build`](crate::NvsStr::try_build)'s bargain over the entry
     /// storage instead of over a payload.
     ///
     /// **What it makes infallible is the entry storage's growth and nothing
@@ -945,7 +945,7 @@ impl MwlArray {
 
     /// The key at `slot`, as a fresh reference the caller owns.
     #[must_use]
-    pub fn key_at(&self, slot: usize) -> Option<MwlStr> {
+    pub fn key_at(&self, slot: usize) -> Option<NvsStr> {
         self.header().table.borrow().key_at(slot)
     }
 
@@ -1001,7 +1001,7 @@ impl MwlArray {
                       and has already been re-pointed at the copy"
         )]
         unsafe {
-            mwl_array_release(old.as_ptr());
+            nvs_array_release(old.as_ptr());
         }
     }
 
@@ -1020,7 +1020,7 @@ impl MwlArray {
     /// compiled code holds.
     ///
     /// The caller now owns exactly one reference and must eventually pass the
-    /// pointer to [`mwl_array_release`] or [`MwlArray::from_raw`].
+    /// pointer to [`nvs_array_release`] or [`NvsArray::from_raw`].
     #[must_use]
     pub fn into_raw(self) -> *mut ArrayHeader {
         let ptr = self.ptr.as_ptr();
@@ -1028,17 +1028,17 @@ impl MwlArray {
         ptr
     }
 
-    /// Reclaims a reference previously given up by [`MwlArray::into_raw`].
+    /// Reclaims a reference previously given up by [`NvsArray::into_raw`].
     ///
     /// # Safety
     ///
-    /// `ptr` must be a pointer produced by [`MwlArray::into_raw`] (or by
-    /// [`mwl_array_new`]) whose reference has not already been released, and
+    /// `ptr` must be a pointer produced by [`NvsArray::into_raw`] (or by
+    /// [`nvs_array_new`]) whose reference has not already been released, and
     /// it must not be reclaimed twice.
     ///
     /// # Panics
     ///
-    /// If `ptr` is null, which no MWL array pointer ever is.
+    /// If `ptr` is null, which no Novis array pointer ever is.
     #[must_use]
     #[expect(
         unsafe_code,
@@ -1046,7 +1046,7 @@ impl MwlArray {
     )]
     pub unsafe fn from_raw(ptr: *mut ArrayHeader) -> Self {
         Self {
-            ptr: NonNull::new(ptr).expect("an MWL array pointer is never null"),
+            ptr: NonNull::new(ptr).expect("an Novis array pointer is never null"),
         }
     }
 
@@ -1054,7 +1054,7 @@ impl MwlArray {
     ///
     /// # Safety
     ///
-    /// `ptr` must refer to a live MWL array allocation.
+    /// `ptr` must refer to a live Novis array allocation.
     #[must_use]
     #[expect(
         unsafe_code,
@@ -1068,34 +1068,34 @@ impl MwlArray {
     }
 }
 
-impl Default for MwlArray {
+impl Default for NvsArray {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Clone for MwlArray {
+impl Clone for NvsArray {
     fn clone(&self) -> Self {
         bump(self.ptr.as_ptr());
         Self { ptr: self.ptr }
     }
 }
 
-impl Drop for MwlArray {
+impl Drop for NvsArray {
     fn drop(&mut self) {
         #[expect(
             unsafe_code,
             reason = "this handle owns exactly the reference being dropped"
         )]
         unsafe {
-            mwl_array_release(self.ptr.as_ptr());
+            nvs_array_release(self.ptr.as_ptr());
         }
     }
 }
 
-impl fmt::Debug for MwlArray {
+impl fmt::Debug for NvsArray {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MwlArray")
+        f.debug_struct("NvsArray")
             .field("refcount", &self.refcount())
             .field("count", &self.count())
             .finish()
@@ -1117,7 +1117,7 @@ fn bump(ptr: *mut ArrayHeader) {
             .refcount
             .get()
             .checked_add(1)
-            .expect("an MWL array's reference count cannot overflow a usize"),
+            .expect("an Novis array's reference count cannot overflow a usize"),
     );
 }
 
@@ -1129,7 +1129,7 @@ fn bump(ptr: *mut ArrayHeader) {
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL array allocation whose reference the caller
+/// `ptr` must refer to a live Novis array allocation whose reference the caller
 /// owns.
 #[expect(
     unsafe_code,
@@ -1146,12 +1146,12 @@ pub(crate) unsafe fn drop_one(ptr: *mut ArrayHeader) -> bool {
 /// Frees an array allocation whose count reached zero, handing every value it
 /// held to `work` rather than releasing it here — see [`crate::release`].
 ///
-/// Each entry's *key* is an ordinary string, which owns no MWL value, so
+/// Each entry's *key* is an ordinary string, which owns no Novis value, so
 /// dropping the entry vector frees the keys directly.
 ///
 /// # Safety
 ///
-/// `ptr` must refer to an MWL array allocation whose reference count reached
+/// `ptr` must refer to an Novis array allocation whose reference count reached
 /// zero in [`drop_one`], and must be dismantled exactly once.
 #[expect(
     unsafe_code,
@@ -1161,7 +1161,7 @@ pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::rele
     #[expect(
         unsafe_code,
         reason = "the count reached zero, so nothing else can observe the \
-                  allocation; it was produced by `Box::leak` in `MwlArray::new`"
+                  allocation; it was produced by `Box::leak` in `NvsArray::new`"
     )]
     let boxed = unsafe { Box::from_raw(ptr) };
     let values = boxed.table.borrow_mut().take_values();
@@ -1189,7 +1189,7 @@ pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::rele
 // **A `Value` crosses this boundary through a pointer, never by value.** A
 // 16-byte struct is classified differently by the SysV and Windows x64 ABIs —
 // two integer registers on one, a hidden pointer on the other — and
-// `mwl-codegen` would have to encode that difference to call these at all.
+// `nvs-codegen` would have to encode that difference to call these at all.
 // Every site that needs one therefore passes the address of a 16-byte slot the
 // caller owns, which is exactly what ADR 0002's own `(ctx, args, out)` helper
 // shape already does, so codegen reuses `store_value`/`load_value` unchanged.
@@ -1199,7 +1199,7 @@ pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::rele
 // the signatures are shaped that way rather than returning nothing.
 
 /// A fresh empty array with a reference count of one —
-/// `mwl_ir::InstKind::ArrayNew`'s allocation half.
+/// `nvs_ir::InstKind::ArrayNew`'s allocation half.
 ///
 /// The one primitive here that is safe to call: it reads no pointer the caller
 /// supplied, because it takes none.
@@ -1209,22 +1209,22 @@ pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::rele
               to call this at all"
 )]
 #[unsafe(no_mangle)]
-pub extern "C" fn mwl_array_new() -> *mut ArrayHeader {
-    MwlArray::new().into_raw()
+pub extern "C" fn nvs_array_new() -> *mut ArrayHeader {
+    NvsArray::new().into_raw()
 }
 
-/// Adds a reference — `mwl_ir::InstKind::Retain` for a `Ty::Array` operand.
+/// Adds a reference — `nvs_ir::InstKind::Retain` for a `Ty::Array` operand.
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL array allocation.
+/// `ptr` must refer to a live Novis array allocation.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw array pointer whose liveness the \
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_retain(ptr: *mut ArrayHeader) {
+pub unsafe extern "C" fn nvs_array_retain(ptr: *mut ArrayHeader) {
     if ptr.is_null() {
         return;
     }
@@ -1232,11 +1232,11 @@ pub unsafe extern "C" fn mwl_array_retain(ptr: *mut ArrayHeader) {
 }
 
 /// Drops a reference, freeing the array and everything it solely owns if it
-/// was the last — `mwl_ir::InstKind::Release` for a `Ty::Array` operand.
+/// was the last — `nvs_ir::InstKind::Release` for a `Ty::Array` operand.
 ///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL array allocation whose reference this caller
+/// `ptr` must refer to a live Novis array allocation whose reference this caller
 /// owns, and must not be released twice.
 #[expect(
     unsafe_code,
@@ -1244,7 +1244,7 @@ pub unsafe extern "C" fn mwl_array_retain(ptr: *mut ArrayHeader) {
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_release(ptr: *mut ArrayHeader) {
+pub unsafe extern "C" fn nvs_array_release(ptr: *mut ArrayHeader) {
     if ptr.is_null() {
         return;
     }
@@ -1260,7 +1260,7 @@ pub unsafe extern "C" fn mwl_array_release(ptr: *mut ArrayHeader) {
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation.
+/// `array` must refer to a live Novis array allocation.
 #[expect(
     unsafe_code,
     reason = "the pointee's liveness is the caller's obligation to state"
@@ -1273,12 +1273,12 @@ pub(crate) unsafe fn entry(array: *mut ArrayHeader, key: &[u8]) -> Option<Value>
 }
 
 /// [`entry`] for an integer key, answered straight out of a list-shaped
-/// array's `Vec<Value>` — see [`mwl_array_get_index`] for why that path
+/// array's `Vec<Value>` — see [`nvs_array_get_index`] for why that path
 /// exists.
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation.
+/// `array` must refer to a live Novis array allocation.
 #[expect(
     unsafe_code,
     reason = "the pointee's liveness is the caller's obligation to state"
@@ -1293,17 +1293,17 @@ pub(crate) unsafe fn entry_at_index(array: *mut ArrayHeader, index: i64) -> Opti
 /// Reads the entry at `key` **without** retaining what it holds, answering a
 /// missing key with `null`.
 ///
-/// This is the *vivifying* read — the one `mwl_runtime::helpers::
-/// mwl_array_row_for_write` is built on, where an absent key means "build the
+/// This is the *vivifying* read — the one `nvs_runtime::helpers::
+/// nvs_array_row_for_write` is built on, where an absent key means "build the
 /// row PHP would have built". A read written in source goes through
-/// `mwl_array_required_get` instead, which throws there
-/// (`mwl_ir::InstKind::ArrayGet`). Neither the array nor the key is consumed,
+/// `nvs_array_required_get` instead, which throws there
+/// (`nvs_ir::InstKind::ArrayGet`). Neither the array nor the key is consumed,
 /// and the value written to `out` is *borrowed*: the array keeps its
 /// reference, so a caller that stores the result retains it itself.
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation, `key` to a live MWL
+/// `array` must refer to a live Novis array allocation, `key` to a live Novis
 /// string allocation, and `out` to a writable, aligned 16-byte slot.
 #[expect(
     unsafe_code,
@@ -1311,33 +1311,33 @@ pub(crate) unsafe fn entry_at_index(array: *mut ArrayHeader, index: i64) -> Opti
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_get(
+pub unsafe extern "C" fn nvs_array_get(
     array: *mut ArrayHeader,
     key: *const StrHeader,
     out: *mut Value,
 ) {
     #[expect(unsafe_code, reason = "the caller guarantees every pointee is live")]
     unsafe {
-        let bytes = MwlStr::bytes_of(key);
+        let bytes = NvsStr::bytes_of(key);
         out.write(entry(array, bytes).unwrap_or_default());
     }
 }
 
 /// Reads the entry at the integer key `index`, **without** retaining what it
 /// holds and **without rendering a key** — the `int`/`uint` half of
-/// `mwl_ir::InstKind::ArrayGet`.
+/// `nvs_ir::InstKind::ArrayGet`.
 ///
-/// Semantically identical to [`mwl_array_get`] called with `index`'s decimal
+/// Semantically identical to [`nvs_array_get`] called with `index`'s decimal
 /// form: `$a[8]` is `$a["8"]` (ADR 0007 § 5), and a negative index names the
 /// key `"-1"` exactly as it always did. What differs is that a list-shaped
-/// array answers straight out of its `Vec<Value>` — no decimal, no `MwlStr`,
+/// array answers straight out of its `Vec<Value>` — no decimal, no `NvsStr`,
 /// no hash — which is the saving this module's packed decision exists for.
 /// Neither the array nor the index is consumed, and the value written to `out`
 /// is *borrowed*.
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation and `out` to a writable,
+/// `array` must refer to a live Novis array allocation and `out` to a writable,
 /// aligned 16-byte slot.
 #[expect(
     unsafe_code,
@@ -1345,7 +1345,7 @@ pub unsafe extern "C" fn mwl_array_get(
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_get_index(array: *mut ArrayHeader, index: i64, out: *mut Value) {
+pub unsafe extern "C" fn nvs_array_get_index(array: *mut ArrayHeader, index: i64, out: *mut Value) {
     #[expect(unsafe_code, reason = "the caller guarantees every pointee is live")]
     unsafe {
         out.write(entry_at_index(array, index).unwrap_or_default());
@@ -1357,7 +1357,7 @@ pub unsafe extern "C" fn mwl_array_get_index(array: *mut ArrayHeader, index: i64
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation and `key` to a live MWL
+/// `array` must refer to a live Novis array allocation and `key` to a live Novis
 /// string allocation.
 #[expect(
     unsafe_code,
@@ -1365,15 +1365,15 @@ pub unsafe extern "C" fn mwl_array_get_index(array: *mut ArrayHeader, index: i64
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_has_key(array: *mut ArrayHeader, key: *const StrHeader) -> bool {
+pub unsafe extern "C" fn nvs_array_has_key(array: *mut ArrayHeader, key: *const StrHeader) -> bool {
     #[expect(unsafe_code, reason = "the caller guarantees both pointees are live")]
     unsafe {
-        let bytes = MwlStr::bytes_of(key);
+        let bytes = NvsStr::bytes_of(key);
         (*array).table.borrow().get(bytes).is_some()
     }
 }
 
-/// Writes `value` at `key` — `mwl_ir::InstKind::ArraySet`.
+/// Writes `value` at `key` — `nvs_ir::InstKind::ArraySet`.
 ///
 /// Consumes one reference to `array`, one to `key` and one to `value`, and
 /// returns the one reference to the array that now holds the entry: the same
@@ -1381,8 +1381,8 @@ pub unsafe extern "C" fn mwl_array_has_key(array: *mut ArrayHeader, key: *const 
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation whose reference the
-/// caller owns, `key` to a live MWL string allocation whose reference the
+/// `array` must refer to a live Novis array allocation whose reference the
+/// caller owns, `key` to a live Novis string allocation whose reference the
 /// caller owns, and `value` must own the reference it transfers.
 #[expect(
     unsafe_code,
@@ -1390,7 +1390,7 @@ pub unsafe extern "C" fn mwl_array_has_key(array: *mut ArrayHeader, key: *const 
               cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_set(
+pub unsafe extern "C" fn nvs_array_set(
     array: *mut ArrayHeader,
     key: *mut StrHeader,
     value: *const Value,
@@ -1401,25 +1401,25 @@ pub unsafe extern "C" fn mwl_array_set(
                   and that `value` points at a readable 16-byte slot"
     )]
     unsafe {
-        let mut handle = MwlArray::from_raw(array);
-        handle.set(MwlStr::from_raw(key), value.read());
+        let mut handle = NvsArray::from_raw(array);
+        handle.set(NvsStr::from_raw(key), value.read());
         handle.into_raw()
     }
 }
 
 /// Writes `value` at the integer key `index` — the `int`/`uint` half of
-/// `mwl_ir::InstKind::ArraySet`, building no key string while the array is a
+/// `nvs_ir::InstKind::ArraySet`, building no key string while the array is a
 /// list.
 ///
-/// Semantically identical to [`mwl_array_set`] called with `index`'s decimal
+/// Semantically identical to [`nvs_array_set`] called with `index`'s decimal
 /// form, the append counter included: a write at `8` still makes the next
 /// `$a[]` land at `9`. Consumes one reference to `array` and one to `value`,
 /// and returns the one reference to the array that now holds the entry — see
-/// [`mwl_array_set`]. The index owns nothing, so nothing about it is consumed.
+/// [`nvs_array_set`]. The index owns nothing, so nothing about it is consumed.
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation whose reference the
+/// `array` must refer to a live Novis array allocation whose reference the
 /// caller owns, and `value` must own the reference it transfers.
 #[expect(
     unsafe_code,
@@ -1427,7 +1427,7 @@ pub unsafe extern "C" fn mwl_array_set(
               cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_set_index(
+pub unsafe extern "C" fn nvs_array_set_index(
     array: *mut ArrayHeader,
     index: i64,
     value: *const Value,
@@ -1438,18 +1438,18 @@ pub unsafe extern "C" fn mwl_array_set_index(
                   that `value` points at a readable 16-byte slot"
     )]
     unsafe {
-        let mut handle = MwlArray::from_raw(array);
+        let mut handle = NvsArray::from_raw(array);
         handle.set_index(index, value.read());
         handle.into_raw()
     }
 }
 
 /// Appends `value` under the next integer key —
-/// `mwl_ir::InstKind::ArrayAppend`, `$a[] = expr`.
+/// `nvs_ir::InstKind::ArrayAppend`, `$a[] = expr`.
 ///
 /// Consumes one reference to `array` and one to `value`, and writes into `out`
 /// the one reference to the array that now holds the entry — see
-/// [`mwl_array_set`], whose protocol this shares apart from where the array
+/// [`nvs_array_set`], whose protocol this shares apart from where the array
 /// comes back.
 ///
 /// Answers [`crate::OK`], or [`crate::THROWN`] where the next integer key is
@@ -1466,7 +1466,7 @@ pub unsafe extern "C" fn mwl_array_set_index(
 /// # Safety
 ///
 /// `ctx` must refer to the live [`Ctx`](crate::Ctx) of the request this call
-/// runs inside, `array` to a live MWL array allocation whose reference the
+/// runs inside, `array` to a live Novis array allocation whose reference the
 /// caller owns, `value` must own the reference it transfers, and `out` must
 /// point at a writable pointer-wide slot.
 #[expect(
@@ -1475,7 +1475,7 @@ pub unsafe extern "C" fn mwl_array_set_index(
               the signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_append(
+pub unsafe extern "C" fn nvs_array_append(
     ctx: *mut crate::Ctx,
     array: *mut ArrayHeader,
     value: *const Value,
@@ -1488,7 +1488,7 @@ pub unsafe extern "C" fn mwl_array_append(
                   `ctx` and `out` are live and writable"
     )]
     unsafe {
-        let mut handle = MwlArray::from_raw(array);
+        let mut handle = NvsArray::from_raw(array);
         let outcome = handle.try_append(value.read());
         out.write(handle.into_raw());
         match outcome {
@@ -1505,7 +1505,7 @@ pub unsafe extern "C" fn mwl_array_append(
     }
 }
 
-/// Copies every entry of `subject` into `array` — `mwl_ir::InstKind::ArraySpread`,
+/// Copies every entry of `subject` into `array` — `nvs_ir::InstKind::ArraySpread`,
 /// the `[...$a]` array-literal element.
 ///
 /// Consumes one reference to `array` and **borrows** `subject`, writing into
@@ -1517,7 +1517,7 @@ pub unsafe extern "C" fn mwl_array_append(
 /// § 5's rule, not a representation question.** A key that reads as a
 /// canonical decimal integer is *renumbered* — appended under this array's own
 /// counter — and every other key is preserved, overwriting an entry already
-/// there in place. That is PHP's own spread, expressed in the two writes MWL
+/// there in place. That is PHP's own spread, expressed in the two writes Novis
 /// already has, and [`Table::note_key`] is where the identical predicate
 /// already decides where a later `$a[]` lands. [`SlotKey::Index`] is therefore
 /// not the test: it says the subject is *packed*, which every list is and no
@@ -1526,14 +1526,14 @@ pub unsafe extern "C" fn mwl_array_append(
 ///
 /// Answers [`crate::OK`], or [`crate::THROWN`] with `array` written to `out`
 /// holding whatever it had copied so far — the append it stopped at is an
-/// ordinary [`mwl_array_append`] refusal, and this shares that whole fault
+/// ordinary [`nvs_array_append`] refusal, and this shares that whole fault
 /// channel because it shares the write. See this module's *the append is the
 /// one array write with a fault channel*.
 ///
 /// # Safety
 ///
 /// `ctx` must refer to the live [`Ctx`](crate::Ctx) of the request this call
-/// runs inside, `array` and `subject` to live MWL array allocations, the
+/// runs inside, `array` and `subject` to live Novis array allocations, the
 /// caller owning `array`'s reference and holding `subject` live for the call,
 /// and `out` must point at a writable pointer-wide slot.
 #[expect(
@@ -1542,7 +1542,7 @@ pub unsafe extern "C" fn mwl_array_append(
               cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_spread(
+pub unsafe extern "C" fn nvs_array_spread(
     ctx: *mut crate::Ctx,
     array: *mut ArrayHeader,
     subject: *mut ArrayHeader,
@@ -1554,11 +1554,11 @@ pub unsafe extern "C" fn mwl_array_spread(
                   `subject`, and that `ctx` and `out` are live and writable"
     )]
     unsafe {
-        let mut handle = MwlArray::from_raw(array);
+        let mut handle = NvsArray::from_raw(array);
         // The subject's reference belongs to whoever lowered it — the
         // literal's element list borrows it, exactly as a call argument
         // borrows a receiver — so this handle must not run its own drop.
-        let source = std::mem::ManuallyDrop::new(MwlArray::from_raw(subject));
+        let source = std::mem::ManuallyDrop::new(NvsArray::from_raw(subject));
         // Every read below takes its own scoped borrow of the subject's
         // table, so a write into `handle` never overlaps one. They are two
         // arrays in any case: the destination is the literal under
@@ -1604,20 +1604,20 @@ pub unsafe extern "C" fn mwl_array_spread(
 /// Removes `key` if present — `unset($a[$k])`.
 ///
 /// Consumes one reference to `array` and returns the one reference to the
-/// array without the entry — see [`mwl_array_set`]. `key` is borrowed, not
+/// array without the entry — see [`nvs_array_set`]. `key` is borrowed, not
 /// consumed: nothing is stored, so nothing needs to be owned.
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation whose reference the
-/// caller owns, and `key` to a live MWL string allocation.
+/// `array` must refer to a live Novis array allocation whose reference the
+/// caller owns, and `key` to a live Novis string allocation.
 #[expect(
     unsafe_code,
     reason = "compiled code passes raw pointers whose ownership the signature \
               cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_unset(
+pub unsafe extern "C" fn nvs_array_unset(
     array: *mut ArrayHeader,
     key: *const StrHeader,
 ) -> *mut ArrayHeader {
@@ -1627,8 +1627,8 @@ pub unsafe extern "C" fn mwl_array_unset(
                   `key` is live"
     )]
     unsafe {
-        let mut handle = MwlArray::from_raw(array);
-        let bytes = MwlStr::bytes_of(key).to_vec();
+        let mut handle = NvsArray::from_raw(array);
+        let bytes = NvsStr::bytes_of(key).to_vec();
         handle.unset(&bytes);
         handle.into_raw()
     }
@@ -1639,14 +1639,14 @@ pub unsafe extern "C" fn mwl_array_unset(
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation.
+/// `array` must refer to a live Novis array allocation.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw array pointer whose liveness the \
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_count(array: *const ArrayHeader) -> i64 {
+pub unsafe extern "C" fn nvs_array_count(array: *const ArrayHeader) -> i64 {
     #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
     let live = unsafe { (*array).table.borrow().len() };
     i64::try_from(live).expect("an array cannot hold more than i64::MAX entries")
@@ -1664,14 +1664,14 @@ pub unsafe extern "C" fn mwl_array_count(array: *const ArrayHeader) -> i64 {
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation.
+/// `array` must refer to a live Novis array allocation.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw array pointer whose liveness the \
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_next_slot(array: *const ArrayHeader, from: usize) -> i64 {
+pub unsafe extern "C" fn nvs_array_next_slot(array: *const ArrayHeader, from: usize) -> i64 {
     #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
     let slot = unsafe { (*array).table.borrow().next_slot(from) };
     slot.map_or(-1, |slot| {
@@ -1684,15 +1684,15 @@ pub unsafe extern "C" fn mwl_array_next_slot(array: *const ArrayHeader, from: us
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation, and `slot` must be a
-/// position [`mwl_array_next_slot`] returned and nothing has removed since.
+/// `array` must refer to a live Novis array allocation, and `slot` must be a
+/// position [`nvs_array_next_slot`] returned and nothing has removed since.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw array pointer and a slot the \
               signature cannot bound"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_key_at(
+pub unsafe extern "C" fn nvs_array_key_at(
     array: *const ArrayHeader,
     slot: usize,
 ) -> *mut StrHeader {
@@ -1716,8 +1716,8 @@ pub unsafe extern "C" fn mwl_array_key_at(
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation, `slot` must be a
-/// position [`mwl_array_next_slot`] returned and nothing has removed since,
+/// `array` must refer to a live Novis array allocation, `slot` must be a
+/// position [`nvs_array_next_slot`] returned and nothing has removed since,
 /// and `out` must be a writable, aligned 16-byte slot.
 #[expect(
     unsafe_code,
@@ -1725,7 +1725,7 @@ pub unsafe extern "C" fn mwl_array_key_at(
               cannot bound"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_value_at(
+pub unsafe extern "C" fn nvs_array_value_at(
     array: *const ArrayHeader,
     slot: usize,
     out: *mut Value,
@@ -1750,11 +1750,11 @@ mod tests {
     use super::*;
     use crate::counting_alloc::{allocated_bytes, live_bytes};
 
-    fn key(text: &str) -> MwlStr {
-        MwlStr::new(text.as_bytes())
+    fn key(text: &str) -> NvsStr {
+        NvsStr::new(text.as_bytes())
     }
 
-    fn keys_of(array: &MwlArray) -> Vec<String> {
+    fn keys_of(array: &NvsArray) -> Vec<String> {
         array
             .keys()
             .into_iter()
@@ -1764,11 +1764,11 @@ mod tests {
 
     /// One named mutation, and whether the packed handle is still packed once
     /// it has been applied.
-    type Mutation = (&'static str, fn(&mut MwlArray), bool);
+    type Mutation = (&'static str, fn(&mut NvsArray), bool);
 
     /// A list of `count` values, built the way every list is: by appending.
-    fn list_of(count: i64) -> MwlArray {
-        let mut array = MwlArray::new();
+    fn list_of(count: i64) -> NvsArray {
+        let mut array = NvsArray::new();
         for value in 0..count {
             array.append(Value::int(value * 10));
         }
@@ -1777,7 +1777,7 @@ mod tests {
 
     /// Everything one `foreach` cursor can see, in a form two arrays' can be
     /// compared with — `Value` carries no `PartialEq`, so the ints stand in.
-    fn readout(array: &MwlArray) -> Vec<(String, Option<i64>)> {
+    fn readout(array: &NvsArray) -> Vec<(String, Option<i64>)> {
         let mut seen = Vec::new();
         let mut cursor = 0;
         while let Some(slot) = array.next_slot(cursor) {
@@ -1793,7 +1793,7 @@ mod tests {
 
     /// The same walk through the `extern "C"` trio compiled code actually
     /// calls, rather than through the safe handle they share a table with.
-    fn raw_readout(array: &MwlArray) -> Vec<(String, Option<i64>)> {
+    fn raw_readout(array: &NvsArray) -> Vec<(String, Option<i64>)> {
         let ptr: *const ArrayHeader = array.header();
         let mut seen = Vec::new();
         let mut cursor = 0;
@@ -1802,16 +1802,16 @@ mod tests {
                 unsafe_code,
                 reason = "the handle in `array` keeps the allocation live for \
                           this whole walk, and every slot came from \
-                          `mwl_array_next_slot` itself"
+                          `nvs_array_next_slot` itself"
             )]
             unsafe {
-                let slot = mwl_array_next_slot(ptr, cursor);
+                let slot = nvs_array_next_slot(ptr, cursor);
                 let Ok(slot) = usize::try_from(slot) else {
                     return seen;
                 };
-                let key = MwlStr::from_raw(mwl_array_key_at(ptr, slot));
+                let key = NvsStr::from_raw(nvs_array_key_at(ptr, slot));
                 let mut value = Value::default();
-                mwl_array_value_at(ptr, slot, &raw mut value);
+                nvs_array_value_at(ptr, slot, &raw mut value);
                 seen.push((
                     String::from_utf8(key.as_bytes().to_vec()).expect("test keys are ASCII"),
                     value.as_int(),
@@ -1823,7 +1823,7 @@ mod tests {
 
     /// Asserts that two arrays holding the same content answer every primitive
     /// alike, whatever shape each is in.
-    fn agree(packed: &MwlArray, hashed: &MwlArray, step: &str) {
+    fn agree(packed: &NvsArray, hashed: &NvsArray, step: &str) {
         assert_eq!(packed.count(), hashed.count(), "count, after {step}");
         assert_eq!(keys_of(packed), keys_of(hashed), "keys, after {step}");
         assert_eq!(readout(packed), readout(hashed), "cursor, after {step}");
@@ -1874,7 +1874,7 @@ mod tests {
 
     #[test]
     fn a_fresh_array_is_empty_and_solely_owned() {
-        let array = MwlArray::new();
+        let array = NvsArray::new();
         assert_eq!(array.count(), 0);
         assert!(array.is_empty());
         assert_eq!(array.refcount(), 1);
@@ -1890,7 +1890,7 @@ mod tests {
         const RUN: usize = 32;
 
         let before = live_bytes();
-        let mut list = MwlArray::new();
+        let mut list = NvsArray::new();
         for value in 0..RUN {
             list.append(Value::int(i64::try_from(value).expect("a small count")));
         }
@@ -1931,7 +1931,7 @@ mod tests {
     #[test]
     fn an_integer_subscript_allocates_no_key() {
         // The ABI claim, measured rather than asserted about. A `live_bytes`
-        // delta cannot see this one: `mwl_array_set` builds an `MwlStr` key,
+        // delta cannot see this one: `nvs_array_set` builds an `NvsStr` key,
         // hands it to the packed arm, which has no use for it, and drops it
         // again before the call returns — so the *live* delta of the key-taking
         // path is zero too. Bytes ever allocated is the only reading that tells
@@ -2015,7 +2015,7 @@ mod tests {
         const RUN: i64 = 16;
 
         let list = list_of(RUN);
-        let walk = |out: &mut MwlArray| {
+        let walk = |out: &mut NvsArray| {
             let mut from = 0;
             while let Some(slot) = list.next_slot(from) {
                 from = slot + 1;
@@ -2031,7 +2031,7 @@ mod tests {
         // being built and not a key; the second writes at positions that
         // already exist, so a rendered decimal is the only thing left that
         // could allocate.
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         walk(&mut out);
         let before = allocated_bytes();
         walk(&mut out);
@@ -2177,8 +2177,8 @@ mod tests {
             let mut packed = list_of(4);
             let mut hashed = list_of(4);
             hashed.degrade();
-            packed.set(key("k"), Value::str(MwlStr::new(b"a stored string")));
-            hashed.set(key("k"), Value::str(MwlStr::new(b"a stored string")));
+            packed.set(key("k"), Value::str(NvsStr::new(b"a stored string")));
+            hashed.set(key("k"), Value::str(NvsStr::new(b"a stored string")));
             let alias = packed.clone();
             packed.append(Value::int(1));
             drop(alias);
@@ -2244,7 +2244,7 @@ mod tests {
 
     #[test]
     fn iteration_order_is_insertion_order() {
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         array.set(key("alpha"), Value::int(1));
         array.set(key("beta"), Value::int(2));
         array.set(key("gamma"), Value::int(3));
@@ -2253,7 +2253,7 @@ mod tests {
 
     #[test]
     fn overwriting_keeps_a_keys_position() {
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         array.set(key("alpha"), Value::int(1));
         array.set(key("beta"), Value::int(2));
         array.set(key("alpha"), Value::int(9));
@@ -2264,8 +2264,8 @@ mod tests {
 
     #[test]
     fn removing_and_reinserting_moves_a_key_to_the_end() {
-        // `examples/arrays.mwl`'s frozen output depends on exactly this.
-        let mut array = MwlArray::new();
+        // `examples/arrays.nvs`'s frozen output depends on exactly this.
+        let mut array = NvsArray::new();
         for (name, number) in [("alpha", 1), ("beta", 2), ("gamma", 3)] {
             array.set(key(name), Value::int(number));
         }
@@ -2277,7 +2277,7 @@ mod tests {
 
     #[test]
     fn appending_follows_the_highest_integer_key_used() {
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         array.append(Value::int(10));
         array.append(Value::int(11));
         assert_eq!(keys_of(&array), ["0", "1"]);
@@ -2293,8 +2293,8 @@ mod tests {
     #[test]
     fn an_append_onto_the_saturated_counter_is_refused_and_changes_nothing() {
         // Every assertion below is `php -r` output from the 8.5.9 oracle, and
-        // `tests/conformance/array/` pins the same bound from MWL source.
-        let mut array = MwlArray::new();
+        // `tests/conformance/array/` pins the same bound from Novis source.
+        let mut array = NvsArray::new();
         array.set(key("9223372036854775806"), Value::int(1));
         // The last accepted side: the counter still has one key left to give.
         assert!(array.try_append(Value::int(2)).is_ok());
@@ -2332,21 +2332,21 @@ mod tests {
     #[test]
     fn a_negative_integer_key_advances_the_counter() {
         // Every assertion below is `php -r` output from the 8.5.9 oracle.
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         array.set(key("-5"), Value::int(1));
         array.append(Value::int(2));
         assert_eq!(keys_of(&array), ["-5", "-4"]);
 
         // A negative key may only *raise* the counter once something has set
         // it, so it is ignored here.
-        let mut after_positive = MwlArray::new();
+        let mut after_positive = NvsArray::new();
         after_positive.set(key("3"), Value::int(1));
         after_positive.set(key("-5"), Value::int(1));
         after_positive.append(Value::int(2));
         assert_eq!(keys_of(&after_positive), ["3", "-5", "4"]);
 
         // An append is itself what sets the counter on an empty array.
-        let mut appended_first = MwlArray::new();
+        let mut appended_first = NvsArray::new();
         appended_first.append(Value::int(1));
         appended_first.set(key("-9"), Value::int(1));
         appended_first.append(Value::int(2));
@@ -2365,7 +2365,7 @@ mod tests {
         assert_eq!(integer_key(b" 1"), None);
         assert_eq!(integer_key(b"9223372036854775808"), None);
 
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         array.set(key("08"), Value::int(1));
         array.append(Value::int(2));
         assert_eq!(keys_of(&array), ["08", "0"]);
@@ -2373,7 +2373,7 @@ mod tests {
 
     #[test]
     fn a_write_through_a_second_handle_separates() {
-        let mut original = MwlArray::new();
+        let mut original = NvsArray::new();
         original.set(key("alpha"), Value::int(1));
         let mut copy = original.clone();
         assert_eq!(original.refcount(), 2);
@@ -2388,7 +2388,7 @@ mod tests {
 
     #[test]
     fn a_solely_owned_write_never_separates() {
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         let before = array.header() as *const ArrayHeader;
         for index in 0..64 {
             array.set(key(&index.to_string()), Value::int(index));
@@ -2399,8 +2399,8 @@ mod tests {
 
     #[test]
     fn separation_shares_a_nested_arrays_storage_until_it_is_written() {
-        let inner = MwlArray::new();
-        let mut outer = MwlArray::new();
+        let inner = NvsArray::new();
+        let mut outer = NvsArray::new();
         outer.set(key("cells"), Value::array(inner.clone()));
         assert_eq!(inner.refcount(), 2);
 
@@ -2413,8 +2413,8 @@ mod tests {
 
     #[test]
     fn separation_retains_every_stored_string() {
-        let text = MwlStr::new(b"shared");
-        let mut original = MwlArray::new();
+        let text = NvsStr::new(b"shared");
+        let mut original = NvsArray::new();
         original.set(key("k"), Value::str(text.clone()));
         assert_eq!(text.refcount(), 2);
 
@@ -2430,7 +2430,7 @@ mod tests {
 
     #[test]
     fn compaction_preserves_order_and_the_append_counter() {
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         for index in 0..32 {
             array.append(Value::int(index));
         }
@@ -2445,7 +2445,7 @@ mod tests {
 
     #[test]
     fn a_cursor_walks_every_live_entry_in_order() {
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         for name in ["a", "b", "c", "d"] {
             array.set(key(name), Value::int(1));
         }
@@ -2468,11 +2468,11 @@ mod tests {
         // memory came back. `crate::object` guards objects the same way.
         let before = live_bytes();
         {
-            let mut outer = MwlArray::new();
+            let mut outer = NvsArray::new();
             for index in 0..16 {
-                let mut inner = MwlArray::new();
-                inner.set(key("name"), Value::str(MwlStr::new(b"a stored string")));
-                inner.append(Value::str(MwlStr::new(b"another")));
+                let mut inner = NvsArray::new();
+                inner.set(key("name"), Value::str(NvsStr::new(b"a stored string")));
+                inner.append(Value::str(NvsStr::new(b"another")));
                 outer.set(key(&index.to_string()), Value::array(inner));
             }
             let alias = outer.clone();
@@ -2488,9 +2488,9 @@ mod tests {
         // "freeing is iterative" decision.
         let before = live_bytes();
         {
-            let mut nest = MwlArray::new();
+            let mut nest = NvsArray::new();
             for _ in 0..200_000 {
-                let mut outer = MwlArray::new();
+                let mut outer = NvsArray::new();
                 outer.set(key("inner"), Value::array(nest));
                 nest = outer;
             }

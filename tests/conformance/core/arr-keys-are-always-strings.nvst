@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::keys yields every key as a string, in insertion order
 --FILE--
-<?mwl
+<?nvs
 array<string> $a = ["x" => "one", "10" => "two", "y" => "three"];
 array<string> $keys = Core\Arr::keys($a);
 echo Core\Str::join($keys, ","), "\n";

@@ -1,7 +1,7 @@
 --TEST--
 A literal that names one key twice keeps the last value at the *first* key's position, the same rule a later write to an existing key follows
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

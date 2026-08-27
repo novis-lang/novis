@@ -1,7 +1,7 @@
 --TEST--
 `Core\Regex::split`'s `limit` is asserted at both ends of its range — the exact piece count, one past it, and a negative that drops every piece — and `keepEmpty` is applied after the limit, never before it — docs/spec/01-core-library.md § 4
 --FILE--
-<?mwl
+<?nvs
 // "a1b2c3d" splits on a digit into exactly four pieces, so four is the bound
 // this member's `limit` is asserted against from both sides.
 echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d"), "|"), "\n";
@@ -22,7 +22,7 @@ echo Core\Arr::count(Core\Regex::split("a1b2c3d", "\\d", {limit: -9})), "\n";
 // pieces the split produced rather than the ones that survived: three pieces
 // of `,a,,b,` are "", "a" and the remainder, and dropping the empty one
 // leaves two rather than pulling a fourth piece in to replace it
-// (`crates/mwl-stdlib/src/regex.rs`).
+// (`crates/nvs-stdlib/src/regex.rs`).
 echo Core\Str::join(Core\Regex::split(",a,,b,", ",", {limit: 3}), "|"), "!\n";
 echo Core\Str::join(Core\Regex::split(",a,,b,", ",", {limit: 3, keepEmpty: false}), "|"), "!\n";
 

@@ -1,7 +1,7 @@
 --TEST--
 `bytes` in a condition is falsy only when empty, dropping the one-octet `"0"` a `string` reads as a number — ADR 0035 § 2's own row, asserted through both a declared `bytes` and a `mixed` holding one
 --FILE--
-<?mwl
+<?nvs
 // ADR 0035 § 2's `bytes` row is the one PHP does not hand over, because PHP
 // has no such type. Its `string` neighbour is falsy for the one-character
 // `"0"` because PHP reads a string as a possible number, and ADR 0009 makes

@@ -1,7 +1,7 @@
 --TEST--
 a double-quoted string interpolates a variable; a single-quoted one does not
 --FILE--
-<?mwl
+<?nvs
 string $who = "world";
 int $n = 3;
 echo "hello $who\n";

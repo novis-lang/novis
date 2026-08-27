@@ -1,7 +1,7 @@
 --TEST--
 Core\Math's sin, cos and tan are one circle: the Pythagorean identity and the quotient hold on every row, spec § 3
 --FILE--
-<?mwl
+<?nvs
 // The *agreement* shape (conventions.md), asserted by *counting*: the question
 // is not what any one member answered on any one row, but whether the three
 // still describe the same circle across a whole table. A member that grew its

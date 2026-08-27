@@ -1,7 +1,7 @@
 --TEST--
 An `fn` written in a method that names `$this` stays bound to the instance it was made on — ADR 0008
 --FILE--
-<?mwl
+<?nvs
 class Threshold {
     public int $least;
 

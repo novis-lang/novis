@@ -3,7 +3,7 @@
 function run(size: number, rounds: number): number {
     const source: number[] = [];
     // The LCG runs in BigInt: `seed * 1103515245` reaches ~2.4e18, past the 2^53 a float64 holds
-    // exactly, and PHP and MWL compute it in 64-bit integers. One of the two arithmetic exceptions
+    // exactly, and PHP and Novis compute it in 64-bit integers. One of the two arithmetic exceptions
     // the README names; everything below it is ordinary `number`.
     let seed = 12345n;
     for (let i = 0; i < size; i++) {

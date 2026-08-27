@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 class Grade {
     public static function letter(int $score): string {
         return match (true) {

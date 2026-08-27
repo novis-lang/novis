@@ -1,4 +1,4 @@
-# ADR 0005 — `mwl.toml` states defaults, not ceilings
+# ADR 0005 — `nvs.toml` states defaults, not ceilings
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
@@ -7,8 +7,8 @@
   directive, not the default one
 - **Amended by:** 0058, 0064, 0072, 0073, 0074, 0076, 0078, 0091, 0097, 0104
 
-> **In short:** `mwl.toml` states defaults, not ceilings. Every directive carries a changeability
-> class: `System` (settable in `mwl.toml` only), `Runtime` (`mwl.toml` gives the default and a request
+> **In short:** `nvs.toml` states defaults, not ceilings. Every directive carries a changeability
+> class: `System` (settable in `nvs.toml` only), `Runtime` (`nvs.toml` gives the default and a request
 > may set any value for itself, wider or narrower, up to the `[limits.hard]` ceiling), or
 > `RuntimeTighten` (narrowing only — capabilities, plus the directives where PHP behaves that
 > way too). A set refused by a ceiling or by a class returns `false` and leaves the value unchanged;
@@ -34,13 +34,13 @@
 
 ## Decision
 
-**`mwl.toml` defines defaults. A directive is a limit that cannot be exceeded only when it cannot be changed
+**`nvs.toml` defines defaults. A directive is a limit that cannot be exceeded only when it cannot be changed
 at runtime at all.** Where a value *can* change at runtime, the request sets whatever it wants — wider or
-narrower — and the `mwl.toml` value is the starting point it inherits.
+narrower — and the `nvs.toml` value is the starting point it inherits.
 
 Three changeability classes, recorded per directive in the registry:
 
-| Class | `mwl.toml` | `Core\Config::set` |
+| Class | `nvs.toml` | `Core\Config::set` |
 |---|---|---|
 | `System` | the only place it can be set | fails, returns `false`, `E0602` |
 | `Runtime` | the **default** a request starts with | any value, wider or narrower |
@@ -53,7 +53,7 @@ rights it does not" is the whole point of the mechanism.
 
 Every runtime change is **request-local**: `Core\Config::set` writes into the request's copy-on-write config
 overlay, which is discarded when the request ends. `Core\Config::get` reads the effective value,
-`Core\Config::restore` returns a directive to its `mwl.toml` value
+`Core\Config::restore` returns a directive to its `nvs.toml` value
 ([0064 § 5](0064-configuration-file-format.md) holds the signatures, and why the API is string-in/string-out
 even though the file is typed). A widened limit is therefore never observable to another
 request, and cannot outlive the one that set it — which is what makes widening a question about *this*
@@ -151,7 +151,7 @@ Alternatives rejected:
 - **Tighten-only everywhere** — the previous decision. Breaks the single most common `ini_set` in the
   corpus, at runtime, in the direction of failure.
 - **No ceilings at all** — literal PHP. PHP survives it because the isolation boundary is an OS process per
-  request; MWL's is an arena inside a process serving hundreds of requests, so one script choosing `-1`
+  request; Novis's is an arena inside a process serving hundreds of requests, so one script choosing `-1`
   would be every co-resident request's outage. The ceiling is what makes the freedom affordable.
 - **Clamping to the ceiling instead of refusing** — a silent divergence from the requested value, and from
   PHP.
@@ -161,7 +161,7 @@ Alternatives rejected:
 ## Revisiting
 
 The registry is the artifact to argue with: if a directive's class is wrong, that is a one-line change with
-a stated reason, not a redesign. Reopen the *decision* if MWL takes on genuinely multi-tenant hosting where
+a stated reason, not a redesign. Reopen the *decision* if Novis takes on genuinely multi-tenant hosting where
 mutually hostile applications share a process — there the per-app ceiling override becomes the primary
 control rather than a refinement, and it needs to be mandatory rather than optional.
 

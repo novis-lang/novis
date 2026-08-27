@@ -1,7 +1,7 @@
 --TEST--
 `$x++` and `++$x` are the same statement, over every numeric type and every writable target — ADR 0007 §§ 2, 4
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 4: an increment is `± 1` over the target's own numeric type. The
 // operator's position decides which value a surrounding *expression* sees, so
 // as a statement the two spellings have nothing to disagree about — every pair

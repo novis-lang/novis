@@ -31,7 +31,7 @@ impl<'a> Lowering<'a> {
     /// Parks `v` in `name`'s field — the spill half. The field takes its own
     /// reference and releases whatever it held before, which at the first
     /// suspension is the `null` [`InstKind::New`] left there; every
-    /// `mwl_runtime` release primitive answers a null payload with a no-op,
+    /// `nvs_runtime` release primitive answers a null payload with a no-op,
     /// which is what makes the first spill need no special case.
     pub(super) fn spill_field(&mut self, b: BlockId, name: &str, v: ValueId, ty: Ty) {
         self.generator
@@ -94,7 +94,7 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics outside a generator body (`mwl_types` reports E0445).
+    /// Panics outside a generator body (`nvs_types` reports E0445).
     ///
     /// The assert on a [`Ty::Ref`] binding live at the suspension is an
     /// internal-consistency check, not a gap: the only thing that ever binds
@@ -106,7 +106,7 @@ impl<'a> Lowering<'a> {
             .as_ref()
             .unwrap_or_else(|| {
                 panic!(
-                    "mwl-ir: a `yield` reached lowering outside a generator body — mwl_types \
+                    "nvs-ir: a `yield` reached lowering outside a generator body — nvs_types \
                      reports E0445 for one, so this program should not have got here"
                 )
             })
@@ -116,8 +116,8 @@ impl<'a> Lowering<'a> {
         let (v, vty) = self.lower_expr(value, Some(elem), env, cur);
         assert!(
             vty == elem,
-            "mwl-ir: a `yield` operand lowered to {vty:?} where the declared `Iterator<T>` \
-             gives {elem:?} — mwl_types checks the operand against `T`, so this is a lowering \
+            "nvs-ir: a `yield` operand lowered to {vty:?} where the declared `Iterator<T>` \
+             gives {elem:?} — nvs_types checks the operand against `T`, so this is a lowering \
              bug"
         );
         if vty.is_refcounted() && self.aliasing_read(value) {
@@ -156,10 +156,10 @@ impl<'a> Lowering<'a> {
             let &(lv, lty) = &env[&name];
             assert!(
                 lty != Ty::Ref,
-                "mwl-ir: the `inout $x` binding `{name}` is live across a `yield` — the cell it \
+                "nvs-ir: the `inout $x` binding `{name}` is live across a `yield` — the cell it \
                  addresses is the caller's, and the caller is gone by the time the generator \
                  resumes. Only `lower_method`'s parameter loop ever binds a `Ty::Ref`, and \
-                 `mwl_types::check` refuses a generator that declares one as `E0492`, so no \
+                 `nvs_types::check` refuses a generator that declares one as `E0492`, so no \
                  program reaches this"
             );
             self.spill_field(*cur, &name, lv, lty);
@@ -265,7 +265,7 @@ impl<'a> Lowering<'a> {
 /// The state field's name in a generator's synthesized state class — which
 /// resumption point [`GEN_ADVANCE`]'s entry switch enters.
 ///
-/// A `#` can never appear in an MWL identifier (ADR 0029/0030 fix the whole
+/// A `#` can never appear in an Novis identifier (ADR 0029/0030 fix the whole
 /// character set), so neither this nor [`GEN_CURRENT`] can collide with a
 /// local the body spilled under its own name — the same guarantee
 /// [`Lowering::lower_foreach`]'s `foreach#N` bookkeeping names rest on.
@@ -305,13 +305,13 @@ pub(super) const GEN_CURRENT_METHOD: &str = "current";
 /// declares only `advance` and `current`.
 ///
 /// Spelled with the `#` every parked field carries, and for a stronger reason
-/// than theirs: `mwl_runtime::object::dismantle` probes **every** dying
+/// than theirs: `nvs_runtime::object::dismantle` probes **every** dying
 /// object's class for this name, so a name a source program could declare
 /// would turn a user method into the destructor
 /// [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
-/// § 2 says MWL does not have. `#` is not in an identifier, so no class but
-/// one this transform synthesized can answer. `mwl_runtime` restates the
-/// string as `mwl_runtime::object::GENERATOR_UNWIND_METHOD`, for the reason
+/// § 2 says Novis does not have. `#` is not in an identifier, so no class but
+/// one this transform synthesized can answer. `nvs_runtime` restates the
+/// string as `nvs_runtime::object::GENERATOR_UNWIND_METHOD`, for the reason
 /// [`THROWABLE_ROOT`] is restated here.
 pub(super) const GEN_UNWIND_METHOD: &str = "gen#unwind";
 
@@ -349,7 +349,7 @@ impl GenFrame {
         match self.fields.iter().find(|(n, _)| n == name) {
             Some((_, known)) => assert!(
                 *known == ty,
-                "mwl-ir: the generator local `{name}` was spilled at {ty:?} and at {known:?} — \
+                "nvs-ir: the generator local `{name}` was spilled at {ty:?} and at {known:?} — \
                  a local's representation is fixed at its binding, so this is a lowering bug"
             ),
             None => self.fields.push((name.to_owned(), ty)),
@@ -372,7 +372,7 @@ impl GenFrame {
 /// * `{name}$gen::current` returns the last yielded element.
 /// * `{name}$gen::unwind` is the resume-to-unwind entry point — see below.
 /// * `{name}$gen` is the state class those two are methods of. `$` cannot
-///   appear in an MWL identifier, so the label can never collide with a
+///   appear in an Novis identifier, so the label can never collide with a
 ///   user class.
 ///
 /// # How the body survives being cut in half
@@ -404,7 +404,7 @@ impl GenFrame {
 /// A generator suspended inside `try { … } finally { … }` and then dropped
 /// still owes that `finally` body. PHP resumes such a generator in a
 /// return-like mode and prints it, and priority 2 (PHP-compatible observable
-/// behaviour) outranks priority 4 (simplicity), so MWL does the same.
+/// behaviour) outranks priority 4 (simplicity), so Novis does the same.
 ///
 /// The mechanism is one field and one entry point, both of them ordinary:
 ///
@@ -412,7 +412,7 @@ impl GenFrame {
 ///   it.
 /// * [`lower_generator_unwind`] builds `{name}$gen::gen#unwind`, which the
 ///   release path calls as it dismantles the state object
-///   (`mwl_runtime::object::dismantle` § *An abandoned generator runs its
+///   (`nvs_runtime::object::dismantle` § *An abandoned generator runs its
 ///   `finally`* owns that end, including the resurrection it needs). It sets
 ///   that flag and calls `advance()` — but only when the parked state says the
 ///   generator is actually *suspended*. A state of `0` means the body has
@@ -444,7 +444,7 @@ impl GenFrame {
 /// While the generator is suspended, its fields own every reference; while
 /// `advance()` is running, the locals own a second one each. A generator
 /// dropped mid-sequence is dismantled like any other object, so
-/// `mwl_runtime::object::dismantle` releases exactly what the last spill
+/// `nvs_runtime::object::dismantle` releases exactly what the last spill
 /// stored — there is no state in which a slot holds a reference nobody
 /// releases, and none in which two things release the same one.
 ///
@@ -456,7 +456,7 @@ impl GenFrame {
 /// The assert on an `inout $x` parameter is an internal-consistency check rather
 /// than a gap: a by-reference binding is the address of a caller-staged cell
 /// (see [`Ty::Ref`]), which stops existing the moment the factory returns, so
-/// `mwl_types::check::check_generator_inout_params` refuses the shape where
+/// `nvs_types::check::check_generator_inout_params` refuses the shape where
 /// it is written, as `E0492`, and nothing that reaches here declares one.
 pub(super) fn lower_generator(
     name: &str,
@@ -503,7 +503,7 @@ pub(super) fn lower_generator(
     let mut functions = vec![factory, advance.function, current];
     // A generator no suspension of which sits inside a `finally`-owning region
     // owes nothing when it is abandoned, so it carries no entry point at all
-    // and `mwl_runtime::object::dismantle` finds a null field rather than a
+    // and `nvs_runtime::object::dismantle` finds a null field rather than a
     // method to call — which is what keeps such a generator lowering exactly as
     // it did before this existed.
     if !owed.is_empty() {
@@ -525,13 +525,13 @@ pub(super) fn lower_generator(
         // A generator's frame is never a `SlotSet` receiver — see `ir::Class`.
         field_reprs: Vec::new(),
         // `Iterable`/`Iterator` are compiler-declared and have no layout
-        // entry of their own, so `mwl_codegen::Classes::define` drops an
+        // entry of their own, so `nvs_codegen::Classes::define` drops an
         // unresolvable label here the same way it does for any other —
         // which costs nothing today, since a `foreach` over a cursor
         // dispatches through the method table rather than through an
         // `instanceof`. Stated rather than left implicit: an
         // `$gen instanceof Iterator` would answer `false`.
-        conforms: vec![mwl_hir_iterator_label()],
+        conforms: vec![nvs_hir_iterator_label()],
         methods: {
             let mut methods = vec![
                 (GEN_ADVANCE.to_owned(), class.clone()),
@@ -552,9 +552,9 @@ pub(super) fn lower_generator(
 }
 
 /// `Iterator`'s bare label, restated here for the reason
-/// [`THROWABLE_ROOT`] is: this crate depends on neither `mwl-hir` nor
-/// `mwl-types`' name resolution.
-pub(super) fn mwl_hir_iterator_label() -> String {
+/// [`THROWABLE_ROOT`] is: this crate depends on neither `nvs-hir` nor
+/// `nvs-types`' name resolution.
+pub(super) fn nvs_hir_iterator_label() -> String {
     "Iterator".to_owned()
 }
 
@@ -572,16 +572,16 @@ pub(super) fn generator_element(
         .and_then(|t| exprs.declared_ty(t.span))
         .unwrap_or_else(|| {
             panic!(
-                "mwl-ir: the generator `{name}` has no resolved return type recorded — \
-                 mwl_types reports E0446 for one that is not an `Iterator<T>`, so lowering \
+                "nvs-ir: the generator `{name}` has no resolved return type recorded — \
+                 nvs_types reports E0446 for one that is not an `Iterator<T>`, so lowering \
                  should never have been reached"
             )
         });
     match checked_types.get(declared) {
         CheckedTy::Class(_, args) if !args.is_empty() => lower_checked_ty(args[0], checked_types),
         other => panic!(
-            "mwl-ir: the generator `{name}` declares {other:?} rather than an `Iterator<T>` — \
-             mwl_types reports E0446 for that"
+            "nvs-ir: the generator `{name}` declares {other:?} rather than an `Iterator<T>` — \
+             nvs_types reports E0446 for that"
         ),
     }
 }
@@ -644,7 +644,7 @@ pub(super) fn lower_generator_factory(
             !p.inout,
             "a generator with an `inout $x` parameter reached lowering: the slot it binds is a \
              caller-staged cell that stops existing when the factory returns, so there is \
-             nothing sound to park in the state object — `mwl_types::check` refuses this \
+             nothing sound to park in the state object — `nvs_types::check` refuses this \
              where it is written, as `E0492`"
         );
         let decl_ty =

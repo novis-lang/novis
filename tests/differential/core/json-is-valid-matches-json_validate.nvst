@@ -1,14 +1,14 @@
 --TEST--
 Core\Json::isValid answers what json_validate answers, over every edge of JSON's grammar and on both sides of the 512-level depth bound
 --FILE--
-<?mwl
+<?nvs
 // Spec § 6's `isValid` row names `json_validate` as the twin, and this host's
 // `php` is 8.5.9, so it is present. The other leg's version is not known here,
 // so the oracle guards on `function_exists` and falls back to
 // `json_decode` + `json_last_error()`, which is what `json_validate` was added
 // to replace and answers the same question at the same default depth.
 //
-// `isValid` is `mwl_core_json_is_valid` (`json.rs:989`) and answers by *doing*
+// `isValid` is `nvs_core_json_is_valid` (`json.rs:989`) and answers by *doing*
 // the decode and throwing the value away, so what it accepts is exactly what
 // `Core\Json::decode` accepts. That makes this case a grammar test: every row
 // is a boundary where a reader could plausibly be one character more or less
@@ -136,7 +136,7 @@ echo "alternating  ", Show::yn(Core\Str::join([Core\Str::repeat("[{\"a\":", 255)
 <?php
 // `json_validate` is PHP 8.3+. Where it is absent, the same question is
 // `json_decode` at the same default depth, asked through `json_last_error`.
-function mwl_is_valid(string $json): bool {
+function nvs_is_valid(string $json): bool {
     if (function_exists('json_validate')) {
         return json_validate($json);
     }
@@ -147,7 +147,7 @@ function mwl_is_valid(string $json): bool {
 function sweep(array $rows): string {
     $out = "";
     foreach ($rows as $row) {
-        $out = $out . (mwl_is_valid($row) ? "1" : "0");
+        $out = $out . (nvs_is_valid($row) ? "1" : "0");
     }
     return $out;
 }
@@ -155,7 +155,7 @@ function sweep(array $rows): string {
 function accepted(array $rows): int {
     $n = 0;
     foreach ($rows as $row) {
-        if (mwl_is_valid($row)) {
+        if (nvs_is_valid($row)) {
             $n = $n + 1;
         }
     }
@@ -167,7 +167,7 @@ function nest(string $open, string $inner, string $close, int $levels): string {
 }
 
 function yn(string $json): string {
-    return mwl_is_valid($json) ? "1" : "0";
+    return nvs_is_valid($json) ? "1" : "0";
 }
 
 $scalars = ["1", "-2.5", "\"x\"", "true", "false", "null"];

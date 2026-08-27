@@ -7,9 +7,9 @@ figure and the instruction count is the headline. **This file owns the one thing
 does: why a given number is what it is, and which piece of work moves it.**
 
 > **In short:** the compiler is not the problem. A static call is 2.7 ns, a `foreach` step 3.4 ns
-> and an object property beats PHP by 3.4× — all faster than the engine MWL is measured against.
-> Every case that loses, loses on the **heap**: MWL allocates far more often than PHP. Items A, B
-> and C have landed since that was first written — MWL owns its allocator, a string has capacity
+> and an object property beats PHP by 3.4× — all faster than the engine Novis is measured against.
+> Every case that loses, loses on the **heap**: Novis allocates far more often than PHP. Items A, B
+> and C have landed since that was first written — Novis owns its allocator, a string has capacity
 > and n-ary concatenation, and neither an integer subscript nor a string literal allocates at all —
 > and the median went 0.31× to 0.66× for it. What is left is still allocation *count*, not the
 > compiler, and none of the work below is a JIT optimisation.
@@ -26,7 +26,7 @@ file.
 ## Where the suite stands
 
 Measured 2026-08-26 on the Windows development machine, release against PHP 8.5.9 with opcache and
-the tracing JIT, 9 reps, `work` figures (`00-baseline` subtracted). `php/mwl` above 1.00 means MWL
+the tracing JIT, 9 reps, `work` figures (`00-baseline` subtracted). `php/nvs` above 1.00 means Novis
 is faster. Every row is one full sweep of the *current* build, not a mix of readings.
 
 | | today | before item A | closed by |
@@ -59,8 +59,8 @@ work figure holds at 3.0 ms. § B is where its history is, and it is the one row
 figure rather than as a ratio.
 
 ‡ `11-array-sort-by-field` is the other row to read loosely, for the opposite reason: 1.2 s of its
-1.5 s is PHP's, so its ratio moves with PHP's variance rather than with MWL's. Two full sweeps on
-the same build an hour apart read 5.21× and 4.61×; MWL's own work figure moved 234 ms to 263 ms
+1.5 s is PHP's, so its ratio moves with PHP's variance rather than with Novis's. Two full sweeps on
+the same build an hour apart read 5.21× and 4.61×; Novis's own work figure moved 234 ms to 263 ms
 across them. Read § D's paragraph for what actually changed there.
 
 ◇ `05-string-replace` and `06-string-split-join` are the two rows this sweep read low. Both were
@@ -70,24 +70,24 @@ change at all* yet its work figure read 87.3 ms on the base build and 93.3 ms he
 that relinks the whole runtime moves code layout, and these two rows carry about ±6% of it. The
 median above is the honest statistic; a single row's third digit is not.
 
-**The suite measures four engines as of 2026-08-26** — MWL, PHP 8.5.9, CPython 3.11.2 and Bun 1.4.0 —
-because MWL's CLI claim is made against Python and this project does not publish an unmeasured one, and
-because a suite that measured only engines MWL beats would stop being evidence
-([ADR 0100](../adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5). On the same
+**The suite measures four engines as of 2026-08-26** — Novis, PHP 8.5.9, CPython 3.11.2 and Bun 1.4.0 —
+because Novis's CLI claim is made against Python and this project does not publish an unmeasured one, and
+because a suite that measured only engines Novis beats would stop being evidence
+([ADR 0100](../adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 5). On the same
 9-rep sweep as the table above, medians of the `work` ratio: **PHP 0.80×, Python 2.13×, Bun 0.57×.**
-Cold start — `00-baseline`'s *total*, which every `work` figure subtracts away — is **MWL 7.8 ms, Bun
+Cold start — `00-baseline`'s *total*, which every `work` figure subtracts away — is **Novis 7.8 ms, Bun
 13.4 ms, Python 19.5 ms, PHP 39.2 ms.**
 
-**Bun is the engine to beat and MWL does not currently beat it.** It wins seventeen of the twenty cases,
+**Bun is the engine to beat and Novis does not currently beat it.** It wins seventeen of the twenty cases,
 and four of them by more than 3×: `12-array-map-filter` **0.08×**, `18-json-decode` 0.22×,
-`20-method-dispatch` 0.24×, `15-regex-match` 0.29×. MWL wins `05-string-replace` (1.53×) and draws
+`20-method-dispatch` 0.24×, `15-regex-match` 0.29×. Novis wins `05-string-replace` (1.53×) and draws
 `01-arith-loop`, `03-string-concat` and `07-string-normalize`. Read that as the standing verdict on this
-suite: a mature JIT behind a scripting surface is ahead of MWL on ordinary userland work today, and the
-one figure MWL still owns outright is **cold start**, which it wins against every engine here — Bun
+suite: a mature JIT behind a scripting surface is ahead of Novis on ordinary userland work today, and the
+one figure Novis still owns outright is **cold start**, which it wins against every engine here — Bun
 included, and while Bun is also transpiling TypeScript on the way in.
 
 Against Python the split is not uniform and is not noise, and **neither half may be quoted without the
-other**: MWL loses `12-array-map-filter` (0.45×), `10-array-sort` (0.71×), `13-array-contains` (0.81×)
+other**: Novis loses `12-array-map-filter` (0.45×), `10-array-sort` (0.71×), `13-array-contains` (0.81×)
 and `11-array-sort-by-field` (0.85×) — every one a case whose Python loop is really a call into C — and
 wins the genuinely interpreted loops by one to two orders of magnitude (`01-arith-loop` 44×,
 `19-object-property` 17×).
@@ -107,19 +107,19 @@ then removed — is gone now that today's column measures the real thing: that p
 0.54× median, and what landed measures 0.66×, the difference being B and C landing with it.
 
 **Two cases already win by a wide margin and it is worth knowing why, because neither is a runtime
-win.** `19-object-property` wins because a property is a fixed offset into an `MwlObj` where PHP's
+win.** `19-object-property` wins because a property is a fixed offset into an `NvsObj` where PHP's
 is a hash lookup. `11-array-sort-by-field` wins because `Core\Arr::sort`'s `by:` option makes the
 sort a Schwartzian transform — 50 000 callback calls, where PHP's `usort` makes one per
 *comparison*, about 780 000. That is [ADR 0063](../adr/0063-core-api-conventions.md)'s API shape
 paying off, not the engine. The same reading from the other side is the whole of this file: where
-the two languages perform the same operations, MWL's cost per operation is higher.
+the two languages perform the same operations, Novis's cost per operation is higher.
 
 ## What one operation costs
 
-MWL figures only. Each is `(case − control) / iterations` over a 2 M-iteration loop, so the loop
+Novis figures only. Each is `(case − control) / iterations` over a 2 M-iteration loop, so the loop
 and the process start are already subtracted.
 
-| operation | MWL | after A |
+| operation | Novis | after A |
 |---|---|---|
 | loop iteration (two adds and a compare) | 1.5 ns | — |
 | static method call | **2.7 ns** | — |
@@ -147,7 +147,7 @@ column being added for one of them.
 **Item 19 has landed, and the `$a[$i]` row is measured rather than projected now.** The A/B is
 inside one release binary — the same 20 M subscripts over the same packed array, indexed once by an
 `int`, which no longer renders, and once by a `uint`, which still does for the reason
-`mwl_ir::lower::Lowering::lower_array_key` states — and the loop is otherwise identical, since
+`nvs_ir::lower::Lowering::lower_array_key` states — and the loop is otherwise identical, since
 `$i as uint` is a free reinterpret. The two measure **6.3 ns and 28.5 ns** per subscript, each
 including the loop's own add and compare. So the rendered path lands exactly on the 27.7 ns above,
 and not rendering takes **22.2 ns off every integer subscript**. The suite rows did not move for it:
@@ -180,16 +180,16 @@ allocator over pre-mapped chunks and charges a small fraction of that.
 Ordered by measured payoff per unit of effort. Each names the file that will own its decision once
 it lands, and the guard that will hold it.
 
-### A — MWL owns its allocator
+### A — Novis owns its allocator
 
-Every allocation goes to the platform heap: `crates/mwl-runtime/src/lib.rs` registers a
+Every allocation goes to the platform heap: `crates/nvs-runtime/src/lib.rs` registers a
 `#[global_allocator]` only under `cfg(test)`. [docs/plan/design.md](../plan/design.md)
 § *Per-request isolation* already decided that a request gets its own arena released wholesale at
 request end, and [ADR 0004](../adr/0004-memory-for-simplicity.md)'s *Footprint, not traffic*
 already makes an allocation on a hot path a priority-3 question. **This is not a new decision — it
 is that decision, landing early, in two halves.** The half measured above is a thread-local
 size-class cache in front of `System`, which needs no per-request accounting and no `Ctx`. The
-per-request ceiling attaches to it at M6, where `mwl_runtime::affordable`'s own doc comment already
+per-request ceiling attaches to it at M6, where `nvs_runtime::affordable`'s own doc comment already
 says it does.
 
 What it spends, per [ADR 0004](../adr/0004-memory-for-simplicity.md)'s *Say what you spend*: a
@@ -200,12 +200,12 @@ served.
 One thing to get right: `counting_alloc::Counting` must wrap the new allocator rather than
 `System`, or the leak guard measures a path the release build does not take.
 
-*Owner:* `crates/mwl-runtime`'s module doc. *Guard:* an allocation round trip stays in a named cost
+*Owner:* `crates/nvs-runtime`'s module doc. *Guard:* an allocation round trip stays in a named cost
 class, in `benches/abi-probe/tests/perf_guards.rs`.
 
 ### B — a string has capacity, and `.=` appends into it
 
-`StrHeader` carried a refcount and a length and nothing else, and `mwl_str_concat` always builds a
+`StrHeader` carried a refcount and a length and nothing else, and `nvs_str_concat` always builds a
 fresh allocation, so `$out .= $piece` copied the whole accumulated string every iteration.
 Measured then: 50 000 appends took 238 ms and 100 000 took 1 386 ms — 5.8× for twice the work, the
 super-linear shape being the tell. This was the whole of `03-string-concat`, and no allocator fixed
@@ -215,27 +215,27 @@ Three changes, one layout revision, and **all three have landed**: the same two 
 **15.3 ms and 20.6 ms** — 1.65× for twice the work, against 5.8× — and `03-string-concat` is above
 1.00× against PHP where it was 0.03×.
 
-- ~~**Capacity in the header**, and an `mwl_str_append` taking the same *consume one reference,
-  return one* protocol `mwl_array_set` already uses — so an append at refcount 1 is in place.~~
-  **Landed.** `StrHeader`'s third word is a capacity, `mwl_str_append` doubles when it has to and
-  writes in place when it does not, and `mwl_ir::ir::InstKind::StrAppend` carries `.=` on a plain
+- ~~**Capacity in the header**, and an `nvs_str_append` taking the same *consume one reference,
+  return one* protocol `nvs_array_set` already uses — so an append at refcount 1 is in place.~~
+  **Landed.** `StrHeader`'s third word is a capacity, `nvs_str_append` doubles when it has to and
+  writes in place when it does not, and `nvs_ir::ir::InstKind::StrAppend` carries `.=` on a plain
   `string` local to it with no retain and no release. What it spends — 8 bytes per string
   allocation, and up to twice the payload for a string that has been appended to — is stated in
-  `crates/mwl-runtime/src/string.rs`'s module doc § *Capacity, and what it spends*, which is where
+  `crates/nvs-runtime/src/string.rs`'s module doc § *Capacity, and what it spends*, which is where
   that fact lives rather than here.
 - ~~**`.` becomes n-ary.** `InstKind::Concat` is strictly binary, so `"a" . $i . "b" . $i . "c"` is
   four allocations of a growing prefix.~~ **Landed.** That instruction carries a `pieces` vector,
   `Lowering::lower_concat` flattens the `.` spine into it and `lower_interpolated_parts` hands its
-  pieces over whole, and `mwl_str_concat_n` sums the total length once and copies each piece once.
+  pieces over whole, and `nvs_str_concat_n` sums the total length once and copies each piece once.
   Measured back to back on the same machine, this case's own work went from **3.5 ms to 2.8 ms**
   and its ratio from **1.23× to 1.39×** — the work figure being the firmer of the two, since PHP's
   own number moved between the runs. What is left in the row it builds is the three string
   literals, which is the bullet below.
-- ~~**A string literal stops allocating.** `mwl_codegen::emit`'s `emit_const_str` calls
-  `mwl_str_new` on every *evaluation*, so `$a["beta"]` inside a loop allocates `"beta"` two million
+- ~~**A string literal stops allocating.** `nvs_codegen::emit`'s `emit_const_str` calls
+  `nvs_str_new` on every *evaluation*, so `$a["beta"]` inside a loop allocates `"beta"` two million
   times.~~ **Landed.** A whole `StrHeader` goes into the unit's data section in front of the bytes
   and `emit_const_str` materializes its address — no call, no allocation — with the refcount pinned
-  at `mwl_runtime::IMMORTAL_REFCOUNT`, which every retain and release compares against and steps
+  at `nvs_runtime::IMMORTAL_REFCOUNT`, which every retain and release compares against and steps
   over. An array literal's keys take the same path. Measured paired against the commit before it:
   `$a["beta"]` costs **26.6 ns → 21.3 ns**, and `04-string-format`, which evaluates three literals
   per iteration 300 000 times, went from **100.0 ms of work to 87.2 ms** (21 reps) — about 14 ns a
@@ -243,30 +243,30 @@ Three changes, one layout revision, and **all three have landed**: the same two 
   about 5%; `03-string-concat` did not move at this resolution, its three literals per row being
   small beside the append they feed.
 
-**The non-obvious part was the last one, and it is written down where `MwlStr` is.** An immortal
+**The non-obvious part was the last one, and it is written down where `NvsStr` is.** An immortal
 literal lives in the compiled unit, which is the one thing a request *does* share with another
-request — so a literal is reachable from two threads, and `string.rs`'s "no `MwlStr` is ever
+request — so a literal is reachable from two threads, and `string.rs`'s "no `NvsStr` is ever
 reachable from two threads" reasoning behind the plain `Cell` refcount stopped being true as
 stated. It stays *sound* because no refcount two threads can reach is ever written, and that
 module's docs § *An immortal string, and why the `Cell` survives it* is where the narrowed claim
 now lives.
 
-*Owner:* `crates/mwl-runtime/src/string.rs`'s module doc. *Guards:*
+*Owner:* `crates/nvs-runtime/src/string.rs`'s module doc. *Guards:*
 `appending_into_spare_capacity_allocates_nothing` holds the append half,
 `an_n_ary_concatenation_allocates_one_buffer` the concatenation half and
 `an_immortal_string_is_never_written_freed_or_allocated_for` the literal's runtime half — all three
 read `counting_alloc::allocated_bytes`, the shape `an_integer_subscript_allocates_no_key` already
-uses. The emission half is `mwl-codegen`'s
+uses. The emission half is `nvs-codegen`'s
 `a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation`, which compares the
 address two evaluations answer with, that crate having no allocation counter to read.
 
 ### C — an integer subscript reaches the packed form from compiled code
 
 Already scoped, already the handoff's next group, and already half of loop-goal item 15's measured
-claim. `mwl_ir::lower::Lowering::lower_array_key` renders an `int` subscript to a decimal string
+claim. `nvs_ir::lower::Lowering::lower_array_key` renders an `int` subscript to a decimal string
 through `Helper::IntToString` before `InstKind::ArrayGet`/`ArraySet` reaches codegen, so the
-allocation has happened before `mwl_array_get_index` — which exists, and which nothing calls — can
-avoid it. `crates/mwl-runtime/src/array.rs`'s module doc § *the ABI was the part that expired* owns
+allocation has happened before `nvs_array_get_index` — which exists, and which nothing calls — can
+avoid it. `crates/nvs-runtime/src/array.rs`'s module doc § *the ABI was the part that expired* owns
 the shape of the change.
 
 *Owner:* already `array.rs`'s module doc. *Guard:* `an_integer_subscript_allocates_no_key`, widened
@@ -274,20 +274,20 @@ to reach it through compiled code.
 
 ### D — no key is synthesized for a callback that does not want one
 
-~~`Core\Arr::map`, `filter`, `reduce` and `sort` all call `mwl_array_key_at` per element. On a
-packed list that renders a decimal and allocates an `MwlStr` — two allocations — and `call_closure`
+~~`Core\Arr::map`, `filter`, `reduce` and `sort` all call `nvs_array_key_at` per element. On a
+packed list that renders a decimal and allocates an `NvsStr` — two allocations — and `call_closure`
 then slices the argument list to the closure's declared arity and throws it away.
 `12-array-map-filter` burns 400 000 of them per round for nothing. The arity is a field on the
 closure object and is readable once before the loop instead of per call.~~ ~~`Core\Arr::sort`
 compounds it: it builds a key per element even when `preserveKeys` is `false`, and the key is then
 discarded.~~ **Landed, both halves.**
 
-All four members read `mwl_runtime::closure_arity` once before their loop and build the key only
+All four members read `nvs_runtime::closure_arity` once before their loop and build the key only
 where the callback declared a parameter to receive it. That alone would not have paid for `map` and
 `filter`, which *preserve* keys and so were going to build one anyway, so the store half changed
-too: `mwl_runtime::SlotKey` answers the key in whichever form the subject's own shape already holds
+too: `nvs_runtime::SlotKey` answers the key in whichever form the subject's own shape already holds
 it — the position itself while the array is packed, a reference to the stored string once it is
-hashed — and `MwlArray::set_index` writes it back with nothing rendered. A `filter` allocates a key
+hashed — and `NvsArray::set_index` writes it back with nothing rendered. A `filter` allocates a key
 only where it left a gap, which is exactly where the result stops being a list. `sort` goes one
 further: with `preserveKeys` false and no `by` closure asking for one, nothing downstream can
 observe a key, so its walk collects none.
@@ -298,9 +298,9 @@ one: `12-array-map-filter` **0.36× → 0.51×**, its own work now 268.5 ms; `10
 the median went 0.66× → **0.69×**. That is the *floor* section above collected: a rendered decimal
 is 38.9 ns and its allocation round trip 28.7 ns, and this case walked 4.7 M entries.
 
-*Owner:* `crates/mwl-stdlib/src/arr.rs`'s module doc § *A callback that does not want a key is never
+*Owner:* `crates/nvs-stdlib/src/arr.rs`'s module doc § *A callback that does not want a key is never
 handed one*. *Guard:* `a_callback_that_does_not_want_a_key_synthesizes_none` in
-`crates/mwl-runtime/src/array.rs`, which reads `counting_alloc::allocated_bytes` over exactly the
+`crates/nvs-runtime/src/array.rs`, which reads `counting_alloc::allocated_bytes` over exactly the
 walk those members make — with the control the playbook asks for, since the same test measures that
 asking for the key as a string *does* allocate.
 
@@ -310,9 +310,9 @@ Two patterns, both mechanical, both worth fixing before §§ 1–12 grow further
 member copies whichever one is there:
 
 - ~~**`produced(&str)` allocates twice.** A member builds a `String`, then `produced` allocates an
-  `MwlStr` and copies it. 56 call sites across `str`, `bytes`, `path`, `regex` and `uri`. Where the
+  `NvsStr` and copies it. 56 call sites across `str`, `bytes`, `path`, `regex` and `uri`. Where the
   result length is known — `replace`, `padStart`/`padEnd`, `join` — the member can write straight
-  into one `MwlStr`.~~ **Landed, for every member but `join`** — see below.
+  into one `NvsStr`.~~ **Landed, for every member but `join`** — see below.
 - ~~**`text()` re-validates UTF-8 on every string argument.** 56 call sites in `str.rs` alone, each
   an O(n) pass over a string [ADR 0009](../adr/0009-string-and-bytes.md) already guarantees valid —
   the function's own error message says so. `Core\Str::length` then adds two more O(n) passes
@@ -320,7 +320,7 @@ member copies whichever one is there:
   unavoidable, three passes does not.~~ **Landed, both halves.**
 
 Reading a `string` argument is now a tag check. The unchecked read lives once, behind one `unsafe`
-in `mwl_runtime::MwlStr::text_of`, with `Value::as_text` as the safe caller that discharges it —
+in `nvs_runtime::NvsStr::text_of`, with `Value::as_text` as the safe caller that discharges it —
 the tag *is* ADR 0009's guarantee, so deriving it again per argument was work whose answer the
 runtime already held. A debug build re-validates inside that one reader, which is what keeps the
 invariant checked rather than remembered. The second half is `crate::granularity`'s fast-path test:
@@ -337,7 +337,7 @@ the median rather than lifting it, so the statistic sat still while a fifth of t
 disappeared — which is the reading to keep, since nothing outside the string rows moved beyond the
 run-to-run noise the two footnotes above describe.
 
-The first bullet then landed as `mwl_runtime::MwlStr::build`: a producer is handed a writer over the
+The first bullet then landed as `nvs_runtime::NvsStr::build`: a producer is handed a writer over the
 allocation the value will be answered from, so the bytes are written there instead of into a
 `String` that is then copied in. A member whose length is exact (`repeat`, `padStart`/`padEnd`,
 `reverse`) allocates once; `replace` starts the writer at its subject's length and the writer
@@ -356,20 +356,20 @@ builds: a writer at a guessed capacity 90.0 ms against the base build's 87.3, a 
 pieces 105.1 ms, a measuring walk 92.5 ms. Nothing about the pattern is wrong there; the length is
 just not cheap to learn.
 
-*Owner:* `crates/mwl-stdlib/src/str.rs`'s module doc §§ *`string` is valid UTF-8, so this module
+*Owner:* `crates/nvs-stdlib/src/str.rs`'s module doc §§ *`string` is valid UTF-8, so this module
 never validates* and *A result is written once*, the second of which holds the rejected
 alternatives so they are not tried a third time.
 *Guard:* `the_fused_scan_agrees_with_the_two_pass_spelling` in
-`crates/mwl-stdlib/src/granularity.rs` holds the fold against the spelling it replaced;
-`a_bytes_value_is_a_string_allocation_under_a_tag_of_its_own` in `crates/mwl-runtime/src/value.rs`
+`crates/nvs-stdlib/src/granularity.rs` holds the fold against the spelling it replaced;
+`a_bytes_value_is_a_string_allocation_under_a_tag_of_its_own` in `crates/nvs-runtime/src/value.rs`
 holds the one thing soundness rests on, that the unchecked reader answers nothing for a `bytes`; and
 `a_str_member_allocates_its_result_once` in
-`crates/mwl-stdlib/tests/allocation_policy.rs` counts the allocations four members make and holds
+`crates/nvs-stdlib/tests/allocation_policy.rs` counts the allocations four members make and holds
 each to one.
 
 ### F — a string carries its hash
 
-`Hashed::index` is a `HashMap<MwlStr, usize>` keyed through `Borrow<[u8]>`, so every lookup
+`Hashed::index` is a `HashMap<NvsStr, usize>` keyed through `Borrow<[u8]>`, so every lookup
 re-hashes the key bytes with SipHash: 13.2 ns for a five-byte key. PHP's `zend_string` carries its
 hash, so a repeat lookup with the same string hashes nothing. `14-word-count` does three hashed
 lookups per word — `hasKey`, a read, a write — and is the suite's second-worst case after the
@@ -384,11 +384,11 @@ type whose `Hash` writes the cached word, and a lookup from bare bytes computes 
 That is contained to `array.rs`, and it is why this is its own item rather than part of B's layout
 revision.
 
-*Owner:* `crates/mwl-runtime/src/string.rs` for the field, `array.rs` for the key type.
+*Owner:* `crates/nvs-runtime/src/string.rs` for the field, `array.rs` for the key type.
 
 ### G — a virtual call is a slot, not a name search
 
-`mwl_class_method` runs `str::from_utf8` over the method name and then a `binary_search` comparing
+`nvs_class_method` runs `str::from_utf8` over the method name and then a `binary_search` comparing
 strings, on **every** `$obj->method()`. There is no slot index. PHP caches the resolved
 `zend_function*` in a run-time cache slot and pays this once.
 
@@ -406,13 +406,13 @@ Beside it and unrelated to the layout question: `call_closure` and `call_at` eac
 per call, which is a heap allocation on every closure call and every native-to-object dispatch.
 `smallvec` is already a workspace dependency.
 
-*Owner:* `crates/mwl-runtime/src/object.rs` for the layout, `dispatch.rs` for the call.
+*Owner:* `crates/nvs-runtime/src/object.rs` for the layout, `dispatch.rs` for the call.
 *Guard:* a virtual call contains no name lookup.
 
 ### I — `Core\Str::format` allocates once per call, not ten
 
-Per call it builds an `MwlArray` for the variadic tail, walks it back out into a `Vec`, allocates a
-`vec![false; n]`, allocates a `String` per conversion and copies a final `String` into an `MwlStr`.
+Per call it builds an `NvsArray` for the variadic tail, walks it back out into a `Vec`, allocates a
+`vec![false; n]`, allocates a `String` per conversion and copies a final `String` into an `NvsStr`.
 PHP's `sprintf` allocates about one. This member is being reopened anyway for
 [ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)'s qualifier
 classification — its template is that ADR's sink — so it is cheapest done in the same pass.

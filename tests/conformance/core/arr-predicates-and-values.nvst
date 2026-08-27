@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr's four predicates answer about a list and a map, and ::values drops the keys
 --FILE--
-<?mwl
+<?nvs
 array<string> $map = ["a" => "x", "b" => "y", "c" => "z"];
 array<string> $list = ["x", "y", "z"];
 array<string> $empty = [];

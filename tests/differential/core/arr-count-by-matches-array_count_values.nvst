@@ -1,14 +1,14 @@
 --TEST--
 Core\Arr::countBy answers what array_count_values answers, bucket for bucket and in the same first-occurrence order
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `array_count_values` row. Both members name a bucket by the value
 // itself, normalized the way an array key is normalized, and both order the
 // result by where each bucket was first seen rather than by name or by count —
 // so the rendering below asserts the order as well as the tallies.
 //
 // `countBy` returns `array<uint>` where PHP returns ints; a count cannot be
-// negative, which is the reason `mwl_core_arr_count` gives for the same choice.
+// negative, which is the reason `nvs_core_arr_count` gives for the same choice.
 // The two render identically, which is what this case checks and all a caller
 // can observe.
 final class Render {

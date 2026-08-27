@@ -1,7 +1,7 @@
 --TEST--
 A `Core\ObjectMap` key follows the object it is, so mutating that object does not lose its pair — while a value-typed member is fixed at the moment it is added — docs/spec/01-core-library.md § 9, ADR 0090 § 3
 --FILE--
-<?mwl
+<?nvs
 final class Tag {
     public string $name;
 

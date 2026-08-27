@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::flip swaps keys and values, the last duplicate winning in the first one's place
 --FILE--
-<?mwl
+<?nvs
 array<string|int> $b = ["a" => "p", "b" => 7, "c" => "p"];
 array<string> $f = Core\Arr::flip($b);
 

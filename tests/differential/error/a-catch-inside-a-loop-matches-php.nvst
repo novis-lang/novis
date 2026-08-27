@@ -1,7 +1,7 @@
 --TEST--
 A `try`/`catch`/`finally` in a loop body ends the iteration, not the loop — the same trace PHP produces
 --FILE--
-<?mwl
+<?nvs
 class Attempts {
     public static function run(int $n): string {
         var $out = "";

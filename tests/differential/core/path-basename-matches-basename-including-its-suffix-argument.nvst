@@ -1,9 +1,9 @@
 --TEST--
 Core\Path::basename answers PHP's basename at every boundary, and `{withoutExtension}` is its suffix argument, from docs/spec/01-core-library.md § 8
 --FILE--
-<?mwl
+<?nvs
 // The plain reading: the name of the last component, a trailing separator
-// ignored however many there are (crates/mwl-stdlib/src/path.rs's `parse`
+// ignored however many there are (crates/nvs-stdlib/src/path.rs's `parse`
 // drops an empty component, exactly as basename does).
 echo "[", Core\Path::basename("/var/log/syslog.txt"), "]\n";
 echo "[", Core\Path::basename("/var/log/"), "]\n";

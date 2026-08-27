@@ -1,7 +1,7 @@
 --TEST--
-the Trojan Source paper's stretched-string pattern, transliterated to MWL, does not compile — ADR 0087 § 1
+the Trojan Source paper's stretched-string pattern, transliterated to Novis, does not compile — ADR 0087 § 1
 --FILE--
-<?mwl
+<?nvs
 string $accessLevel = "user⁧ // trusted";
 echo $accessLevel, "\n";
 --EXPECT--

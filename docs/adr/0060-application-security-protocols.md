@@ -50,7 +50,7 @@ All three must hold:
 1. **The failure mode is a library bug, not an application bug** — the mistake lives in the implementation
    of the protocol, not in how the application uses it.
 2. **The failure is silent** — a wrong implementation returns a plausible result rather than an error.
-3. **The need is near-universal** for the kind of program MWL exists to run.
+3. **The need is near-universal** for the kind of program Novis exists to run.
 
 And one structural boundary decides the edge: **the operation is stateless over a key**. A protocol
 requiring network round trips, a redirect dance, or stored per-flow state is a *flow*, not a token
@@ -108,21 +108,21 @@ that was already plain when it went in.
   exclusivity but that the obvious, discoverable, documented option is the correct one.
 - **`Core\Crypto` stays primitives-only.** This ADR does not open it to protocol-shaped additions; the
   roster is its own surface, and the distinction should survive M8's API design.
-- **`mwl convert` (M11)** maps common PHP JWT libraries onto `Core`'s API, and emits a diagnostic where the
+- **`nvs convert` (M11)** maps common PHP JWT libraries onto `Core`'s API, and emits a diagnostic where the
   source relied on header-selected algorithms or disabled expiry — behaviours with no representation here.
 
 ## Alternatives rejected
 
 - **Nothing beyond primitives.** The cleanest boundary: `Core` owns cryptography, applications own
   protocols. Rejected: it is exactly the boundary every other language drew, and the observed outcome is a
-  population of libraries with the same repeated flaw. MWL's whole argument is that classes of bug should
+  population of libraries with the same repeated flaw. Novis's whole argument is that classes of bug should
   be removed rather than documented.
 - **First-party extensions.** Keeps `Core` smaller and matches [ADR 0051](0051-standard-library-tiers.md)'s
   treatment of internationalization. Rejected on § 3's second point: `secret` cannot cross the extension
   boundary, and making `Core\Secret::reveal()` routine would break the one mechanism that makes a
   credential's exposure visible.
 - **Session-adjacent only** — cookies and CSRF, since `Core\Session` is core anyway; JWT and TOTP out.
-  Rejected: it draws the line at what MWL already implements rather than at where the risk is, and JWT is
+  Rejected: it draws the line at what Novis already implements rather than at where the risk is, and JWT is
   the entry with the worst failure history of the four.
 - **An open "security protocols" surface**, growing as needs appear. Rejected: without § 2's boundary it
   becomes a framework, and every entry is a permanent compatibility obligation.

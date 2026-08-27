@@ -1,6 +1,6 @@
 [package]
-name = "mwl-test"
-description = "The `.mwlt` conformance-case format and the runner behind `mwl test`"
+name = "nvs-test"
+description = "The `.nvst` conformance-case format and the runner behind `nvs test`"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::toBase and fromBase are inverses, and a digit the base has no room for throws rather than being ignored
 --FILE--
-<?mwl
+<?nvs
 echo Core\Math::toBase(48879, 16), "|", Core\Math::toBase(5, 2), "|",
      Core\Math::toBase(8, 8), "|", Core\Math::toBase(0, 16), "\n";
 // A negative value is written with a leading `-`, which base_convert has no
@@ -25,7 +25,7 @@ try {
     echo "empty: ", $e->message, "\n";
 }
 // The digits and the Latin letters run out at 36. Both ends of that range, for
-// both members, are `math-both-base-members-stop-at-the-same-two-bases.mwlt`.
+// both members, are `math-both-base-members-stop-at-the-same-two-bases.nvst`.
 try {
     echo Core\Math::toBase(3, 1), "\n";
 } catch (Throwable $e) {

@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::replace replaces every occurrence, as str_replace does
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::replace("a-b-c", "-", "+"), "\n";
 echo Core\Str::replace("aaa", "a", "bb"), "\n";
 echo Core\Str::replace("abc", "z", "!"), "\n";

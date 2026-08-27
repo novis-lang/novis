@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::before and ::after cut at the occurrence strstr and strrchr cut at, they both exclude the needle where strstr keeps it, an absent needle is null where all three PHP functions answer false, and strrchr stops being the twin past a one-character needle (spec § 1 Extraction, ADR 0063 R5)
 --FILE--
-<?mwl
+<?nvs
 // Spec § 1's *Extraction* prose owns every rule this pins: both members
 // exclude the needle, `{last: true}` is all `strrchr` added, and a needle
 // that does not occur is `null` where `strstr`, `stristr` and `strrchr` are
@@ -11,7 +11,7 @@ Core\Str::before and ::after cut at the occurrence strstr and strrchr cut at, th
 //
 // The subjects are ASCII on purpose. `Core\Str::slice` and the `indexOf`
 // this file ports `stristr` through both count grapheme clusters where
-// `substr` and `strpos` count bytes (`mwl_stdlib::granularity::DEFAULT`);
+// `substr` and `strpos` count bytes (`nvs_stdlib::granularity::DEFAULT`);
 // inside ASCII the units coincide, and `str-slice-and-replace-range-count-
 // graphemes-where-substr-counts-bytes` is where they do not.
 final class Show {
@@ -26,7 +26,7 @@ final class Show {
         return $v as string;
     }
 
-    // `strrchr` written in MWL, so the third table can print it beside the
+    // `strrchr` written in Novis, so the third table can print it beside the
     // real `{last: true}` answer. It cuts at the last occurrence of the
     // needle's *first character* and keeps that character, which is why it
     // stops being `after`'s twin the moment the needle is longer than one

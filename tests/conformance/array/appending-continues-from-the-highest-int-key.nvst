@@ -1,7 +1,7 @@
 --TEST--
 `$a[] =` takes one past the highest integer key ever used, whatever the insertion order was
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = [];
 $a[100] = 1;
 $a[] = 2;

@@ -1,7 +1,7 @@
 --TEST--
 `$this->rows[] = v` appends in place, so a chain of `return $this` builders leaves one array holding every element
 --FILE--
-<?mwl
+<?nvs
 class Grid {
     public array<string> $rows;
 

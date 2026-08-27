@@ -1,7 +1,7 @@
 --TEST--
 on ASCII, Core\Str::length and strlen agree — the whole ADR 0009 § 2 question disappears
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::length(""), "\n";
 echo Core\Str::length("a"), "\n";
 echo Core\Str::length("hello world"), "\n";

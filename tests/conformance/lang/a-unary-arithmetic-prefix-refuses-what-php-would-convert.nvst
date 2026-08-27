@@ -1,7 +1,7 @@
 --TEST--
 `+`, `-` and `~` agree on refusing every operand ADR 0007 § 4 has no row for, and an object gets the one sentence the others do not — ADR 0007 §§ 2, 4
 --FILE--
-<?mwl
+<?nvs
 class Thing {
     public int $n = 1;
 }
@@ -21,14 +21,14 @@ string $s2 = -$s;
 string $s3 = ~$s;
 
 // The same answer one domain over. `bool` is where PHP's conversion is
-// least visible and MWL's refusal most valuable — `-true` reads as if it
+// least visible and Novis's refusal most valuable — `-true` reads as if it
 // meant something.
 bool $b1 = -$b;
 
 // An `array<T>` reaches the same refusal rather than a per-element one.
 array<int> $q = ~$xs;
 
-// An object parts from them: MWL has no operator overloading, so the
+// An object parts from them: Novis has no operator overloading, so the
 // sentence that author needs is "call the member that does this", not
 // "convert it first". Same operand position, different diagnostic.
 Thing $o1 = -$o;
@@ -40,41 +40,41 @@ error[E0705]: `+` has no meaning for `string`
    |
 16 | string $s1 = +$s;
    |              ^^^ a unary arithmetic operator is over numbers
-   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and MWL never converts by itself, so say it — `$x as int`
+   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0705]: `-` has no meaning for `string`
    --> %s:17:14
    |
 17 | string $s2 = -$s;
    |              ^^^ a unary arithmetic operator is over numbers
-   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and MWL never converts by itself, so say it — `$x as int`
+   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0705]: `~` has no meaning for `string`
    --> %s:18:14
    |
 18 | string $s3 = ~$s;
    |              ^^^ a unary arithmetic operator is over numbers
-   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and MWL never converts by itself, so say it — `$x as int`
+   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0705]: `-` has no meaning for `bool`
    --> %s:23:12
    |
 23 | bool $b1 = -$b;
    |            ^^^ a unary arithmetic operator is over numbers
-   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and MWL never converts by itself, so say it — `$x as int`
+   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0705]: `~` has no meaning for `array<int>`
    --> %s:26:17
    |
 26 | array<int> $q = ~$xs;
    |                 ^^^^ a unary arithmetic operator is over numbers
-   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and MWL never converts by itself, so say it — `$x as int`
+   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0401]: `-` has no meaning for `Thing`
    --> %s:31:13
    |
 31 | Thing $o1 = -$o;
    |             ^^^ an object takes part in no arithmetic
-   = help: MWL has no operator overloading; call the member that does this — a `Core\Time\Duration` negates with `->negated()` and subtracts with `->minus(…)`
+   = help: Novis has no operator overloading; call the member that does this — a `Core\Time\Duration` negates with `->negated()` and subtracts with `->minus(…)`
 
 error: aborting due to 6 errors

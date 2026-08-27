@@ -10,7 +10,7 @@
 
 > **In short:** PHP compares two objects of the same class with `<`/`>` by walking their declared
 > properties in order and comparing recursively, stopping at the first difference — a behaviour that exists
-> ambiently, with no declaration and no way for a class to opt out or replace it. MWL rejects that fallback
+> ambiently, with no declaration and no way for a class to opt out or replace it. Novis rejects that fallback
 > outright. Ordering two objects with `<`, `>`, `<=`, `>=` or `<=>` requires the class to implement a new
 > global interface, **`Comparable`**, with one method: `compareTo(self $other): int`, returning negative,
 > zero or positive exactly like `strcmp` or the general `<=>` convention. All five operators lower to a call
@@ -86,7 +86,7 @@ second dispatch path alongside ordinary method calls.
 
 If the compiler cannot show that both operands' static type implements `Comparable` for the other (see
 *4*), using `<`/`>`/`<=`/`>=`/`<=>` on them is a **compile-time diagnostic naming `Comparable` as the fix**.
-PHP's recursive property-by-property walk described in *Context* is not implemented anywhere in MWL — there
+PHP's recursive property-by-property walk described in *Context* is not implemented anywhere in Novis — there
 is no code path that falls back to it. A class that wants its instances ordered says so once, in its own
 declaration; a class that does not implement `Comparable` simply cannot be ordered, the same certainty
 [ADR 0007](0007-explicit-type-system.md) already gives every other operator whose operand types do not
@@ -140,7 +140,7 @@ the content question explicitly, which is ADR 0090 § 4's answer to it.
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, [ADR 0008](0008-static-and-global.md) and
   [ADR 0010](0010-enums-are-a-value-type.md): PHP source ordering two objects of the same class with `<`/
-  `>`, relying on the implicit property walk, does not convert unconverted. `mwl convert`
+  `>`, relying on the implicit property walk, does not convert unconverted. `nvs convert`
   ([M11](../implementation-plan.md)) can detect the pattern but must leave adding `Comparable` and writing
   `compareTo` as a `TODO` for a human — there is no mechanical rewrite, because the walk's actual ordering
   depended on property declaration order, which is not something a converter should silently canonicalize
@@ -163,14 +163,14 @@ the content question explicitly, which is ADR 0090 § 4's answer to it.
 - **Fold equality into the same interface** (`compareTo` returning `0` also means `==`). Rejected: would
   force every class wanting a custom order to also redefine equality, when the two are frequently
   independent.
-- **A generic `Comparable<T>` allowing a declared non-`self` target type.** Deferred, not rejected — MWL
+- **A generic `Comparable<T>` allowing a declared non-`self` target type.** Deferred, not rejected — Novis
   has no general user-facing generic type beyond `array<T>` to build it from yet; see *Revisiting*.
 
 ## Revisiting
 
 Deferred deliberately, each needing its own argument:
 
-- **A generic `Comparable<T>`** once, or if, MWL grows a general user-facing generic type mechanism —
+- **A generic `Comparable<T>`** once, or if, Novis grows a general user-facing generic type mechanism —
   letting a class declare what it is orderable against instead of always `self`.
 - **Whether stdlib sorting helpers** (a `Core\Arr`-shaped sort, not yet built — [M8](../implementation-plan.md))
   should require object elements to implement `Comparable`, accept an explicit comparator closure only, or

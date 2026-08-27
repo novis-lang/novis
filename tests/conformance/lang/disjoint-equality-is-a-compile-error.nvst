@@ -1,7 +1,7 @@
 --TEST--
 Two operands whose static types cannot both hold one value are refused before anything runs, ADR 0090 § 2
 --FILE--
-<?mwl
+<?nvs
 // One row of that ADR's table per comparison, and every one of them is
 // reported from the same run: the compiler already knows each answer, so
 // none of them is a question the program is allowed to ask.

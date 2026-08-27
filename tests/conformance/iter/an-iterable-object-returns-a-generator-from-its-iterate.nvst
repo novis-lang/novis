@@ -1,7 +1,7 @@
 --TEST--
 `Iterable::iterate` may be a generator body — the object is then drained lazily, and once per `foreach`
 --FILE--
-<?mwl
+<?nvs
 class Bag implements Iterable<int> {
     private array<int> $items;
 

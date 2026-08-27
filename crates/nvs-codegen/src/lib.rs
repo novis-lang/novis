@@ -1,11 +1,11 @@
-//! MWL's baseline Cranelift backend: [`mwl_ir`]'s CFG/SSA form in, native
+//! Novis's baseline Cranelift backend: [`nvs_ir`]'s CFG/SSA form in, native
 //! code behind [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s
 //! calling convention out.
 //!
-//! This crate is the one place that knows *both* [`mwl_ir`] and
-//! [`mwl_runtime`]. `mwl-runtime` deliberately depends on neither, so mapping
-//! an [`mwl_ir::ir::Helper`] tag onto a symbol name from
-//! [`mwl_runtime::symbols`] is this crate's job by design — see that crate's
+//! This crate is the one place that knows *both* [`nvs_ir`] and
+//! [`nvs_runtime`]. `nvs-runtime` deliberately depends on neither, so mapping
+//! an [`nvs_ir::ir::Helper`] tag onto a symbol name from
+//! [`nvs_runtime::symbols`] is this crate's job by design — see that crate's
 //! own module docs.
 //!
 //! # The shape it emits
@@ -16,76 +16,76 @@
 //! extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32
 //! ```
 //!
-//! Nothing unwinds. Every call — a runtime helper, an MWL method, the
+//! Nothing unwinds. Every call — a runtime helper, an Novis method, the
 //! safepoint slow path — is followed by a compare-and-branch on the returned
 //! status. That pair of instructions is what replaces a landing pad;
 //! `benches/abi-probe`'s `compile_chain` has measured its cost since M0.
 //!
 //! ## Where a failing status goes
 //!
-//! Onward, but not blindly: [`mwl_ir::ir::Inst::on_error`] names a *landing
+//! Onward, but not blindly: [`nvs_ir::ir::Inst::on_error`] names a *landing
 //! block* per call site, and the branch enters it carrying the status as a
 //! block parameter. The landing block holds the frame's refcount cleanup and
-//! ends in [`mwl_ir::ir::Terminator::Propagate`] (record this frame on the
+//! ends in [`nvs_ir::ir::Terminator::Propagate`] (record this frame on the
 //! exception's backtrace, then return the status) or
-//! [`mwl_ir::ir::Terminator::Catch`] (on `THROWN`, enter the handler; anything
+//! [`nvs_ir::ir::Terminator::Catch`] (on `THROWN`, enter the handler; anything
 //! else returns onward). A `throw` reaches the same block through
-//! [`mwl_ir::ir::Terminator::Throw`], which raises the exception and jumps
+//! [`nvs_ir::ir::Terminator::Throw`], which raises the exception and jumps
 //! with a constant `THROWN`.
 //!
 //! **The backtrace is built on the error path, never the success path.** Each
 //! frame's landing block passes a static label from the unit's own data
-//! section to [`mwl_runtime::mwl_trace_push`]. The alternative — a push/pop
+//! section to [`nvs_runtime::nvs_trace_push`]. The alternative — a push/pop
 //! frame record around every call — would move that cost onto the path that
 //! actually runs, which is precisely what ADR 0002 exists to avoid. See
-//! `mwl_runtime::throwable`'s own docs for the one observable consequence.
+//! `nvs_runtime::throwable`'s own docs for the one observable consequence.
 //!
 //! ## An object is a pointer; its fields are tagged
 //!
-//! An instance is a bare [`mwl_runtime::ObjHeader`] pointer in a register, and
+//! An instance is a bare [`nvs_runtime::ObjHeader`] pointer in a register, and
 //! `new` is one `iconst` of the class descriptor's address plus one call — see
 //! [`Classes`] for why a JIT can bake that address in. A *field* is different:
-//! every slot is a whole 16-byte [`mwl_runtime::Value`], so a `FieldGet` loads
-//! the payload half at [`mwl_runtime::field_offset`] and a `FieldSet` stores
-//! both halves. [`mwl_runtime::object`]'s own docs own that decision and state
+//! every slot is a whole 16-byte [`nvs_runtime::Value`], so a `FieldGet` loads
+//! the payload half at [`nvs_runtime::field_offset`] and a `FieldSet` stores
+//! both halves. [`nvs_runtime::object`]'s own docs own that decision and state
 //! its cost; this crate only queries the offset.
 //!
 //! The same is true of late static binding: a static method's argument slot 0
 //! carries the called class rather than `null`, and a `ClassDescOf` is one
-//! load at [`mwl_runtime::OBJ_CLASS_OFFSET`]. That decision — including why the
-//! slot keeps a `null` *tag* — is `mwl_runtime::object`'s too; this crate emits
-//! the load and the [`mwl_runtime::mwl_class_method`] lookup it feeds.
+//! load at [`nvs_runtime::OBJ_CLASS_OFFSET`]. That decision — including why the
+//! slot keeps a `null` *tag* — is `nvs_runtime::object`'s too; this crate emits
+//! the load and the [`nvs_runtime::nvs_class_method`] lookup it feeds.
 //!
 //! ## Values are native, not tagged, wherever the type is known
 //!
 //! [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) settles every
 //! operand type before lowering, so an `int` local lives in an `i64` register
 //! and a `string` in a bare `StrHeader` pointer. A 16-byte
-//! [`mwl_runtime::Value`] is *materialized* only where the ABI demands one —
+//! [`nvs_runtime::Value`] is *materialized* only where the ABI demands one —
 //! at a call boundary and at the `out` slot — exactly as that type's own docs
 //! say. [`ty::clif_ty`] is the whole of the mapping.
 //!
 //! ## The three hot-word checks
 //!
-//! Each is a load of one word from [`mwl_runtime::Ctx`] plus a
+//! Each is a load of one word from [`nvs_runtime::Ctx`] plus a
 //! predicted-not-taken branch, and each is emitted unconditionally:
 //!
-//! * the **safepoint poll** at every [`mwl_ir::ir::InstKind::Safepoint`] —
+//! * the **safepoint poll** at every [`nvs_ir::ir::InstKind::Safepoint`] —
 //!   function entry and loop back edges, the project-start decision's two
 //!   fixed sites;
 //! * [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
 //!   **call-stack compare**, riding the *first* of those polls so that it
 //!   lands at function entry and nowhere else — one load, one compare against
 //!   Cranelift's `get_stack_pointer`, branching to
-//!   [`mwl_runtime::mwl_stack_check`]. It is the one of the three that is
+//!   [`nvs_runtime::nvs_stack_check`]. It is the one of the three that is
 //!   *elided*: `emit::is_leaf` answers which functions cannot grow the stack
 //!   past the reserve their caller already checked with, and those carry none;
 //! * [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 //!   § 1's **debug-flags check**, at every
-//!   [`mwl_ir::ir::InstKind::StmtMarker`] (branching to
-//!   [`mwl_runtime::mwl_probe_stmt`]) and twice at every call site, before and
-//!   after (branching to [`mwl_runtime::mwl_probe_call_enter`] and
-//!   [`mwl_runtime::mwl_probe_call_exit`]).
+//!   [`nvs_ir::ir::InstKind::StmtMarker`] (branching to
+//!   [`nvs_runtime::nvs_probe_stmt`]) and twice at every call site, before and
+//!   after (branching to [`nvs_runtime::nvs_probe_call_enter`] and
+//!   [`nvs_runtime::nvs_probe_call_exit`]).
 //!
 //! None is behind a flag or a build configuration: ADR 0018's whole
 //! argument is that a request already running must be able to have coverage
@@ -99,29 +99,29 @@
 //! # Scope of this slice
 //!
 //! Narrow by authorization, not by accident — `docs/agent/loop-goal.md` allows
-//! the first backend to be exactly as wide as `mwl run examples/hello.mwl`
+//! the first backend to be exactly as wide as `nvs run examples/hello.nvs`
 //! requires, and each gap below is a missing *lowering*, not a missing
 //! decision:
 //!
 //! Exceptions are ordinary objects here: `Ty::Throwable` is gone, a user class
 //! `extends Throwable` compiles like any other, and a typed `catch` is an
-//! [`mwl_ir::ir::InstKind::InstanceOf`] chain. A `finally` runs on every exit
-//! from its region — [`mwl_ir::lower::Lowering::lower_try`] owns that policy
+//! [`nvs_ir::ir::InstKind::InstanceOf`] chain. A `finally` runs on every exit
+//! from its region — [`nvs_ir::lower::Lowering::lower_try`] owns that policy
 //! whole, and this backend emits the copies it lowers.
 //!
 //! 1. **Virtual dispatch is by name, not by slot.** An instance call whose
 //!    resolved declaration some subtype overrides — and the two shapes with
 //!    no static answer at all, `static::method(...)`/`new static(...)` and a
 //!    call resolving to a declaration with no *body* — lower to
-//!    [`mwl_ir::ir::InstKind::CallVirtual`]/`NewDynamic`, look the method up
+//!    [`nvs_ir::ir::InstKind::CallVirtual`]/`NewDynamic`, look the method up
 //!    on the receiver's or the late-static-binding class through
-//!    [`mwl_runtime::mwl_class_method`], and call the address it returns
+//!    [`nvs_runtime::nvs_class_method`], and call the address it returns
 //!    indirectly under the same ADR 0002 signature. Everything else binds
-//!    straight to a label, because `mwl_types` answers "does anything
+//!    straight to a label, because `nvs_types` answers "does anything
 //!    override this" for the whole program once
-//!    (`mwl_types::expr_table::ResolvedCall::overridden`). What is left is a
+//!    (`nvs_types::expr_table::ResolvedCall::overridden`). What is left is a
 //!    per-class slot index instead of a string compare, which
-//!    [`mwl_ir::ir::Program::classes`] already carries the table for.
+//!    [`nvs_ir::ir::Program::classes`] already carries the table for.
 //!
 //!    Everything else about objects and arrays compiles: `New`, `FieldGet`,
 //!    `FieldSet`, an instance `Call`, every array instruction — `ArrayNew`,
@@ -129,20 +129,20 @@
 //!    `foreach`'s
 //!    `ArrayNextSlot`/`ArrayKeyAt`/`ArrayValueAt` cursor — and a
 //!    `Ty::Object`/`Ty::Array` retain/release, against
-//!    [`mwl_runtime::object`]'s layout, the per-class slot table
-//!    [`mwl_ir::ir::Program::classes`] carries, and [`mwl_runtime::array`]'s
+//!    [`nvs_runtime::object`]'s layout, the per-class slot table
+//!    [`nvs_ir::ir::Program::classes`] carries, and [`nvs_runtime::array`]'s
 //!    primitives. A Tier 0 `Core` member call
-//!    ([`mwl_ir::ir::InstKind::CoreCall`]) compiles too, through the helper
-//!    path unchanged — [`mwl_stdlib`]'s own docs own why it needs no path of
+//!    ([`nvs_ir::ir::InstKind::CoreCall`]) compiles too, through the helper
+//!    path unchanged — [`nvs_stdlib`]'s own docs own why it needs no path of
 //!    its own.
 //! 2. **ADR 0018's `BRANCH` probe is not emitted.** It needs a per-edge site
-//!    at [`mwl_ir::ir::Terminator::Branch`]'s lowering, which is the only one
+//!    at [`nvs_ir::ir::Terminator::Branch`]'s lowering, which is the only one
 //!    of that ADR's three sites still missing — the statement-boundary probe
 //!    and the call-site `TRACE`/`PROFILE` pair are both emitted.
 //! 3. **A `FATAL` still leaks the frame's locals.** A `THROWN` does not: its
 //!    landing block releases them before the status travels on. The
-//!    asymmetry is `mwl_ir`'s, not this crate's — see
-//!    [`mwl_ir::ir::Inst::on_error`], which explains why an outcome no
+//!    asymmetry is `nvs_ir`'s, not this crate's — see
+//!    [`nvs_ir::ir::Inst::on_error`], which explains why an outcome no
 //!    cleanup path and no `catch` can act on gets no landing block at all.
 //! 4. **Two identical string literals are two data objects.** Each
 //!    `InstKind::ConstStr` emits its own immortal header and payload under its
@@ -155,29 +155,29 @@
 //!    result representation at run time.**
 //!    [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 types
 //!    `int / int` as `int|float` — PHP-exact, so `6/3` is an integer and `7/2`
-//!    is not — and that union's representation is [`mwl_ir::Ty::Tagged`], so
+//!    is not — and that union's representation is [`nvs_ir::Ty::Tagged`], so
 //!    `emit_binop` hands the row to its own `emit_int_div`: a zero-divisor
 //!    guard in front, then a branch on whether the remainder is zero, joining
 //!    at a phi that carries the tagged value. The signed overflow
 //!    `i64::MIN / -1` takes the inexact arm rather than a second throw,
-//!    because PHP answers a `float` for it. `mwl_ir::lower::Lowering::coerce`
+//!    because PHP answers a `float` for it. `nvs_ir::lower::Lowering::coerce`
 //!    is where the union is absorbed back into a declared `float`, which is
 //!    what makes `float $avg = $sum / $n;` the ADR's own worked example.
-//! 6. **[`mwl_ir::ir::Terminator::Switch`] lowers to a compare chain, not a
+//! 6. **[`nvs_ir::ir::Terminator::Switch`] lowers to a compare chain, not a
 //!    jump table.** Correct for any case set — the IR deliberately does not
 //!    require a dense or sorted one — and the arms are few in the one
 //!    producer there is today, ADR 0053 § 4's generator resumption (one per
 //!    `yield`, plus the entry and exhausted arms). A `br_table` over a dense
-//!    case set is the obvious optimisation. MWL's own `switch` statement never
+//!    case set is the obvious optimisation. Novis's own `switch` statement never
 //!    reaches this terminator — it lowers to a `Branch` chain, since a label
 //!    is any expression of the subject's type — so closing this gap would also
-//!    mean teaching `mwl_ir::lower::Lowering::lower_switch` to recognise a
+//!    mean teaching `nvs_ir::lower::Lowering::lower_switch` to recognise a
 //!    dense all-integer case set and reach for it.
 //! 7. **Executable memory is never freed.** [`Unit`] holds its `JITModule` for
 //!    the process's lifetime; `cranelift_jit::JITModule::free_memory` is
 //!    `unsafe` and needs the "no compiled frame is still live" proof that
 //!    [ADR 0017](../../../docs/adr/0017-hot-reload-without-restart.md)'s
-//!    pointer-swap reclamation is the real home for. A one-shot `mwl run`
+//!    pointer-swap reclamation is the real home for. A one-shot `nvs run`
 //!    exits before it matters.
 //! 8. **Integer `+`, `-`, `*` and unary `-` throw on overflow rather than
 //!    wrapping**, which
@@ -187,14 +187,14 @@
 //!    fourth, each reading Cranelift's `sadd_overflow`/`uadd_overflow` family
 //!    — the flag the CPU already sets, so the cost is one predicted branch and
 //!    no synthesized compare — and raising spec § 10's `ArithmeticError` on
-//!    [`mwl_ir::ir::Inst::on_error`]'s edge through the shared
+//!    [`nvs_ir::ir::Inst::on_error`]'s edge through the shared
 //!    `raise_arithmetic_error`, which the two zero-divisor guards now use too.
 //!    The signed and unsigned rows are different instructions rather than one
 //!    read two ways: a carry out of bit 63 is not a sign flip, which is what
 //!    keeps `uint` exact over `0 … 2^64−1`.
 //! 9. **A binary operator wants both operands in one representation, and
 //!    knows only the numeric and `bool` ones.** A mixed numeric pair no longer
-//!    reaches here — `mwl_ir::lower` settles `1 + 1.5` by widening the integer
+//!    reaches here — `nvs_ir::lower` settles `1 + 1.5` by widening the integer
 //!    side and `$n < $f` by a helper, which is what keeps this crate's "a
 //!    `BinOp` has one representation" invariant a genuine internal error. What
 //!    is still refused is `==` over two enum values, whose `Enum(Int)`
@@ -208,8 +208,8 @@ mod ty;
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, ModuleError};
-use mwl_ir::Program;
-use mwl_runtime::MwlFn;
+use nvs_ir::Program;
+use nvs_runtime::NvsFn;
 use rustc_hash::FxHashMap;
 
 pub use ty::clif_ty;
@@ -218,13 +218,13 @@ pub use ty::clif_ty;
 ///
 /// Every variant is an *engine* failure — a shape this backend does not lower
 /// yet, or a host that cannot host a JIT. None of them is a user diagnostic:
-/// `mwl run` has already run `mwl_types::check_program` and reported every
+/// `nvs run` has already run `nvs_types::check_program` and reported every
 /// diagnostic before a single instruction is emitted.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum CodegenError {
     /// An IR shape this slice does not lower — see the crate docs' scope list.
-    #[error("mwl-codegen does not lower {0} yet")]
+    #[error("nvs-codegen does not lower {0} yet")]
     Unsupported(String),
     /// Cranelift rejected the generated code, or the JIT module did.
     ///
@@ -237,19 +237,19 @@ pub enum CodegenError {
          ({source:?})"
     )]
     Cranelift {
-        /// The MWL function being compiled.
+        /// The Novis function being compiled.
         function: String,
         /// What Cranelift reported.
         source: Box<ModuleError>,
     },
     /// A call naming a function this compilation unit does not define.
     ///
-    /// Always an engine bug rather than a user error: `mwl_types` resolved
+    /// Always an engine bug rather than a user error: `nvs_types` resolved
     /// the target before lowering ever rendered its label, so a unit that
     /// contains the call and not the callee was assembled wrong.
     #[error("internal error: `{caller}` calls `{target}`, which this unit does not define")]
     UnknownTarget {
-        /// The MWL function containing the call.
+        /// The Novis function containing the call.
         caller: String,
         /// The `"Class::method"` label it named.
         target: String,
@@ -273,15 +273,15 @@ pub struct Unit {
     /// the table here is safe because each descriptor is individually boxed —
     /// only the `Vec`'s own three words move, never a `ClassDesc`.
     ///
-    /// Shared rather than owned outright so a [`mwl_runtime::ErrorClass`]
-    /// handed to a [`mwl_runtime::Ctx`] can keep it alive by itself — that is
+    /// Shared rather than owned outright so a [`nvs_runtime::ErrorClass`]
+    /// handed to a [`nvs_runtime::Ctx`] can keep it alive by itself — that is
     /// what makes installing one need no `unsafe` at the call site.
-    classes: std::rc::Rc<mwl_runtime::ClassTable>,
+    classes: std::rc::Rc<nvs_runtime::ClassTable>,
     entries: FxHashMap<String, *const u8>,
     /// This unit's static-property initializers, in the slot order the
-    /// compiled code baked in — `mwl_ir::ir::Program::statics`' own order.
+    /// compiled code baked in — `nvs_ir::ir::Program::statics`' own order.
     /// Handed to a context by [`Unit::install_in`].
-    statics: Vec<Option<mwl_runtime::FieldDefault>>,
+    statics: Vec<Option<nvs_runtime::FieldDefault>>,
 }
 
 impl std::fmt::Debug for Unit {
@@ -294,19 +294,19 @@ impl std::fmt::Debug for Unit {
 
 impl Unit {
     /// The compiled function `name` names, ready to call — through
-    /// [`mwl_runtime::call`], which is the safe wrapper over [`MwlFn`]'s
+    /// [`nvs_runtime::call`], which is the safe wrapper over [`NvsFn`]'s
     /// pointer contract.
     #[must_use]
     #[expect(
         unsafe_code,
         reason = "handing back a JIT-compiled code pointer as a callable is a \
                   transmute with no safe spelling; the function was declared \
-                  with exactly `MwlFn`'s signature in `compile` and \
+                  with exactly `NvsFn`'s signature in `compile` and \
                   `finalize_definitions` has made its pages executable"
     )]
-    pub fn function(&self, name: &str) -> Option<MwlFn> {
+    pub fn function(&self, name: &str) -> Option<NvsFn> {
         let code = *self.entries.get(name)?;
-        Some(unsafe { std::mem::transmute::<*const u8, MwlFn>(code) })
+        Some(unsafe { std::mem::transmute::<*const u8, NvsFn>(code) })
     }
 
     /// A handle on the class a runtime helper's bare-message failure is
@@ -314,15 +314,15 @@ impl Unit {
     /// no" means.
     ///
     /// `None` only if the unit somehow declares no such class, which the
-    /// seeded exception tree (`mwl_hir::errors`) makes impossible for a
+    /// seeded exception tree (`nvs_hir::errors`) makes impossible for a
     /// program that went through the front end.
     ///
     /// The returned handle shares ownership of the descriptor table, so it may
-    /// safely outlive this `Unit` — see [`mwl_runtime::ErrorClass`].
+    /// safely outlive this `Unit` — see [`nvs_runtime::ErrorClass`].
     #[must_use]
-    pub fn runtime_error_class(&self) -> Option<mwl_runtime::ErrorClass> {
+    pub fn runtime_error_class(&self) -> Option<nvs_runtime::ErrorClass> {
         let id = self.classes.id_of("RuntimeError")?;
-        Some(mwl_runtime::ErrorClass::new(
+        Some(nvs_runtime::ErrorClass::new(
             std::rc::Rc::clone(&self.classes),
             id,
         ))
@@ -336,7 +336,7 @@ impl Unit {
     ///
     /// 1. *Behaviour.* A runtime helper's failure carries only a message; the
     ///    installed class is what promotes it to a catchable object with a
-    ///    backtrace ([`mwl_runtime::Ctx::set_runtime_error_class`]).
+    ///    backtrace ([`nvs_runtime::Ctx::set_runtime_error_class`]).
     /// 2. *Safety.* Compiled code bakes each descriptor's address in as a
     ///    constant (see [`Classes`]), so an exception object still sitting on
     ///    the context points into this table and nothing else keeps it alive.
@@ -345,11 +345,11 @@ impl Unit {
     ///    Skip the call and drop the `Unit` first, and `Ctx::pending` reads
     ///    freed memory — a use-after-free with no `unsafe` at the call site.
     /// 3. *State.* A `static` property's storage is the **request's**, not the
-    ///    process's (`mwl_runtime::ctx`'s own docs), so arming it is part of
+    ///    process's (`nvs_runtime::ctx`'s own docs), so arming it is part of
     ///    arming the context. Compiled code indexes that vector by a slot
     ///    number this unit fixed at compile time, which is why the unit hands
     ///    it over rather than an embedder building one.
-    pub fn install_in(&self, ctx: &mut mwl_runtime::Ctx) {
+    pub fn install_in(&self, ctx: &mut nvs_runtime::Ctx) {
         if let Some(class) = self.runtime_error_class() {
             ctx.set_runtime_error_class(class);
         }
@@ -375,7 +375,7 @@ pub fn compile(program: &Program) -> Result<Unit, CodegenError> {
 /// Compiles every function in `program` and returns the generated machine
 /// code as text, one section per function, *instead* of a callable [`Unit`].
 ///
-/// This is what `mwl run --dump-asm` prints. It compiles through exactly the
+/// This is what `nvs run --dump-asm` prints. It compiles through exactly the
 /// same path [`compile`] does — same ISA flags, same emitted probes — with
 /// Cranelift's disassembler switched on, so what it prints is the code that
 /// would have run rather than a second, differently-configured rendering.
@@ -402,8 +402,8 @@ struct Jit {
     ctx: codegen::Context,
     fn_ctx: FunctionBuilderContext,
     sigs: Signatures,
-    /// Every function this unit defines, by its MWL name — the table
-    /// `mwl_ir::ir::InstKind::Call`'s `"Class::method"` target is resolved
+    /// Every function this unit defines, by its Novis name — the table
+    /// `nvs_ir::ir::InstKind::Call`'s `"Class::method"` target is resolved
     /// through. Filled in a declaration pass over the whole program before
     /// any body is emitted, so a call may name a function defined later in
     /// the unit (or itself).
@@ -413,13 +413,13 @@ struct Jit {
     /// through.
     classes: Classes,
     /// Every `static` property the unit declares, mapped from the
-    /// `(declaring class, name)` pair `mwl_ir::ir::InstKind::StaticGet` names
+    /// `(declaring class, name)` pair `nvs_ir::ir::InstKind::StaticGet` names
     /// to its slot number — the static-storage counterpart of
     /// [`ClassEntry::slots`], and resolved exactly the same way: once, before
     /// any body is emitted, so the machine sees a constant index.
     statics: FxHashMap<(String, String), u32>,
     /// The same table's initializers, in slot order — see [`Unit::statics`].
-    static_defaults: Vec<Option<mwl_runtime::FieldDefault>>,
+    static_defaults: Vec<Option<nvs_runtime::FieldDefault>>,
     /// One entry per emitted `ConstStr`, so data-object names stay unique.
     literals: usize,
     entries: Vec<(String, cranelift_module::FuncId)>,
@@ -430,61 +430,61 @@ struct Jit {
 }
 
 /// Every class the compiled unit declares, in the two forms emitted code
-/// needs: the `ClassDesc` address `mwl_object_new`/`mwl_object_instanceof`
+/// needs: the `ClassDesc` address `nvs_object_new`/`nvs_object_instanceof`
 /// take, and the field-slot index a `FieldGet`/`FieldSet` turns into an
-/// offset through [`mwl_runtime::field_offset`].
+/// offset through [`nvs_runtime::field_offset`].
 ///
 /// # Why the descriptor address is baked in as a constant
 ///
 /// A JIT compiles at run time, so it *knows* the address of a runtime object
 /// it has already built — there is nothing to relocate and no registry to
 /// consult. `new Foo()` therefore emits one `iconst` and one call, which is
-/// why `mwl_runtime::ClassDesc` needs no `#[repr(C)]` and no layout compiled
+/// why `nvs_runtime::ClassDesc` needs no `#[repr(C)]` and no layout compiled
 /// code agrees on: it is an opaque token.
 ///
 /// The [`Unit`] that owns the table must outlive that code — see its own
 /// `_classes` field.
 #[derive(Debug, Default)]
 struct Classes {
-    table: mwl_runtime::ClassTable,
+    table: nvs_runtime::ClassTable,
     by_label: FxHashMap<String, ClassEntry>,
     /// The same keys as `by_label`, holding the table id `ClassTable::define`
     /// needs for a parent. Separate because a descriptor address is what
     /// *compiled code* wants and an id is what the table wants.
-    ids: FxHashMap<String, mwl_runtime::ClassId>,
+    ids: FxHashMap<String, nvs_runtime::ClassId>,
 }
 
 /// One class's compiled-in identity and field-slot map.
 #[derive(Debug)]
 struct ClassEntry {
     /// Address baked into the code that allocates or tests an instance.
-    desc: *const mwl_runtime::ClassDesc,
+    desc: *const nvs_runtime::ClassDesc,
     /// Field name to slot index. Built from the *flattened* order
-    /// `mwl_ir::ir::Class::fields` carries, so a slot looked up through the
+    /// `nvs_ir::ir::Class::fields` carries, so a slot looked up through the
     /// declaring class is valid for every subclass.
     slots: FxHashMap<String, usize>,
     /// This class's own id in `Classes::table`, and every method it answers as
     /// `(method name, declaring class label)` — kept until [`Jit::finish`],
     /// which is the first moment a compiled function has an address to put in
     /// the runtime descriptor's method table. See
-    /// `mwl_runtime::ClassTable::set_methods`.
-    id: mwl_runtime::ClassId,
+    /// `nvs_runtime::ClassTable::set_methods`.
+    id: nvs_runtime::ClassId,
     methods: Vec<(String, String)>,
 }
 
 impl Classes {
     /// Builds every descriptor, parents first.
     ///
-    /// `mwl_ir::ir::Class::conforms` is already the *transitive* supertype
+    /// `nvs_ir::ir::Class::conforms` is already the *transitive* supertype
     /// set, so a class can be defined as soon as every label in it is —
     /// [`Self::define`] recurses to arrange exactly that. A `conforms` entry
     /// naming a class the unit does not declare is skipped rather than being
     /// an error: an `extends` the front end already diagnosed leaves one
     /// behind, and a second unexplained failure here would only bury the
     /// first.
-    fn build(classes: &[mwl_ir::ir::Class]) -> Self {
+    fn build(classes: &[nvs_ir::ir::Class]) -> Self {
         let mut out = Self::default();
-        let by_label: FxHashMap<&str, &mwl_ir::ir::Class> = classes
+        let by_label: FxHashMap<&str, &nvs_ir::ir::Class> = classes
             .iter()
             .map(|class| (class.label.as_str(), class))
             .collect();
@@ -494,12 +494,12 @@ impl Classes {
         out
     }
 
-    fn define(&mut self, class: &mwl_ir::ir::Class, source: &FxHashMap<&str, &mwl_ir::ir::Class>) {
+    fn define(&mut self, class: &nvs_ir::ir::Class, source: &FxHashMap<&str, &nvs_ir::ir::Class>) {
         if self.by_label.contains_key(&class.label) {
             return;
         }
         // Reserve the label before recursing: a cyclic `extends` has already
-        // been diagnosed by `mwl_hir::hierarchy`, and this must terminate
+        // been diagnosed by `nvs_hir::hierarchy`, and this must terminate
         // rather than re-report it.
         let mut parents = Vec::with_capacity(class.conforms.len());
         for label in &class.conforms {
@@ -523,7 +523,7 @@ impl Classes {
         }
         // ADR 0036 § 4's write check, at the one granularity the runtime can
         // hold: a representation with no single tag — `Ty::Tagged`, `Ty::Void`
-        // — becomes `None`, which `mwl_runtime::mwl_object_slot_set` reads as
+        // — becomes `None`, which `nvs_runtime::nvs_object_slot_set` reads as
         // "unchecked". Every class with a layout carries one entry per slot
         // now, because § 4's erased receiver reaches any class at all; the
         // guard below is for the synthesized ones that carry none (a
@@ -556,7 +556,7 @@ impl Classes {
 
     /// The descriptor address for `label`, or `None` if the unit declares no
     /// such class.
-    fn desc(&self, label: &str) -> Option<*const mwl_runtime::ClassDesc> {
+    fn desc(&self, label: &str) -> Option<*const nvs_runtime::ClassDesc> {
         self.by_label.get(label).map(|entry| entry.desc)
     }
 
@@ -571,11 +571,11 @@ impl Classes {
 
 /// The signatures the runtime exports, beyond the helper ABI itself.
 ///
-/// `mwl-runtime`'s entry points are deliberately not all the same shape:
-/// `mwl_str_concat`/`mwl_str_concat_n`/`mwl_str_retain`/`mwl_str_release`
+/// `nvs-runtime`'s entry points are deliberately not all the same shape:
+/// `nvs_str_concat`/`nvs_str_concat_n`/`nvs_str_retain`/`nvs_str_release`
 /// operate on
 /// raw `StrHeader` pointers with no context and no `Value`, because they are
-/// memory primitives rather than language operations, and `mwl_probe_stmt`
+/// memory primitives rather than language operations, and `nvs_probe_stmt`
 /// returns nothing because a coverage probe cannot fail. Each therefore gets
 /// its own signature here rather than being forced through
 /// [`Signatures::helper`].
@@ -585,110 +585,110 @@ struct Signatures {
     /// `(ctx, args, argc, out) -> status` — [`Self::helper`] with the
     /// argument **count** passed beside the slot, for the one helper whose
     /// arity belongs to the call site rather than to its own declaration:
-    /// `mwl_runtime::mwl_call_closure`, which is `mwl_ir::Helper::CallClosure`
+    /// `nvs_runtime::nvs_call_closure`, which is `nvs_ir::Helper::CallClosure`
     /// and ADR 0031's `$fn(...)`. Every other helper's arity is a literal in
-    /// its `mwl_helper!` expansion, so no count crosses the boundary at all.
+    /// its `nvs_helper!` expansion, so no count crosses the boundary at all.
     helper_variadic: Signature,
-    /// `mwl_safepoint(ctx) -> status`.
+    /// `nvs_safepoint(ctx) -> status`.
     safepoint: Signature,
-    /// `mwl_stack_check(ctx, sp) -> status` —
+    /// `nvs_stack_check(ctx, sp) -> status` —
     /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
     /// slow path. `sp` is `I64` for the reason every other pointer-shaped
     /// parameter here is: this JIT compiles for 64-bit targets only.
     stack_check: Signature,
-    /// `mwl_probe_stmt(ctx, stmt_id)`.
+    /// `nvs_probe_stmt(ctx, stmt_id)`.
     probe: Signature,
-    /// `mwl_probe_call_enter(ctx, name, len)`.
+    /// `nvs_probe_call_enter(ctx, name, len)`.
     probe_call: Signature,
-    /// `mwl_probe_call_exit(ctx, name, len, status)`.
+    /// `nvs_probe_call_exit(ctx, name, len, status)`.
     probe_call_exit: Signature,
-    /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`,
-    /// `mwl_str_append(target, suffix) -> *mut StrHeader` and
-    /// `mwl_str_concat_n(pieces, count) -> *mut StrHeader`, which are all the
+    /// `nvs_str_concat(lhs, rhs) -> *mut StrHeader`,
+    /// `nvs_str_append(target, suffix) -> *mut StrHeader` and
+    /// `nvs_str_concat_n(pieces, count) -> *mut StrHeader`, which are all the
     /// same shape: two pointer-width parameters, one pointer back. The three
     /// differ in ownership and in what the second parameter *means*, not in
-    /// ABI — see `mwl_ir::ir::InstKind::StrAppend` and `InstKind::Concat` — so
+    /// ABI — see `nvs_ir::ir::InstKind::StrAppend` and `InstKind::Concat` — so
     /// one signature serves all of them, and a count declares itself with
     /// `AbiParam::new(ptr)` because a `usize` is pointer-width.
     str_concat: Signature,
-    /// `mwl_str_eq(lhs, rhs) -> bool` and `mwl_array_eq(lhs, rhs) -> bool`,
+    /// `nvs_str_eq(lhs, rhs) -> bool` and `nvs_array_eq(lhs, rhs) -> bool`,
     /// which share one shape: two raw pointers to an `I8`, like
     /// `Sigs::instanceof`.
     ptr_eq: Signature,
-    /// `mwl_float_pow(base, exponent) -> f64` — ADR 0007 § 4's `**` over two
+    /// `nvs_float_pow(base, exponent) -> f64` — ADR 0007 § 4's `**` over two
     /// `float`s, which has no machine instruction and no `LibCall` either. See
     /// [`crate::emit`]'s module doc for why it is a direct call of this shape
     /// rather than one more [`Signatures::helper`].
     float_pow: Signature,
-    /// `mwl_str_retain(ptr)` / `mwl_str_release(ptr)`, and the two
-    /// `mwl_throwable_*` counterparts.
+    /// `nvs_str_retain(ptr)` / `nvs_str_release(ptr)`, and the two
+    /// `nvs_throwable_*` counterparts.
     refcount: Signature,
-    /// `mwl_value_retain(tag_word, bits)` / `mwl_value_release(tag_word, bits)`
-    /// — the tag-dispatching pair a `mwl_ir::Ty::Tagged` operand needs, taking
+    /// `nvs_value_retain(tag_word, bits)` / `nvs_value_release(tag_word, bits)`
+    /// — the tag-dispatching pair a `nvs_ir::Ty::Tagged` operand needs, taking
     /// the register pair `crate::ty::clif_ty` describes as two words rather
     /// than one 16-byte aggregate, so no C ABI question about how such an
     /// aggregate travels ever arises.
     value_refcount: Signature,
-    /// `mwl_exception_new(ptr) -> ptr`, and every other exception primitive
-    /// with that one shape: `mwl_throwable_message`, `mwl_throwable_trace`,
-    /// `mwl_take_thrown`.
+    /// `nvs_exception_new(ptr) -> ptr`, and every other exception primitive
+    /// with that one shape: `nvs_throwable_message`, `nvs_throwable_trace`,
+    /// `nvs_take_thrown`.
     ptr_to_ptr: Signature,
-    /// `mwl_raise(ctx, throwable)`.
+    /// `nvs_raise(ctx, throwable)`.
     raise: Signature,
-    /// `mwl_raise_new(ctx, class, message, len)` — the throw compiled code
-    /// raises by itself, with no MWL `new` behind it. See
-    /// `mwl_runtime::mwl_raise_new`.
+    /// `nvs_raise_new(ctx, class, message, len)` — the throw compiled code
+    /// raises by itself, with no Novis `new` behind it. See
+    /// `nvs_runtime::nvs_raise_new`.
     raise_new: Signature,
-    /// `mwl_object_instanceof(object, desc) -> bool` — `I8`, the width a
+    /// `nvs_object_instanceof(object, desc) -> bool` — `I8`, the width a
     /// Cranelift comparison produces and the one [`ty::clif_ty`] gives
-    /// [`mwl_ir::Ty::Bool`].
+    /// [`nvs_ir::Ty::Bool`].
     ///
-    /// Shared with `mwl_value_instanceof(subject_ptr, desc) -> bool`, which
+    /// Shared with `nvs_value_instanceof(subject_ptr, desc) -> bool`, which
     /// `emit::Emitter::emit_instanceof` calls instead for a
-    /// [`mwl_ir::Ty::Tagged`] subject: two pointer arguments and an `I8`
+    /// [`nvs_ir::Ty::Tagged`] subject: two pointer arguments and an `I8`
     /// result either way, only the first argument's pointee differing.
     instanceof: Signature,
-    /// `mwl_class_method(class, name, len, fallback) -> code address` — the
+    /// `nvs_class_method(class, name, len, fallback) -> code address` — the
     /// runtime half of `static::method(...)`'s dispatch. See
-    /// `mwl_runtime::mwl_class_method`.
+    /// `nvs_runtime::nvs_class_method`.
     class_method: Signature,
-    /// `mwl_object_slot_get(ctx, receiver, name, len, hint, out) -> status` —
+    /// `nvs_object_slot_get(ctx, receiver, name, len, hint, out) -> status` —
     /// ADR 0036 § 4's name-keyed shape read. The one object access that is not
     /// a fixed offset resolved here, and the one that can throw; see
-    /// `mwl_ir::ir::InstKind::SlotGet`. The receiver travels by *address*,
+    /// `nvs_ir::ir::InstKind::SlotGet`. The receiver travels by *address*,
     /// as a whole 16-byte value, because a `mixed` one arrives with a tag
     /// nothing proved and this helper is where it is checked.
     slot_get: Signature,
-    /// `mwl_object_slot_set(ctx, receiver, name, len, hint, value, out) -> status`
+    /// `nvs_object_slot_set(ctx, receiver, name, len, hint, value, out) -> status`
     /// — ADR 0036 § 4's name-keyed shape *write*. One parameter wider than
     /// [`Self::slot_get`], because the value travels through a caller-owned
     /// 16-byte slot the way [`Self::array_value_at`]'s result does *and* the helper
     /// ABI still writes an (ignored) result of its own; see
-    /// `mwl_ir::ir::InstKind::SlotSet`.
+    /// `nvs_ir::ir::InstKind::SlotSet`.
     slot_set: Signature,
-    /// `mwl_array_new() -> *mut ArrayHeader`.
+    /// `nvs_array_new() -> *mut ArrayHeader`.
     array_new: Signature,
-    /// `mwl_array_set(array, key, value) -> *mut ArrayHeader`. There is no
-    /// read signature beside it: an `mwl_ir::ir::InstKind::ArrayGet` throws on
+    /// `nvs_array_set(array, key, value) -> *mut ArrayHeader`. There is no
+    /// read signature beside it: an `nvs_ir::ir::InstKind::ArrayGet` throws on
     /// an absent key, so it travels the helper ABI ([`Self::helper`]) against
-    /// `mwl_array_required_get`, which tells a rendered key from an `int`
+    /// `nvs_array_required_get`, which tells a rendered key from an `int`
     /// subscript by its own tag rather than by a second signature here.
     array_set: Signature,
-    /// `mwl_array_set_index(array, index, value) -> *mut ArrayHeader` — the
+    /// `nvs_array_set_index(array, index, value) -> *mut ArrayHeader` — the
     /// write reached by the `i64` an `int` subscript already was, with no key
-    /// string built at all while the array is packed. `mwl-ir`'s module doc
+    /// string built at all while the array is packed. `nvs-ir`'s module doc
     /// § *an array key is a `string`, and an `int` subscript no longer spells
     /// it* is the decision.
     array_set_index: Signature,
-    /// `mwl_array_append(ctx, array, value, out) -> status` — the one array
+    /// `nvs_array_append(ctx, array, value, out) -> status` — the one array
     /// write that can fail, and so the one carrying ADR 0002's status shape
     /// rather than handing the array straight back. The array it yields
     /// travels through `out`, a caller-owned pointer-wide slot, the way
     /// [`Self::slot_set`]'s result travels through a 16-byte one;
-    /// `mwl_runtime::mwl_array_append` owns what `out` holds on the refusal
+    /// `nvs_runtime::nvs_array_append` owns what `out` holds on the refusal
     /// and why the refusal exists.
     array_append: Signature,
-    /// `mwl_array_spread(ctx, array, subject, out) -> status` — the `[...$a]`
+    /// `nvs_array_spread(ctx, array, subject, out) -> status` — the `[...$a]`
     /// element's whole-array copy. [`Self::array_append`]'s shape, and it
     /// carries the fault channel for the same reason: a renumbered key is an
     /// append. Its own signature all the same, because its third parameter is
@@ -696,7 +696,7 @@ struct Signatures {
     /// struct's rule is that no signature is shared by two symbols whose Rust
     /// declarations are not the same shape for the same reason.
     array_spread: Signature,
-    /// `mwl_array_unset(array, key) -> *mut ArrayHeader` — two pointers in,
+    /// `nvs_array_unset(array, key) -> *mut ArrayHeader` — two pointers in,
     /// one pointer back.
     ///
     /// It borrowed [`Self::array_append`]'s signature while the two shapes
@@ -705,16 +705,16 @@ struct Signatures {
     /// and no signature here is shared by two symbols whose Rust declarations
     /// are not the same shape for the same reason.
     array_unset: Signature,
-    /// `mwl_array_next_slot(array, from) -> i64` — the `foreach` cursor step.
+    /// `nvs_array_next_slot(array, from) -> i64` — the `foreach` cursor step.
     /// `from` is a `usize` in the Rust signature, `I64` here: every target
     /// this JIT compiles for is 64-bit (see [`crate::ty::clif_ty`], which maps
     /// every pointer-shaped representation to `I64` for the same reason).
     array_next_slot: Signature,
-    /// `mwl_array_key_at(array, slot) -> *mut StrHeader`.
+    /// `nvs_array_key_at(array, slot) -> *mut StrHeader`.
     array_key_at: Signature,
-    /// `mwl_array_value_at(array, slot, out)` — the read primitive whose
+    /// `nvs_array_value_at(array, slot, out)` — the read primitive whose
     /// result travels through a caller-owned 16-byte slot — see
-    /// `mwl_runtime::array`'s "the primitives compiled code calls" note for
+    /// `nvs_runtime::array`'s "the primitives compiled code calls" note for
     /// why no `Value` crosses this boundary in a register.
     array_value_at: Signature,
 }
@@ -725,7 +725,7 @@ impl Jit {
         for (name, value) in [
             // A JIT resolves every call through an absolute address, and the
             // pages are its own — the same configuration benches/abi-probe has
-            // measured MWL's costs under since M0.
+            // measured Novis's costs under since M0.
             ("use_colocated_libcalls", "false"),
             ("is_pic", "false"),
             ("opt_level", "speed"),
@@ -734,7 +734,7 @@ impl Jit {
             // step and write into whatever lies beyond — a stack clash, which
             // is a memory-safety bug rather than the clean crash a guard page
             // exists to produce. `probestack_size_log2` defaults to 12, so a
-            // probe is emitted only for a frame over 4 KiB and no MWL frame is
+            // probe is emitted only for a frame over 4 KiB and no Novis frame is
             // that big today: measured under callgrind on this tree, the
             // retired-instruction count is unchanged to five significant
             // figures either way (92,237,951 off vs 92,237,800 inline on a
@@ -771,13 +771,13 @@ impl Jit {
             .map_err(|e| CodegenError::UnsupportedHost(e.to_string()))?;
 
         let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
-        // Two symbol tables, one namespace: `mwl_runtime`'s primitives and
+        // Two symbol tables, one namespace: `nvs_runtime`'s primitives and
         // helpers, and every Tier 0 `Core` member. Both have ADR 0002's one
-        // helper signature, and `mwl_stdlib`'s own docs own why a `Core` call
+        // helper signature, and `nvs_stdlib`'s own docs own why a `Core` call
         // is emitted through the same path a helper call is.
-        for (name, address) in mwl_runtime::symbols()
+        for (name, address) in nvs_runtime::symbols()
             .into_iter()
-            .chain(mwl_stdlib::symbols())
+            .chain(nvs_stdlib::symbols())
         {
             builder.symbol(name, address);
         }
@@ -802,7 +802,7 @@ impl Jit {
     /// Declares every function in `program`, then emits every body.
     ///
     /// The two passes are why a call can name a function declared further
-    /// down the file, or itself: by the time any body is emitted, every MWL
+    /// down the file, or itself: by the time any body is emitted, every Novis
     /// name in the unit already has a `FuncId` for `emit_call` to resolve
     /// against. Cranelift is fine with a call to a declared-but-not-yet-
     /// defined function; `finalize_definitions` is what would object if one
@@ -810,8 +810,8 @@ impl Jit {
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
         self.classes = Classes::build(&program.classes);
         // The slot number *is* the position in `Program::statics`, which
-        // `mwl_ir::lower` already sorted; nothing here reorders it, because
-        // the vector handed to `mwl_runtime::Ctx::install_statics` has to be
+        // `nvs_ir::lower` already sorted; nothing here reorders it, because
+        // the vector handed to `nvs_runtime::Ctx::install_statics` has to be
         // indexed by the very numbers baked into the code below.
         for (slot, prop) in program.statics.iter().enumerate() {
             let slot = u32::try_from(slot)
@@ -821,11 +821,11 @@ impl Jit {
             self.static_defaults.push(prop.default_value.clone());
         }
         for (index, function) in program.functions.iter().enumerate() {
-            // `index` only disambiguates the Cranelift symbol name: an MWL
+            // `index` only disambiguates the Cranelift symbol name: an Novis
             // function name is not a valid symbol (`<script>` is the first
             // counter-example), and two classes may declare the same method
             // name.
-            let symbol = format!("mwl{index}_{}", sanitize(&function.name));
+            let symbol = format!("nvs{index}_{}", sanitize(&function.name));
             let id = self
                 .module
                 .declare_function(&symbol, Linkage::Local, &self.sigs.helper)
@@ -842,7 +842,7 @@ impl Jit {
     }
 
     /// Emits one already-declared function's body.
-    fn compile_function(&mut self, function: &mwl_ir::Function) -> Result<(), CodegenError> {
+    fn compile_function(&mut self, function: &nvs_ir::Function) -> Result<(), CodegenError> {
         let id =
             *self
                 .functions
@@ -937,7 +937,7 @@ impl Jit {
     }
 
     /// Hands every runtime `ClassDesc` the compiled addresses of the methods
-    /// its class answers — what `mwl_ir::ir::InstKind::CallVirtual` and
+    /// its class answers — what `nvs_ir::ir::InstKind::CallVirtual` and
     /// `InstKind::NewDynamic` dispatch through.
     ///
     /// Runs only after `finalize_definitions`, because that is the first
@@ -946,7 +946,7 @@ impl Jit {
     /// skipped rather than being an error: the same treatment `Classes::define`
     /// gives a `conforms` entry it cannot resolve, and for the same reason —
     /// the front end has already reported whatever left it behind, and
-    /// `mwl_class_method`'s fallback keeps the call correct regardless.
+    /// `nvs_class_method`'s fallback keeps the call correct regardless.
     fn bind_method_tables(&mut self) {
         for entry in self.classes.by_label.values() {
             let methods = entry
@@ -1152,7 +1152,7 @@ impl Signatures {
     }
 }
 
-/// Reduces an MWL function name to something a linker symbol may contain.
+/// Reduces an Novis function name to something a linker symbol may contain.
 ///
 /// Not a mangling scheme: [`Jit::compile_function`]'s index already supplies
 /// uniqueness, so this only has to keep the name readable in a disassembly.

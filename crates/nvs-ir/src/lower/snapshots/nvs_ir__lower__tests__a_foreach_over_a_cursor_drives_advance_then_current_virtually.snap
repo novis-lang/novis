@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, object) -> void {
@@ -19,7 +19,7 @@ fn m(object, object) -> void {
     release v1
     release v1
     release v0
-    propagate "m() at t.mwl:4"
+    propagate "m() at t.nvs:4"
   bb3:
     retain v1
     v4 = class.of v1  ; classdesc
@@ -40,11 +40,11 @@ fn m(object, object) -> void {
     release v1
     release v1
     release v0
-    propagate "m() at t.mwl:4"
+    propagate "m() at t.nvs:4"
   bb6:
     release v6
     release v1
     release v1
     release v0
-    propagate "m() at t.mwl:5"
+    propagate "m() at t.nvs:5"
 }

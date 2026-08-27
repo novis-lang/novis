@@ -1,7 +1,7 @@
 --TEST--
 An `array<Shape>` holds three instances of two subclasses; the base's concrete method reaches each abstract override
 --FILE--
-<?mwl
+<?nvs
 abstract class Shape {
     public abstract function area(): int;
 

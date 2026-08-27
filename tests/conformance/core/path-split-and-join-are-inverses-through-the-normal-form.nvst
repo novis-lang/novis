@@ -1,7 +1,7 @@
 --TEST--
 Core\Path::split decomposes losslessly and Core\Path::join puts it back — the round trip is normalize($p) on every row, exact on an already-normal one, and no element it yields is ever the empty string — docs/spec/01-core-library.md § 8
 --FILE--
-<?mwl
+<?nvs
 // `split` and `join` are written against each other: the decomposition is
 // lossless, so putting the pieces back is the path again. Asked one at a time
 // they both look right — `split("a/b")` is obviously `["a", "b"]` — and the

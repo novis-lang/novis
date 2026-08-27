@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::hasKey answers what array_key_exists answers, for both key types
 --FILE--
-<?mwl
+<?nvs
 array<int> $map = ["b" => 2, "a" => 1];
 array<int> $list = [10, 20, 30];
 

@@ -1,8 +1,8 @@
 --TEST--
 `tainted` is erased before codegen, so a qualified value answers exactly what its unqualified twin answers on every question it can be asked — ADR 0024 §§ 1-2 and ADR 0033 §§ 1-2
 --FILE--
-<?mwl
-// ADR 0024 § 1: the qualifier is "checked exactly once, by `mwl check`, and
+<?nvs
+// ADR 0024 § 1: the qualifier is "checked exactly once, by `nvs check`, and
 // carries no representation at all past that point". A case can only see the
 // second half of that, so this one asks a *tainted* value and its plain twin
 // the same question on every row and **counts** the rows where the two
@@ -11,7 +11,7 @@
 // individual line still prints something plausible.
 //
 // The refusals are the other half of this claim and are their own file:
-// tests/conformance/reject/tainted-and-secret-widen-but-never-narrow.mwlt.
+// tests/conformance/reject/tainted-and-secret-widen-but-never-narrow.nvst.
 
 // Content chosen so a divergence has somewhere to hide: empty, a byte a
 // naive escaper would touch, a multibyte run, a numeric string, and one long

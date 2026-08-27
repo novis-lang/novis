@@ -19,7 +19,7 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use mwl_abi_probe::wasm::WasmProbe;
+use nvs_abi_probe::wasm::WasmProbe;
 
 const HEAP_LEN: usize = 1024;
 const NO_DEADLINE: u64 = u64::MAX;
@@ -39,7 +39,7 @@ fn host_to_guest(c: &mut Criterion) {
 }
 
 fn guest_to_host(c: &mut Criterion) {
-    // Measured per accessor call, since this is the pattern MWL's value API
+    // Measured per accessor call, since this is the pattern Novis's value API
     // uses: the guest pulls what it needs rather than being handed the heap.
     let probe = WasmProbe::new().expect("wasm probe");
     let (mut store, instance) = probe

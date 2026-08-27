@@ -1,10 +1,10 @@
 --TEST--
 An ADR 0036 § 2 object literal writing one field name twice is `E0494` where it is written, at every depth and once per repeat, while the same braces spelling an ADR 0063 R2 options bag keeps its own `E0304`
 --FILE--
-<?mwl
+<?nvs
 // A shape's fields are a set: `{a: int}` names one slot, so the second `a`
 // has nowhere to land. The interned shape reads the first of the pair and
-// the class `mwl-ir` synthesizes would keep the last, which is exactly the
+// the class `nvs-ir` synthesizes would keep the last, which is exactly the
 // silent disagreement this refuses.
 var $twice = {a: 1, a: 2};
 // Every repeat is named, not just the first one: three writes of `b` are

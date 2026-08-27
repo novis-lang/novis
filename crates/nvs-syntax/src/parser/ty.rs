@@ -8,7 +8,7 @@
 //! split back into two `>` closes here rather than in the lexer — see
 //! [`Parser::expect_type_close_angle`].
 //!
-//! What a type *means* is `mwl-types`'s; this module only says which spellings
+//! What a type *means* is `nvs-types`'s; this module only says which spellings
 //! parse. The one exception is a spelling refused outright at parse time —
 //! a `float` literal in type position, an interpolated string — where the
 //! diagnostic belongs to the grammar that rejects it.
@@ -222,7 +222,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// The parser deliberately accepts this after *any* name and imposes no
     /// arity: [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md)
     /// § 2's one narrow door is `Iterable`/`Iterator`, but which names are
-    /// generic is `mwl_hir::interfaces`' roster and only the checker reads
+    /// generic is `nvs_hir::interfaces`' roster and only the checker reads
     /// it. Parsing `Foo<int>` and refusing it later gets the reader a
     /// diagnostic that names the rule, instead of a cascade off a `<` that
     /// was read as a comparison.
@@ -494,7 +494,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `{name: T, ...}` in type position — ADR 0036 § 3, MWL's one
+    /// `{name: T, ...}` in type position — ADR 0036 § 3, Novis's one
     /// structurally-checked type. No ambiguity to resolve here the way the
     /// value literal has (see [`Self::parse_object_literal_expr`]): type
     /// position never dispatches `{` to a block, so an empty `{}` is simply

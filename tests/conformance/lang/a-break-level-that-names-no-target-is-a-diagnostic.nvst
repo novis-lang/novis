@@ -1,7 +1,7 @@
 --TEST--
-Every `break`/`continue` level with no statically-known target is `E0475`, never a panic — `mwl_types::locals::check_exit_level`, and PHP refuses all five at compile time too
+Every `break`/`continue` level with no statically-known target is `E0475`, never a panic — `nvs_types::locals::check_exit_level`, and PHP refuses all five at compile time too
 --FILE--
-<?mwl
+<?nvs
 int $depth = 2;
 array<string> $rows = ["a"];
 foreach ($rows as string $r) {

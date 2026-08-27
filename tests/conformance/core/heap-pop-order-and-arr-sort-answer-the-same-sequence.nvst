@@ -1,8 +1,8 @@
 --TEST--
 A `Core\Heap<T>` drained by `pop` and the same table given to `Core\Arr::sort` answer the same sequence under every ordering both of them accept — natural, reversed, keyed and bytewise — docs/spec/01-core-library.md §§ 2 and 9, ADR 0013
 --FILE--
-<?mwl
-// Two members implement one rule: `mwl_stdlib::ordering::compare_values` is
+<?nvs
+// Two members implement one rule: `nvs_stdlib::ordering::compare_values` is
 // what a comparator-less `Core\Heap` sifts by and what `Core\Arr::sort`
 // permutes by, and a user closure is threaded into both. So the question
 // worth asking is not what either one printed — the neighbouring cases read
@@ -17,7 +17,7 @@ final class Agree {
     // Pushes the whole table, then walks the sorted answer popping once per
     // entry, and counts the positions where the two say the same thing. A
     // heap that drained short throws at `pop` rather than scoring low, which
-    // is `heap-holds-every-push-and-refuses-an-empty-read.mwlt`'s rule.
+    // is `heap-holds-every-push-and-refuses-an-empty-read.nvst`'s rule.
     public static function ints(Core\Heap<int> $h, array<int> $table, array<int> $sorted): int {
         foreach ($table as int $v) {
             $h->push($v);

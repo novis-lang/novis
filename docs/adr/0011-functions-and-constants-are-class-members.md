@@ -35,7 +35,7 @@
   is exhaustive), but never closed ungoverned *behaviour*: nothing stopped a top-level
   `function totalOrders(): int { ... }`, and the stdlib was still implicitly a flat set of global
   functions (`strlen`, `array_map`, …) as in PHP.
-- The requirement is explicit, not merely priority-derived: **MWL is OOP-only** — a function is always a
+- The requirement is explicit, not merely priority-derived: **Novis is OOP-only** — a function is always a
   method, with no exception for built-ins.
 - **Simplicity (priority 4):** a free function is the same "reachable from anywhere, declared nowhere in
   particular" shape `global` was for state — closing it is the same move ADR 0008 made, for behaviour.
@@ -69,7 +69,7 @@ Two things are deliberately **not** affected:
   closes is a name with no declared home, and a closure has no name at all until something binds it to one.
   Storing one in a variable, a property, or a class constant is unaffected.
 - **The script's own top-level statements.** [ADR 0008](0008-static-and-global.md) already establishes
-  that a `.mwl` script's body is a function of its own, so its statements are not a `function` *declaration*
+  that a `.nvs` script's body is a function of its own, so its statements are not a `function` *declaration*
   in the sense this ADR restricts. What is restricted is a *named* `function` or `const` appearing at that
   scope — the script body executing statements, including ones that create and call closures, is untouched.
 
@@ -83,7 +83,7 @@ Two things are deliberately **not** affected:
 - **Domain classes, not one class.** Built-ins are grouped the way PHP's own extensions already group them —
   `Core\Str`, `Core\Arr`, `Core\Math`, `Core\Json`, `Core\Regex`, `Core\IO`, `Core\Env`, and more as later
   milestones build them out — matching the Tier 0/Tier 2 split [ADR 0003](0003-extension-system.md) already
-  draws by domain (`mwl-regex`, `mwl-db`). The exact roster is stdlib design, due at M2/M8, not fixed by this
+  draws by domain (`nvs-regex`, `nvs-db`). The exact roster is stdlib design, due at M2/M8, not fixed by this
   ADR; what *is* fixed here is the shape: one class per domain, `static` methods and `const` members, no
   free function or constant anywhere, ever. `Core\Server`, `Core\Request`, `Core\Session`, `Core\Cli` and
   `Core\Script` are the one part of the roster fixed ahead of the stdlib milestones, because they replace
@@ -130,11 +130,11 @@ Each rejection names its replacement, in the style [ADR 0008](0008-static-and-gl
 
 ### 5. The divergence this creates
 
-PHP's global-function and global-constant declarations simply do not exist in MWL, at all — not "converted
+PHP's global-function and global-constant declarations simply do not exist in Novis, at all — not "converted
 with different syntax," removed outright. The table below is this decision's own; the register that indexes
 every one of them is [divergences.md](divergences.md).
 
-| # | PHP | MWL |
+| # | PHP | Novis |
 |---|---|---|
 | 1 | a global function or a global constant may be declared at file scope | rejected outright; every callable is a method, every constant a class constant, with no exception for built-ins |
 | 2 | built-in functions and constants share PHP's one global namespace with user code and extensions | organised into domain classes under the reserved `Core` namespace, reached through ordinary `use`/FQN resolution like any other class |
@@ -149,7 +149,7 @@ every one of them is [divergences.md](divergences.md).
 - Every built-in call is namespaced and explicit at the call site: a reviewer sees exactly which `Core` class
   a line depends on, rather than a bare name that could be a built-in, an extension global, or user code,
   indistinguishably, the way it can in PHP.
-- User code and extensions share exactly one registration shape — a class — so `mwl check`'s symbol table has
+- User code and extensions share exactly one registration shape — a class — so `nvs check`'s symbol table has
   one kind of entry to resolve a call or constant against, not two.
 - `Core` being reserved closes a real PHP footgun structurally: redeclaring a name that collides with a
   built-in is a fatal error in PHP, discovered at whichever request loads both definitions first; here it is
@@ -160,7 +160,7 @@ every one of them is [divergences.md](divergences.md).
 
 - Every PHP global-function or global-constant call in a converted program needs a name-mapping rewrite
   (`strlen` → `Core\Str::length`), on top of the type-annotation rewrite
-  [ADR 0007](0007-explicit-type-system.md) already requires. `mwl convert` (M11) needs a maintained
+  [ADR 0007](0007-explicit-type-system.md) already requires. `nvs convert` (M11) needs a maintained
   PHP-name → `Core`-class-and-member table that grows with the stdlib rather than being fixed at M0.
 - A PHP file's own free functions and constants — user-authored procedural code with no built-in
   counterpart — have no destination class the converter can infer automatically. This is the same shape of
@@ -181,7 +181,7 @@ every one of them is [divergences.md](divergences.md).
 - **Leave global constants out of scope, matching only the functions half.** Rejected in *3*: leaves one
   row in [ADR 0008](0008-static-and-global.md) § 2 as the sole remaining free-floating name, with no
   argument left for why it alone keeps that status.
-- **A single per-file generated class as the only `mwl convert` rewrite, with no manual-review flag.**
+- **A single per-file generated class as the only `nvs convert` rewrite, with no manual-review flag.**
   Rejected: [ADR 0008](0008-static-and-global.md)'s function-static rewrite already established that a
   rewrite changing surrounding code's shape needs a human look.
 
@@ -189,7 +189,7 @@ every one of them is [divergences.md](divergences.md).
 
 - **The exact `Core` class roster and member names** are M2/M8 stdlib design, not this ADR; the class list
   here is illustrative and will be filled in incrementally as each domain is implemented.
-- **Whether `mwl convert`'s one-generated-class-per-file default for leftover procedural code is good
+- **Whether `nvs convert`'s one-generated-class-per-file default for leftover procedural code is good
   enough**, or whether it should instead prompt for a class name per file, is an M11 UX question this ADR
   does not resolve.
 - **A `use function`/`use const`-style shorthand for `Core` members**, if the `Class::method` spelling proves

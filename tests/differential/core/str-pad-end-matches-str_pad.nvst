@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::padEnd matches PHP's str_pad with STR_PAD_RIGHT, truncation rule included
 --FILE--
-<?mwl
+<?nvs
 echo "[", Core\Str::padEnd("7", 4, "."), "]\n";
 echo "[", Core\Str::padEnd("toolong", 3, "."), "]\n";
 echo "[", Core\Str::padEnd("ab", 7, "xy"), "]\n";

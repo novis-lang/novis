@@ -1,7 +1,7 @@
 --TEST--
 a heredoc strips the closing marker's indentation from every line, and `{...}` inside it reaches a property and a method call alike
 --FILE--
-<?mwl
+<?nvs
 class Person {
     public string $name;
     public int $age;

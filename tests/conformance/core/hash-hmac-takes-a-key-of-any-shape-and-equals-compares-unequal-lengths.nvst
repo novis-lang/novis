@@ -1,11 +1,11 @@
 --TEST--
 `Core\Hash::hmac` answers RFC 4231's vectors for a key shorter than the block, a binary key and a key longer than the block, and `Core\Hash::equals` answers over operands of unequal length — spec § 11, ADR 0009 §§ 1 and 3
 --FILE--
-<?mwl
+<?nvs
 // RFC 2104's construction pads the key to the hash's block size, or hashes it
 // first when it is longer than one — so the key's *length relative to the
 // block* is the axis this member can get wrong, and it is the axis RFC 4231's
-// suite is built around. `hash-computes-every-digest-and-authenticates-with-hmac.mwlt`
+// suite is built around. `hash-computes-every-digest-and-authenticates-with-hmac.nvst`
 // writes only Case 2, whose key is four octets.
 
 // RFC 4231 Case 1: a 20-octet key, shorter than either block size, over eight

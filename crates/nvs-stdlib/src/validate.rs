@@ -106,9 +106,9 @@
 //! # `isAscii` and `isPrintable`: two questions, not one asked twice
 //!
 //! These two replace PHP's `ctype_*` family rather than a `FILTER_*` constant,
-//! and they part company from it in the one way an MWL `string` forces:
+//! and they part company from it in the one way an Novis `string` forces:
 //! a PHP string is bytes, so `ctype_print` answers about ASCII `0x20`–`0x7E`
-//! and says `false` for `café`. An MWL `string` is UTF-8
+//! and says `false` for `café`. An Novis `string` is UTF-8
 //! ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 1), so a
 //! byte-wise reading would leave no member that could ask about text at all.
 //! The two are therefore split by what they actually ask:
@@ -139,7 +139,7 @@
 //! confidence ADR 0024 refuses — escaping at the sink is what makes a string
 //! safe to display, and no member in this module launders anything.
 
-use mwl_runtime::{Fault, Tag, Value};
+use nvs_runtime::{Fault, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
@@ -155,7 +155,7 @@ pub(crate) const NAME: &str = r"Core\Validate";
 ///
 /// The section states these as sentences rather than as a table, so there is
 /// no line on `tests/spec-members-outstanding.txt` to strike: the gates that
-/// hold this class are `examples/collect.mwl` and `conformance_coverage.rs`.
+/// hold this class are `examples/collect.nvs` and `conformance_coverage.rs`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -164,42 +164,42 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_validate_is_email",
+            symbol: "nvs_core_validate_is_email",
         },
         CoreMethod {
             name: "isDomain",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_validate_is_domain",
+            symbol: "nvs_core_validate_is_domain",
         },
         CoreMethod {
             name: "isIp",
             params: &[CoreTy::Str, CoreTy::Options(IP_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_validate_is_ip",
+            symbol: "nvs_core_validate_is_ip",
         },
         CoreMethod {
             name: "isMac",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_validate_is_mac",
+            symbol: "nvs_core_validate_is_mac",
         },
         CoreMethod {
             name: "isAscii",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_validate_is_ascii",
+            symbol: "nvs_core_validate_is_ascii",
         },
         CoreMethod {
             name: "isPrintable",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_validate_is_printable",
+            symbol: "nvs_core_validate_is_printable",
         },
     ],
     instance: &[],
@@ -226,12 +226,12 @@ const IP_VERSION: &[CoreTy] = &[CoreTy::IntLiteral(4), CoreTy::IntLiteral(6)];
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_validate_is_email" => (mwl_core_validate_is_email as *const ()).cast(),
-        "mwl_core_validate_is_domain" => (mwl_core_validate_is_domain as *const ()).cast(),
-        "mwl_core_validate_is_ip" => (mwl_core_validate_is_ip as *const ()).cast(),
-        "mwl_core_validate_is_mac" => (mwl_core_validate_is_mac as *const ()).cast(),
-        "mwl_core_validate_is_ascii" => (mwl_core_validate_is_ascii as *const ()).cast(),
-        "mwl_core_validate_is_printable" => (mwl_core_validate_is_printable as *const ()).cast(),
+        "nvs_core_validate_is_email" => (nvs_core_validate_is_email as *const ()).cast(),
+        "nvs_core_validate_is_domain" => (nvs_core_validate_is_domain as *const ()).cast(),
+        "nvs_core_validate_is_ip" => (nvs_core_validate_is_ip as *const ()).cast(),
+        "nvs_core_validate_is_mac" => (nvs_core_validate_is_mac as *const ()).cast(),
+        "nvs_core_validate_is_ascii" => (nvs_core_validate_is_ascii as *const ()).cast(),
+        "nvs_core_validate_is_printable" => (nvs_core_validate_is_printable as *const ()).cast(),
         _ => return None,
     })
 }
@@ -374,7 +374,7 @@ fn is_mac_address(text: &str) -> bool {
 // The members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Validate::isEmail(string $s): bool` — replacing
     /// `filter_var($s, FILTER_VALIDATE_EMAIL)`.
     ///
@@ -385,12 +385,12 @@ mwl_runtime::mwl_helper! {
     ///
     /// Never throws: a validator's answer to a malformed subject is `false`,
     /// which is the whole point of asking.
-    fn mwl_core_validate_is_email(_ctx, args: [1]) {
+    fn nvs_core_validate_is_email(_ctx, args: [1]) {
         Ok(Value::bool(is_email_address(subject(&args[0], "isEmail")?)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Validate::isDomain(string $s): bool` — replacing
     /// `filter_var($s, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)`.
     ///
@@ -399,12 +399,12 @@ mwl_runtime::mwl_helper! {
     /// here where PHP's email filter refuses it.
     ///
     /// Never throws.
-    fn mwl_core_validate_is_domain(_ctx, args: [1]) {
+    fn nvs_core_validate_is_domain(_ctx, args: [1]) {
         Ok(Value::bool(is_hostname(subject(&args[0], "isDomain")?)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Validate::isIp(string $s, {version?: 4|6}): bool` — replacing
     /// `filter_var($s, FILTER_VALIDATE_IP)` and its two family flags, which
     /// spec § 12 folds into this one option.
@@ -417,7 +417,7 @@ mwl_runtime::mwl_helper! {
     ///
     /// [`family`]'s, for a `version` the checker should already have refused.
     /// The subject itself never throws.
-    fn mwl_core_validate_is_ip(_ctx, args: [2]) {
+    fn nvs_core_validate_is_ip(_ctx, args: [2]) {
         let text = subject(&args[0], "isIp")?;
         Ok(Value::bool(match family(&args[1])? {
             None => text.parse::<std::net::IpAddr>().is_ok(),
@@ -427,18 +427,18 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Validate::isMac(string $s): bool` — replacing
     /// `filter_var($s, FILTER_VALIDATE_MAC)`, whose three accepted spellings
     /// this member keeps exactly.
     ///
     /// Never throws.
-    fn mwl_core_validate_is_mac(_ctx, args: [1]) {
+    fn nvs_core_validate_is_mac(_ctx, args: [1]) {
         Ok(Value::bool(is_mac_address(subject(&args[0], "isMac")?)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Validate::isAscii(string $s): bool` — the encoding question, and
     /// a byte scan with no decoding at all.
     ///
@@ -447,12 +447,12 @@ mwl_runtime::mwl_helper! {
     /// here where every `ctype_*` answers `false`.
     ///
     /// Never throws.
-    fn mwl_core_validate_is_ascii(_ctx, args: [1]) {
+    fn nvs_core_validate_is_ascii(_ctx, args: [1]) {
         Ok(Value::bool(subject(&args[0], "isAscii")?.is_ascii()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Validate::isPrintable(string $s): bool` — no `char` in Unicode
     /// general category `Cc`, which is [`char::is_control`] and is exactly the
     /// set with no printed form.
@@ -462,7 +462,7 @@ mwl_runtime::mwl_helper! {
     /// ADR 0024 exists to prevent.
     ///
     /// Never throws.
-    fn mwl_core_validate_is_printable(_ctx, args: [1]) {
+    fn nvs_core_validate_is_printable(_ctx, args: [1]) {
         Ok(Value::bool(
             !subject(&args[0], "isPrintable")?.chars().any(char::is_control),
         ))

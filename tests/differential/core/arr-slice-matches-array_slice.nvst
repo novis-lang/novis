@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::slice reads the same window as array_slice at every sign of offset and length, with keys compared and not just values
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's window member against its PHP twin. The conformance suite already
 // proves `slice`, `replaceRange` and `chunk` agree *with each other* over the
 // whole sign table; this asks whether PHP agrees, which is a different claim —
@@ -9,7 +9,7 @@ Core\Arr::slice reads the same window as array_slice at every sign of offset and
 // `array_slice`'s.
 //
 // Keys are rendered, not just values, because the key-preservation flag is
-// where the two are least likely to agree: MWL's `{preserveKeys: false}`
+// where the two are least likely to agree: Novis's `{preserveKeys: false}`
 // discards every key and renumbers from "0", where `array_slice`'s `false`
 // renumbers the integers and keeps the strings. On a *list* subject those two
 // rules answer the same thing, which is why this case's subject is a list and

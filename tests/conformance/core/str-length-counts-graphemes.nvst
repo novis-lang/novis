@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::length counts extended grapheme clusters, not code points (ADR 0009 § 2)
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::length(""), "\n";
 echo Core\Str::length("abc"), "\n";
 echo Core\Str::length("héllo"), "\n";

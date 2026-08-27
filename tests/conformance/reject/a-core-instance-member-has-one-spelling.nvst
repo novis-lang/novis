@@ -1,12 +1,12 @@
 --TEST--
 a `Core` instance member is called on a value and never through its class name, and a `Core` class is never constructed — ADR 0063 R20
 --FILE--
-<?mwl
+<?nvs
 echo Core\Regex\Match::text(), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0458]: `Core\Regex\Match::text` is an instance member, so it is called on a value
-  --> case.mwl:2:6
+  --> case.nvs:2:6
 %A
 error: aborting due to 1 error

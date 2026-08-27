@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::map and ::filter carry each surviving entry's key across, leaving the subject alone
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

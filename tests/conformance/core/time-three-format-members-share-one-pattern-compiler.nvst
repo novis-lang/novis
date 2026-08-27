@@ -1,10 +1,10 @@
 --TEST--
 `Core\Time`'s three `format` members refuse a malformed pattern with one sentence each naming its own member, and the two zone-free halves narrow that grammar into disjoint halves — spec § 4
 --FILE--
-<?mwl
+<?nvs
 // Spec § 4's three rendering members — `Core\Time\DateTime::format`,
 // `Core\Time\Date::format` and `Core\Time\TimeOfDay::format` — read one pattern
-// compiler (`crates/mwl-stdlib/src/cldr.rs`), and each wraps its refusal in its
+// compiler (`crates/nvs-stdlib/src/cldr.rs`), and each wraps its refusal in its
 // own name. The neighbouring cases assert a *fragment* of one of those
 // sentences; this one asserts them whole, on every member that can raise them,
 // because the member name is the half a caller reads first and no case pinned

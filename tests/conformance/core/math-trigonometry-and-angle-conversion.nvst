@@ -1,18 +1,18 @@
 --TEST--
 Core\Math's twelve trigonometric members plus toRadians and toDegrees
 --FILE--
-<?mwl
+<?nvs
 // Answers read off arguments chosen so they are exact. The one property that
 // holds on every argument, and so can be swept, is parity:
-// math-the-odd-and-even-members-keep-their-parity-on-every-row.mwlt.
+// math-the-odd-and-even-members-keep-their-parity-on-every-row.nvst.
 echo Core\Math::sin(0.0), "|", Core\Math::cos(0.0), "|", Core\Math::tan(0.0), "\n";
 // What each inverse member answers *outside* its own domain, counted over one
-// table, is math-inverse-members-answer-nan-outside-their-own-domain.mwlt.
+// table, is math-inverse-members-answer-nan-outside-their-own-domain.nvst.
 echo Core\Math::asin(0.0), "|", Core\Math::acos(1.0), "|", Core\Math::atan(0.0), "\n";
 // `$y` first, as in PHP and in C. That `atan2` is `atan` of the quotient on
 // the half-plane a quotient can carry, and is the only member that tells the
 // four quadrants apart, is
-// math-atan2-is-atan-plus-the-quadrant-and-is-the-only-member-that-tells-the-four-apart.mwlt.
+// math-atan2-is-atan-plus-the-quadrant-and-is-the-only-member-that-tells-the-four-apart.nvst.
 echo Core\Math::atan2(0.0, 1.0), "|", Core\Math::atan2(1.0, 1.0), "\n";
 
 echo Core\Math::sinh(0.0), "|", Core\Math::cosh(0.0), "|", Core\Math::tanh(0.0), "\n";
@@ -21,7 +21,7 @@ echo Core\Math::asinh(0.0), "|", Core\Math::acosh(1.0), "|", Core\Math::atanh(0.
 // The two conversions are inverses, and a half turn is the value to say so at.
 // That they invert each other on *every* row of a swept table, and land on PI
 // and TAU exactly at the four quarter turns, is
-// math-the-two-angle-conversions-are-inverses-and-meet-pi-at-the-quarter-turns.mwlt.
+// math-the-two-angle-conversions-are-inverses-and-meet-pi-at-the-quarter-turns.nvst.
 echo Core\Math::toRadians(180.0), "|", Core\Math::toDegrees(Core\Math::toRadians(180.0)), "\n";
 echo (Core\Math::sin(Core\Math::toRadians(90.0)) == 1.0) as string, "|\n";
 --EXPECT--

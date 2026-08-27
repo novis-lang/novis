@@ -1,7 +1,7 @@
 --TEST--
 An array literal placed against a `?array<T>` expectation is an `array<T>` — in a binding, a `return` and an argument (ADR 0007 §§ 2, 5; ADR 0066)
 --FILE--
-<?mwl
+<?nvs
 // ADR 0066: `?T` is `null|T`, and the `null` arm is the *other* thing the
 // binding may hold — never something the value being placed has to satisfy.
 ?array<string> $m = ["k" => "v"];

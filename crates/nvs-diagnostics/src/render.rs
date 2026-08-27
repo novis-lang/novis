@@ -2,7 +2,7 @@
 //!
 //! Hand-written rather than delegated to a crate, for three reasons: the output
 //! format is part of a language's user interface and should not shift with a
-//! dependency bump; MWL needs the same layout engine to emit LSP-shaped data;
+//! dependency bump; Novis needs the same layout engine to emit LSP-shaped data;
 //! and it keeps the dependency tree of the compiler front end minimal.
 
 use std::io::{self, Write};
@@ -18,7 +18,7 @@ use crate::span::SourceId;
 pub struct Renderer {
     color: bool,
     tab_width: usize,
-    /// Lines of context shown around a labelled line. Kept at 0 for now: MWL's
+    /// Lines of context shown around a labelled line. Kept at 0 for now: Novis's
     /// diagnostics point at small spans and context mostly adds noise.
     context_lines: usize,
 }
@@ -369,7 +369,7 @@ mod tests {
     #[test]
     fn single_line_span_underlines_exactly() {
         let mut map = SourceMap::new();
-        let f = map.add("t.mwl", "<?mwl\neval('x');\n");
+        let f = map.add("t.nvs", "<?nvs\neval('x');\n");
         let d = Diagnostic::error(code::E_EVAL_UNSUPPORTED, "`eval` is not supported")
             .with_primary(Span::new(f, 6, 10), "remove this");
         let out = render_to_string(&d, &map);
@@ -378,7 +378,7 @@ mod tests {
         // other renderer test assumes.
         let expected = concat!(
             "error[E0201]: `eval` is not supported\n",
-            "  --> t.mwl:2:1\n",
+            "  --> t.nvs:2:1\n",
             "  |\n",
             "2 | eval('x');\n",
             "  | ^^^^ remove this\n",
@@ -391,7 +391,7 @@ mod tests {
     fn caret_aligns_past_a_tab() {
         let mut map = SourceMap::new();
         // A tab then `bad`: the caret must sit at display column 4, not 1.
-        let f = map.add("t.mwl", "\tbad\n");
+        let f = map.add("t.nvs", "\tbad\n");
         let d = Diagnostic::error(code::E_EVAL_UNSUPPORTED, "nope")
             .with_primary(Span::new(f, 1, 4), "");
         let out = render_to_string(&d, &map);
@@ -402,7 +402,7 @@ mod tests {
     #[test]
     fn empty_span_still_draws_one_caret() {
         let mut map = SourceMap::new();
-        let f = map.add("t.mwl", "$x = 1\n");
+        let f = map.add("t.nvs", "$x = 1\n");
         // Missing semicolon: an empty span at end of the expression.
         let d = Diagnostic::error(code::E_EXPECTED_TOKEN, "expected `;`")
             .with_primary(Span::at(f, 6), "insert `;` here");
@@ -415,20 +415,20 @@ mod tests {
         let mut map = SourceMap::new();
         let mut text = "\n".repeat(1234);
         text.push_str("boom\n");
-        let f = map.add("t.mwl", text);
+        let f = map.add("t.nvs", text);
         let start = 1234;
         let d = Diagnostic::error(code::E_EVAL_UNSUPPORTED, "x")
             .with_primary(Span::new(f, start, start + 4), "");
         let out = render_to_string(&d, &map);
         assert!(out.contains("1235 | boom"), "got:\n{out}");
         // The `-->` line indents to match the widened gutter.
-        assert!(out.contains("     --> t.mwl:1235:1"), "got:\n{out}");
+        assert!(out.contains("     --> t.nvs:1235:1"), "got:\n{out}");
     }
 
     #[test]
     fn multiline_span_is_clipped_and_annotated() {
         let mut map = SourceMap::new();
-        let f = map.add("t.mwl", "fn a() {\n  body\n}\n");
+        let f = map.add("t.nvs", "fn a() {\n  body\n}\n");
         let d = Diagnostic::error(code::E_UNCLOSED_DELIMITER, "unclosed block")
             .with_primary(Span::new(f, 7, 17), "starts here");
         let out = render_to_string(&d, &map);
@@ -439,7 +439,7 @@ mod tests {
     #[test]
     fn secondary_labels_use_dashes() {
         let mut map = SourceMap::new();
-        let f = map.add("t.mwl", "$a = 1;\n$a = 2;\n");
+        let f = map.add("t.nvs", "$a = 1;\n$a = 2;\n");
         let d = Diagnostic::error(code::E_EVAL_UNSUPPORTED, "redefined")
             .with_secondary(Span::new(f, 0, 2), "first here")
             .with_primary(Span::new(f, 8, 10), "again here");
@@ -451,7 +451,7 @@ mod tests {
     #[test]
     fn notes_and_help_render_distinctly() {
         let mut map = SourceMap::new();
-        let f = map.add("t.mwl", "x\n");
+        let f = map.add("t.nvs", "x\n");
         let d = Diagnostic::error(code::E_EVAL_UNSUPPORTED, "m")
             .with_primary(Span::new(f, 0, 1), "")
             .with_note("because of a reason")
@@ -464,7 +464,7 @@ mod tests {
     #[test]
     fn suggestion_shows_the_replacement() {
         let mut map = SourceMap::new();
-        let f = map.add("t.mwl", "$$name\n");
+        let f = map.add("t.nvs", "$$name\n");
         let d = Diagnostic::error(
             code::E_VARIABLE_VARIABLE,
             "variable variables are not supported",
@@ -481,7 +481,7 @@ mod tests {
     #[test]
     fn summary_counts_errors_and_warnings() {
         let mut map = SourceMap::new();
-        let f = map.add("t.mwl", "abc\n");
+        let f = map.add("t.nvs", "abc\n");
         let items = [
             Diagnostic::error(code::E_EVAL_UNSUPPORTED, "one").with_primary(Span::new(f, 0, 1), ""),
             Diagnostic::error(code::E_EVAL_UNSUPPORTED, "two").with_primary(Span::new(f, 1, 2), ""),
@@ -501,7 +501,7 @@ mod tests {
     #[test]
     fn no_summary_when_only_warnings() {
         let mut map = SourceMap::new();
-        let f = map.add("t.mwl", "abc\n");
+        let f = map.add("t.nvs", "abc\n");
         let items =
             [Diagnostic::warning(code::W_UNREACHABLE, "w").with_primary(Span::new(f, 0, 1), "")];
         let mut buf = Vec::new();
@@ -515,7 +515,7 @@ mod tests {
     #[test]
     fn colour_output_contains_ansi_and_plain_does_not() {
         let mut map = SourceMap::new();
-        let f = map.add("t.mwl", "abc\n");
+        let f = map.add("t.nvs", "abc\n");
         let d =
             Diagnostic::error(code::E_EVAL_UNSUPPORTED, "m").with_primary(Span::new(f, 0, 3), "");
 

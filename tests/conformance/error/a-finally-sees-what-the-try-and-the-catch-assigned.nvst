@@ -1,7 +1,7 @@
 --TEST--
 A `finally` runs in the enclosing scope, so it observes every assignment the `try` and the matching `catch` made
 --FILE--
-<?mwl
+<?nvs
 class F {
     public static function trace(bool $fail): string {
         var $out = "";

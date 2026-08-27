@@ -1,7 +1,7 @@
 --TEST--
 `float` arithmetic renders the way PHP's does — a whole result loses its fractional part
 --FILE--
-<?mwl
+<?nvs
 float $half = 7.0 / 2.0;
 echo $half, "|\n";
 echo 1.5 + 2.25, "|\n";

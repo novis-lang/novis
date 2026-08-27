@@ -1,7 +1,7 @@
 --TEST--
 Every `Core\Uuid` draw is canonical, distinct and round-trips through `parse`; `tryParse` agrees with `parse` on every spelling; and a refusal quotes the operand it refused, bounded — spec § 11, ADR 0063 R4, ADR 0088
 --FILE--
-<?mwl
+<?nvs
 // A drawn UUID cannot be asserted, so the two generators are pinned by
 // *invariance* over a run of draws rather than by any one value: each is
 // counted only when it is canonical, carries its own version nibble, carries
@@ -30,7 +30,7 @@ echo "v4 ", $shape4, " ", $trip4, "\n";
 // The same sweep for v7, whose version nibble is the only part of the
 // rendering that differs from a v4's. Its millisecond clock is what makes it
 // sort by creation time; the monotonic step across a *pause* is pinned by the
-// unit test in `crates/mwl-stdlib/src/uuid.rs`, which can sleep.
+// unit test in `crates/nvs-stdlib/src/uuid.rs`, which can sleep.
 int $shape7 = 0;
 int $trip7 = 0;
 for ($i = 0; $i < 24; $i = $i + 1) {

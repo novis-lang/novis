@@ -1,7 +1,7 @@
 --TEST--
 Spec § 2: `Core\Arr::sort` answers a permutation of its subject under every combination of its four options, and equal keys keep their input order — which `Core\Order::Desc` therefore does not reverse
 --FILE--
-<?mwl
+<?nvs
 // The tables this member answers are already pinned one option at a time by
 // the five `arr-sort-*` cases beside this one. What is not is either of the
 // two properties the sort is *written around*, and both of them are claims

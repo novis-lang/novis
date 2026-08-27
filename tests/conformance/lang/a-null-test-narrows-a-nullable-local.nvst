@@ -1,7 +1,7 @@
 --TEST--
 `!= null` narrows a nullable local so `->` reaches a member of it — ADR 0066, in both branches and after a guard clause
 --FILE--
-<?mwl
+<?nvs
 class Finder {
     public static function idOf(string $subject): string {
         var $m = Core\Regex::match($subject, "id-(\\d+)");

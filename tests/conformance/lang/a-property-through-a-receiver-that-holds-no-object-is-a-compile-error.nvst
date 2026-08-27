@@ -1,7 +1,7 @@
 --TEST--
 `->` on a receiver whose declared type can never hold an object is `E0495` where it is written, and a union naming no single class takes the same code — ADR 0007 § 7 row 13
 --FILE--
-<?mwl
+<?nvs
 // PHP warns and yields `null` for every receiver below. A declared type
 // makes the answer knowable before the program runs, so this is row 8's
 // rule ("nothing makes an absent thing read as a zero value") at the one

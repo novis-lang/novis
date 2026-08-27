@@ -1,7 +1,7 @@
 --TEST--
 The next append index after an out-of-order integer key is the one PHP picks
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = [];
 $a[100] = 1;
 $a[] = 2;

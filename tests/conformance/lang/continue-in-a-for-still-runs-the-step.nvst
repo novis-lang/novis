@@ -1,7 +1,7 @@
 --TEST--
 `continue` in a `for` runs the step clause before the next test, and `break` skips it
 --FILE--
-<?mwl
+<?nvs
 var $out = "";
 var $i = 0;
 for ($i = 0; $i < 6; $i += 1) {

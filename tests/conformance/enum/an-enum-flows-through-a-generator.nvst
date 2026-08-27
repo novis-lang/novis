@@ -1,7 +1,7 @@
 --TEST--
 An enum is an ordinary value across a `yield` — a generator declared `Iterator<Level>` suspends and resumes holding one
 --FILE--
-<?mwl
+<?nvs
 enum Level {
     Low = 1,
     Mid = 5,

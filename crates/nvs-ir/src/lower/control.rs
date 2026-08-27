@@ -220,7 +220,7 @@ impl<'a> Lowering<'a> {
             for (block, back_env) in &back_edges {
                 let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
                     panic!(
-                        "mwl-ir: `{name}` was reassigned in a while body per the syntactic scan \
+                        "nvs-ir: `{name}` was reassigned in a while body per the syntactic scan \
                          but is missing from a back edge's exit environment — bug in \
                          collect_reassigned_locals"
                     )
@@ -391,7 +391,7 @@ impl<'a> Lowering<'a> {
         for (name, inst_index) in &phi_slots {
             let &(back_v, _) = cond_env.get(name).unwrap_or_else(|| {
                 panic!(
-                    "mwl-ir: `{name}` was reassigned in a do/while body or condition per the \
+                    "nvs-ir: `{name}` was reassigned in a do/while body or condition per the \
                      syntactic scan but is missing from the back edge's exit environment — bug \
                      in collect_reassigned_locals"
                 )
@@ -460,7 +460,7 @@ impl<'a> Lowering<'a> {
     ) {
         assert!(
             cond.len() <= 1,
-            "mwl-ir lowers a `for` header with at most one condition expression — a comma list \
+            "nvs-ir lowers a `for` header with at most one condition expression — a comma list \
              there evaluates and discards every expression but the last, and a discarded one may \
              assign; see the crate docs' known gaps"
         );
@@ -595,7 +595,7 @@ impl<'a> Lowering<'a> {
             for (block, back_env) in &back_edges {
                 let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
                     panic!(
-                        "mwl-ir: `{name}` was reassigned in a for body or step per the syntactic \
+                        "nvs-ir: `{name}` was reassigned in a for body or step per the syntactic \
                          scan but is missing from the back edge's exit environment — bug in \
                          collect_reassigned_locals"
                     )
@@ -620,9 +620,9 @@ impl<'a> Lowering<'a> {
     /// **A chain of [`Terminator::Branch`]es, not [`Terminator::Switch`].**
     /// The general terminator exists (a generator's resumption dispatch is
     /// one), but it selects on an integer and a `case` label is any expression
-    /// of the subject's type — `case "A":` is the shape `examples/match.mwl`
+    /// of the subject's type — `case "A":` is the shape `examples/match.nvs`
     /// actually writes, and a string comparison is a runtime call
-    /// (`mwl_str_eq`), not a jump-table index. One shape that serves every
+    /// (`nvs_str_eq`), not a jump-table index. One shape that serves every
     /// subject type beats two that need the lowering to decide which it is;
     /// re-deriving a dense integer `switch` back into the jump table is an
     /// optimisation for the tier that has a cost model, not for this one.
@@ -632,8 +632,8 @@ impl<'a> Lowering<'a> {
     /// * **The subject is evaluated once**, before any label is, and every
     ///   label is then compared against that value in source order. The
     ///   comparison is [`BinOp::Eq`] — PHP's `switch` compared loosely and its
-    ///   `match` identically, but ADR 0090 § 6 gives MWL one equality rule for
-    ///   both, and both operands are statically the same MWL type here anyway,
+    ///   `match` identically, but ADR 0090 § 6 gives Novis one equality rule for
+    ///   both, and both operands are statically the same Novis type here anyway,
     ///   which is the one condition under which PHP's two agreed; see
     ///   [`Self::lower_expr`]'s `Binary` arm, which lowers the operator the
     ///   same way for the same reason.
@@ -652,7 +652,7 @@ impl<'a> Lowering<'a> {
     ///   `continue` inside one therefore continues the enclosing **loop**.
     ///   PHP instead counts a `switch` as a looping structure there, making a
     ///   bare `continue` behave as `break` — and warns, since PHP 7.3, that
-    ///   you probably meant `continue 2`. MWL takes the meaning that warning
+    ///   you probably meant `continue 2`. Novis takes the meaning that warning
     ///   points at: the alternative is a keyword that silently means one thing
     ///   inside a `switch` and another everywhere else, which priority 4
     ///   (simplicity of the language surface) refuses to buy for a
@@ -671,7 +671,7 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// Panics naming the case if a label's representation differs from the
-    /// subject's — the checker does not yet reconcile the two (`mwl_types`'
+    /// subject's — the checker does not yet reconcile the two (`nvs_types`'
     /// own `Switch` arm checks each label with no expected type), and
     /// comparing two different representations would be a miscompile rather
     /// than a conversion.
@@ -721,7 +721,7 @@ impl<'a> Lowering<'a> {
                 self.lower_expr(cond, Some(subj_ty), &mut entry_env, &mut test_cur);
             assert_eq!(
                 cond_ty, subj_ty,
-                "mwl-ir lowers a `switch` label only at the subject's own representation — got \
+                "nvs-ir lowers a `switch` label only at the subject's own representation — got \
                  {cond_ty:?} against a {subj_ty:?} subject; see the crate docs' known gaps"
             );
             let (eq_v, _) = self.emit(
@@ -844,7 +844,7 @@ impl<'a> Lowering<'a> {
     ///   is released once, in the loop's own after-block.
     /// * **The array reference and the cursor live in the [`Env`]** under
     ///   reserved `foreach#N`/`foreach#N$cursor` names. A `#` can never appear
-    ///   in an MWL identifier, so neither can collide with a local. Being
+    ///   in an Novis identifier, so neither can collide with a local. Being
     ///   ordinary `Env` members is what gets them for free: the cursor gets
     ///   its loop-header phi through the same seeding
     ///   [`Self::lower_while`] gives any reassigned local, and both are swept
@@ -865,7 +865,7 @@ impl<'a> Lowering<'a> {
     /// on the first write, leaving the cursor on the snapshot — is exactly
     /// what an `inout $v` loop must not do. So the by-reference shape drops the
     /// retain, walks the subject variable's *own* `Env` binding rather than a
-    /// reserved `foreach#N` one (`mwl_types`' `check_foreach_inout` refuses
+    /// reserved `foreach#N` one (`nvs_types`' `check_foreach_inout` refuses
     /// every subject that is not a plain variable, so there is always one),
     /// and releases nothing after the loop, the local's own exit sweep being
     /// the single owner it always was.
@@ -897,7 +897,7 @@ impl<'a> Lowering<'a> {
     /// binding declared as anything but `string` (ADR 0007 § 5 makes every
     /// stored key a `string`; an `int` key binding needs a string-to-int
     /// conversion nothing lowers yet), and for a binding with no declared
-    /// type at all, which `mwl_types` already diagnosed.
+    /// type at all, which `nvs_types` already diagnosed.
     #[expect(
         clippy::too_many_arguments,
         reason = "the arguments are one `StmtKind::Foreach`'s own fields plus \
@@ -914,29 +914,29 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
     ) {
         // ADR 0053 § 3's three shapes are three loops, and which one this is
-        // was decided by the checker — `mwl-ir` cannot re-derive it, because
+        // was decided by the checker — `nvs-ir` cannot re-derive it, because
         // reaching `Iterable` through a base class needs the `ClassGraph`
         // this crate deliberately does not depend on. See
-        // `mwl_types::ExprTypeTable::foreach_drive`.
+        // `nvs_types::ExprTypeTable::foreach_drive`.
         let drive = self.exprs.foreach_drive(subject.span).unwrap_or_else(|| {
             panic!(
-                "mwl-ir: the `foreach` subject at {:?} has no recorded `ForeachDrive` — either \
+                "nvs-ir: the `foreach` subject at {:?} has no recorded `ForeachDrive` — either \
                  it erased to `mixed` (unsupported, see the crate docs' known gaps) or this \
-                 program did not pass mwl_types::check_program with the same table",
+                 program did not pass nvs_types::check_program with the same table",
                 subject.span
             )
         });
         if drive != ForeachDrive::Array {
             assert!(
                 !value_inout,
-                "mwl-ir: a `foreach (… as inout $v)` over an `Iterable`/`Iterator` subject reached \
-                 lowering — a cursor has no element storage to write back to, and mwl_types \
+                "nvs-ir: a `foreach (… as inout $v)` over an `Iterable`/`Iterator` subject reached \
+                 lowering — a cursor has no element storage to write back to, and nvs_types \
                  reports E0490 for one"
             );
             assert!(
                 key.is_none(),
-                "mwl-ir: a `foreach` key binding over an `Iterable`/`Iterator` subject reached \
-                 lowering — ADR 0053 § 1 gives a cursor no key at all, and mwl_types reports \
+                "nvs-ir: a `foreach` key binding over an `Iterable`/`Iterator` subject reached \
+                 lowering — ADR 0053 § 1 gives a cursor no key at all, and nvs_types reports \
                  E0444 for one"
             );
             self.lower_foreach_cursor(
@@ -954,7 +954,7 @@ impl<'a> Lowering<'a> {
             let ty = binding_ty(k, "key", self.exprs, self.checked_types);
             assert!(
                 ty == Ty::Str,
-                "mwl-ir lowers a `foreach` key binding only at `string`, ADR 0007 § 5's one \
+                "nvs-ir lowers a `foreach` key binding only at `string`, ADR 0007 § 5's one \
                  stored key type — got {ty:?}, which would need a string-to-key conversion this \
                  crate does not have; see the crate docs' known gaps"
             );
@@ -965,7 +965,7 @@ impl<'a> Lowering<'a> {
         let (array_v, array_ty) = self.lower_expr(subject, None, env, cur);
         assert!(
             array_ty == Ty::Array,
-            "mwl-ir lowers `foreach` only over an `array<T>` — got {array_ty:?}; ADR 0053's \
+            "nvs-ir lowers `foreach` only over an `array<T>` — got {array_ty:?}; ADR 0053's \
              `Iterable`/`Iterator` subjects are their own lowering (see the crate docs' known \
              gaps)"
         );
@@ -981,8 +981,8 @@ impl<'a> Lowering<'a> {
         let array_name = if value_inout {
             let ExprKind::Variable(name_span) = &subject.kind else {
                 panic!(
-                    "mwl-ir: a `foreach (… as inout $v)` subject at {:?} is not a plain variable — \
-                     mwl_types reports E0490 for one before this runs",
+                    "nvs-ir: a `foreach (… as inout $v)` subject at {:?} is not a plain variable — \
+                     nvs_types reports E0490 for one before this runs",
                     subject.span
                 );
             };
@@ -1183,7 +1183,7 @@ impl<'a> Lowering<'a> {
             for (block, back_env) in &back_edges {
                 let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
                     panic!(
-                        "mwl-ir: `{name}` was reassigned in a foreach body per the syntactic \
+                        "nvs-ir: `{name}` was reassigned in a foreach body per the syntactic \
                          scan but is missing from a back edge's exit environment — bug in \
                          collect_reassigned_locals"
                     )
@@ -1225,7 +1225,7 @@ impl<'a> Lowering<'a> {
     /// one the write-through re-points.
     fn loop_array(&mut self, cur: BlockId, env: &Env, name: &str) -> ValueId {
         let &(v, ty) = env.get(name).unwrap_or_else(|| {
-            panic!("mwl-ir: `foreach` lost the `Env` binding `{name}` it walks")
+            panic!("nvs-ir: `foreach` lost the `Env` binding `{name}` it walks")
         });
         if ty == Ty::Ref {
             let pointee = self.pointee_of(name);
@@ -1242,7 +1242,7 @@ impl<'a> Lowering<'a> {
     /// one produced being the holder's same one.
     fn store_loop_array(&mut self, cur: BlockId, env: &mut Env, name: &str, written: ValueId) {
         let &(v, ty) = env.get(name).unwrap_or_else(|| {
-            panic!("mwl-ir: `foreach` lost the `Env` binding `{name}` it walks")
+            panic!("nvs-ir: `foreach` lost the `Env` binding `{name}` it walks")
         });
         if ty == Ty::Ref {
             self.emit_ref_store(cur, v, written);
@@ -1288,9 +1288,9 @@ impl<'a> Lowering<'a> {
         };
         let (array_name, slot_name) = (element.array.clone(), element.slot.clone());
         let &(slot_v, Ty::Int) = env.get(&slot_name).unwrap_or_else(|| {
-            panic!("mwl-ir: a `foreach (… as inout $v)` body lost the cursor slot `{slot_name}`")
+            panic!("nvs-ir: a `foreach (… as inout $v)` body lost the cursor slot `{slot_name}`")
         }) else {
-            panic!("mwl-ir: a `foreach` cursor slot is bound at `Ty::Int` and nothing rebinds it")
+            panic!("nvs-ir: a `foreach` cursor slot is bound at `Ty::Int` and nothing rebinds it")
         };
         let array_v = self.loop_array(cur, env, &array_name);
         let (key_v, _) = self.emit(
@@ -1322,7 +1322,7 @@ impl<'a> Lowering<'a> {
     ///
     /// * **Both members are [`InstKind::CallVirtual`]**, never a static
     ///   [`InstKind::Call`]. ADR 0053 § 1's interfaces declare `advance`,
-    ///   `current` and `iterate` without bodies, and `mwl_types::iter_lib`'s
+    ///   `current` and `iterate` without bodies, and `nvs_types::iter_lib`'s
     ///   own docs own why that is the mechanism rather than an accident: a
     ///   call resolving to a bodiless declaration names no compiled function,
     ///   so it dispatches on the receiver's runtime class — which is exactly
@@ -1332,7 +1332,7 @@ impl<'a> Lowering<'a> {
     ///   there is no `$cursor->advance()` in the source to look up.
     /// * **The loop owns one reference to the cursor**, released in the
     ///   after-block, and *retains it again before each member call* — a
-    ///   receiver is parameter 0 and MWL transfers an argument's reference to
+    ///   receiver is parameter 0 and Novis transfers an argument's reference to
     ///   the callee (see [`ArgOwnership::Transferred`]), so a call that did
     ///   not retain first would consume the loop's own. It lives in the
     ///   [`Env`] under a reserved `foreach#N$iter` name for
@@ -1354,7 +1354,7 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// Panics if the subject did not lower to a [`Ty::Object`], which would
-    /// mean `mwl_types` classified something as a cursor that has no runtime
+    /// mean `nvs_types` classified something as a cursor that has no runtime
     /// class to dispatch on.
     pub(super) fn lower_foreach_cursor(
         &mut self,
@@ -1371,7 +1371,7 @@ impl<'a> Lowering<'a> {
         let (subject_v, subject_ty) = self.lower_expr(subject, None, env, cur);
         assert!(
             subject_ty == Ty::Object,
-            "mwl-ir: a `foreach` subject mwl_types classified as a cursor lowered to \
+            "nvs-ir: a `foreach` subject nvs_types classified as a cursor lowered to \
              {subject_ty:?} rather than an object — ADR 0053 § 3's `Iterable`/`Iterator` shapes \
              are both class types"
         );
@@ -1487,7 +1487,7 @@ impl<'a> Lowering<'a> {
             for (block, back_env) in &back_edges {
                 let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
                     panic!(
-                        "mwl-ir: `{name}` was reassigned in a foreach body per the syntactic \
+                        "nvs-ir: `{name}` was reassigned in a foreach body per the syntactic \
                          scan but is missing from a back edge's exit environment — bug in \
                          collect_reassigned_locals"
                     )
@@ -1513,7 +1513,7 @@ impl<'a> Lowering<'a> {
     /// there is no AST node to route through.
     ///
     /// `keep_receiver` says whether the caller still owns its reference
-    /// afterwards. A receiver is parameter 0 and MWL transfers an argument's
+    /// afterwards. A receiver is parameter 0 and Novis transfers an argument's
     /// reference to the callee ([`ArgOwnership::Transferred`]), on the
     /// callee's throw path as much as its return path, so keeping one means
     /// retaining a second — which is what the loop's per-iteration
@@ -1567,14 +1567,14 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// Panics if the level names more targets than enclose it —
-    /// `mwl_types::locals` rejects that with `E0475` before lowering runs, so
+    /// `nvs_types::locals` rejects that with `E0475` before lowering runs, so
     /// reaching it here is an internal error rather than a program's.
     pub(super) fn lower_break(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &mut Env) {
         let level = self.loop_exit_level(level, "break");
         let at = self.loop_stack.len().checked_sub(level).unwrap_or_else(|| {
             panic!(
-                "mwl-ir: `break {level}` reached lowering inside {} enclosing break \
-                     target(s) — mwl_types rejects that with E0475 before this runs",
+                "nvs-ir: `break {level}` reached lowering inside {} enclosing break \
+                     target(s) — nvs_types rejects that with E0475 before this runs",
                 self.loop_stack.len()
             )
         });
@@ -1681,7 +1681,7 @@ impl<'a> Lowering<'a> {
         // Counted PHP's way — every enclosing frame, a `switch` included — and
         // then walked *outward* to the nearest frame that is a loop, not
         // simply the `level`-th loop. The two steps are what make `continue N`
-        // mean in MWL exactly what it means in PHP:
+        // mean in Novis exactly what it means in PHP:
         //
         // * `continue 2` inside a `switch` inside one loop is PHP's own
         //   idiomatic spelling for "continue the loop", and counting loops
@@ -1693,14 +1693,14 @@ impl<'a> Lowering<'a> {
         //
         // The walk is where the one divergence lives, and it is not a new
         // one: a level landing on a `switch` frame is PHP's "break the
-        // switch", and MWL already reads a bare `continue` there as
+        // switch", and Novis already reads a bare `continue` there as
         // continuing the enclosing loop instead — see
         // `LoopFrame::continue_target` and `Self::lower_switch`. Level 1
         // reduces to exactly that rule.
         let counted = self.loop_stack.len().checked_sub(level).unwrap_or_else(|| {
             panic!(
-                "mwl-ir: `continue {level}` reached lowering inside {} enclosing frame(s) — \
-                 mwl_types rejects that with E0475 before this runs",
+                "nvs-ir: `continue {level}` reached lowering inside {} enclosing frame(s) — \
+                 nvs_types rejects that with E0475 before this runs",
                 self.loop_stack.len()
             )
         });
@@ -1709,8 +1709,8 @@ impl<'a> Lowering<'a> {
             .rposition(|frame| frame.continue_target.is_some())
             .unwrap_or_else(|| {
                 panic!(
-                    "mwl-ir: `continue {level}` reached lowering with no enclosing loop at or \
-                     outside its level — mwl_types rejects that with E0475 before this runs"
+                    "nvs-ir: `continue {level}` reached lowering with no enclosing loop at or \
+                     outside its level — nvs_types rejects that with E0475 before this runs"
                 )
             });
         let frame = &self.loop_stack[at];
@@ -1739,14 +1739,14 @@ impl<'a> Lowering<'a> {
     ///
     /// The operand is an integer literal or nothing: a level computed at run
     /// time would have no target to resolve against at compile time, which is
-    /// why PHP stopped accepting one in 5.4 and why `mwl_types::locals`
+    /// why PHP stopped accepting one in 5.4 and why `nvs_types::locals`
     /// refuses it with `E0475`. That checker also refuses a `0` and a level
     /// naming more targets than enclose it, so everything reaching here is a
     /// level the loop stack can satisfy.
     ///
     /// # Panics
     ///
-    /// Panics on anything `mwl_types::locals` should already have refused —
+    /// Panics on anything `nvs_types::locals` should already have refused —
     /// an internal error, not a program's.
     pub(super) fn loop_exit_level(&self, level: &Option<Expr>, keyword: &str) -> usize {
         let Some(level_expr) = level else {
@@ -1754,18 +1754,18 @@ impl<'a> Lowering<'a> {
         };
         let ExprKind::Int(span) = &level_expr.kind else {
             panic!(
-                "mwl-ir: a `{keyword}` level reached lowering as a non-literal — mwl_types \
+                "nvs-ir: a `{keyword}` level reached lowering as a non-literal — nvs_types \
                  rejects that with E0475 before this runs"
             );
         };
         let (radix, digits) = int_literal_digits(self.src, *span);
         let n = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
-            panic!("mwl-ir: `{keyword}` level literal `{digits}` doesn't fit a u64")
+            panic!("nvs-ir: `{keyword}` level literal `{digits}` doesn't fit a u64")
         });
         let n = usize::try_from(n).unwrap_or(usize::MAX);
         assert!(
             n >= 1,
-            "mwl-ir: `{keyword} 0` reached lowering — mwl_types rejects that with E0475 before \
+            "nvs-ir: `{keyword} 0` reached lowering — nvs_types rejects that with E0475 before \
              this runs"
         );
         n
@@ -1856,7 +1856,7 @@ impl<'a> Lowering<'a> {
     /// A binding that survives on only some incoming edges is one a block
     /// *declared* — an `if` branch's own local, a loop body's own local. The
     /// merged environment cannot carry it (there is no value for the edges
-    /// that never bound it, and MWL has no `null` in the IR to phi in), and
+    /// that never bound it, and Novis has no `null` in the IR to phi in), and
     /// the checker's definite-assignment rule already refuses any read of it
     /// past this point. So the merge is the last place the reference is
     /// reachable at all, and the edge that owns it is the one that must free
@@ -2112,7 +2112,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Every [`ExprKind`] on disk is named below. The trailing `_` arm is the
     /// cross-crate `#[non_exhaustive]` tax and nothing else — a variant added
-    /// to `mwl-syntax` has to be listed here too, or an increment written
+    /// to `nvs-syntax` has to be listed here too, or an increment written
     /// inside it goes unseen.
     fn collect_reassigned_in_children(
         &self,
@@ -2276,7 +2276,7 @@ impl<'a> Lowering<'a> {
     /// argument does not — the `&` lives on the *callee's* declaration, so
     /// `Adder::bump($n)` is indistinguishable from a by-value call until the
     /// resolved signature is consulted. That is what
-    /// `mwl_types::expr_table::ResolvedCall::inout` is recorded for, and
+    /// `nvs_types::expr_table::ResolvedCall::inout` is recorded for, and
     /// missing this scan leaves a loop body writing back into the value the
     /// loop was *entered* with on every iteration — the exact failure
     /// [`Self::rebound_local`]'s own doc comment describes for an array

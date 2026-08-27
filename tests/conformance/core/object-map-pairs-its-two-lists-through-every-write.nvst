@@ -1,7 +1,7 @@
 --TEST--
 `Core\ObjectMap`'s `keys` and `values` stay positionally paired through a sweep of writes — a re-`set` replaces in place, a removal closes the same gap in both lists, and a re-added key lands at the end — docs/spec/01-core-library.md § 9
 --FILE--
-<?mwl
+<?nvs
 final class Tag {
     public string $name;
 
@@ -81,7 +81,7 @@ $map->set($tags["0"], 1);
 echo $map->count(), " ", Render::pairs($map), "\n";
 
 // The three counts agree at every point, since one store's keys are the
-// other's (`crates/mwl-stdlib/src/identity_store.rs`).
+// other's (`crates/nvs-stdlib/src/identity_store.rs`).
 echo Core\Arr::count($map->keys()) == $map->count() ? "same" : "differs", " ",
      Core\Arr::count($map->values()) == $map->count() ? "same" : "differs", "\n";
 --EXPECT--

@@ -1,7 +1,7 @@
 --TEST--
 a `...` call argument builds the variadic tail by ADR 0007 § 5's one spread rule, so a mix of string and integer-looking keys is accepted where PHP refuses it as a positional-after-named unpack (ADR 0007 § 5, § 7 row 12)
 --FILE--
-<?mwl
+<?nvs
 final class Tail {
     public static function shape(string ...$parts): string {
         return Core\Json::encode($parts);
@@ -12,7 +12,7 @@ final class Tail {
 }
 
 // PHP re-reads a string key as a `name:` and then refuses the integer one
-// after it. MWL's variadic tail is the array itself and has no by-name
+// after it. Novis's variadic tail is the array itself and has no by-name
 // surface for an argument to be out of order with, so this is just the
 // spread rule: the string key preserved, the integer-looking one renumbered
 // under the tail's own append counter.

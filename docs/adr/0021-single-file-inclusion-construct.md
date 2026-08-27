@@ -11,7 +11,7 @@
   § 2](../spec/00-overview.md) is rewritten to match — that document owns the surviving grammar, this ADR
   owns why the other three are gone.
 
-> **In short:** MWL keeps exactly one same-frame inclusion keyword, spelled `require`, with its plain PHP
+> **In short:** Novis keeps exactly one same-frame inclusion keyword, spelled `require`, with its plain PHP
 > meaning unchanged — throws if the file cannot be found or fails to parse, and splices the target into the
 > calling frame every time control reaches it, with no automatic once-only guard. `include`,
 > `include_once`, and `require_once` are all rejected at parse time, each with a diagnostic naming `require`
@@ -29,18 +29,18 @@
 - **"Warn and continue" doesn't survive**: every other PHP ambient-continuation path here has been closed
   instead of kept — an undeclared property throws ([ADR 0014](0014-property-observer.md)), a superglobal has
   no fallback ([ADR 0012](0012-no-superglobals.md)), comparing objects with no `Comparable` is a diagnostic
-  ([ADR 0013](0013-comparable-interface.md)). `require`'s throw-on-failure already matches every other MWL
+  ([ADR 0013](0013-comparable-interface.md)). `require`'s throw-on-failure already matches every other Novis
   failure path ([ADR 0002](0002-error-propagation.md)).
 - **The `_once` axis doesn't need to survive**: declarations resolve by namespace
   ([ADR 0011](0011-functions-and-constants-are-class-members.md)) and by the per-path compiled-unit cache
   ([ADR 0017](0017-hot-reload-without-restart.md)), not by splice count — the redeclaration problem `_once`
-  guards against is a symptom of PHP's textual-inclusion-as-module-system, which MWL doesn't adopt for
+  guards against is a symptom of PHP's textual-inclusion-as-module-system, which Novis doesn't adopt for
   declarations. A template partial re-`require`d from a loop must still run every time, so the suffix goes,
   not the default.
 
 ## Decision
 
-**Exactly one construct survives: `require 'path.mwl';`, an expression, sharing the calling frame
+**Exactly one construct survives: `require 'path.nvs';`, an expression, sharing the calling frame
 completely (no isolation — contrast [`spawn script`](0006-isolated-script-execution.md)), throwing on a
 missing or unparseable target, and executing every time control reaches it. `include`, `include_once`, and
 `require_once` are rejected at parse time.**
@@ -48,9 +48,9 @@ missing or unparseable target, and executing every time control reaches it. `inc
 ### 1. Why `require`, not a new keyword
 
 PHP's plain `require` already means exactly this — throw, no repeat guard, same frame — so no new keyword
-was invented: reuse a PHP spelling verbatim when its existing meaning is exactly the one MWL wants, and
+was invented: reuse a PHP spelling verbatim when its existing meaning is exactly the one Novis wants, and
 spend the "pragmatic superset" budget on that instead of on novelty. Note the narrowness of that argument —
-it justifies keeping a spelling whose *meaning* MWL wants, never a second spelling of a meaning already
+it justifies keeping a spelling whose *meaning* Novis wants, never a second spelling of a meaning already
 covered, which is the distinction that decided `<?php`
 ([ADR 0049](0049-single-open-tag-and-single-exit-keyword.md)) and `list(...)`
 ([ADR 0050](0050-list-destructuring-spelling-rejected.md)) the other way. `require` passes it, because no
@@ -62,12 +62,12 @@ language.
 ### 2. What still parses, and what does not
 
 ```php
-require 'partials/header.mwl';        // kept — throws if missing, runs every time
-$config = require 'config.mwl';       // kept — expression form, config.mwl ends with `return [...]`
+require 'partials/header.nvs';        // kept — throws if missing, runs every time
+$config = require 'config.nvs';       // kept — expression form, config.nvs ends with `return [...]`
 
-include 'partials/header.mwl';        // rejected — "use `require`"
-include_once 'lib/util.mwl';          // rejected — "use `require`"
-require_once 'lib/util.mwl';          // rejected — "use `require`"
+include 'partials/header.nvs';        // rejected — "use `require`"
+include_once 'lib/util.nvs';          // rejected — "use `require`"
+require_once 'lib/util.nvs';          // rejected — "use `require`"
 ```
 
 All four keep their token spellings in the lexer — none becomes a plain identifier — so the diagnostic for
@@ -80,7 +80,7 @@ and the `eval`/`extract`/`settype` rejections already use: *there is exactly one
 `require`'s value — what a `return`-ing target file hands back, or `1` when it does not `return` at all —
 cannot be known statically the way [ADR 0007](0007-explicit-type-system.md) otherwise requires every
 expression's type to be. This is not a new problem needing a new mechanism: it is exactly the case `mixed`
-exists for, ADR 0007's "one unchecked position." `$config = require 'config.mwl';` therefore requires the
+exists for, ADR 0007's "one unchecked position." `$config = require 'config.nvs';` therefore requires the
 same explicit `as` conversion any other `mixed`-typed boundary value needs before it can populate a typed
 binding — no special-casing for `require`, and no third exception carved into the type system for it.
 
@@ -89,7 +89,7 @@ binding — no special-casing for `require`, and no third exception carved into 
 Each rejected spelling gets the same message, following [ADR 0015 § 7](0015-no-name-aliasing.md)'s pattern
 of naming the replacement directly:
 
-- `include '...';` / `include_once '...';` / `require_once '...';` → *MWL keeps exactly one inclusion
+- `include '...';` / `include_once '...';` / `require_once '...';` → *Novis keeps exactly one inclusion
   construct; use `require` — it already throws on a missing file and runs every time it is reached.*
 
 ## Consequences
@@ -108,7 +108,7 @@ of naming the replacement directly:
 **Negative**
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: PHP source using `include`, `include_once`, or `require_once` does not convert
-  unconverted. Mechanical for `mwl convert` ([M11](../implementation-plan.md)) in the common case (rewrite
+  unconverted. Mechanical for `nvs convert` ([M11](../implementation-plan.md)) in the common case (rewrite
   the keyword to `require`); a script that relied on `include`'s warn-and-continue behaviour — testing the
   expression's `false` result to decide whether the file loaded — needs a human decision, since that
   control flow has no direct equivalent once a missing file always throws.

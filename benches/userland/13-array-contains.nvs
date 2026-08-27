@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // in_array over a list — the membership test userland reaches for before it reaches for a set.
 class Bench {
     public static function run(int $size, int $probes): int {

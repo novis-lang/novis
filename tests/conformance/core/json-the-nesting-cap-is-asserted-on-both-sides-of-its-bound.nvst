@@ -1,7 +1,7 @@
 --TEST--
 Core\Json::decode's maxDepth counts PHP's way, holds at 512 and refuses 513, and a maxDepth outside 1..=1024 is a LogicError rather than a ParseError — spec § 6
 --FILE--
-<?mwl
+<?nvs
 // `maxDepth` is a bound on *stack*: the parse recurses one frame per nesting
 // level, so this option is the one place a document's own shape decides how
 // much of it is used. A cap is worth nothing asserted on one side only, so

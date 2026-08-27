@@ -1,32 +1,32 @@
-# ADR 0089 — `mwl convert` is one rule table with two modes, and every emitted line is classified
+# ADR 0089 — `nvs convert` is one rule table with two modes, and every emitted line is classified
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
 - **Amended by:** 0090
-- **Scope:** what `mwl convert` promises and what it refuses — the two modes and the per-rule tier that
+- **Scope:** what `nvs convert` promises and what it refuses — the two modes and the per-rule tier that
   produces them, what "equivalent" means and who proves it, the determinism contract, the
   nothing-is-dropped rule, the annotation and report format, where the three translation tables live, and
   the PHP front end with its 7.4–8.6 dialect range. Not in scope: which `Core` member a given PHP name
   becomes, which is [docs/spec/02-php-migration.md](../spec/02-php-migration.md)'s one row per name; the
-  migration path for a construct MWL dropped, which belongs to the ADR that dropped it; M11's schedule and
+  migration path for a construct Novis dropped, which belongs to the ADR that dropped it; M11's schedule and
   its verification targets, which are [the plan](../implementation-plan.md)'s; and database schema
   migration, which is an unrelated topic owned by [0082](0082-the-first-party-framework.md) § 7.
-- **Amends:** [0080](0080-the-audience-mwl-is-built-for.md) § 3 — the porting-aid bullet now names the two
+- **Amends:** [0080](0080-the-audience-nvs-is-built-for.md) § 3 — the porting-aid bullet now names the two
   modes and the report that carries the honest number, instead of describing the tool in prose.
-  [docs/spec/02-php-migration.md](../spec/02-php-migration.md) — a row's **MWL** cell is machine-read when
+  [docs/spec/02-php-migration.md](../spec/02-php-migration.md) — a row's **Novis** cell is machine-read when
   it is exactly one `Core` member spelling; any other cell must carry a rule id, so the converter never
   guesses at prose.
   [docs/implementation-plan.md](../implementation-plan.md) — M11's enumerated catalogue of rewrites moves
   into the rule table this ADR defines; the milestone keeps its schedule, its inference pass and its
   verification.
 
-> **In short:** `mwl convert` is **one rule table read through two filters**, not two translators. Every
-> rule carries a **tier**: **E** — proven to behave identically, **D** — a mechanical MWL destination
+> **In short:** `nvs convert` is **one rule table read through two filters**, not two translators. Every
+> rule carries a **tier**: **E** — proven to behave identically, **D** — a mechanical Novis destination
 > exists but the behaviour may differ, **N** — no mechanical destination at all. **`--mode=equivalent`**,
-> the default, emits only E and comments out everything else with the *idiomatic* MWL replacement beside
+> the default, emits only E and comments out everything else with the *idiomatic* Novis replacement beside
 > it: the output is a worklist that will not run, and is honest about why. **`--mode=runnable`** emits E
 > and D as code, each D site carrying `TODO(convert:<id>)` naming exactly how it may differ, and comments
-> out only N: the output usually runs and is explicitly not what MWL is for. **A tier is a claim someone
+> out only N: the output usually runs and is explicitly not what Novis is for. **A tier is a claim someone
 > discharged** — an E branch with no differential case against the PHP oracle fails CI, so "100% correct"
 > is a test, never an opinion. **Determinism is a contract**: same bytes in, same bytes out, no clock, no
 > hash order, no fixpoint, no model, no network. **Nothing is ever dropped** — every non-trivia byte of
@@ -36,14 +36,14 @@
 
 ## Context
 
-- **This is an adoption path, and it is the only one that scales.** Every construct MWL removed has a
+- **This is an adoption path, and it is the only one that scales.** Every construct Novis removed has a
   named migration path in the ADR that removed it — [0008](0008-static-and-global.md)'s `global`,
   [0043](0043-interface-default-methods-and-delegation-replace-traits.md)'s traits,
   [0031](0031-callable-is-the-only-closure-type.md)'s `use (&$y)`,
   [0014](0014-property-observer.md)'s `__get`. Those paths are written for a human reading an ADR. A PHP
   library is tens of thousands of lines, and nobody applies twenty ADRs by hand across it.
 - **The failure mode of every "PHP to X" tool is silence.** They emit code that looks converted, runs, and
-  differs somewhere nobody looked. For [0080](0080-the-audience-mwl-is-built-for.md)'s audience —
+  differs somewhere nobody looked. For [0080](0080-the-audience-nvs-is-built-for.md)'s audience —
   multi-tenant and regulated platforms — a silent behaviour change during onboarding is the worst thing
   the project can ship, because it arrives disguised as success.
 - **But refusing to guess is also a failure.** A tool that converts only what it can prove leaves a
@@ -55,7 +55,7 @@
 - **A converter is run many times.** Across a large tree, in CI, by several people, before and after
   cleaning up the source. If two runs over the same input differ by a byte, the diff is unreviewable and
   the tool is worthless as a repeatable step in a migration.
-- **The name.** `mwl convert` is the spelling every existing document uses, and *migration* in this
+- **The name.** `nvs convert` is the spelling every existing document uses, and *migration* in this
   repository already means database schema migration ([0082](0082-the-first-party-framework.md) § 7).
   There is no second name and no alias, per [0015](0015-no-name-aliasing.md).
 
@@ -69,11 +69,11 @@ branch, and the two modes are that tier read through a filter:
 | Tier | What it means | `--mode=equivalent` (default) | `--mode=runnable` |
 |---|---|---|---|
 | **E** | The converted construct behaves identically to the PHP one, for every input the converted program's type checker accepts | emitted as code, no annotation | emitted as code, no annotation |
-| **D** | A mechanical MWL destination exists, and the behaviour may differ | original commented out, with the **idiomatic** MWL shape beside it | emitted as code, with `TODO(convert:<id>)` naming the difference |
+| **D** | A mechanical Novis destination exists, and the behaviour may differ | original commented out, with the **idiomatic** Novis shape beside it | emitted as code, with `TODO(convert:<id>)` naming the difference |
 | **N** | No mechanical destination exists | original commented out, with the idiomatic shape | original commented out, with the same note |
 
 So `--mode=equivalent` output **will not run** — it is a worklist, and the header says so. `--mode=runnable`
-output usually runs, is explicitly not idiomatic MWL, and every place it may diverge is one `grep` away.
+output usually runs, is explicitly not idiomatic Novis, and every place it may diverge is one `grep` away.
 
 **A rule has ordered branches, and a branch's tier may be predicated on a side condition.** The condition
 is decided by the converter's own analysis; a condition it cannot decide is **false**, so control falls to
@@ -88,9 +88,9 @@ A rule record is data, and carries exactly these fields:
 | `match` | the PHP construct or built-in name this branch set applies to |
 | `when` | the side condition, in the closed predicate vocabulary of § 6.3; empty means "always" |
 | `tier` | `E`, `D` or `N` |
-| `rewrite` | the MWL shape emitted, for `E` and `D` |
+| `rewrite` | the Novis shape emitted, for `E` and `D` |
 | `diverges` | one sentence, for `D` — the input class where behaviour differs. This is the `TODO` text |
-| `idiomatic` | for `D` and `N` — what MWL actually wants here. This is the comment `equivalent` mode leaves |
+| `idiomatic` | for `D` and `N` — what Novis actually wants here. This is the comment `equivalent` mode leaves |
 | `dialect` | the PHP version range the branch applies to (§ 7) |
 | `proof` | for `E` — the differential case that discharges the claim. CI refuses an `E` branch without one |
 
@@ -106,18 +106,18 @@ against "PHP in general".
 
 **Nothing is E because someone was confident.** An E branch names a differential case in `tests/convert/`
 that runs the PHP fragment on the oracle build this repository already uses and the converted fragment
-under `mwl test` ([0079](0079-testing-is-a-language-feature.md)), and compares. CI refuses an E branch
+under `nvs test` ([0079](0079-testing-is-a-language-feature.md)), and compares. CI refuses an E branch
 whose `proof` is missing or whose case does not run. A branch claiming E across several dialects owes one
 case per dialect it claims; where no oracle exists for that dialect, the branch is **D**, not E.
 
 **A tier is usually a property of the site, not of the construct.** Two worked examples, which are the two
 shapes every rule in the table takes:
 
-- **`==` → `==`.** MWL has one equality operator and it takes the strict reading of every row PHP's two
+- **`==` → `==`.** Novis has one equality operator and it takes the strict reading of every row PHP's two
   disagreed on ([0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md)), so the
   destination spelling is unchanged and the tier is entirely a property of the operands. E when both are
   proven the same non-`string` scalar, or proven numeric — there PHP's two operators agree. D otherwise,
-  with a `diverges` sentence per operand shape: two strings compare as text in MWL where PHP's `==`
+  with a `diverges` sentence per operand shape: two strings compare as text in Novis where PHP's `==`
   compared two numeric strings numerically; two arrays compare order-sensitively where PHP's `==` did not;
   two objects compare by identity where PHP's `==` walked property values. A **cross-type** comparison has
   no E or D branch at all — it is ADR 0090 § 2's compile error, so the rule emits the commented-out
@@ -150,7 +150,7 @@ implementation may not break:
 5. **Every generated name is a pure function of source facts** — the class a file's top-level functions are
    grouped into, a tracker class for a stateful trait, a fresh binding for a rewritten `$$var`. Where a
    counter is unavoidable it is per-file and in source order, and the rule says so.
-6. **Formatting is not the converter's business.** It emits a tree and prints it through `mwl fmt`'s one
+6. **Formatting is not the converter's business.** It emits a tree and prints it through `nvs fmt`'s one
    unconfigurable style ([0039](0039-canonical-code-formatting.md)). The converter has no formatting
    options at all, and output is UTF-8 without a BOM with `\n` line endings on every platform.
 7. **Every output file carries a header** naming the source path, the source digest, the rule-table digest,
@@ -169,7 +169,7 @@ tool re-runnable, and it is the reason § 8 refuses LLM assistance outright rath
   a library's documentation has not ported it.
 - **A file the front end cannot parse becomes a fully commented-out file** carrying the parse error and the
   dialect it was tried under — never a missing file and never a silent skip.
-- **Output is re-parsed with `mwl-syntax` before it is written.** A rule that produces unparseable MWL is a
+- **Output is re-parsed with `nvs-syntax` before it is written.** A rule that produces unparseable Novis is a
   converter bug: the run reports it against the rule id and that file falls back to fully commented-out, so
   a bad rule can never leave a tree that does not parse.
 
@@ -184,16 +184,16 @@ var $n = Core\Str::length($blob);
 
 ```
 // convert:C0004 — PHP compares an int against a string here, and 8.0 changed what that means.
-// Idiomatic MWL: convert once at the boundary, then compare — `$id == ($raw as int)`.
+// Idiomatic Novis: convert once at the boundary, then compare — `$id == ($raw as int)`.
 // if ($id == "1") { … }
 ```
 
-`mwl convert --check` writes no files and emits a report — TOML, for the reason
+`nvs convert --check` writes no files and emits a report — TOML, for the reason
 [0064](0064-configuration-file-format.md) picked it, ordered by path then rule id so it diffs cleanly.
 It carries per-tier counts, per-rule counts, the share of input constructs emitted as code in each mode,
 and the rules that fired most often without an E branch — which is the work queue for the table itself.
 
-**That report is the number [0080](0080-the-audience-mwl-is-built-for.md) § 3 obliges the project to
+**That report is the number [0080](0080-the-audience-nvs-is-built-for.md) § 3 obliges the project to
 publish** instead of a compatibility claim. `--explain <id>` prints one rule: its branches, their tiers,
 their conditions and their proofs.
 
@@ -201,14 +201,14 @@ their conditions and their proofs.
 
 1. **Names → [docs/spec/02-php-migration.md](../spec/02-php-migration.md)**, which already exists, already
    has a row per PHP built-in and is already CI-checked by `tools/check-migration.py`. The converter's name
-   mapping is *generated* from it. To make that possible without a second copy: **a row whose MWL cell is
+   mapping is *generated* from it. To make that possible without a second copy: **a row whose Novis cell is
    exactly one `Core` member spelling is machine-read as a mechanical rename; any other cell must carry a
    rule id**, because prose like "`Core\Str::format` into `$file->write`" is a rewrite, not a rename. A
    `dropped` row with neither is a checker error once the converter exists.
-2. **Constructs → `crates/mwl-convert/rules/*.toml`**, one file per PHP domain, one record per § 1's field
+2. **Constructs → `crates/nvs-convert/rules/*.toml`**, one file per PHP domain, one record per § 1's field
    list. It is **data, not code**, so a rule can be reviewed by someone who does not read Rust, and the
    browsable copy under `docs/spec/` is **generated and CI-checked identical** — never hand-edited, the
-   same discipline [0065](0065-third-party-attribution-and-mwl-info.md) applies to notices.
+   same discipline [0065](0065-third-party-attribution-and-nvs-info.md) applies to notices.
 3. **Semantic deltas → the ADR that created each one.** Grapheme counting is
    [0009](0009-string-and-bytes.md); string array keys are [0007](0007-explicit-type-system.md) § 5;
    array combination is [0069](0069-array-combination-is-key-type-independent.md); the closed doors are
@@ -268,10 +268,10 @@ enough — four pure-Rust crates — to carry one if it comes to that. It is **n
 repository: owning a PHP parser means owning every future PHP release, which is what AGENTS.md's dependency
 rule exists to refuse.
 
-**The passes see only `mwl_convert::php`** — our own facade over node kinds, spans and comments — so
+**The passes see only `nvs_convert::php`** — our own facade over node kinds, spans and comments — so
 replacing the dependency is a bounded change in one module rather than a rewrite of every pass. That facade
 is written first, before any pass, and it is the only module allowed to name the parser crate.
-[0065](0065-third-party-attribution-and-mwl-info.md) covers the notice.
+[0065](0065-third-party-attribution-and-nvs-info.md) covers the notice.
 
 **The parser is behind a Cargo feature and is not linked into the server binary.** A PHP front end has no
 business on a machine serving requests.
@@ -288,15 +288,15 @@ a 7.2 codebase gets a bounded, honest answer rather than a silent misparse.
 
 - **Never runs the input.** No `eval`, no autoload execution, no `composer install`, no bootstrap file.
   Conversion is a read of bytes.
-- **Never converts `vendor/` by default.** [0080](0080-the-audience-mwl-is-built-for.md) § 3 scopes this
+- **Never converts `vendor/` by default.** [0080](0080-the-audience-nvs-is-built-for.md) § 3 scopes this
   tool to an application's own code; a dependency is reported against [0081](0081-packages-are-digests-resolution-is-a-maximum.md)'s
-  registry — as a package that exists, one that does not, or a C extension that needs a Tier 1 `.mwlx`,
+  registry — as a package that exists, one that does not, or a C extension that needs a Tier 1 `.nvsx`,
   which the converter cannot synthesise and says so.
 - **Never invents a name binding.** A name that does not resolve under [0061](0061-compile-time-autoload-and-program-discovery.md)
   is reported, not guessed.
 - **Never applies a rewrite that is not in the table**, and never asks a model for one.
 - **Never claims compatibility in its own output.** The header states mode, dialect, digests and the tier
-  counts; the forbidden phrasings of [0080](0080-the-audience-mwl-is-built-for.md) § 3 bind the converter's
+  counts; the forbidden phrasings of [0080](0080-the-audience-nvs-is-built-for.md) § 3 bind the converter's
   own text as much as any other document.
 
 ## Consequences
@@ -309,7 +309,7 @@ a 7.2 codebase gets a bounded, honest answer rather than a silent misparse.
   time, which is a queue anyone can work.
 - **An E rule costs a differential test.** That is deliberately expensive: it is the only thing separating
   this design from every best-effort transpiler, and it is what lets the project say "identical" out loud.
-- **`--mode=runnable` produces code MWL is not for**, on purpose, and says so per file. The `TODO` count is
+- **`--mode=runnable` produces code Novis is not for**, on purpose, and says so per file. The `TODO` count is
   the cleanup backlog, and the same table's `idiomatic` field is what the cleanup is *toward* — so the two
   modes are the two ends of one road rather than two products.
 - **Tradeoffs, per AGENTS.md.** *Performance:* none — the converter is development-time, off the request
@@ -317,18 +317,18 @@ a 7.2 codebase gets a bounded, honest answer rather than a silent misparse.
   *Usability:* a PHP developer gets either a working draft or a worklist, and in both cases every uncertain
   site is annotated rather than silent; against that, the default mode's first run looks discouraging.
   *Simplicity:* one table and two filters is simpler than the tool anyone would otherwise build, and the
-  language gains nothing to remember — no rule here changes MWL itself.
+  language gains nothing to remember — no rule here changes Novis itself.
 - **This ADR adds no language surface, no `Core` member and no runtime cost.** Every decision it takes is
   about a development-time tool.
 
 ## Alternatives rejected
 
 - **One best-effort mode, no tiering** — the usual shape. Rejected: it makes a silent behaviour change the
-  default outcome for [0080](0080-the-audience-mwl-is-built-for.md)'s audience, and it gives the project no
+  default outcome for [0080](0080-the-audience-nvs-is-built-for.md)'s audience, and it gives the project no
   number it can honestly publish.
 - **A confidence slider, or four or five levels** — rejected because nobody can state what level three
   promises. Two levels are two sentences: *proven identical*, and *has a destination, may differ*.
-- **A `mwl/php-compat` package** carrying PHP's dropped semantics — an int-keyed array class, a loose
+- **A `nvs/php-compat` package** carrying PHP's dropped semantics — an int-keyed array class, a loose
   comparison helper, byte-string members — for `runnable` mode to call. Considered seriously and rejected:
   the constructs that appeared to need it already have a language destination, because
   [0007](0007-explicit-type-system.md) § 5 normalises an integer subscript to its decimal string and `[] =`
@@ -375,21 +375,21 @@ a 7.2 codebase gets a bounded, honest answer rather than a silent misparse.
 
 ## Verification
 
-**Now, in CI: nothing.** `mwl-convert` does not exist; M11 is where this becomes code, and the crate is
+**Now, in CI: nothing.** `nvs-convert` does not exist; M11 is where this becomes code, and the crate is
 created when that milestone starts, per AGENTS.md. What this ADR fixes today is the shape M11 must build,
 so that milestone's own catalogue of rewrites is now this table's contents rather than a second list.
 
 **The spike that locked § 7's dependency has run**, on two hand-written fixtures — one exercising 8.5 down
 to 8.0, one holding the constructs 8.0 removed — and § 7's table is its result. What it did **not** cover,
 and what M11 owes before the first pass is written: the same two candidates over a real corpus, the
-`php-src` checkout `crates/mwl-syntax/tests/corpus_parse.rs` already uses plus a set of widely used
+`php-src` checkout `crates/nvs-syntax/tests/corpus_parse.rs` already uses plus a set of widely used
 libraries, reporting files parsed without panic, files parsed without error, and whether every comment is
 retrievable with a span. A candidate that cannot represent some dialect is not disqualified by that alone;
 it is disqualified if it cannot *report* what it could not parse, which is what decided this one.
 
 **When M11 opens**, these are the tests the milestone owes, each traceable to a section above:
 
-- **Every E branch has a differential case** that runs on the PHP oracle and under `mwl test`, and CI fails
+- **Every E branch has a differential case** that runs on the PHP oracle and under `nvs test`, and CI fails
   on an E branch without one (§ 2). This is the check the whole design rests on.
 - **Byte-completeness** over the corpus: every non-trivia input byte accounted for in output (§ 4).
 - **Determinism**: two runs byte-identical; a run with a permuted discovery order byte-identical; the

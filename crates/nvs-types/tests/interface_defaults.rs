@@ -1,12 +1,12 @@
 //! ADR 0043's interface method bodies — a `public` default and a `private` helper, and who can see each.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 // ------------------------------------------------------------------
 // ADR 0043 §§ 2-3 -- interface default/private methods (M2 follow-up).
@@ -19,7 +19,7 @@ use mwl_diagnostics::code;
 #[test]
 fn a_default_interface_method_is_inherited_and_callable() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          interface Greets {\n\
          \x20 public function name(): string;\n\
          \x20 public function greet(): string { return \"Hello, \" . $this->name() . \"!\"; }\n\
@@ -48,7 +48,7 @@ fn a_default_interface_method_is_inherited_and_callable() {
 #[test]
 fn a_class_can_override_a_default_interface_method() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          interface Greets { public function greet(string $x): void {} }\n\
          class Person implements Greets {\n\
          \x20 public function greet(int $x): void {}\n\
@@ -71,7 +71,7 @@ fn a_class_can_override_a_default_interface_method() {
 #[test]
 fn this_inside_a_default_method_body_does_not_see_the_implementing_class() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          interface Greets {\n\
          \x20 public function greet(): string { return $this->onlyOnPerson(); }\n\
          }\n\
@@ -92,7 +92,7 @@ fn this_inside_a_default_method_body_does_not_see_the_implementing_class() {
 #[test]
 fn a_private_interface_method_is_visible_from_its_own_interfaces_default_method() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          interface Csv {\n\
          \x20 private function escapeField(string $field): string { return $field; }\n\
          \x20 public function toCsvRow(): string { return $this->escapeField(\"x\"); }\n\
@@ -114,7 +114,7 @@ fn a_private_interface_method_is_visible_from_its_own_interfaces_default_method(
 #[test]
 fn a_private_interface_method_is_not_visible_through_this_from_an_implementing_class() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          interface Csv {\n\
          \x20 private function escapeField(string $field): string { return $field; }\n\
          \x20 public function toCsvRow(): string { return $this->escapeField(\"x\"); }\n\
@@ -138,7 +138,7 @@ fn a_private_interface_method_is_not_visible_through_this_from_an_implementing_c
 #[test]
 fn a_private_interface_method_is_not_visible_via_a_qualified_call_from_outside() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          interface Csv {\n\
          \x20 private function escapeField(string $field): string { return $field; }\n\
          }\n\

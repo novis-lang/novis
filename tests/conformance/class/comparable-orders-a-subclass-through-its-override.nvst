@@ -1,7 +1,7 @@
 --TEST--
 `Comparable` reaches the receiver's own `compareTo`, so a subclass that overrides it changes how `<`/`>`/`<=>` answer for a base-typed pair — ADR 0013
 --FILE--
-<?mwl
+<?nvs
 class Card implements Comparable {
     public string $name;
     public int $rank;

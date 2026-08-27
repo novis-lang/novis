@@ -1,7 +1,7 @@
 --TEST--
-a condition falls the same way MWL and PHP over PHP's whole truthy table
+a condition falls the same way Novis and PHP over PHP's whole truthy table
 --FILE--
-<?mwl
+<?nvs
 if ("0") { echo "a1\n"; } else { echo "a0\n"; }
 if ("") { echo "b1\n"; } else { echo "b0\n"; }
 if ("0.0") { echo "c1\n"; } else { echo "c0\n"; }

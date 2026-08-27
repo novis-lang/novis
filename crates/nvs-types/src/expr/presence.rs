@@ -35,8 +35,8 @@
 //! [ADR 0028]: ../../../../docs/adr/0028-closing-the-remaining-magic-methods.md
 //! [ADR 0035]: ../../../../docs/adr/0035-truthy-boolean-context.md
 
-use mwl_diagnostics::{Diagnostic, code};
-use mwl_syntax::ast::{Expr, ExprKind};
+use nvs_diagnostics::{Diagnostic, code};
+use nvs_syntax::ast::{Expr, ExprKind};
 use rustc_hash::FxHashSet;
 
 use crate::locals::LocalScope;
@@ -46,7 +46,7 @@ use crate::{Ctx, Env};
 use super::check_expr;
 
 /// Checks one `isset(...)` operand and records its [`ExprInfo`] entries, so
-/// `mwl-ir` has something to lower a null test against.
+/// `nvs-ir` has something to lower a null test against.
 ///
 /// [`ExprInfo`]: crate::expr_table::ExprInfo
 pub(super) fn check_isset_operand(
@@ -69,7 +69,7 @@ pub(super) fn check_isset_operand(
 ///
 /// This is [`check_isset_operand`] without the shape check: `empty` is `!$x`
 /// and PHP has accepted any expression there since 5.5, so only the
-/// guarded-subscript half carries over. What `mwl-ir` then lowers is ADR 0035
+/// guarded-subscript half carries over. What `nvs-ir` then lowers is ADR 0035
 /// § 2's table plus a `Not`, which is `!` exactly.
 ///
 /// [`ExprInfo`]: crate::expr_table::ExprInfo

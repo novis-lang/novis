@@ -1,7 +1,7 @@
 --TEST--
 a property with no default that the constructor leaves unassigned on some path is a compile error — ADR 0022 § 1
 --FILE--
-<?mwl
+<?nvs
 class Box {
     public int $n;
     public string $label;
@@ -15,6 +15,6 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0409]: `$label` is not assigned on every path out of the constructor
-  --> case.mwl:4:19
+  --> case.nvs:4:19
 %A
 error: aborting due to 1 error

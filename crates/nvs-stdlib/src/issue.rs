@@ -12,11 +12,11 @@
 //! [ADR 0036](../../../../docs/adr/0036-anonymous-object-shapes.md) § 3 already
 //! makes `{path: string, message: string}` a type the checker compares
 //! structurally. So `Core\Issue` exists as a *type* in
-//! `mwl_types::error_lib::issue_shape` and as a *layout* in
+//! `nvs_types::error_lib::issue_shape` and as a *layout* in
 //! [`crate::instance`]'s shape roster, and nowhere else.
 //!
 //! **The slot order is the sorted field order** — `message`, then `path` —
-//! because `mwl_types::ty::TypeInterner::shape` canonicalizes a shape's fields
+//! because `nvs_types::ty::TypeInterner::shape` canonicalizes a shape's fields
 //! by name. [`FIELDS`] is this side of that agreement.
 //!
 //! # What it spends
@@ -30,13 +30,13 @@
 //! # Reading one back
 //!
 //! `$issue->path` is an ordinary field read: the checker resolves the name to
-//! its slot in the sorted list above and `mwl-ir` reads that slot by index, so
+//! its slot in the sorted list above and `nvs-ir` reads that slot by index, so
 //! the agreement [`FIELDS`] states is the only thing keeping the two sides
 //! together. Reorder it and a program reads the wrong field rather than
 //! failing to compile — which is why the order is stated here, in
-//! `mwl_types::error_lib::issue_shape`'s interned type, and nowhere else.
+//! `nvs_types::error_lib::issue_shape`'s interned type, and nowhere else.
 
-use mwl_runtime::{MwlArray, MwlStr, Value};
+use nvs_runtime::{NvsArray, NvsStr, Value};
 
 /// The descriptor name `crate::instance`'s shape roster registers this under.
 ///
@@ -58,8 +58,8 @@ pub(crate) fn one(path: &str, message: &str) -> Value {
     crate::instance::shape(
         SHAPE,
         [
-            Value::str(MwlStr::new(message.as_bytes())),
-            Value::str(MwlStr::new(path.as_bytes())),
+            Value::str(NvsStr::new(message.as_bytes())),
+            Value::str(NvsStr::new(path.as_bytes())),
         ],
     )
 }
@@ -67,7 +67,7 @@ pub(crate) fn one(path: &str, message: &str) -> Value {
 /// An `array<Issue>` of every `(path, message)` in `issues`, in the order
 /// given — ADR 0071 § 5's "in declaration order".
 pub(crate) fn list<'a>(issues: impl IntoIterator<Item = (&'a str, &'a str)>) -> Value {
-    let mut array = MwlArray::new();
+    let mut array = NvsArray::new();
     for (path, message) in issues {
         array.append(one(path, message));
     }
@@ -77,7 +77,7 @@ pub(crate) fn list<'a>(issues: impl IntoIterator<Item = (&'a str, &'a str)>) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mwl_runtime::Tag;
+    use nvs_runtime::Tag;
 
     #[test]
     fn an_issue_holds_its_two_fields_in_the_sorted_slot_order() {

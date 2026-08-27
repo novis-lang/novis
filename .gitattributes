@@ -1,6 +1,6 @@
 # Normalise to LF in the repository and in working copies on every platform.
 #
-# This is not cosmetic. MWL's conformance tests (`.mwlt`) compare program output
+# This is not cosmetic. Novis's conformance tests (`.nvst`) compare program output
 # byte-for-byte against an expected block, and the lexer must be exercised
 # against both line endings deliberately rather than by accident of checkout.
 * text=auto eol=lf
@@ -14,9 +14,9 @@
 *.json    text eol=lf
 *.sh      text eol=lf
 
-# MWL sources and tests
-*.mwl     text eol=lf
-*.mwlt    text eol=lf
+# Novis sources and tests
+*.nvs     text eol=lf
+*.nvst    text eol=lf
 *.php     text eol=lf
 *.phpt    text eol=lf
 
@@ -33,4 +33,4 @@
 *.png     binary
 *.jpg     binary
 *.ico     binary
-*.mwlo    binary
+*.nvso    binary

@@ -1,17 +1,17 @@
 --TEST--
 Core\Math::abs is max($x, -$x) and min's negation, and Core\Math::sign is what min and max say about $x against zero, on every row of both arms — `abs` agreeing with its derivation even where both refuse, and `sign` parting from it only at NaN — docs/spec/01-core-library.md § 3
 --FILE--
-<?mwl
+<?nvs
 // Neither `abs` nor `sign` needs a comparison of its own: both are already
 // expressible in the ordering trio the same class exports. So the question is
 // not what each answers on a chosen row — math-magnitude-sign-and-the-two-
-// extremes.mwlt reads those off a line — but whether either has grown a second
+// extremes.nvst reads those off a line — but whether either has grown a second
 // comparison that agrees with `min`/`max` on the rows someone would pick and
 // parts from them elsewhere. Counted over a swept table, so it cannot.
 //
 // `abs` is declared `int|float|decimal` in both directions, so every use of it
 // below carries an `as int`/`as float`: a binary operator over the tagged union
-// and a bare `int` is a representation mismatch that `mwl-codegen` refuses.
+// and a bare `int` is a representation mismatch that `nvs-codegen` refuses.
 
 // 1. `int`, both signs, both zeros of the arm there is only one of, and the
 //    largest magnitude that has an `int` answer at either end. `abs($x)` is the

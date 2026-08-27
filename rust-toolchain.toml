@@ -1,5 +1,5 @@
 [toolchain]
-# Pinned so every developer and CI runner compiles MWL identically.
+# Pinned so every developer and CI runner compiles Novis identically.
 # Bump deliberately, in its own commit, with CI green on all three platforms.
 channel = "1.97.1"
 components = ["rustfmt", "clippy", "rust-src"]

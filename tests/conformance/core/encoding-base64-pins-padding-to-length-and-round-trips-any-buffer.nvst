@@ -1,7 +1,7 @@
 --TEST--
 `Core\Encoding`'s base64 pair pins padding to the operand's length, refuses a symbol neither alphabet admits, and round-trips a buffer no `string` could hold — spec § 7, ADR 0009 §§ 1 and 3
 --FILE--
-<?mwl
+<?nvs
 class B64 {
     // Both spellings of one buffer on one line, so the row itself shows what
     // differs: § 4's alphabet padded, § 5's alphabet unpadded.
@@ -73,7 +73,7 @@ echo B64::url("AP-A_g"), "\n";
 
 // And a buffer that does have one: `as bytes` is total and free (§ 3), so a
 // `string` reaches the same pair through the same two members.
-bytes $text = "mwl" as bytes;
+bytes $text = "nvs" as bytes;
 echo Core\Encoding::toBase64($text), "\n";
 echo Core\Encoding::toHex(Core\Encoding::fromBase64Url(Core\Encoding::toBase64Url($text))), "\n";
 --EXPECT--
@@ -100,5 +100,5 @@ threw
 AP+A/g== AP-A_g
 00ff80fe
 00ff80fe
-bXds
-6d776c
+bnZz
+6e7673

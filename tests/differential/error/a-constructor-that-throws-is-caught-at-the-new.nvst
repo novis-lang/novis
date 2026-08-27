@@ -1,7 +1,7 @@
 --TEST--
 A `throw` from a constructor propagates out of the `new` that ran it, exactly as PHP's does, and the loop around it keeps counting
 --FILE--
-<?mwl
+<?nvs
 class Positive {
     public int $value;
 

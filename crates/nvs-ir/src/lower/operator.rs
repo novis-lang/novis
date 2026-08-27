@@ -5,7 +5,7 @@
 //! rule that file's own header states: every item moved here unchanged, and the
 //! methods `pub(super)` so they reach across these modules and no further.
 //!
-//! `lower_binary` is § 4's table and `emit_binop` in `mwl-codegen` is its other
+//! `lower_binary` is § 4's table and `emit_binop` in `nvs-codegen` is its other
 //! end; a compound assignment reaches both by desugaring to the binary form it
 //! means, so there is no second table for `⊕=` anywhere.
 
@@ -14,7 +14,7 @@ use super::*;
 impl<'a> Lowering<'a> {
     /// Whether the checker *placed* the numeric literal at `span` at
     /// `decimal` — ADR 0054 § 2's rule, read back from the one recording
-    /// `mwl_types::expr::record_decimal_placement` makes.
+    /// `nvs_types::expr::record_decimal_placement` makes.
     ///
     /// [`Lowering::lower_expr`]'s own `expected` answers the same question
     /// wherever the position's representation reaches this crate, which is
@@ -22,7 +22,7 @@ impl<'a> Lowering<'a> {
     /// literal's elements, whose type [`Ty::Array`] erases, is the one that
     /// matters today, because a `float` stored where the checker typed a
     /// `decimal` is a *silently* wrong value rather than a loud one.
-    pub(super) fn placed_at_decimal(&self, span: mwl_diagnostics::Span) -> bool {
+    pub(super) fn placed_at_decimal(&self, span: nvs_diagnostics::Span) -> bool {
         self.exprs
             .declared_ty(span)
             .is_some_and(|id| matches!(self.checked_types.get(id), CheckedTy::Decimal))
@@ -74,7 +74,7 @@ impl<'a> Lowering<'a> {
             // are refused a phase up and four never arrive at all.
             //
             // The six: `**` by
-            // `mwl_types::expr::operators::power_result`, which names
+            // `nvs_types::expr::operators::power_result`, which names
             // `Core\Decimal::pow` and the rounding it does; and `&`, `|`, `^`,
             // `<<` and `>>` by `reject_bitwise_operand`, ADR 0007 § 4's
             // bitwise row being over `int` and `uint` alone — a `decimal` is a
@@ -92,7 +92,7 @@ impl<'a> Lowering<'a> {
             //
             // That subtraction is the proof; the message below is not.
             other => panic!(
-                "mwl-ir: unreachable — `BinaryOp::{other:?}` reached the `decimal` operator \
+                "nvs-ir: unreachable — `BinaryOp::{other:?}` reached the `decimal` operator \
                  table; see this arm's own comment for the roster it subtracts"
             ),
         };
@@ -156,7 +156,7 @@ impl<'a> Lowering<'a> {
         let (rv, rty) = self.lower_expr(rhs, None, env, cur);
         assert!(
             matches!(lty, Ty::Object) && matches!(rty, Ty::Object),
-            "mwl-ir: `mwl_types` recorded a `Comparable::compareTo` target for a comparison \
+            "nvs-ir: `nvs_types` recorded a `Comparable::compareTo` target for a comparison \
              whose operands lowered to {lty:?}/{rty:?} rather than two objects"
         );
         for (v, operand) in [(lv, lhs), (rv, rhs)] {
@@ -367,7 +367,7 @@ impl<'a> Lowering<'a> {
             // *is* the result — no instruction, and no overflow edge, for the
             // same reason `~` has none. What makes that safe rather than a
             // silent divergence is one refusal a phase up:
-            // `mwl_types::expr::operators::reject_unary_arith_operand` turns
+            // `nvs_types::expr::operators::reject_unary_arith_operand` turns
             // away every operand that is not one of those four, because PHP's
             // `+"5"` is a *numeric conversion* and ADR 0007 § 2 has no implicit
             // one for it to be.
@@ -381,7 +381,7 @@ impl<'a> Lowering<'a> {
             // since ADR 0020's ladder leaves it nothing to suppress. That
             // subtraction is the proof — the message below is not.
             other => panic!(
-                "mwl-ir: unreachable — `UnaryOp::{other:?}` reached the lowering dispatch; \
+                "nvs-ir: unreachable — `UnaryOp::{other:?}` reached the lowering dispatch; \
                  see this arm's own comment for the roster it subtracts"
             ),
         };
@@ -393,7 +393,7 @@ impl<'a> Lowering<'a> {
         // same reason the additive ones take it: `-i64::MIN` has no `int` and
         // `-$u` no `uint` for any non-zero `$u`, so `ineg` would answer with a
         // wrapped value rather than with the `ArithmeticError` the ADR names.
-        // `mwl-codegen`'s `emit_checked_int_arith` raises it inline, so this
+        // `nvs-codegen`'s `emit_checked_int_arith` raises it inline, so this
         // needs ADR 0002's error edge exactly as `%` and `/` do. `!` over a
         // `bool` and `-` over a `float`/`decimal` cannot fail and do not take
         // one — see `Inst::on_error`.
@@ -406,11 +406,11 @@ impl<'a> Lowering<'a> {
     /// `$x === null` / `$x !== null` — a *tag* comparison, not a value
     /// one. Split out ahead of the general arm below for two reasons,
     /// and either alone would be enough: `null` has its own
-    /// representation, so the general arm would hand `mwl-codegen` a
+    /// representation, so the general arm would hand `nvs-codegen` a
     /// `BinOp` over two different ones; and a `Ty::Tagged` operand's
-    /// strict identity is `mwl_runtime::value_identical`, never a
+    /// strict identity is `nvs_runtime::value_identical`, never a
     /// machine compare of the register pair. This is also the test
-    /// `mwl_types::locals`' narrowing reads, so the two agree on
+    /// `nvs_types::locals`' narrowing reads, so the two agree on
     /// exactly one spelling.
     ///
     /// `==`/`!=` are the whole of it:
@@ -491,7 +491,7 @@ impl<'a> Lowering<'a> {
         // by it — a literal is a constant with no effects of its own, while
         // the operand that could have some is still evaluated exactly once.
         // The checker makes the same swap for the same reason
-        // (`mwl_types::expr::uint_operand_expectation`), and without this
+        // (`nvs_types::expr::uint_operand_expectation`), and without this
         // half a literal above `i64::MAX` beside a `uint` passes it and then
         // panics below on a value that never fit an `int`.
         let (lv, lty, rv, rty) =
@@ -513,9 +513,9 @@ impl<'a> Lowering<'a> {
         }
         // ADR 0090 § 5: a `mixed` or union operand is the one pairing whose
         // § 3 row is a runtime tag, so it dispatches through
-        // `mwl_runtime::value_identical` rather than through a `BinOp` over a
+        // `nvs_runtime::value_identical` rather than through a `BinOp` over a
         // representation neither side has. Every other row is statically
-        // known and stays in the table below, where `mwl-codegen` turns it
+        // known and stays in the table below, where `nvs-codegen` turns it
         // into that row's own comparison.
         if matches!(op, BinaryOp::Eq | BinaryOp::NotEq) && (lty == Ty::Tagged || rty == Ty::Tagged)
         {
@@ -591,7 +591,7 @@ impl<'a> Lowering<'a> {
         // on the integer its cases *are* (ADR 0010 § 3): `Ty::Enum` is a
         // zero-byte tag over that integer, so the free `Reinterpret` row 1 of
         // ADR 0010 § 5 already uses for `$m as int` turns the comparison into
-        // the machine compare `mwl-codegen` has — its `BinOp` table is
+        // the machine compare `nvs-codegen` has — its `BinOp` table is
         // `Ty::Int`/`Ty::Uint`/`Ty::Bool` and has no `Ty::Enum` row at all.
         //
         // Only `==`/`!=` are relabelled. `<` over two cases has no row in any
@@ -611,7 +611,7 @@ impl<'a> Lowering<'a> {
         // domain, so the checker accepts `$n == $f` where the two operands
         // have two *representations*. That pairing is settled here, exactly
         // as the `decimal` and `Tagged` arms above settle theirs, rather than
-        // in `mwl-codegen` — which keeps its "a `BinOp` has one
+        // in `nvs-codegen` — which keeps its "a `BinOp` has one
         // representation" invariant intact and its `ty != rty` refusal a
         // genuine internal error. See `Helper::NumericEq` for why the
         // settlement is a call and not a widening conversion: none of the
@@ -658,7 +658,7 @@ impl<'a> Lowering<'a> {
         // taken by the `Tagged` arm above, where the row is a runtime tag
         // rather than a buffer this helper could read. § 2's poisoning makes
         // that pair rare, and closing it would mean teaching
-        // `mwl_runtime::value_identical` the property, which is wider than
+        // `nvs_runtime::value_identical` the property, which is wider than
         // this section asks for.
         if matches!(op, BinaryOp::Eq | BinaryOp::NotEq)
             && matches!(lty, Ty::Str | Ty::Bytes)
@@ -744,7 +744,7 @@ impl<'a> Lowering<'a> {
         }
         // ADR 0007 § 4's "either operand a `float`" row, made real: the
         // checker types the pair `float`, but until here both operands still
-        // travelled in their own representation and `mwl-codegen`'s "a
+        // travelled in their own representation and `nvs-codegen`'s "a
         // `BinOp` has one representation" invariant refused them. So the
         // integer side widens *here*, beside the `decimal`, `Tagged` and
         // `NumericEq` arms above, which settle their own mixed pairings the
@@ -771,7 +771,7 @@ impl<'a> Lowering<'a> {
             // operands': ADR 0007 § 4 types `int / int` as `int|float` and
             // `uint / uint` as `uint|float`, PHP-exact, so which of the two a
             // given pair produces is only known at run time and the value is
-            // therefore [`Ty::Tagged`]. `mwl-codegen`'s `emit_int_div` owns
+            // therefore [`Ty::Tagged`]. `nvs-codegen`'s `emit_int_div` owns
             // the branch; `Lowering::coerce` owns the widening that absorbs
             // the union back into a declared `float`, which is ADR 0007 § 4's
             // own worked example `float $avg = $sum / $n;`.
@@ -787,7 +787,7 @@ impl<'a> Lowering<'a> {
             // ADR 0007 § 4's bitwise rows, all five of which preserve the
             // operand type. `>>` is the one that reads its operand's
             // signedness rather than only its width — arithmetic on an `int`,
-            // logical on a `uint` — and `mwl-codegen` picks that from the
+            // logical on a `uint` — and `nvs-codegen` picks that from the
             // representation this carries.
             BinaryOp::BitAnd => (BinOp::BitAnd, lty),
             BinaryOp::BitOr => (BinOp::BitOr, lty),
@@ -822,7 +822,7 @@ impl<'a> Lowering<'a> {
             // an ordinary `BinaryOp` and the desugar re-enters `lower_expr`.
             // That subtraction is the proof; the message below is not.
             other => panic!(
-                "mwl-ir: unreachable — `BinaryOp::{other:?}` reached the scalar-operator \
+                "nvs-ir: unreachable — `BinaryOp::{other:?}` reached the scalar-operator \
                  table; see this arm's own comment for the roster it subtracts"
             ),
         };
@@ -836,7 +836,7 @@ impl<'a> Lowering<'a> {
         // is why: `+`, `-`, `*` and `**` throw `ArithmeticError` on overflow
         // rather than wrapping, `%` and `/` throw it on a zero divisor, and
         // `**` throws it on a negative exponent as well.
-        // `mwl-codegen` raises all six inline rather than through a helper,
+        // `nvs-codegen` raises all six inline rather than through a helper,
         // so each needs an error edge exactly the way a call does. `/` is
         // recognised by its *result* rather than by its operands, since the
         // integer row is the one that produces a `Ty::Tagged`. Every other

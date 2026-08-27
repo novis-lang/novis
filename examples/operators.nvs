@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 class Ops {
     public static function widen(int $n, float $f): float {
         return $n + $f;

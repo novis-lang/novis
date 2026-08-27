@@ -1,6 +1,6 @@
 //! Guards the *premise* of `docs/adr/0002-error-propagation.md`.
 //!
-//! MWL propagates errors by checked return rather than by unwinding, because
+//! Novis propagates errors by checked return rather than by unwinding, because
 //! `cranelift-jit` does not register JIT frames with the platform unwinder — so
 //! a Rust panic raised beneath JIT code cannot be caught above it and instead
 //! terminates the process.
@@ -24,7 +24,7 @@ use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module};
 
 /// Set by the parent to tell the child to run the dangerous probe.
-const CHILD_ENV: &str = "MWL_PROBE_UNWIND_CHILD";
+const CHILD_ENV: &str = "NVS_PROBE_UNWIND_CHILD";
 /// Printed by the child before anything risky, so the parent can tell a real
 /// result from a harness misfire.
 const STARTED: &str = "PROBE_CHILD_RUNNING";
@@ -33,7 +33,7 @@ const CAUGHT: &str = "PROBE_UNWIND_WAS_CAUGHT";
 
 const TEST_NAME: &str = "native_unwinding_through_jit_frames_is_still_unavailable";
 
-/// A helper that is *allowed* to unwind, which is exactly what MWL's real
+/// A helper that is *allowed* to unwind, which is exactly what Novis's real
 /// helpers must never be. Declared `extern "C-unwind"` so the panic is permitted
 /// to escape rather than aborting at the boundary.
 extern "C-unwind" fn helper_that_panics(x: i64) -> i64 {

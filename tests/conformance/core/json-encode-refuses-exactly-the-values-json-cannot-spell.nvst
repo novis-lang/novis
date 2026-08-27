@@ -1,7 +1,7 @@
 --TEST--
 `Core\Json::encode` writes every value JSON has a spelling for and refuses the rest in `LogicError`, each refusal wrapped in its own name — spec § 6, ADR 0063 R4, ADR 0071 § 5, ADR 0009 § 1
 --FILE--
-<?mwl
+<?nvs
 // ADR 0071 § 5: participation in a wire format is written, never inferred, so
 // the attribute is the whole difference between these two classes.
 #[Core\Json\Derive]
@@ -39,7 +39,7 @@ foreach ($writable as mixed $value) {
 }
 echo "rendered=", $rendered, " of ", Core\Arr::count($writable), "\n";
 
-// The rest: values MWL holds and JSON has nowhere to put. Counting is the
+// The rest: values Novis holds and JSON has nowhere to put. Counting is the
 // assertion — a member that quietly grew a spelling of its own for any one of
 // them, the substituted `0` `json_encode` writes for a `NaN`, still looks
 // right on every line above.

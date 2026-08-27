@@ -1,12 +1,12 @@
 --TEST--
 A property's declared `= expr` default is written into every fresh instance's slot, including one inherited from a base class — ADR 0022 § 2
 --FILE--
-<?mwl
+<?nvs
 // ADR 0022 § 2 exempts a defaulted property from the constructor's
 // definite-assignment obligation, which is only sound if the default actually
 // reaches the slot. It is evaluated once, at compile time
-// (`mwl_types::defaults`), copied onto the class descriptor, and written by
-// `mwl_runtime::MwlObj::new` — so `constructor` below assigns nothing at all.
+// (`nvs_types::defaults`), copied onto the class descriptor, and written by
+// `nvs_runtime::NvsObj::new` — so `constructor` below assigns nothing at all.
 class Counter
 {
     public int $n = 4;

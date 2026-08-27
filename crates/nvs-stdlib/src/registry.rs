@@ -3,7 +3,7 @@
 //!
 //! [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md) is
 //! authoritative for every signature; this is that file in the one form a
-//! compiler can read. A row here is a *promise* — `mwl-types` seeds its own
+//! compiler can read. A row here is a *promise* — `nvs-types` seeds its own
 //! signature table from [`CLASSES`], so a `Core` call goes through exactly the
 //! arity check, the assignability check and the `ResolvedCall` recording a
 //! user-declared static call already does, with no second code path.
@@ -12,8 +12,8 @@
 //!
 //! [`CoreTy`] is a closed enum, not a `&'static str` the compiler re-parses.
 //! Two reasons, both structural: a spelling would put a second (partial)
-//! parser for MWL's type grammar in the build, and a typo in it would be a
-//! *runtime* surprise in `mwl check` rather than a compile error here. The
+//! parser for Novis's type grammar in the build, and a typo in it would be a
+//! *runtime* surprise in `nvs check` rather than a compile error here. The
 //! cost is that widening the registry to a type this enum cannot express —
 //! a union, a nullable, a shape — is a change to this file rather than a
 //! string edit, which is the correct amount of friction for something the
@@ -38,7 +38,7 @@
 //! § 2's *Ordering* is the first — so [`ENUMS`] is a second roster beside
 //! [`CLASSES`], and [`CoreTy::Enum`] refers to one by name. Its own doc
 //! comment owns why the two are separate; what belongs here is that
-//! `mwl_types::enums` seeds them into the *same* table a declared `enum` goes
+//! `nvs_types::enums` seeds them into the *same* table a declared `enum` goes
 //! into, so nothing downstream of that point can tell the two apart.
 //!
 //! # The options bag
@@ -49,7 +49,7 @@
 //! it costs and what it buys — recorded here because the fork is the
 //! expensive part, not the code:
 //!
-//! * **A bag is its own type, not an ADR 0036 shape.** `mwl_types::ty::Ty`
+//! * **A bag is its own type, not an ADR 0036 shape.** `nvs_types::ty::Ty`
 //!   has an `Options` variant beside `Shape`, spellable only from here the
 //!   way `TypeVar` already is. Reusing `Shape` would need an `optional` flag
 //!   on its fields *and* a `?` in the surface type grammar, and would leave an
@@ -57,13 +57,13 @@
 //!   field on purpose, while a mistyped option name must be an error.
 //! * **A bag is always last and always optional**, because every option is.
 //!   Its `MethodSig::defaults` entry is a `ConstArg::Options(...)` carrying
-//!   each option's own default, synthesized by `mwl_types::core_lib` from the
+//!   each option's own default, synthesized by `nvs_types::core_lib` from the
 //!   type itself — so a row never states the bag twice, `MethodSig::required()`
 //!   already excludes it, and the arity check needed no change at all.
-//! * **A bag flattens at the ABI.** `mwl_ir::lower::lower_call_args` expands
+//! * **A bag flattens at the ABI.** `nvs_ir::lower::lower_call_args` expands
 //!   it into one argument per declared option, in the order [`CoreOption`]s
 //!   are written here — the literal's value where written, the option's
-//!   default where not — so `mwl_core_arr_range` is an ordinary `args: [3]`
+//!   default where not — so `nvs_core_arr_range` is an ordinary `args: [3]`
 //!   helper and no runtime representation of a shape exists. The rejected
 //!   alternative was building an `array<mixed>` per call: it allocates on the
 //!   common path, and needs a `null`/empty spelling the IR does not have.
@@ -74,14 +74,14 @@
 
 /// One type in a `Core` member's signature.
 ///
-/// Deliberately smaller than `mwl_types::ty::Ty`: this describes what the
-/// *spec* wrote, not what the checker interns. `mwl-types` lowers each of
+/// Deliberately smaller than `nvs_types::ty::Ty`: this describes what the
+/// *spec* wrote, not what the checker interns. `nvs-types` lowers each of
 /// these into its own interner, which is where qualifiers, unions and class
 /// identity live.
 // No `PartialEq`/`Eq`: [`Self::Options`] carries [`CoreOption`]s, which carry
 // [`Const`]s, which carry an `f64` — and there is nothing here to compare
 // anyway, since a registry row is matched structurally and interned into
-// `mwl_types::ty::Ty` before any consumer asks whether two types are equal.
+// `nvs_types::ty::Ty` before any consumer asks whether two types are equal.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum CoreTy {
@@ -99,9 +99,9 @@ pub enum CoreTy {
     /// `Core\Arr::sum`/`product`/`average`.
     ///
     /// A helper reads one out of its argument slot with
-    /// `mwl_runtime::Value::as_decimal` and returns one with
+    /// `nvs_runtime::Value::as_decimal` and returns one with
     /// `Value::decimal` — it is a whole `Value` carrying `Tag::Decimal`, so
-    /// nothing about the ABI changes for it (`mwl_runtime::decimal`).
+    /// nothing about the ABI changes for it (`nvs_runtime::decimal`).
     Decimal,
     /// `string`
     Str,
@@ -119,7 +119,7 @@ pub enum CoreTy {
     /// `Core` member actually hands a callback is stated by
     /// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
     /// § 2 — `($value, $key)`, with fewer parameters allowed — and enforced
-    /// at the call by `mwl_runtime::call_closure`, not by this type.
+    /// at the call by `nvs_runtime::call_closure`, not by this type.
     Callable,
     /// `callable`, plus the name of the type variable its **result** binds —
     /// `U` in `map(array<T> $a, callable $fn): array<U>`.
@@ -129,7 +129,7 @@ pub enum CoreTy {
     /// by ADR 0027 § 2 exactly as before. What it adds is a *binding site* for
     /// a variable that appears at no argument position at all — `U` is the type
     /// of a value the callback produces, which the argument's own type
-    /// (`callable`, and opaque) cannot say. `mwl_types::generics` binds it from
+    /// (`callable`, and opaque) cannot say. `nvs_types::generics` binds it from
     /// the closure literal's recorded return type and owns the one case that
     /// still binds nothing: an argument that is not a written `fn` literal.
     ///
@@ -144,14 +144,14 @@ pub enum CoreTy {
     /// a type variable — the stdlib is parametric where user code is not." A
     /// variable is bound by unifying the declared parameter types against the
     /// call's actual argument types and then substituted through the whole
-    /// signature; `mwl_types` owns both halves. Nothing user-written can
+    /// signature; `nvs_types` owns both halves. Nothing user-written can
     /// declare one, which is `docs/agent/loop-goal.md`'s standing decision that
     /// type variables stay compiler-owned.
     Var(&'static str),
     /// A type variable bound from the type argument **written at the call
     /// site**, named — `T` in `decodeAs<T>(string $json): T`.
     ///
-    /// The same `mwl_types::ty::Ty::TypeVar` as [`Self::Var`] once lowered,
+    /// The same `nvs_types::ty::Ty::TypeVar` as [`Self::Var`] once lowered,
     /// and the same substitution afterwards; what differs is where the binding
     /// comes from. [`Self::Var`] is *inferred* from an argument's type, which
     /// only works where some parameter position holds the answer —
@@ -173,10 +173,10 @@ pub enum CoreTy {
     /// `A|B|...` — ADR 0007 § 3's union, at least two members.
     ///
     /// Legal in **either** direction. A helper's argument slot is a whole
-    /// `mwl_runtime::Value` whose tag `mwl-codegen` writes from the argument's
+    /// `nvs_runtime::Value` whose tag `nvs-codegen` writes from the argument's
     /// own representation, so a union parameter needs no IR type of its own
     /// and the body decodes by tag; a union *return* lands in the same 16-byte
-    /// value, read back as `mwl_ir::ty::Ty::Tagged` — that variant's own doc
+    /// value, read back as `nvs_ir::ty::Ty::Tagged` — that variant's own doc
     /// comment owns the representation and what it spends.
     ///
     /// **An option's type only where `null` is not one of the values it
@@ -256,7 +256,7 @@ pub enum CoreTy {
     /// be a different type from `Core\Digest::Sha256`, and no value could be
     /// passed to both `of` and `hmac`. A union of case types is the shape ADR
     /// 0047 already gives that idea, and the checker already places an
-    /// enum-case expression against it — `mwl_types::expr::literals`'
+    /// enum-case expression against it — `nvs_types::expr::literals`'
     /// `placed_literal` looks inside a union, so `Digest::Sha256` narrows to
     /// its case type and `Digest::Md5` stays the whole enum and fails to
     /// assign.
@@ -274,12 +274,12 @@ pub enum CoreTy {
     /// declared here and seeded into the checker's signature table, where it
     /// becomes an ordinary class type. Nothing downstream of that point can
     /// tell it from a user-declared class — the checker resolves a method on
-    /// it through `resolve_method`, and `mwl-ir` lowers a value of it to
+    /// it through `resolve_method`, and `nvs-ir` lowers a value of it to
     /// `Ty::Object`.
     ///
     /// What makes it *`Core`*-owned is the two things [`CoreClass::slots`] and
     /// [`CoreClass::instance`] state: the instance's field slots are
-    /// `mwl-stdlib`'s to lay out rather than a program's to declare, and every
+    /// `nvs-stdlib`'s to lay out rather than a program's to declare, and every
     /// method on it is a native helper reached with the receiver in argument
     /// slot 0. So there is no constructor, no property and no subclass — a
     /// program can only receive one from a member that returns it.
@@ -302,14 +302,14 @@ pub enum CoreTy {
     /// added there would be added here.
     ///
     /// **A helper reads one by tag, and never as a pre-drained array.** The
-    /// interned union gives the parameter `mwl_ir::ty::Ty::Tagged`, so the
-    /// argument slot holds a whole 16-byte `mwl_runtime::Value`: `Tag::Array`
-    /// is an `MwlArray` the helper walks directly, and `Tag::Obj` is a cursor
+    /// interned union gives the parameter `nvs_ir::ty::Ty::Tagged`, so the
+    /// argument slot holds a whole 16-byte `nvs_runtime::Value`: `Tag::Array`
+    /// is an `NvsArray` the helper walks directly, and `Tag::Obj` is a cursor
     /// it *drives* — `iterate()` first when the value reaches `Iterable<T>`,
     /// then `advance()`/`current()` — through the class descriptor's own
-    /// method table, exactly as `mwl_runtime::call_closure` already reaches a
+    /// method table, exactly as `nvs_runtime::call_closure` already reaches a
     /// closure's `invoke`. Every one of those members is bodiless
-    /// (`mwl_types::iter_lib`), so that name lookup *is* the dispatch a
+    /// (`nvs_types::iter_lib`), so that name lookup *is* the dispatch a
     /// `foreach` over the same value performs. Materialising the sequence into
     /// an array in the IR before the call was the rejected alternative: it
     /// allocates a second copy of every array argument, and it would drain an
@@ -333,14 +333,14 @@ pub enum CoreTy {
     /// leaves no room for a rule that guesses.
     ///
     /// **One ABI argument, not one per written argument.** A helper's
-    /// `args: [N]` is a fixed arity, so `mwl_ir::lower::lower_call_args`
+    /// `args: [N]` is a fixed arity, so `nvs_ir::lower::lower_call_args`
     /// collects every argument from this position onward into a fresh
     /// `array<T>` — keys `"0"`, `"1"`, … — and passes that single value. So
     /// `format` is an ordinary `args: [2]` helper whose second slot is a
     /// `Tag::Array`, and the body iterates it the way
     /// [`crate::str`]'s `join` iterates its subject. The rejected alternative
     /// was a second calling convention carrying a count: it would put a
-    /// variable-arity path into `mwl-codegen`'s helper emission for one member
+    /// variable-arity path into `nvs-codegen`'s helper emission for one member
     /// shape, and buy only the allocation this spends.
     ///
     /// It carries no default and never appears in [`CoreMethod::defaults`]:
@@ -377,20 +377,20 @@ pub struct CoreOption {
     /// flatten into.
     pub ty: CoreTy,
     /// The constant a call that omits this option passes — materialized at the
-    /// call site by `mwl_ir::lower::lower_call_args`, exactly as an omitted
+    /// call site by `nvs_ir::lower::lower_call_args`, exactly as an omitted
     /// positional parameter's default is.
     pub default: Const,
 }
 
 /// One optional parameter's default value.
 ///
-/// The registry's counterpart of `mwl_types::defaults::ConstArg`, kept
+/// The registry's counterpart of `nvs_types::defaults::ConstArg`, kept
 /// separate for the reason [`CoreTy`] is kept separate from
-/// `mwl_types::ty::Ty`: this states what the *spec* wrote, and `mwl-types`
-/// translates it into the one representation the checker and `mwl-ir` share.
+/// `nvs_types::ty::Ty`: this states what the *spec* wrote, and `nvs-types`
+/// translates it into the one representation the checker and `nvs-ir` share.
 /// Only the shapes that enum can already emit are expressible — a member whose
 /// spec signature defaults to `null` cannot be registered until
-/// `mwl_types::defaults` grows that variant, which is exactly the friction
+/// `nvs_types::defaults` grows that variant, which is exactly the friction
 /// this crate wants around a signature the whole language resolves against.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
@@ -455,7 +455,7 @@ pub enum Const {
     /// Named rather than written as the integer it is so that the default and
     /// the case cannot drift apart: ADR 0010 § 3 makes a case an integer
     /// constant, and [`ENUMS`] is the one place that constant is stated.
-    /// `mwl_types::core_lib` resolves it there; `every_enum_case_default_names_a_real_case`
+    /// `nvs_types::core_lib` resolves it there; `every_enum_case_default_names_a_real_case`
     /// holds that it resolves at all.
     EnumCase(&'static str, &'static str),
     /// A `Core`-owned **instance**, named by the symbol that builds it and the
@@ -466,7 +466,7 @@ pub enum Const {
     /// [`CoreTy::Instance`]-typed [`CoreConst`] can have: an instance has a
     /// heap layout that nothing outside [`crate::instance`] lays out, so what
     /// is stated here is the *call* that produces one rather than the bytes it
-    /// holds. `mwl-ir` lowers it to exactly the `InstKind::CoreCall` a written
+    /// holds. `nvs-ir` lowers it to exactly the `InstKind::CoreCall` a written
     /// `Zone::of("UTC")` lowers to — so a constant is still ADR 0010 § 3's
     /// "inlined at every use site" and still has no storage, no descriptor and
     /// no address; what it has instead is one allocation per use site, which
@@ -512,9 +512,9 @@ pub struct CoreMethod {
     /// The declared return type.
     pub return_ty: CoreTy,
     /// The linker symbol its implementation is reachable at — what
-    /// [`crate::symbols`] hands the JIT and what `mwl-ir` records in the
-    /// instruction it lowers a call to. Prefixed `mwl_core_` so a `Core`
-    /// member is never mistakable for a `mwl_runtime` primitive in a
+    /// [`crate::symbols`] hands the JIT and what `nvs-ir` records in the
+    /// instruction it lowers a call to. Prefixed `nvs_core_` so a `Core`
+    /// member is never mistakable for a `nvs_runtime` primitive in a
     /// disassembly.
     pub symbol: &'static str,
 }
@@ -647,11 +647,11 @@ pub struct CoreClass {
     /// A separate roster rather than a flag on [`CoreMethod`] because the two
     /// differ in *shape*, not only in reachability: an instance member's
     /// receiver is implicit, so it is absent from [`CoreMethod::params`] and
-    /// present in argument slot 0 at the ABI, exactly the way a compiled MWL
+    /// present in argument slot 0 at the ABI, exactly the way a compiled Novis
     /// method's is. Empty for every namespace class, which is most of them.
     pub instance: &'static [CoreMethod],
     /// One name per field slot an instance of this class holds, in slot order
-    /// — the layout `mwl-stdlib` builds an instance against and the helper
+    /// — the layout `nvs-stdlib` builds an instance against and the helper
     /// bodies read back by index.
     ///
     /// Named rather than merely counted so the one file that writes a slot and
@@ -757,7 +757,7 @@ pub const CLASSES: &[CoreClass] = &[
 /// This replaces the withdrawn `PARSE_ROSTER`, which carried one **non**-member
 /// symbol per class for `$s as ?Core\Uri` to lower to. ADR 0066 § 3 withdrew
 /// that form: `as` never targets a class now, with no exceptions, so nothing
-/// here is chained into [`crate::symbols`] and `mwl-ir` has no roster to read.
+/// here is chained into [`crate::symbols`] and `nvs-ir` has no roster to read.
 pub const TRY_PARSE_CLASSES: &[&str] = &[crate::uri::NAME, crate::uuid::NAME];
 
 /// Every `Core` class a program may write `new` on, with the constructor that
@@ -766,7 +766,7 @@ pub const TRY_PARSE_CLASSES: &[&str] = &[crate::uri::NAME, crate::uuid::NAME];
 ///
 /// A roster rather than a synthetic `constructor` row on [`CoreClass`], for
 /// the reason [`crate::instance`]'s module docs give: a `Core` class has no
-/// member a program resolves here, and `mwl-ir` reads this to lower `new` on
+/// member a program resolves here, and `nvs-ir` reads this to lower `new` on
 /// one to an ordinary helper call. A name here **must** be in [`CLASSES`] —
 /// unlike [`GENERIC_CLASSES`], whose arity is a property of the spec's table
 /// rather than of anything on disk — because the helper builds an instance
@@ -775,7 +775,7 @@ pub const TRY_PARSE_CLASSES: &[&str] = &[crate::uri::NAME, crate::uuid::NAME];
 /// The second half is a whole [`CoreMethod`] rather than a bare symbol so that
 /// **a constructor can take arguments**: § 9's `Core\Heap` is ordered by a
 /// comparator given at construction, and one written `params`/`defaults` pair
-/// is what lets `mwl_types::core_lib` seed it as an ordinary `constructor`
+/// is what lets `nvs_types::core_lib` seed it as an ordinary `constructor`
 /// signature — the same shape every other `Core` row is checked through,
 /// rather than a second arity rule reachable only from `new`. Its `name` is
 /// `constructor` and its `return_ty` the class itself, so it reads the same
@@ -804,7 +804,7 @@ pub fn constructor_symbol(class: &str) -> Option<&'static str> {
 }
 
 /// One `Core`-owned enum — [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s
-/// closed, named integer type, declared here rather than in MWL source.
+/// closed, named integer type, declared here rather than in Novis source.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreEnum {
     /// The fully-qualified name, backslash-separated exactly as written in
@@ -821,11 +821,11 @@ pub struct CoreEnum {
 ///
 /// A second roster beside [`CLASSES`] rather than a member of it, because an
 /// enum is not a class: [ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md)
-/// puts every *callable* on a class, and an enum has none. `mwl_types::enums`
+/// puts every *callable* on a class, and an enum has none. `nvs_types::enums`
 /// seeds its own table from this, so `Core\Order::Desc` resolves to an integer
 /// constant through exactly the machinery a user-declared `enum` already goes
 /// through — the same "seed a table rather than special-case `Core`" rule
-/// `mwl_types::core_lib` states for members.
+/// `nvs_types::core_lib` states for members.
 ///
 /// The spec's § 2 names `SetOn { Values, Keys, Both }` and its § 4 names
 /// `Month { January … December }`. Both are deliberately absent: no member
@@ -856,7 +856,7 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
 /// [ADR 0028](../../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
 /// § 1's question, asked here because a `Core` class has no other place to
 /// answer it: it declares no interfaces, so there is no `Stringable` for
-/// `mwl_types` to prove against, and its members are the rows above rather
+/// `nvs_types` to prove against, and its members are the rows above rather
 /// than entries in a class graph.
 ///
 /// **Two rows answer yes, and they are two different rules.** A class the spec
@@ -864,9 +864,9 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
 /// exactly. A **sink carrier** renders through
 /// [ADR 0088](../../../../docs/adr/0088-output-sinks-and-escaping.md) § 5
 /// instead and has no such member: it is the sink's own value type, holding
-/// bytes that have *already* been through the sink, so `mwl_runtime` renders
+/// bytes that have *already* been through the sink, so `nvs_runtime` renders
 /// it as precisely those bytes and asks for no member at all. That roster is
-/// `mwl_runtime::is_carrier`'s and stays there — this reads it rather than
+/// `nvs_runtime::is_carrier`'s and stays there — this reads it rather than
 /// copying it, so the two cannot disagree about `Core\Cli\Text`.
 ///
 /// A name this registry does not know is not a `Core` class at all, and
@@ -874,7 +874,7 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
 /// too, since nothing here will resolve a member on it either.
 #[must_use]
 pub fn class_renders(name: &str) -> bool {
-    mwl_runtime::is_carrier(name) || render_symbol(name).is_some()
+    nvs_runtime::is_carrier(name) || render_symbol(name).is_some()
 }
 
 /// The symbol of `name`'s `toString` — the member half of [`class_renders`],
@@ -900,11 +900,11 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// one ([ADR 0007](../../../../docs/adr/0007-explicit-type-system.md)). A
 /// member like `Core\Json::decodeAs<User>` needs more than the erasure: it has
 /// to build a `User`, which means reaching that class's
-/// `mwl_runtime::ClassDesc` from native Rust.
+/// `nvs_runtime::ClassDesc` from native Rust.
 ///
 /// A roster rather than a field on [`CoreMethod`] because it is one entry
 /// today against two hundred member rows, and a field would be `false` on
-/// every one of them. `mwl-ir` reads this to decide whether to emit an
+/// every one of them. `nvs-ir` reads this to decide whether to emit an
 /// `InstKind::ClassDescConst` ahead of the call's own arguments; the helper's
 /// `args: [N]` therefore counts one more than [`CoreMethod::params`] does, and
 /// the descriptor is always **argument 0** — the same slot an instance
@@ -925,7 +925,7 @@ pub fn takes_written_class(class: &str, method: &str) -> bool {
 /// This is the other half of `docs/agent/loop-goal.md`'s standing decision on
 /// type variables: user code gets an explicit type argument only where the
 /// compiler owns the declaration, and for a `new` target that means this
-/// table. [`mwl_hir::interfaces::type_params`] is the same roster for the
+/// table. [`nvs_hir::interfaces::type_params`] is the same roster for the
 /// reserved *interfaces*, and answers the same shape for the same reason —
 /// two tables rather than one because a `Core` class and a global interface
 /// are resolved by different rules, not because the question differs.
@@ -949,7 +949,7 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
 ];
 
 /// Every `Core` class a `foreach` can walk, and the element its
-/// `Iterable<T>` is fixed at — `mwl_types::core_lib` seeds one
+/// `Iterable<T>` is fixed at — `nvs_types::core_lib` seeds one
 /// `ClassSignature::implements` entry per row.
 ///
 /// A roster rather than a field on [`CoreClass`] for the reason
@@ -957,11 +957,11 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
 /// field would be `&[]` on every other line of a table already long enough to
 /// read badly. The element may be one of that class's own type variables — a
 /// map iterates its keys, so `Core\ObjectMap<K, V>` is `Iterable<K>` — and
-/// `mwl_types::expr::iteration` substitutes the receiver's own arguments in
+/// `nvs_types::expr::iteration` substitutes the receiver's own arguments in
 /// before a binding is checked against it, exactly as a member's return type
 /// already is.
 ///
-/// The *runtime* half is `mwl_stdlib::instance`'s dispatch roster: this table
+/// The *runtime* half is `nvs_stdlib::instance`'s dispatch roster: this table
 /// says the checker will let a `foreach` compile, that one says what the
 /// receiver answers `iterate()` with. A row added here without one there is a
 /// program that type-checks and faults, so the two are kept in step by
@@ -1194,7 +1194,7 @@ mod tests {
     /// ADR 0063 R2, mechanically: at most one options bag per member, always
     /// last, never empty, and never nested inside another type. Every one of
     /// those is load-bearing — [`CoreMethod::options`] reads only the last
-    /// parameter, and `mwl_types::core_lib` synthesizes exactly one
+    /// parameter, and `nvs_types::core_lib` synthesizes exactly one
     /// `ConstArg::Options` entry from it.
     #[test]
     fn an_options_bag_is_last_and_never_empty() {
@@ -1242,7 +1242,7 @@ mod tests {
     /// [`CoreTy::Variadic`], mechanically: at most one per member, always the
     /// last parameter, never beside an options bag, and never nested inside
     /// another type. Every one of those is load-bearing — [`CoreMethod::variadic`]
-    /// reads only the last parameter, and `mwl_ir::lower::lower_call_args`
+    /// reads only the last parameter, and `nvs_ir::lower::lower_call_args`
     /// collects exactly one trailing array from it.
     #[test]
     fn a_variadic_tail_is_last_and_alone() {
@@ -1320,7 +1320,7 @@ mod tests {
             ],
             defaults: &[],
             return_ty: CoreTy::Written("R"),
-            symbol: "mwl_core_sample",
+            symbol: "nvs_core_sample",
         };
         assert_eq!(METHOD.written(), vec!["K", "V", "R"]);
     }
@@ -1328,7 +1328,7 @@ mod tests {
     /// One variable, one binding site. A name declared both
     /// [`CoreTy::Written`] and [`CoreTy::Var`] in the same member would have
     /// the call site and the arguments each claiming it, and
-    /// `mwl_types::generics`' "first binding wins" rule would settle that by
+    /// `nvs_types::generics`' "first binding wins" rule would settle that by
     /// accident rather than by decision.
     #[test]
     fn a_variable_is_written_or_inferred_but_never_both() {
@@ -1541,7 +1541,7 @@ mod tests {
 
     /// The one member that has a bag today, spelled out — so a paste error
     /// that dropped `step` would fail here rather than only at
-    /// `examples/core.mwl`.
+    /// `examples/core.nvs`.
     #[test]
     fn range_declares_one_step_option_defaulting_to_one() {
         let range = class(r"Core\Arr")
@@ -1581,7 +1581,7 @@ mod tests {
 
     /// Every [`Const::EnumCase`] default names an enum this crate registers
     /// and a case that enum actually has — the check that keeps a default and
-    /// its case from drifting apart, since `mwl_types::core_lib` resolves one
+    /// its case from drifting apart, since `nvs_types::core_lib` resolves one
     /// against the other and panics if it cannot.
     #[test]
     fn every_enum_case_default_names_a_real_case() {
@@ -1793,7 +1793,7 @@ mod tests {
     /// `sort`'s bag spelled out, in ABI order — the one member whose options
     /// are all four kinds at once: two absent-by-default callbacks, an enum
     /// and a `bool`. The order is what
-    /// `mwl_ir::lower::Lowering::lower_options_arg` flattens into, so a
+    /// `nvs_ir::lower::Lowering::lower_options_arg` flattens into, so a
     /// reordering here is a silently wrong call rather than a build failure.
     #[test]
     fn sort_declares_its_four_options_in_abi_order() {
@@ -1888,7 +1888,7 @@ mod tests {
     /// `Core\Math`'s eleven constants, spelled out — spec § 3's own list, and
     /// the only place `PI` being a `float` and `INT_MAX` an `int` is stated
     /// twice on purpose. A row dropped from the registry fails here rather
-    /// than only at `examples/numbers.mwl`.
+    /// than only at `examples/numbers.nvs`.
     #[test]
     fn math_registers_the_eleven_constants_the_spec_names() {
         let math = class(r"Core\Math").expect(r"Core\Math is registered");
@@ -1971,11 +1971,11 @@ mod tests {
     /// Its state is reachable, just not through itself, so it is listed here
     /// by name rather than given a member the spec does not write. Two are:
     /// `Core\Regex\Pattern`, read by `Core\Regex`'s members, and
-    /// `Core\Cli\Text`, whose one slot `mwl_runtime::value_to_string` reads
+    /// `Core\Cli\Text`, whose one slot `nvs_runtime::value_to_string` reads
     /// when `echo` writes a captured carrier out ([`crate::cli`]).
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
-        const HANDLES: &[&str] = &[r"Core\Regex\Pattern", mwl_runtime::CARRIER_CLI_TEXT];
+        const HANDLES: &[&str] = &[r"Core\Regex\Pattern", nvs_runtime::CARRIER_CLI_TEXT];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {
                 assert!(

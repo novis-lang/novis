@@ -29,7 +29,7 @@
 
 - Converting untrusted input is the single most common thing a web program does, and PHP's answer —
   `(int)$x` yielding `0` for `"abc"` and `12` for `"12abc"` — is [ADR 0007](0007-explicit-type-system.md)
-  § 7's divergence 4, rejected because it silently accepts garbage. MWL's replacement throws, which is
+  § 7's divergence 4, rejected because it silently accepts garbage. Novis's replacement throws, which is
   right when invalid input *is* an error and wrong when it is an ordinary expected outcome: an absent page
   number, an optional sort order, a filter that may not be filled in.
 - [ADR 0063](0063-core-api-conventions.md) R4 makes failure throw and R5 **bans** `try…`, `…OrNull`,
@@ -38,12 +38,12 @@
   twice** on the request path and requires the two definitions to agree forever. That hazard was closed by
   hand in [spec § 13](../spec/01-core-library.md), by defining the predicate as "true exactly when `as int`
   succeeds". Closing it by construction is better than closing it by prose.
-- [ADR 0022](0022-definite-property-initialization.md) § 1 already settles that `?T` is MWL's one spelling
+- [ADR 0022](0022-definite-property-initialization.md) § 1 already settles that `?T` is Novis's one spelling
   for a value that may legitimately be absent. Nothing new is being introduced here; an existing type is
   being produced by an existing operator.
 - The shape is well-tested elsewhere. Swift spells it `as?` (`as` / `as?` / `as!` is its full three-way
   split), Kotlin spells it `as?`, and C# gives `as` exactly these semantics while reserving throwing to the
-  `(T)x` cast. Rust and Go reach the same place through `Option`/`Result` and comma-ok, which MWL has no
+  `(T)x` cast. Rust and Go reach the same place through `Option`/`Result` and comma-ok, which Novis has no
   sum type for.
 
 ## Decision
@@ -171,7 +171,7 @@ the same reason `isInteger` is not: it is `$s as ?uint != null`.
 
 Under [ADR 0035](0035-truthy-boolean-context.md) both `null` and `0` are falsy, so `if ($s as ?int)` is
 false for an invalid value *and* for a valid zero — reconstructing precisely the `(int)$x > 0` defect that
-motivated this ADR. `mwl check` warns when a `?T` is used directly as a condition, naming `!= null`.
+motivated this ADR. `nvs check` warns when a `?T` is used directly as a condition, naming `!= null`.
 
 It is a lint rather than a diagnostic because **the hazard is not new and not specific to this operator**:
 any `?int` in an `if` has always had it. Making it an error would amend ADR 0035 for every nullable value
@@ -192,9 +192,9 @@ in the language, which is a larger decision than this one and is not taken here.
   be applied by whoever reviews the next `Core` class.
 - **The `as` operator has one rule with no exceptions**, which is the language-surface half of priority 4:
   its targets are ADR 0007 § 2's table and ADR 0047's types, and a class is never one. A reader arriving
-  from Swift or Kotlin, where `as?` is a downcast, is no longer told that MWL spells a *parse* the same way
+  from Swift or Kotlin, where `as?` is a downcast, is no longer told that Novis spells a *parse* the same way
   for two class names and refuses it for the rest.
-- **`mwl convert` (M11) must not take the obvious shortcut.** PHP's `(int)$x` now has a tempting mechanical
+- **`nvs convert` (M11) must not take the obvious shortcut.** PHP's `(int)$x` now has a tempting mechanical
   target in `$x as ?int ?? 0`, which would quietly restore the silent-zero behaviour ADR 0007 § 7 diverges
   from deliberately — and would not even be faithful, since `(int)"12abc"` is `12` in PHP and `null` here.
   It keeps emitting a diagnostic naming both forms and lets the author choose.
@@ -219,7 +219,7 @@ in the language, which is a larger decision than this one and is not taken here.
 - **Requiring a non-nullable operand.** Keeps "missing" and "invalid" syntactically distinct. Rejected in
   § 2: it does not prevent the conflation, only prices it, and charges a line on the most common shape in
   the language to do so.
-- **A `Result`/`Either` return.** Distinguishes *why* a conversion failed. Rejected: MWL has no sum type,
+- **A `Result`/`Either` return.** Distinguishes *why* a conversion failed. Rejected: Novis has no sum type,
   and adding one for this would be a language-scale decision to avoid a `null` check.
 - **Refusing `?T` in a truthy position outright.** The strongest guarantee against § 6's trap, and rejected
   there: it amends ADR 0035 for every nullable value rather than for conversions.
@@ -235,24 +235,24 @@ in the language, which is a larger decision than this one and is not taken here.
   a literal-union type; `tainted string as ?int` typing as `?tainted int`; and a `secret` operand keeping
   `secret`. **§ 3's class row is built**: every class or interface target is `E0473`, `Core\Uri` and
   `Core\Uuid` included and named in the fixture so the withdrawn roster cannot come back unnoticed —
-  `crates/mwl-types/tests/classes.rs`, `no_class_target_converts`.
+  `crates/nvs-types/tests/classes.rs`, `no_class_target_converts`.
 - **M4S:** `Core\Uri::tryParse` and `Core\Uuid::tryParse` are registered members over their class's own
   `parse`, and neither class declares an `isValid` —
-  `mwl_stdlib::registry`'s `a_parse_is_the_only_definition_of_its_own_validity`.
+  `nvs_stdlib::registry`'s `a_parse_is_the_only_definition_of_its_own_validity`.
 - **M3/M4:** a runtime suite asserting `"abc" as ?int`, `"12abc" as ?int` and `"" as ?int` are each `null`
   while `"42" as ?int` is `42` — the whole-string rule of ADR 0007 § 2 reaching the nullable form unchanged
   — and that `19.99 as ?int` is `null` rather than `19`.
   **§§ 1–3's lowering has landed for the checked numeric targets.**
-  `tests/conformance/lang/a-nullable-conversion-yields-null-rather-than-throwing.mwlt` is that suite, and it
-  covers § 2's `null` operand and § 3's `mixed` one as well. `mwl_ir::lower::Lowering::convert_or_null`
-  emits one `mwl_ir::Helper` per target — `ToIntOrNull`/`ToUintOrNull`/`ToFloatOrNull`, with no error edge,
+  `tests/conformance/lang/a-nullable-conversion-yields-null-rather-than-throwing.nvst` is that suite, and it
+  covers § 2's `null` operand and § 3's `mixed` one as well. `nvs_ir::lower::Lowering::convert_or_null`
+  emits one `nvs_ir::Helper` per target — `ToIntOrNull`/`ToUintOrNull`/`ToFloatOrNull`, with no error edge,
   since the form cannot fail — and each dispatches on the operand's runtime tag, which is why § 2's and
   § 3's rows need no lowering branch of their own. Each row has exactly one implementation, shared with the
-  throwing form: `mwl_runtime::helpers`' own `row` module. Still owed: the enum/literal-type target, blocked
+  throwing form: `nvs_runtime::helpers`' own `row` module. Still owed: the enum/literal-type target, blocked
   on the same case set ADR 0010 § 5's integer-into-an-enum row waits for, and every § 3 **refusal** —
-  `mwl_types` does not yet reject a conversion that cannot fail or one that does not exist, so `mwl-ir`
+  `nvs_types` does not yet reject a conversion that cannot fail or one that does not exist, so `nvs-ir`
   panics naming this ADR where it should have been a diagnostic.
-- **M4B:** `mwl check` warns on `if ($s as ?int)` and on any `?T` condition, naming `!= null`, and does
+- **M4B:** `nvs check` warns on `if ($s as ?int)` and on any `?T` condition, naming `!= null`, and does
   **not** warn on `($s as ?int) != null`.
-- **M11:** `mwl convert` emits a diagnostic for PHP's `(int)$x` naming both `as int` and `as ?int ?? 0`,
+- **M11:** `nvs convert` emits a diagnostic for PHP's `(int)$x` naming both `as int` and `as ?int ?? 0`,
   and never rewrites to either silently.

@@ -1,7 +1,7 @@
 --TEST--
 Simple interpolation syntax subscripts an array three ways — a digit run, an unquoted bareword and a variable — and the digit run reaches the same element a quoted numeric key does
 --FILE--
-<?mwl
+<?nvs
 array<int> $n = [10, 20, 30];
 echo "n0=$n[0] n2=$n[2]\n";
 

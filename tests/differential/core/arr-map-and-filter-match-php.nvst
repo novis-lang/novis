@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::map and ::filter keep the keys PHP's array_map and array_filter keep
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

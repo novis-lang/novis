@@ -1,8 +1,8 @@
 --TEST--
 Every Core\Path member accepts `/` and `\` alike, and every one that answers a path emits only Core\Path::SEPARATOR — counted over a sweep rather than read off a line, spec § 8
 --FILE--
-<?mwl
-// § 8's separator rule is two rules, and `crates/mwl-stdlib/src/path.rs`'s
+<?nvs
+// § 8's separator rule is two rules, and `crates/nvs-stdlib/src/path.rs`'s
 // module doc reads them as the stronger pair they have to be: *acceptance* is
 // one grammar on every platform, and only *emission* follows the host. A case
 // that asked one member on one line would pass on one leg and say nothing

@@ -1,7 +1,7 @@
 --TEST--
 PHP 8's precedence: `+`/`-`/`*` all bind tighter than `.`, so an unparenthesised arithmetic term inside a concatenation is evaluated first
 --FILE--
-<?mwl
+<?nvs
 int $a = 2;
 int $b = 3;
 

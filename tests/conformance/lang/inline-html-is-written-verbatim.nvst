@@ -1,8 +1,8 @@
 --TEST--
-Inline HTML outside `<?mwl` … `?>` is written verbatim, and the one newline after `?>` is swallowed — spec 00-overview.md § 1
+Inline HTML outside `<?nvs` … `?>` is written verbatim, and the one newline after `?>` is swallowed — spec 00-overview.md § 1
 --FILE--
 before any tag
-<?mwl
+<?nvs
 // spec 00-overview.md § 1: a run of literal text outside code mode is written
 // to the output exactly as its source bytes read — never escaped, never
 // interpreted, unlike an `echo` operand. The line above is this file's first
@@ -10,23 +10,23 @@ before any tag
 echo "in code\n";
 ?>
 verbatim <b>&amp;</b> — no escaping, no conversion
-<?mwl
+<?nvs
 // The lexer swallows one newline immediately after `?>`, so the run above
 // ends in exactly one `\n`: a template line ending in `?>` emits no blank
 // line of its own.
 int $i = 0;
 for (; $i < 2; ) {
-    // `?>`/`<?mwl` reopen and reclose code mode anywhere a statement is
+    // `?>`/`<?nvs` reopen and reclose code mode anywhere a statement is
     // expected, not only at file scope, so a run inside a loop body is
     // written once per iteration.
-    ?>row <?mwl echo $i as string; ?>!
-<?mwl
+    ?>row <?nvs echo $i as string; ?>!
+<?nvs
     $i = $i + 1;
 }
 // A `?>` followed by nothing but the newline it swallows is an *empty* run,
 // and it contributes no output at all.
 ?>
-<?mwl
+<?nvs
 echo "end\n";
 ?>
 after the last tag

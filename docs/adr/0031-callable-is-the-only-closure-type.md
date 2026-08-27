@@ -37,7 +37,7 @@
   membership: two names, zero remaining semantic difference, the pattern [ADR 0015](0015-no-name-aliasing.md)
   already refuses elsewhere.
 - The two literal forms only diverged historically because PHP's arrow form was added later and never grew a
-  block body; nothing requires MWL's `fn` to keep that restriction.
+  block body; nothing requires Novis's `fn` to keep that restriction.
 - Explicit `use` capture exists to make free variables visible at the call site; auto-capture (already what
   PHP's arrow functions do) buys the same visibility for the by-value case. The only question was whether
   `use (&$y)`'s by-reference half has a real use auto-capture can't express — it does not (see § 2).
@@ -86,7 +86,7 @@ Two consequences follow from dropping `use (&$y)` specifically, and both are del
   $get = fn() => $count->value;           // ...but $count is a heap object, so they still share it
   ```
 
-  No `Core\Ref<T>`/boxed-cell builtin is introduced for this. If real MWL code shows this pattern is common
+  No `Core\Ref<T>`/boxed-cell builtin is introduced for this. If real Novis code shows this pattern is common
   enough to deserve stdlib space, that is a narrower, separately-argued follow-up ADR — not a reason to keep
   `use (&$y)` around now on the strength of a hypothetical.
 
@@ -148,7 +148,7 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
   body reads is captured automatically, by value*
 - `use (&$y)` specifically, where the diagnostic can tell the intent was mutation visible outside the
   closure → *capture by reference is not supported; share the value through an object property instead*
-- `Closure` named as a type → *`Closure` is not a type in MWL; use `callable`*
+- `Closure` named as a type → *`Closure` is not a type in Novis; use `callable`*
 - `Closure::fromCallable(...)` → *not supported; every `callable` value is already directly invocable*
 - `call_user_func(...)` / `call_user_func_array(...)` → *not supported; call the value directly —
   `$fn(...)` / `$fn(...$args)`*
@@ -163,7 +163,7 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
 - Removing `use (&$y)` removes a well-known PHP footgun for free: closures created inside a loop that
   capture the loop variable by reference and all end up observing the last iteration's value instead of
   their own. That is a correctness win (priority 2), not merely a simplification (priority 4).
-- The self-name (§ 3) gives `mwl convert` a mechanical, human-free rewrite for the one `use (&$fn)` idiom
+- The self-name (§ 3) gives `nvs convert` a mechanical, human-free rewrite for the one `use (&$fn)` idiom
   that was load-bearing (self-recursion), rather than needing to synthesize a wrapper class the way the
   function-`static` rewrite in [ADR 0008](0008-static-and-global.md) does.
 - `callable` replacing `Closure` costs nothing: [ADR 0007](0007-explicit-type-system.md) already made
@@ -175,7 +175,7 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
 **Negative**
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: `function(...) use (...) {...}` is common PHP, and every occurrence needs conversion.
-  Mechanical for `mwl convert` in the overwhelming majority of cases — rewrite to `fn`, drop `use ($y)`
+  Mechanical for `nvs convert` in the overwhelming majority of cases — rewrite to `fn`, drop `use ($y)`
   entirely since capture is now automatic — except `use (&$y)`, which needs a human decision between the
   self-name rewrite (recursion) and the wrapper-object rewrite (shared mutable cell), since the converter
   cannot always tell which one applies from the syntax alone.
@@ -185,14 +185,14 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
   *Revisiting*.
 - The stdlib loses three long-standing entry points (`Closure::fromCallable`, `call_user_func`,
   `call_user_func_array`); any converted code calling them needs the direct-invocation rewrite in § 5, which
-  `mwl convert` can do mechanically.
+  `nvs convert` can do mechanically.
 
 ## Alternatives rejected
 
 - **Keep both `function(){}` and `fn() => ...`.** Two spellings for one value — the redundant-surface pattern
   [ADR 0015](0015-no-name-aliasing.md) already refuses elsewhere.
 - **Keep `use ($y)` as documentation even though capture is implicit.** Would be unenforced, driftable
-  decoration — a shape MWL avoids everywhere else.
+  decoration — a shape Novis avoids everywhere else.
 - **Keep `use (&$y)`, drop only the by-value form.** Backwards: by-value is the common, safe case
   auto-capture already replaces; by-reference is the rare footgun this ADR removes.
 - **A builtin `Core\Ref<T>`/boxed-cell type** for the shared-mutable-cell pattern. Deferred, not rejected —
@@ -226,13 +226,13 @@ Verification, in the order it becomes possible:
 
 - **M1** (parser) — **done**: `fn($x) => expr`, `fn($x) => { ... }`, and `fn name($x) => ...`/
   `fn name($x) => { ... }` all parse to one AST shape (`FnExpr`/`FnBody` in
-  [`mwl-syntax/src/ast.rs`](../../crates/mwl-syntax/src/ast.rs)); `function(...) {...}` and
+  [`nvs-syntax/src/ast.rs`](../../crates/nvs-syntax/src/ast.rs)); `function(...) {...}` and
   `function(...) use (...) {...}` are rejected with a diagnostic naming `fn` (`E0222`); `use (&$y)`/
   `use ($y)` on a closure literal is rejected with its own diagnostic distinguishing the by-reference case
   (`E0223`/`E0224`). `ClosureExpr`/`ClosureUse`/`ArrowFnExpr` no longer exist anywhere in the crate.
-- **M2** (checker/resolver) — **done for §§ 1-2**: `mwl_types::expr::check_fn_literal` checks the body in a
+- **M2** (checker/resolver) — **done for §§ 1-2**: `nvs_types::expr::check_fn_literal` checks the body in a
   scope of its own and offers every outer binding to it as a *capture*, recorded at
-  `mwl_types::locals::LocalScope::declared_ty` — the one lookup a read or a write already goes through, so
+  `nvs_types::locals::LocalScope::declared_ty` — the one lookup a read or a write already goes through, so
   the recorded set is § 2's "exactly the outer variables its body reads" and cannot drift from what the
   checker counts as a read. `$this` is in that set like any other name, which is how ADR 0008 § 4's
   bind-only-where-used rule is satisfied with no code of its own. A parameter shadows an outer local rather
@@ -241,11 +241,11 @@ Verification, in the order it becomes possible:
   return-type inference, which [ADR 0007](0007-explicit-type-system.md) does not ask for.
   **Still open:** § 3's self-name is parsed and ignored, so a recursive call inside the body reports an
   undefined name.
-- **M4** (lowering and stdlib) — **done for §§ 1-2**: `mwl_ir::lower::lower_closure` turns a literal into an
+- **M4** (lowering and stdlib) — **done for §§ 1-2**: `nvs_ir::lower::lower_closure` turns a literal into an
   object of a synthesized class — one field per capture, one `invoke` method — so a closure needs no new
   runtime representation, no new calling convention and no second refcounted heap shape; that function's own
-  doc comment states the cost. `mwl_runtime::call_closure` is how native `Core` code reaches one, and
-  `Core\Arr::filter` is the first member that does. `mwl-codegen`'s five `a_closure_*` fixtures run it end
+  doc comment states the cost. `nvs_runtime::call_closure` is how native `Core` code reaches one, and
+  `Core\Arr::filter` is the first member that does. `nvs-codegen`'s five `a_closure_*` fixtures run it end
   to end, including a capture snapshot that survives the outer local being reassigned and a closure that
   throws out of the `Core` member calling it; a closure-heavy script is `valgrind --leak-check=full` clean.
   `Closure::fromCallable`, `call_user_func` and `call_user_func_array` are not implemented, and nothing in

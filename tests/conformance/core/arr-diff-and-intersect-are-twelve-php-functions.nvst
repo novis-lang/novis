@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::diff and ::intersect ask one question with SetOn, {by} and {comparator}, comparing by strict identity, per ADR 0069 § 3
 --FILE--
-<?mwl
+<?nvs
 // Two members plus a three-case enum replace twelve `array_diff*` and
 // `array_intersect*` functions. Both keep the first array's keys and order,
 // which `Core\Json::encode` pins along with the values.

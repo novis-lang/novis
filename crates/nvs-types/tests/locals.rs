@@ -1,12 +1,12 @@
 //! ADR 0007 § 1's declare-once rule and the definite-assignment analysis over it, including ADR 0037's `var`.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 #[test]
 fn a_declared_and_assigned_local_reads_fine() {
@@ -46,7 +46,7 @@ fn var_infers_the_initializers_type_and_fixes_it() {
 #[test]
 fn var_infers_a_class_type_from_new() {
     let diags = check_src(
-        "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    var $x = new Foo();\n    $x->missing;\n  }\n}\n",
+        "<?nvs\nclass Foo {}\nclass T {\n  function m(): void {\n    var $x = new Foo();\n    $x->missing;\n  }\n}\n",
     );
     assert!(
         diags.iter().any(|d| d.code == Some(code::E_UNKNOWN_MEMBER)),

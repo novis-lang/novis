@@ -1,7 +1,7 @@
 --TEST--
 A destructuring leaf is an element read, so it takes a subscript's own refusals — `E0482` for a value with no elements, `E0401` for an element type the leaf does not declare, and `E0483` for a leaf that would alias what it read — ADR 0007 §§ 3.3 and 5, ADR 0031 § 2
 --FILE--
-<?mwl
+<?nvs
 array<int> $pair = [1, 2];
 // The element type is checked against what the leaf declares, in the
 // same direction and with the same covariance a `foreach` value binding

@@ -1,10 +1,10 @@
 //! Corpus-parse smoke test: M1's plan requires parsing a full real-world PHP
 //! corpus without the parser crashing (it is not required to accept every
-//! construct cleanly — that is M2's job, and `mwl-syntax`'s module docs track
+//! construct cleanly — that is M2's job, and `nvs-syntax`'s module docs track
 //! the known gaps that will surface here first).
 //!
 //! The corpus itself is not part of this repo (see `.gitignore`'s `/php-src`
-//! entry) — point `MWL_PHP_CORPUS` at a directory of `.php` files, or drop one
+//! entry) — point `NVS_PHP_CORPUS` at a directory of `.php` files, or drop one
 //! at `<workspace-root>/php-src`. Absent either, the test is skipped rather
 //! than failed, since CI has no corpus checked in.
 //!
@@ -12,7 +12,7 @@
 //! corpus files parsed with *zero* diagnostics. That number is meaningless
 //! now and is not tracked: every corpus file opens with `<?php`, which
 //! [ADR 0049](../../../docs/adr/0049-single-open-tag-and-single-exit-keyword.md)
-//! rejects in favour of `<?mwl`, so every one of them trips `E0229`;
+//! rejects in favour of `<?nvs`, so every one of them trips `E0229`;
 //! [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 //! made keyword matching exact, so a corpus file's mixed-case `IF`/`TRUE`
 //! now lex as ordinary identifiers; and
@@ -31,11 +31,11 @@ use std::collections::HashMap;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 
-use mwl_diagnostics::{Diagnostics, SourceMap};
-use mwl_syntax::parse_file;
+use nvs_diagnostics::{Diagnostics, SourceMap};
+use nvs_syntax::parse_file;
 
 fn corpus_dir() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("MWL_PHP_CORPUS") {
+    if let Some(dir) = std::env::var_os("NVS_PHP_CORPUS") {
         return Some(PathBuf::from(dir));
     }
     let default = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../php-src");
@@ -66,7 +66,7 @@ fn collect_php_files(dir: &Path, out: &mut Vec<PathBuf>) {
 fn corpus_parses_without_panicking() {
     let Some(dir) = corpus_dir() else {
         eprintln!(
-            "skipping corpus-parse test: no corpus at $MWL_PHP_CORPUS or <workspace-root>/php-src"
+            "skipping corpus-parse test: no corpus at $NVS_PHP_CORPUS or <workspace-root>/php-src"
         );
         return;
     };

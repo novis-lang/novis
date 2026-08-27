@@ -1,12 +1,12 @@
 --TEST--
 duration units strictly descend and may not repeat — ADR 0070 § 1
 --FILE--
-<?mwl
+<?nvs
 var $backwards = 30m1h;
 echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0007]: `30m1h` is not a duration literal
-  --> case.mwl:2:18
+  --> case.nvs:2:18
 %A

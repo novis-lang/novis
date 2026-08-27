@@ -2,7 +2,7 @@
 a directional scope opened in an inline-HTML run and never closed is a compile error — ADR 0087 §§ 1-2
 --FILE--
 <p>total: ‭</p>
-<?mwl
+<?nvs
 echo "unreachable\n";
 --EXPECT--
 

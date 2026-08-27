@@ -1,7 +1,7 @@
 --TEST--
 Core\Uuid::parse and `Uuid::tryParse` answer one question about one spelling — the canonical hyphenated form in either case, with the three shapes a UUID library usually also takes refused — spec § 11, ADR 0063 R4, ADR 0066 § 3a
 --FILE--
-<?mwl
+<?nvs
 // `Read` exists because a `catch` does not lower at file scope; every throwing
 // row goes through it.
 class Read {

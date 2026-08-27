@@ -1,7 +1,7 @@
 --TEST--
 `$a[] = $v` picks the same next index PHP's does, keyed entries included
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

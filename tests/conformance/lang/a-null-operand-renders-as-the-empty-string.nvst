@@ -1,9 +1,9 @@
 --TEST--
 A statically `null` operand renders as the empty string at every implicit string site, agreeing with the `?string` holding one — ADR 0007 § 2
 --FILE--
-<?mwl
+<?nvs
 // The row the four refusals beside this case do *not* include. `null` has an
-// answer in PHP — the empty string — and MWL already gives that answer for a
+// answer in PHP — the empty string — and Novis already gives that answer for a
 // `?string` holding one, which is the same value one type wider: the
 // conversion is picked from the tag at run time there and from the static
 // type here. What this asserts is that the two **agree**, so that narrowing a

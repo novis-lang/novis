@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::hypot answers what PHP's hypot does including where the naive sqrt of two squares overflows, and Core\Math::atan2 keeps PHP's y-then-x argument order and its signed-zero quadrants
 --FILE--
-<?mwl
+<?nvs
 // Spec § 3's `hypot` and `atan2` rows. Both are one PHP function each with
 // the same name and the same argument order, so the whole question is whether
 // the answers agree — and the two places they could stop agreeing are the

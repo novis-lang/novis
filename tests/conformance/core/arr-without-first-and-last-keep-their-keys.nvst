@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::withoutFirst and ::withoutLast drop one entry and renumber nothing
 --FILE--
-<?mwl
+<?nvs
 array<string> $a = ["x" => "one", "10" => "two", "y" => "three"];
 
 echo Core\Str::join(Core\Arr::withoutFirst($a), ","), "\n";

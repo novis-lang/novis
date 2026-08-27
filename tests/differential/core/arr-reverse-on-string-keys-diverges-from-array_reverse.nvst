@@ -1,9 +1,9 @@
 --TEST--
 Core\Arr::reverse renumbers every key its preserveKeys option discards, where array_reverse renumbers the integers and keeps the strings
 --ORACLE-DIVERGES--
-The same divergence `arr-slice-on-string-keys-diverges-from-array_slice` records, in the other member that carries the option: ADR 0069 § 3 removes every rule that asks what type a key is, and `array_reverse`'s `$preserve_keys = false` is one — it renumbers the integer keys and keeps the string ones, so the same call answers a list or a map depending on what the subject's keys happened to be. MWL's `{preserveKeys: false}` discards every key alike and the result is a list from "0", whatever went in. `{preserveKeys: true}` keeps every key alike in both languages, and that half of the option agrees entry for entry — which is what makes this a divergence about the meaning of `false` and not about the order the member produces.
+The same divergence `arr-slice-on-string-keys-diverges-from-array_slice` records, in the other member that carries the option: ADR 0069 § 3 removes every rule that asks what type a key is, and `array_reverse`'s `$preserve_keys = false` is one — it renumbers the integer keys and keeps the string ones, so the same call answers a list or a map depending on what the subject's keys happened to be. Novis's `{preserveKeys: false}` discards every key alike and the result is a list from "0", whatever went in. `{preserveKeys: true}` keeps every key alike in both languages, and that half of the option agrees entry for entry — which is what makes this a divergence about the meaning of `false` and not about the order the member produces.
 --FILE--
-<?mwl
+<?nvs
 final class Render {
     public static function of(array<int> $a): string {
         var $out = "";
@@ -16,7 +16,7 @@ final class Render {
 
 // No integer key at all: `array_reverse($map)` answers `z=3;y=2;x=1;`, keeping
 // all three strings even though the option asked for them to be dropped, where
-// MWL numbers the reversed entries from zero.
+// Novis numbers the reversed entries from zero.
 array<int> $map = ["x" => 1, "y" => 2, "z" => 3];
 echo Render::of(Core\Arr::reverse($map)), "\n";
 

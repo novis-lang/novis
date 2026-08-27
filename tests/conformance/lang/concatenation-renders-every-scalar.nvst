@@ -1,7 +1,7 @@
 --TEST--
 `.` renders an int, a float, a bool and a `uint` operand with the same rules `echo` uses
 --FILE--
-<?mwl
+<?nvs
 echo "n=" . 5 . "!", "\n";
 echo 1 . 2, "\n";
 echo "f=" . 1.5, "\n";

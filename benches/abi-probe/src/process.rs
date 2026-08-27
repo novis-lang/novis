@@ -1,4 +1,4 @@
-//! The cost of the mechanism MWL's in-process script isolates replace.
+//! The cost of the mechanism Novis's in-process script isolates replace.
 //!
 //! [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) argues that a
 //! script needing to run *another* script under its own heap, its own limits and
@@ -14,7 +14,7 @@
 //!
 //! * a real replacement spawns an *interpreter*, not `/bin/true`, so the honest
 //!   comparison is strictly worse than what is measured here, and
-//! * nothing MWL does can make this number smaller.
+//! * nothing Novis does can make this number smaller.
 //!
 //! So a guard test built on it can only ever understate the gap, which is the
 //! safe direction for an assertion that justifies a feature. The understatement

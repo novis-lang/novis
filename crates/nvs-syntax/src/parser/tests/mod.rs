@@ -13,18 +13,18 @@ mod inout;
 mod stmt;
 mod ty;
 
-use mwl_diagnostics::SourceMap;
+use nvs_diagnostics::SourceMap;
 
 use super::*;
 
-/// Parses `src` as an expression (wrapped in `<?mwl `) and asserts no
+/// Parses `src` as an expression (wrapped in `<?nvs `) and asserts no
 /// diagnostics were reported.
 fn parse_ok(src: &str) -> Expr {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", format!("<?mwl {src}"));
+    let id = map.add("t.nvs", format!("<?nvs {src}"));
     let mut diags = Diagnostics::new();
     let mut p = Parser::new(map.file(id), &mut diags);
-    p.bump(); // OpenTagMwl
+    p.bump(); // OpenTagNvs
     let e = p.parse_expr();
     assert!(
         !diags.has_errors(),
@@ -37,26 +37,26 @@ fn parse_ok(src: &str) -> Expr {
 /// diagnostics were reported, for tests that expect a reported error.
 fn parse_with_diags(src: &str) -> (Expr, Diagnostics) {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", format!("<?mwl {src}"));
+    let id = map.add("t.nvs", format!("<?nvs {src}"));
     let mut diags = Diagnostics::new();
     let mut p = Parser::new(map.file(id), &mut diags);
-    p.bump(); // OpenTagMwl
+    p.bump(); // OpenTagNvs
     let e = p.parse_expr();
     (e, diags)
 }
 
-fn text(map: &SourceMap, file: mwl_diagnostics::SourceId, span: Span) -> &str {
+fn text(map: &SourceMap, file: nvs_diagnostics::SourceId, span: Span) -> &str {
     map.get(file).and_then(|f| f.span_text(span)).unwrap_or("")
 }
 
-/// Parses `src` as one statement (wrapped in `<?mwl `) and asserts no
+/// Parses `src` as one statement (wrapped in `<?nvs `) and asserts no
 /// diagnostics were reported.
 fn parse_stmt_ok(src: &str) -> Stmt {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", format!("<?mwl {src}"));
+    let id = map.add("t.nvs", format!("<?nvs {src}"));
     let mut diags = Diagnostics::new();
     let mut p = Parser::new(map.file(id), &mut diags);
-    p.bump(); // OpenTagMwl
+    p.bump(); // OpenTagNvs
     let s = p.parse_statement();
     assert!(
         !diags.has_errors(),
@@ -69,7 +69,7 @@ fn parse_stmt_ok(src: &str) -> Stmt {
 /// diagnostics were reported, for tests that expect a reported error.
 fn parse_stmt_with_diags(src: &str) -> (Stmt, Diagnostics) {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", format!("<?mwl {src}"));
+    let id = map.add("t.nvs", format!("<?nvs {src}"));
     let mut diags = Diagnostics::new();
     let mut p = Parser::new(map.file(id), &mut diags);
     p.bump();
@@ -79,7 +79,7 @@ fn parse_stmt_with_diags(src: &str) -> (Stmt, Diagnostics) {
 
 fn parse_file_ok(src: &str) -> Vec<Stmt> {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", src.to_string());
+    let id = map.add("t.nvs", src.to_string());
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
     assert!(

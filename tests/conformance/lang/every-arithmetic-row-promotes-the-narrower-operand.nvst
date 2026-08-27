@@ -1,7 +1,7 @@
 --TEST--
 Every arithmetic row with a `float` on one side promotes the other, and the promotion is the checked one — ADR 0007 §§ 2, 4
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 4's "either operand a `float`" row, swept rather than sampled:
 // four operators over four mixed pairings, counted rather than read off a
 // line, so an implementation that promotes `int + float` and forgets

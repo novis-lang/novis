@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::column takes one named cell out of every row, skips a row that lacks it, and appends a row that lacks the indexBy key, per spec § 2
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2: `column(array<array<T>> $a, int|string $column, {indexBy?: int|string}): array<T>`
 // — `flatten`'s nested parameter, so the answer keeps the rows' element type.
 array<array<string>> $rows = [

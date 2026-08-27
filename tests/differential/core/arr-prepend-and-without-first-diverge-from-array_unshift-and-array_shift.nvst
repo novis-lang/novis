@@ -1,9 +1,9 @@
 --TEST--
 Core\Arr::prepend renumbers every key and ::withoutFirst renumbers none, where array_unshift and array_shift each renumber the integers and keep the strings
 --ORACLE-DIVERGES--
-ADR 0069 § 3 refuses any rule that asks what type a key is, and PHP's two front-end functions are both such a rule: `array_unshift` and `array_shift` renumber the integer keys of what remains and leave the string ones untouched, so the same call answers a list or a map depending on the subject. MWL answers uniformly at both ends and the two uniform answers point opposite ways, because the two operations lose different things: prepending has no non-arbitrary key to give a new front entry, so `Core\Arr::prepend` renumbers everything and always returns a list, while dropping an entry takes nothing away from the survivors, so `Core\Arr::withoutFirst` keeps every key and a caller who wanted `0, 1, …` writes `Core\Arr::values` and says so. Keeping is the direction that loses nothing: a map's keys cannot be recovered once a member has discarded them.
+ADR 0069 § 3 refuses any rule that asks what type a key is, and PHP's two front-end functions are both such a rule: `array_unshift` and `array_shift` renumber the integer keys of what remains and leave the string ones untouched, so the same call answers a list or a map depending on the subject. Novis answers uniformly at both ends and the two uniform answers point opposite ways, because the two operations lose different things: prepending has no non-arbitrary key to give a new front entry, so `Core\Arr::prepend` renumbers everything and always returns a list, while dropping an entry takes nothing away from the survivors, so `Core\Arr::withoutFirst` keeps every key and a caller who wanted `0, 1, …` writes `Core\Arr::values` and says so. Keeping is the direction that loses nothing: a map's keys cannot be recovered once a member has discarded them.
 --FILE--
-<?mwl
+<?nvs
 final class Render {
     public static function of(array<int> $a): string {
         var $out = "";
@@ -21,11 +21,11 @@ array<int> $mixed = ["5" => 1, "x" => 2, "9" => 3];
 // `array_unshift($map, 7, 8)` answers `0=7;1=8;x=1;y=2;`, a map whose two new
 // entries are integer-keyed; over `$mixed` it answers `0=7;1=8;2=1;x=2;3=3;`,
 // where the surviving keys now depend on how many *earlier* entries happened
-// to be integer-keyed. MWL's answer is a list in both cases.
+// to be integer-keyed. Novis's answer is a list in both cases.
 echo Render::of(Core\Arr::prepend($map, 7, 8)), "\n";
 echo Render::of(Core\Arr::prepend($mixed, 7, 8)), "\n";
 
-// The opposite direction, and the row that shows it is not simply "MWL
+// The opposite direction, and the row that shows it is not simply "Novis
 // renumbers more": over a plain list `array_shift` answers `0=20;1=30;` while
 // `withoutFirst` keeps the keys the survivors already had. This is the only
 // member of the family that diverges on a list.

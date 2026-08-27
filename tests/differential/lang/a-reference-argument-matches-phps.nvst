@@ -1,7 +1,7 @@
 --TEST--
-an `inout $x` argument's copy-back lands at the call, exactly as PHP's does: a read sequenced after the call in the same statement sees the write, in a concatenation, a nested call, a condition, an array literal, a `while` header and through a property holder — ADR README § *Decisions taken at project start*, lowered by `mwl_ir::lower::Lowering::pending_refs`
+an `inout $x` argument's copy-back lands at the call, exactly as PHP's does: a read sequenced after the call in the same statement sees the write, in a concatenation, a nested call, a condition, an array literal, a `while` header and through a property holder — ADR README § *Decisions taken at project start*, lowered by `nvs_ir::lower::Lowering::pending_refs`
 --FILE--
-<?mwl
+<?nvs
 final class Adder {
     public static function bump(inout int $slot): int {
         $slot = $slot + 1;
@@ -28,8 +28,8 @@ final class Box {
 // to its left is deliberately absent: PHP's own manual leaves an expression's
 // operand order undefined, and `$n + Adder::bump($n)` is where the two answer
 // differently — PHP reads the left operand at the `ADD`, after the call, while
-// MWL evaluates a binary operator's operands strictly left to right. That is
-// not a divergence to pin, and `mwl_ir::lower::Lowering::pending_refs` is where
+// Novis evaluates a binary operator's operands strictly left to right. That is
+// not a divergence to pin, and `nvs_ir::lower::Lowering::pending_refs` is where
 // it is written down.
 int $n = 5;
 echo Adder::bump(inout $n), " ", $n, "\n";

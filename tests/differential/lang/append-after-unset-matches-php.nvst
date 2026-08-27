@@ -1,7 +1,7 @@
 --TEST--
 Appending after an `unset` continues from the highest integer key ever used, exactly as PHP does
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = [10, 20, 30];
 unset($a[2]);
 $a[] = 40;

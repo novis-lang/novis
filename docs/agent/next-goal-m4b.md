@@ -21,14 +21,14 @@ wherever the two ever seem to differ.
 What is different about this goal, and what every session should hold: **for the first time the loop is
 verifying something that is not a program's stdout.** An LSP answer is not printed by anything, and the
 driver's stop path is exit codes and exact output only. The mechanism that closes that gap is a `.lspt`
-case and `mwl lsp-test`, and it lands in Stage 2 **before any request handler does**, because a request
+case and `nvs lsp-test`, and it lands in Stage 2 **before any request handler does**, because a request
 built before its case format exists is a request nobody can prove.
 
 Three things this goal is *not*: it is not M10's deep half (no rename, no extract, no workspace symbol
 search, no inlay hints, no signature help, no `documentHighlight`, no Test Explorer, no profiler, no
 debugger UI — the first two and `documentHighlight` look adjacent to what M4B does build and are not, for
 the reason [ADR 0099 § 3](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) gives), it is not
-`mwl fmt` (M10, [ADR 0039](../adr/0039-canonical-code-formatting.md)), and it is not PhpStorm (M10,
+`nvs fmt` (M10, [ADR 0039](../adr/0039-canonical-code-formatting.md)), and it is not PhpStorm (M10,
 [ADR 0016](../adr/0016-ide-integration.md)). A slice that reaches for one of those is off path: it goes in
 `## Backlog` in the handoff and the session moves on.
 
@@ -40,35 +40,35 @@ playbook already carries bullets whose entire content is "you cannot spell this"
 deletes its bullet rather than growing it. Until this stage is empty a session takes its work from here,
 in this order.
 
-1. **`Class::method(...)` does not panic `mwl-ir`.** The first-class callable
+1. **`Class::method(...)` does not panic `nvs-ir`.** The first-class callable
    ([ADR 0027](../adr/0027-callable-is-closures-only.md)) reaches lowering and panics outright, which is
    why every existing case that needs a helper declares a `class` with a `public static function` and
-   calls it directly. `mwl-ir` gap 1.
+   calls it directly. `nvs-ir` gap 1.
 2. **A closure is callable through the variable holding it** — `$f(...)`. Only native `Core` code calling
-   back through `mwl_runtime::call_closure` works today. `mwl-ir` gap 9. Same file set as item 1: both are
-   `mwl-ir`'s call lowering, so they are **one group**.
+   back through `nvs_runtime::call_closure` works today. `nvs-ir` gap 9. Same file set as item 1: both are
+   `nvs-ir`'s call lowering, so they are **one group**.
 3. **`do`/`while` lowers.** The one M4 control-flow statement that does not; every terminator it needs
-   already exists. `mwl-ir` gap 1.
+   already exists. `nvs-ir` gap 1.
 4. **`bool as int` and `bool as string` lower**, and `false as string` renders `""` rather than nothing at
-   all — [ADR 0007](../adr/0007-explicit-type-system.md) § 2's conversion table. `mwl-ir` gap 4.
+   all — [ADR 0007](../adr/0007-explicit-type-system.md) § 2's conversion table. `nvs-ir` gap 4.
 
-Each item finishes with a `.mwlt` case under `tests/conformance/lang/` and the playbook bullet it
+Each item finishes with a `.nvst` case under `tests/conformance/lang/` and the playbook bullet it
 obsoletes **deleted**, not reworded.
 
 ## Stage 1 — the non-regression floor
 
 The whole of the M4S goal's acceptance list, **unchanged and never traded for anything above it**: all
-twenty-three fixtures at their frozen output, both `mwl test` suites at their final counts, every
+twenty-three fixtures at their frozen output, both `nvs test` suites at their final counts, every
 `cargo-named` guard, the WSL leg and the valgrind sweep. It is copied verbatim into
 `loop-goal.toml` at switch time with only its `stage` field relabelled — see *Switching to this goal*.
-Nothing in M4B touches `mwl-stdlib`, so a failure here is a real regression and never a scope question.
+Nothing in M4B touches `nvs-stdlib`, so a failure here is a real regression and never a scope question.
 
 ## Stage 2 — the keystone: one lossless tree, and the format that can check it
 
 Two things, and neither can be deferred behind the other. The tree is what every request reads; the case
 format is what proves any of it. **No request handler is written until both are green.**
 
-5. **Trivia.** `Lexer` gains a recording flag; `skip_trivia` ([lexer.rs:326](../../crates/mwl-syntax/src/lexer.rs))
+5. **Trivia.** `Lexer` gains a recording flag; `skip_trivia` ([lexer.rs:326](../../crates/nvs-syntax/src/lexer.rs))
    pushes a `Trivia { kind, span }` instead of only advancing. `TriviaKind` is `Whitespace`,
    `LineComment` (`//` and `#` alike) and `BlockComment`. That one function is the whole difference
    between the current token stream and a lossless one — there is no second site where a byte disappears,
@@ -76,27 +76,27 @@ format is what proves any of it. **No request handler is written until both are 
    every trivium's text in offset order reproduces the file byte-for-byte, over `examples/`, `tests/` and
    the `php-src` corpus `corpus_parse.rs` already walks.
 6. **Explicit recovery.** `MemberName::Missing(Span)` beside `MemberName::Ident`
-   ([expr.rs:762](../../crates/mwl-syntax/src/parser/expr.rs) is where the synthesized one is made today),
+   ([expr.rs:762](../../crates/nvs-syntax/src/parser/expr.rs) is where the synthesized one is made today),
    and a span on `ExprKind::Error` naming what it stood in for. A consumer must never infer "did the user
    write this, or did the parser invent it at the cursor" from an empty span — completion's entire
    behaviour hangs on that distinction. Same file set as item 5: **one group.**
 7. **`Parsed` and `SyntaxIndex`.** `parse_file_resilient` beside
-   [parse_file](../../crates/mwl-syntax/src/parser/mod.rs) at `parser/mod.rs:475`, returning
+   [parse_file](../../crates/nvs-syntax/src/parser/mod.rs) at `parser/mod.rs:475`, returning
    `{ stmts, trivia, index }`; the index is built by one walk and answers `at(offset) -> NodePath` — the
    innermost node plus its ancestors. `parse_file` becomes a thin wrapper so **no existing call site
-   changes**, and `mwl check`/`mwl run` keep their behaviour exactly.
-8. **The prefix sweep, and the fuzz target.** Every prefix of every `examples/*.mwl` at a token boundary:
+   changes**, and `nvs check`/`nvs run` keep their behaviour exactly.
+8. **The prefix sweep, and the fuzz target.** Every prefix of every `examples/*.nvs` at a token boundary:
    no panic, a `SyntaxIndex` answer at the final offset, and a diagnostic on each prefix that is genuinely
    incomplete. Then a `fuzz_target` over truncated and mid-edit inputs, separate from the existing
    whole-file `parse` target because a truncated input is a different shape of input
    ([ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) *Verification*). Same file set as
    item 7: **one group.**
-9. **`.lspt`, and `mwl lsp-test`.** Extract `mwl_test`'s section lexer
-   ([case.rs:171](../../crates/mwl-test/src/case.rs) `header`, `case.rs:226` `parse`) into a module both
+9. **`.lspt`, and `nvs lsp-test`.** Extract `nvs_test`'s section lexer
+   ([case.rs:171](../../crates/nvs-test/src/case.rs) `header`, `case.rs:226` `parse`) into a module both
    formats read, then build the `.lspt` case: `--TEST--`, `--FILE--`, `--FILE <path>--`, a `<|>` cursor,
    `--REQUEST--` and a frozen `--EXPECT--`. The canonical rendering of every response kind lives in
-   `mwl_lsp::render` and **nowhere else**, so no case invents a spelling. `mwl lsp-test <paths>` walks
-   directories for `*.lspt` and prints `N passed, M failed` — the exact line `tools/loop.py`'s `mwl-suite`
+   `nvs_lsp::render` and **nowhere else**, so no case invents a spelling. `nvs lsp-test <paths>` walks
+   directories for `*.lspt` and prints `N passed, M failed` — the exact line `tools/loop.py`'s `nvs-suite`
    kind parses, which is why the driver needs no change to gate editor behaviour.
    `--coverage` prints the request × construct matrix, **inferred from the node each cursor resolved to
    and never declared by the case**, and `every_request_answers_every_construct` fails naming each empty
@@ -106,26 +106,26 @@ format is what proves any of it. **No request handler is written until both are 
 
 ## Stage 3 — the server
 
-`crates/mwl-lsp`, then one request at a time. **Every request slice ships its own `.lspt` cases**; a
+`crates/nvs-lsp`, then one request at a time. **Every request slice ships its own `.lspt` cases**; a
 handler landing without them is not a finished slice.
 
 10. **The crate, the subcommand and the handshake.** `lsp-server` + `lsp-types`, synchronous, stdio,
-    behind `mwl lsp`. `initialize` declares exactly the capabilities of *Stage 3*'s items and no others,
+    behind `nvs lsp`. `initialize` declares exactly the capabilities of *Stage 3*'s items and no others,
     and reports the binary's version so the client can refuse a mismatch. Position encoding is negotiated
     per LSP 3.17 — offer `utf-8` and `utf-16`, take `utf-8` when the client offers it — which needs
-    `utf16_col` and `offset_of` beside [line_col](../../crates/mwl-diagnostics/src/source.rs) at
+    `utf16_col` and `offset_of` beside [line_col](../../crates/nvs-diagnostics/src/source.rs) at
     `source.rs:95`, whose column counts `char`s and is therefore neither encoding. **Position arithmetic
-    has one home and it is `mwl-diagnostics`.** This slice also lands the rule that costs nothing now and
-    a day later: **nothing but the protocol writes to stdout**, `mwl-lsp` does not take `mwl-cli`'s
+    has one home and it is `nvs-diagnostics`.** This slice also lands the rule that costs nothing now and
+    a day later: **nothing but the protocol writes to stdout**, `nvs-lsp` does not take `nvs-cli`'s
     `clippy::print_stdout` allowance, and a test asserts no crate the server links calls `println!`.
 11. **The document store.** `Full` sync, open buffers overlaid on the `require`/`autoload` graph the
-    document is the entry point of, a debounce (150 ms, `mwl.lsp.debounce`), `$/cancelRequest`, and
+    document is the entry point of, a debounce (150 ms, `nvs.lsp.debounce`), `$/cancelRequest`, and
     cancellation of an analysis whose document version nobody is looking at any more. Two things here are
-    invisible when they work and confusing when they do not: editing `B.mwl` must re-analyse an open
-    `A.mwl` that requires it, and a BOM or a CRLF document must answer the same offsets an LF one does —
+    invisible when they work and confusing when they do not: editing `B.nvs` must re-analyse an open
+    `A.nvs` that requires it, and a BOM or a CRLF document must answer the same offsets an LF one does —
     spans are byte offsets, so normalizing line endings in this file shifts every column in the editor.
     Same file set as item 10: **one group.**
-12. **`publishDiagnostics`, phase-gated** — the existing `mwl check` pipeline, at the negotiated
+12. **`publishDiagnostics`, phase-gated** — the existing `nvs check` pipeline, at the negotiated
     encoding, with `code` from `Code` and **no `codeDescription`** (it needs a URL and there is no docs
     site; a link to a Rust constant is worse than none). Published for **open documents only**. The gate
     is the content of this slice, not a detail of it:
@@ -133,9 +133,9 @@ handler landing without them is not a finished slice.
     one typo yields a spurious `E0301` *above* the `E0102` that caused it. A file that produced an `E00xx`
     or `E01xx` diagnostic suppresses `E03xx` and `E04xx` **for that file only**. Both directions are
     cases: gated, and `phase=all`.
-13. **`hover`** — the declared type under the cursor from `mwl_types::ExprTypeTable`
-    ([expr_table.rs:433](../../crates/mwl-types/src/expr_table.rs)); for a `Core` member its
-    `mwl_stdlib::registry` signature row ([registry.rs:637](../../crates/mwl-stdlib/src/registry.rs)); for
+13. **`hover`** — the declared type under the cursor from `nvs_types::ExprTypeTable`
+    ([expr_table.rs:433](../../crates/nvs-types/src/expr_table.rs)); for a `Core` member its
+    `nvs_stdlib::registry` signature row ([registry.rs:637](../../crates/nvs-stdlib/src/registry.rs)); for
     a declaration, its own doc comment out of the trivia layer item 5 built.
 14. **`definition`** — within the document or anywhere in its resolved graph.
 15. **`completion`** — keywords filtered by position; members off a resolved receiver, instance and
@@ -152,15 +152,15 @@ handler landing without them is not a finished slice.
     fourth, resolved by the graph item 14 already walks. Four requests, one walk each, no new analysis in
     any of them: **group with item 16.**
 18. **The two code actions** — casing and `(int)$x` → `$x as int`, both translations of a `Suggestion` the
-    `Diagnostic` already carries, registered under `source.fixAll.mwl`. **A code action whose fix the
+    `Diagnostic` already carries, registered under `source.fixAll.nvs`. **A code action whose fix the
     checker would have to compute is off path**; that boundary is the whole content of this item.
 19. **The latency guard** — a full re-analysis of a ~1,000-line document under a named bound, in the shape
     `benches/abi-probe/tests/perf_guards.rs` already uses. Stage 2 traded incremental reparse away; this
     is the measurement that says the trade still holds, and it is not optional.
 
-## Stage 4 — `mwl ast --json`
+## Stage 4 — `nvs ast --json`
 
-20. **`--json` and `--resilient`** on [run_ast](../../crates/mwl-cli/src/main.rs) at `main.rs:187`. A node
+20. **`--json` and `--resilient`** on [run_ast](../../crates/nvs-cli/src/main.rs) at `main.rs:187`. A node
     is `kind`, `span` as `[start, end]`, its own scalar fields and `children`; trivia and recovery nodes
     are **included**, because the panel is least useful on a file that compiles. `--resilient` is the
     default. Frozen by a snapshot test over `examples/`. ADR 0040 § 3 assumed this already existed; it
@@ -171,7 +171,7 @@ handler landing without them is not a finished slice.
 `editors/vscode`. TypeScript, outside the Cargo workspace, exactly where
 [ADR 0016 § 5](../adr/0016-ide-integration.md) puts it.
 
-21. **The package.** `.mwl` registration (**and not `.php`**), `tsconfig`, lint, npm scripts, a committed
+21. **The package.** `.nvs` registration (**and not `.php`**), `tsconfig`, lint, npm scripts, a committed
     `package-lock.json` (`npm ci` needs one, and an unpinned tree makes the grammar snapshots reproducible
     only by luck), the four `.gitignore` lines (`node_modules/`, `out/`, `.vscode-test/`, `*.vsix` — a
     session that commits `node_modules` is a session whose commit nobody can review), and its own test
@@ -185,39 +185,39 @@ handler landing without them is not a finished slice.
     select `total`.
 
     The **identifiers are frozen here**, because a setting lives in someone's `settings.json` and a command
-    id in their keybindings: `mwl.path`, `mwl.lsp.enable`, `mwl.lsp.debounce`, `mwl.lsp.trace.server`;
-    `mwl.run`, `mwl.test`, `mwl.showAst`, `mwl.restartServer`. Add later, never rename.
+    id in their keybindings: `nvs.path`, `nvs.lsp.enable`, `nvs.lsp.debounce`, `nvs.lsp.trace.server`;
+    `nvs.run`, `nvs.test`, `nvs.showAst`, `nvs.restartServer`. Add later, never rename.
 22. **The TextMate grammar**, and its headless snapshot test through `vscode-textmate` +
     `vscode-oniguruma` — plain Node, no editor, no display. Everything it must colour, and the four
     constructs it must **not** colour as valid, is
     [ADR 0099 § 4](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s list; do not re-derive it
-    and do not shorten it. **MWL ships no colours**: every scope comes from the standard TextMate
+    and do not shorten it. **Novis ships no colours**: every scope comes from the standard TextMate
     vocabulary, and the snapshot test asserts that against an allowlist, because an invented scope no
     theme recognises renders as unstyled body text — a grammar that is technically correct and visibly
     broken. This is the largest single item in the goal and is expected to take more than one session —
     split it by construct family, not by file.
-22b. **The `.mwlt`/`.lspt` grammar** — a `begin`/`end` rule per section, anchored on `^--NAME--$` and ending
+22b. **The `.nvst`/`.lspt` grammar** — a `begin`/`end` rule per section, anchored on `^--NAME--$` and ending
     at `(?=^--[A-Z])`, with item 22's grammar `include`d inside the four sections that hold a program —
     `--FILE--`, `--FILE <path>--` (its own rule: the header carries an argument), `--SKIPIF--` and
     `--CLEAN--` — PHP's inside `--ORACLE--`, and `constant.character.escape` on the `%` escapes in
     `--EXPECTF--`/`--EXPECTF-ERROR--`. Every other section is literal text with only its delimiter
-    coloured. **The section list is [`crates/mwl-test`](../../crates/mwl-test/src/lib.rs)'s module doc** —
+    coloured. **The section list is [`crates/nvs-test`](../../crates/nvs-test/src/lib.rs)'s module doc** —
     read it rather than inferring the set from the corpus, and treat a section it names but this item does
     not as literal text. The one real risk is the PHP leg: VS Code splits PHP across `source.php` and
     `text.html.php`, and only the latter handles the `<?php` opener every `--ORACLE--` body starts with, so
     settle which one in the snapshot test rather than by reading documentation. Nearly free, and the one
-    grammar whose audience is this loop rather than MWL's users: sessions write hundreds of those files and
+    grammar whose audience is this loop rather than Novis's users: sessions write hundreds of those files and
     read them as flat grey text today. **Group with item 22** — same directory, same snapshot harness, and
     it is the cheapest possible check that item 22's grammar is embeddable at all.
-23. **The client** — spawning `mwl lsp` via `vscode-languageclient` with a configurable path falling back
+23. **The client** — spawning `nvs lsp` via `vscode-languageclient` with a configurable path falling back
     to `PATH`, the `LanguageStatusItem` for health and version, and the settings block. Plus the headless
     **protocol round-trip** that drives the real binary from Node.
-24. **Tasks** for `mwl run` and `mwl test` **with a `problemMatcher`**, and **the AST panel** over
-    `mwl ast --json --resilient`. The matcher is two regexes over the renderer's existing format
+24. **Tasks** for `nvs run` and `nvs test` **with a `problemMatcher`**, and **the AST panel** over
+    `nvs ast --json --resilient`. The matcher is two regexes over the renderer's existing format
     (`error[E0301]: message`, then `  --> file:line:col`) and is the difference between the Tasks being
     useful and being decorative — without it a failure is terminal text nobody can click. Group with item
     23: same `src/`, same test harness.
-25. **The extension host and the artifact** — the `@vscode/test-electron` suite (activation on `.mwl` and
+25. **The extension host and the artifact** — the `@vscode/test-electron` suite (activation on `.nvs` and
     not `.php`, Tasks present, status item rendering, panel populating, and **the semantic-token legend
     the client registers equal to the one the server declares**, which no unit test on either side alone
     can see), `.vsix` packaging, and **two** CI jobs beside the existing nine: the headless suites on all
@@ -251,7 +251,7 @@ Every one was settled with the user before the run. Implement it; do not re-open
   default.
 - **One grammar, one tree — the `rowan` question is closed.** ADR 0099 § 1 settles it and names what was
   given up (incremental reparse) and what protects the trade (item 19's guard). If the implementation
-  forces the opposite conclusion, keep this design, record *that* in `mwl-syntax`'s module doc with the
+  forces the opposite conclusion, keep this design, record *that* in `nvs-syntax`'s module doc with the
   reason, and put the CST in the handoff's Backlog — do not start a rewrite mid-run.
 - **`lsp-server` and `lsp-types`, and no async runtime.** `tokio` does not enter this workspace. If a
   needed capability appears to require it, that is a real `BLOCKED` naming the capability — not a
@@ -264,8 +264,8 @@ Every one was settled with the user before the run. Implement it; do not re-open
   dependency owes the allowlist entry item 21 builds and nothing else; npm dependencies are `devDependencies`
   wherever they can be, because a runtime dependency of the extension ships to users and a test library does
   not.
-- **The extension is `.mwl` only.** It does not claim `.php` even though `mwl-syntax` parses it — that
-  fight is with every PHP extension a user already has, and losing it silently looks like MWL being broken.
+- **The extension is `.nvs` only.** It does not claim `.php` even though `nvs-syntax` parses it — that
+  fight is with every PHP extension a user already has, and losing it silently looks like Novis being broken.
 - **Nothing is published.** `.vsix` as a CI artifact; no Marketplace publisher, no listing, no icon or
   branding work. ADR 0016 *Revisiting* keeps that open and this goal does not close it.
 - **Nine requests and two code actions, and that list is closed.** The three beyond the original six —
@@ -280,8 +280,8 @@ Every one was settled with the user before the run. Implement it; do not re-open
 - **The extension-host tier never gates an iteration.** It is memoized against the green tree. A session
   that finds it red fixes it like any other check; a session that finds it *unrunnable* (no display, no
   cached VS Code build) says so in the handoff and does not spend the session on the machine.
-- **`.lspt` and `.mwlt` stay two suites.** They share a section lexer and nothing else. Do not add LSP
-  sections to `.mwlt`: `mwl test`'s `N passed` is the number Stage 1's floor gates on, and making it count
+- **`.lspt` and `.nvst` stay two suites.** They share a section lexer and nothing else. Do not add LSP
+  sections to `.nvst`: `nvs test`'s `N passed` is the number Stage 1's floor gates on, and making it count
   two unlike things breaks that gate and `conformance_coverage.rs` with it.
 - **Backlog items are off-path unless the goal needs them.** `## Backlog` in the handoff, and move on.
 - **Doc trimming is not loop work, ever**, and neither is a dependency sweep. Both are the user's to fire.
@@ -290,11 +290,11 @@ Every one was settled with the user before the run. Implement it; do not re-open
 
 Named because none is visible from the milestone's text, and each is work rather than a question.
 
-- **`mwl ast --json` does not exist** — ADR 0040 § 3 says it does. Item 20.
-- **`SourceFile::line_col` counts `char`s** ([source.rs:95](../../crates/mwl-diagnostics/src/source.rs)),
+- **`nvs ast --json` does not exist** — ADR 0040 § 3 says it does. Item 20.
+- **`SourceFile::line_col` counts `char`s** ([source.rs:95](../../crates/nvs-diagnostics/src/source.rs)),
   which is neither UTF-8 nor UTF-16. Every column an LSP answer carries is wrong the moment a line holds a
   multi-byte character, and it is invisible on ASCII — which is what every fixture in this repository is.
-  Item 10 fixes it once, in `mwl-diagnostics`, and no other crate may do its own conversion.
+  Item 10 fixes it once, in `nvs-diagnostics`, and no other crate may do its own conversion.
 - **`orient.py` cannot see `editors/`.** Its `[context] modules` globs `crates/*/src/**/*.rs` only, so a
   session working in TypeScript orients on nothing. The tooling change lands with this goal; if a session
   finds it still missing, that is item 21's blocker and belongs in the handoff.

@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::at indexes by grapheme cluster, and ::upper/::lower are Unicode-aware — ADR 0009 § 2
 --FILE--
-<?mwl
+<?nvs
 string $accented = "héllo";
 echo Core\Str::length($accented), "\n";
 echo Core\Str::at($accented, 0), Core\Str::at($accented, 1), Core\Str::at($accented, 4), "\n";

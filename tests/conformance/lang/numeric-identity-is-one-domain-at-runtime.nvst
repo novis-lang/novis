@@ -1,7 +1,7 @@
 --TEST--
 `int`, `uint`, `float` and `decimal` are one numeric domain wherever equality is resolved at runtime — a `mixed` `==` and `Core\Arr`'s strict identity alike — ADR 0090 §§ 3, 5
 --FILE--
-<?mwl
+<?nvs
 // § 5: a `mixed` operand resolves on the runtime tags and applies § 3's
 // table, whose numeric row is *one* row — so this is `true` where PHP's
 // `1 === 1.0` was `false`.

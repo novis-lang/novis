@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::sort's `{by}` orders by a projected key the way usort over the same projection does
 --FILE--
-<?mwl
+<?nvs
 array<string> $words = ["ccc", "a", "dddd", "bb"];
 echo Core\Str::join(Core\Arr::sort($words, {by: fn(string $s): int => Core\Str::length($s) as int}), ","), "\n";
 echo Core\Str::join(Core\Arr::sort($words), ","), "\n";

@@ -1,7 +1,7 @@
 --TEST--
 Interpolation and concatenation move a `string` whole; `Core\Str::length` and `::at` count the clusters ADR 0009 § 2 fixes
 --FILE--
-<?mwl
+<?nvs
 var $s = "héllo👍";
 echo Core\Str::length($s), "\n";
 echo Core\Str::at($s, 5), "\n";

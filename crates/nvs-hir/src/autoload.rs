@@ -33,14 +33,14 @@
 //!   one whose base directory does not exist, since a typo that silently
 //!   autoloads nothing is the worst outcome available.
 //! - **The on-disk entry's name is compared exactly.** A case-insensitive
-//!   filesystem happily opens `mailer.mwl` for `Mailer`; that is a *miss*
+//!   filesystem happily opens `mailer.nvs` for `Mailer`; that is a *miss*
 //!   here rather than a diagnostic, because nothing in the source spelled a
 //!   path to blame — the file is simply not the one the name asks for, and on
 //!   Linux it would not have been found at all
 //!   ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 //!   § 3).
 //!
-//! `mwl check --autoload-map` prints the result, which is why the two things
+//! `nvs check --autoload-map` prints the result, which is why the two things
 //! a `discover` glob does *quietly* — passing over a directory that cannot
 //! name a namespace, and producing a prefix an explicit declaration already
 //! owns — are kept on the map rather than dropped where they happen.
@@ -72,16 +72,16 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use mwl_syntax::ast::{NamespaceDecl, Stmt, StmtKind};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_syntax::ast::{NamespaceDecl, Stmt, StmtKind};
 
 use crate::qname::QName;
 
 /// The file extension every autoloaded declaration lives in.
-const SOURCE_EXTENSION: &str = "mwl";
+const SOURCE_EXTENSION: &str = "nvs";
 
 /// One `autoload` declaration, cooked out of its
-/// [`mwl_syntax::ast::AutoloadDecl`] spans by [`crate::requires`].
+/// [`nvs_syntax::ast::AutoloadDecl`] spans by [`crate::requires`].
 #[derive(Clone, Debug)]
 pub struct Site {
     /// The directory of the file that wrote the declaration; every path in
@@ -146,8 +146,8 @@ pub struct Probe {
     /// The file that declares the name, canonicalized.
     pub hit: Option<PathBuf>,
     /// Every path probed, in order, *including* the misses — ADR 0061 § 5's
-    /// shadowing edge: adding `src/Thing.mwl` where `App\Thing` currently
-    /// resolves to `vendor/compat/Thing.mwl` changes the answer without
+    /// shadowing edge: adding `src/Thing.nvs` where `App\Thing` currently
+    /// resolves to `vendor/compat/Thing.nvs` changes the answer without
     /// touching a file anything already hashed.
     pub tried: Vec<PathBuf>,
 }
@@ -221,7 +221,7 @@ impl AutoloadMap {
     /// Longest matching prefix wins; within a prefix, roots are probed in
     /// declaration order and the first hit wins (ADR 0061 § 1's Composer
     /// rule). The remaining segments are directories and the last is the file
-    /// name plus `.mwl`, compared to the on-disk entry exactly.
+    /// name plus `.nvs`, compared to the on-disk entry exactly.
     #[must_use]
     pub fn resolve(&self, name: &QName) -> Probe {
         let mut probe = Probe::default();
@@ -265,7 +265,7 @@ impl AutoloadMap {
         probe
     }
 
-    /// Renders the resolved map for `mwl check --autoload-map` — ADR 0061
+    /// Renders the resolved map for `nvs check --autoload-map` — ADR 0061
     /// § 1's last sentence, which asks for what was *skipped* and what was
     /// *shadowed* beside the prefixes that resolve.
     ///
@@ -371,7 +371,7 @@ fn canonical(base_dir: &Path, root: &str) -> PathBuf {
 /// What one `autoload discover '<glob>'` expanded to.
 ///
 /// The skipped half is not resolution's business — nothing probes it — but
-/// § 1 promises `mwl check --autoload-map` prints it, and this is the only
+/// § 1 promises `nvs check --autoload-map` prints it, and this is the only
 /// place that knows why a matched directory produced no prefix.
 #[derive(Debug, Default)]
 struct Discovered {

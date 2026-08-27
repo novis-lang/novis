@@ -1,7 +1,7 @@
 --TEST--
 `as` over ADR 0007 § 2's scalar rows, every one of them succeeding
 --FILE--
-<?mwl
+<?nvs
 echo "42" as int, "\n";
 echo "-7" as int, "\n";
 echo 3.0 as int, "\n";

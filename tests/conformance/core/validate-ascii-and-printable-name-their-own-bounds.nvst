@@ -1,16 +1,16 @@
 --TEST--
 `Core\Validate::isAscii` and `isPrintable` each name the last code point they accept beside the first they refuse, and the sweep between the two bounds counts the four cells they carve out — docs/spec/01-core-library.md § 12
 --FILE--
-<?mwl
+<?nvs
 // § 12's two character-class predicates draw two *different* lines over the
 // same subject: `isAscii` asks an encoding question (every byte under `0x80`)
 // and `isPrintable` a Unicode one (no `char` in general category `Cc`).
-// `validate-ip-families-and-the-two-byte-classes.mwlt` crosses them at three
+// `validate-ip-families-and-the-two-byte-classes.nvst` crosses them at three
 // named subjects; this case pins where each line actually falls, by naming the
 // last code point accepted beside the first refused, so a member that stops one
 // entry early still prints plausibly against either half alone.
 //
-// `crates/mwl-stdlib/src/validate.rs`'s module doc owns why these are two
+// `crates/nvs-stdlib/src/validate.rs`'s module doc owns why these are two
 // questions rather than one asked twice, and why `isPrintable` is not a
 // spoofing check.
 final class Cp {

@@ -1,7 +1,7 @@
 --TEST--
 A static property is one slot named by its declaring class, whichever spelling reaches it
 --FILE--
-<?mwl
+<?nvs
 // Storage is request-scoped, and the declaring class is its identity — see
 // `docs/adr/README.md` § *Decisions taken at project start*. Every spelling
 // below resolves to the same slot, so the reads are what prove it.

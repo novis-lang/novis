@@ -1,7 +1,7 @@
 --TEST--
 An integer quotient answers PHP's own value and renders PHP's own way, overflow and zero divisor included — ADR 0007 § 4
 --FILE--
-<?mwl
+<?nvs
 int $six = 6;
 int $three = 3;
 int $seven = 7;

@@ -1,15 +1,15 @@
 --TEST--
 `Core\Bytes::unpack` reads the same format `pack` writes, positionally, and refuses a buffer the format does not describe — spec § 7
 --FILE--
-<?mwl
+<?nvs
 // Spec § 7's `unpack(bytes $b, string $format): array<mixed>`. The answer is a
 // positional list rather than PHP's name→value map, because one shared code
 // table is what makes the round trip below exact — see
-// `crates/mwl-stdlib/src/bytes.rs`.
+// `crates/nvs-stdlib/src/bytes.rs`.
 //
 // A buffer field (`a`/`A`/`Z`) is read by the same member, but nothing here
 // can *print* one: `mixed as bytes` has no lowering row yet, so those fields
-// are pinned in `mwl-stdlib`'s own unit tests and only their boundary is
+// are pinned in `nvs-stdlib`'s own unit tests and only their boundary is
 // observed below, as an element count.
 
 // The round trip, field for field, over both signednesses and both widths.

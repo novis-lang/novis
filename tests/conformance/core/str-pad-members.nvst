@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::padStart and ::padEnd reach the asked-for length and never truncate
 --FILE--
-<?mwl
+<?nvs
 echo "[", Core\Str::padStart("7", 4, "0"), "]\n";
 echo "[", Core\Str::padEnd("7", 4, "."), "]\n";
 echo "[", Core\Str::padStart("toolong", 3, "0"), "]\n";

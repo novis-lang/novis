@@ -68,7 +68,7 @@
 //!    pattern, which is the one place this module is currently *less* safe
 //!    than that ADR requires.
 //! 2. **The step budget is a constant, not a directive.** ADR 0056 § 2 puts
-//!    the default in `mwl.toml` under ADR 0005's ordinary rules, and there is
+//!    the default in `nvs.toml` under ADR 0005's ordinary rules, and there is
 //!    no configuration subsystem before M6. [`BACKTRACK_BUDGET`] is that
 //!    default, stated once, and reading it from config is a change to that one
 //!    line.
@@ -84,7 +84,7 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
+use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::granularity::DEFAULT;
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
@@ -105,14 +105,14 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Str, CoreTy::Options(COMPILE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Instance(PATTERN_NAME),
-            symbol: "mwl_core_regex_compile",
+            symbol: "nvs_core_regex_compile",
         },
         CoreMethod {
             name: "matches",
             params: &[CoreTy::Str, CoreTy::Union(PATTERN_OR_STRING)],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_regex_matches",
+            symbol: "nvs_core_regex_matches",
         },
         CoreMethod {
             name: "match",
@@ -123,14 +123,14 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME)),
-            symbol: "mwl_core_regex_match",
+            symbol: "nvs_core_regex_match",
         },
         CoreMethod {
             name: "matchAll",
             params: &[CoreTy::Str, CoreTy::Union(PATTERN_OR_STRING)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(MATCH_NAME)),
-            symbol: "mwl_core_regex_match_all",
+            symbol: "nvs_core_regex_match_all",
         },
         CoreMethod {
             name: "replace",
@@ -142,7 +142,7 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_regex_replace",
+            symbol: "nvs_core_regex_replace",
         },
         CoreMethod {
             name: "replaceWith",
@@ -154,7 +154,7 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_regex_replace_with",
+            symbol: "nvs_core_regex_replace_with",
         },
         CoreMethod {
             name: "split",
@@ -165,14 +165,14 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
-            symbol: "mwl_core_regex_split",
+            symbol: "nvs_core_regex_split",
         },
         CoreMethod {
             name: "quote",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_regex_quote",
+            symbol: "nvs_core_regex_quote",
         },
     ],
     instance: &[],
@@ -186,7 +186,7 @@ const PATTERN_NAME: &str = r"Core\Regex\Pattern";
 
 /// Spec § 5's `Core\Regex\Pattern` — a pattern plus the four compilation
 /// flags, which is what PCRE's `/…/imsU` delimiter-and-modifier syntax carried
-/// and MWL has no syntax for.
+/// and Novis has no syntax for.
 ///
 /// **Two slots and no member of its own.** A `Pattern` is a *handle*: nothing
 /// asks it a question, and every one of § 5's matching members takes one where
@@ -197,7 +197,7 @@ const PATTERN_NAME: &str = r"Core\Regex\Pattern";
 ///
 /// The slots are the pattern **as the program wrote it** and the flags as a
 /// bitmask, not a compiled program: [`crate::instance`]'s first decision is
-/// that a `Core` instance holds only values MWL already holds, and the
+/// that a `Core` instance holds only values Novis already holds, and the
 /// compiled form lives in this module's per-core cache, which
 /// [`compiled`] reaches with exactly this pair. Keeping the original text
 /// rather than the flag-folded one ([`effective`]) is what lets a throw quote
@@ -237,7 +237,7 @@ const PATTERN_OR_STRING: &[CoreTy] = &[CoreTy::Instance(PATTERN_NAME), CoreTy::S
 /// silently different pattern, and a `x` PHP accepts and this table does not
 /// would be silently dropped. The four are exactly PCRE's `i`, `m`, `s` and
 /// `U`; `x` (extended) has no option because the whitespace it ignores is not
-/// a thing an MWL pattern carries, and `u` (Unicode) is not optional — both
+/// a thing an Novis pattern carries, and `u` (Unicode) is not optional — both
 /// engines are Unicode-aware always.
 const COMPILE_OPTIONS: &[CoreOption] = &[
     CoreOption {
@@ -287,7 +287,7 @@ const MATCH_NAME: &str = r"Core\Regex\Match";
 /// forbids one) together with `PREG_OFFSET_CAPTURE`.
 ///
 /// Four members over two slots, and no static member at all: a `Match` is only
-/// ever produced by [`mwl_core_regex_match`] or [`mwl_core_regex_match_all`].
+/// ever produced by [`nvs_core_regex_match`] or [`nvs_core_regex_match_all`].
 /// [`crate::instance`] owns what a `Core`-owned instance *is*; what belongs
 /// here is what this one holds.
 ///
@@ -311,28 +311,28 @@ pub const MATCH: CoreClass = CoreClass {
             params: &[CoreTy::Union(&[CoreTy::Int, CoreTy::Str])],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "mwl_core_regex_match_group",
+            symbol: "nvs_core_regex_match_group",
         },
         CoreMethod {
             name: "groups",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Nullable(&CoreTy::Str)),
-            symbol: "mwl_core_regex_match_groups",
+            symbol: "nvs_core_regex_match_groups",
         },
         CoreMethod {
             name: "offset",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_regex_match_offset",
+            symbol: "nvs_core_regex_match_offset",
         },
         CoreMethod {
             name: "text",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_regex_match_text",
+            symbol: "nvs_core_regex_match_text",
         },
     ],
     slots: &["groups", "offset"],
@@ -353,7 +353,7 @@ const OFFSET_SLOT: usize = 1;
 /// searching at, defaulting to its beginning.
 ///
 /// A [`crate::granularity::DEFAULT`]-unit index, like every other `string`
-/// position MWL takes or hands back, and negative counts from the end under
+/// position Novis takes or hands back, and negative counts from the end under
 /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R8. It is
 /// **not** `preg_match`'s `$offset`, which counts bytes and documents that a
 /// value inside a multi-byte character is undefined behaviour.
@@ -386,7 +386,7 @@ const REPLACE_OPTIONS: &[CoreOption] = &[CoreOption {
 ///
 /// `limit` has **`Core\Str::split`'s three-sign rule**, which that member's
 /// own docs state and this one does not repeat — one word, one meaning, across
-/// the two members that carry it. [`mwl_core_regex_split`] owns the single
+/// the two members that carry it. [`nvs_core_regex_split`] owns the single
 /// place that rule and PHP's `preg_split` disagree.
 const SPLIT_OPTIONS: &[CoreOption] = &[
     CoreOption {
@@ -405,18 +405,18 @@ const SPLIT_OPTIONS: &[CoreOption] = &[
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_regex_compile" => (mwl_core_regex_compile as *const ()).cast(),
-        "mwl_core_regex_matches" => (mwl_core_regex_matches as *const ()).cast(),
-        "mwl_core_regex_match" => (mwl_core_regex_match as *const ()).cast(),
-        "mwl_core_regex_match_all" => (mwl_core_regex_match_all as *const ()).cast(),
-        "mwl_core_regex_match_group" => (mwl_core_regex_match_group as *const ()).cast(),
-        "mwl_core_regex_match_groups" => (mwl_core_regex_match_groups as *const ()).cast(),
-        "mwl_core_regex_match_offset" => (mwl_core_regex_match_offset as *const ()).cast(),
-        "mwl_core_regex_match_text" => (mwl_core_regex_match_text as *const ()).cast(),
-        "mwl_core_regex_replace" => (mwl_core_regex_replace as *const ()).cast(),
-        "mwl_core_regex_replace_with" => (mwl_core_regex_replace_with as *const ()).cast(),
-        "mwl_core_regex_split" => (mwl_core_regex_split as *const ()).cast(),
-        "mwl_core_regex_quote" => (mwl_core_regex_quote as *const ()).cast(),
+        "nvs_core_regex_compile" => (nvs_core_regex_compile as *const ()).cast(),
+        "nvs_core_regex_matches" => (nvs_core_regex_matches as *const ()).cast(),
+        "nvs_core_regex_match" => (nvs_core_regex_match as *const ()).cast(),
+        "nvs_core_regex_match_all" => (nvs_core_regex_match_all as *const ()).cast(),
+        "nvs_core_regex_match_group" => (nvs_core_regex_match_group as *const ()).cast(),
+        "nvs_core_regex_match_groups" => (nvs_core_regex_match_groups as *const ()).cast(),
+        "nvs_core_regex_match_offset" => (nvs_core_regex_match_offset as *const ()).cast(),
+        "nvs_core_regex_match_text" => (nvs_core_regex_match_text as *const ()).cast(),
+        "nvs_core_regex_replace" => (nvs_core_regex_replace as *const ()).cast(),
+        "nvs_core_regex_replace_with" => (nvs_core_regex_replace_with as *const ()).cast(),
+        "nvs_core_regex_split" => (nvs_core_regex_split as *const ()).cast(),
+        "nvs_core_regex_quote" => (nvs_core_regex_quote as *const ()).cast(),
         _ => return None,
     })
 }
@@ -608,7 +608,7 @@ struct Given {
 /// # Errors
 ///
 /// A `Fault::fatal` for anything that is neither, which compiled code cannot
-/// produce — `mwl_types` has already checked this parameter against the union.
+/// produce — `nvs_types` has already checked this parameter against the union.
 fn pattern_of(value: &Value, member: &str) -> Result<Given, Fault> {
     if value.as_str_bytes().is_some() {
         return Ok(Given {
@@ -672,17 +672,17 @@ fn boolean(value: &Value, member: &str, position: &str) -> Result<bool, Fault> {
 
 /// A freshly built `string` result.
 fn produced(text: &str) -> HelperResult {
-    Ok(Value::str(MwlStr::new(text.as_bytes())))
+    Ok(Value::str(NvsStr::new(text.as_bytes())))
 }
 
 // ============================================================================
 // The members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Regex::compile(string $pattern, {caseInsensitive?, multiline?,
     /// dotAll?, ungreedy?}): Pattern` — replacing PCRE's
-    /// `/…/imsU` delimiter-and-modifier syntax, which MWL has no grammar for.
+    /// `/…/imsU` delimiter-and-modifier syntax, which Novis has no grammar for.
     ///
     /// **Compiles eagerly**, and throws here rather than at the first match if
     /// neither engine can take the pattern: a `compile` that deferred every
@@ -690,7 +690,7 @@ mwl_runtime::mwl_helper! {
     /// mistake at a line that did not make it. The compiled program goes
     /// straight into this core's cache under the pair the returned [`PATTERN`]
     /// carries, so the first match against it is already a hit.
-    fn mwl_core_regex_compile(_ctx, args: [5]) {
+    fn nvs_core_regex_compile(_ctx, args: [5]) {
         let pattern = text(&args[0], "compile", "the pattern")?;
         let mut flags = NO_FLAGS;
         for (slot, option, flag) in [
@@ -707,20 +707,20 @@ mwl_runtime::mwl_helper! {
         Ok(crate::instance::build(
             &PATTERN,
             [
-                Value::str(MwlStr::new(pattern.as_bytes())),
+                Value::str(NvsStr::new(pattern.as_bytes())),
                 Value::int(i64::from(flags)),
             ],
         ))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Regex::matches(string $subject, string $pattern): bool` —
     /// replacing `preg_match` used as a predicate.
     ///
     /// The pattern is unanchored, as PHP's is: it asks whether the subject
     /// *contains* a match, and `^`/`$` are how a call asks for more.
-    fn mwl_core_regex_matches(_ctx, args: [2]) {
+    fn nvs_core_regex_matches(_ctx, args: [2]) {
         let subject = text(&args[0], "matches", "the subject")?;
         let given = pattern_of(&args[1], "matches")?;
         let pattern = text(&given.text, "matches", "the pattern")?;
@@ -788,13 +788,13 @@ fn start_byte(subject: &str, from: i64) -> usize {
 fn built_match(subject: &str, names: &[Option<&str>], captured: &Captured<'_>) -> Value {
     let text_of = |group: Option<(usize, &str)>| {
         group.map_or_else(Value::null, |(_, text)| {
-            Value::str(MwlStr::new(text.as_bytes()))
+            Value::str(NvsStr::new(text.as_bytes()))
         })
     };
-    let mut groups = MwlArray::new();
+    let mut groups = NvsArray::new();
     for (number, group) in captured.iter().enumerate() {
         if let Some(name) = names.get(number).copied().flatten() {
-            groups.set(MwlStr::new(name.as_bytes()), text_of(*group));
+            groups.set(NvsStr::new(name.as_bytes()), text_of(*group));
         }
         groups.append(text_of(*group));
     }
@@ -816,7 +816,7 @@ fn built_match(subject: &str, names: &[Option<&str>], captured: &Captured<'_>) -
 
 /// The group array one of [`MATCH`]'s members reads, borrowed from its
 /// receiver.
-fn group_array(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<MwlArray>, Fault> {
+fn group_array(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
     let receiver = crate::instance::receiver(args[0], &MATCH, member)?;
     let groups = crate::instance::slot(receiver, GROUPS_SLOT);
     let array = groups.array_ptr().ok_or_else(|| {
@@ -830,7 +830,7 @@ fn group_array(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<Mw
 
 /// One `int|string` group key as the bytes an array is keyed by — an integer
 /// group is stored under its decimal rendering, which is how every integer key
-/// in an MWL array is spelled.
+/// in an Novis array is spelled.
 fn group_key(value: &Value, member: &str) -> Result<Vec<u8>, Fault> {
     if let Some(number) = value.as_int() {
         return Ok(number.to_string().into_bytes());
@@ -844,7 +844,7 @@ fn group_key(value: &Value, member: &str) -> Result<Vec<u8>, Fault> {
     )))
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Regex::match(string $subject, string $pattern, {from?: int}): ?Match`
     /// — replacing `preg_match`, its `$matches` out-parameter and
     /// `PREG_OFFSET_CAPTURE` at once.
@@ -853,7 +853,7 @@ mwl_runtime::mwl_helper! {
     /// spelling — there is no `0`/`false`/`1` return to read, and no error code
     /// beside it, because a pattern that cannot run throws
     /// ([`budget_exhausted`], [`compiled`]).
-    fn mwl_core_regex_match(_ctx, args: [3]) {
+    fn nvs_core_regex_match(_ctx, args: [3]) {
         let subject = text(&args[0], "match", "the subject")?;
         let given = pattern_of(&args[1], "match")?;
         let pattern = text(&given.text, "match", "the pattern")?;
@@ -877,7 +877,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Regex::matchAll(string $subject, string $pattern): array<Match>` —
     /// replacing `preg_match_all` and both of its ordering flags.
     ///
@@ -890,14 +890,14 @@ mwl_runtime::mwl_helper! {
     /// **Each match's `offset` is converted from bytes independently**, which
     /// costs a pass over the subject's prefix per match — gap 3 above owns
     /// that.
-    fn mwl_core_regex_match_all(_ctx, args: [2]) {
+    fn nvs_core_regex_match_all(_ctx, args: [2]) {
         let subject = text(&args[0], "matchAll", "the subject")?;
         let given = pattern_of(&args[1], "matchAll")?;
         let pattern = text(&given.text, "matchAll", "the pattern")?;
 
         let compiled = compiled(pattern, given.flags, "matchAll")?;
         let names = names_of(&compiled);
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         match &*compiled {
             Compiled::Linear(re) => {
                 for caps in re.captures_iter(subject) {
@@ -916,7 +916,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$match->group(int|string $group): ?string` — one group's text, or
     /// `null` where the pattern declares that group but this match did not
     /// reach it.
@@ -926,7 +926,7 @@ mwl_runtime::mwl_helper! {
     /// R4's throw says "there is no such group to ask about." PHP answers both
     /// with an absent array entry, which is why `preg_match` code so often
     /// reads a typo as an empty capture.
-    fn mwl_core_regex_match_group(_ctx, args: [2]) {
+    fn nvs_core_regex_match_group(_ctx, args: [2]) {
         let groups = group_array(args, "group")?;
         let key = group_key(&args[1], "group")?;
         let found = groups.get(&key).ok_or_else(|| {
@@ -947,7 +947,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$match->groups(): array<?string>` — every group at once, in
     /// `preg_match`'s own order and shape ([`built_match`]).
     ///
@@ -958,12 +958,12 @@ mwl_runtime::mwl_helper! {
     /// out of the array and writes `""` for the ones in the middle, conflating
     /// "not declared", "declared and did not participate" and "participated
     /// and captured nothing" — the first two are exactly what
-    /// [`mwl_core_regex_match_group`]'s throw-versus-`null` split is built on,
+    /// [`nvs_core_regex_match_group`]'s throw-versus-`null` split is built on,
     /// so the flagged reading is the only one that can carry it.
-    /// `tests/differential/core/regex-match-groups-is-preg_match-s-matches-under-unmatched-as-null.mwlt`
+    /// `tests/differential/core/regex-match-groups-is-preg_match-s-matches-under-unmatched-as-null.nvst`
     /// counts the difference: over twelve rows the two readings part on six of
     /// them, six entries short in total.
-    fn mwl_core_regex_match_groups(_ctx, args: [1]) {
+    fn nvs_core_regex_match_groups(_ctx, args: [1]) {
         let receiver = crate::instance::receiver(args[0], &MATCH, "groups")?;
         let groups = crate::instance::slot(receiver, GROUPS_SLOT);
         #[expect(
@@ -978,22 +978,22 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$match->offset(): int` — where the whole match starts in the subject,
     /// counted in [`crate::granularity::DEFAULT`]'s unit like every other
     /// `string` position, not in `PREG_OFFSET_CAPTURE`'s bytes.
-    fn mwl_core_regex_match_offset(_ctx, args: [1]) {
+    fn nvs_core_regex_match_offset(_ctx, args: [1]) {
         let receiver = crate::instance::receiver(args[0], &MATCH, "offset")?;
         Ok(crate::instance::slot(receiver, OFFSET_SLOT))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$match->text(): string` — the whole match's text, which is group `0`.
     ///
     /// Not nullable: group 0 participates in every match an engine reports, so
     /// a missing slot here is a corrupted instance rather than an absent value.
-    fn mwl_core_regex_match_text(_ctx, args: [1]) {
+    fn nvs_core_regex_match_text(_ctx, args: [1]) {
         let groups = group_array(args, "text")?;
         let whole = groups.get(b"0").ok_or_else(|| {
             Fault::fatal("Core\\Regex\\Match::text() found no group `0` on this match")
@@ -1010,13 +1010,13 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Regex::replace(string $subject, string $pattern, string $replacement, {limit?: uint}): string`
     /// — replacing `preg_replace`.
     ///
     /// **`$1` and `${name}` are the group spellings**, and `$$` is a literal
     /// `$`. PHP additionally accepts `\1`; it is not accepted here, because
-    /// `\1` inside a double-quoted MWL string is already an escape the lexer
+    /// `\1` inside a double-quoted Novis string is already an escape the lexer
     /// reads, so the same source text would mean two different things
     /// depending on the quote used to write it. A group reference that names
     /// no group expands to the empty string, as PHP's does.
@@ -1024,7 +1024,7 @@ mwl_runtime::mwl_helper! {
     /// `limit` counts *replacements*, defaults to every one, and a limit of
     /// `0` replaces nothing — which is the reading the option's `uint` type
     /// forces and the one PHP's own `preg_replace` gives it.
-    fn mwl_core_regex_replace(_ctx, args: [4]) {
+    fn nvs_core_regex_replace(_ctx, args: [4]) {
         let subject = text(&args[0], "replace", "the subject")?;
         let given = pattern_of(&args[1], "replace")?;
         let pattern = text(&given.text, "replace", "the pattern")?;
@@ -1053,19 +1053,19 @@ mwl_runtime::mwl_helper! {
 ///
 /// Exactly two references are created here and both are released here: the
 /// [`MATCH`] this frame builds for the callback, and the `string` the callback
-/// answers with, which `mwl_runtime::call_closure` hands back as one fresh
+/// answers with, which `nvs_runtime::call_closure` hands back as one fresh
 /// reference. Each release is written *before* the `?` that could carry the
 /// failure out — a throw from inside the callback and an answer of the wrong
 /// tag are the two edges a plain `?` would otherwise leak past.
 fn replacement_for(
-    ctx: &mut mwl_runtime::Ctx,
+    ctx: &mut nvs_runtime::Ctx,
     callback: Value,
     subject: &str,
     names: &[Option<&str>],
     captured: &Captured<'_>,
 ) -> Result<String, Fault> {
     let matched = built_match(subject, names, captured);
-    let answered = mwl_runtime::call_closure(ctx, callback, &[matched]);
+    let answered = nvs_runtime::call_closure(ctx, callback, &[matched]);
     #[expect(
         unsafe_code,
         reason = "this frame owns exactly the reference `built_match` produced, \
@@ -1086,20 +1086,20 @@ fn replacement_for(
     copied
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Regex::replaceWith(string $subject, Pattern|string $pattern, callable $fn, {limit?: uint}): string`
     /// — replacing `preg_replace_callback` and `preg_replace_callback_array`.
     ///
     /// The callback is handed **one [`MATCH`]**, not PHP's positional array,
     /// so `$m->group("year")` reads here exactly as it does on the result of
-    /// [`mwl_core_regex_match`] — including the throw for a group the pattern
+    /// [`nvs_core_regex_match`] — including the throw for a group the pattern
     /// never declared. `preg_replace_callback_array`'s several-patterns form
     /// is a loop over this member rather than a second shape of argument,
     /// which ADR 0063 R7 is the rule for.
     ///
     /// **What the callback answers is inserted literally.** A `$1` in it is
     /// two characters rather than a group reference, which is the one place
-    /// this member reads differently from [`mwl_core_regex_replace`]'s
+    /// this member reads differently from [`nvs_core_regex_replace`]'s
     /// template — the callback already held every group, so a second
     /// expansion pass over its answer could only corrupt text it chose.
     ///
@@ -1113,7 +1113,7 @@ mwl_runtime::mwl_helper! {
     /// collecting first spends one [`Captured`] per match for the length of
     /// the call, which is AGENTS.md's ordering buying priority 4 with
     /// priority 5.
-    fn mwl_core_regex_replace_with(ctx, args: [4]) {
+    fn nvs_core_regex_replace_with(ctx, args: [4]) {
         let subject = text(&args[0], "replaceWith", "the subject")?;
         let given = pattern_of(&args[1], "replaceWith")?;
         let pattern = text(&given.text, "replaceWith", "the pattern")?;
@@ -1178,7 +1178,7 @@ fn pieces_of<'a>(
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Regex::split(string $subject, string $pattern, {limit?: int, keepEmpty?: bool}): array<string>`
     /// — replacing `preg_split` and its four flags.
     ///
@@ -1203,7 +1203,7 @@ mwl_runtime::mwl_helper! {
     /// option: the first returns a differently-shaped array from the same
     /// member, which ADR 0063 R7 refuses, and the second is what `matchAll`
     /// answers.
-    fn mwl_core_regex_split(_ctx, args: [4]) {
+    fn nvs_core_regex_split(_ctx, args: [4]) {
         let subject = text(&args[0], "split", "the subject")?;
         let given = pattern_of(&args[1], "split")?;
         let pattern = text(&given.text, "split", "the pattern")?;
@@ -1225,15 +1225,15 @@ mwl_runtime::mwl_helper! {
             pieces.retain(|piece| !piece.is_empty());
         }
 
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         for piece in pieces {
-            out.append(Value::str(MwlStr::new(piece.as_bytes())));
+            out.append(Value::str(NvsStr::new(piece.as_bytes())));
         }
         Ok(Value::array(out))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Regex::quote(string $literal): string` — replacing `preg_quote`,
     /// and ADR 0056 § 4's one laundering member for the pattern sink.
     ///
@@ -1253,9 +1253,9 @@ mwl_runtime::mwl_helper! {
     /// handed in. What the two do agree on is the property both are for — the
     /// result matches its own literal, matches it inside a larger subject, and
     /// matches nothing else — which
-    /// `tests/differential/core/regex-quote-and-preg_quote-escape-different-sets-and-match-the-same-literals.mwlt`
+    /// `tests/differential/core/regex-quote-and-preg_quote-escape-different-sets-and-match-the-same-literals.nvst`
     /// counts over the whole ASCII table rather than comparing row by row.
-    fn mwl_core_regex_quote(_ctx, args: [1]) {
+    fn nvs_core_regex_quote(_ctx, args: [1]) {
         let literal = text(&args[0], "quote", "the literal")?;
         produced(&regex::escape(literal))
     }
@@ -1351,7 +1351,7 @@ mod tests {
 
     /// The four flags are part of the key, not of the text: one pattern under
     /// two flag sets is two compiled programs, and each behaves as its flags
-    /// say — the property `regex-compile-carries-the-four-flags.mwlt` then
+    /// say — the property `regex-compile-carries-the-four-flags.nvst` then
     /// pins through the members, one flag at a time.
     #[test]
     fn the_flags_are_part_of_the_key_and_reach_the_engine() {

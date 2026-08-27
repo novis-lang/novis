@@ -1,7 +1,7 @@
 --TEST--
 `as ?T` into a literal, enum-case or whole-enum target answers `null` on exactly the values `as T` throws on, and coerces no more than it does — ADR 0066 § 3 row 2, over ADR 0047 § 5's membership chain and ADR 0010 § 5's two enum rows
 --FILE--
-<?mwl
+<?nvs
 enum Mode: int {
     Read = 1,
     Write = 2,

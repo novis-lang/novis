@@ -1,7 +1,7 @@
 --TEST--
 Spec § 5: `Core\Regex::compile` answers a `Pattern`, the handle carrying the four flags PCRE wrote as `/…/imsU`
 --FILE--
-<?mwl
+<?nvs
 // A `Pattern` is § 5's option-carrying handle: the modifiers PCRE spelled
 // after a closing delimiter are named options here, and there is no delimiter
 // to escape. Nothing is asked *of* a `Pattern` — it is what the five matching

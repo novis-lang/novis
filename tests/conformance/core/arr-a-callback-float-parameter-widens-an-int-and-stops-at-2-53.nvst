@@ -1,11 +1,11 @@
 --TEST--
 ADR 0007 § 2's one implicit widening reaches a `callable` parameter, exactly and only up to 2^53, for an `int` and a `uint` alike — ADR 0007 §§ 2, 4, ADR 0031 § 1
 --FILE--
-<?mwl
+<?nvs
 // The depth claim is *a bound asserted on both sides*. A `callable` has no
 // parameter list (ADR 0031 § 1), so no checker ever saw this call site to
 // insert a conversion into it; the widening is applied by the runtime's own
-// argument check (`mwl_runtime::closure`), out of the same helper a written
+// argument check (`nvs_runtime::closure`), out of the same helper a written
 // `as float` lands on. That makes two things worth pinning at once: that the
 // one implicit conversion ADR 0007 § 2 admits does reach here at all, and that
 // it stops where the ADR says it stops rather than where `f64` happens to run

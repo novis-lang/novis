@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::range covers the same integers PHP's range() does, both directions and by step
 --FILE--
-<?mwl
+<?nvs
 class Show {
     public static function of(array<int> $a): string {
         return Core\Str::join(Core\Arr::map($a, fn(int $n) => $n as string), ",");

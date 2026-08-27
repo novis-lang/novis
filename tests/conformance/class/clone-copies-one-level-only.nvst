@@ -1,7 +1,7 @@
 --TEST--
 `clone` copies the object's own properties and shares whatever they point at — ADR 0023 § 1
 --FILE--
-<?mwl
+<?nvs
 class Tag {
     public string $text;
 

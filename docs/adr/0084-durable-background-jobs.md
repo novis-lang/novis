@@ -44,13 +44,13 @@
   together. Every team then rediscovers the outbox pattern — write the job to your database inside the
   transaction, relay it to the broker afterwards — which is to say they rediscover that the database was
   the right queue. Starting there removes the failure mode instead of documenting it.
-- **MWL's shared-nothing model makes the storage question sharper, not softer.**
+- **Novis's shared-nothing model makes the storage question sharper, not softer.**
   [ADR 0059](0059-cross-request-state-is-explicit.md)'s cross-request store is explicitly lossy — "it must
   always be correct to find nothing there" — which is right for a cache and disqualifying for a job
   somebody is waiting on. A runtime-owned on-disk log would make a job local to one machine's disk, which
   breaks the moment a deployment has two instances.
 - **The ceiling is known and acceptable.** A database-backed queue does thousands of jobs per second, not
-  millions. [ADR 0080](0080-the-audience-mwl-is-built-for.md)'s audience is nowhere near that, and § 8
+  millions. [ADR 0080](0080-the-audience-nvs-is-built-for.md)'s audience is nowhere near that, and § 8
   keeps the seam open for the day someone is.
 - **The runtime already knows how to run a detached unit of work.** `spawn script` gives an isolate with a
   budget, grants, an argument and an artifact-cached compiled unit; [0073](0073-scheduled-work-is-config.md)
@@ -93,7 +93,7 @@ visibility   = 5m
 ```
 
 - **The runtime owns the schema.** One jobs table and one dead-letter table, created and upgraded by
-  `mwl queue migrate`, an explicit operator command. DDL is an injection sink and a privileged act
+  `nvs queue migrate`, an explicit operator command. DDL is an injection sink and a privileged act
   ([0024](0024-taint-tracking-for-injection-sinks.md)); the runtime never issues it implicitly at boot or
   from a request.
 - **It may be the application's own database, and that is the recommended configuration**, because § 3's
@@ -107,7 +107,7 @@ visibility   = 5m
 ```php
 Core\Db::connect("main")->transaction(fn (Db\Transaction $tx) {
     var $orderId = $tx->execute("insert into orders …", […]);
-    Core\Queue::push('jobs/send-receipt.mwl', {args: {orderId: $orderId}});
+    Core\Queue::push('jobs/send-receipt.nvs', {args: {orderId: $orderId}});
     // both commit, or neither does
 });
 ```
@@ -125,7 +125,7 @@ queue's is not transactional and the compiler cannot know that — so the runtim
 A worker claims with a single statement that atomically selects and marks the oldest due job in its queues:
 `FOR UPDATE SKIP LOCKED` on PostgreSQL and MySQL, `READPAST` on SQL Server, and an immediate transaction on
 SQLite, whose single-writer model makes the contention question moot. In every case the database provides
-the mutual exclusion, so **two instances of a fleet cannot claim the same job** and MWL writes no lease
+the mutual exclusion, so **two instances of a fleet cannot claim the same job** and Novis writes no lease
 protocol, no heartbeat and no coordinator. [ADR 0073](0073-scheduled-work-is-config.md)'s fleet lease exists
 for the same reason and this reuses its reasoning rather than a second mechanism.
 
@@ -145,8 +145,8 @@ claimable again. That is what makes delivery at-least-once and it is why § 6 is
   queue table is trusted exactly as far as the rest of the application's database is — an attacker who can
   write to it has already won — and saying that here is better than returning everything `tainted` and
   training every job to launder reflexively.
-- **Which process runs jobs is configuration.** `[queue] workers` runs them inside `mwl serve`, on the same
-  binary and the same cores; `mwl work --queue=…` runs a dedicated worker process for fleets that separate
+- **Which process runs jobs is configuration.** `[queue] workers` runs them inside `nvs serve`, on the same
+  binary and the same cores; `nvs work --queue=…` runs a dedicated worker process for fleets that separate
   them. Both drive the identical isolate.
 - **A job holds the compiled unit it started with**, exactly as a request and a connection do
   ([0017](0017-hot-reload-without-restart.md)).
@@ -195,7 +195,7 @@ guarantee it drops.
   need.
 - **The queue adds write load to the application's primary database**, which is a real operational cost and
   the reason `[queue] connection` exists — while pointing it elsewhere gives up § 3.
-- **`mwl queue migrate` is an operator step**, so a deployment has one more thing to get right. The
+- **`nvs queue migrate` is an operator step**, so a deployment has one more thing to get right. The
   alternative — implicit DDL from a running server — is worse in every way that matters here.
 - **At-least-once forces idempotency onto application authors.** Exactly-once is not on offer from any
   honest system, and stating the guarantee in the ADR and the API documentation is the only real mitigation.
@@ -259,4 +259,4 @@ guarantee it drops.
   series ([0076](0076-observability-export.md)); a job appears in the timeline with the same event kinds
   [0041](0041-timeline-export-and-gc-spawn-trace-events.md) already emits for a spawn.
 - **No implicit DDL:** a server started against a database with no queue tables refuses to run workers and
-  names `mwl queue migrate`, rather than creating them.
+  names `nvs queue migrate`, rather than creating them.

@@ -1,7 +1,7 @@
 --TEST--
 A method that yields is an `Iterator<T>`, and `foreach` sees each value in the order it was yielded
 --FILE--
-<?mwl
+<?nvs
 class Sequence {
     public static function upTo(int $limit): Iterator<int> {
         var $i = 1;

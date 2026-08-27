@@ -2,14 +2,14 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
-- **Scope:** `Core\Debug`, the `[debug]` `mwl.toml` section, the `debug.trace`/`debug.profile` capabilities,
-  the probe-emission points added to `mwl-codegen`, the `Ctx` fields that back them, and the coverage/trace/
+- **Scope:** `Core\Debug`, the `[debug]` `nvs.toml` section, the `debug.trace`/`debug.profile` capabilities,
+  the probe-emission points added to `nvs-codegen`, the `Ctx` fields that back them, and the coverage/trace/
   profile output formats
 - **Amended by:** 0041, 0064, 0076, 0079, 0092
 
-> **In short:** MWL gets first-class, Xdebug-equivalent code coverage, function-call tracing and a
-> deterministic per-call profiler — enabled with one `mwl.toml` directive or one `Core\Debug` call, exported
-> as Clover/lcov (coverage) and Callgrind (profiling) so existing PHP-ecosystem tooling reads MWL's output
+> **In short:** Novis gets first-class, Xdebug-equivalent code coverage, function-call tracing and a
+> deterministic per-call profiler — enabled with one `nvs.toml` directive or one `Core\Debug` call, exported
+> as Clover/lcov (coverage) and Callgrind (profiling) so existing PHP-ecosystem tooling reads Novis's output
 > with no new client. The mechanism is **not** a second, instrumented compiled tier: it is a small,
 > always-present, per-request debug-flags check at each probe site — the same shape as the safepoint poll
 > already committed to for CPU limits, cancellation and the cycle collector — because coverage and tracing
@@ -20,11 +20,11 @@
 ## Context
 
 - Xdebug covers four things: step debugging (already decided — [ADR 0016](0016-ide-integration.md) commits
-  `mwl dap` to safepoints for breakpoints), code coverage, call tracing, and profiling — the latter three
+  `nvs dap` to safepoints for breakpoints), code coverage, call tracing, and profiling — the latter three
   undecided until this ADR, and exactly the kind of decision [AGENTS.md](../../AGENTS.md) wants settled
   before codegen exists rather than retrofitted onto ten milestones of statement lowering.
 - Requirement: "the whole language should be very convenient for developers to use and to debug, so entry
-  barrier is as low as possible" — an MWL-native format nobody's tooling reads would fail that goal even if
+  barrier is as low as possible" — an Novis-native format nobody's tooling reads would fail that goal even if
   it ported the feature list.
 - Two things make this harder than it looks: (1) M3's baseline tier lowers typed scalar operations to native
   Cranelift instructions with no single dispatch point to hook, unlike PHP's `zend_execute`-based tracing
@@ -42,9 +42,9 @@
   for the identical reason — both must activate for a request already in flight. This needs its own, new
   probe sites rather than overloading the existing loop-back-edge/function-entry poll, since coverage/branch
   counting need finer granularity than safepoints are deliberately sparse enough to give.
-- **Clover/lcov/Callgrind output, not an MWL-native format.** Clover is what PHPUnit/CI dashboards already
+- **Clover/lcov/Callgrind output, not an Novis-native format.** Clover is what PHPUnit/CI dashboards already
   read, lcov is the non-PHP-ecosystem standard, Callgrind's format is what KCachegrind/Webgrind already
-  visualise unmodified — serving the low-barrier-to-entry goal directly. Trace output stays MWL-native
+  visualise unmodified — serving the low-barrier-to-entry goal directly. Trace output stays Novis-native
   newline-delimited JSON because no third-party tooling beyond Xdebug's own widely reads Xdebug's trace
   format either.
 
@@ -97,17 +97,17 @@ is bounded by nothing this ADR needs to invent, because nothing accumulates.
 ### `[debug] mode` is `RuntimeTighten`, and writing a trace or profile is its own capability
 
 ```toml
-[debug]                       # RuntimeTighten — mwl.toml states the default AND the ceiling in one
+[debug]                       # RuntimeTighten — nvs.toml states the default AND the ceiling in one
 mode = []                     # [] is off; any subset of: "coverage", "branch", "trace", "profile"
 
 [capabilities]                # RuntimeTighten, deny-by-default — same shape as script.spawn
-debug.trace   = ["/var/log/mwl/trace"]
-debug.profile = ["/var/log/mwl/profile"]
+debug.trace   = ["/var/log/nvs/trace"]
+debug.profile = ["/var/log/nvs/profile"]
 ```
 
 `[debug] mode` reuses [ADR 0005](0005-config-changeability.md)'s existing three-class directive model with
-no new mechanism: a production `mwl.toml` sets `mode = []` and no request-side call can ever turn any bit
-on, because `RuntimeTighten` only narrows; a development or CI host's `mwl.toml` sets a wider ceiling (say
+no new mechanism: a production `nvs.toml` sets `mode = []` and no request-side call can ever turn any bit
+on, because `RuntimeTighten` only narrows; a development or CI host's `nvs.toml` sets a wider ceiling (say
 `["coverage", "branch", "trace", "profile"]`) and a specific test run may narrow further via `Core\Debug` or
 `Core\Config::set`.
 This is deliberately the same class capability grants already use, and for the same reason
@@ -138,15 +138,15 @@ Core\Debug::stopProfiling(): void;
 
 placed under `Core` per [ADR 0011](0011-functions-and-constants-are-class-members.md), deliberately shaped
 close to `xdebug_start_code_coverage()`/`xdebug_get_code_coverage()` so a PHPUnit-style coverage collector
-ported by `mwl convert` needs its calls renamed, not its logic rewritten — the concrete payoff of "low
+ported by `nvs convert` needs its calls renamed, not its logic rewritten — the concrete payoff of "low
 barrier to entry" this ADR is answering.
 
-`mwl test`/`mwl run` grow flags that wrap a whole run in these calls with no source changes at all, which is
+`nvs test`/`nvs run` grow flags that wrap a whole run in these calls with no source changes at all, which is
 the ergonomics CI actually uses day to day:
 
 ```sh
-mwl test --coverage=clover:build/coverage.xml
-mwl run script.mwl --profile=out.callgrind
+nvs test --coverage=clover:build/coverage.xml
+nvs run script.nvs --profile=out.callgrind
 ```
 
 ### Crossing an isolate boundary
@@ -172,21 +172,21 @@ per-statement/per-call path measured here: it consumes
 turns exactly four of them into distributed-tracing spans, and never turns a `call` event into one. The
 cost claim below is therefore unaffected by it, and the guard test named in *Consequences* covers both.
 
-### Relationship to the M10 sampling profiler and `mwl dap`
+### Relationship to the M10 sampling profiler and `nvs dap`
 
 This ADR's profiler is **deterministic**: it times every call, attributing exact self/inclusive time per
 function, the way Xdebug's and Callgrind's profilers do. `docs/implementation-plan.md`'s M10 already commits
 to a separate **sampling** profiler emitting flamegraphs — periodic stack samples, not per-call timing —
 which stays exactly as planned; the two answer different questions (a low-overhead always-affordable
 production sampling view vs. an opt-in exact call graph for a specific debugging session) and this ADR does
-not fold one into the other. `mwl dap`'s breakpoints stay on the safepoint poll itself, unrelated to the
+not fold one into the other. `nvs dap`'s breakpoints stay on the safepoint poll itself, unrelated to the
 per-statement/per-call probes added here — a debugged request may or may not also be collecting coverage or
 a trace, and the two mechanisms are independent bits, not tiers of the same thing.
 
 ### The probes count as well as time, and three consumers read the counters
 
 Each probe site has a **counting** mode beside its timing one, selected by its own bit in the same `Ctx`
-bitset and costing the same already-measured flag check. What it accumulates is MWL's own semantic work —
+bitset and costing the same already-measured flag check. What it accumulates is Novis's own semantic work —
 statements executed, calls made, allocations, bytes attributed, GC cycles — never a CPU's instructions or a
 clock reading. That distinction is the point: a count of statements is **bit-identical across machines,
 operating systems and architectures**, where a time is not, so it is a number CI can gate on.
@@ -199,8 +199,8 @@ claim about what a native member costs would be a number with no guard test, whi
 
 One stream, three consumers — coverage above, [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s
 timeline, and [ADR 0079](0079-testing-is-a-language-feature.md) § 15's `#[Bench]`. A fourth number would be a
-fifth place to look. The counters are comparable across machines but **not across MWL versions**, since M12's
-optimising tier will eliminate work; comparing MWL's own releases is
+fifth place to look. The counters are comparable across machines but **not across Novis versions**, since M12's
+optimising tier will eliminate work; comparing Novis's own releases is
 [ADR 0026](0026-performance-measurement-methodology.md)'s question and uses callgrind, which is why the two
 do not overlap.
 
@@ -214,11 +214,11 @@ php-src's `#22158` is the tracing JIT dispatching an observer "begin" handler th
 cache slot on a megamorphic call, dereferencing NULL — that is *instrumentation × compiled code*, which is
 exactly what this ADR's probe sites are. PHP's neighbouring reports are the same family: a stale base
 pointer in a JIT'd frame, property hooks producing wrong results under the JIT, an optimisation level that
-segfaults where the next one down does not. PHP can retreat behind a JIT that is off by default; MWL has no
+segfaults where the next one down does not. PHP can retreat behind a JIT that is off by default; Novis has no
 interpreter to fall back to.
 
-The differential oracle cannot find these. It checks that MWL agrees with **PHP**, not that MWL agrees with
-**itself** under different codegen — and a probe-attached run and an optimised run are both MWL. The cost is
+The differential oracle cannot find these. It checks that Novis agrees with **PHP**, not that Novis agrees with
+**itself** under different codegen — and a probe-attached run and an optimised run are both Novis. The cost is
 CI wall-clock proportional to the added axes and nothing at all at run time.
 
 **Positive**
@@ -230,7 +230,7 @@ CI wall-clock proportional to the added axes and nothing at all at run time.
 - Output formats existing tooling already reads: a coverage report opens in the same CI dashboard a PHP
   project already has configured; a profile opens in KCachegrind/Webgrind unmodified. Zero new client
   tooling to write for v1.
-- `Core\Debug`'s shape means `mwl convert` has a close-to-mechanical rewrite for `xdebug_*` calls in ported
+- `Core\Debug`'s shape means `nvs convert` has a close-to-mechanical rewrite for `xdebug_*` calls in ported
   test suites, the same payoff [ADR 0006](0006-isolated-script-execution.md) notes for `spawn script`
   against `exec('php …')`.
 - Reuses the `System`/`Runtime`/`RuntimeTighten` model wholesale for `[debug] mode`, and the
@@ -255,7 +255,7 @@ CI wall-clock proportional to the added axes and nothing at all at run time.
   coverage — three exporters instead of one canonical format, a cost against priority 4. Accepted because
   the alternative is a format the ecosystem's existing tools cannot read, which fails the requirement's own
   "low barrier to entry" test more directly than one extra serialiser costs.
-- **The trace format is MWL-native** (newline-delimited JSON), not Xdebug-compatible, because no third-party
+- **The trace format is Novis-native** (newline-delimited JSON), not Xdebug-compatible, because no third-party
   tooling beyond Xdebug's own widely consumes Xdebug's trace format either — named as a considered gap, not
   an oversight.
 
@@ -265,7 +265,7 @@ CI wall-clock proportional to the added axes and nothing at all at run time.
   start/stop requirement.
 - **Hooking the baseline tier's helper-call dispatch** (the PHP/Xdebug-shaped design). Not available: M3
   commits typed scalar operations to native Cranelift instructions with no common dispatch point to hook.
-- **An MWL-native coverage/profile format with a converter tool.** Rejected: coverage/profiling already have
+- **An Novis-native coverage/profile format with a converter tool.** Rejected: coverage/profiling already have
   a dominant ecosystem-standard consumer (CI dashboards, KCachegrind/Webgrind); a converter step would add
   friction "low barrier to entry" argues against.
 - **Making `[debug] mode` a plain `Runtime` directive.** Rejected on the same reasoning
@@ -277,7 +277,7 @@ CI wall-clock proportional to the added axes and nothing at all at run time.
 
 ## Revisiting
 
-Reopen if a migration tool genuinely needs to read or write Xdebug's own trace-file format rather than MWL's
+Reopen if a migration tool genuinely needs to read or write Xdebug's own trace-file format rather than Novis's
 newline-delimited JSON — named above as a deliberate gap, not a closed question. Reopen the per-statement
 probe granularity if the guard test named in *Consequences* shows a measurable regression once M3's baseline
 backend exists; the fix is coarsening the probe site (per basic block, not per statement), not the flag-check
@@ -293,12 +293,12 @@ Verification, in the order it becomes possible:
 - **M3**, alongside the safepoint poll landing with the first backend commit: the debug-flags check compiles
   at every statement boundary and call site with every bit off costing no more than the accepted safepoint
   cost class — a guard test in `benches/abi-probe` holding that number, per *Consequences*.
-- **M10**, when `Core\Debug`, the exporters and the CLI flags land alongside `mwl dap` and the sampling
+- **M10**, when `Core\Debug`, the exporters and the CLI flags land alongside `nvs dap` and the sampling
   profiler: `Core\Debug::startCoverage()`/`stopCoverage()` bracketing part of a request produces line hits
-  for exactly the statements executed in that window, not the whole request; `mwl test --coverage=clover:…`
-  produces a Clover file a real coverage dashboard parses without modification; `mwl run --profile=out.callgrind`
-  produces a file KCachegrind/Webgrind opens and attributes time to the right MWL functions; `debug.trace`
+  for exactly the statements executed in that window, not the whole request; `nvs test --coverage=clover:…`
+  produces a Clover file a real coverage dashboard parses without modification; `nvs run --profile=out.callgrind`
+  produces a file KCachegrind/Webgrind opens and attributes time to the right Novis functions; `debug.trace`
   refuses a sink path outside its granted roots, including via `..`, the same test shape
   [ADR 0006](0006-isolated-script-execution.md) already runs for `script.spawn`; a production-shaped
-  `mwl.toml` (`[debug] mode = []`) makes every `Core\Debug::start*()` call a no-op regardless of what the
+  `nvs.toml` (`[debug] mode = []`) makes every `Core\Debug::start*()` call a no-op regardless of what the
   request's own code asks for.

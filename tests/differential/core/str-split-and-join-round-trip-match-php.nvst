@@ -1,7 +1,7 @@
 --TEST--
-splitting then joining lands on the same text in MWL and PHP
+splitting then joining lands on the same text in Novis and PHP
 --FILE--
-<?mwl
+<?nvs
 string $csv = "alpha,beta,gamma";
 var $parts = Core\Str::split($csv, ",");
 

@@ -1,7 +1,7 @@
 --TEST--
 Spec § 4: `Core\Time\TimeOfDay` is a clock that wraps at both ends — a step of `n` minutes is `(minute-of-day + n) mod 1440` over a sweep that crosses midnight in both directions, a full turn is the identity in three units, and `compareTo` orders by the same reading `format` renders
 --FILE--
-<?mwl
+<?nvs
 // § 4: a time of day has no date under it for a carry to go into, so the
 // clock step is total and wraps. That makes the whole member a modular
 // arithmetic, and this sweep asserts it as one: 429 offsets from a fixed
@@ -15,7 +15,7 @@ int $wrapped = 0;
 int $mirrored = 0;
 for (; $n <= 1500; $n = $n + 7) {
     var $moved = $base->plus($n, Core\Unit::Minute);
-    // MWL's `%` truncates toward zero, as PHP's does, so a negative offset is
+    // Novis's `%` truncates toward zero, as PHP's does, so a negative offset is
     // brought back into 0..1439 before the comparison — the wrap being tested
     // is the member's, not this line's.
     int $want = ((545 + $n) % 1440 + 1440) % 1440;

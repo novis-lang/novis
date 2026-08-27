@@ -1,7 +1,7 @@
 --TEST--
 `$i .= "x"` is the `$i = $i . "x"` it means, so its `string` result is refused by an `int` target — ADR 0037
 --FILE--
-<?mwl
+<?nvs
 int $i = 3;
 $i .= "x";
 echo "unreachable\n";
@@ -9,6 +9,6 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0401]: expected `int`, found `string`
-  --> case.mwl:3:1
+  --> case.nvs:3:1
 %A
 error: aborting due to 1 error

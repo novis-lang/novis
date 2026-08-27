@@ -1,7 +1,7 @@
 --TEST--
 A `throw` from inside a generator body surfaces at the `foreach` that resumed it, after the values already yielded — PHP's own ordering
 --FILE--
-<?mwl
+<?nvs
 class Feed {
     public static function upTo(int $n): Iterator<int> {
         var $i = 0;

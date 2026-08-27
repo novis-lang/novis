@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::atan2 answers exactly what Core\Math::atan answers of the quotient on the half-plane where a quotient carries the angle, differs from it by a half turn on the other half, and answers on the five rows where there is no quotient to take at all — docs/spec/01-core-library.md § 3
 --FILE--
-<?mwl
+<?nvs
 // § 3 carries `atan` and `atan2` as separate members, and the reason is that a
 // quotient throws the quadrant away: $y / $x is the same number in the first
 // quadrant and the third, and the same number in the second and the fourth, so

@@ -31,7 +31,7 @@
 //! stage actually needs it, so the parser itself never allocates a `String` or
 //! decides what a number means.
 
-use mwl_diagnostics::Span;
+use nvs_diagnostics::Span;
 
 // ============================================================================
 // Names
@@ -137,7 +137,7 @@ pub enum TypeAtom {
     /// `object`
     Object,
     /// `{name: T, ...}` — ADR 0036 § 3: an inline structural shape type,
-    /// checked by width subtyping rather than nominal `implements` — MWL's
+    /// checked by width subtyping rather than nominal `implements` — Novis's
     /// one deliberate exception to otherwise fully nominal typing. May be
     /// empty (`{}`), which carries the same "no field promised" meaning as
     /// plain [`Self::Object`]; unlike [`ExprKind::ObjectLiteral`], there is
@@ -306,8 +306,8 @@ impl AssignOp {
     /// plain `=`.
     ///
     /// `$x ⊕= e` means `$x = $x ⊕ e` for every variant here, so this is the
-    /// one place that pairing is written down: `mwl_types::expr::assign::check_assign`
-    /// types a compound assignment through it, and `mwl_ir::lower` desugars
+    /// one place that pairing is written down: `nvs_types::expr::assign::check_assign`
+    /// types a compound assignment through it, and `nvs_ir::lower` desugars
     /// through the same answer, rather than each carrying its own copy of a
     /// fourteen-row table that would drift apart the first time an operator
     /// is added.
@@ -354,7 +354,7 @@ pub struct Arg {
     pub spread: bool,
     /// Whether this argument is written `inout value` — ADR 0107 § 2's
     /// call-site marker. Whether it is *correct* here needs the callee's
-    /// signature, so both mistakes are `mwl_types`' (E0713/E0714).
+    /// signature, so both mistakes are `nvs_types`' (E0713/E0714).
     pub inout: bool,
     /// The argument's value.
     pub value: Expr,
@@ -456,7 +456,7 @@ pub enum Modifier {
     /// `lateinit` — ADR 0038: defers a non-nullable, class/interface-typed
     /// property's first assignment past the constructor. Which
     /// types/positions actually accept it (a scalar, `?T`, a promoted
-    /// parameter, `readonly`) is `mwl-types`' job, same discipline as every
+    /// parameter, `readonly`) is `nvs-types`' job, same discipline as every
     /// other modifier here.
     Lateinit,
 }
@@ -625,11 +625,11 @@ impl Expr {
     /// evaluates to goes through this, because the answer for `($a)` is always
     /// the answer for `$a`: whether a subscript chain's root is a place to
     /// write a separated array back into
-    /// (`mwl_types::expr::assign::check_write_target`), and whether a read
+    /// (`nvs_types::expr::assign::check_write_target`), and whether a read
     /// aliases storage something else already owns
-    /// (`mwl_ir::lower::Lowering::aliasing_read`). Both answered as if a
+    /// (`nvs_ir::lower::Lowering::aliasing_read`). Both answered as if a
     /// parenthesised local were a temporary before this existed, which made
-    /// `($a)["0"] = "y"` panic in `mwl-ir` and `array<string> $b = ($a);`
+    /// `($a)["0"] = "y"` panic in `nvs-ir` and `array<string> $b = ($a);`
     /// release the array twice.
     ///
     /// What an expression evaluates *to* never needs this: lowering has a
@@ -896,7 +896,7 @@ pub enum ExprKind {
     },
     /// `require` — an expression, not a statement, per
     /// [`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md):
-    /// `$x = require 'a.mwl';` is legal.
+    /// `$x = require 'a.nvs';` is legal.
     /// [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
     /// is why this is the only same-frame inclusion keyword left — `include`,
     /// `include_once` and `require_once` are rejected at parse time instead
@@ -1053,7 +1053,7 @@ pub enum StmtKind {
     Block(Block),
     /// An empty statement, a lone `;` — most often a loop's empty body
     /// (`while ($more_work());`), and also the marker the parser emits for a
-    /// bare code-tag token (`<?mwl`, `?>`, or the rejected `<?php` — see
+    /// bare code-tag token (`<?nvs`, `?>`, or the rejected `<?php` — see
     /// ADR 0049 § 2) encountered where a statement was expected — see
     /// [`Self::InlineHtml`]'s doc for why that token, and not this one, is
     /// where the interesting span lives.
@@ -1062,8 +1062,8 @@ pub enum StmtKind {
     /// spec `00-overview.md` § 1. Unlike [`Self::Echo`], this text is never
     /// escaped or interpreted: the span points straight at the source bytes.
     /// Reachable anywhere a statement is expected, not just at file scope,
-    /// because `?>`/`<?mwl` can appear inside a block
-    /// (`if ($x) { ?>html<?mwl }` is legal, exactly as in PHP).
+    /// because `?>`/`<?nvs` can appear inside a block
+    /// (`if ($x) { ?>html<?nvs }` is legal, exactly as in PHP).
     InlineHtml(Span),
     /// `if (cond) then (elseif (cond2) then2)* (else else_)?`. An `elseif`
     /// or an `else if` both collapse to the same shape: a nested `If` inside
@@ -1246,7 +1246,7 @@ pub struct ClassDecl {
 /// named, its `<...>` type arguments if any, plus its optional `by $field`
 /// delegation suffix. `by_field` is recorded but not yet resolved — checking
 /// that `$field`'s declared type actually satisfies `name`
-/// (`E_DELEGATE_TYPE_MISMATCH`) is `mwl-hir`'s job, not the parser's.
+/// (`E_DELEGATE_TYPE_MISMATCH`) is `nvs-hir`'s job, not the parser's.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImplementsClause {
     /// The interface named.
@@ -1487,8 +1487,8 @@ pub struct UseDecl {
 ///
 /// Every string here is a *span*, not a cooked value, exactly as
 /// [`ExprKind::Str`]'s is: the parser records what was written and
-/// `mwl_hir` decodes it when it builds the map, so one decoder
-/// (`mwl_hir::requires`'s) serves this and `require` alike.
+/// `nvs_hir` decodes it when it builds the map, so one decoder
+/// (`nvs_hir::requires`'s) serves this and `require` alike.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AutoloadDecl {
     /// The whole declaration, `autoload` through the `;`.
@@ -1508,7 +1508,7 @@ pub enum AutoloadKind {
         prefix: Span,
         /// The root paths' literals, quotes included, in declaration order.
         /// Never empty in a well-formed declaration; a malformed one that
-        /// reported [`code::E_AUTOLOAD_PATH_NOT_LITERAL`](mwl_diagnostics::code::E_AUTOLOAD_PATH_NOT_LITERAL)
+        /// reported [`code::E_AUTOLOAD_PATH_NOT_LITERAL`](nvs_diagnostics::code::E_AUTOLOAD_PATH_NOT_LITERAL)
         /// still records what it could read.
         roots: Vec<Span>,
     },
@@ -1517,7 +1517,7 @@ pub enum AutoloadKind {
     /// contextual, not a reserved word: it means this only after `autoload`.
     Discover {
         /// The glob's literal, quotes included. Whether it holds exactly one
-        /// `*` occupying a whole segment is `mwl_hir`'s check, not the
+        /// `*` occupying a whole segment is `nvs_hir`'s check, not the
         /// parser's — the answer needs the cooked string.
         glob: Span,
     },
@@ -1543,7 +1543,7 @@ pub struct TypeAliasDecl {
 /// function whose body contains `yield` is a generator".
 ///
 /// A purely syntactic question, which is why it lives here rather than in
-/// `mwl-types` or `mwl-ir`: both of those need the same answer, and a fact
+/// `nvs-types` or `nvs-ir`: both of those need the same answer, and a fact
 /// with two consumers gets one home.
 ///
 /// # What counts, and what deliberately does not

@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::append keeps the subject's keys and prepend always returns a list, spec § 2 and ADR 0069 § 3
 --FILE--
-<?mwl
+<?nvs
 array<string> $list = ["a", "b"];
 array<string> $map = ["x" => "one", "y" => "two"];
 

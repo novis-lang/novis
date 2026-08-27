@@ -16,12 +16,12 @@
 
 > **In short:** `array_merge` does two different things depending on a key's *type* — integer keys are
 > renumbered and appended, string keys are overwritten — and `$a + $b` does a third thing (left wins) under
-> a spelling that looks like arithmetic. MWL has **no integer key at all** ([ADR 0007](0007-explicit-type-system.md)
+> a spelling that looks like arithmetic. Novis has **no integer key at all** ([ADR 0007](0007-explicit-type-system.md)
 > § 5), so importing either rule would mean sniffing the *text* of a key to choose a behaviour. Instead there
 > are three members, each doing one thing to every key alike: **`Arr::overlay`** (right wins),
 > **`Arr::underlay`** (left wins, exactly `$a + $b`) and **`Arr::appendAll`** (keys discarded, values
 > appended). `merge` is not a name in the library, `array + array` is a compile error naming `underlay`, and
-> no member reproduces `array_merge` — which is the point, since `mwl convert` must choose. The same audit
+> no member reproduces `array_merge` — which is the point, since `nvs convert` must choose. The same audit
 > makes `{preserveKeys: false}` drop *every* key, splits `Arr::pad` into `padStart`/`padEnd`, renames
 > `splice` to `replaceRange` and `combine` to `fromKeysAndValues`, and removes `Arr::each`.
 
@@ -36,10 +36,10 @@
   to predict the result, and a mixed array gives both behaviours in one call. It is the most-reported
   surprise in PHP's array surface, and `array_replace` exists precisely because the rule is unusable when
   keys matter.
-- **MWL has no integer key.** [ADR 0007](0007-explicit-type-system.md) § 5 makes every key a `string`;
+- **Novis has no integer key.** [ADR 0007](0007-explicit-type-system.md) § 5 makes every key a `string`;
   `$a[8]` is `$a["8"]`. Reproducing `array_merge` here means asking, of each key, "does this string look
   like a canonical decimal integer?" — a content sniff deciding control flow, under a *name* that shows
-  the reader neither side of the question. The PHP rule is not merely inconvenient in MWL; it has no type
+  the reader neither side of the question. The PHP rule is not merely inconvenient in Novis; it has no type
   to hang itself on. That reading does exist in the language: § 5's append counter has always kept it, and
   the `[...$a]` element that section defines renumbers by it. What separates the two is that a spread is
   written at the site with both arrays in view, and its two outcomes are the two writes the developer
@@ -68,7 +68,7 @@ Each walks its arguments left to right and treats every key the same way.
 **Key order** is the same rule for all three: an existing key keeps its position, a new key lands at the
 end in the order first met. This is what makes `overlay` and `underlay` two operations rather than one with
 its arguments flipped — `overlay($b, $a)` and `underlay($a, $b)` hold the same entries in **different
-order**, and MWL arrays are insertion-ordered ([ADR 0007](0007-explicit-type-system.md) § 5), so the
+order**, and Novis arrays are insertion-ordered ([ADR 0007](0007-explicit-type-system.md) § 5), so the
 difference is observable in `foreach`, in `Core\Json::encode` and in every `Arr::first`. [ADR 0063](0063-core-api-conventions.md)
 R15 is satisfied: two behaviours, two names.
 
@@ -82,13 +82,13 @@ test) is the predicate, so the rule is stated in terms the language already has.
 ### 2. `merge` is not a name, and `array + array` does not compile
 
 `Core\Arr` has **no member named `merge`**, in any spelling. The word names two operations in the language
-a MWL developer is arriving from, so it cannot name one here without the reader having to check which.
+a Novis developer is arriving from, so it cannot name one here without the reader having to check which.
 
 Binary `+` and `+=` with an array operand are a **compile error** whose diagnostic names `Arr::underlay`,
 alongside the existing arithmetic diagnostic for the other operand types. This is a removal, not a
 migration hazard: the operator has no silent behaviour change to fall into, because it stops compiling.
 
-**No member reproduces `array_merge`.** That is the deliberate part. `mwl convert` ([ADR 0011](0011-functions-and-constants-are-class-members.md)
+**No member reproduces `array_merge`.** That is the deliberate part. `nvs convert` ([ADR 0011](0011-functions-and-constants-are-class-members.md)
 § 4's style) rewrites it by static type:
 
 | PHP call | Rewrite | When |
@@ -111,7 +111,7 @@ string ones, which is § 1's defect again in an option name.
 
 `false` stays the default, matching PHP for a list argument, which is what these members are overwhelmingly
 called with. For an argument with non-numeric keys the result differs from PHP's: the keys are gone rather
-than kept. `mwl convert` records that divergence in its report wherever the argument is not provably a
+than kept. `nvs convert` records that divergence in its report wherever the argument is not provably a
 list, and `{preserveKeys: true}` is the faithful rewrite where it mattered.
 
 ### 4. The shape corrections the same audit found
@@ -178,7 +178,7 @@ conversion to soften it.
 ## Alternatives rejected
 
 - **Keep `Arr::merge` with `array_merge`'s semantics.** Maximum familiarity, trivial conversion. Rejected
-  in § 1: it requires a key-content sniff MWL has no type for, and it makes the most common array operation
+  in § 1: it requires a key-content sniff Novis has no type for, and it makes the most common array operation
   the one whose result depends on data the reader cannot see.
 - **Keep `Arr::merge` but give it only the right-wins rule.** Tempting — one short familiar name, correct
   behaviour. Rejected because it is the *worst* of the options for the reader it aims at: a PHP developer
@@ -207,11 +207,11 @@ conversion to soften it.
   without `by`; `unique`/`diff`/`intersect` distinguishing `"1"` from `1` where PHP's string cast does not;
   `flip` keeping the last of two duplicate values.
 - **M4S:** `slice`/`chunk`/`reverse` with `{preserveKeys: false}` over a string-keyed array asserting a list
-  result, which is the one place MWL and PHP disagree.
+  result, which is the one place Novis and PHP disagree.
 - **M4:** the checker rejects `$a + $b` and `$a += $b` for array operands with a diagnostic naming
   `Arr::underlay`.
 - **M4S:** the mechanical spec check of [ADR 0063](0063-core-api-conventions.md)'s *Verification* covers the
   renames for free — R5's verb table (`from…`, `count…`), R6's pairs (`padStart`/`padEnd`) and R7's
   full-word rule all apply to the new names with no new check.
-- **M11:** `mwl convert` produces each row of § 2's table, including the two diagnostics, and its report
+- **M11:** `nvs convert` produces each row of § 2's table, including the two diagnostics, and its report
   lists every `array_slice`/`array_chunk`/`array_reverse` call it could not prove list-typed.

@@ -3,13 +3,13 @@
 //! Construction is a builder chain so that a call site reads as a sentence:
 //!
 //! ```
-//! # use mwl_diagnostics::{Diagnostic, SourceMap, Span, code};
+//! # use nvs_diagnostics::{Diagnostic, SourceMap, Span, code};
 //! # let mut map = SourceMap::new();
-//! # let f = map.add("t.mwl", "eval('x');");
+//! # let f = map.add("t.nvs", "eval('x');");
 //! # let span = Span::new(f, 0, 4);
-//! let d = Diagnostic::error(code::E_EVAL_UNSUPPORTED, "`eval` is not supported in MWL")
+//! let d = Diagnostic::error(code::E_EVAL_UNSUPPORTED, "`eval` is not supported in Novis")
 //!     .with_primary(span, "remove this call")
-//!     .with_note("MWL compiles ahead of execution, so runtime code generation \
+//!     .with_note("Novis compiles ahead of execution, so runtime code generation \
 //!                 cannot be type-checked, cached, or sandboxed")
 //!     .with_help("restructure as a closure, a match, or a lookup table");
 //! assert!(d.is_error());
@@ -57,7 +57,7 @@ impl Severity {
 
 /// A stable diagnostic code.
 ///
-/// Codes are part of MWL's public interface: they appear in `#[allow]`-style
+/// Codes are part of Novis's public interface: they appear in `#[allow]`-style
 /// suppressions, in documentation, and in tooling that filters diagnostics. Once
 /// published, a code's meaning never changes — retire it instead of reusing it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -106,7 +106,7 @@ pub struct Label {
 
 /// A machine-applicable edit.
 ///
-/// Consumed by the LSP as a code action, by `mwl convert` when rewriting PHP,
+/// Consumed by the LSP as a code action, by `nvs convert` when rewriting PHP,
 /// and printed as a suggestion on the terminal.
 #[derive(Clone, Debug)]
 pub struct Suggestion {
@@ -118,7 +118,7 @@ pub struct Suggestion {
     pub message: String,
     /// Whether applying this is known to preserve behaviour.
     ///
-    /// `false` means a human must review it — `mwl convert` uses this to decide
+    /// `false` means a human must review it — `nvs convert` uses this to decide
     /// between rewriting silently and leaving a `TODO`.
     pub safe: bool,
 }
@@ -167,7 +167,7 @@ impl Diagnostic {
         Self::new(Severity::Warning, message).with_code(code)
     }
 
-    /// An internal compiler error. Reaching one is always a bug in MWL.
+    /// An internal compiler error. Reaching one is always a bug in Novis.
     #[must_use]
     pub fn bug(message: impl Into<String>) -> Self {
         Self::new(Severity::Bug, message)

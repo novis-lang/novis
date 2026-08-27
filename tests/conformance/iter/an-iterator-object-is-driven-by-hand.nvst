@@ -1,7 +1,7 @@
 --TEST--
 `Iterator<T>`'s two members are the whole protocol, so a `while` over `advance()`/`current()` drains it exactly as `foreach` would — ADR 0053 § 1
 --FILE--
-<?mwl
+<?nvs
 class Walker implements Iterator<int> {
     public int $i;
     public array<int> $items;

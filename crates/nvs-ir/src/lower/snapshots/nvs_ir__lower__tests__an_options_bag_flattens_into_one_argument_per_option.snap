@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> void {
@@ -10,8 +10,8 @@ fn m(object) -> void {
     v1 = const.int 1  ; int
     v2 = const.int 10  ; int
     v3 = const.int 3  ; int
-    v4 = core.call mwl_core_arr_range(v1, v2, v3) ! bb1  ; array
-    v5 = core.call mwl_core_arr_count(v4) ! bb2  ; uint
+    v4 = core.call nvs_core_arr_range(v1, v2, v3) ! bb1  ; array
+    v5 = core.call nvs_core_arr_count(v4) ! bb2  ; uint
     release v4
     v6 = helper.uint_to_string v5  ; string
     helper.echo_str v6 ! bb3
@@ -20,8 +20,8 @@ fn m(object) -> void {
     v7 = const.int 1  ; int
     v8 = const.int 10  ; int
     v9 = const.int 1  ; int
-    v10 = core.call mwl_core_arr_range(v7, v8, v9) ! bb4  ; array
-    v11 = core.call mwl_core_arr_count(v10) ! bb5  ; uint
+    v10 = core.call nvs_core_arr_range(v7, v8, v9) ! bb4  ; array
+    v11 = core.call nvs_core_arr_count(v10) ! bb5  ; uint
     release v10
     v12 = helper.uint_to_string v11  ; string
     helper.echo_str v12 ! bb6
@@ -30,24 +30,24 @@ fn m(object) -> void {
     return
   bb1:
     release v0
-    propagate "m() at t.mwl:4"
+    propagate "m() at t.nvs:4"
   bb2:
     release v4
     release v0
-    propagate "m() at t.mwl:4"
+    propagate "m() at t.nvs:4"
   bb3:
     release v6
     release v0
-    propagate "m() at t.mwl:4"
+    propagate "m() at t.nvs:4"
   bb4:
     release v0
-    propagate "m() at t.mwl:5"
+    propagate "m() at t.nvs:5"
   bb5:
     release v10
     release v0
-    propagate "m() at t.mwl:5"
+    propagate "m() at t.nvs:5"
   bb6:
     release v12
     release v0
-    propagate "m() at t.mwl:5"
+    propagate "m() at t.nvs:5"
 }

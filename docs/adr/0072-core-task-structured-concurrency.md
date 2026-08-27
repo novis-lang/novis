@@ -47,14 +47,14 @@
   evidence that an awkward concurrency API is the same as no concurrency API.
 - **Structured concurrency is the property worth buying, and it is a property of the *call*, not of a scope
   object.** Kotlin's `coroutineScope`, Swift's `withTaskGroup` and Trio's nursery all give an open-ended
-  block you add tasks to. That is more general and it is more to learn, and MWL already has the same
+  block you add tasks to. That is more general and it is more to learn, and Novis already has the same
   guarantee at a coarser grain — [ADR 0006](0006-isolated-script-execution.md)'s "a task tree dies with its
   parent — no orphans". A call that cannot return while its children run gives the identical guarantee with
   no new concept.
 - The genuinely new question is **work that outlives the response**. Every real application has some: a
   receipt email, a webhook, a cache warm, an audit ship. PHP's answers are `fastcgi_finish_request()` (which
   keeps the whole FPM worker busy and is invisible to any accounting) or a job queue (correct, and a
-  dependency the application must run). MWL can do the first one honestly, because a request tree is already
+  dependency the application must run). Novis can do the first one honestly, because a request tree is already
   an accounted, capped, cancellable thing — but only if it is stated that the tree, not the connection, is
   what the budget follows.
 - **There is no crate for any of this, and there cannot be.** `tokio::JoinSet` and `tokio::Semaphore` are

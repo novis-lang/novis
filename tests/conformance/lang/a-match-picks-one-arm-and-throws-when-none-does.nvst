@@ -1,7 +1,7 @@
 --TEST--
 A `match` expression picks the first arm whose label equals the subject, takes `default` last, and throws a `LogicError` when no arm matches
 --FILE--
-<?mwl
+<?nvs
 class Pick {
     public static function label(int $n): string {
         return match ($n) {
@@ -32,7 +32,7 @@ echo "nested=", Core\Str::upper(match (2) { 2 => "two", default => "other" }), "
 echo "concat=" . match ("b") { "a" => 1, "b" => 2, default => 0 } . "\n";
 
 // No arm matches and no `default` was written: PHP raises
-// `UnhandledMatchError`, which MWL's closed exception tree spells `LogicError`.
+// `UnhandledMatchError`, which Novis's closed exception tree spells `LogicError`.
 try {
     string $x = match (7) {
         1 => "one",

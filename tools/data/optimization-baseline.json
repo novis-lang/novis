@@ -45,7 +45,7 @@
     "conformance_cases": {"now": 672, "floor": 750, "at_goal_start": 552},
     "differential_cases": {"now": 173, "at_goal_start": 159},
     "refusal_sites_standing": 16,
-    "named_mwlt_cases_written": {"now": 18, "total": 32},
+    "named_nvst_cases_written": {"now": 18, "total": 32},
     "commits_since_goal_start": 158,
     "rate_over_the_first_17_hours": {
       "sessions": 73,
@@ -74,7 +74,7 @@
       "expected_effect": "Cheap slices batch. Sessions per artefact falls; ctx_end rises toward but not past the gate."
     },
     {
-      "what": "mwl-ir's lower/ split, the pass every other crate already had: mod.rs 6,253 -> 2,954 (tests to lower/tests.rs), expr.rs 5,770 -> 3,341, new convert.rs (1,590) and operator.rs (879).",
+      "what": "nvs-ir's lower/ split, the pass every other crate already had: mod.rs 6,253 -> 2,954 (tests to lower/tests.rs), expr.rs 5,770 -> 3,341, new convert.rs (1,590) and operator.rs (879).",
       "commit": "e9b4302",
       "expected_effect": "The `discovery` share of fetched context falls, and with it the head-call count: Stage 0's remaining items are now an 879-line file rather than a 5,770-line one, and a grep for `lower_binary` stops returning conversion and member-access hits. It does NOT move ctx_start, and it does not reduce the bytes of code a session reads."
     }
@@ -98,6 +98,6 @@
     "python tools/loop-stats.py --run <new-run-stamp>",
     "python tools/loop-stats.py --run 20260827-115429   # the baseline, while it is still on disk",
     "python tools/holes.py",
-    "find tests/conformance -name '*.mwlt' | wc -l"
+    "find tests/conformance -name '*.nvst' | wc -l"
   ]
 }

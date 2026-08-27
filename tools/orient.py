@@ -347,7 +347,7 @@ def run_numbers() -> None:
     lookups every session does, and the ADR one is a race if two agents both grep for it."""
     before = len(brief.out)
     brief.run_numbers()
-    section("THE NEXT FREE NUMBER", "mwl-diagnostics (every `Code::new`) and docs/adr/ filenames")
+    section("THE NEXT FREE NUMBER", "nvs-diagnostics (every `Code::new`) and docs/adr/ filenames")
     for line in brief.out[before:]:
         if line.startswith("== ") or line.startswith("-- source:"):
             continue
@@ -793,7 +793,7 @@ def run_closing() -> None:
     emit("run, a session issued 38 tool calls and carried 1.97 shell commands in each, so the")
     emit("habit is holding -- keep chaining read-only probes rather than spending a call each.")
     emit()
-    emit("`target/debug/mwl.exe` IS ALREADY BUILT at the commit this session starts from -- the")
+    emit("`target/debug/nvs.exe` IS ALREADY BUILT at the commit this session starts from -- the")
     emit("driver builds it after every acceptance check. Run it. Do not `ls` it first, and")
     emit("rebuild only once you have changed Rust yourself.")
     emit()
@@ -897,7 +897,7 @@ def main() -> int:
     if opts.full:
         m.modules = ["crates/**", "editors/**"]
 
-    emit("MWL -- oriented to the current goal. This is deliberately narrow: it prints what this")
+    emit("Novis -- oriented to the current goal. This is deliberately narrow: it prints what this")
     emit("goal's [context] manifest names and nothing else. `python tools/brief.py` is the wide one.")
 
     run_marker()

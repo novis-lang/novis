@@ -1,7 +1,7 @@
 --TEST--
 A method call binds to the receiver's *runtime* class, not its declared one — an override is reached through a base-typed parameter, local and property alike
 --FILE--
-<?mwl
+<?nvs
 class Animal {
     public function sound(): string {
         return "...";

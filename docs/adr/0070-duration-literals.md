@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-24
 - **Scope:** the lexical form `30s`/`1h30m`, its type, its constant-folding, and the one grammar it shares
-  with `Core\Time\Duration::parse` and `mwl.toml`. Not in scope: `Core\Time`'s member list, which is
+  with `Core\Time\Duration::parse` and `nvs.toml`. Not in scope: `Core\Time`'s member list, which is
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 4, and the calendar-versus-exact arithmetic
   split, which that section owns.
 - **Amends:** [0063](0063-core-api-conventions.md) — R12's "units are types" is what makes a `Duration`
@@ -11,16 +11,16 @@
   in consequence, since the literal is what pays for removing `shift`.
   [0057](0057-intrinsic-literal-folding.md) — `Core\Time\Duration::parse` joins the intrinsic list, in the
   row `Core\Time\DateTime::shift` used to occupy.
-  [0064](0064-configuration-file-format.md) — a duration-valued directive in `mwl.toml` is written in this
+  [0064](0064-configuration-file-format.md) — a duration-valued directive in `nvs.toml` is written in this
   grammar rather than as a bare integer of unstated units.
 
-> **In short:** MWL declares durations as a type, never as an `int` of unstated units — which is right, and
+> **In short:** Novis declares durations as a type, never as an `int` of unstated units — which is right, and
 > which costs `Duration::seconds(30)` at every timeout, sleep, retry and cache TTL a program writes. That
 > is the pressure under which `int $seconds` parameters and ambient defaults grow back. So a duration gets
 > a **literal**: `30s`, `500ms`, `1h30m`, lexed as one token, typed `Core\Time\Duration`, folded to a
 > constant with no allocation. The grammar is **Go's `ParseDuration`** with `d` and `w` added, and it is
 > used in exactly three places — the literal, `Duration::parse` for a string that arrives at run time, and
-> `mwl.toml` — from one implementation, so they cannot drift.
+> `nvs.toml` — from one implementation, so they cannot drift.
 
 ## Context
 
@@ -61,7 +61,7 @@ unit     := ns | us | ms | s | m | h | d | w
 - **No sign.** `-7d` does not parse; a backwards step is `->minus(7d)`. The parser therefore never has to
   decide whether the `-` in `$a -7d` is binary or part of a literal.
 - `d` is exactly 24 h and `w` exactly 168 h. Go stops at `h` for this reason, and Prometheus and Flux do
-  not; MWL keeps them because retention and cutoff windows are the common case, and because the ambiguity
+  not; Novis keeps them because retention and cutoff windows are the common case, and because the ambiguity
   Go is avoiding is already handled by a stronger rule — **a calendar day is `Unit::Day` on a `DateTime`,
   and never a `Duration` at all** ([01-core-library § 4](../spec/01-core-library.md)).
 
@@ -94,13 +94,13 @@ nothing at run time; only a computed `Duration::seconds($n)` does. A literal who
 
 | Written | Result |
 |---|---|
-| `1h + 30m` | does not compile — MWL has no operator overloading. Write `1h30m`, or `$a->plus($b)` |
+| `1h + 30m` | does not compile — Novis has no operator overloading. Write `1h30m`, or `$a->plus($b)` |
 | `-7d` | does not parse. Write `->minus(7d)` |
 | `1h30m as int` | does not compile. Write `->toSeconds()` |
 | `$n s` | not a literal. A computed count is `Duration::seconds($n)` |
 | `1.5h` | a lexer error. Write `90m` |
 
-`mwl fmt` ([ADR 0039](0039-canonical-code-formatting.md)) never rewrites one: `90m` and `1h30m` are the
+`nvs fmt` ([ADR 0039](0039-canonical-code-formatting.md)) never rewrites one: `90m` and `1h30m` are the
 same value, and choosing between them is the author's, exactly as `0x10` versus `16` already is.
 
 ### 5. One grammar, three places, one implementation
@@ -109,7 +109,7 @@ same value, and choosing between them is the author's, exactly as `0x10` versus 
 |---|---|---|
 | source | `30d` | at compile time, by the lexer |
 | a run-time string | `Duration::parse($s)` | at run time; throws (R4), which makes it an [ADR 0024](0024-taint-tracking-for-injection-sinks.md) launderer |
-| `mwl.toml` | `request_timeout = "30s"` | at boot, by the same parser |
+| `nvs.toml` | `request_timeout = "30s"` | at boot, by the same parser |
 
 The three share one parser, so a grammar change cannot land in one and miss the others — the property
 [ADR 0057](0057-intrinsic-literal-folding.md) already requires of every intrinsic. `Duration`'s
@@ -133,7 +133,7 @@ The three share one parser, so a grammar change cannot land in one and miss the 
 - **A language-surface addition**, which is the thing this project spends most carefully: one token, one
   lexer production, one folding case, and a keyword-adjacent set of unit spellings that can never be reused.
 - **No PHP developer has seen it.** PHP, JavaScript, Python, Java and C# all lack duration literals. It is
-  self-evident on sight, and `mwl convert` emits it mechanically from `sleep(30)` and `strtotime("+7 days")`,
+  self-evident on sight, and `nvs convert` emits it mechanically from `sleep(30)` and `strtotime("+7 days")`,
   but it is unfamiliarity spent.
 - **`d` and `w` invite the calendar reading.** `7d` is 168 hours, not seven calendar days across a DST
   boundary. The type system keeps a program correct — a `Duration` cannot reach `DateTime::plus` — but the
@@ -149,7 +149,7 @@ The three share one parser, so a grammar change cannot land in one and miss the 
   that reintroduces untyped integer parameters — which is what R12 exists to remove.
 - **ISO-8601 durations (`PT30S`, `P7D`).** Standards-aligned, already what a JSON or XML payload carries.
   Rejected for the source and config forms: `PT1H30M` is markedly less readable inline than `1h30m` and
-  unfamiliar to the audience MWL is for. Nothing stops `Core\Time` gaining an ISO reader later for wire
+  unfamiliar to the audience Novis is for. Nothing stops `Core\Time` gaining an ISO reader later for wire
   formats; that is a different job from a literal.
 - **`3.days`, as Kotlin and Scala spell it.** Rejected mechanically, not aesthetically:
   [ADR 0063](0063-core-api-conventions.md) R19 forbids methods on scalars, and creating an exception for
@@ -159,7 +159,7 @@ The three share one parser, so a grammar change cannot land in one and miss the 
   feature of its own — dimensional analysis, unit algebra in signatures, inference through arithmetic — for
   a language whose domain is web requests and CLI programs, where time is the only unit that recurs.
 - **Allowing `1h + 30m` via operator overloading on `Duration`.** What C++ does. Rejected: operator
-  overloading is a language feature MWL does not have and is not adding for one type, and token
+  overloading is a language feature Novis does not have and is not adding for one type, and token
   concatenation already covers the case it would serve.
 - **Keeping `DateTime::shift("+2 weeks")` instead**, so the short spelling stays a string. Rejected in
   [ADR 0063](0063-core-api-conventions.md) § 4: it duplicates `startOf`/`plus`/`next`, it is a mode string
@@ -168,19 +168,19 @@ The three share one parser, so a grammar change cannot land in one and miss the 
 
 ## Verification
 
-- **Done (M1/M2/M4S).** The grammar is `crates/mwl-syntax/src/duration.rs` — one implementation, whose own
+- **Done (M1/M2/M4S).** The grammar is `crates/nvs-syntax/src/duration.rs` — one implementation, whose own
   module doc says why it sits in the syntax crate — and the lexer, `Core\Time\Duration::parse` and
   `toString` all reach it. `lexer.rs`'s own tests hold `30s`/`1h30m`/`500ms`/`1w` as one token each,
   `0x1d` as one hex literal, `3 d` as two tokens, `30foo` as an integer and an identifier, and one
   diagnostic apiece for `30m1h`, `1h1h`, `1.5s`, `30S` and an out-of-range literal.
-  `tests/conformance/lang/duration-literal-and-parse-share-one-grammar.mwlt` is § 5's divergence check —
+  `tests/conformance/lang/duration-literal-and-parse-share-one-grammar.nvst` is § 5's divergence check —
   the literal, `parse` and a re-parsed `toString` are one value — and
   `tests/conformance/reject/` holds the order, casing and `-7d` refusals. § 2's typing is
-  `mwl_types::expr`'s `ExprKind::Duration` arm: `Core\Time\Duration`, with nothing placing it.
+  `nvs_types::expr`'s `ExprKind::Duration` arm: `Core\Time\Duration`, with nothing placing it.
 - **Owed, and what each waits on.** § 3's *constant* half — no allocation at run time, a constant-pool
-  entry with an immortal header — is the same thing `mwl-runtime`'s own gap 3 owes a string literal, and
+  entry with an immortal header — is the same thing `nvs-runtime`'s own gap 3 owes a string literal, and
   both close together; today a literal is one `Duration::nanoseconds` call on a folded count, so the
-  grammar is resolved while compiling but the value is not immortal. § 5's third place, `mwl.toml`, waits
+  grammar is resolved while compiling but the value is not immortal. § 5's third place, `nvs.toml`, waits
   on M6's configuration loader, which calls the same parser.
 - **M6:** a directive written `request_timeout = "30s"` and a source literal `30s` produce the same value,
   asserted against the parser both already share.

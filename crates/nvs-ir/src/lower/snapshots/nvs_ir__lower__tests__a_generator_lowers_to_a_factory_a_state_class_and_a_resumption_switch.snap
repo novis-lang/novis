@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/tests.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_program(&p, map.file(file))"
 ---
 fn G::upTo(classdesc, int) -> object {
@@ -63,7 +63,7 @@ fn G::upTo$gen::advance(object) -> bool {
     jump bb3
   bb7:
     release v0
-    propagate "G::upTo$gen::advance() at t.mwl:7"
+    propagate "G::upTo$gen::advance() at t.nvs:7"
 }
 
 fn G::upTo$gen::current(object) -> int {

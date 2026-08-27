@@ -1,7 +1,7 @@
 --TEST--
 `true` and `false` are `bool`'s literal types: an `as` into one tests membership and widening back to `bool` is free — ADR 0007 § 3 and ADR 0047 §§ 4, 5
 --FILE--
-<?mwl
+<?nvs
 class Flag {
     // § 4's checked row over the smallest closed set there is. A `mixed`
     // operand is tested against its own runtime tag, so a value that would

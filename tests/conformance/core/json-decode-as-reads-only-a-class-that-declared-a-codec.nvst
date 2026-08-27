@@ -1,7 +1,7 @@
 --TEST--
 `Core\Json::decodeAs<T>` reads a class only where its declaration says so, and the attribute decides both directions of the wire — ADR 0071 §§ 2 and 5, ADR 0063 R4
 --FILE--
-<?mwl
+<?nvs
 // ADR 0071 § 5: a class participates in a wire format by carrying the
 // attribute. These three declare the same two fields; only the first line of
 // the first one differs, which is what makes the pair a bound rather than two

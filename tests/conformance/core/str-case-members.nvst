@@ -1,15 +1,15 @@
 --TEST--
 Core\Str's four case members are Unicode-aware, not byte-wise
 --FILE--
-<?mwl
-echo Core\Str::upper("mwl"), "\n";
-echo Core\Str::lower("MWL"), "\n";
-echo Core\Str::upperFirst("mwl runs"), "\n";
+<?nvs
+echo Core\Str::upper("nvs"), "\n";
+echo Core\Str::lower("NVS"), "\n";
+echo Core\Str::upperFirst("nvs runs"), "\n";
 echo Core\Str::upper("straße"), "\n";
 echo Core\Str::lower("ÉCOLE"), "\n";
 --EXPECT--
-MWL
-mwl
-Mwl runs
+NVS
+nvs
+Nvs runs
 STRASSE
 école

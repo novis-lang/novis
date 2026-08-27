@@ -1,9 +1,9 @@
 --TEST--
 Core\Path::withExtension and Core\Path::extension undo each other wherever the name has one — setting then reading is the extension back, reading then setting is the path back, removal peels exactly one, and a dotfile, a trailing dot and a dotted extension are the three places the pair stops — docs/spec/01-core-library.md § 8
 --FILE--
-<?mwl
+<?nvs
 // Spec § 8 gives `Core\Path` one reading member and one rewriting member over
-// the same cut, and `crates/mwl-stdlib/src/path.rs`'s `stem_and_extension`
+// the same cut, and `crates/nvs-stdlib/src/path.rs`'s `stem_and_extension`
 // makes that cut for both. The neighbouring case pins where `withExtension`
 // refuses; this one pins the property the two members exist as a pair for, and
 // the three names where the property stops.

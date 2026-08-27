@@ -1,7 +1,7 @@
 --TEST--
 `.`, `echo` and `as string` render a `mixed`, a `?T` and any other union by the tag the value carries
 --FILE--
-<?mwl
+<?nvs
 // Every scalar row, reached through `mixed` — the same answers the statically
 // typed operand gives in `concatenation-renders-every-scalar`, so the runtime
 // table and the compile-time one cannot drift apart.

@@ -1,7 +1,7 @@
 --TEST--
 Core\Path::dirname and Core\Path::basename cut every path in exactly one place — join puts the two halves back through the normal form on every row, a name never holds a separator, and {levels:}/{withoutExtension:} are the only things that move either cut — docs/spec/01-core-library.md § 8
 --FILE--
-<?mwl
+<?nvs
 // `dirname` and `basename` are one cut read from its two sides, not two
 // independent readings of a path: whatever one drops, the other keeps, so
 // joining them back is the path again. Asked one row at a time both look
@@ -11,7 +11,7 @@ Core\Path::dirname and Core\Path::basename cut every path in exactly one place �
 // trailing separator, a `.` or `..` that neither member resolves.
 //
 // The recomposition here is *total*, over every row — which is what this adds
-// to path-normalize-has-a-normal-form-and-join-never-replaces-its-base.mwlt,
+// to path-normalize-has-a-normal-form-and-join-never-replaces-its-base.nvst,
 // where the same pair is recomposed with `==` over the five paths that name
 // something inside a directory. Through `normalize`, the rows that case
 // excludes stop being exceptions: a bare name's directory is `.` and rejoining

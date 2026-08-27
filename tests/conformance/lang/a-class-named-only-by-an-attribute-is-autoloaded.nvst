@@ -1,22 +1,22 @@
 --TEST--
 an attribute's name is placed by its prefix like any other class reference — ADR 0061 §§ 1, 2
 --FILE--
-<?mwl
+<?nvs
 // `App\Audit` is written in exactly one place in this program: the `#[...]`
 // group on `App\Handler`. It reaches no type position, no `extends`, no
 // `implements` and no expression, so the prefix lookup can only find
-// `src/Audit.mwl` if the name harvest reads an attribute.
+// `src/Audit.nvs` if the name harvest reads an attribute.
 //
 // That the file is *loaded* is what § 2's one-declaration rule then reports
-// on: `src/Audit.mwl` carries a second top-level class, and the E0317 below
+// on: `src/Audit.nvs` carries a second top-level class, and the E0317 below
 // can be reached from nowhere else. A class nothing loads is not checked.
-require './src/Bootstrap.mwl';
+require './src/Bootstrap.nvs';
 echo App\Handler::run(), "\n";
---FILE src/Bootstrap.mwl--
-<?mwl
+--FILE src/Bootstrap.nvs--
+<?nvs
 autoload 'App' from './';
---FILE src/Handler.mwl--
-<?mwl
+--FILE src/Handler.nvs--
+<?nvs
 namespace App;
 
 // Harvested from an autoloaded file, not the entry point, so this also pins
@@ -29,8 +29,8 @@ class Handler
         return "handler";
     }
 }
---FILE src/Audit.mwl--
-<?mwl
+--FILE src/Audit.nvs--
+<?nvs
 namespace App;
 
 class Audit

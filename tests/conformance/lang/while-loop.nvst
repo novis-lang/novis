@@ -1,7 +1,7 @@
 --TEST--
 a `while` loop runs its body until the condition is false
 --FILE--
-<?mwl
+<?nvs
 var $i = 0;
 var $total = 0;
 while ($i < 5) {

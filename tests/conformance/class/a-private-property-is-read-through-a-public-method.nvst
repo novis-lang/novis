@@ -1,7 +1,7 @@
 --TEST--
 A private property is reachable from every method of its own class, including a static one taking an instance
 --FILE--
-<?mwl
+<?nvs
 class Account {
     private int $balance;
     private string $owner;

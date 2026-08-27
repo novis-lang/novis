@@ -1,7 +1,7 @@
 --TEST--
 `Iterator<T>` has `advance()` and `current()` and nothing else, so a `$k =>` binding over one is a compile error — ADR 0053 § 1
 --FILE--
-<?mwl
+<?nvs
 class Steps {
     public static function upto(int $n): Iterator<int> {
         int $i = 0;

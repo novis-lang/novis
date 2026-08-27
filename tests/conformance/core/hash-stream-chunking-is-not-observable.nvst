@@ -1,7 +1,7 @@
 --TEST--
 `Core\Hash\Stream` answers one digest for every chunking of one input, wherever a boundary falls inside a compression block — spec § 11, ADR 0009 §§ 1 and 3
 --FILE--
-<?mwl
+<?nvs
 // § 11: the incremental form's whole contract is that the chunking is not
 // observable — `finish` answers what `Core\Hash::of` would over the
 // concatenation, whatever shape the updates arrived in. 130 bytes is two full

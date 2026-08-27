@@ -1,7 +1,7 @@
 --TEST--
 `instanceof` over a subject whose declared type can hold no object is `E0497` where it is written — a scalar, an `array<T>`, an enum and a union naming no class — ADR 0007 § 7 row 14
 --FILE--
-<?mwl
+<?nvs
 enum Mode: int {
     Read = 1,
     Write = 2,

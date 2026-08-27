@@ -28,7 +28,7 @@
 //!
 //! Both sides are normalised before comparison: `\r\n` becomes `\n`, trailing
 //! whitespace goes from every line, and trailing blank lines go from the
-//! whole. Without it every case would pass on one of MWL's two CI legs and
+//! whole. Without it every case would pass on one of Novis's two CI legs and
 //! fail on the other for a reason that has nothing to do with what it tests.
 //! An expectation that genuinely cares about a trailing space is spelled with
 //! `--EXPECTF--` and a `%c`.

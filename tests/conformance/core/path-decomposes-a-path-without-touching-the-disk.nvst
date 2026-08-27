@@ -1,7 +1,7 @@
 --TEST--
 Core\Path::basename, dirname, extension, withExtension, split and isAbsolute take a path apart as pure string algebra — spec § 8
 --FILE--
-<?mwl
+<?nvs
 // Spec § 8: no member here touches the disk, so none of these paths exists.
 // Every *built* path is read back through Core\Path::SEPARATOR, which is the
 // one platform-dependent thing in the section — a member emits it, and a case

@@ -1,7 +1,7 @@
 --TEST--
 `Core\Str::fold` answers Unicode's full case folding, which is a comparison key rather than text to show — spec § 1 *Transformation*
 --FILE--
-<?mwl
+<?nvs
 // Folding is a different function from the lower-case mapping: its whole job
 // is to make two strings that differ only by case equal, so it expands where
 // `lower` has to leave a word looking like a word.

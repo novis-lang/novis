@@ -1,7 +1,7 @@
 --TEST--
 `instanceof` answers for an interface reached through the parent, and for the runtime class behind a base-typed local
 --FILE--
-<?mwl
+<?nvs
 interface Named {
     public function name(): string;
 }

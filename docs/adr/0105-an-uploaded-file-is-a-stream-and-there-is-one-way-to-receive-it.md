@@ -59,7 +59,7 @@ means the recommended path is the unbounded one.
 
 **And the buffered path cost twice what it looked like.** A `bytes` value in this runtime is a
 `StrHeader { refcount, len, cap }` with its payload allocated inline and contiguous
-([`crates/mwl-runtime/src/string.rs`](../../crates/mwl-runtime/src/string.rs)); there is no
+([`crates/nvs-runtime/src/string.rs`](../../crates/nvs-runtime/src/string.rs)); there is no
 slice-of-parent representation. A part's `content` therefore cannot alias the accumulated body buffer and
 has to be copied out of it, so peak residency is the raw body *plus* the copied parts, live together until
 the raw buffer drops. A permitted 2G upload is a 4G peak, per in-flight request, held for as long as the
@@ -67,7 +67,7 @@ client takes to send — and `max_in_flight` bounds request count, not bytes.
 
 Underneath all three: `bodyStream()` is *raw* body bytes and is exclusive with `files()`, so there was no
 streaming path for the one shape that actually needs streaming. A large browser upload is multipart,
-always. The application's only alternatives were to buffer it or to implement RFC 7578 framing in MWL —
+always. The application's only alternatives were to buffer it or to implement RFC 7578 framing in Novis —
 boundary detection across chunk edges, per-part headers, transfer encodings — which is precisely the
 parser [0095](0095-ambiguous-input-is-refused-never-repaired.md) makes the runtime own, because a
 parser differential is a security property and not an application's business.
@@ -94,7 +94,7 @@ mistake anyone makes.
 
 ### 2. A part is a file part iff `Content-Disposition` carries `filename`
 
-That is RFC 7578's own distinction and MWL does not invent a second one. Every other part is an ordinary
+That is RFC 7578's own distinction and Novis does not invent a second one. Every other part is an ordinary
 form field: **the server buffers it and `Core\Request::post()` works exactly as it does for a urlencoded
 form.** This is what keeps ordinary form handling ordinary — a `<form>` with a title, a description and a
 file is read the way it is written, and the application is not made to reconstruct `post()` out of part
@@ -110,7 +110,7 @@ there before the part has been consumed, and inventing one is the repair
 
 ### 3. Three ways to consume a part
 
-```mwl
+```nvs
 foreach (Core\Request::files() as $part) {
     $part->filename;                                  // tainted string — never a path
     $part->contentType;                               // tainted string
@@ -190,7 +190,7 @@ holds `fs.write`.
 What that trades is stated rather than implied: **the resource this design can exhaust is disk, and the
 application owns bounding it.** `writeStream`'s `max` is the per-call bound, `upload_total` is the
 per-request one, and neither is a quota over a directory — an operator accepting uploads has to watch the
-volume they land on. That is a cost MWL previously did not have, and it is bought with the memory cost it
+volume they land on. That is a cost Novis previously did not have, and it is bought with the memory cost it
 previously did.
 
 ## Consequences
@@ -204,7 +204,7 @@ previously did.
 - **Disk replaces memory as the resource an upload can exhaust**, per § 6.
 - **A part's bytes are readable exactly once, in order.** An application that needs two passes over an
   upload buffers it with `readAll` or writes it down first — and now says which.
-- **`upload_total` is a second number an operator has to know about.** `mwl info --config` prints both,
+- **`upload_total` is a second number an operator has to know about.** `nvs info --config` prints both,
   and § 5's table is the only place their meanings are defined.
 - **A slow client still holds a connection**, bounded by `body_idle_timeout` as before. What it no longer
   holds is the body.

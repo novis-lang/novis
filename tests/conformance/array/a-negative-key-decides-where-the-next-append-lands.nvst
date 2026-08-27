@@ -1,7 +1,7 @@
 --TEST--
 An append after a negative key continues from it, and a lower key added later does not move it back
 --FILE--
-<?mwl
+<?nvs
 array<string> $n = [];
 $n[-5] = "m";
 $n[] = "n";

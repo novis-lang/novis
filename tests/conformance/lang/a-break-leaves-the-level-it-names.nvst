@@ -1,10 +1,10 @@
 --TEST--
-`break N` and `continue N` leave the N-th enclosing loop or `switch`, counted PHP's way — ADR 0007 § 4's neighbours in the statement grammar, and `mwl_ir::lower::Lowering::lower_break`/`lower_continue`
+`break N` and `continue N` leave the N-th enclosing loop or `switch`, counted PHP's way — ADR 0007 § 4's neighbours in the statement grammar, and `nvs_ir::lower::Lowering::lower_break`/`lower_continue`
 --FILE--
-<?mwl
+<?nvs
 // A level names an enclosing statement by count, outermost last: level 1 is
 // the innermost, and every loop *and* every `switch` is one of them. Nothing
-// below is a rendering of what MWL chose — the whole file is byte-identical
+// below is a rendering of what Novis chose — the whole file is byte-identical
 // to the same program under PHP, which is what `break 2` has to be.
 array<string> $outer = ["a", "b", "c"];
 array<string> $inner = ["x", "y", "z"];

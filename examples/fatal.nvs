@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 class Fatal {
     public static function trigger(): string {
         return "value: " . 42;

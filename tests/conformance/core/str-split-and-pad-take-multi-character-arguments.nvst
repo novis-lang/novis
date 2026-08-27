@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::split's separator and Core\Str::padStart/padEnd's pad may both be longer than one character
 --FILE--
-<?mwl
+<?nvs
 array<string> $parts = Core\Str::split("a::b::c", "::");
 echo Core\Str::join($parts, "|"), "|", Core\Arr::count($parts), "\n";
 

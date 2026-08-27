@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::average answers every exact quotient a decimal holds and refuses exactly the one whose rounding carries past it, spec § 2 and ADR 0054 §§ 1, 3
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `average` keeps an exact subject exact: a `decimal` total is
 // divided by the entry count as a `decimal`, which ADR 0054 § 3 rounds half to
 // even at the widest scale the quotient admits. The one subject it has no

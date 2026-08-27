@@ -1,7 +1,7 @@
 --TEST--
 `as` throws rather than losing data — a fractional float never becomes an int
 --FILE--
-<?mwl
+<?nvs
 class Convert {
     public static function toInt(float $f): string {
         try {

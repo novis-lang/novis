@@ -1,7 +1,7 @@
 --TEST--
 a map built by counting keeps each key where it was first inserted, no matter how often its value is overwritten
 --FILE--
-<?mwl
+<?nvs
 class Tally {
     public static function count(array<string> $words): array<int> {
         array<int> $seen = [];

@@ -2,14 +2,14 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
-- **Scope:** the spelling of equality and inequality; what equality *means* for every MWL type, including
+- **Scope:** the spelling of equality and inequality; what equality *means* for every Novis type, including
   the three PHP compares two ways (strings, arrays, objects); what happens when the two operands' static
   types cannot both hold the same value; what a `mixed` or union operand does at runtime; and the
   comparison `switch` and `match` arms perform. Not in scope: ordering `< <= > >= <=>`, which
   [0013](0013-comparable-interface.md) owns and this ADR does not touch; truthiness, which
   [0035](0035-truthy-boolean-context.md) owns; converting between types, which is `as`
   ([0034](0034-legacy-cast-syntax-rejected.md), [0066](0066-nullable-conversion-operator.md)); and the
-  natural ordering `Arr::sort`/`Math::min` use, which `crates/mwl-stdlib/src/ordering.rs` owns.
+  natural ordering `Arr::sort`/`Math::min` use, which `crates/nvs-stdlib/src/ordering.rs` owns.
 - **Amends:** [0013](0013-comparable-interface.md) § 5 — that section said equality "keeps whatever
   behaviour it already has… whatever PHP's default already gives it," which was the absence of a decision;
   it now names this ADR and states the one thing 0013 does decide about equality, that `compareTo`
@@ -20,11 +20,11 @@
   said. [0089](0089-convert-is-one-rule-table-with-two-modes.md)'s worked `==` rule — its destination is
   `==`, and its tiering is re-stated against this ADR's table.
 
-> **In short:** MWL has **one** equality operator, `==`, and its negation `!=`. `===` and `!==` do not
-> parse. There is nothing for a second spelling to distinguish, because MWL has no loose comparison to
+> **In short:** Novis has **one** equality operator, `==`, and its negation `!=`. `===` and `!==` do not
+> parse. There is nothing for a second spelling to distinguish, because Novis has no loose comparison to
 > escape from: `==` never converts either operand, and the two operands must have types that can both hold
 > the same value — `"1" == 1` is a **compile error**, not `true` and not `false`. Where PHP's two
-> operators genuinely disagreed at the same type, MWL takes the strict answer in each case: two strings
+> operators genuinely disagreed at the same type, Novis takes the strict answer in each case: two strings
 > compare as text and never as numbers (`"1" == "01"` is false), two arrays compare element by element in
 > order, and two objects compare by **identity**. Comparing content rather than identity is a named
 > method, never an operator — there is no `__equals` hook, for the reason
@@ -35,7 +35,7 @@
 ## Context
 
 - **PHP has two operators because it has juggling.** `===` exists to escape `==`, and `==` exists because
-  PHP 4 had no types. MWL has neither problem: [ADR 0007](0007-explicit-type-system.md) makes every
+  PHP 4 had no types. Novis has neither problem: [ADR 0007](0007-explicit-type-system.md) makes every
   binding declare a type, and [ADR 0034](0034-legacy-cast-syntax-rejected.md) makes `as` the only
   conversion spelling. Carrying both operators forward would carry the scar without the wound.
 - **This repository already refuses redundant spellings on exactly this reasoning.**
@@ -52,9 +52,9 @@
 - **The standard library already chose strict, twice, before this ADR existed.**
   `Arr::contains` is always strict where `in_array` defaulted to loose, and `Arr::min`/`max` go through a
   natural ordering that *throws* on a cross-tag pair rather than coercing
-  (`crates/mwl-stdlib/src/ordering.rs`). Leaving the operator undecided while the library decided for
+  (`crates/nvs-stdlib/src/ordering.rs`). Leaving the operator undecided while the library decided for
   itself is the two-homes-for-one-fact bug AGENTS.md exists to prevent.
-- **The compiler had already collapsed them by accident.** `mwl-ir` lowers `==` and `===` to the same
+- **The compiler had already collapsed them by accident.** `nvs-ir` lowers `==` and `===` to the same
   instruction, its own comment noting the collapse holds only while no non-scalar operand exists. That is
   a gap waiting to be filled with a decision, not a decision.
 
@@ -107,7 +107,7 @@ a diagnostic at the site that wrote it.
 ### 3. What equality means, one row per type
 
 Nothing here converts. Each row is the strict reading; where PHP's two operators disagreed, the column
-names which one MWL took.
+names which one Novis took.
 
 | type | two values are equal when | note |
 |---|---|---|
@@ -123,7 +123,7 @@ names which one MWL took.
 | `callable` | the same closure | closures are values ([0031](0031-callable-is-the-only-closure-type.md)); two `fn` literals with identical bodies are two closures |
 | `mixed`, a union | resolved at runtime — see *5* | |
 
-The recursion in the array row terminates because an MWL array cannot contain itself: an array is a
+The recursion in the array row terminates because an Novis array cannot contain itself: an array is a
 copy-on-write value, not a reference, so there is no cycle to walk. An array holding **objects** compares
 those objects by identity per the class row, which bounds that walk too.
 
@@ -181,12 +181,12 @@ disjoint from the subject's is *2*'s compile error. `match (true) { … }` is un
 and re-tiers against this table:
 
 - **Tier E** — both operands proven the same non-`string` scalar type, or proven numeric. PHP's two
-  operators agreed there, and so does MWL's one.
-- **Tier D** — two `string` operands. PHP's `==` compared two numeric strings *numerically*; MWL's
+  operators agreed there, and so does Novis's one.
+- **Tier D** — two `string` operands. PHP's `==` compared two numeric strings *numerically*; Novis's
   compares them as text. The rewrite compiles and answers differently on numeric-string input, which is
   exactly a `TODO(convert:…)` and not a blocker.
 - **Tier D** — two arrays (PHP's `==` ignored key order) or two objects (PHP's `==` walked properties).
-  The `TODO` names which reading MWL took.
+  The `TODO` names which reading Novis took.
 - **Not emitted as code** — a cross-type comparison, which is *2*'s compile error. The converter emits the
   commented-out original plus the idiomatic shape, `$id == ($raw as int)`. This is the branch that most
   earns the treatment: it is where PHP 8.0 itself changed the answer, so the original source was already
@@ -203,10 +203,10 @@ and re-tiers against this table:
   answer, at the site that wrote it. [0067](0067-core-db.md) § 8's driver-returns-strings hazard and
   [0063](0063-core-api-conventions.md) R5's absence-is-`?T` rule both stop depending on the reader's care.
 - **The compiler gets simpler, not more complex.** One `BinaryOp`, one lowering path, one narrowing
-  spelling. `mwl_types::locals` currently narrows on `===`/`!==` while explicitly refusing to read
+  spelling. `nvs_types::locals` currently narrows on `===`/`!==` while explicitly refusing to read
   anything from `==`; that carve-out disappears.
 - **`==` is what every language without juggling spells it** — C, Java, Go, Rust, Python. The one
-  operator MWL keeps is the one a reader arriving from anywhere but PHP already knows.
+  operator Novis keeps is the one a reader arriving from anywhere but PHP already knows.
 
 **Negative**
 
@@ -221,7 +221,7 @@ and re-tiers against this table:
   parameter to `mixed` makes a diagnostic go away, and get `false` instead of a fix. This is ADR 0007's
   standing trade rather than a new one, but equality is where it is easiest to reach for by accident.
 - **Object identity will surprise someone porting a value class.** PHP's `==` compared two `Money`
-  objects by their properties; MWL's says they are different objects. § 4's answer costs one method call
+  objects by their properties; Novis's says they are different objects. § 4's answer costs one method call
   and a `Comparable` declaration.
 - **`$x == null` on a non-nullable type is now an error rather than a folded constant.** Defensive
   null checks copied from PHP stop compiling. That is the intended reading — the check was always dead —
@@ -230,7 +230,7 @@ and re-tiers against this table:
 ## Alternatives rejected
 
 - **Keep both operators with PHP's semantics.** Rejected on priority 1: it reintroduces the hazard family
-  two security ADRs already work around, and on [0015](0015-no-name-aliasing.md), since with MWL's type
+  two security ADRs already work around, and on [0015](0015-no-name-aliasing.md), since with Novis's type
   system the two spellings agree everywhere except three rows nobody would choose the loose reading for.
 - **Keep both, with `==` defined as strict — two spellings for one operation.** Rejected on
   [0045](0045-and-or-xor-keyword-operators-rejected.md)'s exact reasoning. Worse than either alternative:
@@ -262,18 +262,18 @@ and re-tiers against this table:
   an operator and not an interface, and the evidence for it is repetition in real programs rather than
   argument.
 - **Whether `mixed == mixed` should throw** on a cross-row pair rather than answering `false`, matching
-  what `crates/mwl-stdlib/src/ordering.rs` already does for `Arr::min`. Deliberately not taken now, because
+  what `crates/nvs-stdlib/src/ordering.rs` already does for `Arr::min`. Deliberately not taken now, because
   ordering has no correct answer for a mismatched pair while equality does; revisit if the silent `false`
   in *5* turns out to hide real bugs.
 
 ## Verification
 
 - **Grammar.** A fixture per rejected spelling — `$a === $b` and `$a !== $b` — each a compile error whose
-  message names `==`/`!=`. `crates/mwl-syntax`'s corpus parse over the local `php-src` checkout will now
+  message names `==`/`!=`. `crates/nvs-syntax`'s corpus parse over the local `php-src` checkout will now
   report these as errors rather than parsing them, which is itself the check that the lexer rule fires.
-- **Disjointness.** One `.mwlt` case per error row in *2*'s table, and one per compiling row, asserting the
+- **Disjointness.** One `.nvst` case per error row in *2*'s table, and one per compiling row, asserting the
   diagnostic code in the first set and the answer in the second. The `?T`-against-`null` row must still
-  narrow, which `crates/mwl-types/tests` already covers under the old spelling.
+  narrow, which `crates/nvs-types/tests` already covers under the old spelling.
 - **The table in *3*.** A conformance fixture per row, with the three PHP-divergent rows written as
   explicit non-equalities: `"1" == "01"` is false, two arrays differing only in key order are not equal,
   and two distinct instances with identical properties are not equal. The differential leg is expected to

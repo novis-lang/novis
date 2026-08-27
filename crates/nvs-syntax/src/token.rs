@@ -2,13 +2,13 @@
 //! time.
 //!
 //! A token carries no owned text. Its [`Span`] already points at the exact bytes
-//! it came from, and [`mwl_diagnostics::SourceFile::span_text`] recovers them
+//! it came from, and [`nvs_diagnostics::SourceFile::span_text`] recovers them
 //! whenever a later stage needs to interpret a literal (parse the digits,
 //! unescape a string). This keeps a token 16 bytes and `Copy`, which matters
 //! because every later stage — parser lookahead, incremental reparse for the
 //! LSP, snapshot tests — holds many of them at once.
 
-use mwl_diagnostics::Span;
+use nvs_diagnostics::Span;
 
 /// One lexical token: its kind, plus the exact source range it covers.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -16,7 +16,7 @@ pub struct Token {
     /// What kind of token this is.
     pub kind: TokenKind,
     /// The exact bytes this token covers, including any delimiters (a string's
-    /// quotes, a tag's `<?mwl`).
+    /// quotes, a tag's `<?nvs`).
     pub span: Span,
 }
 
@@ -53,13 +53,13 @@ pub enum TokenKind {
     /// A run of literal HTML/text outside any `<?…` tag, emitted verbatim as
     /// output — PHP's inline-HTML mode.
     InlineHtml,
-    /// `<?mwl`
-    OpenTagMwl,
-    /// `<?php` — lexed like `<?mwl` so the parser can diagnose it by name
+    /// `<?nvs`
+    OpenTagNvs,
+    /// `<?php` — lexed like `<?nvs` so the parser can diagnose it by name
     /// rather than misreading it as inline HTML; rejected at parse time,
-    /// `<?mwl` is the only code-mode open tag MWL keeps (ADR 0049 § 2).
+    /// `<?nvs` is the only code-mode open tag Novis keeps (ADR 0049 § 2).
     OpenTagPhp,
-    /// `<?=` — short-echo, exactly `<?mwl echo`.
+    /// `<?=` — short-echo, exactly `<?nvs echo`.
     OpenTagEcho,
     /// `?>`, leaving code mode.
     CloseTag,
@@ -107,7 +107,7 @@ pub enum TokenKind {
     /// label). The lexer records only where this token is — stripping that
     /// leading whitespace from the body's content lines (PHP 7.3+ "flexible
     /// heredoc") happens later, once the parser has assembled the whole
-    /// literal's span: see `mwl_types::string_lit::heredoc_shape`/
+    /// literal's span: see `nvs_types::string_lit::heredoc_shape`/
     /// `dedent_heredoc_run`, not tokenization.
     HeredocClose,
     /// A run of literal text inside a double-quoted string, heredoc or nowdoc,
@@ -240,7 +240,7 @@ pub enum TokenKind {
     /// only shape left once [`Variable`](Self::Variable) claims `$name`. Reached
     /// by `$$name` and `${expr}` ("variable variables"), which the lexer still
     /// tokenizes; rejecting them with
-    /// [`code::E_VARIABLE_VARIABLE`](mwl_diagnostics::code::E_VARIABLE_VARIABLE)
+    /// [`code::E_VARIABLE_VARIABLE`](nvs_diagnostics::code::E_VARIABLE_VARIABLE)
     /// is the parser's job, per the pragmatic-superset exclusions.
     Dollar,
     /// `\` — namespace separator.
@@ -249,7 +249,7 @@ pub enum TokenKind {
     AttributeOpen,
 
     /// A character (sequence) the lexer could not classify. Recovery continues
-    /// past it; [`code::E_UNEXPECTED_CHAR`](mwl_diagnostics::code::E_UNEXPECTED_CHAR)
+    /// past it; [`code::E_UNEXPECTED_CHAR`](nvs_diagnostics::code::E_UNEXPECTED_CHAR)
     /// is reported alongside it.
     Unknown,
 }
@@ -362,7 +362,7 @@ pub enum Keyword {
 impl Keyword {
     /// Looks up a reserved word by its (already lower-cased) spelling.
     ///
-    /// Returns `None` for anything that is not one of MWL's reserved words,
+    /// Returns `None` for anything that is not one of Novis's reserved words,
     /// including the contextual spellings — the caller then lexes it as an
     /// [`Ident`](TokenKind::Ident).
     #[must_use]

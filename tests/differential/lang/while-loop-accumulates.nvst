@@ -1,7 +1,7 @@
 --TEST--
 a `while` loop over integers accumulates exactly what PHP's does
 --FILE--
-<?mwl
+<?nvs
 class Bench {
     public static function sum(int $n): int {
         var $total = 0;

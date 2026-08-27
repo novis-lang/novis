@@ -8,13 +8,13 @@
 //!
 //! # Why a table rather than a written declaration
 //!
-//! `Throwable` cannot be written in MWL: its `backtrace` is grown by the
-//! runtime as a throw propagates (`mwl_runtime::throwable`), and a source
+//! `Throwable` cannot be written in Novis: its `backtrace` is grown by the
+//! runtime as a throw propagates (`nvs_runtime::throwable`), and a source
 //! declaration would need a body that has no legal spelling. Every consumer
 //! that needs a class to exist therefore seeds itself from [`TREE`] —
-//! `crate::hierarchy` for the `extends` links, `mwl_types::error_lib` for the
-//! property/constructor signatures, `mwl_types::layout` for the slot order,
-//! and `mwl_ir::lower` for the one synthesized constructor body.
+//! `crate::hierarchy` for the `extends` links, `nvs_types::error_lib` for the
+//! property/constructor signatures, `nvs_types::layout` for the slot order,
+//! and `nvs_ir::lower` for the one synthesized constructor body.
 //!
 //! # There is no `Exception` and no `Error`
 //!
@@ -45,10 +45,10 @@ pub const ROOT: &str = "Throwable";
 
 /// `Throwable`'s own instance properties, in slot order.
 ///
-/// Slot order is load-bearing twice over: `mwl_runtime::object` lays a
+/// Slot order is load-bearing twice over: `nvs_runtime::object` lays a
 /// subclass's slots out *after* its parent's, so these four indices are the
 /// same for every exception class in existence — which is what lets
-/// `mwl_runtime::throwable` reach `backtrace` on a value it knows nothing
+/// `nvs_runtime::throwable` reach `backtrace` on a value it knows nothing
 /// else about.
 pub const PROPERTIES: &[&str] = &["message", "previous", "backtrace", "location"];
 
@@ -90,8 +90,8 @@ pub const ISSUES_SLOT: usize = PROPERTIES.len();
 /// `name`'s own instance properties, in slot order — empty for a class that
 /// declares none, and for a name that is not in [`TREE`] at all.
 ///
-/// The one reader that matters is `mwl_types::layout`, which appends these
-/// after every ancestor's; `mwl_types::error_lib` seeds the same list as
+/// The one reader that matters is `nvs_types::layout`, which appends these
+/// after every ancestor's; `nvs_types::error_lib` seeds the same list as
 /// signatures.
 #[must_use]
 pub fn own_properties(name: &str) -> &'static [&'static str] {
@@ -106,7 +106,7 @@ pub fn own_properties(name: &str) -> &'static [&'static str] {
 /// Exactly the classes with own properties: a constructor exists to assign
 /// them ([ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)),
 /// so a class that adds none inherits its parent's and needs no second one.
-/// `mwl_ir::lower::exception` is what actually builds each body.
+/// `nvs_ir::lower::exception` is what actually builds each body.
 #[must_use]
 pub fn declares_constructor(name: &str) -> bool {
     !own_properties(name).is_empty()

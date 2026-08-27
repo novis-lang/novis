@@ -1,7 +1,7 @@
 --TEST--
 `$x op= e` means `$x = $x op e`, for the arithmetic operators and `.`
 --FILE--
-<?mwl
+<?nvs
 int $i = 3;
 $i += 4;
 $i -= 1;

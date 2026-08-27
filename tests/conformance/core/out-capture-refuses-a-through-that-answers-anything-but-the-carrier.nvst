@@ -1,7 +1,7 @@
 --TEST--
 `Core\Out::capture` accepts exactly one of the answers a `through` closure can give and names what each of the others was — spec § 12, ADR 0088 § 5 and ADR 0031
 --FILE--
-<?mwl
+<?nvs
 // ADR 0088 § 5 makes `capture` answer the sink's *carrier*, and § 12's
 // `{through:}` a transform over it. A `callable` is opaque as to signature
 // (ADR 0031), so nothing static stands between that option and what the

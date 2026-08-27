@@ -1,10 +1,10 @@
 --TEST--
 `Core\Bytes::pack` writes fields of a stated width and order, and refuses every code that would let the machine decide — spec § 7, ADR 0063 R4
 --FILE--
-<?mwl
+<?nvs
 // Spec § 7's `pack(string $format, mixed ...$values): bytes`. Every octet
 // below is what PHP's `pack` writes for the same call; the divergences are all
-// refusals, and `crates/mwl-stdlib/src/bytes.rs` owns why each one is refused.
+// refusals, and `crates/nvs-stdlib/src/bytes.rs` owns why each one is refused.
 
 // The integer codes name their width and their byte order outright.
 echo Core\Encoding::toHex(Core\Bytes::pack("NnC", 305419896, 4660, 255)), "\n";

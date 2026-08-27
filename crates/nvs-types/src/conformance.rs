@@ -31,14 +31,14 @@
 //!
 //! The four compiler-declared global interfaces are *inside* it, and reach it
 //! the same way a source-declared one does: [`crate::iter_lib`] seeds every
-//! member on [`mwl_hir::interfaces`]'s roster, so `implements Comparable`
+//! member on [`nvs_hir::interfaces`]'s roster, so `implements Comparable`
 //! owes `compareTo` and `implements Stringable` owes `toString` here, rather
 //! than only at the use sites (`crate::expr`'s `require_stringable` and the
 //! object comparison check) that were the whole of the guarantee before.
 
-use mwl_diagnostics::{Diagnostic, code};
-use mwl_hir::QName;
-use mwl_syntax::ast::{ClassDecl, Modifier};
+use nvs_diagnostics::{Diagnostic, code};
+use nvs_hir::QName;
+use nvs_syntax::ast::{ClassDecl, Modifier};
 use rustc_hash::FxHashSet;
 
 use crate::Env;
@@ -123,9 +123,9 @@ fn collect_obligations(
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::{Diagnostics, SourceMap, code};
-    use mwl_hir::resolve_file;
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::{Diagnostics, SourceMap, code};
+    use nvs_hir::resolve_file;
+    use nvs_syntax::parse_file;
 
     use crate::check::check_program;
     use crate::expr_table::ExprTypeTable;
@@ -133,7 +133,7 @@ mod tests {
 
     fn check_src(src: &str) -> Diagnostics {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn a_cursor_class_missing_advance_is_diagnosed() {
         let diags = check_src(
-            "<?mwl\n\
+            "<?nvs\n\
              class Nums implements Iterator<int> {\n\
              \x20 function current(): int { return 1; }\n\
              }\n",
@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn a_cursor_class_declaring_both_members_is_clean() {
         let diags = check_src(
-            "<?mwl\n\
+            "<?nvs\n\
              class Nums implements Iterator<int> {\n\
              \x20 function advance(): bool { return false; }\n\
              \x20 function current(): int { return 1; }\n\
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn a_user_interfaces_member_is_owed_too() {
         let diags = check_src(
-            "<?mwl\n\
+            "<?nvs\n\
              interface Shape { function area(): int; }\n\
              class Square implements Shape {}\n",
         );
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn an_interface_default_body_discharges_the_obligation() {
         let diags = check_src(
-            "<?mwl\n\
+            "<?nvs\n\
              interface Shape { public function area(): int { return 0; } }\n\
              class Square implements Shape {}\n",
         );
@@ -213,7 +213,7 @@ mod tests {
     #[test]
     fn an_abstract_class_is_exempt_and_its_concrete_subclass_is_not() {
         let clean = check_src(
-            "<?mwl\n\
+            "<?nvs\n\
              interface Shape { function area(): int; }\n\
              abstract class Partial implements Shape {}\n\
              class Done extends Partial { function area(): int { return 4; } }\n",
@@ -221,7 +221,7 @@ mod tests {
         assert!(!clean.has_errors(), "{clean:?}");
 
         let owed = check_src(
-            "<?mwl\n\
+            "<?nvs\n\
              interface Shape { function area(): int; }\n\
              abstract class Partial implements Shape {}\n\
              class Undone extends Partial {}\n",
@@ -235,11 +235,11 @@ mod tests {
     /// interface left unanswered.
     #[test]
     fn a_reserved_interface_owes_its_seeded_members() {
-        let owed = check_src("<?mwl\nclass Money implements Comparable {}\n");
+        let owed = check_src("<?nvs\nclass Money implements Comparable {}\n");
         assert!(missing(&owed), "{owed:?}");
 
         let answered = check_src(
-            "<?mwl\n\
+            "<?nvs\n\
              class Money implements Comparable {\n\
              public function compareTo(self $other): int { return 0; }\n\
              }\n",

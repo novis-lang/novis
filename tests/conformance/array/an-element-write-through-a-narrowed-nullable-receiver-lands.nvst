@@ -1,7 +1,7 @@
 --TEST--
 an array-element write through a narrowed `?T` receiver writes the property's own slot, in every subscript spelling — ADR 0007 § 1, ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 // A `?T` local is one tagged slot wide however narrow a condition later
 // proves it (ADR 0007 § 1), so a receiver reached through one has to be
 // untagged before anything stores into it. The plain `$m->rows = [...]` half

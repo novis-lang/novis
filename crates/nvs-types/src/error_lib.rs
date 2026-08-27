@@ -1,6 +1,6 @@
 //! Seeding the checker's signature table with the exception tree.
 //!
-//! [`mwl_hir::errors`] is the one home for the tree's shape; this is the one
+//! [`nvs_hir::errors`] is the one home for the tree's shape; this is the one
 //! place that turns it into the same
 //! [`ClassSignature`](crate::signatures::ClassSignature) a user-declared class
 //! produces — exactly the shape [`crate::core_lib`] already gives `Core`, and
@@ -19,7 +19,7 @@
 //!
 //! [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's
 //! `issues: array<Core\Issue>`, seeded from
-//! [`mwl_hir::errors::OWN_PROPERTIES`] rather than named here, so that the
+//! [`nvs_hir::errors::OWN_PROPERTIES`] rather than named here, so that the
 //! slot order and the signature cannot disagree. `Core\Issue` is an ADR 0036
 //! **shape**, `{path: string, message: string}` — see [`issue_shape`] — so a
 //! class of that name exists nowhere and a decoder builds one with nothing
@@ -27,15 +27,15 @@
 //!
 //! A class that declares properties also declares a constructor to assign
 //! them, which is why the root is no longer the only entry with methods; the
-//! bodies are `mwl_ir::lower::exception`'s.
+//! bodies are `nvs_ir::lower::exception`'s.
 //!
 //! # `location` is the throw site, not the construction site
 //!
-//! The synthesized constructor leaves it empty and `mwl_ir::lower`'s
+//! The synthesized constructor leaves it empty and `nvs_ir::lower`'s
 //! `write_throw_location` fills it at the `throw` — the choice that agrees
 //! with the backtrace beside it, since that holds the frames the exception
 //! unwound *out of*. Two consequences, both pinned by
-//! `tests/conformance/error/a-location-is-the-throw-site-and-a-rethrow-moves-it.mwlt`:
+//! `tests/conformance/error/a-location-is-the-throw-site-and-a-rethrow-moves-it.nvst`:
 //! an exception constructed and never thrown reads `""`, and rethrowing one
 //! that was already caught *rewrites* its location to the rethrow site rather
 //! than keeping the original. Chaining is what preserves the original — the
@@ -46,30 +46,30 @@
 //! * **`$e->previous` is set but cannot be *read* through.** The chain is
 //!   built — `new RuntimeError("…", {previous: $e})` stores it, and reading
 //!   the property back yields the `Throwable|null` it was given — but that
-//!   type erases to `mwl_ir::Ty::Tagged`, so reaching `->message` on it needs
+//!   type erases to `nvs_ir::Ty::Tagged`, so reaching `->message` on it needs
 //!   the value bound to a local and narrowed with `!= null` first (ADR 0066).
 //!   A property access straight off `$e->previous` is the tagged-receiver
-//!   case `mwl_ir::Ty::Tagged`'s own known gap names.
+//!   case `nvs_ir::Ty::Tagged`'s own known gap names.
 //!
 //! An `issues` entry is read like any other value now: `$issue->path` is a
 //! property access on an ADR 0036 § 4 shape receiver, which
 //! [`crate::expr_table::ExprInfo::ShapeProperty`] resolves to the field's slot
-//! and `mwl-ir` reads by index — there is no class to name, so there is no
+//! and `nvs-ir` reads by index — there is no class to name, so there is no
 //! class to record.
 //!
 //! A user subclass that declares its own constructor and does not chain to
 //! `parent::constructor(…)` is already refused, by the same check every other
 //! `extends` gets — nothing exception-specific is needed for that.
 
-use mwl_hir::QName;
-use mwl_hir::errors::{PROPERTIES, ROOT, TREE};
+use nvs_hir::QName;
+use nvs_hir::errors::{PROPERTIES, ROOT, TREE};
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
-/// Adds every [`mwl_hir::errors::TREE`] entry to `table`.
+/// Adds every [`nvs_hir::errors::TREE`] entry to `table`.
 ///
 /// Called once, alongside [`crate::core_lib::seed`], at the head of
 /// [`build_signatures`](crate::signatures::build_signatures).
@@ -79,15 +79,15 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         let qname = QName::parse(name);
         // A class that declares no state of its own inherits both its
         // properties and its constructor through the graph
-        // `mwl_hir::hierarchy` seeded — the same walk a user subclass goes
+        // `nvs_hir::hierarchy` seeded — the same walk a user subclass goes
         // through. The root and `ParseError` are the two that do declare
-        // some; `mwl_hir::errors::OWN_PROPERTIES` is that roster's home.
+        // some; `nvs_hir::errors::OWN_PROPERTIES` is that roster's home.
         let properties = if qname == root {
             root_properties(interner)
         } else {
             own_properties(name, interner)
         };
-        let methods = if mwl_hir::errors::declares_constructor(name) {
+        let methods = if nvs_hir::errors::declares_constructor(name) {
             constructor(interner)
         } else {
             FxHashMap::default()
@@ -97,9 +97,9 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
 }
 
 /// `name`'s own properties beyond the root's, typed —
-/// [`mwl_hir::errors::OWN_PROPERTIES`]'s non-root rows.
+/// [`nvs_hir::errors::OWN_PROPERTIES`]'s non-root rows.
 fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
-    mwl_hir::errors::own_properties(name)
+    nvs_hir::errors::own_properties(name)
         .iter()
         .map(|property| {
             let ty = match *property {
@@ -119,7 +119,7 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
 ///
 /// An ADR 0036 shape rather than a class, which is what that ADR writes and
 /// what lets a decoder build one with no declaration anywhere: the value is an
-/// anonymous methodless instance, and `mwl_stdlib::issue` is what builds it.
+/// anonymous methodless instance, and `nvs_stdlib::issue` is what builds it.
 /// [`TypeInterner::shape`] canonicalizes the field order, so the runtime slot
 /// order is the *sorted* one — `message`, then `path`.
 fn issue_shape(interner: &mut TypeInterner) -> TypeId {
@@ -170,7 +170,7 @@ fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
 /// `new LogicError("…")` supplies one argument and
 /// [`MethodSig::required`](crate::signatures::MethodSig::required) is 1. The
 /// flattening at the call site is generic over any signature carrying a
-/// [`Ty::Options`](crate::ty::Ty::Options) parameter — `mwl_ir::lower::call`'s
+/// [`Ty::Options`](crate::ty::Ty::Options) parameter — `nvs_ir::lower::call`'s
 /// `lower_options_arg` — so a seeded constructor reaches it on exactly the
 /// terms a `Core` member does.
 ///
@@ -205,8 +205,8 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             return_ty: void,
             is_static: false,
             interface_private: false,
-            visibility: mwl_syntax::ast::Visibility::Public,
-            // Synthesized by `mwl_ir::lower`, which is still a body.
+            visibility: nvs_syntax::ast::Visibility::Public,
+            // Synthesized by `nvs_ir::lower`, which is still a body.
             has_body: true,
         },
     )]
@@ -218,13 +218,13 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
 mod tests {
     use super::*;
     use crate::signatures::{resolve_method, resolve_property};
-    use mwl_hir::ClassGraph;
+    use nvs_hir::ClassGraph;
 
-    /// The very graph `mwl_hir::hierarchy` seeds into every real compilation,
+    /// The very graph `nvs_hir::hierarchy` seeds into every real compilation,
     /// so these tests exercise the shipped links rather than a copy of them.
     fn tree_graph() -> ClassGraph {
         let mut graph = ClassGraph::default();
-        mwl_hir::seed_exception_tree(&mut graph);
+        nvs_hir::seed_exception_tree(&mut graph);
         graph
     }
 
@@ -307,8 +307,8 @@ mod tests {
 
     #[test]
     fn the_root_owes_its_constructor_no_definite_initialization() {
-        // The constructor is synthesized by `mwl_ir::lower`, not written in
-        // MWL, so ADR 0022's obligation has nothing to check it against.
+        // The constructor is synthesized by `nvs_ir::lower`, not written in
+        // Novis, so ADR 0022's obligation has nothing to check it against.
         let mut interner = TypeInterner::new();
         let mut table = SignatureTable::new();
         seed(&mut table, &mut interner);

@@ -1,9 +1,9 @@
 --TEST--
 Core\Arr::append derives the next free integer key from the entries it copies, where PHP's counter remembers a key that was removed and array_pop lowers it
 --ORACLE-DIVERGES--
-An array's next free integer key is a property of its *history* in PHP and a property of its *entries* in MWL, and the difference is ADR 0063 R3's purity rather than an opinion about counters. MWL's own `$a[] = $v` mutates one array and does carry the counter across a removal, exactly as PHP's does; `Core\Arr::append` cannot, because it returns a fresh array and a fresh array has no history to inherit — its counter is one past the largest integer key actually present. PHP's `array_pop` goes further in the other direction and *lowers* the counter to the key it removed, so the same three entries can be followed by an append landing on three different keys depending on which statement produced them.
+An array's next free integer key is a property of its *history* in PHP and a property of its *entries* in Novis, and the difference is ADR 0063 R3's purity rather than an opinion about counters. Novis's own `$a[] = $v` mutates one array and does carry the counter across a removal, exactly as PHP's does; `Core\Arr::append` cannot, because it returns a fresh array and a fresh array has no history to inherit — its counter is one past the largest integer key actually present. PHP's `array_pop` goes further in the other direction and *lowers* the counter to the key it removed, so the same three entries can be followed by an append landing on three different keys depending on which statement produced them.
 --FILE--
-<?mwl
+<?nvs
 final class Render {
     public static function of(array<int> $a): string {
         var $out = "";
@@ -40,7 +40,7 @@ echo Render::of(Core\Arr::append(Core\Arr::withoutLast($mixed), 9)), "\n";
 
 // The same shape with the gap at the front rather than the back, so the two
 // answers are far apart rather than adjacent: PHP's `array_pop` frees key 4
-// and reuses it, while MWL numbers from the one entry that remains.
+// and reuses it, while Novis numbers from the one entry that remains.
 array<int> $gapped = ["0" => 1, "4" => 2];
 echo Render::of(Core\Arr::append(Core\Arr::withoutLast($gapped), 9)), "\n";
 --EXPECT--

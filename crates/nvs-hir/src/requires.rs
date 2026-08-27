@@ -75,8 +75,8 @@
 //!   widening this is a constant-folding problem for a later milestone, not
 //!   a name-resolution one.
 //! - A file with no on-disk path — every other test fixture in this crate,
-//!   built with [`mwl_diagnostics::SourceMap::add`] rather than
-//!   [`mwl_diagnostics::SourceMap::load`] — has no directory to resolve a
+//!   built with [`nvs_diagnostics::SourceMap::add`] rather than
+//!   [`nvs_diagnostics::SourceMap::load`] — has no directory to resolve a
 //!   relative `require` against, so a literal `require` written inside one
 //!   is also left as a dynamic fallback. This is inherent to running from a
 //!   source with no path (a REPL line, `stdin`), not a limitation to fix.
@@ -101,14 +101,14 @@
 
 use std::path::{Path, PathBuf};
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, SourceMap, Span, code};
-use mwl_syntax::ast::{
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, SourceMap, Span, code};
+use nvs_syntax::ast::{
     Arg, ArrayItem, AttributeGroup, AutoloadDecl, AutoloadKind, Block, CallArgs, ClassMember,
     ClassMemberKind, DestructureElement, DestructureTarget, Expr, ExprKind, FnBody,
     ImplementsClause, MemberName, Name, NamespaceDecl, NewTarget, Param, PropertyHook,
     PropertyHookBody, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind,
 };
-use mwl_syntax::{check_declarations, parse_file};
+use nvs_syntax::{check_declarations, parse_file};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::aliases::AliasResolver;
@@ -124,13 +124,13 @@ use crate::resolve::{Module, Resolver};
 /// `collect_*` pass) because [`crate::members::MemberResolver::check`] needs
 /// every file's statements again, after every file has been collected — and
 /// then hands the whole vector back, because every later phase needs the same
-/// set: `mwl-types` type-checks each file's own top-level statements, and
-/// `mwl-ir` lowers each file's declarations. The entry file's statements are
+/// set: `nvs-types` type-checks each file's own top-level statements, and
+/// `nvs-ir` lowers each file's declarations. The entry file's statements are
 /// in here too, which is what makes the vector a complete description of the
 /// program rather than "the files the entry pulled in".
 #[derive(Debug)]
 pub struct Loaded {
-    /// The file, as [`mwl_diagnostics::SourceMap`] knows it.
+    /// The file, as [`nvs_diagnostics::SourceMap`] knows it.
     pub id: SourceId,
     /// Its whole parsed body, moved here once and never re-parsed.
     pub stmts: Vec<Stmt>,
@@ -155,7 +155,7 @@ pub struct Loaded {
 /// unit's) can take this vector as given rather than sorting it.
 ///
 /// The third element is the [`AutoloadMap`] the walk consulted, handed back
-/// rather than dropped so `mwl check --autoload-map` can print it (ADR 0061
+/// rather than dropped so `nvs check --autoload-map` can print it (ADR 0061
 /// § 1). It is complete for any program that reached the first probe — which
 /// is every program, since the walk consults the map once the `require` graph
 /// drains, whether or not a name is still waiting on it.
@@ -232,7 +232,7 @@ pub fn resolve_program(
                 // Canonicalized once per file rather than once per `require`, so
                 // `check_path_case` can line its simulated walk up positionally
                 // against each target's own canonical path. An entry file named
-                // on the command line as `tests/main.mwl` has a relative,
+                // on the command line as `tests/main.nvs` has a relative,
                 // as-typed parent; every other file in the graph was already
                 // loaded by its canonical path.
                 let canonical_base = base_dir.canonicalize().ok();
@@ -1038,8 +1038,8 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
 
 /// Extracts a `require` path's literal text, if it was written as a plain
 /// `'...'`/`"..."` string with no interpolation — unwrapping any surrounding
-/// `(...)` first, so `require ('config.mwl');` resolves the same as
-/// `require 'config.mwl';`.
+/// `(...)` first, so `require ('config.nvs');` resolves the same as
+/// `require 'config.nvs';`.
 fn literal_require_path(expr: &Expr, src: &SourceFile) -> Option<String> {
     let mut inner = expr;
     while let ExprKind::Paren(next) = &inner.kind {
@@ -1110,7 +1110,7 @@ fn cook_quoted(raw: &str) -> Option<String> {
 mod tests {
     use std::fs;
 
-    use mwl_diagnostics::SourceMap;
+    use nvs_diagnostics::SourceMap;
 
     use super::*;
 
@@ -1122,7 +1122,7 @@ mod tests {
         fn new(name: &str) -> Self {
             let mut path = std::env::temp_dir();
             path.push(format!(
-                "mwl-hir-requires-test-{name}-{}",
+                "nvs-hir-requires-test-{name}-{}",
                 std::process::id()
             ));
             let _ = fs::remove_dir_all(&path);
@@ -1171,19 +1171,19 @@ mod tests {
     fn a_mis_cased_require_never_compiles_clean() {
         let dir = TempDir::new("case");
         dir.write(
-            "Lib.mwl",
-            "<?mwl
+            "Lib.nvs",
+            "<?nvs
 class Helper {}
 ",
         );
         dir.write(
-            "main.mwl",
-            "<?mwl
-require 'lib.mwl';
+            "main.nvs",
+            "<?nvs
+require 'lib.nvs';
 ",
         );
 
-        let (_, diags) = resolve_entry(&dir, "main.mwl");
+        let (_, diags) = resolve_entry(&dir, "main.nvs");
         let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
         assert!(
             codes.contains(&code::E_REQUIRE_PATH_CASE_MISMATCH)
@@ -1197,19 +1197,19 @@ require 'lib.mwl';
         let dir = TempDir::new("subdir");
         fs::create_dir_all(dir.path.join("Lib")).expect("create subdir");
         dir.write(
-            "Lib/Helper.mwl",
-            "<?mwl
+            "Lib/Helper.nvs",
+            "<?nvs
 class Helper {}
 ",
         );
         dir.write(
-            "main.mwl",
-            "<?mwl
-require './Lib/Helper.mwl';
+            "main.nvs",
+            "<?nvs
+require './Lib/Helper.nvs';
 ",
         );
 
-        let (module, diags) = resolve_entry(&dir, "main.mwl");
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(
             module
@@ -1225,7 +1225,7 @@ require './Lib/Helper.mwl';
     fn check_path_case_only_fires_on_a_pure_case_difference() {
         fn run(base: &str, literal: &str, canonical: &str) -> bool {
             let mut map = SourceMap::new();
-            let id = map.add("case.mwl", "");
+            let id = map.add("case.nvs", "");
             let mut diags = Diagnostics::new();
             check_path_case(
                 Path::new(base),
@@ -1238,29 +1238,29 @@ require './Lib/Helper.mwl';
         }
 
         // The case the ADR exists for, at the file and at a directory.
-        assert!(run("/app", "lib.mwl", "/app/Lib.mwl"));
-        assert!(run("/app", "lib/helper.mwl", "/app/Lib/helper.mwl"));
+        assert!(run("/app", "lib.nvs", "/app/Lib.nvs"));
+        assert!(run("/app", "lib/helper.nvs", "/app/Lib/helper.nvs"));
         // `.` and `..` are replayed, not compared.
-        assert!(run("/app/src", "../lib.mwl", "/app/Lib.mwl"));
-        assert!(!run("/app/src", "./lib.mwl", "/app/src/lib.mwl"));
+        assert!(run("/app/src", "../lib.nvs", "/app/Lib.nvs"));
+        assert!(!run("/app/src", "./lib.nvs", "/app/src/lib.nvs"));
         // An exact spelling, and a difference that is not one of case (a
         // symlink resolved elsewhere), are both silent.
-        assert!(!run("/app", "Lib.mwl", "/app/Lib.mwl"));
-        assert!(!run("/app", "lib.mwl", "/app/other.mwl"));
-        assert!(!run("/app", "lib.mwl", "/elsewhere/deeper/Lib.mwl"));
+        assert!(!run("/app", "Lib.nvs", "/app/Lib.nvs"));
+        assert!(!run("/app", "lib.nvs", "/app/other.nvs"));
+        assert!(!run("/app", "lib.nvs", "/elsewhere/deeper/Lib.nvs"));
         // A component `base` contributed is never reported: how the entry
         // file was spelled on the command line is not this diagnostic's
         // business.
-        assert!(!run("/App", "lib.mwl", "/app/lib.mwl"));
+        assert!(!run("/App", "lib.nvs", "/app/lib.nvs"));
     }
 
     #[test]
     fn a_literal_require_merges_the_target_files_declarations() {
         let dir = TempDir::new("merge");
-        dir.write("lib.mwl", "<?mwl\nclass Helper {}\n");
-        dir.write("main.mwl", "<?mwl\nrequire 'lib.mwl';\nclass App {}\n");
+        dir.write("lib.nvs", "<?nvs\nclass Helper {}\n");
+        dir.write("main.nvs", "<?nvs\nrequire 'lib.nvs';\nclass App {}\n");
 
-        let (module, diags) = resolve_entry(&dir, "main.mwl");
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(
             module
@@ -1274,24 +1274,24 @@ require './Lib/Helper.mwl';
     fn a_required_class_is_visible_to_member_resolution() {
         let dir = TempDir::new("members");
         dir.write(
-            "lib.mwl",
-            "<?mwl\nclass Helper { public static function go(): void {} }\n",
+            "lib.nvs",
+            "<?nvs\nclass Helper { public static function go(): void {} }\n",
         );
         dir.write(
-            "main.mwl",
-            "<?mwl\nrequire 'lib.mwl';\nclass App { function run(): void { Helper::go(); } }\n",
+            "main.nvs",
+            "<?nvs\nrequire 'lib.nvs';\nclass App { function run(): void { Helper::go(); } }\n",
         );
 
-        let (_module, diags) = resolve_entry(&dir, "main.mwl");
+        let (_module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn a_missing_require_target_is_diagnosed() {
         let dir = TempDir::new("missing");
-        dir.write("main.mwl", "<?mwl\nrequire 'nope.mwl';\n");
+        dir.write("main.nvs", "<?nvs\nrequire 'nope.nvs';\n");
 
-        let (_module, diags) = resolve_entry(&dir, "main.mwl");
+        let (_module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(
             diags
                 .iter()
@@ -1303,10 +1303,10 @@ require './Lib/Helper.mwl';
     #[test]
     fn a_direct_require_cycle_is_diagnosed_not_looped() {
         let dir = TempDir::new("cycle");
-        dir.write("a.mwl", "<?mwl\nrequire 'b.mwl';\n");
-        dir.write("b.mwl", "<?mwl\nrequire 'a.mwl';\n");
+        dir.write("a.nvs", "<?nvs\nrequire 'b.nvs';\n");
+        dir.write("b.nvs", "<?nvs\nrequire 'a.nvs';\n");
 
-        let (_module, diags) = resolve_entry(&dir, "a.mwl");
+        let (_module, diags) = resolve_entry(&dir, "a.nvs");
         assert!(
             diags
                 .iter()
@@ -1318,15 +1318,15 @@ require './Lib/Helper.mwl';
     #[test]
     fn a_diamond_require_collects_the_shared_target_once() {
         let dir = TempDir::new("diamond");
-        dir.write("d.mwl", "<?mwl\nclass Shared {}\n");
-        dir.write("b.mwl", "<?mwl\nrequire 'd.mwl';\nclass B {}\n");
-        dir.write("c.mwl", "<?mwl\nrequire 'd.mwl';\nclass C {}\n");
+        dir.write("d.nvs", "<?nvs\nclass Shared {}\n");
+        dir.write("b.nvs", "<?nvs\nrequire 'd.nvs';\nclass B {}\n");
+        dir.write("c.nvs", "<?nvs\nrequire 'd.nvs';\nclass C {}\n");
         dir.write(
-            "main.mwl",
-            "<?mwl\nrequire 'b.mwl';\nrequire 'c.mwl';\nclass App {}\n",
+            "main.nvs",
+            "<?nvs\nrequire 'b.nvs';\nrequire 'c.nvs';\nclass App {}\n",
         );
 
-        let (module, diags) = resolve_entry(&dir, "main.mwl");
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(
             module
@@ -1343,15 +1343,15 @@ require './Lib/Helper.mwl';
     #[test]
     fn the_walk_hands_back_every_file_it_loaded_entry_first() {
         let dir = TempDir::new("loaded");
-        dir.write("d.mwl", "<?mwl\nclass Shared {}\n");
-        dir.write("b.mwl", "<?mwl\nrequire 'd.mwl';\nclass B {}\n");
-        dir.write("c.mwl", "<?mwl\nrequire 'd.mwl';\nclass C {}\n");
+        dir.write("d.nvs", "<?nvs\nclass Shared {}\n");
+        dir.write("b.nvs", "<?nvs\nrequire 'd.nvs';\nclass B {}\n");
+        dir.write("c.nvs", "<?nvs\nrequire 'd.nvs';\nclass C {}\n");
         dir.write(
-            "main.mwl",
-            "<?mwl\nrequire 'b.mwl';\nrequire 'c.mwl';\nclass App {}\n",
+            "main.nvs",
+            "<?nvs\nrequire 'b.nvs';\nrequire 'c.nvs';\nclass App {}\n",
         );
 
-        let (_module, loaded, map, diags) = resolve_entry_loaded(&dir, "main.mwl");
+        let (_module, loaded, map, diags) = resolve_entry_loaded(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
 
         let names: Vec<String> = loaded
@@ -1368,30 +1368,30 @@ require './Lib/Helper.mwl';
             .collect();
 
         assert_eq!(
-            names[0], "main.mwl",
+            names[0], "main.nvs",
             "the entry file comes first: {names:?}"
         );
         let mut sorted = names.clone();
         sorted.sort();
-        assert_eq!(sorted, ["b.mwl", "c.mwl", "d.mwl", "main.mwl"], "{names:?}");
+        assert_eq!(sorted, ["b.nvs", "c.nvs", "d.nvs", "main.nvs"], "{names:?}");
     }
 
     #[test]
     fn a_dynamic_require_path_is_left_for_the_runtime_fallback() {
         let dir = TempDir::new("dynamic");
         dir.write(
-            "main.mwl",
-            "<?mwl\nstring $path = 'lib.mwl';\nrequire $path;\n",
+            "main.nvs",
+            "<?nvs\nstring $path = 'lib.nvs';\nrequire $path;\n",
         );
 
-        let (_module, diags) = resolve_entry(&dir, "main.mwl");
+        let (_module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn a_require_with_no_on_disk_path_is_left_for_the_runtime_fallback() {
         let mut map = SourceMap::new();
-        let id = map.add("virtual.mwl", "<?mwl\nrequire 'lib.mwl';\n");
+        let id = map.add("virtual.nvs", "<?nvs\nrequire 'lib.nvs';\n");
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(id), &mut diags);
         let (_module, _loaded, _autoload) = resolve_program(id, stmts, &mut map, &mut diags);
@@ -1418,7 +1418,7 @@ require './Lib/Helper.mwl';
     }
 
     fn scratch_id(map: &mut SourceMap) -> SourceId {
-        map.add("autoload.mwl", "")
+        map.add("autoload.nvs", "")
     }
 
     /// ADR 0061 § 1 end to end: a class nothing `require`s, reached only by
@@ -1428,19 +1428,19 @@ require './Lib/Helper.mwl';
         let dir = TempDir::new("autoload-hit");
         fs::create_dir_all(dir.path.join("src")).expect("create root");
         dir.write(
-            "Bootstrap.mwl",
-            "<?mwl\nautoload 'Framework' from './src';\n",
+            "Bootstrap.nvs",
+            "<?nvs\nautoload 'Framework' from './src';\n",
         );
         dir.write(
-            "src/Core.mwl",
-            "<?mwl\nnamespace Framework;\nclass Core {}\n",
+            "src/Core.nvs",
+            "<?nvs\nnamespace Framework;\nclass Core {}\n",
         );
         dir.write(
-            "main.mwl",
-            "<?mwl\nrequire './Bootstrap.mwl';\nvar $app = new Framework\\Core();\n",
+            "main.nvs",
+            "<?nvs\nrequire './Bootstrap.nvs';\nvar $app = new Framework\\Core();\n",
         );
 
-        let (module, diags) = resolve_entry(&dir, "main.mwl");
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(module.symbols.contains(&QName::parse(r"Framework\Core")));
     }
@@ -1455,21 +1455,21 @@ require './Lib/Helper.mwl';
         let dir = TempDir::new("autoload-name-to-file");
         fs::create_dir_all(dir.path.join("src")).expect("create root");
         dir.write(
-            "Bootstrap.mwl",
-            "<?mwl\nautoload 'Framework' from './src';\n",
+            "Bootstrap.nvs",
+            "<?nvs\nautoload 'Framework' from './src';\n",
         );
         dir.write(
-            "src/Core.mwl",
-            "<?mwl\nnamespace Framework;\nclass Core {}\n",
+            "src/Core.nvs",
+            "<?nvs\nnamespace Framework;\nclass Core {}\n",
         );
         dir.write(
-            "main.mwl",
-            "<?mwl\nrequire './Bootstrap.mwl';\nvar $app = new Framework\\Core();\n",
+            "main.nvs",
+            "<?nvs\nrequire './Bootstrap.nvs';\nvar $app = new Framework\\Core();\n",
         );
 
         let mut map = SourceMap::new();
         let entry_id = map
-            .load(dir.path.join("main.mwl"))
+            .load(dir.path.join("main.nvs"))
             .expect("load entry fixture");
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(entry_id), &mut diags);
@@ -1490,7 +1490,7 @@ require './Lib/Helper.mwl';
         // temp directory's own symlink.
         assert_eq!(
             hit.file_name().and_then(|n| n.to_str()),
-            Some("Core.mwl"),
+            Some("Core.nvs"),
             "{hit:?}"
         );
         assert_eq!(
@@ -1506,7 +1506,7 @@ require './Lib/Helper.mwl';
                 .file(file.id)
                 .path()
                 .and_then(|p| p.file_name())
-                .is_some_and(|found| found == "Core.mwl")),
+                .is_some_and(|found| found == "Core.nvs")),
             "the file the map named is not one the walk loaded",
         );
         assert!(module.symbols.contains(&name));
@@ -1522,14 +1522,14 @@ require './Lib/Helper.mwl';
             fs::create_dir_all(dir.path.join(root)).expect("create root");
         }
         dir.write(
-            "override/Thing.mwl",
-            "<?mwl\nnamespace Acme;\nclass Thing {}\n",
+            "override/Thing.nvs",
+            "<?nvs\nnamespace Acme;\nclass Thing {}\n",
         );
         dir.write(
-            "vendor/Thing.mwl",
-            "<?mwl\nnamespace Acme;\nclass Thing {}\n",
+            "vendor/Thing.nvs",
+            "<?nvs\nnamespace Acme;\nclass Thing {}\n",
         );
-        dir.write("vendor/Only.mwl", "<?mwl\nnamespace Acme;\nclass Only {}\n");
+        dir.write("vendor/Only.nvs", "<?nvs\nnamespace Acme;\nclass Only {}\n");
 
         let mut map = SourceMap::new();
         let id = scratch_id(&mut map);
@@ -1546,7 +1546,7 @@ require './Lib/Helper.mwl';
             first
                 .hit
                 .expect("override hit")
-                .ends_with(Path::new("override").join("Thing.mwl"))
+                .ends_with(Path::new("override").join("Thing.nvs"))
         );
 
         let second = built.resolve(&QName::parse(r"Acme\Only"));
@@ -1591,17 +1591,17 @@ require './Lib/Helper.mwl';
             fs::create_dir_all(dir.path.join(module).join("src")).expect("create module");
         }
         dir.write(
-            "Acme/src/Thing.mwl",
-            "<?mwl\nnamespace Acme;\nclass Thing {}\n",
+            "Acme/src/Thing.nvs",
+            "<?nvs\nnamespace Acme;\nclass Thing {}\n",
         );
         dir.write(
-            "Other/src/Thing.mwl",
-            "<?mwl\nnamespace Other;\nclass Thing {}\n",
+            "Other/src/Thing.nvs",
+            "<?nvs\nnamespace Other;\nclass Thing {}\n",
         );
         fs::create_dir_all(dir.path.join("override")).expect("create override");
         dir.write(
-            "override/Thing.mwl",
-            "<?mwl\nnamespace Acme;\nclass Thing {}\n",
+            "override/Thing.nvs",
+            "<?nvs\nnamespace Acme;\nclass Thing {}\n",
         );
 
         let mut map = SourceMap::new();
@@ -1626,12 +1626,12 @@ require './Lib/Helper.mwl';
         assert!(
             acme.hit
                 .expect("explicit root wins")
-                .ends_with(Path::new("override").join("Thing.mwl"))
+                .ends_with(Path::new("override").join("Thing.nvs"))
         );
         assert!(built.resolve(&QName::parse(r"Other\Thing")).hit.is_some());
     }
 
-    /// § 1's last sentence: `mwl check --autoload-map` prints the resolved
+    /// § 1's last sentence: `nvs check --autoload-map` prints the resolved
     /// map *including what was skipped and what was shadowed*, which is the
     /// only way to tell a glob that discovered nothing from a glob nobody
     /// wrote. The whole rendering is asserted rather than sampled, since its
@@ -1682,14 +1682,14 @@ require './Lib/Helper.mwl';
     }
 
     /// § 1's exact-name rule: a case-insensitive filesystem must not accept
-    /// `thing.mwl` for `Thing` and then fail on Linux. Both legs answer
+    /// `thing.nvs` for `Thing` and then fail on Linux. Both legs answer
     /// "miss" — Linux never finds it, Windows finds it and refuses the
     /// spelling — so this asserts the answer rather than the mechanism.
     #[test]
     fn a_mis_cased_entry_is_a_miss_on_every_filesystem() {
         let dir = TempDir::new("autoload-case");
         fs::create_dir_all(dir.path.join("src")).expect("create root");
-        dir.write("src/thing.mwl", "<?mwl\nnamespace Acme;\nclass thing {}\n");
+        dir.write("src/thing.nvs", "<?nvs\nnamespace Acme;\nclass thing {}\n");
 
         let mut map = SourceMap::new();
         let id = scratch_id(&mut map);
@@ -1705,19 +1705,19 @@ require './Lib/Helper.mwl';
         let dir = TempDir::new("autoload-nested");
         fs::create_dir_all(dir.path.join("src")).expect("create root");
         dir.write(
-            "Bootstrap.mwl",
-            "<?mwl\nautoload 'Framework' from './src';\n",
+            "Bootstrap.nvs",
+            "<?nvs\nautoload 'Framework' from './src';\n",
         );
         dir.write(
-            "src/Core.mwl",
-            "<?mwl\nnamespace Framework;\nautoload 'Extra' from './more';\nclass Core {}\n",
+            "src/Core.nvs",
+            "<?nvs\nnamespace Framework;\nautoload 'Extra' from './more';\nclass Core {}\n",
         );
         dir.write(
-            "main.mwl",
-            "<?mwl\nrequire './Bootstrap.mwl';\nvar $app = new Framework\\Core();\n",
+            "main.nvs",
+            "<?nvs\nrequire './Bootstrap.nvs';\nvar $app = new Framework\\Core();\n",
         );
 
-        let (_module, diags) = resolve_entry(&dir, "main.mwl");
+        let (_module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(
             diags
                 .iter()
@@ -1733,19 +1733,19 @@ require './Lib/Helper.mwl';
         let dir = TempDir::new("autoload-shape");
         fs::create_dir_all(dir.path.join("src")).expect("create root");
         dir.write(
-            "Bootstrap.mwl",
-            "<?mwl\nautoload 'Framework' from './src';\n",
+            "Bootstrap.nvs",
+            "<?nvs\nautoload 'Framework' from './src';\n",
         );
         dir.write(
-            "src/Core.mwl",
-            "<?mwl\nnamespace Framework;\nclass Core {}\nclass Helper {}\n",
+            "src/Core.nvs",
+            "<?nvs\nnamespace Framework;\nclass Core {}\nclass Helper {}\n",
         );
         dir.write(
-            "main.mwl",
-            "<?mwl\nrequire './Bootstrap.mwl';\nvar $app = new Framework\\Core();\n",
+            "main.nvs",
+            "<?nvs\nrequire './Bootstrap.nvs';\nvar $app = new Framework\\Core();\n",
         );
 
-        let (_module, diags) = resolve_entry(&dir, "main.mwl");
+        let (_module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(
             diags
                 .iter()
@@ -1786,9 +1786,9 @@ require './Lib/Helper.mwl';
     #[test]
     fn a_name_with_no_matching_prefix_is_left_alone() {
         let dir = TempDir::new("autoload-none");
-        dir.write("main.mwl", "<?mwl\nvar $app = new Framework\\Core();\n");
+        dir.write("main.nvs", "<?nvs\nvar $app = new Framework\\Core();\n");
 
-        let (module, diags) = resolve_entry(&dir, "main.mwl");
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(!module.symbols.contains(&QName::parse(r"Framework\Core")));
     }

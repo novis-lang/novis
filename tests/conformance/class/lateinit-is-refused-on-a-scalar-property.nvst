@@ -1,7 +1,7 @@
 --TEST--
 `lateinit` only defers a class- or interface-typed property; a `string` one has a real default to give instead — ADR 0038 § 2
 --FILE--
-<?mwl
+<?nvs
 class Holder {
     public lateinit string $name;
 
@@ -13,6 +13,6 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0424]: `lateinit` is only allowed on a class- or interface-typed property
-  --> case.mwl:3:28
+  --> case.nvs:3:28
 %A
 error: aborting due to 1 error

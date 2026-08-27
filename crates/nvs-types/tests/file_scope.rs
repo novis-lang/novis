@@ -1,12 +1,12 @@
 //! The one script frame a file's top level shares, and what is not visible across it.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 // ADR 0008 § 2: a file's top-level statements are one synthesized frame
 // whose variables are locals. Each of these has an exact counterpart in
@@ -15,7 +15,7 @@ use mwl_diagnostics::code;
 
 #[test]
 fn reading_an_undeclared_local_at_file_scope_is_diagnosed() {
-    let diags = check_src("<?mwl\necho $missing;\n");
+    let diags = check_src("<?nvs\necho $missing;\n");
     assert!(
         diags
             .iter()
@@ -26,13 +26,13 @@ fn reading_an_undeclared_local_at_file_scope_is_diagnosed() {
 
 #[test]
 fn a_declared_and_assigned_file_scope_local_reads_fine() {
-    let diags = check_src("<?mwl\nint $n = 1;\n$n = $n + 1;\necho $n;\n");
+    let diags = check_src("<?nvs\nint $n = 1;\n$n = $n + 1;\necho $n;\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
 #[test]
 fn redeclaring_a_file_scope_local_is_diagnosed() {
-    let diags = check_src("<?mwl\nint $n = 1;\nint $n = 2;\n");
+    let diags = check_src("<?nvs\nint $n = 1;\nint $n = 2;\n");
     assert!(
         diags
             .iter()
@@ -43,7 +43,7 @@ fn redeclaring_a_file_scope_local_is_diagnosed() {
 
 #[test]
 fn a_file_scope_type_mismatch_is_diagnosed() {
-    let diags = check_src("<?mwl\nint $n = 1;\n$n = \"x\";\n");
+    let diags = check_src("<?nvs\nint $n = 1;\n$n = \"x\";\n");
     assert!(
         diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
         "{diags:?}"
@@ -54,7 +54,7 @@ fn a_file_scope_type_mismatch_is_diagnosed() {
 /// so it is an ordinary undeclared name rather than a special case.
 #[test]
 fn this_at_file_scope_is_an_undeclared_local() {
-    let diags = check_src("<?mwl\necho $this;\n");
+    let diags = check_src("<?nvs\necho $this;\n");
     assert!(
         diags
             .iter()
@@ -68,7 +68,7 @@ fn this_at_file_scope_is_an_undeclared_local() {
 /// the file, so a redeclaration across two blocks still conflicts.
 #[test]
 fn a_namespace_block_shares_the_one_script_frame() {
-    let diags = check_src("<?mwl\nnamespace A { int $n = 1; }\nnamespace B { int $n = 2; }\n");
+    let diags = check_src("<?nvs\nnamespace A { int $n = 1; }\nnamespace B { int $n = 2; }\n");
     assert!(
         diags
             .iter()
@@ -82,7 +82,7 @@ fn a_namespace_block_shares_the_one_script_frame() {
 /// script's own frame, unreachable from a function").
 #[test]
 fn a_file_scope_local_is_not_visible_inside_a_method() {
-    let diags = check_src("<?mwl\nint $n = 1;\nclass T {\n  function m(): void { echo $n; }\n}\n");
+    let diags = check_src("<?nvs\nint $n = 1;\nclass T {\n  function m(): void { echo $n; }\n}\n");
     assert!(
         diags
             .iter()

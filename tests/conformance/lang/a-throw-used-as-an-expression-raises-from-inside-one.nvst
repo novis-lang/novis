@@ -1,7 +1,7 @@
 --TEST--
 PHP 8's `throw` in expression position raises from inside the expression it is written in — `?? throw` and `?: throw` both, with the `never` the branch contributes absorbed by the union so the position's own declared type still holds (ADR 0002, ADR 0007 § 3)
 --FILE--
-<?mwl
+<?nvs
 class Box {
     // `$v ?? throw …` is the whole reason expression-position `throw`
     // exists: the coalesce's right half cannot complete, so the method

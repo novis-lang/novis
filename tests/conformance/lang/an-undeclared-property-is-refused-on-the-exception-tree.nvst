@@ -1,7 +1,7 @@
 --TEST--
 An undeclared property is `E0405` on a reserved exception class exactly as on a user class, read and write alike — ADR 0014 § 5 makes the declared list exhaustive for every class kind
 --FILE--
-<?mwl
+<?nvs
 try {
     throw new LogicError("x");
 } catch (Throwable $e) {
@@ -10,7 +10,7 @@ try {
     echo $e->message, "\n";
     // A name that tree does not declare was excused from `E0405` by the
     // *class kind* rather than by the name, which left the access with no
-    // typed-expression entry and nothing in front of `mwl-ir`'s panic.
+    // typed-expression entry and nothing in front of `nvs-ir`'s panic.
     echo $e->nope, "\n";
     // The write half asks the same question and now gets the same answer.
     $e->nope = "y";

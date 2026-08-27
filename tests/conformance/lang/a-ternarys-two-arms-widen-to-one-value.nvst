@@ -1,7 +1,7 @@
 --TEST--
 A ternary, an elvis and a `match` whose branches lower to two representations join at one value, and the widening happens at the binding — ADR 0007 §§ 2 and 4, ADR 0035 § 1
 --FILE--
-<?mwl
+<?nvs
 bool $t = true;
 bool $f = false;
 

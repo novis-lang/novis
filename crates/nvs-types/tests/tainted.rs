@@ -1,12 +1,12 @@
 //! ADR 0024's `tainted` qualifier — propagation, laundering, and the sinks that refuse it.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 // ADR 0024 §§ 2-3: `tainted` propagation and laundering.
 

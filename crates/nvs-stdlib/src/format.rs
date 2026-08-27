@@ -19,7 +19,7 @@
 //! [ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md) § 4's, not
 //! Rust's `Display`. Adapting one would be more code than the grammar, so
 //! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4's first
-//! question answers itself: this is MWL's own semantics, not an external
+//! question answers itself: this is Novis's own semantics, not an external
 //! specification someone else maintains.
 //!
 //! # What it refuses, and why each is a throw
@@ -59,7 +59,7 @@
 //! 0009 § 2 owns that unit; restating it per member is what would let two
 //! members drift apart.
 
-use mwl_runtime::{Fault, MwlStr, Tag, Value};
+use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
 use crate::granularity::DEFAULT;
 
@@ -329,13 +329,13 @@ impl Spec {
 /// One `%s` argument's text — [ADR 0007](../../../../docs/adr/0007-explicit-type-system.md)
 /// § 2's rows, reached through the one implementation of them.
 ///
-/// `mwl_runtime::value_to_string` answers a `Tag::Str` carrying exactly one
+/// `nvs_runtime::value_to_string` answers a `Tag::Str` carrying exactly one
 /// fresh reference, so the handle below owns it and releases it when the
 /// borrowed text has been copied out.
 fn rendered(argument: &Value) -> Result<String, Fault> {
-    let value = mwl_runtime::value_to_string(*argument)?;
+    let value = nvs_runtime::value_to_string(*argument)?;
     // The tag is ADR 0009's UTF-8 guarantee, so reading the payload as text is
-    // the same check as reading it at all — `mwl_runtime`'s `string` module owns
+    // the same check as reading it at all — `nvs_runtime`'s `string` module owns
     // that argument in its § *Reading the payload as text*. Re-deriving it here
     // was an O(n) pass per rendered argument, on `format`'s own hot path.
     let (Some(ptr), Some(text)) = (value.str_ptr(), value.as_text()) else {
@@ -349,7 +349,7 @@ fn rendered(argument: &Value) -> Result<String, Fault> {
         reason = "`value_to_string` hands back exactly one fresh reference, and this handle is \
                   the thing that releases it"
     )]
-    let _owned = unsafe { MwlStr::from_raw(ptr) };
+    let _owned = unsafe { NvsStr::from_raw(ptr) };
     Ok(text)
 }
 
@@ -380,7 +380,7 @@ fn integer(argument: &Value, conversion: char) -> Result<i64, Fault> {
             .ok_or_else(|| unreadable(conversion)),
         Some(Tag::Decimal) => argument
             .as_decimal()
-            .and_then(mwl_runtime::Decimal::to_i64)
+            .and_then(nvs_runtime::Decimal::to_i64)
             .ok_or_else(|| {
                 Fault::thrown(format!(
                     "Core\\Str::format(): `%{conversion}` needs a whole number, and this \
@@ -414,7 +414,7 @@ fn floating(argument: &Value, conversion: char) -> Result<f64, Fault> {
         Some(Tag::Bool) => Ok(f64::from(u8::from(argument.as_bool() == Some(true)))),
         Some(Tag::Decimal) => argument
             .as_decimal()
-            .map(mwl_runtime::Decimal::to_f64)
+            .map(nvs_runtime::Decimal::to_f64)
             .ok_or_else(|| unreadable(conversion)),
         _ => Err(unreadable(conversion)),
     }
@@ -520,11 +520,11 @@ fn unreadable(conversion: char) -> Fault {
 #[cfg(test)]
 mod tests {
     use super::format;
-    use mwl_runtime::{Decimal, MwlArray, MwlStr, Value};
+    use nvs_runtime::{Decimal, NvsArray, NvsStr, Value};
 
     /// One `string` argument, and the reference this test owes for it.
     fn s(text: &str) -> Value {
-        Value::str(MwlStr::new(text.as_bytes()))
+        Value::str(NvsStr::new(text.as_bytes()))
     }
 
     /// Releases every reference the arguments of one case carried — `format`
@@ -662,7 +662,7 @@ mod tests {
             ("%s", vec![s("read"), s("unread")]),
             ("%q", Vec::new()),
             ("%", Vec::new()),
-            ("%d", vec![Value::array(MwlArray::new())]),
+            ("%d", vec![Value::array(NvsArray::new())]),
             (
                 "%d",
                 vec![Value::decimal(Decimal::parse("1.5").expect("a decimal"))],

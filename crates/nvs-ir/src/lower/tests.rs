@@ -3,34 +3,34 @@
 //! `lower::tests`, so `super` is `lower` here exactly as it was inline.
 
 use insta::assert_snapshot;
-use mwl_diagnostics::{Diagnostics, SourceId, SourceMap};
-use mwl_syntax::ast::{ClassMemberKind, StmtKind as TopStmtKind};
-use mwl_syntax::parse_file;
+use nvs_diagnostics::{Diagnostics, SourceId, SourceMap};
+use nvs_syntax::ast::{ClassMemberKind, StmtKind as TopStmtKind};
+use nvs_syntax::parse_file;
 
 use super::*;
 use crate::print::{print_function, print_program};
 
-/// Parses `src`, actually runs it through `mwl_hir::resolve_file` and
-/// `mwl_types::check_program` (unlike this crate's earlier slices, which
+/// Parses `src`, actually runs it through `nvs_hir::resolve_file` and
+/// `nvs_types::check_program` (unlike this crate's earlier slices, which
 /// only trusted a fixture *would* pass — now that lowering a call/`new`
 /// needs a real [`ExprTypeTable`], a fixture needs a real check run to
 /// produce one), pulls out `T`'s first method, and lowers it.
 fn lower_first_method(src: &str) -> (Function, SourceMap, SourceId) {
     let mut map = SourceMap::new();
-    let file = map.add("t.mwl", src);
+    let file = map.add("t.nvs", src);
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(file), &mut diags);
     assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
-    let module = mwl_hir::resolve_file(&stmts, map.file(file), &mut diags);
+    let module = nvs_hir::resolve_file(&stmts, map.file(file), &mut diags);
     assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
     let mut checked_types = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
-    let files = [mwl_types::ProgramFile {
+    let files = [nvs_types::ProgramFile {
         src: map.file(file),
         stmts: &stmts,
     }];
     let enums =
-        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
+        nvs_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
     assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
 
     let decl = stmts
@@ -68,20 +68,20 @@ fn lower_first_method(src: &str) -> (Function, SourceMap, SourceId) {
 /// [`lower_script`] instead of pulling a method out of a class.
 fn lower_script_src(src: &str) -> (Function, SourceMap, SourceId) {
     let mut map = SourceMap::new();
-    let file = map.add("t.mwl", src);
+    let file = map.add("t.nvs", src);
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(file), &mut diags);
     assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
-    let module = mwl_hir::resolve_file(&stmts, map.file(file), &mut diags);
+    let module = nvs_hir::resolve_file(&stmts, map.file(file), &mut diags);
     assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
     let mut checked_types = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
-    let files = [mwl_types::ProgramFile {
+    let files = [nvs_types::ProgramFile {
         src: map.file(file),
         stmts: &stmts,
     }];
     let enums =
-        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
+        nvs_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
     assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
 
     let f = lower_script(
@@ -101,22 +101,22 @@ fn lower_script_src(src: &str) -> (Function, SourceMap, SourceId) {
 /// how they fit together.
 fn lower_program(src: &str) -> (crate::ir::Program, SourceMap, SourceId) {
     let mut map = SourceMap::new();
-    let file = map.add("t.mwl", src);
+    let file = map.add("t.nvs", src);
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(file), &mut diags);
     assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
-    let module = mwl_hir::resolve_file(&stmts, map.file(file), &mut diags);
+    let module = nvs_hir::resolve_file(&stmts, map.file(file), &mut diags);
     assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
     let mut checked_types = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
-    let files = [mwl_types::ProgramFile {
+    let files = [nvs_types::ProgramFile {
         src: map.file(file),
         stmts: &stmts,
     }];
     let enums =
-        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
+        nvs_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
     assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
-    let layouts = mwl_types::layout::build_class_layouts(&files, &module.graph);
+    let layouts = nvs_types::layout::build_class_layouts(&files, &module.graph);
     let p = lower_file(
         "<script>",
         &stmts,
@@ -135,7 +135,7 @@ fn lower_program(src: &str) -> (crate::ir::Program, SourceMap, SourceId) {
 /// reads it (nothing else ever owns it).
 #[test]
 fn a_script_body_echoes_a_string_literal() {
-    let (f, map, file) = lower_script_src("<?mwl\necho \"Hello, World!\";\n");
+    let (f, map, file) = lower_script_src("<?nvs\necho \"Hello, World!\";\n");
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
@@ -145,7 +145,7 @@ fn a_script_body_echoes_a_string_literal() {
 /// names the frame the throw is leaving.
 #[test]
 fn a_throw_builds_an_exception_object_and_enters_its_landing_block() {
-    let (f, map, file) = lower_script_src("<?mwl\nthrow new LogicError(\"boom\");\n");
+    let (f, map, file) = lower_script_src("<?nvs\nthrow new LogicError(\"boom\");\n");
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
@@ -157,7 +157,7 @@ fn a_throw_builds_an_exception_object_and_enters_its_landing_block() {
 #[test]
 fn a_try_gives_every_protected_call_its_own_landing_block() {
     let (f, map, file) = lower_script_src(
-        "<?mwl\nclass T {\n  public static function go(): void { }\n}\n\
+        "<?nvs\nclass T {\n  public static function go(): void { }\n}\n\
              try {\n  T::go();\n  echo \"fine\";\n} catch (Throwable $e) {\n  \
              echo $e->message;\n}\n",
     );
@@ -169,7 +169,7 @@ fn a_try_gives_every_protected_call_its_own_landing_block() {
 #[test]
 fn two_catch_clauses_lower_to_an_instanceof_chain_ending_in_a_rethrow() {
     let (f, map, file) = lower_script_src(
-        "<?mwl\nclass T {\n  public static function go(): void { }\n}\n\
+        "<?nvs\nclass T {\n  public static function go(): void { }\n}\n\
              try {\n  T::go();\n} catch (LogicError $a) {\n  echo \"logic\";\n\
              } catch (IOError $b) {\n  echo \"io\";\n}\n",
     );
@@ -182,7 +182,7 @@ fn two_catch_clauses_lower_to_an_instanceof_chain_ending_in_a_rethrow() {
 #[test]
 fn a_finally_is_lowered_once_per_exit_out_of_the_protected_region() {
     let (f, map, file) = lower_first_method(
-        "<?mwl
+        "<?nvs
 class T {
   function m(): int {
     try {
@@ -199,12 +199,12 @@ class T {
 }
 
 /// Outside a `try`, a landing block releases the frame's live refcounted
-/// locals before the status travels onward — `mwl-codegen`'s known gap 3,
+/// locals before the status travels onward — `nvs-codegen`'s known gap 3,
 /// stated as IR rather than left to the backend.
 #[test]
 fn a_propagating_landing_block_releases_the_frames_live_strings() {
     let (f, map, file) = lower_script_src(
-        "<?mwl\nclass T {\n  public static function go(): void { }\n}\n\
+        "<?nvs\nclass T {\n  public static function go(): void { }\n}\n\
              string $s = \"held\";\nT::go();\necho $s;\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
@@ -222,7 +222,7 @@ fn a_propagating_landing_block_releases_the_frames_live_strings() {
 #[test]
 fn a_landing_block_releases_the_call_temporaries_still_in_flight() {
     let (f, map, file) = lower_script_src(
-        "<?mwl\ntry {\n  bytes $b = Core\\Encoding::fromHex(\"ff\");\n}\
+        "<?nvs\ntry {\n  bytes $b = Core\\Encoding::fromHex(\"ff\");\n}\
              \ncatch (Throwable $e) {\n  echo \"caught\";\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
@@ -234,7 +234,7 @@ fn a_landing_block_releases_the_call_temporaries_still_in_flight() {
 /// through the same `Helper::IntToString` `.` concatenation uses.
 #[test]
 fn a_script_body_local_is_an_ordinary_local() {
-    let (f, map, file) = lower_script_src("<?mwl\nint $n = 1;\n$n = $n + 2;\necho $n;\n");
+    let (f, map, file) = lower_script_src("<?nvs\nint $n = 1;\n$n = $n + 2;\necho $n;\n");
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
@@ -245,7 +245,7 @@ fn a_script_body_local_is_an_ordinary_local() {
 #[test]
 fn a_script_body_skips_declarations_and_enters_a_namespace_block() {
     let (f, map, file) = lower_script_src(
-        "<?mwl\nclass T {\n  function m(): void { }\n}\nnamespace A { echo \"in-ns\"; }\necho \"after\";\n",
+        "<?nvs\nclass T {\n  function m(): void { }\n}\nnamespace A { echo \"in-ns\"; }\necho \"after\";\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -253,13 +253,13 @@ fn a_script_body_skips_declarations_and_enters_a_namespace_block() {
 #[test]
 fn straight_line_arithmetic_and_return() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function add(int $a, int $b): int {\n    int $sum = $a + $b;\n    return $sum;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function add(int $a, int $b): int {\n    int $sum = $a + $b;\n    return $sum;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
 /// ADR 0007 § 4's "either operand a `float`" row is settled *here*, by a
-/// conversion emitted ahead of the operator, and not by `mwl-codegen`
+/// conversion emitted ahead of the operator, and not by `nvs-codegen`
 /// repairing a `BinOp` whose two operands disagree — that crate's "a
 /// `BinOp` has one representation" invariant stays intact, and its
 /// mismatch refusal stays a genuine internal error.
@@ -276,7 +276,7 @@ fn straight_line_arithmetic_and_return() {
 #[test]
 fn a_mixed_numeric_pair_converts_before_the_operator() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\nclass T {\n",
+        "<?nvs\nclass T {\n",
         "  function widen(int $i, uint $u, float $f): float {\n",
         "    float $a = $i + $f;\n",
         "    float $b = $f * $u;\n",
@@ -314,7 +314,7 @@ fn a_mixed_numeric_pair_converts_before_the_operator() {
 #[test]
 fn a_mixed_numeric_comparison_pays_no_widening() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\nclass T {\n",
+        "<?nvs\nclass T {\n",
         "  function order(int $i, float $f): bool {\n",
         "    return $i < $f;\n",
         "  }\n}\n",
@@ -336,7 +336,7 @@ fn a_mixed_numeric_comparison_pays_no_widening() {
 #[test]
 fn every_bitwise_operator_lowers() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\nclass T {\n",
+        "<?nvs\nclass T {\n",
         "  function mix(int $a, int $b): int {\n",
         "    int $out = ((($a & $b) | 8) ^ 1) << 2;\n",
         "    return ($out >> 1) + ~$a;\n",
@@ -373,7 +373,7 @@ fn every_bitwise_operator_lowers() {
 #[test]
 fn a_bitwise_compound_assignment_lowers_through_its_binary_form() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\nclass T {\n",
+        "<?nvs\nclass T {\n",
         "  function mask(int $x): int {\n",
         "    $x &= 3;\n    $x |= 8;\n    $x ^= 1;\n    $x <<= 2;\n    $x >>= 1;\n",
         "    return $x;\n",
@@ -401,7 +401,7 @@ fn a_bitwise_compound_assignment_lowers_through_its_binary_form() {
 #[test]
 fn an_increment_lowers_in_either_position() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\nclass T {\n",
+        "<?nvs\nclass T {\n",
         "  function step(int $x): int {\n",
         "    $x++;\n    ++$x;\n    $x--;\n    --$x;\n",
         "    return $x;\n",
@@ -421,7 +421,7 @@ fn an_increment_lowers_in_either_position() {
 #[test]
 fn a_compound_assignment_evaluates_its_target_once() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\nclass T {\n",
+        "<?nvs\nclass T {\n",
         "  public int $count = 0;\n",
         "  function bump(): void {\n",
         "    $this->box()->count += 1;\n",
@@ -449,7 +449,7 @@ fn a_compound_assignment_evaluates_its_target_once() {
 #[test]
 fn a_power_operator_lowers_over_every_numeric_row() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\nclass T {\n",
+        "<?nvs\nclass T {\n",
         "  function rows(int $i, uint $u, float $x): float {\n",
         "    int $a = $i ** 3;\n",
         "    uint $b = $u ** $u;\n",
@@ -481,7 +481,7 @@ fn a_power_operator_lowers_over_every_numeric_row() {
 #[test]
 fn reassignment_produces_a_fresh_ssa_value() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function bump(int $n): int {\n    int $out = $n;\n    $out = $out + 1;\n    return $out;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function bump(int $n): int {\n    int $out = $n;\n    $out = $out + 1;\n    return $out;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -492,18 +492,18 @@ fn reassignment_produces_a_fresh_ssa_value() {
 #[test]
 fn unary_and_comparison_operators() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function check(int $n): bool {\n    bool $neg = -$n < 0;\n    return !$neg;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function check(int $n): bool {\n    bool $neg = -$n < 0;\n    return !$neg;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
 /// A `uint` local initialized from a bare integer literal takes the
 /// literal as `uint`, not `int` — ADR 0007 § 4's target-directed rule,
-/// mirrored from `mwl_types::expr::infer`.
+/// mirrored from `nvs_types::expr::infer`.
 #[test]
 fn a_bare_literal_targeting_uint_is_lowered_as_uint() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): uint {\n    uint $n = 1;\n    return $n;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): uint {\n    uint $n = 1;\n    return $n;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -513,7 +513,7 @@ fn a_bare_literal_targeting_uint_is_lowered_as_uint() {
 #[test]
 fn if_else_merges_with_a_phi() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function pick(bool $c, int $a, int $b): int {\n    int $r = 0;\n    if ($c) {\n      $r = $a;\n    } else {\n      $r = $b;\n    }\n    return $r;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function pick(bool $c, int $a, int $b): int {\n    int $r = 0;\n    if ($c) {\n      $r = $a;\n    } else {\n      $r = $b;\n    }\n    return $r;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -523,7 +523,7 @@ fn if_else_merges_with_a_phi() {
 #[test]
 fn if_with_no_else_merges_the_implicit_edge() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function clamp(int $n): int {\n    int $r = $n;\n    if ($r < 0) {\n      $r = 0;\n    }\n    return $r;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function clamp(int $n): int {\n    int $r = $n;\n    if ($r < 0) {\n      $r = 0;\n    }\n    return $r;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -533,7 +533,7 @@ fn if_with_no_else_merges_the_implicit_edge() {
 #[test]
 fn if_else_both_returning_leaves_a_dead_merge_block() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function abs(int $n): int {\n    if ($n < 0) {\n      return -$n;\n    } else {\n      return $n;\n    }\n  }\n}\n",
+        "<?nvs\nclass T {\n  function abs(int $n): int {\n    if ($n < 0) {\n      return -$n;\n    } else {\n      return $n;\n    }\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -543,7 +543,7 @@ fn if_else_both_returning_leaves_a_dead_merge_block() {
 #[test]
 fn while_loop_carries_locals_through_a_header_phi() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function sum(int $n): int {\n    int $total = 0;\n    int $i = 0;\n    while ($i < $n) {\n      $total = $total + $i;\n      $i = $i + 1;\n    }\n    return $total;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function sum(int $n): int {\n    int $total = 0;\n    int $i = 0;\n    while ($i < $n) {\n      $total = $total + $i;\n      $i = $i + 1;\n    }\n    return $total;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -554,7 +554,7 @@ fn while_loop_carries_locals_through_a_header_phi() {
 #[test]
 fn an_int_condition_converts_through_a_truthy_helper() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(int $n): bool {\n    if ($n) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(int $n): bool {\n    if ($n) {\n      return true;\n    }\n    return false;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -566,7 +566,7 @@ fn an_int_condition_converts_through_a_truthy_helper() {
 #[test]
 fn a_string_while_condition_converts_through_a_truthy_helper() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(string $s): void {\n    while ($s) {\n      $s = \"\";\n    }\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(string $s): void {\n    while ($s) {\n      $s = \"\";\n    }\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -579,7 +579,7 @@ fn a_string_while_condition_converts_through_a_truthy_helper() {
 #[test]
 fn an_array_condition_converts_through_a_truthy_helper() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<int> $a): bool {\n    if ($a) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<int> $a): bool {\n    if ($a) {\n      return true;\n    }\n    return false;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -593,7 +593,7 @@ fn an_array_condition_converts_through_a_truthy_helper() {
 #[test]
 fn a_fresh_array_condition_is_released_after_the_truthy_check() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): bool {\n    if (self::make()) {\n      return true;\n    }\n    return false;\n  }\n  static function make(): array<int> {\n    return [1];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): bool {\n    if (self::make()) {\n      return true;\n    }\n    return false;\n  }\n  static function make(): array<int> {\n    return [1];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -604,7 +604,7 @@ fn a_fresh_array_condition_is_released_after_the_truthy_check() {
 #[test]
 fn an_object_condition_is_always_truthy() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {}\nclass T {\n  function m(Foo $f): bool {\n    if ($f) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        "<?nvs\nclass Foo {}\nclass T {\n  function m(Foo $f): bool {\n    if ($f) {\n      return true;\n    }\n    return false;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -618,7 +618,7 @@ fn an_object_condition_is_always_truthy() {
 #[test]
 fn a_mixed_parameter_round_trips_through_return() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function pick(mixed $x): mixed {\n    return $x;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function pick(mixed $x): mixed {\n    return $x;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -632,7 +632,7 @@ fn a_mixed_parameter_round_trips_through_return() {
 #[test]
 fn a_typed_mixed_local_round_trips() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function pick(mixed $x): mixed {\n    mixed $y = $x;\n    return $y;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function pick(mixed $x): mixed {\n    mixed $y = $x;\n    return $y;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -644,7 +644,7 @@ fn a_typed_mixed_local_round_trips() {
 #[test]
 fn a_var_local_infers_mixed_from_a_mixed_initializer() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function pick(mixed $x): mixed {\n    var $y = $x;\n    return $y;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function pick(mixed $x): mixed {\n    var $y = $x;\n    return $y;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -656,7 +656,7 @@ fn a_var_local_infers_mixed_from_a_mixed_initializer() {
 #[test]
 fn passing_a_mixed_local_as_a_call_argument_round_trips() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(mixed $x): mixed {\n    return $this->identity($x);\n  }\n  function identity(mixed $v): mixed {\n    return $v;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(mixed $x): mixed {\n    return $this->identity($x);\n  }\n  function identity(mixed $v): mixed {\n    return $v;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -672,7 +672,7 @@ fn passing_a_mixed_local_as_a_call_argument_round_trips() {
 #[test]
 fn a_mixed_condition_dispatches_the_truthy_table_on_the_tag() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(mixed $x): bool {\n    if ($x) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(mixed $x): bool {\n    if ($x) {\n      return true;\n    }\n    return false;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -687,7 +687,7 @@ fn a_mixed_condition_dispatches_the_truthy_table_on_the_tag() {
 #[test]
 fn a_bytes_condition_takes_its_own_truthy_helper() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bytes $b): bool {\n    if ($b) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bytes $b): bool {\n    if ($b) {\n      return true;\n    }\n    return false;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -699,7 +699,7 @@ fn a_bytes_condition_takes_its_own_truthy_helper() {
 #[test]
 fn for_loop_runs_its_step_in_a_block_between_body_and_header() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function sum(int $n): int {\n    int $total = 0;\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      $total += $i;\n    }\n    return $total;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function sum(int $n): int {\n    int $total = 0;\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      $total += $i;\n    }\n    return $total;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -710,7 +710,7 @@ fn for_loop_runs_its_step_in_a_block_between_body_and_header() {
 #[test]
 fn for_loop_continue_reaches_the_step_block() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function count(int $n): int {\n    int $hits = 0;\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      if ($i == 2) {\n        continue;\n      }\n      $hits += 1;\n    }\n    return $hits;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function count(int $n): int {\n    int $hits = 0;\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      if ($i == 2) {\n        continue;\n      }\n      $hits += 1;\n    }\n    return $hits;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -721,7 +721,7 @@ fn for_loop_continue_reaches_the_step_block() {
 #[test]
 fn for_loop_whose_body_always_returns_leaves_a_dead_step_block() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function head(int $n): int {\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      return $i;\n    }\n    return -1;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function head(int $n): int {\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      return $i;\n    }\n    return -1;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -732,7 +732,7 @@ fn for_loop_whose_body_always_returns_leaves_a_dead_step_block() {
 #[test]
 fn switch_lowers_to_an_equality_chain_ending_at_the_default() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function rank(int $n): int {\n    switch ($n) {\n      case 1:\n        return 10;\n      case 2:\n        return 20;\n      default:\n        return 0;\n    }\n  }\n}\n",
+        "<?nvs\nclass T {\n  function rank(int $n): int {\n    switch ($n) {\n      case 1:\n        return 10;\n      case 2:\n        return 20;\n      default:\n        return 0;\n    }\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -743,7 +743,7 @@ fn switch_lowers_to_an_equality_chain_ending_at_the_default() {
 #[test]
 fn switch_falls_through_a_body_with_no_break() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function pick(int $n): int {\n    int $hits = 0;\n    switch ($n) {\n      case 1:\n      case 2:\n        $hits += 1;\n        break;\n      default:\n        $hits += 9;\n    }\n    return $hits;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function pick(int $n): int {\n    int $hits = 0;\n    switch ($n) {\n      case 1:\n      case 2:\n        $hits += 1;\n        break;\n      default:\n        $hits += 9;\n    }\n    return $hits;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -754,7 +754,7 @@ fn switch_falls_through_a_body_with_no_break() {
 #[test]
 fn a_switch_over_a_string_holds_one_reference_to_its_subject() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function tier(string $s): int {\n    int $out = 0;\n    switch ($s) {\n      case \"a\":\n        $out = 1;\n        break;\n    }\n    return $out;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function tier(string $s): int {\n    int $out = 0;\n    switch ($s) {\n      case \"a\":\n        $out = 1;\n        break;\n    }\n    return $out;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -762,12 +762,12 @@ fn a_switch_over_a_string_holds_one_reference_to_its_subject() {
 /// A `continue` written inside a `switch` inside a loop continues the
 /// **loop** — the switch's frame carries no continue target, so
 /// [`Lowering::lower_continue`] walks past it. PHP's own bare `continue`
-/// there means `break`; see [`Lowering::lower_switch`] for why MWL takes
+/// there means `break`; see [`Lowering::lower_switch`] for why Novis takes
 /// the meaning PHP's warning points at instead.
 #[test]
 fn continue_inside_a_switch_reaches_the_enclosing_loops_header() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function count(int $n): int {\n    int $hits = 0;\n    int $i = 0;\n    while ($i < $n) {\n      $i += 1;\n      switch ($i) {\n        case 2:\n          continue;\n        default:\n          $hits += 1;\n      }\n    }\n    return $hits;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function count(int $n): int {\n    int $hits = 0;\n    int $i = 0;\n    while ($i < $n) {\n      $i += 1;\n      switch ($i) {\n        case 2:\n          continue;\n        default:\n          $hits += 1;\n      }\n    }\n    return $hits;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -778,18 +778,18 @@ fn continue_inside_a_switch_reaches_the_enclosing_loops_header() {
 #[test]
 fn match_arms_join_in_a_phi_at_one_merge_block() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function name(int $n): string {\n    return match ($n) {\n      1, 2 => \"low\",\n      default => \"high\",\n    };\n  }\n}\n",
+        "<?nvs\nclass T {\n  function name(int $n): string {\n    return match ($n) {\n      1, 2 => \"low\",\n      default => \"high\",\n    };\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
 /// With no `default` arm the chain's fall-off raises a `LogicError`
-/// instead of reaching the merge — `mwl_hir::errors`' closed tree has no
+/// instead of reaching the merge — `nvs_hir::errors`' closed tree has no
 /// `UnhandledMatchError` to raise.
 #[test]
 fn a_match_with_no_default_throws_where_the_chain_runs_out() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function name(int $n): string {\n    return match ($n) {\n      1 => \"one\",\n    };\n  }\n}\n",
+        "<?nvs\nclass T {\n  function name(int $n): string {\n    return match ($n) {\n      1 => \"one\",\n    };\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -801,7 +801,7 @@ fn a_match_with_no_default_throws_where_the_chain_runs_out() {
 #[test]
 fn new_with_a_resolved_constructor() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  function constructor(int $x) {}\n}\nclass T {\n  function make(): Foo {\n    return new Foo(1);\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  function constructor(int $x) {}\n}\nclass T {\n  function make(): Foo {\n    return new Foo(1);\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -812,7 +812,7 @@ fn new_with_a_resolved_constructor() {
 #[test]
 fn new_with_no_declared_constructor() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {}\nclass T {\n  function make(): Foo {\n    return new Foo();\n  }\n}\n",
+        "<?nvs\nclass Foo {}\nclass T {\n  function make(): Foo {\n    return new Foo();\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -822,11 +822,11 @@ fn new_with_no_declared_constructor() {
 #[test]
 fn a_self_static_call_with_a_scalar_return() {
     // `m` declared first, forward-referencing `make` — `lower_first_method`
-    // lowers `T`'s *first* method, and MWL resolves a same-class method
+    // lowers `T`'s *first* method, and Novis resolves a same-class method
     // call regardless of declaration order (its signature table is built
-    // in a pass ahead of body-checking; see `mwl_types::signatures`).
+    // in a pass ahead of body-checking; see `nvs_types::signatures`).
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): int {\n    return self::make(1);\n  }\n  static function make(int $n): int {\n    return $n;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): int {\n    return self::make(1);\n  }\n  static function make(int $n): int {\n    return $n;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -837,7 +837,7 @@ fn a_self_static_call_with_a_scalar_return() {
 #[test]
 fn a_class_typed_local_initialized_from_new() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {}\nclass T {\n  function make(): Foo {\n    Foo $x = new Foo();\n    return $x;\n  }\n}\n",
+        "<?nvs\nclass Foo {}\nclass T {\n  function make(): Foo {\n    Foo $x = new Foo();\n    return $x;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -849,7 +849,7 @@ fn a_class_typed_local_initialized_from_new() {
 #[test]
 fn a_this_method_call() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): int {\n    return $this->a(1);\n  }\n  function a(int $x): int {\n    return $x;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): int {\n    return $this->a(1);\n  }\n  function a(int $x): int {\n    return $x;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -861,7 +861,7 @@ fn a_this_method_call() {
 #[test]
 fn an_instance_method_call_through_a_local_receiver() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj->greet();\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj->greet();\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -873,18 +873,18 @@ fn an_instance_method_call_through_a_local_receiver() {
 #[test]
 fn a_nullsafe_method_call_on_a_nullable_receiver() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(?Foo $obj): ?int {\n    return $obj?->greet();\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(?Foo $obj): ?int {\n    return $obj?->greet();\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
 /// The same call on a receiver whose *representation* rules `null` out
 /// costs nothing: no branch, no tag test, exactly the instructions `->`
-/// emits — which is also why `mwl_types` gives it no `null` in its type.
+/// emits — which is also why `nvs_types` gives it no `null` in its type.
 #[test]
 fn a_nullsafe_method_call_on_a_receiver_that_cannot_be_null() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj?->greet();\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj?->greet();\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -898,7 +898,7 @@ fn a_nullsafe_method_call_on_a_receiver_that_cannot_be_null() {
 #[test]
 fn a_narrowed_receiver_untags_once_with_no_guard_of_its_own() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(?Foo $obj): int {\n    if ($obj != null) {\n      return $obj->greet();\n    }\n    return 0;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(?Foo $obj): int {\n    if ($obj != null) {\n      return $obj->greet();\n    }\n    return 0;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -908,7 +908,7 @@ fn a_narrowed_receiver_untags_once_with_no_guard_of_its_own() {
 #[test]
 fn a_this_property_access() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  public int $count = 0;\n  function m(): int {\n    return $this->count;\n  }\n}\n",
+        "<?nvs\nclass T {\n  public int $count = 0;\n  function m(): int {\n    return $this->count;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -919,7 +919,7 @@ fn a_this_property_access() {
 #[test]
 fn a_property_access_through_a_local_receiver() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public int $count = 0;\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj->count;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public int $count = 0;\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj->count;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -930,7 +930,7 @@ fn a_property_access_through_a_local_receiver() {
 #[test]
 fn a_nullsafe_property_access_on_a_nullable_receiver() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public int $count = 0;\n}\nclass T {\n  function m(?Foo $obj): ?int {\n    return $obj?->count;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public int $count = 0;\n}\nclass T {\n  function m(?Foo $obj): ?int {\n    return $obj?->count;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -946,7 +946,7 @@ fn a_nullsafe_property_access_on_a_nullable_receiver() {
 #[test]
 fn a_shape_property_access_reads_its_slot_by_name() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m({path: string, message: string} $i): string {\n    return $i->path;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m({path: string, message: string} $i): string {\n    return $i->path;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -960,35 +960,35 @@ fn a_shape_property_access_reads_its_slot_by_name() {
 #[test]
 fn a_property_access_through_a_plain_object_receiver_reads_by_name() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(object $o): mixed {\n    return $o->x;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(object $o): mixed {\n    return $o->x;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
 /// `var $n = 1;` (ADR 0037) — no declared type at all, so the local's
 /// type is whatever `lower_expr` synthesizes from the initializer alone,
-/// exactly as `mwl_types::locals::check_stmt`'s own `var` arm fixes it.
+/// exactly as `nvs_types::locals::check_stmt`'s own `var` arm fixes it.
 /// A bare integer literal with no `expected` type defaults to `int`
 /// (ADR 0007 § 4), so `$n` ends up `int` here even though nothing in the
 /// source spells that out.
 #[test]
 fn a_var_local_infers_its_type_from_the_initializer() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): int {\n    var $n = 1;\n    return $n;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): int {\n    var $n = 1;\n    return $n;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
 /// A hex/octal/binary integer literal cooks to the same value its
-/// decimal spelling would — `mwl-syntax`'s lexer accepts all three
+/// decimal spelling would — `nvs-syntax`'s lexer accepts all three
 /// prefixed forms as one `IntLiteral` token (see
-/// `crates/mwl-syntax/src/lexer.rs`'s `lex_number`), and until this
-/// session `mwl-ir` only cooked a plain decimal run, so `0x1F` would have
+/// `crates/nvs-syntax/src/lexer.rs`'s `lex_number`), and until this
+/// session `nvs-ir` only cooked a plain decimal run, so `0x1F` would have
 /// panicked as "doesn't fit an `int`" rather than lowering to `31`.
 #[test]
 fn multi_base_integer_literals_cook_to_the_same_value() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): int {\n    int $hex = 0x1F;\n    int $oct = 0o17;\n    int $bin = 0b101;\n    return $hex + $oct + $bin;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): int {\n    int $hex = 0x1F;\n    int $oct = 0o17;\n    int $bin = 0b101;\n    return $hex + $oct + $bin;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1001,7 +1001,7 @@ fn multi_base_integer_literals_cook_to_the_same_value() {
 #[test]
 fn string_literals_cook_their_escapes_and_release_at_scope_exit() {
     let (f, map, file) = lower_first_method(
-        r#"<?mwl
+        r#"<?nvs
 class T {
   function m(): void {
     string $single = 'it\'s a \\ test';
@@ -1016,13 +1016,13 @@ class T {
 /// A double-quoted literal's numeric escapes (`\101` octal, `\x2A` hex,
 /// `\u{1F600}` a multi-byte Unicode codepoint) now cook to the actual
 /// byte/codepoint they name, delegated to
-/// `mwl_types::string_lit::cook_double_quoted_text` — see
+/// `nvs_types::string_lit::cook_double_quoted_text` — see
 /// `cook_str_literal`'s own doc comment for why this crate shares that
 /// routine with the checker rather than duplicating it.
 #[test]
 fn numeric_escapes_cook_to_their_byte_or_codepoint() {
     let (f, map, file) = lower_first_method(
-        r#"<?mwl
+        r#"<?nvs
 class T {
   function m(): void {
     string $s = "\101\x2A\u{1F600}";
@@ -1045,7 +1045,7 @@ class T {
 #[test]
 fn interpolated_string_with_text_on_both_sides_is_one_concat() {
     let (f, map, file) = lower_first_method(
-        r#"<?mwl
+        r#"<?nvs
 class T {
   function m(): void {
     string $mid = "middle";
@@ -1059,7 +1059,7 @@ class T {
 
 /// `"$x"` alone — no literal text around the one interpolation site —
 /// is `ExprKind::Interpolated`'s degenerate single-part case:
-/// `mwl_syntax::parser::collapse_string_parts` still picks `Interpolated`
+/// `nvs_syntax::parser::collapse_string_parts` still picks `Interpolated`
 /// over `Str` (the one part isn't `StringPart::Text`), but no
 /// `InstKind::Concat` ever runs to copy `$x`'s value into a fresh
 /// buffer. `Lowering::lower_interpolated_parts` has to retain `$x`'s
@@ -1071,7 +1071,7 @@ class T {
 #[test]
 fn interpolated_string_with_only_a_variable_retains_it() {
     let (f, map, file) = lower_first_method(
-        r#"<?mwl
+        r#"<?nvs
 class T {
   function m(): void {
     string $x = "hello";
@@ -1084,7 +1084,7 @@ class T {
 }
 
 /// A heredoc with no interpolation site used at all collapses to a plain
-/// `ExprKind::Str` (`mwl_syntax::parser::collapse_string_parts`), just
+/// `ExprKind::Str` (`nvs_syntax::parser::collapse_string_parts`), just
 /// like a double-quoted literal — the same `InstKind::ConstStr` shape,
 /// cooked through `cook_heredoc_str` instead of the quote-delimited
 /// branch. Its closing marker is flush left, so PHP 7.3's
@@ -1094,7 +1094,7 @@ class T {
 #[test]
 fn a_flush_left_heredoc_cooks_like_a_double_quoted_literal() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    string $s = <<<EOT\nline1\\nline2\nEOT;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    string $s = <<<EOT\nline1\\nline2\nEOT;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1107,7 +1107,7 @@ fn a_flush_left_heredoc_cooks_like_a_double_quoted_literal() {
 #[test]
 fn an_indented_heredoc_strips_the_closing_markers_indentation() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    string $s = <<<EOT\n        hello\n        world\n        EOT;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    string $s = <<<EOT\n        hello\n        world\n        EOT;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1120,7 +1120,7 @@ fn an_indented_heredoc_strips_the_closing_markers_indentation() {
 #[test]
 fn a_nowdoc_strips_indentation_but_applies_no_escapes() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    string $s = <<<'EOT'\n        raw \\n text\n        EOT;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    string $s = <<<'EOT'\n        raw \\n text\n        EOT;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1135,7 +1135,7 @@ fn a_nowdoc_strips_indentation_but_applies_no_escapes() {
 #[test]
 fn an_indented_interpolated_heredoc_strips_indentation_from_every_run() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    string $x = \"hi\";\n    string $s = <<<EOT\n        pre $x\n        post\n        EOT;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    string $x = \"hi\";\n    string $s = <<<EOT\n        pre $x\n        post\n        EOT;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1150,7 +1150,7 @@ fn an_indented_interpolated_heredoc_strips_indentation_from_every_run() {
 #[test]
 fn assigning_one_string_local_to_another_retains_the_shared_value() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function pick(): string {\n    string $a = \"hello\";\n    string $b = $a;\n    return $b;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function pick(): string {\n    string $a = \"hello\";\n    string $b = $a;\n    return $b;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1162,7 +1162,7 @@ fn assigning_one_string_local_to_another_retains_the_shared_value() {
 #[test]
 fn reassigning_a_string_local_releases_its_previous_value() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    string $x = \"a\";\n    $x = \"b\";\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    string $x = \"a\";\n    $x = \"b\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1179,7 +1179,7 @@ fn reassigning_a_string_local_releases_its_previous_value() {
 #[test]
 fn passing_a_string_local_as_a_call_argument_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): int {\n    string $s = \"hi\";\n    return self::take($s);\n  }\n  static function take(string $x): int {\n    return 1;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): int {\n    string $s = \"hi\";\n    return self::take($s);\n  }\n  static function take(string $x): int {\n    return 1;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1192,7 +1192,7 @@ fn passing_a_string_local_as_a_call_argument_retains_it() {
 #[test]
 fn binding_a_string_property_read_to_a_local_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public string $name = \"hi\";\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    var $s = $obj->name;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public string $name = \"hi\";\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    var $s = $obj->name;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1205,7 +1205,7 @@ fn binding_a_string_property_read_to_a_local_retains_it() {
 #[test]
 fn returning_a_string_property_read_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public string $name = \"hi\";\n}\nclass T {\n  function m(): string {\n    Foo $obj = new Foo();\n    return $obj->name;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public string $name = \"hi\";\n}\nclass T {\n  function m(): string {\n    Foo $obj = new Foo();\n    return $obj->name;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1218,7 +1218,7 @@ fn returning_a_string_property_read_retains_it() {
 #[test]
 fn returning_a_string_returning_calls_result_needs_no_retain() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): string {\n    return self::make();\n  }\n  static function make(): string {\n    return \"hi\";\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): string {\n    return self::make();\n  }\n  static function make(): string {\n    return \"hi\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1231,7 +1231,7 @@ fn returning_a_string_returning_calls_result_needs_no_retain() {
 #[test]
 fn a_bare_void_call_used_as_a_statement_lowers_with_no_release() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    self::helper();\n  }\n  static function helper(): void {}\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    self::helper();\n  }\n  static function helper(): void {}\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1244,7 +1244,7 @@ fn a_bare_void_call_used_as_a_statement_lowers_with_no_release() {
 #[test]
 fn a_bare_call_used_as_a_statement_releases_a_discarded_string_result() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    self::make();\n  }\n  static function make(): string {\n    return \"hi\";\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    self::make();\n  }\n  static function make(): string {\n    return \"hi\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1257,7 +1257,7 @@ fn a_bare_call_used_as_a_statement_releases_a_discarded_string_result() {
 #[test]
 fn a_bare_new_used_as_a_statement_releases_the_discarded_instance() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  function constructor() {}\n}\nclass T {\n  function m(): void {\n    new Foo();\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  function constructor() {}\n}\nclass T {\n  function m(): void {\n    new Foo();\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1268,7 +1268,7 @@ fn a_bare_new_used_as_a_statement_releases_the_discarded_instance() {
 #[test]
 fn a_bare_instance_call_used_as_a_statement_lowers_too() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  function greet(): void {}\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    $obj->greet();\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  function greet(): void {}\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    $obj->greet();\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1282,7 +1282,7 @@ fn a_bare_instance_call_used_as_a_statement_lowers_too() {
 #[test]
 fn writing_a_fresh_string_literal_to_a_property_releases_its_previous_value() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public string $name = \"orig\";\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    $obj->name = \"new\";\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public string $name = \"orig\";\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    $obj->name = \"new\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1295,7 +1295,7 @@ fn writing_a_fresh_string_literal_to_a_property_releases_its_previous_value() {
 #[test]
 fn a_field_read_off_a_temporary_retains_its_result_and_releases_the_base() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public string $name = \"orig\";\n}\nclass Maker {\n  function make(): Foo { return new Foo(); }\n}\nclass T {\n  function m(): void {\n    Maker $obj = new Maker();\n    string $s = $obj->make()->name;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public string $name = \"orig\";\n}\nclass Maker {\n  function make(): Foo { return new Foo(); }\n}\nclass T {\n  function m(): void {\n    Maker $obj = new Maker();\n    string $s = $obj->make()->name;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1308,7 +1308,7 @@ fn a_field_read_off_a_temporary_retains_its_result_and_releases_the_base() {
 #[test]
 fn an_index_read_off_a_temporary_retains_its_result_and_releases_the_base() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Maker {\n  function rows(): array<string> { return [\"k\" => \"v\"]; }\n}\nclass T {\n  function m(): void {\n    Maker $obj = new Maker();\n    string $s = $obj->rows()[\"k\"];\n  }\n}\n",
+        "<?nvs\nclass Maker {\n  function rows(): array<string> { return [\"k\" => \"v\"]; }\n}\nclass T {\n  function m(): void {\n    Maker $obj = new Maker();\n    string $s = $obj->rows()[\"k\"];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1321,7 +1321,7 @@ fn an_index_read_off_a_temporary_retains_its_result_and_releases_the_base() {
 #[test]
 fn writing_a_string_local_to_a_property_retains_it_before_releasing_the_old_value() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public string $name = \"orig\";\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    string $s = \"hi\";\n    $obj->name = $s;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public string $name = \"orig\";\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    string $s = \"hi\";\n    $obj->name = $s;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1333,7 +1333,7 @@ fn writing_a_string_local_to_a_property_retains_it_before_releasing_the_old_valu
 #[test]
 fn writing_through_this_lowers_too() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  public string $name = \"orig\";\n  function m(): void {\n    $this->name = \"new\";\n  }\n}\n",
+        "<?nvs\nclass T {\n  public string $name = \"orig\";\n  function m(): void {\n    $this->name = \"new\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1342,11 +1342,11 @@ fn writing_through_this_lowers_too() {
 /// name-keyed `SlotSet` the read side's `SlotGet` mirrors — the whole of
 /// ADR 0036 § 4's erased write. The value is widened to `Ty::Tagged`
 /// first: the field's real type is the receiving class's to state, and
-/// `mwl_runtime::mwl_object_slot_set` is where it is checked.
+/// `nvs_runtime::nvs_object_slot_set` is where it is checked.
 #[test]
 fn writing_through_a_plain_object_receiver_writes_by_name() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(object $o): void {\n    $o->x = 1;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(object $o): void {\n    $o->x = 1;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1365,7 +1365,7 @@ fn writing_through_a_plain_object_receiver_writes_by_name() {
 #[test]
 fn concatenating_two_string_literals_needs_no_retain_of_either_operand() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): string {\n    return \"a\" . \"b\";\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): string {\n    return \"a\" . \"b\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1382,12 +1382,12 @@ fn concatenating_two_string_literals_needs_no_retain_of_either_operand() {
 #[test]
 fn concatenating_two_string_locals_reads_them_without_retaining() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    string $a = \"x\";\n    string $b = \"y\";\n    string $c = $a . $b;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    string $a = \"x\";\n    string $b = \"y\";\n    string $c = $a . $b;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `1 . "x"` — an `int` operand on the `.` side that `mwl_types::expr::
+/// `1 . "x"` — an `int` operand on the `.` side that `nvs_types::expr::
 /// check_expr`'s own `require_stringable` happily accepts (PHP-style
 /// implicit to-string) converts through a new `InstKind::HelperCall`
 /// (`Helper::IntToString`) before reaching `InstKind::Concat`. Both the
@@ -1398,7 +1398,7 @@ fn concatenating_two_string_locals_reads_them_without_retaining() {
 #[test]
 fn concatenating_an_int_literal_with_a_string_uses_a_helper_call() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): string {\n    return 1 . \"x\";\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): string {\n    return 1 . \"x\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1413,14 +1413,14 @@ fn concatenating_an_int_literal_with_a_string_uses_a_helper_call() {
 #[test]
 fn concatenating_a_bool_local_with_a_string_uses_a_helper_call() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bool $flag): string {\n    return $flag . \"!\";\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bool $flag): string {\n    return $flag . \"!\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
 /// `$obj . "x"` where `$obj`'s class implements `Stringable` — ADR 0028
 /// § 1's implicit conversion, desugared to the `toString()`
-/// `mwl_types::expr::operators::require_stringable` resolved under the
+/// `nvs_types::expr::operators::require_stringable` resolved under the
 /// operand's own span. A `.` operand is not itself a call expression, so
 /// there is no `ExprInfo::Call` for it the way an actual
 /// `$obj->toString()` site would have; the checker's own side map
@@ -1433,7 +1433,7 @@ fn concatenating_a_bool_local_with_a_string_uses_a_helper_call() {
 #[test]
 fn concatenating_a_stringable_object_operand_calls_its_to_string() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Name implements Stringable {\n  public function toString(): string { return \"x\"; }\n}\nclass T {\n  public function m(Name $n): string {\n    return $n . \"x\";\n  }\n}\n",
+        "<?nvs\nclass Name implements Stringable {\n  public function toString(): string { return \"x\"; }\n}\nclass T {\n  public function m(Name $n): string {\n    return $n . \"x\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1445,7 +1445,7 @@ fn concatenating_a_stringable_object_operand_calls_its_to_string() {
 #[test]
 fn converting_a_stringable_object_to_string_calls_its_to_string() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Name implements Stringable {\n  public function toString(): string { return \"x\"; }\n}\nclass T {\n  public function m(Name $n): string {\n    return $n as string;\n  }\n}\n",
+        "<?nvs\nclass Name implements Stringable {\n  public function toString(): string { return \"x\"; }\n}\nclass T {\n  public function m(Name $n): string {\n    return $n as string;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1453,7 +1453,7 @@ fn converting_a_stringable_object_to_string_calls_its_to_string() {
 // `bytes` is the mechanical follow-on to `string` the crate docs named:
 // same `Ty::Bytes` representation, same `Lowering::bind_local`/
 // `lower_call_args`/`release_all_locals`/`lower_reassignment` insertion
-// points `Ty::Str` already uses. `mwl-syntax`'s grammar has no `bytes`
+// points `Ty::Str` already uses. `nvs-syntax`'s grammar has no `bytes`
 // literal syntax at all (no `b"..."` form), so unlike the `string` tests
 // above, every fixture below sources its `bytes` value from a parameter
 // or a property read rather than a literal — both already-covered
@@ -1468,7 +1468,7 @@ fn converting_a_stringable_object_to_string_calls_its_to_string() {
 #[test]
 fn a_bytes_parameter_bound_to_a_local_transfers_out_on_return() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function pick(bytes $a): bytes {\n    bytes $b = $a;\n    return $b;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function pick(bytes $a): bytes {\n    bytes $b = $a;\n    return $b;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1485,7 +1485,7 @@ fn a_bytes_parameter_bound_to_a_local_transfers_out_on_return() {
 #[test]
 fn reassigning_a_bytes_local_retains_the_new_value_and_releases_the_old() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bytes $a, bytes $b): void {\n    bytes $x = $a;\n    $x = $b;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bytes $a, bytes $b): void {\n    bytes $x = $a;\n    $x = $b;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1497,7 +1497,7 @@ fn reassigning_a_bytes_local_retains_the_new_value_and_releases_the_old() {
 #[test]
 fn passing_a_bytes_local_as_a_call_argument_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bytes $s): int {\n    return self::take($s);\n  }\n  static function take(bytes $x): int {\n    return 1;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bytes $s): int {\n    return self::take($s);\n  }\n  static function take(bytes $x): int {\n    return 1;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1511,7 +1511,7 @@ fn passing_a_bytes_local_as_a_call_argument_retains_it() {
 #[test]
 fn binding_a_bytes_property_read_to_a_local_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public bytes $data;\n  function constructor(bytes $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(bytes $seed): void {\n    Foo $obj = new Foo($seed);\n    var $s = $obj->data;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public bytes $data;\n  function constructor(bytes $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(bytes $seed): void {\n    Foo $obj = new Foo($seed);\n    var $s = $obj->data;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1523,7 +1523,7 @@ fn binding_a_bytes_property_read_to_a_local_retains_it() {
 #[test]
 fn writing_a_bytes_local_to_a_property_retains_it_before_releasing_the_old_value() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public bytes $data;\n  function constructor(bytes $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(bytes $seed, bytes $other): void {\n    Foo $obj = new Foo($seed);\n    $obj->data = $other;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public bytes $data;\n  function constructor(bytes $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(bytes $seed, bytes $other): void {\n    Foo $obj = new Foo($seed);\n    $obj->data = $other;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1535,7 +1535,7 @@ fn writing_a_bytes_local_to_a_property_retains_it_before_releasing_the_old_value
 // *positional* literals — no explicit `key =>` — which keep the single-
 // `ArrayNew` shape; the explicit-`key =>` fixtures further down cover the
 // `ArrayNew` (empty) + `ArraySet`* shape, which a `...spread` element
-// takes too. `&value` never reaches here at all, `mwl_types` refusing
+// takes too. `&value` never reaches here at all, `nvs_types` refusing
 // it as `E0483`.
 
 /// `[]` — an empty array literal lowers to `InstKind::ArrayNew` with no
@@ -1543,7 +1543,7 @@ fn writing_a_bytes_local_to_a_property_retains_it_before_releasing_the_old_value
 #[test]
 fn an_empty_array_literal_lowers_with_no_entries() {
     let (f, map, file) =
-        lower_first_method("<?mwl\nclass T {\n  function m(): array {\n    return [];\n  }\n}\n");
+        lower_first_method("<?nvs\nclass T {\n  function m(): array {\n    return [];\n  }\n}\n");
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
@@ -1554,7 +1554,7 @@ fn an_empty_array_literal_lowers_with_no_entries() {
 #[test]
 fn a_literal_with_fresh_scalar_elements_needs_no_retain() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    array $a = [1, 2, 3];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    array $a = [1, 2, 3];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1567,7 +1567,7 @@ fn a_literal_with_fresh_scalar_elements_needs_no_retain() {
 #[test]
 fn a_literal_with_an_aliasing_element_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    string $s = \"hi\";\n    array $a = [$s];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    string $s = \"hi\";\n    array $a = [$s];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1579,7 +1579,7 @@ fn a_literal_with_an_aliasing_element_retains_it() {
 #[test]
 fn a_string_literal_keyed_array_element_lowers_to_array_new_then_array_set() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    array $a = [\"k\" => 1];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    array $a = [\"k\" => 1];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1591,7 +1591,7 @@ fn a_string_literal_keyed_array_element_lowers_to_array_new_then_array_set() {
 #[test]
 fn an_int_literal_keyed_array_element_carries_the_integer_unrendered() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    array $a = [5 => \"a\"];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    array $a = [5 => \"a\"];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1603,7 +1603,7 @@ fn an_int_literal_keyed_array_element_carries_the_integer_unrendered() {
 #[test]
 fn a_dynamic_string_keyed_array_element_retains_the_key() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(string $k): void {\n    array $a = [$k => 1];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(string $k): void {\n    array $a = [$k => 1];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1617,7 +1617,7 @@ fn a_dynamic_string_keyed_array_element_retains_the_key() {
 #[test]
 fn a_positional_element_after_an_explicit_key_keeps_its_own_position_counter() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    array $a = [1, \"k\" => 2, 3];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    array $a = [1, \"k\" => 2, 3];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1630,7 +1630,7 @@ fn a_positional_element_after_an_explicit_key_keeps_its_own_position_counter() {
 #[test]
 fn a_spread_array_element_lowers() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    array $a = [1];\n    array $b = [...$a];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    array $a = [1];\n    array $b = [...$a];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1643,7 +1643,7 @@ fn a_spread_array_element_lowers() {
 #[test]
 fn a_keyless_element_beside_a_spread_appends_instead_of_numbering() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    array $a = [1];\n    array $b = [0, ...$a, 2];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    array $a = [1];\n    array $b = [0, ...$a, 2];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1657,7 +1657,7 @@ fn a_keyless_element_beside_a_spread_appends_instead_of_numbering() {
 #[test]
 fn a_spread_of_a_call_result_releases_the_subject_after_the_copy() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): void {\n    array $b = [...self::rows()];\n  }\n  static function rows(): array {\n    return [1];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): void {\n    array $b = [...self::rows()];\n  }\n  static function rows(): array {\n    return [1];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1670,7 +1670,7 @@ fn a_spread_of_a_call_result_releases_the_subject_after_the_copy() {
 #[test]
 fn passing_an_array_local_as_a_call_argument_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): int {\n    array $a = [1];\n    return self::take($a);\n  }\n  static function take(array $x): int {\n    return 1;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): int {\n    array $a = [1];\n    return self::take($a);\n  }\n  static function take(array $x): int {\n    return 1;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1686,7 +1686,7 @@ fn passing_an_array_local_as_a_call_argument_retains_it() {
 #[test]
 fn binding_an_array_property_read_to_a_local_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public array $data;\n  function constructor(array $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo([1]);\n    var $s = $obj->data;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public array $data;\n  function constructor(array $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo([1]);\n    var $s = $obj->data;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1699,7 +1699,7 @@ fn binding_an_array_property_read_to_a_local_retains_it() {
 #[test]
 fn writing_an_array_local_to_a_property_retains_it_before_releasing_the_old_value() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass Foo {\n  public array $data;\n  function constructor(array $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo([1]);\n    array $other = [2];\n    $obj->data = $other;\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public array $data;\n  function constructor(array $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo([1]);\n    array $other = [2];\n    $obj->data = $other;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1708,14 +1708,14 @@ fn writing_an_array_local_to_a_property_retains_it_before_releasing_the_old_valu
 /// read: a fresh, non-refcounted `int` element, and a literal `int` key
 /// that reaches `InstKind::ArrayGet` as the `int` it already was, with no
 /// `helper.int_to_string` and therefore no key allocation and no release
-/// of one either. ADR 0007 § 5 still says the key *is* `"0"`; `mwl-ir`'s
+/// of one either. ADR 0007 § 5 still says the key *is* `"0"`; `nvs-ir`'s
 /// module doc § *an array key is a `string`, and an `int` subscript no
 /// longer spells it* is why the decimal is no longer rendered to reach
-/// it, and codegen picks `mwl_array_get_index` off this operand's `Ty`.
+/// it, and codegen picks `nvs_array_get_index` off this operand's `Ty`.
 #[test]
 fn reading_an_int_element_through_a_literal_key_carries_the_integer_unrendered() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<int> $a): int {\n    return $a[0];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<int> $a): int {\n    return $a[0];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1729,7 +1729,7 @@ fn reading_an_int_element_through_a_literal_key_carries_the_integer_unrendered()
 #[test]
 fn reading_an_element_through_a_uint_subscript_still_renders_the_decimal() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<int> $a, uint $i): int {\n    return $a[$i];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<int> $a, uint $i): int {\n    return $a[$i];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1743,7 +1743,7 @@ fn reading_an_element_through_a_uint_subscript_still_renders_the_decimal() {
 #[test]
 fn appending_to_a_string_local_appends_in_place_rather_than_concatenating() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(string $piece): string {\n    var $out = \"\";\n    \
+        "<?nvs\nclass T {\n  function m(string $piece): string {\n    var $out = \"\";\n    \
              $out .= $piece;\n    return $out;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
@@ -1758,7 +1758,7 @@ fn appending_to_a_string_local_appends_in_place_rather_than_concatenating() {
 #[test]
 fn appending_to_a_property_keeps_the_concat_rewrite() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  public string $p = \"\";\n  function m(): void {\n    \
+        "<?nvs\nclass T {\n  public string $p = \"\";\n  function m(): void {\n    \
              $this->p .= \"x\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
@@ -1773,7 +1773,7 @@ fn appending_to_a_property_keeps_the_concat_rewrite() {
 #[test]
 fn unsetting_an_element_through_an_int_key_still_renders_the_decimal() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<int> $a): void {\n    unset($a[0]);\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<int> $a): void {\n    unset($a[0]);\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1789,7 +1789,7 @@ fn unsetting_an_element_through_an_int_key_still_renders_the_decimal() {
 #[test]
 fn reading_a_string_element_through_a_string_local_key_retains_the_result() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<string> $a, string $k): void {\n    var $s = $a[$k];\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<string> $a, string $k): void {\n    var $s = $a[$k];\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1804,7 +1804,7 @@ fn reading_a_string_element_through_a_string_local_key_retains_the_result() {
 #[test]
 fn writing_an_int_element_through_a_literal_key_carries_the_integer_unrendered() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<int> $a): void {\n    $a[0] = 5;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<int> $a): void {\n    $a[0] = 5;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1817,7 +1817,7 @@ fn writing_an_int_element_through_a_literal_key_carries_the_integer_unrendered()
 #[test]
 fn writing_a_string_element_through_a_string_local_key_retains_both_key_and_value() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<string> $a, string $k, string $v): void {\n    $a[$k] = $v;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<string> $a, string $k, string $v): void {\n    $a[$k] = $v;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1834,7 +1834,7 @@ fn writing_a_string_element_through_a_string_local_key_retains_both_key_and_valu
 #[test]
 fn appending_a_fresh_int_value_needs_no_retain() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<int> $a): void {\n    $a[] = 1;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<int> $a): void {\n    $a[] = 1;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1847,13 +1847,13 @@ fn appending_a_fresh_int_value_needs_no_retain() {
 /// ordinary release at `m`'s exit sweep.
 ///
 /// The landing block releases both locals and nothing more: the refusal
-/// path inside `mwl_runtime::mwl_array_append` releases the extra reference
+/// path inside `nvs_runtime::nvs_array_append` releases the extra reference
 /// the retain above staged, and leaves the array's where this frame's own
 /// slot still names it.
 #[test]
 fn appending_an_aliasing_string_value_retains_it() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<string> $a, string $v): void {\n    $a[] = $v;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<string> $a, string $v): void {\n    $a[] = $v;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1866,7 +1866,7 @@ fn appending_an_aliasing_string_value_retains_it() {
 #[test]
 fn a_second_write_reads_the_array_the_first_one_yielded() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<int> $a): void {\n    $a[0] = 5;\n    $a[1] = 6;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<int> $a): void {\n    $a[0] = 5;\n    $a[1] = 6;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1878,7 +1878,7 @@ fn a_second_write_reads_the_array_the_first_one_yielded() {
 #[test]
 fn writing_an_element_through_a_property_base_stores_the_result_back() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  public array<int> $rows;\n  function m(): void {\n    $this->rows[0] = 5;\n  }\n  function constructor() { $this->rows = []; }\n}\n",
+        "<?nvs\nclass T {\n  public array<int> $rows;\n  function m(): void {\n    $this->rows[0] = 5;\n  }\n  function constructor() { $this->rows = []; }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1892,14 +1892,14 @@ fn writing_an_element_through_a_property_base_stores_the_result_back() {
 #[test]
 fn writing_through_a_nested_subscript_separates_every_level() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<array<int>> $g): void {\n    $g[0][1] = 5;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<array<int>> $g): void {\n    $g[0][1] = 5;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
 /// A `bool` subscript isn't one of ADR 0007 § 5's three legal key source
-/// types (`int`/`uint`/`string`) — `mwl_types::expr::check_array_key_type`
-/// now rejects it at check time (see `mwl_types::check`'s own
+/// types (`int`/`uint`/`string`) — `nvs_types::expr::check_array_key_type`
+/// now rejects it at check time (see `nvs_types::check`'s own
 /// `a_bool_key_array_literal_is_diagnosed`-style fixtures for the
 /// diagnostic side), so `lower_first_method`'s own `check_program` call
 /// already fails the fixture before lowering ever runs —
@@ -1909,7 +1909,7 @@ fn writing_through_a_nested_subscript_separates_every_level() {
 #[should_panic(expected = "fixture failed to check")]
 fn a_bool_subscript_key_is_rejected_before_lowering_even_runs() {
     lower_first_method(
-        "<?mwl\nclass T {\n  function m(array<int> $a, bool $b): void {\n    $a[$b] = 1;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(array<int> $a, bool $b): void {\n    $a[$b] = 1;\n  }\n}\n",
     );
 }
 
@@ -1921,7 +1921,7 @@ fn a_bool_subscript_key_is_rejected_before_lowering_even_runs() {
 #[test]
 fn and_short_circuits_to_a_phi() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bool $a, bool $b): bool {\n    return $a && $b;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bool $a, bool $b): bool {\n    return $a && $b;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1932,7 +1932,7 @@ fn and_short_circuits_to_a_phi() {
 #[test]
 fn or_short_circuits_to_a_phi() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bool $a, bool $b): bool {\n    return $a || $b;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bool $a, bool $b): bool {\n    return $a || $b;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1949,7 +1949,7 @@ fn or_short_circuits_to_a_phi() {
 #[test]
 fn not_converts_a_non_bool_operand_through_the_truthy_table_then_negates() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(string $s): bool {\n    return !$s;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(string $s): bool {\n    return !$s;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1959,7 +1959,7 @@ fn not_converts_a_non_bool_operand_through_the_truthy_table_then_negates() {
 #[test]
 fn not_composes_with_a_short_circuit_and() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bool $a, bool $b): bool {\n    return !($a && $b);\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bool $a, bool $b): bool {\n    return !($a && $b);\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1972,7 +1972,7 @@ fn not_composes_with_a_short_circuit_and() {
 #[test]
 fn if_condition_short_circuits_with_and() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bool $a, bool $b): bool {\n    if ($a && $b) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bool $a, bool $b): bool {\n    if ($a && $b) {\n      return true;\n    }\n    return false;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1986,7 +1986,7 @@ fn if_condition_short_circuits_with_and() {
 #[test]
 fn while_condition_short_circuits_with_or() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bool $a, bool $b): void {\n    while ($a || $b) {\n      $a = false;\n    }\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bool $a, bool $b): void {\n    while ($a || $b) {\n      $a = false;\n    }\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -1998,7 +1998,7 @@ fn while_condition_short_circuits_with_or() {
 #[test]
 fn ternary_with_matching_branch_types_merges_with_a_phi() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bool $c, int $a, int $b): int {\n    return $c ? $a : $b;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bool $c, int $a, int $b): int {\n    return $c ? $a : $b;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -2010,7 +2010,7 @@ fn ternary_with_matching_branch_types_merges_with_a_phi() {
 #[test]
 fn elvis_with_a_non_refcounted_condition_needs_no_retain() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(int $a, int $b): int {\n    return $a ?: $b;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(int $a, int $b): int {\n    return $a ?: $b;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -2023,7 +2023,7 @@ fn elvis_with_a_non_refcounted_condition_needs_no_retain() {
 #[test]
 fn elvis_retains_an_aliased_refcounted_condition() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(string $s, string $d): string {\n    return $s ?: $d;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(string $s, string $d): string {\n    return $s ?: $d;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -2036,7 +2036,7 @@ fn elvis_retains_an_aliased_refcounted_condition() {
 #[test]
 fn elvis_transfers_a_fresh_refcounted_condition_with_no_retain_or_release() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(): string {\n    return self::make() ?: \"x\";\n  }\n  static function make(): string {\n    return \"y\";\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(): string {\n    return self::make() ?: \"x\";\n  }\n  static function make(): string {\n    return \"y\";\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -2051,7 +2051,7 @@ fn elvis_transfers_a_fresh_refcounted_condition_with_no_retain_or_release() {
 #[test]
 fn a_ternary_with_mismatched_branch_types_joins_at_the_tagged_representation() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bool $c): mixed {\n    mixed $r = $c ? 1 : \"x\";\n    return $r;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(bool $c): mixed {\n    mixed $r = $c ? 1 : \"x\";\n    return $r;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -2064,7 +2064,7 @@ fn a_ternary_with_mismatched_branch_types_joins_at_the_tagged_representation() {
 #[test]
 fn match_arms_in_three_representations_join_at_the_tagged_representation() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(int $k): mixed {\n    mixed $r = match ($k) { 1 => 1, 2 => 2.5, default => \"x\" };\n    return $r;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(int $k): mixed {\n    mixed $r = match ($k) { 1 => 1, 2 => 2.5, default => \"x\" };\n    return $r;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -2077,7 +2077,7 @@ fn match_arms_in_three_representations_join_at_the_tagged_representation() {
 #[test]
 fn a_short_circuit_and_nested_in_a_call_argument_composes() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(bool $a, bool $b): void {\n    self::take($a && $b);\n  }\n  static function take(bool $x): void {}\n}\n",
+        "<?nvs\nclass T {\n  function m(bool $a, bool $b): void {\n    self::take($a && $b);\n  }\n  static function take(bool $x): void {}\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -2093,7 +2093,7 @@ fn a_short_circuit_and_nested_in_a_call_argument_composes() {
 #[test]
 fn while_loop_with_a_plain_break_exits_early() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(int $n): int {\n    int $i = 0;\n    while ($i < $n) {\n      if ($i == 3) {\n        break;\n      }\n      $i = $i + 1;\n    }\n    return $i;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(int $n): int {\n    int $i = 0;\n    while ($i < $n) {\n      if ($i == 3) {\n        break;\n      }\n      $i = $i + 1;\n    }\n    return $i;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -2109,7 +2109,7 @@ fn while_loop_with_a_plain_break_exits_early() {
 #[test]
 fn break_merges_a_differing_value_into_the_after_block() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(int $n): int {\n    int $i = 0;\n    int $r = 0;\n    while ($i < $n) {\n      $r = $i;\n      if ($i == 3) {\n        break;\n      }\n      $i = $i + 1;\n    }\n    return $r;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(int $n): int {\n    int $i = 0;\n    int $r = 0;\n    while ($i < $n) {\n      $r = $i;\n      if ($i == 3) {\n        break;\n      }\n      $i = $i + 1;\n    }\n    return $r;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -2125,7 +2125,7 @@ fn break_merges_a_differing_value_into_the_after_block() {
 #[test]
 fn continue_adds_another_incoming_edge_to_the_header_phi() {
     let (f, map, file) = lower_first_method(
-        "<?mwl\nclass T {\n  function m(int $n): int {\n    int $i = 0;\n    int $sum = 0;\n    while ($i < $n) {\n      $i = $i + 1;\n      if ($i == 3) {\n        continue;\n      }\n      $sum = $sum + $i;\n    }\n    return $sum;\n  }\n}\n",
+        "<?nvs\nclass T {\n  function m(int $n): int {\n    int $i = 0;\n    int $sum = 0;\n    while ($i < $n) {\n      $i = $i + 1;\n      if ($i == 3) {\n        continue;\n      }\n      $sum = $sum + $i;\n    }\n    return $sum;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }
@@ -2144,7 +2144,7 @@ fn continue_adds_another_incoming_edge_to_the_header_phi() {
 fn a_multi_level_break_leaves_the_loop_its_level_names() {
     let nested = |keyword: &str| {
         let (f, map, file) = lower_first_method(&format!(
-            "<?mwl\nclass T {{\n  function m(int $n): void {{\n    while ($n > 0) {{\n      \
+            "<?nvs\nclass T {{\n  function m(int $n): void {{\n    while ($n > 0) {{\n      \
                  while ($n > 0) {{\n        {keyword};\n      }}\n      echo \"inner-done\";\n    \
                  }}\n  }}\n}}\n",
         ));
@@ -2163,14 +2163,14 @@ fn a_multi_level_break_leaves_the_loop_its_level_names() {
 /// exactly the back edge a bare `continue` there already takes — the
 /// `switch` counts as a level and the walk outward finds the loop.
 ///
-/// `mwl_ir::lower::Lowering::lower_continue` is where both steps live and
+/// `nvs_ir::lower::Lowering::lower_continue` is where both steps live and
 /// why; `docs/adr/README.md`'s paragraph on `continue` inside a `switch`
 /// is the decision's home.
 #[test]
 fn a_continue_level_walks_out_of_a_switch_to_the_loop() {
     let inside_switch = |keyword: &str| {
         let (f, map, file) = lower_first_method(&format!(
-            "<?mwl\nclass T {{\n  function m(int $n): void {{\n    while ($n > 0) {{\n      \
+            "<?nvs\nclass T {{\n  function m(int $n): void {{\n    while ($n > 0) {{\n      \
                  $n = $n - 1;\n      switch ($n) {{\n        case 1:\n          {keyword};\n      \
                    default:\n          echo \"tick\";\n      }}\n    }}\n  }}\n}}\n",
         ));
@@ -2199,22 +2199,22 @@ fn lower_whole_file(src: &str) -> crate::ir::Program {
 /// of the lowered functions with [`print_function`].
 fn lower_whole_file_with_src(src: &str) -> (crate::ir::Program, SourceMap, SourceId) {
     let mut map = SourceMap::new();
-    let file = map.add("t.mwl", src);
+    let file = map.add("t.nvs", src);
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(file), &mut diags);
     assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
-    let module = mwl_hir::resolve_file(&stmts, map.file(file), &mut diags);
+    let module = nvs_hir::resolve_file(&stmts, map.file(file), &mut diags);
     assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
     let mut checked_types = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
-    let files = [mwl_types::ProgramFile {
+    let files = [nvs_types::ProgramFile {
         src: map.file(file),
         stmts: &stmts,
     }];
     let enums =
-        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
+        nvs_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
     assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
-    let layouts = mwl_types::build_class_layouts(&files, &module.graph);
+    let layouts = nvs_types::build_class_layouts(&files, &module.graph);
     let program = lower_file(
         "<script>",
         &stmts,
@@ -2227,12 +2227,12 @@ fn lower_whole_file_with_src(src: &str) -> (crate::ir::Program, SourceMap, Sourc
     (program, map, file)
 }
 
-/// The class table is carried straight through from `mwl-types`, sorted
+/// The class table is carried straight through from `nvs-types`, sorted
 /// by label so an unchanged file lowers identically every time.
 #[test]
 fn a_lowered_file_carries_its_class_table_in_label_order() {
     let program = lower_whole_file(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "interface Greets { public function greet(): string; }\n",
         "class Animal {\n",
         "  public int $legs;\n",
@@ -2274,7 +2274,7 @@ fn a_lowered_file_carries_its_class_table_in_label_order() {
 /// Source with a `get`- and a `set`-hooked property, plus one ordinary
 /// one — the shape every hook test below reads.
 const HOOKED: &str = concat!(
-    "<?mwl\n",
+    "<?nvs\n",
     "class Counter {\n",
     "  public int $hits;\n",
     "  public int $doubled {\n",
@@ -2288,7 +2288,7 @@ const HOOKED: &str = concat!(
 );
 
 /// ADR 0014 § 1's hooks are ordinary compiled functions, each under the
-/// label `mwl_types::signatures::hook_label` spells — the same one the
+/// label `nvs_types::signatures::hook_label` spells — the same one the
 /// access site's `InstKind::Call` names, which is why nothing here needs a
 /// dispatch table entry.
 #[test]
@@ -2321,7 +2321,7 @@ fn each_property_hook_is_lowered_as_its_own_function() {
 
 /// The point of the whole slice: `$this->doubled` is a **call**, not a
 /// field read. Before this landed it lowered to a `FieldGet` on a slot
-/// nothing ever wrote, which is why `examples/hooks.mwl` printed `0`.
+/// nothing ever wrote, which is why `examples/hooks.nvs` printed `0`.
 #[test]
 fn reading_a_get_hooked_property_calls_the_hook_instead_of_reading_the_slot() {
     let (program, map, file) = lower_whole_file_with_src(HOOKED);
@@ -2352,13 +2352,13 @@ fn writing_a_set_hooked_property_calls_the_hook_instead_of_writing_the_slot() {
 
 /// Inside `$doubled`'s own hooks the property is its backing slot, never
 /// a re-entrant call — that is what lets a hook transform a stored value
-/// and still terminate. `mwl_types::Ctx::current_hook` is the rule; this
+/// and still terminate. `nvs_types::Ctx::current_hook` is the rule; this
 /// is the lowering that proves it, on the one hook that touches its own
 /// property.
 #[test]
 fn a_hook_body_reaching_its_own_property_touches_the_slot_directly() {
     let (program, map, file) = lower_whole_file_with_src(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class Box {\n",
         "  public int $n {\n",
         "    get => $this->n + 1;\n",
@@ -2394,7 +2394,7 @@ fn a_hook_body_reaching_its_own_property_touches_the_slot_directly() {
 #[test]
 fn a_foreach_walks_an_array_through_a_cursor_it_owns_a_reference_to() {
     let (f, map, file) = lower_first_method(
-        "<?mwl
+        "<?nvs
 class T {
   function m(array<int> $a): void {
     foreach ($a as string $k => int $v) {
@@ -2413,7 +2413,7 @@ class T {
 #[test]
 fn a_refcounted_foreach_value_binding_is_retained_for_its_iteration() {
     let (f, map, file) = lower_first_method(
-        "<?mwl
+        "<?nvs
 class T {
   function m(array<string> $a): void {
     foreach ($a as string $v) {
@@ -2430,11 +2430,11 @@ class T {
 /// member call is a `call.virtual`, never a static `call`: the interface
 /// declares both without a body, so there is no compiled function to
 /// name. The cursor is retained before each one, since a receiver is
-/// parameter 0 and MWL transfers an argument's reference to the callee.
+/// parameter 0 and Novis transfers an argument's reference to the callee.
 #[test]
 fn a_foreach_over_a_cursor_drives_advance_then_current_virtually() {
     let (f, map, file) = lower_first_method(
-        "<?mwl
+        "<?nvs
 class T {
   function m(Iterator<int> $c): void {
     foreach ($c as int $v) {
@@ -2455,7 +2455,7 @@ class T {
 #[test]
 fn a_foreach_over_an_iterable_calls_iterate_once_before_the_loop() {
     let (f, map, file) = lower_first_method(
-        "<?mwl
+        "<?nvs
 class T {
   function m(Iterable<int> $it): void {
     foreach ($it as int $v) {
@@ -2476,7 +2476,7 @@ class T {
 #[test]
 fn a_generator_lowers_to_a_factory_a_state_class_and_a_resumption_switch() {
     let (p, map, file) = lower_program(
-        "<?mwl
+        "<?nvs
 class G {
   static function upTo(int $limit): Iterator<int> {
     var $i = 1;
@@ -2501,7 +2501,7 @@ class G {
 #[test]
 fn an_abandoned_generator_resumes_into_the_finally_it_is_suspended_inside() {
     let (p, map, file) = lower_program(
-        "<?mwl
+        "<?nvs
 class G {
   static function two(): Iterator<int> {
     try {
@@ -2525,7 +2525,7 @@ class G {
 #[test]
 fn a_closure_lowers_to_a_captured_environment_object_and_an_invoke_method() {
     let (p, map, file) = lower_program(
-        "<?mwl
+        "<?nvs
 string $tag = \"t\";
 int $bump = 1;
 var $f = fn(int $n): string => $tag;
@@ -2547,7 +2547,7 @@ echo $bump;
 #[test]
 fn a_closure_capturing_a_by_reference_parameter_snapshots_the_cell() {
     let (p, map, file) = lower_program(
-        "<?mwl
+        "<?nvs
 class T {
   static function make(inout string $s): callable {
     return fn (): string => $s;
@@ -2564,7 +2564,7 @@ class T {
 #[test]
 fn a_generator_parks_a_refcounted_local_and_element_in_its_state_object() {
     let (p, map, file) = lower_program(
-        "<?mwl
+        "<?nvs
 class G {
   static function two(): Iterator<string> {
     var $tag = \"t\";
@@ -2583,7 +2583,7 @@ class G {
 #[test]
 fn unsetting_an_element_writes_the_separated_array_back() {
     let (f, map, file) = lower_first_method(
-        "<?mwl
+        "<?nvs
 class T {
   function m(array<int> $a): void {
     unset($a[\"k\"]);
@@ -2604,7 +2604,7 @@ class T {
 #[test]
 fn a_foreach_by_reference_writes_through_to_its_array() {
     let (f, map, file) = lower_first_method(
-        "<?mwl
+        "<?nvs
 class T {
   function m(array<int> $a): void {
     foreach ($a as inout int $v) {
@@ -2618,14 +2618,14 @@ class T {
 }
 
 /// A Tier 0 `Core` member call: `core.call` naming the symbol
-/// `mwl_stdlib::registry` registered, with **no retain** on the array
+/// `nvs_stdlib::registry` registered, with **no retain** on the array
 /// argument even though it is a refcounted aliasing read — a `Core` member
 /// borrows what it is handed. Contrast the ordinary static call in
 /// `a_self_static_call_with_a_scalar_return`'s snapshot, which retains.
 #[test]
 fn a_core_member_call_lowers_to_a_symbol_and_borrows_its_argument() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T {\n",
         "  function m(array<int> $a): uint {\n",
         "    return Core\\Arr::count($a);\n",
@@ -2639,12 +2639,12 @@ fn a_core_member_call_lowers_to_a_symbol_and_borrows_its_argument() {
 /// back edge, not carried out of the loop: the next iteration restarts
 /// from the header environment, so nothing after this point could ever
 /// reach it. Without the release it leaked one reference per iteration —
-/// found by `examples/report.mwl`'s valgrind leg, which was the first
+/// found by `examples/report.nvs`'s valgrind leg, which was the first
 /// fixture to declare one. See [`Lowering::end_iteration`].
 #[test]
 fn a_local_declared_in_a_loop_body_is_released_on_the_back_edge() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T {\n",
         "  function m(array<string> $words): void {\n",
         "    foreach ($words as string $w) {\n",
@@ -2664,7 +2664,7 @@ fn a_local_declared_in_a_loop_body_is_released_on_the_back_edge() {
 #[test]
 fn a_local_declared_in_one_if_branch_is_released_where_the_branches_merge() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T {\n",
         "  function m(bool $c): void {\n",
         "    if ($c) {\n",
@@ -2684,12 +2684,12 @@ fn a_local_declared_in_one_if_branch_is_released_where_the_branches_merge() {
 /// below emit a `core.call` with **three** arguments — the written
 /// `{step: 3}` in the first, the materialized default `1` in the second.
 /// The bag itself never appears in the IR at all, which is the property
-/// that keeps `mwl-codegen` and the ADR 0002 helper convention from
+/// that keeps `nvs-codegen` and the ADR 0002 helper convention from
 /// learning that options exist.
 #[test]
 fn an_options_bag_flattens_into_one_argument_per_option() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T {\n",
         "  function m(): void {\n",
         "    echo Core\\Arr::count(Core\\Arr::range(1, 10, {step: 3}));\n",
@@ -2701,7 +2701,7 @@ fn an_options_bag_flattens_into_one_argument_per_option() {
 }
 
 /// A `name:` argument lands at the ABI position of the parameter its name
-/// reached, not at its own place in the list — `mwl_types` records that
+/// reached, not at its own place in the list — `nvs_types` records that
 /// mapping as `ResolvedCall::arg_slots` and
 /// [`Lowering::lower_call_args`] is what reads it.
 ///
@@ -2715,7 +2715,7 @@ fn an_options_bag_flattens_into_one_argument_per_option() {
 #[test]
 fn a_named_argument_lowers_to_its_declared_position() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T {\n",
         "  function m(): void {\n",
         "    T::label(times: 1, who: \"z\");\n",
@@ -2737,7 +2737,7 @@ fn a_named_argument_lowers_to_its_declared_position() {
 #[test]
 fn a_spread_argument_lowers_to_the_positions_it_fills() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T {\n",
         "  function m(array<int> $extra): void {\n",
         "    T::total(1, 2, ...$extra);\n",
@@ -2752,13 +2752,13 @@ fn a_spread_argument_lowers_to_the_positions_it_fills() {
 /// The same `...` through a `callable`, where there is no signature and so
 /// no tail to fill: the *whole* argument list becomes the array instead,
 /// and the call goes through `Helper::CallClosureArray` rather than the
-/// `call_closure` beside it, whose argument count `mwl-codegen` writes as a
+/// `call_closure` beside it, whose argument count `nvs-codegen` writes as a
 /// literal. The second call is the unspread one, which still emits the
 /// counted helper — one snapshot holding both rows.
 #[test]
 fn a_spread_argument_through_a_callable_becomes_one_array() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T {\n",
         "  function m(callable $f, array<int> $extra): void {\n",
         "    echo $f(1, ...$extra) as string;\n",
@@ -2771,10 +2771,10 @@ fn a_spread_argument_through_a_callable_becomes_one_array() {
 
 /// The whole path in one fixture: an ADR 0031 `fn` literal bound to a
 /// local, then *called* through the variable holding it — which is what
-/// `examples/callable.mwl`'s `direct` line runs and what used to panic.
+/// `examples/callable.nvs`'s `direct` line runs and what used to panic.
 ///
 /// The call is the runtime's (`Helper::CallClosure` into
-/// `mwl_runtime::call_closure`) rather than a lowered `Call` to a label,
+/// `nvs_runtime::call_closure`) rather than a lowered `Call` to a label,
 /// because a `callable` names no compiled function; the environment object
 /// the literal built is the receiver. The neighbouring fixture asks the
 /// same question of a `callable` *parameter*, where there is no literal in
@@ -2783,7 +2783,7 @@ fn a_spread_argument_through_a_callable_becomes_one_array() {
 #[test]
 fn a_closure_is_called_through_the_variable_holding_it() {
     let (f, map, file) = lower_first_method(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T {\n",
         "  function m(): void {\n",
         "    callable $f = fn (int $a, int $b): int => $a + $b;\n",
@@ -2799,7 +2799,7 @@ fn a_closure_is_called_through_the_variable_holding_it() {
 #[test]
 fn an_instanceof_names_the_class_the_checker_resolved() {
     let (f, map, file) = lower_first_method(
-        "<?mwl
+        "<?nvs
 class Animal {
 }
 class T {
@@ -2821,7 +2821,7 @@ class T {
 #[should_panic(expected = "E0496")]
 fn a_dynamic_instanceof_records_nothing_to_lower() {
     lower_first_method(
-        "<?mwl
+        "<?nvs
 class Animal {
 }
 class T {
@@ -2834,15 +2834,15 @@ class T {
 }
 
 /// A `mixed` subject keeps its [`crate::ir::Ty::Tagged`] representation all
-/// the way into the instruction: `mwl-codegen` calls
-/// `mwl_value_instanceof` for it, which reads the tag rather than
+/// the way into the instruction: `nvs-codegen` calls
+/// `nvs_value_instanceof` for it, which reads the tag rather than
 /// dereferencing an unchecked payload. Every subject whose *declared* type
 /// can hold no object is `E0497` at the checker, so no third
 /// representation reaches here.
 #[test]
 fn an_instanceof_over_a_mixed_subject_keeps_its_tag() {
     let (f, _, _) = lower_first_method(
-        "<?mwl
+        "<?nvs
 class Animal {
 }
 class T {
@@ -2868,14 +2868,14 @@ class T {
 
 /// Integer `%` is the one operator carrying an
 /// [`Inst::on_error`](crate::ir::Inst::on_error) edge: ADR 0007 § 4 makes
-/// a zero divisor throw, and `mwl-codegen` raises that inline rather than
+/// a zero divisor throw, and `nvs-codegen` raises that inline rather than
 /// through a helper, so the frame's cleanup path has to exist at the
 /// operator itself. `%` over floats gets none, which is the half of this
 /// worth holding — an error edge that appeared on every `BinOp` would be
 /// a landing block per arithmetic expression.
 #[test]
 fn an_integer_modulo_carries_an_error_edge_and_a_float_one_does_not() {
-    let (f, _, _) = lower_script_src("<?mwl\nint $a = 7;\nint $b = 2;\nint $q = $a % $b;\n");
+    let (f, _, _) = lower_script_src("<?nvs\nint $a = 7;\nint $b = 2;\nint $q = $a % $b;\n");
     let modulo = f
         .blocks
         .iter()
@@ -2885,7 +2885,7 @@ fn an_integer_modulo_carries_an_error_edge_and_a_float_one_does_not() {
     assert!(modulo.on_error.is_some(), "{modulo:?}");
 
     let (f, _, _) =
-        lower_script_src("<?mwl\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n");
+        lower_script_src("<?nvs\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n");
     let modulo = f
         .blocks
         .iter()
@@ -2896,16 +2896,16 @@ fn an_integer_modulo_carries_an_error_edge_and_a_float_one_does_not() {
 }
 
 /// A file declaring no class still lowers, and still carries both rosters
-/// no source declares — `mwl_hir::errors`' exception tree, with its one
-/// synthesized constructor, and `mwl_hir::interfaces`' four global
-/// interfaces — the `hello.mwl` shape. Nothing in the file references any
+/// no source declares — `nvs_hir::errors`' exception tree, with its one
+/// synthesized constructor, and `nvs_hir::interfaces`' four global
+/// interfaces — the `hello.nvs` shape. Nothing in the file references any
 /// of them and they are emitted anyway: a descriptor has to exist before
 /// `$x instanceof Stringable` has anything to test against, and a class
 /// implementing one only keeps the edge if the label it names is in this
-/// list (`mwl_types::layout::build_class_layouts`).
+/// list (`nvs_types::layout::build_class_layouts`).
 #[test]
 fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
-    let program = lower_whole_file("<?mwl\necho \"hi\";\n");
+    let program = lower_whole_file("<?nvs\necho \"hi\";\n");
     let labels: Vec<&str> = program
         .classes
         .iter()
@@ -2939,13 +2939,13 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
     );
 }
 
-/// The root's four slots are the ones `mwl_runtime::throwable` reaches by
+/// The root's four slots are the ones `nvs_runtime::throwable` reaches by
 /// index, and every other exception class inherits them at the same
 /// indices — the property that lets the runtime append a backtrace frame
 /// to a value it knows nothing else about.
 #[test]
 fn every_exception_class_carries_the_root_s_four_slots_at_the_same_indices() {
-    let program = lower_whole_file("<?mwl\nclass MyError extends IOError {}\n");
+    let program = lower_whole_file("<?nvs\nclass MyError extends IOError {}\n");
     for label in ["Throwable", "IOError", "MyError"] {
         let class = program
             .classes
@@ -2967,7 +2967,7 @@ fn every_exception_class_carries_the_root_s_four_slots_at_the_same_indices() {
 #[test]
 fn an_enum_case_lowers_to_a_constant_and_as_int_is_free() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 enum Rank { Bronze, Silver, Gold }
 int $g = Rank::Gold as int;
 ",
@@ -2980,7 +2980,7 @@ int $g = Rank::Gold as int;
 #[test]
 fn a_uint_backed_enum_case_lowers_to_a_uint_constant() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 enum P: uint { Read = 0b001, Write = 0b010 }
 uint $w = P::Write as uint;
 ",
@@ -2995,7 +2995,7 @@ uint $w = P::Write as uint;
 #[test]
 fn an_enum_typed_parameter_is_an_integer_parameter() {
     let (f, _map, _file) = lower_first_method(
-        "<?mwl
+        "<?nvs
 enum Rank { Bronze, Gold }
 class T { public function f(Rank $r): int { return $r as int; } }
 ",
@@ -3011,7 +3011,7 @@ class T { public function f(Rank $r): int { return $r as int; } }
 #[test]
 fn an_enum_condition_folds_to_true_rather_than_testing_its_backing_value() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 enum Rank { Bronze, Gold }
 if (Rank::Bronze) { echo \"y\"; }
 ",
@@ -3027,7 +3027,7 @@ if (Rank::Bronze) { echo \"y\"; }
 #[test]
 fn as_string_and_as_bool_reuse_the_conversions_that_already_exist() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 string $s = 7 as string;
 bool $b = 0 as bool;
 ",
@@ -3044,7 +3044,7 @@ bool $b = 0 as bool;
 #[test]
 fn a_checked_conversion_row_carries_adr_0002_s_error_edge() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 uint $u = 1;
 int $n = $u as int;
 ",
@@ -3064,7 +3064,7 @@ int $n = $u as int;
 #[test]
 fn ordering_two_objects_calls_compare_to_and_tests_its_result_against_zero() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 class P implements Comparable {
     public int $n;
     public function constructor(int $n) { $this->n = $n; }
@@ -3090,7 +3090,7 @@ if ($a < $b) { echo \"lt\"; }
 #[test]
 fn the_spaceship_operator_is_the_compare_to_result_itself() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 class P implements Comparable {
     public int $n;
     public function constructor(int $n) { $this->n = $n; }
@@ -3106,11 +3106,11 @@ int $c = $a <=> $a;
 }
 
 /// ADR 0023 § 1: one instruction, a fresh object with one owner, and no
-/// hook — `__clone` is one of the magic methods MWL does not have.
+/// hook — `__clone` is one of the magic methods Novis does not have.
 #[test]
 fn clone_lowers_to_one_instruction_with_no_hook_call() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 class P { public int $n; public function constructor(int $n) { $this->n = $n; } }
 var $a = new P(1);
 var $b = clone $a;
@@ -3127,7 +3127,7 @@ var $b = clone $a;
 #[test]
 fn converting_into_an_enum_tests_every_case_of_the_declaration() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 enum Rank { Bronze, Gold }
 int $n = 1;
 Rank $r = $n as Rank;
@@ -3155,7 +3155,7 @@ Rank $r = $n as Rank;
 #[test]
 fn a_by_reference_argument_is_staged_and_copied_back() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 class Adder {
                public static function bump(inout int $slot): void { $slot = $slot + 5; }
 }
@@ -3175,7 +3175,7 @@ echo $n;
 #[test]
 fn a_by_reference_parameter_reads_and_writes_through_its_slot() {
     let (f, map, file) = lower_first_method(
-        "<?mwl
+        "<?nvs
 class T {
                public static function bump(inout int $slot): void { $slot = $slot + 5; }
 }
@@ -3192,7 +3192,7 @@ class T {
 #[test]
 fn a_refcounted_by_reference_argument_balances_its_staging_retain() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 class Shout {
                public static function upper(inout string $s): void { $s = $s . \"!\"; }
 }
@@ -3219,7 +3219,7 @@ echo $msg;
 #[test]
 fn a_reference_argument_lowers_in_any_expression_position() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 class Adder {
                public static function bump(inout int $slot): int { $slot = $slot + 5; return $slot; }
 }
@@ -3253,7 +3253,7 @@ echo \"a=\" . Adder::bump(inout $n) . \" then \" . $n . \" and \" . Adder::bump(
 #[test]
 fn a_nested_reference_argument_is_written_back_at_its_own_call() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 class Adder {
                public static function bump(inout int $slot): int { $slot = $slot + 5; return $slot; }
                public static function sum(int $a, int $b): int { return $a + $b; }
@@ -3277,7 +3277,7 @@ echo Adder::sum(Adder::bump(inout $n), $n);
 
 /// ADR 0033 § 5: `==` over two `secret` operands is the constant-time
 /// helper, and an unqualified pair of the same representation is still
-/// the ordinary `BinOp::Eq` that `mwl-codegen` turns into `mwl_str_eq`.
+/// the ordinary `BinOp::Eq` that `nvs-codegen` turns into `nvs_str_eq`.
 ///
 /// Both halves are asserted in one fixture on purpose. The qualifier
 /// spends no representation (`erase_checked_ty`), so the *only* thing
@@ -3289,7 +3289,7 @@ echo Adder::sum(Adder::bump(inout $n), $n);
 #[test]
 fn a_secret_equality_lowers_to_the_constant_time_helper() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 secret string $token = \"a\";
 secret string $given = \"b\";
 bool $secretly = $token == $given;
@@ -3314,7 +3314,7 @@ bool $openly = $plain == $other;
 #[test]
 fn a_secret_bytes_inequality_is_the_same_helper_under_a_not() {
     let (f, map, file) = lower_script_src(
-        "<?mwl
+        "<?nvs
 secret bytes $mac = \"a\" as bytes;
 secret bytes $sent = \"b\" as bytes;
 bool $differ = $mac != $sent;

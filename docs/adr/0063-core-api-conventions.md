@@ -22,7 +22,7 @@
 > **In short:** PHP's built-ins have no API. Argument order flips between neighbouring functions
 > (`array_map(f, a)` / `array_filter(a, f)`), failure is signalled four different ways in the same
 > extension, options are `int` bitmasks, and entire subsystems ship twice — once procedural, once
-> object-oriented. MWL fixes the shape *before* writing the library, with **twenty rules** in § 1–§ 2. The
+> object-oriented. Novis fixes the shape *before* writing the library, with **twenty rules** in § 1–§ 2. The
 > load-bearing ones: **the subject is always parameter 1**; **optional arguments are one trailing shape
 > literal**, never flags; **nothing mutates and nothing takes a reference**; **failure throws, absence is
 > `?T`, and `false` is never a return value**; and **no operation is reachable two ways** — no procedural
@@ -49,7 +49,7 @@
      reachable through `fopen`, `SplFileObject` *and* `DirectoryIterator`. These are invisible in a function
      list because half of each pair is a class.
   Only auditing both axes produces a library with one way to do things.
-- Three properties of MWL make most of PHP's conventions not merely ugly but unavailable:
+- Three properties of Novis make most of PHP's conventions not merely ugly but unavailable:
   **arrays are copy-on-write values** (so a by-reference mutator has no performance argument left),
   **types are declared and checked** (so `false`-on-failure and `int` flag masks throw away information
   the compiler already has), and **there is no ambient state** — no locale, no default timezone, no
@@ -77,7 +77,7 @@ Every `Core` member obeys all twenty. A proposed member that cannot is a design 
 | **R12** | **Units are types.** Durations are a `Duration`, never "seconds here, microseconds there". Byte sizes are `uint` bytes. | PHP's `sleep`/`usleep`/`time_nanosleep` split is a units bug waiting to happen. |
 | **R13** | **A `string` member never takes an encoding argument.** UTF-8 is the type's guarantee ([ADR 0009](0009-string-and-bytes.md)); all conversion happens at the `bytes`↔`string` boundary in `Core\Encoding`, where it can fail honestly. | This is what removes the entire `mb_*` twin set. |
 | **R14** | **Anything with a lifetime is an object.** No `resource`, no integer handles, no `$link`-first convention. `Core` never exposes the `resource` atom at all; it survives in [ADR 0007](0007-explicit-type-system.md) § 3's grammar only for extension-supplied opaque handles ([ADR 0003](0003-extension-system.md)). | A handle has nowhere to enforce a capability and no methods; an object has both. |
-| **R15** | **One name, one signature.** MWL has no overloading; optional arguments are the only variance. Two behaviours need two names, and R5/R6 decide them. | |
+| **R15** | **One name, one signature.** Novis has no overloading; optional arguments are the only variance. Two behaviours need two names, and R5/R6 decide them. | |
 | **R16** | **A domain class is a singular noun**, and its object types nest under it: `Core\Time`, `Core\Time\Instant`, `Core\Time\Duration`. Never `Core\Times`, never `Core\TimeUtils`, never `Core\TimeHelper`. | |
 
 ### 2. One paradigm per operation
@@ -154,7 +154,7 @@ Each was a live design question; each is now a rule the spec file applies.
 
 - **No ambient timezone.** A `Zone` is an explicit argument at every instant↔calendar conversion, and there
   is no process or per-request default — the same unsoundness argument [ADR 0051](0051-standard-library-tiers.md)
-  makes against `setlocale`, which MWL already has no equivalent of.
+  makes against `setlocale`, which Novis already has no equivalent of.
 - **Weak digests are available and structurally refused where unsafe.** One `Digest` enum carries MD5,
   SHA-1 and CRC32 for the interop that genuinely needs them (ETags, checksums, legacy APIs); the HMAC,
   signature and password members declare a narrower closed subset via
@@ -228,7 +228,7 @@ member added without one is an incomplete member.
   reduction comes from removing restatements, not capability.
 - **A reviewer reads authority off the call site.** `Path::` cannot touch the disk, `IO::` can; a `Digest`
   subset means an unsafe algorithm cannot reach an HMAC; a sink is visible in the spec entry.
-- **`mwl convert`'s mapping table gets a rule, not just a list.** Most of PHP's surface maps by pattern
+- **`nvs convert`'s mapping table gets a rule, not just a list.** Most of PHP's surface maps by pattern
   (twin removal, flag-to-enum, subject-first reorder), so the converter can explain each rewrite it makes.
 
 **Negative**
@@ -246,7 +246,7 @@ member added without one is an incomplete member.
 
 ## Alternatives rejected
 
-- **Mirror PHP's built-ins one-for-one and rely on `mwl convert`.** Maximum familiarity, trivial conversion.
+- **Mirror PHP's built-ins one-for-one and rely on `nvs convert`.** Maximum familiarity, trivial conversion.
   Rejected: it imports both duplication axes wholesale and makes the ~1,900-name surface permanent, which is
   the cost [ADR 0051](0051-standard-library-tiers.md) ranks as the expensive one.
 - **Named arguments instead of a shape-literal options bag.** Slightly terser and familiar from PHP 8.
@@ -268,7 +268,7 @@ member added without one is an incomplete member.
 
 - **Done (M4S).** R20's one genuinely reachable two-spellings case is a compile error: a `Core` *instance*
   member written as a static call is `E0458`, held by
-  `tests/conformance/reject/a-core-instance-member-has-one-spelling.mwlt`. It needs its own rule because
+  `tests/conformance/reject/a-core-instance-member-has-one-spelling.nvst`. It needs its own rule because
   such a member's receiver travels in argument slot 0, so `Core\Regex\Match::text($m)` would otherwise pass
   the same arity check `$m->text()` passes and reach the identical helper.
 - **M4S:** every member in [docs/spec/01-core-library.md](../spec/01-core-library.md) has a conformance
@@ -286,5 +286,5 @@ member added without one is an incomplete member.
   built-in list it vendors, that every row names exactly one outcome, and that every `Core` member a row
   names exists in [01-core-library.md](../spec/01-core-library.md). A new PHP release adds rows; a member
   renamed in the spec breaks the build here rather than at M11.
-- **M11:** `mwl convert`'s rewrite table is generated from that file, so a name PHP has and MWL removed
+- **M11:** `nvs convert`'s rewrite table is generated from that file, so a name PHP has and Novis removed
   produces a diagnostic naming the replacement rather than an unresolved call.

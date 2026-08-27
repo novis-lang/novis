@@ -1,7 +1,7 @@
 --TEST--
 there is no property-walk fallback: ordering two objects without `Comparable` is a compile error — ADR 0013 § 1
 --FILE--
-<?mwl
+<?nvs
 class Point {
     public int $x;
 
@@ -18,6 +18,6 @@ if ($a < $b) {
 
 --EXPECTF-ERROR--
 error[E0411]: `Point` does not implement `Comparable`; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires it
-   --> case.mwl:11:5
+   --> case.nvs:11:5
 %A
 error: aborting due to 1 error

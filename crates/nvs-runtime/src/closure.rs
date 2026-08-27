@@ -1,11 +1,11 @@
 //! Calling an [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
 //! closure value from native code.
 //!
-//! A closure is an ordinary MWL object whose class declares exactly one
+//! A closure is an ordinary Novis object whose class declares exactly one
 //! method, [`CLOSURE_INVOKE`], and one field per captured binding —
-//! `mwl_ir::lower::lower_closure` owns that representation and says why it
+//! `nvs_ir::lower::lower_closure` owns that representation and says why it
 //! reuses the object machinery rather than adding a second heap shape. So
-//! everything here is already available: [`crate::mwl_class_method`] finds
+//! everything here is already available: [`crate::nvs_class_method`] finds
 //! the compiled address, and [`crate::call`] reaches it under exactly the
 //! [ADR 0002](../../../docs/adr/0002-error-propagation.md) signature every
 //! other compiled function has.
@@ -14,7 +14,7 @@
 //!
 //! `Core\Arr::filter` and its siblings are native Rust helpers, and a helper
 //! *borrows* its arguments while a compiled method *owns* its parameters —
-//! the two halves of the convention `mwl_stdlib`'s own module docs state.
+//! the two halves of the convention `nvs_stdlib`'s own module docs state.
 //! [`call_closure`] is the one place that mismatch is reconciled: it retains
 //! the receiver and every argument on the way in, so the callee's exit sweep
 //! releases references this function paid for rather than the caller's.
@@ -28,7 +28,7 @@
 //! gives `callable` no parameter list, so **no checker can compare a call site
 //! against the body it will reach**, and the compiled `invoke` reads argument
 //! slot *i* at its own declared representation. Hand it a mismatch and the
-//! callee reinterprets the payload — an `int` read as an `MwlStr` pointer is
+//! callee reinterprets the payload — an `int` read as an `NvsStr` pointer is
 //! an arbitrary dereference, not a fault, and
 //! `Core\Arr::map($ints, fn (string $s): string => $s)` over an `array<int>`
 //! is all it takes to write one.
@@ -36,9 +36,9 @@
 //! So the closure object carries its parameter tags
 //! ([`CLOSURE_PARAM_TAGS_SLOT`]) the way it already carries its arity
 //! ([`CLOSURE_ARITY_SLOT`]), written at the literal by
-//! `mwl_ir::lower::lower_closure_literal` from the declared types, and
+//! `nvs_ir::lower::lower_closure_literal` from the declared types, and
 //! [`check_param_tags`] compares one against each argument on the way in —
-//! throwing the [`crate::ThrownClass::Logic`] `LogicError` [`mwl_call_closure`]
+//! throwing the [`crate::ThrownClass::Logic`] `LogicError` [`nvs_call_closure`]
 //! answers a bad arity with. It sits in [`call_closure`] because that is the
 //! one path *both* callers take, a `Core` member's callback and ADR 0031's
 //! `$fn(...)` alike; putting it in either caller would leave the other one
@@ -46,13 +46,13 @@
 //! than compares — ADR 0007 § 2's `int`-into-`float` widening, which no checker
 //! was there to insert — are that function's own doc comment.
 
-use crate::abi::{Fault, MwlFn, OK};
+use crate::abi::{Fault, NvsFn, OK};
 use crate::ctx::Ctx;
-use crate::object::{ClassDesc, MwlObj};
+use crate::object::{ClassDesc, NvsObj};
 use crate::value::{Tag, Value};
 
 /// The one method a closure's captured-environment class answers. Must agree
-/// with `mwl_ir::lower`'s own constant; `mwl-codegen`'s
+/// with `nvs_ir::lower`'s own constant; `nvs-codegen`'s
 /// `a_closure_is_reachable_through_the_method_table` holds the two together.
 pub const CLOSURE_INVOKE: &str = "invoke";
 
@@ -60,8 +60,8 @@ pub const CLOSURE_INVOKE: &str = "invoke";
 /// counting the receiver — always the first, since a descriptor carries no
 /// field names for a native caller to search.
 ///
-/// `mwl_ir::lower`'s `FN_ARITY` is the definition side and owns the reason
-/// the arity is stored per object at all; `mwl-codegen`'s
+/// `nvs_ir::lower`'s `FN_ARITY` is the definition side and owns the reason
+/// the arity is stored per object at all; `nvs-codegen`'s
 /// `a_closure_object_carries_its_own_arity_in_slot_zero` holds the two
 /// together.
 pub const CLOSURE_ARITY_SLOT: usize = 0;
@@ -73,9 +73,9 @@ pub const CLOSURE_ARITY_SLOT: usize = 0;
 /// The payload is an `int` carrying one nibble per parameter, parameter 0 in
 /// the least significant four bits, and each nibble is the [`Tag`]
 /// discriminant an argument in that position must carry — so reading one costs
-/// a shift and a mask and needs no table here. `mwl_ir::lower`'s
+/// a shift and a mask and needs no table here. `nvs_ir::lower`'s
 /// `FN_PARAM_TAGS` is the definition side and owns why the object carries this
-/// at all; `mwl-codegen`'s `param_tag_nibbles_are_the_runtime_tag_bytes` holds
+/// at all; `nvs-codegen`'s `param_tag_nibbles_are_the_runtime_tag_bytes` holds
 /// its map against the tag bytes compiled code actually writes.
 pub const CLOSURE_PARAM_TAGS_SLOT: usize = 1;
 
@@ -85,7 +85,7 @@ pub const CLOSURE_PARAM_TAGS_SLOT: usize = 1;
 ///
 /// Twelve is the first number past the tag roster and can therefore never
 /// collide with one — [`Tag::from_byte`] answering `None` for it is half of
-/// `mwl-codegen`'s `the_any_nibble_denotes_no_tag_at_all`.
+/// `nvs-codegen`'s `the_any_nibble_denotes_no_tag_at_all`.
 pub const CLOSURE_PARAM_TAG_ANY: u8 = 12;
 
 /// How many parameters [`CLOSURE_PARAM_TAGS_SLOT`] can describe: one nibble
@@ -137,10 +137,10 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
     #[expect(
         unsafe_code,
         reason = "the address came out of a live descriptor's method table, \
-                  which `mwl-codegen` fills only with compiled functions of \
+                  which `nvs-codegen` fills only with compiled functions of \
                   exactly this signature"
     )]
-    let target: MwlFn = unsafe { std::mem::transmute::<*const u8, MwlFn>(target) };
+    let target: NvsFn = unsafe { std::mem::transmute::<*const u8, NvsFn>(target) };
 
     let mut slots = Vec::with_capacity(args.len() + 1);
     slots.push(closure);
@@ -167,15 +167,15 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
     })
 }
 
-/// `mwl_ir::Helper::CallClosure` — ADR 0031's `$fn(...)`, which is compiled
+/// `nvs_ir::Helper::CallClosure` — ADR 0031's `$fn(...)`, which is compiled
 /// code's own way into [`call_closure`]. `args[0]` is the closure and
 /// `args[1..argc]` the arguments it was called with, in written order.
 ///
 /// **The one helper that takes a count.** Every other one's arity is a
-/// literal in its [`crate::mwl_helper!`] expansion, because a conversion or a
+/// literal in its [`crate::nvs_helper!`] expansion, because a conversion or a
 /// comparison has the same shape at every call site; a closure call's arity is
 /// the *call site's*, so it travels beside the slot and this function is
-/// written out rather than generated. `mwl-codegen`'s `Signatures::helper_variadic`
+/// written out rather than generated. `nvs-codegen`'s `Signatures::helper_variadic`
 /// is the other half of that ABI.
 ///
 /// Too *many* arguments is not an error: [`call_closure`] trims to the
@@ -193,15 +193,15 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
 ///
 /// `ctx`, `args` and `out` must each be non-null, aligned and valid for the
 /// duration of the call; `args` must point at `argc` initialized values, of
-/// which there must be at least one; and `out` must be writable. Compiled MWL
+/// which there must be at least one; and `out` must be writable. Compiled Novis
 /// code satisfies all of it by construction.
 #[expect(
     unsafe_code,
     reason = "the helper ABI's pointer contract, discharged exactly where \
-              `mwl_helper!` discharges it for every fixed-arity helper"
+              `nvs_helper!` discharges it for every fixed-arity helper"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_call_closure(
+pub unsafe extern "C" fn nvs_call_closure(
     ctx: *mut Ctx,
     args: *const Value,
     argc: usize,
@@ -213,7 +213,7 @@ pub unsafe extern "C" fn mwl_call_closure(
                 "internal error: a closure call reached the runtime with no closure at all",
             ));
         };
-        call_closure_from_mwl(ctx, *closure, passed)
+        call_closure_from_nvs(ctx, *closure, passed)
     };
     #[expect(
         unsafe_code,
@@ -224,28 +224,28 @@ pub unsafe extern "C" fn mwl_call_closure(
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::CallClosureArray` — ADR 0031's `$fn(...)` where the
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::CallClosureArray` — ADR 0031's `$fn(...)` where the
     /// call site wrote a `...` argument, so how many arguments there are is the
     /// spread subject's own run-time length rather than the site's own count.
     ///
     /// `args[0]` is the closure and `args[1]` **one array** holding every
-    /// argument in call order: the array `mwl_ir::lower::call` already builds
+    /// argument in call order: the array `nvs_ir::lower::call` already builds
     /// for a variadic parameter's tail, with each spread flattened into it by
-    /// [`crate::mwl_array_spread`]. That is the whole reason this is a second
-    /// helper rather than a wider [`mwl_call_closure`] — that one's argument
+    /// [`crate::nvs_array_spread`]. That is the whole reason this is a second
+    /// helper rather than a wider [`nvs_call_closure`] — that one's argument
     /// count is a literal in the emitted call, which is exactly the fact a `...`
     /// does not have.
     ///
-    /// Everything after the unpacking is [`mwl_call_closure`]'s, through the
-    /// one [`call_closure_from_mwl`] they share: entries are passed positionally
+    /// Everything after the unpacking is [`nvs_call_closure`]'s, through the
+    /// one [`call_closure_from_nvs`] they share: entries are passed positionally
     /// in key order, extra ones are trimmed by [`call_closure`], and too few is
     /// the same catchable `LogicError`. The entries are **borrowed** from an
     /// array the caller owns for the length of this call, and `call_closure`
     /// retains each one it actually passes.
-    fn mwl_call_closure_array(ctx, args: [2]) {
+    fn nvs_call_closure_array(ctx, args: [2]) {
         let array = args[1].array_ptr().ok_or_else(|| {
-            crate::helpers::wrong_tag("mwl_call_closure_array", Tag::Array, args[1])
+            crate::helpers::wrong_tag("nvs_call_closure_array", Tag::Array, args[1])
         })?;
         #[expect(
             unsafe_code,
@@ -253,10 +253,10 @@ crate::mwl_helper! {
                       allocation, so it is live for this read"
         )]
         // The caller's reference is the caller's: this handle reads the table
-        // and must not run its own drop, exactly as `mwl_array_spread`'s
+        // and must not run its own drop, exactly as `nvs_array_spread`'s
         // subject handle does.
         let entries = unsafe {
-            let source = std::mem::ManuallyDrop::new(crate::array::MwlArray::from_raw(array));
+            let source = std::mem::ManuallyDrop::new(crate::array::NvsArray::from_raw(array));
             let mut entries = Vec::new();
             let mut from = 0;
             while let Some(slot) = source.next_slot(from) {
@@ -265,16 +265,16 @@ crate::mwl_helper! {
             }
             entries
         };
-        call_closure_from_mwl(ctx, args[0], &entries)
+        call_closure_from_nvs(ctx, args[0], &entries)
     }
 }
 
 /// [`call_closure`] under the one check a *program* can reach, shared by the
-/// two helpers compiled MWL code calls a closure through.
+/// two helpers compiled Novis code calls a closure through.
 ///
 /// A native caller has no arity mistake to make — a `Core` member offers every
 /// argument the spec says it does, so [`call_closure`] answers it with an
-/// engine fault. An MWL call site's list is whatever was written there, and
+/// engine fault. An Novis call site's list is whatever was written there, and
 /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 1
 /// gives the checker no parameter list to count it against, so too few is
 /// program-reachable and therefore a throw
@@ -284,7 +284,7 @@ crate::mwl_helper! {
 ///
 /// The catchable `LogicError` above, plus everything [`call_closure`] itself
 /// answers with.
-fn call_closure_from_mwl(ctx: &mut Ctx, closure: Value, passed: &[Value]) -> Result<Value, Fault> {
+fn call_closure_from_nvs(ctx: &mut Ctx, closure: Value, passed: &[Value]) -> Result<Value, Fault> {
     let arity = closure_arity(closure)?;
     if passed.len() < arity {
         return Err(Fault::thrown_as(
@@ -303,7 +303,7 @@ fn call_closure_from_mwl(ctx: &mut Ctx, closure: Value, passed: &[Value]) -> Res
 ///
 /// [`call_closure`] uses it to trim the argument list, and a caller asks it
 /// directly to avoid *building* an argument that trimming would throw away:
-/// `Core\Arr::map`'s `$key` costs a rendered decimal and an `MwlStr` per
+/// `Core\Arr::map`'s `$key` costs a rendered decimal and an `NvsStr` per
 /// entry on a list, which is `docs/perf/userland-gap.md` § D. That is the
 /// only reason to inspect an arity — a caller that already holds every
 /// argument still passes them all and lets the trimming happen here.
@@ -324,7 +324,7 @@ pub fn closure_arity(closure: Value) -> Result<usize, Fault> {
         reason = "the caller owns a reference to this object, and the slot \
                   index is one every closure class has by construction"
     )]
-    let slot = unsafe { crate::object::mwl_object_field_get(ptr, CLOSURE_ARITY_SLOT) };
+    let slot = unsafe { crate::object::nvs_object_field_get(ptr, CLOSURE_ARITY_SLOT) };
     let arity = slot.as_int().ok_or_else(|| {
         Fault::fatal(format!(
             "internal error: a `callable`'s arity slot carried tag {} rather than an int",
@@ -343,9 +343,9 @@ pub fn closure_arity(closure: Value) -> Result<usize, Fault> {
 /// gives `callable` no parameter list, so a call site has nothing to compare
 /// against and the compiled `invoke` reads argument slot *i* at its own
 /// declared representation — an `int` handed to a `string` parameter is
-/// dereferenced as an `MwlStr` pointer. This is the one place that can still
+/// dereferenced as an `NvsStr` pointer. This is the one place that can still
 /// tell, because the closure object carries what the literal declared
-/// (`mwl_ir::lower`'s `FN_PARAM_TAGS`), and it is on the path *both* callers
+/// (`nvs_ir::lower`'s `FN_PARAM_TAGS`), and it is on the path *both* callers
 /// take: a `Core` member's callback and ADR 0031's `$fn(...)` alike.
 ///
 /// One shift, one mask and one byte comparison per argument, on the callback
@@ -397,7 +397,7 @@ fn check_param_tags(closure: Value, args: &mut [Value]) -> Result<(), Fault> {
         reason = "the caller owns a reference to this object, and the slot \
                   index is one every closure class has by construction"
     )]
-    let slot = unsafe { crate::object::mwl_object_field_get(ptr, CLOSURE_PARAM_TAGS_SLOT) };
+    let slot = unsafe { crate::object::nvs_object_field_get(ptr, CLOSURE_PARAM_TAGS_SLOT) };
     let word = slot.as_int().ok_or_else(|| {
         Fault::fatal(format!(
             "internal error: a `callable`'s parameter-tag slot carried tag {} rather than an int",
@@ -447,8 +447,8 @@ fn check_param_tags(closure: Value, args: &mut [Value]) -> Result<(), Fault> {
             // `callable` has no parameter list (ADR 0031 § 1) — and out of
             // `crate::helpers`'s own row, so the boundary is the same one a
             // written `as float` lands on.
-            // `tests/conformance/core/arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.mwlt`
-            // pins both sides of it from MWL.
+            // `tests/conformance/core/arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst`
+            // pins both sides of it from Novis.
             if required == Tag::Float && matches!(given, Tag::Int | Tag::Uint) {
                 *arg = crate::helpers::widen_to_float(*arg).ok_or_else(|| {
                     Fault::thrown_as(
@@ -490,7 +490,7 @@ fn invoke_address(closure: Value) -> Result<*const u8, Fault> {
         reason = "the caller owns a reference to this object, so the \
                   allocation and its descriptor are both live for this read"
     )]
-    let desc: *const ClassDesc = unsafe { MwlObj::class_of(ptr) };
+    let desc: *const ClassDesc = unsafe { NvsObj::class_of(ptr) };
     if desc.is_null() {
         return Err(Fault::fatal(
             "internal error: a `callable` argument's object has no class descriptor".to_owned(),

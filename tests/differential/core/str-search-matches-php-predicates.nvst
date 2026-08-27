@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::contains/startsWith/endsWith render exactly as PHP's str_contains/str_starts_with/str_ends_with
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::contains("haystack", "ays") as string, "|\n";
 echo Core\Str::contains("haystack", "zzz") as string, "|\n";
 echo Core\Str::contains("haystack", "") as string, "|\n";

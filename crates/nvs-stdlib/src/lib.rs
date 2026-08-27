@@ -1,10 +1,10 @@
-//! MWL's Tier 0 standard library: every `Core` member, written in native
+//! Novis's Tier 0 standard library: every `Core` member, written in native
 //! Rust, plus the signature registry the compiler resolves a call against.
 //!
 //! [ADR 0051](../../../docs/adr/0051-standard-library-tiers.md) § *Tier 0*
 //! makes this "compiled into the binary, native, direct heap access, no
 //! boundary," and `docs/agent/loop-goal.md` records that it is meant literally:
-//! no part of `Core` is written in MWL. [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+//! no part of `Core` is written in Novis. [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
 //! fixes every member's *shape* and [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
 //! is authoritative for every *signature* — this crate restates neither. It
 //! holds the two things a signature on paper cannot be: a resolvable entry in
@@ -22,7 +22,7 @@
 //!
 //! [`registry`] holds the *shapes* those rows are written in ([`registry::CoreTy`],
 //! [`registry::CoreMethod`], …) plus one list naming each domain's `CLASS`. The
-//! compiler (`mwl-types`) seeds its signature table from that list, so
+//! compiler (`nvs-types`) seeds its signature table from that list, so
 //! `Core\Arr::count($a)` resolves through exactly the machinery a user-declared
 //! static call already does.
 //!
@@ -52,19 +52,19 @@
 //! Every member has the one signature
 //! [ADR 0002](../../../docs/adr/0002-error-propagation.md) makes normative for
 //! a runtime helper — `extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32`
-//! — reached through [`mwl_runtime::mwl_helper!`], so `mwl-codegen` emits a
+//! — reached through [`nvs_runtime::nvs_helper!`], so `nvs-codegen` emits a
 //! `Core` call through the *same* path it already emits
-//! `mwl_ir::ir::InstKind::HelperCall` through, with no per-member Cranelift
+//! `nvs_ir::ir::InstKind::HelperCall` through, with no per-member Cranelift
 //! signature anywhere. The consequences are the helper convention's, not new
 //! policy:
 //!
 //! * **Arguments are borrowed, never consumed.** A helper body receives
 //!   `&[Value]` and releases nothing, so the caller keeps owning every
-//!   reference it passed. This is the opposite of an MWL method call, whose
+//!   reference it passed. This is the opposite of an Novis method call, whose
 //!   callee owns its parameters — and it is what ADR 0063's R3 purity rule
 //!   makes safe: no `Core` member stores its argument.
 //! * **A returned heap value carries one fresh reference**, which the caller
-//!   owns, exactly like `mwl_str_concat`'s result.
+//!   owns, exactly like `nvs_str_concat`'s result.
 //! * **Failure is a `Fault`**, which becomes ADR 0002's `THROWN` or `FATAL`
 //!   status; nothing unwinds. A `Fault::thrown_as` names which of
 //!   [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
@@ -79,13 +79,13 @@
 //!    `Core\Arr::count` was the first, and landed with the mechanism rather
 //!    than after it, on this repository's standing "narrow slice, end to end"
 //!    rule. Two more members proved the two things the mechanism still had to:
-//!    `Arr::filter`, which calls *back* into MWL code through
-//!    `mwl_runtime::call_closure`, and `Str::join`, the first with an optional
+//!    `Arr::filter`, which calls *back* into Novis code through
+//!    `nvs_runtime::call_closure`, and `Str::join`, the first with an optional
 //!    parameter. Everything registered since is a registry row plus a body and
 //!    nothing else. The spec file's §§ 1–12 are the work list, and
 //!    `tests/conformance_coverage.rs` is the gate that keeps the *registered*
-//!    half honest: a member with no `.mwlt` case that calls it fails
-//!    `cargo test -p mwl-stdlib`, which is the check
+//!    half honest: a member with no `.nvst` case that calls it fails
+//!    `cargo test -p nvs-stdlib`, which is the check
 //!    `docs/agent/loop-goal.md`'s Stage 4 names.
 //!
 //!    Within § 1, ADR 0009 § 2's granularity question is closed and
@@ -122,7 +122,7 @@
 //! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
 //!    one was a **variadic** parameter, and it is
 //!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh
-//!    `array<T>` of the tail, built by `mwl_ir::lower::lower_variadic_tail`,
+//!    `array<T>` of the tail, built by `nvs_ir::lower::lower_variadic_tail`,
 //!    since a helper's `args: [N]` is a fixed arity. `Core\Str::format` is the
 //!    first row to declare one; ADR 0069's
 //!    `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
@@ -142,21 +142,21 @@
 //!
 //!    A **sequence** parameter — whatever `foreach` accepts, ADR 0053 § 3's
 //!    three shapes at once — is [`registry::CoreTy::Iterated`], first
-//!    declared by `Core\Arr::from`, and `mwl_runtime::sequence` is the one
+//!    declared by `Core\Arr::from`, and `nvs_runtime::sequence` is the one
 //!    place such an argument is read: an array walked directly, a cursor
 //!    driven by name through its class descriptor's own method table.
 //!
 //!    `decimal` is no longer one of them: [`registry::CoreTy::Decimal`] states
-//!    it and `mwl_runtime::Decimal` is the value behind it, so `Arr::sum`,
+//!    it and `nvs_runtime::Decimal` is the value behind it, so `Arr::sum`,
 //!    `product` and `average` are written over the
 //!    `array<int|float|decimal>` subject the spec gives them.
 //!
 //!    A class **constant** is no longer among them: [`registry::CoreConst`] is
-//!    a roster on [`registry::CoreClass`], resolved by `mwl_types::expr`'s
+//!    a roster on [`registry::CoreClass`], resolved by `nvs_types::expr`'s
 //!    `ClassConstAccess` arm and lowered as the inlined literal it is, so
 //!    `Core\Math`'s eleven are written and `Core\Path::SEPARATOR` needs only
 //!    its class. A **user-declared** class's constant is still unmodeled —
-//!    `mwl_types`' own known gaps own that half, which nothing in `Core`
+//!    `nvs_types`' own known gaps own that half, which nothing in `Core`
 //!    depends on.
 //!
 //!    Everything else the spec writes is expressible: ADR 0063 R2's options
@@ -172,8 +172,8 @@
 //!    first row to declare and the first call site to leave out.
 //!
 //!    Strict identity is no longer among them:
-//!    `mwl_runtime::value_identical` defines it and
-//!    `mwl_runtime::value_hash` indexes it, so `contains`, `keyOf` and
+//!    `nvs_runtime::value_identical` defines it and
+//!    `nvs_runtime::value_hash` indexes it, so `contains`, `keyOf` and
 //!    `unique` are registered and `diff`/`intersect` need only their `SetOn`
 //!    enum and their `on`/`by`/`comparator` bag — every one of which
 //!    [`registry`] can already state.
@@ -181,17 +181,17 @@
 //!    only that exact spelling.** `Core\Arr::flip` is the first member whose
 //!    spec signature declares one, and `Core\Arr::flip($stringArray)` is
 //!    refused today — the caller declares `array<string|int>` instead.
-//!    `mwl_types::expr::is_assignable`'s own docs own the rule and say why no
+//!    `nvs_types::expr::is_assignable`'s own docs own the rule and say why no
 //!    variance was committed to. Widening it later would accept strictly more
 //!    programs and break none, so the narrow rule is the safe thing to be
 //!    holding while the question is open; the argument *for* widening is that
-//!    an MWL array is a copy-on-write **value**, so an element-covariant read
+//!    an Novis array is a copy-on-write **value**, so an element-covariant read
 //!    cannot be aliased into an unsound write the way a mutable container's
 //!    could.
 //! 2. **A type variable is inferred, never declared by user code.** ADR 0007's
 //!    *Revisiting* section and `docs/agent/loop-goal.md` both scope `<T>` to
 //!    declarations the compiler owns, which is exactly what
-//!    [`registry::CoreTy::Var`] is; `mwl-types` owns the unification and
+//!    [`registry::CoreTy::Var`] is; `nvs-types` owns the unification and
 //!    substitution, and its own docs are the home for what that does and does
 //!    not do yet.
 
@@ -228,18 +228,18 @@ mod validate;
 /// ADR 0071's derived-codec field list, re-exported from where it is
 /// *consumed*.
 ///
-/// The struct lives in `mwl-runtime` because that is the deepest crate that
-/// holds one — `mwl_runtime::ClassDesc` carries the finished list. `mwl-types`
-/// and `mwl-ir` each produce a stage of it and neither depends on the runtime
+/// The struct lives in `nvs-runtime` because that is the deepest crate that
+/// holds one — `nvs_runtime::ClassDesc` carries the finished list. `nvs-types`
+/// and `nvs-ir` each produce a stage of it and neither depends on the runtime
 /// directly, so they reach it through this crate, which they already treat as
 /// the home of the `Core` contract.
-pub use mwl_runtime::{CodecField, CodecTy, FieldDefault};
+pub use nvs_runtime::{CodecField, CodecTy, FieldDefault};
 
 use registry::CoreClass;
 
 /// Every `Core` implementation's symbol and address, for the JIT to resolve
 /// against — the same shape and the same purpose as
-/// [`mwl_runtime::symbols`], which `mwl-codegen` already registers.
+/// [`nvs_runtime::symbols`], which `nvs-codegen` already registers.
 ///
 /// Deliberately derived from [`registry::CLASSES`] rather than written out a
 /// second time: a member is registered once, and this looks its address up by
@@ -296,7 +296,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| uri::address(symbol))
         .or_else(|| uuid::address(symbol))
         .or_else(|| validate::address(symbol))
-        .unwrap_or_else(|| panic!("mwl-stdlib registers `{symbol}` with no implementation address"))
+        .unwrap_or_else(|| panic!("nvs-stdlib registers `{symbol}` with no implementation address"))
 }
 
 #[cfg(test)]

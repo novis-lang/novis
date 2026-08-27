@@ -1,7 +1,7 @@
 --TEST--
 A `try`/`catch` in a loop body handles each iteration on its own — a throw ends that iteration, not the loop
 --FILE--
-<?mwl
+<?nvs
 class Attempts {
     public static function run(int $n): string {
         var $out = "";

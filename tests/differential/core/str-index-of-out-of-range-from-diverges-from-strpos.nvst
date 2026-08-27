@@ -3,7 +3,7 @@ Core\Str::indexOf saturates a `from` outside the subject where strpos raises a V
 --ORACLE-DIVERGES--
 ADR 0063 R8's sign rule reads every position through `granularity::Unit::byte_of_signed_index`, which saturates at either end so that a search starting past the subject finds nothing — composable in a loop where PHP's ValueError is not — and `lastIndexOf`'s `before` names the end of the window rather than `strrpos`'s bound on where a match may start.
 --FILE--
-<?mwl
+<?nvs
 final class Show {
     public static function render(?uint $found): string {
         if ($found == null) {
@@ -15,7 +15,7 @@ final class Show {
 
 // "haystack" is 8 units long. PHP's `strpos($h, $n, 20)` and
 // `strpos($h, $n, -20)` are both `ValueError: Argument #3 ($offset) must be
-// contained in argument #1`; MWL saturates instead, so a `from` past the end is
+// contained in argument #1`; Novis saturates instead, so a `from` past the end is
 // a search of nothing and one past the front is a search of everything — and
 // an empty needle saturates with it, landing at the end rather than at 20.
 echo Show::render(Core\Str::indexOf("haystack", "st", {from: 20})), "\n";

@@ -1,7 +1,7 @@
 --TEST--
 Unsetting keys the running `foreach` has not reached yet leaves that loop's sequence alone, exactly as PHP does
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = [1, 2, 3, 4];
 foreach ($a as string $k => int $v) {
     if ($v == 2) {

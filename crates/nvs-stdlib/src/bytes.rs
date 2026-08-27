@@ -1,5 +1,5 @@
 //! `Core\Bytes` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
-//! § 7's second class, over `mwl_runtime`'s `Bytes`-tagged `MwlStr`.
+//! § 7's second class, over `nvs_runtime`'s `Bytes`-tagged `NvsStr`.
 //!
 //! Every member here is pure (ADR 0063 R3) and borrows its subject rather than
 //! consuming it, exactly as [`crate::str`] does — see [`crate`]'s own docs for
@@ -16,7 +16,7 @@
 //! `Bytes` variant.** `Const::Str("")` would materialize a `Str`-tagged value
 //! into a `bytes` parameter, which is a type lie this helper would have to
 //! `FATAL` on, so the default is written as the octets it means and reaches
-//! the call site as `mwl_ir::ir::InstKind::ConstBytes` — the only way a
+//! the call site as `nvs_ir::ir::InstKind::ConstBytes` — the only way a
 //! `bytes` constant enters a program, since ADR 0009 § 1 gives the language no
 //! `bytes` literal.
 //!
@@ -137,12 +137,12 @@
 //! `X`/`@` move the cursor backwards or to an absolute position, which turns a
 //! format into a small assembler for no reach a forward `x` does not have.
 //!
-//! **What it spends:** nothing per value. A `bytes` is the `MwlStr`
-//! allocation it already was (`mwl-runtime`'s module doc § *`bytes` is a tag,
+//! **What it spends:** nothing per value. A `bytes` is the `NvsStr`
+//! allocation it already was (`nvs-runtime`'s module doc § *`bytes` is a tag,
 //! not a second heap shape*), `slice` allocates its result and the other four
 //! members allocate nothing at all.
 
-use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
+use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
@@ -166,21 +166,21 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Bytes],
             defaults: &[],
             return_ty: CoreTy::Uint,
-            symbol: "mwl_core_bytes_length",
+            symbol: "nvs_core_bytes_length",
         },
         CoreMethod {
             name: "at",
             params: &[CoreTy::Bytes, CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Uint,
-            symbol: "mwl_core_bytes_at",
+            symbol: "nvs_core_bytes_at",
         },
         CoreMethod {
             name: "slice",
             params: &[CoreTy::Bytes, CoreTy::Int, CoreTy::Nullable(&CoreTy::Int)],
             defaults: &[Const::Null],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_bytes_slice",
+            symbol: "nvs_core_bytes_slice",
         },
         CoreMethod {
             name: "indexOf",
@@ -191,70 +191,70 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
-            symbol: "mwl_core_bytes_index_of",
+            symbol: "nvs_core_bytes_index_of",
         },
         CoreMethod {
             name: "compare",
             params: &[CoreTy::Bytes, CoreTy::Bytes],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_bytes_compare",
+            symbol: "nvs_core_bytes_compare",
         },
         CoreMethod {
             name: "contains",
             params: &[CoreTy::Bytes, CoreTy::Bytes],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_bytes_contains",
+            symbol: "nvs_core_bytes_contains",
         },
         CoreMethod {
             name: "startsWith",
             params: &[CoreTy::Bytes, CoreTy::Bytes],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_bytes_starts_with",
+            symbol: "nvs_core_bytes_starts_with",
         },
         CoreMethod {
             name: "endsWith",
             params: &[CoreTy::Bytes, CoreTy::Bytes],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_bytes_ends_with",
+            symbol: "nvs_core_bytes_ends_with",
         },
         CoreMethod {
             name: "fill",
             params: &[CoreTy::Uint, CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_bytes_fill",
+            symbol: "nvs_core_bytes_fill",
         },
         CoreMethod {
             name: "repeat",
             params: &[CoreTy::Bytes, CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_bytes_repeat",
+            symbol: "nvs_core_bytes_repeat",
         },
         CoreMethod {
             name: "join",
             params: &[CoreTy::Array(&CoreTy::Bytes), CoreTy::Bytes],
             defaults: &[Const::Bytes(b"")],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_bytes_join",
+            symbol: "nvs_core_bytes_join",
         },
         CoreMethod {
             name: "pack",
             params: &[CoreTy::Str, CoreTy::Variadic(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_bytes_pack",
+            symbol: "nvs_core_bytes_pack",
         },
         CoreMethod {
             name: "unpack",
             params: &[CoreTy::Bytes, CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
-            symbol: "mwl_core_bytes_unpack",
+            symbol: "nvs_core_bytes_unpack",
         },
     ],
     instance: &[],
@@ -279,19 +279,19 @@ const INDEX_OF_OPTIONS: &[CoreOption] = &[CoreOption {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_bytes_length" => (mwl_core_bytes_length as *const ()).cast(),
-        "mwl_core_bytes_at" => (mwl_core_bytes_at as *const ()).cast(),
-        "mwl_core_bytes_slice" => (mwl_core_bytes_slice as *const ()).cast(),
-        "mwl_core_bytes_index_of" => (mwl_core_bytes_index_of as *const ()).cast(),
-        "mwl_core_bytes_compare" => (mwl_core_bytes_compare as *const ()).cast(),
-        "mwl_core_bytes_contains" => (mwl_core_bytes_contains as *const ()).cast(),
-        "mwl_core_bytes_starts_with" => (mwl_core_bytes_starts_with as *const ()).cast(),
-        "mwl_core_bytes_ends_with" => (mwl_core_bytes_ends_with as *const ()).cast(),
-        "mwl_core_bytes_fill" => (mwl_core_bytes_fill as *const ()).cast(),
-        "mwl_core_bytes_repeat" => (mwl_core_bytes_repeat as *const ()).cast(),
-        "mwl_core_bytes_join" => (mwl_core_bytes_join as *const ()).cast(),
-        "mwl_core_bytes_pack" => (mwl_core_bytes_pack as *const ()).cast(),
-        "mwl_core_bytes_unpack" => (mwl_core_bytes_unpack as *const ()).cast(),
+        "nvs_core_bytes_length" => (nvs_core_bytes_length as *const ()).cast(),
+        "nvs_core_bytes_at" => (nvs_core_bytes_at as *const ()).cast(),
+        "nvs_core_bytes_slice" => (nvs_core_bytes_slice as *const ()).cast(),
+        "nvs_core_bytes_index_of" => (nvs_core_bytes_index_of as *const ()).cast(),
+        "nvs_core_bytes_compare" => (nvs_core_bytes_compare as *const ()).cast(),
+        "nvs_core_bytes_contains" => (nvs_core_bytes_contains as *const ()).cast(),
+        "nvs_core_bytes_starts_with" => (nvs_core_bytes_starts_with as *const ()).cast(),
+        "nvs_core_bytes_ends_with" => (nvs_core_bytes_ends_with as *const ()).cast(),
+        "nvs_core_bytes_fill" => (nvs_core_bytes_fill as *const ()).cast(),
+        "nvs_core_bytes_repeat" => (nvs_core_bytes_repeat as *const ()).cast(),
+        "nvs_core_bytes_join" => (nvs_core_bytes_join as *const ()).cast(),
+        "nvs_core_bytes_pack" => (nvs_core_bytes_pack as *const ()).cast(),
+        "nvs_core_bytes_unpack" => (nvs_core_bytes_unpack as *const ()).cast(),
         _ => return None,
     })
 }
@@ -349,12 +349,12 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
     })
 }
 
-/// [`mwl_runtime::affordable`] with this class's name already on the message.
+/// [`nvs_runtime::affordable`] with this class's name already on the message.
 ///
 /// That function's own docs own why the check lives there rather than here,
 /// and what it will grow into once the M6 arena carries `[limits.hard]`.
 fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
-    mwl_runtime::affordable(bytes, &format!("Core\\Bytes::{member}"))
+    nvs_runtime::affordable(bytes, &format!("Core\\Bytes::{member}"))
 }
 
 /// A signed **position** as a byte offset into a subject of `total` bytes,
@@ -423,16 +423,16 @@ fn counted(value: usize, member: &str) -> Result<u64, Fault> {
 
 /// A freshly built `bytes` result.
 fn produced(octets: &[u8]) -> HelperResult {
-    Ok(Value::bytes(MwlStr::new(octets)))
+    Ok(Value::bytes(NvsStr::new(octets)))
 }
 
 /// [`produced`], answering rather than aborting when the allocator refuses.
 ///
-/// [`MwlStr::new`] aborts, so a member that built its octets fallibly would
+/// [`NvsStr::new`] aborts, so a member that built its octets fallibly would
 /// still die at the copy out — the second allocation is exactly as able to
 /// fail as the first was, and at that moment both are live.
 fn produced_fallibly(octets: &[u8], member: &str) -> HelperResult {
-    MwlStr::try_build(octets.len(), |out| out.push(octets))
+    NvsStr::try_build(octets.len(), |out| out.push(octets))
         .map(Value::bytes)
         .ok_or_else(|| too_large(member))
 }
@@ -443,7 +443,7 @@ fn produced_fallibly(octets: &[u8], member: &str) -> HelperResult {
 /// `isize::MAX`; this is the allocator itself refusing a size that seam
 /// allowed. They answer different questions, and the second is the difference
 /// between a throw and an abort that takes every in-flight request with it —
-/// `mwl_core_random_bytes` runs the same two for the same reason.
+/// `nvs_core_random_bytes` runs the same two for the same reason.
 fn too_large(member: &str) -> Fault {
     Fault::thrown(format!(
         "Core\\Bytes::{member}: the result is larger than any buffer this process could hold"
@@ -465,20 +465,20 @@ fn reserved(out: &mut Vec<u8>, size: usize, member: &str) -> Result<(), Fault> {
 // The members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::length(bytes $b): uint` — how many octets the buffer
     /// holds, replacing PHP's `strlen` used on binary data.
     ///
     /// O(1), and this is the member where the byte unit pays off most
     /// visibly: `Core\Str::length` walks the subject to count grapheme
     /// clusters, and this reads a header field.
-    fn mwl_core_bytes_length(_ctx, args: [1]) {
+    fn nvs_core_bytes_length(_ctx, args: [1]) {
         let subject = raw(&args[0], "length", "the subject")?;
         Ok(Value::uint(counted(subject.len(), "length")?))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::at(bytes $b, int $index): uint` — the one octet at
     /// `$index`, replacing PHP's `ord($s[$i])`.
     ///
@@ -487,7 +487,7 @@ mwl_runtime::mwl_helper! {
     /// third headings. A negative index counts from the end (ADR 0063 R8's
     /// range rule applied to a range of one), and an index that addresses
     /// nothing throws rather than answering a sentinel.
-    fn mwl_core_bytes_at(_ctx, args: [2]) {
+    fn nvs_core_bytes_at(_ctx, args: [2]) {
         let subject = raw(&args[0], "at", "the subject")?;
         let index = integer(&args[1], "at", "the index")?;
         let found = addressed(subject.len(), index).ok_or_else(|| {
@@ -500,7 +500,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::slice(bytes $b, int $offset, ?int $length = null): bytes`
     /// — replacing PHP's `substr` used on binary data.
     ///
@@ -516,7 +516,7 @@ mwl_runtime::mwl_helper! {
     ///
     /// An offset past the end is the empty buffer rather than a throw, which
     /// is PHP 8's answer and the one that composes with a loop.
-    fn mwl_core_bytes_slice(_ctx, args: [3]) {
+    fn nvs_core_bytes_slice(_ctx, args: [3]) {
         let subject = raw(&args[0], "slice", "the subject")?;
         let total = subject.len();
         let start = offset(total, integer(&args[1], "slice", "the offset")?);
@@ -543,7 +543,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::indexOf(bytes $haystack, bytes $needle, {from?: int}): ?uint`
     /// — replacing PHP's `strpos` used on binary data.
     ///
@@ -556,7 +556,7 @@ mwl_runtime::mwl_helper! {
     /// own `slice` offset — the property that would break if the two members
     /// counted in different units, which is exactly what `Core\Str` has to work
     /// to preserve and this class gets for free.
-    fn mwl_core_bytes_index_of(_ctx, args: [3]) {
+    fn nvs_core_bytes_index_of(_ctx, args: [3]) {
         let subject = raw(&args[0], "indexOf", "the subject")?;
         let needle = raw(&args[1], "indexOf", "the needle")?;
         let from = integer(&args[2], "indexOf", "the `from` option")?;
@@ -573,7 +573,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::compare(bytes $a, bytes $b): int` — lexicographic order
     /// over unsigned octets, replacing PHP's `strcmp` used on binary data.
     ///
@@ -585,7 +585,7 @@ mwl_runtime::mwl_helper! {
     ///
     /// This is not the `==` operator: the module doc's third heading owns why
     /// both exist.
-    fn mwl_core_bytes_compare(_ctx, args: [2]) {
+    fn nvs_core_bytes_compare(_ctx, args: [2]) {
         let left = raw(&args[0], "compare", "the first buffer")?;
         let right = raw(&args[1], "compare", "the second buffer")?;
         Ok(Value::int(match left.cmp(right) {
@@ -596,7 +596,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::contains(bytes $haystack, bytes $needle): bool` —
     /// replacing PHP's `str_contains` used on binary data.
     ///
@@ -605,35 +605,35 @@ mwl_runtime::mwl_helper! {
     /// `indexOf(...) != null` would make the caller handle an absence it does
     /// not care about. An empty needle is contained in every buffer, including
     /// the empty one — Rust's answer and PHP 8's, and `Core\Str::contains`'s.
-    fn mwl_core_bytes_contains(_ctx, args: [2]) {
+    fn nvs_core_bytes_contains(_ctx, args: [2]) {
         let haystack = raw(&args[0], "contains", "the subject")?;
         let needle = raw(&args[1], "contains", "the needle")?;
         Ok(Value::bool(find(haystack, needle).is_some()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::startsWith(bytes $b, bytes $prefix): bool` — replacing
     /// PHP's `str_starts_with` used on binary data, and the member a format
     /// sniff actually writes.
-    fn mwl_core_bytes_starts_with(_ctx, args: [2]) {
+    fn nvs_core_bytes_starts_with(_ctx, args: [2]) {
         let subject = raw(&args[0], "startsWith", "the subject")?;
         let prefix = raw(&args[1], "startsWith", "the prefix")?;
         Ok(Value::bool(subject.starts_with(prefix)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::endsWith(bytes $b, bytes $suffix): bool` — replacing PHP's
     /// `str_ends_with` used on binary data.
-    fn mwl_core_bytes_ends_with(_ctx, args: [2]) {
+    fn nvs_core_bytes_ends_with(_ctx, args: [2]) {
         let subject = raw(&args[0], "endsWith", "the subject")?;
         let suffix = raw(&args[1], "endsWith", "the suffix")?;
         Ok(Value::bool(subject.ends_with(suffix)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::fill(uint $length, uint $byte): bytes` — a buffer of
     /// `$length` copies of one octet, replacing PHP's `str_repeat(chr($b), $n)`
     /// idiom.
@@ -646,7 +646,7 @@ mwl_runtime::mwl_helper! {
     ///
     /// Zero length is the empty buffer, as `Core\Str::repeat`'s zero count is
     /// the empty string.
-    fn mwl_core_bytes_fill(_ctx, args: [2]) {
+    fn nvs_core_bytes_fill(_ctx, args: [2]) {
         let length = count(&args[0], "fill", "the length")?;
         let byte = unsigned(&args[1], "fill", "the byte")?;
         let octet = u8::try_from(byte).map_err(|_| {
@@ -662,11 +662,11 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::repeat(bytes $b, uint $times): bytes` — replacing PHP's
     /// `str_repeat` used on binary data. Zero times is the empty buffer, as in
     /// PHP and as in `Core\Str::repeat`.
-    fn mwl_core_bytes_repeat(_ctx, args: [2]) {
+    fn nvs_core_bytes_repeat(_ctx, args: [2]) {
         let subject = raw(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
         let size = affordable(subject.len().checked_mul(times), "repeat")?;
@@ -679,14 +679,14 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::join(array<bytes> $parts, bytes $separator = ""): bytes` —
     /// `Core\Str::join`'s row over buffers, which is why it is `join` here
     /// rather than a `concat` of its own: ADR 0063 R6 pairs this class's
     /// members with `Core\Str`'s by name, and spec § 7 says so outright.
     ///
     /// The separator's default is the empty buffer, materialized at the call
-    /// site from `mwl_stdlib::registry::Const::Bytes` exactly as
+    /// site from `nvs_stdlib::registry::Const::Bytes` exactly as
     /// `Core\Str::join`'s is from `Const::Str` — so this body always receives
     /// two arguments and knows nothing about defaults.
     ///
@@ -694,7 +694,7 @@ mwl_runtime::mwl_helper! {
     /// as text; here every element is already a buffer, so a wrong tag is a
     /// miscompile rather than a conversion this member could perform —
     /// ADR 0009 § 3 keeps `bytes` and `string` apart at exactly this boundary.
-    fn mwl_core_bytes_join(_ctx, args: [2]) {
+    fn nvs_core_bytes_join(_ctx, args: [2]) {
         let parts = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Bytes::join expected {:?} for the subject, got tag {}",
@@ -716,12 +716,12 @@ mwl_runtime::mwl_helper! {
                           this same cursor reported"
             )]
             let (slot, value) = unsafe {
-                let slot = mwl_runtime::mwl_array_next_slot(parts, from);
+                let slot = nvs_runtime::nvs_array_next_slot(parts, from);
                 let Ok(slot) = usize::try_from(slot) else {
                     break;
                 };
                 let mut value = Value::null();
-                mwl_runtime::mwl_array_value_at(parts, slot, &raw mut value);
+                nvs_runtime::nvs_array_value_at(parts, slot, &raw mut value);
                 (slot, value)
             };
             from = slot + 1;
@@ -1066,14 +1066,14 @@ fn packed(format: &str, arguments: &[Value]) -> Result<Vec<u8>, Fault> {
     Ok(out)
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::pack(string $format, mixed ...$values): bytes` — replacing
     /// PHP's `pack`, and the second `Core` member with a variadic parameter
     /// after `Core\Str::format`.
     ///
     /// So the second argument slot is **one** `Tag::Array` holding every
     /// written value rather than one slot each, built at the call site by
-    /// `mwl_ir::lower::lower_variadic_tail` —
+    /// `nvs_ir::lower::lower_variadic_tail` —
     /// [`crate::registry::CoreTy::Variadic`] owns why that shape. A call that
     /// writes no value at all still receives an array here, empty rather than
     /// absent.
@@ -1092,7 +1092,7 @@ mwl_runtime::mwl_helper! {
     /// which is that ADR's registry-wide item — no member row anywhere carries
     /// a qualifier classification yet, so half of one here would be a lie
     /// about what is enforced.
-    fn mwl_core_bytes_pack(_ctx, args: [2]) {
+    fn nvs_core_bytes_pack(_ctx, args: [2]) {
         let format = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Bytes::pack expected {:?} for the format, got tag {}",
@@ -1119,12 +1119,12 @@ mwl_runtime::mwl_helper! {
                           this same cursor reported"
             )]
             let (slot, value) = unsafe {
-                let slot = mwl_runtime::mwl_array_next_slot(values, from);
+                let slot = nvs_runtime::nvs_array_next_slot(values, from);
                 let Ok(slot) = usize::try_from(slot) else {
                     break;
                 };
                 let mut value = Value::null();
-                mwl_runtime::mwl_array_value_at(values, slot, &raw mut value);
+                nvs_runtime::nvs_array_value_at(values, slot, &raw mut value);
                 (slot, value)
             };
             from = slot + 1;
@@ -1168,7 +1168,7 @@ impl Field {
             Self::Signed(number) => Value::int(number),
             Self::Unsigned(number) => Value::uint(number),
             Self::Fractional(number) => Value::float(number),
-            Self::Buffer(octets) => Value::bytes(MwlStr::new(&octets)),
+            Self::Buffer(octets) => Value::bytes(NvsStr::new(&octets)),
         }
     }
 }
@@ -1296,7 +1296,7 @@ fn unpacked(subject: &[u8], format: &str) -> Result<Vec<Field>, Fault> {
     Ok(out)
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Bytes::unpack(bytes $b, string $format): array<mixed>` —
     /// replacing PHP's `unpack`, and [`packed`]'s exact inverse over the same
     /// code table, which is why that table is written once and read twice.
@@ -1317,8 +1317,8 @@ mwl_runtime::mwl_helper! {
     /// longer buffer is `Core\Bytes::slice` and then this, or a trailing `a*`.
     ///
     /// The format is an ADR 0057 intrinsic and a sink for the same reasons
-    /// [`mwl_core_bytes_pack`]'s is, and both classifications are owed there.
-    fn mwl_core_bytes_unpack(_ctx, args: [2]) {
+    /// [`nvs_core_bytes_pack`]'s is, and both classifications are owed there.
+    fn nvs_core_bytes_unpack(_ctx, args: [2]) {
         let subject = raw(&args[0], "unpack", "the subject")?;
         let format = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
@@ -1328,7 +1328,7 @@ mwl_runtime::mwl_helper! {
             ))
         })?;
 
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         for field in unpacked(subject, format)? {
             out.append(field.into_value());
         }
@@ -1377,7 +1377,7 @@ mod tests {
     /// One `string` argument, which the caller still owns — [`packed`] borrows
     /// its octets exactly as the helper convention does.
     fn text(literal: &str) -> Value {
-        Value::str(MwlStr::new(literal.as_bytes()))
+        Value::str(NvsStr::new(literal.as_bytes()))
     }
 
     /// Gives back every reference [`text`] built.
@@ -1394,7 +1394,7 @@ mod tests {
         }
     }
 
-    /// What a format writes, as hex — the spelling a `.mwlt` case asserts in,
+    /// What a format writes, as hex — the spelling a `.nvst` case asserts in,
     /// since `echo` has no `bytes` row.
     fn hex(format: &str, arguments: &[Value]) -> String {
         packed(format, arguments)

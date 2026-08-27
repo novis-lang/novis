@@ -1,11 +1,11 @@
 --TEST--
 Core\Math::intDiv and mod satisfy the division identity on every row of a two-signed sweep, and Core\Math::gcd and lcm satisfy theirs, each pair naming the rows where one member has no answer — docs/spec/01-core-library.md § 3
 --FILE--
-<?mwl
+<?nvs
 // Two members of a pair can each look right on a chosen row and still not be
-// the *same* division: math-integer-division-and-the-two-divisor-members.mwlt
+// the *same* division: math-integer-division-and-the-two-divisor-members.nvst
 // reads four answers off a line and math-int-div-and-mod-at-the-edges-of-their-
-// arms.mwlt takes each member's own edges. What neither asks is whether the
+// arms.nvst takes each member's own edges. What neither asks is whether the
 // quotient and the remainder reconstruct the dividend, which is the only thing
 // that makes them one operation. Counted over a swept table, so a member that
 // grew a `floor` somewhere agrees on the positive rows and fails here.

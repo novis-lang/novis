@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Generate THIRD-PARTY-LICENSES.txt from the resolved dependency graph.
 
-MWL ships as MIT, and every permissive license in its dependency tree asks
+Novis ships as MIT, and every permissive license in its dependency tree asks
 for the same thing in return: reproduce the notice with the binary. This
 script produces the one file that satisfies that, for both the repository
-and — via `include_str!` in `mwl-cli` — the shipped `mwl` binary itself.
+and — via `include_str!` in `nvs-cli` — the shipped `nvs` binary itself.
 ADR 0065 owns the policy; this file only implements it.
 
     python tools/gen-attribution.py            # regenerate
@@ -45,11 +45,11 @@ DENY = REPO / "deny.toml"
 # The package whose dependency closure is actually distributed. Everything
 # else in the workspace is a library it links, or a bench/fuzz target that
 # ships to nobody.
-ROOT_PACKAGE = "mwl-cli"
-BINARY = "mwl"
+ROOT_PACKAGE = "nvs-cli"
+BINARY = "nvs"
 
-# Which half of a dual license MWL takes, most-preferred first. MIT leads
-# because MWL is MIT: one license covering the most components keeps the
+# Which half of a dual license Novis takes, most-preferred first. MIT leads
+# because Novis is MIT: one license covering the most components keeps the
 # shipped notice short, which is the whole reason a preference order exists
 # rather than "reproduce every offered license".
 #
@@ -58,7 +58,7 @@ BINARY = "mwl"
 # line that appears in a generated file.
 #
 # This must hold exactly the same identifiers as `deny.toml`'s `licenses.allow`,
-# only ordered: that file decides what MWL may *link*, this decides what it
+# only ordered: that file decides what Novis may *link*, this decides what it
 # ships and under which half of a choice. `check_policies_agree` below fails
 # if the two ever drift, in either direction — a license allowed but unranked
 # would have no notice policy, and one ranked but not allowed would be a
@@ -82,7 +82,7 @@ PREFERENCE = [
     "MPL-2.0",
     # Last on purpose. `Unlicense OR MIT` is how the `regex` family and its
     # dependencies are offered, and a public-domain dedication imposes nothing
-    # on MWL — but ranking it below MIT means MIT is always the half taken, so
+    # on Novis — but ranking it below MIT means MIT is always the half taken, so
     # the shipped notice stays one license shorter.
     "Unlicense",
 ]
@@ -200,7 +200,7 @@ class Undeclared(Exception):
 
 
 def choose(node, where: str) -> list[str]:
-    """Reduce an SPDX tree to the licenses MWL actually takes.
+    """Reduce an SPDX tree to the licenses Novis actually takes.
 
     An OR collapses to the single most-preferred option; an AND keeps every
     conjunct, because that is what "and" means — `(MIT OR Apache-2.0) AND
@@ -212,7 +212,7 @@ def choose(node, where: str) -> list[str]:
         raise SystemExit(
             f"error: {where} offers {undeclared.ident!r}, which tools/gen-attribution.py has no\n"
             f"       policy for. Add it to PREFERENCE (and to deny.toml's allow list)\n"
-            f"       once someone has decided MWL may ship under it."
+            f"       once someone has decided Novis may ship under it."
         ) from None
 
 
@@ -231,16 +231,16 @@ def take(node) -> list[str]:
                 if ident not in out:
                     out.append(ident)
         return out
-    # An OR: MWL takes exactly one branch, so a branch it has no policy for is
+    # An OR: Novis takes exactly one branch, so a branch it has no policy for is
     # one it simply declines. `r-efi`, which `getrandom` brings in for the UEFI
-    # target, is offered as `MIT OR Apache-2.0 OR LGPL-2.1-or-later` — MWL
+    # target, is offered as `MIT OR Apache-2.0 OR LGPL-2.1-or-later` — Novis
     # takes MIT, and the LGPL half never enters the tree for anyone to have to
     # decide about. This is cargo-deny's own reading of an OR, which is what
     # keeps this file and `deny.toml` agreeing rather than this one being
     # quietly the stricter of the two.
     #
     # An OR with **no** understood branch still fails, and that is where the
-    # "someone decides" gate belongs: there the license genuinely is one MWL
+    # "someone decides" gate belongs: there the license genuinely is one Novis
     # would have to ship under.
     options: list[list[str]] = []
     declined: list[Undeclared] = []
@@ -273,11 +273,11 @@ def cargo_metadata() -> dict:
 
 
 def shipped_packages(meta: dict) -> list[dict]:
-    """Every third-party package reachable from the `mwl` binary.
+    """Every third-party package reachable from the `nvs` binary.
 
     Normal and build dependencies only: a dev-dependency (criterion, insta,
     proptest) is never linked into anything a user receives, so attributing
-    it would overstate what MWL distributes.
+    it would overstate what Novis distributes.
     """
     by_id = {pkg["id"]: pkg for pkg in meta["packages"]}
     nodes = {node["id"]: node for node in meta["resolve"]["nodes"]}
@@ -413,11 +413,11 @@ def render(components: list[dict], groups: list[dict], notices: list[tuple[str, 
     out: list[str] = []
     add = out.append
 
-    add("MWL — third-party attribution")
+    add("Novis — third-party attribution")
     add(rule("="))
     add("")
     add("This file is the complete notice for third-party components compiled into")
-    add(f"the `{BINARY}` binary. MWL's own terms are MIT and live in LICENSE; they are")
+    add(f"the `{BINARY}` binary. Novis's own terms are MIT and live in LICENSE; they are")
     add("not restated here.")
     add("")
     add("GENERATED FILE — do not edit by hand. Regenerate with:")
@@ -425,17 +425,17 @@ def render(components: list[dict], groups: list[dict], notices: list[tuple[str, 
     add("    python tools/gen-attribution.py")
     add("")
     add("")
-    # `mwl info` slices this file at the two section headings below and
+    # `nvs info` slices this file at the two section headings below and
     # prints the parts verbatim, so the wording that explains a section
     # belongs inside it rather than in the preamble above — the preamble is
     # about the file, and a shipped binary has no file to talk about.
-    # crates/mwl-cli/src/info.rs owns the other half of that agreement.
+    # crates/nvs-cli/src/info.rs owns the other half of that agreement.
     add(f"COMPONENTS ({len(components)})")
     add(rule())
     add("")
-    add("Where a component offers a choice of licenses, MWL takes the one shown and")
+    add("Where a component offers a choice of licenses, Novis takes the one shown and")
     add("the full offer follows in parentheses. Components are listed for every")
-    add("platform MWL builds for, so one may appear that a given build omits.")
+    add("platform Novis builds for, so one may appear that a given build omits.")
     add("")
 
     name_w = max(len(c["name"]) for c in components)

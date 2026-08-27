@@ -1,7 +1,7 @@
 --TEST--
-Core\Arr::sort/min/max, Core\Math::min/max/clamp and Core\Heap answer one total order, agreeing about the smaller of every pair and about both ends of a whole table — docs/spec/01-core-library.md §§ 2, 3 and 9 over the one helper `mwl_stdlib::ordering`'s module doc owns
+Core\Arr::sort/min/max, Core\Math::min/max/clamp and Core\Heap answer one total order, agreeing about the smaller of every pair and about both ends of a whole table — docs/spec/01-core-library.md §§ 2, 3 and 9 over the one helper `nvs_stdlib::ordering`'s module doc owns
 --FILE--
-<?mwl
+<?nvs
 // Seven members reach the same `compare_values`, so none of them may have
 // grown an ordering of its own. This asks one question of all of them over
 // one table and counts the *agreements*: a member that answers plausibly on

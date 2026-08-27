@@ -9,7 +9,7 @@ use std::fmt;
 
 /// A byte offset within a single source file.
 ///
-/// `u32` caps a source file at 4 GiB, which is not a limit any real `.mwl` file
+/// `u32` caps a source file at 4 GiB, which is not a limit any real `.nvs` file
 /// will meet, and halves the size of every span compared to `usize`.
 pub type BytePos = u32;
 

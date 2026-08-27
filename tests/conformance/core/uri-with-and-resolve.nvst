@@ -1,7 +1,7 @@
 --TEST--
 `$uri->with` replaces the components it is given and `$uri->resolve` is RFC 3986 § 5's reference resolution, both answering a fresh `Uri` — spec § 12
 --FILE--
-<?mwl
+<?nvs
 var $u = Core\Uri::parse("https://user@example.com:8443/a/b?x=1#top");
 
 // § 12: `with` replaces what it is given and carries the rest over, including

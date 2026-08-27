@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::contains/startsWith/endsWith with an empty needle are all true, as PHP's are
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::contains("haystack", "") as string, "|\n";
 echo Core\Str::startsWith("haystack", "") as string, "|\n";
 echo Core\Str::endsWith("haystack", "") as string, "|\n";

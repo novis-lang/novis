@@ -4,7 +4,7 @@
 - **Date:** 2026-08-23
 - **Scope:** how [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s and
   [ADR 0033](0033-secret-qualifier-for-confidential-values.md)'s compile-time qualifiers behave at a Tier 1
-  extension call site, and what the `mwl.manifest`/WIT world must be able to express. Not in scope: the
+  extension call site, and what the `nvs.manifest`/WIT world must be able to express. Not in scope: the
   rest of the WIT world's shape, which M8 authors.
 - **Amends:** [0003](0003-extension-system.md) — the manifest registers classes whose static methods and
   constants enter the compiler's symbol table; those signatures now carry a qualifier axis.
@@ -33,13 +33,13 @@
   precisely where extensions are most useful — a template engine, a query builder, an LDAP filter builder,
   a Markdown renderer are all *sinks*, and an extension that fetches or decodes remote data is a *source*.
 - Without a rule, the default behaviour is not merely limited but unsound: if qualifiers were stripped on
-  the way in and results came back plain, any `.mwlx` would be a universal bypass for ADR 0024. Passing a
+  the way in and results came back plain, any `.nvsx` would be a universal bypass for ADR 0024. Passing a
   value through an extension would launder it.
 - [ADR 0051](0051-standard-library-tiers.md) makes this concrete rather than hypothetical. Placing
   internationalization at Tier 1 means a `tainted` string from `Core\Request` is routinely handed to a
-  **first-party** component and comes back formatted. If that round trip cleaned it, MWL's own stdlib would
+  **first-party** component and comes back formatted. If that round trip cleaned it, Novis's own stdlib would
   be the bypass.
-- **This is time-sensitive.** M8 authors the `mwl:ext@1.0.0` WIT world and M9 freezes it; adding a
+- **This is time-sensitive.** M8 authors the `nvs:ext@1.0.0` WIT world and M9 freezes it; adding a
   qualifier axis afterwards is a breaking change to a published ABI. The plan already insists the WIT world
   be designed alongside the `Core` signatures so the two do not drift — this is that argument applied to
   the qualifier axis rather than the type axis.
@@ -56,10 +56,10 @@ manifest and nothing new in the checker beyond treating an extension call like a
 
 The manifest may say two things, and only these two:
 
-- **A parameter refuses `tainted`.** The extension is a sink for that argument, and `mwl check` rejects a
+- **A parameter refuses `tainted`.** The extension is a sink for that argument, and `nvs check` rejects a
   tainted operand at that position exactly as it does at a `Core\Db` query-text parameter. Declaring this
   can only make a call site fail that would otherwise have compiled.
-- **A return is always `tainted`.** The extension is a source — it produces bytes MWL did not see enter.
+- **A return is always `tainted`.** The extension is a source — it produces bytes Novis did not see enter.
   The result is tainted even when every argument was plain. Declaring this can only add a qualifier the
   caller must then launder.
 
@@ -84,7 +84,7 @@ site, where it is visible and greppable.
 `secret` is refused at every extension boundary, in either direction. A `secret`-qualified value passed to
 an extension is a compile-time diagnostic, and no manifest may declare a `secret` return. This is the same
 refusal [ADR 0033](0033-secret-qualifier-for-confidential-values.md) already applies to serialize and to
-isolate-crossing, for the same reason: the value is copied into memory whose subsequent handling MWL cannot
+isolate-crossing, for the same reason: the value is copied into memory whose subsequent handling Novis cannot
 reason about. Where an extension genuinely must see a credential — a signing key for a protocol component —
 `Core\Secret::reveal()` is the existing, deliberately conspicuous way to say so at the call site.
 
@@ -118,7 +118,7 @@ extension-specific relaxation, so the two cannot drift.
   adopted into `Core\Html` — where we own it, and where ADR 0024 § 3 already anticipates the roster growing
   — or for the caller to use `Core\Taint::assertTrusted` with a written reason. Both are visible; the
   rejected option is the invisible one.
-- **`secret` never reaching an extension constrains protocol components.** A JWT signer as a `.mwlx` would
+- **`secret` never reaching an extension constrains protocol components.** A JWT signer as a `.nvsx` would
   need `Core\Secret::reveal()` at the call site. That is one reason
   [ADR 0060](0060-application-security-protocols.md) keeps the protocol roster in `Core` rather than at
   Tier 1.
@@ -126,7 +126,7 @@ extension-specific relaxation, so the two cannot drift.
 ## Alternatives rejected
 
 - **No participation — qualifiers stripped at the boundary.** Nothing to design, nothing to freeze into the
-  ABI. Rejected as unsound rather than merely limited: it makes every `.mwlx` a universal ADR 0024 bypass.
+  ABI. Rejected as unsound rather than merely limited: it makes every `.nvsx` a universal ADR 0024 bypass.
 - **Sinks only, with no source declaration.** A simpler manifest and one less concept. Rejected: an
   extension that fetches remote data or decodes an untrusted file would return unqualified output from
   plain arguments, so untrusted bytes would enter the program clean — a hole exactly where Tier 1 is most

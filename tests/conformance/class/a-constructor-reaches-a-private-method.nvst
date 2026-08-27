@@ -1,7 +1,7 @@
 --TEST--
 A constructor may satisfy its definite-initialization obligation from a private helper's return value
 --FILE--
-<?mwl
+<?nvs
 class Slug {
     public string $text;
     public int $length;
@@ -22,7 +22,7 @@ class Slug {
 
 var $s = new Slug("  Hello World  ");
 echo $s->text, "|", $s->length, "\n";
-echo (new Slug("MWL"))->text, "\n";
+echo (new Slug("NVS"))->text, "\n";
 --EXPECT--
 hello world|11
-mwl
+nvs

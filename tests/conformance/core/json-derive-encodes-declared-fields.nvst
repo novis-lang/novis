@@ -1,7 +1,7 @@
 --TEST--
 #[Json\Derive] makes a class encodable from its declared properties, in declaration order, with per-field renaming and skipping — ADR 0071 §§ 1-3
 --FILE--
-<?mwl
+<?nvs
 use Core\Json;
 
 // ADR 0071 § 1: the attribute is matched *nominally*, so the `use`d short

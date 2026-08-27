@@ -1,10 +1,10 @@
 --TEST--
 An increment is a write, so its target passes the same syntactic gate an assignment's does and a call result is refused where it is written — ADR 0007 § 3
 --FILE--
-<?mwl
-// `mwl_ir::lower` desugars `$x++` into the `$x = $x + 1` a compound
+<?nvs
+// `nvs_ir::lower` desugars `$x++` into the `$x = $x + 1` a compound
 // assignment already becomes, so a target it cannot write to is a target it
-// cannot read-modify-write either. `mwl_syntax`'s `is_assignable` is the one
+// cannot read-modify-write either. `nvs_syntax`'s `is_assignable` is the one
 // gate every write spelling passes, and PHP refuses the identical shapes at
 // parse time — *"Can't use method return value in write context"*. What this
 // pins is the agreement: `=`, `+=`, `$x++` and `--$x` over one non-place
@@ -28,15 +28,15 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0105]: this expression cannot be assigned to
-   --> case.mwl:19:1
+   --> case.nvs:19:1
 %A
 error[E0105]: this expression cannot be assigned to
-   --> case.mwl:20:1
+   --> case.nvs:20:1
 %A
 error[E0105]: this expression cannot be assigned to
-   --> case.mwl:21:1
+   --> case.nvs:21:1
 %A
 error[E0105]: this expression cannot be assigned to
-   --> case.mwl:22:3
+   --> case.nvs:22:3
 %A
 error: aborting due to 4 errors

@@ -139,7 +139,7 @@ pub struct SourceMap {
     files: Vec<SourceFile>,
 }
 
-/// Largest source file MWL will load.
+/// Largest source file Novis will load.
 ///
 /// Spans use `u32` offsets; refusing oversized input at the boundary is what
 /// makes every later cast infallible.
@@ -234,7 +234,7 @@ mod tests {
     fn line_index_finds_the_containing_line() {
         let mut map = SourceMap::new();
         //                        0123 4567 89
-        let id = map.add("t.mwl", "ab\ncd\nef");
+        let id = map.add("t.nvs", "ab\ncd\nef");
         let f = map.file(id);
 
         assert_eq!(f.line_count(), 3);
@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn empty_file_has_one_line() {
         let mut map = SourceMap::new();
-        let id = map.add("empty.mwl", "");
+        let id = map.add("empty.nvs", "");
         let f = map.file(id);
         assert_eq!(f.line_count(), 1);
         assert_eq!(f.line_text(0), Some(""));
@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn trailing_newline_creates_a_final_empty_line() {
         let mut map = SourceMap::new();
-        let id = map.add("t.mwl", "a\n");
+        let id = map.add("t.nvs", "a\n");
         let f = map.file(id);
         assert_eq!(f.line_count(), 2);
         assert_eq!(f.line_text(1), Some(""));
@@ -272,7 +272,7 @@ mod tests {
     fn columns_count_chars_not_bytes() {
         let mut map = SourceMap::new();
         // 'ä' and '€' are 2 and 3 bytes respectively.
-        let id = map.add("t.mwl", "ä€x");
+        let id = map.add("t.nvs", "ä€x");
         let f = map.file(id);
         assert_eq!(f.line_col(0), (0, 0));
         assert_eq!(f.line_col(2), (0, 1), "after the 2-byte ä");
@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn line_text_strips_crlf() {
         let mut map = SourceMap::new();
-        let id = map.add("t.mwl", "a\r\nb");
+        let id = map.add("t.nvs", "a\r\nb");
         let f = map.file(id);
         assert_eq!(f.line_text(0), Some("a"));
         assert_eq!(f.line_text(1), Some("b"));
@@ -292,7 +292,7 @@ mod tests {
     #[test]
     fn offset_past_end_clamps_to_last_line() {
         let mut map = SourceMap::new();
-        let id = map.add("t.mwl", "ab\ncd");
+        let id = map.add("t.nvs", "ab\ncd");
         let f = map.file(id);
         assert_eq!(f.line_index(999), 1);
         assert_eq!(f.line_col(999), (1, 2));
@@ -301,8 +301,8 @@ mod tests {
     #[test]
     fn span_text_rejects_a_foreign_span() {
         let mut map = SourceMap::new();
-        let a = map.add("a.mwl", "hello");
-        let b = map.add("b.mwl", "world");
+        let a = map.add("a.nvs", "hello");
+        let b = map.add("b.nvs", "world");
         let span_in_b = Span::new(b, 0, 5);
         assert_eq!(map.file(b).span_text(span_in_b), Some("world"));
         assert_eq!(map.file(a).span_text(span_in_b), None);

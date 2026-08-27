@@ -1,7 +1,7 @@
 --TEST--
 A `!= null` test narrows a `?T` local to whatever dropping `null` leaves — an array, a scalar, a class — and the narrowed local is readable, indexable, writable and iterable (ADR 0066, ADR 0007 §§ 2 and 5)
 --FILE--
-<?mwl
+<?nvs
 // ADR 0066: `null` is dropped on the branch the test proves, and what is
 // left is the whole residue. A `?array<T>` is the shape this case exists
 // for — it used to narrow nowhere at all, so every subscript on one was a

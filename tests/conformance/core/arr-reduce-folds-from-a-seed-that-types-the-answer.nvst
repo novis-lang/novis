@@ -1,12 +1,12 @@
 --TEST--
 Core\Arr::reduce's answer is the seed's type rather than the element's, and the fold runs left to right over insertion order (spec § 2 Iteration and aggregation)
 --FILE--
-<?mwl
+<?nvs
 // This case is about the *carry*. The arity half of § 2's callback protocol —
 // that `reduce` prefixes `($value, $key)` with the accumulator and a callback
 // may still declare fewer parameters — is pinned for all fourteen members at
-// once in arr-every-callback-is-offered-value-and-key.mwlt, and the empty
-// subject's edge in arr-reduce-returns-an-untouched-seed-for-an-empty-subject.mwlt.
+// once in arr-every-callback-is-offered-value-and-key.nvst, and the empty
+// subject's edge in arr-reduce-returns-an-untouched-seed-for-an-empty-subject.nvst.
 array<int> $nums = [1, 2, 3, 4];
 array<string> $words = ["a" => "one", "b" => "three", "c" => "two"];
 

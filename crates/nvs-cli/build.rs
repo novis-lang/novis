@@ -1,4 +1,4 @@
-//! Captures the handful of facts `mwl info` reports that only exist at build
+//! Captures the handful of facts `nvs info` reports that only exist at build
 //! time — the target triple, the profile, the compiler, the commit and the
 //! code generator's version.
 //!
@@ -6,10 +6,10 @@
 //! reads them with `env!` and holds no build logic of its own. Nothing in
 //! this file may fail the build: a fact that cannot be determined becomes
 //! the string `unknown`, because a source tarball with no `.git` is a
-//! perfectly ordinary way to build MWL and is not an error.
+//! perfectly ordinary way to build Novis and is not an error.
 //!
 //! No timestamp is recorded. A build date would make two builds of the same
-//! commit differ, and `mwl info` is the wrong place to spend a reproducible
+//! commit differ, and `nvs info` is the wrong place to spend a reproducible
 //! build on a cosmetic field — the commit already answers "which source is
 //! this?" exactly.
 
@@ -18,19 +18,19 @@ use std::process::Command;
 
 fn main() {
     let manifest = PathBuf::from(env("CARGO_MANIFEST_DIR"));
-    // crates/mwl-cli -> the workspace root.
+    // crates/nvs-cli -> the workspace root.
     let workspace = manifest
         .parent()
         .and_then(Path::parent)
         .map_or_else(|| manifest.clone(), Path::to_path_buf);
 
-    emit("MWL_TARGET", &env("TARGET"));
-    emit("MWL_HOST", &env("HOST"));
-    emit("MWL_PROFILE", &env("PROFILE"));
-    emit("MWL_RUSTC", &rustc_version());
-    emit("MWL_COMMIT", &commit(&workspace));
+    emit("NVS_TARGET", &env("TARGET"));
+    emit("NVS_HOST", &env("HOST"));
+    emit("NVS_PROFILE", &env("PROFILE"));
+    emit("NVS_RUSTC", &rustc_version());
+    emit("NVS_COMMIT", &commit(&workspace));
     emit(
-        "MWL_CRANELIFT",
+        "NVS_CRANELIFT",
         &locked_version(&workspace, "cranelift-codegen"),
     );
 
@@ -48,7 +48,7 @@ fn main() {
         "cargo:rerun-if-changed={}",
         workspace.join("Cargo.lock").display()
     );
-    println!("cargo:rerun-if-env-changed=MWL_BUILD_COMMIT");
+    println!("cargo:rerun-if-env-changed=NVS_BUILD_COMMIT");
 }
 
 fn env(key: &str) -> String {
@@ -74,10 +74,10 @@ fn rustc_version() -> String {
 
 /// The short commit hash, with `-dirty` appended if the tree was modified.
 ///
-/// `MWL_BUILD_COMMIT` wins if set, so a distribution packaging MWL from a
+/// `NVS_BUILD_COMMIT` wins if set, so a distribution packaging Novis from a
 /// tarball can supply the revision it built from without a `.git` present.
 fn commit(workspace: &Path) -> String {
-    if let Ok(supplied) = std::env::var("MWL_BUILD_COMMIT")
+    if let Ok(supplied) = std::env::var("NVS_BUILD_COMMIT")
         && !supplied.trim().is_empty()
     {
         return supplied.trim().to_owned();

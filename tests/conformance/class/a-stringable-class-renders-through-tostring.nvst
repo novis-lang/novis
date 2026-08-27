@@ -1,7 +1,7 @@
 --TEST--
 `Stringable::toString` is an ordinary interface method, callable by name like any other — there is no `__toString` — ADR 0028 § 1
 --FILE--
-<?mwl
+<?nvs
 class Money implements Stringable {
     public int $cents;
 

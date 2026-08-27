@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // Split a text and tally it - the single most-written userland loop there is.
 class Bench {
     public static function run(int $rounds): int {

@@ -1,7 +1,7 @@
 --TEST--
 `as ?T` is refused at both ends of its table — a row that cannot fail, and a pair naming no row at all — ADR 0066 § 3, over ADR 0007 § 2's closed table
 --FILE--
-<?mwl
+<?nvs
 // ADR 0066 § 3 in one sentence: "a conversion that exists and failed is
 // `null`; a conversion that does not exist is a diagnostic" — and a
 // conversion that *cannot fail* is a diagnostic too, because the `?` then

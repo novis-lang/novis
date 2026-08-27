@@ -21,13 +21,13 @@ use crate::Value;
 ///
 /// * `add` — the cheapest possible call, isolating host→guest boundary cost.
 /// * `sum_via_host` — calls an imported host function in a loop, which is the
-///   shape of MWL's value-accessor API: the guest reads host-owned values
+///   shape of Novis's value-accessor API: the guest reads host-owned values
 ///   through validated handles instead of being handed a pointer.
 /// * `spin` — an infinite loop, for checking that a runaway extension can be
 ///   stopped by the request's CPU budget.
 pub const PROBE_WAT: &str = r#"
 (module
-  (import "mwl" "value_int" (func $value_int (param i32) (result i64)))
+  (import "nvs" "value_int" (func $value_int (param i32) (result i64)))
   (func (export "add") (param i64 i64) (result i64)
     local.get 0
     local.get 1
@@ -53,7 +53,7 @@ pub const PROBE_WAT: &str = r#"
 /// Stands in for the per-request state a real host call would reach through.
 #[derive(Debug, Default)]
 pub struct HostState {
-    /// The request's MWL values, which the guest may only read by index.
+    /// The request's Novis values, which the guest may only read by index.
     pub heap: Vec<Value>,
     /// How many accessor calls the guest made.
     pub accessor_calls: u64,
@@ -61,7 +61,7 @@ pub struct HostState {
 
 /// A compiled guest plus the host imports it links against.
 ///
-/// The engine and module are built once and reused, mirroring how MWL will cache
+/// The engine and module are built once and reused, mirroring how Novis will cache
 /// a compiled extension and share it across every core and request.
 pub struct WasmProbe {
     engine: Engine,
@@ -103,7 +103,7 @@ impl WasmProbe {
     fn build(pool: Option<PoolingAllocationConfig>) -> Result<Self> {
         let mut config = Config::new();
         // Epoch interruption is how a guest becomes subject to the request's
-        // CPU budget. Cheaper than fuel metering and a better match for MWL's
+        // CPU budget. Cheaper than fuel metering and a better match for Novis's
         // safepoint-based interruption model.
         config.epoch_interruption(true);
         if let Some(pool) = pool {
@@ -115,7 +115,7 @@ impl WasmProbe {
 
         let mut linker: Linker<HostState> = Linker::new(&engine);
         linker.func_wrap(
-            "mwl",
+            "nvs",
             "value_int",
             |mut caller: Caller<'_, HostState>, idx: i32| -> i64 {
                 let state = caller.data_mut();

@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::compare orders every ordered pair of a table the way strcmp, strcasecmp, strnatcmp and strnatcasecmp order it, in all four combinations of its two options, and it answers -1/0/1 in every cell where strcasecmp still answers a byte difference (spec § 1 Comparison)
 --FILE--
-<?mwl
+<?nvs
 // Spec § 1's *Comparison* row folds PHP's four comparison functions into one
 // member with two independent options, so what is worth pinning is not four
 // separate agreements but that the *fold* is exact: each of the four corners
@@ -20,13 +20,13 @@ Core\Str::compare orders every ordered pair of a table the way strcmp, strcasecm
 // case-insensitive cells are values like `-8`, `48` and `65`. A magnitude is
 // not part of the contract in either language (nothing may do arithmetic on
 // it), so normalizing is the comparison, and the last block below is where
-// MWL's own narrowed return is asserted rather than assumed.
+// Novis's own narrowed return is asserted rather than assumed.
 //
 // Every word is ASCII on purpose. `{caseInsensitive: true}` folds through
-// Unicode's simple lower-case mapping (`mwl_stdlib::str`'s `folded`) where
+// Unicode's simple lower-case mapping (`nvs_stdlib::str`'s `folded`) where
 // `strcasecmp` is byte-wise, and `{natural: true}` skips Unicode whitespace
 // where `strnatcmp` skips ASCII's; inside ASCII the two agree, which is what
-// this file is entitled to compare, and outside it MWL is deliberately the
+// this file is entitled to compare, and outside it Novis is deliberately the
 // better of the two.
 final class Show {
     // A cell is inside PHP 8.2's narrowed range if it is one of exactly three
@@ -92,7 +92,7 @@ foreach ($words as string $bothLeft) {
 
 // Antisymmetry, counted over every cell of all four tables rather than read
 // off a row: reversing the arguments negates the answer. A comparison that
-// resolved a tie by argument position — which is what `mwl_stdlib::math`'s
+// resolved a tie by argument position — which is what `nvs_stdlib::math`'s
 // `pick` does, and what parts `Core\Math::min` from PHP's — would still
 // print four plausible tables and fail this line. PHP's four hold it too.
 int $mirrored = 0;
@@ -116,13 +116,13 @@ foreach ($words as string $symA) {
 }
 echo $mirrored, " of ", $pairs, "\n";
 
-// The range, which is the one claim here that is about MWL alone: every cell
+// The range, which is the one claim here that is about Novis alone: every cell
 // of all four tables is one of exactly three values, by construction, where
 // `strcasecmp` on this leg answers a byte difference in most of them. The
 // PHP side of this block counts its own normalized values and so is
 // trivially whole — it is here to make the count comparable, and the claim
 // it carries is that `compare`'s `Ordering` never reaches the caller as
-// anything but the three literals `mwl_stdlib::str` maps it to. Counted
+// anything but the three literals `nvs_stdlib::str` maps it to. Counted
 // rather than eyeballed off the tables above, because a single cell
 // answering `-3` is invisible in a hundred and forty-four of them.
 int $inRange = 0;

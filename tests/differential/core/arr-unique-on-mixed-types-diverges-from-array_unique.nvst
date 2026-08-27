@@ -1,9 +1,9 @@
 --TEST--
 Core\Arr::unique compares by strict identity where array_unique compares by SORT_STRING spelling, so a mixed-type subject keeps entries PHP collapses
 --ORACLE-DIVERGES--
-`array_unique`'s default flag is `SORT_STRING`: it casts every element to a string and drops an entry whose *spelling* has been seen, so `0`, `"0"`, `false`, `null` and `""` are two entries rather than five. `Core\Arr::unique` asks the one strict-identity question `mwl_runtime::identity` defines and every set-shaped member shares — `contains`, `diff`, `intersect`, `ObjectSet` — so an `int` and its decimal spelling are two values here exactly as they are there. Reproducing PHP's rule would make this the single `Core` member whose answer depends on how a value is written rather than on what it is, and would make it disagree with the four members it is supposed to agree with; `mwl_core_arr_unique`'s doc comment owns that reasoning. The agreeing half — every subject whose values are one type — is asserted against PHP itself in `arr-unique-matches-array_unique-over-one-typed-list`.
+`array_unique`'s default flag is `SORT_STRING`: it casts every element to a string and drops an entry whose *spelling* has been seen, so `0`, `"0"`, `false`, `null` and `""` are two entries rather than five. `Core\Arr::unique` asks the one strict-identity question `nvs_runtime::identity` defines and every set-shaped member shares — `contains`, `diff`, `intersect`, `ObjectSet` — so an `int` and its decimal spelling are two values here exactly as they are there. Reproducing PHP's rule would make this the single `Core` member whose answer depends on how a value is written rather than on what it is, and would make it disagree with the four members it is supposed to agree with; `nvs_core_arr_unique`'s doc comment owns that reasoning. The agreeing half — every subject whose values are one type — is asserted against PHP itself in `arr-unique-matches-array_unique-over-one-typed-list`.
 --FILE--
-<?mwl
+<?nvs
 final class Render {
     public static function pairs(array<int|string> $a): string {
         var $out = "";
@@ -24,7 +24,7 @@ final class Render {
 
 // The narrowest form of the divergence. `array_unique($spellings)` answers
 // `0=1;2=2;`, having dropped each string because an int of the same spelling
-// came first; MWL keeps all four, because 1 and "1" are two values.
+// came first; Novis keeps all four, because 1 and "1" are two values.
 //
 // Note that the rendering cannot tell them apart — `echo` writes both as `1` —
 // so it is the surviving *keys* that carry the claim here, as they do below.
@@ -33,7 +33,7 @@ echo Render::pairs(Core\Arr::unique($spellings)), "\n";
 
 // The four values `SORT_STRING` folds onto the empty string, plus the pair it
 // folds onto "0". `array_unique($wide)` answers two entries at keys 0 and 2 —
-// the `0` and the `false` — where MWL keeps every one of the five, none of
+// the `0` and the `false` — where Novis keeps every one of the five, none of
 // which is identical to any other.
 array<int|string|bool|null> $wide = [0, "0", false, null, ""];
 var $kept = Core\Arr::unique($wide);

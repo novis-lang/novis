@@ -1,7 +1,7 @@
 --TEST--
 A constructor, a property write and a method reading it back agree with PHP
 --FILE--
-<?mwl
+<?nvs
 class Counter {
     public int $n;
 

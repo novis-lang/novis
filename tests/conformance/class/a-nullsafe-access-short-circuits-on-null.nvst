@@ -1,7 +1,7 @@
 --TEST--
 `?->` answers `null` for a `null` receiver instead of reaching the member
 --FILE--
-<?mwl
+<?nvs
 class Box {
     public string $label;
     public int $size;

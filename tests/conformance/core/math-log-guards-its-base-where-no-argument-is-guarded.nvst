@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::log refuses a base that is not greater than zero, where none of the eighteen float-to-float members guards its argument — spec § 3
 --FILE--
-<?mwl
+<?nvs
 // Spec § 3 leaves an *argument's* own domain at IEEE's answer: a value with
 // no mathematical answer comes back as `NaN` or an infinity rather than as a
 // throw, which is what leaves `isNan` and `isFinite` something to ask about.

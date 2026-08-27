@@ -18,7 +18,7 @@ use common::*;
 /// Before this landed, every one of these read the slot nothing had written.
 #[test]
 fn a_property_hook_runs_on_every_read_and_write_of_its_property() {
-    let source = "<?mwl
+    let source = "<?nvs
 class Box {
     public string $label;
 
@@ -48,13 +48,13 @@ echo $b->n;
 }
 
 /// A hooked property is reached through the ordinary `InstKind::Call`, so it
-/// is compiled under the same label `mwl_types::signatures::hook_label`
+/// is compiled under the same label `nvs_types::signatures::hook_label`
 /// spells and needs no dispatch-table entry of its own — the property that
 /// keeps a hooked access from costing a new calling convention.
 #[test]
 fn each_property_hook_is_compiled_under_its_own_label() {
     let unit = compile(
-        "<?mwl
+        "<?nvs
 class Box {
     public int $n;
     public int $doubled { get => $this->n * 2; }
@@ -75,7 +75,7 @@ echo (new Box(2))->doubled;
 /// rather than escaping the expression that triggered it.
 #[test]
 fn a_throwing_property_hook_reaches_an_ordinary_catch() {
-    let source = "<?mwl
+    let source = "<?nvs
 class Guard {
     public int $n;
     public int $checked { get => $this->fail(); }

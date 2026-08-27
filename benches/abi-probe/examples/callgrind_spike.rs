@@ -9,7 +9,7 @@
 //! *Revisiting* section.
 //!
 //! ```text
-//! cargo build --release -p mwl-abi-probe --example callgrind_spike
+//! cargo build --release -p nvs-abi-probe --example callgrind_spike
 //! valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out \
 //!     ./target/release/examples/callgrind_spike
 //! callgrind_annotate /tmp/cg.out | head -20
@@ -17,10 +17,10 @@
 
 use std::hint::black_box;
 
-use mwl_abi_probe::{Ctx, Helper, Value, call};
+use nvs_abi_probe::{Ctx, Helper, Value, call};
 
 fn main() {
-    let mut probe = mwl_abi_probe::Probe::new();
+    let mut probe = nvs_abi_probe::Probe::new();
     let chain = probe.compile_chain(8, Helper::Double);
     let mut ctx = Ctx::new();
 

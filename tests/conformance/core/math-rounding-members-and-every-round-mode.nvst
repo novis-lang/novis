@@ -1,13 +1,13 @@
 --TEST--
 Core\Math::ceil, floor, truncate and round, with each of Core\RoundMode's six rules
 --FILE--
-<?mwl
+<?nvs
 echo Core\Math::ceil(1.2), "|", Core\Math::ceil(-1.8), "\n";
 echo Core\Math::floor(1.8), "|", Core\Math::floor(-1.2), "\n";
 // `truncate` is toward zero, so it is neither of the two above. That the four
 // members are the identity wherever a float has no fraction, and that they
 // part only where one is present, is swept in
-// math-the-four-rounding-members-agree-wherever-there-is-no-fraction.mwlt.
+// math-the-four-rounding-members-agree-wherever-there-is-no-fraction.nvst.
 echo Core\Math::truncate(1.8), "|", Core\Math::truncate(-1.7), "\n";
 
 // 2.5 is the one value that tells all six modes apart, and -2.5 says which of

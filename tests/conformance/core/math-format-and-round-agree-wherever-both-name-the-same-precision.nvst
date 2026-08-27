@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::format renders exactly what Core\Math::round answers at the same precision, over a whole table and at every mode, and parts from it only where round has no opinion — the separators and the precisions below zero — docs/spec/01-core-library.md § 3
 --FILE--
-<?mwl
+<?nvs
 // Two members carrying one rounding rule between them. `round` answers a
 // `float` and `format` answers digits, so nothing forces them to share the
 // rule: `format` could grow its own tie-break and still look right on every
@@ -75,7 +75,7 @@ foreach ($rows as float $y) {
 }
 echo "separators: same digits ", $sameDigits, "/", $punctuated,
      " punctuated rows, and round still agrees ", $stillAgrees, "\n";
-// MWL has no ambient locale, so the group separator defaults to empty where
+// Novis has no ambient locale, so the group separator defaults to empty where
 // number_format's is a comma; that default is the only reason section 1's
 // comparison is over bare digits at all.
 echo "default rendering: ", Core\Math::format(1234567.891, {decimals: 2}), "\n";

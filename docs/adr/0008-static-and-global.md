@@ -5,13 +5,13 @@
 - **Scope:** every meaning PHP gives the `static` keyword; the `global` keyword; the complete list of
   places a program may hold state that outlives a call
 - **Amends:** the *function `static`* row in [0007](0007-explicit-type-system.md) § 1 and the `static`
-  entry in the M1 list of new declaration slots. MWL has no function-scope `static`, so there is no type
+  entry in the M1 list of new declaration slots. Novis has no function-scope `static`, so there is no type
   slot to add to it.
 - **Amended by:** 0010, 0011, 0012, 0031, 0046, 0052
 
 > **In short:** `static` is a **class-member modifier and a class-relative type**, nothing else. Static
 > methods, static properties, `static::`, `new static()` and `: static` all stay exactly as PHP has them —
-> late static binding is load-bearing in the OO code MWL wants to convert. Two PHP meanings of the keyword
+> late static binding is load-bearing in the OO code Novis wants to convert. Two PHP meanings of the keyword
 > are **rejected with a diagnostic**: the function-scope static variable (`static int $calls = 0;`) and the
 > static closure modifier (`static fn() => …`). `global` is rejected outright, as already recorded. What
 > replaces them: a class static property for state that must outlive a call, a parameter for state that must
@@ -32,7 +32,7 @@
   compiled as `new self()` would silently return the wrong class rather than fail to compile.
 - `global` was already a settled rejection before this ADR, and
   [0006](0006-isolated-script-execution.md) already assumes a function cannot reach outside its own
-  frame for mutable state. This ADR's job is the two storage meanings: name the storage classes MWL
+  frame for mutable state. This ADR's job is the two storage meanings: name the storage classes Novis
   actually has instead of leaving them as a syntax gap to be filled with a type annotation.
 
 ## Decision
@@ -82,7 +82,7 @@ A **global constant** is deliberately not in this table either, and for a relate
 the first place, so "class constant, global constant" — one row up to that decision — narrows to class
 constant alone. There is no free-floating constant left for the row to have covered.
 
-The last row is the one to read twice. A top-level `$x` in a `.mwl` file is a local of the script's own frame
+The last row is the one to read twice. A top-level `$x` in a `.nvs` file is a local of the script's own frame
 and nothing more. Without `global`, no function can see it — the intended reading rather than an omission:
 the script body is a function, so its variables are locals, so the shared-nothing story holds at file scope
 for the same reason it holds everywhere else.
@@ -108,7 +108,7 @@ lifetime, and the second reset path ADR 0006 calls a bug does not get written.
 
 **It hides state from the signature.** Priority 4 is simplicity of the language surface first: a function
 whose result depends on how many times it has been called, with nothing at the call site or in the signature
-to say so, is exactly the state MWL asks people to declare everywhere else. A `private static` property has
+to say so, is exactly the state Novis asks people to declare everywhere else. A `private static` property has
 a name, a type, a visibility and a home.
 
 **Every real use has a better-placed replacement.** Memoisation → a `private static array<T>` on the class
@@ -121,14 +121,14 @@ is lost that PHP was providing. The construct never held state across requests i
 
 ### 4. Why the static closure goes, and the one divergence that buys
 
-`static fn()` is an *assertion* that a closure does not capture `$this`, and MWL has no other assertion
+`static fn()` is an *assertion* that a closure does not capture `$this`, and Novis has no other assertion
 syntax — everything else in the language is a declaration the compiler enforces. The property it asserts is
 better obtained by making it true: **a closure captures `$this` only when its body uses it**, decided by the
 compiler.
 
 That is an observable divergence, and it is the only one this ADR introduces:
 
-| # | PHP | MWL |
+| # | PHP | Novis |
 |---|---|---|
 | 1 | a closure created inside a method always binds `$this`, used or not | it binds `$this` only if the body uses it; one that does not is unbound, and `bindTo()`/`bind()` on it returns an equivalent closure rather than rebinding anything |
 
@@ -136,7 +136,7 @@ The practical effect is the one `static` existed to produce — a closure that d
 extend the enclosing object's lifetime — obtained without a keyword. The cost is that a program which builds
 a `$this`-free closure inside a method and then `bindTo()`s it to a *different* object gets a closure that
 ignores the binding. That pattern is rare, it is precisely what `static fn` was used to forbid, and
-`mwl convert` can see it: a `bindTo` whose target closure never names `$this` is reportable at convert time
+`nvs convert` can see it: a `bindTo` whose target closure never names `$this` is reportable at convert time
 rather than surprising at run time. (The closure literal itself is `fn`, and `bindTo`/`bind` are `callable`
 operations rather than a `Closure` class's methods — [ADR 0031](0031-callable-is-the-only-closure-type.md).)
 
@@ -170,7 +170,7 @@ only says "not supported" is a bug in this decision, not a faithful implementati
 **Negative**
 
 - Two more PHP constructs stop compiling, on top of the ADR 0007 list. Both have mechanical rewrites, so
-  they land in `mwl convert` as rewrites rather than `TODO`s, but they are still work in M11.
+  they land in `nvs convert` as rewrites rather than `TODO`s, but they are still work in M11.
 - The function-static rewrite is not purely local: it needs a class to hang the property on. For a free
   function in a procedural file the converter must introduce one, or hoist the state into a parameter, and
   either way a human should look at it. This is the only rewrite in the list that changes the shape of the

@@ -1,7 +1,7 @@
 --TEST--
 Assigning the local again inside an `if ($m != null)` block takes the narrowing back off, so `->` is refused from that point on
 --FILE--
-<?mwl
+<?nvs
 var $m = Core\Regex::match("order-4711", "order-(\\d+)");
 if ($m != null) {
     $m = Core\Regex::match("nothing", "\\d+");
@@ -11,6 +11,6 @@ if ($m != null) {
 
 --EXPECTF-ERROR--
 error[E0459]: `null|Core\Regex\Match` may be `null`, so `->` cannot reach a member of it
-  --> case.mwl:5:10
+  --> case.nvs:5:10
 %A
 error: aborting due to 1 error

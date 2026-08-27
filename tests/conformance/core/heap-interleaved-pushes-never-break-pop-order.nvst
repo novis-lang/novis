@@ -1,12 +1,12 @@
 --TEST--
 A `Core\Heap<T>` interleaving pushes with pops still answers each `pop` with the element that sorts first among everything it then holds, and a sweep that never pushes below its last `pop` drains in non-decreasing order — docs/spec/01-core-library.md § 9, ADR 0013
 --FILE--
-<?mwl
+<?nvs
 // § 9's heap is a priority queue, so its promise is not "the table sorted" —
 // a push after a pop may arrive below everything already there, and the next
 // pop is allowed to answer below the previous one. The invariant that does
 // hold at every step is local: whatever `pop` answers, nothing left behind
-// sorts before it. `heap-orders-by-comparable-or-by-its-comparator.mwlt`
+// sorts before it. `heap-orders-by-comparable-or-by-its-comparator.nvst`
 // reads a drained order off its own line; this asks the question of every
 // element still in the heap after every pop and **counts** the answers, so a
 // sift that goes wrong one position deep fails here rather than printing a
@@ -14,7 +14,7 @@ A `Core\Heap<T>` interleaving pushes with pops still answers each `pop` with the
 final class Order {
     // A positive entry pushes; `0` pops, guarded, so a pop against the empty
     // heap in the middle of the table is a step and not the throw
-    // `heap-holds-every-push-and-refuses-an-empty-read.mwlt` pins. Returns the
+    // `heap-holds-every-push-and-refuses-an-empty-read.nvst` pins. Returns the
     // number of (popped, still held) pairs found in order — a violation
     // lowers it, and so does a sweep that quietly stopped popping.
     public static function pairsInOrder(Core\Heap<int> $h, array<int> $ops, bool $ascending): int {

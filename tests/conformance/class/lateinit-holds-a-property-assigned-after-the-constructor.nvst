@@ -1,7 +1,7 @@
 --TEST--
 `lateinit` exempts a non-nullable class-typed property from the constructor's definite-assignment obligation, and a later write makes it readable — ADR 0038 § 1
 --FILE--
-<?mwl
+<?nvs
 class Engine {
     public int $power;
 

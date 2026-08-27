@@ -1,7 +1,7 @@
 --TEST--
 Which string keys collapse to integer keys is decided exactly as PHP decides it
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = ["10" => 1, 10 => 2, "x" => 3];
 foreach ($a as string $k => int $v) {
     echo $k, "=", $v, ";";

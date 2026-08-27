@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::indexOf answers every position strpos does, once absence is rendered the same on both sides (ADR 0063 R5, R8)
 --FILE--
-<?mwl
+<?nvs
 // ADR 0063 R5: `indexOf` answers `?uint`, so absence is `null` and a match at
 // the front is `0`. PHP cannot tell those two apart — `strpos` answers `false`
 // and `false == 0` is true — which is the bug family this member exists to
@@ -17,7 +17,7 @@ final class Show {
     }
 }
 
-// The subject is ASCII throughout. ADR 0009 § 2 makes an MWL position a
+// The subject is ASCII throughout. ADR 0009 § 2 makes an Novis position a
 // grapheme index where `strpos` reports a byte offset, so only an ASCII subject
 // asks about the search rather than about the unit — `str-length-diverges-from-strlen`
 // is where the unit itself is pinned.

@@ -531,7 +531,7 @@ fn die_is_diagnosed_naming_exit() {
 
 #[test]
 fn require_is_an_expression() {
-    let s = parse_stmt_ok("$x = require 'a.mwl';");
+    let s = parse_stmt_ok("$x = require 'a.nvs';");
     let StmtKind::Expr(e) = s.kind else {
         panic!("expected an expression statement: {s:?}");
     };
@@ -540,7 +540,7 @@ fn require_is_an_expression() {
     };
     assert!(matches!(value.kind, ExprKind::Require { .. }));
 
-    parse_stmt_ok("require 'd.mwl';");
+    parse_stmt_ok("require 'd.nvs';");
 }
 
 /// ADR 0021: `require` is the only same-frame inclusion keyword kept —
@@ -548,9 +548,9 @@ fn require_is_an_expression() {
 #[test]
 fn include_family_is_diagnosed() {
     for src in [
-        "include 'a.mwl';",
-        "include_once 'c.mwl';",
-        "require_once 'b.mwl';",
+        "include 'a.nvs';",
+        "include_once 'c.nvs';",
+        "require_once 'b.nvs';",
     ] {
         let (s, diags) = parse_stmt_with_diags(src);
         assert!(diags.has_errors(), "expected a diagnostic for {src:?}");

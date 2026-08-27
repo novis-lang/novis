@@ -1,7 +1,7 @@
 --TEST--
 Core\Heap<T> answers smallest-first, ordered by ADR 0013's `Comparable` or by the comparator given at construction — docs/spec/01-core-library.md § 9
 --FILE--
-<?mwl
+<?nvs
 // § 9's third row: `push`, `peek`, `pop`, `count`, `isEmpty`, replacing
 // `SplPriorityQueue`, `SplMinHeap` and `SplMaxHeap`.
 class Job implements Comparable {
@@ -44,7 +44,7 @@ $jobs->push(new Job("deploy", 5));
 $jobs->push(new Job("lint", 1));
 $jobs->push(new Job("build", 3));
 // Bound rather than `$jobs->peek()->name`: a call result read straight
-// through `->` is never released (`mwl-ir`'s own gap, in the plan's *Open
+// through `->` is never released (`nvs-ir`'s own gap, in the plan's *Open
 // now*), and a conformance case is not the place to pin a leak.
 var $first = $jobs->peek();
 echo $first->name, "\n";

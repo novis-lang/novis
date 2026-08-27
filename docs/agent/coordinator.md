@@ -1,6 +1,6 @@
 # Agent coordinator loop
 
-MWL is built by a long series of unattended work sessions. This file describes how that loop is driven and
+Novis is built by a long series of unattended work sessions. This file describes how that loop is driven and
 why it is shaped the way it is.
 
 ## The rule that determines the design
@@ -145,16 +145,16 @@ Check kinds:
 
 | `kind` | Means |
 |---|---|
-| `exact` | `mwl run <file>` exits 0 and stdout is line-for-line equal to `want` |
+| `exact` | `nvs run <file>` exits 0 and stdout is line-for-line equal to `want` |
 | `ordered` | each element of `want` appears in `stdout`/`stderr`, each after the one before it |
 | `contains` | named substrings appear on the named streams |
 | `min-bytes` | the named stream is at least `min_bytes` long (this is how `--dump-asm` is checked) |
-| `mwl-suite` | `mwl …` exits 0 **and** prints `N passed, M failed` with `M == 0` and `N >= min_passing` |
+| `nvs-suite` | `nvs …` exits 0 **and** prints `N passed, M failed` with `M == 0` and `N >= min_passing` |
 | `cargo-named` | `cargo test …` exits 0 **and** each named test actually ran — a suite that never ran the guard is green too |
 
 `exit = "nonzero"` inverts the exit expectation for the fixtures that fail by design.
 
-`cases = [...]` on an `mwl-suite` check is the `.mwlt` twin of `cargo-named`, and exists for the same
+`cases = [...]` on an `nvs-suite` check is the `.nvst` twin of `cargo-named`, and exists for the same
 reason: each named case must be **on disk and not skipped**, because a suite is green when a case was
 never written, and `min_passing` cannot tell "the corpus grew" from "the corpus grew somewhere else". A
 `--ORACLE--` whose probe fails skips silently, and the `SKIP` line is the only place that shows.
@@ -173,7 +173,7 @@ Then the valgrind sweep: every fixture again under `--leak-check=full --errors-f
 **A `--release` check is the one exception to that order, and it is a scheduling decision.** `--release`
 is a different profile from everything else in the sweep, so nothing it needs is on disk when the run
 starts, and this workspace ships `lto = "thin"` with `codegen-units = 1` — measured at 133s after a
-one-line change to `mwl-runtime`, against the ~120s the whole rest of the sweep costs. So the driver
+one-line change to `nvs-runtime`, against the ~120s the whole rest of the sweep costs. So the driver
 starts that build in the background before the native build and runs the check itself **last**, whatever
 stage it is labelled with. Two cargos on one `target/` do not block each other (measured: a debug build
 finished in its usual 4.5s beside it), so the build is nearly free by the time anything asks for it, and
@@ -183,11 +183,11 @@ What it costs is that a red guard is named after a red fixture rather than befor
 
 **A leg builds the CLI once and then invokes that binary**, rather than reaching for `cargo run` per
 fixture — twenty-three fixtures is twenty-three workspace fingerprint scans to start the same process,
-and on the WSL leg every one of them crosses the `/mnt` mount. The `mwl-suite` checks run through the
+and on the WSL leg every one of them crosses the `/mnt` mount. The `nvs-suite` checks run through the
 same binary for the same reason.
 
 Nothing is skipped, but two results are remembered. Within one run, an identical `args` list runs cargo
-once — the list names `mwl-runtime` twice on purpose, for different guard tests, and the second run
+once — the list names `nvs-runtime` twice on purpose, for different guard tests, and the second run
 cannot answer differently. Across runs, the three checks whose cost is *minutes* — the release-profile
 `abi-probe`, the whole WSL leg, and the valgrind sweep — are remembered in `.loop/goal-green.json`
 against a content hash of **the files those checks read**: `crates/`, `examples/`, the manifests, the
@@ -198,7 +198,7 @@ This used to key on the tree instead, HEAD included — and in a normal loop eve
 almost never fired. Measured over the 21-session run in `.loop/logs/20260826-142040-*`, **8 of 22
 sessions changed nothing any of the three reads** and no session touched `examples/` at all, yet the
 valgrind sweep ran 22 times out of 22 at 58 seconds each. `tests/` and `docs/` are deliberately not
-inputs: no memoized check runs a `.mwlt` case or reads a document. When both consumers of the Linux
+inputs: no memoized check runs a `.nvst` case or reads a document. When both consumers of the Linux
 binary are green, the WSL build is skipped with them — never one without the other, or the sweep would
 silently fall back to a platform with no valgrind on it.
 
@@ -207,7 +207,7 @@ The sweep runs several fixtures at once, and **how many is the machine's answer,
 never fewer than two, never more than there are fixtures, never more than free memory allows. On
 Windows "the cores the work sees" means WSL's, which `.wslconfig` sets independently of the host. Those
 facts, plus one fixture timed serially as a baseline, are probed **once per machine** and cached in
-`.loop/machine.json`; `python tools/machine.py` shows what this box came out as, and `MWL_VALGRIND_JOBS`
+`.loop/machine.json`; `python tools/machine.py` shows what this box came out as, and `NVS_VALGRIND_JOBS`
 overrides the width for one run. Half a box and not all of it, because the release build overlaps the
 sweep on purpose and is the longer pole. Measured on 16 cores, 23 fixtures: 67.8s serial, 21.2s at four,
 16.0s at eight. A leak verdict is per-process and deterministic, so concurrency cannot change one; the
@@ -274,7 +274,7 @@ and understand that restarting is not a workaround for the context problem, it *
 just done by hand.
 
 **Could a parallel `Core`-domain lane work now?** Partly. The hotspot splits removed the *file* collision
-that made it impossible: a new `Core` class is one line in `mwl_stdlib::registry`, one in `mwl_stdlib`'s
+that made it impossible: a new `Core` class is one line in `nvs_stdlib::registry`, one in `nvs_stdlib`'s
 `symbols`, and its own new module, so two sessions adding two domains no longer touch the same lines — and
 the same is true of the checker and end-to-end tests, now one file per rule area and per feature area.
 What is unchanged is everything above: **one working tree and one handoff file.** A second lane needs a

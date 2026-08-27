@@ -1,8 +1,8 @@
 --TEST--
 A compound assignment computes its target's address once, whichever shape the target has and whichever of the three spellings writes it — ADR 0007 § 3 and § 4
 --FILE--
-<?mwl
-// `mwl_ir::lower::Lowering::lower_read_modify_write` rewrites `$t ⊕= e` into
+<?nvs
+// `nvs_ir::lower::Lowering::lower_read_modify_write` rewrites `$t ⊕= e` into
 // the `$t = $t ⊕ e` it means, which writes the target down twice — so every
 // level of the target that cannot be re-read is lowered once and staged
 // first (`Lowering::stage_target_address`). What this pins is the *count*: a
@@ -11,8 +11,8 @@ A compound assignment computes its target's address once, whichever shape the ta
 // the same rewrite.
 //
 // It is also the observable half of the proof that the rewrite's own
-// assertion cannot fire: every target `mwl_syntax`'s
-// `Parser::require_write_target` admits and `mwl_types`' `check_write_target`
+// assertion cannot fire: every target `nvs_syntax`'s
+// `Parser::require_write_target` admits and `nvs_types`' `check_write_target`
 // does not refuse appears below, and each one lowers.
 class Keys {
     public static array<int> $counts = [];
@@ -58,7 +58,7 @@ echo $a["k"], "\n";
 // The roots that need no staging at all: a local through parentheses, a
 // nested element, a static property, a property of a local. An element write
 // whose root is a property of a *temporary* is deliberately absent — it
-// lowers, but re-lowers its holder's receiver, which is `mwl-ir`'s own known
+// lowers, but re-lowers its holder's receiver, which is `nvs-ir`'s own known
 // gap 16 rather than something to freeze here.
 ($a)["k"] += 1;
 echo $a["k"], "\n";

@@ -250,7 +250,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// compilation reads, and reaches `parse_statement` only because that is
     /// where the token stream arrives. Whether it sits at a file's top level,
     /// and whether that file is reachable by `require` from the entry point,
-    /// are `mwl_hir`'s checks — the parser can see neither.
+    /// are `nvs_hir`'s checks — the parser can see neither.
     ///
     /// `discover` is **contextual**: an ordinary identifier everywhere else,
     /// meaning the second form only in this one position, so no existing
@@ -304,7 +304,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// interpolates — the parser is the only place that is visible.
     ///
     /// The span returned covers the whole literal, quotes included, so
-    /// `mwl_hir` decodes it with the same `cook_quoted` a `require` path goes
+    /// `nvs_hir` decodes it with the same `cook_quoted` a `require` path goes
     /// through.
     fn parse_autoload_literal(&mut self, what: &str) -> Option<Span> {
         let span = match self.peek().kind {

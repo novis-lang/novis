@@ -25,7 +25,7 @@
 //! the numbering-order instability this module exists to avoid, not
 //! something it needs to also avoid at file scope.
 
-use mwl_diagnostics::Span;
+use nvs_diagnostics::Span;
 
 macro_rules! id_newtype {
     ($(#[$meta:meta])* $name:ident) => {
@@ -90,7 +90,7 @@ impl IdGen {
     ///
     /// Panics if a single function has lowered more than [`u32::MAX`]
     /// statements — not a real limit, the same "this would already have
-    /// failed a saner earlier check" class of bound `mwl-types` documents
+    /// failed a saner earlier check" class of bound `nvs-types` documents
     /// elsewhere for its own counters.
     pub fn next_stmt(&mut self, span: Span) -> StmtId {
         let id = StmtId(

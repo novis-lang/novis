@@ -1,7 +1,7 @@
 --TEST--
 `foreach (… as inout $v)` writes each element back where it came from — at every exit an iteration has, through a nested loop, and through an `inout $x` parameter — while a copy taken before the loop keeps what it was given (ADR 0007 § 5, ADR 0053 § 3)
 --FILE--
-<?mwl
+<?nvs
 final class Walk {
     // An `inout $x` parameter and an `inout $v` binding are the same rule from two
     // sides: what the callee writes back reaches the entry too.

@@ -13,7 +13,7 @@ use common::*;
 // ---------------------------------------------------------------------------
 /// A two-property class with a constructor and two readers, plus a subclass
 /// that inherits both — the shape every object test below builds on.
-const SHAPES: &str = "<?mwl
+const SHAPES: &str = "<?nvs
 class Animal {
     public string $animalName;
     public int $legs;
@@ -48,7 +48,7 @@ fn a_constructor_writes_its_fields_and_a_reader_reads_them_back() {
 #[test]
 fn an_int_field_survives_the_round_trip_through_its_value_slot() {
     // A field slot is a whole 16-byte `Value`, so an `int` field is written
-    // with a tag byte the read never looks at — `mwl_runtime::object`'s own
+    // with a tag byte the read never looks at — `nvs_runtime::object`'s own
     // docs own that decision. This is it working.
     let source = format!("{SHAPES}\nvar $a = new Animal(\"cat\", 4);\necho $a->legCount();\n");
     assert_eq!(output_of(&source), "4");
@@ -83,7 +83,7 @@ fn a_field_can_be_overwritten_after_construction() {
 
 #[test]
 fn an_object_field_keeps_its_own_object_alive() {
-    let source = "<?mwl
+    let source = "<?nvs
 class Leg {
     public int $length;
     public function constructor(int $length) { $this->length = $length; }
@@ -104,10 +104,10 @@ echo $cat->front()->length();
 
 #[test]
 fn instanceof_sees_the_class_its_parent_and_its_interface() {
-    // Three answers out of one `mwl_object_instanceof` call each: the
-    // descriptor address is baked in, and `mwl_types::layout` gives the
+    // Three answers out of one `nvs_object_instanceof` call each: the
+    // descriptor address is baked in, and `nvs_types::layout` gives the
     // *interface* a descriptor with no slots purely so this test can name it.
-    let source = "<?mwl
+    let source = "<?nvs
 interface Greets {
     public function greeting(): string;
 }
@@ -146,7 +146,7 @@ fn an_inherited_constructor_is_invoked_through_its_declaring_class() {
 
 #[test]
 fn a_string_field_overwritten_in_a_loop_leaks_nothing() {
-    // Each write releases what the slot held — `mwl_ir::lower` emits the
+    // Each write releases what the slot held — `nvs_ir::lower` emits the
     // `FieldGet`/`Release` pair and this backend emits the store. A missing
     // release would leak 10_000 buffers; a doubled one would crash.
     let source = format!(
@@ -168,7 +168,7 @@ fn a_discarded_instance_is_released_rather_than_leaked() {
 
 #[test]
 fn a_class_with_no_constructor_still_allocates() {
-    let source = "<?mwl
+    let source = "<?nvs
 class Marker {
     public function tag(): string { return \"marker\"; }
 }

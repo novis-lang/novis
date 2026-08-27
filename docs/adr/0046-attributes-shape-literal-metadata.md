@@ -33,7 +33,7 @@
 > `{...}`) is pure attach-site sugar: `Name` must resolve to a `type` alias whose right-hand side is a shape
 > type, and the literal is checked against it the same way any other shape-typed position already is; an
 > unnamed literal is checked only as a well-formed object literal. No class is ever declared, instantiated,
-> or invoked for this — MWL's attributes are inert data from the moment they're parsed, unlike PHP's, which
+> or invoked for this — Novis's attributes are inert data from the moment they're parsed, unlike PHP's, which
 > lazily construct a real object the first time `ReflectionAttribute::newInstance()` is called. A payload's
 > field values must be compile-time constants (literals, class constants, enum cases) — never a variable, a
 > call, or `new` — so the whole thing is resolved once, at compile time, into a constant pool exactly like an
@@ -49,13 +49,13 @@
 > method's parameters are named through that method's own reference. A property has no callable reference of
 > its own, so its lookup takes the owning class's `constructor` reference plus the property's name as a
 > `string` — the one place this design accepts a name string instead of a fully static reference, and
-> `mwl check` closes most of that gap by validating a literal name string against the target's real declared
+> `nvs check` closes most of that gap by validating a literal name string against the target's real declared
 > members at compile time, the same call-site-literal-inspection [ADR 0033](0033-secret-qualifier-for-confidential-values.md)
 > §4 already uses for its `Core\Log` sink check.
 
 ## Context
 
-- PHP's doc comments are the status quo this ADR is replacing for MWL: plain, unstructured text above a
+- PHP's doc comments are the status quo this ADR is replacing for Novis: plain, unstructured text above a
   declaration that userland frameworks parse with their own regexes to drive real behavior (routing, ORM
   column mapping, validation, DI). The compiler has no idea any of this exists; `phpdoc_to_return_type`-style
   static analysis is bolted on by tooling, not the language. PHP Attributes (`#[Route('/x')]`) fixed the
@@ -68,12 +68,12 @@
 - The genuinely lighter precedents are Rust's `#[attr(...)]` (a token tree, consumed by a proc-macro at
   compile time, then erased — no runtime cost, but "custom attribute" still means writing macro-crate
   tooling) and Elixir's `@tag value` module attributes (no declaration of any kind, but no structural
-  checking either — any term is accepted). MWL already has a mechanism that sits exactly between those two:
+  checking either — any term is accepted). Novis already has a mechanism that sits exactly between those two:
   [ADR 0036](0036-anonymous-object-shapes.md)'s anonymous object literal and inline shape type — structurally
   checked, zero declaration required for the unchecked case, one `type` alias line for the checked case. This
   ADR is mostly the observation that attributes don't need a fourth mechanism; they need that one, attached
   to a declaration instead of a variable.
-- MWL already has two forward-references to a `#[...]` attribute syntax that this ADR resolves: ADR 0008's
+- Novis already has two forward-references to a `#[...]` attribute syntax that this ADR resolves: ADR 0008's
   "a `#[Memoize]` attribute as the sanctioned replacement for the memoisation use — deferred, not rejected"
   and ADR 0010's "a `#[Flags]`-style attribute enabling bitwise operators directly on an enum type." Neither
   is decided here — both still need their own design (key derivation and lifetime for memoisation; the
@@ -84,7 +84,7 @@
   keeps paying the same visibility/hook checks ordinary code does rather than opening a second, laxer path.
   Routing attribute retrieval through a generic `Core\Reflect::getAttributes()` walk would fit that pattern
   but reintroduces exactly the dynamic, walk-anything shape ADR 0019 was careful to avoid making the *only*
-  path — MWL's attribute list per declaration is fully static, known at compile time, so a generic runtime
+  path — Novis's attribute list per declaration is fully static, known at compile time, so a generic runtime
   walk throws away information the compiler already has. A narrow, statically-resolved `Core\Attributes`
   accessor keeps ADR 0019's placement (a `Core` domain class, not a keyword) while being considerably more
   specific than `Core\Reflect`'s general-purpose surface.
@@ -113,7 +113,7 @@ Two forms:
 - **Named**: `#[Name(field: value, ...)]`. `Name` must resolve, in the current namespace/`use` scope, to a
   `type` alias whose right-hand side is a shape type (`type Route = {path: string, method: string};`). This
   reads like a constructor call — deliberately, for PHP-attribute familiarity — but is not one: no class is
-  instantiated and nothing executes. `mwl-syntax` parses the parenthesized `field: value` list directly into
+  instantiated and nothing executes. `nvs-syntax` parses the parenthesized `field: value` list directly into
   the same anonymous-object-literal AST node ADR 0036 already defines for `{field: value}`; `Name(...)` is
   parsed sugar for `Name` immediately followed by that literal, nothing more.
 - **Bare**: `#[{field: value, ...}]`. An ordinary anonymous object literal with no named shape to check
@@ -127,7 +127,7 @@ other shape-typed position already is.
 
 Every field value inside a `#[...]` literal must be a compile-time constant: a literal, another class's
 `const`, or an enum case. No variable, no function/method call, no `new`, no `$this`. This is enforced by
-`mwl-types` the same pass that already resolves constant expressions for enum case values
+`nvs-types` the same pass that already resolves constant expressions for enum case values
 ([ADR 0010](0010-enums-are-a-value-type.md)) and array sizes elsewhere.
 
 Two consequences fall out of this for free, not as separate rules:
@@ -183,7 +183,7 @@ to ask for.
   `Core\Attributes::get<Column>(User::constructor(...), "name")`.
 
 A literal `$member` string is validated against the target's real declared parameters/properties by
-`mwl check` at the call site — the same literal-inspection technique
+`nvs check` at the call site — the same literal-inspection technique
 [ADR 0033](0033-secret-qualifier-for-confidential-values.md) §4 already uses to catch a `secret` value
 reaching `Core\Log::write()` despite that call's open parameter type. Only a genuinely computed (non-literal)
 `$member` expression falls back to a runtime empty result if it names nothing real — see *Consequences*.
@@ -191,7 +191,7 @@ reaching `Core\Log::write()` despite that call's open parameter type. Only a gen
 ### 5. `get<T>` is a compile-time error on ambiguity, not a runtime one
 
 Because a declaration's attached-attribute list is fully static, `Core\Attributes::get<T>($target)` is
-resolved entirely by `mwl check`: if the target carries no literal structurally satisfying `T`, the call is
+resolved entirely by `nvs check`: if the target carries no literal structurally satisfying `T`, the call is
 replaced with a compiled-in `null`; if it carries exactly one, the call is replaced with that constant value
 directly (no lookup at all, at runtime); if it carries more than one, the call is a **compile-time
 diagnostic** (code assigned at implementation) naming `Core\Attributes::all<T>` as the fix. This is a genuine
@@ -228,7 +228,7 @@ extension). It does not open user-defined generics — that stays exactly as out
 **Negative**
 
 - Property and parameter lookup takes a `string` member name rather than a fully static reference — the one
-  place this design is less statically clean than the method/class case. `mwl check`'s literal-name
+  place this design is less statically clean than the method/class case. `nvs check`'s literal-name
   validation (§4) closes this for the overwhelmingly common literal-string case; a genuinely dynamic
   (computed) member name still only fails at runtime, returning an empty result rather than a diagnostic.
 - Repeatable attachment has no deduplication: attaching the identical literal twice keeps both copies, and
@@ -237,7 +237,7 @@ extension). It does not open user-defined generics — that stays exactly as out
 - This ADR ships no compiler-recognized attribute of its own — `#[Deprecated]`, `#[Override]`, and the still-
   deferred `#[Memoize]`/`#[Flags]` are all future work built on top of this mechanism, not delivered by it.
 - The explicit `<T>` call-site type argument (§6) is new grammar with exactly two call sites using it at
-  launch. If MWL never grows user-defined generics, this stays a narrow, single-purpose piece of syntax
+  launch. If Novis never grows user-defined generics, this stays a narrow, single-purpose piece of syntax
   rather than the first instance of a general feature.
 
 ## Alternatives rejected
@@ -271,7 +271,7 @@ extension). It does not open user-defined generics — that stays exactly as out
 
 ## Revisiting
 
-If MWL ever gains user-defined generics, reconsider whether §6's explicit `<T>` call-site syntax should
+If Novis ever gains user-defined generics, reconsider whether §6's explicit `<T>` call-site syntax should
 generalize to ordinary user code rather than staying reserved to this one pair of built-ins. If a `Foo::class`-
 style literal is ever added for an unrelated reason, reconsider whether class-level lookup should use it
 instead of the `constructor` reference — purely a syntax question, since the semantics would be identical.

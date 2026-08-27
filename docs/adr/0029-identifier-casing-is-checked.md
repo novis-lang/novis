@@ -26,12 +26,12 @@
 - PHP enforces only legal *characters*, never *case* — `php-src` itself mixes `snake_case` functions
   (`array_map`), `camelCase` methods (`DateTime::createFromFormat`) and inconsistently-cased class names.
 - [ADR 0011](0011-functions-and-constants-are-class-members.md) forced the question: PHP could dodge "what
-  casing does a method or constant take" by having free functions and global constants; MWL closed that.
+  casing does a method or constant take" by having free functions and global constants; Novis closed that.
 - More formalization than new choice — every accepted ADR's examples already followed one style by accident
   of single authorship, an accident that stops holding the moment a second contributor writes code.
 - No mainstream language hard-errors on casing with zero exceptions: Go/Haskell/Elm check only the first
   letter for *parsing*, Rust warns with a per-item escape hatch, Java/C#/Python leave it to tooling. This
-  ADR extends the pattern MWL already applies elsewhere — pick one spelling, reject the rest, no warning
+  ADR extends the pattern Novis already applies elsewhere — pick one spelling, reject the rest, no warning
   tier.
 
 ## Decision
@@ -72,9 +72,9 @@ there is no reserved name left that a casing rule has to be told to skip.
 
 ### 3. There is no suppression mechanism
 
-Unlike Rust's `#[allow(non_snake_case)]`, MWL has no attribute, pragma, or per-file opt-out for this check.
+Unlike Rust's `#[allow(non_snake_case)]`, Novis has no attribute, pragma, or per-file opt-out for this check.
 A name that must violate the convention — because it mirrors an external wire format, or comes from
-`mwl convert` unmodified — does not compile until it is renamed.
+`nvs convert` unmodified — does not compile until it is renamed.
 
 ## Diagnostics
 
@@ -98,7 +98,7 @@ re-join in the target convention) so the fix is always a one-line rename, never 
 - Every identifier's syntactic category is legible from its spelling alone, before a reader — or an IDE —
   resolves anything against a symbol table.
 - No bikeshedding is possible, and no codebase can drift into two competing house styles.
-- `mwl fmt`/`mwl-lsp` get a mechanical, always-correct rename quick-fix for free — the suggested name in
+- `nvs fmt`/`nvs-lsp` get a mechanical, always-correct rename quick-fix for free — the suggested name in
   every diagnostic *is* the quick-fix.
 - Decided while `Core`'s surface is still unwritten, so every stdlib method and constant gets named once.
 - The check needs no name resolution: every category is already a distinct AST node kind as of M1, so the
@@ -107,7 +107,7 @@ re-join in the target convention) so the fix is always a one-line rename, never 
 **Negative**
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers:
-  PHP source using `snake_case` identifiers does not compile unmodified. Mechanical for `mwl convert`
+  PHP source using `snake_case` identifiers does not compile unmodified. Mechanical for `nvs convert`
   except where a converted name collides with another after rewriting.
 - **Zero exceptions, forever.** Nothing generated, reflected into existence, or mirroring an external
   format gets a way to keep a non-conforming spelling — a mapping layer is the only route.
@@ -118,7 +118,7 @@ re-join in the target convention) so the fix is always a one-line rename, never 
 
 - **Warn instead of hard-error (Rust's model).** A warning is ignored indefinitely, and would be the only
   lint-severity check among this project's otherwise-hard diagnostics.
-- **A suppression attribute for generated/interop code.** Would be MWL's first compiler-level suppression
+- **A suppression attribute for generated/interop code.** Would be Novis's first compiler-level suppression
   mechanism of any kind — a bigger precedent than the rule itself.
 - **Acronyms as one word** (`HttpClient` required, `HTTPClient` refused). Accepted once, then revoked in
   § 1: needs a dictionary, and still breaks on adjacent acronyms.
@@ -137,8 +137,8 @@ re-join in the target convention) so the fix is always a one-line rename, never 
 
 ## Verification
 
-- Every category is a distinct AST node kind as of M1 (`crates/mwl-syntax`), so this check needs no symbol
-  resolution and is not gated on M2's checker. `crates/mwl-syntax/src/casing.rs` holds it.
+- Every category is a distinct AST node kind as of M1 (`crates/nvs-syntax`), so this check needs no symbol
+  resolution and is not gated on M2's checker. `crates/nvs-syntax/src/casing.rs` holds it.
 - A corpus entry per category: one file each for a correctly-cased and a mis-cased class, interface, enum,
   enum case, namespace segment, method, property, parameter, local and class constant, each asserting the
   exact diagnostic and suggested rename.

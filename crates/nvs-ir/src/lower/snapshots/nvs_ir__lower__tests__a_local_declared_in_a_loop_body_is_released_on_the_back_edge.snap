@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/nvs-ir/src/lower.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, array) -> void {
@@ -24,7 +24,7 @@ fn m(object, array) -> void {
     retain v9
     ; stmt s1 @4:35-7:6
     ; stmt s2 @5:7-5:38
-    v10 = core.call mwl_core_str_lower(v9) ! bb4  ; string
+    v10 = core.call nvs_core_str_lower(v9) ! bb4  ; string
     ; stmt s3 @6:7-6:17
     helper.echo_str v10 ! bb5
     release v9
@@ -41,12 +41,12 @@ fn m(object, array) -> void {
     release v0
     release v9
     release v1
-    propagate "m() at t.mwl:5"
+    propagate "m() at t.nvs:5"
   bb5:
     release v1
     release v10
     release v0
     release v9
     release v1
-    propagate "m() at t.mwl:6"
+    propagate "m() at t.nvs:6"
 }

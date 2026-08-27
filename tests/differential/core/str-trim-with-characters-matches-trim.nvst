@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::trim's `{characters}` is trim's second argument, for all three trim members
 --FILE--
-<?mwl
+<?nvs
 echo "[", Core\Str::trim("xxhixx", {characters: "x"}), "]\n";
 echo "[", Core\Str::trimStart("xxhixx", {characters: "x"}), "]\n";
 echo "[", Core\Str::trimEnd("xxhixx", {characters: "x"}), "]\n";

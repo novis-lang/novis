@@ -1,7 +1,7 @@
 --TEST--
 Integer `/` answers an integer exactly where the divisor divides and a float otherwise, and the union widens at a declared `float` — ADR 0007 §§ 2, 4
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 4 types `int / int` as `int|float` — "PHP-exact, so `6/3` is an
 // integer and `7/2` is a float" — so which of the two a pair produces is a
 // run-time question and the only thing a program can observe about it is how

@@ -1,13 +1,13 @@
 --TEST--
 `Core\Path::withExtension`'s four refusals name what stopped them, and the extension is checked before the path — spec § 8, ADR 0063 R4 and R20
 --FILE--
-<?mwl
+<?nvs
 // Spec § 8's one member that refuses four different ways, none of which had a
 // case asserting its *message*. The neighbouring `Core\Path` cases pin what the
 // decomposition members answer; this one pins where the rewriting member stops
 // accepting, what it says there, and — because two of a call's arguments can be
 // wrong at once — which of the four reasons wins.
-// `crates/mwl-stdlib/src/path.rs` owns all four.
+// `crates/nvs-stdlib/src/path.rs` owns all four.
 //
 // Every answer below is either a refusal or a single-component relative path,
 // so nothing here has to normalize `Core\Path::SEPARATOR` — except the one row

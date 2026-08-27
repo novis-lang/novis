@@ -1,7 +1,7 @@
 --TEST--
 An `int` converts into an enum only where a case names that value, and throws naming every case otherwise — ADR 0010 § 5
 --FILE--
-<?mwl
+<?nvs
 enum Mode {
     Read,
     Write,

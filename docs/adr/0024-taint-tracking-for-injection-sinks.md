@@ -19,7 +19,7 @@
 
 > **In short:** [ADR 0012](0012-no-superglobals.md) already funnels every piece of untrusted input through
 > five `Core` accessor classes — unlike PHP, where untrusted data can enter through dozens of implicit
-> paths, MWL already knows exactly where it comes from. This ADR spends that fact: a `string`/`bytes`
+> paths, Novis already knows exactly where it comes from. This ADR spends that fact: a `string`/`bytes`
 > returned by one of those classes (or by anything else that hands a script data it did not itself just
 > compute — see *Context*) carries a `tainted` qualifier, erased before codegen, that behaves like any other
 > checked type distinction in [ADR 0007](0007-explicit-type-system.md) — no implicit conversion out of it,
@@ -37,7 +37,7 @@
 - [ADR 0012](0012-no-superglobals.md) closed every ambient superglobal to a `static` method on one of five
   reserved classes, for traceability — but the type system stops at the call site: nothing distinguishes
   `Core\Request::query('id')`'s return from a source literal, so concatenating it into SQL/HTML is invisible
-  to `mwl check` — the exact gap enabling XSS and SQL injection.
+  to `nvs check` — the exact gap enabling XSS and SQL injection.
 - Prior art considered: Perl's taint mode and Google's safe-html-types/Error Prone are rejected below (see
   *Alternatives rejected*); Go's `html/template` auto-escaping is real and effective but scoped to one
   template engine's HTML case, saying nothing about SQL/shell/paths — its idea is folded into § 5 as one
@@ -54,7 +54,7 @@
 
 `tainted string` and `tainted bytes` join the type grammar as a qualified form of the two scalar types
 [ADR 0009](0009-string-and-bytes.md) already defines — not a class, not a wrapper, not a runtime tag. It is
-checked exactly once, by `mwl check`, and carries no representation at all past that point: no extra byte in
+checked exactly once, by `nvs check`, and carries no representation at all past that point: no extra byte in
 the value's header, no refcount change, no cost on the hot path. This is security bought for free under
 [ADR 0004](0004-memory-for-simplicity.md)'s ordering, the same way a `readonly` property costs nothing once
 compiled.
@@ -75,7 +75,7 @@ plain-`string` parameter quietly accepted a tainted argument — or every reques
 to launder on its very first line, a far more restrictive design than the one this ADR actually specifies in
 § 2. `tainted` must therefore be usable in ordinary, user-authored declarations, not only in `Core`'s own
 signatures — which means it needs a new reserved keyword in the lexer and a new production in the parser's
-type grammar, landing in `mwl-syntax` alongside `uint`'s own grammar addition, not deferred to M2's type
+type grammar, landing in `nvs-syntax` alongside `uint`'s own grammar addition, not deferred to M2's type
 checker the way § 2's semantic rules are. See *Consequences* and the plan's M1 paragraph.
 
 Every method on `Core\Request`, `Core\Server` (header values and any other client-influenced field —
@@ -220,7 +220,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
 
 - **A genuinely new type-checker feature, and — because § 1 requires `tainted` to be a spellable qualifier,
   not just an internal fact — a small addition to M1's grammar after that milestone's parser was already
-  reported feature-complete.** `mwl-syntax` needs one new reserved keyword and one new production before M1's
+  reported feature-complete.** `nvs-syntax` needs one new reserved keyword and one new production before M1's
   own verification (the fuzz run and the PHP-corpus parse) can be called done against ADR 0024's full scope,
   and M2's type checker then needs the qualifier axis, its poisoning propagation, and the checked-conversion
   laundering rule before M7's `Core\Request` can return anything meaningful. Caught before M1's verification
@@ -229,7 +229,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   the app itself wrote to its own session) can still be marked tainted once it round-trips through a
   persisted store this ADR treats conservatively; `Core\Taint::assertTrusted` exists for exactly this, at
   the cost of one written reason per call site.
-- **`mwl convert` gains a real, non-mechanical gap**, in the family [ADR 0009](0009-string-and-bytes.md) and
+- **`nvs convert` gains a real, non-mechanical gap**, in the family [ADR 0009](0009-string-and-bytes.md) and
   [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already carry: a ported PHP page that
   deliberately echoed raw HTML built from a variable (a common templating pattern) now gets an implicit
   escape it did not have before — a behavior change, not a syntax rewrite, and it needs a human to add
@@ -240,7 +240,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
 - **Runtime-only taint tracking (Perl's model).** Rejected: throws away the advantage a static type checker
   gives over a dynamic tag, paying a representation/per-op cost
   [ADR 0004](0004-memory-for-simplicity.md) argues against when the compile-time version is free.
-- **A bolt-on static-analysis pass outside `mwl check`**, mirroring Error Prone. Rejected on the same
+- **A bolt-on static-analysis pass outside `nvs check`**, mirroring Error Prone. Rejected on the same
   grounds [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) already used for reflection: an
   optional, skippable analysis is not the same guarantee as a compiler that refuses to emit code.
 - **Require an explicit escape call at every HTML interpolation site, no auto-escape default.** Rejected:
@@ -253,7 +253,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
 
 ## Revisiting
 
-- **If real MWL programs show the untainted-string SQL rule insufficient** — a class of query-building bugs
+- **If real Novis programs show the untainted-string SQL rule insufficient** — a class of query-building bugs
   slips through because an "untainted" string was easy to construct without real validation — reconsider the
   literal-only stricter mode rejected above.
 - **Whether `Core\Session` and `Core\Cache` reads should expose a narrower, provably-safe subtype instead of
@@ -274,11 +274,11 @@ default does not follow: § 4's other sinks still refuse rather than transform.
 
 Verification, in the order it becomes possible:
 
-- **M1**: `mwl ast` parses `tainted string`/`tainted bytes` in every declaration slot ADR 0007 already
+- **M1**: `nvs ast` parses `tainted string`/`tainted bytes` in every declaration slot ADR 0007 already
   requires a spelled type for — parameter, return, property, local, `foreach` binding — and the qualifier
   round-trips through an AST snapshot test the same way `uint` already does; folded into M1's existing fuzz
   run and PHP-corpus parse rather than a separate pass.
-- **M2**: the `mwl check` corpus [ADR 0007](0007-explicit-type-system.md) already builds gains its own
+- **M2**: the `nvs check` corpus [ADR 0007](0007-explicit-type-system.md) already builds gains its own
   entries — concatenating a `tainted` value into a sink that requires the plain type is a diagnostic naming
   the qualifier and the sink; a checked `as uint`/`as` an enum's backing type on a tainted source produces
   an unqualified result with no extra syntax; `tainted string as Markup` is refused even though

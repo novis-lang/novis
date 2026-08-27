@@ -1,7 +1,7 @@
 --TEST--
 Indexing an array of arrays, and copying an inner row out, agree with PHP
 --FILE--
-<?mwl
+<?nvs
 array<array<int>> $grid = [[1, 2], [3, 4]];
 echo $grid[0][0], "|", $grid[0][1], "|", $grid[1][0], "|", $grid[1][1], "|\n";
 

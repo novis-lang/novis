@@ -1,16 +1,16 @@
 --TEST--
 Core\Str::upperFirst/lowerFirst map the first character only, Unicode-aware — ADR 0009
 --FILE--
-<?mwl
-echo Core\Str::upperFirst("mwl rocks"), "\n";
-echo Core\Str::lowerFirst("MWL"), "\n";
+<?nvs
+echo Core\Str::upperFirst("nvs rocks"), "\n";
+echo Core\Str::lowerFirst("NVS"), "\n";
 echo Core\Str::upperFirst("élan"), "\n";
 echo Core\Str::lowerFirst("Élan"), "\n";
 echo "[", Core\Str::upperFirst(""), "]\n";
 echo Core\Str::upperFirst("Already"), "\n";
 --EXPECT--
-Mwl rocks
-mWL
+Nvs rocks
+nVS
 Élan
 élan
 []

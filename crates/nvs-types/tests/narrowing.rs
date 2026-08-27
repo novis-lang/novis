@@ -1,21 +1,21 @@
-//! Narrowing a nullable local through `!== null` — `mwl_types::locals`'
+//! Narrowing a nullable local through `!== null` — `nvs_types::locals`'
 //! narrowing section owns the rule, this is what holds it.
 //!
-//! The refusals here are as load-bearing as the acceptances: `mwl-ir` turns a
+//! The refusals here are as load-bearing as the acceptances: `nvs-ir` turns a
 //! narrowed receiver into an *unchecked* untag, so every one of these is a
 //! case where the walk must **not** claim to have proved something.
 
 mod common;
 
 use common::check_src;
-use mwl_diagnostics::{Diagnostics, code};
+use nvs_diagnostics::{Diagnostics, code};
 
 /// Wraps `body` in a method taking a `?Node` — the shape most of these cases
 /// are written over, not the only one that narrows (see
 /// [`a_nullable_scalar_and_a_nullable_array_both_narrow`]).
 fn check_with_node(body: &str) -> Diagnostics {
     check_src(&format!(
-        "<?mwl\nclass Node {{\n  function label(): string {{ return \"n\"; }}\n}}\n\
+        "<?nvs\nclass Node {{\n  function label(): string {{ return \"n\"; }}\n}}\n\
          class T {{\n  function m(?Node $n): void {{\n{body}\n  }}\n}}\n"
     ))
 }
@@ -100,7 +100,7 @@ fn a_write_inside_a_loop_body_widens_the_local_after_it() {
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
 
-/// ADR 0090 § 1 left one spelling, and `mwl_types::locals`' `null_test` reads
+/// ADR 0090 § 1 left one spelling, and `nvs_types::locals`' `null_test` reads
 /// it: `!= null`/`== null` is the narrowing test, where while both operator
 /// pairs existed it had to be `!==`/`===` to stay clear of PHP's truthy table.
 /// § 2 is what keeps it a question only a *nullable* binding can be asked —
@@ -111,7 +111,7 @@ fn an_equality_null_test_narrows() {
         check_with_node("if ($n != null) {\n  echo $n->label();\n} else {\n  echo \"none\";\n}\n");
     assert!(!diags.has_errors(), "{diags:?}");
     let refused = check_src(
-        "<?mwl\nclass Node {\n  function label(): string { return \"n\"; }\n}\n\
+        "<?nvs\nclass Node {\n  function label(): string { return \"n\"; }\n}\n\
          class T {\n  function m(Node $n): void {\n    if ($n != null) {\n      \
          echo $n->label();\n    }\n  }\n}\n",
     );
@@ -125,12 +125,12 @@ fn an_equality_null_test_narrows() {
 
 /// Every `?T` narrows to whatever dropping `null` leaves — a scalar and an
 /// `array<T>` alike, not only the single class this once restricted itself
-/// to. [`mwl_types::locals`]'s `narrow` owns what lifted that restriction, and
-/// `mwl_types::expr_table::ExprInfo::NarrowedRead` is the half below it.
+/// to. [`nvs_types::locals`]'s `narrow` owns what lifted that restriction, and
+/// `nvs_types::expr_table::ExprInfo::NarrowedRead` is the half below it.
 #[test]
 fn a_nullable_scalar_and_a_nullable_array_both_narrow() {
     let diags = check_src(
-        "<?mwl\nclass T {\n  function m(?int $v, ?array<string> $rows): void {\n    \
+        "<?nvs\nclass T {\n  function m(?int $v, ?array<string> $rows): void {\n    \
          if ($v !=null) {\n      int $w = $v;\n      echo $w;\n    }\n    \
          if ($rows !=null) {\n      string $first = $rows[\"0\"];\n      echo $first;\n    \
          }\n  }\n}\n",
@@ -143,7 +143,7 @@ fn a_nullable_scalar_and_a_nullable_array_both_narrow() {
 #[test]
 fn a_foreach_binding_over_the_narrowed_name_widens_it() {
     let diags = check_src(
-        "<?mwl\nclass Node {\n  function label(): string { return \"n\"; }\n}\n\
+        "<?nvs\nclass Node {\n  function label(): string { return \"n\"; }\n}\n\
          class T {\n  function m(?Node $n, array<?Node> $all): void {\n    \
          if ($n == null) {\n      return;\n    }\n    \
          foreach ($all as ?Node $n) {\n      echo \"x\";\n    }\n    \

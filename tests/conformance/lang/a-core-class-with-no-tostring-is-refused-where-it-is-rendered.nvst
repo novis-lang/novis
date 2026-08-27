@@ -1,10 +1,10 @@
 --TEST--
 All four rendering spellings agree that a `Core`-owned class the spec gives no `toString` is `E0710` where it is written, and none of them fires on one that has it — ADR 0028 § 1
 --FILE--
-<?mwl
+<?nvs
 // ADR 0028 § 1 makes `Stringable` the one way an object renders. A `Core`
 // class declares no interfaces to prove it against — its members are
-// `mwl_stdlib::registry` rows backed by native symbols — so that registry
+// `nvs_stdlib::registry` rows backed by native symbols — so that registry
 // is the one home for which `Core` classes render, and one it gives no
 // `toString` is refused where it is written rather than below it.
 class Render {

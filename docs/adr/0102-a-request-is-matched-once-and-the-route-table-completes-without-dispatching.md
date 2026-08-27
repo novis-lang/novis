@@ -56,7 +56,7 @@
   reader's head, per this repository's one-home rule.
 - **The rest are the gaps a real application finds first.** They were not overlooked;
   [0077](0077-compile-time-routing.md) deliberately shipped a minimum and named several of them in its own
-  *Revisiting*. What has changed is that [0082](0082-the-first-party-framework.md) committed MWL to
+  *Revisiting*. What has changed is that [0082](0082-the-first-party-framework.md) committed Novis to
   shipping a framework and [0085](0085-openapi-is-generated-from-the-route-table.md) committed it to
   generating an API contract — and both of those consume the route table, so a hole in it is now a hole in
   two shipped promises rather than an inconvenience to one application.
@@ -267,7 +267,7 @@ falling back to `[app] origin`:
 origin = "https://app.example.com"        # fallback
 
 [[server.mount]]
-scan   = "*/public/index.mwl"
+scan   = "*/public/index.nvs"
 host   = "{1}.example.com"
 origin = "https://{1}.example.com"        # one line, every tenant
 ```
@@ -301,7 +301,7 @@ so feeding one to a query launders normally.
 compiled table would destroy the property [0097](0097-development-server-and-proxied-origin.md) § 3 bought:
 *"the same compiled route table serves at `/ModuleA`, at `/ModuleB` or at `/`, with no recompile."* It is
 also the same lifetime argument [0077](0077-compile-time-routing.md) already used to keep routes out of
-`mwl.toml`, read in the other direction — **a path is source state and a hostname is deployment state**, so
+`nvs.toml`, read in the other direction — **a path is source state and a hostname is deployment state**, so
 each belongs where it changes. It would additionally force the duplicate-route compile error to grow a host
 dimension, weakening one of the three checks that ADR exists for.
 
@@ -411,7 +411,7 @@ to this one before the rule was written down.
   argument for it is weak because a `GET` already reveals the path exists.
 - **Deleting [0085](0085-openapi-is-generated-from-the-route-table.md)'s query row** instead of § 3's
   binding. Rejected: it leaves every endpoint hand-validating its own query and the generated contract
-  silently missing most of its parameters, which for [0080](0080-the-audience-mwl-is-built-for.md)'s
+  silently missing most of its parameters, which for [0080](0080-the-audience-nvs-is-built-for.md)'s
   audience is most of the document's value.
 - **A `query:` field on `#[Route]`** rather than a sibling attribute. Rejected: it puts a binding list at a
   distance from the parameters it names, and
@@ -492,4 +492,4 @@ to this one before the rule was written down.
   `mount().captures[0]` is the host glob's `{1}` and is `tainted` — checked by a fixture that would not
   compile if the qualifier were wrong.
 - **Boot:** a mount whose unit contains a literal `urlAbsolute` call and resolves no `origin` is a boot
-  error, and the check re-runs on `mwl ctl reload` with a newly scanned mount.
+  error, and the check re-runs on `nvs ctl reload` with a newly scanned mount.

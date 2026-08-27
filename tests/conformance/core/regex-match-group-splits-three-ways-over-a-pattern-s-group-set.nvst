@@ -1,7 +1,7 @@
 --TEST--
 `Core\Regex\Match::group` answers three different things over a pattern's whole group set and refuses everything outside it, quoting back the key it was handed — spec § 5, ADR 0063 R4 and R5
 --FILE--
-<?mwl
+<?nvs
 // R3: the match *is* the return value, and `matchAll` binds a `Core\Regex\Match`
 // rather than the `?Match` `match` answers — which is what lets the sweep below
 // reach the members without a `?->` on every line conflating two kinds of null.

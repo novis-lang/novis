@@ -1,6 +1,6 @@
 [package]
-name = "mwl-diagnostics"
-description = "Source positions, source maps and diagnostic rendering for MWL"
+name = "nvs-diagnostics"
+description = "Source positions, source maps and diagnostic rendering for Novis"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

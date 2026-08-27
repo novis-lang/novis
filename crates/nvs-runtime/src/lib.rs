@@ -1,16 +1,16 @@
-//! MWL's runtime: the half of the execution model that is ordinary Rust.
+//! Novis's runtime: the half of the execution model that is ordinary Rust.
 //!
-//! `mwl-codegen` compiles an [`mwl_ir`]-shaped function to native code; this
+//! `nvs-codegen` compiles an [`nvs_ir`]-shaped function to native code; this
 //! crate owns everything that code *calls into* or *manipulates by pointer* —
 //! the calling convention, the value representation, the heap layout of a
 //! refcounted string, the per-request context, and the small closed set of
 //! engine-owned helper functions.
 //!
-//! [`mwl_ir`]: ../mwl_ir/index.html
+//! [`nvs_ir`]: ../nvs_ir/index.html
 //!
-//! It deliberately has **no dependency on any other MWL crate**, not even
-//! `mwl-ir`. It sits at the bottom of the stack: `mwl-codegen` depends on both
-//! and is the one place that maps an `mwl_ir::Helper` tag to a symbol name
+//! It deliberately has **no dependency on any other Novis crate**, not even
+//! `nvs-ir`. It sits at the bottom of the stack: `nvs-codegen` depends on both
+//! and is the one place that maps an `nvs_ir::Helper` tag to a symbol name
 //! from [`symbols`]. That keeps this crate testable on its own — every test
 //! below runs without a backend existing at all.
 //!
@@ -21,18 +21,18 @@
 //!    `extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32`. Nothing
 //!    unwinds through a JIT frame; a failure travels in the return value as
 //!    [`OK`]/[`THROWN`]/[`FATAL`]. Every helper is written through
-//!    [`mwl_helper!`], which supplies the mandatory `catch_unwind` wrapper —
+//!    [`nvs_helper!`], which supplies the mandatory `catch_unwind` wrapper —
 //!    that wrapper is what contains a runtime panic to one request, and it is
 //!    why `panic = "unwind"` is set in every profile of the workspace
 //!    `Cargo.toml`.
 //! 2. **The value representation** is `docs/implementation-plan.md`'s
 //!    § *Value representation*: a 16-byte tagged [`Value`]. Not NaN-boxed —
 //!    PHP semantics need the full `i64` range.
-//! 3. **Memory is refcounted**, copy-on-write. [`MwlStr`] is the first such
+//! 3. **Memory is refcounted**, copy-on-write. [`NvsStr`] is the first such
 //!    representation to land, and the one the `Hello, World!` slice needs;
-//!    [`MwlObj`] is the second, and [`object`]'s own docs are the one home for
+//!    [`NvsObj`] is the second, and [`object`]'s own docs are the one home for
 //!    every decision behind it — the field-slot width, the subclass layout
-//!    rule and the opaque [`ClassDesc`]; [`MwlArray`] is the third, and
+//!    rule and the opaque [`ClassDesc`]; [`NvsArray`] is the third, and
 //!    [`mod@array`]'s own docs are the one home for its ordered hash, its
 //!    consume-one-reference-return-one mutation protocol, and the only place
 //!    "copy-on-write" is literally true today. [`release`] owns the single
@@ -41,16 +41,16 @@
 //! # A tagged value's heap half: none
 //!
 //! `mixed`, `?T` and every other union share one representation in compiled
-//! code — `mwl_ir::Ty::Tagged`, whose own doc comment owns the decision. What
+//! code — `nvs_ir::Ty::Tagged`, whose own doc comment owns the decision. What
 //! belongs *here* is the half this crate provides, and it is deliberately
 //! small: **a tagged value allocates nothing.** It is a [`Value`] carried in a
 //! register pair rather than a pointer to a box, so its two halves are the two
 //! halves of the struct above and materializing one into an argument slot is
 //! two stores. The only new primitive it needed is the pair
-//! [`mwl_value_retain`]/[`mwl_value_release`], which take those two halves and
+//! [`nvs_value_retain`]/[`nvs_value_release`], which take those two halves and
 //! branch on the tag — the whole of what "its payload may or may not be
 //! refcounted" costs, and an out-of-line call where a statically-typed value
-//! calls [`mwl_str_retain`] or [`mwl_object_retain`] directly. No new tag, no
+//! calls [`nvs_str_retain`] or [`nvs_object_retain`] directly. No new tag, no
 //! new heap shape, no second release path: [`release`]'s one worklist already
 //! frees whatever the payload turns out to be.
 //!
@@ -63,7 +63,7 @@
 //!
 //! [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) makes `bytes` a
 //! scalar of its own, and it lands here as **one new [`Tag`] row over the
-//! existing [`MwlStr`] allocation**. A `bytes` payload is a [`StrHeader`]
+//! existing [`NvsStr`] allocation**. A `bytes` payload is a [`StrHeader`]
 //! pointer, allocated, retained, released and freed by exactly the machinery
 //! `string` already has; what differs is the tag byte, and nothing else.
 //!
@@ -105,24 +105,24 @@
 //! # What is here, and what is deliberately not
 //!
 //! This is the runtime half of milestone M3's vertical slice (see
-//! `docs/agent/loop-goal.md`), landed before `mwl-codegen` exists because it is
+//! `docs/agent/loop-goal.md`), landed before `nvs-codegen` exists because it is
 //! testable without one. It covers exactly:
 //!
 //! * the ABI surface — [`OK`]/[`THROWN`]/[`FATAL`], [`Value`], [`Ctx`],
-//!   [`MwlFn`], [`mwl_helper!`], and the safe [`call`] wrapper tests and
+//!   [`NvsFn`], [`nvs_helper!`], and the safe [`call`] wrapper tests and
 //!   codegen tests both go through;
-//! * [`MwlStr`], the refcounted single-allocation string, with the
-//!   `mwl_str_new`/`mwl_str_concat`/`mwl_str_concat_n`/`mwl_str_append`/
-//!   `mwl_str_retain`/`mwl_str_release` primitives backing
-//!   `mwl_ir::InstKind::ConstStr`/`Concat`/`StrAppend`/`Retain`/`Release`;
-//! * the [`SafepointFlags`] word and `mwl_safepoint` slow path backing
-//!   `mwl_ir::InstKind::Safepoint`, and the [`DebugFlags`] word
+//! * [`NvsStr`], the refcounted single-allocation string, with the
+//!   `nvs_str_new`/`nvs_str_concat`/`nvs_str_concat_n`/`nvs_str_append`/
+//!   `nvs_str_retain`/`nvs_str_release` primitives backing
+//!   `nvs_ir::InstKind::ConstStr`/`Concat`/`StrAppend`/`Retain`/`Release`;
+//! * the [`SafepointFlags`] word and `nvs_safepoint` slow path backing
+//!   `nvs_ir::InstKind::Safepoint`, and the [`DebugFlags`] word
 //!   [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-//!   § 1's probe sites check, with [`mwl_probe_stmt`] as the
+//!   § 1's probe sites check, with [`nvs_probe_stmt`] as the
 //!   statement-boundary probe's slow path;
-//! * every `mwl_ir::Helper` variant — see [`helpers`];
-//! * the pending exception, with the [`mwl_raise`]/[`mwl_raise_new`]/
-//!   [`mwl_trace_push`]/[`mwl_take_thrown`] primitives behind it. The value
+//! * every `nvs_ir::Helper` variant — see [`helpers`];
+//! * the pending exception, with the [`nvs_raise`]/[`nvs_raise_new`]/
+//!   [`nvs_trace_push`]/[`nvs_take_thrown`] primitives behind it. The value
 //!   itself is an ordinary [`ObjHeader`] — see [`throwable`]'s own docs for
 //!   why there is no second representation, which slots the runtime reaches by
 //!   index, and why the backtrace is built as the throw propagates rather than
@@ -132,17 +132,17 @@
 //! * [`FaultSite`], the closed set of failures a run can be *asked* to
 //!   produce, so a contained engine panic — which has no user-facing trigger
 //!   by definition — is testable at all;
-//! * [`MwlObj`]/[`ObjHeader`]/[`ClassDesc`]/[`ClassTable`], M4's class-instance
-//!   representation, with the `mwl_object_new`/`_retain`/`_release`/
+//! * [`NvsObj`]/[`ObjHeader`]/[`ClassDesc`]/[`ClassTable`], M4's class-instance
+//!   representation, with the `nvs_object_new`/`_retain`/`_release`/
 //!   `_instanceof`/`_field_get`/`_field_set`/`_class_name` primitives behind
-//!   `mwl_ir::InstKind::New`/`FieldGet`/`FieldSet` and an instance
-//!   `InstKind::Call`'s receiver. Landed before `mwl-codegen` can emit any of
-//!   them, for the same reason [`MwlStr`] was: it is testable without a
+//!   `nvs_ir::InstKind::New`/`FieldGet`/`FieldSet` and an instance
+//!   `InstKind::Call`'s receiver. Landed before `nvs-codegen` can emit any of
+//!   them, for the same reason [`NvsStr`] was: it is testable without a
 //!   backend, and the layout is what codegen queries rather than restates;
-//! * [`MwlArray`]/[`ArrayHeader`], M4's array representation, with the
-//!   `mwl_array_new`/`_retain`/`_release`/`_get`/`_set`/`_append`/`_unset`/
+//! * [`NvsArray`]/[`ArrayHeader`], M4's array representation, with the
+//!   `nvs_array_new`/`_retain`/`_release`/`_get`/`_set`/`_append`/`_unset`/
 //!   `_has_key`/`_count`/`_next_slot`/`_key_at`/`_value_at` primitives behind
-//!   `mwl_ir::InstKind::ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` and the
+//!   `nvs_ir::InstKind::ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` and the
 //!   `foreach` cursor. Landed ahead of the codegen that emits them, same as
 //!   the two above;
 //! * [`Decimal`], ADR 0054's scalar — sign, a 96-bit mantissa and a scale of
@@ -157,18 +157,18 @@
 //!   identity *means* — including what it means for an object — is
 //!   [`identity`]'s own docs, which is the home
 //!   `docs/agent/loop-goal.md` names for that decision. It lives here rather
-//!   than in `mwl-stdlib` because `Core\Arr`'s set members, `ObjectSet`,
+//!   than in `nvs-stdlib` because `Core\Arr`'s set members, `ObjectSet`,
 //!   `ObjectMap` **and the `==` operator itself** all ask the same question,
 //!   and a second answer would be a second set of PHP-divergence rules nothing
 //!   keeps in step. Compiled code enters it by whichever door its operands'
-//!   static types justify — [`mwl_array_eq`], [`mwl_str_eq`], an inline
-//!   pointer comparison, or `mwl_value_identical` for a `mixed` operand — and
+//!   static types justify — [`nvs_array_eq`], [`nvs_str_eq`], an inline
+//!   pointer comparison, or `nvs_value_identical` for a `mixed` operand — and
 //!   [`identity`]'s docs own that choice too;
 //! * the **allocator itself**. Every optimized binary that links this crate
 //!   runs on `alloc::Pooled`, a per-thread cache of small blocks in front of
 //!   [`System`](std::alloc::System) — a `#[global_allocator]` is chosen once
 //!   for a whole crate graph, so this crate choosing one chooses it for
-//!   `mwl-cli` and for anything embedding the runtime. **What it spends**, per
+//!   `nvs-cli` and for anything embedding the runtime. **What it spends**, per
 //!   [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s *say what
 //!   you spend*: at most **~2 MB per thread** that has touched every size
 //!   class — 16 classes of 16 bytes up to 256, 512 blocks each — held until
@@ -194,11 +194,11 @@
 //!    representation* names them; nothing constructs one. `Object` and `Array`
 //!    no longer belong on this list — see [`object`] and [`mod@array`].
 //! 2. **Appending is the only string operation with an in-place fast path.**
-//!    [`mwl_str_append`] writes into its target's spare capacity at a
+//!    [`nvs_str_append`] writes into its target's spare capacity at a
 //!    `refcount == 1`, so `$out .= $piece` is linear; every other producer —
-//!    [`mwl_str_concat`], [`mwl_str_concat_n`], every `Core\Str` member —
-//!    allocates its result. That is a widening of [`MwlStr`] wherever a
-//!    producer can prove sole ownership, not a redesign, and [`MwlArray`]'s
+//!    [`nvs_str_concat`], [`nvs_str_concat_n`], every `Core\Str` member —
+//!    allocates its result. That is a widening of [`NvsStr`] wherever a
+//!    producer can prove sole ownership, not a redesign, and [`NvsArray`]'s
 //!    copy-on-write is the shape it would take.
 //! 3. **`Ctx` carries no coroutine yielder and no request arena.** Both are
 //!    M4/M5 (`benches/abi-probe`'s own `Ctx` shows the yielder shape ADR 0002
@@ -206,21 +206,21 @@
 //! 4. **No custom panic hook is installed.** ADR 0002 § *Corollary* wants the
 //!    panic message routed to the request log with its request id; there is
 //!    no request log until M5, and the default hook's stderr output is the
-//!    right destination for a CLI script until then. [`mwl_helper!`] already
+//!    right destination for a CLI script until then. [`nvs_helper!`] already
 //!    captures the message into [`Ctx`], so the hook is presentation, not
 //!    containment.
-//! 5. **`mwl_safepoint` acts on two of its four flags.** `CPU_LIMIT` and
+//! 5. **`nvs_safepoint` acts on two of its four flags.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; `COLLECT` and `DEBUG_BREAK` are cleared and
-//!    ignored, since neither the cycle collector nor `mwl dap` exists.
+//!    ignored, since neither the cycle collector nor `nvs dap` exists.
 //! 6. **An exception *this crate* builds carries a message and nothing
-//!    else.** [`Thrown::new`] — reached from [`mwl_raise_new`] and from a
+//!    else.** [`Thrown::new`] — reached from [`nvs_raise_new`] and from a
 //!    helper's bare-message [`Fault`] — fills `message`, empties `backtrace`
 //!    and `location`, and leaves `previous` null, because none of the three
-//!    has a value to pass at that point. An exception MWL code constructs is
+//!    has a value to pass at that point. An exception Novis code constructs is
 //!    unaffected: it is an ordinary [`ObjHeader`] built by an ordinary
-//!    constructor, and `mwl_ir::lower` fills `location` at the `throw`. That
+//!    constructor, and `nvs_ir::lower` fills `location` at the `throw`. That
 //!    `previous` cannot be set *at all* yet is a different gap, owned by
-//!    `mwl_types::error_lib`, which explains why the synthesized constructor
+//!    `nvs_types::error_lib`, which explains why the synthesized constructor
 //!    takes only a message.
 //! 7. **There is no cycle collector, by decision rather than by omission.** A
 //!    cyclic object or array graph is retained until the process exits. The wholesale
@@ -265,7 +265,7 @@ mod value;
 #[global_allocator]
 static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
-/// MWL owns its allocator in every optimized build, and every binary that
+/// Novis owns its allocator in every optimized build, and every binary that
 /// links this crate gets it: a `#[global_allocator]` is chosen once for the
 /// whole crate graph. See [`alloc`] for what the per-thread cache spends and
 /// why a debug build is deliberately left on the platform heap.
@@ -278,14 +278,14 @@ static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 static POOLED_ALLOCATOR: alloc::Pooled = alloc::Pooled;
 
 pub use abi::{
-    EXITED, FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, affordable, call, run_helper,
+    EXITED, FATAL, Fault, HelperFn, HelperResult, NvsFn, OK, THROWN, affordable, call, run_helper,
 };
-pub use arith::mwl_float_pow;
+pub use arith::nvs_float_pow;
 pub use array::{
-    ARRAY_REFCOUNT_OFFSET, ArrayHeader, MwlArray, SlotKey, mwl_array_append, mwl_array_count,
-    mwl_array_get, mwl_array_get_index, mwl_array_has_key, mwl_array_key_at, mwl_array_new,
-    mwl_array_next_slot, mwl_array_release, mwl_array_retain, mwl_array_set, mwl_array_set_index,
-    mwl_array_unset, mwl_array_value_at,
+    ARRAY_REFCOUNT_OFFSET, ArrayHeader, NvsArray, SlotKey, nvs_array_append, nvs_array_count,
+    nvs_array_get, nvs_array_get_index, nvs_array_has_key, nvs_array_key_at, nvs_array_new,
+    nvs_array_next_slot, nvs_array_release, nvs_array_retain, nvs_array_set, nvs_array_set_index,
+    nvs_array_unset, nvs_array_value_at,
 };
 pub use closure::{
     CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT,
@@ -294,31 +294,31 @@ pub use closure::{
 pub use ctx::{
     CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Ctx, DEBUG_FLAGS_OFFSET, DebugFlags,
     ErrorClass, FaultSite, OutputSink, SAFEPOINT_OFFSET, STACK_CEILING, STACK_LIMIT_OFFSET,
-    STACK_RESERVE, STATICS_OFFSET, SafepointFlags, TraceEvent, is_carrier, mwl_probe_call_enter,
-    mwl_probe_call_exit, mwl_probe_stmt, mwl_safepoint, mwl_stack_check,
+    STACK_RESERVE, STATICS_OFFSET, SafepointFlags, TraceEvent, is_carrier, nvs_probe_call_enter,
+    nvs_probe_call_exit, nvs_probe_stmt, nvs_safepoint, nvs_stack_check,
 };
 pub use decimal::Decimal;
 pub use dispatch::{call_method, call_render, method_address};
 pub use fmt::php_float_to_string;
 pub use helpers::{stringify, symbols, value_to_string, value_truthy};
 pub use identity::{
-    mwl_array_eq, numeric_identical, numeric_ordering, value_hash, value_identical,
+    numeric_identical, numeric_ordering, nvs_array_eq, value_hash, value_identical,
 };
 pub use object::{
     CONSTRUCTOR, ClassDesc, ClassId, ClassTable, CodecField, CodecTy, FIELD_STRIDE, FIELDS_OFFSET,
-    FieldDefault, MwlObj, OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader, construct,
-    field_offset, mwl_abstract_method, mwl_class_method, mwl_object_class_name,
-    mwl_object_field_get, mwl_object_field_set, mwl_object_instanceof, mwl_object_new,
-    mwl_object_release, mwl_object_retain, mwl_object_slot_get, mwl_object_slot_set,
-    mwl_value_instanceof,
+    FieldDefault, NvsObj, OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader, construct,
+    field_offset, nvs_abstract_method, nvs_class_method, nvs_object_class_name,
+    nvs_object_field_get, nvs_object_field_set, nvs_object_instanceof, nvs_object_new,
+    nvs_object_release, nvs_object_retain, nvs_object_slot_get, nvs_object_slot_set,
+    nvs_value_instanceof,
 };
 pub use string::{
-    CAP_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET, MwlStr, PAYLOAD_OFFSET,
-    REFCOUNT_OFFSET, StrHeader, StrWriter, immortal_header_bytes, mwl_str_append, mwl_str_concat,
-    mwl_str_concat_n, mwl_str_eq, mwl_str_new, mwl_str_release, mwl_str_retain,
+    CAP_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET, NvsStr, PAYLOAD_OFFSET,
+    REFCOUNT_OFFSET, StrHeader, StrWriter, immortal_header_bytes, nvs_str_append, nvs_str_concat,
+    nvs_str_concat_n, nvs_str_eq, nvs_str_new, nvs_str_release, nvs_str_retain,
 };
 pub use throwable::{
     BACKTRACE_SLOT, ISSUES_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT, Thrown,
-    ThrownClass, mwl_raise, mwl_raise_new, mwl_take_thrown, mwl_trace_push,
+    ThrownClass, nvs_raise, nvs_raise_new, nvs_take_thrown, nvs_trace_push,
 };
-pub use value::{Tag, Value, mwl_value_release, mwl_value_retain};
+pub use value::{Tag, Value, nvs_value_release, nvs_value_retain};

@@ -1,7 +1,7 @@
 --TEST--
 Core\Regex::split reads `limit` the way Core\Str::split does, and drops empties only on request
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::join(Core\Regex::split("The Quick,  brown FOX", "[,\\s]+"), "|"), "\n";
 echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d"), "|"), "\n";
 echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d", {limit: 2}), "|"), "\n";

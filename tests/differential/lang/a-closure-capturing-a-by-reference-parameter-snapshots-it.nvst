@@ -1,7 +1,7 @@
 --TEST--
 A closure capturing an enclosing `inout $x` parameter snapshots the cell's value where the literal is written, agrees with PHP either side of a later write to it, and still answers after the call that staged the cell returned — ADR 0031 § 2
 --FILE--
-<?mwl
+<?nvs
 final class Snap {
     // Three literals over the same two by-reference cells: one written before
     // `$s` is rewritten and one after, so a capture that aliased the cell

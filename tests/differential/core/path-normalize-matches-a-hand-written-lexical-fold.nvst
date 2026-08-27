@@ -1,7 +1,7 @@
 --TEST--
 Core\Path::normalize agrees with a hand-written fold of `.` and `..`, which is the half of PHP's realpath that does not touch the disk, from docs/spec/01-core-library.md § 8
 --FILE--
-<?mwl
+<?nvs
 // PHP's `realpath` is the wrong side of this pair: it stats the disk, follows
 // symlinks, and answers `false` for a path that does not exist, so not one row
 // below can be asked of it. `Core\Path::normalize` is realpath's *lexical*
@@ -10,7 +10,7 @@ Core\Path::normalize agrees with a hand-written fold of `.` and `..`, which is t
 // already uses for § 6.2.2. That makes this a genuine second implementation
 // rather than a restatement of the first.
 //
-// No subject spells a `\`: MWL reads both separators on every platform where
+// No subject spells a `\`: Novis reads both separators on every platform where
 // PHP reads `\` on Windows only, so a backslash row would pass one leg and
 // fail the other.
 final class Norm {

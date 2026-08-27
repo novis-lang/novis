@@ -1,29 +1,29 @@
-# ADR 0065 — Attribution is generated, committed and embedded; `mwl info` is the one call
+# ADR 0065 — Attribution is generated, committed and embedded; `nvs info` is the one call
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
-- **Scope:** which third-party licenses MWL may ship under, how the notice satisfying them is produced
-  and kept current, where it is distributed, and the `mwl info` command that prints it alongside the
-  build and host facts. Not in scope: MWL's own license, which is MIT and stated in
-  [LICENSE](../../LICENSE); and not what a `.mwlx` extension's own dependencies oblige *its* author to,
+- **Scope:** which third-party licenses Novis may ship under, how the notice satisfying them is produced
+  and kept current, where it is distributed, and the `nvs info` command that prints it alongside the
+  build and host facts. Not in scope: Novis's own license, which is MIT and stated in
+  [LICENSE](../../LICENSE); and not what a `.nvsx` extension's own dependencies oblige *its* author to,
   which [ADR 0003](0003-extension-system.md) leaves to the extension.
 - **Amends:** none. It gives [deny.toml](../../deny.toml)'s existing `licenses.allow` list a second
   reader — `tools/gen-attribution.py` fails if the two disagree — but does not change what it allows.
 - **Amended by:** none.
 
-> **In short:** MWL is MIT and links ~80 permissive components, every one of which asks the same thing
+> **In short:** Novis is MIT and links ~80 permissive components, every one of which asks the same thing
 > in return — reproduce the notice with the binary. That obligation is met by a **generated file**,
 > `THIRD-PARTY-LICENSES.txt`, produced by `tools/gen-attribution.py` from the resolved dependency graph,
-> **committed** so the repository carries it, and **`include_str!`d into the `mwl` binary** so a copy
+> **committed** so the repository carries it, and **`include_str!`d into the `nvs` binary** so a copy
 > handed to someone without the repository carries it too. CI regenerates and diffs it, so a dependency
 > added without its notice fails the build rather than shipping unattributed. One command prints all of
-> it: **`mwl info`** — build, host and component summary — and **`mwl info --licenses`** — every license
-> text in full, MWL's own included. `mwl -i` is the same command under PHP's spelling.
+> it: **`nvs info`** — build, host and component summary — and **`nvs info --licenses`** — every license
+> text in full, Novis's own included. `nvs -i` is the same command under PHP's spelling.
 
 ## Context
 
-- MWL is distributed two ways that both trigger the obligation: as source on GitHub, and as a compiled
-  `mwl` binary — which [ADR 0048](0048-portable-single-file-executables.md) then lets a user append their
+- Novis is distributed two ways that both trigger the obligation: as source on GitHub, and as a compiled
+  `nvs` binary — which [ADR 0048](0048-portable-single-file-executables.md) then lets a user append their
   own program to and hand onwards. A notice that exists only in the repository covers the first and
   neither of the others.
 - Every license in [deny.toml](../../deny.toml)'s allow list is permissive, and every one of them
@@ -45,7 +45,7 @@
 ### 1. The notice is generated from the dependency graph, never written by hand
 
 `tools/gen-attribution.py` produces `THIRD-PARTY-LICENSES.txt` at the repository root. It walks the
-normal and build dependencies reachable from `mwl-cli` — the package that actually ships — reads each
+normal and build dependencies reachable from `nvs-cli` — the package that actually ships — reads each
 component's own license file from its source, and emits a component table plus the license texts.
 
 Four properties are load-bearing:
@@ -67,7 +67,7 @@ Four properties are load-bearing:
   beside it. An `AND` keeps every conjunct, because that is what "and" means.
 
 Dev-dependencies are excluded. `criterion`, `insta` and `proptest` are linked into nothing a user
-receives, and attributing them would overstate what MWL distributes.
+receives, and attributing them would overstate what Novis distributes.
 
 ### 2. The generated file is committed, and CI diffs it
 
@@ -80,9 +80,9 @@ dependency changes, and it keeps the build from depending on network access or o
 
 ### 3. The notice is embedded in the binary
 
-`crates/mwl-cli/src/info.rs` embeds `THIRD-PARTY-LICENSES.txt` and `LICENSE` with `include_str!`, so
+`crates/nvs-cli/src/info.rs` embeds `THIRD-PARTY-LICENSES.txt` and `LICENSE` with `include_str!`, so
 the notice and the binary it describes are produced from one tree in one compile and cannot drift.
-MWL's own MIT text is embedded for the same reason the third-party texts are: a binary handed to
+Novis's own MIT text is embedded for the same reason the third-party texts are: a binary handed to
 someone without the repository is still a copy of the software, and MIT asks that its text accompany
 it.
 
@@ -90,31 +90,31 @@ The cost is roughly 55 KB of read-only data in a binary measured in tens of mega
 [ADR 0004](0004-memory-for-simplicity.md)'s ordering this is not a trade-off worth discussing — it is
 priority 5 spent on a legal obligation, and it never touches a request path.
 
-`mwl info` slices that one embedded file at its two section headings rather than re-formatting it, so
+`nvs info` slices that one embedded file at its two section headings rather than re-formatting it, so
 there is exactly one rendering of the component table and it is the one a reader can also open in the
-repository. `crates/mwl-cli/src/info.rs` and `tools/gen-attribution.py` each carry the other half of
+repository. `crates/nvs-cli/src/info.rs` and `tools/gen-attribution.py` each carry the other half of
 that agreement, and a unit test fails if either is changed alone.
 
-### 4. `mwl info` is the one call, and `mwl -i` is its PHP spelling
+### 4. `nvs info` is the one call, and `nvs -i` is its PHP spelling
 
 ```
-mwl info                # build, host and licensing facts, plus the component table
-mwl info --licenses     # the same, plus every license text in full
-mwl -i / mwl -i --licenses
+nvs info                # build, host and licensing facts, plus the component table
+nvs info --licenses     # the same, plus every license text in full
+nvs -i / nvs -i --licenses
 ```
 
 The default is the summary because the full texts are ~55 KB and a terminal is the wrong place to put
 them unasked; both are one call, and the second is the complete legal record. The report is plain
 two-column text with no colour and no paging, so it pipes.
 
-This is the one place in MWL where an operation is deliberately reachable two ways.
+This is the one place in Novis where an operation is deliberately reachable two ways.
 [ADR 0063](0063-core-api-conventions.md) R-"no operation reachable two ways" governs the `Core` library
 API, not the CLI, and the reason for the exception is specific: `-i` is the spelling a PHP developer
 will try first, and the whole point of this command is that nobody should have to hunt for it.
 Combining `-i` with a subcommand is refused rather than guessed at.
 
-Fields that do not exist yet are not printed. `mwl info` grows a configuration section when
-[ADR 0005](0005-config-changeability.md)'s `mwl.toml` lands in M6, an artifact-cache section with
+Fields that do not exist yet are not printed. `nvs info` grows a configuration section when
+[ADR 0005](0005-config-changeability.md)'s `nvs.toml` lands in M6, an artifact-cache section with
 [ADR 0042](0042-on-disk-artifact-cache-format.md) in the same milestone, and a loaded-extension section
 with [ADR 0003](0003-extension-system.md) in M9. It reports no per-request state, ever — that is
 [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s territory and is
@@ -124,7 +124,7 @@ flag-gated for reasons this command does not share.
 
 `build.rs` records the target, host, profile, `rustc --version`, the Cranelift version from
 `Cargo.lock`, and the commit — but no date. A build date makes two builds of the same commit differ for
-no gain: the commit already answers "which source is this?" exactly. `MWL_BUILD_COMMIT` lets a
+no gain: the commit already answers "which source is this?" exactly. `NVS_BUILD_COMMIT` lets a
 distribution packaging from a tarball supply the revision when no `.git` is present, and every fact
 that cannot be determined becomes `unknown` rather than failing the build.
 
@@ -134,8 +134,8 @@ that cannot be determined becomes `unknown` rather than failing the build.
   notice. The failure is a one-line command and a committed diff.
 - A license outside `PREFERENCE` stops the build with a message naming the component and the
   identifier. This is intended to be annoying — it is the moment the decision should be made.
-- The `mwl` binary grows ~55 KB. See § 3.
-- Python is now needed to *change* the dependency set, not to build MWL. This matches
+- The `nvs` binary grows ~55 KB. See § 3.
+- Python is now needed to *change* the dependency set, not to build Novis. This matches
   `tools/brief.py`, which CI already runs, and keeps a JSON/TOML parser out of the dependency tree
   that this script exists to keep honest.
 - Attribution is over-inclusive by design (all platforms, plus build dependencies). A reader of the
@@ -155,7 +155,7 @@ that cannot be determined becomes `unknown` rather than failing the build.
 - **SPDX identifiers only, with a pointer to a website.** Not attribution. MIT, BSD and Apache-2.0 each
   condition redistribution on reproducing text, and a URL is not a reproduction — it is a promise to
   keep a server running.
-- **A separate `mwl licenses` command.** Splits one question across two commands. Rejected against the
+- **A separate `nvs licenses` command.** Splits one question across two commands. Rejected against the
   `php -i` shape the request was for.
 - **Markdown for the notice.** A `.md` file either fences the license texts, putting stray `~~~` lines
   in the binary's output, or lets a renderer reflow them. Plain text is displayed verbatim by GitHub
@@ -163,9 +163,9 @@ that cannot be determined becomes `unknown` rather than failing the build.
 
 ## Verification
 
-- `cargo test -p mwl-cli` — four tests in `crates/mwl-cli/src/info.rs`: that the embedded notice carries
+- `cargo test -p nvs-cli` — four tests in `crates/nvs-cli/src/info.rs`: that the embedded notice carries
   both section headings and that slicing it drops nothing, that the component table is populated and
-  names components that are certainly present, that `--licenses` adds MWL's own text and the
+  names components that are certainly present, that `--licenses` adds Novis's own text and the
   third-party texts while the default omits them, and that every `build.rs` fact reaches the report.
 - `python tools/gen-attribution.py --check` — the `attribution` CI job. Fails if `THIRD-PARTY-LICENSES.txt`
   does not match the current `Cargo.lock`, and fails on an unknown license, an unfetched source, or a

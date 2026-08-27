@@ -1,7 +1,7 @@
 --TEST--
 `xor` has no direct replacement, so its diagnostic spells out the expression to write instead — ADR 0045
 --FILE--
-<?mwl
+<?nvs
 bool $a = true;
 bool $b = false;
 if ($a xor $b) {
@@ -11,6 +11,6 @@ if ($a xor $b) {
 
 --EXPECTF-ERROR--
 error[E0226]: `xor` is not supported
-  --> case.mwl:4:8
+  --> case.nvs:4:8
 %A
 error: aborting due to 1 error

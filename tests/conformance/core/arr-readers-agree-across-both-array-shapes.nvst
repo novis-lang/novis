@@ -1,9 +1,9 @@
 --TEST--
 Every Core\Arr reader answers the packed form and the same content in the hash form alike — ADR 0007 § 5's "which subscripts collide" is about keys, not storage
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 5 says the array type is a statement about *keys*. The runtime
-// still holds one array two ways — `mwl_runtime::array`'s `Shape::Packed`, the
+// still holds one array two ways — `nvs_runtime::array`'s `Shape::Packed`, the
 // list whose keys are exactly "0".."n-1" and are therefore not stored at all,
 // and `Shape::Hashed`, the ordered hash every other array degrades into — and
 // no program is supposed to be able to tell which one it holds.
@@ -20,7 +20,7 @@ Every Core\Arr reader answers the packed form and the same content in the hash f
 // "08" has a leading zero and "x" is not a number at all, which is exactly the
 // pair `integer_key` refuses. A numeric key past the end degrades too, but it
 // *does* move the counter, so it is not a same-content twin and is pinned in
-// tests/conformance/array/unset-does-not-move-the-append-counter.mwlt. That the write
+// tests/conformance/array/unset-does-not-move-the-append-counter.nvst. That the write
 // degrades at all is not observable from a program, by design; it is asserted
 // in the module's own a_non_sequential_key_degrades_the_packed_array.
 //

@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 class Deep {
     public static function level3(): void {
         throw new LogicError("boom");

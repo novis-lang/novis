@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::sortByKey over keys PHP cannot read as numbers produces what ksort, krsort and uksort produce
 --FILE--
-<?mwl
+<?nvs
 final class Render {
     // The claim of every row is the key order, which is what the member
     // sorted on; preserving the keys is unconditional here, because a sort
@@ -13,7 +13,7 @@ final class Render {
 
 // Not one of these keys is a numeral, so `ksort`'s default SORT_REGULAR falls
 // through to `strcmp` — the same bytewise compare
-// `mwl_stdlib::ordering::compare_values` gives two strings. The subject is
+// `nvs_stdlib::ordering::compare_values` gives two strings. The subject is
 // chosen so that a locale- or case-aware collation would answer differently
 // from either: upper case sorts before lower, `_` falls between the two, and
 // a digit-led key that is still not a number sorts before every letter.

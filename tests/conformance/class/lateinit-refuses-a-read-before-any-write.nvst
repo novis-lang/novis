@@ -1,7 +1,7 @@
 --TEST--
 a `lateinit` property read on a path that has written nothing to it is caught while compiling, not left to throw — ADR 0038 § 3
 --FILE--
-<?mwl
+<?nvs
 class Engine {
     public int $power;
 
@@ -27,6 +27,6 @@ echo $c->power(), "\n";
 
 --EXPECTF-ERROR--
 error[E0428]: `$this->engine` is read here, but nothing on this path has written to it yet
-   --> case.mwl:17:23
+   --> case.nvs:17:23
 %A
 error: aborting due to 1 error

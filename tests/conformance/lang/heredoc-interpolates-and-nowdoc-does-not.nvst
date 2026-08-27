@@ -1,7 +1,7 @@
 --TEST--
 A heredoc interpolates like a double-quoted string; a nowdoc keeps every character literal
 --FILE--
-<?mwl
+<?nvs
 string $who = "world";
 int $count = 2;
 

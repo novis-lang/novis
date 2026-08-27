@@ -1,7 +1,7 @@
 --TEST--
 A scalar parameter is a copy: reassigning it inside the callee leaves the caller's local alone, across every scalar type and through a loop
 --FILE--
-<?mwl
+<?nvs
 class Mutate {
     public static function int(int $n): int {
         $n = $n + 100;

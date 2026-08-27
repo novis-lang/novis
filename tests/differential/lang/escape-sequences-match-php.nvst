@@ -1,7 +1,7 @@
 --TEST--
 double- and single-quoted escapes render identically to PHP's
 --FILE--
-<?mwl
+<?nvs
 string $who = "world";
 
 echo "tab[\t]end\n";

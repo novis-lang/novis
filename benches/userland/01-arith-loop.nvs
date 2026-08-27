@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // A hot integer loop: the arithmetic every counter, accumulator and offset walk is made of.
 class Bench {
     public static function run(int $rounds): int {

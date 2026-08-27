@@ -1,7 +1,7 @@
 --TEST--
 Core\Math's asin, acos and atan undo sin, cos and tan only inside their own principal branch, and fold, reflect or shift everything outside it, spec § 3
 --FILE--
-<?mwl
+<?nvs
 // The *agreement* shape (conventions.md), asserted by *counting*. An inverse
 // circular member answers one turn's worth of arguments with one branch's
 // worth of answers, so "asin undoes sin" is only true inside `[-PI/2, PI/2]`

@@ -1,7 +1,7 @@
 --TEST--
 An array keeps insertion order across insert, delete and re-insert — a re-inserted key goes to the end
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

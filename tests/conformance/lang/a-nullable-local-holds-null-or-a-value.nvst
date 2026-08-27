@@ -1,7 +1,7 @@
 --TEST--
 A `?T` binding holds either representation, and `??` reads it back — ADR 0066
 --FILE--
-<?mwl
+<?nvs
 ?int $absent = null;
 ?int $present = 3;
 echo "absent=" . ($absent ?? -1) . "\n";

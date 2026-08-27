@@ -1,9 +1,9 @@
 --TEST--
 A `class`, `interface` or `enum` declared anywhere but file scope is `E0233`, never a panic — docs/adr/README.md § *Decisions taken at project start*
 --FILE--
-<?mwl
+<?nvs
 // PHP declares a nested type when the statement *runs*, so whether the name
-// exists depends on control flow. MWL resolves every type name against a
+// exists depends on control flow. Novis resolves every type name against a
 // static table built before any code runs — see `docs/adr/README.md`
 // § *Decisions taken at project start* — so all three spellings are refused
 // where they are written, by name, instead of panicking below the checker.
@@ -36,20 +36,20 @@ error[E0233]: a nested `class` declaration is not supported
   |
 9 |         class InAMethodBody {
   |               ^^^^^^^^^^^^^ `InAMethodBody` would only exist once control reached this statement
-  = help: move `InAMethodBody` out to file scope — every type in MWL is declared before any code runs, so a name's existence never depends on control flow
+  = help: move `InAMethodBody` out to file scope — every type in Novis is declared before any code runs, so a name's existence never depends on control flow
 
 error[E0233]: a nested `interface` declaration is not supported
    --> %s:18:15
    |
 18 |     interface InABlock {
    |               ^^^^^^^^ `InABlock` would only exist once control reached this statement
-   = help: move `InABlock` out to file scope — every type in MWL is declared before any code runs, so a name's existence never depends on control flow
+   = help: move `InABlock` out to file scope — every type in Novis is declared before any code runs, so a name's existence never depends on control flow
 
 error[E0233]: a nested `enum` declaration is not supported
    --> %s:24:10
    |
 24 |     enum InAClosure: int {
    |          ^^^^^^^^^^ `InAClosure` would only exist once control reached this statement
-   = help: move `InAClosure` out to file scope — every type in MWL is declared before any code runs, so a name's existence never depends on control flow
+   = help: move `InAClosure` out to file scope — every type in Novis is declared before any code runs, so a name's existence never depends on control flow
 
 error: aborting due to 3 errors

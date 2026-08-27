@@ -1,7 +1,7 @@
 --TEST--
 Core\Path::join, ::normalize and ::relativeTo do spec § 8's path algebra, and none of the three is a launderer
 --FILE--
-<?mwl
+<?nvs
 // Every built path is read back through Core\Path::SEPARATOR: these three
 // members emit it, and it differs between the two legs.
 string $root = "/var/www";

@@ -1,7 +1,7 @@
 --TEST--
 `clone` copies the array a property holds, because an array is a value — the two objects diverge on the first write
 --FILE--
-<?mwl
+<?nvs
 class Holder {
     public array<int> $rows;
 

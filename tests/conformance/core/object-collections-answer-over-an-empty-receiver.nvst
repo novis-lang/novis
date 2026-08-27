@@ -1,7 +1,7 @@
 --TEST--
 Every `Core\ObjectMap` and `Core\ObjectSet` member answers over an empty receiver, and the empty set is `union`'s identity and `intersect`'s annihilator from both sides — docs/spec/01-core-library.md § 9
 --FILE--
-<?mwl
+<?nvs
 final class Tag {
     public function constructor(public readonly string $name) {}
 }

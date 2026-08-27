@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::flatten unwraps exactly one level and keeps its element type, while ::flattenDeep unwraps every level and erases to mixed, per spec § 2 and ADR 0069 § 3
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2: two members rather than one with a depth count, because every
 // real call means one level or all of them.
 array<array<string>> $rows = [["a", "b"], ["c"], []];

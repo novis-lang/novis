@@ -1,7 +1,7 @@
 --TEST--
 an uncaught throw exits non-zero, naming the frames it unwound out of
 --FILE--
-<?mwl
+<?nvs
 class Boom {
     public static function go(): int {
         throw new RuntimeError("no");
@@ -13,5 +13,5 @@ echo Boom::go(), "\n";
 before
 --EXPECTF-ERROR--
 Uncaught Exception: no
-#0 Boom::go() at case.mwl:%d
-#1 <script>() at case.mwl:%d
+#0 Boom::go() at case.nvs:%d
+#1 <script>() at case.nvs:%d

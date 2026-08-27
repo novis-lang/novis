@@ -1,7 +1,7 @@
 --TEST--
 a heredoc scope that opens on one line and closes on the next is refused — ADR 0087 § 2's per-line span
 --FILE--
-<?mwl
+<?nvs
 string $note = <<<TXT
 ‫first line
 second line‬

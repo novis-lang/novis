@@ -5,11 +5,11 @@
     python tools/bench.py 05 regex             # only cases whose name contains "05" or "regex"
     python tools/bench.py --reps 9             # more reps when a number looks noisy
     python tools/bench.py --check              # correctness only: do they agree? (no timing)
-    python tools/bench.py --engines mwl,php    # narrow the roster; the default is all four
+    python tools/bench.py --engines nvs,php    # narrow the roster; the default is all four
     python tools/bench.py --php-mode default   # PHP as installed, instead of with opcache+JIT
     python tools/bench.py --json docs/perf/userland.ndjson   # append one record per case
 
-The cases live in `benches/userland/` as twins -- `NN-slug.mwl`, `.php`, `.py` and `.ts` -- and
+The cases live in `benches/userland/` as twins -- `NN-slug.nvs`, `.php`, `.py` and `.ts` -- and
 [its README](../benches/userland/README.md) owns what a case is and how to add one. This file
 owns only how they are *measured*.
 
@@ -17,13 +17,13 @@ owns only how they are *measured*.
 
 The roster in `build_engines()` is a list, not a pair, because the comparison this suite has to
 answer keeps changing:
-[ADR 0100](../docs/adr/0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 5 added
-Python, since MWL's CLI claim is made against Python and this project does not publish an
+[ADR 0100](../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 5 added
+Python, since Novis's CLI claim is made against Python and this project does not publish an
 unmeasured claim, and that ADR's *Revisiting* is what pre-authorised Bun as the fourth. Everything
 downstream -- the baseline subtraction, the table, the JSON record -- iterates the list, so a
 fifth engine is an entry plus a file suffix, never a rewrite.
 
-A case is defined by its `.mwl` file. Every other engine attaches if its twin is on disk and is
+A case is defined by its `.nvs` file. Every other engine attaches if its twin is on disk and is
 skipped, with a warning, if it is not: a missing twin must never look like agreement. An engine
 whose executable is not installed fails every case it is asked to run, so name the ones you have
 with `--engines` rather than reading a wall of ERROR rows.
@@ -44,8 +44,8 @@ measurement. Read `total` for "what does this script cost me at the command line
 ADR 0100 § 5 is why `total` is the headline for a CLI claim and `work` for a language claim, and
 why quoting either without saying which is a misuse.
 
-The ratio columns are `<engine> / mwl` on the `work` figures: **above 1.0 means MWL is faster**,
-and 0.5 means MWL takes twice as long. Each is a ratio of two numbers measured on the same machine
+The ratio columns are `<engine> / nvs` on the `work` figures: **above 1.0 means Novis is faster**,
+and 0.5 means Novis takes twice as long. Each is a ratio of two numbers measured on the same machine
 within seconds of each other, which is the only comparison a wall-clock figure supports --
 [ADR 0026](../docs/adr/0026-performance-measurement-methodology.md) is why a cross-machine
 history is counted in instructions instead, and this suite is that ADR's § 3 secondary figure
@@ -60,7 +60,7 @@ number. A mismatch prints each output and that case reports `DIFF` with no timin
 
 ## Release against release, always
 
-A debug MWL build is one to two orders of magnitude slower than release and would say nothing
+A debug Novis build is one to two orders of magnitude slower than release and would say nothing
 about the language, so a binary under `target/debug/` is refused by name unless `--allow-debug`
 says the caller means it. Nothing here builds anything: the binary on disk is the binary that
 runs, and a warning says so if it is older than the newest file under `crates/`.
@@ -101,7 +101,7 @@ if hasattr(sys.stdout, "reconfigure"):  # a case description is prose, and conso
 ROOT = Path(__file__).resolve().parent.parent
 CASE_DIR = ROOT / "benches" / "userland"
 BASELINE = "00-baseline"
-PRIMARY = "mwl"  # the engine every ratio is taken against, and the one that defines a case
+PRIMARY = "nvs"  # the engine every ratio is taken against, and the one that defines a case
 
 # PHP invocation modes. The mode name is recorded in every JSON record so a history file cannot
 # silently mix an engine that was allowed to JIT with one that was not.
@@ -147,11 +147,11 @@ class Case:
 
 
 def build_engines(
-    selected: list[str], mwl_binary: Path, php: str, php_mode: str, python: str, bun: str
+    selected: list[str], nvs_binary: Path, php: str, php_mode: str, python: str, bun: str
 ) -> list[Engine]:
-    """The engine roster, in table order. `--engines` picks a subset; `mwl` is always in it."""
+    """The engine roster, in table order. `--engines` picks a subset; `nvs` is always in it."""
     available = {
-        "mwl": Engine("mwl", "mwl", ".mwl", [str(mwl_binary), "run"], ["--version"]),
+        "nvs": Engine("nvs", "nvs", ".nvs", [str(nvs_binary), "run"], ["--version"]),
         "php": Engine("php", "php", ".php", [php, *PHP_MODES[php_mode]], ["-r", "echo PHP_VERSION;"]),
         "python": Engine("python", "py", ".py", [python], ["--version"]),
         "bun": Engine("bun", "bun", ".ts", [bun, "run"], ["--version"]),
@@ -165,24 +165,24 @@ def build_engines(
 
 
 def discover(patterns: list[str], engines: list[Engine]) -> list[Case]:
-    """Every `NN-slug.mwl`, in name order, with whichever twins are beside it.
+    """Every `NN-slug.nvs`, in name order, with whichever twins are beside it.
 
-    A case is defined by its `.mwl`. An engine whose twin is missing is skipped for that case and
+    A case is defined by its `.nvs`. An engine whose twin is missing is skipped for that case and
     said so out loud -- silence would read as agreement.
     """
     cases = []
-    for mwl in sorted(CASE_DIR.glob("*.mwl")):
+    for nvs in sorted(CASE_DIR.glob("*.nvs")):
         sources = {}
         for engine in engines:
-            source = mwl.with_suffix(engine.suffix)
+            source = nvs.with_suffix(engine.suffix)
             if source.exists():
                 sources[engine.key] = source
             else:
-                print(f"warning: {mwl.stem} has no {engine.suffix} twin -- {engine.key} skipped", file=sys.stderr)
+                print(f"warning: {nvs.stem} has no {engine.suffix} twin -- {engine.key} skipped", file=sys.stderr)
         if len(sources) < 2:
-            print(f"warning: {mwl.stem} has nothing to compare against -- skipped", file=sys.stderr)
+            print(f"warning: {nvs.stem} has nothing to compare against -- skipped", file=sys.stderr)
             continue
-        cases.append(Case(mwl.stem, sources, describe(mwl)))
+        cases.append(Case(nvs.stem, sources, describe(nvs)))
     if patterns:
         kept = [c for c in cases if c.is_baseline or any(p in c.name for p in patterns)]
         if not any(not c.is_baseline for c in kept):
@@ -200,16 +200,16 @@ def describe(path: Path) -> str:
     return ""
 
 
-def find_mwl(explicit: str | None, allow_debug: bool) -> Path:
+def find_nvs(explicit: str | None, allow_debug: bool) -> Path:
     if explicit:
         binary = Path(explicit)
     else:
-        exe = "mwl.exe" if os.name == "nt" else "mwl"
+        exe = "nvs.exe" if os.name == "nt" else "nvs"
         binary = ROOT / "target" / "release" / exe
     if not binary.exists():
         sys.exit(
-            f"no MWL binary at {binary}\n"
-            "  build one with `cargo build --release`, or point --mwl at the one you mean"
+            f"no Novis binary at {binary}\n"
+            "  build one with `cargo build --release`, or point --nvs at the one you mean"
         )
     if "debug" in binary.parts and not allow_debug:
         sys.exit(
@@ -289,7 +289,7 @@ def columns_for(engines: list[Engine]) -> list[tuple[str, int, object]]:
     for engine in engines:
         if engine.key == PRIMARY:
             continue
-        columns.append((f"{engine.label}/mwl", 10, lambda r, k=engine.key: ratio(r.get("ratio", {}).get(k))))
+        columns.append((f"{engine.label}/nvs", 10, lambda r, k=engine.key: ratio(r.get("ratio", {}).get(k))))
     return columns
 
 
@@ -324,14 +324,14 @@ def evaluate(case: Case, engines: list[Engine], reps: int) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run the userland benchmark suite across MWL, PHP, Python and Bun side by side.",
+        description="Run the userland benchmark suite across Novis, PHP, Python and Bun side by side.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__.split("## The engine roster", 1)[0],
     )
     parser.add_argument("patterns", nargs="*", help="substrings; only matching cases run")
     parser.add_argument("--reps", type=int, default=5, help="timed reps per engine (default 5)")
     parser.add_argument("--check", action="store_true", help="agreement only, no timing")
-    parser.add_argument("--mwl", help="path to the mwl binary (default target/release)")
+    parser.add_argument("--nvs", help="path to the nvs binary (default target/release)")
     parser.add_argument("--php", default="php", help="php executable (default `php`)")
     parser.add_argument(
         "--python",
@@ -341,8 +341,8 @@ def main() -> int:
     parser.add_argument("--bun", default="bun", help="bun executable (default `bun`)")
     parser.add_argument(
         "--engines",
-        default="mwl,php,python,bun",
-        help="comma-separated engine list, in table order; must include mwl (default all four)",
+        default="nvs,php,python,bun",
+        help="comma-separated engine list, in table order; must include nvs (default all four)",
     )
     parser.add_argument(
         "--php-mode",
@@ -350,7 +350,7 @@ def main() -> int:
         default="jit",
         help="`jit` (default) runs PHP with opcache+tracing JIT; `default` runs it as installed",
     )
-    parser.add_argument("--allow-debug", action="store_true", help="permit a debug MWL binary")
+    parser.add_argument("--allow-debug", action="store_true", help="permit a debug Novis binary")
     parser.add_argument("--json", metavar="PATH", help="append one NDJSON record per case")
     args = parser.parse_args()
 
@@ -358,7 +358,7 @@ def main() -> int:
         sys.exit("--reps must be at least 1")
     reps = 1 if args.check else args.reps
 
-    binary = find_mwl(args.mwl, args.allow_debug)
+    binary = find_nvs(args.nvs, args.allow_debug)
     warn_if_stale(binary)
     selected = [name.strip() for name in args.engines.split(",") if name.strip()]
     engines = build_engines(selected, binary, args.php, args.php_mode, args.python, args.bun)
@@ -372,7 +372,7 @@ def main() -> int:
         print(f"{engine.label:<4} {target}{mode}  ({version(target, engine.version_argv)})")
     print(
         f"{len(cases)} case(s), {reps} rep(s), min of reps;"
-        f" a ratio above 1.00 means MWL is faster"
+        f" a ratio above 1.00 means Novis is faster"
     )
     print()
 
@@ -500,7 +500,7 @@ def write_json(
 ) -> None:
     """One NDJSON record per case.
 
-    The `mwl_ms`/`php_ms`/`ratio` keys are kept at the top level unchanged so the history file
+    The `nvs_ms`/`php_ms`/`ratio` keys are kept at the top level unchanged so the history file
     written before this suite grew a third engine still reads as one series; everything else is
     under `engines`, keyed the same way the table is.
     """
@@ -533,16 +533,16 @@ def write_json(
                 "date": stamp,
                 "commit": commit,
                 "case": record["case"],
-                "mwl_ms": per_engine.get("mwl", {}).get("ms"),
+                "nvs_ms": per_engine.get("nvs", {}).get("ms"),
                 "php_ms": per_engine.get("php", {}).get("ms"),
-                "mwl_work_ms": per_engine.get("mwl", {}).get("work_ms"),
+                "nvs_work_ms": per_engine.get("nvs", {}).get("work_ms"),
                 "php_work_ms": per_engine.get("php", {}).get("work_ms"),
                 "ratio": per_engine.get("php", {}).get("ratio"),
                 "engines": per_engine,
                 "engine_versions": versions,
                 "reps": reps,
                 "php_mode": mode,
-                "mwl_binary": str(binary.relative_to(ROOT)) if binary.is_relative_to(ROOT) else str(binary),
+                "nvs_binary": str(binary.relative_to(ROOT)) if binary.is_relative_to(ROOT) else str(binary),
                 "host": host,
             }, ensure_ascii=False) + "\n")
             written += 1

@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // Ordering records by one field - the leaderboard, the sorted table, the usort() every app has.
 class Row {
     public string $name;

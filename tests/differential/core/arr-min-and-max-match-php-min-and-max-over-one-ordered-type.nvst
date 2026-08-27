@@ -1,14 +1,14 @@
 --TEST--
 Core\Arr::min and max answer what PHP's min and max answer wherever a subject's values share one ordered type, ties and the extreme's position included
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `min`/`max` rows, in the array form — PHP's variadic `min(1, 2, 3)`
 // has no member at all (ADR 0063 R17), so the array argument is the whole
 // overlap between the two.
 //
 // The two members do not ask the same question. PHP compares with `<`, the
 // loose comparison, so what it orders depends on how a value is *written*;
-// `Core\Arr::min` orders by `mwl_stdlib::ordering::compare_values`, the same
+// `Core\Arr::min` orders by `nvs_stdlib::ordering::compare_values`, the same
 // total order `Core\Arr::sort` uses without a comparator. Those two coincide
 // exactly where every value shares one ordered type and no string is a numeral,
 // which is every subject in this case.
@@ -81,7 +81,7 @@ echo Show::num(Core\Arr::min($one)), Show::num(Core\Arr::max($one)), " ", Show::
 array<int> $signed = [-2, 0, 5];
 echo Show::num(Core\Arr::min($signed)), " ", Show::num(Core\Arr::max($signed)), "\n";
 
-// Strings, where PHP's `<` falls back to `strcmp` and MWL's ordering is
+// Strings, where PHP's `<` falls back to `strcmp` and Novis's ordering is
 // bytewise: the same answer, as long as no operand is a numeral.
 array<string> $words = ["pear", "apple", "fig"];
 echo Show::text(Core\Arr::min($words)), " ", Show::text(Core\Arr::max($words)), "\n";
@@ -96,12 +96,12 @@ echo Show::text(Core\Arr::min($cased)), " ", Show::text(Core\Arr::max($cased)), 
 array<string> $prefix = ["abc", "ab", "abcd"];
 echo Show::text(Core\Arr::min($prefix)), " ", Show::text(Core\Arr::max($prefix)), "\n";
 
-// Floats, where MWL's `f64::total_cmp` and PHP's `<` agree on every value that
+// Floats, where Novis's `f64::total_cmp` and PHP's `<` agree on every value that
 // is neither a `NaN` nor a signed zero.
 array<float> $reals = [2.5, 0.5, 1.5];
 echo Show::real(Core\Arr::min($reals)), " ", Show::real(Core\Arr::max($reals)), "\n";
 
-// The one pair of representations MWL's ordering lets cross, and the one PHP
+// The one pair of representations Novis's ordering lets cross, and the one PHP
 // compares numerically rather than by spelling: an `int` and a `float` in one
 // subject. The answer keeps its own type, which `echo` shows by rendering the
 // `float` with its point and the `int` without.

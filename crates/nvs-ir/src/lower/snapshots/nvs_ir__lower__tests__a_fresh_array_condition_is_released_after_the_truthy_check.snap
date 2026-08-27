@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/nvs-ir/src/lower.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> bool {
@@ -14,7 +14,7 @@ fn m(object) -> bool {
     branch v3 -> bb3 (e0), bb2 (e1)
   bb1:
     release v0
-    propagate "m() at t.mwl:4"
+    propagate "m() at t.nvs:4"
   bb2:
     ; stmt s3 @7:5-7:18
     v5 = const.bool false  ; bool

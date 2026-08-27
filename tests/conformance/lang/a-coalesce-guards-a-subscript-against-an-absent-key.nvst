@@ -1,7 +1,7 @@
 --TEST--
 `$a["k"] ?? $d` yields the default for an absent key instead of throwing — ADR 0007 §§ 2, 7 row 11
 --FILE--
-<?mwl
+<?nvs
 // § 7 row 11 makes a bare `$a["nope"]` throw where PHP warns. `??` is the
 // exception carved out of it: PHP defines the operator as "absent or `null`,
 // without the warning", so the guarded read has to have an answer. The present

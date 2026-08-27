@@ -1,21 +1,21 @@
 --TEST--
 An `autoload` declared in the entry point itself, after the code that needs it, resolves a class no `require` names — ADR 0061 § 1
 --FILE--
-<?mwl
-// ADR 0061 § 1's map is read by `mwl_hir` while the require/autoload graph is
+<?nvs
+// ADR 0061 § 1's map is read by `nvs_hir` while the require/autoload graph is
 // being built, which is before any code runs — so *where* the declaration is
 // written cannot matter, and the entry point is a file like any other. The
 // two facts this pins are both invisible from the bootstrap-file spelling the
 // neighbouring cases use: the entry point may carry its own map, and the
 // declaration is not a statement, so it is already in effect on the line
-// above it. Nothing here names `src/Greeter.mwl` or `src/Text/Shout.mwl`.
+// above it. Nothing here names `src/Greeter.nvs` or `src/Text/Shout.nvs`.
 echo App\Greeter::hello("world"), "\n";
 echo App\Text\Shout::at("quiet"), "\n";
 
 // Written last on purpose. A statement here would have run too late.
 autoload 'App' from './src';
---FILE src/Greeter.mwl--
-<?mwl
+--FILE src/Greeter.nvs--
+<?nvs
 namespace App;
 
 class Greeter
@@ -25,8 +25,8 @@ class Greeter
         return "hello, " . $who;
     }
 }
---FILE src/Text/Shout.mwl--
-<?mwl
+--FILE src/Text/Shout.nvs--
+<?nvs
 namespace App\Text;
 
 class Shout

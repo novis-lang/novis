@@ -1,6 +1,6 @@
-# Working on MWL
+# Working on Novis
 
-MWL is a JIT-compiled, memory-safe language for web servers and the command line. It exists to run web
+Novis is a JIT-compiled, memory-safe language for web servers and the command line. It exists to run web
 requests and CLI programs **securely and fast**.
 
 This file is inlined into every agent's context before it does anything, so it holds only what cannot be
@@ -31,7 +31,7 @@ Those three route to everything else. The four files behind them, none of which 
   `session.py`, `splice.py`, `plan.py`, `disk.py`, WSL, valgrind, and the two shell rules below in full.
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
-- **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.mwlt`
+- **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.nvst`
   case, a `Core` member, an ADR, a diagnostic. Read this instead of opening an example to copy.
 
 **An ADR's body always states the current rule.** A later decision is folded into the earlier ADR's text,
@@ -51,7 +51,7 @@ Highest first. A lower item is spent to buy a higher one, never the reverse. Rea
 
 When choosing between designs:
 
-- Prefer the safer, faster or simpler one even when it holds more memory. MWL is **not** a low-footprint
+- Prefer the safer, faster or simpler one even when it holds more memory. Novis is **not** a low-footprint
   runtime; "allocates less" is not on its own a reason to change anything.
 - If a change spends memory, **say what it spends** — per request or per task — in the doc comment or ADR
   that records it.
@@ -78,7 +78,7 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
    any number of files, all of it or none of it.
 3. **Read a big file in the region you need.** Whole file under ~400 lines; past that, `grep -n` for the
    anchor and read around it. Context, not the clock, is what caps a session.
-4. **Verify with one call, once, at the end:** `python tools/verify.py` — build, fmt, test, the `.mwlt` trees and clippy in
+4. **Verify with one call, once, at the end:** `python tools/verify.py` — build, fmt, test, the `.nvst` trees and clippy in
    order, stopping at the first failure.
 5. **Finish with one call:** `python tools/session.py --wrap <file>` applies steps 4 and 5 below — plan
    fields, playbook bullet, handoff, one commit per slice, status — or refuses and changes nothing.

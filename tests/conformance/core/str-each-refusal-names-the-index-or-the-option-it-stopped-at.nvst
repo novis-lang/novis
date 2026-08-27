@@ -1,13 +1,13 @@
 --TEST--
 `Core\Str`'s five refusals each name what they stopped at — the index and the length it is outside of, the size, the needle, and which of `wrap`'s two options — spec § 1, ADR 0009 § 3
 --FILE--
-<?mwl
+<?nvs
 // Spec § 1's five throwing sites, none of which had a case asserting its
 // *message*. The neighbouring `Core\Str` cases pin what each member answers;
 // this one pins where each stops accepting and what it says there, because a
 // refusal a caller cannot act on is the same dead end `substr_count`'s
 // `ValueError` and `wordwrap`'s `false` leave behind.
-// `crates/mwl-stdlib/src/str.rs` owns all five.
+// `crates/nvs-stdlib/src/str.rs` owns all five.
 //
 // Each `catch` takes its own binding name: a binding is function-scoped, and
 // two clauses reusing one name is `E0406` even at file scope once a loop below

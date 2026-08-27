@@ -1,7 +1,7 @@
 --TEST--
 there is no `trait`; the diagnostic names both replacements — an interface default method, or `by` delegation, ADR 0043
 --FILE--
-<?mwl
+<?nvs
 trait Greets {
     public function hi(): string {
         return "hi";
@@ -12,6 +12,6 @@ echo "after\n";
 
 --EXPECTF-ERROR--
 error[E0227]: traits do not exist
-  --> case.mwl:2:1
+  --> case.nvs:2:1
 %A
 error: aborting due to 1 error

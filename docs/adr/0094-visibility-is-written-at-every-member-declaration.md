@@ -8,7 +8,7 @@
   member slot at all ([ADR 0010](0010-enums-are-a-value-type.md) § 3, `E0220`), so nothing here reaches
   one. Does **not** cover
   what each level *means* at an access site (who may read a `private` property), which is
-  [ADR 0007](0007-explicit-type-system.md)'s checker debt owned by `mwl-types`; nor modifier *order*
+  [ADR 0007](0007-explicit-type-system.md)'s checker debt owned by `nvs-types`; nor modifier *order*
   ([ADR 0039](0039-canonical-code-formatting.md) § 1); nor casing ([ADR 0029](0029-identifier-casing-is-checked.md));
   nor property-hook semantics ([ADR 0014](0014-property-observer.md)).
 
@@ -16,11 +16,11 @@
 > one of `public`, `protected` or `private`. **There is no default, because there is nothing to default** —
 > an omission is `E_MISSING_VISIBILITY`, a hard compile error with no suppression, exactly as a missing type
 > is under [ADR 0007](0007-explicit-type-system.md). PHP's implicit `public` (`function f()`, `const X = 1`,
-> `var $x`, `static $x`, `readonly int $x`) does not survive; neither does MWL's own looser property grammar,
+> `var $x`, `static $x`, `readonly int $x`) does not survive; neither does Novis's own looser property grammar,
 > which parses a bare `int $x;` today. A **parameter is not a member**: an unmodified constructor parameter
 > stays a plain parameter, because visibility is what promotes one to a property, and that stays the marker.
 > The asymmetric form is written as a **pair** — `public private(set) string $name;`, never a bare
-> `private(set)` with its read side inferred. `mwl fmt` never inserts the keyword; `mwl convert` does, as an
+> `private(set)` with its read side inferred. `nvs fmt` never inserts the keyword; `nvs convert` does, as an
 > E-tier rewrite, because PHP's omission provably means `public`.
 
 ## Context
@@ -28,15 +28,15 @@
 - **PHP's answer is uniform and invisible.** Omission means `public` in every slot that permits it — a
   method, a class constant, `var $x`, and any property carrying only `static`/`readonly`. The default is
   legible nowhere in the source; you have to already know the rule to read the file.
-- **MWL has no answer at all today.** `Parser::parse_modifiers` takes every modifier "in any combination and
+- **Novis has no answer at all today.** `Parser::parse_modifiers` takes every modifier "in any combination and
   any order — which modifiers make sense in which position is a later check, not a grammar rule", and that
   later check was never written: `E_BAD_MODIFIER` (E0106) is *defined and never emitted* anywhere in the
   tree. `MethodMember`/`ConstMember` document their modifiers as "Visibility, **if written**". So a
   visibility-less member parses, lowers, and no layer ever assigns it a meaning.
-- **MWL's property grammar is looser than PHP's**, by accident rather than decision. PHP requires at least
+- **Novis's property grammar is looser than PHP's**, by accident rather than decision. PHP requires at least
   one modifier on a property declaration, so `class A { int $x; }` is a parse error there. Here the class-body
   parser reaches its property arm on `can_start_type()`, so `int $x;` parses. The one place PHP was strict,
-  MWL currently is not.
+  Novis currently is not.
 - **This trade is already made for types.** ADR 0007's table marks the same slots "PHP syntax, now
   mandatory" for the *type*. A member that must spell `uint` but may leave its visibility to a rule nobody
   wrote is an inconsistency, not a smaller rule.
@@ -95,7 +95,7 @@ implicit `public` this ADR removes, wearing a different spelling, so it is refus
 written too — `public private(set) string $name;`. A bare `(set)` form reports the same E0122, whose message
 names the pair rather than a bare keyword.
 
-This is the one place MWL's grammar is *stricter* than PHP's rather than merely less permissive, and it is
+This is the one place Novis's grammar is *stricter* than PHP's rather than merely less permissive, and it is
 deliberate: leaving it would preserve exactly one slot where a member's read visibility is a rule you have
 to know instead of a word you can see.
 
@@ -105,9 +105,9 @@ to know instead of a word you can see.
 form is doubly dead. Because it is the shape a porting author actually types, a class body's `var` reports
 **E0122 naming the visibility** — "write `public int $x;`" — rather than falling through to the
 local-declaration grammar and reporting something about statements. The same holds for the bare `int $x;`
-and `static int $x;` that MWL's own grammar accepts today.
+and `static int $x;` that Novis's own grammar accepts today.
 
-### 5. `mwl fmt` never inserts it; `mwl convert` does
+### 5. `nvs fmt` never inserts it; `nvs convert` does
 
 [ADR 0039](0039-canonical-code-formatting.md)'s formatter orders modifiers and does not supply a missing one.
 A formatter that inserted `public` would make a file's *meaning* depend on whether a tool had been run over
@@ -130,10 +130,10 @@ author nothing here.
   Against that, the language surface loses a rule rather than gaining one: there is no default to document,
   no asymmetry between the type (mandatory) and the visibility (inferred), and no per-slot table of which
   omissions are legal. The net for a reader is a smaller language; the net for a writer is more keystrokes.
-- **Consistency with the existing corpus:** small. Four member declarations across `.mwlt`/`.mwl` fixtures
+- **Consistency with the existing corpus:** small. Four member declarations across `.nvst`/`.nvs` fixtures
   and roughly sixty inline snippets in Rust tests omit a visibility today and are rewritten with the check.
 - **This ADR does not make `private` mean anything yet.** Enforcement at the access site is separate,
-  unbuilt work (`mwl-types`' gap list). Until it lands, a written `private` is an accurate declaration that
+  unbuilt work (`nvs-types`' gap list). Until it lands, a written `private` is an accurate declaration that
   nothing yet checks — which is strictly better than an unwritten one.
 
 ## Alternatives rejected
@@ -142,35 +142,35 @@ author nothing here.
   option the widest one. It is also the only rule in this area a reader cannot see in the source.
 - **An implicit `private` default** — safer, and a real choice in Rust and in C++ classes. Rejected because
   it is *silently* different from PHP: a ported file compiles and quietly changes meaning, which is worse
-  than either the PHP rule or an error. MWL diverges from PHP loudly or not at all.
+  than either the PHP rule or an error. Novis diverges from PHP loudly or not at all.
 - **A warning, or a lint with a suppression annotation.** Rejected on ADR 0029's precedent — this repository
   has no warning tier and no suppression mechanism, and adding one for this would be the first.
-- **Let `mwl fmt` insert `public`.** Rejected in § 5: a formatter that changes meaning is not a formatter.
+- **Let `nvs fmt` insert `public`.** Rejected in § 5: a formatter that changes meaning is not a formatter.
 - **Require it on properties only, leaving methods PHP-shaped.** Rejected: half the rule costs a reader the
   whole rule, because they must still remember which half applies where.
 - **Exempt interface methods**, on the pre-0043 argument that only `public` is legal there. Rejected because
   it is no longer true: `public` and `private` are two different constructs inside an interface body.
-- **A fourth keyword for "package/module-visible".** Not rejected on merit — out of scope. MWL has no module
+- **A fourth keyword for "package/module-visible".** Not rejected on merit — out of scope. Novis has no module
   boundary below the class, and inventing one here would be a language feature smuggled in as a syntax rule.
 
 ## Verification
 
-- **M1, in `mwl-syntax`.** The check belongs with the other post-parse declaration checks — the walk over
+- **M1, in `nvs-syntax`.** The check belongs with the other post-parse declaration checks — the walk over
   every class, interface and anonymous-class body that `check_casing` already made — so it reaches every
-  call site that already runs the casing pass (`mwl-cli`, and `mwl_hir::requires` for a required file) with
+  call site that already runs the casing pass (`nvs-cli`, and `nvs_hir::requires` for a required file) with
   no new wiring. That walk is `check_declarations` now: it answers two questions rather than one, and
-  `mwl_syntax::casing`'s own module doc says why they share a visit.
+  `nvs_syntax::casing`'s own module doc says why they share a visit.
 - `E_MISSING_VISIBILITY` = **E0122**, parser band, with the fix hint of § 1.
 - **One report per declaration.** An `enum` body parses its members through the same class-member path and
   already rejects each one with `E0220`, so the walk skips an enum's member list rather than adding a
   second diagnostic to a declaration that is refused outright.
-- Guard tests, in `crates/mwl-syntax`:
+- Guard tests, in `crates/nvs-syntax`:
   - `a_member_without_visibility_is_a_compile_error` — one case each for a method, a property, a class
     constant, an interface method and an anonymous-class member.
   - `a_bare_set_visibility_is_a_compile_error` — § 3's `private(set)` alone.
   - `a_class_body_var_names_the_missing_visibility` — § 4's message, not the local-declaration error.
   - `a_plain_constructor_parameter_needs_no_visibility` — § 2's negative case, which is the one this rule
     could plausibly break.
-- Conformance: `tests/conformance/reject/a-member-must-declare-its-visibility.mwlt`.
+- Conformance: `tests/conformance/reject/a-member-must-declare-its-visibility.nvst`.
 - The corpus rewrite lands in the same slice as the check, per the Stage 0 rule that no fixture is written
   against a rule about to change.

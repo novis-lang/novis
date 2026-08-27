@@ -4,22 +4,22 @@
 //! # Why a constant, and not the expression
 //!
 //! PHP evaluates a parameter default *in the callee*, once per call, from an
-//! arbitrary constant expression. MWL evaluates it **here, once, at signature
+//! arbitrary constant expression. Novis evaluates it **here, once, at signature
 //! collection**, and records the resulting [`ConstArg`] in
 //! [`MethodSig::defaults`](crate::signatures::MethodSig::defaults) so the
 //! *caller* can emit it as an ordinary literal argument. Three things fall out
 //! of that, all of them the reason to do it this way:
 //!
 //! * **The callee needs no second entry point.** Every compiled function keeps
-//!   exactly one arity, so nothing in `mwl-ir`, `mwl-codegen` or the ADR 0002
-//!   call ABI learns about defaults at all — `mwl_ir::lower::lower_call_args`
+//!   exactly one arity, so nothing in `nvs-ir`, `nvs-codegen` or the ADR 0002
+//!   call ABI learns about defaults at all — `nvs_ir::lower::lower_call_args`
 //!   pushes one more `ConstInt`/`ConstStr` and stops.
 //! * **A default cannot observe anything.** It is a constant, so it cannot
 //!   read a global (there are none — ADR 0008), call a function, or differ
 //!   between two calls that both omitted it.
 //! * **A `Core` member's default and a user-declared one are one mechanism.**
-//!   `mwl_stdlib::registry` states a `Core` default as data
-//!   (`mwl_stdlib::registry::Const`); [`crate::core_lib`] translates it into
+//!   `nvs_stdlib::registry` states a `Core` default as data
+//!   (`nvs_stdlib::registry::Const`); [`crate::core_lib`] translates it into
 //!   the same [`ConstArg`] this module evaluates a written `= expr` into, the
 //!   same way it already translates `CoreTy` into [`crate::ty::Ty`].
 //!
@@ -35,17 +35,17 @@
 //! same literal grammar, plus `= []`, and reports
 //! `E_PROPERTY_DEFAULT_NOT_LITERAL` instead. Where it *goes* is the whole
 //! difference: a parameter default is emitted by the caller, while a property
-//! default is copied onto `mwl_runtime::ClassDesc` and written into every
-//! fresh instance's slot by `mwl_runtime::MwlObj::new`. `mwl_ir` emits no
-//! instruction for it at all — `mwl_ir::ir::InstKind::New` carries the
+//! default is copied onto `nvs_runtime::ClassDesc` and written into every
+//! fresh instance's slot by `nvs_runtime::NvsObj::new`. `nvs_ir` emits no
+//! instruction for it at all — `nvs_ir::ir::InstKind::New` carries the
 //! constructor call, so there is no site between allocation and construction
 //! for an initializer to be spliced into, and a constructor prologue would run
 //! the *declaring* class's defaults rather than the instantiated class's.
 //!
 //! **Known gap:** a *written* `= null` is refused along with the rest. The
 //! constant itself now exists — [`ConstArg::Null`], over
-//! `mwl_ir::ir::InstKind::ConstNull` — but the thing a written one would
-//! declare is a `?T` parameter, and `mwl_ir::ty::Ty`'s own docs record why a
+//! `nvs_ir::ir::InstKind::ConstNull` — but the thing a written one would
+//! declare is a `?T` parameter, and `nvs_ir::ty::Ty`'s own docs record why a
 //! type that admits both `null` and a `T` has no IR representation yet. So
 //! this stays refused until that lands, and the constant is reached only from
 //! [`crate::core_lib`], where the *declared* type is the option's own and
@@ -54,14 +54,14 @@
 //! (ADR 0010 § 6), it just needs `crate::enums` consulted from here.
 //!
 //! **A `decimal` default is refused, and is now the shortest thing on this
-//! list to build:** `mwl_ir::ir::InstKind::ConstDecimal` exists, so
+//! list to build:** `nvs_ir::ir::InstKind::ConstDecimal` exists, so
 //! [`ConstArg`]'s one-variant-per-instruction rule above is satisfied by a
 //! variant carrying that instruction's own three parts. Until one is written,
 //! `decimal $vat = 0.19` is `E_PARAM_DEFAULT_NOT_LITERAL` — a clean refusal,
 //! not a wrong constant.
 
-use mwl_diagnostics::{Diagnostic, Span, code};
-use mwl_syntax::ast::{Expr, ExprKind, UnaryOp};
+use nvs_diagnostics::{Diagnostic, Span, code};
+use nvs_syntax::ast::{Expr, ExprKind, UnaryOp};
 
 use crate::Env;
 use crate::ty::{Ty, TypeId};
@@ -69,17 +69,17 @@ use crate::ty::{Ty, TypeId};
 /// A parameter default's already-evaluated value, in the parameter's own
 /// declared type.
 ///
-/// Deliberately one variant per `mwl_ir::ir::InstKind` constant rather than a
+/// Deliberately one variant per `nvs_ir::ir::InstKind` constant rather than a
 /// general value: this exists to be *emitted*, and a shape with no instruction
 /// under it could be recorded here and then fail at lowering, which is exactly
-/// the class of failure `mwl_stdlib::registry::CoreTy`'s own docs give as the
+/// the class of failure `nvs_stdlib::registry::CoreTy`'s own docs give as the
 /// reason that enum is closed too.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConstArg {
     /// `null` — what an **absent** argument is.
     ///
     /// Produced only by [`crate::core_lib`], from
-    /// `mwl_stdlib::registry::Const::Null`, and only for an ADR 0063 R2
+    /// `nvs_stdlib::registry::Const::Null`, and only for an ADR 0063 R2
     /// option whose spec signature gives it no "not given" spelling of its
     /// own: `Core\Arr::sort`'s `by` and `comparator` are the first two. A
     /// written `= null` is still refused — see this module's own known gap,
@@ -102,7 +102,7 @@ pub enum ConstArg {
     /// `bytes`, as the octets themselves.
     ///
     /// Produced only by [`crate::core_lib`], from
-    /// `mwl_stdlib::registry::Const::Bytes`: there is no `bytes` literal in
+    /// `nvs_stdlib::registry::Const::Bytes`: there is no `bytes` literal in
     /// the language ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
     /// § 1), so no *written* default can reach this variant, and
     /// [`literal_default`] does not produce it. It is kept apart from
@@ -112,7 +112,7 @@ pub enum ConstArg {
     /// The empty array, `[]`.
     ///
     /// Produced by [`crate::core_lib`], from
-    /// `mwl_stdlib::registry::Const::EmptyArray`, which owns why the *only*
+    /// `nvs_stdlib::registry::Const::EmptyArray`, which owns why the *only*
     /// array constant is the empty one — and by [`eval_property_default`],
     /// which is the one written position that accepts it. A *parameter*
     /// default of `= []` is still refused: it would have to be materialized
@@ -124,9 +124,9 @@ pub enum ConstArg {
     /// per declared option, in the bag's own declared order, each holding that
     /// option's default.
     ///
-    /// The one variant with no single `mwl_ir::ir::InstKind` constant under
+    /// The one variant with no single `nvs_ir::ir::InstKind` constant under
     /// it, and deliberately so — a bag has no runtime representation at all.
-    /// `mwl_ir::lower::lower_call_args` expands it into one ordinary constant
+    /// `nvs_ir::lower::lower_call_args` expands it into one ordinary constant
     /// per entry, which is why the "one variant per instruction" rule above
     /// still holds one level down. Never produced by
     /// [`eval_param_default`]: user code cannot declare a bag, so this only
@@ -134,11 +134,11 @@ pub enum ConstArg {
     Options(Vec<(String, ConstArg)>),
     /// A `Core`-owned instance, named by the symbol that builds it and the
     /// constant arguments that symbol takes —
-    /// `mwl_stdlib::registry::Const::Built`, which owns the rule that this is
+    /// `nvs_stdlib::registry::Const::Built`, which owns the rule that this is
     /// a class *constant*'s value and never a default.
     ///
-    /// The second variant with no single `mwl_ir::ir::InstKind` constant under
-    /// it, and unlike [`Self::Options`] it does reach `mwl-ir`: an instance
+    /// The second variant with no single `nvs_ir::ir::InstKind` constant under
+    /// it, and unlike [`Self::Options`] it does reach `nvs-ir`: an instance
     /// has no constant form at all, so what is inlined at the use site is the
     /// call, which is the same `InstKind::CoreCall` a written
     /// `Zone::of("UTC")` lowers to. Never produced by [`eval_param_default`],
@@ -196,7 +196,7 @@ pub(crate) fn eval_param_default(
 ///
 /// Unlike a parameter default, this constant is never emitted at a *call
 /// site*: it is copied onto the class descriptor and written into the fresh
-/// instance's slot by `mwl_runtime::MwlObj::new`, which is why an array
+/// instance's slot by `nvs_runtime::NvsObj::new`, which is why an array
 /// constant is reachable here at all.
 pub(crate) fn eval_property_default(
     expr: &Expr,

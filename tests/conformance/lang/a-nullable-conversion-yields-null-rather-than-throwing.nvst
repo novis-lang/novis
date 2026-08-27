@@ -1,7 +1,7 @@
 --TEST--
 ADR 0066's `as ?T` yields `null` exactly where `as T` would throw
 --FILE--
-<?mwl
+<?nvs
 // § 1 — the value the throwing form would produce, wherever it succeeds.
 echo ("42" as ?int) ?? -1, "\n";
 echo ("-7" as ?int) ?? -1, "\n";

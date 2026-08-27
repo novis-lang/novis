@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::sortByKey orders by key and preserves every one, comparing bytewise unless a comparator says otherwise (spec § 2 Ordering, ADR 0007 § 5)
 --FILE--
-<?mwl
+<?nvs
 class Render {
     // Every row below is asserted through the keys, because that is what the
     // member ordered — and preserving them is unconditional here: a sort by

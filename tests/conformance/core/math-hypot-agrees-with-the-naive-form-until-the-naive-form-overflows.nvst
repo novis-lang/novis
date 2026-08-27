@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::hypot answers exactly what sqrt($x * $x + $y * $y) answers on every row whose square sum is representable, and stays finite on the row where the naive form is an infinity — docs/spec/01-core-library.md § 3
 --FILE--
-<?mwl
+<?nvs
 // § 3 gives `hypot` its own row rather than leaving it to `sqrt`, and the whole
 // reason for that is the last two blocks: the naive form loses to the exponent
 // range long before the answer does. The sweep is what makes those two blocks a

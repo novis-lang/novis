@@ -1,7 +1,7 @@
 --TEST--
 `int` at its two extremes prints what PHP prints, and arithmetic near them stays integral
 --FILE--
-<?mwl
+<?nvs
 int $max = 9223372036854775807;
 int $min = 0 - 9223372036854775807;
 echo $max, "\n";

@@ -1,7 +1,7 @@
 --TEST--
 `@expr` is `E0236` in all four positions PHP puts it, and reports exactly once each because the operand takes its place — ADR 0020, ADR 0063 § 3
 --FILE--
-<?mwl
+<?nvs
 // ADR 0020 makes every runtime failure a `Throwable` propagated by checked
 // return (ADR 0002), never a diagnostic printed beside a value — so there
 // is no channel for `@` to mute, and ADR 0063 § 3 already lists it among

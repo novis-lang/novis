@@ -1,7 +1,7 @@
 --TEST--
 The five relational operators agree on refusing every operand ADR 0007 § 4 gives no ordering row for, and the object family keeps its own code — ADR 0007 § 4, ADR 0013, ADR 0010
 --FILE--
-<?mwl
+<?nvs
 // Every spelling in ADR 0007 § 4's `< <= > >= <=>` row, over the operand
 // domains that row has no entry for. What is asserted is that the five
 // *agree* — one code and one sentence per domain, whatever the operator —
@@ -57,35 +57,35 @@ error[E0715]: `<` has no meaning for `string`
    |
 25 | mixed $a1 = $s < $s;
    |             ^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion MWL never makes by itself
+   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
 
 error[E0715]: `<=` has no meaning for `string`
    --> %s:26:13
    |
 26 | mixed $a2 = $s <= $s;
    |             ^^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion MWL never makes by itself
+   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
 
 error[E0715]: `>` has no meaning for `string`
    --> %s:27:13
    |
 27 | mixed $a3 = $s > $s;
    |             ^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion MWL never makes by itself
+   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
 
 error[E0715]: `>=` has no meaning for `string`
    --> %s:28:13
    |
 28 | mixed $a4 = $s >= $s;
    |             ^^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion MWL never makes by itself
+   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
 
 error[E0715]: `<=>` has no meaning for `string`
    --> %s:29:13
    |
 29 | mixed $a5 = $s <=> $s;
    |             ^^^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion MWL never makes by itself
+   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
 
 error[E0715]: `<` has no meaning for `bytes`
    --> %s:33:13

@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::at over ASCII returns the same one-character string PHP's `$s[$i]` does
 --FILE--
-<?mwl
+<?nvs
 string $s = "haystack";
 echo Core\Str::at($s, 0), "|", Core\Str::at($s, 3), "|", Core\Str::at($s, 7), "|\n";
 echo Core\Str::at("x", 0), "|\n";

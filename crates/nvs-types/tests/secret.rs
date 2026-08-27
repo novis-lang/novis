@@ -1,12 +1,12 @@
 //! ADR 0033's `secret` qualifier, independent of and composable with `tainted`.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 // ADR 0033 §§ 2-4: `secret`, the same shape as `tainted` on an
 // independent axis.
@@ -125,7 +125,7 @@ fn a_secret_value_passed_directly_to_a_throwable_is_diagnosed() {
 #[test]
 fn a_secret_value_passed_to_a_subclass_of_throwable_is_diagnosed() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class MyError extends Throwable {}\n\
          class T {\n  function m(secret string $s): void {\n\
          throw new MyError($s);\n  }\n}\n",

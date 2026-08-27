@@ -1,9 +1,9 @@
 --TEST--
 Core\Json::encode, decode and isValid round-trip every scalar JSON has, choose an array or an object by the keys, and honour both encode options
 --FILE--
-<?mwl
+<?nvs
 // A list encodes as a JSON array and a keyed array as a JSON object — the
-// `Core\Arr::isList` rule, since MWL has one array type and JSON has two.
+// `Core\Arr::isList` rule, since Novis has one array type and JSON has two.
 echo Core\Json::encode([1, 2, 3]), "\n";
 echo Core\Json::encode(["b" => 2, "a" => 1]), "\n";
 

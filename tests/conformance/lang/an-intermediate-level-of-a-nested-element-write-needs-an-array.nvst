@@ -1,7 +1,7 @@
 --TEST--
 an intermediate level of a nested element write is refused where it is written when it is not an array of its own, for a scalar, a `mixed` and an untested `?array<T>` alike — ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 5 separates every level of a nested element write, innermost
 // first, and each level's separated copy is written back into the level above
 // it — so an *intermediate* level has to be an array of its own for there to
@@ -29,21 +29,21 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0482]: `int` cannot be subscripted
-   --> case.mwl:16:1
+   --> case.nvs:16:1
 %A
 error[E0482]: `mixed` cannot be subscripted
-   --> case.mwl:17:1
+   --> case.nvs:17:1
 %A
 error[E0482]: `null|array<int>` cannot be subscripted
-   --> case.mwl:18:1
+   --> case.nvs:18:1
 %A
 error[E0482]: `int` cannot be subscripted
-   --> case.mwl:19:1
+   --> case.nvs:19:1
 %A
 error[E0482]: `int` cannot be subscripted
-   --> case.mwl:21:7
+   --> case.nvs:21:7
 %A
 error[E0482]: `null|array<int>` cannot be subscripted
-   --> case.mwl:22:7
+   --> case.nvs:22:7
 %A
 error: aborting due to 6 errors

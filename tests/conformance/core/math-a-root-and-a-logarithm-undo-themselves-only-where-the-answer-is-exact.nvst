@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::sqrt and cbrt round trip exactly over every row whose root is representable, Core\Math::log does the same on exact powers of its base, and the rows where the intermediate is irrational come back near rather than equal — docs/spec/01-core-library.md § 3
 --FILE--
-<?mwl
+<?nvs
 // § 3 gives each of these members an inverse in the same class, so the question
 // the class owes an answer for is what a round trip through one costs. The
 // answer is a property of the *row*, not of the member: a round trip is exact

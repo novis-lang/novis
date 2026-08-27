@@ -1,7 +1,7 @@
 --TEST--
 A method declared `: int` whose body ends in `throw` counts as returning — nothing falls off the end
 --FILE--
-<?mwl
+<?nvs
 class Never {
     public static function always(): int {
         throw new RuntimeError("never returns");

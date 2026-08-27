@@ -1,7 +1,7 @@
 --TEST--
 `isset(...)` is `!= null` over a local, a `mixed`, a property, an element and a chain, and a list of operands is a short-circuiting conjunction — ADR 0028 § 3, ADR 0007 § 7 row 11
 --FILE--
-<?mwl
+<?nvs
 final class Counter {
     public int $reads = 0;
     public ?string $tag;
@@ -27,7 +27,7 @@ echo isset($a) ? "y" : "n", isset($b) ? "y" : "n",
 // A property is storage like any other: a nullable one reflects what was last
 // assigned, and a non-nullable one is always `true` because ADR 0022 makes it
 // definitely initialised. A static property is in the accepted set too, and
-// is left out here only because `mwl-ir` lowers no read of one yet.
+// is left out here only because `nvs-ir` lowers no read of one yet.
 Counter $c = new Counter();
 echo isset($c->tag) ? "y" : "n", isset($c->name) ? "y" : "n";
 $c->tag = "here";

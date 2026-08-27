@@ -2,24 +2,24 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
-- **Scope:** everything MWL takes from outside the repository — the Rust toolchain and edition, every
+- **Scope:** everything Novis takes from outside the repository — the Rust toolchain and edition, every
   `[workspace.dependencies]` crate, the wasm and JIT engines, CI actions, the WSL/fuzz/valgrind tooling, the
-  PHP differential oracle, the OS SDKs used for linking, and the external *data* MWL will embed (Unicode,
+  PHP differential oracle, the OS SDKs used for linking, and the external *data* Novis will embed (Unicode,
   CLDR, IANA time zones, the public-suffix list) — plus the rule that decides what a break in one of them
   costs a released version. Not in scope: which licences may enter the tree, which is
-  [0065](0065-third-party-attribution-and-mwl-info.md) and [deny.toml](../../deny.toml); whether a C
+  [0065](0065-third-party-attribution-and-nvs-info.md) and [deny.toml](../../deny.toml); whether a C
   dependency is admissible at all, which is [0051](0051-standard-library-tiers.md) § 4; the *current* pinned
   versions, which live in [the plan](../implementation-plan.md)'s status block § *Toolchain* and in
-  [Cargo.toml](../../Cargo.toml); and package management for MWL *user* code (`mwl pkg`, M10).
+  [Cargo.toml](../../Cargo.toml); and package management for Novis *user* code (`nvs pkg`, M10).
 - **Amends:** none.
 - **Amended by:** 0081
 
-> **In short:** MWL runs on **current** dependencies — being behind is a defect with a date on it, not a
+> **In short:** Novis runs on **current** dependencies — being behind is a defect with a date on it, not a
 > neutral state, because the alternative is one enormous forced migration under a security deadline. Until
 > **0.1.0** ships, that is the whole policy: update anything at any time, fix what breaks, move on. From
-> 0.1.0 the **version contract** starts, and it is asymmetric on purpose. A dependency that breaks MWL's
+> 0.1.0 the **version contract** starts, and it is asymmetric on purpose. A dependency that breaks Novis's
 > *insides* costs nothing — adapt the call sites, write an adapter, and ship it in a patch; no ceremony, no
-> version consequence. A dependency that would break something an MWL *program author* can see is different:
+> version consequence. A dependency that would break something an Novis *program author* can see is different:
 > it goes down a seven-step absorption ladder (§ 5), and only when every step is exhausted, with the user's
 > sign-off, does the break ride a major release. Version numbers describe the **enumerated surface in § 2**,
 > nothing else — the Rust crate APIs carry no promise at all, and a regenerable artifact like the on-disk
@@ -39,7 +39,7 @@
 - Staleness compounds in one direction only. A tree one minor behind updates in an afternoon; a tree two
   years behind updates under a RUSTSEC deadline, across a Cranelift API rewrite, with the JIT non-functional
   in between. There is no version of this project where deferring a bump makes the next one cheaper.
-- MWL's whole pitch to a PHP shop is that upgrading is not a project. PHP earned its reputation here the hard
+- Novis's whole pitch to a PHP shop is that upgrading is not a project. PHP earned its reputation here the hard
   way (5→7, and the 8.x deprecation drip), and a language whose minor releases break running applications
   cannot make that pitch. So the cost of a break is asymmetric to the point of being a different unit:
   ours is an afternoon, an application author's is an audit of every file they own.
@@ -64,24 +64,24 @@ applies in both regimes.
 
 ### 2. The versioned surface, enumerated
 
-A version number is meaningless unless the thing it describes is listed. MWL versions **exactly this**:
+A version number is meaningless unless the thing it describes is listed. Novis versions **exactly this**:
 
 | Versioned surface | Owned by |
 |---|---|
 | What parses, and what it means | [0007](0007-explicit-type-system.md) and the language ADRs; [docs/spec/00-overview.md](../spec/00-overview.md) |
 | Every `Core` member's signature and observable behaviour | [docs/spec/01-core-library.md](../spec/01-core-library.md), shaped by [0063](0063-core-api-conventions.md) |
-| `mwl.toml` keys, their defaults and their changeability classes | [0005](0005-config-changeability.md), [0064](0064-configuration-file-format.md) |
-| The `mwl` CLI: subcommands, flags, exit codes, machine-readable output | [0065](0065-third-party-attribution-and-mwl-info.md) for `mwl info`; the plan for the rest |
+| `nvs.toml` keys, their defaults and their changeability classes | [0005](0005-config-changeability.md), [0064](0064-configuration-file-format.md) |
+| The `nvs` CLI: subcommands, flags, exit codes, machine-readable output | [0065](0065-third-party-attribution-and-nvs-info.md) for `nvs info`; the plan for the rest |
 | Diagnostic identity — a code or name an editor, CI or suppression comment can key on | [0016](0016-ide-integration.md), [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) |
-| The extension ABI a third-party `.mwlx` is compiled against | [0003](0003-extension-system.md), [0055](0055-extension-qualifier-declarations.md) |
+| The extension ABI a third-party `.nvsx` is compiled against | [0003](0003-extension-system.md), [0055](0055-extension-qualifier-declarations.md) |
 | Any format that outlives the process and can be read back — `serialize()` output above all | [0023](0023-clone-serialize-and-cross-boundary-copy.md) |
 | The supported target platforms, and supported database server versions | the plan; [0067](0067-core-db.md) § 1 |
 
 And **explicitly does not version**:
 
-- **The Rust APIs of the `mwl-*` crates.** They share the workspace version number as a build convenience and
-  carry no stability promise whatsoever; a Rust program depending on `mwl-hir` is depending on an internal.
-  The one crate this may need to change for is `mwl-syntax` under [0040](0040-vscode-deep-tooling-and-resilient-parsing.md),
+- **The Rust APIs of the `nvs-*` crates.** They share the workspace version number as a build convenience and
+  carry no stability promise whatsoever; a Rust program depending on `nvs-hir` is depending on an internal.
+  The one crate this may need to change for is `nvs-syntax` under [0040](0040-vscode-deep-tooling-and-resilient-parsing.md),
   and that is a decision to take when an external tool actually exists, not before.
 - **Anything regenerable from source.** The on-disk artifact cache ([0042](0042-on-disk-artifact-cache-format.md))
   is self-describing and a format change is a cache miss by construction — never a break, never a version
@@ -94,7 +94,7 @@ And **explicitly does not version**:
 
 ### 3. The version scheme
 
-`MAJOR.MINOR.PATCH`, one number for the whole workspace, and the number `mwl --version` prints *is* the
+`MAJOR.MINOR.PATCH`, one number for the whole workspace, and the number `nvs --version` prints *is* the
 language version. Before 1.0, the breaking slot moves left by one — `0.MINOR` carries breaking changes and
 `0.MINOR.PATCH` is always compatible — which is standard practice and the only 0.x deviation from SemVer.
 
@@ -104,8 +104,8 @@ One question decides it: **who can see it?** Not "how big was the diff", not "ho
 
 | The update changes… | Ships as |
 |---|---|
-| Only MWL's internals — call sites, an adapter, a data structure, a Rust API | **patch** |
-| MWL's behaviour back into agreement with its own spec (a bug fix) | **patch**, and the release note names it |
+| Only Novis's internals — call sites, an adapter, a data structure, a Rust API | **patch** |
+| Novis's behaviour back into agreement with its own spec (a bug fix) | **patch**, and the release note names it |
 | Behaviour a program could plausibly have relied on, even though it was wrong | **minor**, with the note; a program that leaned on the bug is on notice |
 | Anything additive on the § 2 surface — a new `Core` member, config key, CLI flag, diagnostic | **minor** |
 | MSRV, a build-time requirement, a CI or developer tool | **patch**; no user of a released binary can observe it |
@@ -123,12 +123,12 @@ list and stop at the first step that holds; every step above the last is prefera
 and the ladder is not skippable because a lower step looks tidier:
 
 1. **Adapt our call sites.** The default outcome, and usually the whole story.
-2. **Absorb it behind an adapter we own.** MWL already does this deliberately in places — diagnostic layout
-   is hand-written in `mwl-diagnostics` precisely so the language's UI does not shift when a rendering crate
+2. **Absorb it behind an adapter we own.** Novis already does this deliberately in places — diagnostic layout
+   is hand-written in `nvs-diagnostics` precisely so the language's UI does not shift when a rendering crate
    does ([Cargo.toml](../../Cargo.toml)). Widen that pattern rather than exporting the change.
-3. **Compensate at the boundary** so the MWL-visible behaviour is bit-for-bit what it was: keep our own
+3. **Compensate at the boundary** so the Novis-visible behaviour is bit-for-bit what it was: keep our own
    semantics layer over the dependency's new one. This is the right answer whenever the dependency is an
-   implementation of something MWL has *its own* specification for — regex semantics
+   implementation of something Novis has *its own* specification for — regex semantics
    ([0056](0056-regex-engine-policy.md)), decimal rounding ([0054](0054-decimal-scalar-type.md)), the SQL
    type map ([0067](0067-core-db.md) § 7).
 4. **Hold the old version, with an expiry.** Legitimate and temporary. A hold is written as a
@@ -136,7 +136,7 @@ and the ladder is not skippable because a lower step looks tidier:
    or as a dated entry in `deny.toml`'s `advisories.ignore` for an advisory that provably does not apply. A
    hold with no date is a bug in the hold. A hold never covers a live advisory that *does* apply.
 5. **Fork or vendor.** We then own its maintenance and its security response, it must pass
-   [deny.toml](../../deny.toml) and [0065](0065-third-party-attribution-and-mwl-info.md)'s generator like
+   [deny.toml](../../deny.toml) and [0065](0065-third-party-attribution-and-nvs-info.md)'s generator like
    anything else, and it needs the user's agreement before the commit lands.
 6. **Replace the dependency.** Re-run [0051](0051-standard-library-tiers.md) § 4's two questions for the
    replacement; a swap that quietly admits C into the trusted core is not a swap.
@@ -163,7 +163,7 @@ ADR fixes only the two rules that are not negotiable:
   the ADR it names is what gets revisited, and the sweep stops until that is done
   ([AGENTS.md](../../AGENTS.md) § *Implementation invariants*).
 - **A change to the dependency graph regenerates and commits `THIRD-PARTY-LICENSES.txt` in the same commit**
-  ([0065](0065-third-party-attribution-and-mwl-info.md)). CI fails otherwise, and correctly: the notice is a
+  ([0065](0065-third-party-attribution-and-nvs-info.md)). CI fails otherwise, and correctly: the notice is a
   licence obligation, not a report.
 
 ### 8. One bump, one commit
@@ -195,14 +195,14 @@ defect: it gets a hold with a date and a reason, or it gets updated.
 
 - **Update work is continuous and small, and it is never free.** Roughly a session a week in exchange for
   never having a migration quarter. That trade is deliberate.
-- **The absorption ladder is a real cost.** Steps 2 and 3 mean MWL carries adapters that exist purely to keep
+- **The absorption ladder is a real cost.** Steps 2 and 3 mean Novis carries adapters that exist purely to keep
   a user-visible behaviour still — code with no feature to its name, that must be maintained anyway. This is
   the same account [0004](0004-memory-for-simplicity.md) draws on: simplicity of the implementation is
   priority 4, and compatibility for the program author is not.
 - **Some bumps will be refused for a while,** and the hold record makes that visible instead of accidental.
 - **A dependency that repeatedly forces the ladder is a design problem, not an update problem** — that is the
   signal to replace it, and the hold dates are the evidence.
-- **Nothing here binds MWL user code.** How an application pins *its* dependencies is `mwl pkg`'s question in
+- **Nothing here binds Novis user code.** How an application pins *its* dependencies is `nvs pkg`'s question in
   M10.
 
 ## Alternatives rejected
@@ -225,9 +225,9 @@ defect: it gets a hold with a date and a reason, or it gets updated.
 ## Revisiting
 
 - When 0.1.0 is scheduled: § 1's switch needs a date and the plan needs the release milestone.
-- If an external tool ships against `mwl-syntax` ([0040](0040-vscode-deep-tooling-and-resilient-parsing.md)),
+- If an external tool ships against `nvs-syntax` ([0040](0040-vscode-deep-tooling-and-resilient-parsing.md)),
   § 2's "no promise on Rust APIs" needs a narrow exception rather than a blanket reversal.
-- When MWL first embeds Unicode/CLDR/tzdata ([0051](0051-standard-library-tiers.md) § 3), those data sets
+- When Novis first embeds Unicode/CLDR/tzdata ([0051](0051-standard-library-tiers.md) § 3), those data sets
   need their own row in § 9's cadence table: their releases are frequent, and a tzdata change is observable
   behaviour that is nonetheless never a break.
 

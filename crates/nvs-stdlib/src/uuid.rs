@@ -32,7 +32,7 @@
 //! # The layout: two `uint` slots, not one `string`
 //!
 //! A UUID is 128 bits, and [`crate::instance`]'s decision is that a `Core`
-//! instance holds nothing MWL cannot already hold — so the choice was two
+//! instance holds nothing Novis cannot already hold — so the choice was two
 //! integer slots (the big-endian halves) or one `string` slot holding the
 //! canonical text.
 //!
@@ -49,7 +49,7 @@
 //! What it costs is one allocation per `toString()` rather than one per
 //! construction, which is AGENTS.md's priority 5 spent to buy priority 3 at
 //! the commoner of the two sites. A single `bytes` slot would be the natural
-//! third answer and is gap 1: `mwl_runtime::Tag` has no `Bytes` variant yet.
+//! third answer and is gap 1: `nvs_runtime::Tag` has no `Bytes` variant yet.
 //!
 //! # The dependency, and why `uuid`
 //!
@@ -73,7 +73,7 @@
 //!
 //! # What it spends
 //!
-//! One [`crate::instance`] object per UUID — an `MwlObj` header plus two
+//! One [`crate::instance`] object per UUID — an `NvsObj` header plus two
 //! 16-byte slots — charged to the request that produced it and released with
 //! it. Nothing is retained between calls, and no table grows with traffic.
 //!
@@ -81,7 +81,7 @@
 //!
 //! 1. **There is no `bytes` round trip**, which is what an ADR 0067 driver
 //!    binding a native `UUID` column will want. It waits on the same
-//!    `mwl_runtime::Tag::Bytes` variant [`crate::random`]'s gap 1 does.
+//!    `nvs_runtime::Tag::Bytes` variant [`crate::random`]'s gap 1 does.
 //! 2. **`==` on two `Uuid` values is object identity**, so two instances
 //!    holding the same 128 bits are not equal
 //!    ([ADR 0090](../../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
@@ -98,7 +98,7 @@
 use rand::Rng;
 use uuid::{Builder, Uuid};
 
-use mwl_runtime::{Fault, MwlStr, Value};
+use nvs_runtime::{Fault, NvsStr, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy};
 
@@ -122,28 +122,28 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
-            symbol: "mwl_core_uuid_v4",
+            symbol: "nvs_core_uuid_v4",
         },
         CoreMethod {
             name: "v7",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
-            symbol: "mwl_core_uuid_v7",
+            symbol: "nvs_core_uuid_v7",
         },
         CoreMethod {
             name: "parse",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
-            symbol: "mwl_core_uuid_parse",
+            symbol: "nvs_core_uuid_parse",
         },
         CoreMethod {
             name: "tryParse",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
-            symbol: "mwl_core_uuid_try_parse",
+            symbol: "nvs_core_uuid_try_parse",
         },
     ],
     instance: &[CoreMethod {
@@ -151,7 +151,7 @@ pub const CLASS: CoreClass = CoreClass {
         params: &[],
         defaults: &[],
         return_ty: CoreTy::Str,
-        symbol: "mwl_core_uuid_to_string",
+        symbol: "nvs_core_uuid_to_string",
     }],
     slots: &["high", "low"],
     constants: &[],
@@ -166,11 +166,11 @@ const LOW_SLOT: usize = 1;
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_uuid_v4" => (mwl_core_uuid_v4 as *const ()).cast(),
-        "mwl_core_uuid_v7" => (mwl_core_uuid_v7 as *const ()).cast(),
-        "mwl_core_uuid_parse" => (mwl_core_uuid_parse as *const ()).cast(),
-        "mwl_core_uuid_try_parse" => (mwl_core_uuid_try_parse as *const ()).cast(),
-        "mwl_core_uuid_to_string" => (mwl_core_uuid_to_string as *const ()).cast(),
+        "nvs_core_uuid_v4" => (nvs_core_uuid_v4 as *const ()).cast(),
+        "nvs_core_uuid_v7" => (nvs_core_uuid_v7 as *const ()).cast(),
+        "nvs_core_uuid_parse" => (nvs_core_uuid_parse as *const ()).cast(),
+        "nvs_core_uuid_try_parse" => (nvs_core_uuid_try_parse as *const ()).cast(),
+        "nvs_core_uuid_to_string" => (nvs_core_uuid_to_string as *const ()).cast(),
         _ => return None,
     })
 }
@@ -242,7 +242,7 @@ const SHOWN_CHARS: usize = 48;
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member if the slot does not hold this class's
-/// shape. Compiled code wrote the tag and `mwl_types` already checked the
+/// shape. Compiled code wrote the tag and `nvs_types` already checked the
 /// declared type, so that is a runtime-contract violation rather than anything
 /// a program can cause — the same treatment `crate::time` gives an `Instant`.
 fn uuid_of(args: &[Value], at: usize, member: &str) -> Result<Uuid, Fault> {
@@ -266,7 +266,7 @@ fn uuid_of(args: &[Value], at: usize, member: &str) -> Result<Uuid, Fault> {
 // The members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uuid::v4(): Uuid` — 122 random bits, replacing PHP's `uniqid`,
     /// `com_create_guid` and the userland libraries written around them.
     ///
@@ -279,7 +279,7 @@ mwl_runtime::mwl_helper! {
     ///
     /// Never fails: there is no argument to reject, and the generator is
     /// infallible once seeded.
-    fn mwl_core_uuid_v4(_ctx, args: [0]) {
+    fn nvs_core_uuid_v4(_ctx, args: [0]) {
         let _ = args;
         let mut bytes = [0_u8; 16];
         rand::rng().fill_bytes(&mut bytes);
@@ -287,7 +287,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uuid::v7(): Uuid` — a 48-bit millisecond timestamp then 74
     /// random bits, replacing nothing in PHP because PHP has nothing like it.
     ///
@@ -306,7 +306,7 @@ mwl_runtime::mwl_helper! {
     /// wrong place to surface a misconfigured host clock.
     ///
     /// Ordering inside one millisecond is random — gap 3.
-    fn mwl_core_uuid_v7(_ctx, args: [0]) {
+    fn nvs_core_uuid_v7(_ctx, args: [0]) {
         let _ = args;
         let millis = u64::try_from(jiff::Timestamp::now().as_millisecond()).unwrap_or(0);
         let mut bytes = [0_u8; 10];
@@ -317,7 +317,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uuid::parse(string $s): Uuid` — replacing the hand-written
     /// validation every PHP program that carried UUIDs as strings had to
     /// write, and then had to remember to call.
@@ -329,9 +329,9 @@ mwl_runtime::mwl_helper! {
     /// **Throws on anything else** (ADR 0063 R4), which is what makes the
     /// return type `Uuid` rather than `?Uuid`: a caller asking to *parse* has
     /// asserted that the text is one, and the non-throwing question is
-    /// [`mwl_core_uuid_try_parse`] beside it. The message quotes the text,
+    /// [`nvs_core_uuid_try_parse`] beside it. The message quotes the text,
     /// bounded, so a log line cannot be flooded through it.
-    fn mwl_core_uuid_parse(_ctx, args: [1]) {
+    fn nvs_core_uuid_parse(_ctx, args: [1]) {
         let text = text_of(args, "parse")?;
 
         read(text).map(built).ok_or_else(|| {
@@ -345,10 +345,10 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Uuid::tryParse(string $s): ?Uuid` —
     /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
-    /// § 3a: [`mwl_core_uuid_parse`] exactly, with `null` where it throws.
+    /// § 3a: [`nvs_core_uuid_parse`] exactly, with `null` where it throws.
     ///
     /// This replaces the `isValid` that used to sit here, which was already
     /// [`read`] asked without the throw — so there is still one definition of
@@ -359,14 +359,14 @@ mwl_runtime::mwl_helper! {
     /// `$text as ?Core\Uuid` does **not** compile: § 3 withdrew the two-class
     /// parse roster that spelling belonged to, and `as` targets no class at
     /// all now. [`crate::uri`]'s module doc argues that withdrawal in full.
-    fn mwl_core_uuid_try_parse(_ctx, args: [1]) {
+    fn nvs_core_uuid_try_parse(_ctx, args: [1]) {
         let text = text_of(args, "tryParse")?;
 
         Ok(read(text).map_or_else(Value::null, built))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `$uuid->toString(): string` — the canonical
     /// `8-4-4-4-12` lower-case hex form, which is what RFC 9562 § 4 writes and
     /// what every database, log line and HTTP header expects.
@@ -381,20 +381,20 @@ mwl_runtime::mwl_helper! {
     /// ([ADR 0028](../../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
     /// § 1), which is what makes `echo $uuid` render: that name is the whole
     /// of what says a `Core`-owned class is stringifiable, read by
-    /// `mwl_types::expr::operators::require_stringable` where the operand's
+    /// `nvs_types::expr::operators::require_stringable` where the operand's
     /// type names this class and by [`crate::instance`]'s descriptor renderer
     /// where it names none.
-    fn mwl_core_uuid_to_string(_ctx, args: [1]) {
+    fn nvs_core_uuid_to_string(_ctx, args: [1]) {
         let value = uuid_of(args, 0, "toString")?;
         let mut buffer = [0_u8; uuid::fmt::Hyphenated::LENGTH];
         let text = value.hyphenated().encode_lower(&mut buffer);
-        Ok(Value::str(MwlStr::new(text.as_bytes())))
+        Ok(Value::str(NvsStr::new(text.as_bytes())))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use mwl_runtime::{Ctx, OutputSink, Value, call};
+    use nvs_runtime::{Ctx, OutputSink, Value, call};
 
     use super::{CLASS, HIGH_SLOT, LOW_SLOT};
 
@@ -410,7 +410,7 @@ mod tests {
 
     /// One built UUID, rendered, releasing both references this test owns.
     fn rendered(value: Value) -> String {
-        let text = run(super::mwl_core_uuid_to_string, &[value]).expect("a built UUID renders");
+        let text = run(super::nvs_core_uuid_to_string, &[value]).expect("a built UUID renders");
         let out = String::from_utf8(
             text.as_str_bytes()
                 .expect("`toString` answers with a `string`")
@@ -442,7 +442,7 @@ mod tests {
     #[test]
     fn a_v4_is_canonical_lower_case_hex_with_its_version_and_variant() {
         for _ in 0..64 {
-            let text = rendered(run(super::mwl_core_uuid_v4, &[]).expect("`v4` never fails"));
+            let text = rendered(run(super::nvs_core_uuid_v4, &[]).expect("`v4` never fails"));
             assert_eq!(text.len(), 36);
             assert_eq!(
                 text.char_indices()
@@ -466,7 +466,7 @@ mod tests {
 
     #[test]
     fn a_v7_carries_its_version_and_a_clock_that_moves_forward() {
-        let first = rendered(run(super::mwl_core_uuid_v7, &[]).expect("`v7` never fails"));
+        let first = rendered(run(super::nvs_core_uuid_v7, &[]).expect("`v7` never fails"));
         assert_eq!(&first[14..15], "7", "`{first}` is not version 7");
         assert!(
             matches!(&first[19..20], "8" | "9" | "a" | "b"),
@@ -479,7 +479,7 @@ mod tests {
         // fixed position in both, so comparing the slices as text orders them
         // the way comparing the timestamps would.
         std::thread::sleep(std::time::Duration::from_millis(4));
-        let second = rendered(run(super::mwl_core_uuid_v7, &[]).expect("`v7` never fails"));
+        let second = rendered(run(super::nvs_core_uuid_v7, &[]).expect("`v7` never fails"));
         assert!(
             second[..13] > first[..13],
             "`{second}` does not sort after `{first}`"
@@ -491,8 +491,8 @@ mod tests {
     #[test]
     fn two_draws_of_each_version_differ() {
         for member in [
-            super::mwl_core_uuid_v4 as unsafe extern "C" fn(_, _, _) -> i32,
-            super::mwl_core_uuid_v7,
+            super::nvs_core_uuid_v4 as unsafe extern "C" fn(_, _, _) -> i32,
+            super::nvs_core_uuid_v7,
         ] {
             let first = rendered(run(member, &[]).expect("a draw never fails"));
             let second = rendered(run(member, &[]).expect("a draw never fails"));
@@ -515,10 +515,10 @@ mod tests {
     /// — the spelling ADR 0066 § 3a left standing when this class lost its
     /// `isValid`. Releases the string this test built and whatever came back.
     fn valid(text: &str) -> bool {
-        let subject = Value::str(mwl_runtime::MwlStr::new(text.as_bytes()));
-        let answer = run(super::mwl_core_uuid_try_parse, &[subject])
+        let subject = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));
+        let answer = run(super::nvs_core_uuid_try_parse, &[subject])
             .expect("`tryParse` answers rather than throwing");
-        let parsed = answer.tag() != Some(mwl_runtime::Tag::Null);
+        let parsed = answer.tag() != Some(nvs_runtime::Tag::Null);
         #[expect(
             unsafe_code,
             reason = "this test owns the one reference it built and the one \
@@ -534,10 +534,10 @@ mod tests {
 
     #[test]
     fn the_canonical_form_parses_in_either_case_and_renders_lower() {
-        let subject = Value::str(mwl_runtime::MwlStr::new(
+        let subject = Value::str(nvs_runtime::NvsStr::new(
             b"F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4",
         ));
-        let parsed = run(super::mwl_core_uuid_parse, &[subject]).expect("that is a UUID");
+        let parsed = run(super::nvs_core_uuid_parse, &[subject]).expect("that is a UUID");
         #[expect(
             unsafe_code,
             reason = "this test owns the one reference it built, and the \
@@ -582,9 +582,9 @@ mod tests {
     #[test]
     fn a_rejected_operand_is_quoted_bounded() {
         let long = "z".repeat(4096);
-        let subject = Value::str(mwl_runtime::MwlStr::new(long.as_bytes()));
-        let status = run(super::mwl_core_uuid_parse, &[subject]).expect_err("that is not a UUID");
-        assert_eq!(status, mwl_runtime::THROWN);
+        let subject = Value::str(nvs_runtime::NvsStr::new(long.as_bytes()));
+        let status = run(super::nvs_core_uuid_parse, &[subject]).expect_err("that is not a UUID");
+        assert_eq!(status, nvs_runtime::THROWN);
         #[expect(
             unsafe_code,
             reason = "this test owns the one reference it built, and the \
@@ -602,15 +602,15 @@ mod tests {
 
     #[test]
     fn a_non_string_operand_is_a_contained_fault() {
-        let status = run(super::mwl_core_uuid_parse, &[Value::int(7)])
+        let status = run(super::nvs_core_uuid_parse, &[Value::int(7)])
             .expect_err("an `int` is not a `string`");
-        assert_eq!(status, mwl_runtime::FATAL);
+        assert_eq!(status, nvs_runtime::FATAL);
     }
 
     #[test]
     fn a_non_object_receiver_is_a_contained_fault() {
-        let status = run(super::mwl_core_uuid_to_string, &[Value::int(7)])
+        let status = run(super::nvs_core_uuid_to_string, &[Value::int(7)])
             .expect_err("an `int` is not a `Core\\Uuid`");
-        assert_eq!(status, mwl_runtime::FATAL);
+        assert_eq!(status, nvs_runtime::FATAL);
     }
 }

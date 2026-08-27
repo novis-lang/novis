@@ -1,7 +1,7 @@
 --TEST--
 A class holding `array<Self>` recurses over its own children — object handles nested inside an array value
 --FILE--
-<?mwl
+<?nvs
 class Tree {
     public int $value;
     public array<Tree> $children;

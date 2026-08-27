@@ -1,7 +1,7 @@
 --TEST--
 Three levels of nesting read back by chained subscript and by nested `foreach` alike, keyed and positional levels mixed
 --FILE--
-<?mwl
+<?nvs
 class Walk {
     public static function total(array<array<array<int>>> $cube): int {
         var $sum = 0;

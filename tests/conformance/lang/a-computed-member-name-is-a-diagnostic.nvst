@@ -1,7 +1,7 @@
 --TEST--
 `->$name` and `->{expr}` are `E0235` in every position a member is named — read, write, call and `?->` — never a panic below the checker, per ADR 0014 § 5
 --FILE--
-<?mwl
+<?nvs
 class Box {
     public string $name = "a";
     public function label(): string { return "l"; }

@@ -1,7 +1,7 @@
 --TEST--
 `Core\Arr::from`'s `{limit}` stops the drive rather than truncating the result, asserted at the exact element count and one past it — spec § 2, ADR 0053 § 1
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2 calls `{limit}` the only guard against materialising a sequence that
 // never ends, which is a claim about the *drive* and not about the answer: a
 // member that drained everything and then cut the result would give the same
@@ -32,7 +32,7 @@ class Counted implements Iterator<int> {
 }
 
 // A cursor is spent once drained, so each question gets its own. A closure
-// cannot be called through the variable holding it (`mwl-ir` gap 1), so this is
+// cannot be called through the variable holding it (`nvs-ir` gap 1), so this is
 // a static method called directly.
 class Drive {
     public static function at(uint $limit): string {

@@ -1,13 +1,13 @@
 --TEST--
 a `<T>` written at a call site is refused on every member that infers its variables from its arguments — ADR 0007 § 1
 --FILE--
-<?mwl
+<?nvs
 array<string> $a = ["one"];
 echo Core\Arr::count<string>($a), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0441]: `Core\Arr::count` takes no type arguments
-  --> case.mwl:3:22
+  --> case.nvs:3:22
 %A
 error: aborting due to 1 error

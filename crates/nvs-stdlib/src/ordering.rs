@@ -8,7 +8,7 @@
 //! lives beside [`crate::granularity`] for exactly the reason that module
 //! states: more than one domain reaches for it, so no domain owns it.
 
-use mwl_runtime::{Fault, Tag, Value};
+use nvs_runtime::{Fault, Tag, Value};
 
 /// The natural ordering of two values, or a throw for a pair that has none.
 ///
@@ -24,7 +24,7 @@ use mwl_runtime::{Fault, Tag, Value};
 ///   that `-0.0` sorts before `0.0` and that `NaN` sorts at one end rather
 ///   than throwing.
 /// * `string`/`bytes` — **bytewise**, never numerically. See
-///   [`crate::arr::mwl_core_arr_sort`], which owns that divergence from PHP.
+///   [`crate::arr::nvs_core_arr_sort`], which owns that divergence from PHP.
 ///
 /// Anything else — an object, an array, or two different rows above — is
 /// `THROWN`, naming both tags and the `member` that asked. An object is the

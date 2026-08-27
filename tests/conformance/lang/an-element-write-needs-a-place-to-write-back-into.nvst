@@ -1,15 +1,15 @@
 --TEST--
 An array-element write whose root is only a temporary is refused, whichever write spelling and whichever root — ADR 0007 § 5 and § 7 row 15
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 5 separates the array before an element is written, and
-// `mwl_ir::lower::Lowering::write_back_array` has to put the separated copy
+// `nvs_ir::lower::Lowering::write_back_array` has to put the separated copy
 // back into whatever held it — a local, a property, or a static property. A
 // root that is none of those holds it nowhere, so the write would be
 // discarded: PHP 8.5 accepts every line below and drops it silently, which is
 // ADR 0007 § 7 row 15's divergence and `E0700` here. What this pins is that
 // the four write spellings *agree* — `=`, `⊕=`, `$x++` and `--$x` all reach
-// the rule through `mwl_types::expr::assign`'s one `check_write_target` — and
+// the rule through `nvs_types::expr::assign`'s one `check_write_target` — and
 // that the root's own shape does not matter, only that it is not a place.
 class Holder {
     public array<string> $rows;
@@ -40,21 +40,21 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0700]: an array element cannot be written through a temporary
-   --> case.mwl:29:1
+   --> case.nvs:29:1
 %A
 error[E0700]: an array element cannot be written through a temporary
-   --> case.mwl:30:1
+   --> case.nvs:30:1
 %A
 error[E0700]: an array element cannot be written through a temporary
-   --> case.mwl:31:1
+   --> case.nvs:31:1
 %A
 error[E0700]: an array element cannot be written through a temporary
-   --> case.mwl:32:3
+   --> case.nvs:32:3
 %A
 error[E0700]: an array element cannot be written through a temporary
-   --> case.mwl:33:1
+   --> case.nvs:33:1
 %A
 error[E0700]: an array element cannot be written through a temporary
-   --> case.mwl:34:2
+   --> case.nvs:34:2
 %A
 error: aborting due to 6 errors

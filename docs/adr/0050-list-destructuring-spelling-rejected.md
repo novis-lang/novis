@@ -13,27 +13,27 @@
 
 > **In short:** `list($a, $b) = $pair;` no longer parses. It is a parse-time diagnostic (`E0230`) naming
 > `[...]`, whose element grammar is identical in every position — key, nesting depth, skipped slot,
-> reference marker. `list(...)` survived only on a justification ADR 0049 has since deleted: that MWL keeps
-> a duplicate PHP spelling when its meaning is the one MWL wants. That argument was always about keeping a
+> reference marker. `list(...)` survived only on a justification ADR 0049 has since deleted: that Novis keeps
+> a duplicate PHP spelling when its meaning is the one Novis wants. That argument was always about keeping a
 > spelling whose *meaning* had no other home; `[...]` already spells this meaning, so `list(...)` is the
-> second spelling of a construct MWL fully covers, which is the exact trade this project has now refused
+> second spelling of a construct Novis fully covers, which is the exact trade this project has now refused
 > four times.
 
 ## Context
 
 - The spec accepted both spellings in one sentence, and the reason it gave was the precedent: "kept for the
-  same pragmatic-superset reason `<?php` is kept as a second spelling of `<?mwl`."
+  same pragmatic-superset reason `<?php` is kept as a second spelling of `<?nvs`."
   [ADR 0049](0049-single-open-tag-and-single-exit-keyword.md) withdrew `<?php`. That left `list(...)`
   resting on a citation to a decision that no longer exists — not a weak argument, but no argument at all.
 - The distinction that actually decides these cases was already available, in
   [ADR 0021](0021-single-file-inclusion-construct.md) § 1: reuse a PHP spelling verbatim **when its existing
-  meaning is exactly the one MWL wants**. `require` qualifies because nothing else in MWL spells "run this
+  meaning is exactly the one Novis wants**. `require` qualifies because nothing else in Novis spells "run this
   file in my frame, throw if it's missing." `list(...)` does not: `[...]` spells destructuring already, and
   the two produce the identical AST node from the identical element grammar. That is the same test
   `include`/`(int)$x`/`and`/`<?php`/`die` each failed.
 - PHP's own history points the same way. `list()` predates the `[...]` short syntax by two decades; PHP 7.1
   added `[...]` precisely because `list()` reads as a function call and is not one, and modern PHP style
-  guides prefer the bracket form. MWL is not preserving a distinction PHP maintains — it is preserving a
+  guides prefer the bracket form. Novis is not preserving a distinction PHP maintains — it is preserving a
   spelling PHP itself moved away from.
 - Nothing downstream distinguishes them. `parse_destructure_from_list` and `parse_stmt_maybe_destructure`
   both build the same `DestructureTarget` from the same `parse_destructure_elements`, so no type-checker or
@@ -48,7 +48,7 @@ list(int $a, string $b) = $pair;    // E0230
 [int $a, string $b]     = $pair;    // the replacement, identical in every element position
 ```
 
-`mwl-syntax` still parses the whole construct through to its `;` — the target's elements, the `=`, and the
+`nvs-syntax` still parses the whole construct through to its `;` — the target's elements, the `=`, and the
 value expression — purely so the diagnostic can span the real statement and recovery can resume cleanly at
 the next one. The parsed target is then discarded and the statement becomes `StmtKind::Error`: a rejected
 construct never reaches the AST as a live node, exactly as `die` produces `ExprKind::Error` rather than
@@ -69,13 +69,13 @@ question this ADR does not open, and keeping it reserved is what lets the diagno
 
 **Negative**
 
-- **One more line item for `mwl convert`'s (M11) rewrite pass**: `list(a, b) = c;` → `[a, b] = c;`. It is a
+- **One more line item for `nvs convert`'s (M11) rewrite pass**: `list(a, b) = c;` → `[a, b] = c;`. It is a
   bracket-for-parenthesis substitution over a construct whose element grammar is already identical, so it is
   the cheapest rewrite the converter has been given yet — cheaper than ADR 0034's `(int)$x` → `$x as int`,
   which at least has to identify an operand.
 - **A further, small subtraction from the "pragmatic superset" promise**, in the same vein as ADR 0034,
   0045 and 0049. A PHP file using `list()` anywhere no longer parses unconverted. Mitigated by the fact
-  that MWL already requires every destructuring leaf to carry a type, so no real PHP `list()` call site
+  that Novis already requires every destructuring leaf to carry a type, so no real PHP `list()` call site
   parses unedited regardless of which bracket it uses.
 
 ## Alternatives rejected
@@ -92,11 +92,11 @@ question this ADR does not open, and keeping it reserved is what lets the diagno
 
 ## Verification
 
-- `crates/mwl-syntax/src/parser.rs`'s `list_is_diagnosed_naming_bracket_destructuring` test asserts `E0230`
+- `crates/nvs-syntax/src/parser.rs`'s `list_is_diagnosed_naming_bracket_destructuring` test asserts `E0230`
   and a `StmtKind::Error` for the positional, skipped-slot, and string-keyed shapes, and asserts the `[...]`
   spelling of each of the same three is still accepted as a live `StmtKind::Destructure`.
 - The retired `list_is_a_second_spelling_of_bracket_destructuring` and
   `list_elements_still_require_a_type_like_brackets_do` tests are replaced by that one — the second is
   subsumed, since an untyped `list($a, $b)` now trips this diagnostic as well as the missing-type one.
-- No `mwl-hir`, `mwl-types` or `mwl-ir` change was needed: neither crate ever saw which spelling produced a
+- No `nvs-hir`, `nvs-types` or `nvs-ir` change was needed: neither crate ever saw which spelling produced a
   `DestructureTarget`.

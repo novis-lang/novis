@@ -1,10 +1,10 @@
 --TEST--
 `Core\Out::capture` discards its closure's result, answers a value that outlives the next capture, closes its level on a caught throw, and runs `{through:}` after the level is already closed — spec § 12, ADR 0088 § 5
 --FILE--
-<?mwl
-// `crates/mwl-stdlib/src/out.rs`'s module doc owns the three properties this
+<?nvs
+// `crates/nvs-stdlib/src/out.rs`'s module doc owns the three properties this
 // case takes to depth; the neighbouring
-// `out-capture-answers-the-sinks-carrier.mwlt` pins the roster itself. What is
+// `out-capture-answers-the-sinks-carrier.nvst` pins the roster itself. What is
 // here is the behaviour at each edge of the one member: what is answered, how
 // long it lives, what happens on a throw, and when the transform runs.
 

@@ -1,8 +1,8 @@
 --TEST--
 A sink carrier reached through an operand whose static type names no class renders as exactly the bytes it carries, agreeing with the declared binding rather than asking for a `toString` it has none of — ADR 0088 § 5, ADR 0036 § 4
 --FILE--
-<?mwl
-// `mwl_stdlib::registry::class_renders` has two rows and this is the second:
+<?nvs
+// `nvs_stdlib::registry::class_renders` has two rows and this is the second:
 // a carrier is the sink's own value type, holding bytes that have *already*
 // been through the sink, so it renders as precisely those bytes and asks for
 // no member at all. The first row — a `Core` class the spec gives a

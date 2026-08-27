@@ -1,7 +1,7 @@
 //! The per-request context: the first argument of every compiled function and
 //! every helper.
 //!
-//! `Ctx` is where everything that is "ambient" to running MWL code lives,
+//! `Ctx` is where everything that is "ambient" to running Novis code lives,
 //! because [ADR 0012](../../../docs/adr/0012-no-superglobals.md) means nothing
 //! is ambient to the *language*: no variable is host-populated, so the host's
 //! state has to travel somewhere, and it travels here.
@@ -11,10 +11,10 @@
 //! The three hot words come first, in a `#[repr(C)]` struct, because compiled
 //! code loads them inline rather than calling anything:
 //!
-//! * [`SAFEPOINT_OFFSET`] — the safepoint poll `mwl-codegen` emits at every
+//! * [`SAFEPOINT_OFFSET`] — the safepoint poll `nvs-codegen` emits at every
 //!   function entry and loop back edge (`docs/adr/README.md`'s project-start
 //!   decisions). Load, test, predicted-not-taken branch to the
-//!   [`mwl_safepoint`] slow path.
+//!   [`nvs_safepoint`] slow path.
 //! * [`DEBUG_FLAGS_OFFSET`] — [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 //!   § 1's probe check, at every statement boundary and every call site. Same
 //!   shape, same cost class, and present in every compiled unit whether or not
@@ -36,7 +36,7 @@
 //!
 //! # The call-stack limit
 //!
-//! MWL compiles natively, so a user call is a real machine frame and
+//! Novis compiles natively, so a user call is a real machine frame and
 //! exhausting the stack is a `SIGSEGV` rather than something
 //! [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s checked returns
 //! could carry. [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
@@ -51,7 +51,7 @@
 //!   resource limit. The reserve between the two is the room the throw has to
 //!   unwind in.
 //!
-//! Compiled code compares against the soft address only; [`mwl_stack_check`]
+//! Compiled code compares against the soft address only; [`nvs_stack_check`]
 //! decides which of the two it is. [`Ctx::arm_stack_limit`] is the one place
 //! the pair is computed, so they cannot be written inconsistently.
 //!
@@ -59,10 +59,10 @@
 //! from the stack pointer at construction and [`STACK_CEILING`], which is
 //! correct on a stack at least that deep and permissive — behaving exactly as
 //! the runtime did before this existed — on a shallower one, where the guard
-//! page is still reached first and `mwl-codegen`'s `enable_probestack` still
+//! page is still reached first and `nvs-codegen`'s `enable_probestack` still
 //! turns that into a clean crash rather than a stack clash. Reading a thread's
 //! true bounds needs a platform call this crate has no dependency for; the
-//! request's stack becomes MWL's own to size at M6, and until then an embedder
+//! request's stack becomes Novis's own to size at M6, and until then an embedder
 //! that knows its bounds calls [`Ctx::arm_stack_limit`] with them.
 //!
 //! # Static properties are request-scoped
@@ -74,8 +74,8 @@
 //! § *Decisions taken at project start* owns the decision and its reasoning;
 //! what belongs here is the shape it takes.
 //!
-//! The slots are one flat `[Value]`, indexed by a slot number `mwl-codegen`
-//! resolves at compile time from `mwl_ir::ir::Program::statics` — the same
+//! The slots are one flat `[Value]`, indexed by a slot number `nvs-codegen`
+//! resolves at compile time from `nvs_ir::ir::Program::statics` — the same
 //! "the label is resolved once, the machine sees an index" arrangement a
 //! field slot already has. Compiled code loads the base out of
 //! [`STATICS_OFFSET`] and indexes it, so a static read is two loads and no
@@ -83,7 +83,7 @@
 //!
 //! **What it spends:** 16 bytes per *accessed* static property per in-flight
 //! request, plus whatever a `string` or array initializer allocates — one
-//! [`crate::MwlStr`] per request per string-valued static. O(in-flight
+//! [`crate::NvsStr`] per request per string-valued static. O(in-flight
 //! requests), never O(requests served), which is what `AGENTS.md`'s
 //! priority-5 rule asks of any per-request allocation.
 //!
@@ -91,7 +91,7 @@
 //!
 //! `Ctx` owns where `echo` writes, rather than the runtime writing to the
 //! process's stdout directly. Two reasons, in `AGENTS.md`'s priority order:
-//! under `mwl serve` a request's output is its HTTP response body, not a
+//! under `nvs serve` a request's output is its HTTP response body, not a
 //! process-wide stream (priority 1, request isolation); and a test can assert
 //! on [`OutputSink::Buffer`] without capturing the process's real stdout
 //! (priority 4).
@@ -107,7 +107,7 @@ bitflags::bitflags! {
     /// What a safepoint poll has been asked to do.
     ///
     /// The word is checked, not the individual bits: compiled code branches on
-    /// "is this non-zero", and only the [`mwl_safepoint`] slow path looks at
+    /// "is this non-zero", and only the [`nvs_safepoint`] slow path looks at
     /// which bit is set.
     #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
     #[repr(transparent)]
@@ -134,7 +134,7 @@ bitflags::bitflags! {
     pub struct DebugFlags: u64 {
         /// Count a hit per line at every statement boundary.
         const COVERAGE = 1 << 0;
-        /// Count a hit per conditional CFG edge, keyed by `mwl_ir::EdgeId`.
+        /// Count a hit per conditional CFG edge, keyed by `nvs_ir::EdgeId`.
         const BRANCH = 1 << 1;
         /// Emit an entry/exit probe around every call.
         const TRACE = 1 << 2;
@@ -147,9 +147,9 @@ bitflags::bitflags! {
 /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 /// § 3's default row, and § 5's carrier.
 ///
-/// Named here rather than in `mwl-stdlib`, where the class itself is declared,
+/// Named here rather than in `nvs-stdlib`, where the class itself is declared,
 /// because the *sink* is what decides the carrier and the sink lives in this
-/// crate. `mwl_stdlib::cli::TEXT` takes its `name` from this constant, so the
+/// crate. `nvs_stdlib::cli::TEXT` takes its `name` from this constant, so the
 /// class a program writes and the class [`crate::value_to_string`] renders
 /// cannot drift apart.
 pub const CARRIER_CLI_TEXT: &str = r"Core\Cli\Text";
@@ -166,9 +166,9 @@ pub const CARRIER_HTML_MARKUP: &str = r"Core\Html\Markup";
 /// The field slot every sink carrier holds its already-escaped bytes in.
 ///
 /// Both carriers declare exactly one slot and this is it, so
-/// [`crate::value_to_string`] can render either without asking `mwl-stdlib`
+/// [`crate::value_to_string`] can render either without asking `nvs-stdlib`
 /// anything — which it could not do anyway, the dependency running
-/// `mwl-stdlib` → `mwl-runtime` and not back. `mwl_stdlib::cli`'s
+/// `nvs-stdlib` → `nvs-runtime` and not back. `nvs_stdlib::cli`'s
 /// `the_carrier_slot_matches_the_registered_layout` is the check that the
 /// class's own registered layout agrees with this number.
 pub const CARRIER_TEXT_SLOT: usize = 0;
@@ -184,7 +184,7 @@ pub fn is_carrier(name: &str) -> bool {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum OutputSink {
-    /// The process's standard output — `mwl run`'s destination.
+    /// The process's standard output — `nvs run`'s destination.
     Stdout,
     /// An in-memory buffer, read back with [`Ctx::take_buffered_output`].
     ///
@@ -195,7 +195,7 @@ pub enum OutputSink {
     Sink,
 }
 
-/// Per-request state, passed to every compiled MWL function and every helper.
+/// Per-request state, passed to every compiled Novis function and every helper.
 #[repr(C)]
 #[derive(Debug)]
 pub struct Ctx {
@@ -208,7 +208,7 @@ pub struct Ctx {
     /// [`ThrownClass::Recursion`] throws.
     stack_limit: usize,
     /// The **hard** address beneath [`Self::stack_limit`], read only by
-    /// [`mwl_stack_check`]'s slow path: below it, the request is over.
+    /// [`nvs_stack_check`]'s slow path: below it, the request is over.
     ///
     /// Cold as far as compiled code is concerned — it is never loaded inline —
     /// but it shares the hot line anyway, because the slow path that reads it
@@ -219,12 +219,12 @@ pub struct Ctx {
     ///
     /// Null until [`Ctx::install_statics`] runs, which is safe because a unit
     /// declaring no static property emits no instruction that loads it: the
-    /// slot index compiled code carries comes from `mwl_ir::Program::statics`,
+    /// slot index compiled code carries comes from `nvs_ir::Program::statics`,
     /// so there is an index only where there is a slot.
     statics: *mut Value,
     /// The process status `exit`/`exit(n)` named, `0` until one runs.
     ///
-    /// Cold: written once by `mwl_exit` on the way out, read once at the
+    /// Cold: written once by `nvs_exit` on the way out, read once at the
     /// request boundary. It sits beside [`Self::pending`] rather than inside
     /// it because an `exit` is not a failure and carries no message — see
     /// [`crate::EXITED`] for why it is its own status.
@@ -255,13 +255,13 @@ pub struct Ctx {
     /// have to match on.
     captures: Vec<Vec<u8>>,
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-    /// § 1's statement-boundary hit counters, indexed by `mwl_ir::StmtId`.
+    /// § 1's statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
     ///
-    /// Written only from [`mwl_probe_stmt`], which compiled code reaches only
+    /// Written only from [`nvs_probe_stmt`], which compiled code reaches only
     /// when the [`DebugFlags`] word above is non-zero — so a request with no
     /// probe enabled never touches this vector and never allocates it.
     ///
-    /// **A stand-in, not the final shape.** `mwl_ir::StmtId` numbers from zero
+    /// **A stand-in, not the final shape.** `nvs_ir::StmtId` numbers from zero
     /// within *each* function, so two functions' statements collide in this
     /// one table. ADR 0018 wants path → line → count, which needs the unit and
     /// function a statement belongs to; that qualification arrives with
@@ -272,7 +272,7 @@ pub struct Ctx {
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's call-site trace, in the order the probes fired.
     ///
-    /// Written only from [`mwl_probe_call_enter`]/[`mwl_probe_call_exit`],
+    /// Written only from [`nvs_probe_call_enter`]/[`nvs_probe_call_exit`],
     /// under the same "the flags word was non-zero" gate `stmt_hits` is under.
     ///
     /// **A stand-in, not the final shape**, for the same reason `stmt_hits`
@@ -290,7 +290,7 @@ pub struct Ctx {
     /// The armed fault-injection site, if any. See [`FaultSite`].
     ///
     /// A request with nothing armed — every request that is not a
-    /// `mwl run --fault-inject=…` — pays one `Option` test per helper entry
+    /// `nvs run --fault-inject=…` — pays one `Option` test per helper entry
     /// and touches `helper_calls` never.
     fault: Option<FaultSite>,
     /// How many runtime helpers this request has entered, counted only while
@@ -368,7 +368,7 @@ impl ErrorClass {
 ///   depends on: `benches/abi-probe` measured a throw at 2.8x a normal return
 ///   with an allocating message and *cheaper* than a return without one, and
 ///   PHP code throws on ordinary control-flow paths.
-/// * [`Pending::Thrown`] is what MWL's own `throw` produces, and the only one
+/// * [`Pending::Thrown`] is what Novis's own `throw` produces, and the only one
 ///   carrying a backtrace. A `Message` is promoted to one on demand — by
 ///   [`Ctx::take_thrown`] when a `catch` dispatch takes it, or by
 ///   [`Ctx::push_frame`] when a `THROWN` unwinds a compiled frame — so a
@@ -388,7 +388,7 @@ enum Pending {
     /// A message alone, with no exception object behind it yet, plus the
     /// class it will be promoted to — see [`ThrownClass`].
     Message(ThrownClass, Cow<'static, str>),
-    /// MWL's own exception object.
+    /// Novis's own exception object.
     Thrown(Thrown),
 }
 
@@ -439,9 +439,9 @@ impl Pending {
 /// A failure a run can be *asked* to produce, for a mode that by definition
 /// has no user-facing trigger.
 ///
-/// The set is closed on purpose, and reachable only through `mwl run
+/// The set is closed on purpose, and reachable only through `nvs run
 /// --fault-inject=<site>`: it must never be reachable from a served request
-/// (`mwl serve`, M7), and nothing in MWL source can arm one.
+/// (`nvs serve`, M7), and nothing in Novis source can arm one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FaultSite {
@@ -567,7 +567,7 @@ impl Ctx {
         self.exit_code
     }
 
-    /// Records the status `exit(n)` named — `mwl_exit`'s one side effect.
+    /// Records the status `exit(n)` named — `nvs_exit`'s one side effect.
     pub fn set_exit_code(&mut self, code: i64) {
         self.exit_code = code;
     }
@@ -577,13 +577,13 @@ impl Ctx {
     /// initializer.
     ///
     /// **Every embedder calls this before running any of a unit's code**, and
-    /// the call is `mwl_codegen::Unit::install_in`'s job rather than an
+    /// the call is `nvs_codegen::Unit::install_in`'s job rather than an
     /// embedder's own — a unit's slot *numbering* is what the compiled code
     /// baked in, so the vector handed here has to be the one that unit
     /// produced. Calling it twice re-runs the initializers and releases the
     /// previous slots, which is what makes a `Ctx` reusable across requests.
     ///
-    /// The initializers are constants (`mwl_types::defaults::ConstArg`), so
+    /// The initializers are constants (`nvs_types::defaults::ConstArg`), so
     /// arming a request runs no user code and cannot fail or throw — the whole
     /// reason a static's initializer is restricted to one. A `None` entry is a
     /// static ADR 0022 § 2 required no default of (a nullable or `lateinit`
@@ -688,7 +688,7 @@ impl Ctx {
         self.debug = flags;
     }
 
-    /// Counts one hit for the statement `stmt` names — [`mwl_probe_stmt`]'s
+    /// Counts one hit for the statement `stmt` names — [`nvs_probe_stmt`]'s
     /// whole effect under [`DebugFlags::COVERAGE`].
     pub fn record_stmt_hit(&mut self, stmt: u32) {
         let index = stmt as usize;
@@ -699,7 +699,7 @@ impl Ctx {
     }
 
     /// The per-statement hit counters gathered so far, indexed by
-    /// `mwl_ir::StmtId` — empty for a request that ran with
+    /// `nvs_ir::StmtId` — empty for a request that ran with
     /// [`DebugFlags::COVERAGE`] off throughout. See the field's own doc
     /// comment for why this is a stand-in for ADR 0018's path → line → count
     /// shape rather than that shape itself.
@@ -708,8 +708,8 @@ impl Ctx {
         &self.stmt_hits
     }
 
-    /// Records one call-site trace event — [`mwl_probe_call_enter`]/
-    /// [`mwl_probe_call_exit`]'s whole effect under [`DebugFlags::TRACE`].
+    /// Records one call-site trace event — [`nvs_probe_call_enter`]/
+    /// [`nvs_probe_call_exit`]'s whole effect under [`DebugFlags::TRACE`].
     pub fn record_trace(&mut self, callee: &str, status: Option<i32>) {
         self.trace.push(TraceEvent {
             callee: callee.to_owned(),
@@ -782,7 +782,7 @@ impl Ctx {
     /// table holds no such class, or null if none was installed at all.
     ///
     /// Falling back rather than failing is deliberate: a compiled unit always
-    /// carries the whole seeded tree (`mwl_hir::errors::TREE`), so a miss here
+    /// carries the whole seeded tree (`nvs_hir::errors::TREE`), so a miss here
     /// means an embedder built a table by hand — and a failure that arrives as
     /// a `RuntimeError` is strictly better than one that arrives as no object
     /// at all.
@@ -801,7 +801,7 @@ impl Ctx {
     /// # Decision: a throw out of a dying generator's `finally` is dropped
     ///
     /// Its one caller is [`crate::object::dismantle`], and a release has no
-    /// error edge to propagate on: `mwl_object_release` answers nothing, and
+    /// error edge to propagate on: `nvs_object_release` answers nothing, and
     /// the release itself is very often *already* running under an exception —
     /// a landing pad dropping its locals on the way out. Leaving the throw in
     /// the pending slot would therefore either replace the exception actually
@@ -825,7 +825,7 @@ impl Ctx {
     }
 
     /// Records an already-built exception as the pending `THROWN` — what
-    /// [`mwl_raise`] does for MWL's own `throw`, taking ownership of the
+    /// [`nvs_raise`] does for Novis's own `throw`, taking ownership of the
     /// reference it was handed.
     pub fn raise(&mut self, thrown: Thrown) {
         self.pending = Some(Pending::Thrown(thrown));
@@ -885,11 +885,11 @@ impl Ctx {
     }
 
     /// Takes the pending failure as an exception object, clearing it — what a
-    /// `catch` binds to its variable, and what `mwl run` reports a backtrace
+    /// `catch` binds to its variable, and what `nvs run` reports a backtrace
     /// from.
     ///
     /// Promotes a bare [`Pending::Message`] rather than returning `None` for
-    /// one: a helper-raised `THROWN` is as catchable as MWL's own, it just has
+    /// one: a helper-raised `THROWN` is as catchable as Novis's own, it just has
     /// no backtrace to show.
     #[must_use]
     pub fn take_thrown(&mut self) -> Thrown {
@@ -965,7 +965,7 @@ impl Ctx {
 
     /// Flushes this request's output.
     ///
-    /// `mwl run` calls this once the script's frame returns: Rust's standard
+    /// `nvs run` calls this once the script's frame returns: Rust's standard
     /// output is line-buffered, and a script whose last `echo` has no trailing
     /// newline would otherwise depend on the process-exit flush.
     ///
@@ -984,7 +984,7 @@ impl Ctx {
     /// § 3's table, read as a class name.
     ///
     /// [`CARRIER_CLI_TEXT`] for every sink that exists today, because every
-    /// one of them is a terminal or a stand-in for one: `mwl run`'s stdout, a
+    /// one of them is a terminal or a stand-in for one: `nvs run`'s stdout, a
     /// test's buffer, a discarded run. [`CARRIER_HTML_MARKUP`] arrives with
     /// M8's HTTP request, which is the only context that attaches the HTML
     /// sink, and it is a new [`OutputSink`] variant plus one arm here rather
@@ -1006,7 +1006,7 @@ impl Ctx {
     /// `None` when none was open.
     ///
     /// A caller that opened one **must** close it on every edge, the throwing
-    /// one included — `mwl_stdlib::out` is the only such caller, and it does.
+    /// one included — `nvs_stdlib::out` is the only such caller, and it does.
     pub fn end_capture(&mut self) -> Option<Vec<u8>> {
         self.captures.pop()
     }
@@ -1052,8 +1052,8 @@ thread_local! {
 /// [`crate::abi::call`] is the one door from Rust into compiled code, so this
 /// is set there and nowhere else. Its one reader is
 /// [`crate::object::dismantle`], which has to call a dying generator's unwind
-/// entry point (`mwl_ir::lower::generator`'s transform) and reaches it from a
-/// `mwl_object_release` whose `extern "C"` signature is one pointer wide:
+/// entry point (`nvs_ir::lower::generator`'s transform) and reaches it from a
+/// `nvs_object_release` whose `extern "C"` signature is one pointer wide:
 /// threading a context through every release primitive would put a parameter
 /// on the hot path of every decrement in the language to serve the one release
 /// in ten thousand that frees a suspended generator, which AGENTS.md's
@@ -1102,7 +1102,7 @@ pub(crate) fn with_current<R>(body: impl FnOnce(&mut Ctx) -> R) -> Option<R> {
 /// Returns [`crate::FATAL`] for a request that must stop, and [`crate::OK`]
 /// otherwise. A resource-limit stop is deliberately not a `THROWN`:
 /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) makes it not
-/// a `Throwable` at the type level, so no MWL `catch` can see it.
+/// a `Throwable` at the type level, so no Novis `catch` can see it.
 ///
 /// Two of the four flags act; see the crate docs' known gap 5.
 ///
@@ -1115,7 +1115,7 @@ pub(crate) fn with_current<R>(body: impl FnOnce(&mut Ctx) -> R) -> Option<R> {
               expressed in the signature"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_safepoint(ctx: *mut Ctx) -> i32 {
+pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees `ctx` is valid for this call; nothing \
@@ -1160,7 +1160,7 @@ pub unsafe extern "C" fn mwl_safepoint(ctx: *mut Ctx) -> i32 {
               expressed in the signature"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_stack_check(ctx: *mut Ctx, sp: u64) -> i32 {
+pub unsafe extern "C" fn nvs_stack_check(ctx: *mut Ctx, sp: u64) -> i32 {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees `ctx` is valid for this call; nothing \
@@ -1169,7 +1169,7 @@ pub unsafe extern "C" fn mwl_stack_check(ctx: *mut Ctx, sp: u64) -> i32 {
     )]
     let ctx = unsafe { &mut *ctx };
 
-    // `I64` is the width `mwl-codegen` gives every pointer-shaped value, and
+    // `I64` is the width `nvs-codegen` gives every pointer-shaped value, and
     // this JIT targets 64-bit hosts only; an address that does not fit a
     // `usize` is therefore not this machine's stack pointer, and the safe
     // reading of a value that cannot be one is the one that stops the request.
@@ -1192,14 +1192,14 @@ pub unsafe extern "C" fn mwl_stack_check(ctx: *mut Ctx, sp: u64) -> i32 {
 /// § 1's statement-boundary probe — the slow path behind the debug-flags
 /// check, reached only when the word compiled code loaded was non-zero.
 ///
-/// Deliberately the same *shape* as [`mwl_safepoint`]: one cached load and one
+/// Deliberately the same *shape* as [`nvs_safepoint`]: one cached load and one
 /// predicted-not-taken branch at the site, everything else out of line. It
 /// differs in returning nothing — coverage bookkeeping cannot fail, and ADR
 /// 0018 puts a debugger break at a safepoint, not at a probe — so a compiled
 /// probe site has no status to check and no error edge to emit.
 ///
 /// Only [`DebugFlags::COVERAGE`] acts here. `BRANCH` needs the per-edge probe
-/// site that lands with `mwl_ir::Terminator::Branch`'s lowering; `TRACE` and
+/// site that lands with `nvs_ir::Terminator::Branch`'s lowering; `TRACE` and
 /// `PROFILE` are the call-site pair below.
 ///
 /// # Safety
@@ -1211,7 +1211,7 @@ pub unsafe extern "C" fn mwl_stack_check(ctx: *mut Ctx, sp: u64) -> i32 {
               expressed in the signature"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_probe_stmt(ctx: *mut Ctx, stmt: u32) {
+pub unsafe extern "C" fn nvs_probe_stmt(ctx: *mut Ctx, stmt: u32) {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees `ctx` is valid for this call; the only \
@@ -1228,7 +1228,7 @@ pub unsafe extern "C" fn mwl_probe_stmt(ctx: *mut Ctx, stmt: u32) {
 /// Reads a callee label a compiled call site passed as a pointer/length pair
 /// into the unit's own data section.
 ///
-/// Lossy rather than fallible: the bytes come from an MWL identifier the
+/// Lossy rather than fallible: the bytes come from an Novis identifier the
 /// compiler wrote there, so they are already valid UTF-8, and a trace record
 /// is not a place to fail a request from if that assumption were ever wrong.
 ///
@@ -1264,7 +1264,7 @@ unsafe fn callee_label<'a>(name: *const u8, len: usize) -> Cow<'a, str> {
 /// already a static constant of the unit, so there is nothing for a table to
 /// add and nothing to keep in sync.
 ///
-/// Like [`mwl_probe_stmt`], it returns nothing — a trace record cannot fail —
+/// Like [`nvs_probe_stmt`], it returns nothing — a trace record cannot fail —
 /// so the site has no status to check.
 ///
 /// # Safety
@@ -1277,7 +1277,7 @@ unsafe fn callee_label<'a>(name: *const u8, len: usize) -> Cow<'a, str> {
               range; neither contract can be expressed in the signature"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_probe_call_enter(ctx: *mut Ctx, name: *const u8, len: usize) {
+pub unsafe extern "C" fn nvs_probe_call_enter(ctx: *mut Ctx, name: *const u8, len: usize) {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees both are valid for this call; the only \
@@ -1295,21 +1295,21 @@ pub unsafe extern "C" fn mwl_probe_call_enter(ctx: *mut Ctx, name: *const u8, le
 /// call site is about to branch on — which is why a trace shows a thrown or
 /// `FATAL` exit as it happened rather than as a reconstruction.
 ///
-/// See [`mwl_probe_call_enter`] for the rest, including why the flags word is
+/// See [`nvs_probe_call_enter`] for the rest, including why the flags word is
 /// re-read here rather than the entry probe's answer being reused: a request
 /// may turn tracing on or off *during* the call, and an exit whose flag state
 /// differs from its entry's is the honest record of that.
 ///
 /// # Safety
 ///
-/// The same contract as [`mwl_probe_call_enter`].
+/// The same contract as [`nvs_probe_call_enter`].
 #[expect(
     unsafe_code,
     reason = "compiled code passes the context pointer and a static byte \
               range; neither contract can be expressed in the signature"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_probe_call_exit(
+pub unsafe extern "C" fn nvs_probe_call_exit(
     ctx: *mut Ctx,
     name: *const u8,
     len: usize,
@@ -1464,7 +1464,7 @@ mod tests {
             let mut ctx = Ctx::buffered();
             ctx.request_safepoint(flag);
             #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
-            let status = unsafe { mwl_safepoint(&raw mut ctx) };
+            let status = unsafe { nvs_safepoint(&raw mut ctx) };
             assert_eq!(status, crate::FATAL);
             assert_eq!(ctx.pending().as_deref(), Some(message));
         }
@@ -1476,7 +1476,7 @@ mod tests {
         for stmt in 0..4 {
             #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
             unsafe {
-                mwl_probe_stmt(&raw mut ctx, stmt);
+                nvs_probe_stmt(&raw mut ctx, stmt);
             }
         }
         assert!(ctx.stmt_hits().is_empty());
@@ -1489,7 +1489,7 @@ mod tests {
         for stmt in [2_u32, 0, 2] {
             #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
             unsafe {
-                mwl_probe_stmt(&raw mut ctx, stmt);
+                nvs_probe_stmt(&raw mut ctx, stmt);
             }
         }
         // Statement 1 never ran; 2 ran twice. The table is dense, so an
@@ -1520,15 +1520,15 @@ mod tests {
         let name = b"Math::double";
         #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
         unsafe {
-            mwl_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
-            mwl_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::OK);
+            nvs_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
+            nvs_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::OK);
         }
         // Coverage on, tracing still off: the two flags are independent, and
         // the call probe reads its own bit rather than "any bit set".
         ctx.set_debug_flags(DebugFlags::COVERAGE);
         #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
         unsafe {
-            mwl_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
+            nvs_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
         }
         assert!(ctx.trace().is_empty());
     }
@@ -1543,8 +1543,8 @@ mod tests {
         let name = b"Boom::inner";
         #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
         unsafe {
-            mwl_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
-            mwl_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::THROWN);
+            nvs_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
+            nvs_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::THROWN);
         }
         assert_eq!(
             ctx.trace(),
@@ -1567,7 +1567,7 @@ mod tests {
         ctx.set_debug_flags(DebugFlags::TRACE);
         #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
         unsafe {
-            mwl_probe_call_enter(&raw mut ctx, std::ptr::null(), 0);
+            nvs_probe_call_enter(&raw mut ctx, std::ptr::null(), 0);
         }
         assert_eq!(ctx.trace().len(), 1);
         assert_eq!(ctx.trace()[0].callee, "");
@@ -1581,7 +1581,7 @@ mod tests {
         let probe = |ctx: &mut Ctx, stmt: u32| {
             #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
             unsafe {
-                mwl_probe_stmt(&raw mut *ctx, stmt);
+                nvs_probe_stmt(&raw mut *ctx, stmt);
             }
         };
 
@@ -1599,7 +1599,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         ctx.request_safepoint(SafepointFlags::COLLECT | SafepointFlags::DEBUG_BREAK);
         #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
-        let status = unsafe { mwl_safepoint(&raw mut ctx) };
+        let status = unsafe { nvs_safepoint(&raw mut ctx) };
         assert_eq!(status, crate::OK);
         assert!(ctx.safepoint_flags().is_empty());
         assert!(ctx.pending().is_none());

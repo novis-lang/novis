@@ -34,12 +34,12 @@
 //! **Known gap:** an atom that resolves to nothing declared at all — not a
 //! class, not an alias, not `Core` — is not diagnosed here. Whether a name
 //! names *something* real is a general type-atom question the type checker
-//! (`mwl-types`, not yet started) owns; this module only concerns itself with
+//! (`nvs-types`, not yet started) owns; this module only concerns itself with
 //! the alias-substitution question ADR 0015 § 5 asks, the same narrowing
 //! [`crate::members`] already applies to `Class::member` references.
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use mwl_syntax::ast::{NamespaceDecl, Stmt, StmtKind, Type, TypeAtom, TypeKind};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_syntax::ast::{NamespaceDecl, Stmt, StmtKind, Type, TypeAtom, TypeKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::hierarchy::resolve_ref;
@@ -369,14 +369,14 @@ fn substitute(
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::SourceMap;
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::SourceMap;
+    use nvs_syntax::parse_file;
 
     use super::*;
 
     fn resolve(src: &str) -> (AliasTable, Diagnostics) {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -392,7 +392,7 @@ mod tests {
 
     #[test]
     fn a_scalar_alias_expands_to_the_scalar() {
-        let (table, diags) = resolve("<?mwl\ntype UserId = uint;\n");
+        let (table, diags) = resolve("<?nvs\ntype UserId = uint;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let ty = table.get(&QName::parse("UserId")).unwrap();
         assert!(is_atom(ty, &TypeAtom::Uint));
@@ -400,7 +400,7 @@ mod tests {
 
     #[test]
     fn an_alias_of_an_alias_expands_all_the_way_through() {
-        let (table, diags) = resolve("<?mwl\ntype Inner = uint;\ntype Outer = array<Inner>;\n");
+        let (table, diags) = resolve("<?nvs\ntype Inner = uint;\ntype Outer = array<Inner>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let outer = table.get(&QName::parse("Outer")).unwrap();
         let TypeKind::Atom(TypeAtom::Array(Some(inner))) = &outer.kind else {
@@ -412,7 +412,7 @@ mod tests {
     #[test]
     fn a_union_alias_substitutes_every_member() {
         let (table, diags) =
-            resolve("<?mwl\ntype Id = uint;\ntype Score = float;\ntype IdOrScore = Id|Score;\n");
+            resolve("<?nvs\ntype Id = uint;\ntype Score = float;\ntype IdOrScore = Id|Score;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let ty = table.get(&QName::parse("IdOrScore")).unwrap();
         let TypeKind::Union(members) = &ty.kind else {
@@ -424,7 +424,7 @@ mod tests {
 
     #[test]
     fn a_class_shaped_alias_leaves_the_class_name_untouched() {
-        let (table, diags) = resolve("<?mwl\nclass Foo {}\ntype MaybeFoo = ?Foo;\n");
+        let (table, diags) = resolve("<?nvs\nclass Foo {}\ntype MaybeFoo = ?Foo;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let ty = table.get(&QName::parse("MaybeFoo")).unwrap();
         let TypeKind::Nullable(inner) = &ty.kind else {
@@ -435,7 +435,7 @@ mod tests {
 
     #[test]
     fn a_direct_two_alias_cycle_is_diagnosed() {
-        let (_table, diags) = resolve("<?mwl\ntype A = B;\ntype B = A;\n");
+        let (_table, diags) = resolve("<?nvs\ntype A = B;\ntype B = A;\n");
         assert!(
             diags
                 .iter()
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn a_self_referential_alias_is_a_cycle_of_one() {
-        let (_table, diags) = resolve("<?mwl\ntype Loop = array<Loop>;\n");
+        let (_table, diags) = resolve("<?nvs\ntype Loop = array<Loop>;\n");
         assert!(
             diags
                 .iter()
@@ -455,14 +455,14 @@ mod tests {
 
     #[test]
     fn a_cycle_still_produces_an_entry_that_expands_to_mixed() {
-        let (table, _diags) = resolve("<?mwl\ntype A = B;\ntype B = A;\n");
+        let (table, _diags) = resolve("<?nvs\ntype A = B;\ntype B = A;\n");
         let ty = table.get(&QName::parse("A")).unwrap();
         assert!(is_atom(ty, &TypeAtom::Mixed));
     }
 
     #[test]
     fn an_unrelated_alias_still_resolves_when_another_one_cycles() {
-        let (table, diags) = resolve("<?mwl\ntype A = B;\ntype B = A;\ntype Fine = uint;\n");
+        let (table, diags) = resolve("<?nvs\ntype A = B;\ntype B = A;\ntype Fine = uint;\n");
         assert_eq!(
             diags
                 .iter()
@@ -478,7 +478,7 @@ mod tests {
     #[test]
     fn a_use_import_resolves_an_unqualified_alias_reference() {
         let (table, diags) = resolve(
-            "<?mwl\nnamespace App;\ntype Id = uint;\nnamespace App\\Http;\nuse App\\Id;\ntype Row = array<Id>;\n",
+            "<?nvs\nnamespace App;\ntype Id = uint;\nnamespace App\\Http;\nuse App\\Id;\ntype Row = array<Id>;\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
         let row = table.get(&QName::parse("App\\Http\\Row")).unwrap();

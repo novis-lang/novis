@@ -11,14 +11,14 @@
 //! are release-mode figures. Run them with:
 //!
 //! ```text
-//! cargo test --release -p mwl-abi-probe --test perf_guards
+//! cargo test --release -p nvs-abi-probe --test perf_guards
 //! ```
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::hint::black_box;
 use std::time::{Duration, Instant};
 
-use mwl_abi_probe::{Ctx, Helper, Probe, Value, call};
+use nvs_abi_probe::{Ctx, Helper, Probe, Value, call};
 
 /// Times `op` and returns nanoseconds per iteration.
 ///
@@ -123,7 +123,7 @@ fn a_coroutine_round_trip_stays_cheap() {
     // cost is amortised to nothing and the figure is the round trip itself.
     let measure = |iters: u64| -> Duration {
         let start = Instant::now();
-        let run = mwl_abi_probe::in_coroutine(Ctx::new(), move |ctx| {
+        let run = nvs_abi_probe::in_coroutine(Ctx::new(), move |ctx| {
             for _ in 0..iters {
                 black_box(call(chain, ctx, Value::int(1)));
             }
@@ -235,7 +235,7 @@ fn a_probe_that_is_switched_on_mid_flight_actually_fires() {
 #[cfg(feature = "wasm-probe")]
 mod wasm_guards {
     use super::{Instant, black_box, ns_per_op};
-    use mwl_abi_probe::wasm::WasmProbe;
+    use nvs_abi_probe::wasm::WasmProbe;
 
     const NO_DEADLINE: u64 = u64::MAX;
 
@@ -312,7 +312,7 @@ mod wasm_guards {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
-    // ADR 0006 gives MWL an in-process script isolate because PHP's only way to
+    // ADR 0006 gives Novis an in-process script isolate because PHP's only way to
     // run a script under its own heap, globals and limits is another process.
     // The whole argument is this ratio, so it is measured rather than asserted.
     //
@@ -328,16 +328,16 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
     const MIN_RATIO: f64 = 20.0;
 
     let task_ns = ns_per_op(50_000, 5, || {
-        let run = mwl_abi_probe::in_coroutine(Ctx::new(), |_ctx| black_box(7i64));
+        let run = nvs_abi_probe::in_coroutine(Ctx::new(), |_ctx| black_box(7i64));
         black_box(run.value);
     });
 
     // A spawn is milliseconds, so batches of one, and the minimum across them.
     let mut best_process = Duration::MAX;
-    mwl_abi_probe::process::spawn_noop(); // warm the image cache
+    nvs_abi_probe::process::spawn_noop(); // warm the image cache
     for _ in 0..25 {
         let start = Instant::now();
-        mwl_abi_probe::process::spawn_noop();
+        nvs_abi_probe::process::spawn_noop();
         best_process = best_process.min(start.elapsed());
     }
     let process_ns = best_process.as_secs_f64() * 1e9;
@@ -363,16 +363,16 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
 //
 // "Mandatory types pay for themselves on the request path" is a claim about
 // what the *compiler emits*, so both guards below compile the frozen
-// `examples/arith.mwl` fixture through the real pipeline rather than
+// `examples/arith.nvs` fixture through the real pipeline rather than
 // approximating it with hand-built IR. The first is structural and the honest
 // form of the claim; the second is a timing, and self-relative per ADR 0026.
 
-/// Compiles `examples/arith.mwl` and returns its lowered program alongside the
+/// Compiles `examples/arith.nvs` and returns its lowered program alongside the
 /// compiled unit.
-fn compile_arith() -> (mwl_ir::Program, mwl_codegen::Unit) {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/arith.mwl");
+fn compile_arith() -> (nvs_ir::Program, nvs_codegen::Unit) {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/arith.nvs");
     let text = std::fs::read_to_string(path).expect("the frozen acceptance fixture is readable");
-    compile_source("arith.mwl", &text)
+    compile_source("arith.nvs", &text)
 }
 
 /// Compiles one source text through the whole real pipeline — parse, resolve,
@@ -382,29 +382,29 @@ fn compile_arith() -> (mwl_ir::Program, mwl_codegen::Unit) {
 /// Every guard below that makes a claim about emitted code goes through this
 /// rather than hand-building IR: the claims are about what the *compiler*
 /// does, so an approximation of its output would not test them.
-fn compile_source(name: &str, text: &str) -> (mwl_ir::Program, mwl_codegen::Unit) {
-    let mut map = mwl_diagnostics::SourceMap::new();
+fn compile_source(name: &str, text: &str) -> (nvs_ir::Program, nvs_codegen::Unit) {
+    let mut map = nvs_diagnostics::SourceMap::new();
     let id = map.add(name, text);
     let src = map.file(id);
 
-    let mut diags = mwl_diagnostics::Diagnostics::new();
-    let stmts = mwl_syntax::parse_file(src, &mut diags);
-    let module = mwl_hir::resolve_file(&stmts, src, &mut diags);
-    let mut interner = mwl_types::TypeInterner::new();
-    let mut exprs = mwl_types::ExprTypeTable::new();
-    let files = [mwl_types::ProgramFile { src, stmts: &stmts }];
-    let enums = mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+    let mut diags = nvs_diagnostics::Diagnostics::new();
+    let stmts = nvs_syntax::parse_file(src, &mut diags);
+    let module = nvs_hir::resolve_file(&stmts, src, &mut diags);
+    let mut interner = nvs_types::TypeInterner::new();
+    let mut exprs = nvs_types::ExprTypeTable::new();
+    let files = [nvs_types::ProgramFile { src, stmts: &stmts }];
+    let enums = nvs_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
     assert!(!diags.has_errors(), "{name} stopped type-checking");
 
-    let layouts = mwl_types::build_class_layouts(&files, &module.graph);
+    let layouts = nvs_types::build_class_layouts(&files, &module.graph);
     let program =
-        mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &enums, &layouts);
-    let unit = mwl_codegen::compile(&program).expect("the fixture compiles");
+        nvs_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &enums, &layouts);
+    let unit = nvs_codegen::compile(&program).expect("the fixture compiles");
     (program, unit)
 }
 
 /// The lowered `Bench::sum`, whose body is the fixture's `while` loop.
-fn bench_sum(program: &mwl_ir::Program) -> &mwl_ir::Function {
+fn bench_sum(program: &nvs_ir::Program) -> &nvs_ir::Function {
     program
         .functions
         .iter()
@@ -414,12 +414,12 @@ fn bench_sum(program: &mwl_ir::Program) -> &mwl_ir::Function {
 
 #[test]
 fn a_typed_arithmetic_loop_contains_no_call() {
-    use mwl_ir::ir::InstKind;
+    use nvs_ir::ir::InstKind;
 
     let (program, _unit) = compile_arith();
     let sum = bench_sum(&program);
 
-    // Half one: the loop's arithmetic reached no helper and no MWL function.
+    // Half one: the loop's arithmetic reached no helper and no Novis function.
     // `$total + $i * 2 - 1` and `$i < $n` are native instructions because
     // ADR 0007 settled both operands' types before lowering; an untyped
     // language has to call something here.
@@ -446,9 +446,9 @@ fn a_typed_arithmetic_loop_contains_no_call() {
         .count();
     // The third and fourth accounted categories, both added when ADR 0007
     // § 4's overflow throw landed. Each checked integer arithmetic instruction
-    // owns a cold block calling `mwl_runtime::mwl_raise_new`, and the ADR 0002
+    // owns a cold block calling `nvs_runtime::nvs_raise_new`, and the ADR 0002
     // error edge it takes ends in a landing block whose `Propagate` calls
-    // `mwl_trace_push`. Both are out-of-line and neither is reached while the
+    // `nvs_trace_push`. Both are out-of-line and neither is reached while the
     // arithmetic fits — the hot path is still one machine instruction plus a
     // predicted not-taken branch — so they are accounted for here rather than
     // read as calls the loop pays for.
@@ -460,12 +460,12 @@ fn a_typed_arithmetic_loop_contains_no_call() {
     let landings = sum
         .blocks
         .iter()
-        .filter(|b| matches!(b.term, mwl_ir::ir::Terminator::Propagate { .. }))
+        .filter(|b| matches!(b.term, nvs_ir::ir::Terminator::Propagate { .. }))
         .count();
     // Scanned line by line rather than by splitting on the section marker:
     // Cranelift renders a two-way branch as `jnz label3; j label2`, so a
     // `"; "` split would cut the section short at the first branch.
-    let asm = mwl_codegen::disassemble(&program).expect("the fixture compiles");
+    let asm = nvs_codegen::disassemble(&program).expect("the fixture compiles");
     let mut in_section = false;
     let mut emitted = 0;
     for line in asm.lines() {
@@ -527,15 +527,15 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     let sum = unit
         .function("Bench::sum")
         .expect("the fixture declares Bench::sum");
-    let mut ctx = mwl_runtime::Ctx::new(mwl_runtime::OutputSink::Sink);
+    let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
     // Argument slot 0 is the implicit receiver every lowered method carries;
     // `Bench::sum` is static, so it is `null` — see `emit_call`'s own docs.
     let args = [
-        mwl_runtime::Value::null(),
-        mwl_runtime::Value::int(ITERATIONS),
+        nvs_runtime::Value::null(),
+        nvs_runtime::Value::int(ITERATIONS),
     ];
     let per_call = ns_per_op(2_000, 5, || {
-        black_box(mwl_runtime::call(sum, &mut ctx, &args)).expect("the loop ran");
+        black_box(nvs_runtime::call(sum, &mut ctx, &args)).expect("the loop ran");
     });
     let per_iteration = per_call / ITERATIONS as f64;
 
@@ -564,7 +564,7 @@ fn a_refcount_one_array_member_mutates_in_place() {
     // ADR 0063 R3 says no `Core` member mutates its subject — every one
     // returns a fresh value. That is only affordable because a write into an
     // array nothing else holds is done in place, with no copy at all: the
-    // `refcount == 1` fast path in `mwl_runtime::array`. This guard is what
+    // `refcount == 1` fast path in `nvs_runtime::array`. This guard is what
     // makes the claim checkable rather than remembered. It measures one write
     // into a solely-owned thousand-entry array against the same write into an
     // aliased one, which has to separate first and is therefore O(entries).
@@ -577,23 +577,23 @@ fn a_refcount_one_array_member_mutates_in_place() {
     const MAX_RATIO: f64 = 0.05;
     const ENTRIES: i64 = 1_000;
 
-    let mut array = mwl_runtime::MwlArray::new();
+    let mut array = nvs_runtime::NvsArray::new();
     for index in 0..ENTRIES {
         array.set(
-            mwl_runtime::MwlStr::new(index.to_string().as_bytes()),
-            mwl_runtime::Value::int(index),
+            nvs_runtime::NvsStr::new(index.to_string().as_bytes()),
+            nvs_runtime::Value::int(index),
         );
     }
-    let key = mwl_runtime::MwlStr::new(b"probe");
+    let key = nvs_runtime::NvsStr::new(b"probe");
 
     let in_place = ns_per_op(200_000, 5, || {
-        array.set(key.clone(), mwl_runtime::Value::int(1));
+        array.set(key.clone(), nvs_runtime::Value::int(1));
     });
     assert_eq!(array.refcount(), 1, "the in-place write never separated");
 
     let separating = ns_per_op(300, 5, || {
         let mut aliased = array.clone();
-        aliased.set(key.clone(), mwl_runtime::Value::int(1));
+        aliased.set(key.clone(), nvs_runtime::Value::int(1));
         black_box(aliased.count());
     });
 
@@ -668,8 +668,8 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
 
     for (name, text, max_validations) in corpora() {
         let bytes = text.as_bytes();
-        let graphemes = mwl_stdlib::granularity::Unit::Grapheme.length(&text);
-        let code_points = mwl_stdlib::granularity::Unit::CodePoint.length(&text);
+        let graphemes = nvs_stdlib::granularity::Unit::Grapheme.length(&text);
+        let code_points = nvs_stdlib::granularity::Unit::CodePoint.length(&text);
 
         // Per byte, so the three legs are comparable and the corpus size is
         // not baked into the threshold.
@@ -679,10 +679,10 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
             black_box(std::str::from_utf8(black_box(bytes)).is_ok());
         }));
         let code_point = per_byte(ns_per_op(2_000, 5, || {
-            black_box(mwl_stdlib::granularity::Unit::CodePoint.length(black_box(&text)));
+            black_box(nvs_stdlib::granularity::Unit::CodePoint.length(black_box(&text)));
         }));
         let grapheme = per_byte(ns_per_op(2_000, 5, || {
-            black_box(mwl_stdlib::granularity::Unit::Grapheme.length(black_box(&text)));
+            black_box(nvs_stdlib::granularity::Unit::Grapheme.length(black_box(&text)));
         }));
 
         let validations = grapheme / validate;
@@ -704,7 +704,7 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
             "over {name}, a grapheme count now costs {grapheme:.3} ns/byte against a \
              code-point count's {code_point:.3} ns/byte. The two are meant to be distinct \
              seams over the same buffer; if segmentation has become free, \
-             `mwl_stdlib::granularity` is no longer measuring what it claims to."
+             `nvs_stdlib::granularity` is no longer measuring what it claims to."
         );
 
         assert!(
@@ -734,7 +734,7 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
 /// the timing half and differ from each other by exactly three access pairs
 /// per iteration, which is what makes the slope between them the cost of an
 /// access rather than of a call frame.
-const OBSERVER_FIXTURE: &str = r#"<?mwl
+const OBSERVER_FIXTURE: &str = r#"<?nvs
 class Cell {
     public int $n;
 
@@ -812,8 +812,8 @@ class Cell {
 /// the reason `a_typed_arithmetic_loop_contains_no_call` gives: Cranelift
 /// renders a two-way branch as `jnz label3; j label2`, so a `"; "` split would
 /// cut the section short at the first branch.
-fn emitted_calls(program: &mwl_ir::Program, name: &str) -> Vec<String> {
-    let asm = mwl_codegen::disassemble(program).expect("the fixture compiles");
+fn emitted_calls(program: &nvs_ir::Program, name: &str) -> Vec<String> {
+    let asm = nvs_codegen::disassemble(program).expect("the fixture compiles");
     let mut in_section = false;
     let mut emitted = Vec::new();
     for line in asm.lines() {
@@ -829,7 +829,7 @@ fn emitted_calls(program: &mwl_ir::Program, name: &str) -> Vec<String> {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_class_without_a_property_observer_costs_nothing_extra() {
-    use mwl_ir::ir::InstKind;
+    use nvs_ir::ir::InstKind;
 
     // ADR 0014 § 4: a property with no hook, on a class that does not
     // implement `PropertyObserver`, compiles to a direct field load or store —
@@ -839,7 +839,7 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // classes that ignore it pay for it exactly nothing.
     //
     // `PropertyObserver` itself has no implementation yet — it is deliberately
-    // absent from `mwl_hir::interfaces::RESERVED`, which says so — so the
+    // absent from `nvs_hir::interfaces::RESERVED`, which says so — so the
     // reference this measures against is the ADR's *other* opt-in, a
     // per-property hook. That is the stronger of the two references anyway: a
     // hook is the cheapest thing an access can become once it stops being a
@@ -861,13 +861,13 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     const MAX_RATIO: f64 = 0.2;
     const ROUNDS: i64 = 1_000;
 
-    let (program, unit) = compile_source("observer.mwl", OBSERVER_FIXTURE);
+    let (program, unit) = compile_source("observer.nvs", OBSERVER_FIXTURE);
 
     // Half one, and the honest form of the claim: the accesses reached no
-    // helper and no MWL function. `Cell::touch`'s body is nothing but a loop
+    // helper and no Novis function. `Cell::touch`'s body is nothing but a loop
     // reading and writing `$n`, so an empty call list here *is* "no virtual
     // call" — and the same body over the hooked `$m` would not have one, which
-    // `each_property_hook_is_compiled_under_its_own_label` in `mwl-codegen`
+    // `each_property_hook_is_compiled_under_its_own_label` in `nvs-codegen`
     // holds from the other side.
     let touch = program
         .functions
@@ -959,18 +959,18 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // that differ by exactly three access pairs per iteration, so that the
     // allocation, the loop and the call-out all cancel. The hooked pair is the
     // identical measurement over `$m`.
-    let mut ctx = mwl_runtime::Ctx::new(mwl_runtime::OutputSink::Sink);
+    let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
     // Argument slot 0 is the implicit receiver every lowered method carries;
     // these are static, so it is `null` — see `emit_call`'s own docs.
-    let args = [mwl_runtime::Value::null(), mwl_runtime::Value::int(ROUNDS)];
+    let args = [nvs_runtime::Value::null(), nvs_runtime::Value::int(ROUNDS)];
     let mut per_pair = |one: &str, four: &str| -> f64 {
         let one = unit.function(one).expect("the fixture declares it");
         let four = unit.function(four).expect("the fixture declares it");
         let t_one = ns_per_op(2_000, 5, || {
-            black_box(mwl_runtime::call(one, &mut ctx, &args)).expect("the loop ran");
+            black_box(nvs_runtime::call(one, &mut ctx, &args)).expect("the loop ran");
         });
         let t_four = ns_per_op(2_000, 5, || {
-            black_box(mwl_runtime::call(four, &mut ctx, &args)).expect("the loop ran");
+            black_box(nvs_runtime::call(four, &mut ctx, &args)).expect("the loop ran");
         });
         (t_four - t_one) / (3.0 * ROUNDS as f64)
     };
@@ -995,7 +995,7 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
 }
 
 /// One `alloc`/`dealloc` round trip through whatever allocator this process
-/// registered — `mwl_runtime`'s own in an optimized build.
+/// registered — `nvs_runtime`'s own in an optimized build.
 #[expect(
     unsafe_code,
     reason = "measuring an allocator means calling it; the block is freed with \
@@ -1030,16 +1030,16 @@ fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
     // Self-relative, per ADR 0026: the bound is this machine's own platform
     // heap, measured in the same loop rather than quoted. A 32-byte round trip
     // through `System` is 28.7 ns on the tree that motivated
-    // `mwl_runtime::alloc` (docs/perf/userland-gap.md § A) and a free-list pop
+    // `nvs_runtime::alloc` (docs/perf/userland-gap.md § A) and a free-list pop
     // and push is a small multiple of a load and a store, so the real ratio is
     // an order of magnitude under this bound. What the guard holds is the cost
-    // *class*: MWL either serves a small allocation from its own cache or it
+    // *class*: Novis either serves a small allocation from its own cache or it
     // does not, and the failure this file's preamble names — the pooling
     // allocator silently not being registered — lands exactly here, because
     // then the two sides are the same code and the ratio is 1.
     const MAX_RATIO: f64 = 0.5;
 
-    // 32 bytes with 8-byte alignment: `MwlStr`'s header plus a short string,
+    // 32 bytes with 8-byte alignment: `NvsStr`'s header plus a short string,
     // and squarely inside the second size class.
     let layout = Layout::from_size_align(32, 8).expect("a valid layout");
 
@@ -1057,9 +1057,9 @@ fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
         ratio < MAX_RATIO,
         "a 32-byte round trip now costs {ratio:.3}x the platform heap's own \
          ({pooled:.2} ns vs {platform:.2} ns), over the {MAX_RATIO}x guard. \
-         Either `mwl_runtime::alloc` is no longer the `#[global_allocator]` \
+         Either `nvs_runtime::alloc` is no longer the `#[global_allocator]` \
          for this build, or its cache is no longer serving a request this \
          size; docs/perf/userland-gap.md § A is the measurement that made \
-         MWL own its allocator."
+         Novis own its allocator."
     );
 }

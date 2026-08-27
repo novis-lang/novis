@@ -1,7 +1,7 @@
 --TEST--
 One class satisfies two interfaces at once — each interface type reaches it, and `instanceof` answers for both
 --FILE--
-<?mwl
+<?nvs
 interface Shape {
     public function area(): int;
 }

@@ -1,11 +1,11 @@
 --TEST--
 `unset` frees a key but never lowers where the next append lands — the next-free index only counts up
 --FILE--
-<?mwl
+<?nvs
 // The two-row version. Both sides of every bound the counter has — which
 // removal degrades the representation, which key spelling raises it, and what
 // the first integer key does that a later one cannot — are in
-// unset-does-not-move-the-append-counter.mwlt beside this file.
+// unset-does-not-move-the-append-counter.nvst beside this file.
 array<string> $a = ["a", "b", "c"];
 unset($a[2]);
 $a[] = "x";

@@ -1,7 +1,7 @@
 --TEST--
 `Core\Str::replaceAll` substitutes a whole table in one left-to-right pass, longest needle first, so the answer never depends on the order the pairs were written — spec § 1, ADR 0063 R20
 --FILE--
-<?mwl
+<?nvs
 // One pass, and a replacement is never rescanned: `strtr`'s reading, which is
 // the half of PHP's two that does not depend on the pairs' order. The next
 // two lines are the same table written both ways round.

@@ -32,7 +32,7 @@
 //!
 //! A grapheme count is recomputed on every call. ADR 0009's *Consequences*
 //! names the fix — cache the count in the string's header, computed lazily on
-//! first use — and that is a `mwl_runtime::MwlStr` change, not this module's;
+//! first use — and that is a `nvs_runtime::NvsStr` change, not this module's;
 //! `docs/implementation-plan.md`'s M4S paragraph carries it. Nothing here
 //! changes when it lands: the seam is already the only caller.
 
@@ -161,7 +161,7 @@ impl Unit {
     ///
     /// The bridge every member that talks to a **byte**-addressed engine needs:
     /// `Core\Regex` runs on two crates that report a match in bytes, while
-    /// ADR 0009 § 2 says every `string` position MWL hands back or takes is in
+    /// ADR 0009 § 2 says every `string` position Novis hands back or takes is in
     /// [`DEFAULT`]'s unit. Converting at that seam is what keeps
     /// `Core\Regex\Match::offset` and `Core\Str::indexOf` answering in one unit.
     ///

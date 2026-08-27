@@ -1,7 +1,7 @@
 --TEST--
-A `match` written with no arms at all is `E0476`, never a panic — `mwl_types::expr`'s `Match` arm, and PHP's own answer is `UnhandledMatchError` on every evaluation
+A `match` written with no arms at all is `E0476`, never a panic — `nvs_types::expr`'s `Match` arm, and PHP's own answer is `UnhandledMatchError` on every evaluation
 --FILE--
-<?mwl
+<?nvs
 int $k = 2;
 // A `match` is an expression, so an arm-less one has nothing to bind.
 mixed $m = match ($k) { };

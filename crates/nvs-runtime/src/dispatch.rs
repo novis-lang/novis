@@ -4,9 +4,9 @@
 //! for [ADR 0013](../../../docs/adr/0013-comparable-interface.md), the
 //! `iterate`/`advance`/`current` trio for
 //! [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) — cannot
-//! name a compiled function: the class is one this crate and `mwl-stdlib` know
+//! name a compiled function: the class is one this crate and `nvs-stdlib` know
 //! nothing about, and the interface member is a bodiless declaration
-//! (`mwl_types::iter_lib`), so no symbol exists for a call site to resolve.
+//! (`nvs_types::iter_lib`), so no symbol exists for a call site to resolve.
 //! The object's own descriptor carries the table that answers it, and
 //! [`crate::call_closure`] already reaches a closure's `invoke` through
 //! exactly this lookup with the name fixed.
@@ -20,13 +20,13 @@
 //! # What a caller owes
 //!
 //! [`call_method`] retains the receiver and every argument before it calls,
-//! because a compiled MWL function releases its parameters — the same
+//! because a compiled Novis function releases its parameters — the same
 //! reconciliation [`crate::call_closure`] performs, and for the same reason.
 //! The [`Value`] it hands back is a fresh reference this frame owns.
 
-use crate::abi::{Fault, MwlFn, OK};
+use crate::abi::{Fault, NvsFn, OK};
 use crate::ctx::Ctx;
-use crate::object::{ClassDesc, MwlObj};
+use crate::object::{ClassDesc, NvsObj};
 use crate::value::Value;
 
 /// The compiled address of `receiver`'s `name`, or `None` when its class
@@ -71,7 +71,7 @@ fn descriptor_of(receiver: Value, what: &str, looked_for: &str) -> Result<*const
         reason = "the caller owns a reference to this object, so the \
                   allocation and its descriptor are both live for this read"
     )]
-    let desc: *const ClassDesc = unsafe { MwlObj::class_of(ptr) };
+    let desc: *const ClassDesc = unsafe { NvsObj::class_of(ptr) };
     if desc.is_null() {
         return Err(Fault::fatal(format!(
             "internal error: {what} was handed an object with no class descriptor"
@@ -130,10 +130,10 @@ pub fn call_render(ctx: &mut Ctx, receiver: Value, what: &str) -> Result<Option<
     #[expect(
         unsafe_code,
         reason = "the address came out of `ClassTable::set_render`, which \
-                  `mwl-stdlib` calls only with a registered `Core` member's \
+                  `nvs-stdlib` calls only with a registered `Core` member's \
                   own address, and every one of those has this signature"
     )]
-    let target: MwlFn = unsafe { std::mem::transmute::<*const u8, MwlFn>(target) };
+    let target: NvsFn = unsafe { std::mem::transmute::<*const u8, NvsFn>(target) };
     crate::abi::call(target, ctx, &[receiver])
         .map(Some)
         .map_err(|status| {
@@ -148,7 +148,7 @@ pub fn call_render(ctx: &mut Ctx, receiver: Value, what: &str) -> Result<Option<
 /// Ownership is [`call_render`]'s rather than [`call_at`]'s, and for the same
 /// reason stated the other way round: `gen#unwind` is the one *compiled*
 /// method that **borrows** argument 0, because its caller is a release that
-/// has no reference left to hand over. `mwl_ir::lower::generator`'s
+/// has no reference left to hand over. `nvs_ir::lower::generator`'s
 /// `lower_generator_unwind` argues that inversion in full; here it means this
 /// neither retains on the way in nor releases on the way out.
 ///
@@ -165,10 +165,10 @@ pub(crate) fn call_unwind(
     #[expect(
         unsafe_code,
         reason = "the address came out of a live descriptor's own method table, \
-                  which `mwl-codegen` fills only with compiled functions of \
+                  which `nvs-codegen` fills only with compiled functions of \
                   exactly this signature"
     )]
-    let target: MwlFn = unsafe { std::mem::transmute::<*const u8, MwlFn>(target) };
+    let target: NvsFn = unsafe { std::mem::transmute::<*const u8, NvsFn>(target) };
     crate::abi::call(target, ctx, &[receiver]).map_err(|status| {
         debug_assert_ne!(status, OK, "call reports Err only for a non-OK status");
         Fault::Pending(status)
@@ -191,10 +191,10 @@ pub(crate) fn call_at(
     #[expect(
         unsafe_code,
         reason = "the address came out of a live descriptor's method table, \
-                  which `mwl-codegen` fills only with compiled functions of \
+                  which `nvs-codegen` fills only with compiled functions of \
                   exactly this signature"
     )]
-    let target: MwlFn = unsafe { std::mem::transmute::<*const u8, MwlFn>(target) };
+    let target: NvsFn = unsafe { std::mem::transmute::<*const u8, NvsFn>(target) };
 
     let mut slots = Vec::with_capacity(args.len() + 1);
     slots.push(receiver);

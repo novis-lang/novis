@@ -5,7 +5,7 @@
 // Run it against the PHP the repository already uses as its differential oracle:
 //   php tools/dump-php-builtins.php > tools/data/php-builtins.txt
 //
-// The result is committed. It is an inventory, never a decision — what MWL does with each name is
+// The result is committed. It is an inventory, never a decision — what Novis does with each name is
 // docs/spec/02-php-migration.md, and tools/check-migration.py compares the two.
 
 $functions = get_defined_functions()['internal'];

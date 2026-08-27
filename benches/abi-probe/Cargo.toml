@@ -1,6 +1,6 @@
 [package]
-name = "mwl-abi-probe"
-description = "Architecture invariants and cost baselines for MWL's calling convention, coroutines and extension sandbox"
+name = "nvs-abi-probe"
+description = "Architecture invariants and cost baselines for Novis's calling convention, coroutines and extension sandbox"
 publish = false
 version.workspace = true
 edition.workspace = true
@@ -28,21 +28,21 @@ wasmtime = { workspace = true, optional = true }
 [dev-dependencies]
 criterion.workspace = true
 # The typed-arithmetic-loop guards in `tests/perf_guards.rs` compile
-# `examples/arith.mwl` through the real pipeline: ADR 0007's "mandatory types
+# `examples/arith.nvs` through the real pipeline: ADR 0007's "mandatory types
 # pay for themselves" is a claim about what the *compiler* emits, so a
 # hand-built approximation of it would not test the claim. Dev-only, so nothing
 # shipped depends on this crate depending on the compiler.
-mwl-diagnostics.workspace = true
-mwl-syntax.workspace = true
-mwl-hir.workspace = true
-mwl-types.workspace = true
-mwl-ir.workspace = true
-mwl-codegen.workspace = true
-mwl-runtime.workspace = true
+nvs-diagnostics.workspace = true
+nvs-syntax.workspace = true
+nvs-hir.workspace = true
+nvs-types.workspace = true
+nvs-ir.workspace = true
+nvs-codegen.workspace = true
+nvs-runtime.workspace = true
 # ADR 0009 § 2's granularity guard measures the seam `Core\Str` actually calls
-# (`mwl_stdlib::granularity`), not a re-implementation of it — the same reason
+# (`nvs_stdlib::granularity`), not a re-implementation of it — the same reason
 # the arithmetic guards compile the real fixture.
-mwl-stdlib.workspace = true
+nvs-stdlib.workspace = true
 
 [[bench]]
 name = "abi"
@@ -68,7 +68,7 @@ required-features = ["wasm-probe"]
 # workspace's `forbid`, so the handful of genuinely necessary blocks can be
 # allowed individually with a stated reason.
 #
-# This does not widen MWL's own unsafe surface: the crate is `publish = false`,
+# This does not widen Novis's own unsafe surface: the crate is `publish = false`,
 # is not a dependency of any shipped crate, and exists only to check that the
 # platform still behaves the way the ADRs assume.
 # ---------------------------------------------------------------------------

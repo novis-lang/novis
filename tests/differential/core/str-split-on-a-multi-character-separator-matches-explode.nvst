@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::split on a separator longer than one character matches explode, absent separator included
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::join(Core\Str::split("a::b::c", "::"), "|"), "\n";
 echo Core\Str::join(Core\Str::split("abc", "::"), "|"), "\n";
 echo Core\Str::join(Core\Str::split("::a::", "::"), "|"), "\n";

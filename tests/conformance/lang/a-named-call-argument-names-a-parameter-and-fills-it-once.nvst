@@ -1,7 +1,7 @@
 --TEST--
 a `name:` call argument is matched against the callee's parameter names, fills exactly one parameter, ends the positional part of the list, and does not exist for a `Core` member (ADR 0063 R2, ADR 0011 § 1)
 --FILE--
-<?mwl
+<?nvs
 final class Label {
     public static function render(int $count, string $text): string {
         return $text;
@@ -21,18 +21,18 @@ echo Core\Str::repeat(subject: "x", times: 2), "\n";
 
 --EXPECTF-ERROR--
 error[E0486]: no parameter of this call can be filled by the name `caption`
-  --> case.mwl:8:30
+  --> case.nvs:8:30
 %A
 error[E0487]: the parameter `$count` is given an argument twice
-   --> case.mwl:10:23
+   --> case.nvs:10:23
 %A
 error[E0488]: a positional argument cannot follow a `name:` or `...` argument
-   --> case.mwl:13:20
+   --> case.nvs:13:20
 %A
 error[E0485]: this call's target does not name its parameters
-   --> case.mwl:16:23
+   --> case.nvs:16:23
 %A
 error[E0485]: this call's target does not name its parameters
-   --> case.mwl:16:37
+   --> case.nvs:16:37
 %A
 error: aborting due to 5 errors

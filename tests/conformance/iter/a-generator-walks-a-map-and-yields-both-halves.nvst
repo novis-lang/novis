@@ -1,7 +1,7 @@
 --TEST--
 A generator's own `foreach` binds a key as well as a value, and re-yields the pair as one string in insertion order
 --FILE--
-<?mwl
+<?nvs
 class G {
     public static function pairs(array<int> $m): Iterator<string> {
         foreach ($m as string $k => int $v) {

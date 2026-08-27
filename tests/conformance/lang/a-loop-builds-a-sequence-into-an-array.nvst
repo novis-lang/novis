@@ -1,7 +1,7 @@
 --TEST--
 a `while` accumulating into an appended array returns it by value, keeping every element and the count
 --FILE--
-<?mwl
+<?nvs
 class Fib {
     public static function upTo(int $n): array<int> {
         array<int> $out = [];

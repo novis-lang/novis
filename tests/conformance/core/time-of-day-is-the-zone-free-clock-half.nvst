@@ -1,7 +1,7 @@
 --TEST--
 Spec § 4: `Core\Time\TimeOfDay` is the zone-free clock half, and `$d->timeOfDay()` is the component view
 --FILE--
-<?mwl
+<?nvs
 // `TimeOfDay::at` takes the two fields a wall clock always writes and
 // defaults the two it usually leaves off.
 var $t = Core\Time\TimeOfDay::at(9, 5);

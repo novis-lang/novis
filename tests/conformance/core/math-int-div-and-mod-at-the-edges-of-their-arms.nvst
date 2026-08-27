@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::intDiv overflows for exactly one dividend and mod's zero divisor is zero whichever sign it carries, per spec § 3 and ADR 0007 § 2
 --FILE--
-<?mwl
+<?nvs
 // `-1` is the one divisor an overflow is possible at, and it overflows for
 // exactly one dividend. `int`'s smallest over `1` is itself, `int`'s largest
 // over `-1` fits, and so does the value one above the smallest — the first

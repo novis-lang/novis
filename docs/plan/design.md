@@ -1,4 +1,4 @@
-# MWL — architecture and confirmed decisions
+# Novis — architecture and confirmed decisions
 
 The frozen half of [the implementation plan](../implementation-plan.md): what was decided
 before the first milestone, the architecture those decisions imply, and how the whole thing is
@@ -10,7 +10,7 @@ index, and one file per milestone beside this one.
 
 ## Context
 
-**MWL** is the language this repository builds. The plan of record is
+**Novis** is the language this repository builds. The plan of record is
 [docs/implementation-plan.md](../implementation-plan.md) — its status block is where the work stands,
 and its table routes to one file per milestone. This document holds what that plan decided *before* the
 first milestone; every decision it states is argued out in full in [docs/adr/](../adr/README.md).
@@ -20,7 +20,7 @@ The goal is a new programming language for web servers and CLI, written in Rust,
 - takes PHP 8.5 syntax as its starting point so existing PHP projects can be migrated,
 - compiles to native code just-in-time with no build step (edit file → run),
 - has first-class in-language parallelism,
-- can run another `.mwl` file as a fully isolated unit of work **inside the same process**, so a script
+- can run another `.nvs` file as a fully isolated unit of work **inside the same process**, so a script
   never has to spawn an interpreter to get isolation ([ADR 0006](../adr/0006-isolated-script-execution.md)),
 - is memory-safe and hard to attack,
 - serves HTTP from a **single process** with **no worker-pool ceiling** — fully isolated requests bounded
@@ -29,9 +29,9 @@ The goal is a new programming language for web servers and CLI, written in Rust,
 - and is fast, safe and simple *first* — spending memory to stay that way rather than the reverse
   ([ADR 0004](../adr/0004-memory-for-simplicity.md)).
 
-**Who this is for, and what it claims** — [ADR 0080](../adr/0080-the-audience-mwl-is-built-for.md) owns both
+**Who this is for, and what it claims** — [ADR 0080](../adr/0080-the-audience-nvs-is-built-for.md) owns both
 and this states only the headline. The first serious user is the **multi-tenant or regulated platform**: a
-team whose process runs code, or holds data, at more than one trust level. MWL makes exactly three claims to
+team whose process runs code, or holds data, at more than one trust level. Novis makes exactly three claims to
 that user, and no incumbent language can add any of them later — **injection and secret leakage are compile
 errors**; **a request, a job, a connection and an untrusted script are each a budgeted isolate in one
 process**; and **suspension has no colour**. Raw speed against PHP is measured
@@ -40,11 +40,11 @@ runtimes and PHP 8's JIT have answered enough of that argument that it no longer
 own. The PHP-shaped syntax is an **on-ramp, never a compatibility promise**, and ADR 0080 § 3 forbids any
 document from implying otherwise.
 
-Intended outcome: a self-hosted toolchain (`mwl` binary) that runs `.mwl` files on the CLI, serves them
+Intended outcome: a self-hosted toolchain (`nvs` binary) that runs `.nvs` files on the CLI, serves them
 over HTTP from one process, ships a working framework and a supply-chain-safe package system
 ([0082](../adr/0082-the-first-party-framework.md), [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)),
 and can mechanically transpile an existing PHP codebase's *own* application code — including its `.phpt`
-test suites — into MWL.
+test suites — into Novis.
 
 ---
 
@@ -61,7 +61,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart ([ADR 0017](../adr/0017-hot-reload-without-restart.md)); the on-disk file format, its mmap-verify-then-execute read path and its eviction policy are [ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) |
 | Parallelism | Hybrid: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
 | Suspension | Stackful coroutines — no async colouring; any function may yield |
-| Isolated execution | `spawn script 'file.mwl'` runs another file in-process as a child isolate, file-only, never a source string ([ADR 0006](../adr/0006-isolated-script-execution.md)) |
+| Isolated execution | `spawn script 'file.nvs'` runs another file in-process as a child isolate, file-only, never a source string ([ADR 0006](../adr/0006-isolated-script-execution.md)) |
 | Type system | Static, mandatory, explicit; every binding's declared type never changes; `uint` alongside signed `int` ([ADR 0007](../adr/0007-explicit-type-system.md)) |
 | Enums | A closed, named integer type, C#-style; PHP's class-like enum design (`::cases()`, methods, `string` backing) is disregarded entirely ([ADR 0010](../adr/0010-enums-are-a-value-type.md)) |
 | Scoping and state | `static` is a class-member modifier only; no function-scope `static`, no `static fn`, no `global` ([ADR 0008](../adr/0008-static-and-global.md)) |
@@ -71,24 +71,24 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | OOP-only: no free functions, no global constants | Every callable is a method, every constant a class constant; built-ins live under `Core` domain classes ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)) |
 | Name aliasing | No `class_alias` or import `as`; a compile-time-only `type` alias for a type expression is the one exception ([ADR 0015](../adr/0015-no-name-aliasing.md)) |
 | Code reuse | No `trait`; shared behavior is a `public`/`private` interface method body, shared state is explicit `implements Interface by $field;` delegation, and any resulting name collision is always a compile error requiring an explicit override — there is no `insteadof` ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
-| PHP compatibility | Pragmatic superset of the syntax, not of the type discipline: PHP 8.5 syntax accepted, `strict_types` implicit, no `eval`/`$$var`/`goto`/`extract()`/`settype()`/pipe operator (`\|>`, deliberately unparsed — see `mwl-syntax`'s module docs). Existing PHP does not run unconverted — see *Consequences to accept* below, and each ADR above for its own divergence from PHP |
-| Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
+| PHP compatibility | Pragmatic superset of the syntax, not of the type discipline: PHP 8.5 syntax accepted, `strict_types` implicit, no `eval`/`$$var`/`goto`/`extract()`/`settype()`/pipe operator (`\|>`, deliberately unparsed — see `nvs-syntax`'s module docs). Existing PHP does not run unconverted — see *Consequences to accept* below, and each ADR above for its own divergence from PHP |
+| Templating | `<?nvs … ?>` inline-HTML mode, `<?= ?>` short echo, `.nvs` extension. Explicit escaping (not auto) |
 | Request state | Strict shared-nothing: only compiled code survives a request; no connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
-| Security | Server-level `mwl.toml`, root-owned, TOML ([ADR 0064](../adr/0064-configuration-file-format.md)), deny-by-default capabilities + hard per-request limits ([ADR 0005](../adr/0005-config-changeability.md)) |
+| Security | Server-level `nvs.toml`, root-owned, TOML ([ADR 0064](../adr/0064-configuration-file-format.md)), deny-by-default capabilities + hard per-request limits ([ADR 0005](../adr/0005-config-changeability.md)) |
 | Serving | Built-in **HTTP/1.1** server, scoped to a development server and a proxied origin; no TLS listener, no h2c, no HTTP/3, no FastCGI, no compression ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md)) |
 | Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes ([ADR 0009](../adr/0009-string-and-bytes.md)) |
 | Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure ([ADR 0067](../adr/0067-core-db.md)) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
-| Audience | Multi-tenant and regulated platforms first; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise ([ADR 0080](../adr/0080-the-audience-mwl-is-built-for.md)) |
+| Audience | Multi-tenant and regulated platforms first; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise ([ADR 0080](../adr/0080-the-audience-nvs-is-built-for.md)) |
 | Packages | Content-addressed source archives from a first-party registry or (root-only) a git URL, resolved by minimal version selection, with no package code running before the program and capabilities granted per package ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)) |
-| Framework | First-party and split by [ADR 0051](../adr/0051-standard-library-tiers.md)'s six tests: privileged halves in `Core`, the opinionated layer as the `mwl/web` package; no ORM, no runtime container, the language is the view layer ([ADR 0082](../adr/0082-the-first-party-framework.md)) |
+| Framework | First-party and split by [ADR 0051](../adr/0051-standard-library-tiers.md)'s six tests: privileged halves in `Core`, the opinionated layer as the `nvs/web` package; no ORM, no runtime container, the language is the view layer ([ADR 0082](../adr/0082-the-first-party-framework.md)) |
 | Real-time | WebSocket and SSE connections are root isolates opened the way a script is spawned; fan-out is a bounded `Core\Topic` ([ADR 0083](../adr/0083-persistent-connections-are-isolates.md)) |
 | Background work | A durable job is a row in a `Core\Db` table, enqueued inside the caller's transaction and run as an isolate ([ADR 0084](../adr/0084-durable-background-jobs.md)) |
-| API contracts | OpenAPI 3.1 generated while compiling from the route table and derived codecs, with `mwl api diff` as a breaking-change gate ([ADR 0085](../adr/0085-openapi-is-generated-from-the-route-table.md)) |
-| Testing | Hand-written suite is normative; `.phpt → .mwlt` transpiler imports PHP's corpus |
-| Migration | `mwl convert` — real PHP→MWL transpiler |
-| Extensions | Three tiers: built-in, sandboxed **WebAssembly components** (`.mwlx`), statically linked native. No `dlopen` ([ADR 0003](../adr/0003-extension-system.md)) |
+| API contracts | OpenAPI 3.1 generated while compiling from the route table and derived codecs, with `nvs api diff` as a breaking-change gate ([ADR 0085](../adr/0085-openapi-is-generated-from-the-route-table.md)) |
+| Testing | Hand-written suite is normative; `.phpt → .nvst` transpiler imports PHP's corpus |
+| Migration | `nvs convert` — real PHP→Novis transpiler |
+| Extensions | Three tiers: built-in, sandboxed **WebAssembly components** (`.nvsx`), statically linked native. No `dlopen` ([ADR 0003](../adr/0003-extension-system.md)) |
 | Platforms | Windows x86_64, Linux x86_64, macOS (x86_64 + aarch64) |
 | Licence | MIT |
 
@@ -119,7 +119,7 @@ listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md
   where every operation lowers to a call into a Rust runtime helper — mechanically close to an interpreter
   loop, so it is fast to get correct, and typed inlining layers on afterwards without redesign.
 - **Database connections are pooled per core, so a connection reset is a security boundary.** Shared-nothing
-  is a rule about *program* state; a connection is host state MWL code cannot observe, so pooling it costs
+  is a rule about *program* state; a connection is host state Novis code cannot observe, so pooling it costs
   the model nothing ([ADR 0067](../adr/0067-core-db.md) § 13). What it does cost is a reset that must be
   provable rather than best-effort — a connection that cannot be proven clean is destroyed, because one
   tenant's session state arriving in another tenant's request is a leak, not a performance bug.
@@ -127,8 +127,8 @@ listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md
   `ArrayAccess`, no runtime autoloader ([ADRs 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md),
   [0014](../adr/0014-property-observer.md), [0053](../adr/0053-iteration-and-generators.md),
   [0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) means the ecosystem built on those is
-  unreachable at any price — so `mwl convert` (M11) ports an application's own code onto MWL's own
-  framework, and never onto its old one. [ADR 0080](../adr/0080-the-audience-mwl-is-built-for.md) § 4 records
+  unreachable at any price — so `nvs convert` (M11) ports an application's own code onto Novis's own
+  framework, and never onto its old one. [ADR 0080](../adr/0080-the-audience-nvs-is-built-for.md) § 4 records
   why this is survivable and what the alternative cost.
 - **A JIT means a native-codegen component in the trusted core.** User programs stay fully memory-safe
   (all codegen is type-checked and bounds-checked); the codegen itself, the coroutine stack switcher and
@@ -142,7 +142,7 @@ listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md
   destructuring target ([ADR 0007](../adr/0007-explicit-type-system.md)), and every one of its global
   functions and global constants needs a new home on a class before it type-checks at all
   ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)). A plain local has a type-eliding
-  spelling now — [ADR 0037](../adr/0037-var-local-type-inference.md)'s `var` — so `mwl convert` can emit that
+  spelling now — [ADR 0037](../adr/0037-var-local-type-inference.md)'s `var` — so `nvs convert` can emit that
   directly instead of inferring and writing an annotation, but it still has to write annotations and
   rewrite call sites for everything else, not just drop `.php` files into a document root. M11 stays
   mandatory rather than a convenience, and the imported `.phpt` pass rate is still structurally lower than
@@ -160,7 +160,7 @@ listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md
 ## Validated premises
 
 The M0 spikes are now permanent guard tests in [`benches/abi-probe`](../../benches/abi-probe/), because
-several decisions here rest on how Cranelift, `corosensei` and Wasmtime behave rather than on MWL's own
+several decisions here rest on how Cranelift, `corosensei` and Wasmtime behave rather than on Novis's own
 code, and a dependency bump can invalidate them silently. **The tests own the numbers; this document does
 not restate them.**
 
@@ -183,15 +183,15 @@ Three tiers, each the right answer for a different class of code rather than a c
 reasoning — the WIT interface, the handle-table value model, the measured boundary costs, the isolation and
 loading rules, and the decisive rejection of `dlopen` — is in [ADR 0003](../adr/0003-extension-system.md).
 
-- **Tier 0 — built-in (`mwl-stdlib`).** Compiled into the binary, native, direct heap access, no boundary.
+- **Tier 0 — built-in (`nvs-stdlib`).** Compiled into the binary, native, direct heap access, no boundary.
   Home of the fine-grained primitives whose total cost is comparable to a call.
-- **Tier 1 — WebAssembly component extensions (`.mwlx`).** The default for third parties: one binary that
+- **Tier 1 — WebAssembly component extensions (`.nvsx`).** The default for third parties: one binary that
   runs on every platform, sandboxed by construction, authorable in any language `wit-bindgen` targets.
-- **Tier 2 — statically linked native.** A Rust crate compiled into a custom `mwl` binary, for first-party
-  subsystems needing raw sockets, TLS or direct heap access — `mwl-db`, `mwl-regex`, crypto. It requires
+- **Tier 2 — statically linked native.** A Rust crate compiled into a custom `nvs` binary, for first-party
+  subsystems needing raw sockets, TLS or direct heap access — `nvs-db`, `nvs-regex`, crypto. It requires
   building from source, which is the right friction for code that runs unsandboxed.
 
-One sequencing constraint, which is why this section is in the plan at all: the `mwl:ext@1.0.0` WIT world
+One sequencing constraint, which is why this section is in the plan at all: the `nvs:ext@1.0.0` WIT world
 must be authored **during** the stdlib milestone (M8), from the same value-access design as the built-ins,
 so that the Tier 0 internal interface and the Tier 1 guest interface are one design rather than two that
 drift. Deferring it to M9 would mean retrofitting.
@@ -199,33 +199,33 @@ drift. Deferring it to M9 would mean retrofitting.
 ## Architecture
 
 ```
-                    .mwl / .php source
+                    .nvs / .php source
                             │
     ┌───────────────────────▼───────────────────────┐
-    │ mwl-syntax    lexer (dual mode, inline HTML)  │
+    │ nvs-syntax    lexer (dual mode, inline HTML)  │
     │               parser → AST + spans            │
     ├───────────────────────────────────────────────┤
-    │ mwl-hir       name resolution, namespaces,    │
+    │ nvs-hir       name resolution, namespaces,    │
     │               class graph, symbol table       │
     ├───────────────────────────────────────────────┤
-    │ mwl-types     declared types, unions, flow    │
+    │ nvs-types     declared types, unions, flow    │
     │               narrowing, no inference engine  │
     ├───────────────────────────────────────────────┤
-    │ mwl-ir        CFG/SSA, safepoints, refcount   │
+    │ nvs-ir        CFG/SSA, safepoints, refcount   │
     │               ops, optimisation passes        │
     ├───────────────────────────────────────────────┤
-    │ mwl-codegen   Cranelift → native code (W^X),  │
+    │ nvs-codegen   Cranelift → native code (W^X),  │
     │               status checks, helper calls     │
     └───────────────────────┬───────────────────────┘
                             │  Arc<CompiledUnit>  (immutable, shared)
     ┌───────────────────────▼───────────────────────┐
-    │ mwl-host   unit cache (single-flight compile) │
+    │ nvs-host   unit cache (single-flight compile) │
     │            isolate = arena + globals + limits │
     │            (a request is one isolate's root)  │
     └───────┬───────────────────────────────┬───────┘
             │                               │
     ┌───────▼───────┐               ┌───────▼───────┐
-    │ mwl-http      │               │ mwl-cli       │
+    │ nvs-http      │               │ nvs-cli       │
     │ h1, TCP + UDS │               │ run / test    │
     └───────────────┘               └───────────────┘
        one handle(Request) -> Response seam; ADR 0079's
@@ -253,7 +253,7 @@ require full-range `i64`. Tags: `null | bool | int(i64) | uint(u64) | float(f64)
 closure | resource | decimal`. `uint` is a tag, not a wider slot, so it costs nothing here; the type system
 that demands it is [ADR 0007](../adr/0007-explicit-type-system.md), which also owns the array element-type stamp
 carried on the array header. `decimal` is the one tag whose value does not fit the payload alone — its 96-bit
-mantissa spends the padding bytes too, so it is the whole sixteen — and `mwl_runtime::decimal`'s own module
+mantissa spends the padding bytes too, so it is the whole sixteen — and `nvs_runtime::decimal`'s own module
 doc is the home for that layout.
 
 Memory: refcounting + copy-on-write arrays/strings (PHP semantics). Reference cycles are bounded by the
@@ -327,15 +327,15 @@ request tree, never per isolate), the `script.spawn` capability and its path res
 arriving as a value rather than as an unwind. The spec pins the exact grammar down in M5. The three
 invariants no optimisation may trade away are listed in [AGENTS.md](../../AGENTS.md).
 
-The structural consequence for this plan: `mwl-host` gains **one** `Isolate` type, and an inbound HTTP
+The structural consequence for this plan: `nvs-host` gains **one** `Isolate` type, and an inbound HTTP
 request *is* the root isolate of its tree. The server path (M7) and the `spawn script` path (M5) therefore
 share one arena setup, one teardown, one place limits are enforced — and one state-bleed test suite. That
 is why isolates land in M5, before the server that depends on them.
 
-### `mwl.toml` — server-level, root-owned
+### `nvs.toml` — server-level, root-owned
 
 A directive registry in a root-owned TOML file, with per-app capability blocks living in the *root* config so
-an application can never grant itself rights. `mwl.toml` states **defaults, not ceilings**: a directive is a
+an application can never grant itself rights. `nvs.toml` states **defaults, not ceilings**: a directive is a
 limit that cannot be exceeded only when it cannot be changed at runtime at all. Each directive carries one
 of three changeability classes — `System`, `Runtime`, `RuntimeTighten`.
 
@@ -365,8 +365,8 @@ starts rather than sitting empty.
 ### Unsafe policy
 
 `unsafe_code = "forbid"` workspace-wide. Crates that genuinely need it opt down to `deny` and allow
-individual blocks with a stated reason: `mwl-runtime` and `mwl-codegen` (planned — the coroutine stack
-switcher, the request arena, JIT page mapping), `mwl-stdlib`, whose every `Core` member is an
+individual blocks with a stated reason: `nvs-runtime` and `nvs-codegen` (planned — the coroutine stack
+switcher, the request arena, JIT page mapping), `nvs-stdlib`, whose every `Core` member is an
 [ADR 0002](../adr/0002-error-propagation.md) helper entry point and therefore an `extern "C"` function
 decoding raw pointers, plus `benches/abi-probe`, which must call JIT-compiled code
 to measure it and is `publish = false`, so it does not widen the runtime's unsafe surface. Those modules
@@ -381,7 +381,7 @@ hand-rolled switcher. The policy is enforced in [Cargo.toml](../../Cargo.toml).
 ## Overall verification strategy
 
 - **Unit** — `cargo test` per crate; `insta` snapshots for AST/IR/codegen.
-- **Conformance** — hand-written `.mwlt` suite as the normative definition of MWL; imported `.phpt`
+- **Conformance** — hand-written `.nvst` suite as the normative definition of Novis; imported `.phpt`
   corpus tracked as a compatibility percentage.
 - **Property/fuzz** — `proptest` for the array and string implementations; `cargo-fuzz` on lexer, parser,
   HTTP parser, multipart, regex and JSON, run continuously in CI.

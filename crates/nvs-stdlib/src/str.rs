@@ -1,5 +1,5 @@
 //! `Core\Str` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
-//! § 1, over `mwl_runtime`'s reference-counted `MwlStr`.
+//! § 1, over `nvs_runtime`'s reference-counted `NvsStr`.
 //!
 //! Every member here is pure (ADR 0063 R3) and borrows its subject rather than
 //! consuming it — see [`crate`]'s own docs for why that falls out of being a
@@ -12,7 +12,7 @@
 //! reach for `&str` operations directly. [`text`] is the one place an argument
 //! becomes one, and it checks the **tag** and nothing else: the guarantee is a
 //! property of that tag, discharged once behind one `unsafe` in
-//! `mwl_runtime`'s `string` module (its § *Reading the payload as text*).
+//! `nvs_runtime`'s `string` module (its § *Reading the payload as text*).
 //! Re-deriving it here would be an O(n) pass per argument at every call site
 //! in this file, over a buffer the runtime already holds the answer for — and
 //! a debug build re-validates inside that one reader, so a producer that ever
@@ -27,7 +27,7 @@
 //! # A result is written once
 //!
 //! A member that builds its result **writes it straight into the allocation it
-//! is answered from**, through [`built`] and `mwl_runtime`'s `MwlStr::build`.
+//! is answered from**, through [`built`] and `nvs_runtime`'s `NvsStr::build`.
 //! The spelling it replaces — accumulate into a `String`, hand that to
 //! [`produced`] — allocates twice and copies every byte twice, because
 //! [`produced`] can only copy the text it is given. [`produced`] stays for the
@@ -57,7 +57,7 @@
 //! allocation per call (105.1), and measuring first walks the slots twice
 //! (92.5).
 //!
-//! Every length that *is* computed goes through `mwl_runtime::affordable`,
+//! Every length that *is* computed goes through `nvs_runtime::affordable`,
 //! which is the one seam a per-request ceiling attaches to. That seam refuses
 //! only a size past `isize::MAX`, so a member whose capacity is a **count off
 //! its call site** — `repeat`, `padStart`, `padEnd` — writes through
@@ -76,7 +76,7 @@
 //! `lower`/`upper`/`upperFirst`/`lowerFirst` use Rust's full Unicode case
 //! mappings, so they answer for `straße`/`ÄRGER` what PHP's `mb_strtoupper`
 //! answers and *not* what its byte-wise `strtolower`/`ucfirst` do. The spec's
-//! **Replaces** column lists both PHP spellings against one MWL member on
+//! **Replaces** column lists both PHP spellings against one Novis member on
 //! purpose (R13: "no member takes an encoding argument"), so the byte-wise
 //! behaviour has no surviving spelling to be compatible with — a deliberate
 //! divergence, and the shape `docs/agent/loop-goal.md`'s `--ORACLE-DIVERGES--`
@@ -84,7 +84,7 @@
 
 use std::cmp::Ordering;
 
-use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, StrWriter, Tag, Value};
+use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, StrWriter, Tag, Value};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy};
@@ -99,7 +99,7 @@ use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy
 pub(crate) const NORMAL_FORM_NAME: &str = r"Core\NormalForm";
 
 /// Spec § 1's `NormalForm` — UAX #15's four normal forms, and the only
-/// argument [`mwl_core_str_normalize`] takes beside its subject.
+/// argument [`nvs_core_str_normalize`] takes beside its subject.
 ///
 /// The order is the spec's own, which is also the order the two axes fall
 /// out in: composed before decomposed, canonical before compatibility. The
@@ -127,56 +127,56 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Uint,
-            symbol: "mwl_core_str_length",
+            symbol: "nvs_core_str_length",
         },
         CoreMethod {
             name: "at",
             params: &[CoreTy::Str, CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_at",
+            symbol: "nvs_core_str_at",
         },
         CoreMethod {
             name: "isEmpty",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_str_is_empty",
+            symbol: "nvs_core_str_is_empty",
         },
         CoreMethod {
             name: "contains",
             params: &[CoreTy::Str, CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_str_contains",
+            symbol: "nvs_core_str_contains",
         },
         CoreMethod {
             name: "startsWith",
             params: &[CoreTy::Str, CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_str_starts_with",
+            symbol: "nvs_core_str_starts_with",
         },
         CoreMethod {
             name: "endsWith",
             params: &[CoreTy::Str, CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_str_ends_with",
+            symbol: "nvs_core_str_ends_with",
         },
         CoreMethod {
             name: "slice",
             params: &[CoreTy::Str, CoreTy::Int, CoreTy::Nullable(&CoreTy::Int)],
             defaults: &[Const::Null],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_slice",
+            symbol: "nvs_core_str_slice",
         },
         CoreMethod {
             name: "indexOf",
             params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(INDEX_OF_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
-            symbol: "mwl_core_str_index_of",
+            symbol: "nvs_core_str_index_of",
         },
         CoreMethod {
             name: "lastIndexOf",
@@ -187,77 +187,77 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
-            symbol: "mwl_core_str_last_index_of",
+            symbol: "nvs_core_str_last_index_of",
         },
         CoreMethod {
             name: "countOf",
             params: &[CoreTy::Str, CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Uint,
-            symbol: "mwl_core_str_count_of",
+            symbol: "nvs_core_str_count_of",
         },
         CoreMethod {
             name: "compare",
             params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(COMPARE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_str_compare",
+            symbol: "nvs_core_str_compare",
         },
         CoreMethod {
             name: "before",
             params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(AROUND_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "mwl_core_str_before",
+            symbol: "nvs_core_str_before",
         },
         CoreMethod {
             name: "after",
             params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(AROUND_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "mwl_core_str_after",
+            symbol: "nvs_core_str_after",
         },
         CoreMethod {
             name: "join",
             params: &[CoreTy::Array(&CoreTy::Str), CoreTy::Str],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_join",
+            symbol: "nvs_core_str_join",
         },
         CoreMethod {
             name: "split",
             params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(SPLIT_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
-            symbol: "mwl_core_str_split",
+            symbol: "nvs_core_str_split",
         },
         CoreMethod {
             name: "chunk",
             params: &[CoreTy::Str, CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
-            symbol: "mwl_core_str_chunk",
+            symbol: "nvs_core_str_chunk",
         },
         CoreMethod {
             name: "lines",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
-            symbol: "mwl_core_str_lines",
+            symbol: "nvs_core_str_lines",
         },
         CoreMethod {
             name: "graphemes",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
-            symbol: "mwl_core_str_graphemes",
+            symbol: "nvs_core_str_graphemes",
         },
         CoreMethod {
             name: "codePoints",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Uint),
-            symbol: "mwl_core_str_code_points",
+            symbol: "nvs_core_str_code_points",
         },
         CoreMethod {
             name: "replace",
@@ -269,7 +269,7 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_replace",
+            symbol: "nvs_core_str_replace",
         },
         CoreMethod {
             name: "replaceAll",
@@ -280,7 +280,7 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_replace_all",
+            symbol: "nvs_core_str_replace_all",
         },
         CoreMethod {
             name: "replaceRange",
@@ -292,126 +292,126 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_replace_range",
+            symbol: "nvs_core_str_replace_range",
         },
         CoreMethod {
             name: "padStart",
             params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Str],
             defaults: &[Const::Str(" ")],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_pad_start",
+            symbol: "nvs_core_str_pad_start",
         },
         CoreMethod {
             name: "padEnd",
             params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Str],
             defaults: &[Const::Str(" ")],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_pad_end",
+            symbol: "nvs_core_str_pad_end",
         },
         CoreMethod {
             name: "trim",
             params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_trim",
+            symbol: "nvs_core_str_trim",
         },
         CoreMethod {
             name: "trimStart",
             params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_trim_start",
+            symbol: "nvs_core_str_trim_start",
         },
         CoreMethod {
             name: "trimEnd",
             params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_trim_end",
+            symbol: "nvs_core_str_trim_end",
         },
         CoreMethod {
             name: "repeat",
             params: &[CoreTy::Str, CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_repeat",
+            symbol: "nvs_core_str_repeat",
         },
         CoreMethod {
             name: "reverse",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_reverse",
+            symbol: "nvs_core_str_reverse",
         },
         CoreMethod {
             name: "wrap",
             params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Options(WRAP_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_wrap",
+            symbol: "nvs_core_str_wrap",
         },
         CoreMethod {
             name: "lower",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_lower",
+            symbol: "nvs_core_str_lower",
         },
         CoreMethod {
             name: "upper",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_upper",
+            symbol: "nvs_core_str_upper",
         },
         CoreMethod {
             name: "upperFirst",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_upper_first",
+            symbol: "nvs_core_str_upper_first",
         },
         CoreMethod {
             name: "lowerFirst",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_lower_first",
+            symbol: "nvs_core_str_lower_first",
         },
         CoreMethod {
             name: "fold",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_fold",
+            symbol: "nvs_core_str_fold",
         },
         CoreMethod {
             name: "normalize",
             params: &[CoreTy::Str, CoreTy::Enum(NORMAL_FORM_NAME)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_normalize",
+            symbol: "nvs_core_str_normalize",
         },
         CoreMethod {
             name: "fromCodePoint",
             params: &[CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_from_code_point",
+            symbol: "nvs_core_str_from_code_point",
         },
         CoreMethod {
             name: "fromCodePoints",
             params: &[CoreTy::Array(&CoreTy::Uint)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_from_code_points",
+            symbol: "nvs_core_str_from_code_points",
         },
         CoreMethod {
             name: "format",
             params: &[CoreTy::Str, CoreTy::Variadic(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_str_format",
+            symbol: "nvs_core_str_format",
         },
     ],
     instance: &[],
@@ -419,7 +419,7 @@ pub const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Str::split`'s `{limit?: int}` — [`mwl_core_str_split`]'s own docs own
+/// `Core\Str::split`'s `{limit?: int}` — [`nvs_core_str_split`]'s own docs own
 /// what each sign of it means and why the default is `int`'s maximum.
 const SPLIT_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "limit",
@@ -442,7 +442,7 @@ const TRIM_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// `Core\Str::replace`'s `{caseInsensitive?: bool, limit?: uint}`.
 ///
-/// [`mwl_core_str_replace`]'s own docs own both defaults — in particular why
+/// [`nvs_core_str_replace`]'s own docs own both defaults — in particular why
 /// "every occurrence" is spelled as `uint`'s maximum rather than as a sentinel
 /// `0` or a `null` the registry cannot state yet.
 const REPLACE_OPTIONS: &[CoreOption] = &[
@@ -517,7 +517,7 @@ const LAST_INDEX_OF_OPTIONS: &[CoreOption] = &[
 /// `strcasecmp`, `natural` alone is `strnatcmp`, and both together are
 /// `strnatcasecmp`. `natural` selects a **different ordering** rather than a
 /// variant of the same one, which is why the spec's own prose under § 1's
-/// *Comparison* table calls it out; [`mwl_core_str_compare`] owns what that
+/// *Comparison* table calls it out; [`nvs_core_str_compare`] owns what that
 /// ordering is.
 const COMPARE_OPTIONS: &[CoreOption] = &[
     CoreOption {
@@ -545,7 +545,7 @@ const AROUND_OPTIONS: &[CoreOption] = &[CoreOption {
 ///
 /// `breakWith` defaults to `"\n"` and **not** to PHP's `" \n"`: that default of
 /// PHP's is a two-character break inserted verbatim, which leaves a trailing
-/// space on every wrapped line. [`mwl_core_str_wrap`] owns the rest.
+/// space on every wrapped line. [`nvs_core_str_wrap`] owns the rest.
 const WRAP_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "breakWith",
@@ -566,45 +566,45 @@ const WRAP_OPTIONS: &[CoreOption] = &[
 /// arm here rather than to a single workspace-wide match.
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_str_length" => (mwl_core_str_length as *const ()).cast(),
-        "mwl_core_str_at" => (mwl_core_str_at as *const ()).cast(),
-        "mwl_core_str_is_empty" => (mwl_core_str_is_empty as *const ()).cast(),
-        "mwl_core_str_contains" => (mwl_core_str_contains as *const ()).cast(),
-        "mwl_core_str_starts_with" => (mwl_core_str_starts_with as *const ()).cast(),
-        "mwl_core_str_ends_with" => (mwl_core_str_ends_with as *const ()).cast(),
-        "mwl_core_str_slice" => (mwl_core_str_slice as *const ()).cast(),
-        "mwl_core_str_index_of" => (mwl_core_str_index_of as *const ()).cast(),
-        "mwl_core_str_last_index_of" => (mwl_core_str_last_index_of as *const ()).cast(),
-        "mwl_core_str_count_of" => (mwl_core_str_count_of as *const ()).cast(),
-        "mwl_core_str_compare" => (mwl_core_str_compare as *const ()).cast(),
-        "mwl_core_str_before" => (mwl_core_str_before as *const ()).cast(),
-        "mwl_core_str_after" => (mwl_core_str_after as *const ()).cast(),
-        "mwl_core_str_reverse" => (mwl_core_str_reverse as *const ()).cast(),
-        "mwl_core_str_wrap" => (mwl_core_str_wrap as *const ()).cast(),
-        "mwl_core_str_join" => (mwl_core_str_join as *const ()).cast(),
-        "mwl_core_str_split" => (mwl_core_str_split as *const ()).cast(),
-        "mwl_core_str_chunk" => (mwl_core_str_chunk as *const ()).cast(),
-        "mwl_core_str_lines" => (mwl_core_str_lines as *const ()).cast(),
-        "mwl_core_str_graphemes" => (mwl_core_str_graphemes as *const ()).cast(),
-        "mwl_core_str_code_points" => (mwl_core_str_code_points as *const ()).cast(),
-        "mwl_core_str_from_code_point" => (mwl_core_str_from_code_point as *const ()).cast(),
-        "mwl_core_str_from_code_points" => (mwl_core_str_from_code_points as *const ()).cast(),
-        "mwl_core_str_replace" => (mwl_core_str_replace as *const ()).cast(),
-        "mwl_core_str_replace_all" => (mwl_core_str_replace_all as *const ()).cast(),
-        "mwl_core_str_replace_range" => (mwl_core_str_replace_range as *const ()).cast(),
-        "mwl_core_str_trim" => (mwl_core_str_trim as *const ()).cast(),
-        "mwl_core_str_trim_start" => (mwl_core_str_trim_start as *const ()).cast(),
-        "mwl_core_str_trim_end" => (mwl_core_str_trim_end as *const ()).cast(),
-        "mwl_core_str_pad_start" => (mwl_core_str_pad_start as *const ()).cast(),
-        "mwl_core_str_pad_end" => (mwl_core_str_pad_end as *const ()).cast(),
-        "mwl_core_str_repeat" => (mwl_core_str_repeat as *const ()).cast(),
-        "mwl_core_str_lower" => (mwl_core_str_lower as *const ()).cast(),
-        "mwl_core_str_upper" => (mwl_core_str_upper as *const ()).cast(),
-        "mwl_core_str_upper_first" => (mwl_core_str_upper_first as *const ()).cast(),
-        "mwl_core_str_lower_first" => (mwl_core_str_lower_first as *const ()).cast(),
-        "mwl_core_str_fold" => (mwl_core_str_fold as *const ()).cast(),
-        "mwl_core_str_normalize" => (mwl_core_str_normalize as *const ()).cast(),
-        "mwl_core_str_format" => (mwl_core_str_format as *const ()).cast(),
+        "nvs_core_str_length" => (nvs_core_str_length as *const ()).cast(),
+        "nvs_core_str_at" => (nvs_core_str_at as *const ()).cast(),
+        "nvs_core_str_is_empty" => (nvs_core_str_is_empty as *const ()).cast(),
+        "nvs_core_str_contains" => (nvs_core_str_contains as *const ()).cast(),
+        "nvs_core_str_starts_with" => (nvs_core_str_starts_with as *const ()).cast(),
+        "nvs_core_str_ends_with" => (nvs_core_str_ends_with as *const ()).cast(),
+        "nvs_core_str_slice" => (nvs_core_str_slice as *const ()).cast(),
+        "nvs_core_str_index_of" => (nvs_core_str_index_of as *const ()).cast(),
+        "nvs_core_str_last_index_of" => (nvs_core_str_last_index_of as *const ()).cast(),
+        "nvs_core_str_count_of" => (nvs_core_str_count_of as *const ()).cast(),
+        "nvs_core_str_compare" => (nvs_core_str_compare as *const ()).cast(),
+        "nvs_core_str_before" => (nvs_core_str_before as *const ()).cast(),
+        "nvs_core_str_after" => (nvs_core_str_after as *const ()).cast(),
+        "nvs_core_str_reverse" => (nvs_core_str_reverse as *const ()).cast(),
+        "nvs_core_str_wrap" => (nvs_core_str_wrap as *const ()).cast(),
+        "nvs_core_str_join" => (nvs_core_str_join as *const ()).cast(),
+        "nvs_core_str_split" => (nvs_core_str_split as *const ()).cast(),
+        "nvs_core_str_chunk" => (nvs_core_str_chunk as *const ()).cast(),
+        "nvs_core_str_lines" => (nvs_core_str_lines as *const ()).cast(),
+        "nvs_core_str_graphemes" => (nvs_core_str_graphemes as *const ()).cast(),
+        "nvs_core_str_code_points" => (nvs_core_str_code_points as *const ()).cast(),
+        "nvs_core_str_from_code_point" => (nvs_core_str_from_code_point as *const ()).cast(),
+        "nvs_core_str_from_code_points" => (nvs_core_str_from_code_points as *const ()).cast(),
+        "nvs_core_str_replace" => (nvs_core_str_replace as *const ()).cast(),
+        "nvs_core_str_replace_all" => (nvs_core_str_replace_all as *const ()).cast(),
+        "nvs_core_str_replace_range" => (nvs_core_str_replace_range as *const ()).cast(),
+        "nvs_core_str_trim" => (nvs_core_str_trim as *const ()).cast(),
+        "nvs_core_str_trim_start" => (nvs_core_str_trim_start as *const ()).cast(),
+        "nvs_core_str_trim_end" => (nvs_core_str_trim_end as *const ()).cast(),
+        "nvs_core_str_pad_start" => (nvs_core_str_pad_start as *const ()).cast(),
+        "nvs_core_str_pad_end" => (nvs_core_str_pad_end as *const ()).cast(),
+        "nvs_core_str_repeat" => (nvs_core_str_repeat as *const ()).cast(),
+        "nvs_core_str_lower" => (nvs_core_str_lower as *const ()).cast(),
+        "nvs_core_str_upper" => (nvs_core_str_upper as *const ()).cast(),
+        "nvs_core_str_upper_first" => (nvs_core_str_upper_first as *const ()).cast(),
+        "nvs_core_str_lower_first" => (nvs_core_str_lower_first as *const ()).cast(),
+        "nvs_core_str_fold" => (nvs_core_str_fold as *const ()).cast(),
+        "nvs_core_str_normalize" => (nvs_core_str_normalize as *const ()).cast(),
+        "nvs_core_str_format" => (nvs_core_str_format as *const ()).cast(),
         _ => return None,
     })
 }
@@ -617,7 +617,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 ///
 /// There is no *encoding* failure to report, and this is where that shows in
 /// the cost. The tag [`Value::as_text`] checks is itself ADR 0009's UTF-8
-/// guarantee — `mwl_runtime`'s `string` module owns the argument in its
+/// guarantee — `nvs_runtime`'s `string` module owns the argument in its
 /// § *Reading the payload as text* — so re-deriving it here would be an O(n)
 /// pass per argument, at every call site in this file, over a buffer the
 /// runtime already knows the answer for.
@@ -678,7 +678,7 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
 /// A freshly built `string` result, copied out of the borrowed text it is
 /// already sitting in.
 fn produced(text: &str) -> HelperResult {
-    Ok(Value::str(MwlStr::new(text.as_bytes())))
+    Ok(Value::str(NvsStr::new(text.as_bytes())))
 }
 
 /// A freshly built `string` result, written straight into the allocation it is
@@ -687,19 +687,19 @@ fn produced(text: &str) -> HelperResult {
 ///
 /// See this module's § *A result is written once*.
 fn built(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> HelperResult {
-    Ok(Value::str(MwlStr::build(capacity, write)))
+    Ok(Value::str(NvsStr::build(capacity, write)))
 }
 
 /// [`built`], for a member whose capacity is a **count off its own call site**
 /// rather than a bound on a subject already in memory.
 ///
 /// Two checks, and they answer different questions, exactly as
-/// `mwl_core_random_bytes` runs them: `mwl_runtime::affordable` is the policy
+/// `nvs_core_random_bytes` runs them: `nvs_runtime::affordable` is the policy
 /// seam every count-shaped argument passes through and refuses only a size
 /// past `isize::MAX`, so every count below it that the machine cannot serve
 /// reaches the allocator — where an abort takes the process and every
 /// in-flight request with it, for a refusal a caller may well want to handle.
-/// [`MwlStr::try_build`] asks instead.
+/// [`NvsStr::try_build`] asks instead.
 ///
 /// `capacity` must be the result's *exact* length; a writer that exceeds it
 /// grows through the aborting path, which is why [`built`] stays the spelling
@@ -709,7 +709,7 @@ fn built_fallibly(
     member: &str,
     write: impl FnOnce(&mut StrWriter<'_>),
 ) -> HelperResult {
-    MwlStr::try_build(capacity, write)
+    NvsStr::try_build(capacity, write)
         .map(Value::str)
         .ok_or_else(|| {
             Fault::thrown(format!(
@@ -719,15 +719,15 @@ fn built_fallibly(
 }
 
 /// The values an `array` argument holds, in slot order, each **borrowed** from
-/// the array rather than retained — which is what `mwl_array_value_at` writes,
+/// the array rather than retained — which is what `nvs_array_value_at` writes,
 /// and why nothing here releases one.
 ///
-/// The cursor exists as an iterator so [`mwl_core_str_join`]'s body is the join
+/// The cursor exists as an iterator so [`nvs_core_str_join`]'s body is the join
 /// and not the walk; the `unsafe` the walk needs is stated once, here.
 struct Elements {
     /// The array being walked. Live for this iterator's whole life, which is
     /// [`Elements::of`]'s obligation on its caller.
-    array: *const mwl_runtime::ArrayHeader,
+    array: *const nvs_runtime::ArrayHeader,
     /// The slot the next step starts looking from.
     from: usize,
 }
@@ -737,7 +737,7 @@ impl Elements {
     /// as the iterator does. A helper's own `Tag::Array` argument satisfies
     /// both: it owns a reference for the length of the call, and no member
     /// reading one also writes it.
-    fn of(array: *const mwl_runtime::ArrayHeader) -> Self {
+    fn of(array: *const nvs_runtime::ArrayHeader) -> Self {
         Self { array, from: 0 }
     }
 }
@@ -754,9 +754,9 @@ impl Iterator for Elements {
         )]
         let (slot, value) = unsafe {
             let slot =
-                usize::try_from(mwl_runtime::mwl_array_next_slot(self.array, self.from)).ok()?;
+                usize::try_from(nvs_runtime::nvs_array_next_slot(self.array, self.from)).ok()?;
             let mut value = Value::null();
-            mwl_runtime::mwl_array_value_at(self.array, slot, &raw mut value);
+            nvs_runtime::nvs_array_value_at(self.array, slot, &raw mut value);
             (slot, value)
         };
         self.from = slot + 1;
@@ -764,7 +764,7 @@ impl Iterator for Elements {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::length(string $s): uint` — how many characters the string
     /// holds, replacing PHP's `strlen` *and* `mb_strlen` at once.
     ///
@@ -779,7 +779,7 @@ mwl_runtime::mwl_helper! {
     /// what used to be an `is_ascii` scan and a separate search for `\r`. An
     /// ASCII subject's count is then `len`, in O(1). `granularity`'s own known
     /// gap owns the cached-count fix ADR 0009 names.
-    fn mwl_core_str_length(_ctx, args: [1]) {
+    fn nvs_core_str_length(_ctx, args: [1]) {
         let subject = text(&args[0], "length", "the subject")?;
         // `try_from` rather than `as`: `usize` is no wider than `u64` on any
         // target `deny.toml` builds for, so this cannot lose a digit, and
@@ -791,7 +791,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::at(string $s, int $index): string` — the one character at
     /// `$index`, replacing PHP's `$s[$i]` and `mb_substr($s, $i, 1)`.
     ///
@@ -809,7 +809,7 @@ mwl_runtime::mwl_helper! {
     ///
     /// A negative index counts from the end, which is R8's range rule applied
     /// to a range of one.
-    fn mwl_core_str_at(_ctx, args: [2]) {
+    fn nvs_core_str_at(_ctx, args: [2]) {
         let subject = text(&args[0], "at", "the subject")?;
         let index = integer(&args[1], "at", "the index")?;
         let unit = crate::granularity::DEFAULT;
@@ -823,61 +823,61 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::isEmpty(string $s): bool` — whether the string holds no
     /// characters at all, replacing PHP's `$s === ""` idiom.
-    fn mwl_core_str_is_empty(_ctx, args: [1]) {
+    fn nvs_core_str_is_empty(_ctx, args: [1]) {
         Ok(Value::bool(text(&args[0], "isEmpty", "the subject")?.is_empty()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::contains(string $haystack, string $needle): bool` —
     /// replacing PHP's `str_contains` and `strstr` used as a predicate.
     ///
     /// An empty needle is contained in every string, including the empty one,
     /// which is both Rust's and PHP 8's answer.
-    fn mwl_core_str_contains(_ctx, args: [2]) {
+    fn nvs_core_str_contains(_ctx, args: [2]) {
         let haystack = text(&args[0], "contains", "the subject")?;
         let needle = text(&args[1], "contains", "the needle")?;
         Ok(Value::bool(haystack.contains(needle)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::startsWith(string $s, string $prefix): bool` — replacing
     /// PHP's `str_starts_with`.
-    fn mwl_core_str_starts_with(_ctx, args: [2]) {
+    fn nvs_core_str_starts_with(_ctx, args: [2]) {
         let subject = text(&args[0], "startsWith", "the subject")?;
         let prefix = text(&args[1], "startsWith", "the prefix")?;
         Ok(Value::bool(subject.starts_with(prefix)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::endsWith(string $s, string $suffix): bool` — replacing PHP's
     /// `str_ends_with`.
-    fn mwl_core_str_ends_with(_ctx, args: [2]) {
+    fn nvs_core_str_ends_with(_ctx, args: [2]) {
         let subject = text(&args[0], "endsWith", "the subject")?;
         let suffix = text(&args[1], "endsWith", "the suffix")?;
         Ok(Value::bool(subject.ends_with(suffix)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::join(array<string> $parts, string $separator = ""): string`
     /// — replacing PHP's `implode`/`join`.
     ///
     /// The **first `Core` member with an optional parameter**: a call that
     /// omits the separator has the empty string materialized at the call site
-    /// from `mwl_stdlib::registry::CoreMethod::defaults`, so this body always
+    /// from `nvs_stdlib::registry::CoreMethod::defaults`, so this body always
     /// receives two arguments and knows nothing about defaults at all — see
-    /// `mwl_types::defaults` for why the caller does that work.
+    /// `nvs_types::defaults` for why the caller does that work.
     ///
     /// PHP's legacy argument-swapped `implode($glue, $array)` form has no
     /// counterpart: ADR 0063 R1 puts the subject first, and R20 leaves no room
     /// for a second spelling of one operation.
-    fn mwl_core_str_join(_ctx, args: [2]) {
+    fn nvs_core_str_join(_ctx, args: [2]) {
         let parts = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Str::join expected {:?} for the subject, got tag {}",
@@ -906,7 +906,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::split(string $s, string $separator, {limit?: int}): array<string>`
     /// — replacing PHP's `explode`, whose third argument becomes the one
     /// option here.
@@ -925,12 +925,12 @@ mwl_runtime::mwl_helper! {
     ///
     /// It defaults to `int`'s maximum, which is "no limit" — a subject that
     /// fits in memory can never produce that many pieces. Same decision, and
-    /// the same reasons, as [`mwl_core_str_replace`]'s own `limit`.
+    /// the same reasons, as [`nvs_core_str_replace`]'s own `limit`.
     ///
     /// **An empty separator throws**, as PHP's `explode` does: there is no
     /// sensible piece boundary, and returning the subject unsplit would hide
     /// a computed separator that came out empty by mistake.
-    fn mwl_core_str_split(_ctx, args: [3]) {
+    fn nvs_core_str_split(_ctx, args: [3]) {
         let subject = text(&args[0], "split", "the subject")?;
         let separator = text(&args[1], "split", "the separator")?;
         let limit = integer(&args[2], "split", "the `limit` option")?;
@@ -940,25 +940,25 @@ mwl_runtime::mwl_helper! {
             ));
         }
 
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         if limit >= 0 {
             // A limit of `0` means one piece, not none — see the docs above.
             let pieces = usize::try_from(limit).unwrap_or(usize::MAX).max(1);
             for piece in subject.splitn(pieces, separator) {
-                out.append(Value::str(MwlStr::new(piece.as_bytes())));
+                out.append(Value::str(NvsStr::new(piece.as_bytes())));
             }
         } else {
             let dropped = usize::try_from(limit.unsigned_abs()).unwrap_or(usize::MAX);
             let all: Vec<&str> = subject.split(separator).collect();
             for piece in all.get(..all.len().saturating_sub(dropped)).unwrap_or(&[]) {
-                out.append(Value::str(MwlStr::new(piece.as_bytes())));
+                out.append(Value::str(NvsStr::new(piece.as_bytes())));
             }
         }
         Ok(Value::array(out))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::chunk(string $s, uint $size): array<string>` — replacing
     /// PHP's `str_split`, `mb_str_split` and `chunk_split`.
     ///
@@ -976,11 +976,11 @@ mwl_runtime::mwl_helper! {
     /// empty array — hides a computed size that came out zero by mistake.
     ///
     /// An empty subject is **no chunks**, not one empty one. That parts company
-    /// with [`mwl_core_str_split`], which answers `[""]`, and deliberately: a
+    /// with [`nvs_core_str_split`], which answers `[""]`, and deliberately: a
     /// separator-split asks "what lies between the separators" and there is one
     /// such region, while this asks "how does the text divide" and empty text
     /// divides into nothing. PHP 8.2 made `str_split("")` the same `[]`.
-    fn mwl_core_str_chunk(_ctx, args: [2]) {
+    fn nvs_core_str_chunk(_ctx, args: [2]) {
         let subject = text(&args[0], "chunk", "the subject")?;
         let size = count(&args[1], "chunk", "the chunk size")?;
         if size == 0 {
@@ -989,7 +989,7 @@ mwl_runtime::mwl_helper! {
             ));
         }
 
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         let mut start = 0usize;
         let mut at = 0usize;
         let mut held = 0usize;
@@ -997,29 +997,29 @@ mwl_runtime::mwl_helper! {
             at += piece.len();
             held += 1;
             if held == size {
-                out.append(Value::str(MwlStr::new(&subject.as_bytes()[start..at])));
+                out.append(Value::str(NvsStr::new(&subject.as_bytes()[start..at])));
                 start = at;
                 held = 0;
             }
         }
         if start < subject.len() {
-            out.append(Value::str(MwlStr::new(&subject.as_bytes()[start..])));
+            out.append(Value::str(NvsStr::new(&subject.as_bytes()[start..])));
         }
         Ok(Value::array(out))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::lines(string $s): array<string>` — replacing
     /// `explode(PHP_EOL, …)` and the splitting half of `file()`.
     ///
     /// See [`line_pieces`] for the three terminators it accepts and why the
     /// platform's own line ending is never consulted.
-    fn mwl_core_str_lines(_ctx, args: [1]) {
+    fn nvs_core_str_lines(_ctx, args: [1]) {
         let subject = text(&args[0], "lines", "the subject")?;
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         for line in line_pieces(subject) {
-            out.append(Value::str(MwlStr::new(line.as_bytes())));
+            out.append(Value::str(NvsStr::new(line.as_bytes())));
         }
         Ok(Value::array(out))
     }
@@ -1028,7 +1028,7 @@ mwl_runtime::mwl_helper! {
 /// `subject`'s lines, without their terminators.
 ///
 /// **`\n`, `\r\n` and a lone `\r` all end a line**, on every platform, and
-/// nothing here reads the host's own line ending — which is why MWL has no
+/// nothing here reads the host's own line ending — which is why Novis has no
 /// `PHP_EOL` equivalent to pass in. Text arriving over a request, out of a
 /// file written elsewhere, or off a Windows editor is the ordinary case, and a
 /// member that split on one of the three would answer with a `\r` still glued
@@ -1068,7 +1068,7 @@ fn line_pieces(subject: &str) -> Vec<&str> {
     out
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::graphemes(string $s): array<string>` — the split half of
     /// intl's `grapheme_*` family.
     ///
@@ -1079,19 +1079,19 @@ mwl_runtime::mwl_helper! {
     /// pieces themselves does not have to reimplement the boundary rule to get
     /// them, which is the mistake `str_split` invites.
     ///
-    /// An empty subject is **no pieces**, matching [`mwl_core_str_chunk`] for
+    /// An empty subject is **no pieces**, matching [`nvs_core_str_chunk`] for
     /// the same reason: empty text divides into nothing.
-    fn mwl_core_str_graphemes(_ctx, args: [1]) {
+    fn nvs_core_str_graphemes(_ctx, args: [1]) {
         let subject = text(&args[0], "graphemes", "the subject")?;
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         for piece in crate::granularity::Unit::Grapheme.pieces(subject) {
-            out.append(Value::str(MwlStr::new(piece.as_bytes())));
+            out.append(Value::str(NvsStr::new(piece.as_bytes())));
         }
         Ok(Value::array(out))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::codePoints(string $s): array<uint>` — replacing
     /// `mb_str_split` + `mb_ord` and `unpack("N*", …)`.
     ///
@@ -1108,9 +1108,9 @@ mwl_runtime::mwl_helper! {
     /// program asks for scalar values on purpose rather than by accident.
     /// `codePoints("é\u{0301}")` is two, where `graphemes` of the same subject
     /// is one.
-    fn mwl_core_str_code_points(_ctx, args: [1]) {
+    fn nvs_core_str_code_points(_ctx, args: [1]) {
         let subject = text(&args[0], "codePoints", "the subject")?;
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         for piece in crate::granularity::Unit::CodePoint.pieces(subject) {
             let point = piece.chars().next().expect("a code point piece is one char");
             out.append(Value::uint(u64::from(point as u32)));
@@ -1141,31 +1141,31 @@ fn trimmed<'a>(subject: &'a str, characters: &str, start: bool, end: bool) -> &'
     out
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::trim(string $s, {characters?: string}): string` — replacing
     /// PHP's `trim`. [`trimmed`] owns the two divergences from it, and
     /// `crate::registry`'s `TRIM_OPTIONS` owns the default set.
-    fn mwl_core_str_trim(_ctx, args: [2]) {
+    fn nvs_core_str_trim(_ctx, args: [2]) {
         let subject = text(&args[0], "trim", "the subject")?;
         let characters = text(&args[1], "trim", "the `characters` option")?;
         produced(trimmed(subject, characters, true, true))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::trimStart(string $s, {characters?: string}): string` —
-    /// replacing PHP's `ltrim`. See [`mwl_core_str_trim`].
-    fn mwl_core_str_trim_start(_ctx, args: [2]) {
+    /// replacing PHP's `ltrim`. See [`nvs_core_str_trim`].
+    fn nvs_core_str_trim_start(_ctx, args: [2]) {
         let subject = text(&args[0], "trimStart", "the subject")?;
         let characters = text(&args[1], "trimStart", "the `characters` option")?;
         produced(trimmed(subject, characters, true, false))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::trimEnd(string $s, {characters?: string}): string` —
-    /// replacing PHP's `rtrim`/`chop`. See [`mwl_core_str_trim`].
-    fn mwl_core_str_trim_end(_ctx, args: [2]) {
+    /// replacing PHP's `rtrim`/`chop`. See [`nvs_core_str_trim`].
+    fn nvs_core_str_trim_end(_ctx, args: [2]) {
         let subject = text(&args[0], "trimEnd", "the subject")?;
         let characters = text(&args[1], "trimEnd", "the `characters` option")?;
         produced(trimmed(subject, characters, false, true))
@@ -1206,7 +1206,7 @@ fn match_at(rest: &str, needle: &str) -> Option<usize> {
     Some(matched)
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::replace(string $s, string $search, string $replacement, {caseInsensitive?: bool, limit?: uint}): string`
     /// — replacing PHP's `str_replace` **and** `str_ireplace`, which are one
     /// member here because ADR 0063 R13/R20 leave no room for a second
@@ -1222,13 +1222,13 @@ mwl_runtime::mwl_helper! {
     /// * **`limit` defaults to `uint`'s maximum**, which is "every
     ///   occurrence" — a string that fits in memory can never hold that many.
     ///   A sentinel `0` would have been a magic value, and `?uint = null` is
-    ///   the shape `mwl_types::defaults` cannot state yet
-    ///   (`mwl-stdlib`'s known gap 3). A `limit` of `0` therefore means
+    ///   the shape `nvs_types::defaults` cannot state yet
+    ///   (`nvs-stdlib`'s known gap 3). A `limit` of `0` therefore means
     ///   exactly what it says: replace nothing.
     /// * **An empty `$search` replaces nothing**, rather than inserting the
     ///   replacement between every character or looping forever. PHP returns
     ///   the subject unchanged too.
-    fn mwl_core_str_replace(_ctx, args: [5]) {
+    fn nvs_core_str_replace(_ctx, args: [5]) {
         let subject = text(&args[0], "replace", "the subject")?;
         let search = text(&args[1], "replace", "the search string")?;
         let replacement = text(&args[2], "replace", "the replacement")?;
@@ -1262,7 +1262,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::replaceAll(string $s, array<string> $pairs, {caseInsensitive?: bool}): string`
     /// — replacing PHP's `str_replace` with array arguments **and** its
     /// `strtr`, which are one member here because they are one operation:
@@ -1290,7 +1290,7 @@ mwl_runtime::mwl_helper! {
     ///   needles cannot match the same span exactly. With it they can, and the
     ///   pair written first wins.
     ///
-    /// **An empty needle is skipped**, matching [`mwl_core_str_replace`]'s
+    /// **An empty needle is skipped**, matching [`nvs_core_str_replace`]'s
     /// answer for the same input rather than inserting its replacement between
     /// every character. An empty `$pairs` returns the subject unchanged.
     ///
@@ -1299,7 +1299,7 @@ mwl_runtime::mwl_helper! {
     /// in every use this library has, and an Aho-Corasick automaton would
     /// spend more building itself than it saves. Revisit against a measured
     /// call site, not against this comment.
-    fn mwl_core_str_replace_all(_ctx, args: [3]) {
+    fn nvs_core_str_replace_all(_ctx, args: [3]) {
         let subject = text(&args[0], "replaceAll", "the subject")?;
         let pairs = args[1].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
@@ -1324,13 +1324,13 @@ mwl_runtime::mwl_helper! {
                           this same cursor reported"
             )]
             let (slot, key, value) = unsafe {
-                let slot = mwl_runtime::mwl_array_next_slot(pairs, from);
+                let slot = nvs_runtime::nvs_array_next_slot(pairs, from);
                 let Ok(slot) = usize::try_from(slot) else {
                     break;
                 };
-                let key = MwlStr::from_raw(mwl_runtime::mwl_array_key_at(pairs, slot));
+                let key = NvsStr::from_raw(nvs_runtime::nvs_array_key_at(pairs, slot));
                 let mut value = Value::null();
-                mwl_runtime::mwl_array_value_at(pairs, slot, &raw mut value);
+                nvs_runtime::nvs_array_value_at(pairs, slot, &raw mut value);
                 (slot, key, value)
             };
             from = slot + 1;
@@ -1390,12 +1390,12 @@ mwl_runtime::mwl_helper! {
 /// * A **negative length** stops that many characters short of the end.
 /// * A **null length** runs to the end of the subject. That is the type saying
 ///   what a sentinel would otherwise have to, ADR 0063 R5 reaching a
-///   *parameter*; `mwl_stdlib::registry::Const::Null` is what a call site
+///   *parameter*; `nvs_stdlib::registry::Const::Null` is what a call site
 ///   materializes for a `slice` that omits it.
 ///
 /// The end never precedes the start: a window that closes before it opens is
-/// empty, which is `""` for [`mwl_core_str_slice`] and a pure insertion for
-/// [`mwl_core_str_replace_range`]. Both members read the rule from here rather
+/// empty, which is `""` for [`nvs_core_str_slice`] and a pure insertion for
+/// [`nvs_core_str_replace_range`]. Both members read the rule from here rather
 /// than each stating it, because `substr` and `substr_replace` disagreeing
 /// about a negative length is exactly the PHP surprise this shared reading
 /// removes.
@@ -1432,7 +1432,7 @@ fn window(
     Ok((start, end.max(start)))
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::slice(string $s, int $offset, ?int $length = null): string`
     /// — replacing PHP's `substr` and `mb_substr`.
     ///
@@ -1441,20 +1441,20 @@ mwl_runtime::mwl_helper! {
     ///
     /// An offset past the end is `""` rather than a throw — PHP 8's answer, and
     /// the one that composes with a loop.
-    fn mwl_core_str_slice(_ctx, args: [3]) {
+    fn nvs_core_str_slice(_ctx, args: [3]) {
         let subject = text(&args[0], "slice", "the subject")?;
         let (start, end) = window(subject, &args[1], &args[2], "slice")?;
         produced(subject.get(start..end).unwrap_or(""))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::replaceRange(string $s, int $offset, ?int $length, string $replacement): string`
     /// — replacing PHP's `substr_replace`, minus its by-reference and
     /// array-of-subjects forms (ADR 0063 R3 makes every member pure, R20
     /// leaves one spelling per operation).
     ///
-    /// This is [`mwl_core_str_slice`]'s window with the slice *substituted*
+    /// This is [`nvs_core_str_slice`]'s window with the slice *substituted*
     /// rather than returned, and it reads its two positional arguments through
     /// the same [`window`] — so `replaceRange($s, $o, $n, "")` removes exactly
     /// what `slice($s, $o, $n)` returns, for every sign of every argument.
@@ -1470,7 +1470,7 @@ mwl_runtime::mwl_helper! {
     /// An empty window is an insertion at that position, which is how a
     /// `$length` of `0` — or a negative one that reaches back past the offset —
     /// reads. PHP's answer too.
-    fn mwl_core_str_replace_range(_ctx, args: [4]) {
+    fn nvs_core_str_replace_range(_ctx, args: [4]) {
         let subject = text(&args[0], "replaceRange", "the subject")?;
         let replacement = text(&args[3], "replaceRange", "the replacement")?;
         let (start, end) = window(subject, &args[1], &args[2], "replaceRange")?;
@@ -1514,14 +1514,14 @@ fn after_match(haystack: &str, at: usize, matched: usize) -> usize {
 
 /// A byte offset into `subject` as the `uint` position a member answers with —
 /// [`crate::granularity::DEFAULT`]'s unit, which is what ADR 0009 § 2 makes
-/// every `string` position MWL hands out.
+/// every `string` position Novis hands out.
 fn position(subject: &str, byte: usize) -> HelperResult {
     let index = u64::try_from(crate::granularity::DEFAULT.index_of_byte(subject, byte))
         .map_err(|_| Fault::fatal("Core\\Str counted a position past `uint`"))?;
     Ok(Value::uint(index))
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint`
     /// — replacing PHP's `strpos`, `stripos`, `mb_strpos` and `mb_stripos`, all
     /// four at once, because ADR 0063 R13 makes the encoding question moot and
@@ -1535,7 +1535,7 @@ mwl_runtime::mwl_helper! {
     /// The answer counts in [`crate::granularity::DEFAULT`], so it is directly
     /// usable as `Core\Str::slice`'s offset — the property that would break if
     /// this reported the engine's byte offset instead.
-    fn mwl_core_str_index_of(_ctx, args: [4]) {
+    fn nvs_core_str_index_of(_ctx, args: [4]) {
         let subject = text(&args[0], "indexOf", "the subject")?;
         let needle = text(&args[1], "indexOf", "the needle")?;
         let from = integer(&args[2], "indexOf", "the `from` option")?;
@@ -1549,10 +1549,10 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::lastIndexOf(string $haystack, string $needle, {before?: int, caseInsensitive?: bool}): ?uint`
     /// — replacing PHP's `strrpos`, `strripos` and `mb_strrpos`. See
-    /// [`mwl_core_str_index_of`] for what the two members share.
+    /// [`nvs_core_str_index_of`] for what the two members share.
     ///
     /// **Occurrences may overlap**, so `lastIndexOf("aaa", "aa")` is 1 and not
     /// 0 — PHP's `strrpos` answers 1 too, and the last occurrence of something
@@ -1562,7 +1562,7 @@ mwl_runtime::mwl_helper! {
     /// that position is considered, so it names the end of the window rather
     /// than a place to start scanning from. [`LAST_INDEX_OF_OPTIONS`] owns why
     /// its default is `int`'s maximum.
-    fn mwl_core_str_last_index_of(_ctx, args: [4]) {
+    fn nvs_core_str_last_index_of(_ctx, args: [4]) {
         let subject = text(&args[0], "lastIndexOf", "the subject")?;
         let needle = text(&args[1], "lastIndexOf", "the needle")?;
         let before = integer(&args[2], "lastIndexOf", "the `before` option")?;
@@ -1585,16 +1585,16 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::countOf(string $haystack, string $needle): uint` — replacing
     /// PHP's `substr_count`.
     ///
     /// Matches are **non-overlapping**, which is what separates this from
-    /// [`mwl_core_str_last_index_of`]'s scan: `countOf("aaa", "aa")` is 1, PHP's
+    /// [`nvs_core_str_last_index_of`]'s scan: `countOf("aaa", "aa")` is 1, PHP's
     /// answer too, because a count partitions the subject where a position
     /// search does not. An empty needle throws rather than answering the
     /// character count, as PHP's own `ValueError` does.
-    fn mwl_core_str_count_of(_ctx, args: [2]) {
+    fn nvs_core_str_count_of(_ctx, args: [2]) {
         let subject = text(&args[0], "countOf", "the subject")?;
         let needle = text(&args[1], "countOf", "the needle")?;
         if needle.is_empty() {
@@ -1721,7 +1721,7 @@ fn folded(subject: &str) -> impl Iterator<Item = char> + '_ {
 /// spec's § 1 table names that function as what the option replaces and a
 /// program being migrated is entitled to the same order it already sorts in.
 /// Three of those quirks are not obvious and are pinned by
-/// `tests/conformance/core/str-compare-orders-two-ways.mwlt`:
+/// `tests/conformance/core/str-compare-orders-two-ways.nvst`:
 ///
 /// * **A whitespace run is not significant, except at the very end.** Each
 ///   subject skips its own run before every comparison, so `"a b"` and
@@ -1794,7 +1794,7 @@ fn natural_order(a: &str, b: &str, case_insensitive: bool) -> Ordering {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int`
     /// — replacing all four of PHP's `strcmp`, `strcasecmp`, `strnatcmp` and
     /// `strnatcasecmp`, plus the comparator behind `natsort`/`natcasesort`,
@@ -1816,7 +1816,7 @@ mwl_runtime::mwl_helper! {
     ///
     /// There is no locale-sensitive third ordering: `strcoll` has nothing to
     /// read a locale from here (ADR 0051), which § 1 states.
-    fn mwl_core_str_compare(_ctx, args: [4]) {
+    fn nvs_core_str_compare(_ctx, args: [4]) {
         let left = text(&args[0], "compare", "the first subject")?;
         let right = text(&args[1], "compare", "the second subject")?;
         let case_insensitive = boolean(&args[2], "compare", "the `caseInsensitive` option")?;
@@ -1853,7 +1853,7 @@ fn cut_at(subject: &str, needle: &str, last: bool) -> Option<(usize, usize)> {
     best
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::before(string $s, string $needle, {last?: bool}): ?string` —
     /// everything up to the first occurrence of `$needle`, replacing PHP's
     /// `strstr($h, $n, true)` and `strrchr` used as a prefix.
@@ -1861,7 +1861,7 @@ mwl_runtime::mwl_helper! {
     /// The needle itself is not included, and a needle that does not occur is
     /// `null` rather than PHP's `false` (ADR 0063 R5) — spec § 1's *Extraction*
     /// prose is the home for both, and for what `{last: true}` changes.
-    fn mwl_core_str_before(_ctx, args: [3]) {
+    fn nvs_core_str_before(_ctx, args: [3]) {
         let subject = text(&args[0], "before", "the subject")?;
         let needle = text(&args[1], "before", "the needle")?;
         let last = boolean(&args[2], "before", "the `last` option")?;
@@ -1872,7 +1872,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::after(string $s, string $needle, {last?: bool}): ?string` —
     /// everything past the first occurrence of `$needle`, replacing PHP's
     /// `strstr`, `stristr` and `strrchr`.
@@ -1880,7 +1880,7 @@ mwl_runtime::mwl_helper! {
     /// The needle is not included, which is the one place this diverges from
     /// `strstr` — spec § 1's *Extraction* prose owns that rule and the port of
     /// a program that wanted PHP's shape. Absence is `null`, not `false`.
-    fn mwl_core_str_after(_ctx, args: [3]) {
+    fn nvs_core_str_after(_ctx, args: [3]) {
         let subject = text(&args[0], "after", "the subject")?;
         let needle = text(&args[1], "after", "the needle")?;
         let last = boolean(&args[2], "after", "the `last` option")?;
@@ -1891,7 +1891,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::reverse(string $s): string` — replacing PHP's `strrev`.
     ///
     /// **Grapheme-aware**, which PHP's byte-wise `strrev` is not: reversing
@@ -1905,7 +1905,7 @@ mwl_runtime::mwl_helper! {
     /// what this member spends beyond its result: a reversal is the same bytes
     /// in a different order, so the length is the subject's and [`built`]
     /// writes them once.
-    fn mwl_core_str_reverse(_ctx, args: [1]) {
+    fn nvs_core_str_reverse(_ctx, args: [1]) {
         let subject = text(&args[0], "reverse", "the subject")?;
         let pieces: Vec<&str> = crate::granularity::DEFAULT.pieces(subject).collect();
         built(subject.len(), |out| {
@@ -1916,7 +1916,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::wrap(string $s, uint $width, {breakWith?: string, cutLongWords?: bool}): string`
     /// — replacing PHP's `wordwrap`, whose third and fourth arguments become
     /// this member's two options.
@@ -1930,7 +1930,7 @@ mwl_runtime::mwl_helper! {
     ///   character *and* after it, which does not terminate. PHP raises
     ///   `ValueError` for the same pair; a zero width without cutting is fine
     ///   and breaks at every space.
-    fn mwl_core_str_wrap(_ctx, args: [4]) {
+    fn nvs_core_str_wrap(_ctx, args: [4]) {
         let subject = text(&args[0], "wrap", "the subject")?;
         let width = count(&args[1], "wrap", "the width")?;
         let break_with = text(&args[2], "wrap", "the `breakWith` option")?;
@@ -2021,14 +2021,14 @@ fn wrapped(subject: &str, width: usize, break_with: &str, cut: bool) -> String {
     out
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::padStart(string $s, uint $length, string $padding = " "): string`
     /// — replacing PHP's `str_pad` with `STR_PAD_LEFT`.
     ///
     /// A subject already at least `$length` long comes back unchanged, and a
     /// padding run that does not divide evenly is truncated at the end nearest
     /// the subject — both PHP's behaviour, verified against 8.5.
-    fn mwl_core_str_pad_start(_ctx, args: [3]) {
+    fn nvs_core_str_pad_start(_ctx, args: [3]) {
         let subject = text(&args[0], "padStart", "the subject")?;
         let length = count(&args[1], "padStart", "the target length")?;
         let padding = text(&args[2], "padStart", "the padding")?;
@@ -2040,11 +2040,11 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::padEnd(string $s, uint $length, string $padding = " "): string`
     /// — replacing PHP's `str_pad` with `STR_PAD_RIGHT`. See
-    /// [`mwl_core_str_pad_start`] for the shared rules.
-    fn mwl_core_str_pad_end(_ctx, args: [3]) {
+    /// [`nvs_core_str_pad_start`] for the shared rules.
+    fn nvs_core_str_pad_end(_ctx, args: [3]) {
         let subject = text(&args[0], "padEnd", "the subject")?;
         let length = count(&args[1], "padEnd", "the target length")?;
         let padding = text(&args[2], "padEnd", "the padding")?;
@@ -2089,7 +2089,7 @@ fn padding_run(
     let run = length - have;
     // `member` arrives already qualified, so the path that succeeds formats
     // nothing: a `format!` here was one allocation per pad.
-    mwl_runtime::affordable(run.checked_mul(padding.len()), member)?;
+    nvs_runtime::affordable(run.checked_mul(padding.len()), member)?;
     // The run is whole copies of the padding and then a prefix of one more, so
     // both its length and [`write_run`]'s writing are arithmetic on the pieces
     // of `padding` alone — walking `run` pieces of a cycle to measure what a
@@ -2119,10 +2119,10 @@ fn write_run(out: &mut StrWriter<'_>, padding: &str, run: usize) {
     out.push_str(&padding[..tail]);
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::repeat(string $s, uint $times): string` — replacing PHP's
     /// `str_repeat`. Zero times is the empty string, as in PHP.
-    fn mwl_core_str_repeat(_ctx, args: [2]) {
+    fn nvs_core_str_repeat(_ctx, args: [2]) {
         let subject = text(&args[0], "repeat", "the subject")?;
         let times = count(&args[1], "repeat", "the repeat count")?;
         // The size goes through the one shared check first, so a repeat too
@@ -2130,7 +2130,7 @@ mwl_runtime::mwl_helper! {
         // panicking allocation would be — and then the allocation itself is
         // asked, because that check answers a different question. See
         // [`built_fallibly`].
-        let len = mwl_runtime::affordable(
+        let len = nvs_runtime::affordable(
             subject.len().checked_mul(times),
             "Core\\Str::repeat",
         )?;
@@ -2142,50 +2142,50 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::lower(string $s): string` — replacing PHP's `strtolower` and
     /// `mb_strtolower`. Unicode's full lowercase mapping; see this module's
     /// docs for why there is only one of them.
-    fn mwl_core_str_lower(_ctx, args: [1]) {
+    fn nvs_core_str_lower(_ctx, args: [1]) {
         produced(&text(&args[0], "lower", "the subject")?.to_lowercase())
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::upper(string $s): string` — replacing PHP's `strtoupper` and
     /// `mb_strtoupper`.
-    fn mwl_core_str_upper(_ctx, args: [1]) {
+    fn nvs_core_str_upper(_ctx, args: [1]) {
         produced(&text(&args[0], "upper", "the subject")?.to_uppercase())
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::upperFirst(string $s): string` — replacing PHP's `ucfirst`.
     ///
     /// Only the first character changes; the rest is copied through, which is
     /// what separates this from title casing (`ucwords`, which the spec's § 1
     /// note keeps out of `Core` entirely because word segmentation is
     /// locale-dependent).
-    fn mwl_core_str_upper_first(_ctx, args: [1]) {
+    fn nvs_core_str_upper_first(_ctx, args: [1]) {
         produced(&map_first(text(&args[0], "upperFirst", "the subject")?, true))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::lowerFirst(string $s): string` — replacing PHP's `lcfirst`.
-    fn mwl_core_str_lower_first(_ctx, args: [1]) {
+    fn nvs_core_str_lower_first(_ctx, args: [1]) {
         produced(&map_first(text(&args[0], "lowerFirst", "the subject")?, false))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::fold(string $s): string` — replacing PHP's
     /// `mb_convert_case($s, MB_CASE_FOLD)`, and the one member here that
     /// exists **for comparison rather than for display**.
     ///
     /// Folding is Unicode's *default full* case folding (UAX #44's `C` and `F`
     /// mappings, `caseless`'s table at Unicode 16.0), which is a different
-    /// function from the lower-case mapping [`mwl_core_str_lower`] applies:
+    /// function from the lower-case mapping [`nvs_core_str_lower`] applies:
     /// folding turns `ß` into `ss` and `ﬁ` into `fi`, because its whole job is
     /// to make two strings that differ only by case *equal*, and `lower` has
     /// to leave a word looking like a word. So the answer is not text to show
@@ -2197,14 +2197,14 @@ mwl_runtime::mwl_helper! {
     /// caseless test that does. Two members rather than a third option,
     /// because folding is a value a caller can hold on to — a lookup key
     /// folds once and is compared many times.
-    fn mwl_core_str_fold(_ctx, args: [1]) {
+    fn nvs_core_str_fold(_ctx, args: [1]) {
         produced(&caseless::default_case_fold_str(
             text(&args[0], "fold", "the subject")?,
         ))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::normalize(string $s, NormalForm $form): string` — replacing
     /// PHP's `Normalizer::normalize`.
     ///
@@ -2215,7 +2215,7 @@ mwl_runtime::mwl_helper! {
     /// character that merely *renders* like another is unified with it — `ﬁ`
     /// to `fi`, `①` to `1`. Only the canonical pair round-trips; a `K` form
     /// discards a distinction the original made, which is the same
-    /// "comparison key, not a rendering" caveat [`mwl_core_str_fold`] carries
+    /// "comparison key, not a rendering" caveat [`nvs_core_str_fold`] carries
     /// and for the same reason.
     ///
     /// Distinct from folding, and both are needed: folding removes case, and
@@ -2228,7 +2228,7 @@ mwl_runtime::mwl_helper! {
     /// or a compatibility decomposition, so all four forms are the identity
     /// there, and the check costs a scan where the general path costs a
     /// `String`.
-    fn mwl_core_str_normalize(_ctx, args: [2]) {
+    fn nvs_core_str_normalize(_ctx, args: [2]) {
         let subject = text(&args[0], "normalize", "the subject")?;
         // The form is read before the fast path rather than after it, so a
         // value that is no case is a fatal for every subject and not only for
@@ -2290,7 +2290,7 @@ fn normal_form_of(value: &Value) -> Result<NormalForm, Fault> {
 /// once for both `fromCodePoint` and `fromCodePoints`. Two ranges are refused:
 /// anything above U+10FFFF, and the surrogate range U+D800..=U+DFFF, which
 /// UTF-8 cannot encode and which is the exact hole a UTF-16 round trip leaks.
-/// PHP's `mb_chr` answers `false` for both; MWL throws, because a `string` is
+/// PHP's `mb_chr` answers `false` for both; Novis throws, because a `string` is
 /// guaranteed well-formed UTF-8 (ADR 0009 § 1) and a substituted replacement
 /// character would be the silent-lossy conversion
 /// [ADR 0007](../../../../docs/adr/0007-explicit-type-system.md) § 2 refuses
@@ -2331,29 +2331,29 @@ fn code_point(value: &Value, member: &str, position: &str) -> Result<i128, Fault
         })
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::fromCodePoint(uint $codePoint): string` — replacing `chr`
     /// and `mb_chr`.
     ///
-    /// One member for both because MWL has only one text type: PHP's `chr`
+    /// One member for both because Novis has only one text type: PHP's `chr`
     /// builds a *byte*, which is what makes it the wrong half of the pair as
     /// soon as the argument exceeds 127, and that operation lives on
     /// `Core\Bytes` here rather than under a name that looks like text.
     ///
     /// The argument is a scalar value, not a byte — see [`scalar_value`] for
     /// the two ranges that throw and why this does not substitute.
-    fn mwl_core_str_from_code_point(_ctx, args: [1]) {
+    fn nvs_core_str_from_code_point(_ctx, args: [1]) {
         let point = code_point(&args[0], "fromCodePoint", "the code point")?;
         let mut buffer = [0u8; 4];
         produced(scalar_value(point, "fromCodePoint")?.encode_utf8(&mut buffer))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::fromCodePoints(array<uint> $codePoints): string` —
     /// replacing `implode(array_map("mb_chr", …))`.
     ///
-    /// [`mwl_core_str_code_points`]'s inverse, and the pair round-trips: a
+    /// [`nvs_core_str_code_points`]'s inverse, and the pair round-trips: a
     /// subject through `codePoints` and back is the same `string`, since both
     /// halves refuse everything UTF-8 cannot hold. The array form exists
     /// rather than leaving it to `Str::join` because building one string of
@@ -2363,7 +2363,7 @@ mwl_runtime::mwl_helper! {
     /// **A bad element throws and nothing is produced**, rather than the
     /// prefix that was valid: a half-built string is the failure mode that
     /// gets written to a socket before anyone checks.
-    fn mwl_core_str_from_code_points(_ctx, args: [1]) {
+    fn nvs_core_str_from_code_points(_ctx, args: [1]) {
         let points = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Str::fromCodePoints expected {:?} for the code points, got tag {}",
@@ -2383,12 +2383,12 @@ mwl_runtime::mwl_helper! {
                           this same cursor reported"
             )]
             let (slot, value) = unsafe {
-                let slot = mwl_runtime::mwl_array_next_slot(points, from);
+                let slot = nvs_runtime::nvs_array_next_slot(points, from);
                 let Ok(slot) = usize::try_from(slot) else {
                     break;
                 };
                 let mut value = Value::null();
-                mwl_runtime::mwl_array_value_at(points, slot, &raw mut value);
+                nvs_runtime::nvs_array_value_at(points, slot, &raw mut value);
                 (slot, value)
             };
             from = slot + 1;
@@ -2399,7 +2399,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Str::format(string $template, mixed ...$arguments): string` —
     /// replacing PHP's `sprintf`, `vsprintf`, `printf`, `vprintf`, `fprintf`
     /// and `vfprintf` at once, since none of the six differs in anything but
@@ -2408,7 +2408,7 @@ mwl_runtime::mwl_helper! {
     /// The **first `Core` member with a variadic parameter**, so the second
     /// argument slot is not one value per written argument but a single
     /// `Tag::Array` holding all of them, built at the call site by
-    /// `mwl_ir::lower::lower_variadic_tail` — see
+    /// `nvs_ir::lower::lower_variadic_tail` — see
     /// [`crate::registry::CoreTy::Variadic`] for why that shape rather than a
     /// second calling convention. A call that writes no argument at all still
     /// receives an array here, empty rather than absent.
@@ -2416,7 +2416,7 @@ mwl_runtime::mwl_helper! {
     /// The template grammar, every refusal and the one thing still owed
     /// (ADR 0057's compile-time check of a *literal* template) are
     /// [`crate::format`]'s, which is the whole of this member.
-    fn mwl_core_str_format(_ctx, args: [2]) {
+    fn nvs_core_str_format(_ctx, args: [2]) {
         let template = text(&args[0], "format", "the template")?;
         let arguments = args[1].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
@@ -2437,12 +2437,12 @@ mwl_runtime::mwl_helper! {
                           this same cursor reported"
             )]
             let (slot, value) = unsafe {
-                let slot = mwl_runtime::mwl_array_next_slot(arguments, from);
+                let slot = nvs_runtime::nvs_array_next_slot(arguments, from);
                 let Ok(slot) = usize::try_from(slot) else {
                     break;
                 };
                 let mut value = Value::null();
-                mwl_runtime::mwl_array_value_at(arguments, slot, &raw mut value);
+                nvs_runtime::nvs_array_value_at(arguments, slot, &raw mut value);
                 (slot, value)
             };
             from = slot + 1;
@@ -2475,7 +2475,7 @@ fn map_first(subject: &str, upper: bool) -> String {
 
 #[cfg(test)]
 mod tests {
-    use mwl_runtime::{Ctx, MwlArray, MwlStr, OutputSink, Value, call};
+    use nvs_runtime::{Ctx, NvsArray, NvsStr, OutputSink, Value, call};
 
     /// Runs one member through the ADR 0002 boundary compiled code reaches it
     /// at, releasing every string this test built afterwards — the helper
@@ -2522,29 +2522,29 @@ mod tests {
     }
 
     fn s(text: &str) -> Value {
-        Value::str(MwlStr::new(text.as_bytes()))
+        Value::str(NvsStr::new(text.as_bytes()))
     }
 
     #[test]
     fn case_conversion_uses_unicodes_mapping_not_a_byte_wise_one() {
         assert_eq!(
-            taken(run(super::mwl_core_str_upper, &[s("straße")]).expect("upper never fails")),
+            taken(run(super::nvs_core_str_upper, &[s("straße")]).expect("upper never fails")),
             "STRASSE"
         );
         assert_eq!(
-            taken(run(super::mwl_core_str_lower, &[s("ÄRGER")]).expect("lower never fails")),
+            taken(run(super::nvs_core_str_lower, &[s("ÄRGER")]).expect("lower never fails")),
             "ärger"
         );
         assert_eq!(
             taken(
-                run(super::mwl_core_str_upper_first, &[s("ärger")])
+                run(super::nvs_core_str_upper_first, &[s("ärger")])
                     .expect("upperFirst never fails")
             ),
             "Ärger"
         );
         assert_eq!(
             taken(
-                run(super::mwl_core_str_lower_first, &[s("ÄRGER")])
+                run(super::nvs_core_str_lower_first, &[s("ÄRGER")])
                     .expect("lowerFirst never fails")
             ),
             "äRGER"
@@ -2554,7 +2554,7 @@ mod tests {
     #[test]
     fn case_conversion_of_the_empty_string_is_the_empty_string() {
         assert_eq!(
-            taken(run(super::mwl_core_str_upper_first, &[s("")]).expect("no failure")),
+            taken(run(super::nvs_core_str_upper_first, &[s("")]).expect("no failure")),
             ""
         );
     }
@@ -2574,21 +2574,21 @@ mod tests {
                     .as_bool()
                     .expect("a predicate returns a bool")
             };
-            assert_eq!(call_it(super::mwl_core_str_contains), contains, "{needle}");
-            assert_eq!(call_it(super::mwl_core_str_starts_with), starts, "{needle}");
-            assert_eq!(call_it(super::mwl_core_str_ends_with), ends, "{needle}");
+            assert_eq!(call_it(super::nvs_core_str_contains), contains, "{needle}");
+            assert_eq!(call_it(super::nvs_core_str_starts_with), starts, "{needle}");
+            assert_eq!(call_it(super::nvs_core_str_ends_with), ends, "{needle}");
         }
     }
 
     #[test]
     fn join_walks_the_array_in_insertion_order() {
-        let mut parts = MwlArray::new();
-        parts.set(MwlStr::new(b"0"), s("a"));
-        parts.set(MwlStr::new(b"1"), s("b"));
-        parts.set(MwlStr::new(b"2"), s("c"));
+        let mut parts = NvsArray::new();
+        parts.set(NvsStr::new(b"0"), s("a"));
+        parts.set(NvsStr::new(b"1"), s("b"));
+        parts.set(NvsStr::new(b"2"), s("c"));
         assert_eq!(
             taken(
-                run(super::mwl_core_str_join, &[Value::array(parts), s("|")]).expect("no failure")
+                run(super::nvs_core_str_join, &[Value::array(parts), s("|")]).expect("no failure")
             ),
             "a|b|c"
         );
@@ -2597,7 +2597,7 @@ mod tests {
     /// The pieces `split` produces, read back in order.
     fn split_at(subject: &str, separator: &str, limit: i64) -> Vec<String> {
         let result = run(
-            super::mwl_core_str_split,
+            super::nvs_core_str_split,
             &[s(subject), s(separator), Value::int(limit)],
         )
         .expect("a non-empty separator never fails");
@@ -2607,7 +2607,7 @@ mod tests {
                       handle takes over and releases on drop"
         )]
         let array =
-            unsafe { MwlArray::from_raw(result.array_ptr().expect("split returns an array")) };
+            unsafe { NvsArray::from_raw(result.array_ptr().expect("split returns an array")) };
         let mut out = Vec::new();
         let mut from = 0usize;
         while let Some(slot) = array.next_slot(from) {
@@ -2646,9 +2646,9 @@ mod tests {
     /// than quietly handing the subject back — PHP raises `ValueError` too.
     #[test]
     fn an_empty_split_separator_throws() {
-        let status = run(super::mwl_core_str_split, &[s("a b"), s(""), Value::int(9)])
+        let status = run(super::nvs_core_str_split, &[s("a b"), s(""), Value::int(9)])
             .expect_err("an empty separator is refused");
-        assert_eq!(status, mwl_runtime::THROWN);
+        assert_eq!(status, nvs_runtime::THROWN);
     }
 
     /// The three terminators, the interior empty line that survives and the
@@ -2672,7 +2672,7 @@ mod tests {
     #[test]
     fn chunk_divides_by_cluster_and_never_inside_one() {
         let chunk = |subject: &str, size: u64| -> Vec<String> {
-            let result = run(super::mwl_core_str_chunk, &[s(subject), Value::uint(size)])
+            let result = run(super::nvs_core_str_chunk, &[s(subject), Value::uint(size)])
                 .expect("chunk answers an array");
             #[expect(
                 unsafe_code,
@@ -2680,7 +2680,7 @@ mod tests {
                           handle takes over and releases on drop"
             )]
             let array =
-                unsafe { MwlArray::from_raw(result.array_ptr().expect("chunk returns an array")) };
+                unsafe { NvsArray::from_raw(result.array_ptr().expect("chunk returns an array")) };
             let mut out = Vec::new();
             let mut from = 0usize;
             while let Some(slot) = array.next_slot(from) {
@@ -2715,22 +2715,22 @@ mod tests {
             taken(run(member, &[s(subject), s(characters)]).expect("trimming never fails"))
         };
         assert_eq!(
-            trim(super::mwl_core_str_trim, " \thi\n ", php_default),
+            trim(super::nvs_core_str_trim, " \thi\n ", php_default),
             "hi"
         );
         assert_eq!(
-            trim(super::mwl_core_str_trim_start, "  hi  ", php_default),
+            trim(super::nvs_core_str_trim_start, "  hi  ", php_default),
             "hi  "
         );
         assert_eq!(
-            trim(super::mwl_core_str_trim_end, "  hi  ", php_default),
+            trim(super::nvs_core_str_trim_end, "  hi  ", php_default),
             "  hi"
         );
-        assert_eq!(trim(super::mwl_core_str_trim, "xxhixx", "x"), "hi");
+        assert_eq!(trim(super::nvs_core_str_trim, "xxhixx", "x"), "hi");
         // Only the characters named: a written set replaces the default.
-        assert_eq!(trim(super::mwl_core_str_trim, " xhix ", "x"), " xhix ");
+        assert_eq!(trim(super::nvs_core_str_trim, " xhix ", "x"), " xhix ");
         // ADR 0063 R13: `a..z` is three characters, not a range.
-        assert_eq!(trim(super::mwl_core_str_trim, "abc", "a..z"), "bc");
+        assert_eq!(trim(super::nvs_core_str_trim, "abc", "a..z"), "bc");
     }
 
     /// `replace` with both options at their defaults, which is what a call
@@ -2739,7 +2739,7 @@ mod tests {
     fn replaced(subject: &str, search: &str, replacement: &str) -> String {
         taken(
             run(
-                super::mwl_core_str_replace,
+                super::nvs_core_str_replace,
                 &[
                     s(subject),
                     s(search),
@@ -2771,7 +2771,7 @@ mod tests {
         let run_ci = |ci: bool| {
             taken(
                 run(
-                    super::mwl_core_str_replace,
+                    super::nvs_core_str_replace,
                     &[
                         s("Hello HELLO hello"),
                         s("hello"),
@@ -2795,7 +2795,7 @@ mod tests {
         let capped = |limit: u64| {
             taken(
                 run(
-                    super::mwl_core_str_replace,
+                    super::nvs_core_str_replace,
                     &[
                         s("a-b-c-d"),
                         s("-"),
@@ -2817,12 +2817,12 @@ mod tests {
     /// the case a "have I written anything yet" flag would get wrong.
     #[test]
     fn join_separates_an_empty_leading_element_too() {
-        let mut parts = MwlArray::new();
-        parts.set(MwlStr::new(b"0"), s(""));
-        parts.set(MwlStr::new(b"1"), s("b"));
+        let mut parts = NvsArray::new();
+        parts.set(NvsStr::new(b"0"), s(""));
+        parts.set(NvsStr::new(b"1"), s("b"));
         assert_eq!(
             taken(
-                run(super::mwl_core_str_join, &[Value::array(parts), s("-")]).expect("no failure")
+                run(super::nvs_core_str_join, &[Value::array(parts), s("-")]).expect("no failure")
             ),
             "-b"
         );
@@ -2833,8 +2833,8 @@ mod tests {
         assert_eq!(
             taken(
                 run(
-                    super::mwl_core_str_join,
-                    &[Value::array(MwlArray::new()), s(",")]
+                    super::nvs_core_str_join,
+                    &[Value::array(NvsArray::new()), s(",")]
                 )
                 .expect("no failure")
             ),
@@ -2853,7 +2853,7 @@ mod tests {
             assert_eq!(
                 taken(
                     run(
-                        super::mwl_core_str_pad_start,
+                        super::nvs_core_str_pad_start,
                         &[s(subject), Value::uint(length), s(padding)]
                     )
                     .expect("no failure")
@@ -2863,7 +2863,7 @@ mod tests {
             assert_eq!(
                 taken(
                     run(
-                        super::mwl_core_str_pad_end,
+                        super::nvs_core_str_pad_end,
                         &[s(subject), Value::uint(length), s(padding)]
                     )
                     .expect("no failure")
@@ -2876,21 +2876,21 @@ mod tests {
     #[test]
     fn padding_with_an_empty_run_throws_rather_than_looping() {
         let status = run(
-            super::mwl_core_str_pad_start,
+            super::nvs_core_str_pad_start,
             &[s("ab"), Value::uint(5), s("")],
         )
         .expect_err("an empty padding can never reach the length");
-        assert_eq!(status, mwl_runtime::THROWN);
+        assert_eq!(status, nvs_runtime::THROWN);
     }
 
     #[test]
     fn repeating_zero_times_is_the_empty_string() {
         assert_eq!(
-            taken(run(super::mwl_core_str_repeat, &[s("ab"), Value::uint(0)]).expect("no failure")),
+            taken(run(super::nvs_core_str_repeat, &[s("ab"), Value::uint(0)]).expect("no failure")),
             ""
         );
         assert_eq!(
-            taken(run(super::mwl_core_str_repeat, &[s("ab"), Value::uint(3)]).expect("no failure")),
+            taken(run(super::nvs_core_str_repeat, &[s("ab"), Value::uint(3)]).expect("no failure")),
             "ababab"
         );
     }
@@ -2901,30 +2901,30 @@ mod tests {
     #[test]
     fn an_unrepresentable_repetition_throws() {
         let status = run(
-            super::mwl_core_str_repeat,
+            super::nvs_core_str_repeat,
             &[s("ab"), Value::uint(u64::MAX)],
         )
         .expect_err("no string that long can exist");
-        assert_eq!(status, mwl_runtime::THROWN);
+        assert_eq!(status, nvs_runtime::THROWN);
     }
 
     #[test]
     fn a_non_string_argument_is_a_contained_fault() {
         let status =
-            run(super::mwl_core_str_upper, &[Value::int(7)]).expect_err("an int is not a string");
-        assert_eq!(status, mwl_runtime::FATAL);
+            run(super::nvs_core_str_upper, &[Value::int(7)]).expect_err("an int is not a string");
+        assert_eq!(status, nvs_runtime::FATAL);
     }
 
     #[test]
     fn is_empty_answers_for_both_shapes() {
         assert_eq!(
-            run(super::mwl_core_str_is_empty, &[s("")])
+            run(super::nvs_core_str_is_empty, &[s("")])
                 .expect("no failure")
                 .as_bool(),
             Some(true)
         );
         assert_eq!(
-            run(super::mwl_core_str_is_empty, &[s("a")])
+            run(super::nvs_core_str_is_empty, &[s("a")])
                 .expect("no failure")
                 .as_bool(),
             Some(false)
@@ -2938,13 +2938,13 @@ mod tests {
     fn length_counts_characters_not_bytes_or_code_points() {
         for (subject, want) in [
             ("", 0u64),
-            ("mwl", 3),
+            ("nvs", 3),
             ("cafe\u{301}", 4),
             ("\u{1f1e6}\u{1f1f9}", 1),
             ("\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}", 1),
         ] {
             assert_eq!(
-                run(super::mwl_core_str_length, &[s(subject)])
+                run(super::nvs_core_str_length, &[s(subject)])
                     .expect("no failure")
                     .as_uint(),
                 Some(want),
@@ -2957,15 +2957,15 @@ mod tests {
     #[test]
     fn at_indexes_characters_from_either_end() {
         for (subject, index, want) in [
-            ("mwl", 0i64, "m"),
-            ("mwl", 2, "l"),
-            ("mwl", -1, "l"),
+            ("nvs", 0i64, "n"),
+            ("nvs", 2, "s"),
+            ("nvs", -1, "s"),
             ("cafe\u{301}", 3, "e\u{301}"),
             ("cafe\u{301}", -1, "e\u{301}"),
         ] {
             assert_eq!(
                 taken(
-                    run(super::mwl_core_str_at, &[s(subject), Value::int(index)])
+                    run(super::nvs_core_str_at, &[s(subject), Value::int(index)])
                         .expect("no failure")
                 ),
                 want,
@@ -2980,13 +2980,13 @@ mod tests {
     #[test]
     fn an_index_outside_the_string_throws() {
         for index in [3i64, -4, i64::MAX, i64::MIN] {
-            let status = run(super::mwl_core_str_at, &[s("mwl"), Value::int(index)])
+            let status = run(super::nvs_core_str_at, &[s("nvs"), Value::int(index)])
                 .expect_err("the index addresses nothing");
-            assert_eq!(status, mwl_runtime::THROWN, "at(\"mwl\", {index})");
+            assert_eq!(status, nvs_runtime::THROWN, "at(\"nvs\", {index})");
         }
-        let status = run(super::mwl_core_str_at, &[s(""), Value::int(0)])
+        let status = run(super::nvs_core_str_at, &[s(""), Value::int(0)])
             .expect_err("the empty string has no characters");
-        assert_eq!(status, mwl_runtime::THROWN);
+        assert_eq!(status, nvs_runtime::THROWN);
     }
 
     /// [`super::NORMAL_FORM`]'s integers are ABI, and this is what says so:
@@ -3009,7 +3009,7 @@ mod tests {
             assert_eq!(
                 taken(
                     run(
-                        super::mwl_core_str_normalize,
+                        super::nvs_core_str_normalize,
                         &[s("\u{fb01}\u{e9}"), Value::int(*value)],
                     )
                     .expect("normalize never fails")
@@ -3021,7 +3021,7 @@ mod tests {
         // The whole roster, so a fifth case added without a branch is a
         // failure here rather than a fatal at the first call site.
         let status = run(
-            super::mwl_core_str_normalize,
+            super::nvs_core_str_normalize,
             &[
                 s("é"),
                 Value::int(
@@ -3030,7 +3030,7 @@ mod tests {
             ],
         )
         .expect_err("an integer that is no case is a contract violation");
-        assert_eq!(status, mwl_runtime::FATAL);
+        assert_eq!(status, nvs_runtime::FATAL);
     }
 
     /// Every row verified against PHP 8.5's `wordwrap`, which [`super::wrapped`]
@@ -3096,7 +3096,7 @@ mod tests {
     #[test]
     fn an_empty_needle_terminates_every_scan() {
         let last = run(
-            super::mwl_core_str_last_index_of,
+            super::nvs_core_str_last_index_of,
             &[
                 s("caf\u{e9}"),
                 s(""),
@@ -3108,9 +3108,9 @@ mod tests {
         assert_eq!(last.as_uint(), Some(4));
         // `countOf` has no answer for it at all, so it throws rather than
         // reporting the character count.
-        let status = run(super::mwl_core_str_count_of, &[s("abc"), s("")])
+        let status = run(super::nvs_core_str_count_of, &[s("abc"), s("")])
             .expect_err("an empty needle is refused");
-        assert_eq!(status, mwl_runtime::THROWN);
+        assert_eq!(status, nvs_runtime::THROWN);
     }
 
     /// Padding measures in the same unit as `length`, so a target of 3 over a
@@ -3121,7 +3121,7 @@ mod tests {
         assert_eq!(
             taken(
                 run(
-                    super::mwl_core_str_pad_start,
+                    super::nvs_core_str_pad_start,
                     &[s("\u{1f1e6}\u{1f1f9}"), Value::uint(3), s(".")]
                 )
                 .expect("no failure")
@@ -3159,7 +3159,7 @@ mod tests {
         ];
         for &(left, right, want) in rows {
             let answer = run(
-                super::mwl_core_str_compare,
+                super::nvs_core_str_compare,
                 &[s(left), s(right), Value::bool(false), Value::bool(true)],
             )
             .expect("no failure");

@@ -1,7 +1,7 @@
 --TEST--
 an append at an intermediate level of a write target starts a fresh row and writes into it, at every depth and under every holder — ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 // `$g[][0] = 1;` is PHP's "start a fresh row and write into it". The level
 // carrying the `[]` has nothing to descend into, so its row is a brand new
 // empty array rather than the separated copy of an existing one, and the climb

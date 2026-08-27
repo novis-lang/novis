@@ -1,9 +1,9 @@
 --TEST--
 `Core\Time::parse` refuses in two of spec § 10's classes, and which one is decided by which of its arguments was wrong — spec §§ 4 and 10, ADR 0063 R20
 --FILE--
-<?mwl
+<?nvs
 // `Core\Time::parse` is `DateTime::createFromFormat` and `strptime` over
-// `crates/mwl-stdlib/src/cldr.rs`'s patterns, and it is the one § 4 member that
+// `crates/nvs-stdlib/src/cldr.rs`'s patterns, and it is the one § 4 member that
 // throws two *different* § 10 classes. The split is deliberate and it is about
 // which argument is at fault: a pattern is written by the call site, so a bad
 // one is a bug in the program and a `LogicError`, while text arrives from

@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 var $raw = "  The Quick,  brown FOX  ";
 var $tidy = Core\Str::trim($raw);
 echo "tidy=[" . $tidy . "]\n";

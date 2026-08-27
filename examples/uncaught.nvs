@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 class Boom {
     public static function inner(): void {
         throw new LogicError("unhandled");

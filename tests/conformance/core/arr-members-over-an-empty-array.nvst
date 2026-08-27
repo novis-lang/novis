@@ -1,7 +1,7 @@
 --TEST--
 Every Core\Arr member accepts an empty array and returns the empty answer rather than throwing
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

@@ -1,7 +1,7 @@
 --TEST--
 Core\Random's four count-shaped refusals agree — each answers one step inside its bound, throws one step outside it in the same class, and says which member and which numbers — spec § 11, ADR 0063 R4
 --FILE--
-<?mwl
+<?nvs
 // ADR 0063 R4 read at four members at once: a call with no answer to invent
 // throws rather than inventing one. What this case pins is that the four
 // *agree* — same class of throw, same shape of sentence, and the bound one

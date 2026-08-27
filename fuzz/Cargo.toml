@@ -1,5 +1,5 @@
 [package]
-name = "mwl-fuzz"
+name = "nvs-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
@@ -15,10 +15,10 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-mwl-diagnostics = { path = "../crates/mwl-diagnostics" }
-mwl-runtime = { path = "../crates/mwl-runtime" }
-mwl-stdlib = { path = "../crates/mwl-stdlib" }
-mwl-syntax = { path = "../crates/mwl-syntax" }
+nvs-diagnostics = { path = "../crates/nvs-diagnostics" }
+nvs-runtime = { path = "../crates/nvs-runtime" }
+nvs-stdlib = { path = "../crates/nvs-stdlib" }
+nvs-syntax = { path = "../crates/nvs-syntax" }
 
 [[bin]]
 name = "lex"

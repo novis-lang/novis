@@ -1,7 +1,7 @@
 --TEST--
 A property's own `get`/`set` hook runs on every read and every write, including the constructor's — ADR 0014 § 1
 --FILE--
-<?mwl
+<?nvs
 class Doubled {
     public int $value {
         get => $this->value * 2;

@@ -1,7 +1,7 @@
 --TEST--
 A method declared to return the class itself can be chained, and every link in the chain is the same object rather than a copy
 --FILE--
-<?mwl
+<?nvs
 class Builder {
     public string $text;
     public int $steps;

@@ -1,6 +1,6 @@
 //! Cost of suspending and resuming a task with JIT frames live on its stack.
 //!
-//! These two numbers set the price of MWL's "no async colouring" promise: any
+//! These two numbers set the price of Novis's "no async colouring" promise: any
 //! function may perform I/O and yield, because suspension is a stack switch
 //! rather than a compiler transformation.
 //!
@@ -13,7 +13,7 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use mwl_abi_probe::{Ctx, Helper, Probe, Value, call, in_coroutine};
+use nvs_abi_probe::{Ctx, Helper, Probe, Value, call, in_coroutine};
 
 fn suspend_resume(c: &mut Criterion) {
     let mut probe = Probe::new();
@@ -43,7 +43,7 @@ fn suspend_resume(c: &mut Criterion) {
 
 fn task_creation(c: &mut Criterion) {
     // Per-task setup cost, which bounds how many in-flight requests a process
-    // can absorb. MWL targets tens of thousands, so this needs to stay small
+    // can absorb. Novis targets tens of thousands, so this needs to stay small
     // and, more importantly, must not start allocating a full stack eagerly.
     c.bench_function("coroutine/create_and_finish", |b| {
         b.iter(|| {

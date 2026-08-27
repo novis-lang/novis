@@ -1,13 +1,13 @@
 --TEST--
 Core\Arr::reverse answers what array_reverse answers at both settings of its key option, and the option's default is the same one in both languages
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `array_reverse` row. `{preserveKeys?: bool}` and `$preserve_keys`
 // are the same option with the same default, so this case asserts three things
 // at once: the order, the keys each setting leaves behind, and that *omitting*
 // the option means the same thing on both sides.
 //
-// A list subject, because the two rules for `false` differ in kind: MWL discards
+// A list subject, because the two rules for `false` differ in kind: Novis discards
 // every key alike and renumbers from "0", where `array_reverse` renumbers the
 // integer keys and keeps the string ones. Over a list there are no string keys
 // for that difference to show up in.

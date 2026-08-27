@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // Sorting a list of numbers, from the same seeded input on both sides.
 class Bench {
     public static function run(int $size, int $rounds): int {

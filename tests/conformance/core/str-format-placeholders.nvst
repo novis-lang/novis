@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::format reads printf's flags, width, precision and %1$s positions
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::format("%s has %d\n", "fox", 2);
 echo Core\Str::format("no placeholder at all\n");
 echo Core\Str::format("[%5s][%-5s][%'*6s]\n", "ab", "ab", "hi");

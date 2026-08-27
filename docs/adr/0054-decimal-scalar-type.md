@@ -12,11 +12,11 @@
 
 > **In short:** `decimal` joins `int`, `uint`, `float`, `bool` and `string` as a scalar — a 128-bit value
 > holding a 96-bit signed mantissa and a scale of 0 to 28, the layout .NET's `System.Decimal` has used for
-> two decades. It is a **scalar rather than a class** because MWL has no operator overloading, so a class
+> two decades. It is a **scalar rather than a class** because Novis has no operator overloading, so a class
 > would mean `$price->mul($qty)->add($shipping)` forever — and unreadable money arithmetic is precisely why
 > PHP developers reach for `float` and eat the rounding. A numeric literal takes `decimal` or `float` from
 > its target type, and `as T` is itself such a target, so **there is no literal suffix** — C#'s `m` exists
-> only because C# rejects `decimal d = 19.99;`, a constraint MWL designed away. **`decimal ⊕ float` is a compile
+> only because C# rejects `decimal d = 19.99;`, a constraint Novis designed away. **`decimal ⊕ float` is a compile
 > error**, on the same grounds `int ⊕ uint` already is. Division rounds half-even at a fixed, unconfigurable
 > scale. `bcmath` and `gmp` are retired: exact fractional arithmetic is `decimal`, arbitrary-magnitude
 > integers are `Core\BigInt`, and the rare remainder is a `Core\BigDecimal` class.
@@ -27,7 +27,7 @@
   which cannot represent `0.10`, or `bcmath`, whose API is `bcadd(bcmul($price, $qty), $shipping)` governed
   by a **process-global** `bcscale()`. The causal chain matters more than either flaw on its own — bcmath is
   unpleasant enough that developers choose the wrong tool, so the ergonomics *are* the vulnerability.
-- **MWL has no operator overloading and is not getting one.** [ADR 0013](0013-comparable-interface.md)
+- **Novis has no operator overloading and is not getting one.** [ADR 0013](0013-comparable-interface.md)
   admits `Comparable` for ordering and explicitly refuses a cross-class overload;
   [ADR 0027](0027-callable-is-closures-only.md) § *Alternatives* parks a general facility as hypothetical.
   A `Core\Decimal` class therefore cannot participate in `+` at any point in the future, which makes the
@@ -84,7 +84,7 @@ than that would be unwritable in any position lacking an annotation.
 
 **There is no literal suffix, and in particular no `m`.** C# needs one because it rejects
 `decimal d = 19.99;` outright — there a fractional literal is born a `double` and no implicit conversion
-rescues it. MWL removed that constraint by making literals untyped-until-placed, so a suffix would buy only
+rescues it. Novis removed that constraint by making literals untyped-until-placed, so a suffix would buy only
 a second spelling of what `as decimal` already says, in the only two positions that lack a target:
 [ADR 0037](0037-var-local-type-inference.md)'s `var`, and a `mixed` or generic argument.
 
@@ -183,7 +183,7 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
 - **This decision is reversible in one direction only.** Adding the scalar later means every money-handling
   codebase has already been written against a class and must be rewritten; adding a class on top of a
   scalar is trivial. That asymmetry is why it lands now, well ahead of M8.
-- **`mwl convert` (M11)** maps `bcadd`/`bcsub`/`bcmul` to operators, `bcdiv` to `/` with a note where the
+- **`nvs convert` (M11)** maps `bcadd`/`bcsub`/`bcmul` to operators, `bcdiv` to `/` with a note where the
   original relied on a `bcscale()` that no longer exists, `bccomp` to a comparison, and `bcpowmod`/`bcsqrt`
   to `Core\BigInt`. A `bcscale()` call is a diagnostic naming § 3, because there is no expression that
   preserves its meaning.
@@ -199,7 +199,7 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
   `decimal` plus a userland `Money` class layers correctly. A currency-aware type belongs on top of this
   one, not instead of it.
 - **A scale in the type — `decimal<2>`.** Would let the checker prove a monetary value never gains
-  precision. Rejected on priority 4: it needs type-level integers, which nothing else in MWL has, and it
+  precision. Rejected on priority 4: it needs type-level integers, which nothing else in Novis has, and it
   makes every signature that accepts "some decimal" either generic or wrong.
 - **Arbitrary precision as the scalar** (a `BigDecimal` layout with a heap mantissa). No range limit, one
   type instead of three. Rejected on priority 3: it puts an allocation on every intermediate of every money
@@ -219,25 +219,25 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
 - **M1 (landed):** `decimal` is a reserved word and a type atom, parsing in every declaration slot;
   lexer fixtures for `19.99` and `1.0e3`; and a trailing `m` (`19.99m`) lexing as a float literal followed
   by a stray identifier, which the parser refuses — not as a suffix.
-  `mwl-syntax`'s `decimal_is_a_keyword`, `a_trailing_m_is_not_a_decimal_literal_suffix`,
+  `nvs-syntax`'s `decimal_is_a_keyword`, `a_trailing_m_is_not_a_decimal_literal_suffix`,
   `decimal_is_a_type_atom_in_every_slot` and `a_decimal_literal_suffix_does_not_parse`.
-- **M2 (landed, `crates/mwl-types/tests/decimal.rs`):** checker fixtures for each row of § 3 and for § 1's
+- **M2 (landed, `crates/nvs-types/tests/decimal.rs`):** checker fixtures for each row of § 3 and for § 1's
   mantissa and scale bounds — `decimal + float` rejected,
   `decimal < 1.5` accepted, `19.99 as decimal` in a `float` position rejected,
   `var $y = 19.99 as decimal;` inferring `decimal`, a 25-significant-digit literal under `as decimal`
   exact — which fails if § 2's placing rule is dropped, since an `f64` round-trip loses it — and
   `const decimal VAT = 0.19;` accepted as a compile-time constant.
-- **M4 (landed):** the representation is `mwl_ir::ty::Ty::Decimal` over `mwl_runtime::decimal`, whose own
-  module doc is the home for the layout; §§ 3-4's rows are `mwl_ir::ir::Helper` variants, and
-  `mwl_runtime::decimal`'s unit tests hold each — `0.1 + 0.2` exactly `0.3`, a mantissa overflow and a
+- **M4 (landed):** the representation is `nvs_ir::ty::Ty::Decimal` over `nvs_runtime::decimal`, whose own
+  module doc is the home for the layout; §§ 3-4's rows are `nvs_ir::ir::Helper` variants, and
+  `nvs_runtime::decimal`'s unit tests hold each — `0.1 + 0.2` exactly `0.3`, a mantissa overflow and a
   product whose scale would exceed 28 both refused rather than wrapped or narrowed, `1.00 / 3` rounded
   half-even at the widest scale it admits, and `19.90` rendering as `"19.90"`. End to end:
-  `tests/conformance/lang/decimal-arithmetic-is-exact-and-keeps-its-scale.mwlt` and
-  `…/decimal-conversions-are-checked-in-both-directions.mwlt`.
+  `tests/conformance/lang/decimal-arithmetic-is-exact-and-keeps-its-scale.nvst` and
+  `…/decimal-conversions-are-checked-in-both-directions.nvst`.
 - **Still owed:** `Core\Decimal::divExact`/`divRound`/`allocate` (§ 3), which land with that class's roster
   at M8, and a typed decimal arithmetic loop as a `benches/` figure with a guard, alongside the ADR 0007
   loop the plan already requires. Every `decimal` operator is an out-of-line helper call today; inlining the
   equal-scale `+`, `-` and comparison this ADR anticipates is a backend change with no semantic effect, and
-  `mwl_runtime::decimal`'s own known gaps track it.
+  `nvs_runtime::decimal`'s own known gaps track it.
 - **M8:** a `NUMERIC(30,10)` Postgres column throws on read rather than truncating, and
   `Core\Json::decode` into a `decimal` shape field round-trips a 25-significant-digit number exactly.

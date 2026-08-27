@@ -1,7 +1,7 @@
 --TEST--
 `.` and a comma-separated `echo` render an int exactly as PHP does
 --FILE--
-<?mwl
+<?nvs
 echo "n=" . 41 . "\n";
 echo "a", "b", 1, 2, "\n";
 echo "" . "-" . "" . "\n";

@@ -1,7 +1,7 @@
 --TEST--
 A `?T` return type carries either a value or `null` across a call — ADR 0066
 --FILE--
-<?mwl
+<?nvs
 class Lookup {
     private array<string> $entries;
 

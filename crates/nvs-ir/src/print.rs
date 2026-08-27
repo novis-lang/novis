@@ -1,6 +1,6 @@
 //! A readable text form of the IR, used by [`crate::lower`]'s snapshot tests
-//! today and intended for a future `mwl ir --dump`-style CLI flag once one
-//! exists (M3, alongside `mwl run --dump-asm` — see
+//! today and intended for a future `nvs ir --dump`-style CLI flag once one
+//! exists (M3, alongside `nvs run --dump-asm` — see
 //! `docs/implementation-plan.md`'s M3 paragraph).
 //!
 //! Not a serialization format anything round-trips through — there is no
@@ -9,7 +9,7 @@
 
 use std::fmt::Write as _;
 
-use mwl_diagnostics::{SourceFile, Span};
+use nvs_diagnostics::{SourceFile, Span};
 
 use crate::ids::BlockId;
 use crate::ir::{

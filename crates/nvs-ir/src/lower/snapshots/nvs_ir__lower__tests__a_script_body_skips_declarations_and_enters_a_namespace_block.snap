@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn <script>() -> tagged {
@@ -16,8 +16,8 @@ fn <script>() -> tagged {
     return
   bb1:
     release v0
-    propagate "<script>() at t.mwl:5"
+    propagate "<script>() at t.nvs:5"
   bb2:
     release v1
-    propagate "<script>() at t.mwl:6"
+    propagate "<script>() at t.nvs:6"
 }

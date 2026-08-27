@@ -1,7 +1,7 @@
 --TEST--
 A `throw` from inside a `catch` is not caught by the same `try`; it leaves the frame for the caller's
 --FILE--
-<?mwl
+<?nvs
 class Outer {
     public static function run(): string {
         try {

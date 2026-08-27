@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // Substitution over a template - the placeholder fill every mailer and view helper does.
 class Bench {
     public static function run(int $rounds): int {

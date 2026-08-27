@@ -1,6 +1,6 @@
 [package]
-name = "mwl-codegen"
-description = "MWL's baseline Cranelift backend: lowers mwl-ir to native code behind the ADR 0002 calling convention"
+name = "nvs-codegen"
+description = "Novis's baseline Cranelift backend: lowers nvs-ir to native code behind the ADR 0002 calling convention"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,9 +9,9 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
-mwl-ir.workspace = true
-mwl-runtime.workspace = true
-mwl-stdlib.workspace = true
+nvs-ir.workspace = true
+nvs-runtime.workspace = true
+nvs-stdlib.workspace = true
 cranelift.workspace = true
 cranelift-jit.workspace = true
 cranelift-module.workspace = true
@@ -20,10 +20,10 @@ rustc-hash.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-mwl-diagnostics.workspace = true
-mwl-syntax.workspace = true
-mwl-hir.workspace = true
-mwl-types.workspace = true
+nvs-diagnostics.workspace = true
+nvs-syntax.workspace = true
+nvs-hir.workspace = true
+nvs-types.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy. Handing a JIT-compiled
@@ -32,7 +32,7 @@ mwl-types.workspace = true
 # unimplementable. `deny` instead, so each genuinely necessary block is
 # allowed individually with a stated reason — the policy in
 # docs/implementation-plan.md's "Unsafe policy" section, which names this
-# crate alongside mwl-runtime.
+# crate alongside nvs-runtime.
 # ---------------------------------------------------------------------------
 [lints.rust]
 unsafe_code = "deny"

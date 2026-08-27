@@ -1,7 +1,7 @@
 --TEST--
 A literal's positional entries take the next integer index, counting past its keyed ones
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

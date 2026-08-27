@@ -1,17 +1,17 @@
 //! ADR 0036's `object` top type and inline shape types, plus ADR 0028's `unset()` refusal.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 #[test]
 fn unset_on_a_declared_property_is_diagnosed() {
     let diags = check_src(
-        "<?mwl\nclass Foo { public int $x; function constructor() { $this->x = 1; } }\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    unset($a->x);\n  }\n}\n",
+        "<?nvs\nclass Foo { public int $x; function constructor() { $this->x = 1; } }\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    unset($a->x);\n  }\n}\n",
     );
     assert!(
         diags
@@ -41,7 +41,7 @@ fn unset_on_an_element_of_a_temporary_is_diagnosed() {
     // before the entry goes, and a call's result has no slot for the
     // separated copy to be written back into.
     let diags = check_src(
-        "<?mwl\nclass T {\n  static function rows(): array<string> { return []; }\n  function m(): void {\n    unset(T::rows()[\"a\"]);\n  }\n}\n",
+        "<?nvs\nclass T {\n  static function rows(): array<string> { return []; }\n  function m(): void {\n    unset(T::rows()[\"a\"]);\n  }\n}\n",
     );
     assert!(
         diags
@@ -62,7 +62,7 @@ fn unset_on_an_element_of_a_local_is_accepted() {
 #[test]
 fn a_class_instance_is_assignable_to_object() {
     let diags = check_src(
-        "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    object $o = new Foo();\n  }\n}\n",
+        "<?nvs\nclass Foo {}\nclass T {\n  function m(): void {\n    object $o = new Foo();\n  }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -111,7 +111,7 @@ fn an_object_literal_with_a_mismatched_field_type_is_diagnosed() {
 #[test]
 fn a_class_with_a_matching_property_satisfies_a_shape_type() {
     let diags = check_src(
-        "<?mwl\nclass Foo {\n  public int $x = 0;\n}\nclass T {\n  function m(): void {\n    ({x: int}) $p = new Foo();\n  }\n}\n",
+        "<?nvs\nclass Foo {\n  public int $x = 0;\n}\nclass T {\n  function m(): void {\n    ({x: int}) $p = new Foo();\n  }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -119,7 +119,7 @@ fn a_class_with_a_matching_property_satisfies_a_shape_type() {
 #[test]
 fn a_class_missing_a_shapes_field_is_diagnosed() {
     let diags = check_src(
-        "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    ({x: int}) $p = new Foo();\n  }\n}\n",
+        "<?nvs\nclass Foo {}\nclass T {\n  function m(): void {\n    ({x: int}) $p = new Foo();\n  }\n}\n",
     );
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }
@@ -127,7 +127,7 @@ fn a_class_missing_a_shapes_field_is_diagnosed() {
 #[test]
 fn a_shape_type_alias_resolves_like_any_other_alias() {
     let diags = check_src(
-        "<?mwl\ntype Point = {x: int, y: int};\nclass T {\n  function m(): void {\n    Point $p = {x: 1, y: 2};\n  }\n}\n",
+        "<?nvs\ntype Point = {x: int, y: int};\nclass T {\n  function m(): void {\n    Point $p = {x: 1, y: 2};\n  }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }

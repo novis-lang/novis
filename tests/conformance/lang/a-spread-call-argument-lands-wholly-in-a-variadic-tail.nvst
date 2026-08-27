@@ -1,7 +1,7 @@
 --TEST--
 a `...` call argument supplies a `...$rest` tail and nothing else: every fixed parameter is still written out, and the tail's element type is what the subject's `array<T>` is checked against (ADR 0007 § 5, ADR 0011 § 1)
 --FILE--
-<?mwl
+<?nvs
 final class Join {
     public static function of(string $sep, string ...$parts): string {
         return $sep;
@@ -26,15 +26,15 @@ echo Core\Path::join("a", ...$nums), "\n";
 
 --EXPECTF-ERROR--
 error[E0489]: a `...` argument has no variadic parameter to spread into
-   --> case.mwl:14:15
+   --> case.nvs:14:15
 %A
 error[E0489]: a `...` argument has no variadic parameter to spread into
-   --> case.mwl:16:17
+   --> case.nvs:16:17
 %A
 error[E0401]: expected `array<string>`, found `array<int>`
-   --> case.mwl:19:23
+   --> case.nvs:19:23
 %A
 error[E0401]: expected `array<string>`, found `array<int>`
-   --> case.mwl:21:30
+   --> case.nvs:21:30
 %A
 error: aborting due to 4 errors

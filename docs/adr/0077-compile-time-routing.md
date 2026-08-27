@@ -48,7 +48,7 @@
   claiming the same path and method (the second silently wins, or the first does, depending on registration
   order), a `{id}` placeholder with no corresponding controller argument (a `null` at request time), and a
   reverse-URL call naming a route that was renamed (a broken link in an email, found by a user).
-- **MWL already has the two mechanisms this needs.**
+- **Novis already has the two mechanisms this needs.**
   [ADR 0046](0046-attributes-shape-literal-metadata.md) gives structured, compile-time-constant metadata on
   a declaration with no attribute class. [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)
   § 3 gives a program-wide enumeration for exactly the question static resolution cannot answer — *what
@@ -322,7 +322,7 @@ without one gets no `route` label rather than a cardinality bomb.
   becomes semantically load-bearing.
 - **Structural attribute matching**, consistent with [ADR 0046](0046-attributes-shape-literal-metadata.md)
   § 4. Rejected by [ADR 0071](0071-derived-codecs.md) § 1 already: a framework's own `Route`-shaped literal
-  would register routes MWL does not own, and the fix after M9 would be a breaking change to attribute
+  would register routes Novis does not own, and the fix after M9 would be a breaking change to attribute
   retrieval.
 - **`:name` placeholders.** Rejected in § 2: `:` is legal inside a path segment, so it needs an escape rule,
   and the braced form is what every neighbouring ecosystem already uses.
@@ -333,21 +333,21 @@ without one gets no `route` label rather than a cardinality bomb.
   `string` coexisting. Tempting, and rejected in § 3: it reintroduces order-dependence through the back door
   and makes the duplicate check partial rather than total.
 - **`match` returning something invocable.** The obvious ergonomic win. Rejected on both halves of § 4: it is
-  dispatch, and it needs a typed `callable` MWL does not have.
+  dispatch, and it needs a typed `callable` Novis does not have.
 - **Deriving `name` from the class and method.** Convenient. Rejected: it makes `url()` break silently on a
   rename, which is one of the three bugs this ADR exists to catch.
 - **A class-level `#[Route(path: "/admin")]` prefix.** Familiar from Symfony. Rejected in § 1: it interacts
   with inheritance, and it makes a method's real path unreadable at the line that declares it.
 - **Route groups, middleware attachment, or a per-route rate limit** in the attribute. Rejected in § 4: each
   is a dispatch opinion, and this table has no dispatch to attach them to.
-- **A route table in `mwl.toml`.** Rejected on lifetime, the same way
+- **A route table in `nvs.toml`.** Rejected on lifetime, the same way
   [ADR 0073](0073-scheduled-work-is-config.md) accepted it for schedules and this rejects it for routes: a
   schedule is deployment state and a URL is source state — the code that handles a path and the path itself
   change together, in the same commit.
 - **Building the table from an inert `Core\Ast` walk at runtime**
   ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)). Possible today. Rejected: it parses
   the program again inside a request, gets none of the three compile-time checks, and puts
-  `mwl-syntax` on the request path for something the compiler already knows.
+  `nvs-syntax` on the request path for something the compiler already knows.
 
 ## Revisiting
 

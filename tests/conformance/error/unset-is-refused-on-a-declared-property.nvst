@@ -1,7 +1,7 @@
 --TEST--
 `unset()` on an object property is a compile error — ADR 0022's definite initialization has no way back
 --FILE--
-<?mwl
+<?nvs
 class Tag {
     public string $name;
 
@@ -17,6 +17,6 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0413]: `unset()` on `Tag::$name` is refused; a declared property can never become uninitialized again
-   --> case.mwl:11:7
+   --> case.nvs:11:7
 %A
 error: aborting due to 1 error

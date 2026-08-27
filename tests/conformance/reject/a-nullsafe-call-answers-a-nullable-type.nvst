@@ -1,7 +1,7 @@
 --TEST--
 `?->` adds `null` to the member's own type, so its result does not fit a non-nullable binding
 --FILE--
-<?mwl
+<?nvs
 class Box {
     public string $label;
 
@@ -21,6 +21,6 @@ echo $name . "\n";
 
 --EXPECTF-ERROR--
 error[E0401]: expected `string`, found `string|null`
-   --> case.mwl:15:16
+   --> case.nvs:15:16
 %A
 error: aborting due to 1 error

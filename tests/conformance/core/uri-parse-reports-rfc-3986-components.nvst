@@ -1,7 +1,7 @@
 --TEST--
 `Core\Uri::parse` reports RFC 3986's components without normalizing one of them, and `Uri::tryParse` is the same parse with `null` where it throws — spec § 12, ADR 0066 § 3a
 --FILE--
-<?mwl
+<?nvs
 // § 12: every component comes back exactly as written — still
 // percent-encoded, still in the case it arrived in, with the default port
 // still there. `parse` reports; it does not normalize.

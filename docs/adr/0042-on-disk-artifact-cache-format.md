@@ -31,12 +31,12 @@
 
 - The plan already commits to "content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing" and
   M6 already commits to "integrity verification" and "a refusal to use a world-writable cache directory,"
-  plus a verification target of warm-cache `mwl run` startup being fast. None of the plan's own text says
+  plus a verification target of warm-cache `nvs run` startup being fast. None of the plan's own text says
   *what a cache entry looks like on disk*, *how a reader tells a good entry from a bad one before trusting
   it*, or *what makes the cache stop growing forever* — three questions M6 cannot be scoped against without
   an answer.
 - Unlike the in-process cache, this store is read and written by **independent, non-communicating OS
-  processes** — every `mwl run` invocation is a fresh process with no shared memory, no shared lock, and no
+  processes** — every `nvs run` invocation is a fresh process with no shared memory, no shared lock, and no
   guarantee any two invocations overlap in time. Any design that assumes a live coordinator (a lock file, an
   in-memory index) does not fit this shape at all.
 - The stated goal is explicitly dual: fast (a one-off CLI script must not pay a JIT compile on every
@@ -58,7 +58,7 @@
   [ADR 0017](0017-hot-reload-without-restart.md) already rejected once, for the identical reason, when it
   chose a per-path pointer over a global generation counter.
 - **Folding the environment into the header only, keying purely by content hash.** Works, but means every
-  reader must *open* a file before learning it is useless to them — an `mwl run` on a freshly rebuilt
+  reader must *open* a file before learning it is useless to them — an `nvs run` on a freshly rebuilt
   compiler, or on a different machine's cache directory shared over a network mount, would do a wasted
   open+read on every wrong-environment entry sharing that content hash. Folding the environment into the
   *address* turns that into a plain, cheap "no such file" — the same cost as a cache miss, not a
@@ -79,7 +79,7 @@
 ### 1. Layout: a fan-out directory of immutable, content-addressed files
 
 ```
-<cache_dir>/<key[0:2]>/<key[2:]>.mwlc
+<cache_dir>/<key[0:2]>/<key[2:]>.nvsc
 ```
 
 where `key = BLAKE3(source_content ‖ env_hash)` — the same
@@ -100,7 +100,7 @@ codegen input like any other, and an artifact compiled against one set must neve
 ### 2. File shape
 
 ```
-magic ("MWLC") | format_version: u16 | env_hash: 32 bytes
+magic ("NVSC") | format_version: u16 | env_hash: 32 bytes
   | payload_len: u64 | BLAKE3(payload): 32 bytes | payload
 ```
 
@@ -124,7 +124,7 @@ that never had a caller to report to in the first place).
 ### 4. Writing: one atomic rename, no lock file, ever
 
 Compile → write header + payload to `<cache_dir>/<key[0:2]>/.tmp-<random>` → `fsync` the temp file → rename
-onto the final `<key[2:]>.mwlc` path. Rename is atomic on every target platform this project ships for
+onto the final `<key[2:]>.nvsc` path. Rename is atomic on every target platform this project ships for
 (POSIX `rename(2)`; Windows via `ReplaceFile`/`MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`), so no reader
 ever observes a torn or partial file under the final name. If the final path already exists by the time the
 rename would happen, another writer already produced byte-identical content — by construction, since the
@@ -139,7 +139,7 @@ buy.
 
 The header checksum defends against **corruption**: truncation, bit rot, an interrupted write from a crash
 that landed at a path this scheme's own rename discipline should have prevented but a caller bypassed
-(direct filesystem tampering outside `mwl`'s own writer). **It is not, and is not claimed to be, a defense
+(direct filesystem tampering outside `nvs`'s own writer). **It is not, and is not claimed to be, a defense
 against a hostile file placed by another local principal who can write into the cache directory** — that
 principal can compute a perfectly valid header and checksum over payload bytes of their own choosing. That
 threat is closed the way M6 already states it must be closed: **refuse to use a world-writable cache
@@ -162,7 +162,7 @@ floor below the cap, so hovering exactly at the boundary does not re-trigger a w
 This is deliberately the same probabilistic shape as PHP's own `session.gc_probability`/`gc_divisor` —
 familiar, and it means **a warm cache hit never performs a directory walk, never checks a size, and pays
 nothing extra beyond §3's verify-then-map** — keeping M6's own warm-cache CLI-startup verification bullet
-intact. An operator wanting deterministic control instead of probability gets `mwl cache gc` / `mwl cache
+intact. An operator wanting deterministic control instead of probability gets `nvs cache gc` / `nvs cache
 clear` as explicit commands, same idea M6 already sketches for a tampered-artifact refusal.
 
 ### 7. Directives, all `System`-class
@@ -209,12 +209,12 @@ re-litigated further here since M9 has not started.
   as the strictly worse option on the read path.
 - The ownership/permission check in §5 is a startup-time refusal, not a runtime one — a directory whose
   ownership changes *after* the process has already started (a shared, long-lived host reconfigured under a
-  running `mwl serve`) is not re-checked mid-run. Accepted as consistent with every other `System`-class
+  running `nvs serve`) is not re-checked mid-run. Accepted as consistent with every other `System`-class
   directive: boot-time configuration is trusted for the life of the process, exactly as
-  [ADR 0005](0005-config-changeability.md) already establishes for the rest of `mwl.toml`.
+  [ADR 0005](0005-config-changeability.md) already establishes for the rest of `nvs.toml`.
 - Probabilistic eviction means the cache can transiently exceed its configured cap between the misses that
   happen to trigger a sweep — bounded by how unlikely a long silent stretch of pure cache hits is in
-  practice, and correctable at any time with the explicit `mwl cache gc` escape hatch.
+  practice, and correctable at any time with the explicit `nvs cache gc` escape hatch.
 
 ## Alternatives rejected
 
@@ -258,7 +258,7 @@ Verification, to land with M6 since the mechanism does not exist before it:
   survivor is whichever rename wins, and no reader ever observes a partial file under the final name.
 - A world-writable cache directory, and a cache directory not owned by the running account, are both
   refused at startup.
-- Warm-cache `mwl run` startup meets M6's own verification bullet for it, unchanged by this ADR beyond
+- Warm-cache `nvs run` startup meets M6's own verification bullet for it, unchanged by this ADR beyond
   actually specifying the mechanism that bullet was implicitly assuming.
 - Cache size stays within its configured cap (plus the accepted hysteresis window) under a sustained stream
   of distinct-content compiles, with the sweep itself never observed on the request-serving/CLI-hot path.

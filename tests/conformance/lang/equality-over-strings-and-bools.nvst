@@ -1,13 +1,13 @@
 --TEST--
 `==`/`!=` over two strings and two bools answer by value and never numerically — ADR 0090 § 3 — and `false` renders as the empty string
 --FILE--
-<?mwl
+<?nvs
 echo "a" == "a", ";", "a" == "b", ";", "a" != "b", "\n";
 echo 1 == 1, ";", 1 != 1, ";", 1 != 2, "\n";
 echo true == true, ";", true == false, "\n";
 echo "10" == "10", ";", "abc" == "abc", "\n";
 // The string row is one of the three where PHP's two operators disagreed and
-// MWL took the strict reading: two strings are the same sequence of scalar
+// Novis took the strict reading: two strings are the same sequence of scalar
 // values or they are not, so a numeric-looking pair is compared as text.
 echo "1" == "01", ";", "1e3" == "1000", ";", "1" == "1", "\n";
 --EXPECT--

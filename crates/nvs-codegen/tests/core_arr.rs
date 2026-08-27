@@ -11,10 +11,10 @@ use common::*;
 /// `Core\Arr::map` end to end, and with it the `U` binding under it: the
 /// result is `array<string>` because the callback's return type is, which is
 /// what lets `Core\Str::join` — declared `array<string>` — take it at all.
-/// `mwl_types::generics` owns that rule.
+/// `nvs_types::generics` owns that rule.
 #[test]
 fn a_core_member_takes_its_result_element_type_from_its_callback() {
-    let source = "<?mwl
+    let source = "<?nvs
 array<string> $words = [\"pear\", \"Apple\", \"fig\"];
 var $upper = Core\\Arr::map($words, fn(string $w) => Core\\Str::upper($w));
 echo Core\\Str::join($upper, \"|\");
@@ -28,7 +28,7 @@ echo Core\\Str::join($upper, \"|\");
 /// this also holds that `map` offers both arguments the way `filter` does.
 #[test]
 fn a_mapped_array_keeps_the_keys_it_was_built_with() {
-    let source = "<?mwl
+    let source = "<?nvs
 array<int> $a = [\"x\" => 1, \"y\" => 2];
 var $labelled = Core\\Arr::map($a, fn(int $v, string $k): string => $k . ($v * 2));
 echo Core\\Str::join($labelled, \";\");
@@ -43,7 +43,7 @@ if (Core\\Arr::hasKey($labelled, \"x\")) { echo \"|kept\"; } else { echo \"|lost
 /// either loud rather than theoretical.
 #[test]
 fn a_map_producing_strings_in_a_loop_leaks_nothing() {
-    let source = "<?mwl
+    let source = "<?nvs
 array<int> $nums = [1, 2, 3];
 var $i = 0;
 var $seen = 0;
@@ -62,7 +62,7 @@ echo $seen;
 /// a `no` rather than as a passing test on each half.
 #[test]
 fn values_renumbers_an_associative_array_into_a_list() {
-    let source = "<?mwl
+    let source = "<?nvs
 array<string> $a = [\"x\" => \"a\", \"y\" => \"b\"];
 if (Core\\Arr::isList($a)) { echo \"yes\"; } else { echo \"no\"; }
 var $v = Core\\Arr::values($a);
@@ -77,7 +77,7 @@ echo \"|\", Core\\Str::join($v, \",\");
 /// the reason `isList` compares key bytes rather than counting entries.
 #[test]
 fn a_hole_left_by_an_unset_stops_an_array_being_a_list() {
-    let source = "<?mwl
+    let source = "<?nvs
 array<int> $a = [10, 20, 30];
 if (Core\\Arr::isList($a)) { echo \"yes\"; } else { echo \"no\"; }
 unset($a[0]);
@@ -94,7 +94,7 @@ echo \"|\", Core\\Arr::count($a);
 /// invisible.
 #[test]
 fn taking_values_in_a_loop_leaks_nothing() {
-    let source = "<?mwl
+    let source = "<?nvs
 var $i = 0;
 var $seen = 0;
 while ($i < 10000) {
@@ -113,7 +113,7 @@ echo $seen;
 /// `Apple,banana,fig,pear`.
 #[test]
 fn sorting_with_no_options_is_ascending_and_renumbers() {
-    let source = "<?mwl
+    let source = "<?nvs
 array<string> $words = [\"pear\", \"Apple\", \"fig\", \"banana\"];
 echo Core\\Str::join(Core\\Arr::sort($words), \",\");
 ";
@@ -125,7 +125,7 @@ echo Core\\Str::join(Core\\Arr::sort($words), \",\");
 /// member name.
 #[test]
 fn a_core_enum_case_selects_the_descending_order() {
-    let source = "<?mwl
+    let source = "<?nvs
 array<string> $words = [\"pear\", \"Apple\", \"fig\", \"banana\"];
 echo Core\\Str::join(Core\\Arr::sort($words, {order: Core\\Order::Desc}), \",\");
 ";
@@ -138,7 +138,7 @@ echo Core\\Str::join(Core\\Arr::sort($words, {order: Core\\Order::Desc}), \",\")
 /// merely mis-ordered.
 #[test]
 fn a_by_extractor_decides_what_is_compared() {
-    let source = "<?mwl
+    let source = "<?nvs
 array<string> $words = [\"Zebra\", \"apple\"];
 echo Core\\Str::join(Core\\Arr::sort($words), \",\");
 echo \"|\";
@@ -151,7 +151,7 @@ echo Core\\Str::join(Core\\Arr::sort($words, {by: fn(string $w): string => Core\
 /// `usort($nums, fn($a, $b) => $b - $a)` answers `9|5|3|1` for the same input.
 #[test]
 fn a_comparator_replaces_the_natural_ordering() {
-    let source = "<?mwl
+    let source = "<?nvs
 array<int> $nums = [5, 3, 9, 1];
 var $down = Core\\Arr::sort($nums, {comparator: fn(int $a, int $b): int => $b - $a});
 echo Core\\Str::join(Core\\Arr::map($down, fn(int $n): string => $n as string), \"|\");
@@ -164,7 +164,7 @@ echo Core\\Str::join(Core\\Arr::map($down, fn(int $n): string => $n as string), 
 /// one option.
 #[test]
 fn preserve_keys_keeps_each_entrys_own_key() {
-    let source = "<?mwl
+    let source = "<?nvs
 class Show {
     public static function render(array<int> $a): string {
         var $out = \"\";
@@ -191,7 +191,7 @@ echo Show::render(Core\\Arr::sort($scores));
 /// claim.
 #[test]
 fn a_comparator_that_throws_propagates_out_of_the_sort() {
-    let source = "<?mwl
+    let source = "<?nvs
 class Boom {
     public static function at(int $a, int $b): int {
         if ($a > 3) { throw new RuntimeError(\"nope\"); }
@@ -217,7 +217,7 @@ try {
 /// spare one leaks — neither is visible from a single call.
 #[test]
 fn sorting_in_a_loop_leaks_nothing() {
-    let source = "<?mwl
+    let source = "<?nvs
 var $i = 0;
 var $seen = 0;
 var $by = fn(string $s): string => Core\\Str::upper($s);

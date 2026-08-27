@@ -5,17 +5,17 @@
 - **Scope:** the full `Core\Process` API that replaces PHP's `exec`/`system`/`passthru`/`shell_exec`/backticks/
   `popen`/`proc_open` family (M8, stdlib) — the blocking `run()`/non-blocking `spawn()` split, the shape of a
   spawned process's result and handle, why there is no shell-string form of any kind, the Windows batch-file/
-  script-interpreter refusal, the `process.exec` capability, and the `mwl convert` mapping from every PHP
+  script-interpreter refusal, the `process.exec` capability, and the `nvs convert` mapping from every PHP
   process-execution shape.
 - **Amends:** [0024](0024-taint-tracking-for-injection-sinks.md) — § 4's `Core\Process` bullet ("M8+, behind
   the capability gate already named in the plan … an executable path and an argv array, each element
   requiring the plain type … no shell-interpolation form at all") is superseded by this ADR's full design.
   The rule itself is unchanged; this ADR is the stdlib design ADR 0024's own *Revisiting* section named as
-  due at M8, now spelled out concretely enough for `mwl-runtime` to build.
+  due at M8, now spelled out concretely enough for `nvs-runtime` to build.
 - **Amended by:** none.
 
 > **In short:** PHP gives a script seven different ways to run another program, each with its own escaping
-> rules and its own history of injection bugs. MWL gives it one: `Core\Process::run()` (blocking, captures
+> rules and its own history of injection bugs. Novis gives it one: `Core\Process::run()` (blocking, captures
 > output) and `Core\Process::spawn()` (non-blocking, streams) — both taking an executable path plus an
 > `array<string>` argv, **never a shell string**. There is no `$useShell` flag and no shell-invoking
 > convenience method; a caller who genuinely wants shell features spawns `sh`/`cmd.exe` explicitly through
@@ -38,7 +38,7 @@
   `proc_open`'s array form, and even that form still goes through `/bin/sh -c` on POSIX unless the caller
   remembers to skip the shell — opt-out, not opt-in.
 - Go's `os/exec` and Rust's `std::process::Command` already prove the fix: one argv-only builder, no shell
-  primitive in the standard library at all. Deno's `Deno.Command` adds the other half MWL already has a
+  primitive in the standard library at all. Deno's `Deno.Command` adds the other half Novis already has a
   precedent for — a runtime-enforced permission gate (`--allow-run`), the same shape as this project's
   `[capabilities]` and `script.spawn`.
 - The harder, less-obvious problem is Windows-specific: `CreateProcess` takes one command-line **string**,
@@ -144,9 +144,9 @@ not through a flag that looks as safe as every other call.
 
 ### 5. Waiting suspends the coroutine, never a worker thread
 
-`run()`'s wait and every `ProcessHandle` read/write are ordinary suspension points on MWL's stackful
+`run()`'s wait and every `ProcessHandle` read/write are ordinary suspension points on Novis's stackful
 coroutines ([docs/adr/README.md](README.md) § *Decisions taken at project start*, "Stackful coroutines for
-suspension") — the same mechanism that already lets any MWL function perform I/O and yield without being
+suspension") — the same mechanism that already lets any Novis function perform I/O and yield without being
 marked `async`. A slow child process ties up one coroutine's stack, not the worker thread it happened to
 start on, so other requests scheduled on the same core keep making progress while it runs.
 
@@ -154,23 +154,23 @@ start on, so other requests scheduled on the same core keep making progress whil
 
 Process execution is deny-by-default, the same as every other syscall-touching stdlib entry point
 ([the plan](../implementation-plan.md)'s M6 paragraph, [ADR 0005](0005-config-changeability.md)):
-`[capabilities] process.exec` is `RuntimeTighten`, off unless `mwl.toml` grants it, and a request may narrow
+`[capabilities] process.exec` is `RuntimeTighten`, off unless `nvs.toml` grants it, and a request may narrow
 it further but never widen it. The exact grant shape (a bare boolean vs. an allowlist of executable
 paths/directories, mirroring `script.spawn`'s canonicalise-then-prefix resolution) is stdlib design due at
 M8, illustrative only here — see *Revisiting*. Calling `run()`/`spawn()` without the grant throws, per
 [ADR 0002](0002-error-propagation.md), the same shape a denied `spawn script` already throws.
 
-### 7. `mwl convert` mapping (M11)
+### 7. `nvs convert` mapping (M11)
 
-| PHP | MWL |
+| PHP | Novis |
 |---|---|
-| `exec($cmd)`, `system($cmd)`, `` `cmd` ``, `shell_exec($cmd)` | `Core\Process::run($path, $argv)` — human review required: a shell command string has no mechanical argv split (quoting, globbing, `&&`/`\|` are shell semantics with no argv equivalent), so `mwl convert` flags every call site rather than guessing |
+| `exec($cmd)`, `system($cmd)`, `` `cmd` ``, `shell_exec($cmd)` | `Core\Process::run($path, $argv)` — human review required: a shell command string has no mechanical argv split (quoting, globbing, `&&`/`\|` are shell semantics with no argv equivalent), so `nvs convert` flags every call site rather than guessing |
 | `passthru($cmd)` | `Core\Process::spawn($path, $argv)`, streaming `readStdout()` to the response — same human-review flag as above |
 | `proc_open($cmd, $descriptors, $pipes)` | `Core\Process::spawn($path, $argv)` plus `ProcessHandle`'s read/write/wait/kill — same flag; PHP's descriptor-spec array has no 1:1 structural match |
 
 Every mapping needs a human to supply the real executable path and argv split — this is not a mechanical
-rewrite the way most of `mwl convert`'s other conversions are, since a shell command string's meaning depends
-on shell grammar `mwl convert` does not (and, per § 1, MWL never will) interpret.
+rewrite the way most of `nvs convert`'s other conversions are, since a shell command string's meaning depends
+on shell grammar `nvs convert` does not (and, per § 1, Novis never will) interpret.
 
 ## Consequences
 
@@ -188,13 +188,13 @@ on shell grammar `mwl convert` does not (and, per § 1, MWL never will) interpre
 **Negative**
 
 - **No shell surface at all is a real capability loss**, not just a safety win: a script that genuinely
-  wants a pipeline (`ps aux | grep foo`) or glob expansion must either compose it in MWL directly or spawn a
+  wants a pipeline (`ps aux | grep foo`) or glob expansion must either compose it in Novis directly or spawn a
   shell explicitly and accept that call site's documented risk — there is no convenient middle ground.
 - **The `.bat`/`.cmd`/`.ps1` refusal is a real, if narrow, feature loss on Windows**: a deployment that
   genuinely needs to run a vendor-supplied batch script has no built-in path short of the explicit
   `cmd.exe`-spawn escape hatch, unlike PHP, which runs one with `exec("script.bat")` today, quoting risk and
   all.
-- **`mwl convert` gains another non-mechanical gap**, in the family [ADR 0009](0009-string-and-bytes.md),
+- **`nvs convert` gains another non-mechanical gap**, in the family [ADR 0009](0009-string-and-bytes.md),
   [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md), and
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md) already carry: every ported call site in § 7's table
   needs a human to supply path/argv, not a mechanical rewrite.
@@ -210,7 +210,7 @@ on shell grammar `mwl convert` does not (and, per § 1, MWL never will) interpre
   your problem" is exactly the shape that invites "I'll just pass `true` real quick" — the same reasoning
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md) already used to reject a generic `sanitize()`.
 - **An explicit but present shell-invoking method** (`Core\Process::runViaShell(string $command)`).
-  Considered and rejected: even a clearly-named, separately-documented method is still a convenience MWL
+  Considered and rejected: even a clearly-named, separately-documented method is still a convenience Novis
   would be handing out for the one operation this ADR exists to make deliberately inconvenient. A caller who
   wants it spawns `sh -c`/`cmd.exe /c` through the same argv API — one line longer, and visibly the caller's
   own risk rather than a stdlib-blessed shortcut.
@@ -218,7 +218,7 @@ on shell grammar `mwl convert` does not (and, per § 1, MWL never will) interpre
   Rust shipped and then had to patch under CVE-2024-24576. An ADR choosing "we quote it carefully" over
   "we refuse it" would be choosing to eventually write the same CVE.
 - **Blocking the OS thread for `run()`'s wait**, deferring coroutine suspension until profiling showed a
-  problem. Rejected outright rather than deferred: MWL's thread-per-core, shared-nothing executor
+  problem. Rejected outright rather than deferred: Novis's thread-per-core, shared-nothing executor
   ([docs/adr/README.md](README.md)) means one thread-blocking wait stalls every other request on that core,
   not just the one that spawned the process — a correctness property, not a performance tuning question, so
   there is nothing to "wait and measure" before deciding.
@@ -242,7 +242,7 @@ on shell grammar `mwl convert` does not (and, per § 1, MWL never will) interpre
 Verification, in the order it becomes possible:
 
 - **M8**: `Core\Process::run()` against a real executable returns the right exit code and captured
-  stdout/stderr as `bytes`; a `tainted` value at `$path` or any `$argv` element is an `mwl check` diagnostic,
+  stdout/stderr as `bytes`; a `tainted` value at `$path` or any `$argv` element is an `nvs check` diagnostic,
   not a runtime failure; a `.bat`/`.cmd`/`.ps1` target throws `E_PROCESS_SHELL_TARGET_REFUSED` — and the
   equivalent `#!/bin/sh` shebang script on the Linux CI runner succeeds, proving the asymmetry in § 4 is
   intentional and not an accidental gap; `Core\Process::run()` without the `process.exec` capability granted

@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-25
 - **Amended by:** 0097
-- **Scope:** decides how MWL reads text whose *spelling* and whose *meaning* can come apart — an HTTP
+- **Scope:** decides how Novis reads text whose *spelling* and whose *meaning* can come apart — an HTTP
   message's framing and headers, inbound and outbound alike; a cookie name and its `__Host-`/`__Secure-`
   prefix; a multipart body's part accounting; and a path component handed to `Core\IO::within`. Does **not**
   decide which security headers a response carries or what an outbound call's deadline is
@@ -16,7 +16,7 @@
   concerns" to a proxy now says explicitly that the line covers **size and rate**, not **parsing**, and its
   § 3 gains the cookie-name rule below.
 
-> **In short:** where a name's *spelling* and its *resolution* can come apart, MWL refuses the input
+> **In short:** where a name's *spelling* and its *resolution* can come apart, Novis refuses the input
 > rather than repairing it — never normalising, unfolding, mangling or truncating its way to an
 > interpretation. The list of what counts as ambiguous is **closed and written down** (§§ 2–5), which is
 > what stops "strict" from growing every time somebody reads a specification more carefully: everything
@@ -51,7 +51,7 @@ by design: `foo.` opens `foo`, `CON` is a device in every directory, `file.txt::
 stream, and `PROGRA~1` aliases a long name. A component can pass a lexical containment check and resolve
 outside the base.
 
-One argument says this is MWL's problem rather than a deployment's, and a proxy in front makes it stronger
+One argument says this is Novis's problem rather than a deployment's, and a proxy in front makes it stronger
 rather than weaker.
 
 **"A proxy does it earlier and better" is true for limits and false for parsing.** Request smuggling *is* a
@@ -65,7 +65,7 @@ origin parser is dangerous in — the differential needs two parsers to exist, a
 
 ## Decision
 
-**Where a name's spelling and its resolution can differ, MWL refuses the input. It never normalises,
+**Where a name's spelling and its resolution can differ, Novis refuses the input. It never normalises,
 mangles, truncates or unfolds its way to an interpretation.**
 
 ### 1. Two classes, and only the first refuses
@@ -83,7 +83,7 @@ specification more carefully. A defect not on the list is accepted; adding one i
 
 ### 2. The closed list, for an HTTP message
 
-Refused, on a request MWL receives **and on a response MWL's outbound client receives**:
+Refused, on a request Novis receives **and on a response Novis's outbound client receives**:
 
 | Defect | Why it is ambiguous |
 |---|---|
@@ -120,7 +120,7 @@ CVE-2024-2756; enforcing it once, in the one place that parses the header, is th
 ### 4. Multipart caps a part count, not only a body size
 
 `[limits] max_multipart_parts` (default **1000**, PHP's own number after CVE-2023-0662), plus a per-part
-field-name length and a per-part size, all `mwl.toml` directives per [0064](0064-configuration-file-format.md).
+field-name length and a per-part size, all `nvs.toml` directives per [0064](0064-configuration-file-format.md).
 Exceeding any is a `413` naming the limit and the directive.
 
 The body-size cap [0074](0074-http-defaults-safe-and-finite.md) already keeps is not this: the cost of a
@@ -147,12 +147,12 @@ platform-conditional answer would need two expectations for one member.
 
 `Core\Path` is untouched by all of this. It stays pure string algebra, it touches no disk, it carries no
 policy, and it goes on accepting `/` and `\` as separators on every platform —
-`crates/mwl-stdlib/src/path.rs`'s own module doc owns why, and the reason is the two legs above.
+`crates/nvs-stdlib/src/path.rs`'s own module doc owns why, and the reason is the two legs above.
 `Path::normalize` is still **not** a launderer, because the base is not part of its input.
 
 ## Consequences
 
-- **A client that sends `obs-fold` cannot talk to MWL.** It was deprecated in 2014 and RFC 9110 requires
+- **A client that sends `obs-fold` cannot talk to Novis.** It was deprecated in 2014 and RFC 9110 requires
   a server to reject or replace it; this picks reject.
 - **An upstream with a sloppy header emitter breaks an outbound call**, visibly, at the call site. This is
   the cost the § 2 note argues is worth paying, and it is the one entry in this ADR most likely to be
@@ -169,7 +169,7 @@ policy, and it goes on accepting `/` and `\` as separators on every platform —
 ## Alternatives rejected
 
 - **Normalise and continue, as PHP does.** Maximum interoperability, and the posture that produced every
-  row of the *Context* table. It also guarantees that MWL and any proxy in front of it can disagree about
+  row of the *Context* table. It also guarantees that Novis and any proxy in front of it can disagree about
   what a request says.
 - **Total strictness — refuse anything not conforming to RFC 9110's grammar.** Stronger and simpler to
   state, and it rejects requests every other origin accepts (underscores in header names are common). It
@@ -181,7 +181,7 @@ policy, and it goes on accepting `/` and `\` as separators on every platform —
   arrangement: the prefix means nothing unless every read site checks it, and CVE-2024-2756 exists because
   one site did not.
 - **A PHP-compatibility mode reproducing cookie-name mangling.** Rejected: the mangling *is* the bypass,
-  and [0080](0080-the-audience-mwl-is-built-for.md) makes PHP syntax an on-ramp rather than a compatibility
+  and [0080](0080-the-audience-nvs-is-built-for.md) makes PHP syntax an on-ramp rather than a compatibility
   promise.
 - **Enforce the § 5 refusals only on Windows.** Rejected in § 5: a platform-conditional security rule is
   tested on the platform where it does nothing.
@@ -191,7 +191,7 @@ policy, and it goes on accepting `/` and `\` as separators on every platform —
 
 ## Verification
 
-- A `.mwlt` case per row of § 2's table, on the inbound parser and on the outbound client, asserting the
+- A `.nvst` case per row of § 2's table, on the inbound parser and on the outbound client, asserting the
   message is refused whole and the diagnostic names the defect.
 - A case asserting a header name containing an underscore, and one containing an unknown-but-well-formed
   name, are both accepted **verbatim** — the *unusual* half of § 1, which is as much of the rule as the

@@ -1,12 +1,12 @@
 //! ADR 0053 § 2's one narrow generic door — a user class implementing a compiler-owned generic interface at a concrete type.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 // ADR 0053 §§ 1-2: the two compiler-owned generic interfaces, and the one
 // door user code has onto a type parameter.
@@ -14,7 +14,7 @@ use mwl_diagnostics::code;
 #[test]
 fn a_class_may_implement_a_compiler_owned_generic_interface_at_a_concrete_type() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Counter implements Iterable<int> {\n\
          \x20 function iterate(): Iterator<int> { return Counter::empty(); }\n\
          \x20 static function empty(): Iterator<int> { return Counter::empty(); }\n\
@@ -26,7 +26,7 @@ fn a_class_may_implement_a_compiler_owned_generic_interface_at_a_concrete_type()
 #[test]
 fn a_cursor_s_element_type_comes_from_the_receiver_s_type_argument() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class T {\n\
          \x20 function m(Iterator<int> $it): void {\n\
          \x20\x20 bool $more = $it->advance();\n\
@@ -43,7 +43,7 @@ fn a_cursor_s_element_type_comes_from_the_receiver_s_type_argument() {
 #[test]
 fn a_cursor_s_element_type_is_not_mixed() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class T {\n\
          \x20 function m(Iterator<string> $it): void {\n\
          \x20\x20 int $n = $it->current();\n\
@@ -60,7 +60,7 @@ fn a_cursor_s_element_type_is_not_mixed() {
 #[test]
 fn a_user_declared_name_written_with_type_arguments_is_refused() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Animal {}\n\
          class T {\n\
          \x20 function m(Animal<int> $a): void { echo \"x\"; }\n\
@@ -78,7 +78,7 @@ fn a_user_declared_name_written_with_type_arguments_is_refused() {
 /// rule, in the position ADR 0053 § 2 opened -- an `implements` clause.
 #[test]
 fn a_non_generic_reserved_interface_takes_no_type_arguments_either() {
-    let diags = check_src("<?mwl\nclass M implements Comparable<int> {}\n");
+    let diags = check_src("<?nvs\nclass M implements Comparable<int> {}\n");
     assert!(
         diags
             .iter()
@@ -90,7 +90,7 @@ fn a_non_generic_reserved_interface_takes_no_type_arguments_either() {
 #[test]
 fn a_generic_interface_written_bare_is_refused() {
     let diags =
-        check_src("<?mwl\nclass T {\n  function m(Iterator $it): void { echo \"x\"; }\n}\n");
+        check_src("<?nvs\nclass T {\n  function m(Iterator $it): void { echo \"x\"; }\n}\n");
     assert!(
         diags.iter().any(|d| d.code == Some(code::E_TYPE_ARG_COUNT)),
         "{diags:?}"
@@ -99,7 +99,7 @@ fn a_generic_interface_written_bare_is_refused() {
 
 #[test]
 fn a_generic_interface_written_with_too_many_arguments_is_refused() {
-    let diags = check_src("<?mwl\nclass C implements Iterable<int, string> {}\n");
+    let diags = check_src("<?nvs\nclass C implements Iterable<int, string> {}\n");
     assert!(
         diags.iter().any(|d| d.code == Some(code::E_TYPE_ARG_COUNT)),
         "{diags:?}"
@@ -112,7 +112,7 @@ fn a_generic_interface_written_with_too_many_arguments_is_refused() {
 #[test]
 fn a_type_alias_has_no_type_parameters_but_may_be_one() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          type Id = int;\n\
          class T {\n\
          \x20 function ok(Iterator<Id> $it): void { int $n = $it->current(); echo $n; }\n\
@@ -134,13 +134,13 @@ fn a_type_alias_has_no_type_parameters_but_may_be_one() {
 /// A parameter whose declared type mentions no variable is known before any
 /// binding, so it is checked *with* that expectation — which is what tells an
 /// integer literal at a `uint` position that it is one (ADR 0007 § 4). Before
-/// `mwl_types::expr::args::check_generic_args` did that, a `uint` parameter on a
+/// `nvs_types::expr::args::check_generic_args` did that, a `uint` parameter on a
 /// generic `Core` member was unreachable from a literal, while the identical
 /// parameter on a non-generic one (`Core\Str::padStart`) accepted it.
 #[test]
 fn an_int_literal_reaches_a_uint_parameter_of_a_generic_core_member() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          array<string> $a = [\"one\"];\n\
          array<string> $p = Core\\Arr::padEnd($a, 3, \"-\");\n\
          echo Core\\Arr::count($p);\n",
@@ -155,7 +155,7 @@ fn an_int_literal_reaches_a_uint_parameter_of_a_generic_core_member() {
 #[test]
 fn a_core_member_that_infers_its_variables_refuses_a_written_type_argument() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          array<string> $a = [\"one\"];\n\
          echo Core\\Arr::count<string>($a);\n",
     );
@@ -173,7 +173,7 @@ fn a_core_member_that_infers_its_variables_refuses_a_written_type_argument() {
 #[test]
 fn a_user_declared_method_refuses_a_written_type_argument() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Box {\n\
          \x20 static function of(int $n): int { return $n; }\n\
          }\n\
@@ -193,7 +193,7 @@ fn a_user_declared_method_refuses_a_written_type_argument() {
 #[test]
 fn a_refused_type_argument_list_does_not_cascade() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          array<string> $a = [\"one\"];\n\
          uint $n = Core\\Arr::count<string>($a);\n\
          echo $n;\n",
@@ -211,7 +211,7 @@ fn a_refused_type_argument_list_does_not_cascade() {
 #[test]
 fn a_new_target_written_with_type_arguments_is_refused() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Box {}\n\
          var $b = new Box<int>();\n\
          echo \"x\";\n",
@@ -230,7 +230,7 @@ fn a_new_target_written_with_type_arguments_is_refused() {
 #[test]
 fn a_class_named_inside_a_refused_new_type_argument_list_is_still_resolved() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Box {}\n\
          var $b = new Box<Nope>();\n\
          echo \"x\";\n",
@@ -243,7 +243,7 @@ fn a_class_named_inside_a_refused_new_type_argument_list_is_still_resolved() {
     );
 }
 
-// `mwl_stdlib::registry::GENERIC_CLASSES` — the roster that says which `new`
+// `nvs_stdlib::registry::GENERIC_CLASSES` — the roster that says which `new`
 // target may carry a list at all, and how many arguments it takes.
 
 /// The accepting half: spec § 9's two collections, each written with exactly
@@ -251,7 +251,7 @@ fn a_class_named_inside_a_refused_new_type_argument_list_is_still_resolved() {
 #[test]
 fn a_core_owned_generic_class_takes_the_arguments_its_roster_row_declares() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Tag {}\n\
          var $set = new Core\\ObjectSet<Tag>();\n\
          var $map = new Core\\ObjectMap<Tag, int>();\n\
@@ -266,7 +266,7 @@ fn a_core_owned_generic_class_takes_the_arguments_its_roster_row_declares() {
 #[test]
 fn a_core_owned_generic_class_written_with_another_s_arity_is_refused() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Tag {}\n\
          var $set = new Core\\ObjectSet<Tag, int>();\n\
          var $map = new Core\\ObjectMap<Tag>();\n\
@@ -293,7 +293,7 @@ fn a_core_owned_generic_class_written_with_another_s_arity_is_refused() {
 #[test]
 fn a_core_owned_generic_class_written_bare_is_refused() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          var $set = new Core\\ObjectSet();\n\
          echo \"x\";\n",
     );
@@ -308,7 +308,7 @@ fn a_core_owned_generic_class_written_bare_is_refused() {
 #[test]
 fn a_class_named_inside_an_accepted_new_type_argument_list_is_still_resolved() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          var $set = new Core\\ObjectSet<Nope>();\n\
          echo \"x\";\n",
     );

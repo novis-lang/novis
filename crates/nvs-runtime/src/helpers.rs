@@ -1,13 +1,13 @@
 //! The closed set of engine-owned runtime helpers compiled code can call.
 //!
-//! Each one backs exactly one `mwl_ir::Helper` variant. That enum is the
+//! Each one backs exactly one `nvs_ir::Helper` variant. That enum is the
 //! authority on *what* each helper means — its own doc comments carry the
 //! semantics, including PHP's rules for bool-to-string and for what counts as
 //! falsy — so nothing is restated here; this module is the implementation, and
-//! [`symbols`] is the table `mwl-codegen` registers with the JIT.
+//! [`symbols`] is the table `nvs-codegen` registers with the JIT.
 //!
-//! `mwl-runtime` deliberately does not depend on `mwl-ir`, so the mapping from
-//! a `Helper` tag to a symbol name lives in `mwl-codegen`, which depends on
+//! `nvs-runtime` deliberately does not depend on `nvs-ir`, so the mapping from
+//! a `Helper` tag to a symbol name lives in `nvs-codegen`, which depends on
 //! both. What lives here is the name itself, and the guarantee that the name
 //! resolves.
 //!
@@ -16,7 +16,7 @@
 //! Every helper below re-checks its arguments' tags and returns [`FATAL`] on a
 //! mismatch rather than reading the payload anyway. A mismatch cannot happen
 //! in a well-typed program — [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
-//! settles every operand type before lowering, and `mwl_ir::lower` picks the
+//! settles every operand type before lowering, and `nvs_ir::lower` picks the
 //! helper from that type — so the check is not defending against user code. It
 //! is defending against a *miscompile*: reading a `Value`'s payload under the
 //! wrong tag would be a memory-safety bug (an `int` payload read as a string
@@ -25,9 +25,9 @@
 //! branch on a tag byte is a cheap price for making that class of bug a
 //! `FATAL` with a message instead.
 //!
-//! Every `mwl_ir::Helper` variant now has an entry point here. Two entry points
-//! here back no `Helper` variant at all — [`mwl_array_required_get`] and
-//! [`mwl_array_optional_get`], the two halves of `mwl_ir::InstKind::ArrayGet`,
+//! Every `nvs_ir::Helper` variant now has an entry point here. Two entry points
+//! here back no `Helper` variant at all — [`nvs_array_required_get`] and
+//! [`nvs_array_optional_get`], the two halves of `nvs_ir::InstKind::ArrayGet`,
 //! which names one of them directly off its own `absent` field. That
 //! instruction's doc comment says why a subscript read rather than a conversion
 //! needs this signature at all.
@@ -37,7 +37,7 @@ use subtle::ConstantTimeEq;
 use crate::abi::{Fault, HelperFn};
 use crate::decimal::Decimal;
 use crate::fmt::php_float_to_string;
-use crate::string::MwlStr;
+use crate::string::NvsStr;
 use crate::value::{Tag, Value};
 
 /// The `FATAL` a tag mismatch produces — see this module's docs for why it is
@@ -57,149 +57,149 @@ macro_rules! expect_tag {
     };
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::IntToString`.
-    fn mwl_int_to_string(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_int_to_string", args[0], as_int, Tag::Int);
-        Ok(Value::str(MwlStr::new(value.to_string().as_bytes())))
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::IntToString`.
+    fn nvs_int_to_string(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_int_to_string", args[0], as_int, Tag::Int);
+        Ok(Value::str(NvsStr::new(value.to_string().as_bytes())))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::UintToString`.
-    fn mwl_uint_to_string(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_uint_to_string", args[0], as_uint, Tag::Uint);
-        Ok(Value::str(MwlStr::new(value.to_string().as_bytes())))
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::UintToString`.
+    fn nvs_uint_to_string(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_uint_to_string", args[0], as_uint, Tag::Uint);
+        Ok(Value::str(NvsStr::new(value.to_string().as_bytes())))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::FloatToString`.
-    fn mwl_float_to_string(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_float_to_string", args[0], as_float, Tag::Float);
-        Ok(Value::str(MwlStr::new(php_float_to_string(value).as_bytes())))
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::FloatToString`.
+    fn nvs_float_to_string(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_float_to_string", args[0], as_float, Tag::Float);
+        Ok(Value::str(NvsStr::new(php_float_to_string(value).as_bytes())))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::BoolToString`.
-    fn mwl_bool_to_string(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_bool_to_string", args[0], as_bool, Tag::Bool);
-        Ok(Value::str(MwlStr::new(if value { b"1".as_slice() } else { b"".as_slice() })))
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::BoolToString`.
+    fn nvs_bool_to_string(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_bool_to_string", args[0], as_bool, Tag::Bool);
+        Ok(Value::str(NvsStr::new(if value { b"1".as_slice() } else { b"".as_slice() })))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::IntTruthy`.
-    fn mwl_int_truthy(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_int_truthy", args[0], as_int, Tag::Int);
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::IntTruthy`.
+    fn nvs_int_truthy(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_int_truthy", args[0], as_int, Tag::Int);
         Ok(Value::bool(value != 0))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::UintTruthy`.
-    fn mwl_uint_truthy(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_uint_truthy", args[0], as_uint, Tag::Uint);
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::UintTruthy`.
+    fn nvs_uint_truthy(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_uint_truthy", args[0], as_uint, Tag::Uint);
         Ok(Value::bool(value != 0))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::FloatTruthy`. `-0.0` is falsy with `0.0`; `NAN` is
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::FloatTruthy`. `-0.0` is falsy with `0.0`; `NAN` is
     /// truthy, which `!=` gives for free.
-    fn mwl_float_truthy(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_float_truthy", args[0], as_float, Tag::Float);
+    fn nvs_float_truthy(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_float_truthy", args[0], as_float, Tag::Float);
         Ok(Value::bool(value != 0.0))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::StrTruthy`.
-    fn mwl_str_truthy(_ctx, args: [1]) {
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::StrTruthy`.
+    fn nvs_str_truthy(_ctx, args: [1]) {
         let bytes = args[0]
             .as_str_bytes()
-            .ok_or_else(|| wrong_tag("mwl_str_truthy", Tag::Str, args[0]))?;
+            .ok_or_else(|| wrong_tag("nvs_str_truthy", Tag::Str, args[0]))?;
         Ok(Value::bool(!(bytes.is_empty() || bytes == b"0")))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::BytesTruthy` — falsy iff the buffer is empty, which
-    /// is [`mwl_str_truthy`]'s row **without** its `"0"` case. That case is
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::BytesTruthy` — falsy iff the buffer is empty, which
+    /// is [`nvs_str_truthy`]'s row **without** its `"0"` case. That case is
     /// PHP's numeric-string rule and
     /// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s binary scalar
     /// never converts to a number, so a one-octet buffer holding `0x30` is
     /// truthy here where the `string` spelling of the same octet is not.
     /// [`value_truthy`]'s `Tag::Bytes` arm is this rule reached through a
     /// `mixed`, and the two are deliberately one sentence.
-    fn mwl_bytes_truthy(_ctx, args: [1]) {
+    fn nvs_bytes_truthy(_ctx, args: [1]) {
         let bytes = args[0]
             .as_bytes()
-            .ok_or_else(|| wrong_tag("mwl_bytes_truthy", Tag::Bytes, args[0]))?;
+            .ok_or_else(|| wrong_tag("nvs_bytes_truthy", Tag::Bytes, args[0]))?;
         Ok(Value::bool(!bytes.is_empty()))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ArrayTruthy` — falsy iff the array holds no entries,
-    /// for any element type. [`mwl_str_truthy`]'s structure with a different
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ArrayTruthy` — falsy iff the array holds no entries,
+    /// for any element type. [`nvs_str_truthy`]'s structure with a different
     /// emptiness test, as this module's own docs predicted it would be.
-    fn mwl_array_truthy(_ctx, args: [1]) {
+    fn nvs_array_truthy(_ctx, args: [1]) {
         let array = args[0]
             .array_ptr()
-            .ok_or_else(|| wrong_tag("mwl_array_truthy", Tag::Array, args[0]))?;
+            .ok_or_else(|| wrong_tag("nvs_array_truthy", Tag::Array, args[0]))?;
         #[expect(
             unsafe_code,
             reason = "a Tag::Array argument owns a reference to a live                       allocation, so it is live for this read"
         )]
-        let count = unsafe { crate::array::mwl_array_count(array) };
+        let count = unsafe { crate::array::nvs_array_count(array) };
         Ok(Value::bool(count != 0))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ValueTruthy` —
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ValueTruthy` —
     /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md) § 2's
     /// table over a value whose type the compiler erased, which is the table's
     /// own last row. Every other row is reached without this helper, because
     /// the operand's static type already named it:
-    /// `mwl_ir::lower::Lowering::truthy_convert`'s arms are that table, one
+    /// `nvs_ir::lower::Lowering::truthy_convert`'s arms are that table, one
     /// representation at a time.
     ///
     /// The row itself is [`value_truthy`], which is total — § 2 covers every
     /// type that can reach a condition — so this carries no error edge, the
-    /// same reason [`mwl_value_identical`] carries none on the equality side.
-    /// The operand is borrowed, the treatment [`mwl_array_truthy`] already
+    /// same reason [`nvs_value_identical`] carries none on the equality side.
+    /// The operand is borrowed, the treatment [`nvs_array_truthy`] already
     /// gives its own.
-    fn mwl_value_truthy(_ctx, args: [1]) {
+    fn nvs_value_truthy(_ctx, args: [1]) {
         Ok(Value::bool(value_truthy(args[0])))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ArrayRowForWrite` — one level of a nested
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ArrayRowForWrite` — one level of a nested
     /// `$grid[0][1] = v`'s descent, and the only array entry point whose
     /// answer is **owned** rather than borrowed.
     ///
     /// Two cases, one ownership answer. A row that is there comes back
-    /// retained, so the [`crate::array::mwl_array_set`] the lowering emits on
+    /// retained, so the [`crate::array::nvs_array_set`] the lowering emits on
     /// the way back up has a reference to consume — and so the row's count is
     /// at least two, which is exactly what makes that write separate it (ADR
     /// 0007 § 5). A key that is *absent* comes back as a fresh empty array
     /// with a count of one, which is PHP's auto-vivification: `$g[9][0] = 1`
     /// over an empty `$g` builds the missing row rather than faulting. The
-    /// fresh row is not inserted here; the same `mwl_array_set` stores it,
+    /// fresh row is not inserted here; the same `nvs_array_set` stores it,
     /// since replacing a row and inserting one are one instruction.
     ///
     /// The declared element type is what rules out the third case PHP has —
     /// a present entry that is not an array — so a non-array row here is an
     /// internal inconsistency and is reported as a wrong tag rather than as a
     /// language-level fault.
-    fn mwl_array_row_for_write(_ctx, args: [2]) {
+    fn nvs_array_row_for_write(_ctx, args: [2]) {
         let array = args[0]
             .array_ptr()
-            .ok_or_else(|| wrong_tag("mwl_array_row_for_write", Tag::Array, args[0]))?;
+            .ok_or_else(|| wrong_tag("nvs_array_row_for_write", Tag::Array, args[0]))?;
         let mut row = Value::default();
         #[expect(
             unsafe_code,
@@ -209,18 +209,18 @@ crate::mwl_helper! {
         )]
         unsafe {
             if let Some(key) = args[1].str_ptr() {
-                crate::array::mwl_array_get(array, key, &raw mut row);
+                crate::array::nvs_array_get(array, key, &raw mut row);
             } else if let Some(index) = args[1].as_int() {
-                crate::array::mwl_array_get_index(array, index, &raw mut row);
+                crate::array::nvs_array_get_index(array, index, &raw mut row);
             } else {
-                return Err(wrong_tag("mwl_array_row_for_write", Tag::Str, args[1]));
+                return Err(wrong_tag("nvs_array_row_for_write", Tag::Str, args[1]));
             }
         }
         let Some(ptr) = row.array_ptr() else {
             if row.tag().is_none() || row.tag() == Some(Tag::Null) {
-                return Ok(Value::from_array_ptr(crate::array::mwl_array_new()));
+                return Ok(Value::from_array_ptr(crate::array::nvs_array_new()));
             }
-            return Err(wrong_tag("mwl_array_row_for_write", Tag::Array, row));
+            return Err(wrong_tag("nvs_array_row_for_write", Tag::Array, row));
         };
         #[expect(
             unsafe_code,
@@ -228,7 +228,7 @@ crate::mwl_helper! {
                       holding it, which this call's argument owns"
         )]
         unsafe {
-            crate::array::mwl_array_retain(ptr);
+            crate::array::nvs_array_retain(ptr);
         }
         Ok(row)
     }
@@ -243,7 +243,7 @@ fn undefined_key(key: Value) -> Fault {
                   so it is live for this read"
     )]
     let rendered = match key.str_ptr() {
-        Some(ptr) => unsafe { String::from_utf8_lossy(MwlStr::bytes_of(ptr)).into_owned() },
+        Some(ptr) => unsafe { String::from_utf8_lossy(NvsStr::bytes_of(ptr)).into_owned() },
         None => match key.as_int() {
             Some(index) => index.to_string(),
             None => "?".to_owned(),
@@ -252,16 +252,16 @@ fn undefined_key(key: Value) -> Fault {
     Fault::thrown(format!("undefined array key `{rendered}`"))
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::InstKind::ArrayGet` — the entry `args[1]` names in the array
+crate::nvs_helper! {
+    /// `nvs_ir::InstKind::ArrayGet` — the entry `args[1]` names in the array
     /// `args[0]`, **borrowed**, or a throw when the key is absent.
     ///
-    /// The one runtime entry point that is not a `mwl_ir::Helper` variant, for
+    /// The one runtime entry point that is not a `nvs_ir::Helper` variant, for
     /// the reason that instruction's own doc comment gives: a subscript read
     /// is an instruction rather than a conversion, and it needs this module's
     /// ADR 0002 signature only because it can now fail.
     ///
-    /// PHP warns and yields `null` here. MWL has no `null` to put in an
+    /// PHP warns and yields `null` here. Novis has no `null` to put in an
     /// `array<string>`, and the null-shaped value this used to answer with was
     /// read by every consumer as its declared type — a string pointer, an
     /// object pointer — so the failure was a null dereference below the
@@ -272,13 +272,13 @@ crate::mwl_helper! {
     /// An absent key is told from a stored `null` by
     /// [`crate::array::entry`]'s `Option`, so an `array<?string>` holding a
     /// `null` at `"k"` reads that `null` back rather than throwing.
-    /// [`crate::array::mwl_array_get`] is the other read — the vivifying one
+    /// [`crate::array::nvs_array_get`] is the other read — the vivifying one
     /// the *write* side descends through, whose absent-key answer is a fresh
-    /// row (`mwl_ir::Helper::ArrayRowForWrite`).
-    fn mwl_array_required_get(_ctx, args: [2]) {
+    /// row (`nvs_ir::Helper::ArrayRowForWrite`).
+    fn nvs_array_required_get(_ctx, args: [2]) {
         let array = args[0]
             .array_ptr()
-            .ok_or_else(|| wrong_tag("mwl_array_required_get", Tag::Array, args[0]))?;
+            .ok_or_else(|| wrong_tag("nvs_array_required_get", Tag::Array, args[0]))?;
         #[expect(
             unsafe_code,
             reason = "a Tag::Array argument owns a reference to a live \
@@ -287,52 +287,52 @@ crate::mwl_helper! {
         )]
         let found = unsafe {
             if let Some(key) = args[1].str_ptr() {
-                crate::array::entry(array, MwlStr::bytes_of(key))
+                crate::array::entry(array, NvsStr::bytes_of(key))
             } else if let Some(index) = args[1].as_int() {
                 crate::array::entry_at_index(array, index)
             } else {
-                return Err(wrong_tag("mwl_array_required_get", Tag::Str, args[1]));
+                return Err(wrong_tag("nvs_array_required_get", Tag::Str, args[1]));
             }
         };
         found.ok_or_else(|| undefined_key(args[1]))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::InstKind::ArrayGet` under an
-    /// [`mwl_ir::ir::AbsentKey::Null`](../../mwl_ir/ir/enum.AbsentKey.html)
-    /// — the same **borrowed** read as [`mwl_array_required_get`], answering an
+crate::nvs_helper! {
+    /// `nvs_ir::InstKind::ArrayGet` under an
+    /// [`nvs_ir::ir::AbsentKey::Null`](../../nvs_ir/ir/enum.AbsentKey.html)
+    /// — the same **borrowed** read as [`nvs_array_required_get`], answering an
     /// absent key with `null` instead of throwing.
     ///
     /// This is the read under a `??`, and it is the one place ADR 0007 § 7
     /// row 11's divergence is carved back out: PHP's `??` is precisely "absent
     /// or `null`, without the warning", so the whole point of the guard is that
     /// the absent case has an answer. The answer is always a
-    /// `mwl_ir::Ty::Tagged` value, because "the element, or `null`" is a
-    /// nullable however narrow the array's element type is, and `mwl_ir::lower`
+    /// `nvs_ir::Ty::Tagged` value, because "the element, or `null`" is a
+    /// nullable however narrow the array's element type is, and `nvs_ir::lower`
     /// hands it straight to `??`'s own null test.
     ///
     /// A stored `null` and an absent key are deliberately *not* told apart
-    /// here, unlike in [`mwl_array_required_get`]: `??` yields its right
+    /// here, unlike in [`nvs_array_required_get`]: `??` yields its right
     /// operand for both, so collapsing them is what PHP does rather than a
     /// simplification of it.
     ///
     /// Infallible — it carries the ADR 0002 signature every helper does, but
-    /// the only status it ever returns is `OK`, so `mwl-ir` emits it with no
+    /// the only status it ever returns is `OK`, so `nvs-ir` emits it with no
     /// error edge.
-    fn mwl_array_optional_get(_ctx, args: [2]) {
+    fn nvs_array_optional_get(_ctx, args: [2]) {
         // A `null` *array* is the nested chain: `$a["k"]["j"] ?? "d"` marks
         // every level guarded, so this read's own base is the previous level's
         // answer and that answer is `null` when its key was absent. PHP reads
         // the whole chain as one guarded lookup, so the answer here is `null`
         // again rather than the tag mismatch a well-typed program otherwise
-        // cannot produce — `mwl_types::Env::coalesce_guarded` owns the marking.
+        // cannot produce — `nvs_types::Env::coalesce_guarded` owns the marking.
         if args[0].tag() == Some(Tag::Null) {
             return Ok(Value::null());
         }
         let array = args[0]
             .array_ptr()
-            .ok_or_else(|| wrong_tag("mwl_array_optional_get", Tag::Array, args[0]))?;
+            .ok_or_else(|| wrong_tag("nvs_array_optional_get", Tag::Array, args[0]))?;
         #[expect(
             unsafe_code,
             reason = "a Tag::Array argument owns a reference to a live \
@@ -341,19 +341,19 @@ crate::mwl_helper! {
         )]
         let found = unsafe {
             if let Some(key) = args[1].str_ptr() {
-                crate::array::entry(array, MwlStr::bytes_of(key))
+                crate::array::entry(array, NvsStr::bytes_of(key))
             } else if let Some(index) = args[1].as_int() {
                 crate::array::entry_at_index(array, index)
             } else {
-                return Err(wrong_tag("mwl_array_optional_get", Tag::Str, args[1]));
+                return Err(wrong_tag("nvs_array_optional_get", Tag::Str, args[1]));
             }
         };
         Ok(found.unwrap_or(Value::null()))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::Identical` — `==` where at least one operand is a
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::Identical` — `==` where at least one operand is a
     /// `mixed` or a union, which is
     /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 5's case and the only one whose row is a runtime tag rather than a
@@ -361,27 +361,27 @@ crate::mwl_helper! {
     /// operand and a statically typed one answer alike; a pair whose tags name
     /// different rows is `false` there, never a throw, which is why this helper
     /// is infallible and carries no error edge. `!=` is this helper under an
-    /// `mwl_ir::UnOp::Not`, the arrangement [`mwl_decimal_eq`] already uses.
-    fn mwl_value_identical(_ctx, args: [2]) {
+    /// `nvs_ir::UnOp::Not`, the arrangement [`nvs_decimal_eq`] already uses.
+    fn nvs_value_identical(_ctx, args: [2]) {
         Ok(Value::bool(crate::value_identical(args[0], args[1])))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::NumericEq` — `==` over two operands whose
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::NumericEq` — `==` over two operands whose
     /// representations differ but whose types are
     /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 2's one numeric domain. The row is [`crate::numeric_identical`],
     /// which is total, so this carries no error edge; `!=` is this helper
-    /// under an `mwl_ir::UnOp::Not`, the arrangement [`mwl_decimal_eq`]
+    /// under an `nvs_ir::UnOp::Not`, the arrangement [`nvs_decimal_eq`]
     /// already uses.
-    fn mwl_numeric_eq(_ctx, args: [2]) {
+    fn nvs_numeric_eq(_ctx, args: [2]) {
         Ok(Value::bool(crate::numeric_identical(args[0], args[1])))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::NumericLt` — `<` over two operands whose
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::NumericLt` — `<` over two operands whose
     /// representations differ but whose types are ADR 0007 § 4's one numeric
     /// domain. The row is [`crate::numeric_ordering`], and `>` is this helper
     /// with its operands swapped.
@@ -392,7 +392,7 @@ crate::mwl_helper! {
     /// "not less", not "greater".
     ///
     /// Total, so it carries no error edge.
-    fn mwl_numeric_lt(_ctx, args: [2]) {
+    fn nvs_numeric_lt(_ctx, args: [2]) {
         Ok(Value::bool(matches!(
             crate::numeric_ordering(args[0], args[1]),
             Some(core::cmp::Ordering::Less)
@@ -400,11 +400,11 @@ crate::mwl_helper! {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::NumericLtEq` — [`mwl_numeric_lt`]'s row inclusive, and
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::NumericLtEq` — [`nvs_numeric_lt`]'s row inclusive, and
     /// `>=` is this helper with its operands swapped. A `NaN` operand is
     /// `false` here too, for the reason that one states.
-    fn mwl_numeric_lt_eq(_ctx, args: [2]) {
+    fn nvs_numeric_lt_eq(_ctx, args: [2]) {
         Ok(Value::bool(matches!(
             crate::numeric_ordering(args[0], args[1]),
             Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
@@ -412,20 +412,20 @@ crate::mwl_helper! {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::NumericCmp` — `<=>` over a mixed numeric pair, which
-    /// is [`mwl_numeric_lt`]'s row read whole rather than asked one question.
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::NumericCmp` — `<=>` over a mixed numeric pair, which
+    /// is [`nvs_numeric_lt`]'s row read whole rather than asked one question.
     ///
     /// Total, so no error edge. See [`spaceship`] for the `NaN` row, which is
     /// the one place the three `<=>` helpers had a choice to make.
-    fn mwl_numeric_cmp(_ctx, args: [2]) {
+    fn nvs_numeric_cmp(_ctx, args: [2]) {
         Ok(Value::int(spaceship(crate::numeric_ordering(args[0], args[1]))))
     }
 }
 
 /// ADR 0007 § 4's ordering table, chosen from two runtime **tags** rather than
 /// from two static types — the row a `mixed` or a union operand defers, and the
-/// one `mwl_ir::Helper::ValueLt` and its two siblings are all reading.
+/// one `nvs_ir::Helper::ValueLt` and its two siblings are all reading.
 ///
 /// `Ok(None)` is the unordered answer a `NaN` operand gives, exactly as
 /// [`crate::numeric_ordering`] and [`decimal_ordering`] give it, and it makes
@@ -435,7 +435,7 @@ crate::mwl_helper! {
 /// carries an error edge where every other comparison helper does not: § 4's
 /// ordering row is a **closed** list, so a pair it names none for has no
 /// ordering at all rather than a plausible one. The wording is
-/// `mwl_types::expr::operators::reject_unordered_operand`'s, because it is the
+/// `nvs_types::expr::operators::reject_unordered_operand`'s, because it is the
 /// same refusal — made here only because the tags are where it first became
 /// answerable.
 ///
@@ -494,15 +494,15 @@ fn no_ordering(left: Value, right: Value) -> Fault {
     ))
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ValueLt` — `<` where at least one operand's static
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ValueLt` — `<` where at least one operand's static
     /// type named no row, so the tag names it instead. The row is
     /// [`value_ordering`], and `>` is this helper with its operands swapped.
     ///
     /// An unordered pair — a `NaN` on either side — is `false`, which is PHP's
     /// answer for all four ordering operators against one, and is why this
     /// takes the ordering rather than a `bool` from the row.
-    fn mwl_value_lt(_ctx, args: [2]) {
+    fn nvs_value_lt(_ctx, args: [2]) {
         Ok(Value::bool(matches!(
             value_ordering(args[0], args[1])?,
             Some(core::cmp::Ordering::Less)
@@ -510,10 +510,10 @@ crate::mwl_helper! {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ValueLtEq` — [`mwl_value_lt`]'s row inclusive, and
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ValueLtEq` — [`nvs_value_lt`]'s row inclusive, and
     /// `>=` is this helper with its operands swapped.
-    fn mwl_value_lt_eq(_ctx, args: [2]) {
+    fn nvs_value_lt_eq(_ctx, args: [2]) {
         Ok(Value::bool(matches!(
             value_ordering(args[0], args[1])?,
             Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
@@ -521,21 +521,21 @@ crate::mwl_helper! {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ValueCmp` — `<=>` over a tagged pair, which is
-    /// [`mwl_value_lt`]'s row read whole rather than asked one question. See
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ValueCmp` — `<=>` over a tagged pair, which is
+    /// [`nvs_value_lt`]'s row read whole rather than asked one question. See
     /// [`spaceship`] for the `NaN` row.
-    fn mwl_value_cmp(_ctx, args: [2]) {
+    fn nvs_value_cmp(_ctx, args: [2]) {
         Ok(Value::int(spaceship(value_ordering(args[0], args[1])?)))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::SecretEq` — `==` where the checker typed at least one
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::SecretEq` — `==` where the checker typed at least one
     /// operand `secret`, which
     /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 5 makes a **constant-time** comparison rather than the
-    /// short-circuiting one `mwl_str_eq` performs for every other
+    /// short-circuiting one `nvs_str_eq` performs for every other
     /// `string`/`bytes` pair.
     ///
     /// "Constant-time" means what it means in `Core\Hash::equals`: the
@@ -546,23 +546,23 @@ crate::mwl_helper! {
     /// `subtle::ConstantTimeEq` is defined over equal-length slices and
     /// because a token's length is not the secret.
     ///
-    /// `subtle`, not a hand-written loop, for the reason `mwl-stdlib`'s
+    /// `subtle`, not a hand-written loop, for the reason `nvs-stdlib`'s
     /// `hash` module states: a compiler is free to reintroduce the branch a
     /// hand-written loop was written to avoid. This crate cannot call
-    /// `mwl-stdlib`, so the dependency is named here too rather than the
+    /// `nvs-stdlib`, so the dependency is named here too rather than the
     /// comparison being shared.
     ///
     /// Takes a `string` **or** a `bytes` on either side — the two tags share
     /// one allocation, and ADR 0033 § 1 puts the qualifier on both bases. The
     /// row is total, so this carries no error edge; `!=` is this helper under
-    /// an `mwl_ir::UnOp::Not`, the arrangement [`mwl_numeric_eq`] uses.
-    fn mwl_secret_eq(_ctx, args: [2]) {
+    /// an `nvs_ir::UnOp::Not`, the arrangement [`nvs_numeric_eq`] uses.
+    fn nvs_secret_eq(_ctx, args: [2]) {
         let lhs = args[0]
             .buffer_ptr()
-            .ok_or_else(|| wrong_tag("mwl_secret_eq", Tag::Str, args[0]))?;
+            .ok_or_else(|| wrong_tag("nvs_secret_eq", Tag::Str, args[0]))?;
         let rhs = args[1]
             .buffer_ptr()
-            .ok_or_else(|| wrong_tag("mwl_secret_eq", Tag::Str, args[1]))?;
+            .ok_or_else(|| wrong_tag("nvs_secret_eq", Tag::Str, args[1]))?;
         #[expect(
             unsafe_code,
             reason = "a Tag::Str or Tag::Bytes argument owns a reference to a live \
@@ -570,8 +570,8 @@ crate::mwl_helper! {
                       borrows end with the comparison"
         )]
         let equal = unsafe {
-            let left = crate::string::MwlStr::bytes_of(lhs);
-            let right = crate::string::MwlStr::bytes_of(rhs);
+            let left = crate::string::NvsStr::bytes_of(lhs);
+            let right = crate::string::NvsStr::bytes_of(rhs);
             left.len() == right.len() && bool::from(left.ct_eq(right))
         };
         Ok(Value::bool(equal))
@@ -597,7 +597,7 @@ fn does_not_fit(what: &str, target: &str) -> Fault {
 /// Every row has two entry points and never a third: the statically chosen
 /// helper below it, which turns a `None` into [`does_not_fit`], and the
 /// tag-dispatching [`to_int`]/[`to_uint`]/[`to_float`], which every operand
-/// whose representation is `mwl_ir::ty::Ty::Tagged` reaches instead. Those
+/// whose representation is `nvs_ir::ty::Ty::Tagged` reaches instead. Those
 /// three are read twice each — once throwing, once answering `null` for
 /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)'s
 /// `expr as ?T`. That ADR's "one implementation now exists because there is one
@@ -678,60 +678,60 @@ mod row {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::IntToUint`.
-    fn mwl_int_to_uint(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_int_to_uint", args[0], as_int, Tag::Int);
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::IntToUint`.
+    fn nvs_int_to_uint(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_int_to_uint", args[0], as_int, Tag::Int);
         row::int_to_uint(value)
             .map(Value::uint)
             .ok_or_else(|| does_not_fit(&format!("`int` {value}"), "uint"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::UintToInt`.
-    fn mwl_uint_to_int(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_uint_to_int", args[0], as_uint, Tag::Uint);
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::UintToInt`.
+    fn nvs_uint_to_int(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_uint_to_int", args[0], as_uint, Tag::Uint);
         row::uint_to_int(value)
             .map(Value::int)
             .ok_or_else(|| does_not_fit(&format!("`uint` {value}"), "int"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::IntToFloat`.
-    fn mwl_int_to_float(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_int_to_float", args[0], as_int, Tag::Int);
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::IntToFloat`.
+    fn nvs_int_to_float(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_int_to_float", args[0], as_int, Tag::Int);
         row::int_to_float(value)
             .map(Value::float)
             .ok_or_else(|| does_not_fit(&format!("`int` {value}"), "float"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::UintToFloat`.
-    fn mwl_uint_to_float(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_uint_to_float", args[0], as_uint, Tag::Uint);
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::UintToFloat`.
+    fn nvs_uint_to_float(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_uint_to_float", args[0], as_uint, Tag::Uint);
         row::uint_to_float(value)
             .map(Value::float)
             .ok_or_else(|| does_not_fit(&format!("`uint` {value}"), "float"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::FloatToInt`.
-    fn mwl_float_to_int(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_float_to_int", args[0], as_float, Tag::Float);
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::FloatToInt`.
+    fn nvs_float_to_int(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_float_to_int", args[0], as_float, Tag::Float);
         row::float_to_int(value)
             .map(Value::int)
             .ok_or_else(|| does_not_fit(&format!("`float` {value}"), "int"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::FloatToUint`.
-    fn mwl_float_to_uint(_ctx, args: [1]) {
-        let value = expect_tag!("mwl_float_to_uint", args[0], as_float, Tag::Float);
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::FloatToUint`.
+    fn nvs_float_to_uint(_ctx, args: [1]) {
+        let value = expect_tag!("nvs_float_to_uint", args[0], as_float, Tag::Float);
         row::float_to_uint(value)
             .map(Value::uint)
             .ok_or_else(|| does_not_fit(&format!("`float` {value}"), "uint"))
@@ -746,39 +746,39 @@ fn numeric_text<'a>(bytes: &'a [u8], helper: &'static str, value: Value) -> Resu
     str::from_utf8(bytes).map_err(|_| wrong_tag(helper, Tag::Str, value))
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::StrToInt`.
-    fn mwl_str_to_int(_ctx, args: [1]) {
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::StrToInt`.
+    fn nvs_str_to_int(_ctx, args: [1]) {
         let bytes = args[0]
             .as_str_bytes()
-            .ok_or_else(|| wrong_tag("mwl_str_to_int", Tag::Str, args[0]))?;
-        let text = numeric_text(bytes, "mwl_str_to_int", args[0])?;
+            .ok_or_else(|| wrong_tag("nvs_str_to_int", Tag::Str, args[0]))?;
+        let text = numeric_text(bytes, "nvs_str_to_int", args[0])?;
         row::str_to_int(text)
             .map(Value::int)
             .ok_or_else(|| does_not_fit(&format!("string {text:?}"), "int"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::StrToUint`.
-    fn mwl_str_to_uint(_ctx, args: [1]) {
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::StrToUint`.
+    fn nvs_str_to_uint(_ctx, args: [1]) {
         let bytes = args[0]
             .as_str_bytes()
-            .ok_or_else(|| wrong_tag("mwl_str_to_uint", Tag::Str, args[0]))?;
-        let text = numeric_text(bytes, "mwl_str_to_uint", args[0])?;
+            .ok_or_else(|| wrong_tag("nvs_str_to_uint", Tag::Str, args[0]))?;
+        let text = numeric_text(bytes, "nvs_str_to_uint", args[0])?;
         row::str_to_uint(text)
             .map(Value::uint)
             .ok_or_else(|| does_not_fit(&format!("string {text:?}"), "uint"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::StrToFloat`.
-    fn mwl_str_to_float(_ctx, args: [1]) {
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::StrToFloat`.
+    fn nvs_str_to_float(_ctx, args: [1]) {
         let bytes = args[0]
             .as_str_bytes()
-            .ok_or_else(|| wrong_tag("mwl_str_to_float", Tag::Str, args[0]))?;
-        let text = numeric_text(bytes, "mwl_str_to_float", args[0])?;
+            .ok_or_else(|| wrong_tag("nvs_str_to_float", Tag::Str, args[0]))?;
+        let text = numeric_text(bytes, "nvs_str_to_float", args[0])?;
         row::str_to_float(text)
             .map(Value::float)
             .ok_or_else(|| does_not_fit(&format!("string {text:?}"), "float"))
@@ -805,8 +805,8 @@ fn str_operand(value: &Value) -> Option<&str> {
 /// one.
 ///
 /// Two helpers read it and never a third, the arrangement [`to_decimal`] also
-/// uses: `mwl_tagged_to_int` turns a `None` into [`does_not_fit`] for
-/// `$mixed as int`, and `mwl_to_int_or_null` turns the same `None` into `null`
+/// uses: `nvs_tagged_to_int` turns a `None` into [`does_not_fit`] for
+/// `$mixed as int`, and `nvs_to_int_or_null` turns the same `None` into `null`
 /// for ADR 0066's `as ?int`. Neither can drift from the other, because there is
 /// one row set.
 fn to_int(value: Value) -> Option<i64> {
@@ -865,66 +865,66 @@ pub(crate) fn widen_to_float(value: Value) -> Option<Value> {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::TaggedToInt` — ADR 0007 § 2's checked `as int` over an
-    /// operand whose representation is `mwl_ir::ty::Ty::Tagged`, so [`to_int`]'s
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::TaggedToInt` — ADR 0007 § 2's checked `as int` over an
+    /// operand whose representation is `nvs_ir::ty::Ty::Tagged`, so [`to_int`]'s
     /// `None` is the throw rather than a `null`.
-    fn mwl_tagged_to_int(_ctx, args: [1]) {
+    fn nvs_tagged_to_int(_ctx, args: [1]) {
         to_int(args[0])
             .map(Value::int)
             .ok_or_else(|| does_not_fit("this value", "int"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::TaggedToUint` — [`mwl_tagged_to_int`]'s row set,
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::TaggedToUint` — [`nvs_tagged_to_int`]'s row set,
     /// unsigned; see [`to_uint`].
-    fn mwl_tagged_to_uint(_ctx, args: [1]) {
+    fn nvs_tagged_to_uint(_ctx, args: [1]) {
         to_uint(args[0])
             .map(Value::uint)
             .ok_or_else(|| does_not_fit("this value", "uint"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::TaggedToFloat` — [`mwl_tagged_to_int`]'s row set,
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::TaggedToFloat` — [`nvs_tagged_to_int`]'s row set,
     /// landing on `float`; see [`to_float`].
-    fn mwl_tagged_to_float(_ctx, args: [1]) {
+    fn nvs_tagged_to_float(_ctx, args: [1]) {
         to_float(args[0])
             .map(Value::float)
             .ok_or_else(|| does_not_fit("this value", "float"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ToIntOrNull` — ADR 0066 § 1's non-throwing form of
-    /// [`mwl_tagged_to_int`], sharing [`to_int`]'s one implementation of every
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToIntOrNull` — ADR 0066 § 1's non-throwing form of
+    /// [`nvs_tagged_to_int`], sharing [`to_int`]'s one implementation of every
     /// row.
-    fn mwl_to_int_or_null(_ctx, args: [1]) {
+    fn nvs_to_int_or_null(_ctx, args: [1]) {
         Ok(to_int(args[0]).map_or_else(Value::null, Value::int))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ToUintOrNull` — see [`to_uint`].
-    fn mwl_to_uint_or_null(_ctx, args: [1]) {
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToUintOrNull` — see [`to_uint`].
+    fn nvs_to_uint_or_null(_ctx, args: [1]) {
         Ok(to_uint(args[0]).map_or_else(Value::null, Value::uint))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ToFloatOrNull` — see [`to_float`].
-    fn mwl_to_float_or_null(_ctx, args: [1]) {
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToFloatOrNull` — see [`to_float`].
+    fn nvs_to_float_or_null(_ctx, args: [1]) {
         Ok(to_float(args[0]).map_or_else(Value::null, Value::float))
     }
 }
 
 /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2's
 /// scalar-to-`string` rows, applied to a value whose representation is
-/// `mwl_ir::ty::Ty::Tagged` — a `mixed`, a `?T`, or any other union.
+/// `nvs_ir::ty::Ty::Tagged` — a `mixed`, a `?T`, or any other union.
 ///
 /// The counterpart of [`value_truthy`], and for the same reason: compiled code
-/// that *knows* its operand is an `int` reaches `mwl_int_to_string` with no tag
+/// that *knows* its operand is an `int` reaches `nvs_int_to_string` with no tag
 /// test at all, so this is only the case where the static type genuinely does
 /// not say which row applies. It dispatches on the tag the `Value` already
 /// carries, which is what makes `"a" . $mixed` one helper rather than one
@@ -949,10 +949,10 @@ crate::mwl_helper! {
 pub fn value_to_string(value: Value) -> Result<Value, Fault> {
     let refused = |what: &str| Fault::thrown(format!("cannot convert {what} to `string`"));
     match value.tag() {
-        Some(Tag::Null) | None => Ok(Value::str(MwlStr::new(b""))),
+        Some(Tag::Null) | None => Ok(Value::str(NvsStr::new(b""))),
         Some(Tag::Bool) => {
             let set = value.as_bool() == Some(true);
-            Ok(Value::str(MwlStr::new(if set {
+            Ok(Value::str(NvsStr::new(if set {
                 b"1".as_slice()
             } else {
                 b"".as_slice()
@@ -960,15 +960,15 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
         }
         Some(Tag::Int) => {
             let n = value.as_int().ok_or_else(|| refused("this value"))?;
-            Ok(Value::str(MwlStr::new(n.to_string().as_bytes())))
+            Ok(Value::str(NvsStr::new(n.to_string().as_bytes())))
         }
         Some(Tag::Uint) => {
             let n = value.as_uint().ok_or_else(|| refused("this value"))?;
-            Ok(Value::str(MwlStr::new(n.to_string().as_bytes())))
+            Ok(Value::str(NvsStr::new(n.to_string().as_bytes())))
         }
         Some(Tag::Float) => {
             let n = value.as_float().ok_or_else(|| refused("this value"))?;
-            Ok(Value::str(MwlStr::new(php_float_to_string(n).as_bytes())))
+            Ok(Value::str(NvsStr::new(php_float_to_string(n).as_bytes())))
         }
         Some(Tag::Str) => {
             let ptr = value.str_ptr().ok_or_else(|| refused("this value"))?;
@@ -979,7 +979,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
                           second one the caller will release"
             )]
             unsafe {
-                crate::string::mwl_str_retain(ptr);
+                crate::string::nvs_str_retain(ptr);
             }
             Ok(value)
         }
@@ -988,7 +988,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
         // the one implementation of it.
         Some(Tag::Decimal) => {
             let value = value.as_decimal().ok_or_else(|| refused("this value"))?;
-            Ok(Value::str(MwlStr::new(value.to_string().as_bytes())))
+            Ok(Value::str(NvsStr::new(value.to_string().as_bytes())))
         }
         Some(Tag::Array) => Err(refused("an array")),
         // Refused on purpose, and it is the only tag here that is refused for
@@ -1012,9 +1012,9 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
                           slot are readable for the length of this call"
             )]
             let (class, carried) = unsafe {
-                let name = (*crate::object::MwlObj::class_of(ptr)).name();
+                let name = (*crate::object::NvsObj::class_of(ptr)).name();
                 let carried = if crate::ctx::is_carrier(name) {
-                    Some(crate::object::mwl_object_field_get(
+                    Some(crate::object::nvs_object_field_get(
                         ptr,
                         crate::ctx::CARRIER_TEXT_SLOT,
                     ))
@@ -1043,7 +1043,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
                           returned, so the caller needs one of its own"
             )]
             unsafe {
-                crate::string::mwl_str_retain(text);
+                crate::string::nvs_str_retain(text);
             }
             Ok(carried)
         }
@@ -1054,7 +1054,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
 
 /// The method [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
 /// § 1 fixes as the one way an object renders. The spelling is the interface's,
-/// and `mwl_types::expr::operators::require_stringable` resolves the *static*
+/// and `nvs_types::expr::operators::require_stringable` resolves the *static*
 /// half of the same name.
 const TO_STRING: &str = "toString";
 
@@ -1062,8 +1062,8 @@ const TO_STRING: &str = "toString";
 /// whose **runtime** class declares a `toString` renders through that method,
 /// and everything else takes the tag row.
 ///
-/// This is the half of the rule no checker can take. `mwl_types` resolves
-/// `toString` wherever the operand's static type names a class, and `mwl-ir`
+/// This is the half of the rule no checker can take. `nvs_types` resolves
+/// `toString` wherever the operand's static type names a class, and `nvs-ir`
 /// then emits an ordinary call — nothing on that path reaches here. What is
 /// left is every operand whose static type names *no* class to resolve against:
 /// a `mixed`, a `?T` or another union, and the erased `object` of
@@ -1081,8 +1081,8 @@ const TO_STRING: &str = "toString";
 /// **A `Core`-owned class renders here too, and through the same member.** Its
 /// `toString` is native Rust rather than a compiled function, so it is not in
 /// the method table this dispatches through — it is on the descriptor as
-/// [`crate::ClassDesc::renderer`], put there by `mwl_stdlib::instance` from
-/// the very registry row `mwl_types::expr::operators::require_stringable`
+/// [`crate::ClassDesc::renderer`], put there by `nvs_stdlib::instance` from
+/// the very registry row `nvs_types::expr::operators::require_stringable`
 /// reads to decide the *static* spelling. That is what makes `echo $m` over a
 /// `mixed` holding a `Core\Uri` answer what `echo $uri` answers: one
 /// implementation, reached two ways, rather than two rosters free to disagree.
@@ -1117,10 +1117,10 @@ pub fn stringify(ctx: &mut crate::Ctx, value: Value) -> Result<Value, Fault> {
     value_to_string(value)
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::TaggedToString` — see [`stringify`], and
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::TaggedToString` — see [`stringify`], and
     /// [`value_to_string`] for the tag table under it.
-    fn mwl_tagged_to_string(ctx, args: [1]) {
+    fn nvs_tagged_to_string(ctx, args: [1]) {
         stringify(ctx, args[0])
     }
 }
@@ -1160,9 +1160,9 @@ pub fn stringify_or_null(ctx: &mut crate::Ctx, value: Value) -> Result<Value, Fa
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ToStringOrNull` — see [`stringify_or_null`].
-    fn mwl_to_string_or_null(ctx, args: [1]) {
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToStringOrNull` — see [`stringify_or_null`].
+    fn nvs_to_string_or_null(ctx, args: [1]) {
         stringify_or_null(ctx, args[0])
     }
 }
@@ -1185,12 +1185,12 @@ crate::mwl_helper! {
 /// is all this spends.
 ///
 /// The other direction never reaches a helper: `string as bytes` is total and
-/// free, so `mwl-ir` lowers it to an `InstKind::Reinterpret` and no call is
+/// free, so `nvs-ir` lowers it to an `InstKind::Reinterpret` and no call is
 /// emitted.
 pub fn bytes_to_string(value: Value) -> Result<Value, Fault> {
     let bytes = value
         .as_bytes()
-        .ok_or_else(|| wrong_tag("mwl_bytes_to_string", Tag::Bytes, value))?;
+        .ok_or_else(|| wrong_tag("nvs_bytes_to_string", Tag::Bytes, value))?;
     if let Err(invalid) = str::from_utf8(bytes) {
         return Err(Fault::thrown(format!(
             "cannot convert `bytes` to `string`: not well-formed UTF-8 at byte {}",
@@ -1199,7 +1199,7 @@ pub fn bytes_to_string(value: Value) -> Result<Value, Fault> {
     }
     let ptr = value
         .buffer_ptr()
-        .ok_or_else(|| wrong_tag("mwl_bytes_to_string", Tag::Bytes, value))?;
+        .ok_or_else(|| wrong_tag("nvs_bytes_to_string", Tag::Bytes, value))?;
     #[expect(
         unsafe_code,
         reason = "a Tag::Bytes value's payload is a live allocation the caller \
@@ -1207,25 +1207,25 @@ pub fn bytes_to_string(value: Value) -> Result<Value, Fault> {
                   caller will release"
     )]
     let retagged = unsafe {
-        crate::string::mwl_str_retain(ptr);
-        MwlStr::from_raw(ptr)
+        crate::string::nvs_str_retain(ptr);
+        NvsStr::from_raw(ptr)
     };
     Ok(Value::str(retagged))
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::BytesToStr` — see [`bytes_to_string`].
-    fn mwl_bytes_to_string(_ctx, args: [1]) {
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::BytesToStr` — see [`bytes_to_string`].
+    fn nvs_bytes_to_string(_ctx, args: [1]) {
         bytes_to_string(args[0])
     }
 }
 
 /// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 3's pair the other
-/// way, applied to a value whose representation is `mwl_ir::ty::Ty::Tagged` — a
+/// way, applied to a value whose representation is `nvs_ir::ty::Ty::Tagged` — a
 /// `mixed`, a `?T`, or any other union.
 ///
 /// The *statically* typed half of `string as bytes` never reaches a helper at
-/// all: it is total and free, so `mwl-ir` lowers it to an
+/// all: it is total and free, so `nvs-ir` lowers it to an
 /// `InstKind::Reinterpret` and emits no call ([`bytes_to_string`] says so from
 /// the other side). What is left is the operand whose static type names no row,
 /// where the tag the `Value` already carries is the only thing that does — the
@@ -1256,34 +1256,34 @@ fn to_bytes(value: Value) -> Option<Value> {
                   second one the caller will release"
     )]
     let retagged = unsafe {
-        crate::string::mwl_str_retain(ptr);
-        MwlStr::from_raw(ptr)
+        crate::string::nvs_str_retain(ptr);
+        NvsStr::from_raw(ptr)
     };
     Some(Value::bytes(retagged))
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::TaggedToBytes` — ADR 0007 § 2's checked `as bytes` over
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::TaggedToBytes` — ADR 0007 § 2's checked `as bytes` over
     /// a tagged operand, so [`to_bytes`]'s `None` is the throw rather than a
     /// `null`.
-    fn mwl_tagged_to_bytes(_ctx, args: [1]) {
+    fn nvs_tagged_to_bytes(_ctx, args: [1]) {
         to_bytes(args[0]).ok_or_else(|| does_not_fit("this value", "bytes"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ToBytesOrNull` — ADR 0066 § 1's non-throwing form of
-    /// [`mwl_tagged_to_bytes`], sharing [`to_bytes`]'s one implementation of
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToBytesOrNull` — ADR 0066 § 1's non-throwing form of
+    /// [`nvs_tagged_to_bytes`], sharing [`to_bytes`]'s one implementation of
     /// both rows. Nothing here can fault on the way, so unlike
     /// [`stringify_or_null`] there is no exception of the program's own to keep
     /// out of the `null`.
-    fn mwl_to_bytes_or_null(_ctx, args: [1]) {
+    fn nvs_to_bytes_or_null(_ctx, args: [1]) {
         Ok(to_bytes(args[0]).unwrap_or_else(Value::null))
     }
 }
 
 /// One element of an `array<U>` target, judged against the level of
-/// `mwl_ir::lower::array_element_tags`' word that describes it.
+/// `nvs_ir::lower::array_element_tags`' word that describes it.
 ///
 /// The nibble *is* a [`Tag`] byte, which is what lets this share
 /// [`crate::closure::CLOSURE_PARAM_TAG_ANY`] with the closure-entry check
@@ -1329,7 +1329,7 @@ fn element_has_tag(value: Value, tags: u64) -> bool {
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation.
+/// `array` must refer to a live Novis array allocation.
 #[expect(
     unsafe_code,
     reason = "the array pointer's liveness is the caller's to guarantee and \
@@ -1339,20 +1339,20 @@ unsafe fn every_element_has_tag(array: *mut crate::array::ArrayHeader, tags: u64
     let mut from = 0usize;
     loop {
         #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
-        let slot = unsafe { crate::array::mwl_array_next_slot(array, from) };
+        let slot = unsafe { crate::array::nvs_array_next_slot(array, from) };
         let Ok(slot) = usize::try_from(slot) else {
             return true;
         };
         let mut value = Value::null();
         #[expect(
             unsafe_code,
-            reason = "the slot is one `mwl_array_next_slot` just returned and \
+            reason = "the slot is one `nvs_array_next_slot` just returned and \
                       `value` is a writable 16-byte slot"
         )]
         unsafe {
-            crate::array::mwl_array_value_at(array, slot, &raw mut value);
+            crate::array::nvs_array_value_at(array, slot, &raw mut value);
         }
-        // Borrowed, so there is nothing to release: `mwl_array_value_at`
+        // Borrowed, so there is nothing to release: `nvs_array_value_at`
         // hands back the entry's own `Value` and the array still owns it.
         if !element_has_tag(value, tags) {
             return false;
@@ -1371,7 +1371,7 @@ unsafe fn every_element_has_tag(array: *mut crate::array::ArrayHeader, tags: u64
 /// **The result is the operand's own allocation under one more reference.**
 /// ADR 0007 § 5 makes `array<T>` invariant so that the restamp is visible
 /// rather than hidden inside an assignment, and the restamp is the walk; the
-/// buffer itself can stay shared, because an MWL array is copy-on-write and
+/// buffer itself can stay shared, because an Novis array is copy-on-write and
 /// whichever of the two views writes first separates itself
 /// ([`crate::array`]'s `make_unique`). Copying here would be O(n) bytes moved
 /// to reach a state observably identical to this one.
@@ -1388,13 +1388,13 @@ fn to_array_of(value: Value, tags: Value) -> Option<Value> {
         if !every_element_has_tag(array, tags) {
             return None;
         }
-        crate::array::mwl_array_retain(array);
+        crate::array::nvs_array_retain(array);
     }
     Some(Value::from_array_ptr(array))
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ToArrayOf` — ADR 0007 § 2's `array<T> as array<U>`
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToArrayOf` — ADR 0007 § 2's `array<T> as array<U>`
     /// row, so [`to_array_of`]'s `None` is the throw rather than a `null`.
     ///
     /// The two ways that `None` arises are told apart here rather than inside
@@ -1403,10 +1403,10 @@ crate::mwl_helper! {
     /// else, and it reads as every other row's refusal does; an element the
     /// target's `U` does not admit is the row's *own* failure and says so.
     /// Which element is not named, for the reason
-    /// `mwl_ir::lower::Lowering::lower_checked_downcast`'s message does not
+    /// `nvs_ir::lower::Lowering::lower_checked_downcast`'s message does not
     /// name a class: the walk compares tags, and a key would have to be
     /// rendered to be quoted.
-    fn mwl_to_array_of(_ctx, args: [2]) {
+    fn nvs_to_array_of(_ctx, args: [2]) {
         if args[0].tag() != Some(Tag::Array) {
             return Err(does_not_fit("this value", "array"));
         }
@@ -1419,12 +1419,12 @@ crate::mwl_helper! {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ToArrayOfOrNull` — ADR 0066 § 1's non-throwing form of
-    /// [`mwl_to_array_of`], over [`to_array_of`]'s one implementation of the
-    /// walk. Nothing here can fault on the way, so like [`mwl_to_bytes_or_null`]
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToArrayOfOrNull` — ADR 0066 § 1's non-throwing form of
+    /// [`nvs_to_array_of`], over [`to_array_of`]'s one implementation of the
+    /// walk. Nothing here can fault on the way, so like [`nvs_to_bytes_or_null`]
     /// there is no exception of the program's own to keep out of the `null`.
-    fn mwl_to_array_of_or_null(_ctx, args: [2]) {
+    fn nvs_to_array_of_or_null(_ctx, args: [2]) {
         Ok(to_array_of(args[0], args[1]).unwrap_or_else(Value::null))
     }
 }
@@ -1479,7 +1479,7 @@ fn decimal_pair(helper: &'static str, args: &[Value]) -> Result<(Decimal, Decima
 
 macro_rules! decimal_arithmetic {
     ($(#[$meta:meta])* fn $name:ident = $method:ident, $operation:literal) => {
-        crate::mwl_helper! {
+        crate::nvs_helper! {
             $(#[$meta])*
             fn $name(_ctx, args: [2]) {
                 let (lhs, rhs) = decimal_pair(stringify!($name), args)?;
@@ -1492,32 +1492,32 @@ macro_rules! decimal_arithmetic {
 }
 
 decimal_arithmetic! {
-    /// `mwl_ir::Helper::DecimalAdd`.
-    fn mwl_decimal_add = checked_add, "addition"
+    /// `nvs_ir::Helper::DecimalAdd`.
+    fn nvs_decimal_add = checked_add, "addition"
 }
 decimal_arithmetic! {
-    /// `mwl_ir::Helper::DecimalSub`.
-    fn mwl_decimal_sub = checked_sub, "subtraction"
+    /// `nvs_ir::Helper::DecimalSub`.
+    fn nvs_decimal_sub = checked_sub, "subtraction"
 }
 decimal_arithmetic! {
-    /// `mwl_ir::Helper::DecimalMul`.
-    fn mwl_decimal_mul = checked_mul, "multiplication"
+    /// `nvs_ir::Helper::DecimalMul`.
+    fn nvs_decimal_mul = checked_mul, "multiplication"
 }
 decimal_arithmetic! {
-    /// `mwl_ir::Helper::DecimalDiv`.
-    fn mwl_decimal_div = checked_div, "division"
+    /// `nvs_ir::Helper::DecimalDiv`.
+    fn nvs_decimal_div = checked_div, "division"
 }
 decimal_arithmetic! {
-    /// `mwl_ir::Helper::DecimalMod`.
-    fn mwl_decimal_mod = checked_rem, "remainder"
+    /// `nvs_ir::Helper::DecimalMod`.
+    fn nvs_decimal_mod = checked_rem, "remainder"
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::DecimalNeg` — `-$d`, which never fails: the mantissa
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::DecimalNeg` — `-$d`, which never fails: the mantissa
     /// is unsigned, so there is no asymmetric minimum to overflow the way
     /// `-i64::MIN` does.
-    fn mwl_decimal_neg(_ctx, args: [1]) {
-        Ok(Value::decimal(decimal_operand("mwl_decimal_neg", args[0])?.negated()))
+    fn nvs_decimal_neg(_ctx, args: [1]) {
+        Ok(Value::decimal(decimal_operand("nvs_decimal_neg", args[0])?.negated()))
     }
 }
 
@@ -1541,42 +1541,42 @@ fn decimal_ordering(left: Value, right: Value) -> Option<std::cmp::Ordering> {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::DecimalEq` — see [`decimal_ordering`]. `!=` is this
-    /// helper under an `mwl_ir::UnOp::Not`, which is also what gives a `NaN`
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::DecimalEq` — see [`decimal_ordering`]. `!=` is this
+    /// helper under an `nvs_ir::UnOp::Not`, which is also what gives a `NaN`
     /// operand PHP's answer to every one of the six.
-    fn mwl_decimal_eq(_ctx, args: [2]) {
+    fn nvs_decimal_eq(_ctx, args: [2]) {
         Ok(Value::bool(decimal_ordering(args[0], args[1]).is_some_and(std::cmp::Ordering::is_eq)))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::DecimalLt` — `>` is this helper with its operands
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::DecimalLt` — `>` is this helper with its operands
     /// swapped.
-    fn mwl_decimal_lt(_ctx, args: [2]) {
+    fn nvs_decimal_lt(_ctx, args: [2]) {
         Ok(Value::bool(decimal_ordering(args[0], args[1]).is_some_and(std::cmp::Ordering::is_lt)))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::DecimalLtEq` — `>=` is this helper with its operands
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::DecimalLtEq` — `>=` is this helper with its operands
     /// swapped.
-    fn mwl_decimal_lt_eq(_ctx, args: [2]) {
+    fn nvs_decimal_lt_eq(_ctx, args: [2]) {
         Ok(Value::bool(decimal_ordering(args[0], args[1]).is_some_and(std::cmp::Ordering::is_le)))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::DecimalCmp` — `<=>` with a `decimal` operand, which is
-    /// [`mwl_decimal_lt`]'s row read whole. ADR 0054 § 3 grants it across
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::DecimalCmp` — `<=>` with a `decimal` operand, which is
+    /// [`nvs_decimal_lt`]'s row read whole. ADR 0054 § 3 grants it across
     /// every pairing, including the `decimal`/`float` one arithmetic refuses.
-    fn mwl_decimal_cmp(_ctx, args: [2]) {
+    fn nvs_decimal_cmp(_ctx, args: [2]) {
         Ok(Value::int(spaceship(decimal_ordering(args[0], args[1]))))
     }
 }
 
 /// The `int` an ordering answers `<=>` with, shared by the two helpers above
-/// and matching what `mwl_ir::BinOp::Cmp` emits inline for a matched pair.
+/// and matching what `nvs_ir::BinOp::Cmp` emits inline for a matched pair.
 ///
 /// [`None`] — an unordered pair, which means a `NaN` on one side — is **`1`**,
 /// not `0`. That is PHP's own answer, and it is the whole reason this is a
@@ -1591,11 +1591,11 @@ fn spaceship(ordering: Option<core::cmp::Ordering>) -> i64 {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::DecimalTruthy` — ADR 0035's numeric row: falsy iff
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::DecimalTruthy` — ADR 0035's numeric row: falsy iff
     /// zero, at any scale.
-    fn mwl_decimal_truthy(_ctx, args: [1]) {
-        Ok(Value::bool(!decimal_operand("mwl_decimal_truthy", args[0])?.is_zero()))
+    fn nvs_decimal_truthy(_ctx, args: [1]) {
+        Ok(Value::bool(!decimal_operand("nvs_decimal_truthy", args[0])?.is_zero()))
     }
 }
 
@@ -1619,92 +1619,92 @@ fn to_decimal(value: Value) -> Option<Decimal> {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ToDecimal` — see [`to_decimal`].
-    fn mwl_to_decimal(_ctx, args: [1]) {
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToDecimal` — see [`to_decimal`].
+    fn nvs_to_decimal(_ctx, args: [1]) {
         to_decimal(args[0])
             .map(Value::decimal)
             .ok_or_else(|| does_not_fit("this value", "decimal"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::ToDecimalOrNull` — ADR 0066 § 1's non-throwing form
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ToDecimalOrNull` — ADR 0066 § 1's non-throwing form
     /// of [`to_decimal`], sharing its one implementation of every row exactly
-    /// as `mwl_to_int_or_null` shares [`row`]'s.
-    fn mwl_to_decimal_or_null(_ctx, args: [1]) {
+    /// as `nvs_to_int_or_null` shares [`row`]'s.
+    fn nvs_to_decimal_or_null(_ctx, args: [1]) {
         Ok(to_decimal(args[0]).map_or_else(Value::null, Value::decimal))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::DecimalToInt` — ADR 0054 § 4: integral and in range,
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::DecimalToInt` — ADR 0054 § 4: integral and in range,
     /// or throws. Rounding is `Core\Decimal::floor`/`ceil`/`round`, said out
     /// loud, exactly as `float → int` already is.
-    fn mwl_decimal_to_int(_ctx, args: [1]) {
-        let value = decimal_operand("mwl_decimal_to_int", args[0])?;
+    fn nvs_decimal_to_int(_ctx, args: [1]) {
+        let value = decimal_operand("nvs_decimal_to_int", args[0])?;
         value.to_i64()
             .map(Value::int)
             .ok_or_else(|| does_not_fit(&format!("`decimal` {value}"), "int"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::DecimalToUint` — [`mwl_decimal_to_int`]'s row,
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::DecimalToUint` — [`nvs_decimal_to_int`]'s row,
     /// unsigned.
-    fn mwl_decimal_to_uint(_ctx, args: [1]) {
-        let value = decimal_operand("mwl_decimal_to_uint", args[0])?;
+    fn nvs_decimal_to_uint(_ctx, args: [1]) {
+        let value = decimal_operand("nvs_decimal_to_uint", args[0])?;
         value.to_u64()
             .map(Value::uint)
             .ok_or_else(|| does_not_fit(&format!("`decimal` {value}"), "uint"))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::DecimalToFloat` — the nearest `f64`, lossy and total.
-    fn mwl_decimal_to_float(_ctx, args: [1]) {
-        Ok(Value::float(decimal_operand("mwl_decimal_to_float", args[0])?.to_f64()))
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::DecimalToFloat` — the nearest `f64`, lossy and total.
+    fn nvs_decimal_to_float(_ctx, args: [1]) {
+        Ok(Value::float(decimal_operand("nvs_decimal_to_float", args[0])?.to_f64()))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::DecimalToString` — total, and scale-preserving.
-    fn mwl_decimal_to_string(_ctx, args: [1]) {
-        let value = decimal_operand("mwl_decimal_to_string", args[0])?;
-        Ok(Value::str(MwlStr::new(value.to_string().as_bytes())))
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::DecimalToString` — total, and scale-preserving.
+    fn nvs_decimal_to_string(_ctx, args: [1]) {
+        let value = decimal_operand("nvs_decimal_to_string", args[0])?;
+        Ok(Value::str(NvsStr::new(value.to_string().as_bytes())))
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::EchoStr` — raw bytes to the request's own output, with
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::EchoStr` — raw bytes to the request's own output, with
     /// no escaping. `docs/agent/loop-goal.md` records that decision and why
     /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
     /// § 5's auto-escaping sink is the HTTP response write rather than this
     /// one.
-    fn mwl_echo_str(ctx, args: [1]) {
+    fn nvs_echo_str(ctx, args: [1]) {
         let bytes = args[0]
             .as_str_bytes()
-            .ok_or_else(|| wrong_tag("mwl_echo_str", Tag::Str, args[0]))?;
+            .ok_or_else(|| wrong_tag("nvs_echo_str", Tag::Str, args[0]))?;
         ctx.write_output(bytes)
             .map_err(|error| Fault::fatal(format!("could not write output: {error}")))?;
         Ok(Value::null())
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::Exit` — records the process status `exit`/`exit(n)`
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::Exit` — records the process status `exit`/`exit(n)`
     /// named, then ends the request.
     ///
     /// **The one helper whose success is a non-`OK` status.** It answers
     /// [`Fault::Pending`] carrying [`crate::EXITED`], so the ordinary ADR 0002
-    /// status check `mwl-codegen` emits after the call takes the site's error
+    /// status check `nvs-codegen` emits after the call takes the site's error
     /// edge: the frame's live locals are released in its landing block, and
     /// every caller's own check propagates the status the same way. Nothing
     /// catches it and no `finally` runs — `docs/adr/README.md`
     /// § *Decisions taken at project start* owns why that is a fourth status
     /// rather than a `FATAL` carrying a code.
-    fn mwl_exit(ctx, args: [1]) {
-        let code = expect_tag!("mwl_exit", args[0], as_int, Tag::Int);
+    fn nvs_exit(ctx, args: [1]) {
+        let code = expect_tag!("nvs_exit", args[0], as_int, Tag::Int);
         ctx.set_exit_code(code);
         Err(Fault::Pending(crate::EXITED))
     }
@@ -1714,7 +1714,7 @@ crate::mwl_helper! {
 /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 5
 /// membership test, rendered the way § 6's compile-time sibling renders it:
 /// a `string` double-quoted, an integer bare. Only the representations a
-/// closed literal set can name reach this — `mwl-codegen` boxed the operand
+/// closed literal set can name reach this — `nvs-codegen` boxed the operand
 /// from `Ty::Str`, `Ty::Int`, `Ty::Uint` or `Ty::Tagged` — so the last arm is
 /// a value that arrived through `mixed` carrying some other tag entirely,
 /// which is a miss for the same reason a wrong string is.
@@ -1737,8 +1737,8 @@ fn rendered_operand(value: Value) -> String {
     }
 }
 
-crate::mwl_helper! {
-    /// `mwl_ir::Helper::LiteralMismatch` — ADR 0047 § 5's membership test
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::LiteralMismatch` — ADR 0047 § 5's membership test
     /// having missed every literal its target names, which § 4 makes a throw.
     ///
     /// **Never returns `Ok`.** The comparison chain that calls it already
@@ -1756,12 +1756,12 @@ crate::mwl_helper! {
     /// convention: the operand is the conversion's own value and its caller
     /// owns it.
     ///
-    /// [`Helper`]: mwl_ir::Helper
-    fn mwl_literal_mismatch(_ctx, args: [2]) {
+    /// [`Helper`]: nvs_ir::Helper
+    fn nvs_literal_mismatch(_ctx, args: [2]) {
         let accepted = args[1]
             .as_str_bytes()
             .and_then(|bytes| str::from_utf8(bytes).ok())
-            .ok_or_else(|| wrong_tag("mwl_literal_mismatch", Tag::Str, args[1]))?;
+            .ok_or_else(|| wrong_tag("nvs_literal_mismatch", Tag::Str, args[1]))?;
         let message = format!("`{}` is not one of {accepted}", rendered_operand(args[0]));
         #[expect(
             unsafe_code,
@@ -1787,14 +1787,14 @@ crate::mwl_helper! {
 /// arrive by different routes at the same question. Native `Core` code holds
 /// a [`Value`] a closure just returned, whose static type is `callable`'s
 /// opaque result and therefore nothing; and compiled code holding a
-/// `mwl_ir::ty::Ty::Tagged` operand — a `mixed`, a union, a `?T` no test
-/// narrowed — reaches it through [`mwl_value_truthy`], which is ADR 0035
+/// `nvs_ir::ty::Ty::Tagged` operand — a `mixed`, a union, a `?T` no test
+/// narrowed — reaches it through [`nvs_value_truthy`], which is ADR 0035
 /// § 2's own last table row rather than a fallback below it.
 ///
 /// One divergence lives here and it is not this function's to fix: **an enum
 /// case tagged into a `mixed` reads as its backing integer**, so a case backed
 /// by `0` is falsy where ADR 0035 § 4 makes every statically-typed enum case
-/// truthy. `mwl_codegen::ty::tag_of` is where that is decided — ADR 0010 § 6
+/// truthy. `nvs_codegen::ty::tag_of` is where that is decided — ADR 0010 § 6
 /// reserves an enum tag and nothing writes one yet, so by the time a case is
 /// here it is indistinguishable from the `int` behind it.
 ///
@@ -1829,7 +1829,7 @@ pub fn value_truthy(value: Value) -> bool {
                 reason = "a Tag::Array value's payload is a live allocation \
                           the caller owns a reference to"
             )]
-            let count = unsafe { crate::array::mwl_array_count(array) };
+            let count = unsafe { crate::array::nvs_array_count(array) };
             count != 0
         }),
         Some(Tag::Object | Tag::Closure | Tag::Resource) => true,
@@ -1839,8 +1839,8 @@ pub fn value_truthy(value: Value) -> bool {
 /// Every helper this crate exports, paired with the symbol name compiled code
 /// calls it by.
 ///
-/// `mwl-codegen` registers these with `cranelift_jit::JITBuilder::symbol` and
-/// maps each `mwl_ir::Helper` variant to one of the names. Returned as a
+/// `nvs-codegen` registers these with `cranelift_jit::JITBuilder::symbol` and
+/// maps each `nvs_ir::Helper` variant to one of the names. Returned as a
 /// `Vec` of `(name, address)` rather than a `const` table because a function
 /// address is not a value a `const` can hold.
 #[must_use]
@@ -1850,270 +1850,270 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
     }
 
     vec![
-        ("mwl_int_to_string", address(mwl_int_to_string)),
-        ("mwl_uint_to_string", address(mwl_uint_to_string)),
-        ("mwl_float_to_string", address(mwl_float_to_string)),
-        ("mwl_bool_to_string", address(mwl_bool_to_string)),
-        ("mwl_int_truthy", address(mwl_int_truthy)),
-        ("mwl_uint_truthy", address(mwl_uint_truthy)),
-        ("mwl_float_truthy", address(mwl_float_truthy)),
-        ("mwl_str_truthy", address(mwl_str_truthy)),
-        ("mwl_bytes_truthy", address(mwl_bytes_truthy)),
-        ("mwl_array_truthy", address(mwl_array_truthy)),
-        ("mwl_value_truthy", address(mwl_value_truthy)),
-        ("mwl_array_row_for_write", address(mwl_array_row_for_write)),
-        ("mwl_array_required_get", address(mwl_array_required_get)),
-        ("mwl_array_optional_get", address(mwl_array_optional_get)),
-        ("mwl_value_identical", address(mwl_value_identical)),
-        ("mwl_numeric_eq", address(mwl_numeric_eq)),
-        ("mwl_numeric_lt", address(mwl_numeric_lt)),
-        ("mwl_numeric_cmp", address(mwl_numeric_cmp)),
-        ("mwl_value_lt", address(mwl_value_lt)),
-        ("mwl_value_lt_eq", address(mwl_value_lt_eq)),
-        ("mwl_value_cmp", address(mwl_value_cmp)),
-        ("mwl_numeric_lt_eq", address(mwl_numeric_lt_eq)),
-        ("mwl_secret_eq", address(mwl_secret_eq)),
-        ("mwl_int_to_uint", address(mwl_int_to_uint)),
-        ("mwl_uint_to_int", address(mwl_uint_to_int)),
-        ("mwl_int_to_float", address(mwl_int_to_float)),
-        ("mwl_uint_to_float", address(mwl_uint_to_float)),
-        ("mwl_float_to_int", address(mwl_float_to_int)),
-        ("mwl_float_to_uint", address(mwl_float_to_uint)),
-        ("mwl_str_to_int", address(mwl_str_to_int)),
-        ("mwl_str_to_uint", address(mwl_str_to_uint)),
-        ("mwl_str_to_float", address(mwl_str_to_float)),
-        ("mwl_tagged_to_int", address(mwl_tagged_to_int)),
-        ("mwl_tagged_to_uint", address(mwl_tagged_to_uint)),
-        ("mwl_tagged_to_float", address(mwl_tagged_to_float)),
-        ("mwl_to_int_or_null", address(mwl_to_int_or_null)),
-        ("mwl_to_uint_or_null", address(mwl_to_uint_or_null)),
-        ("mwl_to_float_or_null", address(mwl_to_float_or_null)),
-        ("mwl_to_string_or_null", address(mwl_to_string_or_null)),
-        ("mwl_tagged_to_string", address(mwl_tagged_to_string)),
-        ("mwl_bytes_to_string", address(mwl_bytes_to_string)),
-        ("mwl_tagged_to_bytes", address(mwl_tagged_to_bytes)),
-        ("mwl_to_array_of", address(mwl_to_array_of)),
-        ("mwl_to_array_of_or_null", address(mwl_to_array_of_or_null)),
-        ("mwl_to_bytes_or_null", address(mwl_to_bytes_or_null)),
-        ("mwl_decimal_add", address(mwl_decimal_add)),
-        ("mwl_decimal_sub", address(mwl_decimal_sub)),
-        ("mwl_decimal_mul", address(mwl_decimal_mul)),
-        ("mwl_decimal_div", address(mwl_decimal_div)),
-        ("mwl_decimal_mod", address(mwl_decimal_mod)),
-        ("mwl_decimal_neg", address(mwl_decimal_neg)),
-        ("mwl_decimal_eq", address(mwl_decimal_eq)),
-        ("mwl_decimal_lt", address(mwl_decimal_lt)),
-        ("mwl_decimal_lt_eq", address(mwl_decimal_lt_eq)),
-        ("mwl_decimal_cmp", address(mwl_decimal_cmp)),
-        ("mwl_decimal_truthy", address(mwl_decimal_truthy)),
-        ("mwl_to_decimal", address(mwl_to_decimal)),
-        ("mwl_to_decimal_or_null", address(mwl_to_decimal_or_null)),
-        ("mwl_decimal_to_int", address(mwl_decimal_to_int)),
-        ("mwl_decimal_to_uint", address(mwl_decimal_to_uint)),
-        ("mwl_decimal_to_float", address(mwl_decimal_to_float)),
-        ("mwl_decimal_to_string", address(mwl_decimal_to_string)),
-        ("mwl_echo_str", address(mwl_echo_str)),
-        ("mwl_exit", address(mwl_exit)),
-        ("mwl_literal_mismatch", address(mwl_literal_mismatch)),
+        ("nvs_int_to_string", address(nvs_int_to_string)),
+        ("nvs_uint_to_string", address(nvs_uint_to_string)),
+        ("nvs_float_to_string", address(nvs_float_to_string)),
+        ("nvs_bool_to_string", address(nvs_bool_to_string)),
+        ("nvs_int_truthy", address(nvs_int_truthy)),
+        ("nvs_uint_truthy", address(nvs_uint_truthy)),
+        ("nvs_float_truthy", address(nvs_float_truthy)),
+        ("nvs_str_truthy", address(nvs_str_truthy)),
+        ("nvs_bytes_truthy", address(nvs_bytes_truthy)),
+        ("nvs_array_truthy", address(nvs_array_truthy)),
+        ("nvs_value_truthy", address(nvs_value_truthy)),
+        ("nvs_array_row_for_write", address(nvs_array_row_for_write)),
+        ("nvs_array_required_get", address(nvs_array_required_get)),
+        ("nvs_array_optional_get", address(nvs_array_optional_get)),
+        ("nvs_value_identical", address(nvs_value_identical)),
+        ("nvs_numeric_eq", address(nvs_numeric_eq)),
+        ("nvs_numeric_lt", address(nvs_numeric_lt)),
+        ("nvs_numeric_cmp", address(nvs_numeric_cmp)),
+        ("nvs_value_lt", address(nvs_value_lt)),
+        ("nvs_value_lt_eq", address(nvs_value_lt_eq)),
+        ("nvs_value_cmp", address(nvs_value_cmp)),
+        ("nvs_numeric_lt_eq", address(nvs_numeric_lt_eq)),
+        ("nvs_secret_eq", address(nvs_secret_eq)),
+        ("nvs_int_to_uint", address(nvs_int_to_uint)),
+        ("nvs_uint_to_int", address(nvs_uint_to_int)),
+        ("nvs_int_to_float", address(nvs_int_to_float)),
+        ("nvs_uint_to_float", address(nvs_uint_to_float)),
+        ("nvs_float_to_int", address(nvs_float_to_int)),
+        ("nvs_float_to_uint", address(nvs_float_to_uint)),
+        ("nvs_str_to_int", address(nvs_str_to_int)),
+        ("nvs_str_to_uint", address(nvs_str_to_uint)),
+        ("nvs_str_to_float", address(nvs_str_to_float)),
+        ("nvs_tagged_to_int", address(nvs_tagged_to_int)),
+        ("nvs_tagged_to_uint", address(nvs_tagged_to_uint)),
+        ("nvs_tagged_to_float", address(nvs_tagged_to_float)),
+        ("nvs_to_int_or_null", address(nvs_to_int_or_null)),
+        ("nvs_to_uint_or_null", address(nvs_to_uint_or_null)),
+        ("nvs_to_float_or_null", address(nvs_to_float_or_null)),
+        ("nvs_to_string_or_null", address(nvs_to_string_or_null)),
+        ("nvs_tagged_to_string", address(nvs_tagged_to_string)),
+        ("nvs_bytes_to_string", address(nvs_bytes_to_string)),
+        ("nvs_tagged_to_bytes", address(nvs_tagged_to_bytes)),
+        ("nvs_to_array_of", address(nvs_to_array_of)),
+        ("nvs_to_array_of_or_null", address(nvs_to_array_of_or_null)),
+        ("nvs_to_bytes_or_null", address(nvs_to_bytes_or_null)),
+        ("nvs_decimal_add", address(nvs_decimal_add)),
+        ("nvs_decimal_sub", address(nvs_decimal_sub)),
+        ("nvs_decimal_mul", address(nvs_decimal_mul)),
+        ("nvs_decimal_div", address(nvs_decimal_div)),
+        ("nvs_decimal_mod", address(nvs_decimal_mod)),
+        ("nvs_decimal_neg", address(nvs_decimal_neg)),
+        ("nvs_decimal_eq", address(nvs_decimal_eq)),
+        ("nvs_decimal_lt", address(nvs_decimal_lt)),
+        ("nvs_decimal_lt_eq", address(nvs_decimal_lt_eq)),
+        ("nvs_decimal_cmp", address(nvs_decimal_cmp)),
+        ("nvs_decimal_truthy", address(nvs_decimal_truthy)),
+        ("nvs_to_decimal", address(nvs_to_decimal)),
+        ("nvs_to_decimal_or_null", address(nvs_to_decimal_or_null)),
+        ("nvs_decimal_to_int", address(nvs_decimal_to_int)),
+        ("nvs_decimal_to_uint", address(nvs_decimal_to_uint)),
+        ("nvs_decimal_to_float", address(nvs_decimal_to_float)),
+        ("nvs_decimal_to_string", address(nvs_decimal_to_string)),
+        ("nvs_echo_str", address(nvs_echo_str)),
+        ("nvs_exit", address(nvs_exit)),
+        ("nvs_literal_mismatch", address(nvs_literal_mismatch)),
         (
-            "mwl_str_new",
-            (crate::string::mwl_str_new as *const ()).cast::<u8>(),
+            "nvs_str_new",
+            (crate::string::nvs_str_new as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_call_closure",
-            (crate::closure::mwl_call_closure as *const ()).cast::<u8>(),
+            "nvs_call_closure",
+            (crate::closure::nvs_call_closure as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_call_closure_array",
-            (crate::closure::mwl_call_closure_array as *const ()).cast::<u8>(),
+            "nvs_call_closure_array",
+            (crate::closure::nvs_call_closure_array as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_str_concat",
-            (crate::string::mwl_str_concat as *const ()).cast::<u8>(),
+            "nvs_str_concat",
+            (crate::string::nvs_str_concat as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_str_concat_n",
-            (crate::string::mwl_str_concat_n as *const ()).cast::<u8>(),
+            "nvs_str_concat_n",
+            (crate::string::nvs_str_concat_n as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_str_append",
-            (crate::string::mwl_str_append as *const ()).cast::<u8>(),
+            "nvs_str_append",
+            (crate::string::nvs_str_append as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_str_eq",
-            (crate::string::mwl_str_eq as *const ()).cast::<u8>(),
+            "nvs_str_eq",
+            (crate::string::nvs_str_eq as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_eq",
-            (crate::identity::mwl_array_eq as *const ()).cast::<u8>(),
+            "nvs_array_eq",
+            (crate::identity::nvs_array_eq as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_float_pow",
-            (crate::arith::mwl_float_pow as *const ()).cast::<u8>(),
+            "nvs_float_pow",
+            (crate::arith::nvs_float_pow as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_str_retain",
-            (crate::string::mwl_str_retain as *const ()).cast::<u8>(),
+            "nvs_str_retain",
+            (crate::string::nvs_str_retain as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_value_retain",
-            (crate::value::mwl_value_retain as *const ()).cast::<u8>(),
+            "nvs_value_retain",
+            (crate::value::nvs_value_retain as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_value_release",
-            (crate::value::mwl_value_release as *const ()).cast::<u8>(),
+            "nvs_value_release",
+            (crate::value::nvs_value_release as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_str_release",
-            (crate::string::mwl_str_release as *const ()).cast::<u8>(),
+            "nvs_str_release",
+            (crate::string::nvs_str_release as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_raise",
-            (crate::throwable::mwl_raise as *const ()).cast::<u8>(),
+            "nvs_raise",
+            (crate::throwable::nvs_raise as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_raise_new",
-            (crate::throwable::mwl_raise_new as *const ()).cast::<u8>(),
+            "nvs_raise_new",
+            (crate::throwable::nvs_raise_new as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_trace_push",
-            (crate::throwable::mwl_trace_push as *const ()).cast::<u8>(),
+            "nvs_trace_push",
+            (crate::throwable::nvs_trace_push as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_take_thrown",
-            (crate::throwable::mwl_take_thrown as *const ()).cast::<u8>(),
+            "nvs_take_thrown",
+            (crate::throwable::nvs_take_thrown as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_object_new",
-            (crate::object::mwl_object_new as *const ()).cast::<u8>(),
+            "nvs_object_new",
+            (crate::object::nvs_object_new as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_object_clone",
-            (crate::object::mwl_object_clone as *const ()).cast::<u8>(),
+            "nvs_object_clone",
+            (crate::object::nvs_object_clone as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_object_retain",
-            (crate::object::mwl_object_retain as *const ()).cast::<u8>(),
+            "nvs_object_retain",
+            (crate::object::nvs_object_retain as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_object_release",
-            (crate::object::mwl_object_release as *const ()).cast::<u8>(),
+            "nvs_object_release",
+            (crate::object::nvs_object_release as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_object_instanceof",
-            (crate::object::mwl_object_instanceof as *const ()).cast::<u8>(),
+            "nvs_object_instanceof",
+            (crate::object::nvs_object_instanceof as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_value_instanceof",
-            (crate::object::mwl_value_instanceof as *const ()).cast::<u8>(),
+            "nvs_value_instanceof",
+            (crate::object::nvs_value_instanceof as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_object_slot_get",
-            (crate::object::mwl_object_slot_get as *const ()).cast::<u8>(),
+            "nvs_object_slot_get",
+            (crate::object::nvs_object_slot_get as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_object_slot_set",
-            (crate::object::mwl_object_slot_set as *const ()).cast::<u8>(),
+            "nvs_object_slot_set",
+            (crate::object::nvs_object_slot_set as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_abstract_method",
-            (crate::object::mwl_abstract_method as *const ()).cast::<u8>(),
+            "nvs_abstract_method",
+            (crate::object::nvs_abstract_method as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_class_method",
-            (crate::object::mwl_class_method as *const ()).cast::<u8>(),
+            "nvs_class_method",
+            (crate::object::nvs_class_method as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_object_class_name",
-            (crate::object::mwl_object_class_name as *const ()).cast::<u8>(),
+            "nvs_object_class_name",
+            (crate::object::nvs_object_class_name as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_object_field_get",
-            (crate::object::mwl_object_field_get as *const ()).cast::<u8>(),
+            "nvs_object_field_get",
+            (crate::object::nvs_object_field_get as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_object_field_set",
-            (crate::object::mwl_object_field_set as *const ()).cast::<u8>(),
+            "nvs_object_field_set",
+            (crate::object::nvs_object_field_set as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_new",
-            (crate::array::mwl_array_new as *const ()).cast::<u8>(),
+            "nvs_array_new",
+            (crate::array::nvs_array_new as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_retain",
-            (crate::array::mwl_array_retain as *const ()).cast::<u8>(),
+            "nvs_array_retain",
+            (crate::array::nvs_array_retain as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_release",
-            (crate::array::mwl_array_release as *const ()).cast::<u8>(),
+            "nvs_array_release",
+            (crate::array::nvs_array_release as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_get",
-            (crate::array::mwl_array_get as *const ()).cast::<u8>(),
+            "nvs_array_get",
+            (crate::array::nvs_array_get as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_has_key",
-            (crate::array::mwl_array_has_key as *const ()).cast::<u8>(),
+            "nvs_array_has_key",
+            (crate::array::nvs_array_has_key as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_get_index",
-            (crate::array::mwl_array_get_index as *const ()).cast::<u8>(),
+            "nvs_array_get_index",
+            (crate::array::nvs_array_get_index as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_set",
-            (crate::array::mwl_array_set as *const ()).cast::<u8>(),
+            "nvs_array_set",
+            (crate::array::nvs_array_set as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_set_index",
-            (crate::array::mwl_array_set_index as *const ()).cast::<u8>(),
+            "nvs_array_set_index",
+            (crate::array::nvs_array_set_index as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_append",
-            (crate::array::mwl_array_append as *const ()).cast::<u8>(),
+            "nvs_array_append",
+            (crate::array::nvs_array_append as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_spread",
-            (crate::array::mwl_array_spread as *const ()).cast::<u8>(),
+            "nvs_array_spread",
+            (crate::array::nvs_array_spread as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_unset",
-            (crate::array::mwl_array_unset as *const ()).cast::<u8>(),
+            "nvs_array_unset",
+            (crate::array::nvs_array_unset as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_count",
-            (crate::array::mwl_array_count as *const ()).cast::<u8>(),
+            "nvs_array_count",
+            (crate::array::nvs_array_count as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_next_slot",
-            (crate::array::mwl_array_next_slot as *const ()).cast::<u8>(),
+            "nvs_array_next_slot",
+            (crate::array::nvs_array_next_slot as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_key_at",
-            (crate::array::mwl_array_key_at as *const ()).cast::<u8>(),
+            "nvs_array_key_at",
+            (crate::array::nvs_array_key_at as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_array_value_at",
-            (crate::array::mwl_array_value_at as *const ()).cast::<u8>(),
+            "nvs_array_value_at",
+            (crate::array::nvs_array_value_at as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_safepoint",
-            (crate::ctx::mwl_safepoint as *const ()).cast::<u8>(),
+            "nvs_safepoint",
+            (crate::ctx::nvs_safepoint as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_stack_check",
-            (crate::ctx::mwl_stack_check as *const ()).cast::<u8>(),
+            "nvs_stack_check",
+            (crate::ctx::nvs_stack_check as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_probe_stmt",
-            (crate::ctx::mwl_probe_stmt as *const ()).cast::<u8>(),
+            "nvs_probe_stmt",
+            (crate::ctx::nvs_probe_stmt as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_probe_call_enter",
-            (crate::ctx::mwl_probe_call_enter as *const ()).cast::<u8>(),
+            "nvs_probe_call_enter",
+            (crate::ctx::nvs_probe_call_enter as *const ()).cast::<u8>(),
         ),
         (
-            "mwl_probe_call_exit",
-            (crate::ctx::mwl_probe_call_exit as *const ()).cast::<u8>(),
+            "nvs_probe_call_exit",
+            (crate::ctx::nvs_probe_call_exit as *const ()).cast::<u8>(),
         ),
     ]
 }
@@ -2138,7 +2138,7 @@ mod tests {
         #[expect(
             unsafe_code,
             reason = "the returned value owns the one reference the helper's \
-                      fresh `MwlStr` was built with"
+                      fresh `NvsStr` was built with"
         )]
         unsafe {
             value.release();
@@ -2172,52 +2172,52 @@ mod tests {
 
     #[test]
     fn an_int_converts_at_both_extremes() {
-        assert_eq!(string_result(mwl_int_to_string, Value::int(0)), "0");
-        assert_eq!(string_result(mwl_int_to_string, Value::int(-42)), "-42");
+        assert_eq!(string_result(nvs_int_to_string, Value::int(0)), "0");
+        assert_eq!(string_result(nvs_int_to_string, Value::int(-42)), "-42");
         assert_eq!(
-            string_result(mwl_int_to_string, Value::int(i64::MIN)),
+            string_result(nvs_int_to_string, Value::int(i64::MIN)),
             "-9223372036854775808"
         );
         assert_eq!(
-            string_result(mwl_int_to_string, Value::int(i64::MAX)),
+            string_result(nvs_int_to_string, Value::int(i64::MAX)),
             "9223372036854775807"
         );
     }
 
     #[test]
     fn a_uint_converts_past_the_signed_range() {
-        assert_eq!(string_result(mwl_uint_to_string, Value::uint(0)), "0");
+        assert_eq!(string_result(nvs_uint_to_string, Value::uint(0)), "0");
         assert_eq!(
-            string_result(mwl_uint_to_string, Value::uint(u64::MAX)),
+            string_result(nvs_uint_to_string, Value::uint(u64::MAX)),
             "18446744073709551615"
         );
     }
 
     #[test]
     fn a_float_converts_the_way_php_spells_it() {
-        assert_eq!(string_result(mwl_float_to_string, Value::float(1.0)), "1");
+        assert_eq!(string_result(nvs_float_to_string, Value::float(1.0)), "1");
         assert_eq!(
-            string_result(mwl_float_to_string, Value::float(1e20)),
+            string_result(nvs_float_to_string, Value::float(1e20)),
             "1.0E+20"
         );
     }
 
     #[test]
     fn a_bool_converts_to_one_or_the_empty_string() {
-        assert_eq!(string_result(mwl_bool_to_string, Value::bool(true)), "1");
-        assert_eq!(string_result(mwl_bool_to_string, Value::bool(false)), "");
+        assert_eq!(string_result(nvs_bool_to_string, Value::bool(true)), "1");
+        assert_eq!(string_result(nvs_bool_to_string, Value::bool(false)), "");
     }
 
     #[test]
     fn scalar_truthiness_follows_phps_table() {
-        assert!(!truthy(mwl_int_truthy, Value::int(0)));
-        assert!(truthy(mwl_int_truthy, Value::int(-1)));
-        assert!(!truthy(mwl_uint_truthy, Value::uint(0)));
-        assert!(truthy(mwl_uint_truthy, Value::uint(1)));
-        assert!(!truthy(mwl_float_truthy, Value::float(0.0)));
-        assert!(!truthy(mwl_float_truthy, Value::float(-0.0)));
-        assert!(truthy(mwl_float_truthy, Value::float(f64::NAN)));
-        assert!(truthy(mwl_float_truthy, Value::float(0.1)));
+        assert!(!truthy(nvs_int_truthy, Value::int(0)));
+        assert!(truthy(nvs_int_truthy, Value::int(-1)));
+        assert!(!truthy(nvs_uint_truthy, Value::uint(0)));
+        assert!(truthy(nvs_uint_truthy, Value::uint(1)));
+        assert!(!truthy(nvs_float_truthy, Value::float(0.0)));
+        assert!(!truthy(nvs_float_truthy, Value::float(-0.0)));
+        assert!(truthy(nvs_float_truthy, Value::float(f64::NAN)));
+        assert!(truthy(nvs_float_truthy, Value::float(0.1)));
     }
 
     #[test]
@@ -2230,8 +2230,8 @@ mod tests {
             (&b"00"[..], true),
             (&b" "[..], true),
         ] {
-            let value = Value::str(MwlStr::new(bytes));
-            assert_eq!(truthy(mwl_str_truthy, value), expected, "for {bytes:?}");
+            let value = Value::str(NvsStr::new(bytes));
+            assert_eq!(truthy(nvs_str_truthy, value), expected, "for {bytes:?}");
             #[expect(unsafe_code, reason = "the value owns the reference it releases")]
             unsafe {
                 value.release();
@@ -2242,8 +2242,8 @@ mod tests {
     #[test]
     fn echo_writes_raw_bytes_and_returns_nothing() {
         let mut ctx = Ctx::buffered();
-        let value = Value::str(MwlStr::new(b"Hello, World!"));
-        let result = call(mwl_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
+        let value = Value::str(NvsStr::new(b"Hello, World!"));
+        let result = call(nvs_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
         assert_eq!(result.tag(), Some(Tag::Null));
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
@@ -2258,8 +2258,8 @@ mod tests {
     #[test]
     fn echo_escapes_nothing() {
         let mut ctx = Ctx::buffered();
-        let value = Value::str(MwlStr::new(b"<b>&\"\x00\xff"));
-        call(mwl_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
+        let value = Value::str(NvsStr::new(b"<b>&\"\x00\xff"));
+        call(nvs_echo_str, &mut ctx, &[value]).expect("the helper succeeded");
         assert_eq!(
             ctx.take_buffered_output().as_deref(),
             Some(&b"<b>&\"\x00\xff"[..])
@@ -2274,18 +2274,18 @@ mod tests {
     fn a_wrong_tag_is_a_fatal_naming_the_helper_rather_than_a_bad_read() {
         let mut ctx = Ctx::buffered();
         assert_eq!(
-            call(mwl_int_to_string, &mut ctx, &[Value::uint(1)]).unwrap_err(),
+            call(nvs_int_to_string, &mut ctx, &[Value::uint(1)]).unwrap_err(),
             FATAL
         );
         let message = ctx.take_pending().expect("a message was recorded");
-        assert!(message.contains("mwl_int_to_string"), "{message}");
+        assert!(message.contains("nvs_int_to_string"), "{message}");
 
         assert_eq!(
-            call(mwl_echo_str, &mut ctx, &[Value::int(1)]).unwrap_err(),
+            call(nvs_echo_str, &mut ctx, &[Value::int(1)]).unwrap_err(),
             FATAL
         );
         let message = ctx.take_pending().expect("a message was recorded");
-        assert!(message.contains("mwl_echo_str"), "{message}");
+        assert!(message.contains("nvs_echo_str"), "{message}");
         assert!(ctx.take_buffered_output().is_some_and(|out| out.is_empty()));
     }
 
@@ -2307,19 +2307,19 @@ mod tests {
     /// have no counterpart on the other side are the whole content of the row.
     #[test]
     fn int_and_uint_convert_where_the_ranges_overlap_and_throw_where_they_do_not() {
-        assert_eq!(converted(mwl_int_to_uint, Value::int(0)).as_uint(), Some(0));
+        assert_eq!(converted(nvs_int_to_uint, Value::int(0)).as_uint(), Some(0));
         assert_eq!(
-            converted(mwl_int_to_uint, Value::int(i64::MAX)).as_uint(),
+            converted(nvs_int_to_uint, Value::int(i64::MAX)).as_uint(),
             Some(i64::MAX.cast_unsigned())
         );
-        refused(mwl_int_to_uint, Value::int(-1));
+        refused(nvs_int_to_uint, Value::int(-1));
 
         assert_eq!(
-            converted(mwl_uint_to_int, Value::uint(i64::MAX.cast_unsigned())).as_int(),
+            converted(nvs_uint_to_int, Value::uint(i64::MAX.cast_unsigned())).as_int(),
             Some(i64::MAX)
         );
-        refused(mwl_uint_to_int, Value::uint(i64::MAX.cast_unsigned() + 1));
-        refused(mwl_uint_to_int, Value::uint(u64::MAX));
+        refused(nvs_uint_to_int, Value::uint(i64::MAX.cast_unsigned() + 1));
+        refused(nvs_uint_to_int, Value::uint(u64::MAX));
     }
 
     /// ADR 0007 § 2: an integer to `float` is "exact, or throws above 2^53,
@@ -2327,15 +2327,15 @@ mod tests {
     #[test]
     fn an_integer_to_float_throws_past_the_point_it_would_stop_being_exact() {
         assert_eq!(
-            converted(mwl_int_to_float, Value::int(-9007199254740992)).as_float(),
+            converted(nvs_int_to_float, Value::int(-9007199254740992)).as_float(),
             Some(-9007199254740992.0)
         );
         assert_eq!(
-            converted(mwl_uint_to_float, Value::uint(9007199254740992)).as_float(),
+            converted(nvs_uint_to_float, Value::uint(9007199254740992)).as_float(),
             Some(9007199254740992.0)
         );
-        refused(mwl_int_to_float, Value::int(9007199254740993));
-        refused(mwl_uint_to_float, Value::uint(u64::MAX));
+        refused(nvs_int_to_float, Value::int(9007199254740993));
+        refused(nvs_uint_to_float, Value::uint(u64::MAX));
     }
 
     /// ADR 0007 § 2: "integral and in range, or throws. Rounding is
@@ -2344,18 +2344,18 @@ mod tests {
     #[test]
     fn a_float_to_an_integer_refuses_anything_it_would_have_to_round() {
         assert_eq!(
-            converted(mwl_float_to_int, Value::float(-3.0)).as_int(),
+            converted(nvs_float_to_int, Value::float(-3.0)).as_int(),
             Some(-3)
         );
         assert_eq!(
-            converted(mwl_float_to_uint, Value::float(3.0)).as_uint(),
+            converted(nvs_float_to_uint, Value::float(3.0)).as_uint(),
             Some(3)
         );
-        refused(mwl_float_to_int, Value::float(1.5));
-        refused(mwl_float_to_uint, Value::float(-1.0));
-        refused(mwl_float_to_int, Value::float(f64::NAN));
-        refused(mwl_float_to_int, Value::float(f64::INFINITY));
-        refused(mwl_float_to_int, Value::float(1e30));
+        refused(nvs_float_to_int, Value::float(1.5));
+        refused(nvs_float_to_uint, Value::float(-1.0));
+        refused(nvs_float_to_int, Value::float(f64::NAN));
+        refused(nvs_float_to_int, Value::float(f64::INFINITY));
+        refused(nvs_float_to_int, Value::float(1e30));
     }
 
     /// ADR 0007 § 2: "the whole string must be an exact numeric literal, or
@@ -2365,14 +2365,14 @@ mod tests {
     fn a_string_to_a_number_takes_the_whole_string_or_nothing() {
         /// Runs `check` over a fresh string argument and releases it after —
         /// a conversion helper only *reads* its operand (compiled code emits
-        /// the release itself, see `mwl_ir::lower::Lowering::convert`), so a
+        /// the release itself, see `nvs_ir::lower::Lowering::convert`), so a
         /// test that dropped the value here would leak it.
         fn with(text: &str, check: impl FnOnce(Value)) {
-            let value = Value::str(MwlStr::new(text.as_bytes()));
+            let value = Value::str(NvsStr::new(text.as_bytes()));
             check(value);
             #[expect(
                 unsafe_code,
-                reason = "this test owns the one reference the fresh `MwlStr` \
+                reason = "this test owns the one reference the fresh `NvsStr` \
                           was built with, and the helper borrowed it"
             )]
             unsafe {
@@ -2381,21 +2381,21 @@ mod tests {
         }
 
         with("-42", |v| {
-            assert_eq!(converted(mwl_str_to_int, v).as_int(), Some(-42));
+            assert_eq!(converted(nvs_str_to_int, v).as_int(), Some(-42));
         });
         with("18446744073709551615", |v| {
-            assert_eq!(converted(mwl_str_to_uint, v).as_uint(), Some(u64::MAX));
+            assert_eq!(converted(nvs_str_to_uint, v).as_uint(), Some(u64::MAX));
         });
         with("3.5", |v| {
-            assert_eq!(converted(mwl_str_to_float, v).as_float(), Some(3.5));
+            assert_eq!(converted(nvs_str_to_float, v).as_float(), Some(3.5));
         });
         for bad in ["12abc", "abc", "", " 12", "12 ", "0x10", "1.5"] {
-            with(bad, |v| refused(mwl_str_to_int, v));
+            with(bad, |v| refused(nvs_str_to_int, v));
         }
-        with("-1", |v| refused(mwl_str_to_uint, v));
-        // Not "an exact numeric literal": no MWL source literal writes one.
+        with("-1", |v| refused(nvs_str_to_uint, v));
+        // Not "an exact numeric literal": no Novis source literal writes one.
         for bad in ["inf", "NaN", "infinity"] {
-            with(bad, |v| refused(mwl_str_to_float, v));
+            with(bad, |v| refused(nvs_str_to_float, v));
         }
     }
 
@@ -2404,17 +2404,17 @@ mod tests {
     /// program rendering a `mixed` must not get a second set of answers.
     #[test]
     fn a_tagged_operand_renders_by_its_tag() {
-        assert_eq!(string_result(mwl_tagged_to_string, Value::null()), "");
-        assert_eq!(string_result(mwl_tagged_to_string, Value::bool(true)), "1");
-        assert_eq!(string_result(mwl_tagged_to_string, Value::bool(false)), "");
-        assert_eq!(string_result(mwl_tagged_to_string, Value::int(-42)), "-42");
+        assert_eq!(string_result(nvs_tagged_to_string, Value::null()), "");
+        assert_eq!(string_result(nvs_tagged_to_string, Value::bool(true)), "1");
+        assert_eq!(string_result(nvs_tagged_to_string, Value::bool(false)), "");
+        assert_eq!(string_result(nvs_tagged_to_string, Value::int(-42)), "-42");
         assert_eq!(
-            string_result(mwl_tagged_to_string, Value::uint(u64::MAX)),
+            string_result(nvs_tagged_to_string, Value::uint(u64::MAX)),
             "18446744073709551615"
         );
-        assert_eq!(string_result(mwl_tagged_to_string, Value::float(2.0)), "2");
+        assert_eq!(string_result(nvs_tagged_to_string, Value::float(2.0)), "2");
         assert_eq!(
-            string_result(mwl_tagged_to_string, Value::float(1.5)),
+            string_result(nvs_tagged_to_string, Value::float(1.5)),
             "1.5"
         );
     }
@@ -2425,20 +2425,20 @@ mod tests {
     /// releases a converted one.
     #[test]
     fn a_string_payload_comes_back_with_a_reference_of_its_own() {
-        let value = Value::str(MwlStr::new(b"text"));
+        let value = Value::str(NvsStr::new(b"text"));
         let ptr = value.str_ptr().expect("a Tag::Str value carries a pointer");
         #[expect(
             unsafe_code,
-            reason = "this test owns the one reference the fresh `MwlStr` was \
+            reason = "this test owns the one reference the fresh `NvsStr` was \
                       built with, so the allocation is live for every read below"
         )]
         unsafe {
-            assert_eq!(MwlStr::refcount_of(ptr), 1);
+            assert_eq!(NvsStr::refcount_of(ptr), 1);
             // `string_result` releases what the helper returned, so a helper
             // that answered without retaining would leave zero here — and a
             // use-after-free rather than an assertion failure.
-            assert_eq!(string_result(mwl_tagged_to_string, value), "text");
-            assert_eq!(MwlStr::refcount_of(ptr), 1);
+            assert_eq!(string_result(nvs_tagged_to_string, value), "text");
+            assert_eq!(NvsStr::refcount_of(ptr), 1);
             value.release();
         }
     }
@@ -2448,8 +2448,8 @@ mod tests {
     /// they share one arm.
     #[test]
     fn a_tag_with_no_string_row_throws() {
-        let value = Value::array(crate::array::MwlArray::new());
-        refused(mwl_tagged_to_string, value);
+        let value = Value::array(crate::array::NvsArray::new());
+        refused(nvs_tagged_to_string, value);
         #[expect(
             unsafe_code,
             reason = "the helper borrowed the array; this test still owns the \

@@ -1,6 +1,6 @@
 [package]
-name = "mwl-stdlib"
-description = "MWL Tier 0 standard library: the `Core` namespace's native Rust members and the signature registry the compiler resolves them through"
+name = "nvs-stdlib"
+description = "Novis Tier 0 standard library: the `Core` namespace's native Rust members and the signature registry the compiler resolves them through"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,13 +9,13 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
-mwl-runtime.workspace = true
+nvs-runtime.workspace = true
 # ADR 0070 § 5: the duration grammar has exactly one implementation, and it is
-# `mwl_syntax::duration` -- the lexer reads the source literal with it, this
-# crate reads a run-time string with it, and `mwl.toml` will read a directive
+# `nvs_syntax::duration` -- the lexer reads the source literal with it, this
+# crate reads a run-time string with it, and `nvs.toml` will read a directive
 # with it. That module's own docs own why the shared code sits in the syntax
 # crate; ADR 0019's `Core\Ast` owes this same edge regardless.
-mwl-syntax.workspace = true
+nvs-syntax.workspace = true
 unicode-segmentation.workspace = true
 caseless.workspace = true
 unicode-normalization.workspace = true
@@ -38,21 +38,21 @@ encoding_rs.workspace = true
 csv-core.workspace = true
 fluent-uri.workspace = true
 
-# `tests/conformance_coverage.rs` reads the `.mwlt` suite's `--FILE--`
-# sections, and the format's parser already exists. `mwl-test` depends on
+# `tests/conformance_coverage.rs` reads the `.nvst` suite's `--FILE--`
+# sections, and the format's parser already exists. `nvs-test` depends on
 # nothing at all, so this borrows a section splitter rather than a toolchain.
 [dev-dependencies]
-mwl-test.workspace = true
+nvs-test.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy, for exactly
-# mwl-runtime's reason and no wider one: every `Core` member is an ADR 0002
+# nvs-runtime's reason and no wider one: every `Core` member is an ADR 0002
 # helper entry point, so it is an `extern "C"` function decoding raw pointers,
 # which the workspace's `forbid` would make unwritable. `deny` instead, so each
 # genuinely necessary block is allowed individually with a stated reason — the
 # policy in docs/implementation-plan.md's "Unsafe policy" section, which names
 # this crate. Nothing else here is unsafe: a member's body is ordinary safe
-# Rust over `mwl-runtime`'s own safe handles.
+# Rust over `nvs-runtime`'s own safe handles.
 # ---------------------------------------------------------------------------
 [lints.rust]
 unsafe_code = "deny"

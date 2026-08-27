@@ -1,7 +1,7 @@
 --TEST--
 the two element writes a hooked array property does allow: through a local read back and assigned in, and inside the property's own hook where `$this->p` is the backing slot — ADR 0014 § 1, ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 // The refusal an element write through a hook takes (E0478) has exactly two
 // ways round it, and both run. Inside the property's own `set` hook `$this->p`
 // is the backing slot rather than a call to the accessor, so an element write

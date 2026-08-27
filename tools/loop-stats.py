@@ -83,7 +83,7 @@ BUCKETS = (
                      "conventions", "AGENTS.md", "CLAUDE.md")),
     ("adr", ("docs/adr/",)),
     ("plan + spec", ("implementation-plan", "docs/plan/", "docs/spec/", "plan.py")),
-    ("build + test", ("verify.py", "cargo ", "mwl test", "mwl run", "loop.py")),
+    ("build + test", ("verify.py", "cargo ", "nvs test", "nvs run", "loop.py")),
     ("git", ("git ",)),
     ("discovery", ("grep", "rg ", "find ", " ls ", "glob", "Glob", "Grep")),
     ("source", ("crates/", "benches/", "tests/", "examples/", "tools/", "fuzz/")),

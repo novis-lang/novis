@@ -1,7 +1,7 @@
 --TEST--
 Spec § 1: `Core\Str::replace` and the two pad members each have a bound at which they do nothing, asserted there and at the first input past it
 --FILE--
-<?mwl
+<?nvs
 // `replace`'s `{limit}` counts occurrences, and `0` means exactly what it says
 // — replace nothing — because a sentinel `0` for "no limit" would have been a
 // magic value. So the bound is the occurrence count: 3 `a`s in `banana`, and a

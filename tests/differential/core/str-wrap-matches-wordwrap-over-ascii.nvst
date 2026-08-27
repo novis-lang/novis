@@ -1,12 +1,12 @@
 --TEST--
 Core\Str::wrap breaks an ASCII subject exactly where wordwrap does across a table of widths, both break options and both cutting readings, every line it produces is within the width once long words may be cut, and both languages refuse an empty break and a zero width that has to cut
 --FILE--
-<?mwl
+<?nvs
 // Spec § 1's `wrap` row. One member replaces `wordwrap` whole: PHP's third
-// and fourth arguments are this member's two options, and `mwl_stdlib::str`'s
+// and fourth arguments are this member's two options, and `nvs_stdlib::str`'s
 // `wrapped` says the algorithm is PHP's own, unit for unit. The subjects here
 // are ASCII on purpose — the width counts grapheme clusters
-// (`mwl_stdlib::granularity::DEFAULT`) where `wordwrap` counts bytes, and
+// (`nvs_stdlib::granularity::DEFAULT`) where `wordwrap` counts bytes, and
 // inside ASCII those are the same count, so the whole table below agrees and
 // the companion divergence case is where they part.
 
@@ -100,7 +100,7 @@ echo "<", Core\Str::wrap("The quick brown fox jumped over the lazy dog", 10, {br
 // The two arguments both languages refuse rather than answer. An empty break
 // would drop the wrapping silently, and a zero width that must cut asks for a
 // break before and after every character, which does not terminate; PHP
-// raises `ValueError` for each and `mwl_stdlib::str` a catchable
+// raises `ValueError` for each and `nvs_stdlib::str` a catchable
 // `Fault::thrown`, so what is pinned is that the boundary is refused on both
 // sides and not what either diagnostic says.
 try {

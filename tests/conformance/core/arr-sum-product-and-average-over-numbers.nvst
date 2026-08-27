@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::sum, product and average fold a number array, promote to the widest type present, and answer null over an empty one
 --FILE--
-<?mwl
+<?nvs
 array<int> $nums = [3, 1, 4, 1, 5];
 array<float> $reals = [1.5, 2.5];
 array<decimal> $money = [19.99, 4.95, 0.06];

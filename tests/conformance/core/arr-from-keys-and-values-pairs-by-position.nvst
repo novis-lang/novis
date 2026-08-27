@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::fromKeysAndValues pairs by position, normalizes each key and refuses two lengths
 --FILE--
-<?mwl
+<?nvs
 array<string|int> $keys = ["name", "city"];
 array<string> $values = ["Ada", "London"];
 var $person = Core\Arr::fromKeysAndValues($keys, $values);

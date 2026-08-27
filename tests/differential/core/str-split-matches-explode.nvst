@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::split matches PHP's explode, empty fields included
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::join(Core\Str::split("a,b,c", ","), "|"), "\n";
 echo Core\Str::join(Core\Str::split("a,b,,c", ","), "|"), "\n";
 echo Core\Str::join(Core\Str::split(",lead", ","), "|"), "\n";

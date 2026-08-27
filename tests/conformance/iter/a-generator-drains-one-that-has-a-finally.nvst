@@ -1,7 +1,7 @@
 --TEST--
 an inner generator run to exhaustion runs its `finally` there and then, before the outer one yields anything further — ADR 0053 § 3
 --FILE--
-<?mwl
+<?nvs
 class Src {
     public static function inner(): Iterator<int> {
         try {

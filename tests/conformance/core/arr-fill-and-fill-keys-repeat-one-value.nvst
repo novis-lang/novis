@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::fill and ::fillKeys store one value under the keys each names
 --FILE--
-<?mwl
+<?nvs
 // fill is array_fill without PHP's $start_index, so the keys are always
 // 0, 1, … and the result is always a list.
 echo Core\Str::join(Core\Arr::fill(3, "v"), ","), "\n";

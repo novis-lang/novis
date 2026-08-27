@@ -14,7 +14,7 @@ def run(rounds: int) -> int:
             "amount": 1999,
             "tags": tags,
         }
-        # Compact separators: PHP and MWL emit no spaces, and this case measures the encoded length.
+        # Compact separators: PHP and Novis emit no spaces, and this case measures the encoded length.
         total = total + len(json.dumps(payload, separators=(",", ":")))
         i = i + 1
     return total

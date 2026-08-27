@@ -1,13 +1,13 @@
 --TEST--
 no identifier may start with `_`, so a leading-underscore local is rejected before anything runs — ADR 0030 § 1
 --FILE--
-<?mwl
+<?nvs
 int $_total = 1;
 echo $_total, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0112]: local variable names must be camelCase, e.g. `total`
-  --> case.mwl:2:5
+  --> case.nvs:2:5
 %A
 error: aborting due to 1 error

@@ -1,7 +1,7 @@
 --TEST--
 An object handed to a method is the same object the caller holds, exactly as in PHP
 --FILE--
-<?mwl
+<?nvs
 class Box {
     public int $value;
 

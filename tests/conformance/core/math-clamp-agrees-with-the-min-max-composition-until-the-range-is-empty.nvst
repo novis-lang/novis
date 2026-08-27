@@ -1,14 +1,14 @@
 --TEST--
 Core\Math::clamp answers exactly what min(max($x, $lo), $hi) answers on every row of a non-empty range, in either composition order, and parts from it only where the range is empty — docs/spec/01-core-library.md § 3
 --FILE--
-<?mwl
+<?nvs
 // `clamp` is the one member of the ordering trio that is not a binary fold, so
 // the question worth asking is whether it is the *composition* of the other
 // two rather than a third comparison grown for itself. Asked of every row of a
 // swept table and counted, so a `clamp` that is right at the bounds and wrong
 // one step outside them still fails here. That the range is closed at both
 // ends, and that a `low` above its `high` throws, is
-// math-clamp-is-closed-at-both-ends.mwlt.
+// math-clamp-is-closed-at-both-ends.nvst.
 
 // 1. `int`: every ordered pair drawn from four bounds, against nine subjects
 //    that sit below, on and above each of them — 90 rows. Both composition

@@ -1,7 +1,7 @@
 --TEST--
 echo takes a comma-separated list, and `.` concatenates
 --FILE--
-<?mwl
+<?nvs
 echo "a", "b", "c", "\n";
 echo "n=" . 41 . "\n";
 echo "" . "\n";

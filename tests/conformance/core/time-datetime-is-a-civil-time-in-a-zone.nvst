@@ -1,7 +1,7 @@
 --TEST--
 Spec § 4: a `DateTime` is a civil time in a zone, and its arithmetic counts calendar units
 --FILE--
-<?mwl
+<?nvs
 // `Zone::UTC` is the one zone that is ever a default, and only where it is
 // written — an ADR 0011 class constant, inlined at the use site.
 var $utc = Core\Time\Zone::UTC;

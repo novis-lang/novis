@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::map's result element type is the callback's return type, not the input's — the `U` of `map`
 --FILE--
-<?mwl
+<?nvs
 array<int> $ns = [1, 2, 3];
 array<string> $labels = Core\Arr::map($ns, fn(int $n): string => "n" . $n);
 echo Core\Str::join($labels, ","), "\n";

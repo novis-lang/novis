@@ -1,8 +1,8 @@
 --TEST--
 Core\Math::toBase and fromBase accept exactly bases 2 to 36, named on both sides of each end, spec § 3
 --FILE--
-<?mwl
-// `math-base-conversion-round-trips.mwlt` owns the inverse property and the
+<?nvs
+// `math-base-conversion-round-trips.nvst` owns the inverse property and the
 // refusal of a digit the base has no room for. What it does not say is where
 // the *base* argument stops: it shows base 1 refused at `toBase` and nothing
 // about the top end, nor that `fromBase` stops in the same place. Both

@@ -5,7 +5,7 @@
 //! rather than truly process-wide, since nothing yet needs a check run to
 //! outlive the request that produced it.
 //!
-//! [`Ty`] mirrors [`mwl_syntax::ast::TypeAtom`] closely, but resolved: a
+//! [`Ty`] mirrors [`nvs_syntax::ast::TypeAtom`] closely, but resolved: a
 //! `self`/`static`/`parent`/`type`-alias/class-name atom has already been
 //! turned into a concrete [`QName`] by [`crate::lower::lower_type`] before it
 //! reaches here, and a union/intersection is already canonicalized —
@@ -14,7 +14,7 @@
 //! than by source order, so `int|string` and `string|int|int` intern to the
 //! same `TypeId` regardless of how each was written.
 
-use mwl_hir::QName;
+use nvs_hir::QName;
 use rustc_hash::FxHashMap;
 
 /// A type, interned. Cheap to copy and compare — two `TypeId`s are equal
@@ -77,7 +77,7 @@ pub enum Ty {
     /// expression is an ordinary [`Self::Bool`] unless the position names
     /// this type — widens the same way ([`TypeInterner::literal_base`]), and
     /// erases the same way, to [`Self::Bool`]'s own representation
-    /// (§ 5, `mwl_ir::lower::erase_checked_ty`).
+    /// (§ 5, `nvs_ir::lower::erase_checked_ty`).
     True,
     /// `false` — [`Self::True`]'s other half, in every respect.
     False,
@@ -94,8 +94,8 @@ pub enum Ty {
     /// type claims.
     ///
     /// ADR 0047 § 5: no runtime representation of its own — it erases to
-    /// [`Self::String`] at the `mwl-ir` boundary
-    /// (`mwl_ir::lower::lower_checked_ty`), and the singleton-ness is enforced
+    /// [`Self::String`] at the `nvs-ir` boundary
+    /// (`nvs_ir::lower::lower_checked_ty`), and the singleton-ness is enforced
     /// entirely by the checker wherever the static type is known.
     StringLiteral(String),
     /// `1`, `-1` — ADR 0047 § 1's `int` counterpart of
@@ -121,7 +121,7 @@ pub enum Ty {
     ///
     /// The backing type rides along for [`Self::Enum`]'s own reason — it is
     /// part of what the type *is*, and it is what lets this erase to the
-    /// enum's existing zero-byte tag at the `mwl-ir` boundary with no
+    /// enum's existing zero-byte tag at the `nvs-ir` boundary with no
     /// re-resolution. The case *name* rides along rather than its value
     /// because § 6's diagnostic names `Mode::Read`, and the value is one
     /// [`crate::enums::EnumTable::case`] lookup away for anything that needs
@@ -139,12 +139,12 @@ pub enum Ty {
     /// [`Self::Callable`] accepts (ADR 0027 § 2 keeps a `callable` opaque, and
     /// this changes nothing about that), and exists only to say *where a
     /// variable comes from* at a position whose own type cannot say it. It
-    /// enters the interner only from `mwl_stdlib::registry`'s `CoreTy::CallableTo`
+    /// enters the interner only from `nvs_stdlib::registry`'s `CoreTy::CallableTo`
     /// through [`crate::core_lib`].
     ///
     /// Like [`Self::TypeVar`], it never survives a call site:
     /// [`crate::generics::substitute`] rewrites it to [`Self::Callable`], so
-    /// `mwl-ir` and every diagnostic only ever meet the plain type. That is also
+    /// `nvs-ir` and every diagnostic only ever meet the plain type. That is also
     /// why [`TypeInterner::describe`] renders it as `callable` — the variable
     /// name is a fact about the registry row, and a message quoting it would be
     /// naming something no program can write.
@@ -152,12 +152,12 @@ pub enum Ty {
     /// A resolved class or interface name, plus the type arguments it was
     /// written with — the type grammar does not distinguish a class from an
     /// interface (ADR 0007 § 3); which one `QName` names is a question for
-    /// [`mwl_hir::SymbolTable`], not this representation.
+    /// [`nvs_hir::SymbolTable`], not this representation.
     ///
     /// The argument list is empty for all but two names.
     /// [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) § 2
     /// lets a *compiler-owned* generic interface be written at a concrete
-    /// type — `Iterator<int>` — and `mwl_hir::interfaces::RESERVED` is the
+    /// type — `Iterator<int>` — and `nvs_hir::interfaces::RESERVED` is the
     /// closed roster of what may be. Anything else written with arguments is
     /// refused by [`crate::lower`] before it ever interns, so a non-empty
     /// list here always names one of those two interfaces.
@@ -165,8 +165,8 @@ pub enum Ty {
     /// Interning is structural, so `Iterator<int>` and `Iterator<string>` are
     /// two distinct `TypeId`s while `Counter` and `Counter` are one — which
     /// is the whole point of carrying the arguments in the type rather than
-    /// beside it. They are erased at the `mwl-ir` boundary
-    /// (`mwl_ir::lower::lower_checked_ty` maps every class to one pointer
+    /// beside it. They are erased at the `nvs-ir` boundary
+    /// (`nvs_ir::lower::lower_checked_ty` maps every class to one pointer
     /// type), exactly as a [`Self::TypeVar`] is erased at a call site: a type
     /// argument constrains what the checker accepts and never what the
     /// runtime stores.
@@ -178,12 +178,12 @@ pub enum Ty {
     /// because it *is* part of what the type is: ADR 0010 § 2 gives every enum
     /// exactly one underlying integer type, and § 6 makes an enum value that
     /// integer's representation with names attached. Carrying it here is what
-    /// lets `mwl-ir` lower an enum-typed binding to a machine integer without
-    /// re-resolving the declaration (`mwl_ir::lower::lower_checked_ty`). It is
+    /// lets `nvs-ir` lower an enum-typed binding to a machine integer without
+    /// re-resolving the declaration (`nvs_ir::lower::lower_checked_ty`). It is
     /// a function of the `QName`, so it never splits one enum into two
     /// interned types.
     Enum(QName, crate::enums::EnumBacking),
-    /// `{name: T, ...}` — ADR 0036 § 3, MWL's one structurally-checked type.
+    /// `{name: T, ...}` — ADR 0036 § 3, Novis's one structurally-checked type.
     /// Fields are sorted by name (see [`TypeInterner::shape`]) so two shapes
     /// naming the same fields in a different written order intern to the
     /// same `TypeId`; unlike [`Self::Union`]/[`Self::Intersection`] there is
@@ -195,7 +195,7 @@ pub enum Ty {
     ///
     /// The second type in this enum no source text can spell (see
     /// [`Self::TypeVar`] for the first): it only ever enters the interner from
-    /// `mwl_stdlib::registry`'s `CoreTy::Options` through [`crate::core_lib`].
+    /// `nvs_stdlib::registry`'s `CoreTy::Options` through [`crate::core_lib`].
     /// A *value* of this type is still written by hand — an ADR 0036 object
     /// literal at the call site — but the type itself is never written, which
     /// is why there is no `?` in the surface type grammar.
@@ -208,7 +208,7 @@ pub enum Ty {
     ///
     /// Fields keep their **declared order** rather than being sorted the way
     /// [`TypeInterner::shape`] sorts a shape's: that order is the order
-    /// `mwl_ir::lower::lower_call_args` flattens the bag into ABI arguments,
+    /// `nvs_ir::lower::lower_call_args` flattens the bag into ABI arguments,
     /// so two members whose options differ only in order are genuinely two
     /// different types and must not intern to one.
     Options(Vec<(String, TypeId)>),
@@ -223,7 +223,7 @@ pub enum Ty {
     /// The one type in this enum no source text can spell. ADR 0007 parks
     /// user-declared generics and `docs/agent/loop-goal.md` keeps type variables
     /// compiler-owned, so a `TypeVar` only ever enters the interner from
-    /// `mwl_stdlib::registry`'s `Core` signatures ([`crate::core_lib`]) or
+    /// `nvs_stdlib::registry`'s `Core` signatures ([`crate::core_lib`]) or
     /// ADR 0053 § 1's two iteration interfaces ([`crate::iter_lib`]) —
     /// [`crate::lower`] has no arm producing one, which is what makes that a
     /// property of the code rather than a convention. `Iterator<int>` written
@@ -234,7 +234,7 @@ pub enum Ty {
     /// docs own the substitution rule: a generic signature is unified against
     /// the actual argument types and rewritten before anything checks an
     /// argument or records a `ResolvedCall`, so every later pass — including
-    /// every `mwl-ir` lowering — only ever sees concrete types. A variable
+    /// every `nvs-ir` lowering — only ever sees concrete types. A variable
     /// that no argument bound is the one exception, and substitutes to
     /// [`Self::Mixed`]: the honest answer for "this position's type is
     /// unconstrained by the call," and the only one that keeps a later pass
@@ -578,7 +578,7 @@ impl TypeInterner {
     /// The type ADR 0047 § 4's first four rows widen `id` to: a literal type's
     /// base type, an enum-case type's enum, and anything else unchanged.
     ///
-    /// The checker-side counterpart of `mwl_ir::lower::lower_checked_ty`'s
+    /// The checker-side counterpart of `nvs_ir::lower::lower_checked_ty`'s
     /// erasure — § 5 gives a literal type no representation of its own, so
     /// every question about what a value of one can *do* is a question about
     /// its base. A union is widened member-wise, which is what makes

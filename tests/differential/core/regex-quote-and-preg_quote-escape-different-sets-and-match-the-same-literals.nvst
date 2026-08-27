@@ -1,7 +1,7 @@
 --TEST--
 Core\Regex::quote and preg_quote escape different character sets, so what agrees is the behaviour: a quoted literal matches itself, matches itself inside a larger subject, and matches nothing else
 --FILE--
-<?mwl
+<?nvs
 // Spec § 5's `quote` row, and ADR 0056 §§ 4-5. The member takes no
 // `$delimiter` argument because § 5 removed the `/…/` syntax the PHP one
 // existed for — a pattern here is a pattern, not a pattern wrapped in

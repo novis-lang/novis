@@ -1,7 +1,7 @@
 --TEST--
 `uint` holds 0, i64::MAX, i64::MAX + 1 and 2^64 − 1, and never mixes signedness in arithmetic — ADR 0007 § 4
 --FILE--
-<?mwl
+<?nvs
 uint $zero = 0;
 uint $signedMax = 9223372036854775807;
 uint $pastSigned = 9223372036854775808;

@@ -1,7 +1,7 @@
 --TEST--
 `?->` is a read operator only: a nullsafe property, and a nullsafe subscript over one, are both refused as assignment targets — ADR 0007 § 3
 --FILE--
-<?mwl
+<?nvs
 // `?->` answers `null` when the receiver is `null`, and `null` is not a place
 // to write to, so an assignment through one would silently do nothing on that
 // path. PHP refuses the same two spellings ("Can't use nullsafe operator in
@@ -27,9 +27,9 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0479]: `?->` cannot be written through
-   --> case.mwl:20:1
+   --> case.nvs:20:1
 %A
 error[E0479]: `?->` cannot be written through
-   --> case.mwl:21:1
+   --> case.nvs:21:1
 %A
 error: aborting due to 2 errors

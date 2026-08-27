@@ -1,7 +1,7 @@
 --TEST--
 Every Core\Arr member that answers a key answers the same string, and the one that takes a key normalises an integer to it — ADR 0069 § 5 and ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 // The depth claim is *agreement*. ADR 0069 § 5 names six members whose answer
 // is a key — `keys`, `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip` — and
 // says all of them return `string` because ADR 0007 § 5 stores every key as
@@ -10,7 +10,7 @@ Every Core\Arr member that answers a key answers the same string, and the one th
 // grew its own idea of a key — handing back an `int` for a numeric spelling, as
 // PHP's `array_keys` does, or repairing `"08"` to `"8"` — would still look
 // right on its own line and fails here. `keys` on its own is
-// arr-keys-are-always-strings.mwlt.
+// arr-keys-are-always-strings.nvst.
 class Ask {
     // Every value of an array under a leading separator, so an empty array
     // folds to "". Keys are not read: they are what is being compared.

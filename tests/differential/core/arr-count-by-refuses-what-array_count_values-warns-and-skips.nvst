@@ -3,7 +3,7 @@ Core\Arr::countBy refuses a value it cannot name a bucket for, where array_count
 --ORACLE-DIVERGES--
 `array_count_values([1.5, 2.5, 1.5])` emits `Warning: Can only count string and integer values, entry skipped` three times and answers the empty array — a result that is missing every entry it was asked about, from a call that succeeded. `Core\Arr::countBy` refuses the call instead, which is what `Core\Arr::flip` already does with the identical situation and what AGENTS.md's ordering asks for: a silently short answer is a correctness failure the caller cannot see, and a member of `Core` does not produce one. The two languages agree on every value a bucket *can* be named for, which `arr-count-by-matches-array_count_values` asserts against PHP itself; `{by: ...}` is the way a subject PHP cannot count at all is counted here, and PHP has no function for that half.
 --FILE--
-<?mwl
+<?nvs
 final class Render {
     public static function counts(array<uint> $a): string {
         var $out = "";
@@ -25,7 +25,7 @@ echo Render::counts(Core\Arr::countBy($words)), "\n";
 array<float> $prices = [1.5, 2.5, 1.5];
 echo Render::counts(Core\Arr::countBy($prices, {by: fn (float $p): string => $p as string})), "\n";
 
-// The same subject with no `by` to name a bucket. `mwl_core_arr_count_by`'s doc
+// The same subject with no `by` to name a bucket. `nvs_core_arr_count_by`'s doc
 // comment owns the rule: a value that is neither an `int` nor a `string` and
 // has nothing naming it is where the call stops.
 echo Render::counts(Core\Arr::countBy($prices)), "\n";

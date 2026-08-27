@@ -351,7 +351,7 @@ pub(super) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut 
 ///
 /// Only a heredoc/nowdoc can ever reach this with the opening `<<<`-only span
 /// it needs its own flexible-indentation strip
-/// (`mwl_syntax::parser::collapse_string_parts` never produces a nowdoc
+/// (`nvs_syntax::parser::collapse_string_parts` never produces a nowdoc
 /// `Interpolated` at all: a nowdoc has no interpolation syntax by
 /// construction, so it always collapses to `ExprKind::Str`, which
 /// [`infer_str_literal`] handles). Each interpolated expression must be
@@ -391,7 +391,7 @@ pub(super) fn infer_interpolated(
             // of whether the overall literal is double-quoted or an
             // interpolated heredoc — see `crate::string_lit`'s own module docs
             // for why one routine cooks both. The span never includes a quote
-            // character (`mwl_syntax::parser::parse_string_body` never emits one
+            // character (`nvs_syntax::parser::parse_string_body` never emits one
             // as part of a `Text` token), so no quote-kind check is needed the
             // way [`infer_str_literal`] needs one — except a heredoc's own
             // flexible indentation, which has to be stripped from each run
@@ -425,10 +425,10 @@ const MAX_DECIMAL_SCALE: i32 = 28;
 /// Records that the numeric literal at `span` was placed at `decimal`, and
 /// answers that type.
 ///
-/// The recording is what lets `mwl_ir::lower` fold the literal from its own
+/// The recording is what lets `nvs_ir::lower` fold the literal from its own
 /// **digits** rather than through an `f64`. It needs it because ADR 0054 § 2's
 /// placing target is not always visible there: a declared type reaches
-/// lowering as `mwl_ir::ty::Ty`, which erases an array's element type, so
+/// lowering as `nvs_ir::ty::Ty`, which erases an array's element type, so
 /// `array<decimal> $prices = [19.99];` would otherwise put a `float` in the
 /// array the checker just typed `decimal`. Reading the answer back is the same
 /// arrangement [`crate::expr_table::ExprTypeTable::declared_ty`] already
@@ -524,16 +524,16 @@ pub(super) fn report_decimal_out_of_range(reason: &str, span: Span, env: &mut En
 
 /// Splits an integer-literal span's cooked text into the radix its prefix
 /// names and the digit run to parse against it — the same job
-/// `mwl_ir::lower::int_literal_digits` does for lowering, duplicated here
-/// rather than shared: this crate has no dependency on `mwl-ir` (the
+/// `nvs_ir::lower::int_literal_digits` does for lowering, duplicated here
+/// rather than shared: this crate has no dependency on `nvs-ir` (the
 /// dependency runs the other way), and the magnitude has to be known here,
 /// at check time, so [`infer_int_literal`] can report ADR 0007 § 4's
 /// diagnostic itself rather than let an out-of-range literal surface only as
-/// a lowering-time panic once `mwl-ir` tries to cook the same span. Strips
+/// a lowering-time panic once `nvs-ir` tries to cook the same span. Strips
 /// `_` digit separators the same way; a legacy leading-zero octal spelling
 /// like PHP's `0755` is deliberately not one of the recognized prefixes (see
-/// `mwl_ir`'s own copy of this function for why), so it falls through to the
-/// decimal case, matching `mwl-syntax`'s lexer.
+/// `nvs_ir`'s own copy of this function for why), so it falls through to the
+/// decimal case, matching `nvs-syntax`'s lexer.
 pub(crate) fn int_literal_digits(src: &SourceFile, span: Span) -> (u32, String) {
     let cleaned: String = span_text(src, span).chars().filter(|&c| c != '_').collect();
     for (prefix, radix) in [
@@ -563,7 +563,7 @@ pub(super) fn inner_quoted_span(span: Span) -> Span {
 
 /// Cooks `span` (already known to be double-quoted-grammar text — see the two
 /// call sites in [`infer`]) purely to surface [`crate::string_lit::CookIssue`]s
-/// as diagnostics; the cooked `String` itself is discarded here; `mwl-ir`
+/// as diagnostics; the cooked `String` itself is discarded here; `nvs-ir`
 /// re-cooks it from the same span when it actually lowers the literal, per
 /// `crate::string_lit`'s own module docs on why that duplicate call is safe
 /// (one shared implementation) rather than a second, divergent one.
@@ -635,7 +635,7 @@ pub(super) fn report_heredoc_indent_issues(
 /// a `Str`-collapsed literal, or one `StringPart::Text` span inside an `Interpolated` one —
 /// reporting both indentation and (for a heredoc, never a nowdoc) escape-cooking issues found
 /// along the way. The cooked `String` itself is discarded, same as [`check_double_quoted_text_issues`]:
-/// `mwl-ir` re-cooks it from the same inputs when it actually lowers the literal.
+/// `nvs-ir` re-cooks it from the same inputs when it actually lowers the literal.
 pub(super) fn check_heredoc_run_issues(
     indent: &str,
     span: Span,
@@ -673,7 +673,7 @@ pub(super) fn check_heredoc_run_issues(
 /// **A field name written twice is `E0494`.** A shape's fields are a set —
 /// `{a: int}` names one slot `a` — and the two sides of a repeated name would
 /// not even agree on which write survives: the interned shape reads the first
-/// of the pair, while the class `mwl_ir::lower` synthesizes carries one slot
+/// of the pair, while the class `nvs_ir::lower` synthesizes carries one slot
 /// per name and would keep the last. PHP's nearest neighbour is a duplicate
 /// *array* key, where the last write wins silently, and that reading is not
 /// carried over: an array is a map and a shape is a record. The duplicate's
@@ -818,10 +818,10 @@ fn check_spread_element(
 
 /// `&value` as an array-literal element is refused here rather than lowered.
 ///
-/// PHP's `[&$x]` makes the element and `$x` the same storage, and MWL has no
+/// PHP's `[&$x]` makes the element and `$x` the same storage, and Novis has no
 /// rule that can own one: ADR 0031 § 2 removed by-reference capture, so no
 /// binding aliases another, and ADR 0023 fixes an element as a copy taken
-/// where the literal is evaluated. So this is not a gap in `mwl-ir` — the
+/// where the literal is evaluated. So this is not a gap in `nvs-ir` — the
 /// panic it used to reach was reporting the absence of a feature the language
 /// decided against — and the refusal names the decision rather than the
 /// missing lowering. Checking continues past it: the element's value is an
@@ -835,7 +835,7 @@ fn report_by_reference_element(item: &ArrayItem, env: &mut Env<'_>) {
         )
         .with_primary(item.span, "this element is `&value`")
         .with_help(
-            "MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 \
+            "Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 \
              makes an element a copy, so drop the `&` — to share one mutable cell, hold it in \
              an object and store that",
         ),

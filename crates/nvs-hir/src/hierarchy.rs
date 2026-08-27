@@ -29,11 +29,11 @@
 //! consumer's.
 //!
 //! **Known gap:** a target under `Core` ([`QName::is_core`]) is trusted to
-//! exist, same as a `use` import — `mwl-stdlib` doesn't exist yet, so its
+//! exist, same as a `use` import — `nvs-stdlib` doesn't exist yet, so its
 //! members can't be checked either.
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use mwl_syntax::ast::{Name, NamespaceDecl, Stmt, StmtKind};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_syntax::ast::{Name, NamespaceDecl, Stmt, StmtKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::qname::QName;
@@ -284,7 +284,7 @@ fn raw_ref(src: &SourceFile, name: &Name) -> RawRef {
 /// segment is checked against `imports`, and failing that the whole
 /// reference is taken as relative to `namespace`.
 ///
-/// Exported (rather than `pub(crate)`) so `mwl-types` can resolve a type
+/// Exported (rather than `pub(crate)`) so `nvs-types` can resolve a type
 /// atom's `Name` the same way every resolver in this crate already resolves
 /// an `extends`/`implements`/alias reference, instead of duplicating this
 /// logic.
@@ -357,7 +357,7 @@ fn resolve_supertype(
 
 /// Whether `qname` is provably known to satisfy `target` — walking every
 /// `extends`/`implements` ancestor, the same shape
-/// [`crate::members::member_declared`] and every `mwl-types` signature
+/// [`crate::members::member_declared`] and every `nvs-types` signature
 /// lookup already walk, generalised here to a plain reachability question
 /// rather than a member lookup. `target` itself need not have a
 /// [`ClassGraph`] entry — a reserved global interface like ADR 0013's
@@ -368,7 +368,7 @@ fn resolve_supertype(
 /// every caller wants and three of them already spelled for themselves before
 /// calling (`is_throwable_shaped`, `is_visible_from`, and
 /// `classes_are_unrelated`, which returns early on equal names) — and the one
-/// that did not, `mwl_types::expr::operators::require_stringable`, was
+/// that did not, `nvs_types::expr::operators::require_stringable`, was
 /// refusing `echo $s` on a `Stringable $s` for it: a value typed at the
 /// interface provably has the member the interface declares, which is the
 /// whole of what this predicate is asked. The name still reads
@@ -455,15 +455,15 @@ fn visit(
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::SourceMap;
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::SourceMap;
+    use nvs_syntax::parse_file;
 
     use super::*;
     use crate::resolve::resolve_file;
 
     fn resolve(src: &str) -> (ClassGraph, Diagnostics) {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -473,7 +473,7 @@ mod tests {
 
     #[test]
     fn a_class_extends_a_declared_class() {
-        let (graph, diags) = resolve("<?mwl\nclass Base {}\nclass Sub extends Base {}\n");
+        let (graph, diags) = resolve("<?nvs\nclass Base {}\nclass Sub extends Base {}\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let links = graph.get(&QName::parse("Sub")).unwrap();
         assert_eq!(links.extends, vec![QName::parse("Base")]);
@@ -481,7 +481,7 @@ mod tests {
 
     #[test]
     fn extending_an_undeclared_class_is_diagnosed() {
-        let (_graph, diags) = resolve("<?mwl\nclass Sub extends Missing {}\n");
+        let (_graph, diags) = resolve("<?nvs\nclass Sub extends Missing {}\n");
         assert!(
             diags
                 .iter()
@@ -491,7 +491,7 @@ mod tests {
 
     #[test]
     fn extending_an_interface_from_a_class_is_diagnosed() {
-        let (_graph, diags) = resolve("<?mwl\ninterface Shape {}\nclass Sub extends Shape {}\n");
+        let (_graph, diags) = resolve("<?nvs\ninterface Shape {}\nclass Sub extends Shape {}\n");
         assert!(
             diags
                 .iter()
@@ -501,7 +501,7 @@ mod tests {
 
     #[test]
     fn a_class_implements_a_declared_interface() {
-        let (graph, diags) = resolve("<?mwl\ninterface Shape {}\nclass Sub implements Shape {}\n");
+        let (graph, diags) = resolve("<?nvs\ninterface Shape {}\nclass Sub implements Shape {}\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let links = graph.get(&QName::parse("Sub")).unwrap();
         assert_eq!(links.implements, vec![QName::parse("Shape")]);
@@ -509,7 +509,7 @@ mod tests {
 
     #[test]
     fn a_forward_reference_to_a_later_declaration_resolves() {
-        let (graph, diags) = resolve("<?mwl\nclass Sub extends Base {}\nclass Base {}\n");
+        let (graph, diags) = resolve("<?nvs\nclass Sub extends Base {}\nclass Base {}\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let links = graph.get(&QName::parse("Sub")).unwrap();
         assert_eq!(links.extends, vec![QName::parse("Base")]);
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn a_use_import_resolves_an_unqualified_extends() {
         let (graph, diags) = resolve(
-            "<?mwl\nnamespace App;\nclass Base {}\nnamespace App\\Http;\nuse App\\Base;\nclass Sub extends Base {}\n",
+            "<?nvs\nnamespace App;\nclass Base {}\nnamespace App\\Http;\nuse App\\Base;\nclass Sub extends Base {}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
         let links = graph.get(&QName::parse("App\\Http\\Sub")).unwrap();
@@ -527,7 +527,7 @@ mod tests {
 
     #[test]
     fn a_two_class_extends_cycle_is_diagnosed() {
-        let (_graph, diags) = resolve("<?mwl\nclass A extends B {}\nclass B extends A {}\n");
+        let (_graph, diags) = resolve("<?nvs\nclass A extends B {}\nclass B extends A {}\n");
         assert!(
             diags
                 .iter()
@@ -537,7 +537,7 @@ mod tests {
 
     #[test]
     fn implementing_the_reserved_comparable_interface_needs_no_declaration() {
-        let (graph, diags) = resolve("<?mwl\nclass Money implements Comparable {}\n");
+        let (graph, diags) = resolve("<?nvs\nclass Money implements Comparable {}\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let links = graph.get(&QName::parse("Money")).unwrap();
         assert_eq!(links.implements, vec![QName::parse("Comparable")]);
@@ -545,7 +545,7 @@ mod tests {
 
     #[test]
     fn implements_interface_finds_a_directly_implemented_interface() {
-        let (graph, diags) = resolve("<?mwl\nclass Money implements Comparable {}\n");
+        let (graph, diags) = resolve("<?nvs\nclass Money implements Comparable {}\n");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(implements_interface(
             &QName::parse("Money"),
@@ -557,7 +557,7 @@ mod tests {
     #[test]
     fn implements_interface_walks_up_a_superclass() {
         let (graph, diags) =
-            resolve("<?mwl\nclass Money implements Comparable {}\nclass Cents extends Money {}\n");
+            resolve("<?nvs\nclass Money implements Comparable {}\nclass Cents extends Money {}\n");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(implements_interface(
             &QName::parse("Cents"),
@@ -569,7 +569,7 @@ mod tests {
     #[test]
     fn implements_interface_walks_an_interface_extends_chain() {
         let (graph, diags) = resolve(
-            "<?mwl\ninterface Shape extends Comparable {}\nclass Box implements Shape {}\n",
+            "<?nvs\ninterface Shape extends Comparable {}\nclass Box implements Shape {}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(implements_interface(
@@ -581,9 +581,9 @@ mod tests {
 
     #[test]
     fn a_class_extending_the_reserved_global_exception_resolves_with_no_declaration() {
-        // Spec § 10: `Throwable` is a global class with no `mwl-hir`
+        // Spec § 10: `Throwable` is a global class with no `nvs-hir`
         // declaration of its own — trusted the same way `Core`'s classes are.
-        let (graph, diags) = resolve("<?mwl\nclass MyError extends Throwable {}\n");
+        let (graph, diags) = resolve("<?nvs\nclass MyError extends Throwable {}\n");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(implements_interface(
             &QName::parse("MyError"),
@@ -597,7 +597,7 @@ mod tests {
         // A user class reaches the root through the seeded links, with the
         // ordinary parent walk and no special case — which is why every
         // consumer can just ask the graph.
-        let (graph, diags) = resolve("<?mwl\nclass MyError extends TimeoutError {}\n");
+        let (graph, diags) = resolve("<?nvs\nclass MyError extends TimeoutError {}\n");
         assert!(!diags.has_errors(), "{diags:?}");
         for ancestor in ["TimeoutError", "RuntimeError", "Throwable"] {
             assert!(
@@ -609,7 +609,7 @@ mod tests {
 
     #[test]
     fn implements_interface_is_false_when_unrelated() {
-        let (graph, diags) = resolve("<?mwl\nclass Plain {}\n");
+        let (graph, diags) = resolve("<?nvs\nclass Plain {}\n");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(!implements_interface(
             &QName::parse("Plain"),

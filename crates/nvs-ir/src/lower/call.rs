@@ -11,7 +11,7 @@ use super::*;
 impl<'a> Lowering<'a> {
     /// Lowers a resolved call's/`new`'s argument list against `param_tys` —
     /// the already-resolved parameter types from
-    /// `mwl_types::expr_table::ResolvedCall` — placing each written argument at
+    /// `nvs_types::expr_table::ResolvedCall` — placing each written argument at
     /// the ABI position of the parameter it fills rather than at its own place
     /// in the list. Which parameter that is comes from [`ArgSig::arg_slots`],
     /// which owns why this crate cannot work it out itself. An argument whose
@@ -40,7 +40,7 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// Panics naming the shape for anything this crate trusts
-    /// `mwl_types::check_program` to have refused before it ever got here: an
+    /// `nvs_types::check_program` to have refused before it ever got here: an
     /// argument that reached no parameter at all, more arguments than `sig`
     /// has parameters, a parameter no argument filled and that has no default,
     /// or a by-reference argument that is neither a bare local nor a
@@ -82,7 +82,7 @@ impl<'a> Lowering<'a> {
     ) -> LoweredArgs {
         let CallArgs::List(list) = args else {
             panic!(
-                "mwl-ir only lowers a plain positional argument list for a resolved call/`new` \
+                "nvs-ir only lowers a plain positional argument list for a resolved call/`new` \
                  — got {args:?}; see the crate docs' known gaps"
             );
         };
@@ -96,8 +96,8 @@ impl<'a> Lowering<'a> {
         assert_eq!(
             list.len(),
             sig.arg_slots.len(),
-            "mwl-ir: a resolved call records one argument slot per written argument — \
-             mwl_types is trusted to have mapped every one of them"
+            "nvs-ir: a resolved call records one argument slot per written argument — \
+             nvs_types is trusted to have mapped every one of them"
         );
         // One entry per fixed parameter, at its own ABI position — `None` until
         // some argument fills it, and a `Vec` rather than a value because ADR
@@ -108,8 +108,8 @@ impl<'a> Lowering<'a> {
             let index = match *slot {
                 ArgSlot::Param(index) | ArgSlot::Spread(index) => index,
                 ArgSlot::Unresolved => panic!(
-                    "mwl-ir: a written argument reached no parameter — this crate trusts \
-                     mwl_types::check_program already reported it"
+                    "nvs-ir: a written argument reached no parameter — this crate trusts \
+                     nvs_types::check_program already reported it"
                 ),
             };
             // Everything from the variadic parameter onward is one array,
@@ -133,8 +133,8 @@ impl<'a> Lowering<'a> {
         }
         assert!(
             sig.variadic || tail.is_empty(),
-            "mwl-ir: a resolved call passes more arguments than its signature has parameters — \
-             this crate trusts mwl_types::check_program already enforced arity"
+            "nvs-ir: a resolved call passes more arguments than its signature has parameters — \
+             this crate trusts nvs_types::check_program already enforced arity"
         );
         let mut out = LoweredArgs::default();
         for (index, one) in filled.into_iter().enumerate() {
@@ -170,7 +170,7 @@ impl<'a> Lowering<'a> {
     )]
     fn lower_fixed_arg(
         &mut self,
-        arg: &mwl_syntax::ast::Arg,
+        arg: &nvs_syntax::ast::Arg,
         index: usize,
         sig: &ArgSig,
         checked_types: &TypeInterner,
@@ -199,9 +199,9 @@ impl<'a> Lowering<'a> {
         }
         // A `Core` parameter declared as a union has no single IR
         // representation to expect, and needs none: the helper's slot is a
-        // tagged `Value` that `mwl-codegen` writes from the *argument's* own
+        // tagged `Value` that `nvs-codegen` writes from the *argument's* own
         // representation. See `ArgSig::helper`, which owns why the same
-        // declaration on a compiled MWL function is not lowerable.
+        // declaration on a compiled Novis function is not lowerable.
         let expected = match sig.expectation(index, checked_types) {
             Some(expected) => expected,
             None => {
@@ -248,8 +248,8 @@ impl<'a> Lowering<'a> {
     ) {
         let default = sig.defaults[index].as_ref().unwrap_or_else(|| {
             panic!(
-                "mwl-ir: parameter {index} was filled by no argument at a call site and has no \
-                 default — this crate trusts mwl_types::check_program already enforced arity"
+                "nvs-ir: parameter {index} was filled by no argument at a call site and has no \
+                 default — this crate trusts nvs_types::check_program already enforced arity"
             )
         });
         // A bag omitted whole is every one of its options taking its own
@@ -258,11 +258,11 @@ impl<'a> Lowering<'a> {
         // literal, so it is reached rather than repeated here. Going through
         // it is also what gives an omitted option the same widening into its
         // declared slot that a written one gets.
-        if let mwl_types::ConstArg::Options(options) = default {
+        if let nvs_types::ConstArg::Options(options) = default {
             let CheckedTy::Options(declared) = checked_types.get(sig.param_tys[index]) else {
                 panic!(
-                    "mwl-ir: parameter {index} carries an options-bag default but its declared \
-                     type is not an options bag — mwl_types is trusted to record the two together"
+                    "nvs-ir: parameter {index} carries an options-bag default but its declared \
+                     type is not an options bag — nvs_types is trusted to record the two together"
                 );
             };
             self.lower_options_arg(
@@ -289,7 +289,7 @@ impl<'a> Lowering<'a> {
     /// argument from parameter `fixed` onward collected into one fresh
     /// `array<T>`, keyed `"0"`, `"1"`, … in written order.
     ///
-    /// The array is what `mwl_stdlib::registry::CoreTy::Variadic` promises the
+    /// The array is what `nvs_stdlib::registry::CoreTy::Variadic` promises the
     /// helper — a `Tag::Array` in a fixed `args: [N]` slot — so a variadic
     /// member costs one allocation per call and needs no second calling
     /// convention. A call that writes no trailing argument still passes an
@@ -308,7 +308,7 @@ impl<'a> Lowering<'a> {
     /// A spread hands over an array whose *entries* become arguments, so it is
     /// one [`ir::InstKind::ArraySpread`] into the tail array rather than one
     /// entry of it: how many arrived is the subject's own run-time length, and
-    /// there is no lowering-time key to give them. `mwl_runtime::mwl_array_spread`
+    /// there is no lowering-time key to give them. `nvs_runtime::nvs_array_spread`
     /// owns which of the subject's keys survive (ADR 0007 § 5) and it is PHP's
     /// unpacking rule as well as PHP's array-literal one — an integer-looking
     /// key is renumbered under the tail's own append counter, so
@@ -318,7 +318,7 @@ impl<'a> Lowering<'a> {
     /// The written-out entries keep their single `ArrayNew` because they are
     /// always a *prefix*: a positional argument cannot follow a `...`, and a
     /// `name:` never reaches the variadic parameter at all
-    /// (`mwl_types::expr::args::map_arguments` rules 1 and 3). So a call with
+    /// (`nvs_types::expr::args::map_arguments` rules 1 and 3). So a call with
     /// no spread emits exactly the instruction it emitted before.
     ///
     /// The subject is **borrowed** by the copy and the half-built array is
@@ -332,7 +332,7 @@ impl<'a> Lowering<'a> {
     )]
     fn lower_variadic_tail(
         &mut self,
-        rest: &[&mwl_syntax::ast::Arg],
+        rest: &[&nvs_syntax::ast::Arg],
         fixed: usize,
         sig: &ArgSig,
         ownership: ArgOwnership,
@@ -364,13 +364,13 @@ impl<'a> Lowering<'a> {
     /// to happen or the allocation leaks.
     fn lower_args_as_array(
         &mut self,
-        rest: &[&mwl_syntax::ast::Arg],
+        rest: &[&nvs_syntax::ast::Arg],
         expected: Option<Ty>,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> ValueId {
         // Every argument written out one by one is a prefix of the tail: a
-        // positional argument cannot follow a `...` (`mwl_types`' E0488) and a
+        // positional argument cannot follow a `...` (`nvs_types`' E0488) and a
         // `name:` never reaches the variadic parameter at all, so the first
         // spread is where the lowering-time keys stop.
         let spread_from = rest.iter().position(|arg| arg.spread).unwrap_or(rest.len());
@@ -380,7 +380,7 @@ impl<'a> Lowering<'a> {
             if ty.is_refcounted() && self.aliasing_read(&arg.value) {
                 self.emit_retain(*cur, v);
             }
-            // The element is stored as a whole `mwl_runtime::Value`, so it is
+            // The element is stored as a whole `nvs_runtime::Value`, so it is
             // widened into the parameter's own representation here exactly as
             // a fixed argument is — `Self::coerce` is ownership-transparent,
             // so the retain above still pays for what lands in the array.
@@ -401,8 +401,8 @@ impl<'a> Lowering<'a> {
             for arg in &rest[spread_from..] {
                 assert!(
                     arg.spread,
-                    "mwl-ir: a positional argument follows a `...` in a variadic tail — \
-                     this crate trusts mwl_types::check_program already reported it as E0488"
+                    "nvs-ir: a positional argument follows a `...` in a variadic tail — \
+                     this crate trusts nvs_types::check_program already reported it as E0488"
                 );
                 let mark = self.temporaries_mark();
                 // The subject is *borrowed* by the copy, so a freshly-built one
@@ -474,10 +474,10 @@ impl<'a> Lowering<'a> {
     ///
     /// `written` is the object literal the call site passed, or `None` for a
     /// bag omitted entirely. This is why an options argument has to be a
-    /// literal at the call site (`mwl_types` reports `E_OPTIONS_NOT_A_LITERAL`
+    /// literal at the call site (`nvs_types` reports `E_OPTIONS_NOT_A_LITERAL`
     /// for anything else): the flattening is per-option and static, so there
     /// is nothing to read a variable's fields out of. Nothing below this line
-    /// — not `mwl-codegen`, not the helper convention a `Core` member is
+    /// — not `nvs-codegen`, not the helper convention a `Core` member is
     /// reached through — learns that bags exist, exactly as nothing learns
     /// that defaults do ([`Self::emit_const_arg`]).
     ///
@@ -485,7 +485,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics if `written` is not an object literal, or if an option has
     /// neither a written field nor a default: both are shapes
-    /// `mwl_types::check_program` and `mwl_types::core_lib` are trusted to
+    /// `nvs_types::check_program` and `nvs_types::core_lib` are trusted to
     /// have made impossible.
     #[expect(
         clippy::too_many_arguments,
@@ -498,7 +498,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         written: Option<&Expr>,
         options: &[(String, TypeId)],
-        defaults: &[(String, mwl_types::ConstArg)],
+        defaults: &[(String, nvs_types::ConstArg)],
         checked_types: &TypeInterner,
         ownership: ArgOwnership,
         env: &mut Env,
@@ -512,8 +512,8 @@ impl<'a> Lowering<'a> {
                     .map(|field| (span_text(self.src, field.name).to_owned(), &field.value))
                     .collect(),
                 other => panic!(
-                    "mwl-ir: an options argument lowered from {other:?} rather than an object \
-                     literal — mwl_types::check_program is trusted to have reported \
+                    "nvs-ir: an options argument lowered from {other:?} rather than an object \
+                     literal — nvs_types::check_program is trusted to have reported \
                      E_OPTIONS_NOT_A_LITERAL for anything else"
                 ),
             },
@@ -524,7 +524,7 @@ impl<'a> Lowering<'a> {
             // type erases to, exactly as a positional argument is. A helper's
             // slot is a whole `Value` and would take either representation
             // (`ArgSig::helper`), so for a `Core` member this is the identity;
-            // a compiled MWL function's slot is typed, and `Throwable|null`
+            // a compiled Novis function's slot is typed, and `Throwable|null`
             // being `Ty::Tagged` is what makes the exception constructor's
             // `{previous}` bag reach it at all.
             let expected = lower_checked_ty(*option_ty, checked_types);
@@ -542,8 +542,8 @@ impl<'a> Lowering<'a> {
                 .map(|(_, value)| value)
                 .unwrap_or_else(|| {
                     panic!(
-                        "mwl-ir: the option `{name}` was omitted at a call site and has no \
-                         default — mwl_types::core_lib is trusted to record one per declared \
+                        "nvs-ir: the option `{name}` was omitted at a call site and has no \
+                         default — nvs_types::core_lib is trusted to record one per declared \
                          option"
                     )
                 });
@@ -556,16 +556,16 @@ impl<'a> Lowering<'a> {
     /// Materializes one omitted parameter's default as an ordinary constant in
     /// `cur`.
     ///
-    /// This is the whole of MWL's default-argument mechanism at the IR level,
+    /// This is the whole of Novis's default-argument mechanism at the IR level,
     /// which is the point of evaluating a default at signature collection
-    /// rather than in the callee (`mwl_types::defaults` owns why): every
+    /// rather than in the callee (`nvs_types::defaults` owns why): every
     /// compiled function keeps exactly one arity, so nothing below this line —
-    /// not the ADR 0002 call ABI, not `mwl-codegen`, not the helper
+    /// not the ADR 0002 call ABI, not `nvs-codegen`, not the helper
     /// convention a `Core` member is reached through — learns that defaults
     /// exist at all.
     ///
     /// A `ConstArg::Str` allocates a fresh string per evaluation, exactly as a
-    /// written string literal does today (`mwl-codegen`'s known gap 4); it is
+    /// written string literal does today (`nvs-codegen`'s known gap 4); it is
     /// the same `InstKind::ConstStr` and closing that gap closes both.
     /// `ConstArg::Bytes` is that entry under `Ty::Bytes` — one allocation,
     /// one tag apart — and it is the only way a `bytes` constant enters a
@@ -578,11 +578,11 @@ impl<'a> Lowering<'a> {
     /// 0002's error edge like any other call.
     pub(super) fn emit_const_arg(
         &mut self,
-        default: &mwl_types::ConstArg,
+        default: &nvs_types::ConstArg,
         env: &mut Env,
         cur: BlockId,
     ) -> (ValueId, Ty) {
-        if let mwl_types::ConstArg::Built { symbol, args } = default {
+        if let nvs_types::ConstArg::Built { symbol, args } = default {
             let mark = self.temporaries_mark();
             // A `Core` member *borrows* its arguments (`InstKind::CoreCall`),
             // and each of these was freshly materialized here, so this frame
@@ -610,19 +610,19 @@ impl<'a> Lowering<'a> {
             return built;
         }
         let (ty, kind) = match default {
-            mwl_types::ConstArg::Null => (Ty::Null, InstKind::ConstNull),
-            mwl_types::ConstArg::Bool(b) => (Ty::Bool, InstKind::ConstBool(*b)),
-            mwl_types::ConstArg::Int(v) => (Ty::Int, InstKind::ConstInt(*v)),
-            mwl_types::ConstArg::Uint(v) => (Ty::Uint, InstKind::ConstUint(*v)),
-            mwl_types::ConstArg::Float(v) => (Ty::Float, InstKind::ConstFloat(*v)),
-            mwl_types::ConstArg::Str(s) => (Ty::Str, InstKind::ConstStr(s.clone())),
-            mwl_types::ConstArg::Bytes(b) => (Ty::Bytes, InstKind::ConstBytes(b.clone())),
+            nvs_types::ConstArg::Null => (Ty::Null, InstKind::ConstNull),
+            nvs_types::ConstArg::Bool(b) => (Ty::Bool, InstKind::ConstBool(*b)),
+            nvs_types::ConstArg::Int(v) => (Ty::Int, InstKind::ConstInt(*v)),
+            nvs_types::ConstArg::Uint(v) => (Ty::Uint, InstKind::ConstUint(*v)),
+            nvs_types::ConstArg::Float(v) => (Ty::Float, InstKind::ConstFloat(*v)),
+            nvs_types::ConstArg::Str(s) => (Ty::Str, InstKind::ConstStr(s.clone())),
+            nvs_types::ConstArg::Bytes(b) => (Ty::Bytes, InstKind::ConstBytes(b.clone())),
             // The same instruction a written `[]` lowers to — an empty
             // `ArrayNew` is already the fixed-shape literal's own zero case
             // (`InstKind::ArrayNew`'s doc comment), so an omitted `array<T>`
             // argument and a written one produce the identical value with the
             // identical single natural owner.
-            mwl_types::ConstArg::EmptyArray => (
+            nvs_types::ConstArg::EmptyArray => (
                 Ty::Array,
                 InstKind::ArrayNew {
                     entries: Vec::new(),
@@ -630,12 +630,12 @@ impl<'a> Lowering<'a> {
             ),
             // A bag has no single constant to emit — it is one per option, so
             // its own two call sites expand it before reaching here.
-            mwl_types::ConstArg::Options(_) => panic!(
-                "mwl-ir: an options bag has no IR constant of its own; \
+            nvs_types::ConstArg::Options(_) => panic!(
+                "nvs-ir: an options bag has no IR constant of its own; \
                  `Lowering::lower_options_arg` expands it per option"
             ),
             // Handled above, before the constant table: it is a call.
-            mwl_types::ConstArg::Built { .. } => unreachable!(),
+            nvs_types::ConstArg::Built { .. } => unreachable!(),
         };
         self.emit(cur, ty, kind)
     }
@@ -645,8 +645,8 @@ impl<'a> Lowering<'a> {
     ///
     /// One [`Helper::CallClosure`], with the closure at `args[0]` and its
     /// arguments after it in written order — which is
-    /// `mwl_runtime::call_closure`, the same entry point every `Core` member
-    /// taking a `callable` already reaches, so a closure invoked from MWL
+    /// `nvs_runtime::call_closure`, the same entry point every `Core` member
+    /// taking a `callable` already reaches, so a closure invoked from Novis
     /// takes no second path into a compiled body. It is deliberately **not**
     /// an [`InstKind::Call`]: § 1 gives `callable` no parameter list, so
     /// there is no resolved target to name, no per-argument expected type to
@@ -664,7 +664,7 @@ impl<'a> Lowering<'a> {
     ///
     /// A spread makes the argument *count* the subject's own run-time length,
     /// and [`Helper::CallClosure`]'s count is a literal in the emitted call —
-    /// `mwl-codegen` writes it beside the argument slot. So a call site that
+    /// `nvs-codegen` writes it beside the argument slot. So a call site that
     /// wrote one goes through [`Helper::CallClosureArray`] instead, with the
     /// whole list built into one array by [`Self::lower_args_as_array`], which
     /// is the same array a resolved call's variadic tail already is. That
@@ -677,7 +677,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_call_args`] does for a resolved call, and for a `name:`
     /// argument — [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 1 gives `callable` no parameter list, so there is no parameter for a
-    /// name to fill and `mwl_types` refuses one where it is written (`E0712`).
+    /// name to fill and `nvs_types` refuses one where it is written (`E0712`).
     pub(super) fn lower_closure_call(
         &mut self,
         callee: &Expr,
@@ -687,7 +687,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let CallArgs::List(list) = args else {
             panic!(
-                "mwl-ir only lowers a plain positional argument list for a call through a \
+                "nvs-ir only lowers a plain positional argument list for a call through a \
                  `callable` — got {args:?}; see the crate docs' known gaps"
             );
         };
@@ -701,8 +701,8 @@ impl<'a> Lowering<'a> {
         let mut values = vec![closure];
         assert!(
             list.iter().all(|arg| arg.name.is_none()),
-            "mwl-ir: a `name:` argument reached a call through a `callable` — this crate trusts \
-             mwl_types::check_program already reported it as E0712"
+            "nvs-ir: a `name:` argument reached a call through a `callable` — this crate trusts \
+             nvs_types::check_program already reported it as E0712"
         );
         // A `...` makes the argument *count* a run-time fact, which the one
         // helper whose count is a literal in the emitted call cannot carry. So
@@ -710,7 +710,7 @@ impl<'a> Lowering<'a> {
         // its length — see `Helper::CallClosureArray`.
         let helper = match list.iter().any(|arg| arg.spread) {
             true => {
-                let rest: Vec<&mwl_syntax::ast::Arg> = list.iter().collect();
+                let rest: Vec<&nvs_syntax::ast::Arg> = list.iter().collect();
                 let array = self.lower_args_as_array(&rest, None, env, cur);
                 self.account_for_arg(array, Ty::Array, ArgOwnership::Borrowed, false, *cur);
                 values.push(array);
@@ -727,7 +727,7 @@ impl<'a> Lowering<'a> {
             }
         };
         // `Ty::Tagged` because `mixed` is the only answer the checker has for
-        // a call whose target it cannot name — `mwl_types::expr`'s own
+        // a call whose target it cannot name — `nvs_types::expr`'s own
         // `ExprKind::Call` arm.
         let called = self.emit_fallible(
             *cur,
@@ -860,10 +860,10 @@ impl<'a> Lowering<'a> {
                 let Some(ExprInfo::Property { class, name, .. }) = self.exprs.lookup(arg.span)
                 else {
                     panic!(
-                        "mwl-ir: the by-reference argument at {:?} is a property with no \
+                        "nvs-ir: the by-reference argument at {:?} is a property with no \
                          resolved declaring class recorded in the typed-expression table — \
                          either it wasn't checked with the same table, or its receiver erased \
-                         to a shape/plain `object` (ADR 0036 § 4); mwl_types' \
+                         to a shape/plain `object` (ADR 0036 § 4); nvs_types' \
                          `check_inout_arg` is expected to have refused both",
                         arg.span
                     );
@@ -890,8 +890,8 @@ impl<'a> Lowering<'a> {
                 )
             }
             other => panic!(
-                "mwl-ir stages a by-reference argument only from a bare local or a \
-                 compile-time-known property — not from {other:?}; mwl_types' \
+                "nvs-ir stages a by-reference argument only from a bare local or a \
+                 compile-time-known property — not from {other:?}; nvs_types' \
                  `check_inout_arg` is expected to have refused it at the call site"
             ),
         };

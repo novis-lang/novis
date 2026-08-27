@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn count(object, int) -> int {
@@ -47,8 +47,8 @@ fn count(object, int) -> int {
     jump bb3
   bb7:
     release v0
-    propagate "count() at t.mwl:10"
+    propagate "count() at t.nvs:10"
   bb8:
     release v0
-    propagate "count() at t.mwl:10"
+    propagate "count() at t.nvs:10"
 }

@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::countOf matches substr_count, counting non-overlapping occurrences where lastIndexOf's scan overlaps (ADR 0063 R20)
 --FILE--
-<?mwl
+<?nvs
 // A count partitions the subject where a position search does not, so
 // `countOf("aaa", "aa")` is 1 while `lastIndexOf("aaa", "aa")` is 1 *because*
 // it found the occurrence at 1 that this member has already consumed the "a"

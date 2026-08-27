@@ -1,7 +1,7 @@
 --TEST--
 `Core\ObjectSet<T>`'s `remove`, `union`, `intersect` and `diff` each answer without changing either operand — docs/spec/01-core-library.md § 9
 --FILE--
-<?mwl
+<?nvs
 final class Tag {
     public string $name;
 

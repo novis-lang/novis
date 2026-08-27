@@ -15,17 +15,17 @@
 
 > **In short:** PHP's autoloader does two jobs. *"Which file declares this name?"* becomes `autoload`, a
 > top-level declaration with literal paths resolved **relative to the file that declares it** — no manifest
-> file, no walk-up search, no `mwl.toml` directive, and no runtime existence whatsoever. *"Which classes
+> file, no walk-up search, no `nvs.toml` directive, and no runtime existence whatsoever. *"Which classes
 > exist that nothing names?"* — the question a plugin architecture depends on and static resolution cannot
 > answer — becomes `Core\Program::implementing<T>()`, a compile-time query expanding to an array literal of
 > `new` expressions. The first costs one keyword and no new invalidation edge; the second is opt-in, and is
-> the only thing in MWL that makes a compiled unit depend on a *directory's contents* rather than a file's
+> the only thing in Novis that makes a compiled unit depend on a *directory's contents* rather than a file's
 > bytes.
 
 ## Context
 
 - Every larger PHP application relies on `spl_autoload_register`, in practice through Composer's `psr-4`
-  map. Without an equivalent, an MWL project must hand-write a transitive `require` for every declaration
+  map. Without an equivalent, an Novis project must hand-write a transitive `require` for every declaration
   it touches. [ADR 0028](0028-closing-the-remaining-magic-methods.md) § 6 closed the *magic method* and
   correctly observed that static resolution leaves no moment for a loader callback — but it never said what
   a real application does instead, which left the largest single adoption barrier undocumented.
@@ -35,7 +35,7 @@
   [ADR 0025](0025-wasm-browser-target.md) and [ADR 0048](0048-portable-single-file-executables.md) both
   depend on. What survives is the declarative subset — a prefix→directories map — which is what Composer's
   `psr-4` key already is and what essentially every project uses it for.
-- **`require` order was never the problem.** `mwl-hir`'s `resolve_program` collects declarations from every
+- **`require` order was never the problem.** `nvs-hir`'s `resolve_program` collects declarations from every
   file in the graph before any hierarchy or member resolution runs, so `class A extends B` resolves
   regardless of `require` order — unlike PHP, where the `extends` line executes. The burden is naming every
   dependency transitively, not sequencing them.
@@ -46,8 +46,8 @@
   this: a file is read only when a name in it is referenced, and nothing references `ADB\Module`.
 - **Where the map lives is a real constraint, not a detail.** A config file under a document root is
   web-reachable; a walk-up search finds the wrong root when many project trees share one framework
-  directory; an `mwl.toml` directive ([ADR 0005](0005-config-changeability.md)) is deployment state, absent
-  from `mwl build --compile` and the browser target, and invisible to an editor running `mwl check`.
+  directory; an `nvs.toml` directive ([ADR 0005](0005-config-changeability.md)) is deployment state, absent
+  from `nvs build --compile` and the browser target, and invisible to an editor running `nvs check`.
 
 ## Decision
 
@@ -56,8 +56,8 @@
 ### 1. `autoload` — a declaration, not a file
 
 ```php
-<?mwl
-// ./Framework/src/Bootstrap.mwl — paths are relative to THIS file, never to the entry point
+<?nvs
+// ./Framework/src/Bootstrap.nvs — paths are relative to THIS file, never to the entry point
 
 autoload 'Framework' from './';                        // one prefix, one root
 autoload 'Acme\Legacy' from '../vendor/acme/lib',
@@ -68,9 +68,9 @@ autoload discover '../../*/src';                       // each matching director
 An entry point reaches it exactly the way a PHP front controller reaches its framework today:
 
 ```php
-<?mwl
-// ./ADB/public/index.mwl
-require '../../Framework/src/Bootstrap.mwl';   // the one hand-written path
+<?nvs
+// ./ADB/public/index.nvs
+require '../../Framework/src/Bootstrap.nvs';   // the one hand-written path
 $app = new Framework\Core();                   // everything past here resolves by name
 $app->run();
 ```
@@ -90,12 +90,12 @@ $app->run();
   filesystem inevitably sweeps `.git`, `vendor` and friends, and diagnosing them would make the form
   unusable. The *glob* is a different matter: one that is not a single whole-segment `*`, and one whose
   base directory does not exist, are both `E_AUTOLOAD_GLOB_SHAPE`, because a typo that silently discovers
-  nothing is the worst outcome on offer. `mwl check --autoload-map` prints the resolved map, including what
+  nothing is the worst outcome on offer. `nvs check --autoload-map` prints the resolved map, including what
   was skipped and what was shadowed.
 - **Lookup:** longest matching prefix wins; within a prefix, roots are probed in declaration order and the
   first hit wins (the Composer rule, which is what makes a vendor override work). Remaining segments are
-  directories, the last is the file name plus `.mwl`. The on-disk entry's name is compared **exactly**, so a
-  case-insensitive filesystem cannot accept `mailer.mwl` for `Mailer` and then fail on Linux — `QName`
+  directories, the last is the file name plus `.nvs`. The on-disk entry's name is compared **exactly**, so a
+  case-insensitive filesystem cannot accept `mailer.nvs` for `Mailer` and then fail on Linux — `QName`
   already compares case-sensitively.
 - **An explicit prefix beats a `discover` glob** that would produce the same prefix; the glob skips that
   name. Any other duplicate — the same prefix declared by two explicit statements, or by two globs — is
@@ -136,7 +136,7 @@ expressions evaluated at the call site, the instances are per-request like every
 crosses an isolate boundary ([ADR 0006](0006-isolated-script-execution.md)).
 
 ```php
-<?mwl
+<?nvs
 namespace Framework;
 
 class Core {
@@ -166,7 +166,7 @@ dependency once, not twice.
 
 ### 4. What is deliberately absent
 
-No runtime loader, no registration call, no manifest file, no `mwl.toml` home, no walk-up root search, no
+No runtime loader, no registration call, no manifest file, no `nvs.toml` home, no walk-up root search, no
 classmap, no PSR-0 underscore rule, and no "load these files unconditionally" list (unnecessary — every
 declaration is a class member, [ADR 0011](0011-functions-and-constants-are-class-members.md)). A deployment
 that must exclude a module does not ship its directory; there is no allow/deny list, because a check on
@@ -179,7 +179,7 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
 - **Plain autoload adds no new dependency kind, with one exception.** A file nobody references changes
   nothing, and when a reference to it is finally written, the *referencing* file's content hash changes and
   [ADR 0042](0042-on-disk-artifact-cache-format.md)'s key misses on its own. The exception is **shadowing**:
-  adding `src/Thing.mwl` when `App\Thing` currently resolves to `vendor/compat/Thing.mwl` changes the answer
+  adding `src/Thing.nvs` when `App\Thing` currently resolves to `vendor/compat/Thing.nvs` changes the answer
   with no existing file touched. So a unit records the ordered list of paths it probed **including the
   misses**; a negative entry is an ordinary `PathEntry` in [ADR 0017](0017-hot-reload-without-restart.md)'s
   table, and the trace folds into ADR 0042's key exactly the way `target_triple` does.
@@ -191,7 +191,7 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
 - **No new directive.** Both ride `opcache.validate` and `revalidate_freq`, `System`-class per
   [ADR 0017](0017-hot-reload-without-restart.md) — bounded at `N ⁄ revalidate_freq` stats per window for N
   listed directories (tens, not thousands), and exactly zero under `validate = never`, which is what a
-  production deployment runs. For `mwl build --compile` and the wasm target the question does not arise:
+  production deployment runs. For `nvs build --compile` and the wasm target the question does not arise:
   resolution happens once, at build time.
 
 ## Consequences
@@ -201,8 +201,8 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
 - The adoption barrier this ADR exists to remove is removed: a project writes one `require` for its
   bootstrap and never writes another. A modular framework's PHP architecture — front controller requires
   the framework, framework declares where modules live — transfers line for line.
-- **The map travels with the code.** It works identically under `mwl run`, `mwl serve`,
-  `mwl build --compile`, the wasm target and an editor's `mwl check`, none of which share a deployment
+- **The map travels with the code.** It works identically under `nvs run`, `nvs serve`,
+  `nvs build --compile`, the wasm target and an editor's `nvs check`, none of which share a deployment
   config. Relative-to-the-declaring-file resolution is what lets one framework directory serve many
   unrelated project trees, which no walk-up rule can do.
 - Nothing is web-reachable, because there is no configuration file to reach.
@@ -216,14 +216,14 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
 
 - **One new keyword**, the entire language-surface cost of the feature (priority 4).
 - **One declaration per autoloaded file** (§ 2). A helper enum or `type` alias used by one class needs its
-  own file. PSR-4 already imposes this in practice; MWL makes it a diagnostic rather than a convention.
+  own file. PSR-4 already imposes this in practice; Novis makes it a diagnostic rather than a convention.
 - **A hard cross-module reference requires that module at compile time.** `ADB\Thing extends FOO\Base` fails
   to compile if `FOO` is not deployed, where PHP fails at runtime only if reached. Modules that depend on
   interfaces owned by the framework rather than on each other's concrete classes are unaffected.
 - **`Core\Reflect` lookup by name reaches only the compiled program** — a name string can never pull in a
   new file. Consistent with [ADR 0025](0025-wasm-browser-target.md) and
   [ADR 0048](0048-portable-single-file-executables.md), and a visible divergence from PHP.
-- **A discovery query is the first thing in MWL to make a compiled unit depend on a directory listing.**
+- **A discovery query is the first thing in Novis to make a compiled unit depend on a directory listing.**
   Bounded and rate-capped (§ 5), but it is a genuinely new dependency kind, which is why the query is
   opt-in rather than ambient.
 - Classes cannot be loaded from a database, a generated file, or anywhere but the filesystem at compile
@@ -235,24 +235,24 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
 - **A runtime `Core\Autoload::register(callable)`.** The direct translation of `spl_autoload_register`, and
   unbuildable: process-global mutable state ([ADR 0008](0008-static-and-global.md)) that would have to run
   during name resolution, which has already finished by the time any user code exists.
-- **A manifest file (`mwl.toml`/`mwl.json`), found by walking up from the entry file.** The first design
+- **A manifest file (`nvs.toml`/`nvs.json`), found by walking up from the entry file.** The first design
   considered, and rejected on the user-facing constraints in *Context*: it lands inside or beside a document
   root, and walk-up finds the wrong root when many project trees share one framework directory. It also
   needs a file format, a discovery rule, an `extends` key, and path anchors to express "relative to the
   framework" and "relative to the project" — all of which a declaration in the framework's own bootstrap
   file gets for free. This rejection is about **discovery and lifetime, not syntax**, and it is untouched by
-  [ADR 0064](0064-configuration-file-format.md) naming the root-owned server configuration `mwl.toml`: that
+  [ADR 0064](0064-configuration-file-format.md) naming the root-owned server configuration `nvs.toml`: that
   file sits at a path the operator hands the host, is never searched for by walking up from a source file,
   never lands in or beside a document root, and still may not carry an `[autoload]` table, for the reason in
   the next bullet.
-- **An `mwl.toml` `[autoload]` section.** The "current MWL way", and wrong on lifetime: the map is a property
-  of the source tree, not of the deployment, and `mwl.toml` is absent from
-  `mwl build --compile`, the browser target, and an editor's `mwl check`. It also makes one source tree
+- **An `nvs.toml` `[autoload]` section.** The "current Novis way", and wrong on lifetime: the map is a property
+  of the source tree, not of the deployment, and `nvs.toml` is absent from
+  `nvs build --compile`, the browser target, and an editor's `nvs check`. It also makes one source tree
   behave differently under two hosts, which the artifact cache would then have to key on. Not rejected
   *forever*: an operator-level block that only *adds* roots could be layered on later without changing
   anything here, if a real deployment needs to inject a path without touching source.
 - **A `declare()`-style pragma**, by analogy with `strict_types`. There is no `declare()` grammar to extend —
-  `strict_types` is implicit in MWL — so this would mean inventing a pragma mechanism to hold one construct,
+  `strict_types` is implicit in Novis — so this would mean inventing a pragma mechanism to hold one construct,
   where a top-level statement in the shape of `require` already fits.
 - **Convention only** (the entry file's directory is the global-namespace root). Free, and insufficient: it
   cannot express `src/` + `tests/` + `vendor/`, several roots for one prefix, or a framework outside the
@@ -273,7 +273,7 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
   [ADR 0031](0031-callable-is-the-only-closure-type.md)'s *Revisiting*) would let `implementing<T>()` return
   constructor references and let an attributed static method replace the marker interface entirely. This ADR
   is a second concrete forcing case for that deferral, alongside the boxed-cell one.
-- **An operator-level `mwl.toml` block that adds roots** should be reconsidered if a real deployment needs to
+- **An operator-level `nvs.toml` block that adds roots** should be reconsidered if a real deployment needs to
   inject a path without editing source. It composes with this design rather than replacing it.
 - **A selector beyond `implementing<T>`** (by attribute, by base class) should wait for a second real use
   case. One method is the whole API surface until then.
@@ -283,7 +283,7 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
 
 ## Verification
 
-- **M2** (`mwl-hir`) — `autoload`'s two forms parse and collect; resolution becomes a fixpoint over
+- **M2** (`nvs-hir`) — `autoload`'s two forms parse and collect; resolution becomes a fixpoint over
   `resolve_program`'s existing worklist (probe on an unresolved `QName`, load, `collect_*`, repeat, and only
   then report `E_UNDECLARED`); tests cover longest-prefix-wins, multiple roots with first-hit-wins, the
   `discover` glob against a fixture tree, exact-case matching, `E_DUPLICATE_AUTOLOAD_PREFIX`,
@@ -301,5 +301,5 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
   same split [ADR 0046](0046-attributes-shape-literal-metadata.md) has between attribute grammar and
   `Core\Attributes` retrieval. Tests assert deterministic name-sorted order, exclusion of abstract classes,
   the no-argument-constructor diagnostic, and that a program with no query performs no scan.
-- **M11** (`mwl convert`) — a Composer `psr-4` map converts to `autoload` declarations mechanically; a
+- **M11** (`nvs convert`) — a Composer `psr-4` map converts to `autoload` declarations mechanically; a
   `vendor/autoload.php` require converts to the bootstrap `require` that reaches them.

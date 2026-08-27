@@ -14,7 +14,7 @@
 
 > **In short:** PHP's typed properties can exist in a third state, neither assigned nor `null`, and reading
 > one throws — a correct but purely runtime-discovered failure that surfaces far from the missing
-> assignment that caused it. MWL keeps the throw as a last resort but removes the reason it is usually
+> assignment that caused it. Novis keeps the throw as a last resort but removes the reason it is usually
 > needed: **every property a class declares must be definitely assigned along every path out of every
 > constructor that class exposes**, checked by the same flow analysis [ADR 0007](0007-explicit-type-system.md)
 > already commits to for local variables, extended here to a second binding kind. A class with no
@@ -32,14 +32,14 @@
 - PHP 7.4 typed properties introduced a state distinct from `null` — declared but unassigned; reading one
   throws only when discovered at the read, often far from the constructor that forgot to set it.
 - **JavaScript's `undefined` was proposed and rejected**: JS has no declared property types to violate, while
-  MWL's typed properties are exactly the guarantee [ADR 0007](0007-explicit-type-system.md) built to prevent
+  Novis's typed properties are exactly the guarantee [ADR 0007](0007-explicit-type-system.md) built to prevent
   a declared type silently holding something else; a universal `undefined` would reintroduce that failure one
   binding kind later — the same ambient-magic shape already closed for undeclared properties/`__get`/`__set`
   ([ADR 0014](0014-property-observer.md)) and superglobals ([ADR 0012](0012-no-superglobals.md)).
 - Other statically-typed languages split between compile-time-only (Rust/Swift), an opt-in throw-on-early-
   read modifier (Kotlin's `lateinit`), and a silent per-type default (C#/Java) — the last rejected here for
   the same reason ADR 0007 rejects silent coercion.
-- MWL already has the mechanism: ADR 0007 §1 commits to definite-assignment checking for locals. A property
+- Novis already has the mechanism: ADR 0007 §1 commits to definite-assignment checking for locals. A property
   is a second, structurally similar binding kind, extended with `parent::constructor(...)` as what discharges
   inherited properties — mirroring Java/Kotlin's mandatory `super()`.
 
@@ -131,7 +131,7 @@ additional bytes per property**.
 **Negative**
 
 - `Core\Reflect`-constructed objects keep a genuine, if narrow, runtime-only failure mode — unlike Rust's
-  fully static guarantee, MWL cannot extend the compile-time promise across a boundary that exists
+  fully static guarantee, Novis cannot extend the compile-time promise across a boundary that exists
   specifically to bypass constructors. This is a smaller surface than PHP's (which allows the runtime state
   from *any* construction path, not just a reflective one), but it is not zero.
 - Extending the analysis through constructor chains is more work for M2's checker than a locals-only
@@ -139,7 +139,7 @@ additional bytes per property**.
   mechanism rather than adding a second.
 - Stricter than PHP at compile time: PHP happily compiles a constructor that leaves a typed property unset
   on some path, and only fails when that path is actually read. Porting PHP source with such a gap needs a
-  fix, not just a recompile — `mwl convert` (M11) must flag it, joining the TODO classes ADR 0007 §7 and
+  fix, not just a recompile — `nvs convert` (M11) must flag it, joining the TODO classes ADR 0007 §7 and
   ADR 0014 already grow.
 - One more internal discriminant on the tagged-value representation, though at zero additional bytes per
   [ADR 0004](0004-memory-for-simplicity.md)'s accounting — see *3*.
@@ -147,7 +147,7 @@ additional bytes per property**.
 ## Alternatives rejected
 
 - **A new `undefined` type or value**, modeled on JavaScript. Rejected: JavaScript's `undefined` is safe
-  only absent a declared-type guarantee to violate; MWL has exactly that guarantee, so this recurs ADR
+  only absent a declared-type guarantee to violate; Novis has exactly that guarantee, so this recurs ADR
   0007's failure shape one binding kind later, and is the same ambient-default shape ADR 0012/0014 already
   rejected.
 - **Per-type silent defaults** (C#/Java). Rejected for the same reason ADR 0007 rejects silent coercion: a

@@ -4,21 +4,21 @@
 //! `ObjectSet`/`ObjectMap` operation ask the same question —
 //! `docs/spec/01-core-library.md` § 2 says `contains`, `keyOf`, `unique`,
 //! `diff` and `intersect` "compare by **strict identity**", and a second
-//! answer living in `mwl-stdlib` would be a second set of PHP-divergence
+//! answer living in `nvs-stdlib` would be a second set of PHP-divergence
 //! decisions nothing keeps in step. It is also what `==` means:
 //! [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 //! § 3's table is this module's rows, reached three ways depending on what the
 //! operands' static types already settled. A scalar pair is one machine
 //! comparison and never arrives here. An array pair arrives through
-//! [`mwl_array_eq`], a string pair through [`crate::mwl_str_eq`] and an object
+//! [`nvs_array_eq`], a string pair through [`crate::nvs_str_eq`] and an object
 //! pair through an inline pointer comparison, because in each of those the row
 //! is known before the program runs. Only a `mixed` or union operand — § 5's
-//! case, where the row is a runtime tag — arrives through `mwl_value_identical`
+//! case, where the row is a runtime tag — arrives through `nvs_value_identical`
 //! on [`crate::abi`]'s general helper convention, and § 5's "a mismatched
 //! runtime type is `false` rather than a throw" is the fall-through arm of
 //! [`shallow_identical`] rather than a rule stated twice. The numeric row is
 //! answered by [`numeric_identical`], which the statically typed
-//! `mwl_ir::Helper::NumericEq` reaches directly and [`shallow_identical`]
+//! `nvs_ir::Helper::NumericEq` reaches directly and [`shallow_identical`]
 //! delegates to, so the row has one answer however it is reached.
 //!
 //! # What identity means, one row per representation
@@ -119,8 +119,8 @@ use std::cmp::Ordering;
 use std::hash::Hasher;
 use std::mem::ManuallyDrop;
 
-use crate::array::{ArrayHeader, MwlArray};
-use crate::string::MwlStr;
+use crate::array::{ArrayHeader, NvsArray};
+use crate::string::NvsStr;
 use crate::value::{Tag, Value};
 
 /// How many levels of nested array [`value_hash`] descends before it stops.
@@ -145,7 +145,7 @@ pub fn value_identical(left: Value, right: Value) -> bool {
 }
 
 /// Whether two arrays hold the same entries in the same order —
-/// `mwl_ir::ir::BinOp::Eq` over a `Ty::Array` operand pair, and
+/// `nvs_ir::ir::BinOp::Eq` over a `Ty::Array` operand pair, and
 /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 /// § 3's array row.
 ///
@@ -153,24 +153,24 @@ pub fn value_identical(left: Value, right: Value) -> bool {
 /// than through [`crate::abi`]'s helper convention because the operands' static
 /// types already named the row: two raw pointers travel in registers, where the
 /// general convention would tag each into a 16-byte stack slot and then check a
-/// status a total comparison can never raise. [`crate::mwl_str_eq`] is the same
+/// status a total comparison can never raise. [`crate::nvs_str_eq`] is the same
 /// trade for the string row, and the object row needs no call at all — pointer
-/// identity is one machine comparison, which `mwl-codegen` emits inline.
+/// identity is one machine comparison, which `nvs-codegen` emits inline.
 ///
 /// Neither operand is retained or released: the read-only treatment
-/// [`crate::mwl_str_eq`] gives its two, so the [`Value`]s built here are
+/// [`crate::nvs_str_eq`] gives its two, so the [`Value`]s built here are
 /// borrowed views that are deliberately never dropped.
 ///
 /// # Safety
 ///
-/// `lhs` and `rhs` must each refer to a live MWL array allocation.
+/// `lhs` and `rhs` must each refer to a live Novis array allocation.
 #[expect(
     unsafe_code,
     reason = "compiled code passes two raw array pointers whose liveness the \
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_eq(lhs: *mut ArrayHeader, rhs: *mut ArrayHeader) -> bool {
+pub unsafe extern "C" fn nvs_array_eq(lhs: *mut ArrayHeader, rhs: *mut ArrayHeader) -> bool {
     value_identical(Value::from_array_ptr(lhs), Value::from_array_ptr(rhs))
 }
 
@@ -228,8 +228,8 @@ fn entries_identical(
         match (left.next_slot(left_from), right.next_slot(right_from)) {
             (None, None) => return true,
             (Some(left_slot), Some(right_slot)) => {
-                if left.key_at(left_slot).as_ref().map(MwlStr::as_bytes)
-                    != right.key_at(right_slot).as_ref().map(MwlStr::as_bytes)
+                if left.key_at(left_slot).as_ref().map(NvsStr::as_bytes)
+                    != right.key_at(right_slot).as_ref().map(NvsStr::as_bytes)
                 {
                     return false;
                 }
@@ -394,7 +394,7 @@ fn integer_of(decimal: crate::Decimal) -> Option<i128> {
 /// resolves a `mixed` operand to.
 ///
 /// It is reached two ways, and answers the same question in both:
-/// `mwl_ir::Helper::NumericEq` when two statically typed operands crossed two
+/// `nvs_ir::Helper::NumericEq` when two statically typed operands crossed two
 /// representations, and [`shallow_identical`] when a `mixed` operand's runtime
 /// tags did — which is also `Core\Arr`'s strict identity, so
 /// `Arr::contains([1.0], 1)` is `true`. `1 == 1.0` is `true` here and
@@ -403,7 +403,7 @@ fn integer_of(decimal: crate::Decimal) -> Option<i128> {
 ///
 /// A pair of the same representation still arrives — from the `mixed` side,
 /// where the row is a runtime tag rather than a static type. From the other
-/// side it never does: that is one machine comparison `mwl-codegen` emits
+/// side it never does: that is one machine comparison `nvs-codegen` emits
 /// inline.
 #[must_use]
 pub fn numeric_identical(left: Value, right: Value) -> bool {
@@ -460,7 +460,7 @@ fn decimal_eq_integer(decimal: Value, integer: i128) -> bool {
 /// That is `crate::Decimal::compare_f64`'s reading and
 /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 4's `float →
 /// decimal` row, so `(0.1 as decimal) == 0.1` holds — the answer this pairing
-/// exists to give, and the one the statically typed `mwl_ir::Helper::DecimalEq`
+/// exists to give, and the one the statically typed `nvs_ir::Helper::DecimalEq`
 /// already gave. It differs from [`integer_eq_float`]'s exact reading only for
 /// an integral float past 2^53, which [`hash_numeric`] is coarse enough to
 /// cover.
@@ -490,13 +490,13 @@ fn integer_eq_float(integer: i128, float: f64) -> bool {
 
 /// How two numeric values order, with `int`, `uint` and `float` read as **one
 /// domain** — [`numeric_identical`]'s question for `<`, and exact for the same
-/// reason. `mwl_ir::Helper::NumericLt` is the one caller.
+/// reason. `nvs_ir::Helper::NumericLt` is the one caller.
 ///
 /// [`None`] only for a `NaN` operand, which is unordered against everything
 /// including itself; every `<`/`<=`/`>`/`>=` against one is `false` in PHP,
 /// which is what the callers turn a `None` into.
 ///
-/// A `decimal` never arrives — `mwl_ir::Helper::DecimalLt` takes every pairing
+/// A `decimal` never arrives — `nvs_ir::Helper::DecimalLt` takes every pairing
 /// one side of which is one.
 #[must_use]
 pub fn numeric_ordering(left: Value, right: Value) -> Option<Ordering> {
@@ -584,15 +584,15 @@ fn integer(value: Value) -> i128 {
 ///
 /// Never dropped: the value the pointer came out of owns the reference, and
 /// this handle is only borrowing it for the comparison — the same rule
-/// `mwl_stdlib::arr`'s own `borrowed` states, for the same reason.
-fn borrowed(ptr: *mut ArrayHeader) -> ManuallyDrop<MwlArray> {
+/// `nvs_stdlib::arr`'s own `borrowed` states, for the same reason.
+fn borrowed(ptr: *mut ArrayHeader) -> ManuallyDrop<NvsArray> {
     #[expect(
         unsafe_code,
         reason = "a Tag::Array value owns a reference to a live allocation \
                   (see `Value`'s Ownership section), so it is live for this \
                   comparison, and the handle is never dropped"
     )]
-    ManuallyDrop::new(unsafe { MwlArray::from_raw(ptr) })
+    ManuallyDrop::new(unsafe { NvsArray::from_raw(ptr) })
 }
 
 #[cfg(test)]
@@ -720,9 +720,9 @@ mod tests {
 
     #[test]
     fn a_string_compares_by_content_not_by_pointer() {
-        let left = Value::str(MwlStr::new(b"abc"));
-        let right = Value::str(MwlStr::new(b"abc"));
-        let other = Value::str(MwlStr::new(b"abd"));
+        let left = Value::str(NvsStr::new(b"abc"));
+        let right = Value::str(NvsStr::new(b"abc"));
+        let other = Value::str(NvsStr::new(b"abd"));
         assert!(identical(left, right));
         assert!(!identical(left, other));
         assert!(!identical(left, Value::int(0)));
@@ -735,14 +735,14 @@ mod tests {
     /// share a bucket either.
     #[test]
     fn a_bytes_compares_by_content_and_never_against_a_string() {
-        let left = Value::bytes(MwlStr::new(b"\xff\x00"));
-        let right = Value::bytes(MwlStr::new(b"\xff\x00"));
-        let other = Value::bytes(MwlStr::new(b"\xff\x01"));
+        let left = Value::bytes(NvsStr::new(b"\xff\x00"));
+        let right = Value::bytes(NvsStr::new(b"\xff\x00"));
+        let other = Value::bytes(NvsStr::new(b"\xff\x01"));
         assert!(identical(left, right));
         assert!(!identical(left, other));
 
-        let text = Value::str(MwlStr::new(b"abc"));
-        let raw = Value::bytes(MwlStr::new(b"abc"));
+        let text = Value::str(NvsStr::new(b"abc"));
+        let raw = Value::bytes(NvsStr::new(b"abc"));
         assert!(!identical(text, raw));
         assert_ne!(hashed(text), hashed(raw));
 
@@ -751,21 +751,21 @@ mod tests {
 
     #[test]
     fn an_array_is_identical_entry_by_entry_in_order() {
-        let mut left = MwlArray::new();
-        left.set(MwlStr::new(b"0"), Value::int(1));
-        left.set(MwlStr::new(b"1"), Value::str(MwlStr::new(b"two")));
+        let mut left = NvsArray::new();
+        left.set(NvsStr::new(b"0"), Value::int(1));
+        left.set(NvsStr::new(b"1"), Value::str(NvsStr::new(b"two")));
 
-        let mut same = MwlArray::new();
-        same.set(MwlStr::new(b"0"), Value::int(1));
-        same.set(MwlStr::new(b"1"), Value::str(MwlStr::new(b"two")));
+        let mut same = NvsArray::new();
+        same.set(NvsStr::new(b"0"), Value::int(1));
+        same.set(NvsStr::new(b"1"), Value::str(NvsStr::new(b"two")));
 
         // The same entries, inserted the other way round.
-        let mut reordered = MwlArray::new();
-        reordered.set(MwlStr::new(b"1"), Value::str(MwlStr::new(b"two")));
-        reordered.set(MwlStr::new(b"0"), Value::int(1));
+        let mut reordered = NvsArray::new();
+        reordered.set(NvsStr::new(b"1"), Value::str(NvsStr::new(b"two")));
+        reordered.set(NvsStr::new(b"0"), Value::int(1));
 
-        let mut shorter = MwlArray::new();
-        shorter.set(MwlStr::new(b"0"), Value::int(1));
+        let mut shorter = NvsArray::new();
+        shorter.set(NvsStr::new(b"0"), Value::int(1));
 
         let left = Value::array(left);
         let same = Value::array(same);
@@ -780,8 +780,8 @@ mod tests {
 
     #[test]
     fn two_handles_on_one_allocation_answer_without_walking() {
-        let mut array = MwlArray::new();
-        array.set(MwlStr::new(b"0"), Value::float(f64::NAN));
+        let mut array = NvsArray::new();
+        array.set(NvsStr::new(b"0"), Value::float(f64::NAN));
         let value = Value::array(array);
         // A `NaN` entry is identical to nothing, so a walk would say `false`
         // — the pointer fast path is what makes an array identical to itself.
@@ -792,10 +792,10 @@ mod tests {
     #[test]
     fn a_nested_array_is_compared_all_the_way_down() {
         fn nested(leaf: i64) -> Value {
-            let mut inner = MwlArray::new();
-            inner.set(MwlStr::new(b"0"), Value::int(leaf));
-            let mut outer = MwlArray::new();
-            outer.set(MwlStr::new(b"0"), Value::array(inner));
+            let mut inner = NvsArray::new();
+            inner.set(NvsStr::new(b"0"), Value::int(leaf));
+            let mut outer = NvsArray::new();
+            outer.set(NvsStr::new(b"0"), Value::array(inner));
             Value::array(outer)
         }
 
@@ -812,8 +812,8 @@ mod tests {
         fn tower(depth: usize, leaf: i64) -> Value {
             let mut value = Value::int(leaf);
             for _ in 0..depth {
-                let mut level = MwlArray::new();
-                level.set(MwlStr::new(b"0"), value);
+                let mut level = NvsArray::new();
+                level.set(NvsStr::new(b"0"), value);
                 value = Value::array(level);
             }
             value
@@ -833,15 +833,15 @@ mod tests {
 
     #[test]
     fn an_object_is_identical_only_to_itself() {
-        use crate::object::{ClassTable, MwlObj};
+        use crate::object::{ClassTable, NvsObj};
 
         let mut table = ClassTable::new();
         let point = table.define("Point", &[] as &[&str], &[]);
         #[expect(unsafe_code, reason = "the table outlives both objects")]
         let (one, two) = unsafe {
             (
-                MwlObj::new(table.desc(point)),
-                MwlObj::new(table.desc(point)),
+                NvsObj::new(table.desc(point)),
+                NvsObj::new(table.desc(point)),
             )
         };
 
@@ -856,22 +856,22 @@ mod tests {
 
     /// ADR 0090 § 3's string row, at the door compiled code actually uses.
     /// The three tests above ask [`value_identical`] what a string is; this
-    /// one asks [`crate::mwl_str_eq`], which is what `$s == $t` calls, and
+    /// one asks [`crate::nvs_str_eq`], which is what `$s == $t` calls, and
     /// pins the divergence that row decides: PHP's `==` read two numeric-
     /// looking strings as numbers, so it answered `true` to every pair here.
     #[test]
     fn equal_strings_compare_as_text_and_never_as_numbers() {
         fn compiled_eq(left: &[u8], right: &[u8]) -> bool {
             let (left, right) = (
-                Value::str(MwlStr::new(left)),
-                Value::str(MwlStr::new(right)),
+                Value::str(NvsStr::new(left)),
+                Value::str(NvsStr::new(right)),
             );
             #[expect(
                 unsafe_code,
                 reason = "both values own a live allocation for this call"
             )]
             let verdict = unsafe {
-                crate::mwl_str_eq(
+                crate::nvs_str_eq(
                     left.str_ptr().expect("a Tag::Str value"),
                     right.str_ptr().expect("a Tag::Str value"),
                 )
@@ -892,7 +892,7 @@ mod tests {
         assert!(!compiled_eq("e\u{301}".as_bytes(), "é".as_bytes()));
     }
 
-    /// ADR 0090 § 3's array row at that same door — [`mwl_array_eq`], which
+    /// ADR 0090 § 3's array row at that same door — [`nvs_array_eq`], which
     /// is what `$a == $b` calls. Same length, same keys in the same order,
     /// every value equal by the table, recursively.
     #[test]
@@ -903,7 +903,7 @@ mod tests {
                 reason = "both values own a live allocation for this call"
             )]
             let verdict = unsafe {
-                mwl_array_eq(
+                nvs_array_eq(
                     left.array_ptr().expect("a Tag::Array value"),
                     right.array_ptr().expect("a Tag::Array value"),
                 )
@@ -913,10 +913,10 @@ mod tests {
         }
 
         fn list(values: &[i64]) -> Value {
-            let mut array = MwlArray::new();
+            let mut array = NvsArray::new();
             for (index, value) in values.iter().enumerate() {
                 array.set(
-                    MwlStr::new(index.to_string().as_bytes()),
+                    NvsStr::new(index.to_string().as_bytes()),
                     Value::int(*value),
                 );
             }
@@ -936,12 +936,12 @@ mod tests {
         // Recursively, and by this table rather than by a second one: a
         // nested list is walked, and its `"1"` entry is a string that never
         // reads as the integer beside it.
-        let mut outer = MwlArray::new();
-        outer.set(MwlStr::new(b"0"), list(&[1]));
-        let mut textual = MwlArray::new();
-        textual.set(MwlStr::new(b"0"), {
-            let mut inner = MwlArray::new();
-            inner.set(MwlStr::new(b"0"), Value::str(MwlStr::new(b"1")));
+        let mut outer = NvsArray::new();
+        outer.set(NvsStr::new(b"0"), list(&[1]));
+        let mut textual = NvsArray::new();
+        textual.set(NvsStr::new(b"0"), {
+            let mut inner = NvsArray::new();
+            inner.set(NvsStr::new(b"0"), Value::str(NvsStr::new(b"1")));
             Value::array(inner)
         });
         let outer = Value::array(outer);
@@ -951,21 +951,21 @@ mod tests {
     }
 
     /// ADR 0090 § 3's object row: two instances are equal only when they are
-    /// **the same instance**. `mwl-codegen` emits that as one pointer
+    /// **the same instance**. `nvs-codegen` emits that as one pointer
     /// comparison for a statically typed pair, so the row has no runtime door
     /// of its own — what it does have is a reach into the array row, which is
     /// what bounds that walk, and what this pins.
     #[test]
     fn equal_objects_compare_by_identity() {
-        use crate::object::{ClassTable, MwlObj};
+        use crate::object::{ClassTable, NvsObj};
 
         let mut table = ClassTable::new();
         let point = table.define("Point", &[] as &[&str], &[]);
         #[expect(unsafe_code, reason = "the table outlives both objects")]
         let (one, two) = unsafe {
             (
-                MwlObj::new(table.desc(point)),
-                MwlObj::new(table.desc(point)),
+                NvsObj::new(table.desc(point)),
+                NvsObj::new(table.desc(point)),
             )
         };
 
@@ -982,8 +982,8 @@ mod tests {
         // And an array holding an object inherits that answer, which is what
         // keeps the array walk from ever descending into one.
         let holding = |object: Value| {
-            let mut array = MwlArray::new();
-            array.set(MwlStr::new(b"0"), object);
+            let mut array = NvsArray::new();
+            array.set(NvsStr::new(b"0"), object);
             Value::array(array)
         };
         let holds_first = holding(Value::object(one.clone()));
@@ -995,14 +995,14 @@ mod tests {
         )]
         unsafe {
             let ptr = |value: Value| value.array_ptr().expect("a Tag::Array value");
-            assert!(mwl_array_eq(ptr(holds_first), ptr(holds_same)));
-            assert!(!mwl_array_eq(ptr(holds_first), ptr(holds_second)));
+            assert!(nvs_array_eq(ptr(holds_first), ptr(holds_same)));
+            assert!(!nvs_array_eq(ptr(holds_first), ptr(holds_second)));
         }
         release_all(&[first, copy, second, holds_first, holds_same, holds_second]);
     }
 
     /// ADR 0090 § 2's numeric row at [`numeric_identical`] itself, which is
-    /// where `mwl_ir::Helper::NumericEq` enters it — the edges of the domain
+    /// where `nvs_ir::Helper::NumericEq` enters it — the edges of the domain
     /// rather than the rows [`the_four_numeric_representations_are_one_domain`]
     /// already walks through [`value_identical`].
     #[test]

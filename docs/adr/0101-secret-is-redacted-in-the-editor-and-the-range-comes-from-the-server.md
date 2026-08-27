@@ -4,7 +4,7 @@
 - **Date:** 2026-08-26
 - **Scope:** what the VS Code extension does with [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s
   `tainted` and [ADR 0033](0033-secret-qualifier-for-confidential-values.md)'s `secret` beyond colour — the
-  `mwl/redactions` request that carries the ranges, which spans are concealed and which are deliberately
+  `nvs/redactions` request that carries the ranges, which spans are concealed and which are deliberately
   not, how a reveal works and how long it lasts, the extension's own surfaces that must inherit the
   redaction, and the leak surfaces VS Code gives no way to close. It does **not** decide colour or token
   names ([0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 4 owns both, unchanged), the qualifier
@@ -13,25 +13,25 @@
   ([0092](0092-one-diagnostic-record-three-renderings.md) § 1), or anything for PhpStorm
   ([0016](0016-ide-integration.md) § 3).
 - **Amends:** [0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 3 — the M4B request set gains
-  `mwl/redactions`, the one MWL-specific request on it. § 6 — the frozen contribution roster gains two
+  `nvs/redactions`, the one Novis-specific request on it. § 6 — the frozen contribution roster gains two
   settings and two commands, added and never renamed, per that section's own rule; and the AST panel of
   § 7 acquires an obligation it did not have. § 4 is **not** amended: its two token modifiers, its
-  no-colours rule and its "not MWL's call" sentence are what *Decision § 4* below applies rather than
+  no-colours rule and its "not Novis's call" sentence are what *Decision § 4* below applies rather than
   changes. [0016](0016-ide-integration.md) § 2 — the VS Code roster gains one bullet naming this ADR, and
   its verification line gains the extension-host case.
 
 > **In short:** a `secret` value's *bytes* are concealed in the editor by default — blurred in place, not
 > deleted, not folded — because the threat this closes is an incidental viewer: a stream, a screen share, a
-> screenshot, a shoulder. The ranges are computed by `mwl-lsp`, which already knows `is_secret(ty)`, and
-> handed over by one new request, `mwl/redactions`; the client draws a `TextEditorDecorationType` and holds
+> screenshot, a shoulder. The ranges are computed by `nvs-lsp`, which already knows `is_secret(ty)`, and
+> handed over by one new request, `nvs/redactions`; the client draws a `TextEditorDecorationType` and holds
 > no language logic, per [ADR 0016](0016-ide-integration.md) § 1. Only a **literal token or an interpolation
 > slot** whose static type carries `secret` is concealed — never the identifier that binds it, because
 > blurring `$apiKey` conceals nothing and costs all the readability. Reveal is explicit, per range, and does
 > **not** persist across a close: the whole model assumes an unattended screen. `tainted` gets the opposite
 > answer — **no default decoration whatever.** [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
-> § 4 already gives it a semantic-token modifier a theme may style, and that section's rule that MWL does not
+> § 4 already gives it a semantic-token modifier a theme may style, and that section's rule that Novis does not
 > decide how a construct looks in someone else's editor is binding here; a marker glyph is *added content*,
-> so it ships opt-in (`mwl.taint.mark`, default `off`). The asymmetry is the point and is not a preference:
+> so it ships opt-in (`nvs.taint.mark`, default `off`). The asymmetry is the point and is not a preference:
 > a credential on a stream is a security incident under this project's priority 1, and a tainted value on a
 > screen is not a security event at all. What this ADR cannot do is stated as loudly as what it can —
 > concealment is cosmetic, the bytes stay in the buffer, and Search, Quick Open, the diff and SCM views, the
@@ -44,9 +44,9 @@
   and [ADR 0092](0092-one-diagnostic-record-three-renderings.md) § 1 already makes the redaction a node kind
   that all three diagnostic renderings inherit — so the remaining exposure is not a program behaviour at
   all. It is a person's screen while they are being watched.
-- **MWL can be exact here where nothing else can.** Every shipping tool that hides secrets in an editor
-  guesses — by filename (`.env`), by regex, by entropy. `mwl-lsp` does not have to guess: `secret` is a
-  type-checker fact, computed by `mwl_types::expr::quals::is_secret`, and it propagates through
+- **Novis can be exact here where nothing else can.** Every shipping tool that hides secrets in an editor
+  guesses — by filename (`.env`), by regex, by entropy. `nvs-lsp` does not have to guess: `secret` is a
+  type-checker fact, computed by `nvs_types::expr::quals::is_secret`, and it propagates through
   concatenation and interpolation under [ADR 0033](0033-secret-qualifier-for-confidential-values.md) § 2. A
   value derived from a credential is concealed for the same reason the credential is, with no heuristic in
   the loop. This is the whole reason the feature is worth building rather than telling users to install one
@@ -55,7 +55,7 @@
   `secret` and `tainted` both poison, and every `Core\Request` accessor returns `tainted` — so in a request
   handler nearly every string-typed expression carries the qualifier. Decorating each one is not a security
   feature, it is a wall of glyphs a user turns off, taking the redaction with it.
-- [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 4 already decided that MWL ships *names*
+- [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 4 already decided that Novis ships *names*
   and no colours, that the two custom modifiers map to standard TextMate scopes a theme already styles, and
   that a theme with no opinion must degrade to the underlying token type. Concealment cannot ride that
   channel: a theme that declines to style `secret` would silently un-redact, which is the one failure
@@ -69,10 +69,10 @@
 
 ### 1. The server computes the ranges; the client draws them and knows nothing
 
-`mwl-lsp` gains one request, `mwl/redactions`, joining the M4B set in
+`nvs-lsp` gains one request, `nvs/redactions`, joining the M4B set in
 [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 3. It takes a `TextDocumentIdentifier` and
 answers a list of `{range, kind}`, `kind` being `secretLiteral` today and an open string for whatever a
-later qualifier needs. It is the **only** MWL-specific request in that set, and it exists because the
+later qualifier needs. It is the **only** Novis-specific request in that set, and it exists because the
 alternative is the client deciding what a secret is — which [ADR 0016](0016-ide-integration.md) § 1 forbids
 and which is exactly the guessing *Context* rejects.
 
@@ -114,8 +114,8 @@ edit and not a document substitution: the buffer VS Code holds is the file on di
 
 ### 3. Reveal is explicit, per range, and does not survive the editor closing
 
-`mwl.secrets.redact` (default `true`) is the setting; `mwl.revealSecret` reveals the range at the cursor
-and `mwl.hideSecrets` re-conceals every revealed range in the window. A revealed range is also offered as a
+`nvs.secrets.redact` (default `true`) is the setting; `nvs.revealSecret` reveals the range at the cursor
+and `nvs.hideSecrets` re-conceals every revealed range in the window. A revealed range is also offered as a
 command link in the decoration's own hover, which is the discoverable path.
 
 **A reveal is window-local, per range, and is dropped when the editor for that document closes.** It is not
@@ -134,9 +134,9 @@ the only thing that turns it off.
 [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 4 gives `tainted` a semantic-token modifier
 mapped to a standard scope, and rules that how a construct looks is the user's theme's to decide. That rule
 is applied here, not amended: a marker **glyph is added content**, not a colour, and shipping one on by
-default is MWL writing into someone else's editor exactly what that section refuses.
+default is Novis writing into someone else's editor exactly what that section refuses.
 
-So `mwl.taint.mark` is a setting with three values and `off` is the default:
+So `nvs.taint.mark` is a setting with three values and `off` is the default:
 
 | Value | What is marked |
 |---|---|
@@ -163,7 +163,7 @@ Two of the extension's own renderings would otherwise print the plaintext the ed
   diagnostic record, so every rendering — the Problems panel included — carries the placeholder from one
   place. Nothing is owed here; it is stated so a reader does not go looking for a second fix.
 - **The AST panel does not, and this ADR gives it the obligation.**
-  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7's `mwl ast --json` schema includes each
+  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7's `nvs ast --json` schema includes each
   node's own scalar fields, which for a string literal is its text — so the panel would render a secret
   the buffer behind it is blurring. A literal node whose static type carries `secret` emits the same fixed
   placeholder [ADR 0033](0033-secret-qualifier-for-confidential-values.md) § 4 gives a dumped property, in
@@ -171,10 +171,10 @@ Two of the extension's own renderings would otherwise print the plaintext the ed
 
 ### 6. PhpStorm draws nothing at this milestone
 
-`mwl/redactions` is a request on the one server both clients drive, so the PhpStorm plugin can answer it
+`nvs/redactions` is a request on the one server both clients drive, so the PhpStorm plugin can answer it
 whenever it is built. It does not at M4B: the plugin is M10 under
 [ADR 0016](0016-ide-integration.md) § 3, and an editor-side decoration API is per-editor work with no shared
-half. Named here so the gap is a decision rather than something discovered when someone opens a `.mwl` file
+half. Named here so the gap is a decision rather than something discovered when someone opens a `.nvs` file
 in PhpStorm on a call.
 
 ### 7. What this cannot close, stated because a redaction trusted past its reach is worse than none
@@ -220,7 +220,7 @@ feature is not sold as something it is not.
 - **The concealment is cosmetic and the list in *Decision § 7* is long.** A user who believes the editor is
   protecting them everywhere is worse off than one who knows it is not, which is why that list ships in the
   extension's own README and not only here. This is the real cost of the feature and it does not go away.
-- **The AST panel gains a redaction rule**, which means `mwl ast --json`'s frozen schema now has a
+- **The AST panel gains a redaction rule**, which means `nvs ast --json`'s frozen schema now has a
   type-dependent field value — the first place that CLI's output depends on anything past the parse. Its
   snapshot test gains a case, and a reader of `--json` can no longer assume a literal node's text is the
   source text.
@@ -231,11 +231,11 @@ feature is not sold as something it is not.
   range is redacted on its binding's declared type when its own type is unknown, which is an
   over-approximation; it is chosen because the alternative failure — the value flashing visible on every
   keystroke inside a string being typed — is the one that loses the credential.
-- **`mwl.taint.mark` is a setting nobody may ever change from `off`**, which is a contribution that costs
+- **`nvs.taint.mark` is a setting nobody may ever change from `off`**, which is a contribution that costs
   documentation and a test for a feature that ships inert. Accepted because *Decision § 4*'s alternative is
   overriding a user's theme by default, and because the `sink` value has real teaching worth once
   [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md)'s classification exists on the
-  `mwl-stdlib` member rows, which it does not yet.
+  `nvs-stdlib` member rows, which it does not yet.
 
 ## Alternatives rejected
 
@@ -268,17 +268,17 @@ feature is not sold as something it is not.
 
 ## Revisiting
 
-- **Whether `mwl check` should refuse, or warn about, a `secret`-typed *source literal*.** The request this
+- **Whether `nvs check` should refuse, or warn about, a `secret`-typed *source literal*.** The request this
   ADR answers began with a hardcoded API key, and concealing one in the editor treats the symptom — the
   credential is in the working tree and in every clone. The checker already knows both facts it would need
   (the type is `secret`, the expression is a literal token), so the rule is cheap; what is not settled is
-  whether it is right, since a test fixture, an example and a `.mwlt` case all legitimately spell one. Due
+  whether it is right, since a test fixture, an example and a `.nvst` case all legitimately spell one. Due
   with whatever milestone designs `Core`'s credential-handling surface, alongside
   [ADR 0033](0033-secret-qualifier-for-confidential-values.md) *Revisiting*'s own open `Core\Secret` roster.
 - **The PhpStorm side of *Decision § 6***, when that plugin is built at M10.
-- **Whether `mwl.taint.mark`'s `sink` value earns its place**, once
+- **Whether `nvs.taint.mark`'s `sink` value earns its place**, once
   [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md)'s classification exists on the
-  `mwl-stdlib` member rows. If it does not, the setting narrows to two values rather than growing a third.
+  `nvs-stdlib` member rows. If it does not, the setting narrows to two values rather than growing a third.
 - **Whether the diff view's "before" side can be redacted at all** — it needs a type answer for a document
   revision the server never analysed, which is a different question from anything in the M4B request set and
   may simply not be worth its cost.
@@ -286,19 +286,19 @@ feature is not sold as something it is not.
 Verification, in the order it becomes possible (M4B, on
 [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 8's two tiers):
 
-- **Headless, `.lspt`**: `mwl/redactions` over a document holding a `secret string` literal, a `secret`
+- **Headless, `.lspt`**: `nvs/redactions` over a document holding a `secret string` literal, a `secret`
   interpolation slot, a plain `string` literal and a `tainted string` literal answers exactly the first two
   ranges and neither of the last two; the identifier and the `secret string` annotation are absent from the
   answer, per *Decision § 2*.
 - **Headless, `.lspt`**: the same request over a document that does **not** parse still answers the range of
   a literal whose binding declares `secret`, per *Decision § 1*'s fail direction — the case that would
   otherwise flash the value on every keystroke.
-- **Headless**: the contributions test asserts `mwl.secrets.redact`, `mwl.taint.mark`, `mwl.revealSecret`
-  and `mwl.hideSecrets` are declared with the names frozen here, and that the extension's dependency
+- **Headless**: the contributions test asserts `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.revealSecret`
+  and `nvs.hideSecrets` are declared with the names frozen here, and that the extension's dependency
   allowlist is unchanged by this feature.
-- **Headless**: `mwl ast --json` over a file with a `secret` literal emits the placeholder rather than the
+- **Headless**: `nvs ast --json` over a file with a `secret` literal emits the placeholder rather than the
   literal's text, frozen in the same snapshot test
   [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7 already runs over `examples/`.
-- **Extension host, once per green tree**: opening the file decorates the secret range; `mwl.revealSecret`
+- **Extension host, once per green tree**: opening the file decorates the secret range; `nvs.revealSecret`
   at the cursor clears exactly that range and leaves a second secret in the same file concealed; closing and
-  reopening the editor re-conceals the revealed one; `mwl.taint.mark` at its default decorates nothing.
+  reopening the editor re-conceals the revealed one; `nvs.taint.mark` at its default decorates nothing.

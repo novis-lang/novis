@@ -1,7 +1,7 @@
 --TEST--
 ADR 0070 § 5: `1h30m`, `Duration::parse("1h30m")` and `toString()` are one grammar with one meaning
 --FILE--
-<?mwl
+<?nvs
 // § 2: the suffix *is* the type, so nothing places a duration literal the way
 // ADR 0054 places a fractional one -- `var` infers `Core\Time\Duration` and
 // fixes it forever.

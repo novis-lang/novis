@@ -1,7 +1,7 @@
 --TEST--
 a directional scope opened in a single-quoted literal and never closed is a compile error — ADR 0087 §§ 1-2
 --FILE--
-<?mwl
+<?nvs
 string $label = 'user ⁦ admin';
 echo $label, "\n";
 --EXPECT--

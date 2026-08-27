@@ -1,7 +1,7 @@
 --TEST--
 A trailing parameter's default fills in when the argument is omitted, and is overridden when it is not
 --FILE--
-<?mwl
+<?nvs
 class Greeter {
     public static function hello(string $who, string $mark = "!"): string {
         return "hi " . $who . $mark;

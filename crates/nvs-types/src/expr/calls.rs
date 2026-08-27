@@ -9,7 +9,7 @@
 //! what it can be sure of. The one receiver that is *knowably* wrong rather
 //! than merely unresolved is an erased one — a plain `object` or a shape,
 //! neither of which lists a method at all — and it gets
-//! [`report_method_on_erased_receiver`] instead. [`resolved_call`] is the record `mwl-ir` reads back
+//! [`report_method_on_erased_receiver`] instead. [`resolved_call`] is the record `nvs-ir` reads back
 //! (see [`crate::expr_table`]), and it always carries the *declaring* class
 //! rather than the receiver's.
 //!
@@ -19,7 +19,7 @@
 //! first-class-callable-syntax replacement wherever `callable` is the expected
 //! type, ahead of [`is_assignable`]'s generic mismatch (which would otherwise
 //! also fire for the same expression); [`report_call_on_non_callable`] refuses
-//! `$obj(...)` for any `$obj` whose static type is a resolved class — MWL has
+//! `$obj(...)` for any `$obj` whose static type is a resolved class — Novis has
 //! no `__invoke`, so no class ever makes `()` mean anything else.
 //! [`check_fn_literal`] is the other half of the same ADR pair: a closure
 //! literal's body is checked like any other body, and it owns ADR 0031's
@@ -36,7 +36,7 @@ use super::*;
 /// `$obj->method(...)` / `$obj?->method(...)` — [`super::infer`]'s
 /// `ExprKind::MethodCall` arm.
 ///
-/// Unlike a static call, `mwl_hir::members` never checks an instance method
+/// Unlike a static call, `nvs_hir::members` never checks an instance method
 /// call's existence for any receiver — including `$this` — so this is the
 /// first and only place it is diagnosed.
 #[expect(
@@ -74,7 +74,7 @@ pub(super) fn infer_method_call(
                 check_method_visibility(owner, &name, sig, *name_span, ctx, env);
             }
             // The *declaring* class, not the receiver's: that is what
-            // `ResolvedCall::class` promises, and `mwl-ir` renders the call's
+            // `ResolvedCall::class` promises, and `nvs-ir` renders the call's
             // target label from it — `$dog->name()` on a `Dog` that inherits
             // `name` must name `Animal::name`, the symbol that actually exists.
             found.map(|(owner, sig)| (owner, name, sig))
@@ -104,7 +104,7 @@ pub(super) fn infer_method_call(
     if matches!(args, CallArgs::FirstClassCallable) {
         return env.interner.callable();
     }
-    // `mwl-ir` needs this call's resolved target (not just its return type) to
+    // `nvs-ir` needs this call's resolved target (not just its return type) to
     // lower an eventual instance-call instruction — see `crate::expr_table`'s
     // own module docs. The *substituted* signature, never the one
     // `resolve_method` returned: `crate::generics` guarantees a type variable
@@ -120,7 +120,7 @@ pub(super) fn infer_method_call(
 
 /// `Class::method(...)` — [`super::infer`]'s `ExprKind::StaticCall` arm.
 ///
-/// `mwl_hir::members` already checks this reference's existence
+/// `nvs_hir::members` already checks this reference's existence
 /// (`self::`/`static::`/`parent::`/an explicit class name), so this only
 /// recovers the call's *type* when a signature resolves, and adds no second
 /// diagnostic when it doesn't.
@@ -153,11 +153,11 @@ pub(super) fn infer_static_call(
                     (owner, name.clone(), sig)
                 });
             // The same narrowing of `Core`'s blanket trust
-            // [`super::members::infer_class_const`] explains: `mwl_hir` waves
+            // [`super::members::infer_class_const`] explains: `nvs_hir` waves
             // every `Core\…::anything` through because nothing declares it, but
-            // `mwl_stdlib::registry` states every member `Core` has, so a name
+            // `nvs_stdlib::registry` states every member `Core` has, so a name
             // that is not one is knowably wrong *here*. Without this a typo
-            // reaches `mwl-ir` as a static call with no resolved target
+            // reaches `nvs-ir` as a static call with no resolved target
             // recorded, which panics.
             if found.is_none() && qname.is_core() {
                 report_unknown_member(expr.span, &qname, &name, "member", env);
@@ -186,7 +186,7 @@ pub(super) fn infer_static_call(
     if matches!(args, CallArgs::FirstClassCallable) {
         return env.interner.callable();
     }
-    // See [`infer_method_call`]: persisted for `mwl-ir` to read back a resolved
+    // See [`infer_method_call`]: persisted for `nvs-ir` to read back a resolved
     // static call's target, always as the *substituted* signature.
     if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
         let mut call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
@@ -208,7 +208,7 @@ pub(super) fn infer_static_call(
 /// not diagnosing an arity mismatch against zero parameters here is deliberate
 /// — see the crate docs' known gaps. The *declaring* class is kept, not the
 /// constructed one: `new Dog(...)` on a `Dog extends Animal` that declares no
-/// constructor of its own invokes `Animal::constructor`, and `mwl-ir` cannot
+/// constructor of its own invokes `Animal::constructor`, and `nvs-ir` cannot
 /// re-walk the hierarchy to find that out (see
 /// `crate::expr_table::ExprInfo::New::ctor`).
 #[expect(
@@ -253,23 +253,23 @@ pub(super) fn infer_new(
         reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
         // A `Core`-owned class has no constructor and never will: its instances
         // come from the member that produces one, and its slots are
-        // `mwl-stdlib`'s layout rather than a surface a program fills in
-        // (`mwl_stdlib::registry::CoreTy::Instance`). Reported here rather than
-        // left to `mwl-codegen`, which would fail with "this unit declares no
+        // `nvs-stdlib`'s layout rather than a surface a program fills in
+        // (`nvs_stdlib::registry::CoreTy::Instance`). Reported here rather than
+        // left to `nvs-codegen`, which would fail with "this unit declares no
         // descriptor for it" — an internal message for an ordinary mistake.
         //
         // The carve-out is `registry::CONSTRUCTORS`: spec § 9's collections are
         // written `new Core\ObjectSet<Tag>()`, and they still declare no
         // `constructor` *member* — what makes them constructible is a native
-        // symbol `mwl-ir` lowers straight to, which `mwl_stdlib::instance`'s
+        // symbol `nvs-ir` lowers straight to, which `nvs_stdlib::instance`'s
         // module docs own. So the class is a legal `new` target while
         // `Core\ObjectSet::constructor` remains an unknown member.
         if crate::core_lib::is_registered(qname)
-            && mwl_stdlib::registry::constructor_symbol(&qname.to_string()).is_none()
+            && nvs_stdlib::registry::constructor_symbol(&qname.to_string()).is_none()
         {
             report_unknown_member(expr.span, qname, "constructor", "member", env);
         }
-        // `mwl-ir` needs the constructed class and its resolved constructor (if
+        // `nvs-ir` needs the constructed class and its resolved constructor (if
         // any) to lower `new` — see `crate::expr_table`'s own module docs.
         let ctor = sig.as_ref().zip(ctor_owner).map(|(s, owner)| {
             resolved_call(owner, "constructor".to_owned(), s, slots, env.signatures)
@@ -294,7 +294,7 @@ pub(super) fn infer_new(
 /// [`super::args::check_written_type_args`]'s rule at a call site, for the
 /// same reason.
 ///
-/// **The roster is [`mwl_stdlib::registry::GENERIC_CLASSES`].** ADR 0007 § 3
+/// **The roster is [`nvs_stdlib::registry::GENERIC_CLASSES`].** ADR 0007 § 3
 /// makes "which target may carry a list" a resolution question, and the answer
 /// is that table: a `Core`-owned generic class takes exactly the arguments it
 /// declares (`E_TYPE_ARG_COUNT` on any other count, none at all included), and
@@ -325,7 +325,7 @@ fn check_new_type_args(
         .zip(type_args.last())
         .map(|(first, last)| first.span.to(last.span));
     let generic = target.and_then(|qname| {
-        mwl_stdlib::registry::class_type_params(&qname.to_string()).map(|params| (qname, params))
+        nvs_stdlib::registry::class_type_params(&qname.to_string()).map(|params| (qname, params))
     });
     let Some((qname, params)) = generic else {
         if let Some(span) = span {
@@ -368,7 +368,7 @@ fn check_new_type_args(
 /// Builds the [`ExprInfo::Call`] entry [`crate::expr_table::ExprTypeTable`]
 /// persists for a resolved method/static call — the one place `qname`/`name`/
 /// `sig` (already computed for this call's own type-checking) get bundled
-/// into the shape `mwl-ir` reads back, so the `MethodCall`/`StaticCall`/`New`
+/// into the shape `nvs-ir` reads back, so the `MethodCall`/`StaticCall`/`New`
 /// arms below don't each repeat the field list.
 pub(super) fn resolved_call(
     qname: QName,
@@ -405,7 +405,7 @@ pub(super) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
             env.diags.report(
                 Diagnostic::error(
                     code::E_CALLABLE_STRING_UNSUPPORTED,
-                    "a string is not callable in MWL; take a reference with first-class \
+                    "a string is not callable in Novis; take a reference with first-class \
                      callable syntax instead",
                 )
                 .with_primary(expr.span, "this string")
@@ -417,7 +417,7 @@ pub(super) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
             env.diags.report(
                 Diagnostic::error(
                     code::E_CALLABLE_ARRAY_UNSUPPORTED,
-                    "an array is not callable in MWL; take a reference with first-class \
+                    "an array is not callable in Novis; take a reference with first-class \
                      callable syntax instead",
                 )
                 .with_primary(expr.span, "this array")
@@ -430,7 +430,7 @@ pub(super) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
 }
 
 /// ADR 0027 § 1: `$obj(...)` is refused whenever `$obj`'s static type
-/// resolves to a class — MWL has no `__invoke`, so no class ever makes `()`
+/// resolves to a class — Novis has no `__invoke`, so no class ever makes `()`
 /// mean anything else, regardless of what methods it declares. A `Ty::Mixed`
 /// callee (nothing statically known) and an already-`Ty::Callable` one are
 /// both left alone.
@@ -442,7 +442,7 @@ pub(super) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
         Diagnostic::error(
             code::E_NOT_CALLABLE,
             format!(
-                "`{qname}` is not callable; MWL has no `__invoke` — call a named method \
+                "`{qname}` is not callable; Novis has no `__invoke` — call a named method \
                  instead, e.g. `$obj->methodName(...)`"
             ),
         )
@@ -458,12 +458,12 @@ pub(super) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
 /// `callable` is one type whatever closure the variable holds, so this site has
 /// no parameter list to resolve a name against — and neither has the run time,
 /// a closure object recording its arity and its parameter *tags* and never
-/// their names (`mwl_runtime::closure`). PHP allows the spelling only because a
+/// their names (`nvs_runtime::closure`). PHP allows the spelling only because a
 /// `Closure` there carries its whole declaration.
 ///
 /// A `...` argument is left alone and lowers: how many arguments it hands over
 /// is its own run-time length, which needs no parameter list to mean something
-/// (`mwl_ir::Helper::CallClosureArray`). What still applies is rule 1 of
+/// (`nvs_ir::Helper::CallClosureArray`). What still applies is rule 1 of
 /// [`super::args::map_arguments`] — a positional argument cannot follow a `...`
 /// — for the same reason it applies at a resolved call, so the two refusals are
 /// one walk.
@@ -524,7 +524,7 @@ pub(super) fn report_named_args_through_callable(args: &CallArgs, env: &mut Env<
 /// additionally needs an argument list checked against a signature and a
 /// return type for the position it sits in, and an erased receiver supplies
 /// neither. There is no `__call` to fall back on either (ADR 0014), so the
-/// call is refused where it is written rather than reaching `mwl-ir` with no
+/// call is refused where it is written rather than reaching `nvs-ir` with no
 /// resolved target.
 ///
 /// Both narrowing spellings that recover a class are named in the help, and
@@ -584,14 +584,14 @@ pub(super) fn check_new_target(
     match target {
         NewTarget::Name(name) => {
             let text = span_text(env.src, name.span);
-            let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+            let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
             if env.symbols.get(&qname).is_some()
                 || qname.is_core()
                 || qname.is_reserved_global_class()
             {
                 env.interner.class(qname)
             } else {
-                // Diagnosed rather than erased to `mixed`: `mwl-ir` has no
+                // Diagnosed rather than erased to `mixed`: `nvs-ir` has no
                 // class to allocate and panics naming the missing table entry,
                 // which is a worse report of the same fact. The spelling this
                 // most often catches is PHP's `new Exception(…)` — spec § 10
@@ -660,7 +660,7 @@ pub(super) fn check_new_target(
 /// ADR 0031 § 3's optional self-name is parsed and ignored: nothing binds it,
 /// so calling it inside the body reports an undefined name. Recursion through
 /// a closure is the one § 3 capability with no other route, but it needs a
-/// call shape that does not exist yet — see `mwl_ir::lower`'s own docs for
+/// call shape that does not exist yet — see `nvs_ir::lower`'s own docs for
 /// which closure call sites lower at all.
 pub(super) fn check_fn_literal(
     expr: &Expr,
@@ -672,7 +672,7 @@ pub(super) fn check_fn_literal(
 ) -> TypeId {
     let seq = env.closure_seq;
     env.closure_seq += 1;
-    // `$` cannot appear in an MWL identifier, so this label can never collide
+    // `$` cannot appear in an Novis identifier, so this label can never collide
     // with a declared class — the same guarantee ADR 0053 § 4's generator
     // state class relies on.
     let owner = ctx
@@ -705,7 +705,7 @@ pub(super) fn check_fn_literal(
     };
     // A closure's body is its own function: an enclosing loop's `break`
     // targets are not reachable from inside it, so the two counters
-    // `mwl_types::locals` keeps start again at zero and are put back
+    // `nvs_types::locals` keeps start again at zero and are put back
     // afterwards. Without this, `foreach (...) { $f = fn (): void => {
     // break; }; }` would count the outer loop as a target it could leave.
     let outer_targets = std::mem::take(&mut env.exit_targets);
@@ -779,7 +779,7 @@ pub(super) fn check_fn_literal(
 ///
 /// A by-reference parameter is a contract between a *call site* and a
 /// declaration — the site stages the cell, hands over its address and copies
-/// back afterwards (`mwl_ir::lower::call`). A closure's type is `callable` and
+/// back afterwards (`nvs_ir::lower::call`). A closure's type is `callable` and
 /// nothing else (§ 4), carrying no parameter list for a site to read, so there
 /// is no site that could know to stage anything; and § 2's by-value capture
 /// lets a closure outlive every frame in scope where it was written, so even
@@ -789,7 +789,7 @@ pub(super) fn check_fn_literal(
 /// Reported once per by-reference parameter, and the parameter is then bound
 /// as an ordinary one so the body checks against its declared type instead of
 /// reporting an undefined name at every use.
-fn report_by_reference_parameter(param: &mwl_syntax::ast::Param, env: &mut Env<'_>) {
+fn report_by_reference_parameter(param: &nvs_syntax::ast::Param, env: &mut Env<'_>) {
     let name = span_text(env.src, param.name).to_owned();
     env.diags.report(
         Diagnostic::error(

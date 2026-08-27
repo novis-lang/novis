@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 class Tag {
     public string $name;
 
@@ -22,8 +22,8 @@ $weights->set($blue, 7);
 echo "weight=" . ($weights->get($red) ?? 0) . "\n";
 echo "absent=" . ($weights->get(new Tag("red")) ?? -1) . "\n";
 
-echo "sha256=" . Core\Encoding::toHex(Core\Hash::of("mwl", Core\Digest::Sha256)) . "\n";
-echo "base64=" . Core\Encoding::toBase64(Core\Encoding::encodeText("mwl", Core\Charset::Utf8)) . "\n";
+echo "sha256=" . Core\Encoding::toHex(Core\Hash::of("nvs", Core\Digest::Sha256)) . "\n";
+echo "base64=" . Core\Encoding::toBase64(Core\Encoding::encodeText("nvs", Core\Charset::Utf8)) . "\n";
 
 echo "dice=" . Core\Random::int(5, 5) . "\n";
 // Spec § 11: there is no `Uuid::isValid` — asking whether text is a UUID is
@@ -31,10 +31,10 @@ echo "dice=" . Core\Random::int(5, 5) . "\n";
 // twice.
 echo "uuid=" . (Core\Uuid::tryParse("00000000-0000-4000-8000-000000000000") != null ? "valid" : "invalid") . "\n";
 
-var $joined = Core\Path::join("srv", "app", "index.mwl");
+var $joined = Core\Path::join("srv", "app", "index.nvs");
 echo "path=" . Core\Str::replace($joined, Core\Path::SEPARATOR, "/") . "\n";
-echo "stem=" . Core\Path::basename("/srv/app/index.mwl", {withoutExtension: true}) . "\n";
-echo "ext=" . (Core\Path::extension("/srv/app/index.mwl") ?? "none") . "\n";
+echo "stem=" . Core\Path::basename("/srv/app/index.nvs", {withoutExtension: true}) . "\n";
+echo "ext=" . (Core\Path::extension("/srv/app/index.nvs") ?? "none") . "\n";
 
 var $query = Core\Uri::parseQuery("a=1&b[]=2&b[]=3&c[k]=v");
 echo "queryKeys=" . Core\Str::join(Core\Arr::keys($query), ",") . "\n";
@@ -42,7 +42,7 @@ echo "queryKeys=" . Core\Str::join(Core\Arr::keys($query), ",") . "\n";
 var $rows = Core\Csv::parse("name,qty\nfig,2\npear,5\n", {header: true});
 echo "rows=" . Core\Arr::count($rows) . "\n";
 // `Core\Arr::first` answers a `?array<string>` here, and a narrowed nullable
-// array has lost its element type by the time `mwl-ir` lowers a subscript of
+// array has lost its element type by the time `nvs-ir` lowers a subscript of
 // it (docs/agent/playbook.md). Binding the row first is one of the three
 // spellings that do lower, and it is the one that still reads as a row.
 var $head = $rows["0"];

@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # The matrix that matters: MWL generates native code, so "it compiles" is not
+  # The matrix that matters: Novis generates native code, so "it compiles" is not
   # the same claim on each platform. Windows uses SEH and a different calling
   # convention; aarch64 is a different backend in Cranelift entirely.
   # ---------------------------------------------------------------------------
@@ -53,22 +53,22 @@ jobs:
       # library this API-heavy.
       - run: cargo test --workspace --doc
 
-      # The `.mwlt` conformance suite, on every platform for the reason the
+      # The `.nvst` conformance suite, on every platform for the reason the
       # cost guards below are: each case runs generated machine code, and code
       # generation is what differs per target. The *differential* suite is
       # deliberately not here — it needs PHP 8.5 on `PATH`, which a developer
       # machine is required to have (docs/setup.md) and a hosted runner image
       # does not.
       - name: Conformance suite
-        run: cargo run --quiet -p mwl-cli -- test tests/conformance/
+        run: cargo run --quiet -p nvs-cli -- test tests/conformance/
 
-      # Runs on every platform on purpose. These are the invariants MWL's
+      # Runs on every platform on purpose. These are the invariants Novis's
       # execution model rests on, they are properties of native code generation,
       # and they differ per platform: Windows unwinds through SEH, and aarch64 is
       # a different Cranelift backend entirely. The cost guards only run in
       # release, because the baselines they compare against are release figures.
       - name: Architecture invariants and cost guards
-        run: cargo test --release -p mwl-abi-probe
+        run: cargo test --release -p nvs-abi-probe
 
   # ---------------------------------------------------------------------------
   # Separated because it pulls in Wasmtime, which is minutes of build time that
@@ -86,11 +86,11 @@ jobs:
         with:
           key: wasm-probe
       - name: Sandbox containment and boundary costs
-        run: cargo test --release -p mwl-abi-probe --features wasm-probe
+        run: cargo test --release -p nvs-abi-probe --features wasm-probe
       - name: Lint with the feature enabled
         run: |
           cargo clippy --workspace --all-targets \
-            --features mwl-abi-probe/wasm-probe -- -D warnings
+            --features nvs-abi-probe/wasm-probe -- -D warnings
 
   # There is deliberately no doc-size job. Length guidance for a status field, a
   # milestone heading or an ADR decision cell is in AGENTS.md, addressed to the
@@ -129,7 +129,7 @@ jobs:
           command: check
 
   # ---------------------------------------------------------------------------
-  # The other half of `supply-chain`. `cargo deny` decides what MWL may link;
+  # The other half of `supply-chain`. `cargo deny` decides what Novis may link;
   # this decides what it must ship. Regenerating the notice and diffing it
   # catches a dependency added without its licence text — which fails silently
   # and only at distribution, unlike an unallowed licence, which fails loudly
@@ -186,7 +186,7 @@ jobs:
       - name: Install cargo-geiger
         run: cargo install cargo-geiger --locked
       # Informational for now. Becomes a hard gate once the unsafe modules in
-      # mwl-runtime and mwl-codegen are written and their expected counts known.
+      # nvs-runtime and nvs-codegen are written and their expected counts known.
       - name: Count unsafe
         run: cargo geiger --workspace --output-format GitHubMarkdown >> "$GITHUB_STEP_SUMMARY"
         continue-on-error: true
@@ -239,11 +239,11 @@ jobs:
       - name: miri test (front end)
         run: |
           cargo +nightly miri test \
-            -p mwl-diagnostics \
-            -p mwl-syntax \
-            -p mwl-hir \
-            -p mwl-types \
-            -p mwl-ir
+            -p nvs-diagnostics \
+            -p nvs-syntax \
+            -p nvs-hir \
+            -p nvs-types \
+            -p nvs-ir
 
   # ---------------------------------------------------------------------------
   # The half Miri cannot reach: the crates that execute generated machine code,
@@ -252,13 +252,13 @@ jobs:
   # `tools/loop.py` — that runs the `examples/` fixtures end to end through the
   # release binary, and never runs a crate's own tests.
   #
-  # `mwl-codegen` and `mwl-stdlib` link `mwl-runtime` as an ordinary dependency,
+  # `nvs-codegen` and `nvs-stdlib` link `nvs-runtime` as an ordinary dependency,
   # so it compiles with `debug_assertions` on and `cfg(test)` off and takes the
   # platform heap — which is what ASAN has to interpose on to see anything.
-  # `mwl-runtime`'s own test binary is the one build that does not: `cfg(test)`
+  # `nvs-runtime`'s own test binary is the one build that does not: `cfg(test)`
   # installs `counting_alloc` over the size-class cache, and a recycled block is
   # never freed, so ASAN cannot poison it and a use-after-free reads live
-  # memory. Hence `--features mwl-runtime/sanitizer`, which swaps that cache
+  # memory. Hence `--features nvs-runtime/sanitizer`, which swaps that cache
   # back out for the platform heap. `counting_alloc`'s module doc is the home of
   # the reasoning; without the feature this job is silently weaker than it looks
   # on exactly the crate holding most of the unsafe.
@@ -286,7 +286,7 @@ jobs:
           ASAN_OPTIONS: detect_leaks=0:detect_stack_use_after_return=1
         run: |
           cargo +nightly test --target x86_64-unknown-linux-gnu \
-            --features mwl-runtime/sanitizer \
-            -p mwl-runtime \
-            -p mwl-codegen \
-            -p mwl-stdlib
+            --features nvs-runtime/sanitizer \
+            -p nvs-runtime \
+            -p nvs-codegen \
+            -p nvs-stdlib

@@ -6,8 +6,8 @@
 //!
 //! # The reader is a dependency and the writer is not
 //!
-//! `csv-core` is bound for [`mwl_core_csv_parse`] and nothing is bound for
-//! [`mwl_core_csv_format`]. That asymmetry is
+//! `csv-core` is bound for [`nvs_core_csv_parse`] and nothing is bound for
+//! [`nvs_core_csv_format`]. That asymmetry is
 //! [ground-rules.md](../../../../docs/adr/ground-rules.md)'s "an external
 //! specification is a dependency rather than a hand-written parser" applied
 //! where it actually bites: reading. RFC 4180's corners — a quoted field
@@ -28,7 +28,7 @@
 //! and its one dependency is `memchr`, which this tree already carries under
 //! `regex`. It is the parsing core of the `csv` crate the Rust ecosystem
 //! reads for this, split out precisely so the caller owns the buffers — which
-//! is what lets this module copy each field once, into the [`MwlStr`] it is
+//! is what lets this module copy each field once, into the [`NvsStr`] it is
 //! going to answer with, instead of through a `String` it would then copy
 //! again.
 //!
@@ -54,7 +54,7 @@
 //!
 //! The first record becomes the column names, every later record is keyed by
 //! them, and the header record itself is not returned. The return type does
-//! not change — it is `array<array<string>>` either way — because every MWL
+//! not change — it is `array<array<string>>` either way — because every Novis
 //! array key is a `string` already, which is the whole reason this is an
 //! option rather than a second member with a second return type.
 //!
@@ -81,7 +81,7 @@
 //!
 //! # Writing: one rule, four bytes
 //!
-//! [`mwl_core_csv_format`] quotes a field exactly when it holds the separator,
+//! [`nvs_core_csv_format`] quotes a field exactly when it holds the separator,
 //! the quote, `CR` or `LF` — the four bytes whose presence would otherwise
 //! change how the field parses back — and doubles the quote inside one. Every
 //! record ends with `LF`, including the last, so `parse(format($rows))` is
@@ -102,7 +102,7 @@
 //! # What it spends
 //!
 //! `parse` holds one output buffer the size of its input for the whole call,
-//! plus the answer: one array per record, and one [`MwlStr`] per cell. Both
+//! plus the answer: one array per record, and one [`NvsStr`] per cell. Both
 //! are freed with the request that produced them, and nothing is retained
 //! between calls. `csv-core`'s DFA is a single forward pass with no
 //! backtracking, so a hostile document costs O(n) in time and O(n) in memory
@@ -123,7 +123,7 @@
 //!    a fed-buffer loop rather than a whole-slice scan, so the incremental
 //!    caller is the same code with a different feeder.
 
-use mwl_runtime::{Fault, MwlArray, MwlStr, Tag, Value};
+use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
@@ -144,7 +144,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Str, CoreTy::Options(PARSE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Str)),
-            symbol: "mwl_core_csv_parse",
+            symbol: "nvs_core_csv_parse",
         },
         CoreMethod {
             name: "format",
@@ -154,7 +154,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_csv_format",
+            symbol: "nvs_core_csv_format",
         },
     ],
     instance: &[],
@@ -220,8 +220,8 @@ const FORMAT_OPTIONS: &[CoreOption] = &[
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_csv_parse" => (mwl_core_csv_parse as *const ()).cast(),
-        "mwl_core_csv_format" => (mwl_core_csv_format as *const ()).cast(),
+        "nvs_core_csv_parse" => (nvs_core_csv_parse as *const ()).cast(),
+        "nvs_core_csv_format" => (nvs_core_csv_format as *const ()).cast(),
         _ => return None,
     })
 }
@@ -335,7 +335,7 @@ fn array_of(
     value: &Value,
     member: &str,
     position: &str,
-) -> Result<std::mem::ManuallyDrop<MwlArray>, Fault> {
+) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
     let raw = value.array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Csv::{member} expected {:?} for {position}, got tag {}",
@@ -350,7 +350,7 @@ fn array_of(
 // The members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Csv::parse(string $text, {separator?, quote?, escape?, header?: bool}):
     /// array<array<string>>` — replacing PHP's `str_getcsv` and the parsing
     /// half of `fgetcsv`, over a whole document rather than one line.
@@ -369,7 +369,7 @@ mwl_runtime::mwl_helper! {
     /// err on at the edge of a request, where a malformed upload should be
     /// rejected by the code that knows what the columns mean rather than by
     /// the decoder.
-    fn mwl_core_csv_parse(_ctx, args: [5]) {
+    fn nvs_core_csv_parse(_ctx, args: [5]) {
         let text = text_of(&args[0], "parse", "the text")?;
         let separator = dialect_byte(&args[1], "parse", "separator")?;
         let quote = dialect_byte(&args[2], "parse", "quote")?;
@@ -397,7 +397,7 @@ mwl_runtime::mwl_helper! {
         let mut field: Vec<u8> = Vec::new();
         let mut record: Vec<Vec<u8>> = Vec::new();
         let mut names: Vec<Vec<u8>> = Vec::new();
-        let mut rows = MwlArray::new();
+        let mut rows = NvsArray::new();
         let mut read = 0;
 
         loop {
@@ -435,20 +435,20 @@ mwl_runtime::mwl_helper! {
 /// A field past the end of `names` is keyed by its own column index, which is
 /// the key it would have had with no header at all; this module's docs own why
 /// that is answered rather than thrown.
-fn row(record: &[Vec<u8>], names: &[Vec<u8>]) -> MwlArray {
-    let mut out = MwlArray::new();
+fn row(record: &[Vec<u8>], names: &[Vec<u8>]) -> NvsArray {
+    let mut out = NvsArray::new();
     for (column, field) in record.iter().enumerate() {
-        let value = Value::str(MwlStr::new(field));
+        let value = Value::str(NvsStr::new(field));
         match names.get(column) {
-            Some(name) => out.set(MwlStr::new(name), value),
+            Some(name) => out.set(NvsStr::new(name), value),
             None if names.is_empty() => out.append(value),
-            None => out.set(MwlStr::new(column.to_string().as_bytes()), value),
+            None => out.set(NvsStr::new(column.to_string().as_bytes()), value),
         }
     }
     out
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Csv::format(array<array<string>> $rows, {separator?, quote?,
     /// header?: array<string>}): string` — replacing `fputcsv`'s formatting
     /// half, over a whole document rather than one line.
@@ -465,7 +465,7 @@ mwl_runtime::mwl_helper! {
     /// [`Fault::thrown`] for a row that is not an array of `string`s. The
     /// declared parameter type already says so, but `array<mixed>` reaches
     /// this member through `mixed` and the throw names which cell.
-    fn mwl_core_csv_format(_ctx, args: [4]) {
+    fn nvs_core_csv_format(_ctx, args: [4]) {
         let rows = array_of(&args[0], "format", "the rows")?;
         let separator = dialect_byte(&args[1], "format", "separator")?;
         let quote = dialect_byte(&args[2], "format", "quote")?;
@@ -488,7 +488,7 @@ mwl_runtime::mwl_helper! {
         // Every byte written is either one of the argument's — which are UTF-8
         // by ADR 0009 — or the separator, the quote or an `LF`, each of which
         // `dialect_byte` has already held to ASCII.
-        Ok(Value::str(MwlStr::new(&out)))
+        Ok(Value::str(NvsStr::new(&out)))
     }
 }
 
@@ -499,7 +499,7 @@ mwl_runtime::mwl_helper! {
 /// A [`Fault::thrown`] naming the column, for a cell that is not a `string`.
 fn write_record(
     out: &mut Vec<u8>,
-    record: &MwlArray,
+    record: &NvsArray,
     separator: u8,
     quote: u8,
 ) -> Result<(), Fault> {
@@ -544,9 +544,9 @@ fn write_field(out: &mut Vec<u8>, field: &[u8], separator: u8, quote: u8) {
 
 #[cfg(test)]
 mod tests {
-    use mwl_runtime::{Ctx, OutputSink, call};
+    use nvs_runtime::{Ctx, OutputSink, call};
 
-    use super::{MwlStr, Value, dialect_byte, distinct, write_field};
+    use super::{NvsStr, Value, dialect_byte, distinct, write_field};
 
     /// Runs one member through the ADR 0002 boundary compiled code reaches it
     /// at, releasing every value this test built afterwards — the helper
@@ -573,13 +573,13 @@ mod tests {
 
     /// A `string` argument.
     fn s(text: &str) -> Value {
-        Value::str(MwlStr::new(text.as_bytes()))
+        Value::str(NvsStr::new(text.as_bytes()))
     }
 
     /// `parse` over the default dialect, as the key/value pairs of each row.
     fn parse(text: &str, header: bool) -> Vec<Vec<(String, String)>> {
         let answer = run(
-            super::mwl_core_csv_parse,
+            super::nvs_core_csv_parse,
             &[s(text), s(","), s("\""), s(""), Value::bool(header)],
         )
         .expect("the default dialect never throws");
@@ -723,7 +723,7 @@ mod tests {
     #[test]
     fn a_multi_byte_or_empty_separator_throws() {
         for spelling in ["", ";;", "€", "\n"] {
-            let value = Value::str(MwlStr::new(spelling.as_bytes()));
+            let value = Value::str(NvsStr::new(spelling.as_bytes()));
             assert!(dialect_byte(&value, "parse", "separator").is_err());
         }
     }

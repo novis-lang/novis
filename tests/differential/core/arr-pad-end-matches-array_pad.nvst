@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::padEnd adds the same entries in the same places as array_pad with a positive size, at every size around the subject's own count
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `array_pad` row, positive half. The conformance suite already pins
 // that `padEnd` reaches `$size` entries and stops; this asks whether PHP agrees
 // about *where* the added entries land and what the untouched half looks like
@@ -9,7 +9,7 @@ Core\Arr::padEnd adds the same entries in the same places as array_pad with a po
 // answering both directions and `padEnd` is one of two members.
 //
 // Keys are rendered and not just values, because padding is exactly where the
-// two rules can part: MWL's result is always a list, where `array_pad`
+// two rules can part: Novis's result is always a list, where `array_pad`
 // renumbers the integer keys and keeps the string ones. On a *list* subject the
 // two coincide, which is why this case's subject is a list and
 // `arr-pad-on-string-keys-diverges-from-array_pad` is the case that says where
@@ -28,7 +28,7 @@ array<int> $subject = [10, 20, 30, 40];
 array<int> $sizes = [0, 1, 3, 4, 5, 7, 9];
 
 // Both sides of the subject's own count in one sweep: a size that asks for
-// fewer entries than there are (PHP returns the subject unchanged, MWL returns
+// fewer entries than there are (PHP returns the subject unchanged, Novis returns
 // its values as a list, and over a list those are the same array), the exact
 // count, and every width past it.
 foreach ($sizes as int $n) {

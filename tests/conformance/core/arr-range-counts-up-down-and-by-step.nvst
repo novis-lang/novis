@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::range walks up or down between its bounds, and its `step` option sets the stride
 --FILE--
-<?mwl
+<?nvs
 class Show {
     public static function of(array<int> $a): string {
         return Core\Str::join(Core\Arr::map($a, fn(int $n) => $n as string), ",");

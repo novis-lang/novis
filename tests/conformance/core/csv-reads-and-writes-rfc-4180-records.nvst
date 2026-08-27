@@ -1,7 +1,7 @@
 --TEST--
 `Core\Csv::parse` reads RFC 4180 and `Core\Csv::format` writes it back, spec § 12's second table
 --FILE--
-<?mwl
+<?nvs
 // The reader's grammar: a quoted field holds the separator and a bare CRLF, a
 // doubled quote inside one is a single quote, a blank line is not a record and
 // the trailing newline every generator writes does not add one.
@@ -20,7 +20,7 @@ foreach ($keyed as array<string> $row) {
 }
 
 // The dialect is the caller's: three single ASCII bytes, defaulting to
-// RFC 4180's. `crates/mwl-stdlib/src/csv.rs`'s module doc owns why `escape`
+// RFC 4180's. `crates/nvs-stdlib/src/csv.rs`'s module doc owns why `escape`
 // defaults to none.
 var $semi = Core\Csv::parse("x;y\n", {separator: ";"});
 echo "semi=", $semi["0"]["1"], "\n";

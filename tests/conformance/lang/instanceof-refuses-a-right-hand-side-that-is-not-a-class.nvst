@@ -1,7 +1,7 @@
 --TEST--
 `instanceof`'s right-hand side must name a class or interface the program declares — the dynamic form, an enum and a `Core` class are `E0496`, an undeclared name the ordinary `E0303` — ADR 0007 § 2, ADR 0010
 --FILE--
-<?mwl
+<?nvs
 enum Mode: int {
     Read = 1,
     Write = 2,
@@ -16,7 +16,7 @@ string $name = "Box";
 
 // ADR 0007 § 2: a class name is written, never computed — the same line
 // `$$var` and `eval` are already on, and nothing below could resolve one
-// either, since `mwl-codegen` bakes a descriptor address in as a constant.
+// either, since `nvs-codegen` bakes a descriptor address in as a constant.
 bool $a = $m instanceof $name;
 // A string literal is the same dynamic form spelled without a variable.
 bool $b = $m instanceof "Box";
@@ -37,14 +37,14 @@ error[E0496]: the right-hand side of `instanceof` must be a written class name
    |
 17 | bool $a = $m instanceof $name;
    |                         ^^^^^ not a class name
-   = help: MWL has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` and `eval`) — write the class, or branch on the names you accept
+   = help: Novis has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` and `eval`) — write the class, or branch on the names you accept
 
 error[E0496]: the right-hand side of `instanceof` must be a written class name
    --> %s:19:25
    |
 19 | bool $b = $m instanceof "Box";
    |                         ^^^^^ not a class name
-   = help: MWL has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` and `eval`) — write the class, or branch on the names you accept
+   = help: Novis has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` and `eval`) — write the class, or branch on the names you accept
 
 error[E0496]: `Mode` is an enum, and no value is ever an instance of one
    --> %s:22:25

@@ -1,7 +1,7 @@
 --TEST--
 `**` answers every numeric row ADR 0007 § 4 gives it, throwing where that row has no integer to return (ADR 0007 §§ 2, 4; ADR 0054 § 3)
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 4's `int ⊕ int` row: the operand type, exactly, over the whole
 // range of it. Square-and-multiply is what lowers this, so the interesting
 // exponents are the ones whose bit pattern makes it square one time too many

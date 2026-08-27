@@ -1,11 +1,11 @@
 --TEST--
 `Core\Uuid::v7`'s millisecond field never goes backwards across a sweep of consecutive draws — counted, contrasted against `v4`'s leading field, and bounded on both sides as a real Unix-epoch clock — spec § 11
 --FILE--
-<?mwl
+<?nvs
 // A drawn UUID cannot be asserted, so v7's one behavioural claim — that it is
 // *time-ordered*, which is the whole reason to prefer it over v4 for a database
 // key — is pinned by counting a run of draws rather than by comparing two.
-// `uuid-every-draw-round-trips-and-a-refusal-quotes-boundedly.mwlt` sweeps the
+// `uuid-every-draw-round-trips-and-a-refusal-quotes-boundedly.nvst` sweeps the
 // shape, the round trip and the distinctness; nothing here repeats them, and
 // nothing there looks at the ordering at all.
 //

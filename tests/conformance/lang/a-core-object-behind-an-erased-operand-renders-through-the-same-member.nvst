@@ -1,13 +1,13 @@
 --TEST--
 A `Core`-owned class reached through an operand whose static type names no class renders through the very `toString` the written-out spelling calls, and one the spec gives no `toString` throws catchably instead — ADR 0028 § 1, ADR 0036 § 4
 --FILE--
-<?mwl
+<?nvs
 // ADR 0036 § 4: an operand typed `mixed` defers *which* class is behind the
 // handle, so nothing is resolved where it is written and the rendering is
 // decided by the concrete instance. For a declared class that is a virtual
 // call into a compiled method table; a `Core` class has no entry in one, so
 // its renderer is carried on the descriptor instead and
-// `mwl_runtime::stringify` asks for that before the table.
+// `nvs_runtime::stringify` asks for that before the table.
 //
 // What this pins is the **agreement**, not the four answers: a spelling that
 // grew a rendering of its own — or an erased path that recomposed a `Uri` out
@@ -52,7 +52,7 @@ echo $md, "\n";
 mixed $fresh = Core\Uri::parse("https://fresh.example/p");
 echo "fresh=" . $fresh, "\n";
 
-// The other side of the bound. `mwl_stdlib::registry::class_renders` is what
+// The other side of the bound. `nvs_stdlib::registry::class_renders` is what
 // the checker asks at a written `echo $pattern`, and a `Core` class it answers
 // `false` for is `E0710` there. Behind a `mixed` there is nothing to ask at
 // compile time, so ADR 0036 § 4's rule applies instead: a checked, catchable

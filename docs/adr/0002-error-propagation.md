@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
-- **Scope:** how an MWL exception and a contained runtime panic cross a native
+- **Scope:** how an Novis exception and a contained runtime panic cross a native
   frame; the normative call ABI every compiled function and every runtime helper carries; and the
   `catch_unwind` wrapper that keeps a panic inside one request. Not in scope: what happens *at* the
   request boundary once a `FATAL` arrives there, which is [0020](0020-error-escalation-ladder.md).
@@ -20,8 +20,8 @@
 
 ## Context
 
-- MWL compiles every function to native code with Cranelift and has no interpreter tier, so two things must
-  cross native frames reliably: MWL exceptions (`throw`/`catch`), and runtime panics, which must kill
+- Novis compiles every function to native code with Cranelift and has no interpreter tier, so two things must
+  cross native frames reliably: Novis exceptions (`throw`/`catch`), and runtime panics, which must kill
   exactly one request and never the process. The original plan assumed the obvious design — emit unwind
   tables for JIT frames and let the platform unwinder carry a panic or exception to the request boundary.
 - Spike #1 disproved it: a JIT function calling a panicking `extern "C-unwind"` helper, with Cranelift's
@@ -35,9 +35,9 @@
 
 ## Decision
 
-**MWL does not unwind. Errors propagate as an explicit status value checked after every call.**
+**Novis does not unwind. Errors propagate as an explicit status value checked after every call.**
 
-The normative ABI for every compiled MWL function *and* every runtime helper:
+The normative ABI for every compiled Novis function *and* every runtime helper:
 
 ```rust
 extern "C" fn(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32
@@ -46,8 +46,8 @@ extern "C" fn(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32
 | status | meaning |
 |---|---|
 | `0` (`OK`) | success; the result has been written to `*out` |
-| `1` (`THROWN`) | an MWL exception is pending in `Ctx`; a `catch` may handle it |
-| `2` (`FATAL`) | unrecoverable (limit exceeded, internal error); unwinds to the request boundary and cannot be caught by MWL code |
+| `1` (`THROWN`) | an Novis exception is pending in `Ctx`; a `catch` may handle it |
+| `2` (`FATAL`) | unrecoverable (limit exceeded, internal error); unwinds to the request boundary and cannot be caught by Novis code |
 
 Codegen emits, after every call:
 
@@ -98,7 +98,7 @@ order-of-magnitude regression.
 Because nothing may unwind through a JIT frame, runtime helpers are declared `extern "C"` — **never**
 `extern "C-unwind"` — and each wraps its body in `catch_unwind`, converting a panic into `FATAL` with the
 message recorded in `Ctx`. `catch_unwind` costs nothing when no panic occurs. A single macro
-(`mwl_helper!`) generates the wrapper so this cannot be forgotten per-helper.
+(`nvs_helper!`) generates the wrapper so this cannot be forgotten per-helper.
 
 This makes `panic = "unwind"` load-bearing rather than a preference: `panic = "abort"` would convert every
 containable runtime bug into a process kill, destroying request isolation. It is set explicitly in every
@@ -106,7 +106,7 @@ profile in the workspace `Cargo.toml`.
 
 **The wrapper does not stop at the helper, and `panic = "unwind"` is necessary rather than sufficient.**
 Code running on a worker with no request beneath it — the accept loop, the HTTP reader, the compiled-unit
-cache index — is outside `mwl_helper!`, so the worker task's own root carries a `catch_unwind` as well;
+cache index — is outside `nvs_helper!`, so the worker task's own root carries a `catch_unwind` as well;
 and a panic raised *while* a panic is unwinding aborts the process regardless of this profile setting, so
 nothing on a teardown path may panic and teardown does not recurse.
 [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) §§ 2 and 3 hold both rules and the
@@ -135,7 +135,7 @@ request id, rather than to the process's stderr.
   0.85 ns/frame; accepted.
 - Every call site must be generated correctly. A missing status check silently swallows an exception, which
   is a nastier failure mode than a crash. Mitigation: call-site generation goes through a single
-  `emit_call()` helper in `mwl-codegen` that always emits the check — no caller constructs a raw
+  `emit_call()` helper in `nvs-codegen` that always emits the check — no caller constructs a raw
   `call` instruction — plus an IR verifier pass asserting every call result is consumed by a branch.
 - Foreign code that genuinely unwinds (a C library compiled with exceptions) cannot be called directly and
   must be wrapped on the Rust side. Acceptable: the stdlib is pure Rust by policy.

@@ -1,8 +1,8 @@
 --TEST--
 `$e->location` is written at the `throw` rather than at the `new`: one never thrown reads empty, and a rethrow moves it to the rethrow site — spec § 10
 --FILE--
-<?mwl
-// The synthesized constructor leaves `location` empty and `mwl_ir::lower`'s
+<?nvs
+// The synthesized constructor leaves `location` empty and `nvs_ir::lower`'s
 // `write_throw_location` fills it at the `throw` — the site that agrees with
 // the `backtrace` beside it, which holds the frames the exception unwound out
 // of rather than the ones that built it.
@@ -29,5 +29,5 @@ try {
 }
 --EXPECT--
 unthrown=[]
-rethrown=case.mwl:16
+rethrown=case.nvs:16
 message=first

@@ -1,7 +1,7 @@
 --TEST--
 `Core\ObjectSet<T>` holds each value once by strict identity, and `add`/`has`/`count`/`isEmpty`/`clear` answer over it — docs/spec/01-core-library.md § 9, ADR 0007 § 3
 --FILE--
-<?mwl
+<?nvs
 // § 9's second row: an identity-keyed set, constructed with a written type
 // argument. ADR 0007 § 3 makes a `new` target's `<...>` legal only on a
 // compiler-owned generic class, which this is.
@@ -24,7 +24,7 @@ $seen->add($second);
 echo $seen->count(), " ", $seen->isEmpty() ? "empty" : "filled", "\n";
 
 // Identity, not equality: a second `Tag` with the same name is a different
-// object (`mwl_runtime::identity`'s object row is pointer identity).
+// object (`nvs_runtime::identity`'s object row is pointer identity).
 echo $seen->has($first) ? "yes" : "no", "\n";
 echo $seen->has(new Tag("a")) ? "yes" : "no", "\n";
 

@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_program(&p, map.file(file))"
 ---
 fn <script>() -> tagged {
@@ -28,7 +28,7 @@ fn <script>() -> tagged {
     release v5
     release v2
     release v0
-    propagate "<script>() at t.mwl:5"
+    propagate "<script>() at t.nvs:5"
 }
 
 fn Script$fn0::invoke(object, int) -> string {

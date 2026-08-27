@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 #[Core\Json\Derive]
 class User {
     public string $name;

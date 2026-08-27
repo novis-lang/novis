@@ -1,7 +1,7 @@
 --TEST--
 `foreach` iterates the array the loop started with: writing, appending and unsetting through the loop leaves the sequence of visited pairs alone
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

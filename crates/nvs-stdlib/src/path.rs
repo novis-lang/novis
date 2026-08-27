@@ -39,7 +39,7 @@
 //!   PHP's answer is the one input where `dirname` hands back something that
 //!   is not a usable directory.
 //!
-//! [`mwl_core_path_with_extension`] takes exactly what [`mwl_core_path_extension`]
+//! [`nvs_core_path_with_extension`] takes exactly what [`nvs_core_path_extension`]
 //! returns — undotted, or `null` for none. That inverse is the whole reason
 //! the first two rows are worth diverging for.
 //!
@@ -48,7 +48,7 @@
 //! 1. **A UNC path is not modelled.** `\\server\share\f` parses as an ordinary
 //!    absolute path whose components are `server`, `share` and `f`, so
 //!    re-rendering it loses the doubled separator that makes it UNC. Nothing
-//!    on the path to `examples/collect.mwl` writes one; the fix is a third
+//!    on the path to `examples/collect.nvs` writes one; the fix is a third
 //!    root shape beside [`Parts::drive`], not a change of interface.
 //! 2. **A drive-*relative* path is not modelled.** `C:log` — Windows' "the
 //!    current directory *on* drive C" — has no separator after the colon, so
@@ -59,7 +59,7 @@
 //!
 //! Neither is a missing *member*: spec § 8's roster is whole here.
 
-use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
+use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreConst, CoreMethod, CoreOption, CoreTy};
 
@@ -77,63 +77,63 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Str, CoreTy::Options(BASENAME_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_path_basename",
+            symbol: "nvs_core_path_basename",
         },
         CoreMethod {
             name: "dirname",
             params: &[CoreTy::Str, CoreTy::Options(DIRNAME_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_path_dirname",
+            symbol: "nvs_core_path_dirname",
         },
         CoreMethod {
             name: "extension",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "mwl_core_path_extension",
+            symbol: "nvs_core_path_extension",
         },
         CoreMethod {
             name: "withExtension",
             params: &[CoreTy::Str, CoreTy::Nullable(&CoreTy::Str)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_path_with_extension",
+            symbol: "nvs_core_path_with_extension",
         },
         CoreMethod {
             name: "join",
             params: &[CoreTy::Str, CoreTy::Variadic(&CoreTy::Str)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_path_join",
+            symbol: "nvs_core_path_join",
         },
         CoreMethod {
             name: "split",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
-            symbol: "mwl_core_path_split",
+            symbol: "nvs_core_path_split",
         },
         CoreMethod {
             name: "normalize",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_path_normalize",
+            symbol: "nvs_core_path_normalize",
         },
         CoreMethod {
             name: "isAbsolute",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_path_is_absolute",
+            symbol: "nvs_core_path_is_absolute",
         },
         CoreMethod {
             name: "relativeTo",
             params: &[CoreTy::Str, CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "mwl_core_path_relative_to",
+            symbol: "nvs_core_path_relative_to",
         },
     ],
     instance: &[],
@@ -151,7 +151,7 @@ const BASENAME_OPTIONS: &[CoreOption] = &[CoreOption {
 }];
 
 /// `Core\Path::dirname`'s `{levels?: uint}` — PHP's second `dirname` argument,
-/// with [`mwl_core_path_dirname`]'s own docs owning what `0` means here and
+/// with [`nvs_core_path_dirname`]'s own docs owning what `0` means here and
 /// throws there.
 const DIRNAME_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "levels",
@@ -178,15 +178,15 @@ const SEPARATOR: &str = std::path::MAIN_SEPARATOR_STR;
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_path_basename" => (mwl_core_path_basename as *const ()).cast(),
-        "mwl_core_path_dirname" => (mwl_core_path_dirname as *const ()).cast(),
-        "mwl_core_path_extension" => (mwl_core_path_extension as *const ()).cast(),
-        "mwl_core_path_with_extension" => (mwl_core_path_with_extension as *const ()).cast(),
-        "mwl_core_path_join" => (mwl_core_path_join as *const ()).cast(),
-        "mwl_core_path_split" => (mwl_core_path_split as *const ()).cast(),
-        "mwl_core_path_normalize" => (mwl_core_path_normalize as *const ()).cast(),
-        "mwl_core_path_is_absolute" => (mwl_core_path_is_absolute as *const ()).cast(),
-        "mwl_core_path_relative_to" => (mwl_core_path_relative_to as *const ()).cast(),
+        "nvs_core_path_basename" => (nvs_core_path_basename as *const ()).cast(),
+        "nvs_core_path_dirname" => (nvs_core_path_dirname as *const ()).cast(),
+        "nvs_core_path_extension" => (nvs_core_path_extension as *const ()).cast(),
+        "nvs_core_path_with_extension" => (nvs_core_path_with_extension as *const ()).cast(),
+        "nvs_core_path_join" => (nvs_core_path_join as *const ()).cast(),
+        "nvs_core_path_split" => (nvs_core_path_split as *const ()).cast(),
+        "nvs_core_path_normalize" => (nvs_core_path_normalize as *const ()).cast(),
+        "nvs_core_path_is_absolute" => (nvs_core_path_is_absolute as *const ()).cast(),
+        "nvs_core_path_relative_to" => (nvs_core_path_relative_to as *const ()).cast(),
         _ => return None,
     })
 }
@@ -288,7 +288,7 @@ fn render(parts: &Parts<'_>, components: &[&str]) -> String {
 }
 
 /// One component's name split from its extension — the single definition both
-/// [`mwl_core_path_extension`] and the two members that rewrite a name read,
+/// [`nvs_core_path_extension`] and the two members that rewrite a name read,
 /// so the leading-dot and trailing-dot rules cannot drift between them.
 ///
 /// The extension carries no `.`, exactly as `Core\Path::extension` answers and
@@ -306,7 +306,7 @@ fn stem_and_extension(name: &str) -> (&str, Option<&str>) {
 }
 
 /// `parts`' components with `.` and `..` resolved lexically — the single
-/// definition [`mwl_core_path_normalize`] and [`mwl_core_path_relative_to`]
+/// definition [`nvs_core_path_normalize`] and [`nvs_core_path_relative_to`]
 /// share, since answering "where is this relative to that" means answering it
 /// about two paths that have already been resolved.
 ///
@@ -428,14 +428,14 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
 
 /// A freshly built `string` result.
 fn produced(text: &str) -> HelperResult {
-    Ok(Value::str(MwlStr::new(text.as_bytes())))
+    Ok(Value::str(NvsStr::new(text.as_bytes())))
 }
 
 // ============================================================================
 // The members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Path::basename(string $path, {withoutExtension?: bool}): string`
     /// — replacing PHP's `basename` and `pathinfo(…, PATHINFO_BASENAME)`.
     ///
@@ -444,7 +444,7 @@ mwl_runtime::mwl_helper! {
     /// nothing but a root has no name at all: `basename('/')` is `''`. That
     /// empty answer is PHP's too, and it is a `string` rather than R5's `null`
     /// because the spec's signature says so — a root is not an *absent* name.
-    fn mwl_core_path_basename(_ctx, args: [2]) {
+    fn nvs_core_path_basename(_ctx, args: [2]) {
         let path = text(&args[0], "basename", "the path")?;
         let without_extension = boolean(&args[1], "basename", "the `withoutExtension` option")?;
 
@@ -459,7 +459,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Path::dirname(string $path, {levels?: uint}): string` — replacing
     /// PHP's `dirname`, whose second argument becomes the one option here.
     ///
@@ -475,7 +475,7 @@ mwl_runtime::mwl_helper! {
     /// total answer; a throw would only make an arithmetic result fatal.
     /// Asking to go up further than there are components stops at the root,
     /// exactly as walking one level at a time would.
-    fn mwl_core_path_dirname(_ctx, args: [2]) {
+    fn nvs_core_path_dirname(_ctx, args: [2]) {
         let path = text(&args[0], "dirname", "the path")?;
         let levels = count(&args[1], "dirname", "the `levels` option")?;
 
@@ -485,7 +485,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Path::extension(string $path): ?string` — replacing PHP's
     /// `pathinfo(…, PATHINFO_EXTENSION)`.
     ///
@@ -493,7 +493,7 @@ mwl_runtime::mwl_helper! {
     /// `null` where there is none — including a dotfile and a trailing dot,
     /// which are this module's first two divergences from PHP and are stated
     /// once, on [`stem_and_extension`].
-    fn mwl_core_path_extension(_ctx, args: [1]) {
+    fn nvs_core_path_extension(_ctx, args: [1]) {
         let path = text(&args[0], "extension", "the path")?;
 
         let parts = parse(path);
@@ -504,11 +504,11 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Path::withExtension(string $path, ?string $extension): string` —
     /// replacing the manual string surgery PHP leaves this to.
     ///
-    /// **It takes exactly what [`mwl_core_path_extension`] answers**: the
+    /// **It takes exactly what [`nvs_core_path_extension`] answers**: the
     /// extension undotted, or `null` to remove one. That inverse is the point
     /// of the member, so a leading `.` is refused rather than accepted as a
     /// second spelling (ADR 0063 R20) — `withExtension($p, '.txt')` names
@@ -520,7 +520,7 @@ mwl_runtime::mwl_helper! {
     ///
     /// A path with no last component has no name to rewrite, so `'/'` and `''`
     /// throw rather than inventing one (ADR 0063 R4).
-    fn mwl_core_path_with_extension(_ctx, args: [2]) {
+    fn nvs_core_path_with_extension(_ctx, args: [2]) {
         let path = text(&args[0], "withExtension", "the path")?;
         let extension = maybe_text(&args[1], "withExtension", "the extension")?;
 
@@ -565,7 +565,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Path::join(string $base, string ...$segments): string` —
     /// replacing the `$a . "/" . $b` every PHP program writes.
     ///
@@ -580,13 +580,13 @@ mwl_runtime::mwl_helper! {
     /// goes.
     ///
     /// That is *not* a claim to be a launderer: a segment of `..` still walks
-    /// up, and [`mwl_core_path_normalize`]'s own docs say why removing one is
+    /// up, and [`nvs_core_path_normalize`]'s own docs say why removing one is
     /// not path-traversal safety either.
     ///
     /// The tail arrives as one `array<string>` argument rather than as N of
     /// them — `registry::CoreTy::Variadic` owns why — so this is an ordinary
     /// two-slot helper.
-    fn mwl_core_path_join(_ctx, args: [2]) {
+    fn nvs_core_path_join(_ctx, args: [2]) {
         let base = text(&args[0], "join", "the base")?;
         let tail = args[1].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
@@ -618,7 +618,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Path::split(string $path): array<string>` — replacing PHP's
     /// `explode(DIRECTORY_SEPARATOR, …)`, which only ever worked for one
     /// platform's paths at a time.
@@ -631,23 +631,23 @@ mwl_runtime::mwl_helper! {
     /// remaining elements are names and never the empty string — PHP's
     /// `explode` answers `['', 'a']` for `/a` and leaves the caller to know
     /// which empties meant something.
-    fn mwl_core_path_split(_ctx, args: [1]) {
+    fn nvs_core_path_split(_ctx, args: [1]) {
         let path = text(&args[0], "split", "the path")?;
 
         let parts = parse(path);
-        let mut out = MwlArray::new();
+        let mut out = NvsArray::new();
         let root = root(&parts);
         if !root.is_empty() {
-            out.append(Value::str(MwlStr::new(root.as_bytes())));
+            out.append(Value::str(NvsStr::new(root.as_bytes())));
         }
         for component in &parts.components {
-            out.append(Value::str(MwlStr::new(component.as_bytes())));
+            out.append(Value::str(NvsStr::new(component.as_bytes())));
         }
         Ok(Value::array(out))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Path::normalize(string $path): string` — the lexical half of
     /// PHP's `realpath`, which is the half that does not touch the disk.
     ///
@@ -661,7 +661,7 @@ mwl_runtime::mwl_helper! {
     /// launderer is `Core\IO::within`, in § 14, which is where the base is
     /// known. `realpath`'s other half — following symlinks, and answering
     /// `false` for a path that does not exist — belongs there too.
-    fn mwl_core_path_normalize(_ctx, args: [1]) {
+    fn nvs_core_path_normalize(_ctx, args: [1]) {
         let path = text(&args[0], "normalize", "the path")?;
 
         let parts = parse(path);
@@ -669,7 +669,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Path::isAbsolute(string $path): bool` — replacing the manual
     /// checks PHP leaves this to.
     ///
@@ -678,13 +678,13 @@ mwl_runtime::mwl_helper! {
     /// platform, which is this module's own docs' one-grammar rule; the spec's
     /// `Q` column marks this member neutral, and a lexical question about a
     /// string is exactly why.
-    fn mwl_core_path_is_absolute(_ctx, args: [1]) {
+    fn nvs_core_path_is_absolute(_ctx, args: [1]) {
         let path = text(&args[0], "isAbsolute", "the path")?;
         Ok(Value::bool(parse(path).absolute))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Path::relativeTo(string $path, string $base): ?string` — the
     /// member PHP has no equivalent of at all.
     ///
@@ -706,7 +706,7 @@ mwl_runtime::mwl_helper! {
     /// is a property of a filesystem rather than of a path, and this member
     /// touches no filesystem; the one exception is a drive letter, which is
     /// ASCII-case-insensitive everywhere it exists.
-    fn mwl_core_path_relative_to(_ctx, args: [2]) {
+    fn nvs_core_path_relative_to(_ctx, args: [2]) {
         let path = text(&args[0], "relativeTo", "the path")?;
         let base = text(&args[1], "relativeTo", "the base")?;
 
@@ -728,7 +728,7 @@ mwl_runtime::mwl_helper! {
 
 #[cfg(test)]
 mod tests {
-    use mwl_runtime::{Ctx, MwlArray, OutputSink, Value, call};
+    use nvs_runtime::{Ctx, NvsArray, OutputSink, Value, call};
 
     use super::SEPARATOR;
 
@@ -757,7 +757,7 @@ mod tests {
 
     /// A `string` argument.
     fn s(text: &str) -> Value {
-        Value::str(mwl_runtime::MwlStr::new(text.as_bytes()))
+        Value::str(nvs_runtime::NvsStr::new(text.as_bytes()))
     }
 
     /// The returned string's bytes, releasing the reference the helper handed
@@ -786,7 +786,7 @@ mod tests {
     fn basename(path: &str, without_extension: bool) -> String {
         taken(
             run(
-                super::mwl_core_path_basename,
+                super::nvs_core_path_basename,
                 &[s(path), Value::bool(without_extension)],
             )
             .expect("basename never fails"),
@@ -797,7 +797,7 @@ mod tests {
     fn dirname(path: &str, levels: u64) -> String {
         taken(
             run(
-                super::mwl_core_path_dirname,
+                super::nvs_core_path_dirname,
                 &[s(path), Value::uint(levels)],
             )
             .expect("dirname never fails"),
@@ -807,23 +807,23 @@ mod tests {
     /// `extension`, as the `?string` it answers.
     fn extension(path: &str) -> Option<String> {
         let result =
-            run(super::mwl_core_path_extension, &[s(path)]).expect("extension never fails");
+            run(super::nvs_core_path_extension, &[s(path)]).expect("extension never fails");
         match result.tag() {
-            Some(mwl_runtime::Tag::Null) => None,
+            Some(nvs_runtime::Tag::Null) => None,
             _ => Some(taken(result)),
         }
     }
 
     /// `split`, read back in order.
     fn split(path: &str) -> Vec<String> {
-        let result = run(super::mwl_core_path_split, &[s(path)]).expect("split never fails");
+        let result = run(super::nvs_core_path_split, &[s(path)]).expect("split never fails");
         #[expect(
             unsafe_code,
             reason = "the helper returned one fresh reference, which the \
                       handle takes over and releases on drop"
         )]
         let array =
-            unsafe { MwlArray::from_raw(result.array_ptr().expect("split returns an array")) };
+            unsafe { NvsArray::from_raw(result.array_ptr().expect("split returns an array")) };
         let mut out = Vec::new();
         let mut from = 0usize;
         while let Some(slot) = array.next_slot(from) {
@@ -845,7 +845,7 @@ mod tests {
 
     /// `isAbsolute`.
     fn is_absolute(path: &str) -> bool {
-        run(super::mwl_core_path_is_absolute, &[s(path)])
+        run(super::nvs_core_path_is_absolute, &[s(path)])
             .expect("isAbsolute never fails")
             .as_bool()
             .expect("isAbsolute returns a bool")
@@ -916,7 +916,7 @@ mod tests {
     fn with_extension_is_extensions_inverse() {
         let set = |path: &str, extension: Value| {
             taken(
-                run(super::mwl_core_path_with_extension, &[s(path), extension])
+                run(super::nvs_core_path_with_extension, &[s(path), extension])
                     .expect("a valid extension never fails"),
             )
         };
@@ -934,17 +934,17 @@ mod tests {
     #[test]
     fn with_extension_refuses_what_extension_never_answers() {
         for bad in [".txt", "", "a/b", "a\\b"] {
-            let status = run(super::mwl_core_path_with_extension, &[s("a.txt"), s(bad)])
+            let status = run(super::nvs_core_path_with_extension, &[s("a.txt"), s(bad)])
                 .expect_err("a dotted, empty or split extension is refused");
-            assert_eq!(status, mwl_runtime::THROWN, "{bad}");
+            assert_eq!(status, nvs_runtime::THROWN, "{bad}");
         }
         for nameless in ["/", ""] {
             let status = run(
-                super::mwl_core_path_with_extension,
+                super::nvs_core_path_with_extension,
                 &[s(nameless), s("txt")],
             )
             .expect_err("a path with no name is refused");
-            assert_eq!(status, mwl_runtime::THROWN, "{nameless}");
+            assert_eq!(status, nvs_runtime::THROWN, "{nameless}");
         }
     }
 
@@ -961,27 +961,27 @@ mod tests {
 
     /// `join`, with its variadic tail built as the one array the ABI passes.
     fn join(base: &str, segments: &[&str]) -> String {
-        let mut tail = MwlArray::new();
+        let mut tail = NvsArray::new();
         for segment in segments {
             tail.append(s(segment));
         }
         taken(
-            run(super::mwl_core_path_join, &[s(base), Value::array(tail)])
+            run(super::nvs_core_path_join, &[s(base), Value::array(tail)])
                 .expect("join never fails"),
         )
     }
 
     /// `normalize`.
     fn normalize(path: &str) -> String {
-        taken(run(super::mwl_core_path_normalize, &[s(path)]).expect("normalize never fails"))
+        taken(run(super::nvs_core_path_normalize, &[s(path)]).expect("normalize never fails"))
     }
 
     /// `relativeTo`, as the `?string` it answers.
     fn relative_to(path: &str, base: &str) -> Option<String> {
-        let result = run(super::mwl_core_path_relative_to, &[s(path), s(base)])
+        let result = run(super::nvs_core_path_relative_to, &[s(path), s(base)])
             .expect("relativeTo never fails");
         match result.tag() {
-            Some(mwl_runtime::Tag::Null) => None,
+            Some(nvs_runtime::Tag::Null) => None,
             _ => Some(taken(result)),
         }
     }

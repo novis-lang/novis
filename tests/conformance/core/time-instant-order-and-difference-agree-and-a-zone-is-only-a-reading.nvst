@@ -1,7 +1,7 @@
 --TEST--
 Spec § 4: an `Instant`'s `compareTo` agrees with the sign of its `since`, `minus` undoes it, and `in` changes only the reading
 --FILE--
-<?mwl
+<?nvs
 // § 4's `Instant` is a point on the line: it has no zone and no calendar, so
 // every question about *order* and every question about *distance* has to
 // answer the same way, and `in` — the one member that takes a `Zone` — has to
@@ -27,7 +27,7 @@ array<string> $rows = [
     "2100-03-01T00:00:00Z",
 ];
 
-// A `.mwlt` case's own helper is a `public static function` in a class
+// A `.nvst` case's own helper is a `public static function` in a class
 // (ADR 0011 § 1); this one is the whole of what "agrees with the sign of"
 // means below.
 final class Sign {

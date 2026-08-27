@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::join puts no separator before the first piece, and none at all for zero or one piece
 --FILE--
-<?mwl
+<?nvs
 array<string> $none = [];
 array<string> $one = ["only"];
 array<string> $many = ["a", "b", "c"];

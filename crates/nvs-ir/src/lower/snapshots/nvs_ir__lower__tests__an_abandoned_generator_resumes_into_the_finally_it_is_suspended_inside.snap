@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/tests.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_program(&p, map.file(file))"
 ---
 fn G::two(classdesc) -> object {
@@ -73,18 +73,18 @@ fn G::two$gen::advance(object) -> bool {
   bb8:
     release v8
     release v0
-    propagate "G::two$gen::advance() at t.mwl:7"
+    propagate "G::two$gen::advance() at t.nvs:7"
   bb9:
     release v11
     release v0
-    propagate "G::two$gen::advance() at t.mwl:7"
+    propagate "G::two$gen::advance() at t.nvs:7"
   bb10:
     release v13
     release v0
-    propagate "G::two$gen::advance() at t.mwl:7"
+    propagate "G::two$gen::advance() at t.nvs:7"
   bb11:
     release v0
-    propagate "G::two$gen::advance() at t.mwl:7"
+    propagate "G::two$gen::advance() at t.nvs:7"
   bb12:
     v17 = const.int -1  ; int
     field.set v0, G::two$gen::gen#state, v17

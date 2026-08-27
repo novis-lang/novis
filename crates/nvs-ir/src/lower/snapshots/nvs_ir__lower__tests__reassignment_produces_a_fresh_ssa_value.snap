@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn bump(object, int) -> int {
@@ -16,5 +16,5 @@ fn bump(object, int) -> int {
     return v3
   bb1:
     release v0
-    propagate "bump() at t.mwl:5"
+    propagate "bump() at t.nvs:5"
 }

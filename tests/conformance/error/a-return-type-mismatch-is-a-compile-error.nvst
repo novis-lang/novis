@@ -1,7 +1,7 @@
 --TEST--
 a method that returns the wrong type is rejected before anything runs
 --FILE--
-<?mwl
+<?nvs
 class Wrong {
     public static function f(): int {
         return "x";
@@ -12,6 +12,6 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0403]: this method declares `int` but returns `string`
-  --> case.mwl:4:16
+  --> case.nvs:4:16
 %A
 error: aborting due to 1 error

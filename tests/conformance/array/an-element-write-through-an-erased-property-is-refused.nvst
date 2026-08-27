@@ -1,7 +1,7 @@
 --TEST--
 an array element written through a property whose receiver erased — a shape's field, or any property of a plain `object` — is refused where it is written — ADR 0036 § 4, ADR 0007 § 3
 --FILE--
-<?mwl
+<?nvs
 // ADR 0036 § 4 gave an erased property a name-keyed runtime *fetch* and
 // stopped there on purpose. That is enough to read one and not enough to write
 // an element through one: ADR 0007 § 5 separates the array on the way in, and
@@ -30,9 +30,9 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0480]: an array element cannot be written through the erased property `rows`
-   --> case.mwl:21:1
+   --> case.nvs:21:1
 %A
 error[E0480]: an array element cannot be written through the erased property `rows`
-   --> case.mwl:24:1
+   --> case.nvs:24:1
 %A
 error: aborting due to 2 errors

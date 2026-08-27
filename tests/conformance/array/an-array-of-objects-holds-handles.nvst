@@ -1,7 +1,7 @@
 --TEST--
 Copying an array copies the array, not the objects in it — the copy's elements are the same instances, so a write through one is seen through the other
 --FILE--
-<?mwl
+<?nvs
 class Box {
     public int $n;
 

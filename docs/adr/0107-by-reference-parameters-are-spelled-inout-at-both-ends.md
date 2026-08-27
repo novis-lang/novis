@@ -17,7 +17,7 @@
 > **In short:** `&` is retired as a by-reference marker and **`inout` replaces it**, written in the modifier
 > slot before the type — `inout int $x`, `foreach ($xs as inout int $v)`, `[inout int $a] = $pair` — and
 > **written again at the call site**, `Adder::bump(inout $n)`. Nothing about the semantics changes. Three
-> things are bought: the word describes the copy-in/copy-back mechanism MWL actually implements instead of
+> things are bought: the word describes the copy-in/copy-back mechanism Novis actually implements instead of
 > the aliasing it does not, a reader can see at the call that an argument is going to be written, and `&`
 > drops from five meanings to three so the parser's intersection-vs-reference lookahead disappears. `&` in
 > a by-reference position is a parse-time error naming `inout` as the replacement (`E0237`); a missing or
@@ -25,7 +25,7 @@
 
 ## Context
 
-- **MWL inherited `&$x` from PHP and then declined almost everything PHP uses it for.** It survives in three
+- **Novis inherited `&$x` from PHP and then declined almost everything PHP uses it for.** It survives in three
   declaration positions — a parameter, a `foreach` value binding, a destructuring leaf — and is refused in
   every position that would alias one name to another: `$a = &$b` is `E0701`, whose help says *there is
   nowhere to put a reference*; `use (&$y)` does not exist at all ([0031](0031-callable-is-the-only-closure-type.md)
@@ -34,7 +34,7 @@
 - **What survives is not aliasing, and the two survivors are not even one mechanism.** A `&$x` parameter is
   copy-in/copy-out: `Lowering::pending_refs` stages a cell at the call, hands the callee its address and
   copies back after the call returns, and `write_back_holder`'s doc comment names the one path that does not
-  reach it — a throwing callee. PHP's caller sees a write made before the throw and MWL's does not, because
+  reach it — a throwing callee. PHP's caller sees a write made before the throw and Novis's does not, because
   there is no alias to have seen it through. A `foreach (… as &$v)` binding is the other thing: `write_through_element`
   pushes each assignment into the array element as it happens. One sigil, two mechanisms, neither of them
   the one `&` names in the language it was copied from.
@@ -47,10 +47,10 @@
   forever.
 - **The call site says nothing.** `Adder::bump($n)` and `Adder::sum($a, $b)` are indistinguishable at the
   point of call, and only one of them writes its argument. PHP removed call-time pass-by-reference in 5.4
-  and left the caller with no marker at all. For [0080](0080-the-audience-mwl-is-built-for.md)'s user — a
+  and left the caller with no marker at all. For [0080](0080-the-audience-nvs-is-built-for.md)'s user — a
   platform reviewing code it did not write — an invisible mutation is the wrong default at priority 1, not
   a matter of taste at priority 4.
-- **Nothing here is a compatibility question.** [0080](0080-the-audience-mwl-is-built-for.md) fixes that the
+- **Nothing here is a compatibility question.** [0080](0080-the-audience-nvs-is-built-for.md) fixes that the
   PHP-shaped syntax is an on-ramp and never a promise, and priority 2 is PHP-compatible *observable
   behaviour*, not PHP-identical syntax — the same distinction under which [0034](0034-legacy-cast-syntax-rejected.md)
   dropped `(int)$x`, [0045](0045-and-or-xor-keyword-operators-rejected.md) dropped `and`/`or`/`xor` and
@@ -80,12 +80,12 @@ Two clusters, and the split is not an accident of taste — the word tracks the 
 | Go, Zig | — | `&x` | explicit pointer |
 
 Everything that aliases is spelled `ref`, `&` or `var`. Everything that copies in and copies back is spelled
-`inout`. MWL is in the second cluster.
+`inout`. Novis is in the second cluster.
 
 **Hack is the closest precedent that exists** and it is very close: the same origin language, the same
 inherited `&$x`, the same copy-in/copy-out mechanism, and the same conclusion — retire `&`, adopt `inout`,
-require it at the call. That MWL rejects Hack's *strategy* is not an argument against its best call;
-[0080](0080-the-audience-mwl-is-built-for.md) says outright that Hack "did not fail on engineering quality".
+require it at the call. That Novis rejects Hack's *strategy* is not an argument against its best call;
+[0080](0080-the-audience-nvs-is-built-for.md) says outright that Hack "did not fail on engineering quality".
 
 ## Decision
 
@@ -93,7 +93,7 @@ require it at the call. That MWL rejects Hack's *strategy* is not an argument ag
 
 `inout` is a reserved word, written **before the type**, in every position a by-reference binding is legal:
 
-```mwl
+```nvs
 public static function bump(inout int $slot): int { … }
 
 foreach ($xs as inout int $v) { … }
@@ -110,7 +110,7 @@ type, so `inout int $x` reads like the `public readonly int $x` beside it and co
 An argument bound to an `inout` parameter carries `inout` at the call, and an argument bound to a by-value
 parameter must not:
 
-```mwl
+```nvs
 int $n = 5;
 echo Adder::bump(inout $n), " ", $n, "\n";   // "6 6"
 ```
@@ -124,7 +124,7 @@ nothing else.
 
 ### 3. `&` in a by-reference position is rejected at parse time
 
-`mwl-syntax` still recognizes `&` where a by-reference marker would go, so it can name the exact fix, and
+`nvs-syntax` still recognizes `&` where a by-reference marker would go, so it can name the exact fix, and
 produces the error node — the same shape [0045](0045-and-or-xor-keyword-operators-rejected.md) used for
 `and`/`or`/`xor` and [0034](0034-legacy-cast-syntax-rejected.md) for `(int)$x`. The AST keeps no variant for
 it.
@@ -153,9 +153,9 @@ it. Recorded here so it is not re-opened as a corollary of this decision.
 
 | Code | Band | Reported by | Says |
 |---|---|---|---|
-| `E0237` | rejected PHP constructs | `mwl-syntax` | `&` is not a by-reference marker in MWL — write `inout` before the type |
-| `E0713` | types | `mwl-types` | this argument binds an `inout` parameter and must be written `inout $x` |
-| `E0714` | types | `mwl-types` | `inout` here names a by-value parameter — drop it, or declare the parameter `inout` |
+| `E0237` | rejected PHP constructs | `nvs-syntax` | `&` is not a by-reference marker in Novis — write `inout` before the type |
+| `E0713` | types | `nvs-types` | this argument binds an `inout` parameter and must be written `inout $x` |
+| `E0714` | types | `nvs-types` | `inout` here names a by-value parameter — drop it, or declare the parameter `inout` |
 
 `E0237` is in the *rejected PHP constructs* band because that is exactly what it is; `E0713`/`E0714` need
 the signature and so belong to the checker.
@@ -164,7 +164,7 @@ the signature and so belong to the checker.
 
 - **No semantic change, anywhere.** Every rule that governs a by-reference binding today governs it after:
   the staging and copy-back, the throwing-callee path, `foreach`'s write-through, the subject-must-be-a-place
-  and exact-element-type obligations, and the closure and generator refusals. `mwl-ir` sees a field rename
+  and exact-element-type obligations, and the closure and generator refusals. `nvs-ir` sees a field rename
   and nothing else. Performance and memory are untouched in both directions — this is surface only.
 - **The grammar gets simpler.** One of `&`'s five meanings is gone. The lookahead that disambiguated it
   is not: § 3 keeps it so the retired spelling can still be named where it is written.
@@ -173,7 +173,7 @@ the signature and so belong to the checker.
 - **More to type, and PHP muscle memory does not transfer.** Both are real and both are the price of the
   call-site marker, which is the point. `bump(inout $n)` is longer than `bump($n)` and says what `bump($n)`
   did not.
-- **`mwl convert` owes a rewrite at both ends, and the call-site half is a new obligation.** Rewriting
+- **`nvs convert` owes a rewrite at both ends, and the call-site half is a new obligation.** Rewriting
   `function f(&$x)` to `function f(inout $x)` is local. Rewriting its callers is not: PHP call sites carry
   no marker, so emitting `f(inout $x)` requires resolving `f`'s signature. Whole-program conversion has
   that; a call through a variable, a dynamic name, or into a dependency that was not converted does not.
@@ -207,27 +207,27 @@ the signature and so belong to the checker.
 ## Verification
 
 - **M4:** items 44–47 in [loop-goal.md](../agent/loop-goal.md), landing in that order — the front end and
-  the three diagnostics, the checker's call-site rule, the mechanical rename through `mwl-ir` and
-  `mwl-stdlib`, and the corpus rewrite. `python tools/holes.py` counts nothing here; the checks are in
+  the three diagnostics, the checker's call-site rule, the mechanical rename through `nvs-ir` and
+  `nvs-stdlib`, and the corpus rewrite. `python tools/holes.py` counts nothing here; the checks are in
   [loop-goal.toml](../agent/loop-goal.toml).
-- **Conformance:** two cases, because one `.mwlt` has one verdict — a case either runs and is checked
+- **Conformance:** two cases, because one `.nvst` has one verdict — a case either runs and is checked
   against `--EXPECT--` or fails to compile and is checked against `--EXPECTF-ERROR--`, and this surface
   needs both halves asserted.
-  `tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.mwlt` runs the accepted
+  `tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.nvst` runs the accepted
   shapes: the word before the type on a static method, an instance method and a `foreach` value binding,
   and again at an argument naming each of the two holders § 2 admits, including outside a named
-  argument's `name:`. `the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.mwlt` pins
+  argument's `name:`. `the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.nvst` pins
   all three diagnostics in one compile — `E0237` at each of the five positions PHP writes `&` in,
   `E0713` at an unmarked argument, `E0714` at a marked one against a by-value parameter and against a
   call through a `callable`. The existing by-reference cases —
-  `a-reference-argument-is-written-back-before-the-next-read.mwlt`,
-  `a-foreach-by-reference-writes-through-to-its-array.mwlt`,
-  `a-by-reference-binding-needs-a-variable-and-the-element-type.mwlt` and the generator and closure
+  `a-reference-argument-is-written-back-before-the-next-read.nvst`,
+  `a-foreach-by-reference-writes-through-to-its-array.nvst`,
+  `a-by-reference-binding-needs-a-variable-and-the-element-type.nvst` and the generator and closure
   refusals — are rewritten to the new spelling with **their expected output unchanged**, which is the
   check that this ADR changed no semantics.
 - **M11:** [0089](0089-convert-is-one-rule-table-with-two-modes.md)'s rule table gains one rule with two
   branches — declaration and call site — at tier D, with the tier N fallback for an unresolvable callee
   named in § *Consequences*. Its differential case converts a PHP program whose function writes a `&$x`
-  and whose caller reads the argument afterwards, and asserts the MWL output prints what the PHP oracle
+  and whose caller reads the argument afterwards, and asserts the Novis output prints what the PHP oracle
   printed. A second case covers the divergence honestly: a callee that writes and then throws is a
   `--mode=equivalent` report line, not a silent D.

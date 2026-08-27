@@ -1,21 +1,21 @@
-//! The `mwl` binary.
+//! The `nvs` binary.
 //!
 //! Five subcommands so far, one per milestone that needed one:
 //!
-//! * `mwl ast` (M1) — dump what the parser produced.
-//! * `mwl check` (M2) — parse, resolve, type-check, report every diagnostic.
+//! * `nvs ast` (M1) — dump what the parser produced.
+//! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
 //!   `--autoload-map` prints the resolved `autoload` map in place of the
 //!   success line, which is
 //!   [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
-//!   § 1's last sentence; the shape is `mwl_hir::autoload`'s module doc.
-//! * `mwl run` (M3) — all of the above, then compile and execute. Its two
+//!   § 1's last sentence; the shape is `nvs_hir::autoload`'s module doc.
+//! * `nvs run` (M3) — all of the above, then compile and execute. Its two
 //!   dump flags stop one stage earlier and print instead of running:
 //!   `--dump-ir` after lowering, `--dump-asm` after code generation.
-//! * `mwl test` (M4) — run a tree of `.mwlt` conformance cases. The format,
-//!   and every decision behind it, is [`mwl_test`]'s own module doc; this
+//! * `nvs test` (M4) — run a tree of `.nvst` conformance cases. The format,
+//!   and every decision behind it, is [`nvs_test`]'s own module doc; this
 //!   crate contributes only the argument parsing and the exit code.
-//! * `mwl info` — build, host and third-party licensing facts, PHP's
-//!   `php -i` in shape and in purpose. Also spelled `mwl -i`, since that is
+//! * `nvs info` — build, host and third-party licensing facts, PHP's
+//!   `php -i` in shape and in purpose. Also spelled `nvs -i`, since that is
 //!   the spelling anyone arriving from PHP will try first; see [`info`].
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
@@ -26,7 +26,7 @@
 //!
 //! ## What `run` executes
 //!
-//! The whole file, through `mwl_ir::lower::lower_file`: every class method
+//! The whole file, through `nvs_ir::lower::lower_file`: every class method
 //! with a body, plus one synthesized frame for the file's own top-level
 //! statements — [ADR 0008](../../../docs/adr/0008-static-and-global.md) § 2's
 //! "the script body is a function, so its variables are locals". That frame is
@@ -43,16 +43,16 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser as ClapParser, Subcommand};
-use mwl_diagnostics::{Diagnostics, Renderer, SourceMap};
-use mwl_syntax::{check_declarations, parse_file};
+use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
+use nvs_syntax::{check_declarations, parse_file};
 
 mod info;
 
 #[derive(ClapParser)]
 #[command(
-    name = "mwl",
+    name = "nvs",
     version,
-    about = "The MWL compiler and CLI",
+    about = "The Novis compiler and CLI",
     arg_required_else_help = true
 )]
 struct Cli {
@@ -61,7 +61,7 @@ struct Cli {
 
     /// Print build, host and third-party licensing information.
     ///
-    /// The same report as `mwl info`, under the spelling PHP uses.
+    /// The same report as `nvs info`, under the spelling PHP uses.
     #[arg(short = 'i', long)]
     info: bool,
 
@@ -72,12 +72,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Parse a `.mwl`/`.php` file and print its AST.
+    /// Parse a `.nvs`/`.php` file and print its AST.
     Ast {
         /// The file to parse.
         file: PathBuf,
     },
-    /// Parse, resolve and type-check a `.mwl`/`.php` file, reporting every
+    /// Parse, resolve and type-check a `.nvs`/`.php` file, reporting every
     /// diagnostic found.
     Check {
         /// The file to check.
@@ -87,7 +87,7 @@ enum Command {
         #[arg(long)]
         autoload_map: bool,
     },
-    /// Check a `.mwl`/`.php` file, then compile and run it.
+    /// Check a `.nvs`/`.php` file, then compile and run it.
     Run {
         /// The file to run.
         file: PathBuf,
@@ -99,17 +99,17 @@ enum Command {
         dump_asm: bool,
         /// Provoke an engine failure at a named site, for testing containment.
         ///
-        /// Deliberately scoped to `mwl run` and nothing else: a contained
+        /// Deliberately scoped to `nvs run` and nothing else: a contained
         /// engine panic has no user-facing trigger by definition, so it needs
         /// a hook to be testable at all — and that hook must never be
-        /// reachable from a served request. `mwl serve` (M7) does not get one.
-        /// `mwl_runtime::FaultSite` documents each site.
+        /// reachable from a served request. `nvs serve` (M7) does not get one.
+        /// `nvs_runtime::FaultSite` documents each site.
         #[arg(long, value_name = "SITE")]
         fault_inject: Option<FaultSiteArg>,
     },
-    /// Run `.mwlt` conformance cases.
+    /// Run `.nvst` conformance cases.
     ///
-    /// Each path is either one case file or a directory walked for `*.mwlt`.
+    /// Each path is either one case file or a directory walked for `*.nvst`.
     /// Exits non-zero if any case failed; a skipped case is not a failure.
     Test {
         /// The case files and directories to run.
@@ -125,9 +125,9 @@ enum Command {
     /// Print build, host and third-party licensing information.
     ///
     /// One call answers what this binary is and what is compiled into it,
-    /// including the complete third-party attribution MWL's MIT license and
+    /// including the complete third-party attribution Novis's MIT license and
     /// its dependencies' licenses both require to be distributed with it.
-    /// See `docs/adr/0065-third-party-attribution-and-mwl-info.md`.
+    /// See `docs/adr/0065-third-party-attribution-and-nvs-info.md`.
     Info {
         /// Also print every third-party license text in full.
         #[arg(long)]
@@ -136,14 +136,14 @@ enum Command {
 }
 
 /// The closed set of sites `--fault-inject` accepts, one per
-/// [`mwl_runtime::FaultSite`].
+/// [`nvs_runtime::FaultSite`].
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum FaultSiteArg {
     /// The request's second runtime helper call panics.
     HelperPanic,
 }
 
-impl From<FaultSiteArg> for mwl_runtime::FaultSite {
+impl From<FaultSiteArg> for nvs_runtime::FaultSite {
     fn from(arg: FaultSiteArg) -> Self {
         match arg {
             FaultSiteArg::HelperPanic => Self::HelperPanic,
@@ -165,7 +165,7 @@ fn main() -> ExitCode {
         return info::run(cli.licenses);
     }
 
-    // Unreachable: `arg_required_else_help` makes a bare `mwl` print help.
+    // Unreachable: `arg_required_else_help` makes a bare `nvs` print help.
     let Some(command) = cli.command else {
         return ExitCode::FAILURE;
     };
@@ -210,46 +210,46 @@ fn run_ast(path: &std::path::Path) -> ExitCode {
 
 /// A **program** that has been through the whole front end with no error.
 ///
-/// `run` needs everything `check` produces plus the three tables `mwl-ir`
+/// `run` needs everything `check` produces plus the three tables `nvs-ir`
 /// lowering reads back — the resolved-target table, the type interner that
 /// backs it, and the class-layout table — so the pipeline is shared rather
 /// than written twice.
 struct Checked {
     map: SourceMap,
-    /// The entry point's own file. It names the program (`mwl run <path>`),
+    /// The entry point's own file. It names the program (`nvs run <path>`),
     /// so it stays a single id even though `files` is now a set.
-    id: mwl_diagnostics::SourceId,
+    id: nvs_diagnostics::SourceId,
     /// Every file the entry point's `require`/`autoload` graph reached, the
-    /// entry file first — `mwl_hir::resolve_program`'s order contract.
-    files: Vec<mwl_hir::Loaded>,
-    interner: mwl_types::TypeInterner,
-    exprs: mwl_types::ExprTypeTable,
+    /// entry file first — `nvs_hir::resolve_program`'s order contract.
+    files: Vec<nvs_hir::Loaded>,
+    interner: nvs_types::TypeInterner,
+    exprs: nvs_types::ExprTypeTable,
     /// Every declared enum's backing type and its cases' values, handed back
-    /// by `check_program` rather than rebuilt — `mwl_ir::lower` needs a case's
+    /// by `check_program` rather than rebuilt — `nvs_ir::lower` needs a case's
     /// constant for ADR 0047 § 3's membership test.
-    enums: mwl_types::EnumTable,
-    layouts: mwl_types::ClassLayoutTable,
+    enums: nvs_types::EnumTable,
+    layouts: nvs_types::ClassLayoutTable,
     /// The autoload map the graph walk consulted, kept for
     /// `check --autoload-map` and read by nothing else here.
-    autoload: mwl_hir::AutoloadMap,
+    autoload: nvs_hir::AutoloadMap,
 }
 
 impl Checked {
-    /// The program as `mwl-types` and `mwl-ir` both consume it: one entry per
+    /// The program as `nvs-types` and `nvs-ir` both consume it: one entry per
     /// loaded file, **the entry point first**.
     ///
-    /// Position zero is where `mwl_ir::lower::lower_program` takes the script
-    /// frame from, which is `mwl_hir::resolve_program`'s documented order
+    /// Position zero is where `nvs_ir::lower::lower_program` takes the script
+    /// frame from, which is `nvs_hir::resolve_program`'s documented order
     /// contract rather than a coincidence — the assert is what keeps this
     /// file honest if that ever changes.
-    fn program_files(&self) -> Vec<mwl_types::ProgramFile<'_>> {
+    fn program_files(&self) -> Vec<nvs_types::ProgramFile<'_>> {
         debug_assert_eq!(
             self.files[0].id, self.id,
             "resolve_program hands the entry file back first"
         );
         self.files
             .iter()
-            .map(|file| mwl_types::ProgramFile {
+            .map(|file| nvs_types::ProgramFile {
                 src: self.map.file(file.id),
                 stmts: &file.stmts,
             })
@@ -261,7 +261,7 @@ impl Checked {
 /// rendering every diagnostic.
 ///
 /// The unit of work here is the whole `require`/`autoload` graph, not one
-/// file: `mwl_hir::resolve_program` walks it into one `Module` plus the
+/// file: `nvs_hir::resolve_program` walks it into one `Module` plus the
 /// statements of every file it loaded (ADR 0021, ADR 0061), and each table
 /// below is then built across that set — a class declared in a `require`d
 /// file has to be a class the entry file's body can name.
@@ -284,26 +284,26 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
     // Every other file's parse and `check_declarations` happen inside the
     // walk, as each `require` target is discovered; only the entry point is
     // this function's to load.
-    let (module, loaded, autoload) = mwl_hir::resolve_program(id, stmts, &mut map, &mut diags);
+    let (module, loaded, autoload) = nvs_hir::resolve_program(id, stmts, &mut map, &mut diags);
 
-    let mut interner = mwl_types::TypeInterner::new();
-    let mut exprs = mwl_types::ExprTypeTable::new();
+    let mut interner = nvs_types::TypeInterner::new();
+    let mut exprs = nvs_types::ExprTypeTable::new();
     let (enums, layouts) = {
-        let files: Vec<mwl_types::ProgramFile<'_>> = loaded
+        let files: Vec<nvs_types::ProgramFile<'_>> = loaded
             .iter()
-            .map(|file| mwl_types::ProgramFile {
+            .map(|file| nvs_types::ProgramFile {
                 src: map.file(file.id),
                 stmts: &file.stmts,
             })
             .collect();
         let enums =
-            mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+            nvs_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
 
         if diags.has_errors() {
             render_diagnostics(&mut diags, &map);
             return Err(ExitCode::FAILURE);
         }
-        (enums, mwl_types::build_class_layouts(&files, &module.graph))
+        (enums, nvs_types::build_class_layouts(&files, &module.graph))
     };
     render_diagnostics(&mut diags, &map);
 
@@ -319,7 +319,7 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
     })
 }
 
-/// `mwl check`, and with `--autoload-map` also ADR 0061 § 1's last sentence:
+/// `nvs check`, and with `--autoload-map` also ADR 0061 § 1's last sentence:
 /// the resolved prefix → roots map, what a `discover` glob passed over and
 /// what an explicit prefix shadowed.
 ///
@@ -349,8 +349,8 @@ fn run_check(path: &std::path::Path, autoload_map: bool) -> ExitCode {
 
 /// The label the script frame is compiled and looked up under.
 ///
-/// `mwl_ir::lower::lower_script` leaves the name to its caller; this is the
-/// same spelling `mwl-ir`'s own snapshots use.
+/// `nvs_ir::lower::lower_script` leaves the name to its caller; this is the
+/// same spelling `nvs-ir`'s own snapshots use.
 const SCRIPT: &str = "<script>";
 
 fn run_run(
@@ -365,7 +365,7 @@ fn run_run(
     };
     let src = checked.map.file(checked.id);
 
-    let program = mwl_ir::lower::lower_program(
+    let program = nvs_ir::lower::lower_program(
         SCRIPT,
         &checked.program_files(),
         &checked.exprs,
@@ -375,7 +375,7 @@ fn run_run(
     );
     if dump_ir {
         for function in &program.functions {
-            print!("{}", mwl_ir::print::print_function(function, src));
+            print!("{}", nvs_ir::print::print_function(function, src));
         }
         return ExitCode::SUCCESS;
     }
@@ -383,9 +383,9 @@ fn run_run(
     if dump_asm {
         // Deliberately the same compile `run` performs, disassembled rather
         // than a second differently-configured one — see
-        // `mwl_codegen::disassemble`. Like `--dump-ir`, it prints instead of
+        // `nvs_codegen::disassemble`. Like `--dump-ir`, it prints instead of
         // running.
-        return match mwl_codegen::disassemble(&program) {
+        return match nvs_codegen::disassemble(&program) {
             Ok(text) => {
                 print!("{text}");
                 ExitCode::SUCCESS
@@ -396,7 +396,7 @@ fn run_run(
             }
         };
     }
-    let unit = match mwl_codegen::compile(&program) {
+    let unit = match nvs_codegen::compile(&program) {
         Ok(unit) => unit,
         Err(error) => {
             eprintln!("error: {error}");
@@ -410,7 +410,7 @@ fn run_run(
 
     // The script's own frame is the request, for a CLI run: one `Ctx` writing
     // to the process's standard output.
-    let mut ctx = mwl_runtime::Ctx::stdout();
+    let mut ctx = nvs_runtime::Ctx::stdout();
     // Hands the context the unit's class table: the class a helper's
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.
@@ -418,7 +418,7 @@ fn run_run(
     if let Some(site) = fault_inject {
         ctx.inject_fault(site.into());
     }
-    let outcome = mwl_runtime::call(entry, &mut ctx, &[]);
+    let outcome = nvs_runtime::call(entry, &mut ctx, &[]);
     // Flushed before anything is reported: Rust's standard output is
     // line-buffered, and `echo "Hello, World!"` has no trailing newline.
     if let Err(error) = ctx.flush_output() {
@@ -430,9 +430,9 @@ fn run_run(
         Ok(_) => ExitCode::SUCCESS,
         // `exit`/`exit(n)` ended the program the way it meant to, so the
         // status it named becomes this process's and nothing is reported —
-        // see `mwl_runtime::EXITED`. The low byte is what a shell can carry,
+        // see `nvs_runtime::EXITED`. The low byte is what a shell can carry,
         // and truncating to it is what PHP does.
-        Err(status) if status == mwl_runtime::EXITED => {
+        Err(status) if status == nvs_runtime::EXITED => {
             ExitCode::from(u8::try_from(ctx.exit_code() & 0xFF).unwrap_or(0))
         }
         Err(status) => {
@@ -443,10 +443,10 @@ fn run_run(
             // below the engine floor can catch either.
             let thrown = ctx.take_thrown();
             let message = thrown.message();
-            if status == mwl_runtime::THROWN {
+            if status == nvs_runtime::THROWN {
                 eprintln!("Uncaught Exception: {message}");
                 // The frames the exception unwound out of, `#0` first —
-                // `mwl_runtime::throwable`'s own docs own the shape and why it
+                // `nvs_runtime::throwable`'s own docs own the shape and why it
                 // is built on the error path rather than at construction.
                 // Empty for a `FATAL`, which has no backtrace by design
                 // (ADR 0020), so nothing is printed for one.
@@ -462,13 +462,13 @@ fn run_run(
     }
 }
 
-/// Runs a tree of `.mwlt` cases and turns the summary into an exit code.
+/// Runs a tree of `.nvst` cases and turns the summary into an exit code.
 ///
-/// Each case is run by spawning **this** binary — `mwl_test::run` documents
+/// Each case is run by spawning **this** binary — `nvs_test::run` documents
 /// why a subprocess rather than an in-process compile — so a debug build
 /// tests itself and a release build tests itself, with nothing to configure.
 fn run_test(paths: &[PathBuf], filter: Option<String>, php: PathBuf) -> ExitCode {
-    let mut options = match mwl_test::Options::from_current_exe() {
+    let mut options = match nvs_test::Options::from_current_exe() {
         Ok(options) => options,
         Err(error) => {
             eprintln!("error: could not locate this binary to run cases with: {error}");
@@ -479,7 +479,7 @@ fn run_test(paths: &[PathBuf], filter: Option<String>, php: PathBuf) -> ExitCode
     options.php = php;
 
     let mut out = std::io::stdout().lock();
-    match mwl_test::run(paths, &options, &mut out) {
+    match nvs_test::run(paths, &options, &mut out) {
         Ok(summary) if summary.is_success() => ExitCode::SUCCESS,
         Ok(_) => ExitCode::FAILURE,
         Err(error) => {

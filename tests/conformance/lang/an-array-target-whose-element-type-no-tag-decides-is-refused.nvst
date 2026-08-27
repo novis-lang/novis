@@ -1,7 +1,7 @@
 --TEST--
 An `array<U>` conversion target whose `U` no runtime tag decides is refused where it is written, because the element walk compares tags and nothing wider — ADR 0007 § 2, with ADR 0010 § 5 and ADR 0047 § 5 naming two of the types it cannot check
 --FILE--
-<?mwl
+<?nvs
 class Cell {
     public function constructor(public string $name) {}
 }

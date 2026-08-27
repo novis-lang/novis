@@ -13,11 +13,11 @@ fn integer_modulo_answers_php_s_value_for_every_sign() {
     // The sign rules are PHP's: the result takes the *dividend's* sign, which
     // is what `srem` already gives, so these are here to hold that rather than
     // to describe a conversion.
-    assert_eq!(output_of("<?mwl\nint $q = 17 % 5;\necho $q;\n"), "2");
-    assert_eq!(output_of("<?mwl\nint $q = -17 % 5;\necho $q;\n"), "-2");
-    assert_eq!(output_of("<?mwl\nint $q = 17 % -5;\necho $q;\n"), "2");
+    assert_eq!(output_of("<?nvs\nint $q = 17 % 5;\necho $q;\n"), "2");
+    assert_eq!(output_of("<?nvs\nint $q = -17 % 5;\necho $q;\n"), "-2");
+    assert_eq!(output_of("<?nvs\nint $q = 17 % -5;\necho $q;\n"), "2");
     assert_eq!(
-        output_of("<?mwl\nuint $a = 17;\nuint $b = 5;\necho $a % $b;\n"),
+        output_of("<?nvs\nuint $a = 17;\nuint $b = 5;\necho $a % $b;\n"),
         "2"
     );
 }
@@ -31,7 +31,7 @@ fn a_modulo_by_minus_one_answers_zero_rather_than_trapping() {
     // Reaching `i64::MIN` needs the negation, since the literal itself is out
     // of `int`'s range.
     assert_eq!(
-        output_of("<?mwl\nint $a = -9223372036854775807 - 1;\nint $b = -1;\necho $a % $b;\n"),
+        output_of("<?nvs\nint $a = -9223372036854775807 - 1;\nint $b = -1;\necho $a % $b;\n"),
         "0"
     );
 }
@@ -46,7 +46,7 @@ fn a_modulo_by_zero_throws_arithmetic_error_rather_than_trapping() {
     // promoted to `RuntimeError`.
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 int $b = 0;
 try {
   echo 10 % $b;
@@ -68,7 +68,7 @@ fn an_integer_division_emits_both_of_its_representations() {
     // implementation that always tags its result the same way.
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 var $q = 7 / 2;
 echo $q;
 "
@@ -77,7 +77,7 @@ echo $q;
     );
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 var $q = 6 / 3;
 echo $q;
 "
@@ -86,7 +86,7 @@ echo $q;
     );
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 uint $a = 7;
 uint $b = 2;
 var $q = $a / $b;
@@ -100,7 +100,7 @@ echo $q;
     // `int` at all, and PHP answers this value for it.
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 int $a = -9223372036854775807 - 1;
 int $b = -1;
 var $q = $a / $b;
@@ -120,7 +120,7 @@ fn an_integer_addition_traps_on_overflow() {
     // divisor above does.
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 int $a = 9223372036854775806;
 int $b = 1;
 echo $a + $b;
@@ -130,7 +130,7 @@ echo $a + $b;
     );
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 int $a = 9223372036854775807;
 int $b = 1;
 try {
@@ -146,7 +146,7 @@ try {
     // than a sign flip: `uadd_overflow`, not `sadd_overflow` read differently.
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 uint $a = 18446744073709551615;
 uint $b = 1;
 try {
@@ -172,7 +172,7 @@ fn two_enum_values_compare_as_their_backing_integer() {
     // at all rather than as a wrong answer.
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 enum Rank { Bronze, Silver, Gold }
 Rank $a = Rank::Silver;
 Rank $b = Rank::Silver;
@@ -186,7 +186,7 @@ echo ($a == $b) as string, \"|\", ($a == $c) as string, \"|\", ($a != $c) as str
     // the truthy table entirely, so nothing here may read `0` as "unset".
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 enum Signal { Stop = -1, Idle = 0, Go = 10 }
 Signal $s = Signal::Idle;
 echo ($s == Signal::Idle) as string, \"|\", ($s == Signal::Stop) as string, \"|\";
@@ -200,7 +200,7 @@ echo ($s != Signal::Go) as string;
     // `Ty::Enum` compare if only the signed row were relabelled.
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 enum Mask: uint { None = 0, All = 18446744073709551615 }
 Mask $m = Mask::All;
 echo ($m == Mask::All) as string, \"|\", ($m == Mask::None) as string, \"|\";
@@ -218,7 +218,7 @@ fn an_integer_subtraction_and_multiplication_trap_on_overflow() {
     // checked set: it is the one `int` whose negation is not an `int`.
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 int $a = -9223372036854775807 - 1;
 int $b = 1;
 try {
@@ -232,7 +232,7 @@ try {
     );
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 int $a = 4611686018427387904;
 int $b = 2;
 try {
@@ -246,7 +246,7 @@ try {
     );
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 int $a = -9223372036854775807 - 1;
 try {
   echo -$a;
@@ -261,7 +261,7 @@ try {
     // nothing while `0` still answers itself.
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 uint $a = 0;
 echo -$a;
 "
@@ -270,7 +270,7 @@ echo -$a;
     );
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 uint $a = 1;
 try {
   echo -$a;
@@ -285,7 +285,7 @@ try {
     // a way to pass the three assertions above.
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 int $a = -9223372036854775807;
 int $b = 1;
 echo $a - $b;
@@ -295,7 +295,7 @@ echo $a - $b;
     );
     assert_eq!(
         output_of(
-            "<?mwl
+            "<?nvs
 int $a = 4611686018427387903;
 int $b = 2;
 echo $a * $b;
@@ -328,7 +328,7 @@ fn a_spaceship_answers_minus_one_zero_or_one_for_a_scalar() {
         ("decimal", "1.25", "2.50"),
     ] {
         let source = format!(
-            "<?mwl\n{declared} $a = {less};\n{declared} $b = {more};\n\
+            "<?nvs\n{declared} $a = {less};\n{declared} $b = {more};\n\
              echo $a <=> $b, $b <=> $a, $a <=> $a;\n"
         );
         assert_eq!(output_of(&source), "-110", "{declared}");
@@ -337,17 +337,17 @@ fn a_spaceship_answers_minus_one_zero_or_one_for_a_scalar() {
     // answer, and the row that reaches `emit_binop`'s unsigned comparison.
     assert_eq!(
         output_of(
-            "<?mwl\nbool $t = true;\nbool $f = false;\necho $t <=> $f, $f <=> $t, $t <=> $t;\n"
+            "<?nvs\nbool $t = true;\nbool $f = false;\necho $t <=> $f, $f <=> $t, $t <=> $t;\n"
         ),
         "1-10"
     );
     // A mixed numeric pair does not widen: ADR 0007 § 2's implicit `int` into
     // `float` throws above 2^53, and a pair that far apart still orders.
-    assert_eq!(output_of("<?mwl\necho 1 <=> 1.5, 2.5 <=> 2;\n"), "-11");
+    assert_eq!(output_of("<?nvs\necho 1 <=> 1.5, 2.5 <=> 2;\n"), "-11");
     // Unordered, in both directions and against itself.
     assert_eq!(
         output_of(
-            "<?mwl\nfloat $n = 0.0 / 0.0;\nfloat $x = 1.5;\n\
+            "<?nvs\nfloat $n = 0.0 / 0.0;\nfloat $x = 1.5;\n\
              echo $n <=> $x, $x <=> $n, $n <=> $n;\n"
         ),
         "111"

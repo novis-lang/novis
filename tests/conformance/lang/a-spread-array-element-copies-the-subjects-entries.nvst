@@ -1,7 +1,7 @@
 --TEST--
 `[...$a]` copies every entry of its subject, and the copy is an independent array — ADR 0007 §§ 5, 7
 --FILE--
-<?mwl
+<?nvs
 // Agreement, over a whole table rather than one line: for a subject whose
 // keys are already `"0" … "n−1"`, spreading it into an empty literal
 // renumbers each key onto the one it already had, so `[...$s]` and `$s`

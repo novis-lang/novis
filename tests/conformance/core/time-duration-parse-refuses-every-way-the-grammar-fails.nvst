@@ -1,7 +1,7 @@
 --TEST--
 Spec § 4: `Core\Time\Duration::parse` is ADR 0070 § 5's second entry point into the literal's own grammar, so every refusal is a `ParseError` naming the rule it broke
 --FILE--
-<?mwl
+<?nvs
 // A duration literal's refusals are compile errors, so the only place a
 // program can watch the grammar say no is `parse` -- ADR 0070 § 5's second
 // entry point into the one parser, printing the same sentence the lexer does.

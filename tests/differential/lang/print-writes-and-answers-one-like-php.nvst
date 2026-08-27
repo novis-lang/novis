@@ -1,7 +1,7 @@
 --TEST--
 `print` writes its one operand exactly as `echo` does and answers PHP's `1`, in statement and value position alike — ADR 0049 § 1 keeps the keyword
 --FILE--
-<?mwl
+<?nvs
 // Statement position: the answer is simply unread.
 print "hello\n";
 

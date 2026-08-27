@@ -1,26 +1,26 @@
 --TEST--
-The two constructs the front end accepts and nothing below it compiles yet are refused at their own site — `require` used for its value is `E0704` (ADR 0021 § 3, `mwl-ir` gap 22) and `spawn script` is `E0703` (ADR 0006, M5) — while `require` as a statement is whole and reports nothing
+The two constructs the front end accepts and nothing below it compiles yet are refused at their own site — `require` used for its value is `E0704` (ADR 0021 § 3, `nvs-ir` gap 22) and `spawn script` is `E0703` (ADR 0006, M5) — while `require` as a statement is whole and reports nothing
 --FILE--
-<?mwl
+<?nvs
 // ADR 0021 § 3 gives `require`'s value the `mixed` it cannot know
-// statically. What is missing is below the checker: `mwl_hir` merges the
+// statically. What is missing is below the checker: `nvs_hir` merges the
 // target's declarations at compile time and the site lowers to nothing,
 // so the target's own top-level statements never run and there is no
-// `return` for the value to come from — `mwl-ir`'s known gap 22.
-mixed $c = require "cfg.mwl";
+// `return` for the value to come from — `nvs-ir`'s known gap 22.
+mixed $c = require "cfg.nvs";
 
 // The statement form is whole and is what the refusal points at: the
 // class the target declares is reachable from here with no value ever
 // changing hands, and no diagnostic below names either of these lines.
-require "cfg.mwl";
+require "cfg.nvs";
 echo Cfg::name();
 
 // ADR 0006's isolate spawn, which nothing below the checker compiles yet
 // (`docs/plan/m5.md`). Refusing it where it is written is the only
 // reading that cannot silently do nothing.
-spawn script "cfg.mwl";
---FILE cfg.mwl--
-<?mwl
+spawn script "cfg.nvs";
+--FILE cfg.nvs--
+<?nvs
 class Cfg {
     public static function name(): string {
         return "cfg";
@@ -30,14 +30,14 @@ class Cfg {
 error[E0704]: `require`'s value is not available
   --> %s:7:12
   |
-7 | mixed $c = require "cfg.mwl";
+7 | mixed $c = require "cfg.nvs";
   |            ^^^^^^^^^^^^^^^^^ this `require` is used for what it hands back
-  = help: write `require '…';` as a statement — the target's declarations are already merged at compile time. ADR 0021 § 3's `mixed` value needs the target's own top-level statements to run, which `mwl-ir`'s known gap 22 is about
+  = help: write `require '…';` as a statement — the target's declarations are already merged at compile time. ADR 0021 § 3's `mixed` value needs the target's own top-level statements to run, which `nvs-ir`'s known gap 22 is about
 
 error[E0703]: `spawn script` is not compiled yet
    --> %s:18:1
    |
-18 | spawn script "cfg.mwl";
+18 | spawn script "cfg.nvs";
    | ^^^^^^^^^^^^^^^^^^^^^^ no isolate is created here
    = help: ADR 0006's isolates arrive with `docs/plan/m5.md`, together with the value-crossing copy a spawn boundary needs. There is no same-frame spelling of this to fall back on
 

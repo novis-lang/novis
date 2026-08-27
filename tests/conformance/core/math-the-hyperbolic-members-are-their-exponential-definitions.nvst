@@ -1,7 +1,7 @@
 --TEST--
 Core\Math's six hyperbolic members are the exponential definitions they are named for, and the three inverses undo them, spec § 3
 --FILE--
-<?mwl
+<?nvs
 // The *agreement* shape (conventions.md), asserted by *counting*: the question
 // is not what `sinh` answered on any one row, but whether all six members are
 // still describing `exp` across a whole table. A member that grew its own

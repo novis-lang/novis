@@ -39,17 +39,17 @@ Write the message to a file and use `git commit -F <file>` — never `-m` for an
 [commands.md](commands.md). `git log -1 --format=%B` is not needed to remember this; that is what this
 section is for.
 
-## A `.mwlt` test case
+## A `.nvst` test case
 
 Canonical worked example, with every section that matters:
-[tests/conformance/core/json-derive-encodes-declared-fields.mwlt](../../tests/conformance/core/json-derive-encodes-declared-fields.mwlt).
-The format itself is `crates/mwl-test`'s module doc.
+[tests/conformance/core/json-derive-encodes-declared-fields.nvst](../../tests/conformance/core/json-derive-encodes-declared-fields.nvst).
+The format itself is `crates/nvs-test`'s module doc.
 
 ```
 --TEST--
 One sentence saying what is being pinned, ending with the ADR §§ it comes from
 --FILE--
-<?mwl
+<?nvs
 // Comments cite the ADR section each block exists for. A case is top-level
 // statements: no Main::main.
 echo "…", "\n";
@@ -84,16 +84,16 @@ candidates; the playbook owns the spellings that will not compile.
 
 ## An `.lspt` case
 
-An LSP answer, frozen the way the section above freezes stdout. Sibling of `.mwlt` and deliberately a
-separate suite: `mwl test`'s `N passed` is a number the loop gates on, and it must keep meaning one thing.
-The format is `crates/mwl-lsp`'s module doc; the section lexer is the same one `.mwlt` uses. Lands at
+An LSP answer, frozen the way the section above freezes stdout. Sibling of `.nvst` and deliberately a
+separate suite: `nvs test`'s `N passed` is a number the loop gates on, and it must keep meaning one thing.
+The format is `crates/nvs-lsp`'s module doc; the section lexer is the same one `.nvst` uses. Lands at
 M4B — [ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 5.
 
 ```
 --TEST--
 One sentence saying what is being pinned, ending with the ADR §§ it comes from
 --FILE--
-<?mwl
+<?nvs
 class User { public string $name; }
 $u = new User();
 $u-><|>
@@ -107,21 +107,21 @@ name    property  string
 - **`<|>` is the cursor**, exactly one per case, removed before analysis. A request that needs none
   (`diagnostics`, `semanticTokens`, `documentSymbol`) writes none.
 - **`--REQUEST--`** is one line: the request name, then optional `key=value` arguments.
-- **`--EXPECT--` is exact and frozen**, on the same terms as `.mwlt`'s. The rendering it compares against
-  is canonical and lives in `mwl_lsp::render` — a case never invents a spelling, and a case that seems to
+- **`--EXPECT--` is exact and frozen**, on the same terms as `.nvst`'s. The rendering it compares against
+  is canonical and lives in `nvs_lsp::render` — a case never invents a spelling, and a case that seems to
   need one has found a gap in that module.
-- `--FILE <relative/path>--` works exactly as it does for `.mwlt`, which is how a go-to-definition case
+- `--FILE <relative/path>--` works exactly as it does for `.nvst`, which is how a go-to-definition case
   reaches across a `require`.
 - **The document usually does not parse, and that is the point.** A case that only ever asks about valid
   code is not testing what the resilient tree exists for.
 - A new file under `tests/lsp/` is picked up with no registration, and its coverage is **inferred** from
-  the node the cursor resolved to — `mwl lsp-test --coverage` prints the matrix and
+  the node the cursor resolved to — `nvs lsp-test --coverage` prints the matrix and
   `every_request_answers_every_construct` fails naming each empty cell.
 
 ## A `Core` member — the four edits
 
 All four in the module that owns the class; `python tools/brief.py`'s *anchors* block resolves each
-spelling to a file and line. Worked example: `crates/mwl-stdlib/src/json.rs`, which is small enough to
+spelling to a file and line. Worked example: `crates/nvs-stdlib/src/json.rs`, which is small enough to
 read whole.
 
 **1. The row**, in that module's `pub const CLASS: CoreClass`:
@@ -132,18 +132,18 @@ CoreMethod {
     params: &[CoreTy::Str],
     defaults: &[],
     return_ty: CoreTy::Bool,
-    symbol: "mwl_core_json_is_valid",
+    symbol: "nvs_core_json_is_valid",
 },
 ```
 
 **2. The body**, via the macro:
 
 ```rust
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Json::isValid(string $json): bool` — replacing `json_validate`.
     ///
     /// Why this shape rather than the obvious one, if that is not obvious.
-    fn mwl_core_json_is_valid(_ctx, args: [1]) {
+    fn nvs_core_json_is_valid(_ctx, args: [1]) {
         let text = text_of(&args[0], "isValid")?;
         // …
     }
@@ -156,14 +156,14 @@ rather than a link error:
 ```rust
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_json_is_valid" => (mwl_core_json_is_valid as *const ()).cast(),
+        "nvs_core_json_is_valid" => (nvs_core_json_is_valid as *const ()).cast(),
         _ => return None,
     })
 }
 ```
 
-**4. A `.mwlt` case that calls it.** `crates/mwl-stdlib/tests/conformance_coverage.rs` fails
-`cargo test -p mwl-stdlib` without one. An instance member needs a case writing `->name(`.
+**4. A `.nvst` case that calls it.** `crates/nvs-stdlib/tests/conformance_coverage.rs` fails
+`cargo test -p nvs-stdlib` without one. An instance member needs a case writing `->name(`.
 
 `args: [N]` must equal the row's arity, where an options bag flattens to one argument per option and an
 instance receiver is slot 0 and absent from `params`. The playbook's *Adding a `Core` member* section has
@@ -224,7 +224,7 @@ one-sentence bullet to [docs/adr/ground-rules.md](../adr/ground-rules.md).
 ## A diagnostic
 
 Next free code per band: `python tools/brief.py`. Bands are by compiler phase and the legend is
-`crates/mwl-diagnostics/src/lib.rs`'s own table. Declare it there as a `Code::new` constant next to its
+`crates/nvs-diagnostics/src/lib.rs`'s own table. Declare it there as a `Code::new` constant next to its
 siblings — that file is the whole registry, so a code declared anywhere else does not exist.
 
 Never reuse a retired number; the next free one is the band's highest plus one, deliberately not the
@@ -242,7 +242,7 @@ written with the **Write tool** — never a heredoc, which eats exactly the back
 Rust is full of:
 
 ```
---- crates/mwl-ir/src/lower/expr.rs
+--- crates/nvs-ir/src/lower/expr.rs
 <<<<<<< OLD
 the exact text to find
 =======

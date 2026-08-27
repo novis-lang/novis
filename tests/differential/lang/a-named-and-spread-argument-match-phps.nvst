@@ -1,7 +1,7 @@
 --TEST--
 `f(name: v)` and `f(...$xs)` match PHP: a name fills its own parameter while evaluation stays in written order, and unpacking renumbers integer-looking keys, preserves string ones, concatenates two spreads and leaves the subject alone
 --FILE--
-<?mwl
+<?nvs
 final class Fmt {
     public static function line(string $body, string $prefix = "> ", string $suffix = "!"): string {
         return $prefix . $body . $suffix;

@@ -1,7 +1,7 @@
 --TEST--
 A `for` loop's init/condition/step order, and what its variables hold afterwards, match PHP
 --FILE--
-<?mwl
+<?nvs
 var $sum = 0;
 var $i = 0;
 for ($i = 0; $i < 5; $i += 1) {

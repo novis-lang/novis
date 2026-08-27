@@ -2,14 +2,14 @@
 """Every shape the language still refuses, as a worklist a session can take an item off.
 
 M4's frontier is not coverage and not depth: it is the set of shapes that compile in the front end
-and then refuse below it -- `mwl-ir` panics naming itself, `mwl-codegen` returns
+and then refuse below it -- `nvs-ir` panics naming itself, `nvs-codegen` returns
 `CodegenError::Unsupported`, or the checker types an expression nothing lowers. `gaps.py` answers
 "which claim is the corpus missing"; this answers "which shape does the language not have yet", and
 the two never overlap.
 
 The list is derived, never copied. Three live sources:
 
-*   **The refusal sites themselves**, read out of `crates/mwl-ir/src/` and `crates/mwl-codegen/src/`.
+*   **The refusal sites themselves**, read out of `crates/nvs-ir/src/` and `crates/nvs-codegen/src/`.
     A site is a `panic!`/`todo!`/`unimplemented!` whose message names a shape, or a
     `CodegenError::Unsupported`. This is the honest inventory: a hole that stops panicking has left
     it, and one somebody adds appears without anyone updating a list.
@@ -19,7 +19,7 @@ The list is derived, never copied. Three live sources:
     file. A site no item claims is the interesting output -- it is either a hole nobody scheduled or
     a decision nobody wrote down, and both are worth a session's attention before the code is.
 
-*   **The artefacts each stage owes**, read out of `loop-goal.toml`'s `cases` lists. A named `.mwlt`
+*   **The artefacts each stage owes**, read out of `loop-goal.toml`'s `cases` lists. A named `.nvst`
     case that is not on disk is one item's remaining proof.
 
 Nothing here is a gate. `tools/loop.py` decides whether the goal is met; this only says where the
@@ -28,7 +28,7 @@ work is, so that no session spends its context re-deriving it.
     python tools/holes.py                  the summary: sites per item, and what is unattributed
     python tools/holes.py --item 7         one item -- its anchors, its refusal sites, its cases
     python tools/holes.py --unattributed   only the sites no item claims
-    python tools/holes.py --cases          only the `.mwlt`/differential artefacts still missing
+    python tools/holes.py --cases          only the `.nvst`/differential artefacts still missing
     python tools/holes.py --sites          every site, file by file, with its message
     python tools/holes.py --json           one JSON object instead
 """
@@ -46,7 +46,7 @@ GOAL_MD = ROOT / "docs" / "agent" / "loop-goal.md"
 GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
 
 # Where a refusal can live. Both crates lower; nothing else does.
-SOURCES = ["crates/mwl-ir/src", "crates/mwl-codegen/src"]
+SOURCES = ["crates/nvs-ir/src", "crates/nvs-codegen/src"]
 
 # A message is a refusal when it names a SHAPE this crate will not lower. Both crates say so in one
 # of three house phrasings, and the phrasing is the key rather than the macro: the same sentence
@@ -133,7 +133,7 @@ def sites() -> list[dict]:
                 near = text[max(0, at - 160):at]
                 if not (REFUSAL.search(message) or UNSUPPORTED.search(near)):
                     continue
-                # `#[error("mwl-codegen does not lower {0} yet")]` is the variant's Display impl,
+                # `#[error("nvs-codegen does not lower {0} yet")]` is the variant's Display impl,
                 # not a site: the sites are the places that CONSTRUCT it, and they are counted.
                 if ENGINE.search(message) or near.rstrip().endswith("#[error("):
                     continue
@@ -177,7 +177,7 @@ def items() -> list[dict]:
 
 
 def named_cases() -> list[dict]:
-    """Every `.mwlt` artefact `loop-goal.toml` names, and whether it is on disk yet."""
+    """Every `.nvst` artefact `loop-goal.toml` names, and whether it is on disk yet."""
     try:
         import tomllib
     except ModuleNotFoundError:  # pragma: no cover -- 3.10 and older

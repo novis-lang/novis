@@ -1,7 +1,7 @@
 --TEST--
 `eval` is one of the four closed doors, refused at parse time with no opt-in — ADR 0052 § 4
 --FILE--
-<?mwl
+<?nvs
 class Runner {
     public static function go(): int {
         eval("1 + 1");
@@ -13,6 +13,6 @@ echo Runner::go(), "\n";
 
 --EXPECTF-ERROR--
 error[E0201]: `eval` is not supported
-  --> case.mwl:4:9
+  --> case.nvs:4:9
 %A
 error: aborting due to 1 error

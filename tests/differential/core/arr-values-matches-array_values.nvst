@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::values drops the keys and renumbers, exactly as PHP's array_values does
 --FILE--
-<?mwl
+<?nvs
 array<string> $map = ["c" => "third", "a" => "first", "b" => "second"];
 
 echo Core\Str::join(Core\Arr::values($map), ","), "\n";

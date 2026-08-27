@@ -33,7 +33,7 @@
   perfectly well-formed URL; the property that matters is the address it resolves to, which is only known
   at connect time and can differ between two resolutions of the same name.
 - It also resists the pure runtime treatment. Nothing in a source file would indicate that a URL is
-  attacker-influenced, so the failure surfaces in production rather than at `mwl check`, and a developer has
+  attacker-influenced, so the failure surfaces in production rather than at `nvs check`, and a developer has
   no signal that a code path needs thought.
 - Fetching a user-supplied URL is a **legitimate feature** — webhooks, oEmbed, avatar imports, link
   previews, outbound integrations. A design that only forbids is not deployable; the mechanism has to make
@@ -84,7 +84,7 @@ a database lives at `10/8`, a container network or `127.0.0.1`, which is precise
 Denied by default: loopback (`127.0.0.0/8`, `::1`), private (`10/8`, `172.16/12`, `192.168/16`,
 `fc00::/7`), **link-local (`169.254.0.0/16`, `fe80::/10`)**, unspecified (`0.0.0.0/8`), and IPv4-mapped
 IPv6 forms of all of the above. An operator grants exceptions explicitly — a service that must reach an
-internal API says so in `mwl.toml`, and that grant is visible in `mwl ext inspect`-style tooling and in
+internal API says so in `nvs.toml`, and that grant is visible in `nvs ext inspect`-style tooling and in
 review.
 
 Link-local is called out because it is the one whose omission is catastrophic rather than merely
@@ -118,7 +118,7 @@ Tier 1.
   documents the decision. That is the intended shape: not forbidden, but not accidental either.
 - **Existing PHP code will not port silently.** Any `file_get_contents($userUrl)` or
   `curl_setopt(CURLOPT_URL, $userUrl)` becomes a compile-time diagnostic under
-  [ADR 0052](0052-closed-doors.md) § 2 and this ADR together. `mwl convert` (M11) emits the two-line form
+  [ADR 0052](0052-closed-doors.md) § 2 and this ADR together. `nvs convert` (M11) emits the two-line form
   with the launderer, rather than a direct translation.
 - **A deployment that legitimately calls internal services must say so.** This is real configuration work
   that PHP does not require, and it is the point: the difference between an intended internal call and an
@@ -128,13 +128,13 @@ Tier 1.
   implementation cost recorded here so M8 plans for it rather than discovering it.
 - **A cost this ADR accepts:** the address policy cannot see through a forward proxy, since the proxy does
   the resolving. A deployment routing outbound traffic through a proxy must enforce the policy there, and
-  the grant syntax should make that explicit rather than implying a guarantee MWL cannot make.
+  the grant syntax should make that explicit rather than implying a guarantee Novis cannot make.
 
 ## Alternatives rejected
 
 - **Runtime capability only**, with no `tainted` refusal. One mechanism instead of two, and the operator
   holds the whole policy. Rejected: nothing in the source would mark a URL as attacker-influenced, so the
-  developer gets no signal and the failure appears in production. It also gives up the `mwl check`-time
+  developer gets no signal and the failure appears in production. It also gives up the `nvs check`-time
   audit that every other injection class has.
 - **Compile-time only** — refuse `tainted` and have the launderer validate the URL's shape. Rejected: shape
   validation cannot stop `http://169.254.169.254/`, which is well-formed. The actual attack goes straight

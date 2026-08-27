@@ -1,7 +1,7 @@
 --TEST--
 `%` by zero throws a catchable error instead of trapping the process — request isolation, ADR 0002
 --FILE--
-<?mwl
+<?nvs
 class Mod {
     public static function of(int $a, int $b): string {
         try {

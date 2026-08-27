@@ -1,7 +1,7 @@
 --TEST--
 An enum passes through an overridden method unchanged — the argument, the return value and the property all stay the plain integer ADR 0010 makes them
 --FILE--
-<?mwl
+<?nvs
 enum Level {
     Debug = 10,
     Info = 20,

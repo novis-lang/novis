@@ -9,7 +9,7 @@
 
 use std::time::Duration;
 
-use mwl_abi_probe::wasm::WasmProbe;
+use nvs_abi_probe::wasm::WasmProbe;
 
 const NO_DEADLINE: u64 = u64::MAX;
 
@@ -115,7 +115,7 @@ fn accessor_state_does_not_carry_between_instances() {
 
 #[test]
 fn a_compiled_guest_is_reusable_across_many_instances() {
-    // Compile once, instantiate many: the same arrangement MWL uses for its own
+    // Compile once, instantiate many: the same arrangement Novis uses for its own
     // compiled units, and what keeps per-request cost to instantiation only.
     let probe = WasmProbe::pooled(128).expect("pooled probe");
 

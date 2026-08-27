@@ -1,7 +1,7 @@
 --TEST--
 `&&` and `||` are the only connectives, and each stops evaluating once the answer is fixed — ADR 0045
 --FILE--
-<?mwl
+<?nvs
 class Trace {
     public static function say(string $tag, bool $answer): bool {
         echo $tag;

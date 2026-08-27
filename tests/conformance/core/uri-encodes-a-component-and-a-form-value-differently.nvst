@@ -1,7 +1,7 @@
 --TEST--
 Core\Uri::encodeComponent and encodeFormValue are two encodings, not one with a flag — they disagree about a space and about `~`, exactly as PHP's rawurlencode and urlencode do — spec § 12
 --FILE--
-<?mwl
+<?nvs
 // Spec § 12: a space is `%20` inside a URI and `+` in a form value. That is
 // the one disagreement a program notices, and using the wrong member puts a
 // literal `+` in a filename or a space where a `+` was typed.

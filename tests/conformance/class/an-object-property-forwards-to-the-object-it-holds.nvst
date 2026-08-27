@@ -1,7 +1,7 @@
 --TEST--
 An object held in a property is reached through it, mutated through it, and stays the same instance the caller passed in
 --FILE--
-<?mwl
+<?nvs
 class Meter {
     public int $ticks;
 

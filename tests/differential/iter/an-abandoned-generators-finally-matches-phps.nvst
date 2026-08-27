@@ -1,11 +1,11 @@
 --TEST--
 Every `finally` an abandoned generator is suspended inside runs where PHP runs it, and prints what PHP prints — ADR 0053 § 4
 --FILE--
-<?mwl
+<?nvs
 // One shape is deliberately absent: a `finally` that *throws* on the way out
-// of an abandoned generator. PHP reports that one as uncaught; MWL drops it,
+// of an abandoned generator. PHP reports that one as uncaught; Novis drops it,
 // a release having no error edge to propagate on, and
-// `mwl_runtime::Ctx::with_pending_set_aside` is where that difference is
+// `nvs_runtime::Ctx::with_pending_set_aside` is where that difference is
 // written down. It is a divergence to fix behind ADR 0020's ladder, not one to
 // freeze here.
 class G {

@@ -43,7 +43,7 @@ fn class_with_extends_implements_and_members() {
 fn lateinit_property_modifier_parses() {
     // ADR 0038 § 1: `lateinit` is a property modifier like `readonly` —
     // which non-nullable/scalar/promoted-parameter combinations it's
-    // actually legal on is `mwl-types`' job, not the parser's.
+    // actually legal on is `nvs-types`' job, not the parser's.
     let s = parse_stmt_ok("class Container { public lateinit Logger $logger; }");
     let StmtKind::ClassDecl(class) = s.kind else {
         panic!("expected a class decl: {s:?}");
@@ -124,7 +124,7 @@ fn class_body_use_trait_is_rejected() {
 fn implements_by_field_delegation_parses() {
     // ADR 0043 § 4: `by $field` is an optional suffix on one
     // `implements` entry, recorded but not yet resolved (that's
-    // `mwl-hir`'s follow-up job).
+    // `nvs-hir`'s follow-up job).
     let s = parse_stmt_ok(
         "class Post implements Timestamped by $timestamps { \
              private TimestampTracker $timestamps; \
@@ -391,7 +391,7 @@ fn toplevel_function_and_const_are_rejected() {
 
 #[test]
 fn a_pure_code_file_has_no_inline_html() {
-    let stmts = parse_file_ok("<?mwl echo 1;");
+    let stmts = parse_file_ok("<?nvs echo 1;");
     assert_eq!(stmts.len(), 1);
     assert!(matches!(stmts[0].kind, StmtKind::Echo(_)));
 }
@@ -399,7 +399,7 @@ fn a_pure_code_file_has_no_inline_html() {
 #[test]
 fn leading_html_before_the_open_tag_is_kept_verbatim() {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", "hello <?mwl echo 1;");
+    let id = map.add("t.nvs", "hello <?nvs echo 1;");
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
     assert!(!diags.has_errors());
@@ -412,9 +412,9 @@ fn leading_html_before_the_open_tag_is_kept_verbatim() {
 }
 
 #[test]
-fn php_open_tag_is_diagnosed_naming_mwl_tag() {
+fn php_open_tag_is_diagnosed_naming_nvs_tag() {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", "<?php echo 1; ?>".to_string());
+    let id = map.add("t.nvs", "<?php echo 1; ?>".to_string());
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
     assert!(diags.has_errors());
@@ -439,7 +439,7 @@ fn php_open_tag_is_diagnosed_naming_mwl_tag() {
 #[test]
 fn a_malformed_switch_does_not_hang_or_grow_without_bound() {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", "<?=\n\0\0switch]]\0\0w]]]]\n".to_string());
+    let id = map.add("t.nvs", "<?=\n\0\0switch]]\0\0w]]]]\n".to_string());
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
     assert!(diags.has_errors());
@@ -463,13 +463,13 @@ fn a_malformed_switch_does_not_hang_or_grow_without_bound() {
 fn extremely_deep_nesting_does_not_overflow_the_stack() {
     for opener in ['(', '['] {
         let closer = if opener == '(' { ')' } else { ']' };
-        let mut src = String::from("<?mwl $x = ");
+        let mut src = String::from("<?nvs $x = ");
         src.extend(std::iter::repeat_n(opener, 10_000));
         src.push('1');
         src.extend(std::iter::repeat_n(closer, 10_000));
         src.push(';');
         let mut map = SourceMap::new();
-        let id = map.add("t.mwl", src);
+        let id = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(id), &mut diags);
         assert!(diags.has_errors());
@@ -482,7 +482,7 @@ fn extremely_deep_nesting_does_not_overflow_the_stack() {
 /// parsing regardless — but the resulting structure used to grow
 /// without bound, and a fuzz-run investigation found that overflowing
 /// the stack in the very first ordinary recursive walk over it
-/// afterwards (originally `mwl ast`'s pretty-printer). Confirms the
+/// afterwards (originally `nvs ast`'s pretty-printer). Confirms the
 /// chain itself gets folded back to a bounded depth: this walks the
 /// `Index`/`base` links by hand (not `{:#?}`, to keep the test's own
 /// assertion from being exactly the kind of unbounded recursive walk
@@ -490,13 +490,13 @@ fn extremely_deep_nesting_does_not_overflow_the_stack() {
 /// multiple of the guard's limit.
 #[test]
 fn a_long_postfix_chain_is_folded_back_to_a_bounded_depth() {
-    let mut src = String::from("<?mwl $x");
+    let mut src = String::from("<?nvs $x");
     for i in 0..10_000 {
         src.push_str(&format!("[{i}]"));
     }
     src.push(';');
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", src);
+    let id = map.add("t.nvs", src);
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
     assert!(diags.has_errors());
@@ -521,9 +521,9 @@ fn a_file_that_never_opens_a_tag_is_all_inline_html() {
 
 #[test]
 fn closing_and_reopening_a_tag_mid_block_is_legal() {
-    // `if ($x) { ?>html<?mwl }` — PHP allows leaving code mode inside a
+    // `if ($x) { ?>html<?nvs }` — PHP allows leaving code mode inside a
     // block; the `}` that closes the `if` is itself back in code mode.
-    let stmts = parse_file_ok("<?mwl if ($x) { ?>html<?mwl } ?>tail");
+    let stmts = parse_file_ok("<?nvs if ($x) { ?>html<?nvs } ?>tail");
     let StmtKind::If { then, .. } = &stmts[0].kind else {
         panic!("expected an if: {:?}", stmts[0]);
     };
@@ -568,8 +568,8 @@ fn short_echo_tag_semicolon_before_close_tag_is_optional_but_allowed() {
 fn an_autoload_declaration_parses() {
     let mut map = SourceMap::new();
     let id = map.add(
-        "t.mwl",
-        r"<?mwl
+        "t.nvs",
+        r"<?nvs
 autoload 'Framework' from './';
 autoload 'Acme\Legacy' from '../vendor/acme/lib', '../vendor/acme/compat';
 autoload discover '../../*/src';

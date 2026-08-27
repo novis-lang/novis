@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // Constructing objects and moving values through their properties — the DTO, the entity, the model.
 class Point {
     public int $x;

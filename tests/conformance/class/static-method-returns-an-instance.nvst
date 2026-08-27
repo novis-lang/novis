@@ -1,7 +1,7 @@
 --TEST--
 a static method can build and return an instance of its own class
 --FILE--
-<?mwl
+<?nvs
 class Counter {
     public int $n;
 

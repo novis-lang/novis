@@ -18,7 +18,7 @@
   [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 5 — its mixed-application host
   now has the mechanism its third row assumed.
 
-> **In short:** an application's identity is the **path of its entry file**, so `mwl run` on the command
+> **In short:** an application's identity is the **path of its entry file**, so `nvs run` on the command
 > line has one exactly as a served request does. A per-app block is `[[app]]` carrying either a `root`
 > path, which matches every entry file beneath it, or an `entry` path, which matches one file. The entry
 > path is **canonicalized before matching**, so no `..` segment and no symlink inherits an application's
@@ -41,11 +41,11 @@
   to fill it because doing so would put a second home on a fact 0005 nominally owns.
 - **0097 also fixed the constraint that decides the shape.** It gave `[[server.mount]]` a `mode` key as a
   stopgap and said plainly why that is not the answer: "an application's identity should be its **entry
-  file path**, not its mount. A mount-keyed block would leave `mwl run` on the CLI with no per-application
+  file path**, not its mount. A mount-keyed block would leave `nvs run` on the CLI with no per-application
   identity at all, and would make per-app configuration unreachable until M7 even though 0005 lands in M6."
 - **An application is a tree, not a file.** A served application resolves to one entry file
-  ([0077](0077-compile-time-routing.md)), but the same deployment holds `bin/import.mwl`,
-  `bin/migrate.mwl` and whatever else `mwl run` is pointed at, and all of them want the same limits and
+  ([0077](0077-compile-time-routing.md)), but the same deployment holds `bin/import.nvs`,
+  `bin/migrate.nvs` and whatever else `nvs run` is pointed at, and all of them want the same limits and
   the same grants. Keying strictly on one file would mean one block per script and a new script silently
   inheriting the global defaults.
 - **Direction is the question 0005 left ambiguous.** Its one sentence leans toward narrowing only, which
@@ -78,14 +78,14 @@ memory = "512M"
 process.exec = true                        # this application only
 
 [[app]]
-entry = "/srv/www/shop/bin/import.mwl"     # one file
+entry = "/srv/www/shop/bin/import.nvs"     # one file
 [app.limits]
 wall_time = "600s"
 ```
 
 An entry carries `root` **or** `entry`, never both and never neither. `root` matches when it is a prefix
 of the entry file's path **on path-component boundaries**, so `root = "/srv/www/shop"` matches
-`/srv/www/shop/bin/import.mwl` and does not match `/srv/www/shopfront/index.mwl`. `entry` matches one
+`/srv/www/shop/bin/import.nvs` and does not match `/srv/www/shopfront/index.nvs`. `entry` matches one
 file exactly, and is simply the most specific form of the same test. A block's directives live in
 `[app.limits]`, `[app.limits.hard]` and `[app.capabilities]` sub-tables, which attach to the preceding
 `[[app]]` by ordinary TOML rules; `mode` sits directly on the block.
@@ -97,7 +97,7 @@ configuration tree like every other array-of-tables
 without restating the ones the base declared.
 
 **The entry file path is canonicalized before it is matched** — symlinks resolved, `.` and `..` removed.
-Without that, `/srv/www/shop/../other/x.mwl` matches `root = "/srv/www/shop"` and a symlink planted inside
+Without that, `/srv/www/shop/../other/x.nvs` matches `root = "/srv/www/shop"` and a symlink planted inside
 an application's tree inherits that application's capabilities. This is the same
 canonicalize-then-prefix rule [0006](0006-isolated-script-execution.md) already applies to
 `script.spawn`'s roots, and for the same reason.
@@ -106,7 +106,7 @@ canonicalize-then-prefix rule [0006](0006-isolated-script-execution.md) already 
 
 More than one `[[app]]` can match one entry file, and all of them do. They are applied in order of
 **increasing specificity** — shortest `root` first, longest last, an `entry` match last of all — so the
-example above gives `/srv/www/shop/bin/import.mwl` a memory of `512M` from the `/srv/www/shop` block and a
+example above gives `/srv/www/shop/bin/import.nvs` a memory of `512M` from the `/srv/www/shop` block and a
 `wall_time` of `600s` from its own, while inheriting everything neither states.
 
 This is not a third precedence rule: it is [0103 § 3](0103-configuration-is-a-tree-of-files.md)'s "later
@@ -114,10 +114,10 @@ wins", ordered by specificity instead of by file position, and every override is
 Two blocks with the *same* `root` are a duplicate rather than a refinement, and are refused.
 
 ```console
-$ mwl run /srv/www/shop/bin/import.mwl
-info: app blocks: /srv/www, /srv/www/shop, /srv/www/shop/bin/import.mwl
+$ nvs run /srv/www/shop/bin/import.nvs
+info: app blocks: /srv/www, /srv/www/shop, /srv/www/shop/bin/import.nvs
 info: limits.memory    = "512M"  (/srv/www/shop)
-info: limits.wall_time = "600s"  (bin/import.mwl)
+info: limits.wall_time = "600s"  (bin/import.nvs)
 info: capabilities.process.exec = true  (/srv/www/shop)
 ```
 
@@ -154,7 +154,7 @@ the global `[limits.hard]`.
 "promised per-application mode selection and had no configuration mechanism to point at" — and recorded
 the missing block as "a doc bug this ADR records rather than fixes". § 1 fixes it, so the key goes: a
 mount routes, an `[[app]]` block sets policy, and per-application mode now works identically for
-`mwl serve` and `mwl run`.
+`nvs serve` and `nvs run`.
 
 ```toml
 [[server.mount]]
@@ -179,11 +179,11 @@ block may select, so nothing here widens what a mount could previously reach.
   bounded by the number of applications on the host rather than by traffic
   ([0004](0004-memory-for-simplicity.md)).
 - **Per-app configuration is reachable in M6, before any server exists**, which is the constraint
-  [0097 § 10](0097-development-server-and-proxied-origin.md) asked to be carried forward. `mwl run`
-  against a path under a `root` gets that application's limits and grants with no `mwl serve` involved.
+  [0097 § 10](0097-development-server-and-proxied-origin.md) asked to be carried forward. `nvs run`
+  against a path under a `root` gets that application's limits and grants with no `nvs serve` involved.
 - **A capability grant is now something a reader must look for in more than one place** — the global
   `[capabilities]` block and any `[[app]]` block whose root covers the code in question.
-  `mwl config dump --origin` ([0103 § 9](0103-configuration-is-a-tree-of-files.md)) is what makes that
+  `nvs config dump --origin` ([0103 § 9](0103-configuration-is-a-tree-of-files.md)) is what makes that
   answerable, and it is the same obligation the file tree already created.
 - **`[app.limits]` sub-tables attaching to the preceding `[[app]]` is valid TOML that reads subtly.**
   A reader who mistakes `[app.limits]` for a global block will be wrong, and nothing about TOML flags it;
@@ -192,12 +192,12 @@ block may select, so nothing here widens what a mount could previously reach.
 ## Alternatives rejected
 
 - **Keying on the server mount.** Rejected in [0097 § 10](0097-development-server-and-proxied-origin.md)
-  before this ADR existed: `mwl run` would have no per-application identity at all, and per-app
+  before this ADR existed: `nvs run` would have no per-application identity at all, and per-app
   configuration would be unreachable until M7 although [0005](0005-config-changeability.md) lands in M6.
 - **An exact entry-file key only, with no prefix matching.** The simplest possible rule, and it makes a
-  project with thirty `bin/*.mwl` scripts thirty blocks — where adding the thirty-first silently falls
+  project with thirty `bin/*.nvs` scripts thirty blocks — where adding the thirty-first silently falls
   back to the global defaults, which is the failure direction that matters.
-- **A quoted path as the table key** — `[app."/srv/www/shop/index.mwl".limits]`. Avoids the
+- **A quoted path as the table key** — `[app."/srv/www/shop/index.nvs".limits]`. Avoids the
   array-of-tables subtlety, at the cost of Windows paths needing literal-string quoting inside a table
   key, long unreadable lines, and no room for a selector that is not a path.
 - **Narrowing only**, the reading [0005](0005-config-changeability.md)'s sentence invited. Argued in § 3:
@@ -219,11 +219,11 @@ block may select, so nothing here widens what a mount could previously reach.
 In M6, alongside [0005](0005-config-changeability.md)'s and
 [0103](0103-configuration-is-a-tree-of-files.md)'s own lists:
 
-- `mwl run` against a file under a `root` gets that block's limits, grants and `mode`; a file under no
-  block gets the global configuration. The same file served through `mwl serve` resolves identically.
-- Three blocks matching one entry file apply least-specific first, and `mwl config dump --origin` names
+- `nvs run` against a file under a `root` gets that block's limits, grants and `mode`; a file under no
+  block gets the global configuration. The same file served through `nvs serve` resolves identically.
+- Three blocks matching one entry file apply least-specific first, and `nvs config dump --origin` names
   which block set each effective value.
-- `root = "/srv/www/shop"` does not match `/srv/www/shopfront/index.mwl`.
+- `root = "/srv/www/shop"` does not match `/srv/www/shopfront/index.nvs`.
 - An entry path reaching a `root` through `..` or through a symlink does not match it — the same case
   [0006](0006-isolated-script-execution.md) requires for `script.spawn`, asserted here for `[[app]]`.
 - An `[[app]]` with both `root` and `entry`, with neither, or duplicating another block's `root`, refuses

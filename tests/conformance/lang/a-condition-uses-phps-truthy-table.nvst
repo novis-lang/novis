@@ -1,7 +1,7 @@
 --TEST--
 A condition resolves PHP's full truthy table without an `as` — ADR 0035
 --FILE--
-<?mwl
+<?nvs
 if ("0") { echo "\"0\" truthy\n"; } else { echo "\"0\" falsy\n"; }
 if ("") { echo "\"\" truthy\n"; } else { echo "\"\" falsy\n"; }
 if ("0.0") { echo "\"0.0\" truthy\n"; } else { echo "\"0.0\" falsy\n"; }

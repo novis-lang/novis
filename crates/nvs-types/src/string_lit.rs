@@ -1,36 +1,36 @@
 //! Cooks the double-quoted escape grammar shared by a `"…"` string literal
-//! and an interpolated-heredoc's own text runs — `mwl_syntax::ast::ExprKind`'s
+//! and an interpolated-heredoc's own text runs — `nvs_syntax::ast::ExprKind`'s
 //! `Str` (double-quoted case only) and each `Text` piece of `Interpolated`'s
-//! [`mwl_syntax::ast::StringPart`] vector — into the runtime bytes they name.
+//! [`nvs_syntax::ast::StringPart`] vector — into the runtime bytes they name.
 //!
-//! `mwl-syntax`'s lexer already recognizes *which* backslash sequences exist
+//! `nvs-syntax`'s lexer already recognizes *which* backslash sequences exist
 //! (`Lexer::lex_escape_in_place`) and rejects a syntactically malformed
 //! `\u{...}` (missing hex digits, or no closing `}`) at lex time via
 //! `code::E_INVALID_ESCAPE`. It does not evaluate what a `\xHH`, octal, or
 //! `\u{...}` escape actually *produces* — cooking needs the whole literal
-//! assembled first, the same reason `mwl_types::expr::infer`'s `ExprKind::Int`
+//! assembled first, the same reason `nvs_types::expr::infer`'s `ExprKind::Int`
 //! arm (not the lexer) is where an integer literal's *magnitude* gets
 //! checked. This module is that arm's sibling for string content: it cooks
 //! the escapes and reports the two ways cooking can still fail — an
 //! out-of-range/surrogate `\u{...}` codepoint, or a `\xHH`/octal byte escape
 //! sequence that does not decode as valid UTF-8 (ADR 0009's "`string` is
-//! guaranteed-valid UTF-8" invariant) — before `mwl-ir` ever lowers the
+//! guaranteed-valid UTF-8" invariant) — before `nvs-ir` ever lowers the
 //! literal.
 //!
-//! `pub`, not `pub(crate)`, and reused directly by `mwl-ir` (which already
+//! `pub`, not `pub(crate)`, and reused directly by `nvs-ir` (which already
 //! depends on this crate for [`crate::ty::Ty`]/[`crate::expr_table`]) rather
-//! than duplicated the way `mwl_types::expr`'s own `int_literal_digits` and
-//! `mwl_ir::lower`'s `int_literal_digits` independently are: that duplicate is
+//! than duplicated the way `nvs_types::expr`'s own `int_literal_digits` and
+//! `nvs_ir::lower`'s `int_literal_digits` independently are: that duplicate is
 //! a ~15-line digit-splitting helper neither crate depends on the other
 //! for reaching, where this is a much larger, subtler cooking routine whose
-//! checker-reported diagnosis and `mwl-ir`'s actual lowered value must never
+//! checker-reported diagnosis and `nvs-ir`'s actual lowered value must never
 //! silently diverge — sharing one implementation is what guarantees that,
 //! not just a style preference.
 //!
 //! Only the double-quoted escape grammar lives here. A single-quoted literal
 //! (`\\`/`\'` only) can never produce invalid UTF-8 — it copies source
 //! characters through unchanged aside from those two escapes, both already
-//! ASCII — so it has no cooking routine of its own to share; `mwl-ir`'s
+//! ASCII — so it has no cooking routine of its own to share; `nvs-ir`'s
 //! `cook_str_literal` keeps that tiny case inline.
 //!
 //! This module also cooks a heredoc/nowdoc's body: PHP 7.3's "flexible
@@ -41,10 +41,10 @@
 //! grammar afterward ([`cook_double_quoted_text_str`], the owned-`&str`
 //! sibling of [`cook_double_quoted_text`] needed once dedenting has already
 //! broken the byte-for-byte correspondence to a single source span); a
-//! nowdoc's body applies no escapes at all, exactly like `mwl-ir`'s own
+//! nowdoc's body applies no escapes at all, exactly like `nvs-ir`'s own
 //! single-quoted case — dedenting is the *only* transformation it gets.
 
-use mwl_diagnostics::{SourceFile, Span};
+use nvs_diagnostics::{SourceFile, Span};
 
 /// One way [`cook_double_quoted_text`] failed to fully cook its input.
 /// Cooking still returns a best-effort `String` alongside these (lossy UTF-8
@@ -68,11 +68,11 @@ pub enum CookIssue {
 }
 
 /// Cooks `span` — the text strictly between a double-quoted literal's own
-/// quote characters, or one [`mwl_syntax::ast::StringPart::Text`] run inside
+/// quote characters, or one [`nvs_syntax::ast::StringPart::Text`] run inside
 /// an `Interpolated` literal (which never includes a quote character at all)
 /// — into the `string` value it denotes.
 ///
-/// Handles every escape `mwl-syntax`'s lexer recognizes when interpolation is
+/// Handles every escape `nvs-syntax`'s lexer recognizes when interpolation is
 /// active (`Lexer::lex_quoted_body`'s `interpolation` branch, shared
 /// verbatim between a double-quoted literal and a heredoc opened without
 /// `'quotes'`, which is exactly why this same routine cooks both): `\\`,
@@ -82,7 +82,7 @@ pub enum CookIssue {
 /// (encoded to its UTF-8 bytes). Any other backslash sequence — including a
 /// syntactically malformed `\u{...}` the lexer already flagged separately —
 /// is passed through literally, matching PHP and avoiding a second report of
-/// something `mwl-syntax` already diagnosed.
+/// something `nvs-syntax` already diagnosed.
 #[must_use]
 pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<CookIssue>) {
     let text = src.span_text(span).unwrap_or_default();
@@ -105,13 +105,13 @@ pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<Coo
 /// (never of the cooked *value*, which is exact either way) that only
 /// applies once a heredoc/nowdoc's closing marker is itself indented; a
 /// marker with no indentation never reaches this function at all, see
-/// `mwl-ir`'s `cook_str_literal`/`Lowering::lower_interpolated_parts`.
+/// `nvs-ir`'s `cook_str_literal`/`Lowering::lower_interpolated_parts`.
 #[must_use]
 pub fn cook_double_quoted_text_str(text: &str, attribute_to: Span) -> (String, Vec<CookIssue>) {
     cook_double_quoted_chars(text, attribute_to, |_, _| attribute_to)
 }
 
-/// Cooks a whole [`mwl_syntax::ast::ExprKind::Str`] literal — delimiters
+/// Cooks a whole [`nvs_syntax::ast::ExprKind::Str`] literal — delimiters
 /// included — into the `string` it denotes, dispatching on which of the three
 /// spellings `span` opens with.
 ///
@@ -130,7 +130,7 @@ pub fn cook_double_quoted_text_str(text: &str, attribute_to: Span) -> (String, V
 /// *value*, and `crate::expr`'s own `ExprKind::Str` arm already reported both
 /// against the same span. That is the standing "the checker diagnoses,
 /// everything downstream trusts" split, and it is why one routine can serve
-/// both `mwl-ir`'s lowering and [`crate::defaults`]'s parameter-default
+/// both `nvs-ir`'s lowering and [`crate::defaults`]'s parameter-default
 /// evaluation without either growing a second escape grammar.
 ///
 /// * A **bareword** span — no delimiters at all — is PHP's simple-syntax array
@@ -152,7 +152,7 @@ pub fn cook_string_literal(src: &SourceFile, span: Span) -> String {
         .unwrap_or_else(|| panic!("an empty string literal span at {span:?} — lexer bug?"));
     if quote != '\'' && quote != '"' {
         // A **bareword** offset inside PHP's simple interpolation syntax —
-        // the `key` of `"$row[key]"`, which `mwl_syntax`'s parser turns into
+        // the `key` of `"$row[key]"`, which `nvs_syntax`'s parser turns into
         // an `ExprKind::Str` over the unquoted span (see its
         // `parse_simple_interp_variable`). It is the one spelling that reaches
         // here without delimiters, and it carries no escape grammar at all:
@@ -316,7 +316,7 @@ fn cook_double_quoted_chars(
                     i = j + 1;
                 } else {
                     // A syntactically malformed `\u{...}` (no digits, or no
-                    // closing `}`) — `mwl-syntax` already reported
+                    // closing `}`) — `nvs-syntax` already reported
                     // `E_INVALID_ESCAPE` for this at lex time. Pass the two
                     // characters through literally rather than double-report.
                     bytes.extend_from_slice(b"\\u");
@@ -340,7 +340,7 @@ fn cook_double_quoted_chars(
     }
 }
 
-/// A source file caps out at 4 GiB (`mwl_diagnostics::span::BytePos` is
+/// A source file caps out at 4 GiB (`nvs_diagnostics::span::BytePos` is
 /// `u32`), so a byte offset within one always fits back into a `u32`.
 fn off_as_u32(off: usize) -> u32 {
     u32::try_from(off).expect("a byte offset within one source file fits u32 (BytePos's own type)")
@@ -387,11 +387,11 @@ pub struct HeredocShape {
 }
 
 /// Computes a heredoc/nowdoc literal's [`HeredocShape`] from `whole_span` —
-/// the entire literal exactly as `mwl_syntax::ast::ExprKind::Str`/
+/// the entire literal exactly as `nvs_syntax::ast::ExprKind::Str`/
 /// `Interpolated` carry it: `<<<LABEL` (or `<<<'LABEL'`/`<<<"LABEL"`)
 /// through the closing marker's own last character, inclusive. No separate
 /// span for the closing marker needs to be threaded through from the parser
-/// for this: `mwl_syntax::parser::parse_heredoc_string` never leaves
+/// for this: `nvs_syntax::parser::parse_heredoc_string` never leaves
 /// anything after the marker inside this span, so the marker's own line is
 /// always exactly the text after `whole_span`'s *last* `\n` — even in the
 /// degenerate empty-body case, where that last `\n` is the same one that
@@ -400,7 +400,7 @@ pub struct HeredocShape {
 /// Returns `(shape, issues)` rather than reporting through `Diagnostics`
 /// directly, the same shape [`cook_double_quoted_text`] already uses, so a
 /// checker call site can attribute a code/message to each issue and
-/// `mwl-ir` can discard them, trusting the checker already ran.
+/// `nvs-ir` can discard them, trusting the checker already ran.
 #[must_use]
 pub fn heredoc_shape(
     src: &SourceFile,
@@ -409,7 +409,7 @@ pub fn heredoc_shape(
     let raw = src.span_text(whole_span).unwrap_or_default();
     let Some(last_nl) = raw.rfind('\n') else {
         // No newline at all inside the whole literal -- a malformed heredoc
-        // header `mwl-syntax` already reported `E_BAD_HEREDOC` for. Fall
+        // header `nvs-syntax` already reported `E_BAD_HEREDOC` for. Fall
         // back to an empty body rather than guessing at a shape.
         let empty = Span::new(whole_span.file, whole_span.end, whole_span.end);
         return (
@@ -452,7 +452,7 @@ pub fn heredoc_shape(
 /// `<<<"LABEL"`) — the one distinction that decides whether its body runs
 /// any escape grammar at all (a nowdoc runs none, exactly like a
 /// single-quoted literal minus even `\\`/`\'`; see this module's own docs).
-/// Shared between the checker and `mwl-ir` for the same reason every other
+/// Shared between the checker and `nvs-ir` for the same reason every other
 /// function in this module is: getting this wrong silently would mean the
 /// two disagree on whether an escape sequence is even live.
 #[must_use]
@@ -500,7 +500,7 @@ fn strip_line_indent<'a>(
 /// interpolation site left off, which is never a line start on its own (an
 /// interpolation site never itself carries leading whitespace — any
 /// indentation before one is always literal text already captured by the
-/// preceding run, see `mwl-ir`'s own module docs on this point). Every
+/// preceding run, see `nvs-ir`'s own module docs on this point). Every
 /// *embedded* `\n` inside `line`'s own text always starts a fresh line
 /// regardless of `body_start`, since a literal newline can only ever appear
 /// inside a `Text` run.
@@ -554,13 +554,13 @@ pub fn dedent_heredoc_run(
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::{SourceMap, Span};
+    use nvs_diagnostics::{SourceMap, Span};
 
     use super::*;
 
     fn cook(src_text: &str) -> (String, Vec<CookIssue>) {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src_text);
+        let file = map.add("t.nvs", src_text);
         let span = Span::new(file, 0, u32::try_from(src_text.len()).unwrap());
         cook_double_quoted_text(map.file(file), span)
     }
@@ -639,7 +639,7 @@ mod tests {
 
     #[test]
     fn malformed_unicode_escape_passes_through_without_a_second_diagnostic() {
-        // No digits at all -- mwl-syntax's lexer already reported
+        // No digits at all -- nvs-syntax's lexer already reported
         // `E_INVALID_ESCAPE` for this at lex time; cooking must not panic or
         // double-report.
         let (s, issues) = cook(r"\u{}");
@@ -675,7 +675,7 @@ mod tests {
 
     fn shape_of(src_text: &str) -> (HeredocShape, Vec<HeredocIndentIssue>) {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src_text);
+        let file = map.add("t.nvs", src_text);
         let span = Span::new(file, 0, u32::try_from(src_text.len()).unwrap());
         heredoc_shape(map.file(file), span)
     }
@@ -723,7 +723,7 @@ mod tests {
         is_last_run: bool,
     ) -> (String, Vec<HeredocIndentIssue>) {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src_text);
+        let file = map.add("t.nvs", src_text);
         let span = Span::new(file, 0, u32::try_from(src_text.len()).unwrap());
         let mut issues = Vec::new();
         let s = dedent_heredoc_run(
@@ -804,7 +804,7 @@ mod tests {
     #[test]
     fn cook_double_quoted_text_str_cooks_the_same_grammar_from_an_owned_string() {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", "whatever");
+        let file = map.add("t.nvs", "whatever");
         let attribute_to = Span::new(file, 0, 8);
         let (s, issues) = cook_double_quoted_text_str(r"a\nb", attribute_to);
         assert!(issues.is_empty());

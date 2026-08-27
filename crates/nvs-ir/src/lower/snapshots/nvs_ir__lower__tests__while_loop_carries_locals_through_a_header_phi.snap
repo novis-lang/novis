@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn sum(object, int) -> int {
@@ -33,8 +33,8 @@ fn sum(object, int) -> int {
     return v4
   bb4:
     release v0
-    propagate "sum() at t.mwl:7"
+    propagate "sum() at t.nvs:7"
   bb5:
     release v0
-    propagate "sum() at t.mwl:8"
+    propagate "sum() at t.nvs:8"
 }

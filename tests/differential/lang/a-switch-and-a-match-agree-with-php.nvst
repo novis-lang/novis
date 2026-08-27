@@ -1,7 +1,7 @@
 --TEST--
 Label order, fallthrough, a mid-list `default` and a `match`'s chosen arm all match PHP
 --FILE--
-<?mwl
+<?nvs
 var $log = "";
 int $i = 0;
 for ($i = 0; $i < 4; $i += 1) {
@@ -42,7 +42,7 @@ foreach ($words as string $w) {
 echo "picked=", $picked, "|\n";
 
 // A bare `continue` inside a `switch` is PHP's `continue 2`, not its `continue`
-// — see `mwl_ir::lower::Lowering::lower_switch` for why MWL takes the meaning
+// — see `nvs_ir::lower::Lowering::lower_switch` for why Novis takes the meaning
 // PHP's own warning points at.
 var $trace = "";
 int $n = 0;

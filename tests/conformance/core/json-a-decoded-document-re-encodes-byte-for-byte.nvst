@@ -1,7 +1,7 @@
 --TEST--
 Core\Json::encode is decode's inverse over every canonical document, isValid agrees with decode on every spelling, and the four places a re-encoding is deliberately not the input — spec § 6
 --FILE--
-<?mwl
+<?nvs
 // The sibling case pins § 6's members row by row. This one pins the property
 // the pair is written around: for a document already in the form `encode`
 // writes, decoding and re-encoding is the identity. A decoder that lost key
@@ -52,13 +52,13 @@ echo "agree ", $agree, " valid ", $valid, " of ", Core\Arr::count($docs), "\n";
 echo "round trip ", $trip, " of ", $valid, "\n";
 
 // The one document that cannot round-trip, and the reason is the language
-// rather than the codec: MWL has one array type, so an empty JSON object and
+// rather than the codec: Novis has one array type, so an empty JSON object and
 // an empty JSON array decode to the same value and both re-encode as a list.
 // A non-empty object keeps its keys and therefore its shape.
 echo Core\Json::encode(Core\Json::decode("{}")), "|", Core\Json::encode(Core\Json::decode("[]")), "|\n";
 
 // A number is re-spelled to what it *is* rather than to how it was written:
-// JSON has one number type and MWL has three, so an exponent and a redundant
+// JSON has one number type and Novis has three, so an exponent and a redundant
 // sign come back as the float they denote. An integer stays an integer, which
 // is why the sweep above round-trips `9223372036854775807` exactly.
 echo Core\Json::encode(Core\Json::decode("1e2")), "|", Core\Json::encode(Core\Json::decode("-0")), "|", Core\Json::encode(Core\Json::decode("1.0")), "|\n";

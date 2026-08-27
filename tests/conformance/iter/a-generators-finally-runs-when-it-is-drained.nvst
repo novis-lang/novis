@@ -1,7 +1,7 @@
 --TEST--
 A `finally` wrapped around a generator's whole body runs once, after the last `yield` resumes and the body falls off the end
 --FILE--
-<?mwl
+<?nvs
 class G {
     public static function guarded(int $n): Iterator<int> {
         try {

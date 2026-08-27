@@ -1,6 +1,6 @@
 [package]
-name = "mwl-types"
-description = "MWL type checker: interned declared types, local definite assignment, the arithmetic result-type table"
+name = "nvs-types"
+description = "Novis type checker: interned declared types, local definite assignment, the arithmetic result-type table"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,10 +9,10 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
-mwl-diagnostics.workspace = true
-mwl-syntax.workspace = true
-mwl-hir.workspace = true
-mwl-stdlib.workspace = true
+nvs-diagnostics.workspace = true
+nvs-syntax.workspace = true
+nvs-hir.workspace = true
+nvs-stdlib.workspace = true
 rustc-hash.workspace = true
 
 [lints]

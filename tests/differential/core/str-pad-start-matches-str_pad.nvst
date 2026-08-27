@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::padStart matches str_pad with STR_PAD_LEFT, oversize input included
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::padStart("7", 3, "0"), "\n";
 echo Core\Str::padStart("1234", 3, "0"), "\n";
 echo Core\Str::padStart("", 4, "-"), "\n";

@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::filter keeps each survivor's key, and an empty result is still an array
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

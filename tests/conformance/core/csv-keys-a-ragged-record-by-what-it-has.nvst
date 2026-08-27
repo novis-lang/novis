@@ -1,7 +1,7 @@
 --TEST--
 `Core\Csv::parse` answers a ragged document rather than throwing, keying each record by what it actually holds — spec § 12's second table
 --FILE--
-<?mwl
+<?nvs
 // A record with more fields than the header keys the surplus by its column
 // index — the key that field would have had with no header at all — so nothing
 // is dropped and the row still says where each value came from.

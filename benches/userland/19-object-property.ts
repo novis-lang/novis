@@ -1,5 +1,5 @@
 // Constructing objects and moving values through their properties - the DTO, the entity, the model.
-// JavaScript's `%` truncates toward zero as PHP's and MWL's do, so the total going negative on the
+// JavaScript's `%` truncates toward zero as PHP's and Novis's do, so the total going negative on the
 // first iteration needs no helper here -- only the Python twin does.
 
 class Point {

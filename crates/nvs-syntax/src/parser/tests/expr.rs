@@ -697,7 +697,7 @@ fn double_quoted_string_with_interpolation() {
 
 #[test]
 fn spawn_script_with_options() {
-    let e = parse_ok("spawn script 'jobs/report.mwl' with(args: $a, grants: $g)");
+    let e = parse_ok("spawn script 'jobs/report.nvs' with(args: $a, grants: $g)");
     let ExprKind::SpawnScript { options, .. } = e.kind else {
         panic!("expected spawn script: {e:?}");
     };
@@ -708,7 +708,7 @@ fn spawn_script_with_options() {
 
 #[test]
 fn spawn_script_without_with_clause() {
-    let e = parse_ok("spawn script 'jobs/report.mwl'");
+    let e = parse_ok("spawn script 'jobs/report.nvs'");
     let ExprKind::SpawnScript { options, .. } = e.kind else {
         panic!("expected spawn script: {e:?}");
     };
@@ -779,7 +779,7 @@ fn isset_and_empty() {
 #[test]
 fn name_span_covers_the_qualified_name() {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", "<?mwl Core\\Bytes::fromHex('ab')");
+    let id = map.add("t.nvs", "<?nvs Core\\Bytes::fromHex('ab')");
     let mut diags = Diagnostics::new();
     let mut p = Parser::new(map.file(id), &mut diags);
     p.bump();

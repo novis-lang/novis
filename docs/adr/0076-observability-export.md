@@ -22,7 +22,7 @@
   M8 the outbound propagation.
 - **Amended by:** 0097
 
-> **In short:** MWL already measures request duration, database query duration, GC pause and isolate spawn —
+> **In short:** Novis already measures request duration, database query duration, GC pause and isolate spawn —
 > [ADRs 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) and
 > [0041](0041-timeline-export-and-gc-spawn-trace-events.md) built the instrumentation and nothing consumes
 > it in production. This exports it: a **default metric set with no code written**, spans derived from the
@@ -32,7 +32,7 @@
 > [ADR 0059](0059-cross-request-state-is-explicit.md):** metrics are approximate aggregates that nothing
 > reads to make a decision, so per-core accumulation with merge-at-scrape is correct, and that is exactly
 > the property 0059 § 4 tests for. Two things are decided here that libraries elsewhere get wrong. **A label
-> value refuses `tainted`** — unbounded cardinality is a user-supplied string reaching a label, and MWL
+> value refuses `tainted`** — unbounded cardinality is a user-supplied string reaching a label, and Novis
 > already has the type that says so, so the cardinality bomb becomes a compile error. And **past the
 > cardinality cap a new series is refused rather than an old one evicted**, because evicting a counter makes
 > it appear to reset and silently corrupts every `rate()` over it.
@@ -53,7 +53,7 @@
 - **Cardinality is the failure mode, and it is always the same failure.** A label whose value comes from the
   request — a raw path, a user id, an error message — multiplies a series into thousands, and the collector
   falls over hours later, far from the line that caused it. Every metrics library documents this and none of
-  them prevent it, because in every other language a string is a string. MWL has a type that distinguishes
+  them prevent it, because in every other language a string is a string. Novis has a type that distinguishes
   *user-supplied* from *program-authored*, which turns the documentation into a diagnostic.
 - **The 0059 question has to be answered explicitly or a reader will assume the worst.**
   [ADR 0059](0059-cross-request-state-is-explicit.md) forbids cross-request state and says per-core state is
@@ -69,15 +69,15 @@ Emitted by the runtime and the M7 server, present the moment an exporter is conf
 
 | series | kind | labels |
 |---|---|---|
-| `mwl_requests_total` | counter | `method`, `status`, `route` |
-| `mwl_request_duration_seconds` | histogram | `method`, `status`, `route` |
-| `mwl_db_query_duration_seconds` | histogram | `connection`, `operation` |
-| `mwl_gc_pause_seconds` | histogram | — |
-| `mwl_spawn_duration_seconds` | histogram | `kind` (`task`/`worker`/`script`) |
-| `mwl_tasks_in_flight` | gauge | — |
-| `mwl_deferred_trees` | gauge | — ([ADR 0072](0072-core-task-structured-concurrency.md) § 7) |
-| `mwl_memory_bytes` | gauge | `scope` (`request`/`cache`/`process`) |
-| `mwl_schedule_runs_total` | counter | `name`, `outcome` ([ADR 0073](0073-scheduled-work-is-config.md)) |
+| `nvs_requests_total` | counter | `method`, `status`, `route` |
+| `nvs_request_duration_seconds` | histogram | `method`, `status`, `route` |
+| `nvs_db_query_duration_seconds` | histogram | `connection`, `operation` |
+| `nvs_gc_pause_seconds` | histogram | — |
+| `nvs_spawn_duration_seconds` | histogram | `kind` (`task`/`worker`/`script`) |
+| `nvs_tasks_in_flight` | gauge | — |
+| `nvs_deferred_trees` | gauge | — ([ADR 0072](0072-core-task-structured-concurrency.md) § 7) |
+| `nvs_memory_bytes` | gauge | `scope` (`request`/`cache`/`process`) |
+| `nvs_schedule_runs_total` | counter | `name`, `outcome` ([ADR 0073](0073-scheduled-work-is-config.md)) |
 
 Every one is read from instrumentation that already exists: the `query` kind from
 [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md) § 1, `gc` from § 2, `spawn` from § 3, GC and
@@ -106,7 +106,7 @@ histogram in § 1, not a span — a collection pause is not a unit of work in a 
   from outside, it is `tainted`, and refusing a request over a bad tracing header would make an
   observability feature into an availability one.
 - **A trace id exists for every request, whatever the sampling decision.** Sampling governs whether a trace
-  is *exported*, never whether an id is generated, and that is what lets the same id be MWL's only request
+  is *exported*, never whether an id is generated, and that is what lets the same id be Novis's only request
   identifier: `Core\Server::traceId()` reads it, every `[log]` record and every error rendering carries it,
   and it is emitted on the response so a proxy can log it with one `log_format` line. There is deliberately
   no second identifier and no inbound `X-Request-ID`
@@ -164,7 +164,7 @@ instead is the set of things that are already unqualified and are what a label s
 [ADR 0033](0033-secret-qualifier-for-confidential-values.md) already refuses `secret` at every output sink.
 
 This is the decision this ADR is most likely to be remembered for. It costs a compile error at exactly the
-line that would have taken the collector down, and it is only available because MWL spent the qualifier
+line that would have taken the collector down, and it is only available because Novis spent the qualifier
 system on injection first.
 
 ### 5. Why this is not [ADR 0059](0059-cross-request-state-is-explicit.md)'s closed door
@@ -174,7 +174,7 @@ A per-core metrics registry is mutable state that outlives a request, which is t
 the reason is worth stating rather than leaving a reader to wonder:
 
 - **Nothing reads it to make a decision.** 0059 § 1's rule is that a program which would be *incorrect* if a
-  read returned nothing is using the wrong tier. No MWL program reads a metric at all — the only reader is a
+  read returned nothing is using the wrong tier. No Novis program reads a metric at all — the only reader is a
   scrape or a push, outside any request.
 - **The values are approximate aggregates by design.** Per-core counters merged at scrape time are the
   correct implementation, not a compromise: it is the same reason a metric is not a rate limit
@@ -241,7 +241,7 @@ series until something registers one. It is charged to the core, not to a reques
 *Decisions taken at project start*'s standing rule applies straightforwardly: this is somebody else's
 specification and it is a dependency. What is ours is the wiring from
 [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s event kinds to spans, and the per-core
-registry, both of which are about MWL's own runtime and could not be a crate.
+registry, both of which are about Novis's own runtime and could not be a crate.
 
 ## Consequences
 
@@ -253,7 +253,7 @@ registry, both of which are about MWL's own runtime and could not be a crate.
 - **One instrumentation, four consumers.** Coverage, the speedscope timeline, the deterministic profiler and
   now production telemetry all read the same events, so a number cannot disagree with itself depending on
   which tool asked.
-- **The cardinality bomb is a compile error.** Every other language documents this failure; MWL had already
+- **The cardinality bomb is a compile error.** Every other language documents this failure; Novis had already
   built the type that prevents it, and § 4 is the whole of the work.
 - **Logs and traces correlate**, because both go through one record shape
   ([ADR 0020](0020-error-escalation-ladder.md) § 6) and it now carries the ids.
@@ -266,7 +266,7 @@ registry, both of which are about MWL's own runtime and could not be a crate.
 - **`tainted` labels will be hit, and the first reaction will be annoyance.** Labelling by user id, tenant
   name or error message is what people do. The diagnostic has to name the alternatives (§ 4) rather than
   just refusing, and `Core\Taint::assertTrusted` has to be discoverable from it.
-- **`route` depends on [ADR 0077](0077-compile-time-routing.md).** An application that does not use MWL's
+- **`route` depends on [ADR 0077](0077-compile-time-routing.md).** An application that does not use Novis's
   route table gets no `route` label at all, and per-endpoint latency is the second thing anyone looks at.
   The alternative was a cardinality bomb, so this is the right refusal, but it is a real coupling between
   two otherwise independent features.
@@ -316,7 +316,7 @@ registry, both of which are about MWL's own runtime and could not be a crate.
 
 - **Tail sampling** — keeping traces that were slow or failed rather than a fixed head fraction — is what
   operators actually want and is deliberately not built. It needs either a collector-side component (which is
-  configuration, not MWL's code) or a buffering exporter that holds every span until a request ends (which is
+  configuration, not Novis's code) or a buffering exporter that holds every span until a request ends (which is
   a footprint decision under [ADR 0004](0004-memory-for-simplicity.md) and needs its own number).
 - **Exemplars** — attaching a trace id to a histogram bucket, so a slow-request bucket links to a trace — are
   the highest-value thing missing here and are additive.
@@ -327,7 +327,7 @@ registry, both of which are about MWL's own runtime and could not be a crate.
 - **A `Core\Metrics` read path**, if anything ever needs to read its own counters. It would land squarely in
   [ADR 0059](0059-cross-request-state-is-explicit.md)'s territory and would need § 5's argument re-made,
   because a program that reads a metric to decide something is using the wrong tier.
-- **Whether `mwl_db_query_duration_seconds` should carry a statement label** — normalised SQL rather than
+- **Whether `nvs_db_query_duration_seconds` should carry a statement label** — normalised SQL rather than
   just `operation`. Valuable, and a cardinality question that needs a bound before it is offered.
 
 ## Verification

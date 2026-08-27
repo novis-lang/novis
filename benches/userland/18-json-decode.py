@@ -1,4 +1,4 @@
-# Parsing then reading the fields - MWL validates into a declared type where Python hands back a dict.
+# Parsing then reading the fields - Novis validates into a declared type where Python hands back a dict.
 import json
 
 

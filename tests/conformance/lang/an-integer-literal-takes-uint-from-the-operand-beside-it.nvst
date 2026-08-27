@@ -1,7 +1,7 @@
 --TEST--
 An integer literal beside a `uint` operand is placed at `uint` rather than defaulting to `int`, on every row of the operator table — ADR 0007 §§ 2 and 4
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 2: "a numeric literal is untyped until placed, so it takes
 // `int`, `uint`, `float` or `decimal` from its target rather than
 // converting." A binary operator's other operand is one of those placements,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unattended MWL work loop. Starts one fresh `claude` session per iteration, so the per-session
+"""Unattended Novis work loop. Starts one fresh `claude` session per iteration, so the per-session
 context cost is constant no matter how many sessions run. See docs/agent/coordinator.md for the design
 and docs/agent/loop-goal.md for the goal; the acceptance list itself is docs/agent/loop-goal.toml.
 
@@ -134,7 +134,7 @@ class StatusLine:
 
         scope    where the run is       `session 3/12`
         phase    what it is doing now   `acceptance check`, with `31/58 53%` when that is countable
-        detail   the current item       `wsl fixtures/closures.mwl`, `Edit tools/loop.py`
+        detail   the current item       `wsl fixtures/closures.nvs`, `Edit tools/loop.py`
         elapsed  how long this phase has been going
 
     A count is shown only when the total is known ahead of time -- the acceptance sweep knows how
@@ -841,7 +841,7 @@ def capture(exe, args, timeout=1800, cwd=None):
     """Run a program with stdout and stderr captured SEPARATELY -- the acceptance list distinguishes
     them (a backtrace and FATAL go to stderr, program output to stdout).
 
-    `cwd` defaults to the repository root, which is what every cargo and `mwl` invocation wants. A
+    `cwd` defaults to the repository root, which is what every cargo and `nvs` invocation wants. A
     `command` check names its own, because an `npm` script only finds its `package.json` from the
     directory that holds it.
 
@@ -906,20 +906,20 @@ class NativeLeg:
         self.binary = None
 
     def prepare(self):
-        r = capture("cargo", ["build", "--quiet", "-p", "mwl-cli"])
+        r = capture("cargo", ["build", "--quiet", "-p", "nvs-cli"])
         if r.code != 0:
             return f"the {self.name} build failed -- {r.first_err_line}"
-        self.binary = str(ROOT / "target" / "debug" / ("mwl.exe" if IS_WINDOWS else "mwl"))
+        self.binary = str(ROOT / "target" / "debug" / ("nvs.exe" if IS_WINDOWS else "nvs"))
         return ""
 
-    def run(self, mwl_args):
-        return capture(self.binary, ["run", *mwl_args])
+    def run(self, nvs_args):
+        return capture(self.binary, ["run", *nvs_args])
 
-    def suite(self, mwl_args):
-        """`mwl test <dir>` on this leg. Separate from `run` because a suite takes its own
+    def suite(self, nvs_args):
+        """`nvs test <dir>` on this leg. Separate from `run` because a suite takes its own
         subcommand, and separate from calling `self.binary` directly because on the WSL leg that
         path is a Linux one and Windows cannot execute it."""
-        return capture(self.binary, mwl_args)
+        return capture(self.binary, nvs_args)
 
 
 class WslLeg(NativeLeg):
@@ -944,18 +944,18 @@ class WslLeg(NativeLeg):
 
     def prepare(self):
         r = self.bash(
-            f"cd {self.repo} && CARGO_TARGET_DIR={self.target_dir} cargo build --quiet -p mwl-cli"
+            f"cd {self.repo} && CARGO_TARGET_DIR={self.target_dir} cargo build --quiet -p nvs-cli"
         )
         if r.code != 0:
             return f"the {self.name} build failed -- {r.first_err_line}"
-        self.binary = f"{self.target_dir}/debug/mwl"
+        self.binary = f"{self.target_dir}/debug/nvs"
         return ""
 
-    def run(self, mwl_args):
-        return self.bash(f"cd {self.repo} && {self.binary} run " + " ".join(mwl_args))
+    def run(self, nvs_args):
+        return self.bash(f"cd {self.repo} && {self.binary} run " + " ".join(nvs_args))
 
-    def suite(self, mwl_args):
-        return self.bash(f"cd {self.repo} && {self.binary} " + " ".join(mwl_args))
+    def suite(self, nvs_args):
+        return self.bash(f"cd {self.repo} && {self.binary} " + " ".join(nvs_args))
 
 
 def wsl_available():
@@ -975,7 +975,7 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 EXPENSIVE = {"abi-probe", "wsl leg", "valgrind sweep"}
 
 # What a memoizable check reads, and so what its verdict is keyed on -- see `Goal.inputs_id`.
-# `tests/` and `docs/` are deliberately absent: nothing keyed on this runs a `.mwlt` case.
+# `tests/` and `docs/` are deliberately absent: nothing keyed on this runs a `.nvst` case.
 MEMO_DIRS = ("crates", "examples")
 MEMO_FILES = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "docs/agent/loop-goal.toml")
 MEMO_NOT_INPUTS = {"target", "node_modules", "out", ".vscode-test"}
@@ -1001,7 +1001,7 @@ def rustc_version():
 PREBUILD_LOCK = threading.Lock()
 
 # A `command` check is an argv run in a directory, exit 0, with `want` as ordered substrings across
-# both streams. It exists because the acceptance test grew a leg that is neither `mwl run` stdout nor
+# both streams. It exists because the acceptance test grew a leg that is neither `nvs run` stdout nor
 # `cargo test`: from M4B, `editors/vscode` is TypeScript and its suites are `npm` scripts. Kept
 # deliberately general -- a check kind per external tool is how a driver becomes a build system.
 #
@@ -1020,7 +1020,7 @@ class Goal:
 
     Two things are memoized, and neither of them skips a check:
 
-    * **Within one run**, an identical `args` list runs cargo once. The list holds `mwl-runtime`
+    * **Within one run**, an identical `args` list runs cargo once. The list holds `nvs-runtime`
       twice on purpose -- stage 0 and stage 5 name different guard tests on it -- and running the
       crate's suite a second time cannot answer differently.
     * **Across runs**, the three checks in `EXPENSIVE` are remembered against a content hash of
@@ -1036,7 +1036,7 @@ class Goal:
         self.files = spec.get("files", [])
         self.checks = spec.get("check", [])
         self.valgrind_skip = set(spec.get("valgrind", {}).get("skip", []))
-        self.wsl_target = spec.get("wsl", {}).get("target_dir", "/var/tmp/mwl-target-wsl")
+        self.wsl_target = spec.get("wsl", {}).get("target_dir", "/var/tmp/nvs-target-wsl")
         self.program_checks = [c for c in self.checks if c["kind"] in PROGRAM_KINDS]
         self.ran = []  # (label, seconds) for every check this run actually paid for
         self.short = []  # `min_passing` thresholds not met; see `check()`
@@ -1110,7 +1110,7 @@ class Goal:
 
         `--release` is a different profile from everything else here, so nothing it needs is on
         disk when the sweep starts, and this workspace's release profile is `lto = "thin"` with
-        `codegen-units = 1` -- measured at 133s after a one-line change to `mwl-runtime`, against
+        `codegen-units = 1` -- measured at 133s after a one-line change to `nvs-runtime`, against
         the ~130s the whole rest of the sweep costs. Found by its `--release` rather than named,
         so a goal that moves the guard to another crate does not have to come back here.
 
@@ -1175,7 +1175,7 @@ class Goal:
         every manifest, the toolchain, and the goal file whole (its `files`, `[valgrind] skip` and
         `[[check]]` lists all steer the sweep, and hashing the whole file rather than those three
         sections means a section added later cannot be missed). `tests/` and `docs/` are absent on
-        purpose: no check keyed on this executes a `.mwlt` case or reads a document.
+        purpose: no check keyed on this executes a `.nvst` case or reads a document.
 
         Widening this is safe and narrowing it is not, so anything unreadable returns `None` and
         every memo falls through to running for real, which is `verify.py`'s rule as well.
@@ -1301,7 +1301,7 @@ class Goal:
             self.remember(c["name"])
             return ""
 
-        if c["kind"] == "mwl-suite":
+        if c["kind"] == "nvs-suite":
             # The suite runner is the CLI the leg already built; `cargo run` here would be one
             # more workspace fingerprint scan to start a binary sitting on disk. Through the leg
             # rather than at the binary, because `--leg-only` runs these on the Linux build, whose
@@ -1313,19 +1313,19 @@ class Goal:
             return f"{label}: exit {r.code} -- {r.first_err_line}"
         both = r.out + "\n" + r.err
 
-        if c["kind"] == "mwl-suite":
+        if c["kind"] == "nvs-suite":
             m = SUMMARY_RE.search(both)
             if not m:
                 return f"{label}: no 'N passed, M failed' summary line in the output"
             if int(m.group(2)) != 0:
                 return f"{label}: {m.group(2)} case(s) failed"
-            # `cases` is the `.mwlt` twin of `cargo-named`, and it exists for the same reason: a
+            # `cases` is the `.nvst` twin of `cargo-named`, and it exists for the same reason: a
             # suite is green when a case was never written, and `min_passing` cannot tell the
             # difference between "the corpus grew" and "the corpus grew somewhere else". A named
             # case must be on disk AND not have been skipped -- an `--ORACLE--` whose probe fails
             # skips silently, and the SKIP line is the only place that shows.
             #
-            # Path separators are normalized both ways: `mwl test` prints whatever the platform's
+            # Path separators are normalized both ways: `nvs test` prints whatever the platform's
             # `Path::display` gives it, so the same case is `tests/…` here and `tests\…` there.
             flat = both.replace("\\", "/")
             for case in c.get("cases", []):
@@ -1391,7 +1391,7 @@ class Goal:
             return machine.posix_probe(out, sample=cmd_for(targets[0]))
 
         prof = machine.profile(leg.name, probe=probe)
-        jobs = machine.jobs(leg.name, ceiling=len(targets), envs=("MWL_VALGRIND_JOBS",))
+        jobs = machine.jobs(leg.name, ceiling=len(targets), envs=("NVS_VALGRIND_JOBS",))
         self.trace(f"valgrind sweep: {len(targets)} fixtures, {jobs} at a time "
                    f"({prof.get('cores', '?')} cores on the {leg.name} leg)")
 
@@ -1449,7 +1449,7 @@ class Goal:
         n = 1  # the input fingerprint, already spent by the time this is called
         if mode == "leg":
             n += 1 + programs  # the leg's build, then every fixture on it
-            n += sum(1 for c in self.cargo_checks if c["kind"] == "mwl-suite")
+            n += sum(1 for c in self.cargo_checks if c["kind"] == "nvs-suite")
             return n + (sweep if sweepable else 0)
 
         n += 1 + len(self.catch_up_checks) + programs  # native build, catch-up, native fixtures
@@ -1620,7 +1620,7 @@ class Goal:
                 return fail
 
         for c in self.cargo_checks:
-            if c["kind"] != "mwl-suite":
+            if c["kind"] != "nvs-suite":
                 continue
             trace(f"{leg.name} {c['name']}")
             fail = self.cargo_check(c, leg)
@@ -2260,7 +2260,7 @@ def run_cli():
                 say(f"  [{c.get('stage', '?')}] {c['kind']:<11} {c['name']}: "
                     f"{' '.join(c['argv'])} in {c.get('cwd', '.')}{memo}")
                 continue
-            driver = "mwl" if c["kind"] == "mwl-suite" else "cargo"
+            driver = "nvs" if c["kind"] == "nvs-suite" else "cargo"
             say(f"  [{c.get('stage', '?')}] {c['kind']:<11} {c['name']}: "
                 f"{driver} {' '.join(c['args'])}")
             # Named cases are the half of a suite check that a session can act on: each is one
@@ -2363,7 +2363,7 @@ def drive(opts, goal):
 
     # Every acceptance check builds the debug CLI, so from the second session on it is current at
     # the tree the next session starts from -- and orient.py's closing block tells the session so,
-    # to stop it spending a call on `ls -la target/debug/mwl.exe` and a defensive `cargo build`
+    # to stop it spending a call on `ls -la target/debug/nvs.exe` and a defensive `cargo build`
     # (0.6 calls a session, measured). The first session of a run is the one case that promise
     # would be false, because no check has run in front of it yet. So it runs here. It is a no-op
     # against a warm target/ and it is not fatal: a red build is a thing a session may be sent to

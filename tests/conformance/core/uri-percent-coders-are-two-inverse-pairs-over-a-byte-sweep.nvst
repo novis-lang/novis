@@ -1,7 +1,7 @@
 --TEST--
 `Core\Uri`'s four percent-coders are two inverse pairs: each decoder undoes its own encoder over every ASCII byte, the two encoders disagree on exactly the two the form encoding spells differently, and above `U+007F` they are one encoding — spec § 12, RFC 3986 § 2.1
 --FILE--
-<?mwl
+<?nvs
 // § 12 has two encodings because the wire has two, and the pairs are named for
 // where the answer goes rather than for which C function they came from. The
 // neighbouring cases assert what each member does to a handful of bytes; this

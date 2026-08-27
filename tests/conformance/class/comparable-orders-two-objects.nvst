@@ -1,7 +1,7 @@
 --TEST--
 `<`, `>` and their siblings over two objects go through `Comparable::compareTo` — ADR 0013
 --FILE--
-<?mwl
+<?nvs
 class Weight implements Comparable {
     public int $grams;
 

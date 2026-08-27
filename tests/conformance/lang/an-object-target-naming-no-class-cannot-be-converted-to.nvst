@@ -1,7 +1,7 @@
 --TEST--
 `as object`, `as callable` and `as Core\Class` from anything that is not already an object are `E0711`, ADR 0007 § 2's table naming no row that produces one
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 2 tabulates no conversion into an object. A *declared* class
 // target is admitted anyway because it can be checked — the value's runtime
 // class is compared against a descriptor. These three name no descriptor at

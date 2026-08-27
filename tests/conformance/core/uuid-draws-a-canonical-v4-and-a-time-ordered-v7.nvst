@@ -1,11 +1,11 @@
 --TEST--
 Core\Uuid::v4 and v7 each build a `Uuid` whose canonical rendering carries its own version and RFC 9562's variant, and a v7 opens with the clock — spec § 11
 --FILE--
-<?mwl
+<?nvs
 // A drawn UUID cannot be asserted, so every line here pins an invariant of the
 // rendering rather than the draw itself. `$uuid->toString()` is written out
 // because a `Core`-owned class records no `Stringable` target yet, so `echo
-// $uuid` does not compile (`mwl-ir` gap 12).
+// $uuid` does not compile (`nvs-ir` gap 12).
 var $v4 = Core\Uuid::v4()->toString();
 var $v7 = Core\Uuid::v7()->toString();
 
@@ -31,7 +31,7 @@ echo Core\Regex::matches(Core\Str::slice($v7, 19, 1), '^[89ab]$') ? "variant" : 
 // are that count zero-padded — which reads `01…` for every instant between
 // 2004 and the year 2527. That is what makes a v7 sort by creation time; the
 // monotonic step itself is pinned by the unit test in
-// `crates/mwl-stdlib/src/uuid.rs`, which can sleep and a conformance case
+// `crates/nvs-stdlib/src/uuid.rs`, which can sleep and a conformance case
 // should not.
 echo Core\Str::slice($v7, 0, 2), "\n";
 

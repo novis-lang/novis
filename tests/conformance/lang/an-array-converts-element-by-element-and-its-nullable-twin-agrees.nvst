@@ -1,7 +1,7 @@
 --TEST--
 `array<T> as array<U>` walks every element and throws on the first one `U` does not admit, and `as ?array<U>` answers `null` in exactly the same places — ADR 0007 §§ 2, 5, 6 and ADR 0066 § 1
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 2's one row whose check is per *element* rather than per value.
 // Every subject arrives through `mixed`, which is § 6's way into it: two are
 // arrays of strings, one is an array holding something else, and one is not an

@@ -1,6 +1,6 @@
 [package]
-name = "mwl-cli"
-description = "The mwl command-line binary: ast/check (M1-M2), run (M3), test (M4), info"
+name = "nvs-cli"
+description = "The nvs command-line binary: ast/check (M1-M2), run (M3), test (M4), info"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,18 +9,18 @@ authors.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "mwl"
+name = "nvs"
 path = "src/main.rs"
 
 [dependencies]
-mwl-diagnostics.workspace = true
-mwl-syntax.workspace = true
-mwl-hir.workspace = true
-mwl-types.workspace = true
-mwl-ir.workspace = true
-mwl-codegen.workspace = true
-mwl-runtime.workspace = true
-mwl-test.workspace = true
+nvs-diagnostics.workspace = true
+nvs-syntax.workspace = true
+nvs-hir.workspace = true
+nvs-types.workspace = true
+nvs-ir.workspace = true
+nvs-codegen.workspace = true
+nvs-runtime.workspace = true
+nvs-test.workspace = true
 clap.workspace = true
 
 [lints]

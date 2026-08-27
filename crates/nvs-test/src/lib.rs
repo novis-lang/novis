@@ -1,6 +1,6 @@
-//! The `.mwlt` conformance-case format and the runner behind `mwl test`.
+//! The `.nvst` conformance-case format and the runner behind `nvs test`.
 //!
-//! A `.mwlt` file is one case: a program, what it should print, and a title
+//! A `.nvst` file is one case: a program, what it should print, and a title
 //! saying what it is for. The format is deliberately a **superset of PHP's
 //! `.phpt`**, so importing PHP's own test corpus at M11 is mechanical rather
 //! than a rewrite — `docs/implementation-plan.md` § M4 is where that decision
@@ -10,7 +10,7 @@
 //! --TEST--
 //! an int converts to a string
 //! --FILE--
-//! <?mwl
+//! <?nvs
 //! echo 41 as string;
 //! --EXPECT--
 //! 41
@@ -23,7 +23,7 @@
 //! | section | meaning |
 //! |---|---|
 //! | `--TEST--` | the one-line title, required |
-//! | `--FILE--` | the MWL program, required |
+//! | `--FILE--` | the Novis program, required |
 //! | `--EXPECT--` | expected standard output, compared literally |
 //! | `--EXPECTF--` | expected standard output, with [`expect`]'s `%` escapes |
 //! | `--SKIPIF--` | a program whose output starting `skip` skips the case |
@@ -32,7 +32,7 @@
 //! | `--ARGS--` | extra arguments for the run |
 //! | `--ENV--` | environment variables for the run |
 //!
-//! Five are MWL's own. Two of those are the differential pair
+//! Five are Novis's own. Two of those are the differential pair
 //! `docs/agent/loop-goal.md` names:
 //!
 //! | section | meaning |
@@ -46,7 +46,7 @@
 //! ## More than one file
 //!
 //! `--FILE--` is the program that runs, and it is always written as
-//! `case.mwl` in the working directory. `--FILE <relative/path>--` writes
+//! `case.nvs` in the working directory. `--FILE <relative/path>--` writes
 //! *another* file into that same directory, at the path it names, creating
 //! the directories along the way — so a case can hold a `require` target, an
 //! autoload root and the class it declares, which is what
@@ -55,14 +55,14 @@
 //!
 //! ```text
 //! --FILE--
-//! <?mwl
-//! require './src/Bootstrap.mwl';
+//! <?nvs
+//! require './src/Bootstrap.nvs';
 //! echo (new App\Greeter())->greet(), "\n";
-//! --FILE src/Bootstrap.mwl--
-//! <?mwl
+//! --FILE src/Bootstrap.nvs--
+//! <?nvs
 //! autoload 'App' from './';
-//! --FILE src/Greeter.mwl--
-//! <?mwl
+//! --FILE src/Greeter.nvs--
+//! <?nvs
 //! namespace App;
 //! class Greeter { public function greet(): string { return "hi"; } }
 //! --EXPECT--
@@ -71,7 +71,7 @@
 //!
 //! The path is relative, `/`-separated on both legs, and may not hold a `.`
 //! or `..` segment or name one of the four files the runner writes itself
-//! (`case.mwl`, `skipif.mwl`, `clean.mwl`, `oracle.php`) — so a case cannot
+//! (`case.nvs`, `skipif.nvs`, `clean.nvs`, `oracle.php`) — so a case cannot
 //! reach outside the temporary directory it is given, and needs no sanitiser
 //! to say so. Repeating one path is a parse error, the way repeating any
 //! other section is.
@@ -79,12 +79,12 @@
 //! `--ORACLE--` is how the differential suite proves PHP compatibility
 //! instead of freezing a belief about it: the expectation is not a string
 //! someone typed, it is what PHP 8.5 does on the machine running the suite.
-//! `--ORACLE-DIVERGES--` is the other half — where MWL differs from PHP on
+//! `--ORACLE-DIVERGES--` is the other half — where Novis differs from PHP on
 //! purpose, the case states the reason and its own expectation, so a
 //! divergence is a named, reviewable line rather than a comparison quietly
 //! left out.
 //!
-//! The error pair exists because MWL writes a diagnostic and an uncaught
+//! The error pair exists because Novis writes a diagnostic and an uncaught
 //! throw to **standard error**, where PHP writes both to standard output.
 //! Without it, no case could cover a compile error at all. Their presence is
 //! also the one thing that says a case expects the run to fail; every other
@@ -105,7 +105,7 @@
 //! ## What is parsed but not yet honoured
 //!
 //! `--INI--`, `--ARGS--` and `--ENV--` parse — that is what keeps the M11
-//! importer mechanical — but nothing can act on them yet: `mwl.toml` is not
+//! importer mechanical — but nothing can act on them yet: `nvs.toml` is not
 //! read until M6 ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)),
 //! and argv and the environment are unreachable until `Core\Cli` and
 //! `Core\Env` land at M8. A case that uses one is reported as a **failure**
@@ -131,7 +131,7 @@ pub use case::{Case, Expectation, Oracle, ParseError};
 pub use run::{Options, Outcome};
 
 /// The extension a case file carries.
-pub const EXTENSION: &str = "mwlt";
+pub const EXTENSION: &str = "nvst";
 
 /// What a whole run came to.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -152,7 +152,7 @@ impl Summary {
     }
 }
 
-/// Collects every `.mwlt` file under `paths`, sorted, directories walked.
+/// Collects every `.nvst` file under `paths`, sorted, directories walked.
 ///
 /// A path naming a file is taken as-is whatever its extension, so a single
 /// case can be run by name.
@@ -219,7 +219,7 @@ pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result
         .any(|case| matches!(case.oracle, Some(Oracle::Php(_))));
     let php = !wants_oracle || run::php_available(opts);
 
-    let root = std::env::temp_dir().join(format!("mwl-test-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("nvs-test-{}", std::process::id()));
     // A previous run that was killed before its cleanup leaves this behind.
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root)?;

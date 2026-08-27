@@ -1215,7 +1215,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "mwl-abi-probe"
+name = "num-traits"
+version = "0.2.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
+name = "nvs-abi-probe"
 version = "0.0.1"
 dependencies = [
  "anyhow",
@@ -1225,53 +1234,53 @@ dependencies = [
  "cranelift-module",
  "cranelift-native",
  "criterion",
- "mwl-codegen",
- "mwl-diagnostics",
- "mwl-hir",
- "mwl-ir",
- "mwl-runtime",
- "mwl-stdlib",
- "mwl-syntax",
- "mwl-types",
+ "nvs-codegen",
+ "nvs-diagnostics",
+ "nvs-hir",
+ "nvs-ir",
+ "nvs-runtime",
+ "nvs-stdlib",
+ "nvs-syntax",
+ "nvs-types",
  "wasmtime",
 ]
 
 [[package]]
-name = "mwl-cli"
+name = "nvs-cli"
 version = "0.0.1"
 dependencies = [
  "clap",
- "mwl-codegen",
- "mwl-diagnostics",
- "mwl-hir",
- "mwl-ir",
- "mwl-runtime",
- "mwl-syntax",
- "mwl-test",
- "mwl-types",
+ "nvs-codegen",
+ "nvs-diagnostics",
+ "nvs-hir",
+ "nvs-ir",
+ "nvs-runtime",
+ "nvs-syntax",
+ "nvs-test",
+ "nvs-types",
 ]
 
 [[package]]
-name = "mwl-codegen"
+name = "nvs-codegen"
 version = "0.0.1"
 dependencies = [
  "cranelift",
  "cranelift-jit",
  "cranelift-module",
  "cranelift-native",
- "mwl-diagnostics",
- "mwl-hir",
- "mwl-ir",
- "mwl-runtime",
- "mwl-stdlib",
- "mwl-syntax",
- "mwl-types",
+ "nvs-diagnostics",
+ "nvs-hir",
+ "nvs-ir",
+ "nvs-runtime",
+ "nvs-stdlib",
+ "nvs-syntax",
+ "nvs-types",
  "rustc-hash",
  "thiserror 2.0.20",
 ]
 
 [[package]]
-name = "mwl-diagnostics"
+name = "nvs-diagnostics"
 version = "0.0.1"
 dependencies = [
  "anstyle",
@@ -1279,28 +1288,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "mwl-hir"
+name = "nvs-hir"
 version = "0.0.1"
 dependencies = [
- "mwl-diagnostics",
- "mwl-syntax",
+ "nvs-diagnostics",
+ "nvs-syntax",
  "rustc-hash",
 ]
 
 [[package]]
-name = "mwl-ir"
+name = "nvs-ir"
 version = "0.0.1"
 dependencies = [
  "insta",
- "mwl-diagnostics",
- "mwl-hir",
- "mwl-syntax",
- "mwl-types",
+ "nvs-diagnostics",
+ "nvs-hir",
+ "nvs-syntax",
+ "nvs-types",
  "rustc-hash",
 ]
 
 [[package]]
-name = "mwl-runtime"
+name = "nvs-runtime"
 version = "0.0.1"
 dependencies = [
  "bitflags 2.13.1",
@@ -1308,7 +1317,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mwl-stdlib"
+name = "nvs-stdlib"
 version = "0.0.1"
 dependencies = [
  "base64",
@@ -1322,9 +1331,9 @@ dependencies = [
  "hmac",
  "jiff",
  "md-5",
- "mwl-runtime",
- "mwl-syntax",
- "mwl-test",
+ "nvs-runtime",
+ "nvs-syntax",
+ "nvs-test",
  "rand",
  "regex",
  "serde",
@@ -1338,35 +1347,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "mwl-syntax"
+name = "nvs-syntax"
 version = "0.0.1"
 dependencies = [
  "insta",
- "mwl-diagnostics",
+ "nvs-diagnostics",
 ]
 
 [[package]]
-name = "mwl-test"
+name = "nvs-test"
 version = "0.0.1"
 
 [[package]]
-name = "mwl-types"
+name = "nvs-types"
 version = "0.0.1"
 dependencies = [
- "mwl-diagnostics",
- "mwl-hir",
- "mwl-stdlib",
- "mwl-syntax",
+ "nvs-diagnostics",
+ "nvs-hir",
+ "nvs-stdlib",
+ "nvs-syntax",
  "rustc-hash",
-]
-
-[[package]]
-name = "num-traits"
-version = "0.2.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
-dependencies = [
- "autocfg",
 ]
 
 [[package]]

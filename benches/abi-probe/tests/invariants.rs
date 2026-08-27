@@ -1,10 +1,10 @@
-//! The behavioural invariants MWL's execution model depends on.
+//! The behavioural invariants Novis's execution model depends on.
 //!
 //! If any of these fail after a dependency bump, the plan for M3 (backend) or
 //! M5 (concurrency) is broken and needs revisiting before more code is written
 //! on top of it. See `docs/adr/0002-error-propagation.md`.
 
-use mwl_abi_probe::{Ctx, FATAL, Helper, MwlFn, OK, Probe, THROWN, Value, call, in_coroutine};
+use nvs_abi_probe::{Ctx, FATAL, Helper, NvsFn, OK, Probe, THROWN, Value, call, in_coroutine};
 
 // ---------------------------------------------------------------------------
 // The checked-return ABI
@@ -127,7 +127,7 @@ fn a_successful_call_leaves_no_pending_error() {
 #[test]
 fn a_helper_can_suspend_with_jit_frames_live_above_it() {
     let mut probe = Probe::new();
-    let chain: MwlFn = probe.compile_chain(2, Helper::Suspend);
+    let chain: NvsFn = probe.compile_chain(2, Helper::Suspend);
 
     let run = in_coroutine(Ctx::new(), move |ctx| {
         let (status, out) = call(chain, ctx, Value::int(21));
@@ -149,7 +149,7 @@ fn a_helper_can_suspend_with_jit_frames_live_above_it() {
 #[test]
 fn repeated_suspends_leave_the_frames_intact() {
     let mut probe = Probe::new();
-    let chain: MwlFn = probe.compile_chain(3, Helper::Suspend);
+    let chain: NvsFn = probe.compile_chain(3, Helper::Suspend);
 
     let run = in_coroutine(Ctx::new(), move |ctx| {
         let mut total = 0i64;
@@ -168,7 +168,7 @@ fn repeated_suspends_leave_the_frames_intact() {
 #[test]
 fn a_throw_still_propagates_inside_a_coroutine() {
     let mut probe = Probe::new();
-    let chain: MwlFn = probe.compile_chain(3, Helper::Suspend);
+    let chain: NvsFn = probe.compile_chain(3, Helper::Suspend);
 
     let run = in_coroutine(Ctx::new(), move |ctx| {
         let (status, _) = call(chain, ctx, Value::int(42));
@@ -196,7 +196,7 @@ fn a_runtime_panic_is_contained_inside_a_coroutine_too() {
     // Containment must hold on a coroutine stack as well as the main stack,
     // since in production every request runs on one.
     let mut probe = Probe::new();
-    let chain: MwlFn = probe.compile_chain(3, Helper::Suspend);
+    let chain: NvsFn = probe.compile_chain(3, Helper::Suspend);
 
     let run = in_coroutine(Ctx::new(), move |ctx| {
         let (status, _) = call(chain, ctx, Value::int(99));
@@ -217,11 +217,11 @@ fn a_runtime_panic_is_contained_inside_a_coroutine_too() {
 
 #[test]
 fn many_coroutines_can_be_created_and_driven() {
-    // A weak proxy for the concurrency ceiling: MWL needs tens of thousands of
+    // A weak proxy for the concurrency ceiling: Novis needs tens of thousands of
     // in-flight tasks per process, so creating a coroutine must be cheap and
     // leak nothing.
     let mut probe = Probe::new();
-    let chain: MwlFn = probe.compile_chain(2, Helper::Suspend);
+    let chain: NvsFn = probe.compile_chain(2, Helper::Suspend);
 
     // Starts at 100 to stay clear of the helper's sentinels: 42 throws and 99
     // panics, both of which are exercised deliberately by other tests here.

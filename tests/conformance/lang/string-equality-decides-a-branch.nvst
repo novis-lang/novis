@@ -1,7 +1,7 @@
 --TEST--
 `==` over two strings drives an `if` chain, and a value matching no arm falls through to the method's last `return`
 --FILE--
-<?mwl
+<?nvs
 class Node {
     public string $kind;
 

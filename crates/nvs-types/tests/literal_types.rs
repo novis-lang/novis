@@ -6,7 +6,7 @@
 //! free-widening rows plus the placement rule that makes a value of one of
 //! these types writable at all, and § 4's checked `as` with § 6's two
 //! diagnostics. What is **not** here is the run-time membership test a
-//! conversion from `mixed` performs, which is `mwl-ir`'s and `mwl-runtime`'s.
+//! conversion from `mixed` performs, which is `nvs-ir`'s and `nvs-runtime`'s.
 //!
 //! The two facts this file exists to hold are the ones § 3 turns on — an enum
 //! case is **not** an int literal of its backing value, and a class constant
@@ -16,15 +16,15 @@
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
-use mwl_types::ty::Ty;
+use nvs_diagnostics::code;
+use nvs_types::ty::Ty;
 
 /// § 1's two literal atoms: each interns to its own singleton type, holding
 /// the value it names rather than the text it was written as.
 #[test]
 fn a_literal_type_atom_is_checked() {
     let (diags, types) = check_src_declared(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T {\n",
         "  function m(\"a\" $s, 1 $one, -1 $neg, 0x10 $hex): void {}\n",
         "}\n",
@@ -56,7 +56,7 @@ fn a_literal_type_atom_is_checked() {
 #[test]
 fn a_union_of_literal_atoms_is_one_closed_set() {
     let (diags, mut types) = check_src_declared(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T {\n",
         "  function m(\"a\"|\"b\"|\"c\" $mode, ?\"x\" $maybe): void {}\n",
         "}\n",
@@ -84,7 +84,7 @@ fn a_union_of_literal_atoms_is_one_closed_set() {
 #[test]
 fn a_class_constant_folds_and_an_enum_case_narrows() {
     let (diags, mut types) = check_src_declared(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class Foo { public const string TYPE_A = \"a\"; public const int RANK = 7; }\n",
         "enum Mode { Read, Write, Admin }\n",
         "class T {\n",
@@ -104,8 +104,8 @@ fn a_class_constant_folds_and_an_enum_case_narrows() {
     assert_eq!(
         types.interner.get(types.of("Mode::Read", "$m")),
         &Ty::EnumCase(
-            mwl_hir::QName::parse("Mode"),
-            mwl_types::EnumBacking::Int,
+            nvs_hir::QName::parse("Mode"),
+            nvs_types::EnumBacking::Int,
             "Read".to_owned()
         )
     );
@@ -123,7 +123,7 @@ fn a_class_constant_folds_and_an_enum_case_narrows() {
 #[test]
 fn a_case_subset_union_is_not_its_enum() {
     let (diags, mut types) = check_src_declared(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "enum Mode { Read, Write, Admin }\n",
         "class T {\n",
         "  function m(Mode::Read|Mode::Write $subset, Mode $whole): void {}\n",
@@ -141,7 +141,7 @@ fn a_case_subset_union_is_not_its_enum() {
 #[test]
 fn an_ineligible_class_constant_in_type_position_is_diagnosed() {
     let diags = check_src(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class Foo { public const float RATE = 1.5; }\n",
         "class T {\n",
         "  function m(Foo::RATE $r): void {}\n",
@@ -161,12 +161,12 @@ fn an_ineligible_class_constant_in_type_position_is_diagnosed() {
 fn an_undeclared_constant_or_case_in_type_position_is_diagnosed() {
     for src in [
         concat!(
-            "<?mwl\n",
+            "<?nvs\n",
             "class Foo { public const string TYPE_A = \"a\"; }\n",
             "class T { function m(Foo::NOPE $c): void {} }\n",
         ),
         concat!(
-            "<?mwl\n",
+            "<?nvs\n",
             "enum Mode { Read }\n",
             "class T { function m(Mode::Nope $m): void {} }\n",
         ),
@@ -185,7 +185,7 @@ fn an_undeclared_constant_or_case_in_type_position_is_diagnosed() {
 #[test]
 fn an_out_of_range_int_literal_type_is_diagnosed() {
     let diags = check_src(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T { function m(99999999999999999999 $n): void {} }\n",
     ));
     assert!(
@@ -202,7 +202,7 @@ fn an_out_of_range_int_literal_type_is_diagnosed() {
 #[test]
 fn a_literal_type_widens_to_its_base() {
     let (diags, mut types) = check_src_declared(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "class T { function m(\"a\"|\"b\" $mode, 1 $one): void {} }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -307,7 +307,7 @@ fn a_base_type_does_not_narrow_to_a_literal_type_by_assignment() {
 #[test]
 fn an_enum_case_expression_satisfies_a_case_subset_type_and_widens_to_the_enum() {
     let diags = check_src(concat!(
-        "<?mwl
+        "<?nvs
 ",
         "enum Mode { Read, Write, Admin }
 ",
@@ -331,7 +331,7 @@ fn an_enum_case_expression_satisfies_a_case_subset_type_and_widens_to_the_enum()
     for value in ["Mode::Admin", "0"] {
         let diags = check_src(&format!(
             concat!(
-                "<?mwl
+                "<?nvs
 ",
                 "enum Mode {{ Read, Write, Admin }}
 ",
@@ -361,7 +361,7 @@ fn an_enum_case_expression_satisfies_a_case_subset_type_and_widens_to_the_enum()
 #[test]
 fn a_folded_class_constant_accepts_the_bare_value_it_names() {
     let diags = check_src(concat!(
-        "<?mwl
+        "<?nvs
 ",
         "class Foo { public const string TYPE_A = \"a\"; }
 ",
@@ -443,7 +443,7 @@ fn a_literal_conversion_the_operand_disproves_is_refused() {
 #[test]
 fn an_enum_case_conversion_the_operand_disproves_is_refused() {
     let diags = check_src(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "enum Mode { Read, Write, Admin }\n",
         "class T {\n",
         "  function m(Mode $any): void {\n",
@@ -455,7 +455,7 @@ fn an_enum_case_conversion_the_operand_disproves_is_refused() {
     assert!(!diags.has_errors(), "{diags:?}");
 
     let diags = check_src(concat!(
-        "<?mwl\n",
+        "<?nvs\n",
         "enum Mode { Read, Write, Admin }\n",
         "class T {\n",
         "  function m(): void {\n",
@@ -482,7 +482,7 @@ fn an_enum_case_conversion_the_operand_disproves_is_refused() {
 #[test]
 fn a_literal_type_is_assignable_at_a_parameter_and_a_return() {
     let diags = check_src(concat!(
-        "<?mwl
+        "<?nvs
 ",
         "class T {
 ",

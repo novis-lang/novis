@@ -1,7 +1,7 @@
 //! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's call-stack limit, riding the safepoint's emit site.
 //!
 //! The bounds are *armed* rather than discovered here — `Ctx::arm_stack_limit`
-//! with a base this frame measures — for the reason `mwl_runtime::ctx`'s own
+//! with a base this frame measures — for the reason `nvs_runtime::ctx`'s own
 //! module doc gives: what is under test is that the compare is emitted, that a
 //! leaf skips it, and that a runaway reaches a report, none of which should
 //! depend on how much stack `cargo test` happened to hand this thread.
@@ -13,7 +13,7 @@ use common::*;
 /// A class whose two static methods differ in exactly one thing: `deeper`
 /// calls something and `twice` does not, so one carries the check and the
 /// other is elided.
-const TWO_METHODS: &str = "<?mwl
+const TWO_METHODS: &str = "<?nvs
 class Depth {
     public static function twice(int $n): int {
         return $n * 2;
@@ -31,7 +31,7 @@ fn a_function_entry_checks_the_stack_limit() {
     // frame `echo`es, which is a call, so it is not a leaf and carries one.
     let mut ctx = Ctx::buffered();
     ctx.arm_stack_limit(usize::MAX, 0);
-    let status = run_with(&mut ctx, "<?mwl\necho \"never\";\n").unwrap_err();
+    let status = run_with(&mut ctx, "<?nvs\necho \"never\";\n").unwrap_err();
 
     // Below the *floor*, so this is the tier no `catch` sees.
     assert_eq!(status, FATAL);
@@ -79,7 +79,7 @@ fn a_runaway_recursion_reports_a_limit_rather_than_faulting() {
 
     let status = run_with(
         &mut ctx,
-        "<?mwl
+        "<?nvs
 class Runaway {
     public static function down(int $n): int {
         return Runaway::down($n + 1);

@@ -5,7 +5,7 @@
 //! [ADR 0094](../../../docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
 //! requires at every member declaration. Each is checked directly off the
 //! AST a declaration already produces — no name resolution needed, so this
-//! lives in `mwl-syntax` rather than waiting on `mwl-hir`/`mwl-types`.
+//! lives in `nvs-syntax` rather than waiting on `nvs-hir`/`nvs-types`.
 //!
 //! The two rules share one walk because they ask the same question of the
 //! same node: a declaration site, off the parse tree, with nothing resolved.
@@ -15,7 +15,7 @@
 //! Every category uses exactly the pattern in ADR 0029's table — the leading
 //! character's case, an alphanumeric rest — with no leading-underscore
 //! carve-out and no acronym restriction of any kind. A method literally named
-//! `__construct` gets [`mwl_diagnostics::code::E_LEGACY_CONSTRUCTOR_SPELLING`]
+//! `__construct` gets [`nvs_diagnostics::code::E_LEGACY_CONSTRUCTOR_SPELLING`]
 //! (naming `constructor` as the fix) instead of the generic camelCase
 //! diagnostic.
 //!
@@ -43,8 +43,8 @@
 //!
 //! **Whoever parses a file checks that file's casing**, which is what makes
 //! the check fire exactly once per file no matter which entry point compiled
-//! it: `mwl-cli` calls this straight after [`crate::parse_file`] on the file
-//! it was pointed at, and `mwl_hir::resolve_program` calls it on each file
+//! it: `nvs-cli` calls this straight after [`crate::parse_file`] on the file
+//! it was pointed at, and `nvs_hir::resolve_program` calls it on each file
 //! it parses for a `require`. Nothing else parses a file, so there is no
 //! third call site and no path that skips the rule ADR 0029 says has no
 //! suppression.
@@ -66,7 +66,7 @@
 //!   ever acts on it" reasoning those constructs' own AST doc comments
 //!   already give for not otherwise inspecting them.
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AttributeGroup, CallArgs, ClassMember, ClassMemberKind,
@@ -269,7 +269,7 @@ fn check_method_name(span: Span, src: &SourceFile, diags: &mut Diagnostics) {
         diags.report(
             Diagnostic::error(
                 code::E_LEGACY_CONSTRUCTOR_SPELLING,
-                "MWL's constructor is spelled `constructor`, not `__construct`",
+                "Novis's constructor is spelled `constructor`, not `__construct`",
             )
             .with_primary(span, "rename to `constructor`")
             .with_fix(span, "constructor", "rename to `constructor`"),
@@ -822,14 +822,14 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::SourceMap;
+    use nvs_diagnostics::SourceMap;
 
     use super::*;
     use crate::parse_file;
 
     fn check(src: &str) -> Diagnostics {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -842,27 +842,27 @@ mod tests {
     /// so it collects both halves rather than asserting the parse was clean.
     fn parse_and_check(src: &str) -> Diagnostics {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         check_declarations(&stmts, map.file(file), &mut diags);
         diags
     }
 
-    fn only_code(diags: &Diagnostics) -> mwl_diagnostics::Code {
+    fn only_code(diags: &Diagnostics) -> nvs_diagnostics::Code {
         assert_eq!(diags.len(), 1, "{diags:?}");
         diags.iter().next().unwrap().code.unwrap()
     }
 
     #[test]
     fn a_correctly_cased_class_is_clean() {
-        let diags = check("<?mwl\nclass HttpClient {}\n");
+        let diags = check("<?nvs\nclass HttpClient {}\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_mis_cased_class_is_diagnosed() {
-        let diags = check("<?mwl\nclass http_client {}\n");
+        let diags = check("<?nvs\nclass http_client {}\n");
         assert_eq!(only_code(&diags), code::E_BAD_TYPE_CASING);
         assert!(diags.iter().next().unwrap().message.contains("HttpClient"));
     }
@@ -871,37 +871,37 @@ mod tests {
     fn an_all_caps_acronym_is_accepted() {
         // ADR 0029 § 1: only the leading character's case is checked, so a
         // kept-all-caps acronym is not flagged.
-        let diags = check("<?mwl\nclass HTTPClient {}\n");
+        let diags = check("<?nvs\nclass HTTPClient {}\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn an_all_caps_acronym_in_a_camel_case_name_is_accepted() {
-        let diags = check("<?mwl\nclass Foo { public function parseHTTPRequest(): void {} }\n");
+        let diags = check("<?nvs\nclass Foo { public function parseHTTPRequest(): void {} }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_correctly_cased_interface_is_clean() {
-        let diags = check("<?mwl\ninterface Comparable {}\n");
+        let diags = check("<?nvs\ninterface Comparable {}\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_mis_cased_interface_is_diagnosed() {
-        let diags = check("<?mwl\ninterface comparable {}\n");
+        let diags = check("<?nvs\ninterface comparable {}\n");
         assert_eq!(only_code(&diags), code::E_BAD_TYPE_CASING);
     }
 
     #[test]
     fn a_correctly_cased_enum_and_case_is_clean() {
-        let diags = check("<?mwl\nenum Status { Active, Banned }\n");
+        let diags = check("<?nvs\nenum Status { Active, Banned }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_mis_cased_enum_is_diagnosed() {
-        let diags = check("<?mwl\nenum status { Active }\n");
+        let diags = check("<?nvs\nenum status { Active }\n");
         assert!(
             diags
                 .iter()
@@ -911,19 +911,19 @@ mod tests {
 
     #[test]
     fn a_mis_cased_enum_case_is_diagnosed() {
-        let diags = check("<?mwl\nenum Status { active }\n");
+        let diags = check("<?nvs\nenum Status { active }\n");
         assert_eq!(only_code(&diags), code::E_BAD_TYPE_CASING);
     }
 
     #[test]
     fn a_correctly_cased_namespace_segment_is_clean() {
-        let diags = check("<?mwl\nnamespace App\\Http;\n");
+        let diags = check("<?nvs\nnamespace App\\Http;\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_mis_cased_namespace_segment_is_diagnosed() {
-        let diags = check("<?mwl\nnamespace app\\http;\n");
+        let diags = check("<?nvs\nnamespace app\\http;\n");
         assert_eq!(
             diags
                 .iter()
@@ -935,46 +935,46 @@ mod tests {
 
     #[test]
     fn a_correctly_cased_method_is_clean() {
-        let diags = check("<?mwl\nclass Foo { public function getName(): void {} }\n");
+        let diags = check("<?nvs\nclass Foo { public function getName(): void {} }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_mis_cased_method_is_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { public function get_name(): void {} }\n");
+        let diags = check("<?nvs\nclass Foo { public function get_name(): void {} }\n");
         assert_eq!(only_code(&diags), code::E_BAD_METHOD_CASING);
         assert!(diags.iter().next().unwrap().message.contains("getName"));
     }
 
     #[test]
     fn dunder_construct_gets_the_targeted_diagnostic() {
-        let diags = check("<?mwl\nclass Foo { public function __construct(): void {} }\n");
+        let diags = check("<?nvs\nclass Foo { public function __construct(): void {} }\n");
         assert_eq!(only_code(&diags), code::E_LEGACY_CONSTRUCTOR_SPELLING);
         assert!(diags.iter().next().unwrap().message.contains("constructor"));
     }
 
     #[test]
     fn plain_constructor_is_not_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { public function constructor(): void {} }\n");
+        let diags = check("<?nvs\nclass Foo { public function constructor(): void {} }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_correctly_cased_property_is_clean() {
-        let diags = check("<?mwl\nclass Foo { public int $userId; }\n");
+        let diags = check("<?nvs\nclass Foo { public int $userId; }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_mis_cased_property_is_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { public int $user_id; }\n");
+        let diags = check("<?nvs\nclass Foo { public int $user_id; }\n");
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
         assert!(diags.iter().next().unwrap().message.contains("userId"));
     }
 
     #[test]
     fn a_leading_underscore_property_is_rejected_with_no_allowance() {
-        let diags = check("<?mwl\nclass Foo { public int $_cache; }\n");
+        let diags = check("<?nvs\nclass Foo { public int $_cache; }\n");
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
         assert!(diags.iter().next().unwrap().message.contains("cache"));
     }
@@ -982,45 +982,45 @@ mod tests {
     #[test]
     fn a_correctly_cased_object_literal_field_is_clean() {
         // ADR 0036 § 2: field names are ordinary property names.
-        let diags = check("<?mwl\n$o = {userId: 1};\n");
+        let diags = check("<?nvs\n$o = {userId: 1};\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_mis_cased_object_literal_field_is_diagnosed() {
-        let diags = check("<?mwl\n$o = {user_id: 1};\n");
+        let diags = check("<?nvs\n$o = {user_id: 1};\n");
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
         assert!(diags.iter().next().unwrap().message.contains("userId"));
     }
 
     #[test]
     fn a_leading_underscore_object_literal_field_is_rejected() {
-        let diags = check("<?mwl\n$o = {_cache: 1};\n");
+        let diags = check("<?nvs\n$o = {_cache: 1};\n");
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
     }
 
     #[test]
     fn a_correctly_cased_parameter_is_clean() {
-        let diags = check("<?mwl\nclass Foo { public function a(int $userId): void {} }\n");
+        let diags = check("<?nvs\nclass Foo { public function a(int $userId): void {} }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_leading_underscore_parameter_is_rejected() {
-        let diags = check("<?mwl\nclass Foo { public function a(int $_unused): void {} }\n");
+        let diags = check("<?nvs\nclass Foo { public function a(int $_unused): void {} }\n");
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
     }
 
     #[test]
     fn a_correctly_cased_local_is_clean() {
         let diags =
-            check("<?mwl\nclass Foo { public function a(): void { int $rowCount = 1; } }\n");
+            check("<?nvs\nclass Foo { public function a(): void { int $rowCount = 1; } }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_leading_underscore_local_is_rejected() {
-        let diags = check("<?mwl\nclass Foo { public function a(): void { int $_tmp = 1; } }\n");
+        let diags = check("<?nvs\nclass Foo { public function a(): void { int $_tmp = 1; } }\n");
         assert!(
             diags
                 .iter()
@@ -1031,7 +1031,7 @@ mod tests {
     #[test]
     fn a_foreach_binding_is_checked() {
         let diags = check(
-            "<?mwl\nclass Foo { public function a(): void { foreach ($xs as int $_bad) {} } }\n",
+            "<?nvs\nclass Foo { public function a(): void { foreach ($xs as int $_bad) {} } }\n",
         );
         assert!(
             diags
@@ -1043,7 +1043,7 @@ mod tests {
     #[test]
     fn a_catch_binding_is_checked() {
         let diags = check(
-            "<?mwl\nclass Foo { public function a(): void { try {} catch (Exception $_e) {} } }\n",
+            "<?nvs\nclass Foo { public function a(): void { try {} catch (Exception $_e) {} } }\n",
         );
         assert!(
             diags
@@ -1054,7 +1054,7 @@ mod tests {
 
     #[test]
     fn a_destructure_leaf_is_checked() {
-        let diags = check("<?mwl\nclass Foo { public function a(): void { [int $_x] = $xs; } }\n");
+        let diags = check("<?nvs\nclass Foo { public function a(): void { [int $_x] = $xs; } }\n");
         assert!(
             diags
                 .iter()
@@ -1065,7 +1065,7 @@ mod tests {
     #[test]
     fn a_closure_self_name_is_checked_like_a_local() {
         let diags = check(
-            "<?mwl\nclass Foo { public function a(): void { $f = fn bad_name(int $n) => $n; } }\n",
+            "<?nvs\nclass Foo { public function a(): void { $f = fn bad_name(int $n) => $n; } }\n",
         );
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
     }
@@ -1073,27 +1073,27 @@ mod tests {
     #[test]
     fn a_correctly_named_closure_self_name_is_clean() {
         let diags = check(
-            "<?mwl\nclass Foo { public function a(): void { $f = fn factorial(int $n) => $n; } }\n",
+            "<?nvs\nclass Foo { public function a(): void { $f = fn factorial(int $n) => $n; } }\n",
         );
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_correctly_cased_constant_is_clean() {
-        let diags = check("<?mwl\nclass Foo { public const int MAX_RETRIES = 3; }\n");
+        let diags = check("<?nvs\nclass Foo { public const int MAX_RETRIES = 3; }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]
     fn a_mis_cased_constant_is_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { public const int maxRetries = 3; }\n");
+        let diags = check("<?nvs\nclass Foo { public const int maxRetries = 3; }\n");
         assert_eq!(only_code(&diags), code::E_BAD_CONST_CASING);
         assert!(diags.iter().next().unwrap().message.contains("MAX_RETRIES"));
     }
 
     #[test]
     fn a_nested_class_declaration_is_still_checked() {
-        let diags = check("<?mwl\nclass Outer { public function a(): void { class inner {} } }\n");
+        let diags = check("<?nvs\nclass Outer { public function a(): void { class inner {} } }\n");
         assert!(
             diags
                 .iter()
@@ -1104,7 +1104,7 @@ mod tests {
     #[test]
     fn an_anonymous_class_bodys_members_are_checked() {
         let diags = check(
-            "<?mwl\nclass Foo { public function a(): void { $x = new class { public int $bad_name = 1; }; } }\n",
+            "<?nvs\nclass Foo { public function a(): void { $x = new class { public int $bad_name = 1; }; } }\n",
         );
         assert!(
             diags
@@ -1115,7 +1115,7 @@ mod tests {
 
     #[test]
     fn a_property_hook_parameter_is_checked() {
-        let diags = check("<?mwl\nclass Foo { public int $bar { set(int $bad_value) { } } }\n");
+        let diags = check("<?nvs\nclass Foo { public int $bar { set(int $bad_value) { } } }\n");
         assert!(
             diags
                 .iter()
@@ -1129,7 +1129,7 @@ mod tests {
         // declaration (absent here) would ever be checked, so a call site
         // naming a mis-cased method produces nothing on its own.
         let diags =
-            check("<?mwl\nclass Foo { public function a(): void { self::snake_case_call(); } }\n");
+            check("<?nvs\nclass Foo { public function a(): void { self::snake_case_call(); } }\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
 
@@ -1142,12 +1142,12 @@ mod tests {
         // ADR 0094 § 1: all three member slots, in all three bodies that
         // have one. There is no default for any of them to have meant.
         for src in [
-            "<?mwl\nclass Foo { int $count = 0; }\n",
-            "<?mwl\nclass Foo { const int MAX = 1; }\n",
-            "<?mwl\nclass Foo { function run(): void {} }\n",
-            "<?mwl\nclass Foo { static function run(): void {} }\n",
-            "<?mwl\ninterface Runner { function run(): void; }\n",
-            "<?mwl\nclass Foo { public function a(): void { $x = new class { int $n = 1; }; } }\n",
+            "<?nvs\nclass Foo { int $count = 0; }\n",
+            "<?nvs\nclass Foo { const int MAX = 1; }\n",
+            "<?nvs\nclass Foo { function run(): void {} }\n",
+            "<?nvs\nclass Foo { static function run(): void {} }\n",
+            "<?nvs\ninterface Runner { function run(): void; }\n",
+            "<?nvs\nclass Foo { public function a(): void { $x = new class { int $n = 1; }; } }\n",
         ] {
             let diags = check(src);
             assert_eq!(only_code(&diags), code::E_MISSING_VISIBILITY, "{src}");
@@ -1157,10 +1157,10 @@ mod tests {
     #[test]
     fn a_written_visibility_is_clean() {
         for src in [
-            "<?mwl\nclass Foo { public int $count = 0; }\n",
-            "<?mwl\nclass Foo { protected const int MAX = 1; }\n",
-            "<?mwl\nclass Foo { private static function run(): void {} }\n",
-            "<?mwl\nclass Foo { public private(set) string $name = \"a\"; }\n",
+            "<?nvs\nclass Foo { public int $count = 0; }\n",
+            "<?nvs\nclass Foo { protected const int MAX = 1; }\n",
+            "<?nvs\nclass Foo { private static function run(): void {} }\n",
+            "<?nvs\nclass Foo { public private(set) string $name = \"a\"; }\n",
         ] {
             let diags = check(src);
             assert!(diags.is_empty(), "{src}: {diags:?}");
@@ -1172,7 +1172,7 @@ mod tests {
         // ADR 0094 § 3: PHP 8.4 infers a `public` read side here, which is
         // the same implicit `public` this rule removes — so the message
         // names the pair rather than a bare keyword.
-        let diags = check("<?mwl\nclass Foo { private(set) string $name = \"a\"; }\n");
+        let diags = check("<?nvs\nclass Foo { private(set) string $name = \"a\"; }\n");
         assert_eq!(only_code(&diags), code::E_MISSING_VISIBILITY);
         let message = &diags.iter().next().unwrap().message;
         assert!(message.contains("public private(set)"), "{message}");
@@ -1184,7 +1184,7 @@ mod tests {
         // property, so requiring it on every parameter would delete the
         // distinction. Only the promoted one is a member.
         let diags = check(
-            "<?mwl\nclass Foo { public function constructor(int $n, public int $kept) {} }\n",
+            "<?nvs\nclass Foo { public function constructor(int $n, public int $kept) {} }\n",
         );
         assert!(diags.is_empty(), "{diags:?}");
     }
@@ -1194,7 +1194,7 @@ mod tests {
         // ADR 0094 § 4: `var` is ADR 0037's local-inference keyword, so
         // without its own arm this would report something about the
         // statement grammar to an author writing PHP's property form.
-        let diags = parse_and_check("<?mwl\nclass Foo { var $name; }\n");
+        let diags = parse_and_check("<?nvs\nclass Foo { var $name; }\n");
         assert_eq!(only_code(&diags), code::E_MISSING_VISIBILITY);
     }
 
@@ -1204,7 +1204,7 @@ mod tests {
         // already rejects everything in an enum that is not a case, and two
         // diagnostics for one mistake is worse than one.
         let diags = parse_and_check(
-            "<?mwl\nenum Color { Red = 1, }\nenum Sized { function run(): void {} }\n",
+            "<?nvs\nenum Color { Red = 1, }\nenum Sized { function run(): void {} }\n",
         );
         assert_eq!(only_code(&diags), code::E_ENUM_MEMBER_UNSUPPORTED);
     }

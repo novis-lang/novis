@@ -1,11 +1,11 @@
-# MWL Specification — 02: every PHP built-in, and what became of it
+# Novis Specification — 02: every PHP built-in, and what became of it
 
 **Complete:** no — this file is filled in one PHP domain at a time. `python tools/check-migration.py`
 prints how much is covered and `--report` lists what is not; nothing here is guessed to make a number
 move.
 
-[01-core-library.md](01-core-library.md) states what MWL **has**. This file accounts for every PHP name
-MWL **does not** — which is the only way the rule behind it is auditable. A reason ("~120 functions follow
+[01-core-library.md](01-core-library.md) states what Novis **has**. This file accounts for every PHP name
+Novis **does not** — which is the only way the rule behind it is auditable. A reason ("~120 functions follow
 from ADR 0008") cannot be checked; a row per name can. Three functions reached a full member-by-member
 review of the library with no home at all — `ctype_*`, `iterator_to_array` and `serialize` — precisely
 because prose was carrying the argument.
@@ -16,20 +16,20 @@ because prose was carrying the argument.
 |---|---|
 | **PHP** | the built-in, exactly as PHP spells it |
 | **Outcome** | one of four, below |
-| **MWL** | the member, the construct, or the reason and the rewrite |
+| **Novis** | the member, the construct, or the reason and the rewrite |
 
 | Outcome | Meaning |
 |---|---|
-| `member` | a `Core` member does this job. The MWL cell names it |
+| `member` | a `Core` member does this job. The Novis cell names it |
 | `language` | an operator or keyword does this job; no member exists, by [ADR 0063](../adr/0063-core-api-conventions.md) R17 |
-| `dropped` | nothing does this job. The MWL cell says why, and gives the rewrite where one exists |
+| `dropped` | nothing does this job. The Novis cell says why, and gives the rewrite where one exists |
 | `open` | not yet decided. Absence of a row means the same thing, and the checker counts both |
 
-A `dropped` row is a promise: `mwl convert` (M11) emits its cell as the diagnostic, so a migrating program
+A `dropped` row is a promise: `nvs convert` (M11) emits its cell as the diagnostic, so a migrating program
 is told what happened rather than left with an unresolved call.
 
-**This table is read by a machine, so the MWL cell has one shape that is mechanical and one that is not.**
-A cell that is exactly one `Core` member spelling is the rename `mwl convert` applies; anything else — a
+**This table is read by a machine, so the Novis cell has one shape that is mechanical and one that is not.**
+A cell that is exactly one `Core` member spelling is the rename `nvs convert` applies; anything else — a
 cell naming two members, a rewrite, or a reason — is prose the converter may not guess at, and must carry
 that rule's id from [ADR 0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md) § 6. Neither the
 name table nor the rule table is copied into the other.
@@ -51,9 +51,9 @@ against a build that has them. Most are already covered wholesale by a `Replaces
 
 `Core\Str` is UTF-8 throughout ([ADR 0009](../adr/0009-string-and-bytes.md)), which is why every
 byte-oriented and ASCII-only algorithm below is dropped rather than ported: it would be wrong on the type
-MWL actually has.
+Novis actually has.
 
-| PHP | Outcome | MWL |
+| PHP | Outcome | Novis |
 |---|---|---|
 | `addcslashes` | dropped | a half-escaper. `Core\Html::escape`, `Core\Db`'s binding, or `Core\Regex::quote` — the sink decides, never the caller ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)) |
 | `addslashes` | dropped | same; SQL escaping does not exist because binding is the mechanism |
@@ -102,7 +102,7 @@ MWL actually has.
 | `ltrim` | member | `Core\Str::trimStart` |
 | `metaphone` | dropped | an English-only phonetic algorithm |
 | `nl2br` | dropped | it builds markup from text. `Core\Str::replace($s, "\n", "<br>")` after the value is escaped, or a template |
-| `ord` | member | `Core\Str::codePoints`, first element — PHP returns a byte, MWL a code point |
+| `ord` | member | `Core\Str::codePoints`, first element — PHP returns a byte, Novis a code point |
 | `printf` | member | `echo Core\Str::format(…)` |
 | `quoted_printable_decode` | member | `Core\Mail` — the only place quoted-printable survives |
 | `quoted_printable_encode` | member | `Core\Mail` |
@@ -129,7 +129,7 @@ MWL actually has.
 | `strcasecmp` | member | `Core\Str::compare` with `{caseInsensitive: true}` |
 | `strchr` | member | `Core\Str::after`, or `Core\Str::contains` where it was used as a predicate |
 | `strcmp` | member | `Core\Str::compare` |
-| `strcoll` | dropped | locale-sensitive collation; MWL has no ambient locale, and collation is intl's batch-shaped API |
+| `strcoll` | dropped | locale-sensitive collation; Novis has no ambient locale, and collation is intl's batch-shaped API |
 | `strcspn` | dropped | character-class scanning. `Core\Regex` |
 | `strip_tags` | dropped | a half-sanitizer whose output is not safe HTML. `Core\Html::sanitize` |
 | `stripcslashes` | dropped | inverse of a dropped half-escaper |
@@ -174,7 +174,7 @@ MWL actually has.
 — by-reference mutators and key-type-dependent rules — have nothing to attach to
 ([ADR 0069](../adr/0069-array-combination-is-key-type-independent.md)).
 
-| PHP | Outcome | MWL |
+| PHP | Outcome | Novis |
 |---|---|---|
 | `array_all` | member | `Core\Arr::all` |
 | `array_any` | member | `Core\Arr::any` |
@@ -271,7 +271,7 @@ Overflow throws rather than promoting to `float`, and division by zero throws
 ([ADR 0007](../adr/0007-explicit-type-system.md)) — which is why the members that existed to paper over
 either are gone.
 
-| PHP | Outcome | MWL |
+| PHP | Outcome | Novis |
 |---|---|---|
 | `abs` | member | `Core\Math::abs` |
 | `acos` | member | `Core\Math::acos` |
@@ -333,7 +333,7 @@ either are gone.
 `decimal` is a scalar with operators, not a function family
 ([ADR 0054](../adr/0054-decimal-scalar-type.md)), and there is no ambient scale to set.
 
-| PHP | Outcome | MWL |
+| PHP | Outcome | Novis |
 |---|---|---|
 | `bcadd` | language | `+` on two `decimal`s |
 | `bcceil` | member | `Core\Math::ceil` |
@@ -356,7 +356,7 @@ either are gone.
 non-throwing one ([ADR 0066](../adr/0066-nullable-conversion-operator.md)), and a declared type makes
 almost every predicate below a question the checker has already answered.
 
-| PHP | Outcome | MWL |
+| PHP | Outcome | Novis |
 |---|---|---|
 | `boolval` | language | `$x as bool` |
 | `doubleval` | language | `$x as float` |

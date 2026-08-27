@@ -1,7 +1,7 @@
 --TEST--
 an override calling `parent::` produces what PHP's does, spelling aside
 --FILE--
-<?mwl
+<?nvs
 class Shape {
     protected string $shapeName;
 

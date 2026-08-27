@@ -14,7 +14,7 @@
 - **Amended by:** 0067, 0076
 
 > **In short:** ADR 0018's deterministic profiler exports aggregate Callgrind totals (whole-run self/inclusive
-> time per function, no per-instance timeline) and a per-instance trace only as MWL-native NDJSON, which no
+> time per function, no per-instance timeline) and a per-instance trace only as Novis-native NDJSON, which no
 > ecosystem viewer reads. Neither GC pauses nor isolate-spawn boundaries appear as events at all — a
 > stop-the-world collection run gets silently folded into whichever function's self time happened to be
 > executing, and a `spawn`'s cost is one opaque number that does not separate real child compute from
@@ -35,7 +35,7 @@
   wanting to "bloat core code for little advantage."
 - ADR 0018's `PROFILE` bit produces Callgrind's aggregate format (total self/inclusive time per function
   across the whole run), which cannot show "this specific call at this specific timestamp took this long."
-  `TRACE` *does* carry per-instance entry/exit timestamps, but only as MWL-native NDJSON — ADR 0018 already
+  `TRACE` *does* carry per-instance entry/exit timestamps, but only as Novis-native NDJSON — ADR 0018 already
   names the absence of a third-party viewer for that format as a known gap.
 - Two kinds of program event are invisible today regardless of format: a cycle-collector stop-the-world pass
   (already an accepted mechanism, firing from the safepoint poll per the project-start architecture decision)
@@ -107,7 +107,7 @@ A new export renders recorded `call`/`gc`/`spawn`/`query` events as speedscope's
 pairs at a timestamp, which is exactly what a `TRACE`-flagged run already produces. This reuses the identical
 open format [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md)/M10's sampling profiler already
 commits to, rather than inventing a second timeline format with its own bespoke viewer to build and maintain.
-Callgrind (aggregate profile), Clover/lcov (coverage) and MWL-native NDJSON (raw trace) are unchanged from
+Callgrind (aggregate profile), Clover/lcov (coverage) and Novis-native NDJSON (raw trace) are unchanged from
 ADR 0018 — this is an additional export, not a replacement. The exact CLI flag spelling is left to whoever
 implements M10's exporters (see *Revisiting*), the same way ADR 0018 already left exact Clover/lcov shape to
 implementation.
@@ -143,9 +143,9 @@ per function call is unstorable, and admitting one would put export cost on the 
 - Two more low-cardinality runtime routines (the cycle collector's run function; the spawn/join routines) now
   carry a debug-flag check each, to be kept working as those routines evolve — a bounded, named cost, not a
   hidden one.
-- The MWL-native NDJSON trace format remains the ecosystem gap ADR 0018 already named (no third-party tool
+- The Novis-native NDJSON trace format remains the ecosystem gap ADR 0018 already named (no third-party tool
   reads it directly); the new speedscope export mitigates this for visualization specifically, but does not
-  close the gap for other tooling that might want to consume MWL's raw trace.
+  close the gap for other tooling that might want to consume Novis's raw trace.
 
 ## Alternatives rejected
 
@@ -156,8 +156,8 @@ per function call is unstorable, and admitting one would put export cost on the 
 - **Merging a child isolate's trace/profile stream live into the parent's at spawn/join time.** Rejected: it
   crosses the arena boundary ADR 0006's isolation model exists to prevent, the identical reasoning ADR 0018
   already used for not merging a child's coverage data live.
-- **A bespoke MWL timeline-viewer webview instead of speedscope's evented format.** Rejected per ADR 0040's
-  own reasoning: an open, already-maintained viewer exists, and MWL is already committed to it for the
+- **A bespoke Novis timeline-viewer webview instead of speedscope's evented format.** Rejected per ADR 0040's
+  own reasoning: an open, already-maintained viewer exists, and Novis is already committed to it for the
   sampling profiler; building a second one is unnecessary scope against the simplicity priority.
 - **Coroutine suspend/resume as a further event kind, an external/live attach mechanism, and a memory/
   allocation timeline** — all considered in the same discussion this amendment came out of, and explicitly

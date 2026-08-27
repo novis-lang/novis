@@ -1,14 +1,14 @@
 --TEST--
 Core\Arr::chunk cuts the same runs as array_chunk at every size, and its preserveKeys option is array_chunk's fourth-argument rule exactly
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's fixed-step window against its PHP twin. `chunk` shares
 // `carry_entry` with `slice`, so it inherits the same key question — but the
 // two members' twins answer it differently, and that is the whole reason this
 // case exists beside `arr-slice-on-string-keys-diverges-from-array_slice`:
 // `array_slice(..., false)` renumbers the integers and keeps the strings,
 // while `array_chunk(..., false)` reindexes a run numerically whatever its
-// keys were. MWL renumbers unconditionally, so it *agrees* with the second and
+// keys were. Novis renumbers unconditionally, so it *agrees* with the second and
 // not the first. A string-keyed subject is therefore in this case rather than
 // in a divergence one, and it is the row that proves the point.
 final class Render {

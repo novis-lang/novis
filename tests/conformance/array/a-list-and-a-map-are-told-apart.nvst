@@ -1,7 +1,7 @@
 --TEST--
 `Core\Arr`'s shape predicates answer over the four arrays that matter: an empty one, a list, a map, and a list whose keys stopped being consecutive
 --FILE--
-<?mwl
+<?nvs
 class Say {
     public static function of(array<int> $a): string {
         return (Core\Arr::isEmpty($a) as string) . "/"

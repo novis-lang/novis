@@ -1,7 +1,7 @@
 --TEST--
 Spec § 7: `Core\Bytes`'s three predicates answer the magic-byte questions R6 names, and `fill`/`repeat` build a buffer without one — ADR 0009 § 1, ADR 0063 R4
 --FILE--
-<?mwl
+<?nvs
 class Probe {
     // ADR 0063 R4: a `$byte` that is not one octet throws rather than being
     // truncated the way PHP's `chr()` wraps it.
@@ -41,7 +41,7 @@ echo "[", Core\Bytes::endsWith($png, Core\Encoding::fromHex("1a0b")) as string, 
 echo "[", Core\Bytes::endsWith($png, $empty) as string, "]\n";
 
 // `fill` is the one member with no subject: it builds a buffer of `$length`
-// copies of one octet, length first. `crates/mwl-stdlib/src/bytes.rs` owns why
+// copies of one octet, length first. `crates/nvs-stdlib/src/bytes.rs` owns why
 // that order and why `$byte` is a `uint`.
 echo Core\Encoding::toHex(Core\Bytes::fill(4, 255)), "|\n";
 echo "[", Core\Encoding::toHex(Core\Bytes::fill(16, 0)), "]\n";

@@ -1,7 +1,7 @@
 --TEST--
 A generator abandoned mid-sequence runs every `finally` it is suspended inside, innermost first, at the moment it is dropped — ADR 0053 § 4, and ADR 0028 § 2 for why that is not a destructor
 --FILE--
-<?mwl
+<?nvs
 class G {
     // The whole body is guarded, so every suspension in it owes the `finally`.
     public static function guarded(int $n): Iterator<int> {

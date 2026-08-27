@@ -1,7 +1,7 @@
 --TEST--
 `$a[8]` reaches the same entry PHP's does, and `"08"` stays a separate key in both
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

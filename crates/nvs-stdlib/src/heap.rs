@@ -3,7 +3,7 @@
 //!
 //! # Decision: one array, kept as a binary heap
 //!
-//! A `Core` instance's slots hold only values MWL already holds
+//! A `Core` instance's slots hold only values Novis already holds
 //! ([`crate::instance`]), so the heap is an `array<T>` in slot `entries`,
 //! keyed `"0"`, `"1"`, … and read as the usual implicit tree: the children of
 //! `i` are `2i+1` and `2i+2`. Nothing else is stored — the count is the
@@ -29,7 +29,7 @@
 //! 1. the `comparator` given at construction, if there is one;
 //! 2. otherwise [ADR 0013](../../../../docs/adr/0013-comparable-interface.md)'s
 //!    `Comparable::compareTo`, reached through the receiving object's own class
-//!    descriptor ([`mwl_runtime::dispatch`]);
+//!    descriptor ([`nvs_runtime::dispatch`]);
 //! 3. otherwise the natural order [`crate::ordering::compare_values`] owns,
 //!    which is every scalar and throws for anything else.
 //!
@@ -60,7 +60,7 @@
 
 use std::cmp::Ordering;
 
-use mwl_runtime::{Ctx, Fault, MwlArray, MwlStr, ObjHeader, Tag, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, Tag, Value};
 
 use crate::identity_store as store;
 use crate::ordering::{comparator_sign, compare_values};
@@ -70,18 +70,18 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreTy};
 pub(crate) const NAME: &str = r"Core\Heap";
 
 /// The linker symbol `new Core\Heap<T>(...)` lowers to — see
-/// [`crate::registry::CONSTRUCTORS`], which is the roster `mwl-ir` reads.
-pub(crate) const NEW_SYMBOL: &str = "mwl_core_heap_new";
+/// [`crate::registry::CONSTRUCTORS`], which is the roster `nvs-ir` reads.
+pub(crate) const NEW_SYMBOL: &str = "nvs_core_heap_new";
 
 /// The symbol behind `Iterable<T>::iterate()`, reached by name through this
 /// class's method table rather than as a registered member — see
 /// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
-pub(crate) const ITERATE_SYMBOL: &str = "mwl_core_heap_iterate";
+pub(crate) const ITERATE_SYMBOL: &str = "nvs_core_heap_iterate";
 
 /// [ADR 0013](../../../../docs/adr/0013-comparable-interface.md)'s one member,
 /// which a class opts into by implementing the interface. Must agree with
-/// `mwl_types::iter_lib`'s seeded spelling, exactly as
-/// [`mwl_runtime::sequence`]'s three names do.
+/// `nvs_types::iter_lib`'s seeded spelling, exactly as
+/// [`nvs_runtime::sequence`]'s three names do.
 const COMPARE_TO: &str = "compareTo";
 
 /// `new Core\Heap<T>({comparator})` — the constructor
@@ -113,35 +113,35 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "mwl_core_heap_push",
+            symbol: "nvs_core_heap_push",
         },
         CoreMethod {
             name: "peek",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
-            symbol: "mwl_core_heap_peek",
+            symbol: "nvs_core_heap_peek",
         },
         CoreMethod {
             name: "pop",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
-            symbol: "mwl_core_heap_pop",
+            symbol: "nvs_core_heap_pop",
         },
         CoreMethod {
             name: "count",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
-            symbol: "mwl_core_heap_count",
+            symbol: "nvs_core_heap_count",
         },
         CoreMethod {
             name: "isEmpty",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_heap_is_empty",
+            symbol: "nvs_core_heap_is_empty",
         },
     ],
     slots: &["entries", "comparator"],
@@ -157,13 +157,13 @@ const COMPARATOR: usize = 1;
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        NEW_SYMBOL => (mwl_core_heap_new as *const ()).cast(),
-        "mwl_core_heap_push" => (mwl_core_heap_push as *const ()).cast(),
-        "mwl_core_heap_peek" => (mwl_core_heap_peek as *const ()).cast(),
-        "mwl_core_heap_pop" => (mwl_core_heap_pop as *const ()).cast(),
-        "mwl_core_heap_count" => (mwl_core_heap_count as *const ()).cast(),
-        "mwl_core_heap_is_empty" => (mwl_core_heap_is_empty as *const ()).cast(),
-        ITERATE_SYMBOL => (mwl_core_heap_iterate as *const ()).cast(),
+        NEW_SYMBOL => (nvs_core_heap_new as *const ()).cast(),
+        "nvs_core_heap_push" => (nvs_core_heap_push as *const ()).cast(),
+        "nvs_core_heap_peek" => (nvs_core_heap_peek as *const ()).cast(),
+        "nvs_core_heap_pop" => (nvs_core_heap_pop as *const ()).cast(),
+        "nvs_core_heap_count" => (nvs_core_heap_count as *const ()).cast(),
+        "nvs_core_heap_is_empty" => (nvs_core_heap_is_empty as *const ()).cast(),
+        ITERATE_SYMBOL => (nvs_core_heap_iterate as *const ()).cast(),
         _ => return None,
     })
 }
@@ -263,7 +263,7 @@ fn compare(
     let member = format!("{NAME}::{member}");
     let comparator = comparator_of(receiver);
     if comparator.tag() == Some(Tag::Object) {
-        let verdict = mwl_runtime::call_closure(ctx, comparator, &[left, right])?;
+        let verdict = nvs_runtime::call_closure(ctx, comparator, &[left, right])?;
         return sign_of(verdict, &member);
     }
     // Both sides, because a `compareTo` declares its parameter at the class
@@ -271,7 +271,7 @@ fn compare(
     // the pair has a natural order below or no order at all.
     if left.obj_ptr().is_some()
         && right.obj_ptr().is_some()
-        && let Some(verdict) = mwl_runtime::call_method(ctx, left, COMPARE_TO, &[right], &member)?
+        && let Some(verdict) = nvs_runtime::call_method(ctx, left, COMPARE_TO, &[right], &member)?
     {
         return sign_of(verdict, &member);
     }
@@ -316,8 +316,8 @@ fn swap(receiver: *mut ObjHeader, member: &str, left: usize, right: usize) -> Re
             a.retain();
             b.retain();
         }
-        entries.set(MwlStr::new(&left), b);
-        entries.set(MwlStr::new(&right), a);
+        entries.set(NvsStr::new(&left), b);
+        entries.set(NvsStr::new(&right), a);
     })
 }
 
@@ -399,7 +399,7 @@ fn root(receiver: *mut ObjHeader, member: &str) -> Result<Value, Fault> {
 }
 
 /// Every element in `pop` order, as a fresh list, without disturbing the heap
-/// — the snapshot [`mwl_core_heap_iterate`] hands its cursor.
+/// — the snapshot [`nvs_core_heap_iterate`] hands its cursor.
 ///
 /// A *copy* of the entries is drained rather than the heap itself, because
 /// `foreach` is a read: the copy starts as a valid binary heap (it is the
@@ -413,8 +413,8 @@ fn root(receiver: *mut ObjHeader, member: &str) -> Result<Value, Fault> {
 ///
 /// Whatever the ordering in force throws, plus [`store::borrow`]'s. Every
 /// element still held is released on that edge.
-fn sorted(ctx: &mut Ctx, receiver: *mut ObjHeader) -> Result<MwlArray, Fault> {
-    let member = mwl_runtime::sequence::ITERATE;
+fn sorted(ctx: &mut Ctx, receiver: *mut ObjHeader) -> Result<NvsArray, Fault> {
+    let member = nvs_runtime::sequence::ITERATE;
     let mut pending = {
         let entries = store::borrow(receiver, ENTRIES, &CLASS, member)?;
         let mut pending = Vec::with_capacity(entries.count());
@@ -436,7 +436,7 @@ fn sorted(ctx: &mut Ctx, receiver: *mut ObjHeader) -> Result<MwlArray, Fault> {
         pending
     };
 
-    let mut out = MwlArray::new();
+    let mut out = NvsArray::new();
     let drained = drain_into(ctx, receiver, member, &mut pending, &mut out);
     for held in pending.drain(..) {
         #[expect(
@@ -459,7 +459,7 @@ fn drain_into(
     receiver: *mut ObjHeader,
     member: &str,
     pending: &mut Vec<Value>,
-    out: &mut MwlArray,
+    out: &mut NvsArray,
 ) -> Result<(), Fault> {
     while let Some(last) = pending.pop() {
         if pending.is_empty() {
@@ -503,17 +503,17 @@ fn sift_down_copy(
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `new Core\Heap<T>(?callable $comparator = null)` — a fresh empty heap,
     /// ordered by `$comparator` when one is given.
     ///
     /// Reached as a symbol rather than as a registered `constructor` member:
-    /// a `Core` class has no constructor a program could resolve, so `mwl-ir`
+    /// a `Core` class has no constructor a program could resolve, so `nvs-ir`
     /// lowers `new` on one straight to this helper ([`crate::instance`]'s
     /// module docs). Unlike § 9's other two, this one takes an argument —
-    /// `mwl_stdlib::registry::CONSTRUCTORS` is what gives the checker a
+    /// `nvs_stdlib::registry::CONSTRUCTORS` is what gives the checker a
     /// signature to hold it to.
-    fn mwl_core_heap_new(_ctx, args: [1]) {
+    fn nvs_core_heap_new(_ctx, args: [1]) {
         let comparator = args[0];
         match comparator.tag() {
             Some(Tag::Null | Tag::Object) => {}
@@ -535,12 +535,12 @@ mwl_runtime::mwl_helper! {
         }
         Ok(crate::instance::build(
             &CLASS,
-            [Value::array(MwlArray::new()), comparator],
+            [Value::array(NvsArray::new()), comparator],
         ))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Heap<T>::push(T $value): void` — adds `$value`, keeping the heap
     /// ordered.
     ///
@@ -548,7 +548,7 @@ mwl_runtime::mwl_helper! {
     /// § 9 says these types exist for. A heap holds duplicates: it is a
     /// priority queue, not a set — `Core\ObjectSet` is the one that answers
     /// "already there".
-    fn mwl_core_heap_push(ctx, args: [2]) {
+    fn nvs_core_heap_push(ctx, args: [2]) {
         let receiver = heap_of(args[0], "push")?;
         let value = args[1];
         let at = store::edit(receiver, ENTRIES, &CLASS, "push", |entries| {
@@ -561,7 +561,7 @@ mwl_runtime::mwl_helper! {
             unsafe {
                 value.retain();
             }
-            entries.set(MwlStr::new(&key(at)), value);
+            entries.set(NvsStr::new(&key(at)), value);
             at
         })?;
         sift_up(ctx, receiver, "push", at)?;
@@ -569,16 +569,16 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Heap<T>::peek(): T` — the element `pop` would answer with, left
     /// where it is.
-    fn mwl_core_heap_peek(_ctx, args: [1]) {
+    fn nvs_core_heap_peek(_ctx, args: [1]) {
         let receiver = heap_of(args[0], "peek")?;
         root(receiver, "peek")
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Heap<T>::pop(): T` — removes and answers with the first element
     /// under the ordering in force.
     ///
@@ -586,7 +586,7 @@ mwl_runtime::mwl_helper! {
     /// standard removal and the reason the store stays dense: every position
     /// from `0` to `count - 1` is occupied, so [`key`] is a total map onto
     /// the tree.
-    fn mwl_core_heap_pop(ctx, args: [1]) {
+    fn nvs_core_heap_pop(ctx, args: [1]) {
         let receiver = heap_of(args[0], "pop")?;
         let top = root(receiver, "pop")?;
         store::edit(receiver, ENTRIES, &CLASS, "pop", |entries| {
@@ -603,7 +603,7 @@ mwl_runtime::mwl_helper! {
                 unsafe {
                     tail.retain();
                 }
-                entries.set(MwlStr::new(&key(0)), tail);
+                entries.set(NvsStr::new(&key(0)), tail);
             }
             entries.unset(&last);
         })?;
@@ -612,27 +612,27 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Heap<T>::count(): uint` — how many elements the heap holds.
-    fn mwl_core_heap_count(_ctx, args: [1]) {
+    fn nvs_core_heap_count(_ctx, args: [1]) {
         let receiver = heap_of(args[0], "count")?;
         let count = u64::try_from(len(receiver, "count")?).expect("an entry count fits in a `uint`");
         Ok(Value::uint(count))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Heap<T>::isEmpty(): bool` — whether the heap holds nothing.
     ///
     /// The member `peek` and `pop` point at: they throw on an empty heap, and
     /// this is how a caller asks first.
-    fn mwl_core_heap_is_empty(_ctx, args: [1]) {
+    fn nvs_core_heap_is_empty(_ctx, args: [1]) {
         let receiver = heap_of(args[0], "isEmpty")?;
         Ok(Value::bool(len(receiver, "isEmpty")? == 0))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Iterable<T>::iterate(): Iterator<T>` — a cursor over every element in
     /// `pop` order, leaving the heap itself untouched.
     ///
@@ -640,8 +640,8 @@ mwl_runtime::mwl_helper! {
     /// method table, so its receiver is **transferred** rather than borrowed —
     /// [`crate::cursor`]'s module docs own both halves of that, and why the
     /// order costs a copy of the entries.
-    fn mwl_core_heap_iterate(ctx, args: [1]) {
-        let cursor = heap_of(args[0], mwl_runtime::sequence::ITERATE)
+    fn nvs_core_heap_iterate(ctx, args: [1]) {
+        let cursor = heap_of(args[0], nvs_runtime::sequence::ITERATE)
             .and_then(|receiver| Ok(crate::cursor::over(sorted(ctx, receiver)?)));
         crate::cursor::consume(args[0]);
         cursor
@@ -652,10 +652,10 @@ mwl_runtime::mwl_helper! {
 mod tests {
     use super::*;
 
-    use mwl_runtime::call;
+    use nvs_runtime::call;
 
     /// Runs `member` with `heap` as the receiver and `rest` past it.
-    fn on(heap: Value, member: mwl_runtime::MwlFn, rest: &[Value]) -> Value {
+    fn on(heap: Value, member: nvs_runtime::NvsFn, rest: &[Value]) -> Value {
         let mut ctx = Ctx::buffered();
         let mut args = vec![heap];
         args.extend_from_slice(rest);
@@ -665,7 +665,7 @@ mod tests {
     /// A fresh heap with no comparator, ordered naturally.
     fn natural() -> Value {
         let mut ctx = Ctx::buffered();
-        call(mwl_core_heap_new, &mut ctx, &[Value::null()]).expect("a fresh heap does not throw")
+        call(nvs_core_heap_new, &mut ctx, &[Value::null()]).expect("a fresh heap does not throw")
     }
 
     /// Releases a heap this frame owns the only reference to.
@@ -688,13 +688,13 @@ mod tests {
     fn a_natural_heap_pops_in_ascending_order() {
         let heap = natural();
         for n in [8, 3, 9, 1, 7, 2, 6, 4, 5] {
-            on(heap, mwl_core_heap_push, &[Value::int(n)]);
+            on(heap, nvs_core_heap_push, &[Value::int(n)]);
         }
-        assert_eq!(on(heap, mwl_core_heap_count, &[]).as_uint(), Some(9));
+        assert_eq!(on(heap, nvs_core_heap_count, &[]).as_uint(), Some(9));
 
         let mut popped = Vec::new();
-        while on(heap, mwl_core_heap_is_empty, &[]).as_bool() == Some(false) {
-            popped.push(on(heap, mwl_core_heap_pop, &[]).as_int());
+        while on(heap, nvs_core_heap_is_empty, &[]).as_bool() == Some(false) {
+            popped.push(on(heap, nvs_core_heap_pop, &[]).as_int());
         }
         assert_eq!(
             popped,
@@ -709,14 +709,14 @@ mod tests {
     #[test]
     fn peek_leaves_the_element_and_an_empty_heap_throws() {
         let heap = natural();
-        on(heap, mwl_core_heap_push, &[Value::int(4)]);
-        assert_eq!(on(heap, mwl_core_heap_peek, &[]).as_int(), Some(4));
-        assert_eq!(on(heap, mwl_core_heap_count, &[]).as_uint(), Some(1));
-        assert_eq!(on(heap, mwl_core_heap_pop, &[]).as_int(), Some(4));
+        on(heap, nvs_core_heap_push, &[Value::int(4)]);
+        assert_eq!(on(heap, nvs_core_heap_peek, &[]).as_int(), Some(4));
+        assert_eq!(on(heap, nvs_core_heap_count, &[]).as_uint(), Some(1));
+        assert_eq!(on(heap, nvs_core_heap_pop, &[]).as_int(), Some(4));
 
         let mut ctx = Ctx::buffered();
         assert!(
-            call(mwl_core_heap_peek, &mut ctx, &[heap]).is_err(),
+            call(nvs_core_heap_peek, &mut ctx, &[heap]).is_err(),
             "`peek` on an empty heap throws"
         );
         drop_heap(heap);
@@ -728,13 +728,13 @@ mod tests {
     fn a_heap_holds_duplicates() {
         let heap = natural();
         for n in [2, 1, 2, 1] {
-            on(heap, mwl_core_heap_push, &[Value::int(n)]);
+            on(heap, nvs_core_heap_push, &[Value::int(n)]);
         }
-        assert_eq!(on(heap, mwl_core_heap_count, &[]).as_uint(), Some(4));
-        assert_eq!(on(heap, mwl_core_heap_pop, &[]).as_int(), Some(1));
-        assert_eq!(on(heap, mwl_core_heap_pop, &[]).as_int(), Some(1));
-        assert_eq!(on(heap, mwl_core_heap_pop, &[]).as_int(), Some(2));
-        assert_eq!(on(heap, mwl_core_heap_pop, &[]).as_int(), Some(2));
+        assert_eq!(on(heap, nvs_core_heap_count, &[]).as_uint(), Some(4));
+        assert_eq!(on(heap, nvs_core_heap_pop, &[]).as_int(), Some(1));
+        assert_eq!(on(heap, nvs_core_heap_pop, &[]).as_int(), Some(1));
+        assert_eq!(on(heap, nvs_core_heap_pop, &[]).as_int(), Some(2));
+        assert_eq!(on(heap, nvs_core_heap_pop, &[]).as_int(), Some(2));
         drop_heap(heap);
     }
 }

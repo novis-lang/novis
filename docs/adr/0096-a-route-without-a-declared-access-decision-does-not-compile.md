@@ -5,7 +5,7 @@
 - **Scope:** decides that every `#[Route]` method carries a sibling `#[Access]` attribute, that an omission
   is a compile error, and that CSRF enforcement is on by default for unsafe methods. Does **not** decide
   what an access name *means*, who evaluates it, or how a session is established — those are the M7 server's
-  and `mwl/web`'s ([0082](0082-the-first-party-framework.md)'s `Web\Auth`). Does **not** add a field to
+  and `nvs/web`'s ([0082](0082-the-first-party-framework.md)'s `Web\Auth`). Does **not** add a field to
   `#[Route]`, and does **not** introduce middleware, filters, groups or a dispatch opinion of any kind
   ([0077](0077-compile-time-routing.md) § 4 stands, unamended). Does **not** address object-level
   authorisation — see *Consequences*.
@@ -32,7 +32,7 @@
 
 ## Context
 
-MWL's security investment is aimed at injection. `tainted` and `secret`
+Novis's security investment is aimed at injection. `tainted` and `secret`
 ([0024](0024-taint-tracking-for-injection-sinks.md), [0033](0033-secret-qualifier-for-confidential-values.md)),
 the fail-closed sink default ([0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md)), prepared
 statements only ([0067](0067-core-db.md)), no `include`, no stream wrappers, no `eval`
@@ -44,7 +44,7 @@ Two 2025 figures put that work in proportion. Of vulnerabilities **discovered** 
 34.7%, CSRF 19%, LFI 12.6%, broken access control 10.9% and SQLi 7.2%. Of attacks actually **blocked in the
 field**, broken access control was **57%**, privilege escalation **20%**, LFI 10%, SQLi 5% — and XSS **1%**.
 
-MWL structurally deletes LFI and SQLi, and aims most of its remaining machinery at the class that is 1% of
+Novis structurally deletes LFI and SQLi, and aims most of its remaining machinery at the class that is 1% of
 exploitation. The class that is 57% has no mechanism at all: a handler that forgets its permission check
 compiles, serves, and produces no diagnostic at any stage.
 
@@ -89,7 +89,7 @@ anything, and has no opinion about roles, policies or sessions.
 
 **Interpretation belongs to whoever dispatches, and to nobody else.** The declared name rides on the match
 the server makes ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-§ 1) as uninterpreted data; `Web\Auth` in [0082](0082-the-first-party-framework.md)'s `mwl/web` reads and
+§ 1) as uninterpreted data; `Web\Auth` in [0082](0082-the-first-party-framework.md)'s `nvs/web` reads and
 enforces it, or an application's own dispatch does. **The server enforces § 4's CSRF check and nothing
 else** — interpreting `Role::Admin` would need a session, a user model and a role source, all three of which
 this ADR and [0082](0082-the-first-party-framework.md) § 4 put outside the binary. Two enforcement points is
@@ -155,7 +155,7 @@ than on what the code says, which is harder to reason about and harder to test.
   it puts a field on the attribute [0077](0077-compile-time-routing.md) § 4 and its *Alternatives* both
   argued against, so that ADR would need amending rather than extending — and the line between "metadata
   the table carries" and "a dispatch opinion" gets harder to hold for whatever asks next.
-- **A completeness check with no new attribute** — `mwl check` refusing a program where a route is not
+- **A completeness check with no new attribute** — `nvs check` refusing a program where a route is not
   covered by an access map the framework declares. No language surface at all. Rejected: the map is a
   second place to keep in sync with the routes, which is the drift
   [0077](0077-compile-time-routing.md) built a compile-time table to delete, and the diagnostic points at
@@ -171,7 +171,7 @@ than on what the code says, which is harder to reason about and harder to test.
 
 ## Verification
 
-- A `.mwlt` case per shape: a `#[Route]` with no `#[Access]` is a compile error naming the method; one with
+- A `.nvst` case per shape: a `#[Route]` with no `#[Access]` is a compile error naming the method; one with
   `#[Access(Public)]` compiles; one whose access name does not resolve is a compile error naming the name.
 - A case asserting a method carrying `#[Access]` and **no** `#[Route]` is accepted — this ADR requires the
   sibling in one direction only.

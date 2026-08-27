@@ -55,7 +55,7 @@ fn a_nested_generic_name_closes_through_a_split_shift_token() {
 #[test]
 fn an_implements_entry_carries_its_type_arguments_and_its_delegation() {
     let stmts =
-        parse_file_ok("<?mwl\nclass C implements Iterable<int>, Greets by $g, Comparable {}\n");
+        parse_file_ok("<?nvs\nclass C implements Iterable<int>, Greets by $g, Comparable {}\n");
     let StmtKind::ClassDecl(decl) = &stmts[0].kind else {
         panic!("expected a class: {stmts:?}");
     };
@@ -75,10 +75,10 @@ fn an_implements_entry_carries_its_type_arguments_and_its_delegation() {
 /// they span (a `-`, a pair of quotes, a `::`).
 fn conversion_type(ty_src: &str) -> (Type, String) {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", format!("<?mwl $m as {ty_src}"));
+    let id = map.add("t.nvs", format!("<?nvs $m as {ty_src}"));
     let mut diags = Diagnostics::new();
     let mut p = Parser::new(map.file(id), &mut diags);
-    p.bump(); // OpenTagMwl
+    p.bump(); // OpenTagNvs
     let e = p.parse_expr();
     assert!(
         !diags.has_errors(),
@@ -92,12 +92,12 @@ fn conversion_type(ty_src: &str) -> (Type, String) {
 }
 
 /// Whether parsing `<ty>` in type position reported `want`.
-fn conversion_type_reports(ty_src: &str, want: mwl_diagnostics::Code) -> bool {
+fn conversion_type_reports(ty_src: &str, want: nvs_diagnostics::Code) -> bool {
     let mut map = SourceMap::new();
-    let id = map.add("t.mwl", format!("<?mwl $m as {ty_src}"));
+    let id = map.add("t.nvs", format!("<?nvs $m as {ty_src}"));
     let mut diags = Diagnostics::new();
     let mut p = Parser::new(map.file(id), &mut diags);
-    p.bump(); // OpenTagMwl
+    p.bump(); // OpenTagNvs
     let _ = p.parse_expr();
     diags.iter().any(|d| d.code == Some(want))
 }
@@ -222,7 +222,7 @@ fn a_literal_type_declares_a_local_without_swallowing_literal_expressions() {
 #[test]
 fn a_literal_type_declares_a_parameter() {
     let stmts = parse_file_ok(
-        "<?mwl\nclass C { public function setMode(\"a\"|\"b\"|\"c\" $mode): void {} }\n",
+        "<?nvs\nclass C { public function setMode(\"a\"|\"b\"|\"c\" $mode): void {} }\n",
     );
     let StmtKind::ClassDecl(decl) = &stmts[0].kind else {
         panic!("expected a class: {stmts:?}");

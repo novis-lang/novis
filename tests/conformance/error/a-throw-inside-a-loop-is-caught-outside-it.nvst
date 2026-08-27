@@ -1,7 +1,7 @@
 --TEST--
 A throw from inside a loop body leaves the loop and lands in the enclosing `catch`
 --FILE--
-<?mwl
+<?nvs
 class Sum {
     public static function upTo(int $limit): int {
         var $total = 0;

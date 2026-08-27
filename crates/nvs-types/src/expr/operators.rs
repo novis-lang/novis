@@ -163,9 +163,9 @@ pub(super) fn binary_result(
             reject_disjoint_equality(lhs, rhs, span, env);
             // ADR 0033 § 5: two `secret` operands compare in constant time.
             // Nothing about the *result* changes — it is a `bool` either way —
-            // so this records the fact for `mwl-ir` rather than returning a
+            // so this records the fact for `nvs-ir` rather than returning a
             // different type. It has to be recorded here because the qualifier
-            // does not survive `mwl_ir::ty::Ty`, which is § 1's promise that a
+            // does not survive `nvs_ir::ty::Ty`, which is § 1's promise that a
             // `secret string` costs no representation; see
             // `ExprInfo::SecretEquality`.
             if is_secret(lhs, env.interner) || is_secret(rhs, env.interner) {
@@ -178,7 +178,7 @@ pub(super) fn binary_result(
         // `$a ?? $b` yields `$b` exactly when `$a` is `null`, so `null` is
         // gone from the result unless `$b` can be one — which is what makes
         // `string $s = $maybe ?? "d";` type-check at all. Recorded for
-        // `mwl-ir` at the same time: see `ExprInfo::Coalesce`.
+        // `nvs-ir` at the same time: see `ExprInfo::Coalesce`.
         BinaryOp::Coalesce => {
             let non_null = env.interner.without_null(lhs);
             let result = env.interner.make_union([non_null, rhs]);
@@ -202,7 +202,7 @@ pub(super) fn binary_result(
 /// the operator.
 ///
 /// Only the refusal lives here. What equality *means* at a type that survives
-/// it is § 3, which is `mwl-runtime`'s; the narrowing a null test performs is
+/// it is § 3, which is `nvs-runtime`'s; the narrowing a null test performs is
 /// [`crate::locals`]'s `narrow`.
 pub(crate) fn reject_disjoint_equality(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) {
     if !types_are_disjoint(lhs, rhs, env) {
@@ -355,14 +355,14 @@ fn classes_are_unrelated(lhs_q: &QName, rhs_q: &QName, env: &Env<'_>) -> bool {
     if !is_declared_class(lhs_q, env) || !is_declared_class(rhs_q, env) {
         return false;
     }
-    !mwl_hir::implements_interface(lhs_q, rhs_q, env.graph)
-        && !mwl_hir::implements_interface(rhs_q, lhs_q, env.graph)
+    !nvs_hir::implements_interface(lhs_q, rhs_q, env.graph)
+        && !nvs_hir::implements_interface(rhs_q, lhs_q, env.graph)
 }
 
 fn is_declared_class(qname: &QName, env: &Env<'_>) -> bool {
     env.symbols
         .get(qname)
-        .is_some_and(|symbol| symbol.kind == mwl_hir::SymbolKind::Class)
+        .is_some_and(|symbol| symbol.kind == nvs_hir::SymbolKind::Class)
 }
 
 /// ADR 0013 §§ 2-4: `< <= > >= <=>` lower to a `compareTo` call when both
@@ -399,7 +399,7 @@ pub(super) fn object_comparison_result(
         return Some(env.interner.mixed());
     }
     let comparable = QName::parse("Comparable");
-    if !mwl_hir::implements_interface(&lhs_q, &comparable, env.graph) {
+    if !nvs_hir::implements_interface(&lhs_q, &comparable, env.graph) {
         report_comparable_diagnostic(
             span,
             format!(
@@ -410,7 +410,7 @@ pub(super) fn object_comparison_result(
         );
         return Some(env.interner.mixed());
     }
-    // ADR 0013 § 2: the comparison *is* a `compareTo` call, so `mwl-ir` needs
+    // ADR 0013 § 2: the comparison *is* a `compareTo` call, so `nvs-ir` needs
     // its resolved target the same way an ordinary `$a->compareTo($b)` does —
     // recorded under the *binary expression's* own span, since there is no
     // call node in the AST to key it by. `Comparable::compareTo` is bodiless,
@@ -518,7 +518,7 @@ fn reject_unordered_operand(
     let help = match domain {
         Unordered::Str => {
             "`Core\\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no \
-             `<` for text, because PHP's own answer there is a conversion MWL never makes by \
+             `<` for text, because PHP's own answer there is a conversion Novis never makes by \
              itself"
         }
         Unordered::Enum => {
@@ -603,7 +603,7 @@ pub(super) fn reject_enum_operand(
 /// § 2: binary `+` and `+=` with an array operand are a compile error naming
 /// `Core\Arr::underlay`. PHP's array union operator is *removed*, not migrated,
 /// so there is no silent behaviour change to fall into — the operator simply
-/// stops compiling, and `mwl convert` rewrites `$a + $b` to the member.
+/// stops compiling, and `nvs convert` rewrites `$a + $b` to the member.
 ///
 /// Returns `Some` once diagnosed, `None` for every other operand pair so
 /// [`arithmetic_result`]'s own table runs unchanged. The recovery type is the
@@ -705,8 +705,8 @@ pub(super) fn bitwise_result(
 /// unmodelled they reached [`bitwise_result`]'s `_ => mixed` arm with nothing
 /// reported, and what happened below was worse than a refusal in every
 /// direction: a `float` pair became a bit-and over the `f64`'s own bits and
-/// answered `1.5`, a `decimal` pair panicked `mwl_ir::lower::expr`'s ADR 0054
-/// § 3 table, and a `string` pair reached `mwl-codegen`'s "no `BinOp` over
+/// answered `1.5`, a `decimal` pair panicked `nvs_ir::lower::expr`'s ADR 0054
+/// § 3 table, and a `string` pair reached `nvs-codegen`'s "no `BinOp` over
 /// this representation".
 ///
 /// A `decimal` is the operand worth naming twice: it is a number, so it
@@ -766,7 +766,7 @@ fn report_bitwise_operand(spelling: &str, ty: TypeId, span: Span, env: &mut Env<
         .with_primary(span, "a bitwise operator is over integers")
         .with_help(
             "ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this \
-             operand first and MWL never converts by itself, so say it — `$x as int`",
+             operand first and Novis never converts by itself, so say it — `$x as int`",
         ),
     );
 }
@@ -843,12 +843,12 @@ pub(super) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// tabulates no row for. One call site, because it is one question asked of
 /// one operand and a program is owed one diagnostic for it.
 ///
-/// **An object** takes `E_TYPE_MISMATCH`: MWL has no operator overloading, so
+/// **An object** takes `E_TYPE_MISMATCH`: Novis has no operator overloading, so
 /// there is no arithmetic an object can take part in — and the first place a
 /// program reaches for one is
 /// [ADR 0070](../../../docs/adr/0070-duration-literals.md) § 4's `-7d`, which
 /// that ADR refuses outright in favour of `->minus(7d)`. Left unchecked it
-/// reaches `mwl-codegen`, which panics naming the representation; a
+/// reaches `nvs-codegen`, which panics naming the representation; a
 /// diagnostic naming the operator is what the author needs.
 ///
 /// **Every other non-numeric operand** takes `E_UNARY_ARITH_NOT_NUMERIC`,
@@ -858,7 +858,7 @@ pub(super) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// and an error placeholder all pass through. PHP answers `+"5"`, `-"5"` and
 /// `~"ab"` by *converting* the operand first, and ADR 0007 § 2 has no implicit
 /// conversion for that to be — which is what makes unary `+` safe to lower as
-/// the identity it is over a number (`mwl_ir::lower::expr`'s `Plus` arm): the
+/// the identity it is over a number (`nvs_ir::lower::expr`'s `Plus` arm): the
 /// operand it would silently pass through unchanged is refused here instead,
 /// naming `as int`.
 ///
@@ -883,7 +883,7 @@ pub(super) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
             )
             .with_primary(span, "an object takes part in no arithmetic")
             .with_help(
-                "MWL has no operator overloading; call the member that does this — a \
+                "Novis has no operator overloading; call the member that does this — a \
                  `Core\\Time\\Duration` negates with `->negated()` and subtracts with `->minus(…)`",
             ),
         );
@@ -916,7 +916,7 @@ pub(super) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
         .with_primary(span, "a unary arithmetic operator is over numbers")
         .with_help(
             "ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP \
-             converts this operand first and MWL never converts by itself, so say it — \
+             converts this operand first and Novis never converts by itself, so say it — \
              `$x as int`",
         ),
     );
@@ -947,7 +947,7 @@ pub(super) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
         .with_primary(span, "an increment is `± 1`, and this is not a number")
         .with_help(
             "ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP's \
-             string increment does not exist in MWL, because a binding never changes type",
+             string increment does not exist in Novis, because a binding never changes type",
         ),
     );
 }
@@ -961,7 +961,7 @@ pub(super) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
 ///
 /// That second half is a **reversal**. § 3 first admitted a closed two-class
 /// *parse roster* — `Core\Uri` and `Core\Uuid` — and this function recorded an
-/// `ExprInfo` for it that `mwl-ir` lowered to one non-member `CoreCall`. The
+/// `ExprInfo` for it that `nvs-ir` lowered to one non-member `CoreCall`. The
 /// ADR withdrew it: `as?` spells a downcast everywhere a reader has met it, so
 /// spelling a parse that way inverted the syntax's one intuition for exactly
 /// two memorized names, and it never removed the second spelling it was
@@ -987,7 +987,7 @@ fn check_class_target_conversion(ty: &Type, to: TypeId, span: Span, env: &mut En
     // the help names `tryParse` for them because that is the member ADR 0066
     // § 3a leaves standing — the whole point of the withdrawal is that they
     // are not special here.
-    let help = if mwl_stdlib::registry::TRY_PARSE_CLASSES.contains(&class.as_str()) {
+    let help = if nvs_stdlib::registry::TRY_PARSE_CLASSES.contains(&class.as_str()) {
         format!(
             "text becomes one through `{class}::tryParse($s)`, which answers `null` rather \
              than throwing"
@@ -1008,7 +1008,7 @@ fn check_class_target_conversion(ty: &Type, to: TypeId, span: Span, env: &mut En
 }
 
 /// Whether the target was written as the `?T` sugar, `(...)` transparent —
-/// `mwl_ir::lower`'s own `nullable_target` reads it the same way, and the two
+/// `nvs_ir::lower`'s own `nullable_target` reads it the same way, and the two
 /// have to agree or a target this leaves alone reaches a lowering that
 /// expects it to have been decided here.
 fn is_written_nullable(ty: &Type) -> bool {
@@ -1025,7 +1025,7 @@ fn is_written_nullable(ty: &Type) -> bool {
 /// `?T` interns as exactly `Union([Null, T])` — the checker has no separate
 /// nullable type ([`crate::lower::lower_type`]) — so this reads the one
 /// non-`null` member back out. A union with more than one is `?("a"|"b")`,
-/// whose membership chain `mwl_ir::lower` builds out of the atoms rather than
+/// whose membership chain `nvs_ir::lower` builds out of the atoms rather than
 /// out of one target, and it is left to the caller's `None` path for that
 /// reason.
 fn nullable_inner_target(to: TypeId, env: &Env<'_>) -> Option<TypeId> {
@@ -1094,7 +1094,7 @@ fn reject_unavailable_nullable_conversion(from: TypeId, to: TypeId, span: Span, 
 /// Whether `as ?T` would answer `null` on no value at all — ADR 0066 § 3's
 /// "a conversion that **cannot fail**" row.
 ///
-/// The scalar rows are the `false` arms of `mwl_ir::lower::expr`'s own
+/// The scalar rows are the `false` arms of `nvs_ir::lower::expr`'s own
 /// `conversion_can_fail`, and the two have to agree: that function is what
 /// picks the `?` helper for a row this one leaves standing, so a row this
 /// calls total and it calls fallible would look for a helper that exists
@@ -1192,7 +1192,7 @@ fn is_closed_value_target(to: TypeId, env: &Env<'_>) -> bool {
 /// condition's own test said out loud, and the widening into a target that
 /// admits more than one runtime shape.
 ///
-/// This is what leaves `mwl_ir::lower::expr`'s `Lowering::convert` catch-all
+/// This is what leaves `nvs_ir::lower::expr`'s `Lowering::convert` catch-all
 /// only the two gaps its own message names (`array<T> as array<U>`, and ADR
 /// 0024 § 5's `Core\Html\Markup`). Before it, `true as int`, `$xs as string`,
 /// `$i as bytes`, `$case as float` and `null as string` each panicked there,
@@ -1262,7 +1262,7 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
 /// common** — `types_are_disjoint`'s question, ADR 0090 § 2's, asked of a
 /// conversion rather than of an equality. `$foo as Bar` between two unrelated
 /// classes was worse than a panic before this refusal, because both erase to
-/// `mwl_ir::ty::Ty::Object` and the conversion therefore took
+/// `nvs_ir::ty::Ty::Object` and the conversion therefore took
 /// `Lowering::convert`'s free `from == to` row: nothing ran, and `Bar`'s slot
 /// list was then read off a `Foo`'s allocation.
 ///
@@ -1320,7 +1320,7 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
 /// accepted shape: `$plain as object`, `$plain as callable`, `$uri as object`
 /// are one pointer on both sides and run nothing at all. Everything else —
 /// `mixed`, a `?T`, a scalar, an `array<T>` — would have to take a tag on
-/// trust, and `mwl_ir` has no instruction that could check it.
+/// trust, and `nvs_ir` has no instruction that could check it.
 fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
     if conversion_kind(from, env.interner) == ConvKind::Object {
         return;
@@ -1344,9 +1344,9 @@ fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &m
 /// How many levels of `array<…>` nesting an `array<U>` target may name.
 ///
 /// The number is a *representation* fact rather than a language one:
-/// `mwl_ir::lower::array_element_tags` packs one four-bit tag per level into a
+/// `nvs_ir::lower::array_element_tags` packs one four-bit tag per level into a
 /// `u64`, which holds `64 / 4` of them, and the runtime walk
-/// (`mwl_runtime`'s `to_array_of`) reads the same word back. Sixteen levels of
+/// (`nvs_runtime`'s `to_array_of`) reads the same word back. Sixteen levels of
 /// `array<array<…>>` is far past anything a program writes, so the limit is
 /// stated here — the one place a conversion's target is judged — rather than
 /// designed around.
@@ -1358,7 +1358,7 @@ const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 /// The row's whole content is "every element must satisfy `U`", checked once
 /// per element on the way through, and the check available at that point is
 /// the *same* one a closure parameter's entry check runs
-/// (`mwl_ir::lower::param_tag_nibble`): a tag, four bits wide, with no room
+/// (`nvs_ir::lower::param_tag_nibble`): a tag, four bits wide, with no room
 /// for anything else. So the element types that convert are exactly the ones
 /// whose whole meaning is their tag — `bool`, `int`, `uint`, `float`,
 /// `decimal`, `string`, `bytes`, `null`, `mixed`, and an `array<…>` of any of
@@ -1423,7 +1423,7 @@ fn reject_uncheckable_element_type(to: TypeId, span: Span, env: &mut Env<'_>) {
 /// coarser than [`Ty`], because the table is written over the *language's*
 /// types rather than over an interned identity.
 ///
-/// The union fold and the atom arms mirror `mwl_ir::lower::erase_checked_ty`
+/// The union fold and the atom arms mirror `nvs_ir::lower::erase_checked_ty`
 /// on purpose: a type that erases to one runtime representation converts as
 /// that representation, and one that admits more than one is
 /// [`ConvKind::Wide`], where the conversion is picked from the operand's tag
@@ -1796,7 +1796,7 @@ fn conversion_operand_singleton(
 ///
 /// Those four are `bytes`, `array<T>`, an enum case and a `void` call, and
 /// each has a spelling that says what was meant. They are refused here rather
-/// than below because `mwl_ir::lower::expr`'s `concat_operand` has no row for
+/// than below because `nvs_ir::lower::expr`'s `concat_operand` has no row for
 /// any of them and could only panic — this refusal is what leaves that
 /// function's catch-all no reachable target.
 ///
@@ -1804,7 +1804,7 @@ fn conversion_operand_singleton(
 /// is both PHP's answer and the one a `?string` holding `null` already gets
 /// from `Helper::TaggedToString` at run time. Refusing the static case while
 /// the dynamic one prints nothing would be a divergence from PHP *and* from
-/// MWL's own behaviour on the same value.
+/// Novis's own behaviour on the same value.
 pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
     require_stringable_object(ty, span, env);
     let help = match env.interner.get(ty) {
@@ -1840,17 +1840,17 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
 /// ADR 0028 § 1's half of the row above: an object is stringifiable exactly
 /// where it provably implements the reserved global `Stringable`, with no
 /// property-walk fallback and no `__toString`. A `Core`-owned class is asked
-/// the same question of `mwl_stdlib::registry` instead, for the reason
+/// the same question of `nvs_stdlib::registry` instead, for the reason
 /// [`core_class_renders`] gives.
 ///
 /// A class that passes either question then records the *same* resolved
 /// `toString` target, because a `Core` member resolves out of the seeded
-/// signature table exactly as a declared one does — `mwl-ir` asks
+/// signature table exactly as a declared one does — `nvs-ir` asks
 /// `core_symbol_of` which of the two calls to emit, and that is the only place
 /// the difference is visible. The one rendering class that records nothing is
 /// ADR 0088 § 5's sink carrier: it has no `toString` member to resolve, so
 /// `resolve_method` answers `None` and the value renders through
-/// `mwl_runtime::stringify` on its runtime class instead.
+/// `nvs_runtime::stringify` on its runtime class instead.
 ///
 /// Called on its own by the `as string` conversion, which is why it is a
 /// function rather than a branch of [`require_stringable`].
@@ -1875,7 +1875,7 @@ fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
         }
     } else {
         let stringable = QName::parse("Stringable");
-        if !mwl_hir::implements_interface(&qname, &stringable, env.graph) {
+        if !nvs_hir::implements_interface(&qname, &stringable, env.graph) {
             env.diags.report(
                 Diagnostic::error(
                     code::E_STRINGABLE_REQUIRED,
@@ -1890,7 +1890,7 @@ fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
             return;
         }
     }
-    // ADR 0028 § 1: the conversion *is* a `toString()` call, so `mwl-ir` needs
+    // ADR 0028 § 1: the conversion *is* a `toString()` call, so `nvs-ir` needs
     // its resolved target the same way an ordinary `$obj->toString()` does —
     // and, exactly like `object_comparison_result`'s `compareTo`, there is no
     // call node in the AST to key it by. The operand's own span is the key,
@@ -1914,10 +1914,10 @@ fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
 /// Whether a `Core`-owned class renders as text.
 ///
 /// One line, because the answer is not this crate's to hold:
-/// [`mwl_stdlib::registry::class_renders`] is its one home, and that function's
+/// [`nvs_stdlib::registry::class_renders`] is its one home, and that function's
 /// doc comment owns the two rules behind it. All this adds is the lookup key —
 /// a `Core` class is keyed on the name as written, which is what
 /// [`QName`]'s own rendering already is.
 fn core_class_renders(qname: &QName) -> bool {
-    mwl_stdlib::registry::class_renders(&qname.to_string())
+    nvs_stdlib::registry::class_renders(&qname.to_string())
 }

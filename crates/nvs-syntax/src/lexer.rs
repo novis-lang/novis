@@ -1,11 +1,11 @@
-//! The dual-mode lexer: HTML/inline-text on one side, MWL code on the other,
+//! The dual-mode lexer: HTML/inline-text on one side, Novis code on the other,
 //! with a small stack of nested modes for double-quoted strings, heredocs and
 //! their interpolation sites.
 //!
 //! # Mode model
 //!
 //! `modes[0]` is always the *outer* state — [`Mode::Html`] or [`Mode::Code`]
-//! with `interpolation: false` — and a `<?mwl`/`<?=` tag (or the rejected-
+//! with `interpolation: false` — and a `<?nvs`/`<?=` tag (or the rejected-
 //! but-still-lexed `<?php`) or a `?>`
 //! toggles it **in place**, never by pushing: there is exactly one outer state
 //! at a time, so `modes.len() == 1` is the precise condition for "an unclosed
@@ -22,12 +22,12 @@
 //! text, a heredoc's indentation strip) and it does not preserve comments or
 //! whitespace as trivia. Both are later-stage concerns: numeric/string
 //! "cooking" happens once a value is actually needed, and trivia-preserving
-//! reparse for `mwl fmt`/`mwl lsp` is M10's job, not M1's — the lexer's
+//! reparse for `nvs fmt`/`nvs lsp` is M10's job, not M1's — the lexer's
 //! contract is a token stream whose spans are exactly right, nothing more.
 
 use std::collections::VecDeque;
 
-use mwl_diagnostics::{BytePos, Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::duration;
 use crate::token::{Keyword, Token, TokenKind};
@@ -257,20 +257,20 @@ impl<'a> Lexer<'a> {
                 let tag_start = self.pos;
                 self.pos += u32::try_from(len).expect("tag length is at most 5 bytes");
                 let tag_span = self.mk_span(tag_start, self.pos);
-                // ADR 0062 § 2: `<?mwl` has exactly one spelling. `<?PHP` is
+                // ADR 0062 § 2: `<?nvs` has exactly one spelling. `<?PHP` is
                 // left alone — it is rejected outright by
                 // `E_PHP_OPEN_TAG_UNSUPPORTED` (ADR 0049 § 2) whatever case
                 // it was typed in, and two diagnostics for one tag would
                 // point at two different fixes.
-                if kind == TokenKind::OpenTagMwl
-                    && &self.text[tag_start as usize..self.pos as usize] != "<?mwl"
+                if kind == TokenKind::OpenTagNvs
+                    && &self.text[tag_start as usize..self.pos as usize] != "<?nvs"
                 {
                     diags.report(
                         Diagnostic::error(
                             code::E_RESERVED_SPELLING_CASE,
-                            "`<?mwl` must be written in lower case",
+                            "`<?nvs` must be written in lower case",
                         )
-                        .with_primary(tag_span, "write `<?mwl`"),
+                        .with_primary(tag_span, "write `<?nvs`"),
                     );
                 }
                 self.push(kind, tag_span);
@@ -290,18 +290,18 @@ impl<'a> Lexer<'a> {
     }
 
     /// Checks (without consuming) whether one of the three open-tag spellings
-    /// begins at the current position. `<?php`/`<?mwl` must be followed by
+    /// begins at the current position. `<?php`/`<?nvs` must be followed by
     /// whitespace, `?` or end of input, so `<?phpx` is not mistaken for a tag.
     ///
     /// Both are still *recognised* case-insensitively, the way ADR 0049 § 2
     /// already recognises `<?php` purely so the diagnostic can name the fix:
-    /// a file opening `<?MWL` must keep lexing as code, or every later line
+    /// a file opening `<?NVS` must keep lexing as code, or every later line
     /// collapses into one useless `InlineHtml` token. [`Self::lex_html`]
     /// reports the casing.
     fn match_open_tag(&self) -> Option<(TokenKind, usize)> {
         for (spelling, kind) in [
             ("<?php", TokenKind::OpenTagPhp),
-            ("<?mwl", TokenKind::OpenTagMwl),
+            ("<?nvs", TokenKind::OpenTagNvs),
         ] {
             if let Some(head) = self.rest().get(..spelling.len())
                 && head.eq_ignore_ascii_case(spelling)
@@ -689,7 +689,7 @@ impl<'a> Lexer<'a> {
             }};
         }
 
-        // ADR 0090 § 1: `===` and `!==` are not spellings MWL has. They are
+        // ADR 0090 § 1: `===` and `!==` are not spellings Novis has. They are
         // still *recognised* here, for the reason ADR 0049 § 2 recognises
         // `<?php` — a rejected spelling nobody names reappears as two
         // confusing tokens — and then reported and lexed as the two-character
@@ -704,7 +704,7 @@ impl<'a> Lexer<'a> {
                         code::E_IDENTITY_OPERATOR_UNSUPPORTED,
                         concat!("`", $wrong, "` is not supported"),
                     )
-                    .with_primary(span, "MWL keeps exactly one equality operator")
+                    .with_primary(span, "Novis keeps exactly one equality operator")
                     .with_help(concat!(
                         "use `",
                         $right,
@@ -1034,7 +1034,7 @@ impl<'a> Lexer<'a> {
     /// [`Self::heredoc_terminator_here`] and returns its span. Stripping its
     /// leading whitespace from the body's content lines (PHP 7.3+ "flexible
     /// heredoc") happens later, once the parser has assembled the whole
-    /// literal's span -- see `mwl_types::string_lit::heredoc_shape`.
+    /// literal's span -- see `nvs_types::string_lit::heredoc_shape`.
     fn consume_heredoc_terminator(&mut self, label: &str) -> Span {
         let start = self.pos;
         while matches!(self.peek(), Some(' ' | '\t')) {
@@ -1227,7 +1227,7 @@ pub fn tokenize(file: &SourceFile, diags: &mut Diagnostics) -> Vec<Token> {
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::SourceMap;
+    use nvs_diagnostics::SourceMap;
 
     use super::*;
 
@@ -1235,7 +1235,7 @@ mod tests {
     /// so a test can assert on shape without spelling out every span.
     fn kinds(src: &str) -> (Vec<TokenKind>, Diagnostics) {
         let mut map = SourceMap::new();
-        let id = map.add("t.mwl", src);
+        let id = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let tokens = tokenize(map.file(id), &mut diags);
         (tokens.into_iter().map(|t| t.kind).collect(), diags)
@@ -1255,10 +1255,10 @@ mod tests {
     #[test]
     fn inline_html_before_a_tag_is_one_token() {
         assert_eq!(
-            kinds_ok("hello <?mwl echo 1; ?>world"),
+            kinds_ok("hello <?nvs echo 1; ?>world"),
             vec![
                 InlineHtml,
-                OpenTagMwl,
+                OpenTagNvs,
                 Keyword(super::Keyword::Echo),
                 IntLiteral,
                 Semicolon,
@@ -1272,8 +1272,8 @@ mod tests {
     #[test]
     fn php_tag_still_lexes_as_its_own_token() {
         // The lexer keeps recognizing `<?php` and switches to code mode on
-        // it, same as `<?mwl` — purely so `mwl-syntax`'s parser can produce a
-        // diagnostic naming `<?mwl` (ADR 0049 § 2) instead of misreading it
+        // it, same as `<?nvs` — purely so `nvs-syntax`'s parser can produce a
+        // diagnostic naming `<?nvs` (ADR 0049 § 2) instead of misreading it
         // as inline HTML. This is a lex-only test; the rejection itself is a
         // parser-level diagnostic, asserted in `parser.rs`.
         assert_eq!(
@@ -1307,12 +1307,12 @@ mod tests {
 
     #[test]
     fn unclosed_code_block_is_legal_at_eof() {
-        let (kinds, diags) = kinds("<?mwl echo 1;");
+        let (kinds, diags) = kinds("<?nvs echo 1;");
         assert!(!diags.has_errors());
         assert_eq!(
             kinds,
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 Keyword(super::Keyword::Echo),
                 IntLiteral,
                 Semicolon,
@@ -1324,9 +1324,9 @@ mod tests {
     #[test]
     fn line_and_block_and_hash_comments_are_skipped() {
         assert_eq!(
-            kinds_ok("<?mwl // a\n # b\n /* c */ echo 1;"),
+            kinds_ok("<?nvs // a\n # b\n /* c */ echo 1;"),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 Keyword(super::Keyword::Echo),
                 IntLiteral,
                 Semicolon,
@@ -1337,7 +1337,7 @@ mod tests {
 
     #[test]
     fn unterminated_block_comment_is_reported() {
-        let (_, diags) = kinds("<?mwl /* never closes");
+        let (_, diags) = kinds("<?nvs /* never closes");
         assert!(diags.has_errors());
     }
 
@@ -1347,12 +1347,12 @@ mod tests {
         // of its own: ADR 0029 makes it a legal class name, so nothing
         // here can tell a mis-typed `echo` from a deliberate `ECHO`.
         assert_eq!(
-            kinds_ok("<?mwl ECHO myVar"),
-            vec![OpenTagMwl, Ident, Ident, Eof]
+            kinds_ok("<?nvs ECHO myVar"),
+            vec![OpenTagNvs, Ident, Ident, Eof]
         );
         assert_eq!(
-            kinds_ok("<?mwl echo myVar"),
-            vec![OpenTagMwl, Keyword(super::Keyword::Echo), Ident, Eof]
+            kinds_ok("<?nvs echo myVar"),
+            vec![OpenTagNvs, Keyword(super::Keyword::Echo), Ident, Eof]
         );
     }
 
@@ -1362,8 +1362,8 @@ mod tests {
         // three ordinary name tokens, where case-insensitive matching made
         // `Bytes` collide with the `bytes` type atom.
         assert_eq!(
-            kinds_ok(r"<?mwl Core\Bytes"),
-            vec![OpenTagMwl, Ident, Backslash, Ident, Eof]
+            kinds_ok(r"<?nvs Core\Bytes"),
+            vec![OpenTagNvs, Ident, Backslash, Ident, Eof]
         );
     }
 
@@ -1372,11 +1372,11 @@ mod tests {
         // ADR 0062 § 2: recognised so the rest of the file keeps lexing as
         // code and the diagnostic can name the fix — ADR 0049 § 2's treatment
         // of `<?php`, applied to casing.
-        let (kinds, diags) = kinds("<?MWL echo 1;");
+        let (kinds, diags) = kinds("<?NVS echo 1;");
         assert_eq!(
             kinds,
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 Keyword(super::Keyword::Echo),
                 IntLiteral,
                 Semicolon,
@@ -1386,7 +1386,7 @@ mod tests {
         assert!(
             diags
                 .iter()
-                .any(|d| d.code == Some(mwl_diagnostics::code::E_RESERVED_SPELLING_CASE)),
+                .any(|d| d.code == Some(nvs_diagnostics::code::E_RESERVED_SPELLING_CASE)),
             "expected E_RESERVED_SPELLING_CASE, got {diags:?}"
         );
     }
@@ -1394,9 +1394,9 @@ mod tests {
     #[test]
     fn new_type_atoms_are_keywords() {
         assert_eq!(
-            kinds_ok("<?mwl uint bytes"),
+            kinds_ok("<?nvs uint bytes"),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 Keyword(super::Keyword::Uint),
                 Keyword(super::Keyword::Bytes),
                 Eof
@@ -1409,14 +1409,14 @@ mod tests {
         // ADR 0054 § 1: `decimal` is a scalar type, so it reserves a word the
         // same way `uint` and `bytes` above do.
         assert_eq!(
-            kinds_ok("<?mwl decimal"),
-            vec![OpenTagMwl, Keyword(super::Keyword::Decimal), Eof]
+            kinds_ok("<?nvs decimal"),
+            vec![OpenTagNvs, Keyword(super::Keyword::Decimal), Eof]
         );
     }
 
     #[test]
     fn a_trailing_m_is_not_a_decimal_literal_suffix() {
-        // ADR 0054 § 2 and its *Alternatives rejected*: MWL has no literal
+        // ADR 0054 § 2 and its *Alternatives rejected*: Novis has no literal
         // suffix at all, so `19.99m` is not one decimal token. ADR 0070 § 1
         // decides which *kind* of refusal it gets: a duration is recognised
         // only after a plain decimal integer, and a fractional count is that
@@ -1424,11 +1424,11 @@ mod tests {
         // rejected by the duration grammar rather than lexing as two tokens.
         // A suffix outside the unit alphabet still splits in two -- see
         // `a_non_unit_suffix_is_still_an_integer_and_an_identifier`.
-        let (_, diags) = kinds("<?mwl 19.99m");
+        let (_, diags) = kinds("<?nvs 19.99m");
         assert!(diags.has_errors());
         assert_eq!(
-            kinds_ok("<?mwl 19.99x"),
-            vec![OpenTagMwl, FloatLiteral, Ident, Eof]
+            kinds_ok("<?nvs 19.99x"),
+            vec![OpenTagNvs, FloatLiteral, Ident, Eof]
         );
     }
 
@@ -1437,9 +1437,9 @@ mod tests {
         // ADR 0024 § 1: `tainted` needs a new reserved keyword, landing in
         // M1's grammar alongside `uint`'s own addition above.
         assert_eq!(
-            kinds_ok("<?mwl tainted string"),
+            kinds_ok("<?nvs tainted string"),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 Keyword(super::Keyword::Tainted),
                 Keyword(super::Keyword::String),
                 Eof
@@ -1452,9 +1452,9 @@ mod tests {
         // ADR 0033 § 1: `secret` needs its own new reserved keyword,
         // independent of `tainted`'s.
         assert_eq!(
-            kinds_ok("<?mwl secret string"),
+            kinds_ok("<?nvs secret string"),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 Keyword(super::Keyword::Secret),
                 Keyword(super::Keyword::String),
                 Eof
@@ -1467,8 +1467,8 @@ mod tests {
         // ADR 0038 § 1: `lateinit` is a new reserved property modifier,
         // alongside `readonly`'s own keyword.
         assert_eq!(
-            kinds_ok("<?mwl lateinit"),
-            vec![OpenTagMwl, Keyword(super::Keyword::Lateinit), Eof]
+            kinds_ok("<?nvs lateinit"),
+            vec![OpenTagNvs, Keyword(super::Keyword::Lateinit), Eof]
         );
     }
 
@@ -1478,17 +1478,17 @@ mod tests {
         // by text only at the one position each is meaningful, per
         // docs/spec/00-overview.md § 2 and token.rs's module docs.
         assert_eq!(
-            kinds_ok("<?mwl spawn script with type"),
-            vec![OpenTagMwl, Ident, Ident, Ident, Ident, Eof]
+            kinds_ok("<?nvs spawn script with type"),
+            vec![OpenTagNvs, Ident, Ident, Ident, Ident, Eof]
         );
     }
 
     #[test]
     fn integer_literal_bases() {
         assert_eq!(
-            kinds_ok("<?mwl 0x1F 0o17 0b101 0755 1_000_000"),
+            kinds_ok("<?nvs 0x1F 0o17 0b101 0755 1_000_000"),
             vec![
-                OpenTagMwl, IntLiteral, IntLiteral, IntLiteral, IntLiteral, IntLiteral, Eof
+                OpenTagNvs, IntLiteral, IntLiteral, IntLiteral, IntLiteral, IntLiteral, Eof
             ]
         );
     }
@@ -1498,9 +1498,9 @@ mod tests {
     #[test]
     fn duration_literal_shapes() {
         assert_eq!(
-            kinds_ok("<?mwl 30s 1h30m 500ms 1w 1w2d3h4m5s6ms7us8ns"),
+            kinds_ok("<?nvs 30s 1h30m 500ms 1w 1w2d3h4m5s6ms7us8ns"),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 DurationLiteral,
                 DurationLiteral,
                 DurationLiteral,
@@ -1516,10 +1516,10 @@ mod tests {
     /// reached, and `3 d` is two tokens because whitespace ends the candidate.
     #[test]
     fn a_duration_literal_does_not_swallow_a_hex_literal_or_a_spaced_identifier() {
-        assert_eq!(kinds_ok("<?mwl 0x1d"), vec![OpenTagMwl, IntLiteral, Eof]);
+        assert_eq!(kinds_ok("<?nvs 0x1d"), vec![OpenTagNvs, IntLiteral, Eof]);
         assert_eq!(
-            kinds_ok("<?mwl 3 d"),
-            vec![OpenTagMwl, IntLiteral, Ident, Eof]
+            kinds_ok("<?nvs 3 d"),
+            vec![OpenTagNvs, IntLiteral, Ident, Eof]
         );
     }
 
@@ -1529,9 +1529,9 @@ mod tests {
     #[test]
     fn a_non_unit_suffix_is_still_an_integer_and_an_identifier() {
         assert_eq!(
-            kinds_ok("<?mwl 30foo 1e 30Something"),
+            kinds_ok("<?nvs 30foo 1e 30Something"),
             vec![
-                OpenTagMwl, IntLiteral, Ident, IntLiteral, Ident, IntLiteral, Ident, Eof
+                OpenTagNvs, IntLiteral, Ident, IntLiteral, Ident, IntLiteral, Ident, Eof
             ]
         );
     }
@@ -1543,35 +1543,35 @@ mod tests {
     #[test]
     fn a_malformed_duration_literal_is_one_lexer_error() {
         for src in [
-            "<?mwl 30m1h",
-            "<?mwl 1h1h",
-            "<?mwl 1.5s",
-            "<?mwl 30S",
-            "<?mwl 100000w",
+            "<?nvs 30m1h",
+            "<?nvs 1h1h",
+            "<?nvs 1.5s",
+            "<?nvs 30S",
+            "<?nvs 100000w",
         ] {
             let (kinds, diags) = kinds(src);
             assert!(diags.has_errors(), "{src} should be refused");
-            assert_eq!(kinds, vec![OpenTagMwl, Unknown, Eof], "for {src}");
+            assert_eq!(kinds, vec![OpenTagNvs, Unknown, Eof], "for {src}");
         }
     }
 
     /// ADR 0070 § 1 keeps the sign out of the literal, so the parser never has
     /// to decide whether the `-` in `$a -7d` is binary — it is always its own
-    /// token, and `mwl_types` refuses the arithmetic that results.
+    /// token, and `nvs_types` refuses the arithmetic that results.
     #[test]
     fn a_duration_literal_never_carries_a_sign() {
         assert_eq!(
-            kinds_ok("<?mwl -7d"),
-            vec![OpenTagMwl, Minus, DurationLiteral, Eof]
+            kinds_ok("<?nvs -7d"),
+            vec![OpenTagNvs, Minus, DurationLiteral, Eof]
         );
     }
 
     #[test]
     fn float_literal_shapes() {
         assert_eq!(
-            kinds_ok("<?mwl 1.5 .5 1. 1e10 1.5e-3"),
+            kinds_ok("<?nvs 1.5 .5 1. 1e10 1.5e-3"),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 FloatLiteral,
                 FloatLiteral,
                 FloatLiteral,
@@ -1584,16 +1584,16 @@ mod tests {
 
     #[test]
     fn single_quoted_string_only_escapes_backslash_and_quote() {
-        let (kinds, diags) = kinds(r"<?mwl 'a\'b\\c\nd'");
+        let (kinds, diags) = kinds(r"<?nvs 'a\'b\\c\nd'");
         assert!(!diags.has_errors());
-        assert_eq!(kinds, vec![OpenTagMwl, SingleQuotedString, Eof]);
+        assert_eq!(kinds, vec![OpenTagNvs, SingleQuotedString, Eof]);
     }
 
     #[test]
     fn unterminated_single_quoted_string_is_reported() {
-        let (kinds, diags) = kinds("<?mwl 'abc");
+        let (kinds, diags) = kinds("<?nvs 'abc");
         assert!(diags.has_errors());
-        assert_eq!(kinds, vec![OpenTagMwl, SingleQuotedString, Eof]);
+        assert_eq!(kinds, vec![OpenTagNvs, SingleQuotedString, Eof]);
     }
 
     /// ADR 0087 § 2: the four source spans that carry free text, each rejected
@@ -1610,24 +1610,24 @@ mod tests {
     fn an_unterminated_bidi_control_is_rejected_in_every_source_span() {
         // A comment -- both spellings -- a single-quoted literal, a
         // double-quoted one, and an inline-HTML run.
-        assert_eq!(bidi_errors("<?mwl // owner\u{202E} check\n"), 1);
-        assert_eq!(bidi_errors("<?mwl # owner\u{202E} check\n"), 1);
-        assert_eq!(bidi_errors("<?mwl /* owner\u{202E} check */\n"), 1);
-        assert_eq!(bidi_errors("<?mwl echo 'owner\u{202E}';"), 1);
-        assert_eq!(bidi_errors("<?mwl echo \"owner\u{2066}\";"), 1);
-        assert_eq!(bidi_errors("plain\u{202B}html<?mwl echo 1;"), 1);
+        assert_eq!(bidi_errors("<?nvs // owner\u{202E} check\n"), 1);
+        assert_eq!(bidi_errors("<?nvs # owner\u{202E} check\n"), 1);
+        assert_eq!(bidi_errors("<?nvs /* owner\u{202E} check */\n"), 1);
+        assert_eq!(bidi_errors("<?nvs echo 'owner\u{202E}';"), 1);
+        assert_eq!(bidi_errors("<?nvs echo \"owner\u{2066}\";"), 1);
+        assert_eq!(bidi_errors("plain\u{202B}html<?nvs echo 1;"), 1);
     }
 
     #[test]
     fn a_balanced_bidi_control_lexes_cleanly() {
         // The case that fails if the rule is ever widened to a blanket ban:
         // legitimate mixed-direction text isolates the Latin run and closes it.
-        let (kinds, diags) = kinds("<?mwl echo \"خطأ \u{2066}user_id\u{2069} !\";");
+        let (kinds, diags) = kinds("<?nvs echo \"خطأ \u{2066}user_id\u{2069} !\";");
         assert!(!diags.has_errors(), "{:?}", diags.iter().next());
         assert_eq!(
             kinds,
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 Keyword(super::Keyword::Echo),
                 DoubleQuoteOpen,
                 StringPart,
@@ -1642,25 +1642,25 @@ mod tests {
     fn a_bidi_scope_may_not_cross_a_line_inside_one_token() {
         // Balanced across the heredoc as a whole, unbalanced per line -- which
         // is the span ADR 0087 § 2 gives the lexer, so this is rejected.
-        let src = "<?mwl $s = <<<TXT\n\u{202E}first\nsecond\u{202C}\nTXT;\n";
+        let src = "<?nvs $s = <<<TXT\n\u{202E}first\nsecond\u{202C}\nTXT;\n";
         assert_eq!(bidi_errors(src), 1);
         // The same two lines, each closing its own scope, are fine.
-        let ok = "<?mwl $s = <<<TXT\n\u{202E}first\u{202C}\n\u{202E}second\u{202C}\nTXT;\n";
+        let ok = "<?nvs $s = <<<TXT\n\u{202E}first\u{202C}\n\u{202E}second\u{202C}\nTXT;\n";
         assert_eq!(bidi_errors(ok), 0);
     }
 
     #[test]
     fn a_stray_terminator_is_not_an_error() {
         // It closes nothing and opens nothing -- ADR 0087 § 1.
-        assert_eq!(bidi_errors("<?mwl echo 'a\u{202C}b\u{2069}';"), 0);
+        assert_eq!(bidi_errors("<?nvs echo 'a\u{202C}b\u{2069}';"), 0);
     }
 
     #[test]
     fn double_quoted_string_with_no_interpolation() {
         assert_eq!(
-            kinds_ok(r#"<?mwl "plain text""#),
+            kinds_ok(r#"<?nvs "plain text""#),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 DoubleQuoteOpen,
                 StringPart,
                 DoubleQuoteClose,
@@ -1672,9 +1672,9 @@ mod tests {
     #[test]
     fn simple_variable_interpolation() {
         assert_eq!(
-            kinds_ok(r#"<?mwl "a $name b""#),
+            kinds_ok(r#"<?nvs "a $name b""#),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 DoubleQuoteOpen,
                 StringPart,
                 Variable,
@@ -1688,9 +1688,9 @@ mod tests {
     #[test]
     fn simple_property_interpolation_is_one_level_only() {
         assert_eq!(
-            kinds_ok(r#"<?mwl "$obj->prop->more""#),
+            kinds_ok(r#"<?nvs "$obj->prop->more""#),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 DoubleQuoteOpen,
                 Variable,
                 Arrow,
@@ -1705,9 +1705,9 @@ mod tests {
     #[test]
     fn simple_array_offset_interpolation() {
         assert_eq!(
-            kinds_ok(r#"<?mwl "$arr[key] $arr[-1] $arr[$i]""#),
+            kinds_ok(r#"<?nvs "$arr[key] $arr[-1] $arr[$i]""#),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 DoubleQuoteOpen,
                 Variable,
                 LBracket,
@@ -1732,9 +1732,9 @@ mod tests {
     #[test]
     fn complex_interpolation_lexes_as_nested_code() {
         assert_eq!(
-            kinds_ok(r#"<?mwl "sum: {$a + $b}""#),
+            kinds_ok(r#"<?nvs "sum: {$a + $b}""#),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 DoubleQuoteOpen,
                 StringPart,
                 ComplexInterpOpen,
@@ -1753,9 +1753,9 @@ mod tests {
         // The closure's own braces must not be mistaken for the closing `}`
         // of the interpolation site.
         assert_eq!(
-            kinds_ok(r#"<?mwl "{$f(function () { return 1; })}""#),
+            kinds_ok(r#"<?nvs "{$f(function () { return 1; })}""#),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 DoubleQuoteOpen,
                 ComplexInterpOpen,
                 Variable,
@@ -1779,18 +1779,18 @@ mod tests {
     #[test]
     fn dollar_dollar_is_two_tokens_not_a_variable() {
         assert_eq!(
-            kinds_ok("<?mwl $$name"),
-            vec![OpenTagMwl, Dollar, Variable, Eof]
+            kinds_ok("<?nvs $$name"),
+            vec![OpenTagNvs, Dollar, Variable, Eof]
         );
     }
 
     #[test]
     fn heredoc_with_interpolation() {
-        let src = "<?mwl $s = <<<EOT\nhello $name\nEOT;\n";
+        let src = "<?nvs $s = <<<EOT\nhello $name\nEOT;\n";
         assert_eq!(
             kinds_ok(src),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 Variable,
                 Equals,
                 HeredocOpen,
@@ -1806,11 +1806,11 @@ mod tests {
 
     #[test]
     fn nowdoc_has_no_interpolation() {
-        let src = "<?mwl $s = <<<'EOT'\nraw $name text\nEOT;\n";
+        let src = "<?nvs $s = <<<'EOT'\nraw $name text\nEOT;\n";
         assert_eq!(
             kinds_ok(src),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 Variable,
                 Equals,
                 NowdocOpen,
@@ -1825,13 +1825,13 @@ mod tests {
     #[test]
     fn heredoc_terminator_must_not_be_a_prefix_of_a_longer_identifier() {
         // "EOTX" on its own line must not be mistaken for the "EOT" terminator.
-        let src = "<?mwl <<<EOT\nEOTX\nEOT;\n";
+        let src = "<?nvs <<<EOT\nEOTX\nEOT;\n";
         let (kinds, diags) = kinds(src);
         assert!(!diags.has_errors());
         assert_eq!(
             kinds,
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 HeredocOpen,
                 StringPart,
                 HeredocClose,
@@ -1843,20 +1843,20 @@ mod tests {
 
     #[test]
     fn unterminated_heredoc_is_reported() {
-        let (kinds, diags) = kinds("<?mwl <<<EOT\nhello\n");
+        let (kinds, diags) = kinds("<?nvs <<<EOT\nhello\n");
         assert!(diags.has_errors());
         assert_eq!(
             kinds,
-            vec![OpenTagMwl, HeredocOpen, StringPart, HeredocClose, Eof]
+            vec![OpenTagNvs, HeredocOpen, StringPart, HeredocClose, Eof]
         );
     }
 
     #[test]
     fn operators_longest_match_wins() {
         assert_eq!(
-            kinds_ok("<?mwl <=> ??= ?-> **= <<= >>= <> ->"),
+            kinds_ok("<?nvs <=> ??= ?-> **= <<= >>= <> ->"),
             vec![
-                OpenTagMwl,
+                OpenTagNvs,
                 Spaceship,
                 QuestionQuestionEquals,
                 NullsafeArrow,
@@ -1876,13 +1876,13 @@ mod tests {
     #[test]
     fn a_rejected_equality_spelling_is_a_compile_error() {
         for (src, spelling) in [
-            ("<?mwl $a === $b;", "`===` is not supported"),
-            ("<?mwl $a !== $b;", "`!==` is not supported"),
+            ("<?nvs $a === $b;", "`===` is not supported"),
+            ("<?nvs $a !== $b;", "`!==` is not supported"),
         ] {
             let (kinds, diags) = kinds(src);
             assert!(
                 diags.iter().any(|d| {
-                    d.code == Some(mwl_diagnostics::code::E_IDENTITY_OPERATOR_UNSUPPORTED)
+                    d.code == Some(nvs_diagnostics::code::E_IDENTITY_OPERATOR_UNSUPPORTED)
                         && d.message == spelling
                 }),
                 "expected E_IDENTITY_OPERATOR_UNSUPPORTED for {src:?}, got {diags:?}"
@@ -1890,7 +1890,7 @@ mod tests {
             assert_eq!(
                 kinds,
                 vec![
-                    OpenTagMwl,
+                    OpenTagNvs,
                     Variable,
                     if spelling.starts_with("`!") {
                         BangEquals
@@ -1909,25 +1909,25 @@ mod tests {
     #[test]
     fn attribute_open_is_distinct_from_a_comment() {
         assert_eq!(
-            kinds_ok("<?mwl #[Attr] # comment\n1"),
-            vec![OpenTagMwl, AttributeOpen, Ident, RBracket, IntLiteral, Eof]
+            kinds_ok("<?nvs #[Attr] # comment\n1"),
+            vec![OpenTagNvs, AttributeOpen, Ident, RBracket, IntLiteral, Eof]
         );
     }
 
     #[test]
     fn unexpected_character_recovers() {
-        let (kinds, diags) = kinds("<?mwl 1 ` 2");
+        let (kinds, diags) = kinds("<?nvs 1 ` 2");
         assert!(diags.has_errors());
         assert_eq!(
             kinds,
-            vec![OpenTagMwl, IntLiteral, Unknown, IntLiteral, Eof]
+            vec![OpenTagNvs, IntLiteral, Unknown, IntLiteral, Eof]
         );
     }
 
     #[test]
     fn eof_yields_forever() {
         let mut map = SourceMap::new();
-        let id = map.add("t.mwl", "<?mwl 1");
+        let id = map.add("t.nvs", "<?nvs 1");
         let mut diags = Diagnostics::new();
         let mut lexer = Lexer::new(map.file(id));
         loop {

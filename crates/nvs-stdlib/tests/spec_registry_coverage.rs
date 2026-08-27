@@ -12,7 +12,7 @@
 //!
 //! # The outstanding list is a file, and it only shrinks
 //!
-//! §§ 1-12 are not on disk yet — `crates/mwl-stdlib`'s own known gap 1 and the
+//! §§ 1-12 are not on disk yet — `crates/nvs-stdlib`'s own known gap 1 and the
 //! plan's `Open now` say how much is owed — so the honest reading of "fails
 //! naming every one with no registry entry" is a test that is red for the
 //! whole of the loop that exists to make it green. That trade was refused:
@@ -65,7 +65,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use mwl_stdlib::registry;
+use nvs_stdlib::registry;
 
 /// Every `` `code` `` span in `text`, in order, without their backticks.
 fn spans(text: &str) -> Vec<&str> {

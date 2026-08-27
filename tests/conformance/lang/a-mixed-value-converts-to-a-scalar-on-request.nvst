@@ -1,7 +1,7 @@
 --TEST--
 A `mixed` converts to a scalar only on request, and each row throws where it fails — ADR 0007 §§ 2 and 6, with ADR 0066 § 1's `as ?int` twin beside it
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 6: `mixed` is the one unchecked position, so nothing here is known
 // statically. The row ADR 0007 § 2's table defines is picked by the value's own
 // runtime tag — `"42"` takes the `string -> int` row, `2.5` the `float -> int`

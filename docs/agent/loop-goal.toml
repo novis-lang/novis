@@ -13,21 +13,21 @@
 # fixture's reason for existing. Re-freeze, say why in the commit message, move on. That is not licence to
 # weaken a check to make it pass.
 #
-# `cases = [...]` on an `mwl-suite` check names `.mwlt` files that must EXIST, run, and not be skipped --
-# the `.mwlt` twin of `cargo-named`. A suite that is green because a case was never written is the failure
+# `cases = [...]` on an `nvs-suite` check names `.nvst` files that must EXIST, run, and not be skipped --
+# the `.nvst` twin of `cargo-named`. A suite that is green because a case was never written is the failure
 # it guards against; `min_passing` cannot see that, and neither can a SKIP line.
 
 # Every fixture the run touches. Missing one fails before anything is built, naming the file.
 files = [
-  "examples/hello.mwl", "examples/calls.mwl", "examples/throw.mwl", "examples/arith.mwl",
-  "examples/trace.mwl", "examples/uncaught.mwl", "examples/fatal.mwl",
-  "examples/objects.mwl", "examples/arrays.mwl", "examples/errors.mwl", "examples/hooks.mwl",
-  "examples/enums.mwl", "examples/iterate.mwl", "examples/core.mwl", "examples/report.mwl",
-  "examples/nullable.mwl", "examples/match.mwl",
-  "examples/text.mwl", "examples/numbers.mwl", "examples/dates.mwl", "examples/json.mwl",
-  "examples/collect.mwl",
+  "examples/hello.nvs", "examples/calls.nvs", "examples/throw.nvs", "examples/arith.nvs",
+  "examples/trace.nvs", "examples/uncaught.nvs", "examples/fatal.nvs",
+  "examples/objects.nvs", "examples/arrays.nvs", "examples/errors.nvs", "examples/hooks.nvs",
+  "examples/enums.nvs", "examples/iterate.nvs", "examples/core.nvs", "examples/report.nvs",
+  "examples/nullable.nvs", "examples/match.nvs",
+  "examples/text.nvs", "examples/numbers.nvs", "examples/dates.nvs", "examples/json.nvs",
+  "examples/collect.nvs",
   # The four this goal adds. Each is one stage's item list written as one program.
-  "examples/operators.mwl", "examples/control.mwl", "examples/callable.mwl", "examples/targets.mwl",
+  "examples/operators.nvs", "examples/control.nvs", "examples/callable.nvs", "examples/targets.nvs",
 ]
 
 # What a session of this goal READS. `python tools/orient.py` slices exactly these out of the live
@@ -44,37 +44,37 @@ files = [
 # Modules whose map line a session needs, as globs under crates/.
 #
 # This goal's file set is NOT the previous one's. The work is lowering and checking rather than
-# `Core` members, so `mwl-stdlib`'s per-class modules came out whole and `mwl-ir`'s `lower/` came in
+# `Core` members, so `nvs-stdlib`'s per-class modules came out whole and `nvs-ir`'s `lower/` came in
 # file by file -- `expr.rs`, `stmt.rs` and `control.rs` are three of the four groups' shared set, and
 # almost every item names one of them.
 #
-# `mwl-stdlib/src/registry.rs` stays: items 28 and 32 both ask it a question, and a Stage 8 `Core`
+# `nvs-stdlib/src/registry.rs` stays: items 28 and 32 both ask it a question, and a Stage 8 `Core`
 # depth slice still starts there. Its 30 sibling modules do not -- put one back the session a group
 # needs it, and take it out again when that group lands.
 modules = [
-  "crates/mwl-ir/src/lower/expr.rs",
+  "crates/nvs-ir/src/lower/expr.rs",
   # `expr.rs` was 5,754 lines and is now the dispatch plus what has nowhere more
   # specific to be. Its two biggest areas are their own modules, and both are named
   # here because Stage 0 is entirely `operator.rs` and Stage 4's `as` rows are
   # entirely `convert.rs`.
-  "crates/mwl-ir/src/lower/operator.rs",
-  "crates/mwl-ir/src/lower/convert.rs",
-  "crates/mwl-ir/src/lower/stmt.rs",
-  "crates/mwl-ir/src/lower/control.rs",
-  "crates/mwl-ir/src/lower/mod.rs",
-  "crates/mwl-ir/src/ir.rs",
-  "crates/mwl-codegen/src/emit.rs",
-  "crates/mwl-types/src/expr/operators.rs",
+  "crates/nvs-ir/src/lower/operator.rs",
+  "crates/nvs-ir/src/lower/convert.rs",
+  "crates/nvs-ir/src/lower/stmt.rs",
+  "crates/nvs-ir/src/lower/control.rs",
+  "crates/nvs-ir/src/lower/mod.rs",
+  "crates/nvs-ir/src/ir.rs",
+  "crates/nvs-codegen/src/emit.rs",
+  "crates/nvs-types/src/expr/operators.rs",
   # Named per-stage rather than always. `closure.rs`, `generator.rs`, `call.rs` and `exception.rs`
   # are Stage 3's; `locals.rs` and `members.rs` are Stage 6's. They are here because four of the
   # eight stages name one, and the alternative measured worse: a session that greps for
   # `lower_try` pays the discovery bucket twice over what the map line costs.
-  "crates/mwl-ir/src/lower/call.rs",
-  "crates/mwl-ir/src/lower/closure.rs",
-  "crates/mwl-ir/src/lower/generator.rs",
-  "crates/mwl-ir/src/lower/exception.rs",
-  "crates/mwl-types/src/locals.rs",
-  "crates/mwl-stdlib/src/registry.rs",
+  "crates/nvs-ir/src/lower/call.rs",
+  "crates/nvs-ir/src/lower/closure.rs",
+  "crates/nvs-ir/src/lower/generator.rs",
+  "crates/nvs-ir/src/lower/exception.rs",
+  "crates/nvs-types/src/locals.rs",
+  "crates/nvs-stdlib/src/registry.rs",
 ]
 
 # The decisions this goal's work sits inside, by ADR number. orient.py prints the one-sentence
@@ -99,7 +99,7 @@ adrs = [
 ]
 
 # Headings of docs/agent/conventions.md naming shapes this goal will write.
-shapes = ["A diagnostic", "A `.mwlt` test case", "A commit message"]
+shapes = ["A diagnostic", "A `.nvst` test case", "A commit message"]
 
 # Traps from docs/agent/playbook.md that apply to this file set. An entry is either a `##` heading
 # (the whole section) or ONE bullet, named by its bold lead-in after a `>`.
@@ -108,37 +108,37 @@ shapes = ["A diagnostic", "A `.mwlt` test case", "A commit message"]
 # process block by hand. Re-run that after the file set changes; `--min 2` widens it, and
 # `python tools/playbook.py --match <paths>` narrows it to one session's own next group.
 #
-# `Writing MWL itself` is the section that ranks for this goal where `Adding a Core member` ranked
-# for the last one -- these sessions write MWL source into fixtures and cases, and every trap in it
+# `Writing Novis itself` is the section that ranks for this goal where `Adding a Core member` ranked
+# for the last one -- these sessions write Novis source into fixtures and cases, and every trap in it
 # is a shape that parses and then does not run.
 playbook = [
-  # The bullets that rank against `mwl-ir`, `mwl-codegen` and MWL source itself -- the top of
+  # The bullets that rank against `nvs-ir`, `nvs-codegen` and Novis source itself -- the top of
   # `--goal --min 3`, minus the `Core`-member ones, which are the previous goal's work and not
-  # this one's. `Writing MWL itself` is NOT named whole here even though every session of this
-  # goal writes MWL: the section is 261 bullets' worth of file and the ranker says six of them
+  # this one's. `Writing Novis itself` is NOT named whole here even though every session of this
+  # goal writes Novis: the section is 261 bullets' worth of file and the ranker says six of them
   # carry this file set. That is the § 2 rule the last goal paid 42 KB to learn.
-  'Tooling > mwl-ir cannot',
-  'Tooling > teaching mwl-ir',
+  'Tooling > nvs-ir cannot',
+  'Tooling > teaching nvs-ir',
   'Tooling > widening an',
   'Tooling > a class synthesized',
   'Tooling > cargo insta accept',
-  'Writing MWL itself > the first-class',
-  'Writing MWL itself > a closure held',
-  'Writing MWL itself > an option',
-  'Writing MWL itself > one compile',
-  'Writing MWL itself > an integer',
-  'Writing MWL itself > bool as',
+  'Writing Novis itself > the first-class',
+  'Writing Novis itself > a closure held',
+  'Writing Novis itself > an option',
+  'Writing Novis itself > one compile',
+  'Writing Novis itself > an integer',
+  'Writing Novis itself > bool as',
   'Divergences and refusals already pinned > the last site,',
   'Divergences and refusals already pinned > compare folds',
 
-  # the traps of writing a case, kept from the previous goal: Stage 8's corpus is still `.mwlt`
+  # the traps of writing a case, kept from the previous goal: Stage 8's corpus is still `.nvst`
   # files and every one of these is a shape that compiles and then does not run.
   'Writing a test case > never put',
   'Writing a test case > a case that sweeps',
   'Writing a test case > a catch',
-  "Writing a test case > a .mwlt case's",
+  "Writing a test case > a .nvst case's",
   'Writing a test case > an array literal is',
-  'Writing a test case > mwl-codegen has',
+  'Writing a test case > nvs-codegen has',
   'Writing a test case > a row',
   'Writing a test case > a case cannot',
   'Writing a test case > a multi-file',
@@ -150,10 +150,10 @@ playbook = [
   "Writing a test case > emitbinop's ordering",
   'Writing a test case > the php',
   'Running things > a field',
-  'Running things > mwl run printing',
-  'Running things > a scratch .mwl under',
+  'Running things > nvs run printing',
+  'Running things > a scratch .nvs under',
   'Running things > a leak whose',
-  'Running things > target/release/mwl.exe is',
+  'Running things > target/release/nvs.exe is',
   'Running things > verify.py executes',
 
   # the process traps, by hand
@@ -186,7 +186,7 @@ milestones = ["M4:verify"]
 #
 # Items 14 and 36 are both leak items, so this sweep is the check for neither: a leak on a path no
 # fixture takes is invisible to it. Each names its own `cargo-named` guard below.
-skip = ["examples/fatal.mwl", "examples/uncaught.mwl"]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 
 [wsl]
 # On Windows the second leg runs through WSL, because a JIT is exactly where a calling-convention
@@ -197,7 +197,7 @@ skip = ["examples/fatal.mwl", "examples/uncaught.mwl"]
 # again after every idle gap, so a target directory there is gone by the next run and the leg pays a cold
 # build -- 32s measured, against 0.31s for the no-op rebuild it should have been. commands.md § *Fuzzing
 # and callgrind on Windows* holds the measurement.
-target_dir = "/var/tmp/mwl-target-wsl"
+target_dir = "/var/tmp/nvs-target-wsl"
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -220,8 +220,8 @@ target_dir = "/var/tmp/mwl-target-wsl"
 [[check]]
 kind = "cargo-named"
 stage = "0a inout"
-name = "mwl-syntax (the inout spelling)"
-args = ["test", "-p", "mwl-syntax"]
+name = "nvs-syntax (the inout spelling)"
+args = ["test", "-p", "nvs-syntax"]
 tests = [
   # ADR 0107 -- the modifier slot, in all three declaration positions, and the call-site marker on `Arg`.
   "an_inout_parameter_parses_in_the_modifier_slot",
@@ -235,8 +235,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "0a inout"
-name = "mwl-types (the call-site marker)"
-args = ["test", "-p", "mwl-types"]
+name = "nvs-types (the call-site marker)"
+args = ["test", "-p", "nvs-types"]
 tests = [
   # ADR 0107 -- both directions of the call-site rule.
   "an_inout_argument_is_required_where_the_parameter_declares_one",
@@ -246,8 +246,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "0 operators"
-name = "mwl-types (the promotion table)"
-args = ["test", "-p", "mwl-types"]
+name = "nvs-types (the promotion table)"
+args = ["test", "-p", "nvs-types"]
 tests = [
   # Item 1 -- ADR 0007 § 4: a mixed-representation arithmetic or ordering pair has a result type AND
   # a stated widening, which is the half `arithmetic_result` records nothing for today.
@@ -260,8 +260,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "0 operators"
-name = "mwl-ir (the operator rows)"
-args = ["test", "-p", "mwl-ir"]
+name = "nvs-ir (the operator rows)"
+args = ["test", "-p", "nvs-ir"]
 tests = [
   # Item 1 -- the widening is a conversion in `lower_binary`, not a backend repair.
   "a_mixed_numeric_pair_converts_before_the_operator",
@@ -281,8 +281,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "0 operators"
-name = "mwl-codegen (the operator rows)"
-args = ["test", "-p", "mwl-codegen"]
+name = "nvs-codegen (the operator rows)"
+args = ["test", "-p", "nvs-codegen"]
 tests = [
   # Item 2 -- the union result picks its instruction at runtime.
   "an_integer_division_emits_both_of_its_representations",
@@ -304,31 +304,31 @@ tests = [
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/hello.mwl"
+file = "examples/hello.nvs"
 want = ["Hello, World!"]
 
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/calls.mwl"
+file = "examples/calls.nvs"
 want = ["quadruple(5) = 20"]
 
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/arith.mwl"
+file = "examples/arith.nvs"
 want = ["sum = 998000"]
 
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/throw.mwl"
+file = "examples/throw.nvs"
 want = ["caught: boom"]
 
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/objects.mwl"
+file = "examples/objects.nvs"
 want = [
   "cat has 4 legs", "rex has 4 legs, and barks", "Hello, rex!",
   "dog is an animal", "dog greets", "leaf", "leaf is a mid",
@@ -337,7 +337,7 @@ want = [
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/arrays.mwl"
+file = "examples/arrays.nvs"
 want = [
   "alpha=1;beta=2;gamma=3;", "alpha=1;gamma=3;", "alpha=1;gamma=3;beta=20;",
   "alpha=1;gamma=3;beta=20;", "alpha=99;gamma=3;beta=20;", "count=3", "total=10",
@@ -346,7 +346,7 @@ want = [
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/errors.mwl"
+file = "examples/errors.nvs"
 want = [
   "checked host", "value-of-host", "checked bad", "config: bad key",
   "checked missing", "logic: no such key: missing", "backtrace present",
@@ -355,34 +355,34 @@ want = [
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/hooks.mwl"
+file = "examples/hooks.nvs"
 want = ["6", "20", "Counter(10)", "n=6"]
 
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/enums.mwl"
+file = "examples/enums.nvs"
 want = ["ana outranks bo", "gold=2", "ana,clone"]
 
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/iterate.mwl"
+file = "examples/iterate.nvs"
 want = ["generator=15", "iterable=10"]
 
-# A caught throw's own trace, read back from MWL through its backtrace property.
+# A caught throw's own trace, read back from Novis through its backtrace property.
 [[check]]
 kind = "ordered"
 stage = "1 floor"
-file = "examples/trace.mwl"
+file = "examples/trace.nvs"
 stream = "stdout"
 want = ["#0 Deep::inner()", "#1 Deep::outer()"]
 
-# An uncaught throw: non-zero exit plus an MWL-level backtrace on stderr.
+# An uncaught throw: non-zero exit plus an Novis-level backtrace on stderr.
 [[check]]
 kind = "ordered"
 stage = "1 floor"
-file = "examples/uncaught.mwl"
+file = "examples/uncaught.nvs"
 stream = "stderr"
 exit = "nonzero"
 want = ["Uncaught Exception: unhandled", "#0 Boom::inner()", "#1 Boom::outer()"]
@@ -391,7 +391,7 @@ want = ["Uncaught Exception: unhandled", "#0 Boom::inner()", "#1 Boom::outer()"]
 [[check]]
 kind = "contains"
 stage = "1 floor"
-file = "examples/fatal.mwl"
+file = "examples/fatal.nvs"
 args = ["--fault-inject=helper-panic"]
 exit = "nonzero"
 stderr_contains = ["FATAL"]
@@ -401,7 +401,7 @@ stdout_contains = ["start"]
 [[check]]
 kind = "min-bytes"
 stage = "1 floor"
-file = "examples/arith.mwl"
+file = "examples/arith.nvs"
 args = ["--dump-asm"]
 stream = "stdout"
 min_bytes = 200
@@ -409,7 +409,7 @@ min_bytes = 200
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/nullable.mwl"
+file = "examples/nullable.nvs"
 want = [
   "host=example.test", "user=unset", "head=4 at=1", "empty=-1",
   "parsed=42", "refused=-1", "nullsafe=no lookup",
@@ -418,25 +418,25 @@ want = [
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/match.mwl"
+file = "examples/match.nvs"
 want = ["letters=ABCF", "passes=2", "sum=289", "tier=marginal"]
 
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/core.mwl"
-want = ["evens=5", "PEAR|APPLE|FIG|BANANA", "fig,pear,Apple,banana", "a+b+c", "007", "Mwl runs"]
+file = "examples/core.nvs"
+want = ["evens=5", "PEAR|APPLE|FIG|BANANA", "fig,pear,Apple,banana", "a+b+c", "007", "Nvs runs"]
 
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/report.mwl"
+file = "examples/report.nvs"
 want = ["the...3", "quick.1", "brown.1", "fox...2", "lazy..1", "dog...1", "distinct=6"]
 
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/text.mwl"
+file = "examples/text.nvs"
 want = [
   "tidy=[The Quick,  brown FOX]", "words=4", "slug=the-quick-brown-fox",
   "id=4711 region=eu", "digits=3", "wrapped=one two/three/four",
@@ -446,7 +446,7 @@ want = [
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/numbers.mwl"
+file = "examples/numbers.nvs"
 want = [
   "abs=7", "clamp=10", "gcd=12", "intDiv=3", "hex=beef", "back=48879",
   "root=1.5", "even=2", "money=1,234,567.89", "pi=3.1416",
@@ -456,7 +456,7 @@ want = [
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/dates.mwl"
+file = "examples/dates.nvs"
 want = [
   "start=2024-02-28 23:30", "nextDay=2024-02-29", "nextMonth=2024-03-28",
   "endOfMonth=2024-02-29", "later=2024-02-29 01:30", "spanSeconds=7200",
@@ -466,7 +466,7 @@ want = [
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/json.mwl"
+file = "examples/json.nvs"
 want = [
   "{\"name\":\"ada\",\"age\":36,\"is_admin\":true}",
   "decoded=grace/45",
@@ -480,12 +480,12 @@ want = [
 [[check]]
 kind = "exact"
 stage = "1 floor"
-file = "examples/collect.mwl"
+file = "examples/collect.nvs"
 want = [
   "set=2", "weight=3", "absent=-1",
-  "sha256=8a9c20f311cc8a96246da473515e5593e01889928ef1d7925df62438794044ba",
-  "base64=bXds", "dice=5", "uuid=valid",
-  "path=srv/app/index.mwl", "stem=index", "ext=mwl",
+  "sha256=df017cddffe5fa40586964af45de579a4d8a07ebb3d5ade58962fa28a12943d9",
+  "base64=bnZz", "dice=5", "uuid=valid",
+  "path=srv/app/index.nvs", "stem=index", "ext=nvs",
   "queryKeys=a,b,c", "rows=2", "first=figx2",
   "email=valid", "captured=[inner]",
 ]
@@ -500,8 +500,8 @@ want = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "mwl-syntax (carried)"
-args = ["test", "-p", "mwl-syntax"]
+name = "nvs-syntax (carried)"
+args = ["test", "-p", "nvs-syntax"]
 tests = [
   "an_unterminated_bidi_control_is_rejected_in_every_source_span",
   "a_rejected_equality_spelling_is_a_compile_error",
@@ -515,15 +515,15 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "mwl-hir (carried)"
-args = ["test", "-p", "mwl-hir"]
+name = "nvs-hir (carried)"
+args = ["test", "-p", "nvs-hir"]
 tests = ["an_autoload_declaration_resolves_a_name_to_its_file"]
 
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "mwl-types (carried)"
-args = ["test", "-p", "mwl-types"]
+name = "nvs-types (carried)"
+args = ["test", "-p", "nvs-types"]
 tests = [
   "a_disjoint_equality_does_not_compile",
   "an_equality_null_test_narrows",
@@ -538,15 +538,15 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "mwl-ir (carried)"
-args = ["test", "-p", "mwl-ir"]
+name = "nvs-ir (carried)"
+args = ["test", "-p", "nvs-ir"]
 tests = ["a_secret_equality_lowers_to_the_constant_time_helper"]
 
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "mwl-runtime (carried)"
-args = ["test", "-p", "mwl-runtime"]
+name = "nvs-runtime (carried)"
+args = ["test", "-p", "nvs-runtime"]
 tests = [
   "equal_strings_compare_as_text_and_never_as_numbers",
   "equal_arrays_compare_ordered_and_element_wise",
@@ -566,8 +566,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "mwl-codegen (carried)"
-args = ["test", "-p", "mwl-codegen"]
+name = "nvs-codegen (carried)"
+args = ["test", "-p", "nvs-codegen"]
 tests = [
   "a_function_entry_checks_the_stack_limit",
   "a_leaf_function_under_the_slack_emits_no_stack_check",
@@ -580,8 +580,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "mwl-stdlib (carried)"
-args = ["test", "-p", "mwl-stdlib"]
+name = "nvs-stdlib (carried)"
+args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "core_uri_declares_no_is_valid_member",
   "a_try_parse_is_its_own_class_parse_made_nullable",
@@ -609,7 +609,7 @@ tests = [
 [[check]]
 kind = "exact"
 stage = "2 operators"
-file = "examples/operators.mwl"
+file = "examples/operators.nvs"
 want = [
   "mixed=2.5", "avg=3.5", "whole=two", "guarded=overflow",
   "counted=5", "bits=22", "not=-1", "pow=1048576", "cmp=-1,0,1",
@@ -617,15 +617,15 @@ want = [
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- control flow and calls. Two fixtures, because the two halves share no file set: `control.mwl`
-# is `control.rs`/`exception.rs`/`generator.rs`, `callable.mwl` is `call.rs`/`closure.rs`/`mod.rs`.
+# Stage 3 -- control flow and calls. Two fixtures, because the two halves share no file set: `control.nvs`
+# is `control.rs`/`exception.rs`/`generator.rs`, `callable.nvs` is `call.rs`/`closure.rs`/`mod.rs`.
 #
-# `control.mwl`: `digits` is item 9's `do`/`while`, `scan` item 10's `break 2`, `label` item 11's two-
+# `control.nvs`: `digits` is item 9's `do`/`while`, `scan` item 10's `break 2`, `label` item 11's two-
 # representation ternary, the two `cleanup` lines item 12 (the second reached through a `catch` body that
 # throws), and `closed` before `taken=3` is item 13 -- the generator is abandoned by the `break` and runs
 # the `finally` it is suspended inside, where PHP runs it.
 #
-# `callable.mwl`: `direct` is item 15, `spread`/`named` item 16, `elements` item 17, `byref` item 18 (the
+# `callable.nvs`: `direct` is item 15, `spread`/`named` item 16, `elements` item 17, `byref` item 18 (the
 # second read is in the SAME statement as the call, which is what the copy-back at the enclosing statement
 # gets wrong), `scaled` item 20.
 # ---------------------------------------------------------------------------------------------------
@@ -633,7 +633,7 @@ want = [
 [[check]]
 kind = "exact"
 stage = "3 control and calls"
-file = "examples/control.mwl"
+file = "examples/control.nvs"
 want = [
   "digits=01234", "scan=1235", "label=0",
   "cleanup return", "handled=handled",
@@ -644,7 +644,7 @@ want = [
 [[check]]
 kind = "exact"
 stage = "3 control and calls"
-file = "examples/callable.mwl"
+file = "examples/callable.nvs"
 want = [
   "twice=10", "direct=13", "spread=10", "named=hi!hi!",
   "elements=4", "byref=7 then 7", "scaled=60",
@@ -653,8 +653,8 @@ want = [
 [[check]]
 kind = "cargo-named"
 stage = "3 control and calls"
-name = "mwl-ir (control flow)"
-args = ["test", "-p", "mwl-ir"]
+name = "nvs-ir (control flow)"
+args = ["test", "-p", "nvs-ir"]
 tests = [
   "a_do_while_lowers_its_condition_below_its_body",
   "a_multi_level_break_leaves_the_loop_its_level_names",
@@ -669,8 +669,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "3 control and calls"
-name = "mwl-ir (calls)"
-args = ["test", "-p", "mwl-ir"]
+name = "nvs-ir (calls)"
+args = ["test", "-p", "nvs-ir"]
 tests = [
   "a_closure_is_called_through_the_variable_holding_it",
   "a_named_argument_lowers_to_its_declared_position",
@@ -685,8 +685,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "3 control and calls"
-name = "mwl-types (calls and loops)"
-args = ["test", "-p", "mwl-types"]
+name = "nvs-types (calls and loops)"
+args = ["test", "-p", "nvs-types"]
 tests = [
   # Item 16's half, which lands FIRST -- a lowering with no resolved per-argument type is how that
   # gap got here in the first place (loop-goal.md § Standing decisions).
@@ -698,7 +698,7 @@ tests = [
   # ADR 0031 § 1 refuses the name and admits the spread.
   "a_named_argument_through_a_callable_is_refused",
   "a_spread_argument_through_a_callable_is_accepted",
-  # Item 10's diagnostic half: `mwl_types` does not check loop nesting at all today.
+  # Item 10's diagnostic half: `nvs_types` does not check loop nesting at all today.
   "a_break_past_its_nesting_is_a_compile_error",
   # Item 17's other half, refused by decision rather than built (ADR 0031 § 2).
   "a_reference_array_element_is_a_compile_error",
@@ -716,7 +716,7 @@ tests = [
 [[check]]
 kind = "exact"
 stage = "4 targets and mixed"
-file = "examples/targets.mwl"
+file = "examples/targets.nvs"
 want = [
   "hits=2,5", "grid=93", "mixedSum=5", "elem=2", "flag=no",
   "top=point", "asInt=1 asString=1", "converted=3",
@@ -725,8 +725,8 @@ want = [
 [[check]]
 kind = "cargo-named"
 stage = "4 targets and mixed"
-name = "mwl-ir (targets and tags)"
-args = ["test", "-p", "mwl-ir"]
+name = "nvs-ir (targets and tags)"
+args = ["test", "-p", "nvs-ir"]
 tests = [
   "a_static_property_is_an_assignment_target",
   "a_nested_element_write_separates_only_the_inner_array",
@@ -742,8 +742,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "4 targets and mixed"
-name = "mwl-types (targets and refusals)"
-args = ["test", "-p", "mwl-types"]
+name = "nvs-types (targets and refusals)"
+args = ["test", "-p", "nvs-types"]
 tests = [
   # Item 23 -- every ADR 0046 § 2 compile-time constant is a legal declared default, not just a
   # literal and `[]`.
@@ -761,7 +761,7 @@ tests = [
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 5 -- the M4 features with no slice at all. Each is proved by a `.mwlt` case rather than by an
+# Stage 5 -- the M4 features with no slice at all. Each is proved by a `.nvst` case rather than by an
 # examples fixture: they are corpus-visible behaviour, Stage 8 counts the corpus, and the case is the
 # artefact M4's own Verify paragraph asks for.
 # ---------------------------------------------------------------------------------------------------
@@ -769,10 +769,10 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "5 declared features"
-name = "mwl-types (the declared features)"
-args = ["test", "-p", "mwl-types"]
+name = "nvs-types (the declared features)"
+args = ["test", "-p", "nvs-types"]
 tests = [
-  # Item 30 -- ADR 0014 §§ 2-3. The interface is known to `mwl-syntax` and `mwl-hir` and to no other
+  # Item 30 -- ADR 0014 §§ 2-3. The interface is known to `nvs-syntax` and `nvs-hir` and to no other
   # crate today: no checker rule, no lowering, no runtime.
   "a_property_observer_is_resolved_and_its_signature_checked",
   # Item 31 -- ADR 0043's delegation, the half that did not land with its syntax.
@@ -786,8 +786,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "5 declared features"
-name = "mwl-ir (the declared features)"
-args = ["test", "-p", "mwl-ir"]
+name = "nvs-ir (the declared features)"
+args = ["test", "-p", "nvs-ir"]
 tests = [
   "a_property_observer_runs_after_the_hook_or_the_storage",
   "a_delegated_call_reaches_the_object_it_names",
@@ -801,8 +801,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "5 declared features"
-name = "mwl-stdlib (dump)"
-args = ["test", "-p", "mwl-stdlib"]
+name = "nvs-stdlib (dump)"
+args = ["test", "-p", "nvs-stdlib"]
 tests = [
   # Item 33 -- ADR 0092's one record and its renderings, plus ADR 0033's redaction, which that ADR's
   # own Verification section defers to M4 by name.
@@ -813,11 +813,11 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "5 declared features"
-name = "mwl-codegen (fatal locals)"
-args = ["test", "-p", "mwl-codegen"]
+name = "nvs-codegen (fatal locals)"
+args = ["test", "-p", "nvs-codegen"]
 tests = [
   # Item 36 -- a THROWN releases the frame's locals and a FATAL does not. The valgrind sweep cannot
-  # see this: `examples/fatal.mwl` is on its skip list, because it exits non-zero by design.
+  # see this: `examples/fatal.nvs` is on its skip list, because it exits non-zero by design.
   "a_fatal_releases_the_frames_locals",
 ]
 
@@ -830,8 +830,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "6 checker and parser"
-name = "mwl-types (narrowing and reachability)"
-args = ["test", "-p", "mwl-types"]
+name = "nvs-types (narrowing and reachability)"
+args = ["test", "-p", "nvs-types"]
 tests = [
   # Item 37 -- three of ADR 0007 § 6's four spellings, and the residue no longer restricted to a class.
   "an_instanceof_narrows_its_operand",
@@ -854,8 +854,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "6 checker and parser"
-name = "mwl-syntax (the last unparsed shapes)"
-args = ["test", "-p", "mwl-syntax"]
+name = "nvs-syntax (the last unparsed shapes)"
+args = ["test", "-p", "nvs-syntax"]
 tests = [
   # Item 42 -- each of these parses or is refused by a diagnostic that names its rule. A generic
   # parse error is not a refusal; loop-goal.md § What "no holes" means says why.
@@ -869,15 +869,15 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 7 -- ADR 0079's `#[Test]`. Last, because it is the only stage that adds a surface rather than
 # closing a hole, and because every assertion in its roster is written against Stage 0's operator table.
-# `.mwlt` and `#[Test]` answer different questions and are never unified (that ADR § 23); `mwl-test` is
+# `.nvst` and `#[Test]` answer different questions and are never unified (that ADR § 23); `nvs-test` is
 # built and is not this item.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "cargo-named"
 stage = "7 testing"
-name = "mwl-types (the test table)"
-args = ["test", "-p", "mwl-types"]
+name = "nvs-types (the test table)"
+args = ["test", "-p", "nvs-types"]
 tests = [
   "a_test_attribute_builds_a_table_of_its_cases",
   "a_fixture_attribute_is_resolved_for_the_cases_that_name_it",
@@ -887,8 +887,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "7 testing"
-name = "mwl-stdlib (the assertion roster)"
-args = ["test", "-p", "mwl-stdlib"]
+name = "nvs-stdlib (the assertion roster)"
+args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "every_core_test_assertion_reports_through_the_one_ledger",
   "a_failed_assertion_is_catchable",
@@ -897,58 +897,58 @@ tests = [
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 8 -- the corpus and the guards. `mwl test <dir>` must exit 0 AND print an "N passed, M failed"
+# Stage 8 -- the corpus and the guards. `nvs test <dir>` must exit 0 AND print an "N passed, M failed"
 # summary: a suite that silently collected nothing exits 0 too. These run once, not per leg.
 #
-# `cases` is the `.mwlt` twin of `cargo-named`: each file must exist, run, and not be skipped. Most do
+# `cases` is the `.nvst` twin of `cargo-named`: each file must exist, run, and not be skipped. Most do
 # not exist yet -- writing one is how an item above finishes.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
-kind = "mwl-suite"
+kind = "nvs-suite"
 stage = "8 corpus and guards"
 name = "conformance"
 args = ["test", "tests/conformance/"]
 min_passing = 750
 cases = [
   # Stage 0
-  "tests/conformance/lang/every-arithmetic-row-promotes-the-narrower-operand.mwlt",
-  "tests/conformance/lang/an-integer-division-is-exact-only-where-it-divides.mwlt",
-  "tests/conformance/lang/an-integer-overflow-throws-rather-than-wrapping.mwlt",
-  "tests/conformance/lang/the-bitwise-operators-answer-over-every-row.mwlt",
-  "tests/conformance/lang/an-increment-answers-the-same-in-either-position.mwlt",
-  "tests/conformance/lang/a-spaceship-orders-every-scalar-the-relational-operators-do.mwlt",
+  "tests/conformance/lang/every-arithmetic-row-promotes-the-narrower-operand.nvst",
+  "tests/conformance/lang/an-integer-division-is-exact-only-where-it-divides.nvst",
+  "tests/conformance/lang/an-integer-overflow-throws-rather-than-wrapping.nvst",
+  "tests/conformance/lang/the-bitwise-operators-answer-over-every-row.nvst",
+  "tests/conformance/lang/an-increment-answers-the-same-in-either-position.nvst",
+  "tests/conformance/lang/a-spaceship-orders-every-scalar-the-relational-operators-do.nvst",
   # Stage 3
-  "tests/conformance/lang/a-do-while-runs-its-body-before-its-condition.mwlt",
-  "tests/conformance/lang/a-break-leaves-the-level-it-names.mwlt",
-  "tests/conformance/lang/a-ternarys-two-arms-widen-to-one-value.mwlt",
-  "tests/conformance/error/a-finally-runs-when-its-catch-body-throws.mwlt",
-  "tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.mwlt",
-  "tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.mwlt",
-  "tests/conformance/lang/a-named-argument-binds-by-name-and-a-spread-by-position.mwlt",
-  "tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.mwlt",
-  "tests/conformance/array/a-foreach-by-reference-writes-through-to-its-array.mwlt",
+  "tests/conformance/lang/a-do-while-runs-its-body-before-its-condition.nvst",
+  "tests/conformance/lang/a-break-leaves-the-level-it-names.nvst",
+  "tests/conformance/lang/a-ternarys-two-arms-widen-to-one-value.nvst",
+  "tests/conformance/error/a-finally-runs-when-its-catch-body-throws.nvst",
+  "tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst",
+  "tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.nvst",
+  "tests/conformance/lang/a-named-argument-binds-by-name-and-a-spread-by-position.nvst",
+  "tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.nvst",
+  "tests/conformance/array/a-foreach-by-reference-writes-through-to-its-array.nvst",
   # Stage 4
-  "tests/conformance/array/a-nested-element-write-separates-only-the-inner-array.mwlt",
-  "tests/conformance/class/a-static-property-is-written-and-read-through-its-class.mwlt",
-  "tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.mwlt",
-  "tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.mwlt",
+  "tests/conformance/array/a-nested-element-write-separates-only-the-inner-array.nvst",
+  "tests/conformance/class/a-static-property-is-written-and-read-through-its-class.nvst",
+  "tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst",
+  "tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.nvst",
   # Stage 5
-  "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.mwlt",
-  "tests/conformance/class/a-delegated-interface-forwards-to-the-object-it-names.mwlt",
-  "tests/conformance/lang/an-attribute-is-retrieved-by-its-own-type.mwlt",
-  "tests/conformance/lang/a-dump-renders-one-record-and-redacts-a-secret.mwlt",
-  "tests/conformance/lang/inline-html-at-file-scope-is-echoed-in-place.mwlt",
-  "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.mwlt",
+  "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst",
+  "tests/conformance/class/a-delegated-interface-forwards-to-the-object-it-names.nvst",
+  "tests/conformance/lang/an-attribute-is-retrieved-by-its-own-type.nvst",
+  "tests/conformance/lang/a-dump-renders-one-record-and-redacts-a-secret.nvst",
+  "tests/conformance/lang/inline-html-at-file-scope-is-echoed-in-place.nvst",
+  "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst",
   # Stage 7
-  "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.mwlt",
+  "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst",
   # Stage 0a -- ADR 0107. The 14 cases that spelled `&$` moved to `inout` with their expected output
   # unchanged, which is the check that ADR 0107 changed no semantics; this one pins the new shapes.
-  "tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.mwlt",
+  "tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.nvst",
 ]
 
 [[check]]
-kind = "mwl-suite"
+kind = "nvs-suite"
 stage = "8 corpus and guards"
 name = "differential"
 args = ["test", "tests/differential/"]
@@ -956,26 +956,26 @@ min_passing = 165
 cases = [
   # The rows PHP itself is the only authority on. Each is an item above whose answer is "whatever
   # PHP prints", and each is worth a differential case rather than a frozen one for that reason.
-  "tests/differential/lang/an-integer-division-matches-phps.mwlt",
-  "tests/differential/lang/the-bitwise-operators-match-phps.mwlt",
-  "tests/differential/lang/a-mixed-numeric-promotion-matches-phps.mwlt",
-  "tests/differential/iter/an-abandoned-generators-finally-matches-phps.mwlt",
-  "tests/differential/lang/a-named-and-spread-argument-match-phps.mwlt",
-  "tests/differential/lang/a-reference-argument-matches-phps.mwlt",
+  "tests/differential/lang/an-integer-division-matches-phps.nvst",
+  "tests/differential/lang/the-bitwise-operators-match-phps.nvst",
+  "tests/differential/lang/a-mixed-numeric-promotion-matches-phps.nvst",
+  "tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst",
+  "tests/differential/lang/a-named-and-spread-argument-match-phps.nvst",
+  "tests/differential/lang/a-reference-argument-matches-phps.nvst",
 ]
 
 # A named test must both EXIST and pass -- `cargo test` is green on a suite that never ran the guard.
 [[check]]
 kind = "cargo-named"
 stage = "8 corpus and guards"
-name = "mwl-stdlib (Part I)"
-args = ["test", "-p", "mwl-stdlib"]
+name = "nvs-stdlib (Part I)"
+args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "every_part_one_member_has_a_conformance_case",
   "every_part_one_spec_member_is_registered",
 ]
 
-# The mechanical end gate. It reads `mwl-ir`'s and `mwl-codegen`'s own sources for refusal sites -- a
+# The mechanical end gate. It reads `nvs-ir`'s and `nvs-codegen`'s own sources for refusal sites -- a
 # panic naming an unsupported shape -- and fails naming every one that is not on the allowlist frozen in
 # the test. THE ALLOWLIST MAY NEVER GROW: every entry is a bullet in loop-goal.md § Standing decisions,
 # and adding one to make a run go green is the single move this goal forbids outright. A count of
@@ -983,8 +983,8 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "8 corpus and guards"
-name = "mwl-ir (no refusal left)"
-args = ["test", "-p", "mwl-ir"]
+name = "nvs-ir (no refusal left)"
+args = ["test", "-p", "nvs-ir"]
 tests = ["every_refusal_is_a_diagnostic_or_decided"]
 
 
@@ -995,7 +995,7 @@ tests = ["every_refusal_is_a_diagnostic_or_decided"]
 # `--test perf_guards` and not the whole package, which is a MEASUREMENT and not a narrowing. The
 # release profile is `lto = "thin"` with `codegen-units = 1`, so a one-line change to any crate this
 # reaches costs a thin-LTO relink of every binary the package holds -- measured on this tree, after
-# touching `mwl-runtime`: 200s for the package's five test binaries, 133s for this one. Every `#[test]`
+# touching `nvs-runtime`: 200s for the package's five test binaries, 133s for this one. Every `#[test]`
 # in `perf_guards.rs` carries `#[cfg_attr(debug_assertions, ignore)]`, so the two halves partition the
 # package exactly: this one runs the guards and skips nothing, the debug one runs everything else and
 # skips the guards.
@@ -1003,7 +1003,7 @@ tests = ["every_refusal_is_a_diagnostic_or_decided"]
 kind = "cargo-named"
 stage = "9 guards"
 name = "abi-probe"
-args = ["test", "--release", "-p", "mwl-abi-probe", "--test", "perf_guards"]
+args = ["test", "--release", "-p", "nvs-abi-probe", "--test", "perf_guards"]
 tests = [
   "a_typed_arithmetic_loop_contains_no_call",
   "a_typed_arithmetic_loop_stays_in_the_native_cost_class",
@@ -1025,7 +1025,7 @@ tests = [
 kind = "cargo-named"
 stage = "9 guards"
 name = "abi-probe (invariants)"
-args = ["test", "-p", "mwl-abi-probe"]
+args = ["test", "-p", "nvs-abi-probe"]
 tests = [
   "a_throw_propagates_through_every_frame",
   "a_runtime_panic_is_contained_and_reported",
@@ -1036,13 +1036,13 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "9 guards"
-name = "mwl-codegen"
-args = ["test", "-p", "mwl-codegen"]
+name = "nvs-codegen"
+args = ["test", "-p", "nvs-codegen"]
 tests = ["a_second_script_runs_after_a_contained_helper_panic"]
 
 [[check]]
 kind = "cargo-named"
 stage = "9 guards"
-name = "mwl-runtime"
-args = ["test", "-p", "mwl-runtime"]
+name = "nvs-runtime"
+args = ["test", "-p", "nvs-runtime"]
 tests = ["an_acyclic_object_graph_releases_every_allocation"]

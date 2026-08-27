@@ -1,7 +1,7 @@
 --TEST--
 Core\Math::intDiv truncates toward zero and refuses the two divisions intdiv refuses, and Core\Math::mod takes the sign of its dividend exactly as fmod does
 --FILE--
-<?mwl
+<?nvs
 // Spec § 3's `intDiv` and `mod` rows. The two members split what PHP spells
 // with one function each: `intdiv` is the integer quotient and `fmod` the
 // floating remainder, but `fmod` also accepts two `int`s and widens them,
@@ -41,7 +41,7 @@ echo Core\Math::intDiv(Core\Math::INT_MAX, 1), " ", Core\Math::intDiv(Core\Math:
 
 // The two divisions that have no `int` answer, and both languages refuse both:
 // a zero divisor, and `INT_MIN / -1`, whose exact quotient is one past `int`'s
-// largest value. PHP raises `DivisionByZeroError` and `ArithmeticError`; MWL
+// largest value. PHP raises `DivisionByZeroError` and `ArithmeticError`; Novis
 // raises a `Fault::thrown`. The class differs, so what is asserted is that a
 // `Throwable` handler reaches each of them, which is the observable both
 // languages share.

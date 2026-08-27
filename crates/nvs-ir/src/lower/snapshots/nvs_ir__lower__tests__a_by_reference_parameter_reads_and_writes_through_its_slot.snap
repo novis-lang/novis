@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn bump(classdesc, ref) -> void {
@@ -14,5 +14,5 @@ fn bump(classdesc, ref) -> void {
     ref.store v1, v4
     return
   bb1:
-    propagate "bump() at t.mwl:3"
+    propagate "bump() at t.nvs:3"
 }

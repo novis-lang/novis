@@ -1,15 +1,15 @@
 --TEST--
 Core\Arr::contains and keyOf answer what in_array and array_search answer with strict comparison on, over list, map and non-contiguous subjects
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's membership pair. `contains` is "(always strict)" in that table and
 // `keyOf` answers `?string`, so both PHP twins are called here with their third
 // argument on and their `false` rendered as `none` — that rendering is what
 // makes the two comparable at all, and what is compared below is the answer,
 // never the representation.
 //
-// Every subject here holds one type, so PHP's strict reading and MWL's are the
-// same comparison. The two rows where they are not — MWL's one numeric domain,
+// Every subject here holds one type, so PHP's strict reading and Novis's are the
+// same comparison. The two rows where they are not — Novis's one numeric domain,
 // and PHP's *default* being loose — are in
 // `arr-contains-is-strict-with-one-numeric-domain-where-in_array-is-loose`.
 final class Show {

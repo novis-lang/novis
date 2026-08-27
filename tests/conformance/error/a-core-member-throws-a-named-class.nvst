@@ -1,7 +1,7 @@
 --TEST--
 Spec § 10: a Core member's failure is the class its own row promises, so a narrow catch clause matches it and the wider ones still do
 --FILE--
-<?mwl
+<?nvs
 // `Core\Time::parse` promises ParseError for text that does not match the
 // pattern — and LogicError for a pattern this call site wrote wrongly, which
 // is "a bug in the program" rather than "the world said no".

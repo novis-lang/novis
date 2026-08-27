@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::sort renumbers by default and keeps each value's key under `{preserveKeys: true}`
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::any and all answer what array_any and array_all answer, the vacuous empty-array row included
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `array_any`/`array_all` rows. Both members answer `bool`, and
 // `echo` renders `false` as nothing at all in either language — a rendering in
 // which a row that answered nothing and a row that failed to print look the

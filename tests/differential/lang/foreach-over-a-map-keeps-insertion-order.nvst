@@ -1,7 +1,7 @@
 --TEST--
 foreach over a string-keyed array visits keys in insertion order, as PHP does
 --FILE--
-<?mwl
+<?nvs
 array<int> $ages = ["ann" => 31, "bob" => 24, "cy" => 45];
 
 foreach ($ages as string $name => int $age) {

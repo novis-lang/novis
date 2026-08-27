@@ -1,7 +1,7 @@
 --TEST--
-a list's keys are strings in MWL and integers in PHP, and both print the same decimal digits
+a list's keys are strings in Novis and integers in PHP, and both print the same decimal digits
 --FILE--
-<?mwl
+<?nvs
 array<string> $words = ["zero", "one", "two"];
 
 foreach ($words as string $index => string $word) {

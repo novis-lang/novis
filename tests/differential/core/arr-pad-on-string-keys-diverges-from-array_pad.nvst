@@ -1,9 +1,9 @@
 --TEST--
 Core\Arr::padStart and padEnd renumber every key, where array_pad renumbers the integer keys and keeps the string ones
 --ORACLE-DIVERGES--
-ADR 0069 § 3 removes every rule that asks what type a key is, and array_pad's key handling is one of them: it renumbers the integer keys of the subject and keeps the string ones, then numbers the added entries into whatever integer keys are left over — so the same call answers a list or a map depending on what the subject's keys happened to be, and an added entry's key depends on how many *earlier* entries were integer-keyed. `padStart`/`padEnd` return a list whatever went in, which spec § 2 states as the rule and `mwl_core_arr_pad_start`'s doc comment argues: padding adds entries, there is no non-arbitrary key for an added one beside an existing map's, so keeping is not a choice that can be offered and the option does not exist. Two further consequences are pinned below — a subject already at or past `$size` still comes back as a list here where PHP returns it untouched, and PHP's left pad walks its own renumbering into the middle of the subject.
+ADR 0069 § 3 removes every rule that asks what type a key is, and array_pad's key handling is one of them: it renumbers the integer keys of the subject and keeps the string ones, then numbers the added entries into whatever integer keys are left over — so the same call answers a list or a map depending on what the subject's keys happened to be, and an added entry's key depends on how many *earlier* entries were integer-keyed. `padStart`/`padEnd` return a list whatever went in, which spec § 2 states as the rule and `nvs_core_arr_pad_start`'s doc comment argues: padding adds entries, there is no non-arbitrary key for an added one beside an existing map's, so keeping is not a choice that can be offered and the option does not exist. Two further consequences are pinned below — a subject already at or past `$size` still comes back as a list here where PHP returns it untouched, and PHP's left pad walks its own renumbering into the middle of the subject.
 --FILE--
-<?mwl
+<?nvs
 final class Render {
     public static function of(array<int> $a): string {
         var $out = "";
@@ -16,14 +16,14 @@ final class Render {
 
 // No integer key at all. `array_pad($map, 4, 0)` answers `x=1;y=2;z=3;0=0;`,
 // keeping the three strings and giving the one added entry the key "0" — which
-// is a key the subject could perfectly well have held already. MWL numbers the
+// is a key the subject could perfectly well have held already. Novis numbers the
 // whole result from zero.
 array<int> $map = ["x" => 1, "y" => 2, "z" => 3];
 echo Render::of(Core\Arr::padEnd($map, 4, 0)), "\n";
 echo Render::of(Core\Arr::padStart($map, 4, 0)), "\n";
 
 // A subject already past `$size`: PHP returns it unchanged, keys and all, where
-// MWL has already said its answer is a list of the values. Nothing is added on
+// Novis has already said its answer is a list of the values. Nothing is added on
 // either side, so this row is entirely about the keys.
 echo Render::of(Core\Arr::padEnd($map, 2, 0)), "\n";
 

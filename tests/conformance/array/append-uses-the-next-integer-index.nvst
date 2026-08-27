@@ -1,7 +1,7 @@
 --TEST--
 `$a[] = $v` appends under the next integer index rendered in decimal — ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

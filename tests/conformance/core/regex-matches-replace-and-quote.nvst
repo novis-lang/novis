@@ -1,7 +1,7 @@
 --TEST--
 Core\Regex's predicate, its replacement and the laundering member it feeds
 --FILE--
-<?mwl
+<?nvs
 echo (Core\Regex::matches("order-4711", "^order-\\d+$") as string), "|\n";
 echo (Core\Regex::matches("order-x", "^order-\\d+$") as string), "|\n";
 echo Core\Regex::replace("2026-08-24", "(\\d+)-(\\d+)-(\\d+)", "$3/$2/$1"), "\n";

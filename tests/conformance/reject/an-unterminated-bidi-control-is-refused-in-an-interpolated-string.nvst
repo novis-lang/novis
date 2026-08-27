@@ -1,7 +1,7 @@
 --TEST--
 a directional scope opened in a double-quoted literal beside an interpolation is a compile error — ADR 0087 §§ 1-2
 --FILE--
-<?mwl
+<?nvs
 string $name = "ada";
 echo "hello ‪$name, welcome\n";
 --EXPECT--

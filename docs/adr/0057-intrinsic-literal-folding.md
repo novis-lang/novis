@@ -23,13 +23,13 @@
 - Several `Core` surfaces accept a string that is not data but a *program*: a pattern, a format, a URI. In
   PHP every one of these is parsed on first use, every request, and a syntax error in one surfaces at run
   time on whichever code path happens to reach it — often the error path, often in production.
-- MWL already has every ingredient. [ADR 0007](0007-explicit-type-system.md) makes types known statically;
+- Novis already has every ingredient. [ADR 0007](0007-explicit-type-system.md) makes types known statically;
   [ADR 0046](0046-attributes-shape-literal-metadata.md) already defines "compile-time constant" precisely
   and already resolves a `Core` accessor during checking;
   [ADR 0042](0042-on-disk-artifact-cache-format.md) already stores per-unit compiled artifacts. What is
   missing is only the decision that the compiler may know a few `Core` methods by name.
 - The motivating case is [ADR 0056](0056-regex-engine-policy.md). Deciding a pattern's engine tier at
-  compile time is what lets `mwl check` report — or an operator's `mwl.toml` refuse — a pattern that can be
+  compile time is what lets `nvs check` report — or an operator's `nvs.toml` refuse — a pattern that can be
   made to backtrack. That is a security property, not an optimisation, and it is unavailable without this
   mechanism.
 - The alternative shape considered and rejected in [ADR 0054](0054-decimal-scalar-type.md)'s neighbourhood
@@ -108,7 +108,7 @@ still a call and still probes normally.
 - **A small, permanent coupling between the compiler and the stdlib.** The compiler knows four `Core`
   method names. This is the real cost of the ADR, and it is bounded by § 1's closed-list rule: the coupling
   grows only when someone adds an entry deliberately, never by a library declaring itself special.
-- **`mwl check` gets meaningfully stronger** without new syntax: malformed patterns, malformed URIs,
+- **`nvs check` gets meaningfully stronger** without new syntax: malformed patterns, malformed URIs,
   malformed format strings and `printf`-style argument mismatches all move from run time to check time.
 - **[ADR 0056](0056-regex-engine-policy.md) § 3 becomes implementable.** Without this, "refuse backtracking
   patterns" would be a runtime check that has already lost the argument.

@@ -37,7 +37,7 @@ impl<'a> Lowering<'a> {
                 | StmtKind::InterfaceDecl(_)
                 | StmtKind::EnumDecl(_)
                 | StmtKind::TypeAliasDecl(_)
-                // ADR 0061's `autoload` map is read by `mwl_hir` while the
+                // ADR 0061's `autoload` map is read by `nvs_hir` while the
                 // `require`/autoload graph is being built, long before any of
                 // this — so at file scope it is a declaration like the rest of
                 // this list and emits nothing, in the entry point exactly as
@@ -65,7 +65,7 @@ impl<'a> Lowering<'a> {
             // than an unsupported program. See `Self::pending_refs`.
             assert!(
                 self.pending_refs.is_empty(),
-                "mwl-ir: an `inout $x` argument staged inside the statement at {:?} was never \
+                "nvs-ir: an `inout $x` argument staged inside the statement at {:?} was never \
                  copied back — every site that lowers an argument list is expected to flush \
                  its own staging mark once its call has returned; see \
                  `lower::Lowering::pending_refs`",
@@ -98,7 +98,7 @@ impl<'a> Lowering<'a> {
             // is no `expected` to check `value` against. `lower_expr` already
             // synthesizes a type from the expression alone whenever `expected`
             // is `None` (a bare integer literal defaults to `Ty::Int`, etc.) —
-            // exactly the same rule `mwl_types::locals::check_stmt`'s own
+            // exactly the same rule `nvs_types::locals::check_stmt`'s own
             // `None` arm applies (`check_expr(value, None, ...)` before fixing
             // the binding to whatever came back), so this just reuses that
             // path and binds the local to the type `lower_expr` returns
@@ -119,7 +119,7 @@ impl<'a> Lowering<'a> {
             // `int $x;` — a declaration with no initializer, which ADR 0007
             // § 1 makes a complete statement: the type is fixed here and the
             // value arrives on some later line. There is nothing to emit,
-            // because `mwl_types::locals`' definite-assignment pass is what
+            // because `nvs_types::locals`' definite-assignment pass is what
             // guarantees no path reads the name before an assignment reaches
             // it (reading one that may not have is `E0403`) — so the whole
             // statement *is* the type, remembered for the assignment that
@@ -150,7 +150,7 @@ impl<'a> Lowering<'a> {
             // apply at their own boundary.
             // ADR 0053 § 5: a generator's body has no return value, so
             // `return;` means "the sequence ends here" — the same exit
-            // running off the end takes. `mwl_types` reports E0447 for a
+            // running off the end takes. `nvs_types` reports E0447 for a
             // `return expr;` in one, which is why this ignores `value`
             // rather than lowering it.
             StmtKind::Return(_) if self.generator.is_some() => {
@@ -220,7 +220,7 @@ impl<'a> Lowering<'a> {
             } => self.lower_foreach(subject, key.as_ref(), value, *value_inout, body, cur, env),
             StmtKind::Switch { subject, cases } => self.lower_switch(subject, cases, cur, env),
             // ADR 0028 § 3 leaves exactly one `unset` target standing — an
-            // array element — and `mwl_types::expr::check_unset_target`
+            // array element — and `nvs_types::expr::check_unset_target`
             // already rejected a declared property, so anything else reaching
             // here is a shape this slice does not lower.
             StmtKind::Unset(targets) => {
@@ -253,11 +253,11 @@ impl<'a> Lowering<'a> {
             // * `var $x;` with no initializer is `E0101` at the missing `=`;
             //   `var` has nothing else to infer a type from.
             // * a top-level `function` or `const` is `E0215`/`E0216` from
-            //   `mwl_hir::members` at every scope (ADR 0011 § 1).
+            //   `nvs_hir::members` at every scope (ADR 0011 § 1).
             // * the remaining seven are declarations — `class`, `interface`,
             //   `enum`, `type`, `namespace`, `use` and `autoload`. At file
             //   scope `lower_script_stmts` above skips all seven; anywhere
-            //   else they are `E0233` from `mwl_types::locals`, whose walk is
+            //   else they are `E0233` from `nvs_types::locals`, whose walk is
             //   reached only from inside a body. The decision is in
             //   `docs/adr/README.md` § *Decisions taken at project start*,
             //   since PHP's "declared when the statement runs" has no reading
@@ -266,7 +266,7 @@ impl<'a> Lowering<'a> {
             // ADR 0007 § 3.3's destructuring, the other shape that used to
             // arrive here, lowers one arm above.
             other => panic!(
-                "mwl-ir's control-flow slice only lowers a typed local declaration with or \
+                "nvs-ir's control-flow slice only lowers a typed local declaration with or \
                  without an initializer, a plain reassignment, destructuring, `echo`, inline \
                  HTML, `unset`, `return`, an empty statement, a nested block, `if`, `while`, \
                  `do`/`while`, `for`, `foreach`, `switch`, `try`/`catch`, `throw` and a \
@@ -315,7 +315,7 @@ impl<'a> Lowering<'a> {
                     self.emit_release(*cur, v);
                 }
             }
-            // PHP 8 makes `throw` an expression, and MWL keeps that grammar in
+            // PHP 8 makes `throw` an expression, and Novis keeps that grammar in
             // both positions: this arm is the statement one, where the sealed
             // block *is* the end of the statement, and `lower_expr`'s own
             // `Throw` arm is `$n ?? throw …`, which adds the unreachable
@@ -338,15 +338,15 @@ impl<'a> Lowering<'a> {
                 value: Some(v),
             } => self.lower_yield(v, env, cur),
             // ADR 0021's statement form, lowered to nothing. The `require`
-            // graph is walked at compile time (`mwl_hir::resolve_program`),
+            // graph is walked at compile time (`nvs_hir::resolve_program`),
             // so by the time this runs the target's declarations are already
             // in the same `crate::ir::Program` as this file's and there is
             // nothing left for the site to do. The value form —
-            // `$c = require 'config.mwl';`, § 3's `mixed` — is a separate
+            // `$c = require 'config.nvs';`, § 3's `mixed` — is a separate
             // question and still a gap; see the crate docs.
             ExprKind::Require { .. } => {}
             // ADR 0036 § 2's parenthesized reading, and every other one.
-            // `mwl_syntax`'s `parse_statement_inner` commits a
+            // `nvs_syntax`'s `parse_statement_inner` commits a
             // statement-initial `{` to a *block*, so a discarded shape
             // literal has to be written `({a: 1});` — which arrives here
             // wrapped. Parentheses say nothing about what a statement means,
@@ -432,7 +432,7 @@ impl<'a> Lowering<'a> {
     /// can already assign to (a local, a compile-time-known property, an
     /// array element) gains its compound form at once, with that function's
     /// retain-before-release ordering unchanged. [`AssignOp::binary_op`] is
-    /// the one home of the operator pairing; `mwl_types::expr`'s
+    /// the one home of the operator pairing; `nvs_types::expr`'s
     /// `check_compound_assign` types the same rewrite, so the synthesized
     /// [`ExprKind::Binary`] node carries the *assignment's* own span — the
     /// span the checker recorded any [`ExprInfo`] under (`??=` records an
@@ -541,10 +541,10 @@ impl<'a> Lowering<'a> {
     ///
     /// The assertion below has **no shape that reaches it**, and the proof is
     /// three gates deep rather than one, which is why it is asserted rather
-    /// than assumed. `mwl_syntax`'s `Parser::require_write_target` admits
+    /// than assumed. `nvs_syntax`'s `Parser::require_write_target` admits
     /// exactly a variable, a subscript, a property and a static property as a
     /// write target (`E0105` for anything else, an increment included), and
-    /// `mwl_types::expr::assign::check_write_target` then refuses the nullsafe
+    /// `nvs_types::expr::assign::check_write_target` then refuses the nullsafe
     /// property (`E0479`) and the element write whose root is not a place
     /// (`E0700`). Of what survives, a variable and a `Class::$prop` are
     /// re-readable on their own, and the two composite shapes each carry
@@ -576,12 +576,12 @@ impl<'a> Lowering<'a> {
         self.stage_target_address(target, env, cur);
         assert!(
             self.reevaluable_target(target),
-            "mwl-ir stages a compound assignment's target address before rewriting it to \
+            "nvs-ir stages a compound assignment's target address before rewriting it to \
              `$x = $x op e`, which leaves every target the two phases in front of this admit \
              re-evaluable — a local and a `Class::$prop` on their own, a property or an element \
              path because the one level of it that is not was just staged. {:?} arrived anyway, \
-             so `mwl_syntax`'s `Parser::require_write_target` or \
-             `mwl_types::expr::assign::check_write_target` admitted a shape it does not model; \
+             so `nvs_syntax`'s `Parser::require_write_target` or \
+             `nvs_types::expr::assign::check_write_target` admitted a shape it does not model; \
              see this function's own doc comment for the whole proof",
             target.kind
         );
@@ -635,7 +635,7 @@ impl<'a> Lowering<'a> {
     /// the operand it will be paired with rather than as a default `int`.
     ///
     /// Anything else takes `int`, which is what a written `$x += 1` puts on
-    /// the right — so a target `mwl_types` could not pin down (a `mixed`, a
+    /// the right — so a target `nvs_types` could not pin down (a `mixed`, a
     /// `?int`) is refused in the same place, and with the same message, that
     /// spelling is already refused in. Every target it *can* pin down and that
     /// is not numeric is E0474 and never reaches here.
@@ -765,7 +765,7 @@ impl<'a> Lowering<'a> {
     ///
     /// The answer is the value **written**, at the target's own declared
     /// representation rather than at whatever the right-hand side produced:
-    /// `mwl_types::expr::assign::check_assign` types the whole expression as
+    /// `nvs_types::expr::assign::check_assign` types the whole expression as
     /// the target's declared type, so a `float $f = ($n = 1);` over an `int`
     /// `$n` sees the `int` the binding took, and every representation
     /// question below has one answer. [`Self::lower_store`] is what already
@@ -915,7 +915,7 @@ impl<'a> Lowering<'a> {
             // `$obj->prop = expr;` — the receiver's declaring class comes
             // from `self.exprs`, exactly like `ExprKind::PropertyAccess`'s
             // own read-side lowering in `Self::lower_expr`: `check_assign`'s
-            // general (non-plain-local) arm in `mwl_types::expr` routes the
+            // general (non-plain-local) arm in `nvs_types::expr` routes the
             // target through the ordinary `check_property_access`, which
             // records the same `ExprInfo::Property` entry a read would, keyed
             // by the `PropertyAccess` expression's own span — i.e. `target.span`
@@ -932,7 +932,7 @@ impl<'a> Lowering<'a> {
             } => {
                 // A *nullsafe* target never arrives here, and never will:
                 // `?->` yields `null` where the receiver is `null` and `null`
-                // is not a place, so `mwl_types::expr::assign`'s
+                // is not a place, so `nvs_types::expr::assign`'s
                 // `check_write_target` refuses `$a?->b = v` as `E0479` where
                 // it is written — PHP's own "can't use nullsafe operator in
                 // write context". The alternative was never a lowering rule
@@ -941,18 +941,18 @@ impl<'a> Lowering<'a> {
                 // naming a shape still to be lowered.
                 assert!(
                     !*nullsafe,
-                    "mwl-ir: a nullsafe property assignment target (`?->`) at {:?} reached \
+                    "nvs-ir: a nullsafe property assignment target (`?->`) at {:?} reached \
                      lowering, so it wasn't checked with the same rules — \
-                     `mwl_types::expr::assign`'s `check_write_target` refuses that as `E0479`",
+                     `nvs_types::expr::assign`'s `check_write_target` refuses that as `E0479`",
                     target.span
                 );
                 // A `set` hook (ADR 0014 § 1) makes the write a call, exactly
                 // the way a `get` hook makes the read one — same receiver
                 // slot, same ownership convention, and the assigned value as
                 // the accessor's one ordinary argument. A property with only
-                // a `get` hook still writes its own slot: MWL's hooked
+                // a `get` hook still writes its own slot: Novis's hooked
                 // properties are always backed, so there is a slot to write
-                // (`mwl_types::signatures::PropertyHooks` owns that
+                // (`nvs_types::signatures::PropertyHooks` owns that
                 // decision).
                 //
                 // An ADR 0036 § 4 shape target is neither: it has no
@@ -990,9 +990,9 @@ impl<'a> Lowering<'a> {
                         ..
                     }) => (class, name, *ty, set.clone()),
                     _ => panic!(
-                        "mwl-ir: a property assignment target at {:?} has no entry in the \
+                        "nvs-ir: a property assignment target at {:?} has no entry in the \
                           typed-expression table, so it was not checked with the same table — \
-                          `mwl_types::expr::members::check_property_member` records one for every \
+                          `nvs_types::expr::members::check_property_member` records one for every \
                           access it returns from and refuses the rest, and its own doc comment \
                           carries that proof",
                         target.span
@@ -1134,13 +1134,13 @@ impl<'a> Lowering<'a> {
             // `InstKind::ArrayNew` and the climb stores it back with an
             // `InstKind::ArrayAppend` — which is why the fresh row's key is
             // never named anywhere here. The *read* spelling `$a[]` is
-            // `E0481` in `mwl_types`, and a base that declares no element
+            // `E0481` in `nvs_types`, and a base that declares no element
             // type is `E0482` there, so neither reaches this arm from source.
             ExprKind::Index { base, index } => {
                 let Some(ExprInfo::Index { elem_ty, .. }) = self.exprs.lookup(target.span) else {
                     panic!(
-                        "mwl-ir: an array-index assignment target at {:?} has no resolved \
-                         element type recorded in the typed-expression table — `mwl_types` \
+                        "nvs-ir: an array-index assignment target at {:?} has no resolved \
+                         element type recorded in the typed-expression table — `nvs_types` \
                          refuses a base that declares none as `E0482`, so this body was not \
                          checked with the same table",
                         target.span
@@ -1268,12 +1268,12 @@ impl<'a> Lowering<'a> {
                 (v, elem_ty)
             }
             other => unreachable!(
-                "mwl-ir reaches an assignment target of kind {other:?} only if both gates above \
+                "nvs-ir reaches an assignment target of kind {other:?} only if both gates above \
                  it let one through, and neither can — this is an invariant, not a gap. \
-                 `mwl_syntax`'s `is_assignable` admits a local, a subscript, a property and a \
+                 `nvs_syntax`'s `is_assignable` admits a local, a subscript, a property and a \
                  static property and refuses every other kind where it is written (`E0105`), for \
                  `=`, `⊕=` and an increment alike; \
-                 `mwl_types::expr::assign::check_write_target` then refuses a subscript chain \
+                 `nvs_types::expr::assign::check_write_target` then refuses a subscript chain \
                  whose root is not a place (`E0700`). `ExprKind::Error` is the one kind those \
                  two admit and this match does not, and a body holding a parse error is never \
                  lowered"
@@ -1287,7 +1287,7 @@ impl<'a> Lowering<'a> {
     /// `Index` node whether it was reached as a read or as a target.
     ///
     /// Neither of the two refusals below has a reachable target, and the
-    /// reason is one fact each, both owned by `mwl_types::expr`'s
+    /// reason is one fact each, both owned by `nvs_types::expr`'s
     /// `ExprKind::Index` arm — which is the only producer of an
     /// [`ExprInfo::Index`] entry there is.
     ///
@@ -1305,7 +1305,7 @@ impl<'a> Lowering<'a> {
     /// program — so this level's type was a `Ty::Array` there. This level's
     /// type *is* the `elem_ty` recorded here, with one exception that cannot
     /// arise: a `??`-guarded read is typed with its `null` dropped, and
-    /// `mwl_types::Env::coalesce_guarded` is filled only from a `??`'s own left
+    /// `nvs_types::Env::coalesce_guarded` is filled only from a `??`'s own left
     /// operand, which is a read. `??=` marks nothing, so its target's levels
     /// are the ordinary ones — `array<?array<int>> $g; $g["0"]["1"] ??= 5;` is
     /// `E0482` like the plain `=` it is spelled out of.
@@ -1317,9 +1317,9 @@ impl<'a> Lowering<'a> {
     fn row_ty_of(&self, level: &Expr) -> Ty {
         let Some(ExprInfo::Index { elem_ty, .. }) = self.exprs.lookup(level.span) else {
             unreachable!(
-                "mwl-ir reaches an intermediate level of a nested array-index assignment \
+                "nvs-ir reaches an intermediate level of a nested array-index assignment \
                  target at {:?} with no resolved element type recorded in the typed-expression \
-                 table only if `mwl_types::expr`'s `ExprKind::Index` arm both declined to \
+                 table only if `nvs_types::expr`'s `ExprKind::Index` arm both declined to \
                  record one and reported nothing, and it never does — see this function's own \
                  doc comment for which path leaves which diagnostic",
                 level.span
@@ -1328,7 +1328,7 @@ impl<'a> Lowering<'a> {
         let row_ty = lower_checked_ty(*elem_ty, self.checked_types);
         assert!(
             row_ty == Ty::Array,
-            "mwl-ir: an intermediate level of a nested array-index assignment target at {:?} \
+            "nvs-ir: an intermediate level of a nested array-index assignment target at {:?} \
              lowered to {row_ty:?} rather than an array, so there is nothing for the level \
              above it to write back into — the level above it was checked with this one as \
              its base and resolved, which is only possible where this one is an array",
@@ -1355,13 +1355,13 @@ impl<'a> Lowering<'a> {
     /// The descent differs in a single decision and it is the whole reason
     /// this walk is written out rather than shared: a level is read with
     /// [`AbsentKey::Throws`] rather than vivified, since a removal that first
-    /// creates the row it removes from is an entry neither PHP nor MWL puts
+    /// creates the row it removes from is an entry neither PHP nor Novis puts
     /// there.
     ///
     /// # Panics
     ///
     /// Panics naming the shape for any other `unset` operand, which is a
-    /// checker bug rather than a gap: `mwl_types::expr::check_unset_target` is
+    /// checker bug rather than a gap: `nvs_types::expr::check_unset_target` is
     /// the one home of what an operand may be, and it refuses every other
     /// spelling where it is written — a declared property as `E0413`
     /// (ADR 0028 § 3), and everything from a bare local to a subscript of a
@@ -1373,8 +1373,8 @@ impl<'a> Lowering<'a> {
         } = &target.kind
         else {
             panic!(
-                "mwl-ir lowers `unset` only on an array element with an explicit subscript — \
-                 got {:?}, which `mwl_types::expr::check_unset_target` is supposed to have \
+                "nvs-ir lowers `unset` only on an array element with an explicit subscript — \
+                 got {:?}, which `nvs_types::expr::check_unset_target` is supposed to have \
                  refused as `E0234`",
                 target.kind
             );
@@ -1394,8 +1394,8 @@ impl<'a> Lowering<'a> {
         let (root_v, root_ty) = self.lower_expr(root, None, env, cur);
         assert!(
             root_ty == Ty::Array,
-            "mwl-ir: an `unset` target's root lowered to {root_ty:?} rather than an array — \
-             `mwl_types` refuses a base that declares no element type as `E0482`, so this body \
+            "nvs-ir: an `unset` target's root lowered to {root_ty:?} rather than an array — \
+             `nvs_types` refuses a base that declares no element type as `E0482`, so this body \
              was not checked with the same table"
         );
         // Every key, left to right and each exactly once, before anything is
@@ -1407,8 +1407,8 @@ impl<'a> Lowering<'a> {
             } = &level.kind
             else {
                 panic!(
-                    "mwl-ir: an `unset` target's level at {:?} is the append spelling `$a[]`, \
-                     which `mwl_types` reports as `E0481` wherever it is not a plain `=`'s own \
+                    "nvs-ir: an `unset` target's level at {:?} is the append spelling `$a[]`, \
+                     which `nvs_types` reports as `E0481` wherever it is not a plain `=`'s own \
                      target",
                     level.span
                 );
@@ -1482,7 +1482,7 @@ impl<'a> Lowering<'a> {
     /// and binds `null`), a leaf binds exactly as
     /// [`StmtKind::LocalDecl`]'s own arm binds an initializer, and the
     /// element read is at the *element's* representation rather than the
-    /// leaf's: `mwl_types::locals` records that type under the leaf's own
+    /// leaf's: `nvs_types::locals` records that type under the leaf's own
     /// span as the same [`ExprInfo::Index`] entry a subscript gets, and
     /// [`Self::coerce`] takes it from there to the declared one, which is
     /// how `[float $f] = $ints;` widens where ADR 0007 § 2 says it does.
@@ -1511,8 +1511,8 @@ impl<'a> Lowering<'a> {
         let (subject_v, subject_ty) = self.lower_expr(value, None, env, cur);
         assert!(
             subject_ty == Ty::Array,
-            "mwl-ir destructures only an `array<T>` — got {subject_ty:?}; a value that names no \
-             element type is `E0482` at `mwl_types::locals`, so this body was not checked"
+            "nvs-ir destructures only an `array<T>` — got {subject_ty:?}; a value that names no \
+             element type is `E0482` at `nvs_types::locals`, so this body was not checked"
         );
         if !self.aliasing_read(value) {
             self.own_temporary(subject_v);
@@ -1541,7 +1541,7 @@ impl<'a> Lowering<'a> {
                     ..
                 } => {
                     let decl_ty = ty.as_ref().expect(
-                        "mwl_types reports E0101 for a destructuring leaf with no declared type",
+                        "nvs_types reports E0101 for a destructuring leaf with no declared type",
                     );
                     let declared = lower_decl_type(decl_ty, self.exprs, self.checked_types);
                     let elem_ty = self.destructured_element_ty(*span);
@@ -1576,8 +1576,8 @@ impl<'a> Lowering<'a> {
     fn destructured_element_ty(&self, span: Span) -> Ty {
         let Some(ExprInfo::Index { elem_ty, .. }) = self.exprs.lookup(span) else {
             panic!(
-                "mwl-ir: a destructuring leaf at {span:?} has no element type recorded in the \
-                 typed-expression table — `mwl_types::locals` records one for every leaf it \
+                "nvs-ir: a destructuring leaf at {span:?} has no element type recorded in the \
+                 typed-expression table — `nvs_types::locals` records one for every leaf it \
                  accepts, so this body was not checked with the same table"
             );
         };

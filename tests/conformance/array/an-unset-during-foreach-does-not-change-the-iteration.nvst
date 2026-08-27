@@ -1,7 +1,7 @@
 --TEST--
 `foreach` walks a copy: an `unset` inside the body is invisible until the next loop, and an array in a condition is judged by whether it is empty
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = [1, 2, 3, 4];
 foreach ($a as string $k => int $v) {
     if ($v == 2) {

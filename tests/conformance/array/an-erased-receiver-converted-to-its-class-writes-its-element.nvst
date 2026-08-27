@@ -1,7 +1,7 @@
 --TEST--
 the way through `E0480`: converting an erased receiver to the class that declares the property makes the element write an ordinary one — ADR 0007 § 2, ADR 0036 § 4
 --FILE--
-<?mwl
+<?nvs
 // `E0480` refuses an element write through an erased property and its help
 // names one spelling that works. This pins that the help is true: `as
 // ClassName` is a checked conversion (ADR 0007 § 2), and what it yields is a

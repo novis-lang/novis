@@ -1,7 +1,7 @@
 --TEST--
 A mixed `int`/`uint`/`float` operand pair produces PHP's own value and PHP's own ordering — ADR 0007 § 4
 --FILE--
-<?mwl
+<?nvs
 // `bool as string` renders `false` as the empty string, so a predicate is
 // rendered through a branch rather than a conversion (the playbook owns that
 // trap). A case is top-level statements, so the helper is a static method.
@@ -37,7 +37,7 @@ float $three = 3.0;
 echo "eq-lt=", Show::yn($n < $three), " eq-le=", Show::yn($n <= $three), " eq-ge=", Show::yn($n >= $three), " eq-gt=", Show::yn($n > $three), "\n";
 
 // Past 2^53, where widening the integer into the float would lose the answer.
-// MWL compares over the mathematical integers instead, and this line is why:
+// Novis compares over the mathematical integers instead, and this line is why:
 // PHP answers an ordering here, so the widening's throw must not be reached.
 int $big = 9007199254740993;
 echo "big-lt=", Show::yn($big < $f), " big-gt=", Show::yn($big > $f), "\n";

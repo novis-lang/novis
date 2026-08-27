@@ -1,7 +1,7 @@
 --TEST--
 A call binds to the receiver's runtime class exactly as PHP's does — an override reached through a base-typed parameter, a base-typed local, a property and an array element
 --FILE--
-<?mwl
+<?nvs
 class Animal {
     public function sound(): string {
         return "...";

@@ -2,11 +2,11 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
-- **Scope:** the `mwl service` namespace and what each verb does; the closed list of subcommands that may
+- **Scope:** the `nvs service` namespace and what each verb does; the closed list of subcommands that may
   be hosted; how an argv survives the Windows SCM's single-string `ImagePath`; the identity a service runs
-  as and where its output goes; which service-manager control messages map onto which existing MWL
+  as and where its output goes; which service-manager control messages map onto which existing Novis
   operation; and why installing on Windows and generating a unit on Linux are deliberately not the same
-  gesture. Not in scope: what `mwl serve` does, which is [0017](0017-hot-reload-without-restart.md) and
+  gesture. Not in scope: what `nvs serve` does, which is [0017](0017-hot-reload-without-restart.md) and
   [0074](0074-http-defaults-safe-and-finite.md); the control socket's protocol and what `reload` means,
   which stay [0078](0078-config-reload-and-control-socket.md); periodic work, which is
   [0073](0073-scheduled-work-is-config.md) and is not a service; and bundling a program into one file,
@@ -16,34 +16,34 @@
 - **Amends:** [0048](0048-portable-single-file-executables.md) § 1 — its single-trust-domain argument now
   also refuses a bundle that would install *itself* as a service, § 6 below.
 
-> **In short:** `mwl service install <name> [options] -- <args…>` registers this binary with the platform's
+> **In short:** `nvs service install <name> [options] -- <args…>` registers this binary with the platform's
 > service manager and stores everything after `--` verbatim as the argv the service runs, which is what
-> makes every parameter `mwl` accepts passable. **The installer is an [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+> makes every parameter `nvs` accepts passable. **The installer is an [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 > sink** — it writes a command line a privileged account executes at every boot — so it fails closed: a
 > closed allowlist of hostable subcommands (`serve`, `run`), no relative paths, no install whose output
 > would go nowhere, no password on a command line, and the binary path always quoted. On **Windows** it
 > registers with the SCM, because SCM state is the only representation a Windows service has, and the argv
-> lives in `ImagePath` and nowhere else. On **Linux** `mwl service unit` *prints* a hardened systemd unit
+> lives in `ImagePath` and nowhere else. On **Linux** `nvs service unit` *prints* a hardened systemd unit
 > and `--install` is the explicit opt-in that writes one, because there the operator's configuration
 > management owns the directory. The default identity is a per-service virtual account with no password.
 > A [0048](0048-portable-single-file-executables.md) bundle may not install itself.
 
 ## Context
 
-- [0080](0080-the-audience-mwl-is-built-for.md) puts MWL in front of multi-tenant and regulated platforms,
+- [0080](0080-the-audience-nvs-is-built-for.md) puts Novis in front of multi-tenant and regulated platforms,
   a large share of which deploy on Windows. Deploying a long-running process there today means a
   third-party shim — NSSM, WinSW — because **an arbitrary executable is not a Windows service**: the SCM
   requires the process itself to call `StartServiceCtrlDispatcher` within roughly thirty seconds of start
   and to answer control messages for the rest of its life. A shim satisfies the SCM on the hosted
   process's behalf, so it can only report what an outside observer can see. "The process exited" is the
   most it can ever say; "drained 412 in-flight requests, then stopped" is not available to it.
-- Two operations MWL already has are wasted without this. [0078](0078-config-reload-and-control-socket.md)'s
-  `mwl ctl reload` is exactly `SERVICE_CONTROL_PARAMCHANGE` on Windows and `ExecReload=` on Linux, and M7's
+- Two operations Novis already has are wasted without this. [0078](0078-config-reload-and-control-socket.md)'s
+  `nvs ctl reload` is exactly `SERVICE_CONTROL_PARAMCHANGE` on Windows and `ExecReload=` on Linux, and M7's
   graceful drain is exactly `SERVICE_STOP_PENDING` with an advancing checkpoint. Under a shim neither has
   anywhere to arrive.
 - **A hand-rolled `sc create` is a security liability rather than an inconvenience.** An `ImagePath` that is
   not quoted, for a binary under a path containing a space, is the textbook Windows privilege-escalation
-  finding — and MWL's default install location on Windows is exactly such a path. Nothing about MWL makes
+  finding — and Novis's default install location on Windows is exactly such a path. Nothing about Novis makes
   an operator less likely to write one, and an audited deployment will be marked down for it.
 - **Linux is not the same problem, and pretending it is would produce the wrong feature.** A systemd unit is
   a text file any operator can write, so no mechanism is out of reach. What is missing there is the
@@ -60,27 +60,27 @@
 ### 1. One namespace, and lifecycle is not reinvented where it already reads well
 
 ```
-mwl service install   <name> [options] -- <verbatim mwl args…>
-mwl service uninstall <name>
-mwl service start | stop | status <name>
-mwl service run       <name>                                  # the service manager's entry point
-mwl service unit      <name> [options] -- <verbatim mwl args…>  # Linux: print, install nothing
+nvs service install   <name> [options] -- <verbatim nvs args…>
+nvs service uninstall <name>
+nvs service start | stop | status <name>
+nvs service run       <name>                                  # the service manager's entry point
+nvs service unit      <name> [options] -- <verbatim nvs args…>  # Linux: print, install nothing
 ```
 
-Namespaced rather than `mwl install-service`, matching `mwl ctl`'s precedent in
+Namespaced rather than `nvs install-service`, matching `nvs ctl`'s precedent in
 [0078](0078-config-reload-and-control-socket.md) § 3 — every other subcommand acts on files with no server
-involved, and these do not. `mwl install-service` is accepted as a **hidden alias**, because it is the
+involved, and these do not. `nvs install-service` is accepted as a **hidden alias**, because it is the
 spelling `mysqld --install` and `httpd -k install` have taught a generation of administrators and honouring
 it costs one line. The name is positional, matching `sc create` and systemd, and it is the same identity
-`mwl ctl --socket` uses to address one of several servers on a host.
+`nvs ctl --socket` uses to address one of several servers on a host.
 
 **`--` is mandatory, and it is what makes "every parameter is passable" true.** Everything to its left is
 the installer's own; everything to its right is stored untouched and never interpreted. Without it,
 `--start` is ambiguous between the installer and the hosted program — a defect `mysqld --install` has, and
-one MWL does not have to inherit.
+one Novis does not have to inherit.
 
 `start`/`stop`/`status` are thin. On Windows they drive the SCM directly; on Linux they exec `systemctl`
-**by argv with no shell**, which is [0044](0044-core-process-argv-only-no-shell.md)'s rule applied to MWL's
+**by argv with no shell**, which is [0044](0044-core-process-argv-only-no-shell.md)'s rule applied to Novis's
 own subprocess. They exist rather than being deferred entirely to `sc`/`systemctl` because `sc query`'s
 output is not something an operator should have to decode, and because `status` can additionally ask the
 running server over 0078's control socket and report what no service manager knows: in-flight request count,
@@ -97,11 +97,11 @@ removes it. So the default is refusal, and the allowlist is closed.
 | Refused | Because |
 |---|---|
 | A subcommand other than `serve` or `run` | `ast`, `check`, `test`, `fmt`, `info`, `config`, `ctl` and `service` itself either exit immediately — which every service manager reports as a crash loop, forever — or are meaningless with no terminal attached |
-| `--fault-inject`, on any subcommand | `mwl-cli`'s own doc comment states that hook must never be reachable from a served request; a service carrying it is exactly that, with a privileged account attached |
+| `--fault-inject`, on any subcommand | `nvs-cli`'s own doc comment states that hook must never be reachable from a served request; a service carrying it is exactly that, with a privileged account attached |
 | Any relative path, in the argv or in an installer option | A Windows service starts in `System32` with a minimal environment, so a relative `--config` is a guaranteed first-boot failure surfacing as an opaque SCM error code |
 | An install with neither `--log-file` nor a `[log]` destination in the named config | A Windows service has no console handle, so stderr is discarded — a refused compile or a `FATAL` would leave no trace anywhere (§ 4) |
 | An `--account` password passed on the command line | A command line is readable by other users on the box; it is prompted instead, and is `secret` in [0033](0033-secret-qualifier-for-confidential-values.md)'s sense for its whole life |
-| An argv carrying no `--config` at all | The stored argv would fall back to [0103 § 1](0103-configuration-is-a-tree-of-files.md)'s `./mwl.toml`, making the service's configuration a property of whatever directory the manager happens to start it in — the same first-boot failure as a relative path, one step less visible. A service names its configuration absolutely |
+| An argv carrying no `--config` at all | The stored argv would fall back to [0103 § 1](0103-configuration-is-a-tree-of-files.md)'s `./nvs.toml`, making the service's configuration a property of whatever directory the manager happens to start it in — the same first-boot failure as a relative path, one step less visible. A service names its configuration absolutely |
 | Running from a [0048](0048-portable-single-file-executables.md) bundle | § 6 |
 
 Every surviving path is canonicalized and stored absolute. Each refusal is a diagnostic in the `E06xx`
@@ -109,7 +109,7 @@ configuration band naming what was refused and why, not a bare non-zero exit.
 
 ### 3. Windows: the argv is encoded into `ImagePath`, and nothing else holds it
 
-The SCM stores **one string**, and the process gets it back through `CommandLineToArgvW`. MWL therefore
+The SCM stores **one string**, and the process gets it back through `CommandLineToArgvW`. Novis therefore
 encodes the trailing argv into that one string under those rules — the backslash-run-before-a-quote rule
 included — and **that string is the only record of what the service runs**.
 
@@ -128,7 +128,7 @@ is confined to one tested place instead of spread across the installer.
 holds after somebody moves the installation, which is when the unquoted-path finding usually appears.
 
 Arguments given to `sc start <name> arg` reach `ServiceMain` but are **not persisted**; nothing may depend on
-them, and `mwl service run` ignores them.
+them, and `nvs service run` ignores them.
 
 ### 4. Windows: identity, controls, and where output goes
 
@@ -140,7 +140,7 @@ must be written out as `--account SYSTEM`.
 
 **Controls.**
 
-| SCM control | What MWL does |
+| SCM control | What Novis does |
 |---|---|
 | `SERVICE_CONTROL_STOP` | reports `STOP_PENDING` with a checkpoint that advances while requests drain, then `STOPPED` |
 | `SERVICE_CONTROL_PARAMCHANGE` | performs [0078](0078-config-reload-and-control-socket.md)'s reload in-process; the `Boot` keys it could not apply are written to the event log **by name**, as that ADR's § 5 requires |
@@ -150,7 +150,7 @@ Failure actions are set at install — `--restart on-failure` by default, with a
 delayed auto-start (`--start`), service dependencies (`--depends-on`, for a database that must come up first)
 and a description.
 
-**Output.** With no console handle the process's stderr goes nowhere, so `mwl service run` binds diagnostics
+**Output.** With no console handle the process's stderr goes nowhere, so `nvs service run` binds diagnostics
 and `Core\Log` to the destination § 2 insisted on, and additionally writes a **small, fixed set of lifecycle
 records** — started, stopped, failed to start, reload applied — to the Windows event log. That is the first
 place an administrator looks, and a log file nobody told them about is the second. The event-log source is
@@ -158,8 +158,8 @@ registered at install and removed at uninstall.
 
 ### 5. Linux: the unit is generated and printed, and installing it is the opt-in
 
-`mwl service unit <name> -- serve --config …` writes a systemd unit to stdout and touches nothing.
-`mwl service install` on Linux is that same generation followed by a write to the system unit directory and a
+`nvs service unit <name> -- serve --config …` writes a systemd unit to stdout and touches nothing.
+`nvs service install` on Linux is that same generation followed by a write to the system unit directory and a
 `daemon-reload` — the explicit request, never the default.
 
 The asymmetry with § 3 follows from *Context*. On Windows the SCM's own state is the only representation a
@@ -174,10 +174,10 @@ The generated unit carries what a hand-written one usually does not:
 ```ini
 [Service]
 Type=notify
-ExecStart=/usr/bin/mwl serve --config /etc/mwl/mwl.toml
-ExecReload=/usr/bin/mwl ctl reload --socket /run/mwl/control.sock
+ExecStart=/usr/bin/nvs serve --config /etc/nvs/nvs.toml
+ExecReload=/usr/bin/nvs ctl reload --socket /run/nvs/control.sock
 WatchdogSec=30
-User=mwl-web
+User=nvs-web
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -200,7 +200,7 @@ Nothing else is generated: no OpenRC, no SysV, no `rc.d`. macOS is in *Revisitin
 
 ### 6. A bundle may not install itself
 
-`mwl service install` refuses when the running binary is a
+`nvs service install` refuses when the running binary is a
 [0048](0048-portable-single-file-executables.md) bundle, with a diagnostic naming that ADR.
 
 0048 § 1's argument is that a bundle is a single trust domain because the person who downloads and runs it is
@@ -216,7 +216,7 @@ nobody has asked for. *Revisiting* records what would reopen it.
 ### 7. This is operator surface, not language surface
 
 There is no `Core\Service`, no new grammar, no runtime change and nothing on the request path. Under
-[0051](0051-standard-library-tiers.md)'s tests a service manager is not a stdlib candidate at all: an MWL
+[0051](0051-standard-library-tiers.md)'s tests a service manager is not a stdlib candidate at all: an Novis
 program cannot install itself as a service, only an operator can, from the command line. That keeps
 [0005](0005-config-changeability.md)'s "an application can never grant itself rights" intact rather than
 restating it.
@@ -239,35 +239,35 @@ restating it.
   `sc create` whose most likely defect is a security finding rather than a typo.
 - **Stop becomes correct rather than approximate.** A machine restart or an `sc stop` drains in-flight
   requests instead of killing them, which is not something a shim can do at all.
-- `mwl ctl reload` gains two more triggers — `sc control paramchange` and `systemctl reload` — with no new
+- `nvs ctl reload` gains two more triggers — `sc control paramchange` and `systemctl reload` — with no new
   mechanism, and 0078 § 5's individually-named `Boot` keys reach the operator through the channel each
   platform's tooling already watches.
-- **`mwl-cli` gains two platform-conditional modules and a dependency chosen partly for a repository-specific
-  reason.** `unsafe` is forbidden outside four named crates and `mwl-cli` is not one of them, so calling the
-  Win32 service API directly would mean either opening an `unsafe` allow in `mwl-cli` or creating a crate to
+- **`nvs-cli` gains two platform-conditional modules and a dependency chosen partly for a repository-specific
+  reason.** `unsafe` is forbidden outside four named crates and `nvs-cli` is not one of them, so calling the
+  Win32 service API directly would mean either opening an `unsafe` allow in `nvs-cli` or creating a crate to
   hold it. A safe wrapper avoids both, and this ADR treats "does not require opening an `unsafe` budget" as a
   selection criterion rather than a convenience.
 - **A cost accepted:** `start`/`stop`/`status` are a second spelling for something `sc` and `systemctl`
   already do, which [0051](0051-standard-library-tiers.md) § 2's sixth test would ordinarily refuse.
-  Admitted because the MWL spelling reports what neither can — drain progress and in-flight count over
+  Admitted because the Novis spelling reports what neither can — drain progress and in-flight count over
   0078's socket — and because the alternative on Windows is an administrator decoding `sc query`.
 
 ## Alternatives rejected
 
 - **Document NSSM/WinSW and ship nothing.** Zero implementation cost, and it is what every scripting runtime
   currently does. Rejected: a shim observes the process only from outside, so stop is a kill rather than a
-  drain, `PARAMCHANGE` has nowhere to arrive, and MWL's deployment story for the platform half of 0080's
+  drain, `PARAMCHANGE` has nowhere to arrive, and Novis's deployment story for the platform half of 0080's
   audience would begin with "first download an unrelated binary from somebody else".
 - **A sidecar argv file** with a short `ImagePath` — § 3. Exact round-tripping bought with a new writable
   instruction source.
-- **`mwl install-service <args…>` with no separator**, the spelling the request arrived in and the one
+- **`nvs install-service <args…>` with no separator**, the spelling the request arrived in and the one
   `mysqld` uses. Rejected in § 1: the ambiguity between the installer's flags and the hosted program's is not
   resolvable by any rule a user would predict. The hidden alias preserves the muscle memory without the
   ambiguity.
 - **Any subcommand hostable, argv passed straight through.** The most literal reading of "every parameter
   must be passable". Rejected in § 2 — every *parameter* is passable; it is the *subcommand* that is
   constrained, and that constraint is the only thing keeping `--fault-inject` and a permanently
-  crash-looping `mwl test` out of a privileged boot-time argv.
+  crash-looping `nvs test` out of a privileged boot-time argv.
 - **Installing the unit by default on Linux, symmetric with Windows.** One mental model rather than two, and
   easier to document. Rejected in § 5: it makes the destructive path the default on the one platform where
   another tool already owns the directory.
@@ -281,10 +281,10 @@ restating it.
 
 ## Revisiting
 
-- **macOS and `launchd`**, when somebody deploys MWL as a service there. The shape is § 5's with a plist
+- **macOS and `launchd`**, when somebody deploys Novis as a service there. The shape is § 5's with a plist
   instead of a unit and printing as the only mode; nothing in this ADR has to change to add it.
 - **Socket activation on Linux**, if a deployment needs `:80` with an empty capability set, or wants the
-  connection queue to survive a restart. It is a change to how `mwl serve` acquires its listener, and the
+  connection queue to survive a restart. It is a change to how `nvs serve` acquires its listener, and the
   unit generator simply follows.
 - **The bundle refusal (§ 6)**, if a real deployment wants one self-installing binary for an internal CLI
   daemon. Reopening it means arguing 0048 § 1's trust-domain point directly, not this section.
@@ -293,7 +293,7 @@ restating it.
 
 ## Verification
 
-**M7**, where `mwl serve` and the control socket exist. Everything below is a test, not a checklist:
+**M7**, where `nvs serve` and the control socket exist. Everything below is a test, not a checklist:
 
 - The argv encoder round-trips every argument in an adversarial corpus through `CommandLineToArgvW` —
   trailing backslashes, embedded quotes, a path ending in `\` before a closing quote — and has a fuzz target.
@@ -308,5 +308,5 @@ restating it.
 - **Linux:** the generated unit is accepted by `systemd-analyze verify`; `systemctl reload` performs 0078's
   reload; `READY=1` arrives only after the listener binds, so `systemctl start` does not return before the
   port accepts; `AmbientCapabilities` is absent when no privileged port is configured.
-- `mwl service uninstall` leaves nothing behind — no registry key, no event-log source, no unit file, no
+- `nvs service uninstall` leaves nothing behind — no registry key, no event-log source, no unit file, no
   granted ACL.

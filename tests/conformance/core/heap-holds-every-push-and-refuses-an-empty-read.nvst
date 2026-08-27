@@ -1,7 +1,7 @@
 --TEST--
 A `Core\Heap<T>` holds one entry per `push` — duplicates and equal keys included — and `peek`/`pop` on an empty one throw rather than answering `null` — docs/spec/01-core-library.md § 9, ADR 0063 R5, ADR 0090 § 4
 --FILE--
-<?mwl
+<?nvs
 class Task implements Comparable {
     public string $name;
     public int $cost;
@@ -19,7 +19,7 @@ class Task implements Comparable {
 // § 9 gives the class an `isEmpty`, and ADR 0063 R5 bans the `peekOrNull`
 // twin a `?T` return would invite — so the empty heap is a throw, and the
 // message names the member that asked. `pop`'s spelling of it is pinned by
-// `heap-orders-by-comparable-or-by-its-comparator.mwlt`; this is `peek`'s.
+// `heap-orders-by-comparable-or-by-its-comparator.nvst`; this is `peek`'s.
 var $h = new Core\Heap<int>();
 echo "fresh ", $h->count(), " [", $h->isEmpty(), "]\n";
 try {

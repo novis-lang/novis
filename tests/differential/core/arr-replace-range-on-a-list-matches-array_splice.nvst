@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::replaceRange substitutes the same window as array_splice at every sign of offset and length, on a list where the two key rules coincide
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's substituting window against the returning half of its PHP twin.
 // ADR 0063 R3 makes every member pure, so `array_splice`'s by-reference form
 // is not reproduced and the oracle has to copy the subject before splicing it;

@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::join matches PHP's implode, empty array and empty separator included
 --FILE--
-<?mwl
+<?nvs
 array<string> $parts = ["alpha", "beta", "gamma"];
 array<string> $empty = [];
 

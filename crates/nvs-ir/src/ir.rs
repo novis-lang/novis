@@ -3,7 +3,7 @@
 //! [`Terminator`]. See the crate's own module docs for this first slice's
 //! scope and known gaps.
 
-use mwl_diagnostics::Span;
+use nvs_diagnostics::Span;
 
 use crate::ids::{BlockId, EdgeId, StmtId, ValueId};
 use crate::ty::Ty;
@@ -29,14 +29,14 @@ pub struct Program {
 /// A static property has **no instance slot** ([`Class::fields`] never lists
 /// one), and its storage is not the class's at all: it is one entry in the
 /// request's own flat slot vector, whose index is this value's position in
-/// [`Program::statics`]. `mwl_runtime::ctx`'s docs own the lifetime — the slot
+/// [`Program::statics`]. `nvs_runtime::ctx`'s docs own the lifetime — the slot
 /// is request-scoped, armed from [`Self::default_value`] when the request
 /// starts and released when it ends — and `docs/adr/README.md`
 /// § *Decisions taken at project start* owns why it is request-scoped rather
 /// than process-global.
 ///
 /// The pair `(class, name)` is the *declaring* class's label and the property's
-/// own name, which is exactly what `mwl_types::expr_table::ExprInfo::StaticProperty`
+/// own name, which is exactly what `nvs_types::expr_table::ExprInfo::StaticProperty`
 /// carries. A subclass reading an inherited static therefore resolves to the
 /// ancestor's entry, with no flattening step: `Sub::$count` and `Base::$count`
 /// are one storage, as they are in PHP.
@@ -54,17 +54,17 @@ pub struct StaticProp {
     /// The declared initializer, or `None` for a nullable or `lateinit`
     /// static ADR 0022 § 2 required no default of, whose slot starts each
     /// request at `null`.
-    pub default_value: Option<mwl_types::FieldDefault>,
+    pub default_value: Option<nvs_types::FieldDefault>,
 }
 
 /// One class's or interface's runtime shape: what an instance's field slots
 /// hold, and what it is an instance *of*.
 ///
-/// A straight copy of `mwl_types::layout::ClassLayout`, carried here so that
-/// `mwl-codegen` can build the `mwl_runtime::ClassTable` a compiled unit owns
-/// without depending on `mwl-types`. The resolution behind it — a subclass's
+/// A straight copy of `nvs_types::layout::ClassLayout`, carried here so that
+/// `nvs-codegen` can build the `nvs_runtime::ClassTable` a compiled unit owns
+/// without depending on `nvs-types`. The resolution behind it — a subclass's
 /// slots following its parent's, a transitive supertype set — happens once, in
-/// that module, for the reason its own docs give: it needs `mwl_hir::ClassGraph`,
+/// that module, for the reason its own docs give: it needs `nvs_hir::ClassGraph`,
 /// and this crate deliberately depends on neither.
 #[derive(Clone, Debug)]
 pub struct Class {
@@ -83,11 +83,11 @@ pub struct Class {
     /// all through § 4's erased receiver, and that write is the one site with
     /// no statically known field type of its own. A slot whose declared type
     /// nothing recorded is [`Ty::Tagged`] rather than absent, so the vector
-    /// stays index-aligned with [`Self::fields`] — see `mwl_ir::lower`'s
-    /// `field_reprs`. `mwl-codegen` maps each entry to the one
-    /// `mwl_runtime::Tag` it admits — [`Ty::Tagged`] and [`Ty::Void`] admit
+    /// stays index-aligned with [`Self::fields`] — see `nvs_ir::lower`'s
+    /// `field_reprs`. `nvs-codegen` maps each entry to the one
+    /// `nvs_runtime::Tag` it admits — [`Ty::Tagged`] and [`Ty::Void`] admit
     /// several or none and become "unchecked" — and hands the result to
-    /// `mwl_runtime::ClassTable::set_field_tags`, whose own docs state what
+    /// `nvs_runtime::ClassTable::set_field_tags`, whose own docs state what
     /// that check buys and what it misses.
     ///
     /// **Cost:** one `Ty` per field slot per class at compile time, and one
@@ -99,8 +99,8 @@ pub struct Class {
     pub conforms: Vec<String>,
     /// Every method an instance of this class answers, as `(method name,
     /// declaring class label)` — a straight copy of
-    /// `mwl_types::layout::ClassLayout::methods`, which owns the precedence
-    /// rule. `mwl-codegen` turns each pair into the compiled address the
+    /// `nvs_types::layout::ClassLayout::methods`, which owns the precedence
+    /// rule. `nvs-codegen` turns each pair into the compiled address the
     /// runtime descriptor's method table holds, which is what
     /// [`InstKind::CallVirtual`] dispatches through.
     pub methods: Vec<(String, String)>,
@@ -110,33 +110,33 @@ pub struct Class {
     /// the attribute.
     ///
     /// The join of two tables neither crate holds alone:
-    /// `mwl_types::derive` reads the attribute, the wire keys and each field's
-    /// declared type off the declaration, and `mwl_types::layout` fixes the
+    /// `nvs_types::derive` reads the attribute, the wire keys and each field's
+    /// declared type off the declaration, and `nvs_types::layout` fixes the
     /// slot order — see `crate::lower::lower_file`, which is where the two
-    /// meet. Carried through to `mwl_runtime::ClassDesc` so `Core\Json`'s
+    /// meet. Carried through to `nvs_runtime::ClassDesc` so `Core\Json`'s
     /// encoder and decoder can work an instance without asking the program
     /// anything.
-    pub codec: Vec<mwl_types::CodecField>,
+    pub codec: Vec<nvs_types::CodecField>,
     /// Every field slot that declares an `= expr` default, as `(slot, value)`
     /// in slot order — empty for a class declaring none, which is most of
     /// them.
     ///
     /// The join of the same two tables [`Self::codec`] joins, on the same
     /// terms and in the same place (`crate::lower::lower_program`):
-    /// `mwl_types::signatures` evaluated each default against the property's
-    /// declared type, and `mwl_types::layout` fixed the slot order. An
+    /// `nvs_types::signatures` evaluated each default against the property's
+    /// declared type, and `nvs_types::layout` fixed the slot order. An
     /// ancestor's default lands in the slot that ancestor's property owns,
     /// because a slot is looked up by *name*.
     ///
-    /// **This crate emits no instruction for it.** `mwl-codegen` copies it
-    /// onto `mwl_runtime::ClassDesc` and `mwl_runtime::MwlObj::new` writes the
+    /// **This crate emits no instruction for it.** `nvs-codegen` copies it
+    /// onto `nvs_runtime::ClassDesc` and `nvs_runtime::NvsObj::new` writes the
     /// slots, which is the only shape that reaches [`InstKind::New`],
     /// [`InstKind::NewDynamic`] and ADR 0071's native decoder alike — see
-    /// `mwl_types::defaults`, which owns why an initializer cannot be spliced
+    /// `nvs_types::defaults`, which owns why an initializer cannot be spliced
     /// between allocation and construction.
-    pub defaults: Vec<(usize, mwl_types::FieldDefault)>,
+    pub defaults: Vec<(usize, nvs_types::FieldDefault)>,
     /// How many parameters this class's `constructor` declares — see
-    /// `mwl_runtime::ClassDesc::ctor_arity`, which is where it ends up and
+    /// `nvs_runtime::ClassDesc::ctor_arity`, which is where it ends up and
     /// which owns why it is carried beside the field list rather than derived
     /// from it. Zero for a class with no codec.
     pub ctor_arity: usize,
@@ -152,7 +152,7 @@ pub struct Function {
     /// Each parameter's representation, positional. For a *method*, index 0
     /// is always the implicit receiver (`$this`) — every lowered method
     /// carries it, whether or not its body ever reads `$this`, mirroring
-    /// `mwl_types::check.rs`'s `check_method` seeding `$this` into its own
+    /// `nvs_types::check.rs`'s `check_method` seeding `$this` into its own
     /// `LocalScope` unconditionally (not gated on a `static` modifier — see
     /// that function's own comment for why). Every explicit
     /// `MethodMember` parameter follows, starting at index 1. See
@@ -206,7 +206,7 @@ impl BasicBlock {
     /// A block may appear more than once — a `Branch` whose two arms are the
     /// same block lists it twice, and so does a call whose error edge is a
     /// landing block another call already named. Callers dedupe if they care;
-    /// `mwl-codegen`'s reverse-postorder walk does, by visiting marks.
+    /// `nvs-codegen`'s reverse-postorder walk does, by visiting marks.
     #[must_use]
     pub fn successors(&self) -> Vec<BlockId> {
         let mut out: Vec<BlockId> = self.insts.iter().filter_map(|inst| inst.on_error).collect();
@@ -260,12 +260,12 @@ pub struct Inst {
     /// `ArithmeticError`: the two divisions on a zero divisor, and the other
     /// four on overflow, which that section makes a throw rather than a wrap
     /// or a promotion to `float`. None of the six is a call at all —
-    /// `mwl-codegen` tests and raises inline, so this edge is the frame's
+    /// `nvs-codegen` tests and raises inline, so this edge is the frame's
     /// cleanup path and nothing else. `None` everywhere else, which is not a
     /// gap in two different ways — a comparison, a float row and a
     /// [`InstKind::Concat`] return no status at all, and a *conversion*
     /// helper (`Helper::IntToString`, the truthy table) returns one whose only
-    /// non-`OK` value is the miscompile guard `mwl_runtime::helpers` describes:
+    /// non-`OK` value is the miscompile guard `nvs_runtime::helpers` describes:
     /// a `FATAL`, which no cleanup path and no `catch` can act on, so giving
     /// it a landing block would emit code for an outcome that ends the request
     /// regardless.
@@ -297,7 +297,7 @@ pub enum InstKind {
     /// from the first backend commit" decision names
     /// ([`docs/adr/README.md`](../../../docs/adr/README.md)'s "Decisions
     /// taken at project start" section) and that ADR 0018 § *Negative*
-    /// contrasts its own, denser probe grid against. `mwl-codegen` lowers it
+    /// contrasts its own, denser probe grid against. `nvs-codegen` lowers it
     /// to one load of the context's safepoint word and a predicted-not-taken
     /// branch, and the **function-entry** one — the first in the entry
     /// block — also carries ADR 0020 § 1's call-stack compare, which is why
@@ -320,8 +320,8 @@ pub enum InstKind {
     ///
     /// Carried as the three parts rather than as the sixteen-byte image
     /// [`crate::ty::Ty::Decimal`] describes, because this crate does not
-    /// depend on `mwl-runtime` and that image's bit positions are
-    /// `mwl_runtime::decimal`'s one home. `mwl-codegen` depends on both and is
+    /// depend on `nvs-runtime` and that image's bit positions are
+    /// `nvs_runtime::decimal`'s one home. `nvs-codegen` depends on both and is
     /// where the two meet.
     ConstDecimal {
         /// The sign; a zero mantissa is never negative.
@@ -355,7 +355,7 @@ pub enum InstKind {
     /// **No expression produces one**: there is no `bytes` literal in the
     /// language, so this exists for a `Core` signature's optional `bytes`
     /// parameter, whose default a call site materializes
-    /// (`mwl_types::defaults::ConstArg::Bytes`). `Core\Bytes::join`'s
+    /// (`nvs_types::defaults::ConstArg::Bytes`). `Core\Bytes::join`'s
     /// `$separator = ""` is the first.
     ConstBytes(Vec<u8>),
     /// Reads the function's own parameter at this positional index.
@@ -391,7 +391,7 @@ pub enum InstKind {
     /// A statically resolved call — a static method call, `new`'s
     /// constructor invocation, or an instance method call
     /// (`$obj->method(...)`, including `$this->…`). The target is already
-    /// fully resolved by `mwl_types::expr_table::ExprTypeTable` before
+    /// fully resolved by `nvs_types::expr_table::ExprTypeTable` before
     /// lowering ever sees it — there is no virtual dispatch to model here,
     /// only "which function does this invoke." See the crate docs' "no
     /// virtual dispatch" known gap for what happens once a receiver's static
@@ -400,7 +400,7 @@ pub enum InstKind {
         /// The resolved target, rendered `"Class::method"` — a label for
         /// `crate::print`/a future codegen symbol table, not itself
         /// resolvable back to a `QName` (this crate never depends on
-        /// `mwl-hir`; see `crate::lower`'s module docs).
+        /// `nvs-hir`; see `crate::lower`'s module docs).
         target: String,
         /// The receiver value, for an instance method call (`Some`) — `None`
         /// for a static call or `new`'s constructor invocation, neither of
@@ -425,7 +425,7 @@ pub enum InstKind {
         ///
         /// Carried separately from `class` because the two differ whenever a
         /// subclass inherits its constructor: `new Dog(...)` allocates a `Dog`
-        /// and calls `Animal::constructor`. Only `mwl_types` knows which
+        /// and calls `Animal::constructor`. Only `nvs_types` knows which
         /// class actually declares it, so recovering it downstream would mean
         /// re-walking a hierarchy this crate cannot see.
         ctor: Option<String>,
@@ -447,7 +447,7 @@ pub enum InstKind {
         class: String,
     },
     /// The [`Ty::ClassDesc`] of the class `object` is actually an instance of
-    /// — one load at `mwl_runtime::OBJ_CLASS_OFFSET`, retaining nothing (a
+    /// — one load at `nvs_runtime::OBJ_CLASS_OFFSET`, retaining nothing (a
     /// descriptor is owned by the unit, not reference counted).
     ///
     /// This is where an *instance* method gets its late-static-binding class
@@ -461,8 +461,8 @@ pub enum InstKind {
     /// `static::method(...)` — a call whose *target* is decided at run time by
     /// the late-static-binding class, not by the checker.
     ///
-    /// Lowers to a `mwl_runtime::mwl_class_method` lookup of `method` on
-    /// `lsb`, falling back to `fallback` (the label `mwl_types` statically
+    /// Lowers to a `nvs_runtime::nvs_class_method` lookup of `method` on
+    /// `lsb`, falling back to `fallback` (the label `nvs_types` statically
     /// resolved, which a class the unit compiled no method table for still
     /// needs), then an indirect call through the ordinary
     /// [ADR 0002](../../../docs/adr/0002-error-propagation.md) signature — so
@@ -471,8 +471,8 @@ pub enum InstKind {
     /// argument are transferred, and the callee releases them.
     ///
     /// Deliberately *not* what an ordinary `$obj->method(...)` lowers to: that
-    /// stays statically resolved (`mwl-codegen`'s known gap 1), so nothing on
-    /// the hot path pays for a name lookup. See `mwl_runtime::object`'s docs
+    /// stays statically resolved (`nvs-codegen`'s known gap 1), so nothing on
+    /// the hot path pays for a name lookup. See `nvs_runtime::object`'s docs
     /// for why the table is keyed by name and what real virtual dispatch would
     /// want instead.
     CallVirtual {
@@ -485,7 +485,7 @@ pub enum InstKind {
         /// answers nothing for `method` — `None` when the resolved
         /// declaration has no body at all (an `abstract` method, or a
         /// bodiless interface one), which names no compiled function to fall
-        /// back to. Codegen substitutes `mwl_runtime::mwl_abstract_method`,
+        /// back to. Codegen substitutes `nvs_runtime::nvs_abstract_method`,
         /// so a miss is a reported `FATAL` rather than a jump through null.
         fallback: Option<String>,
         /// The receiver value for an instance target (`Some`) — `None` for a
@@ -505,7 +505,7 @@ pub enum InstKind {
     NewDynamic {
         /// The class to allocate — a [`Ty::ClassDesc`].
         desc: ValueId,
-        /// The `Class::constructor` label `mwl_types` resolved for the
+        /// The `Class::constructor` label `nvs_types` resolved for the
         /// statically known class, or `None` if nothing in that chain declares
         /// one. Used as the lookup's fallback; the lookup itself always asks
         /// the allocated class first, so a subclass's own constructor wins.
@@ -516,14 +516,14 @@ pub enum InstKind {
     },
     /// Reads a compile-time-known field off an object — `$obj->prop` whose
     /// receiver's static type resolved to a known declaring class (an
-    /// `mwl_types::expr_table::ExprInfo::Property` entry exists for it). No
+    /// `nvs_types::expr_table::ExprInfo::Property` entry exists for it). No
     /// actual byte offset is computed here: `class`/`field` are labels for a
     /// future codegen layout pass, the same "resolved identity, not yet a
     /// machine offset" shape `Call`/`New`'s own `target`/`class` labels
     /// already use. A property access whose receiver erased to a shape or to
     /// plain `object` (ADR 0036 § 4) never reaches here: it has no declaring
     /// class to name, so the checker records an
-    /// `mwl_types::expr_table::ExprInfo::ShapeProperty` instead and
+    /// `nvs_types::expr_table::ExprInfo::ShapeProperty` instead and
     /// `crate::lower` emits the name-keyed [`InstKind::SlotGet`].
     FieldGet {
         /// The receiver, already lowered.
@@ -536,7 +536,7 @@ pub enum InstKind {
     },
     /// Writes a compile-time-known field on an object — `$obj->prop = expr;`
     /// whose receiver's static type resolved to a known declaring class,
-    /// exactly the same [`ExprInfo::Property`](mwl_types::expr_table::ExprInfo::Property)
+    /// exactly the same [`ExprInfo::Property`](nvs_types::expr_table::ExprInfo::Property)
     /// resolution [`InstKind::FieldGet`] already relies on for a read (see
     /// that variant's own doc comment for why `class`/`field` stay labels
     /// rather than a machine offset, and for the erased-receiver panic case
@@ -562,9 +562,9 @@ pub enum InstKind {
     ///
     /// `class`/`name` are the **declaring** class's label and the property's
     /// own name, exactly the resolved identity
-    /// `mwl_types::expr_table::ExprInfo::StaticProperty` carries — they stay
+    /// `nvs_types::expr_table::ExprInfo::StaticProperty` carries — they stay
     /// labels here rather than becoming a slot number for
-    /// [`InstKind::FieldGet`]'s reason, and `mwl-codegen` resolves the pair
+    /// [`InstKind::FieldGet`]'s reason, and `nvs-codegen` resolves the pair
     /// through [`Program::statics`] the same way it resolves a field name
     /// through [`Class::fields`]. What reaches the machine is a constant
     /// offset into the request's slot vector, which is the whole difference
@@ -604,7 +604,7 @@ pub enum InstKind {
     /// *static* shape need not be the concrete value's own: ADR 0036 § 3's
     /// width subtyping lets a `{x: int, y: int}` reach a `{y: int}`
     /// parameter, where the two lay their slots out differently. So this is
-    /// § 4's **name-keyed fetch**, `mwl_runtime::mwl_object_slot_get`, and not
+    /// § 4's **name-keyed fetch**, `nvs_runtime::nvs_object_slot_get`, and not
     /// a fixed offset; § 4 says so outright, and defers the per-call-site
     /// specialization that would make it one to that ADR's *Revisiting*.
     ///
@@ -645,7 +645,7 @@ pub enum InstKind {
     },
     /// `$issue->path = "x";` — [`InstKind::SlotGet`]'s write half, and
     /// ADR 0036 § 4's other paragraph: one call to
-    /// `mwl_runtime::mwl_object_slot_set`, keyed on the **name** and taking
+    /// `nvs_runtime::nvs_object_slot_set`, keyed on the **name** and taking
     /// [`Self::SlotSet::slot`] as the same hint, for the same reason the read
     /// does. A write through an erased or widened view **never creates a
     /// field**; a name the concrete class does not carry is a catchable throw,
@@ -657,7 +657,7 @@ pub enum InstKind {
     /// value is aliased rather than copied — so `{n: int|string}` is a legal
     /// view of a `{n: int}` value, and a `string` written through it would sit
     /// in a slot the narrow view loads as an `int`. What the runtime actually
-    /// compares is the tag; `mwl_runtime::object`'s module docs
+    /// compares is the tag; `nvs_runtime::object`'s module docs
     /// § *What a shape write checks* own that granularity and its gaps.
     ///
     /// **Borrows [`Self::SlotSet::value`]**, unlike [`InstKind::FieldSet`],
@@ -691,14 +691,14 @@ pub enum InstKind {
     ///
     /// `class` is a label into [`crate::ir::Program::classes`], exactly like
     /// [`InstKind::New::class`], and it may name an *interface* as readily as
-    /// a class: `mwl_types::layout` gives an interface a descriptor with no
+    /// a class: `nvs_types::layout` gives an interface a descriptor with no
     /// slots for precisely this test (and for a typed `catch`, which lowers
     /// to the same instruction). Reads `value` without retaining it, the way
     /// [`InstKind::FieldGet`] reads its receiver.
     ///
     /// **The subject may be a [`Ty::Tagged`], and the tag is checked at run
     /// time.** A `mixed` or an untested `?Box` is what `instanceof` is for, so
-    /// `mwl-codegen` passes such a subject as a whole value by address — the
+    /// `nvs-codegen` passes such a subject as a whole value by address — the
     /// same shape [`InstKind::SlotGet`]'s receiver takes — and a tag that is
     /// not an object answers `false`. That is PHP's own answer, and unlike the
     /// name-keyed fetch there is nothing to throw about: the question was
@@ -718,7 +718,7 @@ pub enum InstKind {
     /// instruction sees them — see `crate::lower::Lowering::concat_operand`,
     /// which converts a scalar operand through an [`InstKind::HelperCall`]
     /// first and an object operand through the `toString`
-    /// `mwl_types::expr::operators::require_stringable` resolved for it.
+    /// `nvs_types::expr::operators::require_stringable` resolved for it.
     /// Modeled as a dedicated instruction rather than a runtime-helper call
     /// itself, the same "native instruction over already-typed operands"
     /// treatment [`InstKind::BinOp`] already gives scalar arithmetic — `.` only
@@ -734,8 +734,8 @@ pub enum InstKind {
     /// piece is one allocation, sized once, with each piece copied once:
     /// `crate::lower::Lowering::lower_concat` flattens the `.` spine and
     /// `crate::lower::Lowering::lower_interpolated_parts` hands its pieces over
-    /// whole. `mwl_runtime`'s `mwl_str_concat_n` is the entry point, with the
-    /// two-piece case kept on `mwl_str_concat` because it needs neither the
+    /// whole. `nvs_runtime`'s `nvs_str_concat_n` is the entry point, with the
+    /// two-piece case kept on `nvs_str_concat` because it needs neither the
     /// stack array nor the count.
     ///
     /// `pieces` always holds **two or more**. A single-piece interpolation
@@ -774,7 +774,7 @@ pub enum InstKind {
     /// consequence for lowering is the same one: the *holder* of `target` — a
     /// local's `Env` binding — is re-pointed at the result, with no retain and
     /// no release of either, because the consumed reference and the produced
-    /// one are that same one slot's. `mwl_runtime`'s `mwl_str_append` owns
+    /// one are that same one slot's. `nvs_runtime`'s `nvs_str_append` owns
     /// when the two are the same pointer (solely owned, and enough room) and
     /// when a copy-on-write separation makes them different ones.
     ///
@@ -800,18 +800,18 @@ pub enum InstKind {
     /// Takes the pending exception out of the request context, transferring
     /// ownership of one reference to the [`crate::ty::Ty::Object`] this
     /// defines — the first instruction of a `catch`'s dispatch block, and the
-    /// only way an MWL binding ever names an exception this frame did not
+    /// only way an Novis binding ever names an exception this frame did not
     /// construct itself.
     ///
     /// The value may be **null**: a runtime helper's bare-message failure has
     /// no object behind it unless the driver installed a class to build one
-    /// from (`mwl_runtime::Ctx::set_runtime_error_class`). Every operation the
+    /// from (`nvs_runtime::Ctx::set_runtime_error_class`). Every operation the
     /// dispatch performs on it tolerates that — [`InstKind::InstanceOf`]
     /// answers `false`, so no clause matches and the throw is re-raised.
     ///
     /// Defined as an instruction rather than a [`Helper`] call for the same
     /// reason [`InstKind::Concat`] is one: it has a single fixed shape, takes
-    /// no MWL operand, and cannot fail — so it needs neither the argument
+    /// no Novis operand, and cannot fail — so it needs neither the argument
     /// list nor the status check `HelperCall` exists to carry.
     TakeThrown,
     /// Increments a [`Ty::is_refcounted`] value's reference count — emitted
@@ -914,10 +914,10 @@ pub enum InstKind {
     /// because an IR value's representation is a property of the instruction
     /// that *defined* it — two names for one definition would mean two
     /// answers to [`Inst::ty`] for the same [`crate::ids::ValueId`], and
-    /// `mwl-codegen`'s value map has exactly one slot per id.
+    /// `nvs-codegen`'s value map has exactly one slot per id.
     ///
     /// The two representations must share a Cranelift type, which
-    /// `mwl-codegen` asserts: this is a relabelling, never a bit cast, so it
+    /// `nvs-codegen` asserts: this is a relabelling, never a bit cast, so it
     /// emits no machine instruction at all — the operand's own Cranelift
     /// value is recorded under the new id. It transfers no ownership and
     /// cannot fail, so like [`InstKind::Concat`] it carries no status check
@@ -928,7 +928,7 @@ pub enum InstKind {
     },
     /// Widens a statically-typed value into a [`crate::ty::Ty::Tagged`] one:
     /// the operand's payload under the tag byte its own representation names
-    /// (`mwl_codegen::ty::tag_of`).
+    /// (`nvs_codegen::ty::tag_of`).
     ///
     /// Free of any allocation and of any call — it builds a register pair —
     /// and **transfers ownership unchanged**: a tagged value carrying a
@@ -944,7 +944,7 @@ pub enum InstKind {
     /// [`Inst::ty`] names — the payload half, read at that representation.
     ///
     /// **Unchecked, and deliberately.** The tag is not compared: this crate
-    /// only emits an `Untag` where `mwl_types` has already proved which
+    /// only emits an `Untag` where `nvs_types` has already proved which
     /// representation the value holds — the non-`null` arm of a `??`, a
     /// `?->` or an `if ($x !== null)` narrowing. A runtime *test* is
     /// [`InstKind::IsNull`], and a conversion that can genuinely fail is an
@@ -971,7 +971,7 @@ pub enum InstKind {
     /// conversions — the milestone's third named ingredient, and this
     /// crate's first. `helper` is a fixed [`Helper`] tag, never a resolved
     /// class/method name: unlike [`InstKind::Call`]'s `target`, nothing here
-    /// comes from `mwl_types::expr_table::ExprTypeTable` or a class
+    /// comes from `nvs_types::expr_table::ExprTypeTable` or a class
     /// hierarchy, so there is no receiver, no virtual dispatch question, and
     /// no reason to share `Call`'s shape (see `crate::lower`'s module docs'
     /// design-choices section for why a dedicated instruction was chosen
@@ -1044,7 +1044,7 @@ pub enum InstKind {
     },
     /// Reads the element at `key` off `array` — `$arr[$i]`, whose base
     /// statically resolved to a known `array<T>` element type (an
-    /// `mwl_types::expr_table::ExprInfo::Index` entry exists for it; see
+    /// `nvs_types::expr_table::ExprInfo::Index` entry exists for it; see
     /// `crate::lower::Lowering::lower_expr`'s `Index` arm). `key` is in one
     /// of exactly two representations — [`crate::ty::Ty::Str`], or
     /// [`crate::ty::Ty::Int`] for a subscript that was already an `int` and
@@ -1063,8 +1063,8 @@ pub enum InstKind {
     /// read written outside a guard — it is a *fallible* instruction carrying
     /// ADR 0002's error edge like a call: emitted through
     /// `crate::lower::Lowering::emit_fallible`, given the same status check
-    /// every helper call gets by `mwl-codegen`, against the runtime entry
-    /// point `mwl_array_required_get` — which is why the two representations
+    /// every helper call gets by `nvs-codegen`, against the runtime entry
+    /// point `nvs_array_required_get` — which is why the two representations
     /// above are told apart there, by the key's own tag, rather than by
     /// picking a symbol here. PHP warns and yields `null`; ADR 0007 § 7 row 11
     /// records the divergence and that helper's doc comment says why the old
@@ -1072,7 +1072,7 @@ pub enum InstKind {
     /// *not* an absent key and reads back unchanged. Under
     /// [`AbsentKey::Null`] it is infallible, its result is
     /// [`crate::ty::Ty::Tagged`] whatever the element type is, and the entry
-    /// point is `mwl_array_optional_get`. The write side asks the
+    /// point is `nvs_array_optional_get`. The write side asks the
     /// same question and answers it a third way — an absent key vivifies —
     /// which is what [`Helper::ArrayRowForWrite`] exists for. Reads `array`
     /// without
@@ -1116,7 +1116,7 @@ pub enum InstKind {
     /// write into an array a second binding also holds must separate, which
     /// produces a *different* allocation — so this instruction consumes one
     /// reference to `array` and yields one reference to the result, which is
-    /// the same pointer whenever `array` was solely owned. `mwl_runtime`'s
+    /// the same pointer whenever `array` was solely owned. `nvs_runtime`'s
     /// `array` module owns that protocol and why it is the only shape open to
     /// a backend that keeps a local in an SSA register rather than a memory
     /// slot a callee could write back through. The consequence for lowering is
@@ -1143,7 +1143,7 @@ pub enum InstKind {
     /// the array value itself, not something a lowering pass can compute from
     /// the source text the way a literal's positional index or an explicit
     /// key already can. This instruction leaves that counter's storage and
-    /// increment entirely to whatever `mwl-codegen`'s own array representation
+    /// increment entirely to whatever `nvs-codegen`'s own array representation
     /// does with it — the same "shape now, functional once a backend exists"
     /// deferral [`InstKind::Safepoint`] already gets, not a design this crate
     /// itself had to make. `crate::lower::Lowering::lower_reassignment`
@@ -1160,7 +1160,7 @@ pub enum InstKind {
     /// see that variant's own doc comment, which is the one home for it.
     ///
     /// The one array write carrying an [`Inst::on_error`] edge: PHP refuses an
-    /// append whose next integer key is already live, and `mwl_runtime::array`
+    /// append whose next integer key is already live, and `nvs_runtime::array`
     /// § *the append is the one array write with a fault channel* owns both
     /// the refusal and what it leaves each operand's reference holding.
     ArrayAppend {
@@ -1181,7 +1181,7 @@ pub enum InstKind {
     /// control-flow join inside an *expression* that has none.
     ///
     /// **Which key survives is a language rule, not a representation
-    /// detail**, and `mwl_runtime::mwl_array_spread` is its one home: a key
+    /// detail**, and `nvs_runtime::nvs_array_spread` is its one home: a key
     /// that reads as a canonical decimal integer is renumbered under this
     /// array's own append counter, and every other key is preserved in place.
     ///
@@ -1204,7 +1204,7 @@ pub enum InstKind {
     },
     /// Removes `key` from `array` if it is present — `unset($a[$k]);`, ADR
     /// 0028 § 3's one surviving `unset` target (the declared-*property* form
-    /// is a diagnostic `mwl_types::expr::check_unset_target` already reports,
+    /// is a diagnostic `nvs_types::expr::check_unset_target` already reports,
     /// so it never reaches lowering).
     ///
     /// **Defines a fresh [`crate::ty::Ty::Array`] value**, on exactly
@@ -1228,7 +1228,7 @@ pub enum InstKind {
     /// insertion order, defining a [`crate::ty::Ty::Int`].
     ///
     /// A cursor rather than a borrowed iterator because compiled loop-body
-    /// code runs between two steps; `mwl_runtime::array`'s `mwl_array_next_slot`
+    /// code runs between two steps; `nvs_runtime::array`'s `nvs_array_next_slot`
     /// is the one home for why that makes PHP's by-value `foreach` fall out.
     /// Consumes and produces no reference at all: the loop holds its own
     /// reference to `array` for its whole duration, which
@@ -1243,7 +1243,7 @@ pub enum InstKind {
     /// frame owns — `foreach`'s `$k` binding.
     ///
     /// Unlike [`InstKind::ArrayGet`], this *retains*: a key is stored as the
-    /// index map's own `MwlStr`, and handing compiled code a borrowed pointer
+    /// index map's own `NvsStr`, and handing compiled code a borrowed pointer
     /// into it would outlive the one thing keeping it alive as soon as the
     /// body rebound `$k`. `crate::lower::Lowering::lower_foreach` releases it
     /// at every point one iteration ends.
@@ -1270,27 +1270,27 @@ pub enum InstKind {
     /// A call to a Tier 0 `Core` member — `Core\Arr::count($a)`.
     ///
     /// Written like [`InstKind::Call`] in the source and resolved through the
-    /// same `mwl_types::expr_table::ResolvedCall`, but lowered separately for
-    /// one reason: there is no compiled MWL function to name. A `Core` member
+    /// same `nvs_types::expr_table::ResolvedCall`, but lowered separately for
+    /// one reason: there is no compiled Novis function to name. A `Core` member
     /// is native Rust behind an [ADR 0002](../../../docs/adr/0002-error-propagation.md)
     /// *helper* entry point, so this carries the linker symbol
-    /// `mwl_stdlib::registry` registered rather than a `Class::method` label,
-    /// and `mwl-codegen` emits it through the same path
+    /// `nvs_stdlib::registry` registered rather than a `Class::method` label,
+    /// and `nvs-codegen` emits it through the same path
     /// [`InstKind::HelperCall`] takes. It is not a [`Helper`], though: that
     /// enum is a closed set this crate owns, and `Core`'s membership is
-    /// `mwl-stdlib`'s to decide.
+    /// `nvs-stdlib`'s to decide.
     ///
     /// **Arguments are borrowed, never consumed** — the helper convention,
     /// which is the opposite of `InstKind::Call`'s. So
     /// `crate::lower::Lowering::lower_call_args` inserts no retain here, and
     /// the caller keeps owning every reference it passed;
-    /// `mwl_stdlib`'s own docs own that rule and why ADR 0063's purity
+    /// `nvs_stdlib`'s own docs own that rule and why ADR 0063's purity
     /// requirement is what makes it safe. A refcounted *result* is a fresh
     /// reference this frame owns, exactly like a `Call`'s.
     ///
     /// There is no receiver *field*, and an instance member needs none: a
     /// `Core`-owned class's member (`$match->text()`,
-    /// `mwl_stdlib::registry::CoreTy::Instance`) puts its receiver in
+    /// `nvs_stdlib::registry::CoreTy::Instance`) puts its receiver in
     /// `args[0]`, which is where the ABI would have carried a separate field
     /// anyway. `crate::lower`'s `MethodCall` arm is what puts it there, and it
     /// borrows the receiver exactly as it borrows every other argument — so a
@@ -1300,7 +1300,7 @@ pub enum InstKind {
     /// through the class name, so no member is ever reached both ways.
     CoreCall {
         /// The linker symbol the implementation is reachable at, from
-        /// `mwl_stdlib::registry::CoreMethod::symbol`.
+        /// `nvs_stdlib::registry::CoreMethod::symbol`.
         symbol: &'static str,
         /// The already-lowered arguments, positional.
         args: Vec<ValueId>,
@@ -1310,11 +1310,11 @@ pub enum InstKind {
 /// What an [`InstKind::ArrayGet`] answers when its key names no entry.
 ///
 /// Two answers rather than one because PHP has two: a bare `$a["k"]` warns
-/// and yields `null` (MWL throws instead — ADR 0007 § 7 row 11), while
+/// and yields `null` (Novis throws instead — ADR 0007 § 7 row 11), while
 /// `$a["k"] ?? "d"` is defined as *"absent or `null`, without the warning"*
-/// and must produce the default. The guard is recognized in `mwl_types`,
+/// and must produce the default. The guard is recognized in `nvs_types`,
 /// which records it on the subscript's own
-/// `mwl_types::expr_table::ExprInfo::Index` entry, because whether a read sits
+/// `nvs_types::expr_table::ExprInfo::Index` entry, because whether a read sits
 /// under a `??` is a question about the expression tree that this crate would
 /// otherwise have to re-derive.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -1332,7 +1332,7 @@ pub enum AbsentKey {
 /// One member of the closed set of engine-owned runtime conversions
 /// [`InstKind::HelperCall`] can invoke — a fixed, non-exhaustive enum for
 /// the same reason [`BinOp`]/[`UnOp`] already are one: the set is small,
-/// closed, and known entirely to this crate and `mwl-codegen`, never
+/// closed, and known entirely to this crate and `nvs-codegen`, never
 /// user-extensible, so a string name would only trade compile-time
 /// exhaustiveness for nothing. Three families exist so far: a scalar-to-
 /// [`crate::ty::Ty::Str`] conversion — for `.` concatenation
@@ -1379,7 +1379,7 @@ pub enum Helper {
     /// converts to a number, so carrying the quirk over would make a buffer
     /// falsy for a reason that does not apply to it.
     /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md) § 2's
-    /// table states the row; `mwl_runtime::value_truthy`'s `Tag::Bytes` arm is
+    /// table states the row; `nvs_runtime::value_truthy`'s `Tag::Bytes` arm is
     /// the same rule reached through a `mixed`.
     BytesTruthy,
     /// `array<T>` truthiness: falsy iff empty, for any `T`.
@@ -1390,7 +1390,7 @@ pub enum Helper {
     /// table, dispatching on the value's runtime type".
     ///
     /// The row the six helpers above name statically, chosen at run time
-    /// instead: `mwl_runtime::value_truthy` reads the tag and applies the same
+    /// instead: `nvs_runtime::value_truthy` reads the tag and applies the same
     /// rule the matching helper would have, so a `mixed` holding `"0"` and a
     /// `string $s = "0"` answer alike. It is the truthiness twin of
     /// [`Self::Identical`], which is ADR 0090 § 5's equality row for the same
@@ -1506,7 +1506,7 @@ pub enum Helper {
     /// ADR 0002's error edge like every other checked row.
     ///
     /// **The pair's other direction is not here, and that is the point.**
-    /// `string as bytes` is total and free — the same `mwl_runtime::MwlStr`
+    /// `string as bytes` is total and free — the same `nvs_runtime::NvsStr`
     /// under a second tag — so `crate::lower::Lowering::convert` lowers it to
     /// an [`InstKind::Reinterpret`] and emits no call at all. Only the
     /// checked half needs a helper, because only the checked half runs
@@ -1524,7 +1524,7 @@ pub enum Helper {
     /// § 2's "a `null` operand yields `null`" and § 3's "from `mixed` every
     /// target has a checked path" the same code as `"42" as ?int` rather than
     /// three lowering branches — the operand is already a tagged `Value` by
-    /// the time any helper sees it (`mwl_codegen`'s `store_value`).
+    /// the time any helper sees it (`nvs_codegen`'s `store_value`).
     ToIntOrNull,
     /// `$x as ?uint` — [`Self::ToIntOrNull`]'s row set, unsigned.
     ToUintOrNull,
@@ -1544,7 +1544,7 @@ pub enum Helper {
     /// **A `toString()` body that throws still throws.** ADR 0066 § 1's `null`
     /// stands for "this conversion had no answer", not for "swallow whatever
     /// the operand did on the way": the exception the body recorded is the
-    /// program's own and reaches the request unchanged. `mwl_runtime`'s
+    /// program's own and reaches the request unchanged. `nvs_runtime`'s
     /// `stringify_or_null` is where that line is drawn.
     ToStringOrNull,
     /// `$x as ?bytes` — [`Self::TaggedToBytes`]'s two rows in ADR 0066 § 1's
@@ -1594,9 +1594,9 @@ pub enum Helper {
     /// spellings above also land here for an object whose *static* type named
     /// no class to resolve against — an erased `object`
     /// ([ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4), a
-    /// union, a `Core`-owned class — and `mwl_runtime::stringify` answers it
+    /// union, a `Core`-owned class — and `nvs_runtime::stringify` answers it
     /// by asking the receiver's runtime class for ADR 0028 § 1's `toString`.
-    /// The static path is unchanged and cheaper: where `mwl_types` did resolve
+    /// The static path is unchanged and cheaper: where `nvs_types` did resolve
     /// one, an ordinary [`InstKind::CallVirtual`] is emitted and no helper is
     /// reached at all.
     ///
@@ -1604,7 +1604,7 @@ pub enum Helper {
     /// ones it is emitted through `crate::lower::Lowering::emit_fallible` and
     /// carries ADR 0002's error edge: an array, a closure, a resource and an
     /// object whose class declares no `toString` have no row, and
-    /// `mwl_runtime::value_to_string` owns what each throws and why.
+    /// `nvs_runtime::value_to_string` owns what each throws and why.
     TaggedToString,
     /// A [`crate::ty::Ty::Tagged`] operand to `int` — ADR 0007 § 2's `→ int`
     /// rows chosen by the operand's **runtime** tag, which is the only thing
@@ -1612,7 +1612,7 @@ pub enum Helper {
     /// union.
     ///
     /// The throwing twin of [`Self::ToIntOrNull`], over the same row set in
-    /// `mwl_runtime` and never a second copy of it: § 2's `as T` throws where
+    /// `nvs_runtime` and never a second copy of it: § 2's `as T` throws where
     /// ADR 0066's `as ?T` answers `null`, so the pair differs only in what it
     /// does with a miss. Fallible, so it is emitted through
     /// `crate::lower::Lowering::emit_fallible` and carries ADR 0002's error
@@ -1646,14 +1646,14 @@ pub enum Helper {
     /// § 6's way out of `mixed` for an array. Argument 1 is the element
     /// description, `crate::lower::array_element_tags`' word: one tag nibble
     /// per level of `U`. Both are what a helper *can* carry — arguments are
-    /// stored as `mwl_runtime::Value`s — and the reason an element type naming
+    /// stored as `nvs_runtime::Value`s — and the reason an element type naming
     /// a class is refused where it is written (`E0711`) rather than lowered
     /// to this.
     ///
     /// **Nothing is copied.** ADR 0007 § 5 makes `array<T>` invariant so that
     /// the O(n) restamp is visible, and the restamp is this walk; the *buffer*
-    /// then stays shared, because an MWL array is copy-on-write and whichever
-    /// side writes first separates itself (`mwl_runtime::array`'s
+    /// then stays shared, because an Novis array is copy-on-write and whichever
+    /// side writes first separates itself (`nvs_runtime::array`'s
     /// `make_unique`). So the result is the same allocation under one more
     /// reference, and the row costs one tag test per element and no bytes at
     /// all.
@@ -1671,20 +1671,20 @@ pub enum Helper {
     ToArrayOfOrNull,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
-    /// effect under `mwl run`, decided in `docs/agent/loop-goal.md`. Defines no
+    /// effect under `nvs run`, decided in `docs/agent/loop-goal.md`. Defines no
     /// value: the only [`Helper`] so far that is invoked for an effect
     /// rather than a conversion, so its [`InstKind::HelperCall`] is emitted
     /// with `result: None` and every other variant's "the result is a fresh
     /// `Ty::Str` nothing else owns" release policy does not apply to it.
     /// ADR 0024 § 5's auto-escaping sink is the *HTTP response* write, not
-    /// this one — whether `echo` under `mwl serve` becomes that sink is an
+    /// this one — whether `echo` under `nvs serve` becomes that sink is an
     /// M7 decision this deliberately does not pre-empt.
     EchoStr,
     /// `exit`/`exit(...)`: record the process status its one
     /// [`crate::ty::Ty::Int`] argument names, then end the request.
     ///
     /// **The one helper whose success is a non-`OK` status.** It returns
-    /// `mwl_runtime::EXITED`, so the ADR 0002 status check after it takes this
+    /// `nvs_runtime::EXITED`, so the ADR 0002 status check after it takes this
     /// instruction's error edge, the frame's live locals are released in that
     /// landing block, and every caller's own check propagates it onward. No
     /// `catch` sees it — [`Terminator::Catch`] admits only `THROWN` — and **no
@@ -1720,7 +1720,7 @@ pub enum Helper {
     ///
     /// It **owns** that second argument, uniquely among helpers: a call that
     /// never returns leaves no reachable instruction to release the fresh
-    /// [`InstKind::ConstStr`] at, so `mwl_runtime`'s own helper drops it.
+    /// [`InstKind::ConstStr`] at, so `nvs_runtime`'s own helper drops it.
     /// The operand keeps the ordinary convention and is the caller's.
     LiteralMismatch,
     /// `a == b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
@@ -1731,7 +1731,7 @@ pub enum Helper {
     ///
     /// Every other row of that table is reached without this helper, because
     /// the operands' types already named it: a scalar pair is one
-    /// [`BinOp::Eq`] machine comparison, and `mwl-codegen` turns a `string`,
+    /// [`BinOp::Eq`] machine comparison, and `nvs-codegen` turns a `string`,
     /// `array` or `object` pair into a direct two-pointer call or an inline
     /// pointer compare rather than tagging both sides into stack slots. So
     /// this is the *only* row that pays ADR 0002's calling convention, and it
@@ -1753,7 +1753,7 @@ pub enum Helper {
     /// settled the way a same-representation pair is: `int` → `float` loses
     /// every integer past 2^53, `float` → `int` has no answer for a fractional
     /// or out-of-range operand, and `int` ↔ `uint` share a bit pattern at `-1`
-    /// and `u64::MAX`. `mwl_runtime::numeric_identical` compares over `i128`
+    /// and `u64::MAX`. `nvs_runtime::numeric_identical` compares over `i128`
     /// and over the float's own binary value instead, so `1 == 1.0` is `true`
     /// and no pair is ever equated by a rounding neither operand asked for.
     ///
@@ -1775,7 +1775,7 @@ pub enum Helper {
     /// 2^53, and because § 2 makes that widening **throw** rather than round,
     /// what a program would actually observe is `9007199254740993 < 1.5`
     /// raising `ArithmeticError` where PHP answers `false`.
-    /// `mwl_runtime::numeric_ordering` compares over `i128` and over the
+    /// `nvs_runtime::numeric_ordering` compares over `i128` and over the
     /// float's own binary value instead, which has an answer for every pair.
     ///
     /// **`>` is this helper with its operands swapped**, the arrangement
@@ -1798,7 +1798,7 @@ pub enum Helper {
     ///
     /// It is the ordering twin of [`Self::Identical`], reached by the same
     /// reasoning and from the same place in `crate::lower::Lowering::lower_binary`:
-    /// where the static types answer the row, `mwl-codegen` emits the machine
+    /// where the static types answer the row, `nvs-codegen` emits the machine
     /// comparison; where they do not, the tag answers it and the operand pair
     /// is settled here rather than in a `BinOp` over a representation neither
     /// side has. `>` is this helper with its operands swapped, the arrangement
@@ -1809,7 +1809,7 @@ pub enum Helper {
     /// ordering table is a *closed* list, so a pair it names no row for — two
     /// strings, an `array<T>`, `null`, an enum case, a `bytes`, a `callable` —
     /// has no ordering at all. Where the static types show it,
-    /// `mwl_types::expr::operators::reject_unordered_operand` refuses it where
+    /// `nvs_types::expr::operators::reject_unordered_operand` refuses it where
     /// it is written (`E0715`); where they do not, the refusal is exactly as
     /// real and can only be made when the tags arrive, so it becomes a
     /// catchable throw carrying that diagnostic's own wording. That is ADR 0036
@@ -1839,7 +1839,7 @@ pub enum Helper {
     /// every byte of two equal-length operands whatever they hold, so an
     /// attacker holding one side cannot recover the other a byte at a time by
     /// timing the answer. Lengths are not hidden — a mismatch answers `false`
-    /// at once, which is what `mwl_stdlib`'s `Core\Hash::equals` does for the
+    /// at once, which is what `nvs_stdlib`'s `Core\Hash::equals` does for the
     /// same reason.
     ///
     /// **`!=` is this helper under [`UnOp::Not`]**, the arrangement
@@ -1851,7 +1851,7 @@ pub enum Helper {
     /// [`crate::ty::Ty::Bytes`], because ADR 0033 § 1 spends no representation
     /// on the bit. So the *lowering* cannot re-derive the choice of helper
     /// from its operand types, and does not try: the checker records
-    /// `mwl_types::expr_table::ExprInfo::SecretEquality` at the comparison and
+    /// `nvs_types::expr_table::ExprInfo::SecretEquality` at the comparison and
     /// `lower_binary` reads it back.
     ///
     /// Costed in ADR 0033 § 5: ≈10 ns against ≈2 ns for the short-circuiting
@@ -1870,15 +1870,15 @@ pub enum Helper {
     /// § 1), so the checker types the call `mixed` and cannot say which
     /// function a variable holds; what answers both questions is the closure
     /// object itself, whose class declares the one `invoke`
-    /// `mwl_runtime::call_closure` reaches through. That helper is the same
+    /// `nvs_runtime::call_closure` reaches through. That helper is the same
     /// one every `Core` member taking a `callable` already calls, so a
-    /// closure invoked from MWL and one invoked from a native member take the
+    /// closure invoked from Novis and one invoked from a native member take the
     /// identical path.
     ///
     /// Being variadic, it is the one helper whose argument count is not baked
-    /// into `mwl_runtime`'s own declaration: `mwl-codegen` passes the count
+    /// into `nvs_runtime`'s own declaration: `nvs-codegen` passes the count
     /// beside the argument slot, which is `Signatures::helper_variadic` there
-    /// and one extra parameter on `mwl_call_closure` here.
+    /// and one extra parameter on `nvs_call_closure` here.
     ///
     /// Arguments are **borrowed**, the treatment every helper's are given:
     /// `call_closure` retains the receiver and each argument it actually
@@ -1900,9 +1900,9 @@ pub enum Helper {
     /// `args[0]` is the closure and `args[1]` one array holding every argument
     /// in call order — the array `crate::lower::Lowering::lower_args_as_array`
     /// already builds for a variadic parameter's tail, each `...` flattened
-    /// into it by `mwl_runtime::mwl_array_spread`. It is a second row rather
+    /// into it by `nvs_runtime::nvs_array_spread`. It is a second row rather
     /// than a wider [`CallClosure`](Self::CallClosure) because that one's
-    /// argument count is a literal in the emitted call — `mwl-codegen` writes
+    /// argument count is a literal in the emitted call — `nvs-codegen` writes
     /// it beside the argument slot — and a `...` is precisely the shape with no
     /// such count, so this one is an ordinary fixed-arity helper taking two
     /// values.
@@ -1939,8 +1939,8 @@ pub enum BinOp {
     /// too — including for a *negative* exponent, which that row's "no
     /// promotion to `float`" leaves with no `int` to answer except where the
     /// base is `1` or `-1`. Neither representation is one instruction:
-    /// `mwl-codegen` emits a square-and-multiply loop for the integer row and
-    /// calls `mwl_runtime::mwl_float_pow` for the float one, there being no
+    /// `nvs-codegen` emits a square-and-multiply loop for the integer row and
+    /// calls `nvs_runtime::nvs_float_pow` for the float one, there being no
     /// `fpow` on any target and no `LibCall` for it either.
     Pow,
     /// `&` — ADR 0007 § 4 preserves the operand type, and this and the two
@@ -1963,9 +1963,9 @@ pub enum BinOp {
     Shr,
     /// `==` — ADR 0090 makes this the language's only equality operator, with
     /// no conversion of either operand. Every operand pair that reaches here
-    /// has one statically known representation, and `mwl-codegen` picks that
+    /// has one statically known representation, and `nvs-codegen` picks that
     /// row's comparison from it: a machine compare for a scalar, a call to
-    /// `mwl_runtime::mwl_str_eq` or `mwl_runtime::mwl_array_eq` for a `string`
+    /// `nvs_runtime::nvs_str_eq` or `nvs_runtime::nvs_array_eq` for a `string`
     /// or `array` pair, and a pointer compare for two objects. A `mixed` or
     /// union operand has no static row, so it does not lower to this at all —
     /// it takes [`Helper::Identical`].
@@ -2044,15 +2044,15 @@ pub enum Terminator {
     /// status onward unchanged.
     ///
     /// `frame` is the fully rendered `Class::method() at <file>:<line>` label,
-    /// built at lowering time because that is where a [`mwl_diagnostics::Span`]
-    /// can still be resolved to a line — `mwl-codegen` sees only byte offsets.
+    /// built at lowering time because that is where a [`nvs_diagnostics::Span`]
+    /// can still be resolved to a line — `nvs-codegen` sees only byte offsets.
     /// The line is the enclosing statement's, read from the same per-statement
     /// span table [`Function::stmt_spans`] already carries for ADR 0018's
     /// probes; there is no second position table.
     ///
     /// A `FATAL` pushes nothing: it is not a `Throwable` at all
     /// ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)), which
-    /// is why the status travels to `mwl_trace_push` rather than being decided
+    /// is why the status travels to `nvs_trace_push` rather than being decided
     /// here.
     Propagate {
         /// The backtrace label — see above.
@@ -2064,7 +2064,7 @@ pub enum Terminator {
     ///
     /// No frame is recorded here, and deliberately so: the backtrace holds the
     /// frames the exception actually unwound *out of*, and a caught throw
-    /// never leaves this one. See `mwl_runtime::throwable`'s own docs for why
+    /// never leaves this one. See `nvs_runtime::throwable`'s own docs for why
     /// that differs from PHP's construction-time stack snapshot.
     Catch {
         /// The `catch` clause's handler block.
@@ -2078,7 +2078,7 @@ pub enum Terminator {
     /// general N-way terminator rather than a resumption-specific one, which
     /// is what keeps every consumer's `match` on [`Terminator`] honest.
     ///
-    /// **MWL's own `switch` statement does not use it.** Its cases are
+    /// **Novis's own `switch` statement does not use it.** Its cases are
     /// arbitrary expressions of the subject's type rather than integers —
     /// `case "A":` is one string comparison call — so it lowers to a chain of
     /// [`Terminator::Branch`]es instead; `crate::lower::Lowering::lower_switch`
@@ -2086,10 +2086,10 @@ pub enum Terminator {
     ///
     /// Cases are matched in order and are **not** required to be dense,
     /// contiguous or sorted; a duplicate case is unreachable rather than an
-    /// error, exactly as a duplicate `if` arm would be. `mwl-codegen` lowers
+    /// error, exactly as a duplicate `if` arm would be. `nvs-codegen` lowers
     /// this to a compare chain, which is why order is what it is — a jump
     /// table over a dense case set is the obvious optimisation and is
-    /// deliberately not taken yet (see `mwl-codegen`'s own known gaps).
+    /// deliberately not taken yet (see `nvs-codegen`'s own known gaps).
     ///
     /// Each arm carries its own [`EdgeId`] for the same reason
     /// [`Terminator::Branch`]'s two do: ADR 0018 § 1's branch probe is

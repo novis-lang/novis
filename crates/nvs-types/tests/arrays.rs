@@ -1,12 +1,12 @@
 //! Array literals, element types at depth, and what may be a subscript — ADR 0007 § 5.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 #[test]
 fn integer_division_into_a_plain_int_is_diagnosed() {
@@ -23,7 +23,7 @@ fn integer_division_into_a_union_target_is_fine() {
 #[test]
 fn assigning_mixed_into_a_typed_local_is_diagnosed() {
     let diags =
-        check_src("<?mwl\nclass T {\n  function m(mixed $m): void {\n    int $n = $m;\n  }\n}\n");
+        check_src("<?nvs\nclass T {\n  function m(mixed $m): void {\n    int $n = $m;\n  }\n}\n");
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }
 

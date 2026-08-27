@@ -1,7 +1,7 @@
 --TEST--
 `Core\Str::graphemes` answers the class's own unit and `Core\Str::codePoints` answers scalar values — spec § 1 *Extraction*, ADR 0009 § 2
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function points(array<uint> $a): string {
         var $out = "";

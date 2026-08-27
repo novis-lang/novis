@@ -1,7 +1,7 @@
 --TEST--
 An enum value is an ordinary array element — stored, iterated, projected to its integer and ordered by it
 --FILE--
-<?mwl
+<?nvs
 enum Level {
     Low,
     Mid,

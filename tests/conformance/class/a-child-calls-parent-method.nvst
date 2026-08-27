@@ -1,7 +1,7 @@
 --TEST--
 `parent::` reaches the overridden method, and the child's override is what a call site sees
 --FILE--
-<?mwl
+<?nvs
 class Shape {
     protected string $shapeName;
 

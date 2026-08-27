@@ -1,7 +1,7 @@
 --TEST--
 `$x++` and `--$x` used as a value agree with PHP on which of the two numbers they answer, and on where the write lands — ADR 0007 §§ 4 and 5
 --FILE--
-<?mwl
+<?nvs
 final class Box { public int $n = 0; }
 final class Twice {
     public static function of(int $n): int {

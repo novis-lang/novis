@@ -1,8 +1,8 @@
 --TEST--
 A parameter typed `Stringable` stringifies and one typed `Comparable` orders — an interface satisfies itself in zero steps — ADR 0028 § 1, ADR 0013 § 2
 --FILE--
-<?mwl
-// `mwl_hir::implements_interface` is reflexive, so `Stringable` reaches
+<?nvs
+// `nvs_hir::implements_interface` is reflexive, so `Stringable` reaches
 // `Stringable`'s own `toString()` and `Comparable` its own `compareTo()`.
 // Neither declaration has a body, so both dispatch on the runtime class —
 // the same path any other interface-method call already takes.

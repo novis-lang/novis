@@ -1,6 +1,6 @@
-# Where MWL deliberately diverges from PHP
+# Where Novis deliberately diverges from PHP
 
-MWL uses PHP's syntax and does not promise PHP's semantics. This is the register of every place the
+Novis uses PHP's syntax and does not promise PHP's semantics. This is the register of every place the
 two are known to differ **on purpose** — one row per divergence, with the ADR that owns it.
 
 It exists because the divergences were previously counted in prose, ADR by ADR: [0007](0007-explicit-type-system.md)
@@ -13,9 +13,9 @@ diagnostic or a migration path — those live in the ADR, which is also where th
 
 Three things read this register and each is a reason to keep it complete:
 
-- **[0080](0080-the-audience-mwl-is-built-for.md) § 3** forbids any document from implying that existing
+- **[0080](0080-the-audience-nvs-is-built-for.md) § 3** forbids any document from implying that existing
   PHP runs. This is the page that makes that claim checkable instead of a matter of tone.
-- **[0089](0089-convert-is-one-rule-table-with-two-modes.md)** tiers every `mwl convert` rule by whether
+- **[0089](0089-convert-is-one-rule-table-with-two-modes.md)** tiers every `nvs convert` rule by whether
   the converted construct behaves identically. A row here is a rule that cannot be tier **E**.
 - **M11's `.phpt` pass rate** must distinguish a failure from an intentional divergence, or it reads as
   regression. This is the list that distinguishes them.
@@ -25,7 +25,7 @@ carries one row per PHP built-in and is the home for those.
 
 ## The type system
 
-| PHP | MWL | Owner |
+| PHP | Novis | Owner |
 |---|---|---|
 | a variable holds anything, and its type changes silently | every binding declares a type, fixed for its lifetime; `settype()` is rejected | [0007](0007-explicit-type-system.md) § 7 |
 | a function, method or closure may omit its return type | mandatory on every one, `void`/`never` written out | [0007](0007-explicit-type-system.md) § 7 |
@@ -43,7 +43,7 @@ carries one row per PHP built-in and is the home for those.
 
 ## Operators and expressions
 
-| PHP | MWL | Owner |
+| PHP | Novis | Owner |
 |---|---|---|
 | `==` juggles and `===` escapes it | one operator, `==`; `===`/`!==` do not parse, and two disjoint types do not compile | [0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) |
 | `"1" == "01"` is true; `==` on arrays ignores key order; `==` on objects walks properties | strings compare as text, arrays element-by-element in order, objects by identity | [0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 3 |
@@ -55,7 +55,7 @@ carries one row per PHP built-in and is the home for those.
 
 ## Declarations and the object model
 
-| PHP | MWL | Owner |
+| PHP | Novis | Owner |
 |---|---|---|
 | a member with no visibility keyword is `public` | every member declaration writes one; an omission is a compile error | [0094](0094-visibility-is-written-at-every-member-declaration.md) |
 | identifiers may be cased any way | casing is checked and a mismatch is a hard error, with no suppression | [0029](0029-identifier-casing-is-checked.md) |
@@ -66,18 +66,18 @@ carries one row per PHP built-in and is the home for those.
 | a typed property may be declared-but-unset and throw on read | every constructor must definitely assign every property, checked at compile time | [0022](0022-definite-property-initialization.md) |
 | `__get`/`__set`/`__call`/`__callStatic` intercept undefined access | no fallback exists; an undeclared member is an error, and `PropertyObserver` observes declared ones | [0014](0014-property-observer.md) |
 | `__toString`, `__destruct`, `__isset`/`__unset`, `__debugInfo`, `__set_state` | `Stringable` replaces the first; the rest are removed, and `unset()` on a declared property is refused | [0028](0028-closing-the-remaining-magic-methods.md) |
-| `__clone`, `__serialize`/`__unserialize`, `__sleep`/`__wakeup` | no copy hook of any kind, and `unserialize` accepts only MWL's own closed format | [0023](0023-clone-serialize-and-cross-boundary-copy.md) |
+| `__clone`, `__serialize`/`__unserialize`, `__sleep`/`__wakeup` | no copy hook of any kind, and `unserialize` accepts only Novis's own closed format | [0023](0023-clone-serialize-and-cross-boundary-copy.md) |
 | `ArrayAccess`, `Countable`, and ~20 SPL iterator classes | `Iterable<T>`/`Iterator<T>` only; `$obj[$k]` on a non-array does not compile | [0053](0053-iteration-and-generators.md) § 3 |
 | `yield from`, `send()`, `throw()` into a generator | a generator is a one-way lazy sequence, lowered to a state machine | [0053](0053-iteration-and-generators.md) §§ 4–5 |
 | a closure inside a method always binds `$this`; `static fn` opts out | capture is implicit, by value, and `$this` is bound only when the body uses it | [0008](0008-static-and-global.md) § 4 |
 | `function () use (&$y) {}` and two closure literals | one literal, `fn`, and no `use` clause at all | [0031](0031-callable-is-the-only-closure-type.md) |
 | `callable` accepts strings, arrays and `__invoke` objects | only a closure; `$obj(...)` never resolves to a method | [0027](0027-callable-is-closures-only.md) |
 | `list($a, $b) = $p;` | does not parse; `[...]` is the only destructuring spelling | [0050](0050-list-destructuring-spelling-rejected.md) |
-| `<?php` opens code; `die` terminates | `<?mwl` and `exit` are the only spellings — and a `#!` first line opens code with no tag | [0049](0049-single-open-tag-and-single-exit-keyword.md), [0100](0100-against-python-mwl-claims-the-tool-that-gets-handed-over.md) § 3 |
+| `<?php` opens code; `die` terminates | `<?nvs` and `exit` are the only spellings — and a `#!` first line opens code with no tag | [0049](0049-single-open-tag-and-single-exit-keyword.md), [0100](0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 3 |
 
 ## Scope, names and the standard library
 
-| PHP | MWL | Owner |
+| PHP | Novis | Owner |
 |---|---|---|
 | `global`, function-scope `static` | neither exists; state lives in the four places [0008](0008-static-and-global.md) § 2 lists | [0008](0008-static-and-global.md) |
 | a function or constant may be declared at file scope | every callable is a method and every constant a class constant, built-ins included | [0011](0011-functions-and-constants-are-class-members.md) § 5 |
@@ -97,7 +97,7 @@ carries one row per PHP built-in and is the home for those.
 
 These are divergences because a ported program behaves differently, not because a construct was removed.
 
-| PHP | MWL | Owner |
+| PHP | Novis | Owner |
 |---|---|---|
 | echoing a variable into HTML emits it raw | the HTML sink auto-escapes any non-`Markup` value; only a source literal converted `as Markup` writes raw | [0024](0024-taint-tracking-for-injection-sinks.md) § 5 |
 | output to a terminal passes control bytes through | `ESC` and every other control byte is substituted with a visible glyph, uniformly | [0086](0086-core-cli-terminal-is-a-sink.md) § 1 |

@@ -2,7 +2,7 @@
 //! § 6, over `serde_json`.
 //!
 //! That section is authoritative for every signature; what belongs here is the
-//! crate choice, the two shapes JSON has that MWL does not, and the three
+//! crate choice, the two shapes JSON has that Novis does not, and the three
 //! places this module refuses input the C `json_decode` would have accepted.
 //!
 //! # The crate, and why this one
@@ -13,11 +13,11 @@
 //! Rust JSON crate has both of:
 //!
 //! * **It can be driven without its own `Value` tree.** [`Decode`] is a
-//!   `serde::de::Visitor`, so a document becomes [`mwl_runtime::MwlArray`]s and
+//!   `serde::de::Visitor`, so a document becomes [`nvs_runtime::NvsArray`]s and
 //!   [`Value`]s *directly* — nothing is ever materialized twice. That is what
 //!   keeps [`ADR 0004`](../../../../docs/adr/0004-memory-for-simplicity.md)'s
 //!   priority 3 honest on a member every request path uses.
-//! * **The serializer's escaping and number formatting are the crate's.** MWL
+//! * **The serializer's escaping and number formatting are the crate's.** Novis
 //!   writes no JSON grammar of its own at all: [`Encodable`] answers
 //!   `serialize_i64`/`serialize_str`/`serialize_map` and the crate decides what
 //!   bytes those are.
@@ -71,7 +71,7 @@
 //! 2. **A derived field's type roster is narrower than ADR 0071 § 2's.**
 //!    [`decode_field`] has a case for a `bool`, an `int`, a `uint`, a `float`,
 //!    a `string`, a `mixed` and a `?T` of any of them — the whole of
-//!    [`mwl_runtime::CodecTy`] but its last variant. An enum, a `decimal`, an
+//!    [`nvs_runtime::CodecTy`] but its last variant. An enum, a `decimal`, an
 //!    `Instant`, an `array<T>`, an inline shape and a nested derived class are
 //!    all codec-reachable by that ADR and all land on `CodecTy::Opaque`, which
 //!    [`decode_as`] refuses **before reading the document**, naming the field.
@@ -82,9 +82,9 @@
 //!    *required field missing*, and a `#[Json\Field(skip: true)]` property
 //!    that is also a constructor parameter leaves a position nothing fills,
 //!    which [`decode_as`] reports as an engine fault rather than passing
-//!    `null`. `mwl_types::defaults` evaluates a default into a constant the
+//!    `null`. `nvs_types::defaults` evaluates a default into a constant the
 //!    *call site* emits, and a native decoder is not a call site — closing
-//!    this means carrying the constant onto `mwl_runtime::CodecField`.
+//!    this means carrying the constant onto `nvs_runtime::CodecField`.
 //! 4. **A hand-written `Core\Json\Codec` is not consulted.** ADR 0071 § 7 lets
 //!    a class write its own `toJson()` and keep the generated decoder; today
 //!    only the derived field list is read, so a class with a hand-written
@@ -100,7 +100,7 @@
 //!    ADR 0071 § 5 asks for `"address.city"` so a nested class's issues arrive
 //!    at the top-level `catch` already located; nesting is gap 2's, so there
 //!    is nothing to prefix yet.
-//! 7. **`isValid` decodes and discards.** It answers exactly what [`mwl_core_json_decode`]
+//! 7. **`isValid` decodes and discards.** It answers exactly what [`nvs_core_json_decode`]
 //!    would accept, which is the property that matters, but it allocates the
 //!    document to do it. A second `()`-producing visitor would avoid that; it
 //!    is a duplicate of [`Decode`] with every body replaced by `Ok(())`, and
@@ -108,7 +108,7 @@
 
 use std::fmt;
 
-use mwl_runtime::{CodecTy, Fault, MwlArray, MwlObj, MwlStr, Tag, ThrownClass, Value};
+use nvs_runtime::{CodecTy, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
 use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
 
@@ -132,28 +132,28 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Mixed, CoreTy::Options(ENCODE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_json_encode",
+            symbol: "nvs_core_json_encode",
         },
         CoreMethod {
             name: "decode",
             params: &[CoreTy::Str, CoreTy::Options(DECODE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Mixed,
-            symbol: "mwl_core_json_decode",
+            symbol: "nvs_core_json_decode",
         },
         CoreMethod {
             name: "decodeAs",
             params: &[CoreTy::Str, CoreTy::Options(DECODE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Written("T"),
-            symbol: "mwl_core_json_decode_as",
+            symbol: "nvs_core_json_decode_as",
         },
         CoreMethod {
             name: "isValid",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_json_is_valid",
+            symbol: "nvs_core_json_is_valid",
         },
     ],
     instance: &[],
@@ -192,10 +192,10 @@ const DECODE_OPTIONS: &[CoreOption] = &[CoreOption {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_json_encode" => (mwl_core_json_encode as *const ()).cast(),
-        "mwl_core_json_decode" => (mwl_core_json_decode as *const ()).cast(),
-        "mwl_core_json_decode_as" => (mwl_core_json_decode_as as *const ()).cast(),
-        "mwl_core_json_is_valid" => (mwl_core_json_is_valid as *const ()).cast(),
+        "nvs_core_json_encode" => (nvs_core_json_encode as *const ()).cast(),
+        "nvs_core_json_decode" => (nvs_core_json_decode as *const ()).cast(),
+        "nvs_core_json_decode_as" => (nvs_core_json_decode_as as *const ()).cast(),
+        "nvs_core_json_is_valid" => (nvs_core_json_is_valid as *const ()).cast(),
         _ => return None,
     })
 }
@@ -254,7 +254,7 @@ fn max_depth(value: &Value) -> Result<u32, Fault> {
 // Encoding
 // ============================================================================
 
-/// One MWL value being written as JSON, at a known nesting level.
+/// One Novis value being written as JSON, at a known nesting level.
 ///
 /// `Copy`, and holding the [`Value`] by value rather than by reference: a
 /// `Value` is sixteen bytes the caller owns for the length of the call, and
@@ -293,7 +293,7 @@ impl Serialize for Encodable {
                     // the one the program can see for itself.
                     return Err(S::Error::custom(format!(
                         "`{}` has no JSON spelling — JSON has no `NaN` and no `Infinity`",
-                        mwl_runtime::php_float_to_string(number)
+                        nvs_runtime::php_float_to_string(number)
                     )));
                 }
                 ser.serialize_f64(number)
@@ -350,8 +350,8 @@ impl Encodable {
     /// declares: one entry per field, in declaration order, under the field's
     /// own wire key.
     ///
-    /// The field list is compiled in — `mwl_runtime::ClassDesc::codec`, filled
-    /// by `mwl-codegen` from what `mwl_types::derive` read off the declaration
+    /// The field list is compiled in — `nvs_runtime::ClassDesc::codec`, filled
+    /// by `nvs-codegen` from what `nvs_types::derive` read off the declaration
     /// — so nothing here asks the program a question at run time. An empty
     /// list means the class carries no `#[Json\Derive]`, which is the refusal
     /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) § 4 asks
@@ -372,7 +372,7 @@ impl Encodable {
                       for this borrow; the handle is never dropped, so the reference \
                       is not released twice"
         )]
-        let object = std::mem::ManuallyDrop::new(unsafe { MwlObj::from_raw(ptr) });
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
         #[expect(
             unsafe_code,
             reason = "a live object's descriptor is owned by the compiled unit that \
@@ -389,9 +389,9 @@ impl Encodable {
         }
         let mut map = ser.serialize_map(Some(fields.len()))?;
         for field in fields {
-            // A borrowed read, exactly as `mwl_ir::InstKind::FieldGet` is: the
+            // A borrowed read, exactly as `nvs_ir::InstKind::FieldGet` is: the
             // object holds the reference for the length of this call and
-            // nothing here hands the value on to MWL code.
+            // nothing here hands the value on to Novis code.
             map.serialize_entry(&field.key, &self.child(object.field(field.slot)))?;
         }
         map.end()
@@ -401,7 +401,7 @@ impl Encodable {
     /// object otherwise — `Core\Arr::isList`'s rule, reached from here rather
     /// than through a helper call.
     ///
-    /// One rule, not an option: an MWL array is PHP's one ordered-map type, so
+    /// One rule, not an option: an Novis array is PHP's one ordered-map type, so
     /// *something* has to decide, and `json_encode`'s own list test is the
     /// answer every program migrating from PHP already expects.
     fn serialize_array<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
@@ -502,14 +502,14 @@ fn escape_non_ascii(text: &str) -> String {
     out
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Json::encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string`
     /// — replacing `json_encode` and its fifteen `JSON_*` flags.
     ///
     /// Anything it cannot write throws a `LogicError`: the value was built by
     /// the program, so an unencodable one is a bug in it rather than something
     /// the world did. This module's own docs list what those are.
-    fn mwl_core_json_encode(_ctx, args: [3]) {
+    fn nvs_core_json_encode(_ctx, args: [3]) {
         let pretty = flag(&args[1], "pretty")?;
         let escape = flag(&args[2], "escapeUnicode")?;
         let subject = Encodable { value: args[0], depth: 1 };
@@ -523,7 +523,7 @@ mwl_runtime::mwl_helper! {
             format!("Core\\Json::encode(): {why}"),
         ))?;
         let written = if escape { escape_non_ascii(&written) } else { written };
-        Ok(Value::str(MwlStr::new(written.as_bytes())))
+        Ok(Value::str(NvsStr::new(written.as_bytes())))
     }
 }
 
@@ -542,7 +542,7 @@ fn flag(value: &Value, option: &str) -> Result<bool, Fault> {
 // Decoding
 // ============================================================================
 
-/// The seed that turns one JSON value into one MWL [`Value`], at a known
+/// The seed that turns one JSON value into one Novis [`Value`], at a known
 /// nesting level.
 ///
 /// `Copy` and carried by value: a child is `Decode { depth: depth + 1, .. }`,
@@ -616,7 +616,7 @@ impl<'de> Visitor<'de> for Decode {
     }
 
     fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Value, E> {
-        Ok(Value::str(MwlStr::new(value.as_bytes())))
+        Ok(Value::str(NvsStr::new(value.as_bytes())))
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Value, A::Error> {
@@ -626,7 +626,7 @@ impl<'de> Visitor<'de> for Decode {
         // The handle owns every element it is given, and releases them all if
         // an element further along refuses — so a failed decode leaks nothing
         // even though it stops half way.
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         while let Some(value) = seq.next_element_seed(self.child())? {
             array.append(value);
         }
@@ -637,12 +637,12 @@ impl<'de> Visitor<'de> for Decode {
         if self.depth >= self.max {
             return Err(self.too_deep());
         }
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         while let Some(key) = map.next_key::<String>()? {
             let value = map.next_value_seed(self.child())?;
             // A repeated key overwrites, exactly as `json_decode` into an
             // associative array does.
-            array.set(MwlStr::new(key.as_bytes()), value);
+            array.set(NvsStr::new(key.as_bytes()), value);
         }
         Ok(Value::array(array))
     }
@@ -675,14 +675,14 @@ fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Json::decode(string $json, {maxDepth?: uint}): mixed` — replacing
     /// `json_decode`, `json_last_error`, `json_last_error_msg` and `$depth`.
     ///
     /// Always the associative shape: there is no `$associative` flag, because
     /// ADR 0036's anonymous object is not what a JSON object decodes to —
     /// `decodeAs<T>` is (gap 2).
-    fn mwl_core_json_decode(_ctx, args: [2]) {
+    fn nvs_core_json_decode(_ctx, args: [2]) {
         let text = text_of(&args[0], "decode")?;
         let max = max_depth(&args[1])?;
         read(text, max).map_err(|why| {
@@ -701,16 +701,16 @@ mwl_runtime::mwl_helper! {
 // Decoding into a class — ADR 0071's generated decoder
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T` — replacing
     /// hand-written hydration.
     ///
     /// **Argument 0 is the class written at the call site**, not a value:
-    /// `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS` puts this member on the
-    /// roster whose helper is handed a `mwl_runtime::ClassDesc` ahead of its
+    /// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` puts this member on the
+    /// roster whose helper is handed a `nvs_runtime::ClassDesc` ahead of its
     /// declared parameters, and that roster's docs own why. So the arity here
     /// is one more than the registry row's.
-    fn mwl_core_json_decode_as(ctx, args: [3]) {
+    fn nvs_core_json_decode_as(ctx, args: [3]) {
         let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
             "internal error: `Core\\Json::decodeAs` was called with no class in argument 0",
         ))?;
@@ -734,15 +734,15 @@ mwl_runtime::mwl_helper! {
 ///
 /// # Safety
 ///
-/// `class` must refer to a live descriptor whose method table `mwl-codegen`
+/// `class` must refer to a live descriptor whose method table `nvs-codegen`
 /// has filled.
 #[expect(
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
 )]
 unsafe fn decode_as(
-    ctx: &mut mwl_runtime::Ctx,
-    class: *const mwl_runtime::ClassDesc,
+    ctx: &mut nvs_runtime::Ctx,
+    class: *const nvs_runtime::ClassDesc,
     text: &str,
     max: u32,
 ) -> Result<Value, Fault> {
@@ -767,7 +767,7 @@ unsafe fn decode_as(
         return Err(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type this decoder \
              has no case for yet — ADR 0071 § 2's wider codec-reachable set is \
-             `mwl_stdlib::json`'s own known gap",
+             `nvs_stdlib::json`'s own known gap",
             desc.name(),
             field.key
         )));
@@ -860,7 +860,7 @@ unsafe fn decode_as(
     }
     // ADR 0071 § 3's skipped field with a constructor default is the one shape
     // that leaves a position unfilled, and this crate has no way to
-    // materialize that default — `mwl_types::defaults` evaluates it into a
+    // materialize that default — `nvs_types::defaults` evaluates it into a
     // constant the *call site* emits, and there is no call site here. Loud
     // rather than passing `null`, which would be right for `?T $x = null` and
     // silently wrong for everything else.
@@ -868,7 +868,7 @@ unsafe fn decode_as(
         release_all(&ctor_args);
         return Err(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s constructor parameter {index} is not a codec \
-             field, and a skipped field's default is `mwl_stdlib::json`'s own known gap",
+             field, and a skipped field's default is `nvs_stdlib::json`'s own known gap",
             desc.name()
         )));
     }
@@ -878,7 +878,7 @@ unsafe fn decode_as(
                   owns and hands over"
     )]
     unsafe {
-        mwl_runtime::construct(ctx, class, &ctor_args)
+        nvs_runtime::construct(ctx, class, &ctor_args)
     }
 }
 
@@ -886,9 +886,9 @@ unsafe fn decode_as(
 /// with.
 ///
 /// ADR 0071 § 4's table, minus its two default-bearing rows: a parameter
-/// default is `mwl_types::defaults`' constant and no call site emits one here,
+/// default is `nvs_types::defaults`' constant and no call site emits one here,
 /// so an absent key is always *required field missing* today.
-fn decode_field(field: &mwl_runtime::CodecField, source: &MwlArray) -> Result<Value, String> {
+fn decode_field(field: &nvs_runtime::CodecField, source: &NvsArray) -> Result<Value, String> {
     let Some(found) = source.get(field.key.as_bytes()) else {
         return Err("required field missing".to_owned());
     };
@@ -909,7 +909,7 @@ fn decode_field(field: &mwl_runtime::CodecField, source: &MwlArray) -> Result<Va
             .and_then(|number| u64::try_from(number).ok())
             .map(Value::uint),
         // A JSON `1` reaching a `float` field widens, which is the one place
-        // MWL does that — ADR 0007 § 2 has no int-to-float widening in the
+        // Novis does that — ADR 0007 § 2 has no int-to-float widening in the
         // language, but a wire format has one number type and refusing an
         // unfractional literal would make `1.0` and `1` different documents.
         CodecTy::Float => found
@@ -940,7 +940,7 @@ fn decode_field(field: &mwl_runtime::CodecField, source: &MwlArray) -> Result<Va
     Ok(value)
 }
 
-/// What a [`CodecTy`] is called in an issue message — the MWL type name, since
+/// What a [`CodecTy`] is called in an issue message — the Novis type name, since
 /// that is what the reader has in front of them in the class declaration.
 const fn wanted(ty: CodecTy) -> &'static str {
     match ty {
@@ -981,12 +981,12 @@ fn release_all(values: &[Value]) {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Json::isValid(string $json): bool` — replacing `json_validate`.
     ///
-    /// Answers exactly what [`mwl_core_json_decode`] would accept at the
+    /// Answers exactly what [`nvs_core_json_decode`] would accept at the
     /// default depth, by doing it; this module's gap 3 owns what that costs.
-    fn mwl_core_json_is_valid(_ctx, args: [1]) {
+    fn nvs_core_json_is_valid(_ctx, args: [1]) {
         let text = text_of(&args[0], "isValid")?;
         let Ok(value) = read(text, DEFAULT_MAX_DEPTH_U32) else {
             return Ok(Value::bool(false));

@@ -1,7 +1,7 @@
 --TEST--
 Two classes calling each other's static methods recurse and unwind correctly, and a throw from the deepest frame crosses every one of them
 --FILE--
-<?mwl
+<?nvs
 class Even {
     public static function is(int $n): bool {
         if ($n == 0) {

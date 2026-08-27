@@ -1,7 +1,7 @@
 --TEST--
 `Core\Encoding`'s base32 pair writes RFC 4648 § 6 unpadded and reads back either case, refusing anything that would change the octets — spec § 7, ADR 0009 § 3
 --FILE--
-<?mwl
+<?nvs
 class B32 {
     public static function decode(string $text): string {
         try {
@@ -12,35 +12,35 @@ class B32 {
     }
 }
 
-// "mwl", as an `otpauth:` secret is written: upper case, no padding.
-bytes $raw = Core\Encoding::fromHex("6d776c");
+// "nvs", as an `otpauth:` secret is written: upper case, no padding.
+bytes $raw = Core\Encoding::fromHex("6e7673");
 echo Core\Encoding::toBase32($raw), "\n";
 
 // Zero octets is a spelling, not a failure.
 echo "[", Core\Encoding::toBase32(Core\Encoding::fromHex("")), "]\n";
 
 // Case and padding are two spellings of one value, so all three read back.
-echo B32::decode("NV3WY"), "\n";
-echo B32::decode("nv3wy"), "\n";
-echo B32::decode("NV3WY==="), "\n";
+echo B32::decode("NZ3HG"), "\n";
+echo B32::decode("nz3hg"), "\n";
+echo B32::decode("NZ3HG==="), "\n";
 
 // A symbol outside `A`-`Z`/`2`-`7` — `1` is not in this alphabet at all, and a
 // space grouping a secret for a reader is a byte like any other.
-echo B32::decode("NV3W1"), "\n";
-echo B32::decode("NV3 WY"), "\n";
+echo B32::decode("NZ3H1"), "\n";
+echo B32::decode("NZ3 HG"), "\n";
 
-// Bits no octet reads: `NV3WY` and `NV3WZ` would otherwise be the same value.
-echo B32::decode("NV3WZ"), "\n";
+// Bits no octet reads: `NZ3HG` and `NZ3HH` would otherwise be the same value.
+echo B32::decode("NZ3HH"), "\n";
 
 // A group cut short, and padding that is present but not a whole group.
-echo B32::decode("NV3WYA"), "\n";
-echo B32::decode("NV3WY="), "\n";
+echo B32::decode("NZ3HGA"), "\n";
+echo B32::decode("NZ3HG="), "\n";
 --EXPECT--
-NV3WY
+NZ3HG
 []
-6d776c
-6d776c
-6d776c
+6e7673
+6e7673
+6e7673
 threw
 threw
 threw

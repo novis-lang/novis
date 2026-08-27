@@ -1,7 +1,7 @@
 --TEST--
 A `catch` clause that returns still runs the region's `finally`, and repeating that thousands of times neither leaks the binding nor changes the answer
 --FILE--
-<?mwl
+<?nvs
 class Work {
     public static function attempt(int $n): string {
         try {

@@ -1,7 +1,7 @@
 --TEST--
 Every `Core\Random` draw is swept for its invariants: an int stays inside its closed bounds and reaches both of them, a float fills the unit interval, no two buffers repeat, `pick` only ever answers an element of its subject, and `shuffle` is a permutation rather than a fresh draw — spec § 11, ADR 0063 R5
 --FILE--
-<?mwl
+<?nvs
 // A drawn value cannot be asserted, so every member here is pinned by
 // *invariance over a run of draws* rather than by any one answer — the shape
 // `Core\Uuid`'s own sweep uses, for the same reason. Each line counts how many

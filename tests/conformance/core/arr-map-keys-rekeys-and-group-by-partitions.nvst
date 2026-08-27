@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::mapKeys is the one member that changes a key and Core\Arr::groupBy partitions in first-occurrence order keeping every key, per spec § 2 and ADR 0069 § 3
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2: `mapKeys` is `map`'s mirror — that member keeps the key and
 // changes the value, this one keeps the value and changes the key. Every
 // Core\Arr callback receives ($value, $key) and may declare fewer parameters.
@@ -15,7 +15,7 @@ array<string> $words = ["red", "blue", "green"];
 var $byLength = Core\Arr::mapKeys($words, fn (string $w): int => Core\Str::length($w) as int);
 echo Core\Json::encode($byLength), "\n";
 
-// Duplicate new keys collapse, the last entry winning — `MwlArray::set`'s rule
+// Duplicate new keys collapse, the last entry winning — `NvsArray::set`'s rule
 // and `flip`'s, which is what keeps re-keying usable over data whose new key
 // is not unique.
 array<string> $tied = ["red", "tan", "blue"];

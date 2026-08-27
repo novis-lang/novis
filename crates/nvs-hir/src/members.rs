@@ -15,7 +15,7 @@
 //! `E0321`, all three naming a class where a value is expected. All four are
 //! the *same* [`ExprKind`]s that mean a class on the left of a `::`, so every
 //! class-side position skips the value-position walk rather than recursing
-//! into it. Reported here, in resolution, rather than in `mwl-types`: the
+//! into it. Reported here, in resolution, rather than in `nvs-types`: the
 //! mistake is that the name resolves against nothing, which needs no type,
 //! and the `E04xx` band has two numbers left.
 //!
@@ -49,7 +49,7 @@
 //!   callable/constant reference and is left for later.
 //! - A member's visibility (`private`/`protected`) is not checked *here* —
 //!   only whether it is declared anywhere in the chain. It is closed by
-//!   `mwl-types`' `expr::members::check_member_visibility`, which sees the
+//!   `nvs-types`' `expr::members::check_member_visibility`, which sees the
 //!   same `$this->name` access this module does and every other receiver
 //!   besides, split across crates the same way the paragraph below splits a
 //!   missing property; a method reaches it through
@@ -60,7 +60,7 @@
 //! - A property access on any receiver other than `$this` — a typed local, a
 //!   chained call result, `self::factory()`'s return, an explicit
 //!   `new Foo()` — is never checked *here*, since this module has no static
-//!   type to check it against. That is not left open: `mwl-types`'
+//!   type to check it against. That is not left open: `nvs-types`'
 //!   `expr::members::check_property_access` closes it once a static type exists,
 //!   reporting `E_UNKNOWN_MEMBER` for the same shape of miss this module
 //!   reports `E_UNDEFINED_PROPERTY` for on `$this` — split across crates by
@@ -70,8 +70,8 @@
 //!   not a compile-time one, and is silently skipped here regardless of
 //!   receiver.
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use mwl_syntax::ast::{
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_syntax::ast::{
     Arg, ArrayItem, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
     DestructureTarget, Expr, ExprKind, FnBody, MemberName, Modifier, NamespaceDecl, Stmt, StmtKind,
     StringPart,
@@ -852,7 +852,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// about *value* position and would fire on every `Foo::bar()` in the program
 /// if a class side recursed. A dynamic class side (`$name::foo()`, a
 /// parenthesized expression) is an ordinary value and is walked; whether it is
-/// an *allowed* class side is `mwl_types`' question, not this pass's.
+/// an *allowed* class side is `nvs_types`' question, not this pass's.
 fn walk_class_side(class: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     if matches!(
         class.kind,
@@ -1007,15 +1007,15 @@ fn member_declared_rec(
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::SourceMap;
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::SourceMap;
+    use nvs_syntax::parse_file;
 
     use super::*;
     use crate::resolve::resolve_file;
 
     fn check(src: &str) -> Diagnostics {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -1035,13 +1035,13 @@ mod tests {
     #[test]
     fn a_self_call_to_an_own_method_resolves() {
         let diags =
-            check("<?mwl\nclass Foo { function a(): void { self::b(); } function b(): void {} }\n");
+            check("<?nvs\nclass Foo { function a(): void { self::b(); } function b(): void {} }\n");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn a_self_call_to_an_undeclared_method_is_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { function a(): void { self::missing(); } }\n");
+        let diags = check("<?nvs\nclass Foo { function a(): void { self::missing(); } }\n");
         assert!(
             diags
                 .iter()
@@ -1052,7 +1052,7 @@ mod tests {
     #[test]
     fn a_parent_call_to_an_inherited_method_resolves() {
         let diags = check(
-            "<?mwl\n\
+            "<?nvs\n\
              class Base { function greet(): void {} }\n\
              class Sub extends Base { function a(): void { parent::greet(); } }\n",
         );
@@ -1061,7 +1061,7 @@ mod tests {
 
     #[test]
     fn parent_with_no_parent_class_is_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { function a(): void { parent::bar(); } }\n");
+        let diags = check("<?nvs\nclass Foo { function a(): void { parent::bar(); } }\n");
         assert!(
             diags
                 .iter()
@@ -1072,7 +1072,7 @@ mod tests {
     #[test]
     fn an_undeclared_class_const_is_diagnosed() {
         let diags =
-            check("<?mwl\nclass Foo {}\nclass Bar { function a(): void { Foo::MISSING; } }\n");
+            check("<?nvs\nclass Foo {}\nclass Bar { function a(): void { Foo::MISSING; } }\n");
         assert!(
             diags
                 .iter()
@@ -1082,7 +1082,7 @@ mod tests {
 
     #[test]
     fn an_undeclared_class_is_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { function a(): void { Missing::bar(); } }\n");
+        let diags = check("<?nvs\nclass Foo { function a(): void { Missing::bar(); } }\n");
         assert!(
             diags
                 .iter()
@@ -1093,34 +1093,34 @@ mod tests {
     #[test]
     fn an_enum_case_access_resolves() {
         let diags = check(
-            "<?mwl\nenum Suit { Hearts, }\nclass Foo { function a(): void { Suit::Hearts; } }\n",
+            "<?nvs\nenum Suit { Hearts, }\nclass Foo { function a(): void { Suit::Hearts; } }\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn a_dynamic_class_side_is_not_checked() {
-        let diags = check("<?mwl\nclass Foo { function a(): void { $c = 'X'; $c::bar(); } }\n");
+        let diags = check("<?nvs\nclass Foo { function a(): void { $c = 'X'; $c::bar(); } }\n");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn a_core_target_is_trusted() {
-        let diags = check("<?mwl\nclass Foo { function a(): void { Core\\Str::upper('x'); } }\n");
+        let diags = check("<?nvs\nclass Foo { function a(): void { Core\\Str::upper('x'); } }\n");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn a_static_property_access_is_checked() {
         let diags = check(
-            "<?mwl\nclass Foo { public static int $count = 0; function a(): void { self::$count; } }\n",
+            "<?nvs\nclass Foo { public static int $count = 0; function a(): void { self::$count; } }\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn an_undeclared_static_property_is_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { function a(): void { self::$missing; } }\n");
+        let diags = check("<?nvs\nclass Foo { function a(): void { self::$missing; } }\n");
         assert!(
             diags
                 .iter()
@@ -1131,14 +1131,14 @@ mod tests {
     #[test]
     fn a_this_property_access_resolves() {
         let diags =
-            check("<?mwl\nclass Foo { public int $count; function a(): void { $this->count; } }\n");
+            check("<?nvs\nclass Foo { public int $count; function a(): void { $this->count; } }\n");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn a_this_property_access_resolves_through_an_ancestor() {
         let diags = check(
-            "<?mwl\n\
+            "<?nvs\n\
              class Base { public int $count; }\n\
              class Sub extends Base { function a(): void { $this->count; } }\n",
         );
@@ -1147,7 +1147,7 @@ mod tests {
 
     #[test]
     fn an_undeclared_this_property_is_diagnosed() {
-        let diags = check("<?mwl\nclass Foo { function a(): void { $this->missing; } }\n");
+        let diags = check("<?nvs\nclass Foo { function a(): void { $this->missing; } }\n");
         assert!(
             diags
                 .iter()
@@ -1158,7 +1158,7 @@ mod tests {
     #[test]
     fn a_non_this_property_access_is_not_checked() {
         let diags = check(
-            "<?mwl\nclass Foo { function a(): void { $other = new Foo(); $other->missing; } }\n",
+            "<?nvs\nclass Foo { function a(): void { $other = new Foo(); $other->missing; } }\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }

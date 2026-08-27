@@ -1,17 +1,17 @@
 --TEST--
 Every rendering spelling of a `Core`-owned class the spec gives a `toString` agrees with the member call written out, for each of the three classes that have one — ADR 0028 § 1
 --FILE--
-<?mwl
+<?nvs
 // ADR 0028 § 1 makes the implicit rendering a `toString()` call, so the four
 // spellings that render are four spellings of one call. A `Core` class's
 // member is a native symbol rather than an entry in a compiled method table,
-// so what `mwl-ir` emits for it is the same native call the member written
+// so what `nvs-ir` emits for it is the same native call the member written
 // out takes rather than the virtual dispatch a declared class gets — and this
 // case asserts the two **agree**, which is what a spelling that grew a
 // rendering of its own would fail while still looking right on its own line.
 //
 // The sibling case `a-core-class-with-no-tostring-is-refused-where-it-is-
-// rendered` owns the other half: the classes `mwl_stdlib::registry` gives no
+// rendered` owns the other half: the classes `nvs_stdlib::registry` gives no
 // `toString` are refused where they are written.
 class Render {
     // `Core\Out::capture` is what gives the `echo` spelling a value to

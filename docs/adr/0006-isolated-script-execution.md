@@ -2,13 +2,13 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
-- **Scope:** the `spawn script` construct, `mwl-host`'s isolation boundary, the value-crossing rules, the
+- **Scope:** the `spawn script` construct, `nvs-host`'s isolation boundary, the value-crossing rules, the
   `script.spawn` capability, per-tree limit accounting
 - **Validated by:** `benches/abi-probe/src/process.rs` + `tests/perf_guards.rs`
   (`an_os_process_costs_orders_of_magnitude_more_than_a_task`)
 - **Amended by:** 0012, 0021, 0023, 0064, 0072, 0073, 0083, 0088
 
-> **In short:** `spawn script 'file.mwl'` runs another file in-process as a child isolate —
+> **In short:** `spawn script 'file.nvs'` runs another file in-process as a child isolate —
 > fresh arena, fresh globals and statics, its own config overlay, sharing nothing but immutable
 > compiled code. Three invariants no optimisation may trade away: values cross by the *same*
 > deep-copy-or-move rules as cross-core worker dispatch (never a pointer, never a shared heap);
@@ -26,21 +26,21 @@
 - PHP's only real answer is spawning another `php` process over pipes — every in-process construct
   (`include`/`require`, `eval`, `Fiber`/generator) shares the same symbol table, heap and statics, isolating
   nothing.
-- Measured on this machine: a bare MWL task costs 4.29 µs; PHP 8.5.8 booting and exiting costs 35.9 ms —
+- Measured on this machine: a bare Novis task costs 4.29 µs; PHP 8.5.8 booting and exiting costs 35.9 ms —
   **roughly 8000× a task**, before the child has even parsed a line. (`CreateProcess` is dearer than
   `fork`+`exec`, so Linux would be smaller, but not by three orders of magnitude.)
 - A child process is also worse at the isolation it's used for: it inherits ambient authority (env, cwd,
   handles, OS-user rights — the same failure mode [ADR 0003](0003-extension-system.md) rejected `dlopen`
   for), cannot be governed (the parent can only kill it — no CPU/memory accounting, no cooperative
   cancellation), and re-enters through the front door (arguments serialised onto a command line).
-- MWL already has the machinery for this, built for requests: a per-request arena with a hard cap, fresh
+- Novis already has the machinery for this, built for requests: a per-request arena with a hard cap, fresh
   request/session state ([ADR 0012](0012-no-superglobals.md)), a copy-on-write config overlay, a coroutine
   tree, safepoint-driven limits, a process-wide compiled-unit cache. This ADR exposes that machinery to
   script authors instead of keeping it server-only.
 
 ## Decision
 
-**MWL gets a first-class construct for executing another `.mwl` file as an isolated unit of work inside the
+**Novis gets a first-class construct for executing another `.nvs` file as an isolated unit of work inside the
 same process — an *isolate*. It shares nothing with its parent except immutable compiled code and its
 parent's resource budget.**
 
@@ -49,7 +49,7 @@ are what this ADR fixes; the exact spelling is pinned down in `docs/spec/` durin
 bikeshed then:
 
 ```php
-$job = spawn script 'jobs/report.mwl' with(
+$job = spawn script 'jobs/report.nvs' with(
     args:   ['month' => 7],                      // deep-copied in
     limits: ['memory' => '256M', 'cpu_time' => '10s'],
     grants: ['fs.read' => '/srv/www/data'],      // narrowing only
@@ -73,7 +73,7 @@ beyond the one accessor call ([ADR 0012](0012-no-superglobals.md) fixes that it 
 variable):
 
 ```php
-<?mwl
+<?nvs
 use Core\Script;
 
 mixed $month = Script::args()['month'];
@@ -212,7 +212,7 @@ isolate's buffered output never touches.
 
 ### One isolation implementation, not two
 
-`mwl-host` grows a single `Isolate` type, and **an inbound HTTP request becomes the root isolate of a
+`nvs-host` grows a single `Isolate` type, and **an inbound HTTP request becomes the root isolate of a
 request tree**. The server path and the `spawn script` path are then the same code: one arena setup, one
 construction of the `Core` accessor classes' backing state, one config-overlay derivation, one teardown, one
 place where a limit is enforced.
@@ -230,7 +230,7 @@ state-bleed suite for isolates, and that a fix on either path cannot forget the 
   concurrency instead of orphan reaping.
 - No new isolation machinery, no new value-marshalling rules, no new concurrency vocabulary. Three existing
   mechanisms get a second caller each.
-- `mwl convert` gains a real target for two PHP patterns it would otherwise have to give up on:
+- `nvs convert` gains a real target for two PHP patterns it would otherwise have to give up on:
   `exec('php …')`-style job dispatch, and `eval` of a file's contents.
 - Long-running CLI programs get bounded memory for unbounded work — run the job in an isolate, get the arena
   back.
@@ -248,7 +248,7 @@ state-bleed suite for isolates, and that a fix on either path cannot forget the 
   spec must define them next to each other, and the diagnostic for "undefined variable that the parent had"
   should name the isolate boundary as the reason.
 - **The isolate is not a sandbox for hostile code beyond what the request boundary already provides.** It is
-  as strong as MWL's request boundary — memory-safe by construction, capability-checked, resource-capped —
+  as strong as Novis's request boundary — memory-safe by construction, capability-checked, resource-capped —
   and no stronger. Running *foreign* code that must be assumed adversarial at the memory-safety level is
   what Tier 1 wasm is for ([0003](0003-extension-system.md)), and this ADR does not compete with it.
 - Cross-core isolates (`on: 'worker'`) pay the deep copy twice, in and out, so large results argue for
@@ -256,18 +256,18 @@ state-bleed suite for isolates, and that a fix on either path cannot forget the 
 
 ## Alternatives rejected
 
-- **Spawn an `mwl` subprocess** — PHP's answer; inherits the whole cost/ambient-authority objection above.
+- **Spawn an `nvs` subprocess** — PHP's answer; inherits the whole cost/ambient-authority objection above.
   Remains possible behind the `process.exec` capability for cases that genuinely want a separate OS
   process; not the answer to this requirement.
 - **`eval` of a source string.** Rejected already for the pragmatic superset — a file has a stable identity
-  (cache key, source map, `mwl check`-ability, an auditable granted path); a string has none of these.
+  (cache key, source map, `nvs check`-ability, an auditable granted path); a string has none of these.
 - **`require` with a fresh symbol table** — isolation by scope only. Shares the heap, so it shares
   refcounts, statics, output, resources and a fatal error; satisfies the letter of "runs another file" and
   none of the requirement.
 - **A thread with a shared heap.** Invalidates the non-atomic-refcount premise of the thread-per-core model
   to save one copy at a boundary.
 - **Run the child inside a wasm sandbox** ([0003](0003-extension-system.md)). Costs a second compilation of
-  code already compiled natively, loses the shared unit cache, and buys a memory-safety guarantee MWL code
+  code already compiled natively, loses the shared unit cache, and buys a memory-safety guarantee Novis code
   already has by construction.
 - **Isolation by HTTP loopback to our own server.** Works, but needs a listener, an authentication story
   and a serialisation format to do what an arena boundary does in microseconds.

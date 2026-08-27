@@ -1,7 +1,7 @@
 --TEST--
 A cloned object's array property is a value, so the first write to either copy leaves the other alone — PHP's shallow copy
 --FILE--
-<?mwl
+<?nvs
 class Holder {
     public array<int> $rows;
 

@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: text
 ---
 fn <script>() -> tagged {
@@ -19,10 +19,10 @@ fn <script>() -> tagged {
     release v7
     return
   bb1:
-    propagate "<script>() at t.mwl:7"
+    propagate "<script>() at t.nvs:7"
   bb2:
-    propagate "<script>() at t.mwl:7"
+    propagate "<script>() at t.nvs:7"
   bb3:
     release v7
-    propagate "<script>() at t.mwl:7"
+    propagate "<script>() at t.nvs:7"
 }

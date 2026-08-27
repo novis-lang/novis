@@ -1,7 +1,7 @@
 --TEST--
 `foreach (… as inout $v)` is refused over a subject with no storage to write back to, and over a binding wider than the element type — ADR 0053 § 3, ADR 0007 § 1
 --FILE--
-<?mwl
+<?nvs
 // `inout $v` writes each element back where it came from, so there has to be
 // somewhere to leave it: a temporary has none, and ADR 0053 § 1 gives a
 // cursor `advance()`/`current()` and no element storage at all. PHP refuses
@@ -40,12 +40,12 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0490]: only a variable can be iterated by reference
-   --> case.mwl:25:10
+   --> case.nvs:25:10
 %A
 error[E0490]: an `Iterable`/`Iterator` subject has no element to bind by reference
-   --> case.mwl:28:23
+   --> case.nvs:28:23
 %A
 error[E0491]: a by-reference binding over an `array<int>` needs the type `int` exactly, not `mixed`
-   --> case.mwl:32:21
+   --> case.nvs:32:21
 %A
 error: aborting due to 3 errors

@@ -1,7 +1,7 @@
 --TEST--
 A second binding taken before a write sees none of it — copy-on-write is invisible to the program
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = [1, 2, 3];
 var $before = $a;
 $a[0] = 100;

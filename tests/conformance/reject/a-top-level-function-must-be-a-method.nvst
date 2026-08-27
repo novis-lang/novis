@@ -1,7 +1,7 @@
 --TEST--
 every function is a class member, so a free function is refused with the wrapping named — ADR 0011 § 1
 --FILE--
-<?mwl
+<?nvs
 function greet(string $who): string {
     return "hi " . $who;
 }
@@ -10,6 +10,6 @@ echo greet("you"), "\n";
 
 --EXPECTF-ERROR--
 error[E0215]: a function must be a method
-  --> case.mwl:2:1
+  --> case.nvs:2:1
 %A
 error: aborting due to 1 error

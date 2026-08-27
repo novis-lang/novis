@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::count tracks insert, unset, re-insert and append the way PHP's count does
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = ["x" => 1, "y" => 2, "z" => 3];
 echo Core\Arr::count($a), ";";
 

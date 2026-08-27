@@ -1,7 +1,7 @@
 --TEST--
 Core\Uri::decodeComponent and decodeFormValue read `%20` alike and `+` differently, either case of hex reads, and a malformed escape is text — spec § 12
 --FILE--
-<?mwl
+<?nvs
 // The mirror of the encoding pair: a `+` is a literal `+` to the component
 // decoder and a space to the form one. This is why reading a query value with
 // `decodeComponent` is a bug the type system cannot catch and the member

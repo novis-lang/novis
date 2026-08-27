@@ -1,7 +1,7 @@
 --TEST--
 PHP's simple interpolation syntax inside a double-quoted string — `$a[0]`, `$a[bareword]` and `$a[$k]`, plus one-level `$o->prop` — renders exactly what PHP renders
 --FILE--
-<?mwl
+<?nvs
 array<int> $n = [10, 20, 30];
 echo "n0=$n[0] n2=$n[2]\n";
 

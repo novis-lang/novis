@@ -1,27 +1,27 @@
 --TEST--
 a `discover` glob passes over a matched directory whose name is not a legal namespace segment, in silence — ADR 0061 § 1
 --FILE--
-<?mwl
-// The glob in `bootstrap.mwl` sweeps a tree holding four directories no
+<?nvs
+// The glob in `bootstrap.nvs` sweeps a tree holding four directories no
 // namespace can be spelled from — `vendor`, `node_modules`, `_Private` and
 // `.git` — beside the one that can. § 1 skips each of the four *without a
 // diagnostic*: a glob over a real filesystem always sweeps names like these,
 // and diagnosing them would make the form unusable. That this case compiles
 // and runs at all is the first half of what it pins.
-require './bootstrap.mwl';
+require './bootstrap.nvs';
 
 // The second half: the one directory whose name *is* a `PascalCase` segment
 // still became a prefix, so the sweep passed over the other four rather than
 // giving up at the first of them.
 echo Plugin\Tool::from(), "\n";
---FILE bootstrap.mwl--
-<?mwl
+--FILE bootstrap.nvs--
+<?nvs
 // One `*`, occupying a whole path segment, as § 1 requires — any other shape
 // would be `E0318` here. Every matched directory names its own prefix, and
 // `Plugin\ → ./Plugin/src` is the only one this tree produces.
 autoload discover './*/src';
---FILE Plugin/src/Tool.mwl--
-<?mwl
+--FILE Plugin/src/Tool.nvs--
+<?nvs
 namespace Plugin;
 
 class Tool
@@ -31,8 +31,8 @@ class Tool
         return "Plugin/src, discovered";
     }
 }
---FILE vendor/src/Tool.mwl--
-<?mwl
+--FILE vendor/src/Tool.nvs--
+<?nvs
 // Never parsed. `vendor` is not a `PascalCase` segment (ADR 0029), so it
 // never becomes a prefix and no name can resolve into this file. That is also
 // why this file is free to be one that no autoloaded file may be: § 2 allows
@@ -51,8 +51,8 @@ class Tool
 class Extra
 {
 }
---FILE node_modules/src/Tool.mwl--
-<?mwl
+--FILE node_modules/src/Tool.nvs--
+<?nvs
 // Skipped on its first character, like `vendor` above.
 namespace NodeModules;
 
@@ -63,8 +63,8 @@ class Tool
         return "node_modules/src, which is never reached";
     }
 }
---FILE _Private/src/Tool.mwl--
-<?mwl
+--FILE _Private/src/Tool.nvs--
+<?nvs
 // Skipped on its leading `_`, which ADR 0030 refuses at the front of any
 // identifier — the second half of `is_namespace_segment`'s test.
 namespace Private;
@@ -76,8 +76,8 @@ class Tool
         return "_Private/src, which is never reached";
     }
 }
---FILE .git/src/Tool.mwl--
-<?mwl
+--FILE .git/src/Tool.nvs--
+<?nvs
 // The directory § 1 names by hand as the reason the skip is silent.
 namespace Git;
 

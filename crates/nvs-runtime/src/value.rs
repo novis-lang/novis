@@ -14,7 +14,7 @@
 //! # Where a `Value` actually appears
 //!
 //! Less often than it looks. Because ADR 0007 makes operand types known by
-//! construction, `mwl-codegen`'s baseline tier keeps a statically-typed local
+//! construction, `nvs-codegen`'s baseline tier keeps a statically-typed local
 //! in a native register — an `int` is an `i64`, a `string` is a bare
 //! [`StrHeader`] pointer — and only *materializes* a `Value` where the ABI
 //! demands one: at a call boundary, and eventually as the representation of a
@@ -23,10 +23,10 @@
 
 use std::fmt;
 
-use crate::array::{ArrayHeader, MwlArray};
+use crate::array::{ArrayHeader, NvsArray};
 use crate::decimal::Decimal;
-use crate::object::{ClassDesc, MwlObj, ObjHeader};
-use crate::string::{MwlStr, StrHeader};
+use crate::object::{ClassDesc, NvsObj, ObjHeader};
+use crate::string::{NvsStr, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
 ///
@@ -59,7 +59,7 @@ pub enum Tag {
     /// Reserved, and unused: an
     /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
     /// closure is an ordinary object — one field per capture, one `invoke`
-    /// method — so it carries [`Self::Object`]. `mwl_ir::lower::lower_closure`
+    /// method — so it carries [`Self::Object`]. `nvs_ir::lower::lower_closure`
     /// owns that decision and says why it reuses the object machinery rather
     /// than adding a second heap shape; `crate::closure` is what reads a
     /// closure back out of an object value.
@@ -108,7 +108,7 @@ impl Tag {
         })
     }
 
-    /// How a diagnostic spells this tag: the MWL type name a program would
+    /// How a diagnostic spells this tag: the Novis type name a program would
     /// have written, not the variant's own.
     ///
     /// Deliberately coarser than a type: [`Self::Str`] answers `string` for
@@ -144,7 +144,7 @@ impl Tag {
     }
 }
 
-/// One MWL value: a tag byte, seven bytes of padding, and an eight-byte
+/// One Novis value: a tag byte, seven bytes of padding, and an eight-byte
 /// payload.
 ///
 /// `#[repr(C)]` with the padding spelled out so compiled code can write the
@@ -157,7 +157,7 @@ impl Tag {
 /// stack slots by the word, exactly like every other machine value — copying
 /// the bits does not add a reference. Whoever holds the live copy is
 /// responsible for exactly one [`Value::release`]; that obligation is what
-/// `mwl_ir::InstKind::Retain`/`Release` make explicit in the IR, so the
+/// `nvs_ir::InstKind::Retain`/`Release` make explicit in the IR, so the
 /// bookkeeping is the compiler's, not this type's.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -246,31 +246,31 @@ impl Value {
 
     /// A `string`, taking over the handle's reference.
     #[must_use]
-    pub fn str(value: MwlStr) -> Self {
+    pub fn str(value: NvsStr) -> Self {
         Self::new(Tag::Str, value.into_raw() as usize as u64)
     }
 
     /// A `bytes`, taking over the handle's reference.
     ///
-    /// The handle is an [`MwlStr`] because a `bytes` *is* one, minus the UTF-8
+    /// The handle is an [`NvsStr`] because a `bytes` *is* one, minus the UTF-8
     /// promise — see [`Tag::Bytes`]. `string as bytes` is therefore this
     /// constructor over a retained payload rather than a copy, which is what
     /// makes [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 3's
     /// "total, free" row literally free.
     #[must_use]
-    pub fn bytes(value: MwlStr) -> Self {
+    pub fn bytes(value: NvsStr) -> Self {
         Self::new(Tag::Bytes, value.into_raw() as usize as u64)
     }
 
     /// A class instance, taking over the handle's reference.
     #[must_use]
-    pub fn object(value: MwlObj) -> Self {
+    pub fn object(value: NvsObj) -> Self {
         Self::new(Tag::Object, value.into_raw() as usize as u64)
     }
 
     /// An array, taking over the handle's reference.
     #[must_use]
-    pub fn array(value: MwlArray) -> Self {
+    pub fn array(value: NvsArray) -> Self {
         Self::new(Tag::Array, value.into_raw() as usize as u64)
     }
 
@@ -372,14 +372,14 @@ impl Value {
                       (see this type's Ownership section), so it is live for \
                       at least this borrow"
         )]
-        Some(unsafe { MwlStr::bytes_of(ptr) })
+        Some(unsafe { NvsStr::bytes_of(ptr) })
     }
 
     /// The string payload as text, if this value is a string.
     ///
     /// This is the reader a caller that means text wants, and it costs the tag
     /// check alone: no `from_utf8` pass, because the tag it checks **is** the
-    /// UTF-8 guarantee — see [`MwlStr::text_of`] and `string.rs`'s
+    /// UTF-8 guarantee — see [`NvsStr::text_of`] and `string.rs`'s
     /// § *Reading the payload as text*. A `Tag::Bytes` value answers `None`
     /// here for the reason [`Self::as_bytes`] gives below.
     #[must_use]
@@ -392,7 +392,7 @@ impl Value {
                       at least this borrow — and the tag is what says the \
                       payload is text rather than a `bytes`'s octets"
         )]
-        Some(unsafe { MwlStr::text_of(ptr) })
+        Some(unsafe { NvsStr::text_of(ptr) })
     }
 
     /// The `bytes` payload's octets, if this value is a `bytes`.
@@ -414,7 +414,7 @@ impl Value {
                       (see this type's Ownership section), so it is live for \
                       at least this borrow"
         )]
-        Some(unsafe { MwlStr::bytes_of(ptr) })
+        Some(unsafe { NvsStr::bytes_of(ptr) })
     }
 
     /// The string payload's header pointer, if this value is a string.
@@ -461,9 +461,9 @@ impl Value {
 
     /// The [`ClassDesc`] an argument slot carries, if it carries one.
     ///
-    /// `mwl_ir::ty::Ty::ClassDesc` is not an MWL value: a descriptor rides in
+    /// `nvs_ir::ty::Ty::ClassDesc` is not an Novis value: a descriptor rides in
     /// the payload half of an otherwise-`null` slot, so nothing sweeping a
-    /// [`Value`] can mistake it for a heap reference (`mwl_codegen::ty::tag_of`
+    /// [`Value`] can mistake it for a heap reference (`nvs_codegen::ty::tag_of`
     /// is the encoding side). This is the one read of that convention from
     /// native code, and it is named for its single purpose rather than exposing
     /// the raw payload: a by-reference parameter's staged slot address rides in
@@ -475,7 +475,7 @@ impl Value {
     #[must_use]
     #[expect(
         clippy::cast_possible_truncation,
-        reason = "the payload is a pointer `mwl-codegen` widened to u64 when it stored the slot, so narrowing it back is exact on every target"
+        reason = "the payload is a pointer `nvs-codegen` widened to u64 when it stored the slot, so narrowing it back is exact on every target"
     )]
     pub const fn as_class_desc(self) -> Option<*const ClassDesc> {
         match self.tag() {
@@ -497,7 +497,7 @@ impl Value {
         }
     }
 
-    /// Adds a reference to a refcounted payload — `mwl_ir::InstKind::Retain`.
+    /// Adds a reference to a refcounted payload — `nvs_ir::InstKind::Retain`.
     ///
     /// A non-refcounted value is left alone, so callers need not branch on the
     /// tag themselves.
@@ -517,34 +517,34 @@ impl Value {
             #[expect(
                 unsafe_code,
                 reason = "the caller guarantees the payload is live; \
-                          `mwl_str_retain` only increments in place"
+                          `nvs_str_retain` only increments in place"
             )]
             unsafe {
-                crate::string::mwl_str_retain(ptr);
+                crate::string::nvs_str_retain(ptr);
             }
         } else if let Some(ptr) = self.obj_ptr() {
             #[expect(
                 unsafe_code,
                 reason = "the caller guarantees the payload is live; \
-                          `mwl_object_retain` only increments in place"
+                          `nvs_object_retain` only increments in place"
             )]
             unsafe {
-                crate::object::mwl_object_retain(ptr);
+                crate::object::nvs_object_retain(ptr);
             }
         } else if let Some(ptr) = self.array_ptr() {
             #[expect(
                 unsafe_code,
                 reason = "the caller guarantees the payload is live; \
-                          `mwl_array_retain` only increments in place"
+                          `nvs_array_retain` only increments in place"
             )]
             unsafe {
-                crate::array::mwl_array_retain(ptr);
+                crate::array::nvs_array_retain(ptr);
             }
         }
     }
 
     /// Drops the reference a refcounted payload owns —
-    /// `mwl_ir::InstKind::Release`.
+    /// `nvs_ir::InstKind::Release`.
     ///
     /// A non-refcounted value is left alone, and so is a `Closure`/`Resource`
     /// payload: neither representation exists yet, so nothing can construct
@@ -573,10 +573,10 @@ impl Value {
 }
 
 /// Adds a reference to whatever a **tagged** value's payload is —
-/// `mwl_ir::InstKind::Retain` for a `mwl_ir::Ty::Tagged` operand.
+/// `nvs_ir::InstKind::Retain` for a `nvs_ir::Ty::Tagged` operand.
 ///
 /// The two halves arrive separately because that is how compiled code holds
-/// one: `mwl_ir::Ty::Tagged` lives in a register pair whose low half is this
+/// one: `nvs_ir::Ty::Tagged` lives in a register pair whose low half is this
 /// [`Value`]'s first eight bytes (the tag byte plus its padding) and whose
 /// high half is the payload, which is exactly the little-endian memory image
 /// of the struct. Passing the pair rather than the struct keeps the C ABI out
@@ -595,10 +595,10 @@ impl Value {
 )]
 #[expect(
     clippy::cast_possible_truncation,
-    reason = "the tag is the low byte of the word by construction (`mwl_ir::Ty::Tagged`);               the other seven are its padding and mean nothing"
+    reason = "the tag is the low byte of the word by construction (`nvs_ir::Ty::Tagged`);               the other seven are its padding and mean nothing"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_value_retain(tag_word: u64, bits: u64) {
+pub unsafe extern "C" fn nvs_value_retain(tag_word: u64, bits: u64) {
     let Some(tag) = Tag::from_byte(tag_word as u8) else {
         return;
     };
@@ -606,7 +606,7 @@ pub unsafe extern "C" fn mwl_value_retain(tag_word: u64, bits: u64) {
         unsafe_code,
         reason = "the caller guarantees a refcounted payload is live; the \
                   tag/payload agreement is compiled code's own, written by \
-                  `mwl_codegen`'s `Tag` instruction"
+                  `nvs_codegen`'s `Tag` instruction"
     )]
     unsafe {
         Value::from_parts(tag, bits).retain();
@@ -614,8 +614,8 @@ pub unsafe extern "C" fn mwl_value_retain(tag_word: u64, bits: u64) {
 }
 
 /// Drops the reference a **tagged** value's payload owns —
-/// `mwl_ir::InstKind::Release` for a `mwl_ir::Ty::Tagged` operand, and the
-/// counterpart of [`mwl_value_retain`], whose doc comment owns the two-half
+/// `nvs_ir::InstKind::Release` for a `nvs_ir::Ty::Tagged` operand, and the
+/// counterpart of [`nvs_value_retain`], whose doc comment owns the two-half
 /// signature.
 ///
 /// # Safety
@@ -628,10 +628,10 @@ pub unsafe extern "C" fn mwl_value_retain(tag_word: u64, bits: u64) {
 )]
 #[expect(
     clippy::cast_possible_truncation,
-    reason = "see `mwl_value_retain`: the tag is the word's low byte by construction"
+    reason = "see `nvs_value_retain`: the tag is the word's low byte by construction"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_value_release(tag_word: u64, bits: u64) {
+pub unsafe extern "C" fn nvs_value_release(tag_word: u64, bits: u64) {
     let Some(tag) = Tag::from_byte(tag_word as u8) else {
         return;
     };
@@ -730,7 +730,7 @@ mod tests {
     /// being read as text by a caller that never asked whether it was.
     #[test]
     fn a_bytes_value_is_a_string_allocation_under_a_tag_of_its_own() {
-        let s = MwlStr::new(b"\xff\x00hi");
+        let s = NvsStr::new(b"\xff\x00hi");
         let value = Value::bytes(s.clone());
         assert_eq!(value.tag(), Some(Tag::Bytes));
         assert_eq!(s.refcount(), 2);
@@ -743,7 +743,7 @@ mod tests {
         assert!(value.buffer_ptr().is_some());
         assert!(Tag::Bytes.is_refcounted());
 
-        let text = Value::str(MwlStr::new(b"hi"));
+        let text = Value::str(NvsStr::new(b"hi"));
         assert_eq!(text.as_bytes(), None);
         assert_eq!(text.as_text(), Some("hi"));
         assert!(text.buffer_ptr().is_some());
@@ -761,7 +761,7 @@ mod tests {
 
     #[test]
     fn a_string_value_owns_one_reference() {
-        let s = MwlStr::new(b"hi");
+        let s = NvsStr::new(b"hi");
         let value = Value::str(s.clone());
         assert_eq!(s.refcount(), 2);
         assert_eq!(value.as_str_bytes(), Some(&b"hi"[..]));
@@ -777,7 +777,7 @@ mod tests {
 
     #[test]
     fn retain_and_release_pair_up_on_a_string_value() {
-        let s = MwlStr::new(b"hi");
+        let s = NvsStr::new(b"hi");
         let value = Value::str(s.clone());
         #[expect(unsafe_code, reason = "the payload is kept alive by `s`")]
         unsafe {
@@ -804,9 +804,9 @@ mod tests {
         assert_eq!(format!("{:?}", Value::int(-3)), "int(-3)");
         assert_eq!(format!("{:?}", Value::uint(3)), "uint(3)");
         assert_eq!(format!("{:?}", Value::bool(true)), "bool(true)");
-        let value = Value::str(MwlStr::new(b"hi"));
+        let value = Value::str(NvsStr::new(b"hi"));
         assert_eq!(format!("{value:?}"), "string(\"hi\")");
-        let raw = Value::bytes(MwlStr::new(b"\xff\x00hi"));
+        let raw = Value::bytes(NvsStr::new(b"\xff\x00hi"));
         assert_eq!(format!("{raw:?}"), "bytes(4 byte(s))");
         #[expect(unsafe_code, reason = "the value owns the reference it releases")]
         unsafe {

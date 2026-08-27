@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::values renumbers a gapped array exactly as array_values does
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

@@ -1,7 +1,7 @@
 --TEST--
 `string as int`/`as float` accepts only a whole numeric spelling — leading space, trailing space, hex and a fractional part all throw — ADR 0007 § 2
 --FILE--
-<?mwl
+<?nvs
 class Convert {
     public static function toInt(string $s): string {
         try {

@@ -1,7 +1,7 @@
 --TEST--
 `finally` runs after a `return` has picked its value, and after a `throw` has been caught
 --FILE--
-<?mwl
+<?nvs
 class Guarded {
     public static function returns(int $n): string {
         try {

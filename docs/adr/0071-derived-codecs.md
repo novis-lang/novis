@@ -107,7 +107,7 @@ echo Json::encode($u);              // {"id":7,"name":"…","email_address":"…
 and states no running total; a count restated in each amending ADR is a count that goes stale, and by the
 seventh entry it had ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 § 9). The registry the compiler actually reads is
-[`mwl_types::derive::ATTRIBUTES`](../../crates/mwl-types/src/derive.rs), and this table is what it must agree
+[`nvs_types::derive::ATTRIBUTES`](../../crates/nvs-types/src/derive.rs), and this table is what it must agree
 with:
 
 | Attribute | Attaches to | Owner |
@@ -186,7 +186,7 @@ equal would need an escape hatch immediately.
 ### 4. Required, optional and nullable are three existing concepts, not a new spelling
 
 The question "does `?T` mean the key may be absent, or that `null` is a legal value?" has a better answer
-than choosing: they are separate questions, and MWL already spells both.
+than choosing: they are separate questions, and Novis already spells both.
 
 | Declaration | Key absent | Key present as `null` |
 |---|---|---|
@@ -354,7 +354,7 @@ Revisit **omit-when-null** and a **whole-class naming policy** if a real interop
 per-field `name` cannot express — both are additive and neither changes anything decided here. Revisit the
 **constructor-parameter requirement** if the diagnostic turns out to be what people hit rather than what
 guides them; the fallback is a second, explicitly-named attribute that accepts the `Core\Reflect` bypass,
-never a silent widening of this one. If MWL ever gains user-defined generics
+never a silent widening of this one. If Novis ever gains user-defined generics
 ([ADR 0007](0007-explicit-type-system.md)'s open question), reconsider whether the codec interfaces should
 be generic over the format rather than one interface per format.
 

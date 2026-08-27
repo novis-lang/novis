@@ -1,18 +1,18 @@
 --TEST--
 an `autoload` in a file the map itself found does not compile — ADR 0061 § 1
 --FILE--
-<?mwl
+<?nvs
 // The map is fixed the moment it is first consulted, so a declaration in a
 // file that consulting it loaded would extend the map that found the file —
 // the map would depend on itself. Only the entry point's own `require` chain
 // declares it.
-require './src/Bootstrap.mwl';
+require './src/Bootstrap.nvs';
 echo App\Greeter::from(), "\n";
---FILE src/Bootstrap.mwl--
-<?mwl
+--FILE src/Bootstrap.nvs--
+<?nvs
 autoload 'App' from './';
---FILE src/Greeter.mwl--
-<?mwl
+--FILE src/Greeter.nvs--
+<?nvs
 namespace App;
 
 // Reached only through the prefix above, so this line is refused rather than

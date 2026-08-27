@@ -146,7 +146,7 @@ raised and considered, is not worth its cost here.
 ## Alternatives rejected
 
 - **Interprocedural / whole-program compile-time checking**, tracing which methods can write a `lateinit`
-  property before which methods read it. Rejected: MWL's hot-reload model
+  property before which methods read it. Rejected: Novis's hot-reload model
   ([ADR 0017](0017-hot-reload-without-restart.md)) revalidates and swaps one file's compiled unit at a time;
   a whole-program analysis would widen that blast radius on every edit, for a check whose easy cases § 3's
   free intraprocedural pass already covers and whose hard cases are cross-function/cross-object by nature and
@@ -171,7 +171,7 @@ raised and considered, is not worth its cost here.
   discharge its "never written" tag the moment the hook first commits a value, mirroring how ADR 0022 § 2
   already treats a hooked property inside a constructor. Left to `docs/spec/`, the same deferral ADR 0022
   already uses for its own per-property hook internals.
-- **Whether `mwl convert` (M11) should recognize a PHP class's setter-injection pattern and suggest
+- **Whether `nvs convert` (M11) should recognize a PHP class's setter-injection pattern and suggest
   `lateinit`** rather than leaving the converted property `?T` with manual null-checks everywhere. A
   migration-quality question, not a language-semantics one — belongs with ADR 0022's own M11 entry once that
   milestone starts.

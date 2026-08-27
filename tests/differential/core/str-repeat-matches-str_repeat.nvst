@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::repeat matches PHP's str_repeat, zero included
 --FILE--
-<?mwl
+<?nvs
 echo "[", Core\Str::repeat("ab", 3), "]\n";
 echo "[", Core\Str::repeat("-", 10), "]\n";
 echo "[", Core\Str::repeat("x", 1), "]\n";

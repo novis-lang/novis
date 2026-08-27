@@ -1,7 +1,7 @@
 --TEST--
 An array parameter is a value: writing, appending and unsetting inside the callee are all invisible outside it
 --FILE--
-<?mwl
+<?nvs
 class Edit {
     public static function scribble(array<int> $a): string {
         $a[0] = 99;

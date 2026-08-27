@@ -1,9 +1,9 @@
 --TEST--
 A `Core`-owned generic class takes exactly the type arguments its roster declares, so one list is right for one collection and wrong for the other — ADR 0007 § 3, spec § 9
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 3 makes "which `new` target may carry a `<...>`" a resolution
-// question, and `mwl_stdlib::registry::GENERIC_CLASSES` is the answer. It is
+// question, and `nvs_stdlib::registry::GENERIC_CLASSES` is the answer. It is
 // read positionally: nothing but the declared arity tells `ObjectSet<T>` from
 // `ObjectMap<K, V>` here, so the two mistakes below are one diagnostic with
 // two different counts in it. A target off the roster gets E0441 instead,

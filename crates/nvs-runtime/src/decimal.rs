@@ -18,13 +18,13 @@
 //! ```
 //!
 //! That is the little-endian image of the struct, so the same `u128` register
-//! pair `mwl_ir::ty::Ty::Tagged` travels in carries a `decimal` with no
+//! pair `nvs_ir::ty::Ty::Tagged` travels in carries a `decimal` with no
 //! reshuffling, and [`crate::Value`]'s two-store materialization works
 //! unchanged. The alternative — a representation of its own, outside `Value` —
 //! would have cost a second widen/narrow protocol and a second helper argument
 //! shape, and would have left `mixed` with no way to hold a `decimal` at all.
 //! Instead `decimal` inside a `mixed`, a `?decimal` or any other union is the
-//! *same bits*: `mwl_ir::InstKind::Tag` and `Untag` are the identity on one.
+//! *same bits*: `nvs_ir::InstKind::Tag` and `Untag` are the identity on one.
 //!
 //! **What it spends:** sixteen bytes per value against eight for a `float`,
 //! which is ADR 0054 § *Consequences*' own figure — one extra machine register

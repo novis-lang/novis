@@ -1,10 +1,10 @@
 --TEST--
 A closure parameter declaring an enum is checked as that enum's backing integer, so an enum, its backing type and any other enum with the same backing are indistinguishable while the two backings are told apart — ADR 0010 § 5, ADR 0007 §§ 2 and 4
 --FILE--
-<?mwl
+<?nvs
 // The depth claim is *agreement*: one question asked of four subjects that
 // share a rule, asserting that they agree rather than what each answered.
-// `mwl_ir::lower::param_tag_nibble` folds `Ty::Enum(EnumRepr::Int)` onto
+// `nvs_ir::lower::param_tag_nibble` folds `Ty::Enum(EnumRepr::Int)` onto
 // `Ty::Int`'s nibble and `Ty::Enum(EnumRepr::Uint)` onto `Ty::Uint`'s, because
 // ADR 0010 makes an enum case a named integer that travels as its backing
 // integer, tag included. So the check has no way to tell an enum from that

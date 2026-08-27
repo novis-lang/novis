@@ -1,4 +1,4 @@
-// Parsing then reading the fields - MWL validates into a declared type where JSON.parse hands back `any`.
+// Parsing then reading the fields - Novis validates into a declared type where JSON.parse hands back `any`.
 
 interface Order {
     id: number;

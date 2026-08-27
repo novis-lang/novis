@@ -70,7 +70,7 @@ SCRATCH_DAYS = 2  # .agent-tmp: older than this belongs to no session that is st
 KEEP_INCREMENTAL = 2  # target/*/incremental: cache generations kept per crate
 MIN_FREE_GB = 10  # below this, tools/loop.py will not start a run
 
-# `libmwl_stdlib-2a3f7eaa9f84477e.rlib` -> `libmwl_stdlib`. Cargo's metadata hash is 16 hex
+# `libnvs_stdlib-2a3f7eaa9f84477e.rlib` -> `libnvs_stdlib`. Cargo's metadata hash is 16 hex
 # digits and always the last dash-separated component of the stem.
 HASHED = re.compile(r"^(.+)-[0-9a-f]{16}$")
 
@@ -78,15 +78,15 @@ HASHED = re.compile(r"^(.+)-[0-9a-f]{16}$")
 ELSEWHERE = [
     (
         "WSL Linux target",
-        "{tmp}/mwl-linux",
+        "{tmp}/nvs-linux",
         "the valgrind leg's own target dir, inside the ext4 vhdx",
-        "wsl.exe -- rm -rf /var/tmp/mwl-linux    # frees ext4 space; see commands.md for the vhdx",
+        "wsl.exe -- rm -rf /var/tmp/nvs-linux    # frees ext4 space; see commands.md for the vhdx",
     ),
     (
         "WSL loop target",
-        "{tmp}/mwl-target-wsl",
+        "{tmp}/nvs-target-wsl",
         "the loop's WSL leg target dir, beside it and just as large",
-        "wsl.exe -- rm -rf /var/tmp/mwl-target-wsl    # the next leg pays a 32s cold build",
+        "wsl.exe -- rm -rf /var/tmp/nvs-target-wsl    # the next leg pays a 32s cold build",
     ),
     (
         "harness transcripts",
@@ -298,8 +298,8 @@ def mtime(path):
 def stale_incremental(keep=KEEP_INCREMENTAL):
     """Cache directories in target/*/incremental past the newest `keep` for their crate.
 
-    The same generation pile-up as `deps/` -- `mwl_stdlib-034481himi0e6` is one dependency
-    graph's cache and `mwl_stdlib-0fcvo7f0ezdf2` is another's, and 588 directories stood for 59
+    The same generation pile-up as `deps/` -- `nvs_stdlib-034481himi0e6` is one dependency
+    graph's cache and `nvs_stdlib-0fcvo7f0ezdf2` is another's, and 588 directories stood for 59
     crates when this was written. Decided by name and age rather than by asking cargo, because
     the hash here is an incremental session id that no artifact list ever mentions -- and it can
     afford to be, since nothing under this directory is an output. Deleting a live entry costs

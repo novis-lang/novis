@@ -1,8 +1,8 @@
-MWL — third-party attribution
+Novis — third-party attribution
 ==============================================================================
 
 This file is the complete notice for third-party components compiled into
-the `mwl` binary. MWL's own terms are MIT and live in LICENSE; they are
+the `nvs` binary. Novis's own terms are MIT and live in LICENSE; they are
 not restated here.
 
 GENERATED FILE — do not edit by hand. Regenerate with:
@@ -13,9 +13,9 @@ GENERATED FILE — do not edit by hand. Regenerate with:
 COMPONENTS (150)
 ------------------------------------------------------------------------------
 
-Where a component offers a choice of licenses, MWL takes the one shown and
+Where a component offers a choice of licenses, Novis takes the one shown and
 the full offer follows in parentheses. Components are listed for every
-platform MWL builds for, so one may appear that a given build omits.
+platform Novis builds for, so one may appear that a given build omits.
 
   aho-corasick                            1.1.5    MIT                             (Unlicense OR MIT)
   allocator-api2                          0.2.21   MIT                             (MIT OR Apache-2.0)

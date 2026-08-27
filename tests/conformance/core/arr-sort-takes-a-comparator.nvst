@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::sort's `{comparator}` decides every pair itself, where `{by}` only projects a sort key
 --FILE--
-<?mwl
+<?nvs
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

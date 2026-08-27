@@ -8,7 +8,7 @@
 
 > **In short:** PHP has one type for "a piece of text" and "a buffer of bytes," and it never says which one
 > a given `string` is — that ambiguity is why PHP needs a whole parallel function set (`strlen` vs
-> `mb_strlen`) and a global or per-call encoding to make either half work. MWL splits it: **`string` is
+> `mb_strlen`) and a global or per-call encoding to make either half work. Novis splits it: **`string` is
 > guaranteed-valid UTF-8, always**, and **`bytes` is a new primitive, peer to `string`, for data with no
 > encoding at all** — a file's contents, a socket read, a hash digest, a request body before anyone has
 > claimed it is text. Conversion follows the rule every other conversion in
@@ -28,7 +28,7 @@
   about the variable `$s` saying which answer is expected.
 - An artifact of timing, not laziness: C had no "encoded text" vs. "bytes" vocabulary in 1995, and the
   gap was never closed once Unicode became the web's overwhelming common case.
-- For MWL this is a security question, not just a naming one: [0007](0007-explicit-type-system.md)
+- For Novis this is a security question, not just a naming one: [0007](0007-explicit-type-system.md)
   already treats an untrusted-data conversion as a reviewable source-level event (priority 1); silently
   treating an attacker-controlled byte buffer as text — an unasserted encoding — is the same shape of bug
   (a length check on the wrong unit, a truncation splitting a multi-byte sequence).
@@ -90,7 +90,7 @@ Two things settled that, and the second is the one this ADR originally deferred:
    over text that is *not* plain ASCII it is roughly an order of magnitude more, which is where the
    O(1)-cached count in *Consequences* earns its place.
 
-`mwl_stdlib::granularity` is where that default is stated in code, once, and every `Core\Str` member with a
+`nvs_stdlib::granularity` is where that default is stated in code, once, and every `Core\Str` member with a
 unit reads it from there.
 
 ### 3. Conversion
@@ -107,7 +107,7 @@ this ADR exists to avoid.
 
 ### 4. Where `bytes` shows up by default
 
-Anywhere MWL currently hands the program data it has not itself asserted is text — a request body before
+Anywhere Novis currently hands the program data it has not itself asserted is text — a request body before
 `Content-Type` has been consulted, a raw socket read, a file's contents, a hash or crypto digest — the host
 should hand it over as `bytes`, not `string`. `Core\Request`, `Core\Server` (the [ADR 0012](0012-no-superglobals.md) replacements for `$_GET`/`$_POST`/`$_SERVER`) and `json_decode`'s result stay
 `array<mixed>` exactly as [0007](0007-explicit-type-system.md) § 6 already decided (structured input is
@@ -136,7 +136,7 @@ per the plan's split, this ADR fixes the *semantics*, `docs/spec/00-overview.md`
 
 - **A further deliberate divergence from PHP**, one of the divergences [divergences.md](divergences.md) registers of keeping a decision's own divergence local to it:
 
-  | # | PHP | MWL |
+  | # | PHP | Novis |
   |---|---|---|
   | 1 | `strlen()` counts bytes; character-aware length needs `mb_strlen()` and a correct `mb_internal_encoding()` | `string`'s default length counts grapheme clusters unconditionally — there is no second, encoding-sensitive function to get wrong |
 
@@ -149,7 +149,7 @@ per the plan's split, this ADR fixes the *semantics*, `docs/spec/00-overview.md`
 - **Unicode-version sensitivity.** Extended grapheme cluster boundaries are defined by UAX #29 and gain new
   rules when Unicode adds scripts or emoji sequences. Unlike every other primitive in
   [0007](0007-explicit-type-system.md), what counts as "one character" in a `string` is pinned to whichever
-  Unicode version `mwl-runtime` embeds, and can change across a runtime upgrade. Worth stating loudly rather
+  Unicode version `nvs-runtime` embeds, and can change across a runtime upgrade. Worth stating loudly rather
   than discovering it as a surprising changelog entry.
 - **A `Core\Str::length` is O(n), where PHP's `strlen` is O(1).** A program that calls it inside a loop over
   the same string pays for the whole string each time, and the cached count above is what removes that. The
@@ -161,7 +161,7 @@ per the plan's split, this ADR fixes the *semantics*, `docs/spec/00-overview.md`
 - **Codepoint count as the default** (Python 3, Java's effective behaviour). Rejected: it still answers
   "how many Unicode scalar values" rather than "how many characters a person sees" — a flag emoji or a
   combining-mark letter would not count as one. It is still *reachable*, as `Core\Str::codePoints` and as
-  `mwl_stdlib::granularity::Unit::CodePoint`; it is simply not what an unmarked length means.
+  `nvs_stdlib::granularity::Unit::CodePoint`; it is simply not what an unmarked length means.
 - **Byte count as the default**, this ADR's own original fallback. Rejected in *Decision § 2* on a stronger
   ground than cost: it cannot index a guaranteed-UTF-8 `string` at all.
 - **`bytes` as `array<uint>`.** Rejected in *Decision § 1*: 8 bytes of tagged-value overhead per byte of
@@ -189,7 +189,7 @@ linear. Two follow-ons named rather than done:
   re-segments the same buffer every iteration.
 - **A different segmenter** is the escape hatch if the non-ASCII figure ever bites. `icu_segmenter` was
   passed over for its data-provider and locale architecture, not for its correctness or its speed, neither
-  of which was measured here ([`mwl_stdlib::granularity`](../../crates/mwl-stdlib/src/granularity.rs)
+  of which was measured here ([`nvs_stdlib::granularity`](../../crates/nvs-stdlib/src/granularity.rs)
   records that comparison). Swapping it in would be a change behind that one seam.
 
 Two further questions, resolved:
@@ -199,7 +199,7 @@ Two further questions, resolved:
   literal token; `"…" as bytes` covers the valid-UTF-8 case for free, `Core\Bytes::fromHex()`/`::fromBase64()`
   cover arbitrary binary constants. A spelling decision only.
 - **Random access by grapheme index** is an O(n) scan, not a cached offset table. `Core\Str::at` walks the
-  clusters, which is the cheaper thing to build and the correct default until a real MWL program shows the
+  clusters, which is the cheaper thing to build and the correct default until a real Novis program shows the
   table earning its per-string memory — the same "measure first" this ADR's own § 2 turned on.
 
 One that is not:

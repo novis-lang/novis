@@ -23,7 +23,7 @@ const PRECISION: usize = 14;
 /// A `float`'s `string` form, exactly as PHP's `echo` would spell it.
 ///
 /// ```
-/// use mwl_runtime::php_float_to_string;
+/// use nvs_runtime::php_float_to_string;
 ///
 /// assert_eq!(php_float_to_string(1.0), "1");
 /// assert_eq!(php_float_to_string(0.1 + 0.2), "0.3");

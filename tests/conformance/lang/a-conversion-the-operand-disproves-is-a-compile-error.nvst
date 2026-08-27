@@ -1,7 +1,7 @@
 --TEST--
 A checked `as` whose operand already names a value outside the target set does not compile, and the diagnostic generates the accepted set from the type — ADR 0047 §§ 4, 6
 --FILE--
-<?mwl
+<?nvs
 // § 4's two checked rows run at run time only where the operand's own type
 // leaves the answer open — a plain `string`, an `enum`, a `mixed`. Where the
 // operand names one value and the target names a closed set without it, the

@@ -31,7 +31,7 @@ impl QName {
     /// # Panics
     ///
     /// Panics if `text` is empty, which would indicate a bug in the caller —
-    /// every [`mwl_syntax::ast::Name`] span covers at least one identifier
+    /// every [`nvs_syntax::ast::Name`] span covers at least one identifier
     /// character.
     #[must_use]
     pub fn parse(text: &str) -> Self {
@@ -49,7 +49,7 @@ impl QName {
 
     /// Builds a name by appending one short (unqualified) segment onto a
     /// namespace path — the shape every declaration site produces, since
-    /// [`mwl_syntax::ast::Name`] at a declaration is never itself qualified.
+    /// [`nvs_syntax::ast::Name`] at a declaration is never itself qualified.
     #[must_use]
     pub fn join(namespace: &[String], short_name: &str) -> Self {
         let mut segments = namespace.to_vec();
@@ -89,12 +89,12 @@ impl QName {
             .expect("a QName always has at least one segment")
     }
 
-    /// Whether this name's root segment is `Core`, MWL's reserved namespace
+    /// Whether this name's root segment is `Core`, Novis's reserved namespace
     /// for built-ins ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
     /// § 2).
     ///
-    /// `Core`'s own classes are not yet declarations `mwl-hir` can see —
-    /// `mwl-stdlib` doesn't exist until a later milestone — so a `use`
+    /// `Core`'s own classes are not yet declarations `nvs-hir` can see —
+    /// `nvs-stdlib` doesn't exist until a later milestone — so a `use`
     /// importing one is trusted to exist rather than checked against a real
     /// symbol table.
     #[must_use]
@@ -117,7 +117,7 @@ impl QName {
     /// Whether this name is one of the global exception classes
     /// [`crate::errors::TREE`] declares — trusted to exist without a source
     /// declaration the same way [`Self::is_core`] trusts `Core`, since none
-    /// of them has a spelling MWL could declare (see that module's docs).
+    /// of them has a spelling Novis could declare (see that module's docs).
     /// Kept separate from [`Self::is_reserved_global_interface`]: these are
     /// ordinary classes reached via `extends`/`new`, not interfaces reached
     /// via `implements`.

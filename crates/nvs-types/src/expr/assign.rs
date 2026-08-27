@@ -5,7 +5,7 @@
 //! table is written down. It carries two amendments from ADR 0036: every class
 //! or shape type is `<: object` (§ 1), and a shape target is checked
 //! structurally by width subtyping plus ordinary field assignability (§ 3,
-//! [`shape_satisfied`]) rather than nominally — MWL's one deliberate exception
+//! [`shape_satisfied`]) rather than nominally — Novis's one deliberate exception
 //! to otherwise fully nominal typing. **`array<T>` is covariant in its element
 //! type**, and it is the only generic name in the language that is;
 //! [`is_assignable`]'s own doc comment owns that rule and why ADR 0007 § 5's
@@ -91,7 +91,7 @@ pub(crate) fn is_assignable(
     // The recursion behind it is what makes every *other* rule in this
     // function apply inside a union, and it is not a special case for one
     // caller: `?Animal` refusing a `Dog` was the same hole as
-    // `array<T>|Iterable<T>|Iterator<T>` (`mwl_stdlib::registry::CoreTy::Iterated`)
+    // `array<T>|Iterable<T>|Iterator<T>` (`nvs_stdlib::registry::CoreTy::Iterated`)
     // refusing a class that implements `Iterable<int>`, since neither the
     // nominal rule nor the shape rule nor the widening rule was ever reached
     // for a member. Unions are flattened and canonicalised, so a member is
@@ -115,7 +115,7 @@ pub(crate) fn is_assignable(
     // conversion happens in exactly one place: **`int` or `uint` widening into
     // a `float` position**, which is the one coercion PHP's own
     // `strict_types` permits, and it throws above 2^53 rather than rounding."
-    // The throw is `mwl_ir::lower::Lowering::coerce`'s half; here it is only
+    // The throw is `nvs_ir::lower::Lowering::coerce`'s half; here it is only
     // the accepting.
     //
     // A *union* source is checked member-wise against a non-union target for
@@ -154,7 +154,7 @@ pub(crate) fn is_assignable(
     // The usual objection does not apply: covariant arrays are unsound in a
     // language where the target *aliases* the source, because a write through
     // the widened view lands in storage the narrow view still reads. ADR 0007
-    // § 5 makes an MWL array a copy-on-write **value** instead, so the widened
+    // § 5 makes an Novis array a copy-on-write **value** instead, so the widened
     // binding is a separate array the moment anything writes to it, and the
     // narrow one can never observe the write. What covariance buys is every
     // signature the spec writes over a union — `Core\Arr::sum`'s
@@ -186,7 +186,7 @@ pub(crate) fn is_assignable(
 }
 
 /// Whether a value of class `from_q` may be used where the class or
-/// interface `to_q` (at `to_args`) is declared — MWL's one nominal subtyping
+/// interface `to_q` (at `to_args`) is declared — Novis's one nominal subtyping
 /// rule, and deliberately the whole of it.
 ///
 /// `from_q` satisfies `to_q` when it reaches it through `extends`/
@@ -208,7 +208,7 @@ pub(super) fn class_satisfied(
     graph: &ClassGraph,
     signatures: &SignatureTable,
 ) -> bool {
-    if !mwl_hir::hierarchy::implements_interface(from_q, to_q, graph) {
+    if !nvs_hir::hierarchy::implements_interface(from_q, to_q, graph) {
         return false;
     }
     if to_args.is_empty() {
@@ -314,7 +314,7 @@ pub(crate) fn check_return(
 
 /// `E0701` — `$a = &$b;`, refused rather than lowered.
 ///
-/// MWL has no references: ADR 0031 § 2 removed by-reference capture, so no
+/// Novis has no references: ADR 0031 § 2 removed by-reference capture, so no
 /// binding aliases another, and ADR 0023 fixes what a copy means, so the
 /// right-hand side is a copy at the point the assignment runs. The `&` has no
 /// owner in either rule — the same reasoning `literals`' `[&$x]` refusal
@@ -331,7 +331,7 @@ pub(super) fn report_by_reference_assignment(span: Span, value: Span, env: &mut 
         )
         .with_primary(span, format!("this would share `{value_text}`'s own slot"))
         .with_help(
-            "MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes \
+            "Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes \
              this a copy, so drop the `&` — `inout` is a parameter and binding mode (ADR 0107), \
              not a way to make two names one place, and to share one mutable cell you hold it in \
              an object and assign that",
@@ -396,13 +396,13 @@ pub(super) fn check_assign(
 /// PHP's `[]` names the key one past the highest integer key, which is an
 /// answer only where a value is being put there: PHP refuses `echo $a[];`
 /// with *"Cannot use [] for reading"* and `unset($a[])` with *"for
-/// unsetting"*, and MWL refuses `$a[] .= "x"` alongside them, which is ADR
+/// unsetting"*, and Novis refuses `$a[] .= "x"` alongside them, which is ADR
 /// 0007 § 7 row 10 — PHP appends there only because the element that is not
 /// there yet reads as `""`. Marking the legal spans is therefore the whole
 /// rule, and this walk is where they all are:
 /// the target chain of a plain assignment, every level of it, since
 /// `$a[][0] = 1` appends a fresh row and writes into it (ADR 0007 § 5's
-/// separation applies at each level, and `mwl_ir::lower::stmt`'s flatten
+/// separation applies at each level, and `nvs_ir::lower::stmt`'s flatten
 /// walks the same chain).
 ///
 /// Called **before** the target is checked, unlike [`check_write_target`],
@@ -458,7 +458,7 @@ pub(super) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 /// missing slot the two above are about, arrived at from the other side: those
 /// two name a holder that turns out not to be storage, this one names no
 /// holder in the first place. [`is_a_place`] is the test, and it is exactly
-/// the set of roots `mwl_ir::lower::Lowering::write_back_array` can re-point.
+/// the set of roots `nvs_ir::lower::Lowering::write_back_array` can re-point.
 /// This is the one of the four PHP does *not* refuse — 8.5 lowers the write
 /// into the temporary and discards it, silently — so it is a deliberate
 /// divergence, ADR 0007 § 7 row 15, taken because the only statement it costs
@@ -468,18 +468,18 @@ pub(super) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 /// [`ExprInfo::HookedProperty`] entry [`super::members`] records while
 /// checking the access. All four spellings that write through a target go
 /// through it — a plain `=`, a compound `⊕=`, `$x++`/`--$x`, which
-/// `mwl_ir::lower` desugars into the same `$x = $x ± 1` a compound assignment
+/// `nvs_ir::lower` desugars into the same `$x = $x ± 1` a compound assignment
 /// becomes and which therefore has exactly the same nowhere to write to, and
 /// `unset($a[$k])`, which ADR 0007 § 5 separates the array for exactly as a
 /// write does (`super::members`' `check_unset_target`). All four give the
 /// same answer on the same target and each takes exactly one diagnostic for
 /// it, which
-/// `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.mwlt`
+/// `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.nvst`
 /// asks of all four at once — a spelling that grew its own answer, or a
 /// second diagnostic for the subscript the refused holder made unreadable,
 /// fails there while still reading right on its own line.
 /// Only the root of a subscript chain is examined:
-/// `mwl_ir::lower::Lowering::lower_reassignment` flattens a nested element
+/// `nvs_ir::lower::Lowering::lower_reassignment` flattens a nested element
 /// write down to its root holder and writes every level back through that, so
 /// the root is the only level with a holder at all — which is also why
 /// `$obj->hooked[0][1] = v` is this same refusal and not a deeper one.
@@ -567,7 +567,7 @@ pub(super) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
 /// back into, rather than a value dropped at the end of the statement.
 ///
 /// The three that are, are the three
-/// `mwl_ir::lower::Lowering::write_back_array` can re-point — a local (an `inout $x`
+/// `nvs_ir::lower::Lowering::write_back_array` can re-point — a local (an `inout $x`
 /// parameter's slot included), a property of a receiver whose class is known
 /// at compile time, and a static property, whose slot the request owns. A
 /// property of a *temporary* receiver (`(new H)->rows["a"] = "y"`) is a place
@@ -594,7 +594,7 @@ pub(super) fn is_a_place(kind: &ExprKind) -> bool {
 }
 
 /// `$x ⊕= e`, typed as the `$x = $x ⊕ e` it means — [`AssignOp::binary_op`]
-/// is the one place that pairing is written down, and `mwl_ir::lower`
+/// is the one place that pairing is written down, and `nvs_ir::lower`
 /// desugars through the same answer.
 ///
 /// The target is read first, then the value is checked *against the target's

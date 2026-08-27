@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-24
 - **Scope:** the whole `Core\Db` subsystem — how a connection is obtained, configured, pooled and reused;
-  how a statement runs; how a row becomes typed values; transactions; errors; the SQL↔MWL type map; what is
+  how a statement runs; how a row becomes typed values; transactions; errors; the SQL↔Novis type map; what is
   refused outright. Not in scope: the signature list, which is
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 18; tier placement, which is
   [0051](0051-standard-library-tiers.md); and the shape rules every member obeys, which are
@@ -19,7 +19,7 @@
 - **Amended by:** 0071, 0084, 0103
 
 > **In short:** one API replaces `PDO`, `mysqli`, `pgsql` and `sqlite3`. A program names a connection
-> (`Core\Db::connect("main")`) and the credentials live in root-owned `mwl.toml`, gated by a new
+> (`Core\Db::connect("main")`) and the credentials live in root-owned `nvs.toml`, gated by a new
 > deny-by-default `db.connect`; dynamic targets go through `Db::open(Settings)` under `db.open` and refuse a
 > `tainted` host. **Every statement is prepared and parameterised** — there is no `prepare` step, no
 > `quote()`, no emulated prepares and no multi-statement form; a per-connection statement cache makes the
@@ -45,7 +45,7 @@
   so escaping-based APIs (`PDO::quote`, `mysqli_real_escape_string`) have nothing to be the correct answer
   to.
 - The runtime is strict shared-nothing for *program* state, and a connection is not program state — it is
-  host state, invisible to MWL code. So connections are **pooled per core** (§ 13) while
+  host state, invisible to Novis code. So connections are **pooled per core** (§ 13) while
   [0059](0059-cross-request-state-is-explicit.md)'s rule that only compiled code crosses a request boundary
   stays exactly true. What makes pooling interesting here is not the saved handshake: it is that a pooled
   connection carrying one tenant's session state into another tenant's request would be a cross-tenant leak,
@@ -82,7 +82,7 @@ Core\Db::connect(string $name, {shared?: bool, timeout?: Duration}): Db\Connecti
 Core\Db::open(Db\Settings $settings, {shared?: bool}): Db\Connection
 ```
 
-`connect` resolves a root-owned `[db.<name>]` block in `mwl.toml` ([0064](0064-configuration-file-format.md)),
+`connect` resolves a root-owned `[db.<name>]` block in `nvs.toml` ([0064](0064-configuration-file-format.md)),
 so a credential never appears in program source, never enters the repository, and is rotated without a
 deploy. `open` covers what a name cannot: one database per tenant, chosen at request time.
 
@@ -205,7 +205,7 @@ names match column names exactly — `_` is legal inside an identifier
 ([0030](0030-no-leading-underscores-constructor-spelling.md) bans it only leading), so there is no
 snake-to-camel mapping layer and `AS` is the way to rename.
 
-**The requested type drives the conversion, losslessly or not at all.** Every column has a natural MWL type
+**The requested type drives the conversion, losslessly or not at all.** Every column has a natural Novis type
 (used by `get` and `toArray`); asking for another one converts when that is lossless and throws `DbError`
 otherwise. One rule settles what would otherwise be a list of special cases: MySQL's `TINYINT(1)` is
 naturally `int` and reads as `bool` on request, with a stored `7` throwing; a `BIGINT UNSIGNED` past
@@ -284,7 +284,7 @@ developer-authored.
 
 ### 9. The type map
 
-| SQL | MWL | |
+| SQL | Novis | |
 |---|---|---|
 | `SMALLINT`/`INT`/`BIGINT` | `int` | |
 | `… UNSIGNED` (MySQL/MariaDB) | `uint` | `BIGINT UNSIGNED` needs it; PHP overflows to `float` |
@@ -302,7 +302,7 @@ developer-authored.
 | MySQL `SET` | `array<string>` | |
 | `JSON`/`JSONB` | `tainted string` | decoded explicitly — below |
 | `NULL` | `null`, hence `?T` | |
-| PostgreSQL `inet`/`cidr`/ranges/`hstore`/geometry, `BIT(n>1)`, `interval` | `tainted string` | no MWL type; `interval` is deliberately **not** `Duration`, since it carries months |
+| PostgreSQL `inet`/`cidr`/ranges/`hstore`/geometry, `BIT(n>1)`, `interval` | `tainted string` | no Novis type; `interval` is deliberately **not** `Duration`, since it carries months |
 
 **JSON is not auto-decoded.** MariaDB's `JSON` is an alias for `LONGTEXT` with a `json_valid` check
 constraint, so a JSON column is not reliably detectable from column metadata at all; an auto-decoding rule
@@ -320,16 +320,16 @@ mean, and the only alternative that obeys § 4 literally (a `Zone` argument at e
 SQLite has no date or time types; mapping keys off the *declared* column type and throws on a value that
 does not parse.
 
-### 10. What `mwl check` proves about a literal query
+### 10. What `nvs check` proves about a literal query
 
 Under [0057](0057-intrinsic-literal-folding.md)'s closed intrinsic list, a literal SQL argument is
 validated during checking: placeholder count against a literal params array, positional-vs-named
 consistency, an unterminated string literal, and a refused second statement. A literal `Db::open` host that
-matches no `db.open` grant pattern is likewise a check-time diagnostic, since `mwl.toml` is read at boot on
+matches no `db.open` grant pattern is likewise a check-time diagnostic, since `nvs.toml` is read at boot on
 the machine that compiles.
 
 Full per-dialect SQL parsing is **not** done: it would mean maintaining four vendors' grammars in
-`mwl-syntax` forever. Schema-aware checking is a *Revisiting* item below.
+`nvs-syntax` forever. Schema-aware checking is a *Revisiting* item below.
 
 ### 11. A query is a trace event
 
@@ -354,7 +354,7 @@ test 6.
 ### 13. The pool is per core, and the reset is a security boundary
 
 A connection released at request teardown returns to a pool owned by the core that opened it. **Nothing in
-this ADR's surface changes**: `connect` and `open` already hand back a memoized object, and MWL code cannot
+this ADR's surface changes**: `connect` and `open` already hand back a memoized object, and Novis code cannot
 observe whether the handshake happened.
 
 - **Per core, never shared between cores.** The runtime is thread-per-core, so a per-core pool needs no lock
@@ -405,7 +405,7 @@ observe whether the handshake happened.
 - **Injection is closed by construction, in both directions.** Query text refuses `tainted`, binding
   accepts it, `inList` covers the one case a placeholder cannot, and result rows are themselves `tainted`,
   so stored injection is closed by the same rule as reflected rather than as an afterthought.
-- **The reachable set of databases is enumerable from `mwl.toml`** — a question no PHP deployment can
+- **The reachable set of databases is enumerable from `nvs.toml`** — a question no PHP deployment can
   answer.
 - **`ErrorKind` removes vendor-string matching** from every application that handles a duplicate key.
 - **`decimal`, `Instant` and `uint` columns arrive as themselves.** Money stops being a string that
@@ -422,7 +422,7 @@ observe whether the handshake happened.
   request's memory cap; `stream` is the escape, and a program that does not know to reach for it meets the
   cap rather than a slow path.
 - **Dynamic connections cost the operator a grant.** PHP code that builds a DSN at runtime does not port
-  until root adds `db.open`, and `mwl convert` can only emit the `[db.*]` block and the diagnostic.
+  until root adds `db.open`, and `nvs convert` can only emit the `[db.*]` block and the diagnostic.
 - **Two ways to read a row.** `Db\Row` and `queryAs<T>` are justified by the `Json` precedent, but they are
   still two, and a codebase will contain both.
 - **MySQL's implicit commit on DDL is not fixable here.** `CREATE`/`ALTER`/`TRUNCATE` inside `transaction()`
@@ -437,7 +437,7 @@ observe whether the handshake happened.
 ## Alternatives rejected
 
 - **Mirror PDO.** `prepare`/`execute`, fetch-mode constants, `quote()`, `lastInsertId()`, `errorInfo()`.
-  Maximum familiarity and the easiest `mwl convert` target. Rejected piece by piece by
+  Maximum familiarity and the easiest `nvs convert` target. Rejected piece by piece by
   [0063](0063-core-api-conventions.md): R11 kills the flag constants, R4 the error accessors, R3 the
   by-reference binding, R17 the prepare/query duality, and 0024 the escaper.
 - **Drivers as Tier 1 extensions.** Rejected by [0051](0051-standard-library-tiers.md) test 1 before this
@@ -462,7 +462,7 @@ observe whether the handshake happened.
 
 - **Pool sizing defaults** (§ 13) — `max` is per core, so the first deployment on a many-core machine will
   find the product surprising. If operators routinely lower it, the default is wrong rather than the model.
-- **Schema-aware checking** (`mwl check --schema`) — validate literal queries and `queryAs<T>` shapes
+- **Schema-aware checking** (`nvs check --schema`) — validate literal queries and `queryAs<T>` shapes
   against a live schema, the way `sqlx::query!` does, turning a first-row `DbError` into a compile error.
   Wants its own ADR: it introduces a build-time dependency on a reachable database and a cache format for
   the introspected schema.
@@ -475,7 +475,7 @@ observe whether the handshake happened.
   [0083](0083-persistent-connections-are-isolates.md)'s connection isolates and
   [0084](0084-durable-background-jobs.md)'s workers are both candidates, and a bridge to `Core\Topic` is the
   obvious shape. Blocked only on someone needing it.
-- **A portable `Core\Db\Schema`** — if migration tooling in `mwl` itself needs it, rather than userland.
+- **A portable `Core\Db\Schema`** — if migration tooling in `nvs` itself needs it, rather than userland.
 
 ## Verification
 
@@ -498,11 +498,11 @@ observe whether the handshake happened.
   NULL in a non-nullable field; a zone-less column reads as `DateTime` in the declared zone and a
   `TIMESTAMPTZ` ignores it; `affected` is the matched count on all four drivers while `changed` is non-null
   only on MySQL/MariaDB.
-- **M8, `mwl check`:** placeholder-count mismatch, mixed placeholder styles, and an `open` host matching no
+- **M8, `nvs check`:** placeholder-count mismatch, mixed placeholder styles, and an `open` host matching no
   grant are each diagnostics on a literal (§ 10).
 - **M8, observability:** a query emits a `query` span with no parameter values anywhere in it, and a
   `DbError`'s message contains no bound value.
-- **M11:** `mwl convert` maps `PDO`, `mysqli` and `pgsql` names to § 12's refusals or to their `Core\Db`
+- **M11:** `nvs convert` maps `PDO`, `mysqli` and `pgsql` names to § 12's refusals or to their `Core\Db`
   equivalents, emitting the `[db.*]` block plus `Core\Db::connect("main")` for a constructed DSN and a
   diagnostic — never a silent rewrite — for `quote()`, `beginTransaction`/`commit` pairs and
   `lastInsertId()`.

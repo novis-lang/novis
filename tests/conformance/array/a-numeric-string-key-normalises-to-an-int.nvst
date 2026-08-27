@@ -1,7 +1,7 @@
 --TEST--
 A decimal-integer string key is the integer key, so `"10"` and `10` are one entry — ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = ["10" => 1, 10 => 2, "x" => 3];
 foreach ($a as string $k => int $v) {
     echo $k, "=", $v, ";";

@@ -1,13 +1,13 @@
 --TEST--
 every constant is a class constant, so a top-level `const` is refused — ADR 0011 § 1
 --FILE--
-<?mwl
+<?nvs
 const int MAX = 10;
 echo MAX, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0216]: a constant must belong to a class
-  --> case.mwl:2:1
+  --> case.nvs:2:1
 %A
 error: aborting due to 1 error

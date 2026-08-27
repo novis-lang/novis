@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "benches/*"]
-# `benches/userland/` holds the MWL and PHP sources of the userland benchmark
-# pair — `.mwl`/`.php` files a harness runs, not a Rust crate — so the
+# `benches/userland/` holds the Novis and PHP sources of the userland benchmark
+# pair — `.nvs`/`.php` files a harness runs, not a Rust crate — so the
 # `benches/*` glob above would otherwise look for a `Cargo.toml` that will
 # never exist and fail the whole workspace before a single crate is read.
 exclude = ["benches/userland"]
@@ -15,10 +15,10 @@ version = "0.0.1"
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
-authors = ["The MWL authors"]
-repository = "https://github.com/mwl-lang/mwl"
-homepage = "https://github.com/mwl-lang/mwl"
-description = "MWL — Modern Web Lang: a JIT-compiled, memory-safe language for web and CLI"
+authors = ["The Novis authors"]
+repository = "https://github.com/nvs-lang/nvs"
+homepage = "https://github.com/nvs-lang/nvs"
+description = "Novis — the web-native programming language: JIT-compiled, memory-safe, for web and CLI"
 keywords = ["language", "jit", "web", "php", "compiler"]
 categories = ["compilers", "development-tools"]
 
@@ -27,15 +27,15 @@ categories = ["compilers", "development-tools"]
 # ---------------------------------------------------------------------------
 [workspace.dependencies]
 # --- internal ---
-mwl-diagnostics = { path = "crates/mwl-diagnostics", version = "0.0.1" }
-mwl-syntax = { path = "crates/mwl-syntax", version = "0.0.1" }
-mwl-hir = { path = "crates/mwl-hir", version = "0.0.1" }
-mwl-types = { path = "crates/mwl-types", version = "0.0.1" }
-mwl-ir = { path = "crates/mwl-ir", version = "0.0.1" }
-mwl-codegen = { path = "crates/mwl-codegen", version = "0.0.1" }
-mwl-runtime = { path = "crates/mwl-runtime", version = "0.0.1" }
-mwl-stdlib = { path = "crates/mwl-stdlib", version = "0.0.1" }
-mwl-test = { path = "crates/mwl-test", version = "0.0.1" }
+nvs-diagnostics = { path = "crates/nvs-diagnostics", version = "0.0.1" }
+nvs-syntax = { path = "crates/nvs-syntax", version = "0.0.1" }
+nvs-hir = { path = "crates/nvs-hir", version = "0.0.1" }
+nvs-types = { path = "crates/nvs-types", version = "0.0.1" }
+nvs-ir = { path = "crates/nvs-ir", version = "0.0.1" }
+nvs-codegen = { path = "crates/nvs-codegen", version = "0.0.1" }
+nvs-runtime = { path = "crates/nvs-runtime", version = "0.0.1" }
+nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
+nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
 
 # --- codegen backend (versions validated by the M0 spikes) ---
 cranelift = "0.135"
@@ -63,7 +63,7 @@ blake3 = "1"
 # --- Unicode text segmentation (ADR 0009 § 2's grapheme granularity) ---
 # UAX #29 extended grapheme cluster boundaries, which `string`'s default
 # length/indexing unit is defined by. Pure Rust, no build script, no C.
-# `crates/mwl-stdlib/src/granularity.rs` owns why this crate and not another.
+# `crates/nvs-stdlib/src/granularity.rs` owns why this crate and not another.
 unicode-segmentation = "1"
 
 # --- Unicode case folding (`Core\Str::fold`) ---
@@ -97,7 +97,7 @@ unicode-normalization = "0.1"
 # linear engine cannot express (lookaround, backreferences); it wraps `regex`
 # itself, so the two share one syntax and one Unicode table set rather than
 # disagreeing about what a pattern means. Both pure Rust, no C, no build
-# script. `crates/mwl-stdlib/src/regex.rs` owns why these two and not others.
+# script. `crates/nvs-stdlib/src/regex.rs` owns why these two and not others.
 regex = "1"
 fancy-regex = "0.19"
 
@@ -107,7 +107,7 @@ fancy-regex = "0.19"
 # that treats a civil time and an absolute one as different types — which is
 # the distinction § 4 is built on. Pure Rust, no C, and it bundles the IANA
 # database on a platform that has none (Windows) rather than shelling out.
-# `crates/mwl-stdlib/src/time.rs` owns why this crate and not another.
+# `crates/nvs-stdlib/src/time.rs` owns why this crate and not another.
 jiff = "0.2"
 
 # --- JSON (spec § 6) ---
@@ -115,7 +115,7 @@ jiff = "0.2"
 # hand-written parser (docs/adr/ground-rules.md § *Implementation invariants*). `serde_json`
 # is the only Rust JSON crate that is simultaneously the ecosystem default,
 # pure Rust with no build script, and driveable *without* its own `Value` tree
-# — `Core\Json::decode` builds an `MwlArray` straight from a visitor, so no
+# — `Core\Json::decode` builds an `NvsArray` straight from a visitor, so no
 # document is ever materialized twice. `serde` itself is the visitor trait it
 # is driven through; nothing here uses its derive macro, though `serde_core`
 # names `serde_derive` as a never-built `cfg(any())` dependency, so the
@@ -124,7 +124,7 @@ jiff = "0.2"
 # number rather than a lossy `f64`, and `unbounded_depth` is what lets section
 # 6 of docs/spec/01-core-library.md have its own `maxDepth` be the bound
 # rather than the crate's fixed 128.
-# `crates/mwl-stdlib/src/json.rs` owns why this crate and not another, and what
+# `crates/nvs-stdlib/src/json.rs` owns why this crate and not another, and what
 # keeps an unbounded depth safe.
 serde = "1"
 serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
@@ -141,7 +141,7 @@ serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
 # member should not carry a stated bias at all. Pure Rust, no C, no build
 # script — ADR 0051 § 4's first question is "no" here, since a member takes a
 # count or a pair of bounds and nothing attacker-shaped reaches it.
-# `crates/mwl-stdlib/src/random.rs` owns why this crate and not `getrandom`
+# `crates/nvs-stdlib/src/random.rs` owns why this crate and not `getrandom`
 # alone.
 rand = { version = "0.10", features = ["unbiased"] }
 
@@ -157,7 +157,7 @@ rand = { version = "0.10", features = ["unbiased"] }
 # own `getrandom`-backed generator, and `Core` has one CSPRNG (`rand`, above)
 # and one clock (`jiff`). This crate is reached through `uuid::Builder`, which
 # takes bits and a timestamp from those two and lays out the nibbles.
-# `crates/mwl-stdlib/src/uuid.rs` owns why this crate and not a hand-written
+# `crates/nvs-stdlib/src/uuid.rs` owns why this crate and not a hand-written
 # layout.
 uuid = { version = "1", default-features = false, features = ["std"] }
 
@@ -184,7 +184,7 @@ uuid = { version = "1", default-features = false, features = ["std"] }
 # `crc32fast` and `digest 0.10` are already in this tree's lock file, pulled in
 # by the cranelift/wasmtime side, so pinning to what is there adds four crates
 # instead of eleven and keeps one `digest` trait version rather than two.
-# `crates/mwl-stdlib/src/hash.rs` owns why this set and what `Core\Digest`
+# `crates/nvs-stdlib/src/hash.rs` owns why this set and what `Core\Digest`
 # carries.
 sha2 = "0.10"
 sha1 = "0.10"
@@ -204,7 +204,7 @@ subtle = "2"
 # a canonical-padding mode and a trailing-bits check, both of which are the
 # non-obvious half of RFC 4648 § 3.5 and both of which spec § 7's throw-rather-
 # than-substitute rule needs stated exactly.
-# `crates/mwl-stdlib/src/encoding.rs` owns why this crate and not another, and
+# `crates/nvs-stdlib/src/encoding.rs` owns why this crate and not another, and
 # which engine each of the four members is.
 base64 = "0.22"
 
@@ -218,7 +218,7 @@ base64 = "0.22"
 # `fromBase32` be lenient about case and padding while staying strict about
 # everything that could change the octets. Pure Rust, no build script, no C,
 # no dependencies of its own.
-# `crates/mwl-stdlib/src/encoding.rs` owns what each of those three rules is
+# `crates/nvs-stdlib/src/encoding.rs` owns what each of those three rules is
 # set to and why.
 data-encoding = "2"
 
@@ -226,12 +226,12 @@ data-encoding = "2"
 # `Charset`'s roster is the WHATWG Encoding Standard's index rather than a list
 # the spec curates, and this crate *is* that standard: it is the reference
 # implementation Firefox ships, so "which encodings exist" and "what each byte
-# means" are a dependency update here rather than a table for MWL to maintain
+# means" are a dependency update here rather than a table for Novis to maintain
 # and get wrong. ADR 0051 § 4's second question applies -- a decoder is reached
 # by attacker-controlled bytes -- and it is answered the same way SQLite
 # answers it: pure Rust, no build script, no C, and a test corpus that is the
 # standard's own. Already in this tree's lock file under `wasmtime`.
-# `crates/mwl-stdlib/src/encoding.rs` owns which five cases this crate does
+# `crates/nvs-stdlib/src/encoding.rs` owns which five cases this crate does
 # *not* decide, and why.
 encoding_rs = "0.8"
 
@@ -247,8 +247,8 @@ encoding_rs = "0.8"
 # only dependency, which this tree already carries under `regex`. It is the
 # parsing core of the `csv` crate the ecosystem reads for this, split out so a
 # caller owns its own buffers, which is what lets the member allocate once per
-# field into an `MwlStr` instead of through a `String` it would then copy.
-# `crates/mwl-stdlib/src/csv.rs` owns why the *writing* half takes no
+# field into an `NvsStr` instead of through a `String` it would then copy.
+# `crates/nvs-stdlib/src/csv.rs` owns why the *writing* half takes no
 # dependency and what each of the three options is set to.
 csv-core = "0.1"
 
@@ -273,13 +273,13 @@ csv-core = "0.1"
 # does not arise, because the crate is pure Rust with no build script: its two
 # dependencies are `borrow-or-share` and `ref-cast`, both of which exist only
 # to hand back a borrowed component without copying it, which is the property
-# that lets a member write one `MwlStr` per component instead of two.
-# `crates/mwl-stdlib/src/uri.rs` owns what the member does and does not do with
+# that lets a member write one `NvsStr` per component instead of two.
+# `crates/nvs-stdlib/src/uri.rs` owns what the member does and does not do with
 # what this crate answers.
 fluent-uri = "0.4"
 
 # --- cli / diagnostics rendering ---
-# Diagnostic layout is hand-written in mwl-diagnostics (the output format is
+# Diagnostic layout is hand-written in nvs-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so
 # only the styling primitives and terminal detection are external.
 clap = { version = "4", features = ["derive", "wrap_help"] }
@@ -293,7 +293,7 @@ criterion = "0.7"
 
 # ---------------------------------------------------------------------------
 # Lint policy. Safe crates opt in wholesale via `lints.workspace = true`.
-# The two crates that need `unsafe` (mwl-runtime, mwl-codegen) declare their
+# The two crates that need `unsafe` (nvs-runtime, nvs-codegen) declare their
 # own `[lints]` with `unsafe_code = "deny"` and narrow module-level allows,
 # so every unsafe block is a deliberate, reviewable exception. The policy is
 # recorded in docs/adr/README.md.
@@ -315,14 +315,14 @@ checked_conversions = "warn"
 todo = "warn"
 unimplemented = "warn"
 dbg_macro = "warn"
-print_stdout = "warn"    # user-facing output belongs in mwl-cli, not libraries
+print_stdout = "warn"    # user-facing output belongs in nvs-cli, not libraries
 print_stderr = "warn"
 
 # ---------------------------------------------------------------------------
 # Profiles
 # ---------------------------------------------------------------------------
 [profile.dev]
-# `catch_unwind` at the helper and request boundaries is how MWL contains a
+# `catch_unwind` at the helper and request boundaries is how Novis contains a
 # runtime panic to one request. `panic = "abort"` would break that guarantee,
 # so unwinding is mandatory in every profile. See docs/adr/0003.
 panic = "unwind"
@@ -333,7 +333,7 @@ lto = "thin"
 codegen-units = 1
 debug = "line-tables-only" # keep backtraces useful in production builds
 # Integer overflow is checked in release too, workspace-wide. Measured on this tree with a per-package
-# override: `decimal` add+mul+sub 27.8 -> 28.1 ns, array append 170.5 -> 169.9, `MwlStr::new` 30.4 -> 29.9,
+# override: `decimal` add+mul+sub 27.8 -> 28.1 ns, array append 170.5 -> 169.9, `NvsStr::new` 30.4 -> 29.9,
 # scalar `Value` arithmetic 1.19 -> 1.11 -- every delta inside the +/-1.8% seen between two *baseline*
 # runs, so there is no cost to weigh against it. What it buys is the class behind php-src's CVSS-9.8 bugs
 # (`ldap_escape` CVE-2024-8932, the `pdo_firebird` quoter CVE-2024-11236): a size computation that wraps
@@ -343,10 +343,10 @@ debug = "line-tables-only" # keep backtraces useful in production builds
 # `cast_possible_wrap` and `cast_sign_loss`, and `tools/verify.py` runs clippy with `-D warnings`.
 overflow-checks = true
 
-# Compiling MWL's own dependencies with optimisation makes debug builds of the
+# Compiling Novis's own dependencies with optimisation makes debug builds of the
 # compiler usable; Cranelift is unbearably slow otherwise.
 #
-# `debug = 0` applies to dependencies only -- MWL's own crates keep full debug
+# `debug = 0` applies to dependencies only -- Novis's own crates keep full debug
 # info, so a backtrace or a debugger session through this repository's code is
 # unchanged. What it drops is the debug info for code nobody here steps into,
 # and on windows-msvc that is nearly all of it: the linker copies the debug

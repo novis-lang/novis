@@ -4,7 +4,7 @@
 - **Date:** 2026-08-23
 - **Scope:** every place a program's meaning could depend on the case something was typed in — name
   resolution (`QName`/`SymbolTable`), reserved lexical spellings (keywords, contextual keywords, the
-  `<?mwl` open tag), and the on-disk paths `require` and `autoload` resolve. Does **not** cover string
+  `<?nvs` open tag), and the on-disk paths `require` and `autoload` resolve. Does **not** cover string
   data: `Core\Str`'s case-folding operations, a case-insensitive comparison a program asks for explicitly,
   or the case a value happens to hold at runtime are all ordinary library behaviour, unaffected.
 - **Amends:** [0021](0021-single-file-inclusion-construct.md) — a `require` whose literal path differs from
@@ -15,13 +15,13 @@
   than the note it replaces.
 - **Amended by:** none.
 
-> **In short:** nothing in MWL's meaning depends on the operating system's filesystem or on the case a
+> **In short:** nothing in Novis's meaning depends on the operating system's filesystem or on the case a
 > reserved word was typed in. Names resolve case-sensitively (§ 1). Reserved spellings — keywords,
-> contextual keywords, `<?mwl` — are lower case and nothing else (§ 2). A `require` or `autoload` path is
+> contextual keywords, `<?nvs` — are lower case and nothing else (§ 2). A `require` or `autoload` path is
 > compared against the on-disk entry exactly, so a path that resolves on Windows or macOS resolves on
 > Linux too, or is a compile error on all three (§ 3). PHP is case-insensitive for classes, functions and
 > keywords but case-sensitive for variables and constants, and then inherits the filesystem's behaviour
-> for `require` — which is why a working PHP program can stop working when it is deployed. MWL has one
+> for `require` — which is why a working PHP program can stop working when it is deployed. Novis has one
 > answer, and the compiler is the only thing that decides it.
 
 ## Context
@@ -31,13 +31,13 @@
   constants and enum-case names do not; and `require`/`include` resolve through the filesystem, so the
   same source is case-sensitive on Linux and case-insensitive on Windows and (by default) macOS.
 - The last of those three is the one that costs real money: a project developed on Windows or macOS
-  accumulates `require 'mailer.mwl';` against a file named `Mailer.mwl`, and it fails at the first
+  accumulates `require 'mailer.nvs';` against a file named `Mailer.nvs`, and it fails at the first
   deployment to Linux — the classic PSR-4/Composer autoload failure. Nothing in the language reports it,
   because on the developer's machine there is nothing to report.
 - The first two cost less but are the reason a codebase drifts: `new httpclient()` works, so it survives
   review, and then the one place that compares a class name as a string (a router table, a serialized
   payload, a cache key) disagrees with the resolver.
-- MWL had already answered most of this without stating it. `QName` and `SymbolTable` compare
+- Novis had already answered most of this without stating it. `QName` and `SymbolTable` compare
   case-sensitively; [ADR 0029](0029-identifier-casing-is-checked.md) makes exactly one casing legal per
   identifier category, so PHP's tolerance had nothing left to buy; and
   [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 1 closed the filesystem hole for
@@ -67,7 +67,7 @@ touches has a meaning to depend on.
 
 Keywords are matched exactly. `if` is a keyword; `IF` and `If` are not. The same holds for the contextual
 keywords (`spawn`, `script`, `with`, `type`, `from`, `by`, `get`, `set`), for the `true`/`false`/`null`
-literals, and for the `<?mwl` open tag.
+literals, and for the `<?nvs` open tag.
 
 A mis-cased keyword gets **no diagnostic of its own**, and this is deliberate rather than an omission:
 [ADR 0029](0029-identifier-casing-is-checked.md) § 1 makes `IF`, `ECHO` and `TRUE` all legal
@@ -75,11 +75,11 @@ A mis-cased keyword gets **no diagnostic of its own**, and this is deliberate ra
 that distinguishes a mis-typed `if` from a deliberate reference to a class called `IF`. The lexer emits an
 ordinary `Ident`, and the program fails later as an undefined name or a parse error. Inventing a heuristic
 to guess which one the author meant would be the only place in the compiler that guesses; converting PHP
-source is `mwl convert`'s job, and a case-normalising pass over reserved words is the easiest thing it
+source is `nvs convert`'s job, and a case-normalising pass over reserved words is the easiest thing it
 does.
 
-The `<?mwl` open tag is the one exception, because it is the one reserved spelling that cannot be
-anything else: `<?MWL` is recognised, reported as `E_RESERVED_SPELLING_CASE` naming `<?mwl`, and still
+The `<?nvs` open tag is the one exception, because it is the one reserved spelling that cannot be
+anything else: `<?NVS` is recognised, reported as `E_RESERVED_SPELLING_CASE` naming `<?nvs`, and still
 opens code mode — exactly the treatment [ADR 0049](0049-single-open-tag-and-single-exit-keyword.md) § 2
 gives `<?php`, and for the same reason: a tag that is not recognised collapses the whole file into one
 useless `InlineHtml` token and the author learns nothing.
@@ -96,7 +96,7 @@ It now holds for `require` too, which is where PHP's portability failure actuall
 
 A `require` with a literal path resolves as before, and then the resolved real path is compared
 component-wise against the path as written. A component that differs **only** in case is
-`E_REQUIRE_PATH_CASE_MISMATCH`. So `require 'mailer.mwl';` against `Mailer.mwl` is an error on Windows and
+`E_REQUIRE_PATH_CASE_MISMATCH`. So `require 'mailer.nvs';` against `Mailer.nvs` is an error on Windows and
 macOS, where it would previously have compiled — and it was already an error on Linux, as
 `E_REQUIRE_TARGET_NOT_FOUND`. The invariant is what matters: **a mis-cased path never compiles clean on
 any OS.**
@@ -116,10 +116,10 @@ Three properties keep this honest:
 
 ## Consequences
 
-- A PHP project converted to MWL surfaces every case-mismatched `require` on the developer's own machine,
+- A PHP project converted to Novis surfaces every case-mismatched `require` on the developer's own machine,
   at compile time, instead of at the first Linux deployment. This is the concrete win, and it is the one
   the ADR exists for.
-- `mwl convert` gains one more mechanical pass: lower-case every keyword, contextual keyword and open tag.
+- `nvs convert` gains one more mechanical pass: lower-case every keyword, contextual keyword and open tag.
   It is a pure token-level substitution with no analysis behind it, strictly easier than every other
   conversion the tool already owes.
 - Mixed-case PHP habits (`TRUE`, `NULL`, `Array()`, `IF`) produce an undefined-name or parse error rather
@@ -147,7 +147,7 @@ Three properties keep this honest:
 
 ## Revisiting
 
-Revisit § 2 only if `mwl convert` measurements show mis-cased keywords are a common enough migration
+Revisit § 2 only if `nvs convert` measurements show mis-cased keywords are a common enough migration
 stumble to justify a heuristic — and then the heuristic belongs in the converter, not in the lexer.
 Revisit § 3 if symlinked source trees turn out to be common enough that the skipped-alignment case is
 hiding real mismatches; the fix would be a per-component `read_dir` probe, which costs syscalls the
@@ -155,9 +155,9 @@ current design deliberately avoids.
 
 ## Verification
 
-- `mwl-syntax`: `keywords_are_lower_case_only`, `mixed_case_bytes_is_an_ident_not_the_type_keyword`,
+- `nvs-syntax`: `keywords_are_lower_case_only`, `mixed_case_bytes_is_an_ident_not_the_type_keyword`,
   `mis_cased_open_tag_is_reported_but_still_opens_code_mode`.
-- `mwl-hir`: `check_path_case_only_fires_on_a_pure_case_difference` covers § 3's decision table without
+- `nvs-hir`: `check_path_case_only_fires_on_a_pure_case_difference` covers § 3's decision table without
   needing a case-insensitive filesystem to run on; `a_mis_cased_require_never_compiles_clean` asserts the
   cross-OS invariant against a real filesystem, accepting either diagnostic since which one fires is the
   filesystem's business; `an_exactly_spelled_require_in_a_subdirectory_is_clean` guards against the check

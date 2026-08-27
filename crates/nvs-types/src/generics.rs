@@ -4,7 +4,7 @@
 //! [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) parks
 //! user-declared generics and `docs/agent/loop-goal.md` keeps type variables
 //! **compiler-owned**, so exactly two things in the whole compiler produce a
-//! [`Ty::TypeVar`]: [`crate::core_lib`] lowering a `mwl_stdlib::registry`
+//! [`Ty::TypeVar`]: [`crate::core_lib`] lowering a `nvs_stdlib::registry`
 //! signature, and [`crate::iter_lib`] writing ADR 0053 § 1's two iteration
 //! interfaces. The spec's own `Core\Arr` section states why they exist at all
 //! — "`T` is a type variable — the stdlib is parametric where user code is
@@ -40,7 +40,7 @@
 //! The consequence is the property everything downstream relies on:
 //! **a type variable never survives a call site.** `crate::expr` substitutes
 //! before it checks a single argument or records a `ResolvedCall`, so
-//! `mwl-ir`, `mwl-codegen` and every diagnostic only ever see concrete types.
+//! `nvs-ir`, `nvs-codegen` and every diagnostic only ever see concrete types.
 //!
 //! # The one variable that is not at a position
 //!
@@ -68,7 +68,7 @@
 //! that needs `callable` to carry a signature in the type grammar — a typed
 //! `callable` is its own decision, and ADR 0027 § 2 is where it would be taken.
 
-use mwl_hir::ClassGraph;
+use nvs_hir::ClassGraph;
 use rustc_hash::FxHashMap;
 
 use crate::signatures::SignatureTable;
@@ -104,7 +104,7 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
 /// docs; [`crate::expr`]'s `check_generic_args` is the only caller.
 ///
 /// Deliberately shallow: a binding site means nothing nested inside another
-/// type, and `mwl_stdlib::registry`'s
+/// type, and `nvs_stdlib::registry`'s
 /// `a_callback_result_type_is_only_ever_a_whole_parameter` holds that no row
 /// writes one there.
 #[must_use]
@@ -166,7 +166,7 @@ pub(crate) fn bind(
         // the interface lives in its signature rather than in its type — so
         // this asks `resolve_interface_args` for it, which is the same lookup
         // `expr::assign`'s nominal rule performs to *accept* the argument.
-        // `mwl_stdlib::registry::CoreTy::Iterated` is what needs it: without
+        // `nvs_stdlib::registry::CoreTy::Iterated` is what needs it: without
         // it `Core\Arr::from($counter)` would bind nothing and answer
         // `array<mixed>` for a sequence whose element type is written down.
         (Ty::Class(declared_q, declared_args), Ty::Class(actual_q, _))
@@ -248,7 +248,7 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
             .unwrap_or_else(|| interner.mixed()),
         // A binding site has done its job by the time anything substitutes, so
         // it collapses to the type it always accepted. This is what keeps
-        // `is_assignable`, `mwl-ir` and every diagnostic from ever meeting the
+        // `is_assignable`, `nvs-ir` and every diagnostic from ever meeting the
         // variant at all.
         Ty::CallableTo(_) => interner.callable(),
         Ty::Array(elem) => {

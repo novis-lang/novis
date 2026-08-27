@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 class Apply {
     public static function twice(callable $f, int $n): int {
         // A `callable` carries no return type (ADR 0031 § 1), so a call

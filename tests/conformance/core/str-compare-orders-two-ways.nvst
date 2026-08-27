@@ -1,7 +1,7 @@
 --TEST--
 `Core\Str::compare` answers a sign over one of two orderings, and `{natural: true}` selects the other one — spec § 1 *Comparison*, ADR 0063 R20
 --FILE--
-<?mwl
+<?nvs
 // The answer is `-1`, `0` or `1` and never a byte difference — PHP 8 already
 // normalized `strcmp` that way, and a comparator is the only consumer.
 echo Core\Str::compare("a", "b"), " ", Core\Str::compare("b", "a"), " ", Core\Str::compare("a", "a"), "\n";

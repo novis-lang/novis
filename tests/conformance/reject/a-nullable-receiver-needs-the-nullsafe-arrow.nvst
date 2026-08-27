@@ -1,13 +1,13 @@
 --TEST--
 `->` on a receiver that may be `null` is refused while compiling, naming `?->` — where PHP throws at run time
 --FILE--
-<?mwl
+<?nvs
 var $found = Core\Regex::match("nothing", "\\d+");
 echo $found->text(), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0459]: `null|Core\Regex\Match` may be `null`, so `->` cannot reach a member of it
-  --> case.mwl:3:6
+  --> case.nvs:3:6
 %A
 error: aborting due to 1 error

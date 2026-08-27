@@ -1,7 +1,7 @@
 --TEST--
 `[int $a, string $b] = $value;` is the subscripts it is spelled out of — positional, keyed, skipped, nested, and throwing on an absent key — ADR 0007 §§ 1, 3.3 and 5, ADR 0050
 --FILE--
-<?mwl
+<?nvs
 // Every leaf is an element read: a positional one names ADR 0007 § 5's
 // normalized key for its own position in the pattern, so `$words[0]` and
 // `$words[1]` here — the two entries written with no key of their own.

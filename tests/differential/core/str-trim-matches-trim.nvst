@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::trim/trimStart/trimEnd match PHP's trim/ltrim/rtrim on ASCII whitespace
 --FILE--
-<?mwl
+<?nvs
 echo "[", Core\Str::trim("  padded  "), "]\n";
 echo "[", Core\Str::trimStart("  padded  "), "]\n";
 echo "[", Core\Str::trimEnd("  padded  "), "]\n";

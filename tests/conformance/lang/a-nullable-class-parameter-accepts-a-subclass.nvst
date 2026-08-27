@@ -1,7 +1,7 @@
 --TEST--
 A `?T` parameter accepts a subclass of `T`, since `?T` is `T|null` and a union is satisfied member-wise — ADR 0007 § 3
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 3: `?Animal` is sugar for `Animal|null` and nothing else, so
 // whatever satisfies `Animal` satisfies it — including a subclass, by the one
 // nominal subtyping rule `implements`/`extends` gives.

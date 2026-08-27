@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // Templated text: sprintf-style formatting, the default way userland renders a line.
 class Bench {
     public static function run(int $rounds): int {

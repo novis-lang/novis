@@ -54,8 +54,8 @@
 //!    same members, constructed from an explicit seed; making the distinction a
 //!    type is what stops a test helper being reached for in production, so it
 //!    is a class of its own here too rather than an option on these members.
-//! 2. **`ThreadRng` is not reseeded on `fork`.** Nothing in MWL forks today —
-//!    [ADR 0093](../../../../docs/adr/0093-mwl-service.md)'s `mwl service` is
+//! 2. **`ThreadRng` is not reseeded on `fork`.** Nothing in Novis forks today —
+//!    [ADR 0093](../../../../docs/adr/0093-nvs-service.md)'s `nvs service` is
 //!    unbuilt — but a child process that inherits a parent's ChaCha state would
 //!    reproduce the parent's stream, so whatever lands there owes
 //!    `ThreadRng::reseed` in the child.
@@ -63,7 +63,7 @@
 use rand::seq::SliceRandom;
 use rand::{Rng, RngExt};
 
-use mwl_runtime::{Fault, MwlArray, MwlStr, Tag, Value};
+use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreTy};
 
@@ -81,49 +81,49 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Int, CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Int,
-            symbol: "mwl_core_random_int",
+            symbol: "nvs_core_random_int",
         },
         CoreMethod {
             name: "float",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Float,
-            symbol: "mwl_core_random_float",
+            symbol: "nvs_core_random_float",
         },
         CoreMethod {
             name: "bytes",
             params: &[CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_random_bytes",
+            symbol: "nvs_core_random_bytes",
         },
         CoreMethod {
             name: "token",
             params: &[CoreTy::Uint],
             defaults: &[Const::Uint(DEFAULT_TOKEN_BYTES)],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_random_token",
+            symbol: "nvs_core_random_token",
         },
         CoreMethod {
             name: "pick",
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
-            symbol: "mwl_core_random_pick",
+            symbol: "nvs_core_random_pick",
         },
         CoreMethod {
             name: "sample",
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
-            symbol: "mwl_core_random_sample",
+            symbol: "nvs_core_random_sample",
         },
         CoreMethod {
             name: "shuffle",
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
-            symbol: "mwl_core_random_shuffle",
+            symbol: "nvs_core_random_shuffle",
         },
     ],
     instance: &[],
@@ -142,13 +142,13 @@ const DEFAULT_TOKEN_BYTES: u64 = 32;
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_random_int" => (mwl_core_random_int as *const ()).cast(),
-        "mwl_core_random_float" => (mwl_core_random_float as *const ()).cast(),
-        "mwl_core_random_bytes" => (mwl_core_random_bytes as *const ()).cast(),
-        "mwl_core_random_token" => (mwl_core_random_token as *const ()).cast(),
-        "mwl_core_random_pick" => (mwl_core_random_pick as *const ()).cast(),
-        "mwl_core_random_sample" => (mwl_core_random_sample as *const ()).cast(),
-        "mwl_core_random_shuffle" => (mwl_core_random_shuffle as *const ()).cast(),
+        "nvs_core_random_int" => (nvs_core_random_int as *const ()).cast(),
+        "nvs_core_random_float" => (nvs_core_random_float as *const ()).cast(),
+        "nvs_core_random_bytes" => (nvs_core_random_bytes as *const ()).cast(),
+        "nvs_core_random_token" => (nvs_core_random_token as *const ()).cast(),
+        "nvs_core_random_pick" => (nvs_core_random_pick as *const ()).cast(),
+        "nvs_core_random_sample" => (nvs_core_random_sample as *const ()).cast(),
+        "nvs_core_random_shuffle" => (nvs_core_random_shuffle as *const ()).cast(),
         _ => return None,
     })
 }
@@ -183,8 +183,8 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
 
 /// The subject array of one of the three `array<T>` members, as the borrowed
 /// handle [`crate::arr::borrowed`] owns the rules for — never
-/// `MwlArray::from_raw`, which would release the caller's reference on drop.
-fn subject(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<MwlArray>, Fault> {
+/// `NvsArray::from_raw`, which would release the caller's reference on drop.
+fn subject(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
     let array = args[0].array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Random::{member} expected {:?}, got tag {}",
@@ -201,7 +201,7 @@ fn subject(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<MwlArr
 /// value is copied out only for the entries that end up in the answer — an
 /// `array<T>` of a million entries picked from once retains one reference, not
 /// a million.
-fn slots(subject: &MwlArray) -> Vec<usize> {
+fn slots(subject: &NvsArray) -> Vec<usize> {
     let mut out = Vec::new();
     let mut from = 0_usize;
     while let Some(slot) = subject.next_slot(from) {
@@ -214,10 +214,10 @@ fn slots(subject: &MwlArray) -> Vec<usize> {
 /// The value at `slot` as a fresh reference this frame owns — what a returned
 /// value, or one stored into a fresh array, has to be.
 ///
-/// `MwlArray::value_at` *borrows* from the subject, which belongs to the
+/// `NvsArray::value_at` *borrows* from the subject, which belongs to the
 /// caller, so every answer retains before it leaves. This is `crate::arr`'s
 /// own rule, applied here for the same reason and stated there in full.
-fn owned_value_at(subject: &MwlArray, slot: usize) -> Value {
+fn owned_value_at(subject: &NvsArray, slot: usize) -> Value {
     let value = subject
         .value_at(slot)
         .expect("next_slot only names live entries");
@@ -237,10 +237,10 @@ fn owned_value_at(subject: &MwlArray, slot: usize) -> Value {
 ///
 /// Both `sample` and `shuffle` answer this way: their whole subject is which
 /// entries and in what order, so the keys of the subject say nothing about the
-/// answer and `MwlArray::append` assigns fresh ones — the same rule
+/// answer and `NvsArray::append` assigns fresh ones — the same rule
 /// `Core\Arr::values` states.
-fn drawn(subject: &MwlArray, slots: &[usize]) -> Value {
-    let mut out = MwlArray::new();
+fn drawn(subject: &NvsArray, slots: &[usize]) -> Value {
+    let mut out = NvsArray::new();
     for slot in slots {
         out.append(owned_value_at(subject, *slot));
     }
@@ -251,7 +251,7 @@ fn drawn(subject: &MwlArray, slots: &[usize]) -> Value {
 // The members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Random::int(int $min, int $max): int` — replacing PHP's `rand`,
     /// `mt_rand` and `random_int` with the last one's semantics and the last
     /// one's generator.
@@ -260,7 +260,7 @@ mwl_runtime::mwl_helper! {
     /// `$n`. `$min > $max` names an empty range, which has no answer to invent,
     /// so it throws (ADR 0063 R4) rather than swapping the bounds — a swap
     /// would turn a computed-bounds bug into a plausible-looking result.
-    fn mwl_core_random_int(_ctx, args: [2]) {
+    fn nvs_core_random_int(_ctx, args: [2]) {
         let min = integer(&args[0], "int", "the lower bound")?;
         let max = integer(&args[1], "int", "the upper bound")?;
 
@@ -274,7 +274,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Random::float(): float` — replacing PHP's `lcg_value` and the
     /// `mt_rand() / mt_getrandmax()` idiom.
     ///
@@ -282,20 +282,20 @@ mwl_runtime::mwl_helper! {
     /// half-open interval every "scale it into my own range" use expects, and
     /// the one the spec row writes. 53 random bits, the whole significand of an
     /// `f64`.
-    fn mwl_core_random_float(_ctx, args: [0]) {
+    fn nvs_core_random_float(_ctx, args: [0]) {
         let _ = args;
         Ok(Value::float(rand::rng().random::<f64>()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Random::bytes(uint $count): bytes` — replacing `random_bytes` and
     /// `openssl_random_pseudo_bytes`, both of which this class's one generator
     /// already answers with the stronger of their two guarantees.
     ///
     /// **A raw buffer, not hex.** This is the row a key, a nonce or an IV comes
     /// from, where the consumer wants octets and any rendering is that
-    /// consumer's own step — [`mwl_core_random_token`] is the rendered
+    /// consumer's own step — [`nvs_core_random_token`] is the rendered
     /// spelling, and the two exist side by side rather than one being the
     /// other's `2 * n` special case. Nothing here can be asserted by value, so
     /// a case pins `Core\Bytes::length` of the answer and that two draws
@@ -309,11 +309,11 @@ mwl_runtime::mwl_helper! {
     ///
     /// A count larger than this process can hold is an ordinary throw too, and
     /// it is decided by `try_reserve` rather than by an arithmetic bound: there
-    /// is no doubling here to overflow the way [`mwl_core_random_token`]'s
+    /// is no doubling here to overflow the way [`nvs_core_random_token`]'s
     /// does, so the only question left is whether the allocator has the buffer,
     /// and asking it is both exact and the difference between a throw and an
     /// abort.
-    fn mwl_core_random_bytes(_ctx, args: [1]) {
+    fn nvs_core_random_bytes(_ctx, args: [1]) {
         let count = count(&args[0], "bytes", "the byte count")?;
 
         if count == 0 {
@@ -328,7 +328,7 @@ mwl_runtime::mwl_helper! {
         // `try_reserve_exact` is the allocator actually refusing. Keep both —
         // the first is where `[limits.hard]` will attach, the second is what
         // catches a draw the machine cannot satisfy today.
-        mwl_runtime::affordable(Some(count), "Core\\Random::bytes()")?;
+        nvs_runtime::affordable(Some(count), "Core\\Random::bytes()")?;
         let mut drawn: Vec<u8> = Vec::new();
         drawn.try_reserve_exact(count).map_err(|_| {
             Fault::thrown(
@@ -339,16 +339,16 @@ mwl_runtime::mwl_helper! {
         drawn.resize(count, 0);
         rand::rng().fill_bytes(&mut drawn);
 
-        Ok(Value::bytes(MwlStr::new(&drawn)))
+        Ok(Value::bytes(NvsStr::new(&drawn)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Random::token(uint $bytes = 32): string` — replacing the
     /// `bin2hex(random_bytes(…))` idiom, which is what PHP code actually
     /// writes when it wants a session identifier or a reset link.
     ///
-    /// **Hex, and therefore a `string`.** [`mwl_core_random_bytes`] is the same
+    /// **Hex, and therefore a `string`.** [`nvs_core_random_bytes`] is the same
     /// draw unrendered, and this row exists beside it because a token is
     /// written into a URL, a cookie or a database column, so the hex is what a
     /// program wanted in every case anyway. `$bytes` counts the
@@ -362,7 +362,7 @@ mwl_runtime::mwl_helper! {
     /// reading of `token(0)` worth being total for.
     ///
     /// **A count too large refuses in two places, for the same reason
-    /// [`mwl_core_random_bytes`] does.** The arithmetic bound is this member's
+    /// [`nvs_core_random_bytes`] does.** The arithmetic bound is this member's
     /// own — a token is twice as long as its draw, so `2 * $bytes` is what the
     /// seam is asked about, and the answer is that this member's bound sits at
     /// exactly half of `bytes`'s. Everything the seam allows is then asked of
@@ -371,7 +371,7 @@ mwl_runtime::mwl_helper! {
     /// which in a server is every in-flight request paying for one argument,
     /// so both buffers are reserved fallibly and report the same refusal
     /// `bytes` reports.
-    fn mwl_core_random_token(_ctx, args: [1]) {
+    fn nvs_core_random_token(_ctx, args: [1]) {
         let bytes = count(&args[0], "token", "the byte count")?;
 
         if bytes == 0 {
@@ -384,7 +384,7 @@ mwl_runtime::mwl_helper! {
         // seam is asked about the *answer's* width, since that is the larger of
         // the two and the only one that can overflow — `Core\Str::repeat` takes
         // the same shape for the same reason.
-        let digits = mwl_runtime::affordable(bytes.checked_mul(2), "Core\\Random::token()")?;
+        let digits = nvs_runtime::affordable(bytes.checked_mul(2), "Core\\Random::token()")?;
 
         // The allocator is then asked rather than assumed: `vec![0; n]` and
         // `String::with_capacity(n)` abort the process on a refusal, and a
@@ -407,11 +407,11 @@ mwl_runtime::mwl_helper! {
             token.push(HEX_DIGITS[usize::from(byte >> 4)]);
             token.push(HEX_DIGITS[usize::from(byte & 0x0f)]);
         }
-        Ok(Value::str(MwlStr::new(token.as_bytes())))
+        Ok(Value::str(NvsStr::new(token.as_bytes())))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Random::pick(array<T> $a): ?T` — one entry's value, uniformly,
     /// replacing PHP's `array_rand` in its one-element spelling.
     ///
@@ -425,7 +425,7 @@ mwl_runtime::mwl_helper! {
     /// which is the shape that makes `$a[array_rand($a)]` the idiom. ADR 0007
     /// § 5 stores every key as a string, so answering with one would hand back
     /// a `string` for an `array<T>` and lose the type the caller had.
-    fn mwl_core_random_pick(_ctx, args: [1]) {
+    fn nvs_core_random_pick(_ctx, args: [1]) {
         let subject = subject(args, "pick")?;
 
         let slots = slots(&subject);
@@ -436,7 +436,7 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Random::sample(array<T> $a, uint $count): array<T>` — `$count`
     /// *distinct* entries, uniformly, replacing PHP's `array_rand` with a
     /// count.
@@ -453,7 +453,7 @@ mwl_runtime::mwl_helper! {
     /// that many distinct entries to draw, so the alternatives are inventing a
     /// duplicate or silently answering short — a failure either way, and only
     /// the throw says so.
-    fn mwl_core_random_sample(_ctx, args: [2]) {
+    fn nvs_core_random_sample(_ctx, args: [2]) {
         let subject = subject(args, "sample")?;
         let count = count(&args[1], "sample", "the sample size")?;
 
@@ -470,19 +470,19 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Random::shuffle(array<T> $a): array<T>` — every entry, in a
     /// uniformly random order, replacing PHP's `shuffle` and `str_shuffle`.
     ///
     /// **A fresh array, not a reordering in place.** PHP's `shuffle` takes its
-    /// subject by reference and answers `bool`; an MWL array is a copy-on-write
+    /// subject by reference and answers `bool`; an Novis array is a copy-on-write
     /// *value*, so there is nothing to mutate and the spec's signature returns
     /// the new order instead.
     ///
     /// **Keys are discarded**, exactly as PHP's own `shuffle` renumbers: a
     /// shuffle is about position, and a key that survived it would name an
     /// entry that is no longer where the caller left it.
-    fn mwl_core_random_shuffle(_ctx, args: [1]) {
+    fn nvs_core_random_shuffle(_ctx, args: [1]) {
         let subject = subject(args, "shuffle")?;
 
         let mut slots = slots(&subject);
@@ -499,7 +499,7 @@ const HEX_DIGITS: [char; 16] = [
 
 #[cfg(test)]
 mod tests {
-    use mwl_runtime::{Ctx, MwlArray, OutputSink, Value, call};
+    use nvs_runtime::{Ctx, NvsArray, OutputSink, Value, call};
 
     /// Runs one member through the ADR 0002 boundary compiled code reaches it
     /// at.
@@ -540,7 +540,7 @@ mod tests {
     #[test]
     fn a_drawn_int_is_inside_its_inclusive_bounds() {
         for _ in 0..256 {
-            let drawn = run(super::mwl_core_random_int, &[Value::int(-3), Value::int(4)])
+            let drawn = run(super::nvs_core_random_int, &[Value::int(-3), Value::int(4)])
                 .expect("a non-empty range always has an answer")
                 .as_int()
                 .expect("`int` answers with an `int`");
@@ -552,7 +552,7 @@ mod tests {
     /// conformance case pins too.
     #[test]
     fn a_degenerate_range_is_its_own_bound() {
-        let drawn = run(super::mwl_core_random_int, &[Value::int(5), Value::int(5)])
+        let drawn = run(super::nvs_core_random_int, &[Value::int(5), Value::int(5)])
             .expect("[5, 5] holds exactly one integer")
             .as_int();
         assert_eq!(drawn, Some(5));
@@ -561,7 +561,7 @@ mod tests {
     #[test]
     fn the_widest_range_still_draws() {
         run(
-            super::mwl_core_random_int,
+            super::nvs_core_random_int,
             &[Value::int(i64::MIN), Value::int(i64::MAX)],
         )
         .expect("every `int` is in range")
@@ -571,15 +571,15 @@ mod tests {
 
     #[test]
     fn an_empty_range_throws() {
-        let status = run(super::mwl_core_random_int, &[Value::int(4), Value::int(3)])
+        let status = run(super::nvs_core_random_int, &[Value::int(4), Value::int(3)])
             .expect_err("no integer is both at least 4 and at most 3");
-        assert_eq!(status, mwl_runtime::THROWN);
+        assert_eq!(status, nvs_runtime::THROWN);
     }
 
     #[test]
     fn a_drawn_float_is_in_the_half_open_unit_interval() {
         for _ in 0..256 {
-            let drawn = run(super::mwl_core_random_float, &[])
+            let drawn = run(super::nvs_core_random_float, &[])
                 .expect("`float` never fails")
                 .as_float()
                 .expect("`float` answers with a `float`");
@@ -590,7 +590,7 @@ mod tests {
     #[test]
     fn a_token_is_twice_its_byte_count_in_lower_case_hex() {
         let token = taken(
-            run(super::mwl_core_random_token, &[Value::uint(8)]).expect("8 bytes is drawable"),
+            run(super::nvs_core_random_token, &[Value::uint(8)]).expect("8 bytes is drawable"),
         );
         assert_eq!(token.len(), 16);
         assert!(
@@ -606,10 +606,10 @@ mod tests {
     #[test]
     fn two_tokens_differ() {
         let first = taken(
-            run(super::mwl_core_random_token, &[Value::uint(32)]).expect("32 bytes is drawable"),
+            run(super::nvs_core_random_token, &[Value::uint(32)]).expect("32 bytes is drawable"),
         );
         let second = taken(
-            run(super::mwl_core_random_token, &[Value::uint(32)]).expect("32 bytes is drawable"),
+            run(super::nvs_core_random_token, &[Value::uint(32)]).expect("32 bytes is drawable"),
         );
         assert_eq!(first.len(), 64);
         assert_ne!(first, second);
@@ -617,21 +617,21 @@ mod tests {
 
     #[test]
     fn a_zero_byte_token_throws() {
-        let status = run(super::mwl_core_random_token, &[Value::uint(0)])
+        let status = run(super::nvs_core_random_token, &[Value::uint(0)])
             .expect_err("the empty string is not a token");
-        assert_eq!(status, mwl_runtime::THROWN);
+        assert_eq!(status, nvs_runtime::THROWN);
     }
 
     #[test]
     fn an_unrepresentable_token_throws() {
-        let status = run(super::mwl_core_random_token, &[Value::uint(u64::MAX)])
+        let status = run(super::nvs_core_random_token, &[Value::uint(u64::MAX)])
             .expect_err("no string that long can exist");
-        assert_eq!(status, mwl_runtime::THROWN);
+        assert_eq!(status, nvs_runtime::THROWN);
     }
 
     /// A subject `array<int>` holding `0, 1, …, len - 1` as a list.
     fn ints(len: i64) -> Value {
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         for n in 0..len {
             array.append(Value::int(n));
         }
@@ -685,15 +685,15 @@ mod tests {
     fn picking_from_an_empty_array_is_null() {
         let subject = ints(0);
         let answer =
-            run(super::mwl_core_random_pick, &[subject]).expect("an empty array is `null`");
-        assert_eq!(answer.tag(), Some(mwl_runtime::Tag::Null));
+            run(super::nvs_core_random_pick, &[subject]).expect("an empty array is `null`");
+        assert_eq!(answer.tag(), Some(nvs_runtime::Tag::Null));
         release(subject);
     }
 
     #[test]
     fn picking_from_one_element_is_that_element() {
         let subject = ints(1);
-        let answer = run(super::mwl_core_random_pick, &[subject]).expect("one element is drawable");
+        let answer = run(super::nvs_core_random_pick, &[subject]).expect("one element is drawable");
         assert_eq!(answer.as_int(), Some(0));
         release(subject);
     }
@@ -702,7 +702,7 @@ mod tests {
     fn every_pick_is_an_element_of_the_subject() {
         let subject = ints(6);
         for _ in 0..256 {
-            let drawn = run(super::mwl_core_random_pick, &[subject])
+            let drawn = run(super::nvs_core_random_pick, &[subject])
                 .expect("a non-empty array is drawable")
                 .as_int()
                 .expect("the subject held `int`s");
@@ -716,7 +716,7 @@ mod tests {
         let subject = ints(10);
         for _ in 0..64 {
             let mut sample = taken_ints(
-                run(super::mwl_core_random_sample, &[subject, Value::uint(4)])
+                run(super::nvs_core_random_sample, &[subject, Value::uint(4)])
                     .expect("4 of 10 is drawable"),
             );
             assert_eq!(sample.len(), 4);
@@ -733,7 +733,7 @@ mod tests {
     fn a_full_sample_is_a_permutation() {
         let subject = ints(8);
         let mut sample = taken_ints(
-            run(super::mwl_core_random_sample, &[subject, Value::uint(8)])
+            run(super::nvs_core_random_sample, &[subject, Value::uint(8)])
                 .expect("8 of 8 is drawable"),
         );
         sample.sort_unstable();
@@ -744,9 +744,9 @@ mod tests {
     #[test]
     fn a_sample_larger_than_its_subject_throws() {
         let subject = ints(3);
-        let status = run(super::mwl_core_random_sample, &[subject, Value::uint(4)])
+        let status = run(super::nvs_core_random_sample, &[subject, Value::uint(4)])
             .expect_err("3 entries hold no 4 distinct ones");
-        assert_eq!(status, mwl_runtime::THROWN);
+        assert_eq!(status, nvs_runtime::THROWN);
         release(subject);
     }
 
@@ -754,7 +754,7 @@ mod tests {
     fn a_shuffle_keeps_every_element_and_renumbers() {
         let subject = ints(16);
         let mut shuffled = taken_ints(
-            run(super::mwl_core_random_shuffle, &[subject]).expect("shuffling never fails"),
+            run(super::nvs_core_random_shuffle, &[subject]).expect("shuffling never fails"),
         );
         assert_eq!(shuffled.len(), 16);
         shuffled.sort_unstable();
@@ -767,14 +767,14 @@ mod tests {
     /// is a double free and a retain there leaks one reference per call.
     #[test]
     fn drawing_leaves_the_subjects_refcount_alone() {
-        let mut array = MwlArray::new();
+        let mut array = NvsArray::new();
         array.append(Value::int(1));
         array.append(Value::int(2));
         let before = array.refcount();
         let subject = Value::array(array);
 
-        taken_ints(run(super::mwl_core_random_shuffle, &[subject]).expect("shuffling never fails"));
-        run(super::mwl_core_random_pick, &[subject]).expect("two elements are drawable");
+        taken_ints(run(super::nvs_core_random_shuffle, &[subject]).expect("shuffling never fails"));
+        run(super::nvs_core_random_pick, &[subject]).expect("two elements are drawable");
 
         // The handle takes over the one reference this test owns and drops at
         // the end of the statement, which is also this test's release.
@@ -784,21 +784,21 @@ mod tests {
                       each helper borrowed rather than consumed it"
         )]
         let after =
-            unsafe { MwlArray::from_raw(subject.array_ptr().expect("an array")) }.refcount();
+            unsafe { NvsArray::from_raw(subject.array_ptr().expect("an array")) }.refcount();
         assert_eq!(after, before);
     }
 
     #[test]
     fn a_non_array_subject_is_a_contained_fault() {
         let status =
-            run(super::mwl_core_random_pick, &[Value::int(7)]).expect_err("an int is not an array");
-        assert_eq!(status, mwl_runtime::FATAL);
+            run(super::nvs_core_random_pick, &[Value::int(7)]).expect_err("an int is not an array");
+        assert_eq!(status, nvs_runtime::FATAL);
     }
 
     #[test]
     fn a_non_int_bound_is_a_contained_fault() {
-        let status = run(super::mwl_core_random_int, &[Value::uint(1), Value::int(6)])
+        let status = run(super::nvs_core_random_int, &[Value::uint(1), Value::int(6)])
             .expect_err("a `uint` is not an `int`");
-        assert_eq!(status, mwl_runtime::FATAL);
+        assert_eq!(status, nvs_runtime::FATAL);
     }
 }

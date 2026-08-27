@@ -1,7 +1,7 @@
 --TEST--
 An object whose static type names no class renders through its runtime `toString`, and every spelling of the conversion agrees (ADR 0028 § 1, ADR 0036 § 4, ADR 0007 § 2)
 --FILE--
-<?mwl
+<?nvs
 class Tag implements Stringable {
     public string $label = "a";
     public function toString(): string { return "<" . $this->label . ">"; }

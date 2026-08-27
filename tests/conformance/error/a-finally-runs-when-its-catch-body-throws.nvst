@@ -1,7 +1,7 @@
 --TEST--
-A `finally` runs when its own `catch` clause's body throws, before the new exception leaves the region — ADR 0002 § *Decision* ("`error_block` is where this frame's refcount decrements and `finally` blocks go"), lowered by `mwl_ir::lower::Lowering::lower_try`
+A `finally` runs when its own `catch` clause's body throws, before the new exception leaves the region — ADR 0002 § *Decision* ("`error_block` is where this frame's refcount decrements and `finally` blocks go"), lowered by `nvs_ir::lower::Lowering::lower_try`
 --FILE--
-<?mwl
+<?nvs
 final class Ladder {
     // The shape the case is named for: the clause body throws, and the
     // region's own `finally` runs before the new exception reaches the

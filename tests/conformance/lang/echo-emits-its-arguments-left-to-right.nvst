@@ -1,7 +1,7 @@
 --TEST--
 `echo` evaluates and emits each argument in order, so a side effect in one is visible to the next
 --FILE--
-<?mwl
+<?nvs
 class Tick {
     public int $n;
 

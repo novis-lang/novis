@@ -1,6 +1,6 @@
-//! HIR for MWL: name resolution over the `mwl-syntax` AST
+//! HIR for Novis: name resolution over the `nvs-syntax` AST
 //! ([`docs/implementation-plan.md`](../../../docs/implementation-plan.md)'s
-//! Architecture diagram — the layer between `mwl-syntax` and `mwl-types`).
+//! Architecture diagram — the layer between `nvs-syntax` and `nvs-types`).
 //!
 //! # Layout
 //!
@@ -41,15 +41,15 @@
 //!
 //! # Known gaps
 //!
-//! `mwl-hir` now covers all five name-resolution responsibilities the plan's
+//! `nvs-hir` now covers all five name-resolution responsibilities the plan's
 //! M2 paragraph lists for it; each module above documents its own gaps in
 //! full, not repeated here. The sharper edges: [`hierarchy`] doesn't flatten
 //! a trait pulling in another trait's methods recursively; [`members`]
 //! doesn't check a dynamic class side, `new`'s target, member visibility, or
-//! a property access on any receiver but `$this` (that needs `mwl-types`'
+//! a property access on any receiver but `$this` (that needs `nvs-types`'
 //! static types); [`aliases`]'s [`AliasTable`] has no consumer yet — nothing
-//! in `mwl-hir` walks a property/parameter/return-type position for it to
-//! feed, so that arrives with `mwl-types` too; [`requires`] only recognises a
+//! in `nvs-hir` walks a property/parameter/return-type position for it to
+//! feed, so that arrives with `nvs-types` too; [`requires`] only recognises a
 //! plain quoted-string literal path.
 
 pub mod aliases;

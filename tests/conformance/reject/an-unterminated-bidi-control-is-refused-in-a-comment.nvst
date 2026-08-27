@@ -1,7 +1,7 @@
 --TEST--
 a directional scope opened in a comment and never closed is a compile error — ADR 0087 §§ 1-2
 --FILE--
-<?mwl
+<?nvs
 // audit: ‮ approved by the reviewer
 echo "unreachable\n";
 --EXPECT--

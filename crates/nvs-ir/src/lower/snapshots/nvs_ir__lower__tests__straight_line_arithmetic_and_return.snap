@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn add(object, int, int) -> int {
@@ -15,5 +15,5 @@ fn add(object, int, int) -> int {
     return v3
   bb1:
     release v0
-    propagate "add() at t.mwl:4"
+    propagate "add() at t.nvs:4"
 }

@@ -1,10 +1,10 @@
 --TEST--
 An element read out of an array a call answered with keeps its value, and the array underneath it is released — ADR 0004
 --FILE--
-<?mwl
-// The sibling of `a-field-read-through-a-call-result-keeps-its-value.mwlt`,
+<?nvs
+// The sibling of `a-field-read-through-a-call-result-keeps-its-value.nvst`,
 // one storage kind along: `$m->all()["0"]` reads an element of an array
-// nothing else owns. `mwl_ir::lower::Lowering::lower_index` stages that array
+// nothing else owns. `nvs_ir::lower::Lowering::lower_index` stages that array
 // as a temporary, retains the element it read, then releases the array — so
 // the read is a fresh producer and `aliasing_read` answers `false` for it,
 // which is what keeps a consumer from retaining it a second time.

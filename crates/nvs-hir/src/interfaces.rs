@@ -3,20 +3,20 @@
 //!
 //! Same shape, and same reason, as [`crate::errors`]' exception tree: none of
 //! these has a source declaration anywhere, so every consumer that needs one
-//! to exist seeds itself from [`RESERVED`] rather than from a `.mwl` file.
+//! to exist seeds itself from [`RESERVED`] rather than from a `.nvs` file.
 //! [`QName::is_reserved_global_interface`](crate::QName::is_reserved_global_interface)
-//! is the reachability question; `mwl_types::iter_lib` turns every entry here
+//! is the reachability question; `nvs_types::iter_lib` turns every entry here
 //! into the member signatures the checker resolves against.
 //!
 //! # Why the type parameters live here and the members do not
 //!
 //! A type-parameter list is a property of the *name* — it decides whether
 //! `implements Iterable<int>` is well-formed at all, which
-//! `mwl_types::lower` must answer while it is still building the signature
+//! `nvs_types::lower` must answer while it is still building the signature
 //! table and cannot consult it. A member set is a property of the
 //! *declaration*, and needs `TypeId`s this crate has no interner for. So the
 //! name and its parameters are one fact with one home, here; the members are
-//! a second fact with a second home, in `mwl_types::iter_lib`, which reads
+//! a second fact with a second home, in `nvs_types::iter_lib`, which reads
 //! its parameters back off this table rather than restating them.
 //!
 //! # These are the only generics user code can name
@@ -72,7 +72,7 @@ pub fn is_reserved_interface(name: &str) -> bool {
 /// is what makes "wrote `Comparable<int>`" and "wrote `Foo<int>`" two
 /// different diagnostics.
 ///
-/// The names are load-bearing, not decoration: `mwl_types::iter_lib` writes
+/// The names are load-bearing, not decoration: `nvs_types::iter_lib` writes
 /// each member's signature against them, and a call on a receiver typed
 /// `Iterator<int>` binds them positionally against the receiver's own
 /// arguments to substitute that signature concrete.

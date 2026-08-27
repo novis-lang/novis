@@ -1,8 +1,8 @@
-# ADR 0073 — Scheduled work is `mwl.toml` firing a `spawn script`, with a mandatory `scope`
+# ADR 0073 — Scheduled work is `nvs.toml` firing a `spawn script`, with a mandatory `scope`
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
-- **Scope:** the `[[schedule]]` array-of-tables in `mwl.toml`, its keys and their changeability class, the
+- **Scope:** the `[[schedule]]` array-of-tables in `nvs.toml`, its keys and their changeability class, the
   cron dialect accepted, what a scheduled run's budget and capabilities are, overlap handling, and the
   fleet-versus-host distinction. Not in scope: the shared store's own configuration, and `Core\Cache`'s
   member roster, both of which are [ADR 0059](0059-cross-request-state-is-explicit.md)'s and M8's.
@@ -15,10 +15,10 @@
 - **Amended by:** 0084
 
 > **In short:** cron already exists, every deployment already runs it, and the only thing it does badly is
-> that its job definition lives somewhere other than the application. So MWL takes the *declaration* and
-> nothing else: a `[[schedule]]` entry in `mwl.toml` names a `cron` expression and a `script`, and fires it
+> that its job definition lives somewhere other than the application. So Novis takes the *declaration* and
+> nothing else: a `[[schedule]]` entry in `nvs.toml` names a `cron` expression and a `script`, and fires it
 > as an ordinary `spawn script` isolate ([ADR 0006](0006-isolated-script-execution.md)) — **no API surface
-> at all**, no `Core\Schedule`, nothing a program can register at runtime. `mwl run` runs the identical
+> at all**, no `Core\Schedule`, nothing a program can register at runtime. `nvs run` runs the identical
 > file by hand, which is the whole debugging story. One key is **mandatory with no default**: **`scope`**,
 > either `"fleet"` (once across the deployment, over the shared store) or `"host"` (once per host). Both
 > are commonly correct and either default silently does the wrong thing in somebody's production, so the
@@ -37,9 +37,9 @@
   application hosts because nobody remembered to guard it, and a `flock` guard is added per job by hand.
   The failure is silent — four copies of a nightly billing run look exactly like one until the invoices go
   out.
-- **MWL already has every piece except the ticker.** `spawn script`
+- **Novis already has every piece except the ticker.** `spawn script`
   ([ADR 0006](0006-isolated-script-execution.md)) runs a file in an isolate with its own arena, its own
-  config overlay and capability narrowing. `mwl.toml` ([ADR 0064](0064-configuration-file-format.md)) is a
+  config overlay and capability narrowing. `nvs.toml` ([ADR 0064](0064-configuration-file-format.md)) is a
   root-owned file the operator already writes. `Core\Cache::shared()`
   ([ADR 0059](0059-cross-request-state-is-explicit.md)) is a coherent store across machines. What is
   missing is a clock and a lock, and both are small.
@@ -62,7 +62,7 @@
 [[schedule]]                          # System, every key
 name     = "nightly-report"           # required, unique — the log/metric label
 cron     = "0 3 * * *"
-script   = "jobs/report.mwl"
+script   = "jobs/report.nvs"
 scope    = "fleet"                    # required, no default: "fleet" | "host"
 timezone = "Europe/Vienna"            # default "UTC"
 overlap  = "skip"                     # default "skip": "skip" | "queue" | "kill"
@@ -72,7 +72,7 @@ grants   = {net.connect = ["reports.internal"]}   # optional, narrowing only
 [[schedule]]
 name  = "expire-sessions"
 cron  = "*/15 * * * *"
-script = "jobs/expire.mwl"
+script = "jobs/expire.nvs"
 scope = "host"
 ```
 
@@ -103,7 +103,7 @@ be discovered by its silence.
 
 ### 3. `scope` decides who holds the lock
 
-- **`scope = "host"`** — each host running `mwl serve` fires the entry on its own clock. No coordination,
+- **`scope = "host"`** — each host running `nvs serve` fires the entry on its own clock. No coordination,
   no shared store, no lock. Correct for anything whose effect is local: warming a per-core cache
   ([ADR 0059](0059-cross-request-state-is-explicit.md) § 1's local tier is per-core and per-host by
   construction), rotating a local file, sampling host state.
@@ -151,9 +151,9 @@ root, built by the same `Isolate` code path, and everything downstream follows w
   uncaught throw or a limit breach goes through [ADR 0020](0020-error-escalation-ladder.md)'s ladder with
   the entry's `name` in the record. Nothing is waiting for it.
 
-**Only `mwl serve` runs schedules.** `mwl run`, `mwl check` and a bundled
+**Only `nvs serve` runs schedules.** `nvs run`, `nvs check` and a bundled
 [ADR 0048](0048-portable-single-file-executables.md) executable do not: a schedule is a property of a
-running deployment, not of executing a file. `mwl run jobs/report.mwl` runs the identical script by hand,
+running deployment, not of executing a file. `nvs run jobs/report.nvs` runs the identical script by hand,
 which is the entire debugging and backfill story and is why no `--run-now` flag is needed.
 
 ### 6. Overlap, and the missed fire
@@ -178,7 +178,7 @@ normally. Catch-up needs a durable record of what has and has not run, which is 
 deliberately not.
 
 **Timezone and DST**, pinned because implementations differ and the difference is a production incident:
-`timezone` defaults to `"UTC"` (there is no ambient timezone anywhere in MWL —
+`timezone` defaults to `"UTC"` (there is no ambient timezone anywhere in Novis —
 [ADR 0063](0063-core-api-conventions.md) § 4). A local-time schedule landing in a spring-forward **gap**
 fires **once**, at the first valid instant after the gap. One landing in a fall-back **repeat** fires
 **once**, on the first occurrence. Both rules are the ones that make "runs once a day" true, which is what
@@ -195,7 +195,7 @@ the operator wrote down.
   reinvents becomes one required word, and the word is required precisely so nobody skips thinking about it.
 - **Zero API surface** (priority 4). No `Core\Schedule`, no registration call, no attribute, no runtime
   state — the entire feature is a config block and a ticker.
-- **The debugging story is one command.** `mwl run jobs/report.mwl` is the scheduled run, exactly, because
+- **The debugging story is one command.** `nvs run jobs/report.nvs` is the scheduled run, exactly, because
   a scheduled fire is nothing but that call. No dedicated "run this job now" subcommand and no divergence
   between the two paths to maintain.
 - **Governance comes for free.** Limits, capabilities, the escalation ladder, the trace/metric plumbing and
@@ -212,7 +212,7 @@ the operator wrote down.
   boundary [ADR 0072](0072-core-task-structured-concurrency.md) § 6 draws for deferred work.
 - **Five-field cron cannot express everything.** "The last weekday of the month" is a `@daily` script with
   a date check in it, which is more code and considerably more readable than `L-1W`.
-- **A schedule is invisible to `mwl check`.** The scripts it names are ordinary files and are checked like
+- **A schedule is invisible to `nvs check`.** The scripts it names are ordinary files and are checked like
   any other, but nothing links an entry to a compiled program at compile time, so a renamed script is a
   boot error rather than a compile error. Boot-time path validation (§ 1) is what closes most of that gap.
 - **One more block in a file that is growing.** `[[extension]]`, `[capabilities]`, `[limits]`, `[debug]`,
@@ -222,7 +222,7 @@ the operator wrote down.
 
 - **A runtime `Core\Schedule::register(cron, callable)`.** The framework-familiar shape (Laravel's
   `Kernel::schedule`). Rejected: process-global mutable state ([ADR 0008](0008-static-and-global.md))
-  established by whichever request ran first, invisible to `mwl check`, and unreachable from a host that has
+  established by whichever request ran first, invisible to `nvs check`, and unreachable from a host that has
   not yet served a request — the same objections [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)
   made against a runtime autoloader.
 - **A `#[Schedule("0 3 * * *")]` attribute on a method**, discovered at compile time the way
@@ -231,9 +231,9 @@ the operator wrote down.
   production with different cadences, different limits and different scopes, and an attribute cannot carry
   that without a config file overriding it — at which point the config file is the schedule and the
   attribute is a second, weaker copy of it (R17).
-- **Leaving it to system cron.** The status quo, zero MWL surface, and it works. Rejected on the split named
+- **Leaving it to system cron.** The status quo, zero Novis surface, and it works. Rejected on the split named
   in *Context*: the schedule lives outside the application, fleet-once has to be reinvented per job, and a
-  cron-invoked `mwl run` gets no limits, no capability narrowing and no place to report a failure other than
+  cron-invoked `nvs run` gets no limits, no capability narrowing and no place to report a failure other than
   a mail spool.
 - **Defaulting `scope` to `"host"`** (or to `"fleet"`). Rejected explicitly by the user, and correctly: both
   are commonly right, the wrong one is silent, and its consequence is either duplicated side effects or
@@ -279,7 +279,7 @@ the operator wrote down.
   [ADR 0020](0020-error-escalation-ladder.md)'s ladder with the entry's `name`, and the serving cores keep
   serving; a `Core\Request` call inside a scheduled script throws
   ([ADR 0012](0012-no-superglobals.md)); a scheduled run cannot widen a capability the deployment narrowed.
-- **M7:** `mwl run` on a scheduled entry's script produces the identical observable behaviour to a fire —
+- **M7:** `nvs run` on a scheduled entry's script produces the identical observable behaviour to a fire —
   the same fixture run both ways.
 - **M8** (shared store): two hosts racing the same fleet-scoped interval produce exactly one run; a host
   killed mid-run releases its lease by TTL expiry and the *next* interval fires normally, without the killed

@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::first, last, firstKey and lastKey answer the entry or null, never a throw
 --FILE--
-<?mwl
+<?nvs
 array<int> $nums = [3, 7, 11];
 array<int> $empty = [];
 array<string> $map = ["b" => "bee", "a" => "ay"];

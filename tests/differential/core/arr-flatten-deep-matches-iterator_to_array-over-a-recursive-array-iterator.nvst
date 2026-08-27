@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::flattenDeep answers what iterator_to_array over a RecursiveIteratorIterator answers, at every depth, over both kinds of key, and on the leaves that look like absence — ADR 0069 § 3, ADR 0007 § 3
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `flattenDeep` row, whose **Replaces** column names
 // `iterator_to_array(new RecursiveIteratorIterator(new RecursiveArrayIterator($a)), false)`.
 //
@@ -10,7 +10,7 @@ Core\Arr::flattenDeep answers what iterator_to_array over a RecursiveIteratorIte
 // `reverse`, `slice`, `pad`, `replaceRange` — parts from its twin because PHP
 // renumbers a result's integer keys and keeps its string ones, which ADR 0069
 // § 3 refuses. The twin here is handed `false`, which discards every key alike,
-// so PHP is asked for exactly the rule MWL has. Its *other* setting is not a
+// so PHP is asked for exactly the rule Novis has. Its *other* setting is not a
 // second answer to compare against: `true` re-keys each leaf by its own level's
 // key, so `[[1,2],[3,4]]` collapses to `[3,4]` and a string-keyed subject to
 // `{"a":1,"c":2,"0":3}` — the twin loses entries at the setting that keeps

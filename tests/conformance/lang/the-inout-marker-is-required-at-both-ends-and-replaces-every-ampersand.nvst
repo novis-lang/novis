@@ -1,7 +1,7 @@
 --TEST--
 `&` in a by-reference position is `E0237` naming `inout`, an argument that binds an `inout` parameter without saying so is `E0713`, and one that says so where nothing binds it is `E0714` — ADR 0107 §§ 1, 2, 3
 --FILE--
-<?mwl
+<?nvs
 // ADR 0107 § 3 retires `&` as a by-reference marker outright, so every one of
 // the five positions PHP writes it in takes the same code — including the two
 // *returning* forms, which `inout` does not replace at all: a method hands
@@ -59,28 +59,28 @@ echo $f(inout $count), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0237]: `&` is not a by-reference marker in MWL
-  --> case.mwl:8:9
+error[E0237]: `&` is not a by-reference marker in Novis
+  --> case.nvs:8:9
 %A
-error[E0237]: `&` is not a by-reference marker in MWL
-   --> case.mwl:15:37
+error[E0237]: `&` is not a by-reference marker in Novis
+   --> case.nvs:15:37
 %A
-error[E0237]: `&` is not a by-reference marker in MWL
-   --> case.mwl:19:28
+error[E0237]: `&` is not a by-reference marker in Novis
+   --> case.nvs:19:28
 %A
-error[E0237]: `&` is not a by-reference marker in MWL
-   --> case.mwl:38:23
+error[E0237]: `&` is not a by-reference marker in Novis
+   --> case.nvs:38:23
 %A
-error[E0237]: `&` is not a by-reference marker in MWL
-   --> case.mwl:41:6
+error[E0237]: `&` is not a by-reference marker in Novis
+   --> case.nvs:41:6
 %A
 error[E0713]: this argument binds an `inout` parameter and must say so
-   --> case.mwl:48:13
+   --> case.nvs:48:13
 %A
 error[E0714]: `inout` here names a by-value parameter
-   --> case.mwl:49:17
+   --> case.nvs:49:17
 %A
 error[E0714]: `inout` names no parameter of a `callable`
-   --> case.mwl:55:9
+   --> case.nvs:55:9
 %A
 error: aborting due to 8 errors

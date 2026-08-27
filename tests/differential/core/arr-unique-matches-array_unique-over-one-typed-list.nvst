@@ -1,9 +1,9 @@
 --TEST--
 Core\Arr::unique answers what array_unique answers wherever a subject's values are one type, keys and holes included
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `array_unique` row. The two members do not ask the same question:
-// MWL compares by strict identity, `array_unique` defaults to `SORT_STRING` and
+// Novis compares by strict identity, `array_unique` defaults to `SORT_STRING` and
 // compares the *spellings*. Those two answers coincide exactly where distinct
 // values have distinct spellings, which is every subject in this case — one
 // type throughout. `arr-unique-on-mixed-types-diverges-from-array_unique` is
@@ -56,7 +56,7 @@ echo Render::ints(Core\Arr::unique($map)), "\n";
 
 // Both kinds of key in one subject, and the surviving 1 is the one under the
 // integer key. Neither language asks what type a key is here, which is what
-// ADR 0069 § 3 requires of MWL and what array_unique happens to do anyway.
+// ADR 0069 § 3 requires of Novis and what array_unique happens to do anyway.
 array<int> $mixedKeys = ["5" => 1, "x" => 1, "7" => 2];
 echo Render::ints(Core\Arr::unique($mixedKeys)), "\n";
 

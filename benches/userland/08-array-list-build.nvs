@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // Growing a list one element at a time, then walking it - the result set of every query loop.
 class Bench {
     public static function run(int $rows): int {

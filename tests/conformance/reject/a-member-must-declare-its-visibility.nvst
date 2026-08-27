@@ -1,9 +1,9 @@
 --TEST--
 a property, class constant or method written without `public`/`protected`/`private` is refused, and there is no implicit `public` to fall back on — ADR 0094 §§ 1, 4
 --FILE--
-<?mwl
+<?nvs
 class Account {
-    // ADR 0094 § 4: MWL's own grammar accepts this bare property shape, so
+    // ADR 0094 § 4: Novis's own grammar accepts this bare property shape, so
     // it is the omission the rule has to catch rather than a parse error.
     int $balance = 0;
 
@@ -16,6 +16,6 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0122]: a property must declare `public`, `protected` or `private`
-  --> case.mwl:5:9
+  --> case.nvs:5:9
 %A
 error: aborting due to 1 error

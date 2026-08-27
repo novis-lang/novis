@@ -1,7 +1,7 @@
 --TEST--
 a base method calling `$this->speak()` reaches the runtime class's override at every level, and the deepest one still reaches `parent::`
 --FILE--
-<?mwl
+<?nvs
 class Animal {
     public string $name;
 

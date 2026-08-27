@@ -1,12 +1,12 @@
 --TEST--
 An array-element write evaluates the receiver under its root holder exactly once, whichever spelling writes it and however deep the chain is — ADR 0007 § 5 and § 7 row 15
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 5 separates the array before an element is written, so the write
 // is not finished until the separated copy has been put back into whatever
-// held it (`mwl_ir::lower::Lowering::write_back_array`). That re-points the
+// held it (`nvs_ir::lower::Lowering::write_back_array`). That re-points the
 // holder by lowering the holder's own *receiver* a second time, which is why
-// `mwl_ir::lower::Lowering::lower_store` stages that receiver before it reads
+// `nvs_ir::lower::Lowering::lower_store` stages that receiver before it reads
 // the root: without the staging, `$b->self()->rows["k"] = "z"` ran `self()`
 // twice and `$b->self()->grid["r"]["k"] .= "b"` three times.
 //
@@ -14,7 +14,7 @@ An array-element write evaluates the receiver under its root holder exactly once
 // agreement rather than a choice. The last line is the one it does not
 // accept — *"Cannot use temporary expression in write context"* for a `new`
 // receiver specifically, where a call-returning one is fine — and § 7 row 15
-// owns why MWL takes it anyway: the field is a slot in a heap object, so the
+// owns why Novis takes it anyway: the field is a slot in a heap object, so the
 // write lands in real storage whatever happens to the handle.
 class Box {
     public array<string> $rows;

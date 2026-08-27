@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::underlay is PHP's `$a + $b` exactly, over string keys, integer keys and a chain of three
 --FILE--
-<?mwl
+<?nvs
 array<int> $a = ["x" => 1, "y" => 2];
 array<int> $b = ["y" => 9, "z" => 3];
 echo Core\Json::encode(Core\Arr::underlay($a, $b)), ";";

@@ -1,7 +1,7 @@
 --TEST--
 every shape of array-element write through a hooked property is refused where it is written, PHP's "indirect modification of overloaded property" taken as a compile error — ADR 0014 § 1, ADR 0007 § 5
 --FILE--
-<?mwl
+<?nvs
 // ADR 0014 § 1 makes a hooked property a pair of accessors and not a slot, so
 // the copy ADR 0007 § 5 separates on a write has nowhere to be written back
 // to. PHP agrees at run time — `Error: Indirect modification of Grid::$rows is
@@ -41,15 +41,15 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0478]: an array element cannot be written through the hooked property `rows`
-   --> case.mwl:32:1
+   --> case.nvs:32:1
 %A
 error[E0478]: an array element cannot be written through the hooked property `cells`
-   --> case.mwl:33:1
+   --> case.nvs:33:1
 %A
 error[E0478]: an array element cannot be written through the hooked property `rows`
-   --> case.mwl:34:1
+   --> case.nvs:34:1
 %A
 error[E0478]: an array element cannot be written through the hooked property `rows`
-   --> case.mwl:35:1
+   --> case.nvs:35:1
 %A
 error: aborting due to 4 errors

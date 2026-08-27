@@ -1,7 +1,7 @@
 --TEST--
 `<`, `<=`, `==` and `!=` over `float` behave as the ordered comparisons they are
 --FILE--
-<?mwl
+<?nvs
 echo (1.5 < 2.5) as string, "|", (2.5 < 1.5) as string, "|\n";
 echo (2.5 <= 2.5) as string, "|", (2.5 >= 2.5) as string, "|\n";
 echo (1.0 == 1.0) as string, "|", (1.0 != 1.0) as string, "|\n";

@@ -2,7 +2,7 @@
 //! which `yield` forms exist.
 //!
 //! [`ForeachSource`] is the classification the rest of the crate asks for —
-//! `crate::locals` drives a `foreach`'s bindings from it, and `mwl-ir` lowers
+//! `crate::locals` drives a `foreach`'s bindings from it, and `nvs-ir` lowers
 //! from the [`ForeachDrive`](crate::expr_table::ForeachDrive) it records. Its
 //! three accepted shapes are ADR 0053 § 3's, and its `Unchecked` case is the
 //! deliberate one-mistake-one-diagnostic path: a subject already diagnosed as
@@ -43,7 +43,7 @@ pub(super) fn infer_yield(
         env.diags.report(
             Diagnostic::error(
                 code::E_YIELD_FORM_UNSUPPORTED,
-                "a `yield` has no key half in MWL",
+                "a `yield` has no key half in Novis",
             )
             .with_primary(k.span, "no key exists here")
             .with_help(
@@ -89,7 +89,7 @@ pub(super) fn infer_yield_from(
     env.diags.report(
         Diagnostic::error(
             code::E_YIELD_FORM_UNSUPPORTED,
-            "`yield from` does not exist in MWL",
+            "`yield from` does not exist in Novis",
         )
         .with_primary(expr.span, "this delegation form")
         .with_help(
@@ -133,7 +133,7 @@ impl ForeachSource {
         }
     }
 
-    /// The [`ForeachDrive`] `mwl-ir` reads back off the subject's span, or
+    /// The [`ForeachDrive`] `nvs-ir` reads back off the subject's span, or
     /// `None` for the shape that records nothing at all.
     fn drive(self) -> Option<ForeachDrive> {
         match self {
@@ -175,13 +175,13 @@ pub(super) fn classify_foreach_source(
             {
                 return ForeachSource::Cursor {
                     value,
-                    via_iterable: qname.short_name() == mwl_hir::interfaces::ITERABLE,
+                    via_iterable: qname.short_name() == nvs_hir::interfaces::ITERABLE,
                 };
             }
             match crate::signatures::resolve_iteration_element(&qname, env.signatures, env.graph) {
                 Some((interface, value)) => ForeachSource::Cursor {
                     value: with_subject_args(&qname, &args, value, env),
-                    via_iterable: interface.short_name() == mwl_hir::interfaces::ITERABLE,
+                    via_iterable: interface.short_name() == nvs_hir::interfaces::ITERABLE,
                 },
                 None => {
                     report_not_iterable(subject_ty, span, env);
@@ -212,7 +212,7 @@ fn with_subject_args(qname: &QName, args: &[TypeId], element: TypeId, env: &mut 
     if args.is_empty() {
         return element;
     }
-    let Some(params) = mwl_stdlib::registry::class_type_params(&qname.to_string()) else {
+    let Some(params) = nvs_stdlib::registry::class_type_params(&qname.to_string()) else {
         return element;
     };
     let bindings: crate::generics::Bindings = params

@@ -1,4 +1,4 @@
-# MWL — Modern Web Lang: Implementation Plan
+# Novis — The Web-Native Programming Language: Implementation Plan
 
 <!-- This block has a fixed field set: Status, Done, On disk, Toolchain, ADR slices landed, Open now,
      Blocking. Overwrite a field in place; never add a paragraph or a new field name. That is what
@@ -15,14 +15,14 @@
 > `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup) and M1 (front end) whole, M2 (HIR, types, IR) and M3 (baseline Cranelift
-> backend) whole, M4S Part I registered — `crates/mwl-stdlib/tests/spec-members-outstanding.txt`
+> backend) whole, M4S Part I registered — `crates/nvs-stdlib/tests/spec-members-outstanding.txt`
 > holds no keys, which is this project's definition of *registered*. M1's own section lists the one
 > grammar addition still owed (`autoload`, ADR 0061). Each milestone file under
 > [docs/plan/](plan/) states its own acceptance.
 >
 > **On disk:** the workspace and its CI (three platforms, with miri, asan and fuzz legs), and the
-> nine crates — `mwl-diagnostics`, `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-runtime`,
-> `mwl-stdlib`, `mwl-codegen`, `mwl-cli` — plus `mwl-test`, `fuzz/`, `tools/`, `benches/abi-probe`,
+> nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-runtime`,
+> `nvs-stdlib`, `nvs-codegen`, `nvs-cli` — plus `nvs-test`, `fuzz/`, `tools/`, `benches/abi-probe`,
 > and the two case trees `tests/conformance` and `tests/differential`. **Each crate's own module doc
 > is the authority on what it holds and what it still owes**; `python tools/brief.py` prints one map
 > line each, and `python tools/disk.py` the live counts.
@@ -56,11 +56,11 @@
 > and is not: with the fourth meaning gone an `&` in a type always *means* an intersection, but the
 > type parser is what reaches `int &$x` first, and a lookahead that consumes it leaves the site
 > above nothing to report — so § 3's own text is corrected rather than left disagreeing with the
-> tree. The 12 `.mwlt` cases and both examples that spelled `&$` are rewritten **with their expected
+> tree. The 12 `.nvst` cases and both examples that spelled `&$` are rewritten **with their expected
 > output unchanged**, which is the check that this ADR changed no semantics; **items 46, 47a and 47b
-> are all landed, and Stage 0a is closed**. The rename went through `mwl-ir`, `mwl-types` and
-> `mwl-diagnostics` as one token substitution and then stopped at three places it must not touch:
-> `$a = &$b` (`E0701`), `[&$x]` (`E0483`) and `use (&$y)` (`E0224`) are refused because MWL has no
+> are all landed, and Stage 0a is closed**. The rename went through `nvs-ir`, `nvs-types` and
+> `nvs-diagnostics` as one token substitution and then stopped at three places it must not touch:
+> `$a = &$b` (`E0701`), `[&$x]` (`E0483`) and `use (&$y)` (`E0224`) are refused because Novis has no
 > reference at all, so ADR 0107 replaced no marker of theirs, and `ExprKind::Assign::by_ref`,
 > `ArrayItem::by_ref` and the use-clause parser's own locals keep the old word on purpose. Six
 > diagnostic constants moved with the family — `E_INOUT_ARG_NOT_A_PLACE`,
@@ -69,19 +69,19 @@
 > `E_ASSIGN_BY_REFERENCE`, `E_ARRAY_ELEMENT_BY_REFERENCE` and `E_CLOSURE_USE_BY_REF_UNSUPPORTED`
 > each name a `&` and keep it. Two of the field docs were not renames at all but corrections:
 > `ResolvedCall::inout` was recorded because "a call site's own syntax says nothing about it", which
-> ADR 0107 § 2 falsified outright, and `mwl_types`' two `foreach` help strings still told a user to
+> ADR 0107 § 2 falsified outright, and `nvs_types`' two `foreach` help strings still told a user to
 > "drop the `&`" that is no longer in their source. Item 47 landed as **two** cases rather than the
-> one ADR 0107 § *Verification* named, because a `.mwlt` has one verdict:
-> `a-by-reference-argument-is-written-inout-at-both-ends.mwlt` **runs** the accepted shapes — the
+> one ADR 0107 § *Verification* named, because a `.nvst` has one verdict:
+> `a-by-reference-argument-is-written-inout-at-both-ends.nvst` **runs** the accepted shapes — the
 > word before the type on a static method, an instance method and a `foreach` value binding, and
 > again at an argument naming a local, a property and a named argument's outside — and
-> `the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.mwlt` pins all three
+> `the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.nvst` pins all three
 > diagnostics in one compile, `E0237` at each of the five positions PHP writes `&` in, `E0713` at an
 > unmarked argument and `E0714` at a marked one against both a by-value parameter and a call through
-> a `callable`. That correction is folded into § *Verification*'s own body. The `.mwlt` prose caught
+> a `callable`. That correction is folded into § *Verification*'s own body. The `.nvst` prose caught
 > up with the source items 44–45 had already moved, so nothing in `tests/` outside a PHP oracle half
 > and the two deliberate refusal cases spells `&$` any more, and neither does `docs/`: item 47b
-> renamed every site that named MWL's own by-reference parameter — an alias's type rule (ADR 0007 §
+> renamed every site that named Novis's own by-reference parameter — an alias's type rule (ADR 0007 §
 > 1), what cannot cross a `spawn` or a copy boundary (0006, 0023), what `class_alias` does not
 > affect (0015), R3's banned out-parameter (0063), the `foreach` line in the spec's overview, M4's
 > own feature list and four playbook bullets — and deleted `docs/agent/loop-goal.md` § *Stage 0a*,
@@ -92,7 +92,7 @@
 > not heard yet. Stage 0a was first because a case authored in the old spelling is authored twice,
 > and because M4B is deferred behind this goal exactly so its `.lspt` suite is written against the
 > finished surface. A hole is a shape that compiles in the front end and then refuses below it; it
-> is closed when it either runs with a fixture or a `.mwlt` case pinning what it prints, or is
+> is closed when it either runs with a fixture or a `.nvst` case pinning what it prints, or is
 > refused by a **diagnostic that names the rule** — never by a panic. The statement dispatch has no
 > shape left that the checker accepts: ADR 0007 § 3.3's `[int $a, string $b] = $pair;` lowers as the
 > subscripts it is spelled out of and refuses what one refuses (`E0482`/`E0401`/`E0483`), inline
@@ -102,7 +102,7 @@
 > element write whose root is only a temporary is `E0700` — the first code of the `E07xx` band the
 > full `E04xx` one continues in — an increment's own target passes the parser's `E0105` gate like
 > every other write spelling, the read-modify-write rewrite's own assertion has no reachable target
-> left — its doc comment carries the proof, and `mwl_types`' two write-target refusals are two
+> left — its doc comment carries the proof, and `nvs_types`' two write-target refusals are two
 > thirds of it — an element write evaluates the receiver under its root holder exactly once, PHP
 > 8.5.9's own count, a computed member name (`->$name` / `->{expr}`) is `E0235` where it is written
 > and an undeclared property is `E0405` on every class kind, which together leave the property-write
@@ -123,13 +123,13 @@
 > 8's `throw` lowers in expression position now that a union absorbs the `never` a non-completing
 > branch contributes (`$v ?? throw new LogicError(…)` satisfies a `string`), a `yield` used as a
 > value is `E0448`, `spawn script` is `E0703` (ADR 0006's isolates are M5) and `require` used for
-> its value is `E0704` (`mwl-ir`'s known gap 22), which together leave `lower_expr`'s catch-all no
+> its value is `E0704` (`nvs-ir`'s known gap 22), which together leave `lower_expr`'s catch-all no
 > reachable target either. The two **operator** catch-alls one level down are now the same. Unary
 > `+` is the identity over `int`, `uint`, `float` and `decimal` and lowers to its operand with no
 > instruction at all, which is safe rather than a silent divergence only because `-`/`+`/`~` over an
 > operand ADR 0007 § 4 tabulates no row for — a `string`, a `bytes`, an `array<T>`, a `bool`,
 > `null`, a `callable`, an enum case — is now `E0705` where PHP would have converted it first, an
-> object keeping the "MWL has no operator overloading" sentence it already had; `@` error
+> object keeping the "Novis has no operator overloading" sentence it already had; `@` error
 > suppression is `E0236` at the parser, ADR 0020 having made every failure a `Throwable` propagated
 > by checked return so there is no channel to mute, which leaves `UnaryOp`'s five variants as four
 > arms and one the parser never constructs. `BinaryOp`'s 22 are the scalar table's eighteen rows
@@ -143,7 +143,7 @@
 > rather than answered wrongly below — `1.5 & 1.5` used to evaluate to `1.5`, a bit-and over the
 > `f64`'s own bits, where PHP answers `1`. The other four (`.`, `&&`, `||`, `??`) never reach that
 > table at all, for the reason they never reach the scalar one. **`concat_operand`'s representation
-> catch-all** goes with it: nine of `mwl_ir::ty::Ty`'s fifteen are rows — `null` newly among them,
+> catch-all** goes with it: nine of `nvs_ir::ty::Ty`'s fifteen are rows — `null` newly among them,
 > rendering as the empty string exactly as the `?string` holding one already did, which is PHP's
 > answer and keeps the static and the tagged case agreeing — four are refused a phase up by the one
 > check every implicit site shares (`E0707`: a `bytes`, an `array<T>`, an enum case and a `void`
@@ -152,7 +152,7 @@
 > expression ever has. **The `as` conversion table** closes the same way one level down, and
 > subtracting its grid found something worse than a panic underneath it. ADR 0007 § 2's table is a
 > *closed* list of rows — `as` "either produces a value of the target type or throws", so a pair
-> naming no row has nothing to produce and nothing to throw — and `mwl_types` now says so where it
+> naming no row has nothing to produce and nothing to throw — and `nvs_types` now says so where it
 > is written (`E0708`): `true as int`, `$xs as string`, `$case as string`, `$case as float`, `$i as
 > bytes`, `$s as array<int>`, `null as int`, and a `void` call on either side, each help naming the
 > spelling that says what was meant. `null as string` goes the other way and becomes a lowering row,
@@ -164,7 +164,7 @@
 > Core\Html\Markup`, whose own `E0417` wants a source literal), and the identical type. What is left
 > is the one that is no downcast: `$foo as Bar` between two unrelated classes, which was worse than
 > a panic — both erase to one pointer, so it took the free `from == to` row, nothing ran, and
-> `Bar`'s slot list was then read off a `Foo`'s allocation. `mwl-ir`'s own catch-all has one target
+> `Bar`'s slot list was then read off a `Foo`'s allocation. `nvs-ir`'s own catch-all has one target
 > left and it is not this milestone's: ADR 0024 § 5's `string as Core\Html\Markup`, which is a
 > *rule* rather than a test — a source-literal string and nothing else — and waits on `Core\Html`
 > existing at all (M7). `array<T> as array<U>` was the other, and it closed as a **walk** rather
@@ -176,7 +176,7 @@
 > function took its free `from == to` row and handed the `int`s straight through under the other
 > declaration, which is `$foo as Bar`'s type confusion one container in. `Helper::ToArrayOfOrNull`
 > is ADR 0066's spelling of the same walk over one implementation, so the checked and the
-> `null`-answering rows closed together. **Nothing is copied**: an MWL array is copy-on-write, so
+> `null`-answering rows closed together. **Nothing is copied**: an Novis array is copy-on-write, so
 > the result is the operand's own allocation under one more reference and whichever view writes
 > first separates itself — § 5's invariance is bought with tag tests rather than with bytes moved,
 > and that section's own "a real copy" sentence is corrected rather than left to disagree. What a
@@ -200,9 +200,9 @@
 > `object`, a shape, a `callable`, and a `Core` class, which has no descriptor in the unit for the
 > same reason `instanceof Core\Uri` is `E0496` — so from an operand that is not already an object
 > the conversion could only assert a tag it cannot verify, which is `$foo as Bar`'s type confusion
-> one step earlier, and `mwl_types` refuses it where it is written (`E0711`). `$plain as object`
+> one step earlier, and `nvs_types` refuses it where it is written (`E0711`). `$plain as object`
 > stays the free widening row it always was, and `Core\Html\Markup` is the one `Core` exemption, its
-> own row being `mwl_types::expr::quals`' to own. The third was a tagged operand into `bytes` and it
+> own row being `nvs_types::expr::quals`' to own. The third was a tagged operand into `bytes` and it
 > is a row now: ADR 0009 § 3's pair is the operand's own *tag*'s wherever its static type names
 > neither side of it, so `Helper::TaggedToBytes` hands the same allocation back under the other tag
 > for a `string` or a `bytes` and throws for every tag § 2's table gives no row. It is the only
@@ -213,11 +213,11 @@
 > one placement a binary operator offers, its other operand — so `$u + 1`, `$u & 3` and `$u << 1`
 > compile at all, where each of them used to be § 4's mixed-signedness refusal and a `uint` could
 > meet only a `uint`-declared local; a digit run above `i64::MAX`, which § 4 admits "only where a
-> `uint` is expected", has an operand position for the first time, and `mwl-ir` makes the same
+> `uint` is expected", has an operand position for the first time, and `nvs-ir` makes the same
 > placement on the left-hand operand so that it does not then panic on a value that never fit an
 > `int`. What stays refused is the pair with no digit run in it: a shift's *count* is an operand of
 > the operator rather than a bare width, judged by the row its left operand takes, which is exactly
-> what makes `mwl-codegen`'s `emit_shift` sound in reading one signedness for both the
+> what makes `nvs-codegen`'s `emit_shift` sound in reading one signedness for both the
 > negative-count guard and the arithmetic-versus-logical choice. One level up from the `as` table,
 > **ADR 0066 § 3's own table is closed at both ends too**. `as ?T` "yields `null` exactly where `as
 > T` would throw", so a row that never throws promises a `null` no run can produce and forces a
@@ -243,32 +243,32 @@
 > propagates through both spellings alike, and a `catch` around either sees it. One level under
 > that, **an object whose static type names no class now renders through its runtime one** rather
 > than panicking below. `require_stringable` resolves a `toString` wherever the operand's type names
-> a class and `mwl-ir` calls it, unchanged; where it names none — an erased `object`, a `mixed`, any
-> other union — `mwl_runtime::stringify` asks the concrete instance's class for the same member,
+> a class and `nvs-ir` calls it, unchanged; where it names none — an erased `object`, a `mixed`, any
+> other union — `nvs_runtime::stringify` asks the concrete instance's class for the same member,
 > which is ADR 0036 § 4's deferral applied to the member access ADR 0028 § 1 says the conversion
 > *is*. So `echo $o`, `"" . $o` and `$o as string` are one answer for one value where they used to
 > be a rendering, a throw and a panic, and a class that declares no `toString` throws catchably,
 > naming itself and the interface. The `Core`-owned half is now the rendering half alone. Its
-> *refusal* is where it is written: `require_stringable` asks `mwl_stdlib::registry::class_renders`,
+> *refusal* is where it is written: `require_stringable` asks `nvs_stdlib::registry::class_renders`,
 > and a class it answers `false` for is `E0710` at the site rather than a throw below it — `echo`,
 > an interpolated piece, a `.` operand and `as string` agreeing because they are one check. Two
 > rosters answer, and they are two rules: `Core\Uri`, `Core\Uuid` and `Core\Time\Duration` have a
 > `toString` row, and the two sink carriers render through ADR 0088 § 5 with no member at all, which
-> is `mwl_runtime::is_carrier`'s list read rather than copied. The class that *does* render now
+> is `nvs_runtime::is_carrier`'s list read rather than copied. The class that *does* render now
 > renders. `require_stringable` records the same resolved `toString` target for a `Core` class that
 > a declared one gets — a `Core` member resolves out of the seeded signature table like any other —
-> and `mwl-ir` asks `core_symbol_of` which of the two calls to emit, so it takes the native
+> and `nvs-ir` asks `core_symbol_of` which of the two calls to emit, so it takes the native
 > `InstKind::CoreCall` the member written out takes rather than a `CallVirtual` into a method table
 > a `Core` class has no entry in. All four rendering spellings therefore agree with
 > `$uri->toString()` for each of the three classes the spec gives one, and the receiver's ownership
 > inverts with the call: a native member *borrows* argument 0, so a fresh receiver (`echo
 > Core\Uri::parse(…)`) is the rendering site's to release rather than the callee's, which is
 > valgrind-clean over a fixture that renders in a loop. That row is closed at its other end too, and
-> the erased half renders through the very same member. `mwl-runtime` sits below `mwl-stdlib` and
-> cannot read the registry, so what the two share is the **descriptor**: `mwl_stdlib::instance` puts
+> the erased half renders through the very same member. `nvs-runtime` sits below `nvs-stdlib` and
+> cannot read the registry, so what the two share is the **descriptor**: `nvs_stdlib::instance` puts
 > the class's registered `toString` on it as `ClassDesc::renderer`, derived from
 > `registry::class_renders` — the check the compiler already makes at a written `echo` — rather than
-> written down a second time, and `mwl_runtime::stringify` asks for that before the compiled method
+> written down a second time, and `nvs_runtime::stringify` asks for that before the compiled method
 > table a `Core` class has no entry in. It is deliberately not a row *in* that table, because the
 > two calling conventions differ: a compiled method owns its parameters while a native `Core` member
 > borrows argument 0, so which descriptor field an address came out of is what tells the caller
@@ -286,7 +286,7 @@
 > closed at both ends. A `name:` argument lands at the ABI position of the parameter its *name*
 > reached rather than at its own place in the list, with every parameter no argument filled taking
 > its own default in declaration order and evaluation staying in **written** order above the call —
-> `mwl_types`' `ResolvedCall::arg_slots` is that mapping and `mwl-ir` only reads it, a name
+> `nvs_types`' `ResolvedCall::arg_slots` is that mapping and `nvs-ir` only reads it, a name
 > resolving against a `MethodSig`'s parameter names that no later pass holds. A `...` argument is
 > one `array_spread` of the subject into the array a variadic tail already is, so how many arguments
 > arrive is the subject's own run-time length rather than anything the site counted. Through a
@@ -296,9 +296,9 @@
 > never their names, so PHP's spelling has nothing to resolve against here at all. A `...` needs no
 > parameter list to mean something, so it lowers — the whole argument list becomes one array behind
 > `Helper::CallClosureArray`, which is a second helper rather than a wider `CallClosure` because
-> that one's argument count is a literal `mwl-codegen` writes beside the argument slot, and a
+> that one's argument count is a literal `nvs-codegen` writes beside the argument slot, and a
 > spread's count is exactly the fact that is not known there. Both reach the one
-> `mwl_runtime::call_closure` every `Core` member's callback already does, through one shared arity
+> `nvs_runtime::call_closure` every `Core` member's callback already does, through one shared arity
 > check, so too few arguments is the same catchable `LogicError` and there is no second convention
 > beside it; too many are trimmed, which is PHP's answer for a userland call as well as the spec's
 > "a callback may declare fewer parameters". Valgrind-clean over a fixture that spreads a borrowed
@@ -315,7 +315,7 @@
 > wrote nothing back, and the old statement-level flush read a slot defined only in the branch it
 > skipped. The four statement-level flush sites are gone with it, and `lower_stmts`' assertion
 > survives as an internal-consistency check on the call sites rather than as a refusal of the
-> program. What this does **not** buy is PHP's *operand* order, and it is not meant to: MWL
+> program. What this does **not** buy is PHP's *operand* order, and it is not meant to: Novis
 > evaluates a binary operator's operands strictly left to right, so `$n + Adder::bump($n)` reads the
 > left `$n` before the call and answers `5 + 7` where PHP's compiled-variable read at the `ADD`
 > answers `7 + 7`. PHP's own manual leaves an expression's operand order undefined, so there is no
@@ -325,7 +325,7 @@
 > skips, transferring that binding's reference straight out instead of retaining it — and an `inout`
 > parameter is a `Ty::Ref` cell `release_all_locals` was never going to release in the first place
 > (the caller's copy-back owns that reference), so the exemption lost the retain outright and the
-> caller then freed a value its own staged slot still owned. `mwl run` printed the right answer and
+> caller then freed a value its own staged slot still owned. `nvs run` printed the right answer and
 > exited 127. The exemption is decided by the binding's representation now, and the pair is
 > valgrind-clean over a fixture that grows a borrowed and a freshly built string through an `inout`
 > parameter, and writes back through a property holder, two hundred times. **A `finally` now runs
@@ -341,14 +341,14 @@
 > frame names no handler at all and such a throw still reaches the enclosing region directly, so
 > nothing is spent on a `try`/`catch` that owes nothing. Valgrind-clean over a fixture that wraps,
 > re-raises through the same object, catches unbound and crosses a frame, two hundred times each.
-> `tests/conformance/error/a-finally-runs-when-its-catch-body-throws.mwlt` pins six shapes
+> `tests/conformance/error/a-finally-runs-when-its-catch-body-throws.nvst` pins six shapes
 > byte-for-byte against PHP 8.5.9's own output, an unbound clause, nested regions running innermost
-> first and the replacing `finally` among them; `mwl-ir`'s known gap 2 loses its first half and
-> `mwl-codegen`'s gap 0 is deleted outright, its two still-true sentences folded into the paragraph
+> first and the replacing `finally` among them; `nvs-ir`'s known gap 2 loses its first half and
+> `nvs-codegen`'s gap 0 is deleted outright, its two still-true sentences folded into the paragraph
 > above that list. Item 18's two named cases land with it —
-> `tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.mwlt` over the
+> `tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.nvst` over the
 > seven positions a staged call takes, and the oracle twin
-> `tests/differential/lang/a-reference-argument-matches-phps.mwlt`, which deliberately writes no
+> `tests/differential/lang/a-reference-argument-matches-phps.nvst`, which deliberately writes no
 > read to the *left* of such a call: that is the operand-order divergence `Lowering::pending_refs`
 > owns, PHP's manual leaves it undefined, and it is not a difference to pin. **An abandoned
 > generator's `finally` runs**, which is item 13 whole and the item that had the design call in it.
@@ -371,12 +371,12 @@
 > and `advance`'s own release on the way out would then cross zero a second time and re-enter the
 > release path on the allocation it is already dismantling. The retain inside `unwind` pairs with
 > that release, so the count it is handed is the count it leaves behind. The other end is now
-> `mwl_runtime::object::dismantle`, which calls that entry point before it sweeps the field slots —
+> `nvs_runtime::object::dismantle`, which calls that entry point before it sweeps the field slots —
 > where the parked locals the `finally` body reads still are — and three decisions make the call
 > safe, each recorded where it is made rather than in an ADR. **The name is unspellable**: the
 > method is `gen#unwind` rather than `unwind`, because the probe is made against *every* dying
 > object's class and a name a program could declare would turn a user method into the destructor ADR
-> 0028 § 2 says MWL does not have. **It is a descriptor field, not a probe**:
+> 0028 § 2 says Novis does not have. **It is a descriptor field, not a probe**:
 > `ClassTable::set_methods` resolves the one row once per class into `ClassDesc::unwind`, the
 > precedent `ClassDesc::renderer` set, so a dying object that is not a generator pays a null test
 > rather than a binary search over its whole method table. **The entry point resumes only a
@@ -388,7 +388,7 @@
 > since `gen#unwind` borrows and `advance()` releases — a pair that would otherwise cross zero and
 > re-enter the release path on the allocation already being dismantled — and the allocation is freed
 > below whatever the count then reads. The context the call needs comes from the thread rather than
-> from a parameter: `mwl_runtime::ctx::CurrentCtx` is installed by `abi::call`, the one door from
+> from a parameter: `nvs_runtime::ctx::CurrentCtx` is installed by `abi::call`, the one door from
 > Rust into compiled code, because threading a context through every release primitive would put a
 > parameter on the hot path of every decrement in the language to serve the one release in ten
 > thousand that frees a suspended generator. One divergence from PHP is left and it is deliberate: a
@@ -397,11 +397,11 @@
 > `Ctx::with_pending_set_aside` is that decision's home, ADR 0028 § 2's own paragraph now says so
 > instead of claiming an error edge it does not have, and surfacing it wants ADR 0020's ladder. Item
 > 13's two named cases land with it,
-> `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.mwlt` over
+> `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst` over
 > six shapes — abandoned inside the region, drained (the `finally` runs once and the release does
 > not re-run it), never entered, two nested regions innermost first, and a suspension the region
 > does not cover, which owes nothing — and the oracle twin
-> `tests/differential/iter/an-abandoned-generators-finally-matches-phps.mwlt`, which adds an
+> `tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst`, which adds an
 > abandonment made while an exception is in flight and agrees with PHP 8.5.9 byte for byte.
 > Valgrind-clean over four scratch fixtures covering the same shapes, the throwing `finally` among
 > them. **ADR 0007 § 4's ordering row is closed at both ends**, which is `emit_binop`'s
@@ -409,7 +409,7 @@
 > table orders the numeric types against each other and, through ADR 0013, two objects of one
 > `Comparable` class; everything else PHP orders it orders by **converting** an operand first, which
 > § 2 never does by itself, so an operand the table does not name has no `<` at all rather than a
-> plausible answer below it. `mwl_types`' `reject_unordered_operand` refuses it where it is written
+> plausible answer below it. `nvs_types`' `reject_unordered_operand` refuses it where it is written
 > (`E0715`), each help naming the spelling that says what was meant — `Core\Str::compare` for two
 > strings, `as int` for an enum case, and nothing at all for a `bytes`, an `array<T>`, a `callable`
 > or `null`, which have no ordering to name. Two rows go the other way and are answered rather than
@@ -445,9 +445,9 @@
 > hundred times with a freshly built operand in flight. What still reaches that catch-all is a
 > `Ty::Tagged` under an **arithmetic** operator — item 24's other half — and the three
 > representations no source expression has. Three live tools **are** the worklist and no session
-> re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen`
+> re-derives one: `python tools/holes.py` reads the refusal sites out of `nvs-ir` and `nvs-codegen`
 > and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
-> the named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
+> the named `.nvst` cases each stage still owes, and `python tools/check-migration.py` scores
 > `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
@@ -475,7 +475,7 @@ one's verification passes.
 | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
 | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
 | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
-| [M4B](plan/m4b.md) | Minimal `mwl-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
+| [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
 | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
 | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
 | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
@@ -486,7 +486,7 @@ one's verification passes.
 | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
 | [M14](plan/m14.md) | Optional wasm32 browser target | not estimated |
 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks; scheduled after M6) | ~3 + a calendar floor |
-| [M16](plan/m16.md) | `mwl/web`, `mwl new`, and the framework (~12 weeks; scheduled after M7 and M8) | ~4 |
+| [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks; scheduled after M7 and M8) | ~4 |
 
 Each row is a file under [docs/plan/](plan/). `python tools/plan.py --show M8` prints one
 without you needing to know that, and `--show M8:verify` prints only its acceptance paragraph.

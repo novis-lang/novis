@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
-- **Scope:** `mwl-host`'s compiled-unit cache, the M7 HTTP server's requirement to pick up an edited source
+- **Scope:** `nvs-host`'s compiled-unit cache, the M7 HTTP server's requirement to pick up an edited source
   file with no restart and no dropped request
 - **Amended by:** 0078, 0097
 
@@ -19,7 +19,7 @@
 
 ## Context
 
-- M7 requires that editing a `.mwl` file be visible to the next request with no restart, while every request
+- M7 requires that editing a `.nvs` file be visible to the next request with no restart, while every request
   stays exactly as isolated as behind a fresh subprocess ([0006](0006-isolated-script-execution.md)): a
   compile in flight must not stall unrelated requests, a running request must not be yanked out from under
   the code it started against, and nothing may reintroduce shared mutable state.

@@ -1,7 +1,7 @@
 --TEST--
 an if/else-if/else chain picks the same branch PHP's does over the same integers
 --FILE--
-<?mwl
+<?nvs
 class Classify {
     public static function of(int $n): string {
         if ($n < 0) {

@@ -1,7 +1,7 @@
 --TEST--
 Core\Regex::replaceWith hands every match to a callback and inserts its answer literally, from spec § 5
 --FILE--
-<?mwl
+<?nvs
 // § 5's `replaceWith(string $subject, Pattern|string $pattern, callable $fn,
 // {limit?: uint}): string` — PHP's preg_replace_callback, with one `Match`
 // where the positional array was.

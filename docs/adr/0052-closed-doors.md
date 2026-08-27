@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
-- **Scope:** four mechanisms PHP has that MWL will not implement at any tier, each because it contradicts a
+- **Scope:** four mechanisms PHP has that Novis will not implement at any tier, each because it contradicts a
   commitment the project has already made rather than because it is unpopular or hard. Ordinary triage
   outcomes — extensions dropped because something better replaces them — stay in
   [ADR 0051](0051-standard-library-tiers.md) § 3.
@@ -30,7 +30,7 @@
 - Each has a genuine constituency in PHP, and none is being closed because it is unused. FFI is how modern
   PHP wraps libraries without writing C. Stream wrappers are how `file_get_contents` reads a URL. APCu is
   in nearly every production deployment. `eval` underpins a generation of template engines. The argument in
-  every case is that the mechanism trades away something MWL has ranked above it.
+  every case is that the mechanism trades away something Novis has ranked above it.
 - Writing them down matters more than it looks. Three of the four are currently closed only by not having
   been built, which is not a decision — it is an absence, and absences get filled by whoever needs them
   next.
@@ -44,7 +44,7 @@ native code to be loaded into the process.
 
 [ADR 0003](0003-extension-system.md) rejected `dlopen` on two grounds: it destroys memory safety, because
 one bad write corrupts arbitrary memory, and it destroys request isolation, because one segfault takes down
-every in-flight request in MWL's single process. FFI reaches both outcomes from userland instead of from an
+every in-flight request in Novis's single process. FFI reaches both outcomes from userland instead of from an
 extension author, which makes it strictly worse: the code doing the unsafe pointer arithmetic is now
 written by an application developer under deadline rather than by someone who chose to write an extension.
 
@@ -87,7 +87,7 @@ This closes two things that look unrelated and are the same violation:
   touch is not thread-local. The environment is read-only after startup, and locale, scale and timezone are
   always explicit arguments.
 
-This does not close operator configuration. [ADR 0005](0005-config-changeability.md)'s `mwl.toml` and
+This does not close operator configuration. [ADR 0005](0005-config-changeability.md)'s `nvs.toml` and
 `Core\Config::set` are governed, per-request, and cannot widen an operator's ceiling; that is a different mechanism
 with a different threat model. The rule is about **userland calls whose effect outlives or escapes the
 caller's own request**.
@@ -120,9 +120,9 @@ or a plugin loader actually needs, with a boundary that `eval` never had.
 
 ## Consequences
 
-- **`mwl convert` cannot mechanically translate four PHP patterns**, and must diagnose rather than guess:
+- **`nvs convert` cannot mechanically translate four PHP patterns**, and must diagnose rather than guess:
   an `FFI::cdef` call, a path with a scheme prefix, an APCu or `shm_*` call, and `eval`. Each diagnostic
-  names the replacement — a `.mwlx`, a plain path, `Core\Cache`, `spawn script` — so migration is guided
+  names the replacement — a `.nvsx`, a plain path, `Core\Cache`, `spawn script` — so migration is guided
   rather than blocked. This is a real migration cost and the ADR does not minimize it: an application built
   on APCu will need its caching layer reconsidered, not rewritten mechanically.
 - **A class of library cannot be ported at all** — anything whose whole purpose is process-global state or
@@ -161,5 +161,5 @@ or a plugin loader actually needs, with a boundary that `eval` never had.
   ADR.
 - **M9:** the adversarial extension suite already required by ADR 0003 covers § 1 from the other side — an
   extension cannot reach native code the host did not import for it.
-- **M11:** `mwl convert` has a fixture for each of the four PHP patterns, asserting the diagnostic names the
+- **M11:** `nvs convert` has a fixture for each of the four PHP patterns, asserting the diagnostic names the
   replacement rather than emitting a partial translation.

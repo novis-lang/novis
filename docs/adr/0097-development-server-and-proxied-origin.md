@@ -8,7 +8,7 @@
   ceiling; and which HTTP conventions the server applies above
   [0077](0077-compile-time-routing.md)'s route table. Not in scope: the response policy — secure headers,
   CORS and cookies — which stays [0074](0074-http-defaults-safe-and-finite.md); rate limiting
-  ([0075](0075-core-ratelimit.md)); the control socket and `mwl ctl`
+  ([0075](0075-core-ratelimit.md)); the control socket and `nvs ctl`
   ([0078](0078-config-reload-and-control-socket.md)); the service installer
   ([0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)); hot reload's mechanism
   ([0017](0017-hot-reload-without-restart.md)); the route table, its grammar and its three compile errors
@@ -29,8 +29,8 @@
   [0064](0064-configuration-file-format.md) § 2a — the block table
   gains `[server]` and `[[server.mount]]`, and `[limits]`/`[limits.hard]` gain `request_body`.
   [0074](0074-http-defaults-safe-and-finite.md) — HSTS is emitted when the effective scheme is `https`
-  rather than only over a TLS connection MWL now never terminates, and its *Alternatives* line pushing edge
-  concerns to a proxy is narrowed a second time: the proxy owns **size and rate**, MWL owns **never waiting
+  rather than only over a TLS connection Novis now never terminates, and its *Alternatives* line pushing edge
+  concerns to a proxy is narrowed a second time: the proxy owns **size and rate**, Novis owns **never waiting
   forever** (§ 5). [0075](0075-core-ratelimit.md) — its "no IP limiting is a gap on paper" becomes a stated
   deployment requirement rather than an admitted hole. [0076](0076-observability-export.md) — a trace id is
   generated for **every** request regardless of the sampling decision, and is emitted on the response.
@@ -50,19 +50,19 @@
 - **Amended by:** 0102, 0103, 0104, 0105, 0106
 
 > **In short:** the server has exactly **two deployments** and no third — a **development server** that
-> serves static files beside `.mwl`, and a **proxied production origin** that replaces FastCGI. Everything a
+> serves static files beside `.nvs`, and a **proxied production origin** that replaces FastCGI. Everything a
 > proxy does earlier and better is dropped by name: no TLS listener, no h2c, no compression in either
 > direction, no edge limiting, no asset-caching policy. What replaces "one entry point" is a single
 > governing rule — **a filesystem path is never derived from a URL at request time**. FastCGI's RCE family
 > exists precisely because it is; here a URL *selects* a mount from a table that a glob expanded against
 > disk **at boot**. So a fleet of modules costs one line of configuration, wildcards are free, and
-> `mwl info --config` still prints every path that can ever execute.
+> `nvs info --config` still prints every path that can ever execute.
 
 ## Context
 
 - **The scope had no home.** [docs/adr/README.md](README.md) § *Where to look* routed "the built-in HTTP
   server" to [0017](0017-hot-reload-without-restart.md), which owns hot reload. With no document stating
-  what the server is for, a premise stated once travelled: "MWL is frequently deployed with no proxy at all"
+  what the server is for, a premise stated once travelled: "Novis is frequently deployed with no proxy at all"
   reached [0095](0095-ambiguous-input-is-refused-never-repaired.md)'s *Context*,
   [0074](0074-http-defaults-safe-and-finite.md)'s *Alternatives* and
   [0075](0075-core-ratelimit.md)'s *Consequences* without ever being decided anywhere.
@@ -72,16 +72,16 @@
   irrelevant; the derivation is the whole defect. A design that enumerates its entry points ahead of time is
   immune at any number of them.
 - **Multi-entry deployments are the normal shape, not an exception.** A document root holding many modules,
-  each with its own `public/index.mwl`, reached by vhost rewrite rules, is how a large fraction of PHP is
+  each with its own `public/index.nvs`, reached by vhost rewrite rules, is how a large fraction of PHP is
   actually deployed. A server that accepts one entry point per process answers it with N processes, N unit
-  caches and N times the resident memory — discarding the shared compiled-code cache that is one of MWL's
+  caches and N times the resident memory — discarding the shared compiled-code cache that is one of Novis's
   headline properties.
 - **Thread-per-core makes HTTP/2 upstream actively harmful**, which the earlier "h2c is nearly free"
   reasoning did not weigh. [docs/plan/design.md](../plan/design.md) pins one single-threaded runtime per
   core and balances *connections* across them, and a request never migrates — that is what buys non-atomic
   refcounts. A proxy speaking h2c deliberately opens few connections and multiplexes heavily, so its streams
   concentrate on one core while the rest idle, and the design cannot rebalance them by construction.
-- **[0080](0080-the-audience-mwl-is-built-for.md) sets the direction for every trust question here.** On a
+- **[0080](0080-the-audience-nvs-is-built-for.md) sets the direction for every trust question here.** On a
   multi-tenant host, "trust the loopback peer" is wrong: another tenant can connect over loopback and forge
   a header. Trust must be written down, and the shipped default must be the safe one.
 
@@ -89,10 +89,10 @@
 
 ### 1. Two deployments, and a closed list of what this is not
 
-**a. A development server.** HTTP only, on a laptop or in a container. It serves static files beside `.mwl`
+**a. A development server.** HTTP only, on a laptop or in a container. It serves static files beside `.nvs`
 and picks up an edit without a restart.
 
-**b. A proxied production origin.** `.mwl` only, behind nginx, Caddy, HAProxy or Envoy. It is a **FastCGI
+**b. A proxied production origin.** `.nvs` only, behind nginx, Caddy, HAProxy or Envoy. It is a **FastCGI
 replacement** and is scoped as one.
 
 There is no third. **The list of what a proxy owns is closed, and each entry is dropped by name:**
@@ -117,7 +117,7 @@ origin parser is dangerous.
 This is the rule the rest of the ADR is built to keep. A request may **select** an entry point from a set
 enumerated before the request arrived; it may never **construct** one.
 
-Every path the server can execute is therefore known at boot, printable by `mwl info --config`, and fixed
+Every path the server can execute is therefore known at boot, printable by `nvs info --config`, and fixed
 until a reload. That is what makes § 3's wildcards safe: expanding a glob against the disk at boot produces
 a literal table, whereas the same glob evaluated per request would be `cgi.fix_pathinfo` with a different
 spelling.
@@ -129,14 +129,14 @@ spelling.
 root = "/www"                             # every mount path must resolve inside this
 
 [[server.mount]]                          # one rule, every module present and future
-scan   = "*/public/index.mwl"             # a glob under [server] root; * captures one path segment
+scan   = "*/public/index.nvs"             # a glob under [server] root; * captures one path segment
 prefix = "/{1}"                           # or host = "{1}.example.com"
 origin = "https://{1}.example.com"        # optional — what `Core\Router::urlAbsolute` prepends
 mode   = "production"                     # optional, § 10
 
 [[server.mount]]                          # an irregular module, overriding the scan at its key
 prefix = "/admin"
-entry  = "Backoffice/public/index.mwl"
+entry  = "Backoffice/public/index.nvs"
 ```
 
 - **A mount matches on `prefix`, on `host`, or on both**, and names **either** `entry` (one literal file)
@@ -148,13 +148,13 @@ entry  = "Backoffice/public/index.mwl"
 - **Every resolved path is checked to resolve inside `[server] root`** — once, at boot, not per request.
 - **An explicit mount overrides a scanned one at the same key**, so one irregular module costs one block.
   Two explicit mounts at one key is a boot error.
-- **Expansion re-runs on `mwl ctl reload`.** In development it may also re-run under
+- **Expansion re-runs on `nvs ctl reload`.** In development it may also re-run under
   [0017](0017-hot-reload-without-restart.md)'s revalidation, whose directory-listing set
   [0061](0061-compile-time-autoload-and-program-discovery.md) § *Interaction* already established for this
   milestone — so a newly dropped-in module appearing without a reload reuses a planned mechanism rather than
   adding one.
 - **With no `[[server.mount]]` written at all**, there is one implicit mount:
-  `{ prefix = "/", entry = "public/index.mwl" }`.
+  `{ prefix = "/", entry = "public/index.nvs" }`.
 
 **The matched prefix is stripped.** `Core\Request::path()` is the remainder, and
 **`Core\Request::mount()`** returns `{prefix: string, captures: array<tainted string>}` — what was removed,
@@ -182,13 +182,13 @@ through it rather than concatenating strings, so nothing new is asked of anyone.
 ```
 1. longest match:  host mounts by prefix  ->  host-less mounts by prefix  ->  404
 2. strip the prefix
-3. [server] static  &&  the remainder is an existing non-.mwl file under the mount root  -> serve it
-4. dispatch == "path"  &&  the remainder is an existing .mwl file under the mount root   -> run it
+3. [server] static  &&  the remainder is an existing non-.nvs file under the mount root  -> serve it
+4. dispatch == "path"  &&  the remainder is an existing .nvs file under the mount root   -> run it
 5. otherwise                                                                             -> run the mount's entry
 ```
 
 In production (`dispatch = "entry"`, `static = false`) steps 3 and 4 do not run: match, strip, run the
-entry. In development the sequence is `try_files $uri /index.mwl` — the pattern every PHP application
+entry. In development the sequence is `try_files $uri /index.nvs` — the pattern every PHP application
 already deploys under.
 
 **Static serving is one policy in both modes**, because a second policy is a second security model. Exact
@@ -198,7 +198,7 @@ from a fixed extension table and an unknown one is `application/octet-stream`, w
 `Cache-Control: no-cache` with a strong `ETag` over `(size, mtime_nanos)` and `If-None-Match` — one
 validator, exact, and specifically **not** `Last-Modified`, whose one-second granularity serves stale bytes
 for two edits inside the same second. A single `Range` is honoured; a multi-range request is refused.
-**A `.mwl` file is never served as source**, under any dispatch, from any mount.
+**A `.nvs` file is never served as source**, under any dispatch, from any mount.
 
 `[server] static` is a boolean and the *path* is each mount's own root, which is what makes assets work for
 a fleet of modules rather than only for one.
@@ -224,7 +224,7 @@ keepalive_timeout  = "75s"
 - **One flat `listen` array.** An entry beginning with a separator is a Unix socket; no `host:port` can be
   spelled that way, so the overload is unambiguous. A Unix socket is the transport a proxy should prefer and
   is what makes FastCGI unnecessary. **Unix sockets are Unix-only**: no Windows proxy connects to a named
-  pipe upstream, so Windows listens on TCP loopback. `mwl serve --listen`/`--port` overrides the file, on
+  pipe upstream, so Windows listens on TCP loopback. `nvs serve --listen`/`--port` overrides the file, on
   [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 2's precedent that the flag is
   the last word.
 - **The default is `127.0.0.1:8000` in both modes.** Loopback is the proxied shape as well as the
@@ -232,15 +232,15 @@ keepalive_timeout  = "75s"
 - **Four waits, all finite with nothing configured, and all *idle* rather than total** — so a slow 2 GB
   upload completes while a stalled socket does not. This narrows
   [0074](0074-http-defaults-safe-and-finite.md)'s delegation rather than contradicting it: **a proxy owns
-  size and rate; MWL owns never waiting forever**, which is that ADR's own headline. They are `Boot`-class
-  because `header_timeout` and `keepalive_timeout` both apply before any MWL code exists on that connection,
+  size and rate; Novis owns never waiting forever**, which is that ADR's own headline. They are `Boot`-class
+  because `header_timeout` and `keepalive_timeout` both apply before any Novis code exists on that connection,
   so a `Runtime` class would be a promise two of the four could not keep.
 - **`keepalive_timeout` must exceed the proxy's upstream keep-alive.** If the origin closes an idle
   connection the proxy still believes is live, the proxy writes into a closing socket and the client gets an
   intermittent 502. nginx's upstream default is 60s; 75s is deliberately above it, and a deployment that
   raises the proxy's must raise this one.
 - **`max_in_flight` is a process-wide safety valve, not a worker pool.** At the ceiling the server answers a
-  fixed `503` with `Retry-After: 1` **before allocating an isolate, compiling anything or running any MWL
+  fixed `503` with `Retry-After: 1` **before allocating an isolate, compiling anything or running any Novis
   code** — a cap that allocates in order to refuse does not protect what it exists to protect, and the
   consequence to accept is that this path has no custom error page. It is counted process-wide through one
   relaxed atomic rather than per core, so one hot core cannot refuse while its neighbours idle; that counter
@@ -295,7 +295,7 @@ keepalive_timeout  = "75s"
 bug behind a TLS-terminating proxy is removed rather than handled. It does not feed the cookie `Secure`
 flag, which [0074](0074-http-defaults-safe-and-finite.md) sets unconditionally and correctly. And there is
 **no `X-Forwarded-Host` and no absolute-URL generation from `Host`**: [0077](0077-compile-time-routing.md)
-§ 4 already makes `Core\Router::url` answer with a path, so MWL never needs to know its own external origin,
+§ 4 already makes `Core\Router::url` answer with a path, so Novis never needs to know its own external origin,
 and deriving one from a header is host-header injection.
 
 **`X-Forwarded-For` is the only forwarded-address header read.** RFC 7239 `Forwarded` is not read at all —
@@ -305,7 +305,7 @@ supporting both is what *creates* an ambiguity that would then have to be refuse
 | Input | Behaviour |
 |---|---|
 | Several `X-Forwarded-For` field lines | joined with commas, then walked — RFC 7230 § 3.2.2 permits combining a list-valued field, so every conforming reader agrees and this is *unusual*, not *ambiguous* |
-| `Forwarded` present, no `X-Forwarded-For`, peer trusted | ignored, request served, **one** `Warn` — a detectable proxy misconfiguration, and refusing would take a site down over a header MWL chose not to support |
+| `Forwarded` present, no `X-Forwarded-For`, peer trusted | ignored, request served, **one** `Warn` — a detectable proxy misconfiguration, and refusing would take a site down over a header Novis chose not to support |
 | The token the walk lands on does not parse as an IP | **400** — the value was about to be used and cannot be |
 | `X-Forwarded-For` from an untrusted peer | **ignored silently, never refused** |
 
@@ -400,7 +400,7 @@ the trace is *exported* — so the id needed to join a log line to an error page
 already present on every request. `Core\Server::traceId()` reads it, every log record and every error
 rendering carries it, and it is emitted on the response so a proxy can log it with one `log_format` line.
 **An inbound `X-Request-ID` is ignored**, which avoids a validation rule against log injection for a fact
-MWL already has.
+Novis already has.
 
 ### 10. A mount routes and carries nothing else; policy is the per-app block's
 
@@ -424,32 +424,32 @@ This section previously gave a mount its own `mode` key, as the only mechanism
 point at, and recorded the missing per-app block as a doc bug it declined to fix — because defining
 capabilities and limits here would have put a second home on a fact
 [0005](0005-config-changeability.md) owns. 0104 fixes it on 0005's behalf, honouring the constraint this
-section carried forward: **an application's identity is its entry file path, not its mount**, so `mwl run`
+section carried forward: **an application's identity is its entry file path, not its mount**, so `nvs run`
 on the CLI has one too and per-app configuration is reachable in M6 rather than only once a server exists.
 
 ## Consequences
 
-- **MWL cannot be a single-binary HTTPS origin.** Go services and Caddy can; this closes that door for as
+- **Novis cannot be a single-binary HTTPS origin.** Go services and Caddy can; this closes that door for as
   long as § 1 stands. [0048](0048-portable-single-file-executables.md)'s bundle and
   [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)'s installed service both now
   describe something that runs behind a proxy.
 - **A production deployment with no proxy has no edge protection at all** — no per-IP limiting, no flood
   shedding, no TLS. [0075](0075-core-ratelimit.md)'s "gap on paper" is now a stated requirement: put a proxy
-  in front. What MWL still guarantees alone is the parsing half
+  in front. What Novis still guarantees alone is the parsing half
   ([0095](0095-ambiguous-input-is-refused-never-repaired.md)) and the finite waits of § 5.
 - **An upload costs one chunk of memory and a file's worth of disk**, per
   [0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) § 6: the resource a large
-  upload can exhaust on an MWL origin is the volume the application writes to, and bounding that is the
+  upload can exhaust on an Novis origin is the volume the application writes to, and bounding that is the
   application's and the operator's, not the server's.
-- **Browsers always speak HTTP/1.1 to MWL**, since h2 requires TLS and § 1 removes it. This costs nothing in
+- **Browsers always speak HTTP/1.1 to Novis**, since h2 requires TLS and § 1 removes it. This costs nothing in
   development and nothing behind a proxy, which terminates h2 or h3 for the client either way.
 - **A mount scan reads the filesystem at boot and on reload**, so a deployment adding a module makes it
   reachable by dropping a directory in place — and a deployment that did *not* intend that must not put an
-  unexpected directory under `[server] root`. `mwl info --config` printing the expanded table is what makes
+  unexpected directory under `[server] root`. `nvs info --config` printing the expanded table is what makes
   that inspectable rather than a surprise.
 - **[0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s single-sentence property
   becomes two.** "No row is `System`-class" was clean; § 3a splits it, and every future directive now has to
-  answer which table it belongs in. Accepted because the alternative is that `mwl serve --mode=development`
+  answer which table it belongs in. Accepted because the alternative is that `nvs serve --mode=development`
   enables none of hot reload, static files or path dispatch — `php.ini-development` reinvented as a file
   people copy without reading.
 
@@ -483,7 +483,7 @@ on the CLI has one too and per-app configuration is reachable in M6 rather than 
 - **Refusing any request carrying `X-Forwarded-For` from an untrusted peer.** The strictest reading, and a
   denial-of-service footgun: the header is client-settable, so anyone could refuse a deployment by sending
   it.
-- **Trusting loopback by default.** Convenient, and wrong for [0080](0080-the-audience-mwl-is-built-for.md)'s
+- **Trusting loopback by default.** Convenient, and wrong for [0080](0080-the-audience-nvs-is-built-for.md)'s
   first audience, where another local tenant can forge the header.
 - **`Last-Modified` for static files.** Rejected in § 4: one-second granularity serves stale bytes for two
   edits inside one second, which costs an hour before anyone suspects the server.
@@ -500,13 +500,13 @@ In M7, alongside the fixtures [docs/plan/m7.md](../plan/m7.md) already lists:
   it equals the expanded mount table; no request, however spelled, adds to that set. A path containing a
   dot-segment or `%2f` is refused before any mount is selected.
 - **§ 3, the mount table.** A scan over a fixture tree of three modules expands to three mounts;
-  `mwl info --config` prints all three with their source; an explicit mount at a scanned key wins; two
+  `nvs info --config` prints all three with their source; an explicit mount at a scanned key wins; two
   explicit mounts at one key refuse at boot; a scan capture containing a separator, a leading dot or a
   reserved Windows device name is refused; an expanded path resolving outside `[server] root` is refused.
   A module mounted at `/ModuleA` and the same module mounted at `/` both serve, and `Core\Router::url`
   answers with the mount's prefix in each.
-- **§ 4, resolution.** In production a request for an existing `.mwl` file under the mount root runs the
-  *entry*, not that file. In development it runs that file. A `.mwl` file is never returned as source in
+- **§ 4, resolution.** In production a request for an existing `.nvs` file under the mount root runs the
+  *entry*, not that file. In development it runs that file. A `.nvs` file is never returned as source in
   either. A directory request never lists. A second `GET` of an unchanged asset is a `304`; an asset edited
   twice within one second serves the second edit.
 - **§ 5.** Each of the four waits fires on a stalled connection and none fires on a slow-but-progressing

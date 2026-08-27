@@ -25,15 +25,15 @@
   public-bind banner.
 - **Amended by:** 0097, 0103, 0104
 
-> **In short:** MWL has no notion of a development deployment versus a production one, and every ecosystem
+> **In short:** Novis has no notion of a development deployment versus a production one, and every ecosystem
 > that added one late added it as an **environment variable controlling an un-enumerable bundle** —
 > `APP_ENV`, `DEBUG`, `NODE_ENV`, `RAILS_ENV`. That shape produced Django's settings-dump error page and
 > Laravel's CVE-2021-3129, and it produced them because nobody could answer *what exactly does this
 > change?* This ADR takes the opposite shape at every point. There are exactly **two** modes,
 > `development` and `production`, they are a closed enum, and the value with nothing configured is
 > **production**. A mode is a **shorthand for the defaults of eight named directives** and nothing else —
-> each stays individually settable, so `mwl info --config` prints every resolved value and the mode hides
-> no behaviour. It is set in root-owned `mwl.toml` and by `mwl serve --mode=`, never by an environment
+> each stays individually settable, so `nvs info --config` prints every resolved value and the mode hides
+> no behaviour. It is set in root-owned `nvs.toml` and by `nvs serve --mode=`, never by an environment
 > variable, because [0012](0012-no-superglobals.md) already says no variable is populated by the host. A
 > program may **read** it (`Core\Env::mode()`) and may **flip** it for its own request
 > (`Core\Config::set`), bounded by a `System`-class ceiling that defaults to the mode the server started
@@ -41,12 +41,12 @@
 
 ## Context
 
-- **The gap is that there is no gap-filler.** Nothing in MWL distinguishes a developer's laptop from a
+- **The gap is that there is no gap-filler.** Nothing in Novis distinguishes a developer's laptop from a
   production host. Every directive that ought to differ between them —
   [0092](0092-one-diagnostic-record-three-renderings.md)'s inline dumps and log rendering,
   [0020](0020-error-escalation-ladder.md) § 7's generic-versus-detailed error response — is either
   individually configured or not yet spelled at all. Left alone, each new one invents its own answer and
-  MWL arrives where PHP is: `php.ini-development` and `php.ini-production` as two files you copy, with
+  Novis arrives where PHP is: `php.ini-development` and `php.ini-production` as two files you copy, with
   every framework layering its own switch on top.
 - **The failure mode is identical everywhere it exists, and it is not the switch — it is the bundle.**
   Laravel and Symfony carry *two independent axes*, `APP_ENV` and `APP_DEBUG`, so `APP_ENV=prod
@@ -56,7 +56,7 @@
   that Django added `ALLOWED_HOSTS` and a `check --deploy` command in response. Node's `NODE_ENV` is a
   *convention* rather than a mechanism: every library sniffs it independently, so a stack can be half in
   production mode with nothing detecting it.
-- **The two that do better do better for reasons MWL already has.** ASP.NET Core layers
+- **The two that do better do better for reasons Novis already has.** ASP.NET Core layers
   `appsettings.{Environment}.json` over a base, which is [0005](0005-config-changeability.md)'s overlay
   with more files; Rust's `cfg!(debug_assertions)` cannot be flipped at run time at all, which is safe and
   too rigid for a server an operator must be able to re-point without a restart.
@@ -64,7 +64,7 @@
   `Runtime` default a request may change; `[limits.hard]` states a `System` ceiling it may not exceed. That
   pair is exactly what a mode needs — a value code can move, and a root-owned bound on how far — and
   reusing it means the mode is not a new mechanism, only a second instance of one.
-- **[0080](0080-the-audience-mwl-is-built-for.md) makes the direction non-negotiable.** MWL is built first
+- **[0080](0080-the-audience-nvs-is-built-for.md) makes the direction non-negotiable.** Novis is built first
   for multi-tenant and regulated platforms. On such a host the question is not "is my laptop in dev mode"
   but "can any application on this box reach a debug surface", and that question must have a root-owned
   answer.
@@ -105,9 +105,9 @@ default = "production"      # Runtime — the mode an application starts in
 ceiling = "development"     # System  — the most permissive mode any code may select
 ```
 
-- **`mwl.toml` is one source.** `[mode] default` is `Runtime`-class per
+- **`nvs.toml` is one source.** `[mode] default` is `Runtime`-class per
   [0005](0005-config-changeability.md), which is what makes § 4's flip possible at all.
-- **`mwl serve --mode=development` is the other, and it overrides the file.** Ordinary CLI precedence: the
+- **`nvs serve --mode=development` is the other, and it overrides the file.** Ordinary CLI precedence: the
   flag is the last word about the mode the server starts in. This is a deliberate choice of ergonomics over
   one safety catch — refusing a flag that contradicts the file would have caught a deploy script carrying a
   stale `--mode`, and § 6's banner is what covers that case instead.
@@ -115,18 +115,18 @@ ceiling = "development"     # System  — the most permissive mode any code may 
   places it: `--mode` replaces the **global** value, and a matching `[[app]]` block
   ([0104](0104-an-application-is-an-entry-file-path.md)) still layers over it, so a flag never drags an
   application that pins its own mode along with it. The flag set is closed and there is no `--set`.
-- **No environment variable is read. Not `MWL_MODE`, not `APP_ENV`, not `NODE_ENV`.**
+- **No environment variable is read. Not `NVS_MODE`, not `APP_ENV`, not `NODE_ENV`.**
   [0012](0012-no-superglobals.md) says no variable is ever populated by the host and
   [0064](0064-configuration-file-format.md) § 5 makes `Core\Env` read-only; an env-var mode would be the
-  one place MWL reintroduces the exact mechanism behind every incident in *Context*. The operator's runtime
-  switch is `mwl ctl reload` ([0078](0078-config-reload-and-control-socket.md)), which swaps the whole
+  one place Novis reintroduces the exact mechanism behind every incident in *Context*. The operator's runtime
+  switch is `nvs ctl reload` ([0078](0078-config-reload-and-control-socket.md)), which swaps the whole
   snapshot over a local socket with no restart and no control port — strictly more capable than editing an
   environment variable, and root-owned.
 
 ### 3. A mode selects defaults for five `Runtime` directives, and governs nothing else
 
 **The mode is a shorthand. It changes only the *default* of directives that are each individually settable
-anyway**, which is exactly what [0005](0005-config-changeability.md) says `mwl.toml` states. The complete
+anyway**, which is exactly what [0005](0005-config-changeability.md) says `nvs.toml` states. The complete
 list, and it is complete:
 
 | Directive | Class | `production` | `development` | Owner |
@@ -141,7 +141,7 @@ Three properties follow, and together they are the whole reason this is a table 
 
 1. **Every row is spellable on its own**, so `mode = "development"` beside `[log] format = "json"` is legal
    and means what it reads like — the mode supplies a default, the explicit line overrides it.
-2. **`mwl info --config` prints the resolved value of every directive**, so *what exactly does development
+2. **`nvs info --config` prints the resolved value of every directive**, so *what exactly does development
    mode change?* has a complete, mechanical answer at any moment. This is the property `NODE_ENV` cannot
    offer and the reason a closed list was chosen over a behaviour flag.
 3. **No row in *this* table is `System`-class**, which is what makes § 4's runtime flip coherent:
@@ -169,13 +169,13 @@ a request that could set `validate = never` for itself would pin a version of th
 and a startup value chosen by a root-owned mode does none of that.
 
 Everything § 3 exists to protect survives: the list is still closed, still eight rows, and
-`mwl info --config` still prints every resolved value. The cost is that a future directive now has to answer
+`nvs info --config` still prints every resolved value. The cost is that a future directive now has to answer
 which of the two tables it belongs in, and the ADR says which by the directive's changeability class alone.
 
 **What a mode deliberately does not govern**, each with the reason:
 
 - **`[debug] mode`** — [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
-  coverage/trace/profile bits. That ADR already gives operators the story (a production `mwl.toml` sets
+  coverage/trace/profile bits. That ADR already gives operators the story (a production `nvs.toml` sets
   `[]`, a development or CI host sets a wider ceiling), and its directive is `RuntimeTighten` where the
   configured value is the default *and* the bound — so a mode that widened it would turn probes on for
   every request rather than making them available, spending priority-3 latency nobody asked for.
@@ -221,11 +221,11 @@ That default gets every case right with no ceremony:
 | Deployment | Written | Result |
 |---|---|---|
 | Production host | nothing | Started in `production`, ceiling is `production`. **No code path anywhere can reach development mode.** |
-| Developer's machine | `mwl serve --mode=development` | Ceiling is `development`. Flips are free; nothing to configure. |
+| Developer's machine | `nvs serve --mode=development` | Ceiling is `development`. Flips are free; nothing to configure. |
 | One host, mixed applications | `[mode] default = "production"`, `[mode] ceiling = "development"` | The host is production by default and each application selects its own — in code, or on its mount ([0097](0097-development-server-and-proxied-origin.md) § 10). |
 
-**The ceiling bounds a runtime flip, not the startup value.** `mwl serve --mode=development` in a directory
-with no `mwl.toml` still simply works — the flag sets the startup mode, and the ceiling follows it. A
+**The ceiling bounds a runtime flip, not the startup value.** `nvs serve --mode=development` in a directory
+with no `nvs.toml` still simply works — the flag sets the startup mode, and the ceiling follows it. A
 ceiling that also bound startup would have made the most common first-run command fail.
 
 **For the mixed-host case, per-app configuration is the better primary answer and the in-code flip is the
@@ -253,7 +253,7 @@ public debug surface.
 ## Consequences
 
 - **"What does development mode change?" has a complete answer, permanently.** Four directives, printed by
-  `mwl info --config`, extended only by adding a directive first. That is the property none of PHP, Node,
+  `nvs info --config`, extended only by adding a directive first. That is the property none of PHP, Node,
   Django, Rails or ASP.NET Core can state about their own switch, and it is bought entirely by refusing to
   let a mode gate a behaviour.
 - **A default deployment is unreachable from code.** With nothing written, the mode is production and the
@@ -268,22 +268,22 @@ public debug surface.
   [0033](0033-secret-qualifier-for-confidential-values.md)'s redaction applies to a detailed error page
   exactly as it applies everywhere else, so the disclosure is bounded to program state that was never
   `secret`. Runtime cost on the request path: none — the mode resolves at boot and again only on
-  `mwl ctl reload`, and a flip writes one entry into an overlay that already exists.
+  `nvs ctl reload`, and a flip writes one entry into an overlay that already exists.
 - **A second `Runtime`-plus-`System`-ceiling pair exists**, after `[limits]`/`[limits.hard]`. Two instances
   of one shape is a pattern; a reader who has understood limits has already understood this. Adding a third
   would need an argument, and this ADR asserts there is no third.
-- **`mwl convert` gains nothing.** PHP has no mode to convert *from* — `php.ini-development` is a file
+- **`nvs convert` gains nothing.** PHP has no mode to convert *from* — `php.ini-development` is a file
   someone copied, not a construct in the source — so an `APP_ENV` read in a converted Laravel application
   arrives as an ordinary `Core\Env::get` and stays one. That is correct: it is that application's own
-  variable, not MWL's mode.
+  variable, not Novis's mode.
 
 ## Alternatives rejected
 
-- **An `MWL_MODE` environment variable.** The twelve-factor shape, and genuinely lower friction on
+- **An `NVS_MODE` environment variable.** The twelve-factor shape, and genuinely lower friction on
   Kubernetes, where a variable in a manifest beats templating a config file. Rejected because it fights
   [0012](0012-no-superglobals.md) head-on rather than merely sitting beside it — that ADR would need
   amending, not cross-linking — and because it is the precise mechanism behind Laravel's, Django's and
-  Node's incident classes. `mwl ctl reload` covers the operational need it was reaching for.
+  Node's incident classes. `nvs ctl reload` covers the operational need it was reaching for.
 - **Three modes, adding `test`.** [0079](0079-testing-is-a-language-feature.md) already makes a `#[Test]`
   method its own isolate and [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3 already
   binds that run's `echo` to a captured sink. A `test` mode would be a second home for a context the
@@ -309,10 +309,10 @@ public debug surface.
 ## Verification
 
 - **M6:** `[mode] default` and `[mode] ceiling` parse, carry the classes § 2 states, and appear in
-  `mwl info --config`. With nothing configured, `Core\Env::mode()` is `Env\Mode::Production`.
+  `nvs info --config`. With nothing configured, `Core\Env::mode()` is `Env\Mode::Production`.
 - **M6:** the four rows of § 3's table resolve to their per-mode defaults, and an explicit directive beside
   `mode` overrides the mode's default rather than the reverse.
-- **M6:** `mwl serve --mode=development` against a `mwl.toml` stating `default = "production"` starts in
+- **M6:** `nvs serve --mode=development` against a `nvs.toml` stating `default = "production"` starts in
   development mode — the flag wins, and no diagnostic is emitted.
 - **M6:** with the ceiling unset on a host started in `production`, `Core\Config::set("mode",
   "development")` returns `false` and leaves `Core\Env::mode()` at `Production`. With
@@ -320,9 +320,9 @@ public debug surface.
   observes `Production` — the flip did not escape its overlay.
 - **M6:** flipping the mode re-derives `[debug] inline`, `[log] format`, `[log] level` and
   `[http.errors] detail`, except one the same request already set explicitly, which keeps its value.
-- **M6:** `mwl ctl reload` with a changed `[mode] default` takes effect on the next request with no
+- **M6:** `nvs ctl reload` with a changed `[mode] default` takes effect on the next request with no
   restart, per [0078](0078-config-reload-and-control-socket.md).
-- **M6:** no environment variable named `MWL_MODE`, `APP_ENV` or `NODE_ENV` changes any observable
+- **M6:** no environment variable named `NVS_MODE`, `APP_ENV` or `NODE_ENV` changes any observable
   behaviour — a test that sets all three and asserts the mode is unchanged.
 - **M7:** a development-mode server bound to a non-loopback address emits the banner and one
   `Log\Level::Warn` record naming the address; bound to loopback it emits neither.

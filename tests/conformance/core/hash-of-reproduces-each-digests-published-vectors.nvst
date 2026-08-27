@@ -1,9 +1,9 @@
 --TEST--
 `Core\Hash::of` reproduces each `Core\Digest` case's own published vector, hashes the empty input and hashes a buffer no `string` could hold — spec § 11, ADR 0009 §§ 1 and 3
 --FILE--
-<?mwl
+<?nvs
 // § 11: the algorithm is an argument, so this one member has to be right six
-// times over. `hash-computes-every-digest-and-authenticates-with-hmac.mwlt`
+// times over. `hash-computes-every-digest-and-authenticates-with-hmac.nvst`
 // walks the roster once with "abc"; this case pins each case against the
 // specification that publishes it, plus the two inputs a per-algorithm
 // dispatch is most likely to get wrong — nothing at all, and octets that are

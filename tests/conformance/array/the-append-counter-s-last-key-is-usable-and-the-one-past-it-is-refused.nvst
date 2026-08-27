@@ -1,8 +1,8 @@
 --TEST--
 `$a[]` lands on the append counter's last usable key and refuses the one past it, catchably — ADR 0007 § 5
 --FILE--
-<?mwl
-// The counter `mwl_runtime::array`'s `Table::note_index` keeps saturates at
+<?nvs
+// The counter `nvs_runtime::array`'s `Table::note_index` keeps saturates at
 // `i64::MAX`, so the bound named here is the last key an append can land on
 // and the first append that has nowhere to go. Both sides, per conventions.md:
 // a case asserting only the refusal still passes against an implementation
@@ -16,7 +16,7 @@ $accepted[] = 2;
 echo "landed at: ", Core\Json::encode(Core\Arr::keys($accepted)), "\n";
 
 // The first refused side. The counter now names a live key, and PHP 8.5 throws
-// there rather than overwriting it — `mwl_runtime::mwl_array_append` carries
+// there rather than overwriting it — `nvs_runtime::nvs_array_append` carries
 // that message verbatim, and it is the one array write with a fault channel to
 // carry it in.
 try {
@@ -52,7 +52,7 @@ try {
 }
 
 // `unset` frees the key without moving the counter — the sibling case
-// `unset-does-not-move-the-append-counter.mwlt` pins that half — so the key it
+// `unset-does-not-move-the-append-counter.nvst` pins that half — so the key it
 // freed is exactly where the next append lands, a second time. PHP 8.5 agrees.
 unset($atBound[9223372036854775807]);
 $atBound[] = 2;

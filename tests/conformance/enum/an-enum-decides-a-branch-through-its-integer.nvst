@@ -1,7 +1,7 @@
 --TEST--
 An enum reaches an `if` chain through `as int`, and a constructor stores the case behind an int-typed property
 --FILE--
-<?mwl
+<?nvs
 enum Level {
     Low = 1,
     Mid = 5,

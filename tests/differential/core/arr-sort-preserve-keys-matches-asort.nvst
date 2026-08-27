@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::sort with `{preserveKeys: true}` produces what PHP's asort and arsort produce
 --FILE--
-<?mwl
+<?nvs
 array<int> $scores = ["carol" => 3, "alice" => 1, "bob" => 2];
 
 foreach (Core\Arr::sort($scores, {preserveKeys: true}) as string $k => int $v) {

@@ -1,7 +1,7 @@
 --TEST--
 A throw from inside two nested protected regions in a loop body runs both `finally` blocks innermost-out on its way to the handler outside the loop
 --FILE--
-<?mwl
+<?nvs
 class Scan {
     public static function upTo(int $stopAt): string {
         var $log = "";

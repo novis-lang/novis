@@ -1,7 +1,7 @@
 --TEST--
 `Core\Bytes::join` concatenates buffers and defaults its separator to the empty one — spec § 7
 --FILE--
-<?mwl
+<?nvs
 array<bytes> $parts = [
     Core\Encoding::fromHex("de"),
     Core\Encoding::fromHex("adbe"),

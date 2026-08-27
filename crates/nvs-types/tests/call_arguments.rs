@@ -1,8 +1,8 @@
 //! `name: value` and `...$rest` at a call site: which parameter each written
 //! argument fills, and every refusal working that out can produce.
 //!
-//! The rules and their reasons live on `mwl_types::expr::args::map_arguments`;
-//! these pin them. The mapping is also what `mwl-ir` reads back as
+//! The rules and their reasons live on `nvs_types::expr::args::map_arguments`;
+//! these pin them. The mapping is also what `nvs-ir` reads back as
 //! `ResolvedCall::arg_slots`, so a test that a *named* argument's type is
 //! checked against the parameter its name reached — not against the one at its
 //! own position — is the one that says the mapping happened at all.
@@ -10,12 +10,12 @@
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 /// `class T` with one method, wrapped so a fixture is one line of interest.
 fn with_method(params: &str, body: &str) -> String {
     format!(
-        "<?mwl\nclass T {{\n  static function m({params}): void {{}}\n  static function go(): void {{\n    {body}\n  }}\n}}\n"
+        "<?nvs\nclass T {{\n  static function m({params}): void {{}}\n  static function go(): void {{\n    {body}\n  }}\n}}\n"
     )
 }
 
@@ -102,7 +102,7 @@ fn a_name_no_parameter_carries_is_refused() {
 
 #[test]
 fn a_variadic_tail_cannot_be_filled_by_name() {
-    // PHP collects an unmatched name into the variadic as a string key. MWL
+    // PHP collects an unmatched name into the variadic as a string key. Novis
     // builds that array out of the arguments written into it, so there is
     // nothing for a name to key.
     let src = with_method("int $count, string ...$rest", "T::m(1, rest: \"x\");");
@@ -120,7 +120,7 @@ fn a_core_member_has_no_parameter_names_to_call_by() {
     // ADR 0063 R2's options bag is `Core`'s by-name surface, and the registry
     // records a row's parameter *types* and nothing else.
     let diags = check_src(
-        "<?mwl\nclass T {\n  static function go(): void {\n    Core\\Str::repeat(subject: \"x\", times: 2);\n  }\n}\n",
+        "<?nvs\nclass T {\n  static function go(): void {\n    Core\\Str::repeat(subject: \"x\", times: 2);\n  }\n}\n",
     );
     assert!(
         diags
@@ -158,7 +158,7 @@ fn a_named_argument_through_a_callable_is_refused() {
     // ADR 0031 § 1 gives `callable` no parameter list, so there is no
     // parameter for the name to fill — and nothing below has one either: a
     // closure value records its arity and its parameter tags, never their
-    // names. `mwl_types::expr::calls::report_named_args_through_callable`
+    // names. `nvs_types::expr::calls::report_named_args_through_callable`
     // owns the rule.
     let src = with_method(
         "int $count",
@@ -178,7 +178,7 @@ fn a_spread_argument_through_a_callable_is_accepted() {
     // The other half of the same rule: how many arguments a `...` hands over
     // is its own run-time length, which needs no parameter list to mean
     // something — so it is left alone here and lowers
-    // (`mwl_ir::Helper::CallClosureArray`). What still applies is the order
+    // (`nvs_ir::Helper::CallClosureArray`). What still applies is the order
     // rule, asserted below.
     let src = with_method(
         "int $count",
@@ -239,7 +239,7 @@ fn a_spread_subject_that_is_not_an_array_names_both_types() {
     // expectation is left with, and a call's spread always has one — even into
     // a `mixed ...$rest`, whose expectation is `array<mixed>`. So the refusal
     // here is the ordinary mismatch, which names both types.
-    // `mwl_types::expr::args::declared_for` owns why.
+    // `nvs_types::expr::args::declared_for` owns why.
     let src = with_method(
         "int $count, mixed ...$rest",
         "string $s = \"ab\";\n    T::m(1, ...$s);",
@@ -263,7 +263,7 @@ fn a_spread_argument_binds_a_generic_variadic_tail() {
     // through `array<T>` against the subject's own array type, which is the
     // same rule one written-out element at a time.
     let diags = check_src(
-        "<?mwl\nclass T {\n  static function go(): void {\n    array<int> $xs = [1];\n    array<int> $more = [2];\n    array<int> $all = Core\\Arr::append($xs, ...$more);\n  }\n}\n",
+        "<?nvs\nclass T {\n  static function go(): void {\n    array<int> $xs = [1];\n    array<int> $more = [2];\n    array<int> $all = Core\\Arr::append($xs, ...$more);\n  }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -271,7 +271,7 @@ fn a_spread_argument_binds_a_generic_variadic_tail() {
 #[test]
 fn a_generic_variadic_tail_still_rejects_a_mismatched_spread() {
     let diags = check_src(
-        "<?mwl\nclass T {\n  static function go(): void {\n    array<int> $xs = [1];\n    array<string> $more = [\"a\"];\n    array<int> $all = Core\\Arr::append($xs, ...$more);\n  }\n}\n",
+        "<?nvs\nclass T {\n  static function go(): void {\n    array<int> $xs = [1];\n    array<string> $more = [\"a\"];\n    array<int> $all = Core\\Arr::append($xs, ...$more);\n  }\n}\n",
     );
     assert!(
         diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),

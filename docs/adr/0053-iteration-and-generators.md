@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
-- **Scope:** which of SPL's "operator interfaces" exist in MWL; what `foreach` accepts; whether `yield`
+- **Scope:** which of SPL's "operator interfaces" exist in Novis; what `foreach` accepts; whether `yield`
   exists and how it is compiled. Not in scope: the `Core\Arr` API, and array iteration itself, which does
   not go through an interface at all.
 - **Amends:** [0007](0007-explicit-type-system.md) — the `foreach` key/value binding slot now has a second
@@ -60,7 +60,7 @@ interface Iterable<T> {
 
 `current()` called before the first `advance()`, or after one returns `false`, throws. The pair is the
 `MoveNext`/`Current` shape rather than a single `next(): ?T`, because the latter cannot distinguish "the
-sequence ended" from "the next element is `null`", and MWL has nullable types.
+sequence ended" from "the next element is `null`", and Novis has nullable types.
 
 ### 2. `Iterable` and `Iterator` are compiler-owned generic interfaces
 
@@ -95,14 +95,14 @@ built on the coroutine substrate. Three reasons, in priority order:
 
 1. **Every target behaves identically** ([ADR 0025](0025-wasm-browser-target.md)). Generators are a
    language feature, and the browser target keeps them. That ADR's unavailable list stays exactly as it
-   is — `spawn worker`, coroutine-based suspension, `.mwlx` — and does not grow a fourth entry.
+   is — `spawn worker`, coroutine-based suspension, `.nvsx` — and does not grow a fourth entry.
 2. **No stack to allocate or grow.** A generator is an ordinary object; iterating ten thousand of them
    costs ten thousand small objects, not ten thousand stacks.
 3. It keeps coroutine suspension a property of *I/O*, not of ordinary control flow, which is a smaller and
    more checkable claim.
 
 The cost is stated plainly: **`yield` is lexically confined to the generator's own body.** A helper
-function called from a generator cannot yield into it. Where PHP would delegate, MWL writes
+function called from a generator cannot yield into it. Where PHP would delegate, Novis writes
 `foreach ($inner as $v) { yield $v; }`.
 
 ### 5. One-way only
@@ -112,7 +112,7 @@ A generator is a lazy sequence and nothing more. There is no `yield from`, no `s
 the `foreach`-and-re-yield loop above — test 6 of [ADR 0051](0051-standard-library-tiers.md) § 2, and it
 costs O(nesting depth) per element rather than O(1), which is a real if small loss recorded here rather
 than hidden. `send()`/`throw()` make a generator a bidirectional coroutine, which is a different feature
-wearing the same syntax; MWL already has coroutines, and they are not spelled `yield`.
+wearing the same syntax; Novis already has coroutines, and they are not spelled `yield`.
 
 ### 6. A generator does not cross a boundary
 
@@ -133,12 +133,12 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
   reaching that `yield`, exactly as before, but the checker must reason about resumption edges rather than
   a single linear body.
 - **`Core\Db` result streaming, `Core\IO` line reading and `Core\Xml`'s reader all return `Iterator<T>`**,
-  implemented natively in Rust rather than as MWL generators. Most application code therefore consumes
+  implemented natively in Rust rather than as Novis generators. Most application code therefore consumes
   lazy sequences without ever writing one.
 - **Two identifiers become reserved interface names**, `Iterable` and `Iterator`, joining `Comparable`
   ([ADR 0013](0013-comparable-interface.md)), `PropertyObserver` ([ADR 0014](0014-property-observer.md))
   and `Stringable` ([ADR 0028](0028-closing-the-remaining-magic-methods.md)).
-- **`mwl convert` (M11) has a mechanical path for PHP's `Iterator`** — a 5-method interface collapsing to
+- **`nvs convert` (M11) has a mechanical path for PHP's `Iterator`** — a 5-method interface collapsing to
   2, with `rewind()` and `key()` dropped — and no path at all for `ArrayAccess`, `Countable`, `send()` or
   `yield from`, each of which becomes a diagnostic naming its replacement.
 
@@ -153,13 +153,13 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
   the compiler would have generated correctly. The stdlib's native iterators cover the common cases, but
   they cannot cover a user's own transformation of one.
 - **Keep `ArrayAccess`.** Better PHP familiarity and nicer-reading collection code. Rejected on
-  consistency: MWL has already paid the migration cost of removing implicit property dispatch, and keeping
+  consistency: Novis has already paid the migration cost of removing implicit property dispatch, and keeping
   implicit subscript dispatch would leave the language inconsistent about the same question. It also
   interacts badly with [ADR 0024](0024-taint-tracking-for-injection-sinks.md) — whether `$obj[$k]` yields a
   tainted value would depend on an implementation the call site cannot see.
 - **`Iterator` with a single `next(): ?T`.** One method instead of two. Rejected: it makes `Iterator<?T>`
   unrepresentable, and silently ending a sequence at the first `null` element is precisely the class of
-  quiet wrong answer MWL's type system exists to prevent.
+  quiet wrong answer Novis's type system exists to prevent.
 
 ## Verification
 
@@ -167,24 +167,24 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
   a fixture asserting `$obj[$k]` on a non-array is a diagnostic naming this ADR; a generator whose declared
   return type is not `Iterator<T>` is a diagnostic; a `yield` outside a generator body is a diagnostic; a
   local live across a `yield` but not assigned on one incoming path is still an ADR 0022 error.
-  **§§ 1–3's checker slice has landed.** `mwl_hir::interfaces::RESERVED` declares both interfaces and
-  `mwl_types::iter_lib` gives them § 1's member set; § 2's `implements Iterable<int>` parses, resolves and
-  records its argument on `mwl_types::signatures::ClassSignature::implements`; § 3's three-shapes rule is
-  `mwl_types::expr::foreach_source`, with `E_FOREACH_SUBJECT_NOT_ITERABLE` for a fourth and
-  `E_FOREACH_KEY_ON_CURSOR` for a key binding a cursor cannot have. `mwl_types::check`'s
+  **§§ 1–3's checker slice has landed.** `nvs_hir::interfaces::RESERVED` declares both interfaces and
+  `nvs_types::iter_lib` gives them § 1's member set; § 2's `implements Iterable<int>` parses, resolves and
+  records its argument on `nvs_types::signatures::ClassSignature::implements`; § 3's three-shapes rule is
+  `nvs_types::expr::foreach_source`, with `E_FOREACH_SUBJECT_NOT_ITERABLE` for a fourth and
+  `E_FOREACH_KEY_ON_CURSOR` for a key binding a cursor cannot have. `nvs_types::check`'s
   `a_foreach_over_a_class_reaches_its_implements_clause_for_the_element_type` and its eight neighbours hold
-  all of it. **§§ 4-5's checker slice has landed too**: `mwl_syntax::ast::is_generator_body` decides what a
-  generator is, `mwl_types::Ctx::generator_elem` carries the `T` every operand is checked against, and
+  all of it. **§§ 4-5's checker slice has landed too**: `nvs_syntax::ast::is_generator_body` decides what a
+  generator is, `nvs_types::Ctx::generator_elem` carries the `T` every operand is checked against, and
   E0445-E0448 cover a stray `yield`, a return type that is not `Iterator<T>`, a `return expr;` in a
-  generator, and `yield from`/a keyed `yield`. `mwl_types::conformance` additionally holds a class to every
+  generator, and `yield from`/a keyed `yield`. `nvs_types::conformance` additionally holds a class to every
   member its interfaces declare without a body, which § 1's deliberately bodiless `advance`/`current` are
   what asked for.
 - **M3/M4:** an IR snapshot test for a generator with a `yield` inside a loop, asserting the resumption
   states and the lifted locals; a runtime test that a generator consumed twice reports exhaustion rather
-  than restarting. **§ 4's lowering has landed**: `mwl_ir::lower::lower_generator` owns the transform,
-  `mwl_ir::ir::Terminator::Switch` is the N-way resumption dispatch, and `mwl-ir`'s two generator snapshots
+  than restarting. **§ 4's lowering has landed**: `nvs_ir::lower::lower_generator` owns the transform,
+  `nvs_ir::ir::Terminator::Switch` is the N-way resumption dispatch, and `nvs-ir`'s two generator snapshots
   hold both a `yield` inside a loop and a refcounted local parked across two suspensions. § 3's other two
-  subjects lower in `lower_foreach_cursor`. `examples/iterate.mwl` runs on Windows and on Linux, and under
+  subjects lower in `lower_foreach_cursor`. `examples/iterate.nvs` runs on Windows and on Linux, and under
   `valgrind --leak-check=full` with no definite loss. Still open here: `current()` called before the first
   `advance()` or after one returned `false` does not yet throw, and a generator consumed twice has no test
   of its own.

@@ -1,7 +1,7 @@
 --TEST--
 `instanceof` answers for class, ancestor and interface exactly as PHP's does
 --FILE--
-<?mwl
+<?nvs
 interface Marks {
     public function mark(): string;
 }

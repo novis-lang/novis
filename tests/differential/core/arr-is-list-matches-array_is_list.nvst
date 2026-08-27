@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::isList answers exactly what PHP's array_is_list answers, `unset` included
 --FILE--
-<?mwl
+<?nvs
 array<int> $list = [10, 20, 30];
 array<int> $map = ["b" => 2, "a" => 1];
 array<int> $none = [];

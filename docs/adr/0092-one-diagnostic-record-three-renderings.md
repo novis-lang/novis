@@ -28,7 +28,7 @@
   attributed to that ADR by the [spec's](../spec/01-core-library.md) § 16 row and is not in its scope; the
   row now points here, and 0018 keeps the coverage/trace/profile members it actually argues.
   [0028](0028-closing-the-remaining-magic-methods.md) § 4 — the guarantee is restated against
-  `Core\Debug::dump` rather than PHP's `var_dump`/`print_r`, which MWL does not have; the rule is unchanged
+  `Core\Debug::dump` rather than PHP's `var_dump`/`print_r`, which Novis does not have; the rule is unchanged
   and the closed-mechanism refusal of a `DebugRepresentable` hook is reaffirmed by § 7.
   [0033](0033-secret-qualifier-for-confidential-values.md) — the debug-dump bullet is restated against
   `Core\Debug::dump`, and its redaction becomes a node kind in § 1's model so all three renderings inherit
@@ -46,7 +46,7 @@
 
 > **In short:** every language has three or four half-answers to *show me this value* — PHP has
 > `var_dump`, `print_r`, `var_export` and `json_encode`, and each looks acceptable in exactly one output
-> medium and unreadable in the others. MWL takes the opposite shape: **one closed record model, three
+> medium and unreadable in the others. Novis takes the opposite shape: **one closed record model, three
 > renderings of it, and the rendering is chosen by the sink already in force rather than by the call
 > site.** [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3 already decided that every
 > execution context has a sink and § 5 already decided that capturing one yields *that sink's* carrier;
@@ -103,7 +103,7 @@
 
 ### 1. One record, and it is a closed model of content only
 
-Every developer-facing output in MWL is a **record**: an envelope plus a tree of **nodes**. The model is
+Every developer-facing output in Novis is a **record**: an envelope plus a tree of **nodes**. The model is
 closed — a node is one of a fixed set of kinds, and there is no extension point.
 
 The **envelope** carries what is true of the whole record and nothing about how it looks:
@@ -122,14 +122,14 @@ A **node** is one of:
 
 | Kind | Carries |
 |---|---|
-| Scalar | `null`, `bool`, `int`, `float`, `decimal`, `string`, `bytes` — the tag is the MWL type, so `"1"` and `1` are never confusable, which is the one thing `print_r` cannot do |
+| Scalar | `null`, `bool`, `int`, `float`, `decimal`, `string`, `bytes` — the tag is the Novis type, so `"1"` and `1` are never confusable, which is the one thing `print_r` cannot do |
 | Sequence, Map | an `array`'s two shapes ([0009](0009-string-and-bytes.md), [0069](0069-array-combination-is-key-type-independent.md)) |
 | Object | the class name and its **declared** properties, per [0028](0028-closing-the-remaining-magic-methods.md) § 4 |
 | Enum case | the enum's name and the case's, never its underlying integer ([0010](0010-enums-are-a-value-type.md)) |
 | Closure | its declared signature; never a body, and never captured state ([0031](0031-callable-is-the-only-closure-type.md)) |
 | Redacted | stands where a `secret`-typed value would have been — § 5 |
 | Elided | what was cut and how much of it — § 5 |
-| Cycle | the identity of the node it repeats, from `mwl_runtime::identity` |
+| Cycle | the identity of the node it repeats, from `nvs_runtime::identity` |
 | Span | a source range with a label, which is what a compiler diagnostic is made of |
 
 **This model is content, not presentation.** It carries no colour, no indentation, no width and no
@@ -137,11 +137,11 @@ ordering-for-display; a rendering supplies all four. That separation is the whol
 adding a fourth rendering later costs one implementation rather than five.
 
 **One crate owns the model and all three renderings**, and both the runtime and the compiler front end
-depend on it — provisionally `mwl-render`, created at the milestone that first needs it per
-[AGENTS.md](../../AGENTS.md). `mwl-diagnostics`'s existing terminal renderer moves into it and becomes one
+depend on it — provisionally `nvs-render`, created at the milestone that first needs it per
+[AGENTS.md](../../AGENTS.md). `nvs-diagnostics`'s existing terminal renderer moves into it and becomes one
 of the three; that module's own doc comment already anticipates this, naming "the same layout engine to
-emit LSP-shaped data" as a requirement it was built for. `mwl-runtime` depends on no `mwl-*` crate today,
-so the model cannot live in `mwl-diagnostics` and the dependency runs the other way.
+emit LSP-shaped data" as a requirement it was built for. `nvs-runtime` depends on no `nvs-*` crate today,
+so the model cannot live in `nvs-diagnostics` and the dependency runs the other way.
 
 ### 2. `Log\Level` is five cases, with a fixed syslog mapping
 
@@ -175,10 +175,10 @@ severity is not optional there.
 - **There is no `Trace` case.** Spans and sampling are [0076](0076-observability-export.md)'s, and a trace
   *level* would be a second home for that fact.
 - **Eight PSR-3 cases were considered and rejected.** They are what PHP standardised on, and they would
-  have made `mwl convert`'s mapping an identity — a tier-E rewrite under
+  have made `nvs convert`'s mapping an identity — a tier-E rewrite under
   [0089](0089-convert-is-one-rule-table-with-two-modes.md) rather than tier-D. But nobody has a rule for
   choosing `notice` over `info`, or `alert` over `emergency` over `critical`; they are three ways to say
-  one thing, which is the shape this project rejects everywhere else. `mwl convert` maps `notice`→`Info`
+  one thing, which is the shape this project rejects everywhere else. `nvs convert` maps `notice`→`Info`
   and `alert`/`emergency`→`Critical`, in that ADR's rule table.
 
 `[log] level` sets the minimum level written; its per-mode default is
@@ -262,9 +262,9 @@ rendering therefore inherits identical answers, and none may weaken one.
 
 | Transformation | Rule | Owner |
 |---|---|---|
-| **Redaction** | a property whose *declared* type carries `secret` becomes a Redacted node; a `secret` value passed at a call site is refused by `mwl check` | [0033](0033-secret-qualifier-for-confidential-values.md) § 4 |
+| **Redaction** | a property whose *declared* type carries `secret` becomes a Redacted node; a `secret` value passed at a call site is refused by `nvs check` | [0033](0033-secret-qualifier-for-confidential-values.md) § 4 |
 | **Control bytes** | C0 except `LF`/`TAB` → its U+2400 Control Picture, `DEL` → `␡`, a C1 code point → `�` | [0086](0086-core-cli-terminal-is-a-sink.md) § 1's table, unchanged |
-| **Bidi** | an unterminated directional control → `�`; a balanced one passes through | [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md), via `mwl_syntax::bidi`'s one predicate |
+| **Bidi** | an unterminated directional control → `�`; a balanced one passes through | [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md), via `nvs_syntax::bidi`'s one predicate |
 | **Elision** | depth and per-node length caps, replacing what is cut with an Elided node naming how much | this ADR |
 
 - **Control-byte substitution applies to the JSON rendering too**, where framing already makes it
@@ -280,7 +280,7 @@ rendering therefore inherits identical answers, and none may weaken one.
 - **Elision belongs to the model precisely so the renderings agree on what was cut.** PHP and Python
   truncate per formatter, so the same value is complete in one output and truncated in another and no
   reader can tell which. Here a cut is a node, so it renders as a cut in all three.
-- **A cycle is an identity, not a `*RECURSION*` string.** `mwl_runtime::identity` already exists
+- **A cycle is an identity, not a `*RECURSION*` string.** `nvs_runtime::identity` already exists
   ([0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 3 lowers object equality to
   it), so the HTML rendering can collapse or link the repeat and the JSON rendering can emit a reference —
   neither of which PHP's marker permits.
@@ -299,16 +299,16 @@ no `dumpRaw`, and no rendering may be selected by an argument.
 | `Core\Debug::dump` | a record at `Debug`, one node per argument | M4 |
 | a `Throwable` and its trace | a record at `Error`, frames as Sequence-of-Object nodes | M4 |
 | a `#[Test]` result ([0079](0079-testing-is-a-language-feature.md)) | a record per assertion, the expected and actual as sibling nodes | M4S |
-| a compiler diagnostic (`mwl check`) | Span nodes over a source map | M10 |
+| a compiler diagnostic (`nvs check`) | Span nodes over a source map | M10 |
 
 Two of these buy something concrete beyond consistency, and they are the reason the scope is five and not
 two:
 
 - **A `#[Test]` failure renders as a coloured diff locally, as JSON in CI, and as HTML in a web runner**,
   with no reporter written for any of them.
-- **`mwl check` gains a JSON rendering that `mwl-lsp` consumes** ([0016](0016-ide-integration.md),
+- **`nvs check` gains a JSON rendering that `nvs-lsp` consumes** ([0016](0016-ide-integration.md),
   [0040](0040-vscode-deep-tooling-and-resilient-parsing.md)), which
-  [`mwl-diagnostics`](../../crates/mwl-diagnostics/src/render.rs)'s own module doc already names as a
+  [`nvs-diagnostics`](../../crates/nvs-diagnostics/src/render.rs)'s own module doc already names as a
   requirement it was designed toward.
 
 **The `Throwable` case is the one that would have leaked if the scope had been narrower.** It is the
@@ -343,7 +343,7 @@ Two decisions were separated out and are named here so that this ADR does not fo
   `array<string, mixed>` at the core — the open type on `Core\Log::write`'s parameter is a call-site
   convenience over it, exactly as [0033](0033-secret-qualifier-for-confidential-values.md) § 4 already
   treats that parameter for its own check. Because the names and types exist in the model, a later decision
-  can have `mwl check` collect every call site — literal arguments are already folded by
+  can have `nvs check` collect every call site — literal arguments are already folded by
   [0057](0057-intrinsic-literal-folding.md), and reading declared types off a shape is already
   [0071](0071-derived-codecs.md)'s machinery — build the program's whole log schema at compile time, and
   refuse two call sites that use one field name with two types. No mainstream logger can do this. It is a
@@ -372,19 +372,19 @@ Two decisions were separated out and are named here so that this ADR does not fo
   [0004](0004-memory-for-simplicity.md) prescribes.
 - **A `Core\Log::write` call site changes shape.** `"error"` becomes `Log\Level::Error`. Every existing
   example in [0044](0044-core-process-argv-only-no-shell.md) and [0075](0075-core-ratelimit.md) is
-  rewritten with this ADR, and `mwl convert` maps PSR-3's eight names onto § 2's five.
-- **`mwl-diagnostics`'s terminal renderer is refactored rather than rewritten.** It becomes the plaintext
+  rewritten with this ADR, and `nvs convert` maps PSR-3's eight names onto § 2's five.
+- **`nvs-diagnostics`'s terminal renderer is refactored rather than rewritten.** It becomes the plaintext
   rendering of the shared model; its span-and-label layout survives as § 1's Span node. That is real work
   at M10 and it is the only existing code this ADR disturbs.
 - **A new crate exists** — one more than the workspace has today, created at its milestone. Justified by
-  the dependency direction in § 1: `mwl-runtime` depends on no `mwl-*` crate, so a shared model cannot live
+  the dependency direction in § 1: `nvs-runtime` depends on no `nvs-*` crate, so a shared model cannot live
   in an existing one.
 
 ## Alternatives rejected
 
 - **A format argument on each producer** — `dump($x, "html")`. The obvious design, and the one every PHP
   framework arrives at. Rejected because the call site is the one place that does *not* know where the
-  output is going: the same handler runs under `mwl serve`, under a `#[Test]`, and inside a `spawn script`
+  output is going: the same handler runs under `nvs serve`, under a `#[Test]`, and inside a `spawn script`
   isolate, and [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3 already answers the
   question correctly in all three.
 - **Content negotiation from the `Content-Type` header at dump time.** Rejected as strictly weaker than
@@ -394,10 +394,10 @@ Two decisions were separated out and are named here so that this ADR does not fo
 - **Logs and dumps only, leaving `Throwable`, tests and diagnostics outside.** The smallest possible ADR.
   Rejected in *Decision* § 6: it duplicates redaction and substitution rather than removing a duplication,
   which is the opposite of the goal.
-- **Eight PSR-3 levels.** § 2 holds the reasoning and what it costs `mwl convert`.
+- **Eight PSR-3 levels.** § 2 holds the reasoning and what it costs `nvs convert`.
 - **A `debug` key injected into a JSON response body in development mode.** § 4 holds the reasoning; the
   OpenAPI contradiction under [0085](0085-openapi-is-generated-from-the-route-table.md) is what decided it.
-- **A response header carrying a dump id** (`X-Mwl-Debug`), the shape Symfony's `X-Debug-Token` uses.
+- **A response header carrying a dump id** (`X-Nvs-Debug`), the shape Symfony's `X-Debug-Token` uses.
   Keeps the body intact *and* the dump discoverable. Not taken: it is a second mechanism — an id, a lookup,
   and a viewer to look it up in — and the viewer belongs to [0082](0082-the-first-party-framework.md),
   which has not started. Cheap to revisit once it has.
@@ -411,7 +411,7 @@ Two decisions were separated out and are named here so that this ADR does not fo
   CLI program, and a fixture asserts stdout is byte-empty while stderr holds the dump.
 - **M4:** a dumped object shows every declared property; a property whose declared type carries `secret`
   renders as the redaction placeholder in all three renderings, and a `secret` value at a `dump` call site
-  is refused by `mwl check` ([0033](0033-secret-qualifier-for-confidential-values.md)).
+  is refused by `nvs check` ([0033](0033-secret-qualifier-for-confidential-values.md)).
 - **M4:** a dumped `string` containing `ESC`, a bare `CR`, a C1 code point and an unterminated `U+202E`
   renders with [0086](0086-core-cli-terminal-is-a-sink.md) § 1's substitutions in **all three** renderings
   — the JSON one included, where the bidi control additionally appears as `‮`.
@@ -438,5 +438,5 @@ Two decisions were separated out and are named here so that this ADR does not fo
   exists to protect, restated against the record.
 - **M8:** a shed record increments the counter [0076](0076-observability-export.md) exports; the count is
   never zero when records were dropped.
-- **M10:** `mwl check` renders the same diagnostic as an annotated snippet on a terminal and as the JSON
-  `mwl-lsp` consumes, from one record.
+- **M10:** `nvs check` renders the same diagnostic as an annotated snippet on a terminal and as the JSON
+  `nvs-lsp` consumes, from one record.

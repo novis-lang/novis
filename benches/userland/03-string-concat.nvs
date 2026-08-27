@@ -1,4 +1,4 @@
-<?mwl
+<?nvs
 // Building output one piece at a time — the shape of every hand-rolled template and CSV writer.
 class Bench {
     public static function run(int $rows): string {

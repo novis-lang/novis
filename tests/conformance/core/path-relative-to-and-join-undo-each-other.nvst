@@ -1,7 +1,7 @@
 --TEST--
 Core\Path::join($base, Core\Path::relativeTo($p, $base)) normalizes back to $p on every row, the pair parts exactly where the two arguments disagree about Core\Path::isAbsolute, and the absence is null rather than a path — docs/spec/01-core-library.md § 8
 --FILE--
-<?mwl
+<?nvs
 // `relativeTo` answers "how do I get from $base to $p", so the only thing
 // that says it answered *correctly* is walking it: joining the answer onto
 // the base has to arrive back at the path. Asked one row at a time the member

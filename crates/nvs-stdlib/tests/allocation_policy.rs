@@ -11,13 +11,13 @@
 //! lines, with the members of largest appetite carrying none at all — which is
 //! the failure mode the test exists for. A copy is easy to add and impossible
 //! to notice, so the invariant is checked at the source rather than left to
-//! review: `mwl_runtime::affordable` is the only place a size becomes a
+//! review: `nvs_runtime::affordable` is the only place a size becomes a
 //! refusal, and it is where `[limits.hard]` attaches when the M6 arena carries
 //! it (ADR 0004).
 //!
 //! The last two are `docs/perf/userland-gap.md` § D, and they are measured
 //! here rather than from compiled code because the member is where the
-//! decision is made: `mwl_runtime::closure_arity` is read once before the walk
+//! decision is made: `nvs_runtime::closure_arity` is read once before the walk
 //! and decides whether a key is *built*, so a native callback with an arity
 //! slot is the whole of what the measurement needs. [`closure_of`] is that
 //! callback, and it is the only thing in this file a compiler would otherwise
@@ -61,7 +61,7 @@ fn no_member_writes_its_own_allocation_guard() {
     assert!(
         offenders.is_empty(),
         "these files hand-write an allocation guard instead of calling \
-         `mwl_runtime::affordable`: {offenders:?}. That function is the one seam the per-request \
+         `nvs_runtime::affordable`: {offenders:?}. That function is the one seam the per-request \
          ceiling attaches to; a private copy silently opts its member out of it."
     );
 }
@@ -73,10 +73,10 @@ fn no_member_writes_its_own_allocation_guard() {
 /// A `string`'s tag **is** ADR 0009's UTF-8 guarantee, so a reader that has
 /// already checked the tag may not then walk the payload to re-derive it.
 ///
-/// The banned shape is one chain: [`mwl_runtime::Value::as_str_bytes`], which
+/// The banned shape is one chain: [`nvs_runtime::Value::as_str_bytes`], which
 /// answers only for a `Tag::Str`, feeding `std::str::from_utf8`.
 /// `Value::as_text` is the same tag check and none of the walk —
-/// `mwl_runtime`'s `string` module owns the argument in its § *Reading the
+/// `nvs_runtime`'s `string` module owns the argument in its § *Reading the
 /// payload as text*, and a debug build still re-validates inside that one
 /// reader, so the check is not lost, only paid once and in one place.
 ///
@@ -119,7 +119,7 @@ fn no_member_revalidates_a_string_argument() {
         offenders.is_empty(),
         "these sites read a `string`'s bytes and then re-validate them as UTF-8: {offenders:?}. \
          The tag already is that guarantee (ADR 0009 § 3), so `Value::as_text` is the whole read \
-         — `crates/mwl-stdlib/src/str.rs`'s `text` is the shape to copy, and it states why the \
+         — `crates/nvs-stdlib/src/str.rs`'s `text` is the shape to copy, and it states why the \
          O(n) pass is not worth keeping `for safety`."
     );
 }
@@ -132,12 +132,12 @@ fn no_member_revalidates_a_string_argument() {
 /// guard below measures allocations rather than trusting a reading of the
 /// member's source.
 ///
-/// Thread-local for the reason `mwl_runtime`'s own `counting_alloc` states: a
+/// Thread-local for the reason `nvs_runtime`'s own `counting_alloc` states: a
 /// test binary runs its tests concurrently, and a process-wide counter would
 /// fold a neighbour's allocations into the delta.
 ///
 /// **Only installed in a debug build.** A `#[global_allocator]` is chosen once
-/// per binary, and an optimized build already has one: `mwl-runtime` installs
+/// per binary, and an optimized build already has one: `nvs-runtime` installs
 /// its pooled allocator in every `not(test)` optimized build, which is what
 /// this binary links. `cargo test` — the profile `tools/verify.py` runs — is a
 /// debug build, so the guard runs there; `cargo test --release` compiles it
@@ -179,31 +179,31 @@ static COUNTING: Counting = Counting;
 /// How many allocations `call` makes, and what it answered.
 #[cfg(debug_assertions)]
 fn allocations_of(
-    member: mwl_runtime::MwlFn,
-    args: &[mwl_runtime::Value],
-) -> (usize, mwl_runtime::Value) {
-    let mut ctx = mwl_runtime::Ctx::buffered();
+    member: nvs_runtime::NvsFn,
+    args: &[nvs_runtime::Value],
+) -> (usize, nvs_runtime::Value) {
+    let mut ctx = nvs_runtime::Ctx::buffered();
     // Every argument, the context and the message a failure would format are
     // built outside the window on purpose: what is being counted is what the
     // member spends on its *result*.
     let before = ALLOCATIONS.with(std::cell::Cell::get);
-    let answer = mwl_runtime::call(member, &mut ctx, args);
+    let answer = nvs_runtime::call(member, &mut ctx, args);
     let spent = ALLOCATIONS.with(std::cell::Cell::get) - before;
     (spent, answer.expect("the member answered"))
 }
 
 /// A `string` argument.
 #[cfg(debug_assertions)]
-fn arg(text: &str) -> mwl_runtime::Value {
-    mwl_runtime::Value::str(mwl_runtime::MwlStr::new(text.as_bytes()))
+fn arg(text: &str) -> nvs_runtime::Value {
+    nvs_runtime::Value::str(nvs_runtime::NvsStr::new(text.as_bytes()))
 }
 
 #[cfg(debug_assertions)]
 #[test]
 fn a_str_member_allocates_its_result_once() {
-    use mwl_runtime::Value;
-    use mwl_stdlib::str::{
-        mwl_core_str_pad_end, mwl_core_str_pad_start, mwl_core_str_repeat, mwl_core_str_replace,
+    use nvs_runtime::Value;
+    use nvs_stdlib::str::{
+        nvs_core_str_pad_end, nvs_core_str_pad_start, nvs_core_str_repeat, nvs_core_str_replace,
     };
 
     // Not every member below knows its length exactly — `replace` writes into
@@ -213,10 +213,10 @@ fn a_str_member_allocates_its_result_once() {
     // capacity that only counts its separators, the second spends the `Vec` of
     // borrowed pieces a backwards read needs. What is pinned here is the rule
     // they all follow — the result is never built somewhere else and copied in.
-    let cases: Vec<(&str, mwl_runtime::MwlFn, Vec<Value>)> = vec![
+    let cases: Vec<(&str, nvs_runtime::NvsFn, Vec<Value>)> = vec![
         (
             "replace",
-            mwl_core_str_replace,
+            nvs_core_str_replace,
             vec![
                 arg("the cat sat on the mat, and the cat stayed"),
                 arg("cat"),
@@ -227,17 +227,17 @@ fn a_str_member_allocates_its_result_once() {
         ),
         (
             "padStart",
-            mwl_core_str_pad_start,
+            nvs_core_str_pad_start,
             vec![arg("42"), Value::uint(12), arg("·-")],
         ),
         (
             "padEnd",
-            mwl_core_str_pad_end,
+            nvs_core_str_pad_end,
             vec![arg("42"), Value::uint(12), arg("·-")],
         ),
         (
             "repeat",
-            mwl_core_str_repeat,
+            nvs_core_str_repeat,
             vec![arg("ha"), Value::uint(64)],
         ),
     ];
@@ -249,7 +249,7 @@ fn a_str_member_allocates_its_result_once() {
             "`Core\\Str::{name}` made {spent} allocations answering one string, and it owes \
              exactly one: it writes into the allocation it answers from, at a capacity this \
              case does not make it exceed. Building a `String` and copying it in is what this \
-             pins against — see `crates/mwl-stdlib/src/str.rs`'s § *A result is written once*."
+             pins against — see `crates/nvs-stdlib/src/str.rs`'s § *A result is written once*."
         );
         assert!(
             answer.as_text().is_some_and(|text| !text.is_empty()),
@@ -262,7 +262,7 @@ fn a_str_member_allocates_its_result_once() {
                       reference the helper produced"
         )]
         unsafe {
-            mwl_runtime::mwl_value_release(u64::from(answer.tag_byte()), answer.bits());
+            nvs_runtime::nvs_value_release(u64::from(answer.tag_byte()), answer.bits());
         }
         for value in args {
             #[expect(
@@ -271,7 +271,7 @@ fn a_str_member_allocates_its_result_once() {
                           reference this test owns"
             )]
             unsafe {
-                mwl_runtime::mwl_value_release(u64::from(value.tag_byte()), value.bits());
+                nvs_runtime::nvs_value_release(u64::from(value.tag_byte()), value.bits());
             }
         }
     }
@@ -279,14 +279,14 @@ fn a_str_member_allocates_its_result_once() {
 
 /// Hands back the one reference this test owns in `value`.
 #[cfg(debug_assertions)]
-fn release(value: mwl_runtime::Value) {
+fn release(value: nvs_runtime::Value) {
     #[expect(
         unsafe_code,
         reason = "every value passed here was built by this test or came back \
                   from `call`, which transfers the reference the helper produced"
     )]
     unsafe {
-        mwl_runtime::mwl_value_release(u64::from(value.tag_byte()), value.bits());
+        nvs_runtime::nvs_value_release(u64::from(value.tag_byte()), value.bits());
     }
 }
 
@@ -294,23 +294,23 @@ fn release(value: mwl_runtime::Value) {
 /// rather than a stored string, and therefore the only one where synthesizing
 /// a key costs an allocation at all.
 #[cfg(debug_assertions)]
-fn list_of(count: usize) -> mwl_runtime::Value {
-    let mut list = mwl_runtime::MwlArray::new();
+fn list_of(count: usize) -> nvs_runtime::Value {
+    let mut list = nvs_runtime::NvsArray::new();
     for index in 0..count {
-        list.append(mwl_runtime::Value::int(
+        list.append(nvs_runtime::Value::int(
             i64::try_from(index).expect("a test-sized index"),
         ));
     }
-    mwl_runtime::Value::array(list)
+    nvs_runtime::Value::array(list)
 }
 
 /// A closure value whose `invoke` is a plain Rust function.
 ///
-/// `mwl_runtime::call_closure` reads exactly three things off a closure — slot
+/// `nvs_runtime::call_closure` reads exactly three things off a closure — slot
 /// `CLOSURE_ARITY_SLOT`, slot `CLOSURE_PARAM_TAGS_SLOT`, and the
 /// `CLOSURE_INVOKE` method's address in its class — so a test in this crate
 /// can hand a `Core` member a `callable` without a compiler in front of it.
-/// Everything else in `mwl_ir::lower::lower_closure`'s representation is
+/// Everything else in `nvs_ir::lower::lower_closure`'s representation is
 /// captured state, and a native callback captures nothing.
 ///
 /// Every parameter is recorded as `CLOSURE_PARAM_TAG_ANY`, which is what a
@@ -320,36 +320,36 @@ fn list_of(count: usize) -> mwl_runtime::Value {
 ///
 /// The table is leaked because a descriptor's *address* is its identity and it
 /// must outlive every instance made from it, which is the rule
-/// `mwl_stdlib::instance`'s own docs state; the test process exiting is what
+/// `nvs_stdlib::instance`'s own docs state; the test process exiting is what
 /// reclaims it.
 #[cfg(debug_assertions)]
-fn closure_of(arity: usize, invoke: mwl_runtime::MwlFn) -> mwl_runtime::Value {
-    let mut table = mwl_runtime::ClassTable::new();
+fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
+    let mut table = nvs_runtime::ClassTable::new();
     let id = table.define("{closure}", &["arity", "params"], &[]);
     table.set_methods(
         id,
-        vec![(mwl_runtime::CLOSURE_INVOKE.to_owned(), invoke as *const u8)],
+        vec![(nvs_runtime::CLOSURE_INVOKE.to_owned(), invoke as *const u8)],
     );
-    let table: &'static mwl_runtime::ClassTable = Box::leak(Box::new(table));
+    let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
     #[expect(
         unsafe_code,
         reason = "the table above is leaked, so the descriptor outlives every \
-                  instance made from it — `MwlObj::new`'s whole obligation"
+                  instance made from it — `NvsObj::new`'s whole obligation"
     )]
-    let object = unsafe { mwl_runtime::MwlObj::new(table.desc(id)) };
+    let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
     object.set_field(
-        mwl_runtime::CLOSURE_ARITY_SLOT,
-        mwl_runtime::Value::int(i64::try_from(arity).expect("a small arity")),
+        nvs_runtime::CLOSURE_ARITY_SLOT,
+        nvs_runtime::Value::int(i64::try_from(arity).expect("a small arity")),
     );
     let mut tags: u64 = 0;
     for parameter in 0..arity {
-        tags |= u64::from(mwl_runtime::CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+        tags |= u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
     }
     object.set_field(
-        mwl_runtime::CLOSURE_PARAM_TAGS_SLOT,
-        mwl_runtime::Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
+        nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
+        nvs_runtime::Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
     );
-    mwl_runtime::Value::object(object)
+    nvs_runtime::Value::object(object)
 }
 
 /// What every callback below does: sweep the `slots` references a compiled
@@ -368,17 +368,17 @@ fn closure_of(arity: usize, invoke: mwl_runtime::MwlFn) -> mwl_runtime::Value {
               signature compiled code calls through"
 )]
 unsafe fn swept(
-    args: *const mwl_runtime::Value,
+    args: *const nvs_runtime::Value,
     slots: usize,
-    out: *mut mwl_runtime::Value,
+    out: *mut nvs_runtime::Value,
 ) -> i32 {
     for index in 0..slots {
         release(unsafe { *args.add(index) });
     }
     unsafe {
-        *out = mwl_runtime::Value::bool(true);
+        *out = nvs_runtime::Value::bool(true);
     }
-    mwl_runtime::OK
+    nvs_runtime::OK
 }
 
 /// `fn ($value)` — or `fn ($carry, $value)` read from `reduce`'s side: one
@@ -386,9 +386,9 @@ unsafe fn swept(
 #[cfg(debug_assertions)]
 #[expect(unsafe_code, reason = "forwarding this callee's own contract")]
 unsafe extern "C" fn declares_one(
-    _ctx: *mut mwl_runtime::Ctx,
-    args: *const mwl_runtime::Value,
-    out: *mut mwl_runtime::Value,
+    _ctx: *mut nvs_runtime::Ctx,
+    args: *const nvs_runtime::Value,
+    out: *mut nvs_runtime::Value,
 ) -> i32 {
     unsafe { swept(args, 2, out) }
 }
@@ -397,9 +397,9 @@ unsafe extern "C" fn declares_one(
 #[cfg(debug_assertions)]
 #[expect(unsafe_code, reason = "forwarding this callee's own contract")]
 unsafe extern "C" fn declares_two(
-    _ctx: *mut mwl_runtime::Ctx,
-    args: *const mwl_runtime::Value,
-    out: *mut mwl_runtime::Value,
+    _ctx: *mut nvs_runtime::Ctx,
+    args: *const nvs_runtime::Value,
+    out: *mut nvs_runtime::Value,
 ) -> i32 {
     unsafe { swept(args, 3, out) }
 }
@@ -408,9 +408,9 @@ unsafe extern "C" fn declares_two(
 #[cfg(debug_assertions)]
 #[expect(unsafe_code, reason = "forwarding this callee's own contract")]
 unsafe extern "C" fn declares_three(
-    _ctx: *mut mwl_runtime::Ctx,
-    args: *const mwl_runtime::Value,
-    out: *mut mwl_runtime::Value,
+    _ctx: *mut nvs_runtime::Ctx,
+    args: *const nvs_runtime::Value,
+    out: *mut nvs_runtime::Value,
 ) -> i32 {
     unsafe { swept(args, 4, out) }
 }
@@ -421,8 +421,8 @@ unsafe extern "C" fn declares_three(
 ///
 /// If `arity` is not one this file has a callback for.
 #[cfg(debug_assertions)]
-fn callback(arity: usize) -> mwl_runtime::Value {
-    let invoke: mwl_runtime::MwlFn = match arity {
+fn callback(arity: usize) -> nvs_runtime::Value {
+    let invoke: nvs_runtime::NvsFn = match arity {
         1 => declares_one,
         2 => declares_two,
         3 => declares_three,
@@ -434,9 +434,9 @@ fn callback(arity: usize) -> mwl_runtime::Value {
 /// `docs/perf/userland-gap.md` § D, measured: the key a callback never
 /// declared is never built.
 ///
-/// `map`, `filter` and `reduce` each read `mwl_runtime::closure_arity` once
+/// `map`, `filter` and `reduce` each read `nvs_runtime::closure_arity` once
 /// before their walk and pass `$key` only to a callback with somewhere to put
-/// it. On a packed list that key is a *rendered decimal* — one `MwlStr` per
+/// it. On a packed list that key is a *rendered decimal* — one `NvsStr` per
 /// entry — so the difference between the two arities is exactly one allocation
 /// per element, and it is the whole of what this pins.
 ///
@@ -447,17 +447,17 @@ fn callback(arity: usize) -> mwl_runtime::Value {
 #[cfg(debug_assertions)]
 #[test]
 fn a_one_parameter_callback_synthesizes_no_key() {
-    use mwl_runtime::{MwlFn, Value};
-    use mwl_stdlib::arr::{mwl_core_arr_filter, mwl_core_arr_map, mwl_core_arr_reduce};
+    use nvs_runtime::{NvsFn, Value};
+    use nvs_stdlib::arr::{nvs_core_arr_filter, nvs_core_arr_map, nvs_core_arr_reduce};
 
     const ENTRIES: usize = 64;
 
     // Member, the arity that wants no key, the arity that does, and whatever
     // trailing arguments the member's row declares after the callback.
-    let cases: Vec<(&str, MwlFn, usize, usize, Vec<Value>)> = vec![
-        ("map", mwl_core_arr_map, 1, 2, Vec::new()),
-        ("filter", mwl_core_arr_filter, 1, 2, Vec::new()),
-        ("reduce", mwl_core_arr_reduce, 2, 3, vec![Value::int(0)]),
+    let cases: Vec<(&str, NvsFn, usize, usize, Vec<Value>)> = vec![
+        ("map", nvs_core_arr_map, 1, 2, Vec::new()),
+        ("filter", nvs_core_arr_filter, 1, 2, Vec::new()),
+        ("reduce", nvs_core_arr_reduce, 2, 3, vec![Value::int(0)]),
     ];
 
     for (name, member, quiet, keyed, tail) in cases {
@@ -494,7 +494,7 @@ fn a_one_parameter_callback_synthesizes_no_key() {
 ///
 /// **Preserving a key is not what costs anything, and measuring said so.**
 /// `preserveKeys: true` over a packed list was five allocations dearer than
-/// `false` over sixty-four entries, not sixty-four: `MwlArray::slot_key`
+/// `false` over sixty-four entries, not sixty-four: `NvsArray::slot_key`
 /// answers a `SlotKey::Index` while the array is packed and renders nothing,
 /// so what those five bought was the `Vec` holding them. The one place a sort
 /// *renders* a key is `keys[index].to_str()`, reached only when a `by` closure
@@ -509,8 +509,8 @@ fn a_one_parameter_callback_synthesizes_no_key() {
 #[cfg(debug_assertions)]
 #[test]
 fn a_sort_that_renumbers_builds_no_keys() {
-    use mwl_runtime::Value;
-    use mwl_stdlib::arr::mwl_core_arr_sort;
+    use nvs_runtime::Value;
+    use nvs_stdlib::arr::nvs_core_arr_sort;
 
     const ENTRIES: usize = 64;
 
@@ -525,7 +525,7 @@ fn a_sort_that_renumbers_builds_no_keys() {
             Value::null(),
             Value::bool(false),
         ];
-        let (count, answer) = allocations_of(mwl_core_arr_sort, &args);
+        let (count, answer) = allocations_of(nvs_core_arr_sort, &args);
         spent.push(count);
         release(answer);
         for value in args {

@@ -1,7 +1,7 @@
 --TEST--
 `clone` stays PHP-shallow: an object-typed property is copied as a handle, so a write through the copy is seen by the original — ADR 0023 § 1
 --FILE--
-<?mwl
+<?nvs
 class Leaf {
     public int $value;
 

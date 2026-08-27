@@ -1,7 +1,7 @@
 --TEST--
 A method whose `try` throws returns from its `catch`, and a method that only throws still satisfies its return type
 --FILE--
-<?mwl
+<?nvs
 class Safe {
     public static function parse(string $raw): int {
         try {

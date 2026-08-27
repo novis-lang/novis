@@ -1,15 +1,15 @@
 --TEST--
 a --SKIPIF-- whose output does not start with `skip` lets the case run
 --SKIPIF--
-<?mwl
+<?nvs
 if (Core\Str::length("abc") != 3) {
     echo "skip strings are broken, so this proves nothing";
 }
 --FILE--
-<?mwl
+<?nvs
 echo "ran\n";
 --EXPECT--
 ran
 --CLEAN--
-<?mwl
+<?nvs
 echo "this output is ignored, by definition";

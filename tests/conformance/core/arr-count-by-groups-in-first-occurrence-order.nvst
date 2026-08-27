@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::countBy counts each bucket in first-occurrence order, with or without {by}
 --FILE--
-<?mwl
+<?nvs
 array<string> $words = ["red", "blue", "red", "green", "blue", "red"];
 
 // Without `by` the value itself is the bucket, which is array_count_values.

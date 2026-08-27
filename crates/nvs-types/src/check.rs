@@ -8,7 +8,7 @@
 //! a file-scope local is unreachable from a function, exactly as that ADR's
 //! storage-class table says.
 //!
-//! Mirrors [`mwl_hir::members`]'s own walk shape: [`check_stmts`] tracks
+//! Mirrors [`nvs_hir::members`]'s own walk shape: [`check_stmts`] tracks
 //! namespace/`use` scope the same way (there is no enclosing-class scope to
 //! track at this level — a fresh [`Ctx`] naming the class is built right at
 //! each declaration site instead), recursing into each class/interface's
@@ -28,9 +28,9 @@
 //! not descended into here at all — only top-level declarations (and ones
 //! nested in a `namespace { ... }` block) are found by [`check_stmts`].
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, code};
-use mwl_hir::{Module, QName};
-use mwl_syntax::ast::{
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, code};
+use nvs_hir::{Module, QName};
+use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, MethodMember, Name, NamespaceDecl, Stmt, StmtKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -53,10 +53,10 @@ fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 /// name-resolved `module` for symbol/alias lookups. `interner` accumulates
 /// every type this run interns; `exprs` accumulates every call's/`new`'s
 /// resolved target this run records — see [`crate::expr_table`]'s own module
-/// docs; a caller with no use for it yet (today, only `mwl-ir` reads it back)
+/// docs; a caller with no use for it yet (today, only `nvs-ir` reads it back)
 /// still passes one and may simply drop it afterward.
 ///
-/// `files` is the whole `require`/`autoload` graph — `mwl_hir::resolve_program`'s
+/// `files` is the whole `require`/`autoload` graph — `nvs_hir::resolve_program`'s
 /// second return value, in entry-first load order, mapped to
 /// [`crate::ProgramFile`] — and `module` must be the one that walk resolved
 /// over the same set. Every table below is built across all of it before any
@@ -70,8 +70,8 @@ fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 /// definite assignment reaches across the boundary.
 ///
 /// Hands the [`crate::EnumTable`] it built back rather than dropping it, for
-/// the same reason `mwl_hir::resolve_program` hands its autoload map back:
-/// `mwl-ir` needs each case's constant value to lower ADR 0047 § 3's
+/// the same reason `nvs_hir::resolve_program` hands its autoload map back:
+/// `nvs-ir` needs each case's constant value to lower ADR 0047 § 3's
 /// enum-case membership test, and [`crate::enums::build_enum_table`] reports
 /// ADR 0010 § 1/§ 2's declaration errors, so a caller that rebuilt the table
 /// for itself would report every one of them twice. A caller with no use for
@@ -130,7 +130,7 @@ pub fn check_program(
 }
 
 /// Copies every class's own declared property types into the expression
-/// table, so `mwl_ir::lower` can join them against the flattened slot order
+/// table, so `nvs_ir::lower` can join them against the flattened slot order
 /// and hand each class's per-slot types to codegen — ADR 0036 § 4's erased
 /// **write** check, which is the one write site that has no statically known
 /// field type of its own and so must ask the receiver's concrete class at run
@@ -138,7 +138,7 @@ pub fn check_program(
 ///
 /// Driven off the signature table rather than off the checked files, unlike
 /// [`record_property_defaults`]: the classes with no source declaration —
-/// `mwl_hir::errors`' exception tree, and every installed `Core` class — hold
+/// `nvs_hir::errors`' exception tree, and every installed `Core` class — hold
 /// state an erased write can reach just as well as a user class's, and their
 /// declarations are only ever in here.
 fn record_property_types(signatures: &crate::SignatureTable, exprs: &mut ExprTypeTable) {
@@ -240,7 +240,7 @@ fn check_stmts(
             // here rather than left to fall through, because what
             // `crate::locals::check_stmt` does with one now is refuse it as
             // `E0233` — and there the fact that it arrived at all *is* the
-            // proof it was nested. `mwl_hir` is what reads both: a `type`
+            // proof it was nested. `nvs_hir` is what reads both: a `type`
             // alias into the type table, an `autoload` into ADR 0061's map.
             StmtKind::TypeAliasDecl(_) | StmtKind::AutoloadDecl(_) => {}
             // Everything else is a *statement* of the script body, not a
@@ -272,12 +272,12 @@ fn check_stmts(
 }
 
 /// Copies `qname`'s own evaluated property defaults from the signature table
-/// into the expression table, under the same class label `mwl_types::layout`
+/// into the expression table, under the same class label `nvs_types::layout`
 /// keys a layout by.
 ///
 /// A move of already-computed data rather than a check: `crate::signatures`
 /// evaluated and diagnosed each one when it collected the declaration, and
-/// `mwl-ir` is handed the expression table alone — see
+/// `nvs-ir` is handed the expression table alone — see
 /// [`crate::expr_table::ExprTypeTable::record_property_defaults`].
 fn record_property_defaults(qname: &QName, env: &mut Env<'_>) {
     let Some(sig) = env.signatures.get(qname) else {
@@ -293,7 +293,7 @@ fn record_property_defaults(qname: &QName, env: &mut Env<'_>) {
 
 /// The same move for the class's own `static` properties — see
 /// [`crate::expr_table::ExprTypeTable::record_static_properties`], which is
-/// what `mwl-ir` enumerates the program's static slots out of.
+/// what `nvs-ir` enumerates the program's static slots out of.
 fn record_static_properties(qname: &QName, env: &mut Env<'_>) {
     let Some(sig) = env.signatures.get(qname) else {
         return;
@@ -332,7 +332,7 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
 ///
 /// [`Ctx::current_hook`] is what stops `$this->p` inside `$p`'s own hooks
 /// from resolving to a re-entrant call to the very accessor being checked.
-fn check_property_hooks(p: &mwl_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let Some(hooks) = &p.hooks else { return };
     let Some(class) = ctx.current_class else {
         return;
@@ -359,7 +359,7 @@ fn check_property_hooks(p: &mwl_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
         let this_ty = class_of_ctx(&inner, env);
         scope.declare_param("this".to_owned(), this_ty, p.name);
         live.insert("this".to_owned());
-        let is_set = hook.kind == mwl_syntax::ast::PropertyHookKind::Set;
+        let is_set = hook.kind == nvs_syntax::ast::PropertyHookKind::Set;
         if is_set {
             let (pname, pspan, pty) = match &hook.param {
                 Some(param) => (
@@ -374,11 +374,11 @@ fn check_property_hooks(p: &mwl_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
         }
         let return_ty = if is_set { env.interner.void() } else { prop_ty };
         match body {
-            mwl_syntax::ast::PropertyHookBody::Expr(e) => {
+            nvs_syntax::ast::PropertyHookBody::Expr(e) => {
                 let expected = if is_set { prop_ty } else { return_ty };
                 crate::expr::check_expr(e, Some(expected), &mut live, &scope, &inner, env);
             }
-            mwl_syntax::ast::PropertyHookBody::Block(block) => {
+            nvs_syntax::ast::PropertyHookBody::Block(block) => {
                 check_block(&block.stmts, &mut live, &mut scope, return_ty, &inner, env);
             }
         }
@@ -422,7 +422,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         // what `MethodSig::param_at` matches an argument against — but the
         // body is handed the one array the call site collected them into, so
         // the binding is `array<` that `>`. Getting this wrong is not a
-        // checker-only mistake: `mwl_ir::lower::lower_method` binds the same
+        // checker-only mistake: `nvs_ir::lower::lower_method` binds the same
         // slot, and the caller has always passed an array there.
         let ty = match param.variadic {
             true => env.interner.array(ty),
@@ -463,7 +463,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// parameter.
 ///
 /// A by-reference parameter addresses a cell the **call site** stages, writes
-/// back from and then drops — `mwl_ir::lower::call` owns that staging, and
+/// back from and then drops — `nvs_ir::lower::call` owns that staging, and
 /// what makes it sound is that the callee's frame dies first. A generator
 /// inverts exactly that: calling one runs none of the body, it allocates the
 /// state object and returns, so the staged cell is gone before the first
@@ -499,16 +499,16 @@ fn check_generator_inout_params(m: &MethodMember, env: &mut Env<'_>) {
 /// generator whose declared return type is not an `Iterator<T>`.
 fn generator_element(
     m: &MethodMember,
-    body: &mwl_syntax::ast::Block,
+    body: &nvs_syntax::ast::Block,
     return_ty: crate::ty::TypeId,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Option<crate::ty::TypeId> {
-    if !mwl_syntax::ast::is_generator_body(body) {
+    if !nvs_syntax::ast::is_generator_body(body) {
         return None;
     }
     if let crate::ty::Ty::Class(qname, args) = env.interner.get(return_ty)
-        && qname.short_name() == mwl_hir::interfaces::ITERATOR
+        && qname.short_name() == nvs_hir::interfaces::ITERATOR
         && qname.is_reserved_global_interface()
         && let Some(&elem) = args.first()
     {

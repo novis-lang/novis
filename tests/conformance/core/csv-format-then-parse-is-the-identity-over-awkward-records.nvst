@@ -1,9 +1,9 @@
 --TEST--
 `Core\Csv::format` then `Core\Csv::parse` is the identity over a table of awkward records, and the one record it is not — spec § 12's second table
 --FILE--
-<?mwl
+<?nvs
 // The writer's rule is "quote a field exactly where a byte in it would
-// otherwise change the parse" (`crates/mwl-stdlib/src/csv.rs`'s module doc), so
+// otherwise change the parse" (`crates/nvs-stdlib/src/csv.rs`'s module doc), so
 // the claim that rule exists to buy is a round-trip invariant rather than any
 // one rendering: whatever bytes a field holds, reading back what the writer
 // emitted answers those same bytes. A table asserts that by *counting* — a
@@ -53,7 +53,7 @@ echo "fixedpoint=", $twice == $doc ? "yes" : "no", "\n";
 
 // The one record the identity does not hold for, named rather than hidden by
 // the sweep: a record of a single empty field is written as an empty line, and
-// a blank line is not a record (`csv-keys-a-ragged-record-by-what-it-has.mwlt`
+// a blank line is not a record (`csv-keys-a-ragged-record-by-what-it-has.nvst`
 // pins that reading). So this one table comes back shorter than it went out.
 // Every wider all-empty record survives, because the separators are still
 // there to count — the loss needs a record of exactly one empty field.

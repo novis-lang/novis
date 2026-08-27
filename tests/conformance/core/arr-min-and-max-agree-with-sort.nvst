@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::min and max answer null over an empty array and name the same entries sort puts at the ends
 --FILE--
-<?mwl
+<?nvs
 array<int> $nums = [15, 4, 8];
 array<int> $empty = [];
 array<string> $words = ["pear", "apple", "fig"];

@@ -1,7 +1,7 @@
 --TEST--
 `instanceof` is true for the class, every ancestor and every interface, and false for a sibling
 --FILE--
-<?mwl
+<?nvs
 interface Marks {
     public function mark(): string;
 }

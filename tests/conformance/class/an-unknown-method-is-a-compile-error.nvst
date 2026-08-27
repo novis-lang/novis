@@ -1,7 +1,7 @@
 --TEST--
 there is no `__call` fallback, so a method the class does not declare is refused before anything runs — ADR 0014 § 4
 --FILE--
-<?mwl
+<?nvs
 class Box {
     public int $n;
 
@@ -15,6 +15,6 @@ echo $b->widen(2), "\n";
 
 --EXPECTF-ERROR--
 error[E0405]: `Box` has no method named `widen`
-   --> case.mwl:10:6
+   --> case.nvs:10:6
 %A
 error: aborting due to 1 error

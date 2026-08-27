@@ -1,9 +1,9 @@
 --TEST--
 `instanceof` answers for the four global interfaces the compiler declares and no source does — ADR 0013 § 1, ADR 0028 § 1, ADR 0053 § 1
 --FILE--
-<?mwl
+<?nvs
 // `Stringable` and `Comparable` have no declaration anywhere: the compiler
-// seeds them (`mwl_hir::interfaces`), so this pins that an implementor still
+// seeds them (`nvs_hir::interfaces`), so this pins that an implementor still
 // carries a real ancestor edge to each at run time.
 class Money implements Stringable, Comparable {
     public int $cents;

@@ -5,7 +5,7 @@
 - **Amended by:** 0097
 - **Scope:** a `wasm32` compile target for interactive client-side scripts running in a browser tab; its
   codegen backend and how it shares the CFG/SSA IR boundary from M2; the per-target capability matrix that
-  excludes `spawn worker`/`spawn script`, coroutine-based suspension, and `.mwlx` wasm-component extensions
+  excludes `spawn worker`/`spawn script`, coroutine-based suspension, and `.nvsx` wasm-component extensions
   for this target only; the new `Core` host-context domain for DOM/window interaction; `require`'s
   build-time-only resolution when there is no filesystem to fall back on.
 - **Validated by:** none yet — the backend does not exist before M14. This ADR reuses the
@@ -13,14 +13,14 @@
   under [0003](0003-extension-system.md); its own target-specific claims (the dropped coroutine, the
   capability matrix) get their own guard test when M14 starts, per the *Revisiting* section below.
 
-> **In short:** MWL gains an optional `wasm32` compile target for running client-side in a browser tab,
+> **In short:** Novis gains an optional `wasm32` compile target for running client-side in a browser tab,
 > implemented as a **second codegen backend consuming the same IR** M2 already produces — not a second
 > front end, type checker, or set of language semantics. Cranelift has no `wasm32` output (Wasmtime uses it
 > the other direction), so this backend lowers IR to wasm opcodes directly. Three things are unavailable in
 > this target specifically, each a compile-time diagnostic rather than a silent downgrade: `spawn worker`/
 > `spawn script` ([0006](0006-isolated-script-execution.md), no matching concurrency substrate in a tab),
 > coroutine-based suspension (the stack-switching mechanism behind it has no standard `wasm32` equivalent),
-> and `.mwlx` extensions ([0003](0003-extension-system.md), no Component Model host in a browser). A fourth
+> and `.nvsx` extensions ([0003](0003-extension-system.md), no Component Model host in a browser). A fourth
 > `Core` accessor domain covers DOM/window state, following [0012](0012-no-superglobals.md)'s existing
 > pattern; its method table is explicitly *not* designed here. Every other language and stdlib feature —
 > types, taint tracking, PHP-compat semantics, the checked-return ABI — is identical across every target.
@@ -31,7 +31,7 @@
   tab is a third context, further removed than those two are from each other: no inbound request, no
   process/argv, and no OS thread/process substrate to build `spawn` or a JIT's W^X pages on.
 - This fits the existing model provided the target is scoped as producing a `.wasm` artifact ahead of time
-  for the browser's own engine to instantiate — not running MWL's native JIT *inside* a wasm sandbox, which
+  for the browser's own engine to instantiate — not running Novis's native JIT *inside* a wasm sandbox, which
   is impossible by construction (a wasm module can't mark its own memory executable or emit new callable
   code beyond wasm's own `instantiate`/`compile`, the same sandboxing property
   [0003](0003-extension-system.md) already relies on).
@@ -57,7 +57,7 @@ eventually consumes their output.
 
 W^X page management and the optimising tier's runtime code-patching (deopt/OSR, slated for M12) simply don't
 apply here: a `.wasm` module is emitted once, ahead of the browser loading it, and the browser's own engine
-does whatever JIT/tiering it wants to the bytes MWL handed it. That is a simplification for this target, not
+does whatever JIT/tiering it wants to the bytes Novis handed it. That is a simplification for this target, not
 a quirk to work around.
 
 ### The capability matrix: what this target drops
@@ -75,13 +75,13 @@ this ADR, never a silent no-op or a weaker substitute:
 
 2. **Coroutine-based suspension.** The mechanism is native stack-switching, which has no standard `wasm32`
    equivalent (see *Context*). Rather than special-casing suspension per target inside every `Core` function
-   that might yield, the browser target runs every MWL function to completion synchronously: a `Core`
+   that might yield, the browser target runs every Novis function to completion synchronously: a `Core`
    function that would need to suspend on the native/webserver targets is not offered in this target's
    `Core` surface at all, for v1. The *available standard-library surface* differing by target, not the
    language, is exactly the shape [0012](0012-no-superglobals.md) already gives every target — ambient
    capability was always routed through `Core` accessor classes, never language syntax.
 
-3. **`.mwlx` wasm-component extensions.** Tier 1 extensions load through Wasmtime as host
+3. **`.nvsx` wasm-component extensions.** Tier 1 extensions load through Wasmtime as host
    ([0003](0003-extension-system.md)), which nothing in a browser tab provides — there is no shipped
    Component Model runtime to be that host. A browser build gets Tier 0 built-ins only; third-party
    extensions are out of scope for this target in v1.
@@ -125,7 +125,7 @@ language underneath it.
 
 **Positive**
 
-- The language surface does not grow. No new keyword, no new type, no per-target dialect: a `.mwl` file
+- The language surface does not grow. No new keyword, no new type, no per-target dialect: a `.nvs` file
   that avoids the three excluded features is portable across all three targets unmodified.
 - [0012](0012-no-superglobals.md)'s design pays for itself again — because host state was already behind
   accessor classes rather than ambient variables, adding a fourth context is additive (one new class), not a
@@ -142,7 +142,7 @@ language underneath it.
   implementation, spent last, per AGENTS.md's priority ordering) because the target is optional — M14 is
   contingent on an embedding actually wanting it, and is the only contingent milestone left — and shares
   everything upstream of codegen.
-- **The `Core` surface genuinely differs by target.** Code that spawns, suspends on I/O, or loads a `.mwlx`
+- **The `Core` surface genuinely differs by target.** Code that spawns, suspends on I/O, or loads a `.nvsx`
   extension does not port to the browser silently; it is a compile-time diagnostic, not a runtime surprise,
   but "write once, target anywhere" now has three named exceptions instead of zero.
 - **`Core\Browser`'s method table is undesigned.** This ADR commits to the shape — a seventh accessor
@@ -150,7 +150,7 @@ language underneath it.
 
 ## Alternatives rejected
 
-- **Compile the native JIT itself to wasm and run it inside the browser, JIT-ing MWL source at page load.**
+- **Compile the native JIT itself to wasm and run it inside the browser, JIT-ing Novis source at page load.**
   Requires mmap'ing executable pages from inside a wasm sandbox, which no browser permits, and contradicts
   [0003](0003-extension-system.md)'s reasoning for why native code gets no ambient authority.
 - **Emulate coroutines with Asyncify** to keep one execution model across every target. Instruments every

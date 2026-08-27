@@ -1,7 +1,7 @@
 --TEST--
 Core\Random::bytes draws a raw buffer of the count it is given, two draws differ, and a zero-byte draw throws — spec § 11, ADR 0009 §§ 1 and 3, ADR 0063 R4
 --FILE--
-<?mwl
+<?nvs
 // A random answer cannot be asserted, so every line pins an invariant of the
 // draw rather than the draw itself.
 

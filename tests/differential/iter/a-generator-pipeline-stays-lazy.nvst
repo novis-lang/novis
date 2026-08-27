@@ -1,7 +1,7 @@
 --TEST--
 A two-stage generator pipeline — one generator drains another with `foreach` and re-yields — interleaves its stages exactly the way PHP's does
 --FILE--
-<?mwl
+<?nvs
 class Pipe {
     public static function source(int $upTo): Iterator<int> {
         int $i = 1;

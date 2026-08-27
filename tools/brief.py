@@ -53,7 +53,7 @@ ADR_README = ROOT / "docs" / "adr" / "README.md"
 ADR_DIR = ROOT / "docs" / "adr"
 PROBE = ROOT / "benches" / "abi-probe"
 CRATES = ROOT / "crates"
-DIAGNOSTICS = CRATES / "mwl-diagnostics" / "src" / "lib.rs"
+DIAGNOSTICS = CRATES / "nvs-diagnostics" / "src" / "lib.rs"
 
 # --------------------------------------------------------------- display excerpts
 #
@@ -88,7 +88,7 @@ STATUS_FULL = {"Open now", "Blocking"}
 # the one kind of fact this script holds. The file:line beside each is always sliced, never
 # stored, and a pattern that stops matching is reported rather than quietly dropped.
 ANCHORS = [
-    ("the helper-body macro", r"^macro_rules! mwl_helper\b"),
+    ("the helper-body macro", r"^macro_rules! nvs_helper\b"),
     ("the roster of `Core` classes", r"^pub const CLASSES\b"),
     ("one class's member rows (one per stdlib module)", r"^pub const CLASS: CoreClass\b"),
     ("what a member's row may say", r"^pub struct CoreMethod\b"),
@@ -671,7 +671,7 @@ def module_doc(text):
 
 def first_sentence(text):
     """`Foo the bar. Then baz.` -> `Foo the bar`. A `.` inside backticks or followed by a
-    non-space never ends a sentence, so `mwl_ir::ir` and `0.1.0` stay whole."""
+    non-space never ends a sentence, so `nvs_ir::ir` and `0.1.0` stay whole."""
     text = INTRA_DOC_RE.sub(r"\1", strip_links(text))
     depth_safe = re.split(r"(?<=[a-z\)`])\.\s+(?=[A-Z\[`])", text, maxsplit=1)
     return depth_safe[0].strip().rstrip(".")

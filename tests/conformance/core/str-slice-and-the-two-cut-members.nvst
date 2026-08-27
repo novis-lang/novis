@@ -1,7 +1,7 @@
 --TEST--
 Spec § 1: `Core\Str::slice` takes a `?int` length, and `before`/`after` cut at an occurrence without including it
 --FILE--
-<?mwl
+<?nvs
 // `?int $length = null` is the first `Core` parameter whose default is `null`:
 // "to the end of the subject", spelled in the type rather than as a sentinel
 // (ADR 0063 R5).

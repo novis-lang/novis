@@ -1,7 +1,7 @@
 --TEST--
 Integer `+`, `-`, `*` and unary `-` answer one step inside their type's bound and throw `ArithmeticError` at it, on the `int` arm and the `uint` arm alike — ADR 0007 §§ 4, 7
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 4 names this the divergence from PHP it is least willing to
 // trade: PHP promotes an overflowing integer to `float`, which changes a
 // binding's type behind its declaration, and the alternative — wrapping — is

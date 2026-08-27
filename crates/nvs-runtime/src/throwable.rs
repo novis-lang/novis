@@ -7,8 +7,8 @@
 //! makes `Throwable` the root of a small class tree whose members are
 //! *readonly properties* — `message`, `previous`, `backtrace`, `location` —
 //! not `getX()` accessors, and makes user classes extend it directly. So an
-//! exception is a [`crate::MwlObj`] like any other: allocated by
-//! `mwl_object_new`, refcounted by `mwl_object_retain`/`mwl_object_release`,
+//! exception is a [`crate::NvsObj`] like any other: allocated by
+//! `nvs_object_new`, refcounted by `nvs_object_retain`/`nvs_object_release`,
 //! read by an ordinary `FieldGet`. There is no second representation here any
 //! more, and no `Ty::Throwable` in the IR.
 //!
@@ -23,15 +23,15 @@
 //! `Throwable` is the root of every exception class in existence — so
 //! `message` is slot 0 and `backtrace` slot 2 for `LogicError`, for a user's
 //! `ConfigError extends Throwable`, and for anything else that can be thrown.
-//! `mwl_hir::errors::PROPERTIES` is the one home for that order; the constants
-//! below restate the two indices this crate needs because `mwl-runtime`
+//! `nvs_hir::errors::PROPERTIES` is the one home for that order; the constants
+//! below restate the two indices this crate needs because `nvs-runtime`
 //! depends on nothing (see [`crate`]'s own docs), and
-//! `mwl-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`
+//! `nvs-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`
 //! is the test that holds the two together.
 //!
 //! # The backtrace is built as the throw propagates
 //!
-//! A frame label is pushed by [`mwl_trace_push`] from the *error* path of each
+//! A frame label is pushed by [`nvs_trace_push`] from the *error* path of each
 //! compiled frame the throw travels out of — never from a push/pop record kept
 //! on the way in. That is the whole reason
 //! [ADR 0002](../../../docs/adr/0002-error-propagation.md) can claim a call
@@ -40,11 +40,11 @@
 //! and deliberate: the trace holds exactly the frames the exception *unwound
 //! out of*, so a `catch` in the frame that called the thrower sees the
 //! thrower's frame and nothing below it. PHP instead snapshots the whole stack
-//! at construction; matching that needs a walk of MWL's own frame chain.
+//! at construction; matching that needs a walk of Novis's own frame chain.
 
 use crate::ctx::Ctx;
-use crate::object::{ClassDesc, MwlObj, ObjHeader};
-use crate::{MwlArray, MwlStr, Value};
+use crate::object::{ClassDesc, NvsObj, ObjHeader};
+use crate::{NvsArray, NvsStr, Value};
 
 /// The slot `Throwable::$message` occupies — see this module's docs.
 pub const MESSAGE_SLOT: usize = 0;
@@ -66,8 +66,8 @@ pub const SLOT_COUNT: usize = 4;
 ///
 /// `ParseError` inherits exactly [`SLOT_COUNT`] slots and adds this one, so a
 /// descriptor with more than [`SLOT_COUNT`] fields is the only shape it can
-/// take. `mwl_hir::errors::ISSUES_SLOT` is the compiler's copy, and
-/// `mwl-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`
+/// take. `nvs_hir::errors::ISSUES_SLOT` is the compiler's copy, and
+/// `nvs-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`
 /// is what holds the two together.
 pub const ISSUES_SLOT: usize = SLOT_COUNT;
 
@@ -75,14 +75,14 @@ pub const ISSUES_SLOT: usize = SLOT_COUNT;
 /// § 10's classes a runtime helper's failure lands in.
 ///
 /// A closed enum rather than a `&'static str` a helper writes, for
-/// `mwl_stdlib::registry::CoreTy`'s reason: a misspelled class name would be
+/// `nvs_stdlib::registry::CoreTy`'s reason: a misspelled class name would be
 /// a silent *runtime* miss — the `catch` clause that was meant to handle it
 /// simply would not match — rather than a compile error. The roster is spec
 /// § 10's tree minus its root, since a helper that means "anything at all"
 /// means [`Self::Runtime`].
 ///
-/// `mwl-runtime` depends on nothing (see [`crate`]'s own docs), so the names
-/// below restate `mwl_hir::errors::TREE`'s; `mwl-codegen`'s
+/// `nvs-runtime` depends on nothing (see [`crate`]'s own docs), so the names
+/// below restate `nvs_hir::errors::TREE`'s; `nvs-codegen`'s
 /// `every_thrown_class_is_in_the_compiler_s_exception_tree` is the test that
 /// holds the two together, exactly as
 /// `the_runtime_and_the_compiler_agree_on_every_throwable_slot` holds the slot
@@ -115,7 +115,7 @@ pub enum ThrownClass {
 }
 
 impl ThrownClass {
-    /// The class's name, as `mwl_hir::errors::TREE` spells it.
+    /// The class's name, as `nvs_hir::errors::TREE` spells it.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
@@ -145,7 +145,7 @@ impl ThrownClass {
 ///
 /// Exists so [`crate::Ctx`] can hold a raw `*mut ObjHeader` without either
 /// leaking it or hand-writing a release at every early return — the same job
-/// [`MwlObj`] does, except that this one may be *null*, which is the state a
+/// [`NvsObj`] does, except that this one may be *null*, which is the state a
 /// failure with no object behind it (a helper fault whose class was never
 /// installed) leaves.
 #[derive(Debug)]
@@ -157,7 +157,7 @@ pub struct Thrown {
 impl Thrown {
     /// Builds a fresh exception of `class` carrying `message`, with an empty
     /// backtrace — what a helper's bare-message failure is promoted to, and
-    /// what `mwl run --fault-inject` produces.
+    /// what `nvs run --fault-inject` produces.
     ///
     /// Returns a null [`Thrown`] if `class` is null or describes fewer than
     /// [`SLOT_COUNT`] slots, which is the "no exception class was installed"
@@ -238,14 +238,14 @@ impl Thrown {
             unsafe_code,
             reason = "the caller guarantees the descriptor outlives the instance"
         )]
-        let obj = unsafe { MwlObj::new(class) };
-        obj.set_field(MESSAGE_SLOT, Value::str(MwlStr::new(message.as_bytes())));
-        obj.set_field(BACKTRACE_SLOT, Value::array(MwlArray::new()));
-        obj.set_field(LOCATION_SLOT, Value::str(MwlStr::new(b"")));
+        let obj = unsafe { NvsObj::new(class) };
+        obj.set_field(MESSAGE_SLOT, Value::str(NvsStr::new(message.as_bytes())));
+        obj.set_field(BACKTRACE_SLOT, Value::array(NvsArray::new()));
+        obj.set_field(LOCATION_SLOT, Value::str(NvsStr::new(b"")));
         if thrown == ThrownClass::Parse && count > ISSUES_SLOT {
             obj.set_field(
                 ISSUES_SLOT,
-                issues.unwrap_or_else(|| Value::array(MwlArray::new())),
+                issues.unwrap_or_else(|| Value::array(NvsArray::new())),
             );
         } else if let Some(issues) = issues {
             #[expect(
@@ -301,9 +301,9 @@ impl Thrown {
 
     /// A borrowed handle on the object, or `None` if there is none.
     ///
-    /// [`std::mem::ManuallyDrop`] because [`MwlObj::from_raw`] takes over a
+    /// [`std::mem::ManuallyDrop`] because [`NvsObj::from_raw`] takes over a
     /// reference this value still owns.
-    fn borrow(&self) -> Option<std::mem::ManuallyDrop<MwlObj>> {
+    fn borrow(&self) -> Option<std::mem::ManuallyDrop<NvsObj>> {
         if self.ptr.is_null() {
             return None;
         }
@@ -314,7 +314,7 @@ impl Thrown {
                       not released twice"
         )]
         Some(std::mem::ManuallyDrop::new(unsafe {
-            MwlObj::from_raw(self.ptr)
+            NvsObj::from_raw(self.ptr)
         }))
     }
 
@@ -338,7 +338,7 @@ impl Thrown {
     }
 
     /// The `backtrace` property rendered `#0`-first, the form
-    /// `mwl run`'s uncaught report prints.
+    /// `nvs run`'s uncaught report prints.
     ///
     /// The `#N ` prefix is applied here rather than stored, so a frame label
     /// never has to know its own depth at the point it is pushed.
@@ -374,7 +374,7 @@ impl Thrown {
             reason = "the slot holds one reference the object owns; the handle \
                       is never dropped, so that reference is not released here"
         )]
-        let handle = std::mem::ManuallyDrop::new(unsafe { MwlArray::from_raw(array) });
+        let handle = std::mem::ManuallyDrop::new(unsafe { NvsArray::from_raw(array) });
         let mut out = Vec::new();
         let mut slot = 0;
         while let Some(found) = handle.next_slot(slot) {
@@ -412,8 +412,8 @@ impl Thrown {
             reason = "`take_field` transferred the slot's own reference here, \
                       and `into_raw` hands it straight back to the slot"
         )]
-        let mut handle = unsafe { MwlArray::from_raw(array) };
-        handle.append(Value::str(MwlStr::new(label.as_bytes())));
+        let mut handle = unsafe { NvsArray::from_raw(array) };
+        handle.append(Value::str(NvsStr::new(label.as_bytes())));
         obj.set_field(BACKTRACE_SLOT, Value::from_array_ptr(handle.into_raw()));
     }
 }
@@ -429,7 +429,7 @@ impl Drop for Thrown {
                       allocation, and this is the one place it is given up"
         )]
         unsafe {
-            drop(MwlObj::from_raw(self.ptr));
+            drop(NvsObj::from_raw(self.ptr));
         }
     }
 }
@@ -442,10 +442,10 @@ impl Drop for Thrown {
 // none of these can fail, so none of them wears ADR 0002's checked-return
 // shape. Every one is `extern "C"` and never `extern "C-unwind"`.
 
-/// Makes `thrown` this request's pending exception — what MWL's `throw`
+/// Makes `thrown` this request's pending exception — what Novis's `throw`
 /// lowers to, immediately before the frame branches to its own cleanup path.
 ///
-/// Takes ownership of the reference it is handed: `mwl_ir::lower` retains an
+/// Takes ownership of the reference it is handed: `nvs_ir::lower` retains an
 /// aliasing `throw $e;` operand first, exactly the way it retains any other
 /// value copied into a second durable slot.
 ///
@@ -460,7 +460,7 @@ impl Drop for Thrown {
               contract cannot be expressed in the signature"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_raise(ctx: *mut Ctx, thrown: *mut ObjHeader) {
+pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader) {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees both pointers are valid, and that the \
@@ -472,12 +472,12 @@ pub unsafe extern "C" fn mwl_raise(ctx: *mut Ctx, thrown: *mut ObjHeader) {
 }
 
 /// Builds an exception of `class` carrying `message` and makes it this
-/// request's pending one — [`mwl_raise`] for a throw compiled code raises by
-/// itself, with no MWL `new` behind it.
+/// request's pending one — [`nvs_raise`] for a throw compiled code raises by
+/// itself, with no Novis `new` behind it.
 ///
-/// The one caller today is `mwl-codegen`'s integer `%`, whose zero divisor
+/// The one caller today is `nvs-codegen`'s integer `%`, whose zero divisor
 /// must throw spec § 10's `ArithmeticError` rather than trap the process. That
-/// site has no MWL expression to construct the exception from, and cannot go
+/// site has no Novis expression to construct the exception from, and cannot go
 /// through a helper's [`crate::Fault`] either: a helper failure carries a bare
 /// message, which `run_helper` promotes to `RuntimeError` and only
 /// `RuntimeError` (see [`Ctx::set_runtime_error_class`]). Naming the class is
@@ -500,7 +500,7 @@ pub unsafe extern "C" fn mwl_raise(ctx: *mut Ctx, thrown: *mut ObjHeader) {
               pointer and a length into its own data section"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_raise_new(
+pub unsafe extern "C" fn nvs_raise_new(
     ctx: *mut Ctx,
     class: *const ClassDesc,
     message: *const u8,
@@ -550,7 +550,7 @@ pub unsafe extern "C" fn mwl_raise_new(
               length into its own data section"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_trace_push(ctx: *mut Ctx, label: *const u8, len: usize, status: i32) {
+pub unsafe extern "C" fn nvs_trace_push(ctx: *mut Ctx, label: *const u8, len: usize, status: i32) {
     if status != crate::THROWN {
         return;
     }
@@ -572,13 +572,13 @@ pub unsafe extern "C" fn mwl_trace_push(ctx: *mut Ctx, label: *const u8, len: us
 }
 
 /// Hands the pending exception to a `catch` clause's dispatch, clearing it
-/// from the context — `mwl_ir::InstKind::TakeThrown`'s entry point.
+/// from the context — `nvs_ir::InstKind::TakeThrown`'s entry point.
 ///
 /// The caller owns the returned reference and must eventually release it.
 /// It may be **null**: a helper's bare-message failure has no object behind
 /// it unless [`Ctx::set_runtime_error_class`] installed a class to build one
 /// from. Every operation a `catch` dispatch performs on the result is
-/// null-tolerant — `mwl_object_instanceof` answers `false`, so no clause
+/// null-tolerant — `nvs_object_instanceof` answers `false`, so no clause
 /// matches and the throw is re-raised unchanged.
 ///
 /// # Safety
@@ -590,7 +590,7 @@ pub unsafe extern "C" fn mwl_trace_push(ctx: *mut Ctx, label: *const u8, len: us
               expressed in the signature"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_take_thrown(ctx: *mut Ctx) -> *mut ObjHeader {
+pub unsafe extern "C" fn nvs_take_thrown(ctx: *mut Ctx) -> *mut ObjHeader {
     #[expect(unsafe_code, reason = "the caller guarantees `ctx` is valid")]
     let thrown = unsafe { (*ctx).take_thrown() };
     thrown.into_raw()
@@ -602,7 +602,7 @@ mod tests {
     use crate::object::ClassTable;
 
     /// The [`SLOT_COUNT`] slots in slot order, spelled the way
-    /// `mwl_types::error_lib` declares them.
+    /// `nvs_types::error_lib` declares them.
     const SLOT_NAMES: [&str; SLOT_COUNT] = ["message", "previous", "backtrace", "location"];
 
     /// A class table shaped like the seeded exception tree: `Throwable` with
@@ -629,11 +629,11 @@ mod tests {
         let (_table, _, leaf) = tree();
         #[expect(unsafe_code, reason = "the table outlives the instance")]
         let e = unsafe { Thrown::new(leaf, "traced") };
-        e.push_frame("Deep::inner() at t.mwl:4");
-        e.push_frame("Deep::outer() at t.mwl:8");
+        e.push_frame("Deep::inner() at t.nvs:4");
+        e.push_frame("Deep::outer() at t.nvs:8");
         assert_eq!(
             e.trace_as_string(),
-            "#0 Deep::inner() at t.mwl:4\n#1 Deep::outer() at t.mwl:8"
+            "#0 Deep::inner() at t.nvs:4\n#1 Deep::outer() at t.nvs:8"
         );
         assert_eq!(e.frames().len(), 2);
     }

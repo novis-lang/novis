@@ -1,9 +1,9 @@
 --TEST--
 Core\Random::bytes and ::token each name which of their two checks refused an oversized draw, and token's bound sits at exactly half of bytes's — spec § 11, ADR 0004, ADR 0063 R4
 --FILE--
-<?mwl
+<?nvs
 // A draw too large is refused twice over, by checks that answer different
-// questions: `mwl_runtime::affordable` is the policy seam ADR 0004's
+// questions: `nvs_runtime::affordable` is the policy seam ADR 0004's
 // `[limits.hard]` ceiling will attach to, and the allocator is what refuses a
 // buffer this machine cannot serve today. Which sentence comes back is what
 // says which of the two stopped the call, so every row here reads the message

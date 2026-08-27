@@ -1,7 +1,7 @@
 --TEST--
 A `mixed` converts into an enum case by converting to the backing integer first and then testing membership — ADR 0010 § 5's second row, and ADR 0047 § 3's named subset over the same operand
 --FILE--
-<?mwl
+<?nvs
 enum Mode: int {
     Read = 1,
     Write = 2,

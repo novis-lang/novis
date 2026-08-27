@@ -1,7 +1,7 @@
 --TEST--
 a compound assignment through an `inout $x` parameter updates the caller's own binding
 --FILE--
-<?mwl
+<?nvs
 class Bump {
     public static function twice(inout int $n, inout string $s): void {
         $n += 2;

@@ -1,7 +1,7 @@
 --TEST--
-MWL's one `==` falls the same way as PHP's `===` over scalars of one type — ADR 0090 § 7's Tier E
+Novis's one `==` falls the same way as PHP's `===` over scalars of one type — ADR 0090 § 7's Tier E
 --FILE--
-<?mwl
+<?nvs
 echo (1 == 1) as string, "|", (1 == 2) as string, "|\n";
 echo (1 != 2) as string, "|", (1 != 1) as string, "|\n";
 echo ("a" == "a") as string, "|", ("a" == "b") as string, "|\n";

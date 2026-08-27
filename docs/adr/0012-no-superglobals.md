@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-20
 - **Scope:** PHP's superglobal variables (`$GLOBALS`, `$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`,
-  `$_REQUEST`, `$_SESSION`, `$_ENV`), the CLI SAPI's `$argv`/`$argc`, and MWL's own `$_ARGS` from
+  `$_REQUEST`, `$_SESSION`, `$_ENV`), the CLI SAPI's `$argv`/`$argc`, and Novis's own `$_ARGS` from
   [ADR 0006](0006-isolated-script-execution.md); the `Core\Server`, `Core\Request`, `Core\Session`,
   `Core\Cli` and `Core\Script` classes; what `Core\Env` gains beyond the `EOL` constant
   [ADR 0011](0011-functions-and-constants-are-class-members.md) already gave it
@@ -29,14 +29,14 @@
 
 > **In short:** PHP populates `$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION`, `$_ENV` and
 > `$GLOBALS` ambiently — a script never declares them, they are simply present, and `$GLOBALS` additionally
-> exposes every top-level variable in the whole program as one mutable array keyed by name. MWL has none of
+> exposes every top-level variable in the whole program as one mutable array keyed by name. Novis has none of
 > that: **no variable is ever populated by the host.** `$GLOBALS` and `$_REQUEST` are dropped outright, with
 > no replacement. Every other superglobal becomes a `static` method on a reserved `Core` class, populated
 > per isolate by the host rather than by a user initialiser: `Core\Server` for server metadata and headers
 > (`$_SERVER`), `Core\Request` for query/post/cookie/file input (`$_GET`/`$_POST`/`$_COOKIE`/`$_FILES`),
 > `Core\Session` for session data (`$_SESSION`, no auto-start), `Core\Env` for environment variables
 > (`$_ENV`, joining the `EOL` constant ADR 0011 already gave it), and `Core\Cli` for the CLI SAPI's process
-> arguments (`$argv`/`$argc`). MWL's own spawn-script argument variable — `$_ARGS` from
+> arguments (`$argv`/`$argc`). Novis's own spawn-script argument variable — `$_ARGS` from
 > [ADR 0006](0006-isolated-script-execution.md) — is the same shape of ambient variable this ADR closes, and
 > gets the same treatment: `Core\Script::args()`. Inside a spawned isolate, `Core\Request`, `Core\Server` and
 > `Core\Session` **throw** rather than silently returning empty or the parent's data — an isolation-boundary
@@ -84,7 +84,7 @@ replacement at all.**
 | `$_SESSION` | `Core\Session` | see *4* — no auto-start, backing store deferred |
 | `$_ENV` / `getenv()` | `Core\Env` | joins the `EOL` constant [ADR 0011](0011-functions-and-constants-are-class-members.md) already gave this class |
 | `$argv` / `$argc` | `Core\Cli` | CLI SAPI only — see *5* |
-| `$_ARGS` (MWL, [ADR 0006](0006-isolated-script-execution.md)) | `Core\Script::args()` | not a PHP superglobal, but the same shape of ambient variable — see *6* |
+| `$_ARGS` (Novis, [ADR 0006](0006-isolated-script-execution.md)) | `Core\Script::args()` | not a PHP superglobal, but the same shape of ambient variable — see *6* |
 
 `Core\Server` and `Core\Request` are two classes, not one, matching the split PHP itself already draws
 between "facts about the server and the request" and "input the client sent": exactly the [ADR 0011](0011-functions-and-constants-are-class-members.md) principle of one domain class per PHP-grouping-shaped
@@ -140,7 +140,7 @@ rejected* declined to smuggle a memoisation cache into a decision about a keywor
 ### 5. `Core\Cli` is CLI-SAPI-only, and says so loudly
 
 `Core\Cli::args()` and `::argc()` mirror `$argv`/`$argc` and are valid only when the process is running as
-the CLI entry point (`mwl run`). Calling either while serving HTTP (`mwl serve`) **throws**, per
+the CLI entry point (`nvs run`). Calling either while serving HTTP (`nvs serve`) **throws**, per
 [ADR 0002](0002-error-propagation.md)'s checked-status propagation, rather than PHP's silent absence
 (`$argv` under `php-fpm` is simply unset, which is its own class of "works until it doesn't" bug). Within a
 request tree, `Core\Cli::args()` returns the same value at every depth — it reflects how the *process* was
@@ -150,7 +150,7 @@ suppress it the way it does for request state.
 ### 6. `Core\Script::args()` replaces `$_ARGS`, for the same reason as everything else
 
 [ADR 0006](0006-isolated-script-execution.md) introduced `$_ARGS` as "a fresh superglobal" for a spawned
-isolate to receive its arguments — MWL's own construct, not inherited from PHP, but the identical shape of
+isolate to receive its arguments — Novis's own construct, not inherited from PHP, but the identical shape of
 ambient, undeclared variable this ADR closes for every PHP one. Consistency, not a PHP compatibility
 concern, is the reason it changes too: `Core\Script::args(): array<mixed>` is the deep-copied argument map
 the current isolate was spawned with (empty for the root request isolate, which was not spawned by
@@ -193,11 +193,11 @@ Each rejection names its replacement, in the style [ADR 0008](0008-static-and-gl
 
 ### 9. The divergence this creates
 
-MWL is a PHP-syntax superset that does not preserve PHP's superglobal *semantics* at all — a ported file
+Novis is a PHP-syntax superset that does not preserve PHP's superglobal *semantics* at all — a ported file
 reading `$_GET`, `$_SESSION` or `$GLOBALS` does not run unconverted. The table below is this decision's
 own; [divergences.md](divergences.md) is the register that indexes it beside every other:
 
-| # | PHP | MWL |
+| # | PHP | Novis |
 |---|---|---|
 | 1 | every superglobal is an ambient, host-populated variable, readable and (except `$GLOBALS`'s targets) writable from any scope without a `global` | none exist as variables; each is a `static` method call on a reserved `Core` class, reached through ordinary `use`/FQN resolution like any other class member |
 | 2 | `$GLOBALS` exposes the entire top-level variable table by name; `$_REQUEST` merges `$_GET`/`$_POST`/`$_COOKIE` in a configurable order | both are dropped outright, with no replacement of any kind |
@@ -210,10 +210,10 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
   object property, or a parameter — the same answer [ADR 0008](0008-static-and-global.md) and
   [ADR 0011](0011-functions-and-constants-are-class-members.md) already gave for state and for behaviour,
   now complete for *input* too.
-- `$GLOBALS`, PHP's single most dangerous piece of ambient reflection, has no MWL equivalent to accidentally
+- `$GLOBALS`, PHP's single most dangerous piece of ambient reflection, has no Novis equivalent to accidentally
   reintroduce later — there is no class it could be added back as without recreating the exact bag
   [ADR 0008](0008-static-and-global.md) closed.
-- `$_REQUEST`'s provenance ambiguity cannot exist in MWL: every request-input read names its source.
+- `$_REQUEST`'s provenance ambiguity cannot exist in Novis: every request-input read names its source.
 - A reviewer sees exactly which `Core` class, and therefore which trust boundary, a line depends on — the
   same traceability [ADR 0011](0011-functions-and-constants-are-class-members.md) already gives built-in
   calls, now extended to untrusted input itself.
@@ -223,7 +223,7 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
 **Negative**
 
 - Every PHP file with a bare `$_GET`/`$_POST`/`$_SERVER`/`$_SESSION`/`$_COOKIE`/`$_FILES`/`$_ENV` reference
-  needs a rewrite at `mwl convert` (M11), on top of every other rewrite [ADR 0007](0007-explicit-type-system.md)
+  needs a rewrite at `nvs convert` (M11), on top of every other rewrite [ADR 0007](0007-explicit-type-system.md)
   and [ADR 0011](0011-functions-and-constants-are-class-members.md) already require. Unlike a built-in
   function rename, a `$_REQUEST` or `$GLOBALS` use has no mechanical one-line replacement — a human has to
   decide which specific source was meant, or how to re-home the global state.
@@ -272,5 +272,5 @@ Verification, in the order it becomes possible:
   `Core\Request::query()` throws, added to that milestone's isolation-boundary test list alongside "a child
   cannot read a parent variable."
 - **M7**: `Core\Server`/`Core\Request` are populated by the built-in HTTP server from a real request;
-  `Core\Cli` is populated by `mwl run` and throws under `mwl serve`.
+  `Core\Cli` is populated by `nvs run` and throws under `nvs serve`.
 - **M8**: `Core\Session` gets its storage backend, per whatever the stdlib milestone decides.

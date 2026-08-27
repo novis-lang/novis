@@ -15,7 +15,7 @@ fn an_interface_default_body_calls_back_through_the_receivers_own_class() {
     // only declares. There is no `Greets::name` function to call, so the call
     // dispatches on the receiver's runtime class — the one shape a bodiless
     // resolved target leaves no alternative for.
-    let source = "<?mwl
+    let source = "<?nvs
 interface Greets {
     public function name(): string;
     public function greet(): string { return \"Hello, \" . $this->name() . \"!\"; }
@@ -39,7 +39,7 @@ echo $a->greet() . \"/\" . $d->greet();
 /// and `label()` once, and two levels of subclass override `tag()` only.
 /// Written out here rather than in each test so what each one actually
 /// asserts is the *call*, not the class tree.
-const LATE_BINDING: &str = "<?mwl
+const LATE_BINDING: &str = "<?nvs
 class Registry {
     public static function tag(): string { return \"base\"; }
     public static function make(): static { return new static(); }
@@ -101,7 +101,7 @@ fn self_forwards_the_called_class_while_an_explicit_name_resets_it() {
     // `self::forwarded()` passes the caller's called class straight through,
     // while `Registry::forwarded()` sets it to `Registry` no matter where it
     // is written.
-    let source = "<?mwl
+    let source = "<?nvs
 class Registry {
     public static function tag(): string { return \"base\"; }
     public static function forwarded(): string { return static::tag(); }

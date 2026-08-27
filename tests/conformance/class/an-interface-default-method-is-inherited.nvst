@@ -1,7 +1,7 @@
 --TEST--
 An interface method with a body runs against the implementing class, and an implementor may override it
 --FILE--
-<?mwl
+<?nvs
 interface Greets {
     public function name(): string;
 

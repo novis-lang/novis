@@ -1,7 +1,7 @@
 --TEST--
 A `throw` inside a constructor propagates out of the `new` that ran it, and the partially built object never becomes reachable
 --FILE--
-<?mwl
+<?nvs
 class Positive {
     public int $value;
 

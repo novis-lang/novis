@@ -1,7 +1,7 @@
 --TEST--
 `"{$name}s"`, `"\$name"` and a single-quoted `'$name'` all render as PHP renders them
 --FILE--
-<?mwl
+<?nvs
 string $name = "world";
 int $count = 3;
 

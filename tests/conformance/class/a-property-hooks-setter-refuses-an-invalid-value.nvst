@@ -1,7 +1,7 @@
 --TEST--
 A `set` hook that throws leaves the property holding what it held before — the write never reaches the backing store
 --FILE--
-<?mwl
+<?nvs
 class Counter {
     public int $count {
         get => $this->count;

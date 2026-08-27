@@ -1,7 +1,7 @@
 --TEST--
 Core\Path::dirname answers PHP's dirname at every boundary, and `{levels}` is its second argument, from docs/spec/01-core-library.md § 8
 --FILE--
-<?mwl
+<?nvs
 final class Norm {
     // Every answer here is a path, so it carries Core\Path::SEPARATOR, which
     // is `\` on the Windows leg and `/` on the WSL one. The oracle rewrites
@@ -39,8 +39,8 @@ echo "[", Norm::of(Core\Path::dirname("/var/log/syslog.txt", {levels: 9})), "]\n
 echo "[", Norm::of(Core\Path::dirname("var/log", {levels: 5})), "]\n";
 
 // The two rows PHP cannot be asked are pinned in the conformance suite
-// instead, both in path-decomposes-a-path-without-touching-the-disk.mwlt and
-// path-normalize-has-a-normal-form-and-join-never-replaces-its-base.mwlt:
+// instead, both in path-decomposes-a-path-without-touching-the-disk.nvst and
+// path-normalize-has-a-normal-form-and-join-never-replaces-its-base.nvst:
 // `dirname('')` is `.` here and `''` there, and `{levels: 0}` is the path
 // itself here and a ValueError there.
 --ORACLE--

@@ -1,7 +1,7 @@
 --TEST--
 Core\Regex\Match::groups answers preg_match's $matches — the same keys, the same order and the same values — but only against PREG_UNMATCHED_AS_NULL, which ADR 0063 R11 makes the one reading rather than an opt-in flag
 --FILE--
-<?mwl
+<?nvs
 // Spec § 5's `groups` row and ADR 0063 R3, R5 and R11. There is no `$matches`
 // out-parameter here — the match is the return value — and there are no
 // `PREG_*` constants either, so `groups()` has to pick one of the two shapes
@@ -73,11 +73,11 @@ foreach ($rows as array<string> $row) {
             echo " ";
         }
         // The whole match leads, under the key every other group is numbered
-        // from. MWL asserts one conjunct more than the oracle can: the entry
+        // from. Novis asserts one conjunct more than the oracle can: the entry
         // at that key is `text()`, which on PHP's side is `$matches[0]` by
         // definition and so cannot be checked against itself. The number the
         // two print is the same either way, and the extra conjunct can only
-        // subtract from MWL's.
+        // subtract from Novis's.
         if (Core\Arr::firstKey($found->groups()) == "0") {
             if ($found->groups()["0"] == $found->text()) {
                 $leads = $leads + 1;

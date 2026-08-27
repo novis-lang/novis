@@ -1,9 +1,9 @@
 --TEST--
 `Core\Time`'s unknown-zone refusal names the member that was handed the id, and a zone it accepted is never refused again — spec § 4, ADR 0063 R20
 --FILE--
-<?mwl
+<?nvs
 // One sentence — "unknown time zone `id`" — is spelled three times in
-// `crates/mwl-stdlib/src/time.rs`, each with the name of the member that would
+// `crates/nvs-stdlib/src/time.rs`, each with the name of the member that would
 // speak it in front of it. Exactly one of the three is reachable from a
 // program: `Zone::of` is the only member that reads a zone id a *program*
 // wrote. The other two read an id this crate wrote itself — into a `Zone`'s

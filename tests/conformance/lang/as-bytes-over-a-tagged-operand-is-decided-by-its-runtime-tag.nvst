@@ -1,7 +1,7 @@
 --TEST--
 An operand whose static type names no conversion row takes `as bytes` from its runtime tag, and `as ?bytes` answers `null` on exactly the rows that throw — ADR 0007 §§ 2 and 6, ADR 0009 § 3, ADR 0066 § 1
 --FILE--
-<?mwl
+<?nvs
 class Render {
     // ADR 0007 § 2's checked spelling: it "either produces a value of the
     // target type or throws", and § 2's table produces a `bytes` from a
@@ -30,7 +30,7 @@ class Render {
 // a `string` and a `bytes` are one allocation under two tags, and every other
 // tag has no row at all. `null` is among them — ADR 0007 § 2 gives it a
 // `string` form and no `bytes` one.
-array<mixed> $probes = ["mwl", "λ" as bytes, 42, 1.5, true, null, ["a"]];
+array<mixed> $probes = ["nvs", "λ" as bytes, 42, 1.5, true, null, ["a"]];
 int $agreed = 0;
 foreach ($probes as mixed $probe) {
     string $left = Render::checked($probe);
@@ -52,7 +52,7 @@ echo Core\Encoding::toHex($free), "\n";
 echo Render::checked($wide), "\n";
 echo Core\Bytes::length($wide as bytes) as string, "\n";
 --EXPECT--
-6d776c
+6e7673
 cebb
 threw
 threw

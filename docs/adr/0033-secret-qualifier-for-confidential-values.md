@@ -19,7 +19,7 @@
   auto-escape neutralizes structure, not exposure, so it is the wrong tool for this qualifier and § 5's "never
   distinguishes tainted from untainted" sentence gets one carve-out for `secret`.
   [0020](0020-error-escalation-ladder.md) § 6 — `Core\Log::write`'s `fields: array<string, mixed>` parameter
-  stays open per [0007](0007-explicit-type-system.md) § 6, but `mwl check` now inspects the literal
+  stays open per [0007](0007-explicit-type-system.md) § 6, but `nvs check` now inspects the literal
   expressions passed at that call site (not just the declared parameter type) for a statically-`secret`
   operand and refuses it — see § 4 below for why this sink needs call-site inspection instead of a
   parameter-type refusal.
@@ -40,11 +40,11 @@
 > compile-time qualifier — `secret` and `tainted` answer different questions (*can I trust where this came
 > from* vs. *where is this allowed to go*) and a value can carry either, both, or neither
 > (`secret tainted string` is valid). Like `tainted`, `secret` is erased before codegen: no runtime
-> representation, no per-op cost, checked once by `mwl check`. Unlike `tainted`, a checked `as` conversion
+> representation, no per-op cost, checked once by `nvs check`. Unlike `tainted`, a checked `as` conversion
 > strips `secret` on success for the same reason it strips `tainted` — consistency with the existing rule was
 > chosen over a stricter one for this first cut; see *Alternatives rejected* for the case against it and
 > *Revisiting* for when to reconsider. `secret` has no ambient source the way `tainted` has
-> [ADR 0012](0012-no-superglobals.md)'s five accessor classes: nothing in MWL is host-populated
+> [ADR 0012](0012-no-superglobals.md)'s five accessor classes: nothing in Novis is host-populated
 > ([0012](0012-no-superglobals.md)), so a value becomes `secret` only where a developer spells it on a
 > declaration — a config-loading helper that reads a credential is expected to declare its own return type as
 > `secret string`. Six sinks refuse a `secret` value by default: HTML/response output (refused outright, not
@@ -77,7 +77,7 @@
 - `Core\Log`'s open `fields: array<string, mixed>` bag ([ADR 0020](0020-error-escalation-ladder.md) § 6) lets
   `tainted` values through freely, since logging attacker input is the log's purpose. `secret` needs the
   opposite default, which a parameter-type refusal can't express on an already-`mixed` parameter — forcing
-  `mwl check` to inspect `Core\Log::write`'s call-site argument expressions instead, a mechanism `tainted`
+  `nvs check` to inspect `Core\Log::write`'s call-site argument expressions instead, a mechanism `tainted`
   never needed.
 - [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already unified `serialize()`/`unserialize()`
   and the `spawn`/`spawn worker`/`spawn script` boundary into one operation to avoid two implementations to
@@ -98,12 +98,12 @@ qualified_type := 'secret'? 'tainted'? scalar_type | <every other atom in ADR 00
 comes first** — this is the only accepted order, the same "exactly one canonical spelling" stance
 [ADR 0015](0015-no-name-aliasing.md) already takes for names; `tainted secret string` is a diagnostic naming
 the required order, not a second valid spelling of the same type. Like `tainted`, this needs a reserved
-keyword in the lexer and a new grammar production in `mwl-syntax`'s type grammar — landing after M1's own
+keyword in the lexer and a new grammar production in `nvs-syntax`'s type grammar — landing after M1's own
 fuzz/corpus verification was already reported done, the same situation
 [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* flagged for `tainted` itself, so this
 is a second instance of an already-accepted cost, not a new kind of one.
 
-Unlike `tainted`, **nothing in MWL grants `secret` ambiently.** [ADR 0012](0012-no-superglobals.md)'s five
+Unlike `tainted`, **nothing in Novis grants `secret` ambiently.** [ADR 0012](0012-no-superglobals.md)'s five
 accessor classes are the reason `tainted` can attach itself automatically — every one of them is a named,
 enumerable place untrusted data enters. There is no equivalent list for secrecy: `Core\Env::get()`,
 `Core\Session`, a future `Core\Db` row, and a source-literal string all look identical to the type checker
@@ -181,7 +181,7 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   would have the two directions disagree.
 - **`Core\Log`** — the opposite default from `tainted`, which ADR 0024 § 4 explicitly wants logged. A
   `secret`-qualified value passed at a `Core\Log::write()` call site — including inside a `fields` array
-  literal, whose declared parameter type stays `array<string, mixed>` by design — is refused by `mwl check`
+  literal, whose declared parameter type stays `array<string, mixed>` by design — is refused by `nvs check`
   inspecting that call site's argument expressions, not by the parameter's declared type (see *Context* for
   why the two mechanisms differ). Only `Core\Secret::reveal()`'s output may legitimately reach a log field
   once a developer has explicitly said so.
@@ -256,13 +256,13 @@ operator for everything — and it makes the qualifier awkward for a thing progr
 
 **Negative**
 
-- **A second grammar addition to `mwl-syntax` after M1 was already reported feature-complete, and a second
+- **A second grammar addition to `nvs-syntax` after M1 was already reported feature-complete, and a second
   time the milestone's own verification needs revisiting before it can be called done against this ADR's
   scope** — the same cost [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* already
   paid once for `tainted`, paid again here.
 - **The `Core\Log` sink needs call-site argument inspection, not a parameter-type refusal** — a checker
   mechanism strictly more complex than anything `tainted` required, because `tainted` was never designed to
-  need refusing inside an already-`mixed` parameter. This is new surface for `mwl check`, not a reuse of
+  need refusing inside an already-`mixed` parameter. This is new surface for `nvs check`, not a reuse of
   `tainted`'s existing machinery.
 - **Checked `as` conversions strip `secret` even though the underlying justification (shape-proof implies
   safety) does not transfer from `tainted`.** A `secret string` PIN or numeric credential that round-trips
@@ -305,13 +305,13 @@ operator for everything — and it makes the qualifier awkward for a thing progr
 
 ## Revisiting
 
-- **Whether checked `as` conversions should stop stripping `secret`.** If real MWL programs show numeric or
+- **Whether checked `as` conversions should stop stripping `secret`.** If real Novis programs show numeric or
   otherwise-convertible secrets (PINs, tokens that happen to parse as an integer) leaking past this rule in
   practice, reconsider the stricter alternative rejected above — likely by having the conversion preserve
   `secret` while still stripping `tainted`, since the two axes have no reason to share a removal rule once
   the inconsistency cost is judged worth paying.
 - **Whether the terminal refusal is too strict for CLI programs that legitimately print a credential.**
-  The trigger is a measurable one: if `Core\Secret::reveal()` call sites in real MWL CLI programs turn out
+  The trigger is a measurable one: if `Core\Secret::reveal()` call sites in real Novis CLI programs turn out
   to be dominated by ones whose reason string is some spelling of *"this command prints a token"*, the
   ceremony is buying nothing there and the answer is a narrow, named `Core\Cli` member that writes a
   `secret` deliberately — never widening `echo` itself, since `echo`'s reach through
@@ -332,11 +332,11 @@ operator for everything — and it makes the qualifier awkward for a thing progr
 
 Verification, in the order it becomes possible:
 
-- **M1**: `mwl ast` parses `secret string`/`secret bytes` and `secret tainted string`/`secret tainted bytes`
+- **M1**: `nvs ast` parses `secret string`/`secret bytes` and `secret tainted string`/`secret tainted bytes`
   in every declaration slot [ADR 0007](0007-explicit-type-system.md) already requires a spelled type for; the
   qualifier round-trips through an AST snapshot test the same way `tainted` already does; `tainted secret
   string` (wrong order) produces a diagnostic naming the required `secret`-before-`tainted` order.
-- **M2**: the `mwl check` corpus gains cases proving `secret` poisons through concatenation/interpolation
+- **M2**: the `nvs check` corpus gains cases proving `secret` poisons through concatenation/interpolation
   independently of `tainted`; a checked `as uint`/`as` an enum's backing type strips `secret` (and `tainted`,
   if present) with no diagnostic; a `secret`-qualified value reaching a `Markup`-building interpolation
   position is refused even though the equivalent `tainted`-only value is auto-escaped; a `secret` value passed
@@ -360,6 +360,6 @@ Verification, in the order it becomes possible:
   have no way to reach a terminal at all — so the two are one slice, and a `reveal()`-derived value
   echoing successfully is the case that proves it.
 - **M8**: a `secret`-qualified value passed into a `Core\Log::write()` `fields` array literal is refused by
-  `mwl check` at that call site despite the parameter's declared `array<string, mixed>` type; a
+  `nvs check` at that call site despite the parameter's declared `array<string, mixed>` type; a
   `Core\Secret::reveal()`-derived value is accepted there and everywhere else this ADR's sinks refuse the
   qualified form.

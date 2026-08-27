@@ -1,7 +1,7 @@
 --TEST--
 A double-quoted string honours its escapes; a single-quoted one keeps `$` and `\t` literal
 --FILE--
-<?mwl
+<?nvs
 string $who = "world";
 
 echo "tab[\t]end\n";

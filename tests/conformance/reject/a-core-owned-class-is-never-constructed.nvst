@@ -1,13 +1,13 @@
 --TEST--
 a `Core`-owned class has no constructor: its instances come from the member that produces one
 --FILE--
-<?mwl
+<?nvs
 var $m = new Core\Regex\Match();
 echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0405]: `Core\Regex\Match` has no member named `constructor`
-  --> case.mwl:2:10
+  --> case.nvs:2:10
 %A
 error: aborting due to 1 error

@@ -1,7 +1,7 @@
 --TEST--
 `[...$x]` checks the spread subject against `array<T>` for the literal's own `T` — ADR 0007 § 5, and `E0484` where the position names no `array<T>` to check against at all
 --FILE--
-<?mwl
+<?nvs
 array<string> $a = ["x"];
 array<int> $n = [1];
 string $s = "s";

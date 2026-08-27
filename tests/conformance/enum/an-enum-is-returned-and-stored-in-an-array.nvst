@@ -1,7 +1,7 @@
 --TEST--
 An enum names a return type and an `array<T>` element type, and stays its own case through both
 --FILE--
-<?mwl
+<?nvs
 enum Suit {
     Clubs,
     Diamonds,

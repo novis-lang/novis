@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::format answers what sprintf answers, over every conversion it keeps
 --FILE--
-<?mwl
+<?nvs
 echo Core\Str::format("%s has %d", "fox", 2), ";";
 echo Core\Str::format("%5s|%-5s", "ab", "ab"), ";";
 echo Core\Str::format("%05d|%+d|%+d", 42, 42, -42), ";";

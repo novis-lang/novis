@@ -1,7 +1,7 @@
 --TEST--
 An `array<array<int>>` iterates one level at a time, and an inner write leaves the outer copy alone
 --FILE--
-<?mwl
+<?nvs
 array<array<int>> $grid = [[1, 2, 3], [4, 5], [6]];
 
 var $total = 0;

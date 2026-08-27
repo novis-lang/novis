@@ -11,24 +11,24 @@ outside `Core`; that file's own *Milestones* section says which, and is the one 
 completion data, M5's concurrency tests, M9's extension conformance fixtures, M11's converter mapping
 table — is written against a real standard library instead of against fixtures that will need rewriting.
 Part II of the spec file (anything capability-bearing) stays at M8 and merely conforms to the same
-contract. `crates/mwl-stdlib` starts here — the Tier 0 crate
+contract. `crates/nvs-stdlib` starts here — the Tier 0 crate
 [ADR 0003](../adr/0003-extension-system.md) § *Tier 0* already names, and the workspace manifest already
 declares; `Core\Regex` binds the engine [ADR 0056](../adr/0056-regex-engine-policy.md)
 picks, and `Core\Time`'s `format`/`parse` (CLDR patterns), `Core\Time\Duration::parse` and
 `Core\Str::format` land as [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsics with the
-compile-time half wired into `mwl-types` — and, per
+compile-time half wired into `nvs-types` — and, per
 [ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 6, all three grammars are
-`tainted` **sinks** alongside `Core\Regex`'s pattern. **`mwl-stdlib`'s member registry gains a per-parameter
+`tainted` **sinks** alongside `Core\Regex`'s pattern. **`nvs-stdlib`'s member registry gains a per-parameter
 qualifier classification here**, with an unclassified `string`/`bytes` parameter refusing `tainted` and that
 crate's own test suite failing on any member that ships without one (§ 2 of the same ADR); the pass that
 marks the existing rows is part of building §§ 1–12 rather than a separate slice. `Duration::parse` shares its grammar and its implementation with
 M1's duration literal ([ADR 0070](../adr/0070-duration-literals.md)), so build the literal first and this is
 the same parser reached from a second entry point. `Core\Str`'s
 unit is [ADR 0009](../adr/0009-string-and-bytes.md) § 2's grapheme cluster, decided and seamed in
-`mwl_stdlib::granularity`; the **lazily cached count** that ADR's *Consequences* names is still owed and
-belongs here, in `mwl_runtime::MwlStr`'s header, alongside the O(1) boundary correction a concatenation
+`nvs_stdlib::granularity`; the **lazily cached count** that ADR's *Consequences* names is still owed and
+belongs here, in `nvs_runtime::NvsStr`'s header, alongside the O(1) boundary correction a concatenation
 needs at the seam. `Core\Json` also brings the first **compiler-recognized**
-attribute: [ADR 0071](../adr/0071-derived-codecs.md)'s `#[Json\Derive]`, a `mwl-types`→`mwl-ir` pass that emits
+attribute: [ADR 0071](../adr/0071-derived-codecs.md)'s `#[Json\Derive]`, a `nvs-types`→`nvs-ir` pass that emits
 a `Json\Codec` implementation per annotated class, plus the nominal-matching rule that gates it. `#[Db\Derive]`
 is the same pass over a second format and lands with M8. The **second** compiler-recognized attribute lands
 here as well: [ADR 0077](../adr/0077-compile-time-routing.md)'s `#[Route]`, whose route table is built by
@@ -64,6 +64,6 @@ a plan and become a tested claim.
 **Also here: the OpenAPI emitter** ([ADR 0085](../adr/0085-openapi-is-generated-from-the-route-table.md)),
 alongside the `#[Route]` and `#[Json\Derive]` passes it reads. `Core\Api` joins
 [ADR 0071](../adr/0071-derived-codecs.md) § 1's closed attribute list, the four contradiction cases become
-compile errors, and `mwl build --openapi` writes a deterministic 3.1 document. `mwl api diff` is the same
+compile errors, and `nvs build --openapi` writes a deterministic 3.1 document. `nvs api diff` is the same
 slice — the classification is mechanical over two emitted documents, so it costs a comparison rather than a
 design.

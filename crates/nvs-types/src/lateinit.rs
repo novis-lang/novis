@@ -52,9 +52,9 @@
 //!   property) — see ADR 0038's own *Revisiting* section, which defers this
 //!   exact question to `docs/spec/`.
 
-use mwl_diagnostics::{Diagnostic, code};
-use mwl_hir::QName;
-use mwl_syntax::ast::{
+use nvs_diagnostics::{Diagnostic, code};
+use nvs_hir::QName;
+use nvs_syntax::ast::{
     AssignOp, CallArgs, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
 };
 use rustc_hash::FxHashSet;
@@ -406,16 +406,16 @@ fn scan_call_args(
 
 #[cfg(test)]
 mod tests {
-    use mwl_diagnostics::{Diagnostics, SourceMap, code};
-    use mwl_hir::resolve_file;
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::{Diagnostics, SourceMap, code};
+    use nvs_hir::resolve_file;
+    use nvs_syntax::parse_file;
 
     use crate::expr_table::ExprTypeTable;
     use crate::ty::TypeInterner;
 
     fn check_src(src: &str) -> Diagnostics {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -439,7 +439,7 @@ mod tests {
     #[test]
     fn reading_a_lateinit_property_before_any_write_is_diagnosed() {
         let diags = check_src(
-            "<?mwl\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(): void {\n    $this->logger;\n  }\n}\n",
+            "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(): void {\n    $this->logger;\n  }\n}\n",
         );
         assert!(
             diags
@@ -452,7 +452,7 @@ mod tests {
     #[test]
     fn reading_a_lateinit_property_after_writing_it_first_is_fine() {
         let diags = check_src(
-            "<?mwl\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function setup(Logger $l): void {\n    $this->logger = $l;\n    $this->logger;\n  }\n}\n",
+            "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function setup(Logger $l): void {\n    $this->logger = $l;\n    $this->logger;\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
@@ -463,7 +463,7 @@ mod tests {
         // written every tracked property, so no diagnostic fires here even
         // though `init()` might not actually assign `$logger`.
         let diags = check_src(
-            "<?mwl\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function init(): void {}\n  function boom(): void {\n    $this->init();\n    $this->logger;\n  }\n}\n",
+            "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function init(): void {}\n  function boom(): void {\n    $this->init();\n    $this->logger;\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
@@ -471,7 +471,7 @@ mod tests {
     #[test]
     fn a_read_on_only_one_branch_of_an_if_is_still_diagnosed() {
         let diags = check_src(
-            "<?mwl\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(bool $flag): void {\n    if ($flag) {\n      $this->logger = new Logger();\n    }\n    $this->logger;\n  }\n}\n",
+            "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(bool $flag): void {\n    if ($flag) {\n      $this->logger = new Logger();\n    }\n    $this->logger;\n  }\n}\n",
         );
         assert!(
             diags
@@ -484,7 +484,7 @@ mod tests {
     #[test]
     fn a_write_on_both_branches_of_an_if_satisfies_a_later_read() {
         let diags = check_src(
-            "<?mwl\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(bool $flag): void {\n    if ($flag) {\n      $this->logger = new Logger();\n    } else {\n      $this->logger = new Logger();\n    }\n    $this->logger;\n  }\n}\n",
+            "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(bool $flag): void {\n    if ($flag) {\n      $this->logger = new Logger();\n    } else {\n      $this->logger = new Logger();\n    }\n    $this->logger;\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }

@@ -4,7 +4,7 @@
 - **Date:** 2026-08-25
 - **Scope:** the predicate that decides whether a `Core` parameter is an [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
   sink; the fail-closed default for a `string`/`bytes` parameter nobody classified, and where that
-  classification is declared; which sink `echo` writes to in every execution context MWL has; the typed
+  classification is declared; which sink `echo` writes to in every execution context Novis has; the typed
   `Core\Response` body members that replace `write`; and the carrier type a captured sink yields. Not in
   scope: what the HTML and terminal sinks *do* once reached, which stay
   [0024](0024-taint-tracking-for-injection-sinks.md) § 5 and [0086](0086-core-cli-terminal-is-a-sink.md)
@@ -52,11 +52,11 @@
   meant to print — and unbounded padding, `%999999999d`. It is the printf-grammar twin of
   `Core\Regex`'s pattern, which [0056](0056-regex-engine-policy.md) correctly made a sink, and it sits
   eleven sections earlier in the same file.
-- **Only `Core` is fail-open.** [`assign.rs`](../../crates/mwl-types/src/expr/assign.rs) already refuses a
-  tainted argument at a plain `string` parameter, so every user-authored function in every MWL program is
+- **Only `Core` is fail-open.** [`assign.rs`](../../crates/nvs-types/src/expr/assign.rs) already refuses a
+  tainted argument at a plain `string` parameter, so every user-authored function in every Novis program is
   fail-closed by construction, and so is every function a package ships under
   [0081](0081-packages-are-digests-resolution-is-a-maximum.md). The whole exposure is one table in
-  `mwl-stdlib`, which is what makes flipping the default a bounded pass rather than a language change.
+  `nvs-stdlib`, which is what makes flipping the default a bounded pass rather than a language change.
 - **`echo` has two meanings and no stated binding.** In a request it is
   [0024](0024-taint-tracking-for-injection-sinks.md) § 5's auto-escaping HTML sink; in a CLI program it is
   [0086](0086-core-cli-terminal-is-a-sink.md) § 1's substituting terminal sink. Both are decided; neither
@@ -107,12 +107,12 @@ The default flips. A `Core` member whose `string`/`bytes` parameter carries no c
 tainted argument**, and *contagious* becomes a thing an author writes rather than a thing an author gets by
 forgetting.
 
-- **The classification lives once, in `mwl-stdlib`'s member registry** — beside `params`, `defaults` and
+- **The classification lives once, in `nvs-stdlib`'s member registry** — beside `params`, `defaults` and
   `return_ty` in the `CoreMethod` row, which the four edits in
   [docs/agent/conventions.md](../agent/conventions.md) already make the one place a member is declared.
   The [spec's](../spec/01-core-library.md) Q column is that table rendered for a reader, not a second home
   for the fact.
-- **A member with an unclassified `string`/`bytes` parameter fails `mwl-stdlib`'s own test suite**, not
+- **A member with an unclassified `string`/`bytes` parameter fails `nvs-stdlib`'s own test suite**, not
   merely a review. The default is what a *program* sees; the test is what stops a member from shipping
   unclassified at all, and the two together are why forgetting is no longer a security event.
 - **The four marks are unchanged** — *contagious*, *sink*, *launder*, *neutral*
@@ -207,7 +207,7 @@ runtime value *inside* it rather than *as* it.
   extension is a wasm component with no ambient authority ([0003](0003-extension-system.md)), so it cannot
   itself be a sink: everything it does to the world outside travels through a `Core` member, and that
   member is classified under § 2. Fail-open at the extension boundary would be a real hole only if the
-  boundary reached anything, and it does not. `.mwlx` manifests keep the tighten-only rule unchanged.
+  boundary reached anything, and it does not. `.nvsx` manifests keep the tighten-only rule unchanged.
 - **`Core\Log` is still not a sink**, for the reason [0024](0024-taint-tracking-for-injection-sinks.md) § 4
   already gives and § 1's table now derives: a structured field is data.
 - **`Core\Json::decode` is not a sink.** Parsing attacker-controlled JSON is the point of the member; its
@@ -222,8 +222,8 @@ runtime value *inside* it rather than *as* it.
 ## Consequences
 
 - **The failure direction inverts, which is the whole point.** Before: a member nobody classified accepted
-  tainted data at run time in production. After: a member nobody classified fails `mwl-stdlib`'s test suite
-  before it lands, and a member that slipped through refuses at `mwl check` in a developer's editor.
+  tainted data at run time in production. After: a member nobody classified fails `nvs-stdlib`'s test suite
+  before it lands, and a member that slipped through refuses at `nvs check` in a developer's editor.
 - **A one-time pass over the `Core` registry**, marking a large majority *contagious*. It is real work at
   M4S/M8 scale and it is the only work the flip costs; § 2's test is what keeps it from recurring.
 - **`Str::format` with a dynamic template becomes a compile error**, and a translation catalogue is the
@@ -232,13 +232,13 @@ runtime value *inside* it rather than *as* it.
   [0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* already names as the accepted
   direction.
 - **`Core\Response` grows from six members to ten and loses `write`.** A priority-4 cost, paid to remove a
-  case where the safe spelling and the correct spelling disagreed. `mwl convert` gains a mapping rather than
+  case where the safe spelling and the correct spelling disagreed. `nvs convert` gains a mapping rather than
   a gap: PHP's `echo json_encode($x)` becomes `Response::json($x)` mechanically.
-- **Nothing changes at run time.** Every rule here is checked by `mwl check` and erased before codegen, so
+- **Nothing changes at run time.** Every rule here is checked by `nvs check` and erased before codegen, so
   [0024](0024-taint-tracking-for-injection-sinks.md) § 1's zero-cost claim is unweakened — no representation,
   no branch, nothing on the request path.
 - **`echo` becomes explainable in one table** rather than reconstructed from two ADRs and three milestones,
-  which is the form the [spec](../spec/01-core-library.md) and `mwl-lsp`'s hover text can both use.
+  which is the form the [spec](../spec/01-core-library.md) and `nvs-lsp`'s hover text can both use.
 
 ## Alternatives rejected
 
@@ -267,10 +267,10 @@ runtime value *inside* it rather than *as* it.
 
 ## Verification
 
-- **§ 1/§ 2** — a `mwl-stdlib` test walks the whole member registry and fails on any `string`/`bytes`
+- **§ 1/§ 2** — a `nvs-stdlib` test walks the whole member registry and fails on any `string`/`bytes`
   parameter with no classification. This is the check that makes the default a guarantee rather than a
   default, and it is the one test whose absence would silently restore the status quo.
-- **§ 2** — a `.mwlt` compile-error case passing a tainted value to a deliberately unclassified fixture
+- **§ 2** — a `.nvst` compile-error case passing a tainted value to a deliberately unclassified fixture
   member, asserting the diagnostic names both the qualifier and the parameter.
 - **§ 3** — one fixture `echo`ing the same string containing `ESC` and `<script>` from each of the four
   contexts, asserting the response body is HTML-escaped and the other three carry `␛`. The CLI and request

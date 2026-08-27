@@ -1,9 +1,9 @@
 --TEST--
-Core\Math::isNan and ::isFinite answer what PHP's is_nan and is_finite answer on every class of float, and the two of them negated together are PHP's is_infinite, which MWL does not have as a member of its own
+Core\Math::isNan and ::isFinite answer what PHP's is_nan and is_finite answer on every class of float, and the two of them negated together are PHP's is_infinite, which Novis does not have as a member of its own
 --FILE--
-<?mwl
+<?nvs
 // Spec § 3's `isNan` and `isFinite` rows. PHP has three predicates here and
-// MWL has two: `is_infinite` is `isFinite` and `isNan` both answering false,
+// Novis has two: `is_infinite` is `isFinite` and `isNan` both answering false,
 // because a value that is not finite is either a `NaN` or an infinity and the
 // first predicate already tells those apart. So what this case asks is
 // whether the two members agree with their twins row by row, and whether the
@@ -24,7 +24,7 @@ final class Show {
         return "n";
     }
 
-    // PHP's third predicate, spelled out of MWL's two. This is the whole
+    // PHP's third predicate, spelled out of Novis's two. This is the whole
     // claim the fold rests on, so it is written once here and swept below
     // rather than restated per row.
     public static function infinite(float $value): bool {

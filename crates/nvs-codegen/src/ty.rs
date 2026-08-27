@@ -1,13 +1,13 @@
 //! The whole of the IR-representation-to-machine-representation mapping.
 //!
-//! [`mwl_ir::Ty`] is already the *representation* lattice — `mwl-ir`'s own
+//! [`nvs_ir::Ty`] is already the *representation* lattice — `nvs-ir`'s own
 //! `ty` module explains why the checker's richer `Ty` does not survive past
 //! `check_program` — so this is a table, not an analysis.
 
 use cranelift::prelude::*;
-use mwl_ir::Ty;
-use mwl_ir::ty::EnumRepr;
-use mwl_runtime::Tag;
+use nvs_ir::Ty;
+use nvs_ir::ty::EnumRepr;
+use nvs_runtime::Tag;
 
 use crate::CodegenError;
 
@@ -20,7 +20,7 @@ use crate::CodegenError;
 ///
 /// [`Ty::Tagged`] is the one that is not a scalar at all: it is `I128`, which
 /// Cranelift legalizes to a register pair, and whose two halves are exactly
-/// the two halves of a 16-byte [`mwl_runtime::Value`] on a little-endian
+/// the two halves of a 16-byte [`nvs_runtime::Value`] on a little-endian
 /// target — the low half its tag word, the high half its payload. That is
 /// what makes materializing one into a call's argument slot two plain stores.
 /// Every producer of an `I128` here keeps the tag word **zero outside the
@@ -37,13 +37,13 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
         Ty::Float => types::F64,
         Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::ClassDesc => types::I64,
         // The whole 16-byte tagged value, in a register pair — see this
-        // function's own doc comment and `mwl_ir::Ty::Tagged`.
+        // function's own doc comment and `nvs_ir::Ty::Tagged`.
         //
         // A `decimal` is the same width for the same reason: it *is* a
         // `Value`, carrying `Tag::Decimal`, with its 96-bit mantissa spread
         // across the bytes a `Value` otherwise calls padding. That is what
         // makes `Tag`/`Untag` the identity on one — see
-        // `mwl_runtime::decimal`'s own module docs for the layout.
+        // `nvs_runtime::decimal`'s own module docs for the layout.
         Ty::Tagged | Ty::Decimal => types::I128,
         // `null`'s payload is always zero, but it still travels in a register
         // like every other representation rather than in a shape of its own.
@@ -58,13 +58,13 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
 }
 
 /// The [`Tag`] a value of this representation carries once it is materialized
-/// into a 16-byte [`mwl_runtime::Value`].
+/// into a 16-byte [`nvs_runtime::Value`].
 ///
 /// [`Ty::Str`] and [`Ty::Bytes`] share one *heap* shape and take two tags
 /// anyway: the tag is what tells them apart once the static type is gone, and
-/// `mwl-runtime`'s § *`bytes` is a tag, not a second heap shape* owns that
-/// decision. Both still retain and release through `mwl_str_retain`/
-/// `mwl_str_release`, which is why `Emitter::retain_release_symbol` keeps one
+/// `nvs-runtime`'s § *`bytes` is a tag, not a second heap shape* owns that
+/// decision. Both still retain and release through `nvs_str_retain`/
+/// `nvs_str_release`, which is why `Emitter::retain_release_symbol` keeps one
 /// arm for the pair.
 ///
 /// # Errors
@@ -88,27 +88,27 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         Ty::Str => Tag::Str,
         Ty::Bytes => Tag::Bytes,
         // The one representation whose tag is the whole of it — see
-        // `mwl_ir::Ty::Null`.
+        // `nvs_ir::Ty::Null`.
         Ty::Null => Tag::Null,
         // ADR 0010 § 6 reserves a tag of its own for an enum; this uses the
         // backing type's instead, deliberately. A tag only has to answer
         // "which type is this?" where the static type does not — the `mixed`
         // case below, whose representation is still open. Deciding an enum's
         // tag before that would be deciding half the same question twice.
-        // `mwl_ir::Ty::Enum`'s own doc comment records this.
+        // `nvs_ir::Ty::Enum`'s own doc comment records this.
         Ty::Enum(EnumRepr::Int) => Tag::Int,
         Ty::Enum(EnumRepr::Uint) => Tag::Uint,
         Ty::Array => Tag::Array,
         Ty::Object => Tag::Object,
-        // Not an MWL value at all: a class descriptor rides in the payload
+        // Not an Novis value at all: a class descriptor rides in the payload
         // half of an otherwise-`null` slot, so nothing sweeping a `Value` can
-        // mistake it for a heap reference. `mwl_runtime::object`'s module docs
-        // own that decision; `mwl_ir::Ty::ClassDesc` restates the consequence.
+        // mistake it for a heap reference. `nvs_runtime::object`'s module docs
+        // own that decision; `nvs_ir::Ty::ClassDesc` restates the consequence.
         Ty::ClassDesc => Tag::Null,
-        // Not an MWL value either, and for the same reason as `ClassDesc`
+        // Not an Novis value either, and for the same reason as `ClassDesc`
         // above: a by-reference parameter's staged-slot address rides in the
         // payload half of an otherwise-`null` slot, so nothing sweeping a
-        // `Value` can mistake it for a heap reference. `mwl_ir::Ty::Ref` owns
+        // `Value` can mistake it for a heap reference. `nvs_ir::Ty::Ref` owns
         // the decision.
         Ty::Ref => Tag::Null,
         Ty::Tagged => {
@@ -127,11 +127,11 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mwl_ir::lower::{FN_PARAM_TAG_ANY, param_tag_nibble};
+    use nvs_ir::lower::{FN_PARAM_TAG_ANY, param_tag_nibble};
 
     /// A closure object records one nibble per parameter and
-    /// `mwl_runtime::call_closure` compares it against the tag an argument
-    /// actually carries — so `mwl_ir::lower::param_tag_nibble` has to answer
+    /// `nvs_runtime::call_closure` compares it against the tag an argument
+    /// actually carries — so `nvs_ir::lower::param_tag_nibble` has to answer
     /// exactly the byte [`tag_of`] answers. Neither of those crates can name
     /// the other, and this one names both: a representation whose two answers
     /// drift apart makes every call through such a closure either refuse a

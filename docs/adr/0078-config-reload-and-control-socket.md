@@ -1,9 +1,9 @@
-# ADR 0078 — `mwl.toml` reloads over a local control socket, and the extension set joins the compilation key
+# ADR 0078 — `nvs.toml` reloads over a local control socket, and the extension set joins the compilation key
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
 - **Scope:** the config snapshot and how it is replaced, the registry's reloadability field, the control
-  socket and `mwl ctl`, and the environment component of both compiled-unit cache keys. Not in scope: any
+  socket and `nvs ctl`, and the environment component of both compiled-unit cache keys. Not in scope: any
   network-reachable control surface, which § 6 defers explicitly.
 - **Amends:** [0017](0017-hot-reload-without-restart.md) § *Decision* — `UnitKey` gains the environment
   digest, so an in-memory unit compiled against one extension set is never reused against another.
@@ -15,7 +15,7 @@
 - **Amended by:** 0091, 0103, 0106
 
 > **In short:** the parsed config is one immutable `Arc<Config>`; a request clones it at start and is
-> unaffected by anything that happens afterwards. `mwl ctl reload` re-reads `mwl.toml` over a
+> unaffected by anything that happens afterwards. `nvs ctl reload` re-reads `nvs.toml` over a
 > **local socket only** — no TCP listener, no token, no TLS, because the socket's owner and mode
 > *are* the authentication — parses and validates the whole file **before** publishing anything, and
 > keeps the old snapshot untouched if any part of it fails. Every directive carries a second field
@@ -27,8 +27,8 @@
 
 ## Context
 
-- [0064](0064-configuration-file-format.md) read `mwl.toml` once at boot, so every configuration change —
-  a limit, a capability grant, an extension — cost a restart. MWL is a *single process* serving its whole
+- [0064](0064-configuration-file-format.md) read `nvs.toml` once at boot, so every configuration change —
+  a limit, a capability grant, an extension — cost a restart. Novis is a *single process* serving its whole
   concurrency ([0017](0017-hot-reload-without-restart.md) targets 10k+), so a restart drops every in-flight
   request rather than a fraction of a worker pool. That is a materially worse trade than the same restart
   costs PHP-FPM, and it is the reason this is worth solving at all.
@@ -60,9 +60,9 @@ per-request half changes.
 Replacement is **validate-then-publish**, in this order, and any failure before the last step leaves the
 running configuration completely untouched:
 
-1. Read and parse `mwl.toml`. A syntax error, an unknown key or a duplicate key ends it here.
+1. Read and parse `nvs.toml`. A syntax error, an unknown key or a duplicate key ends it here.
 2. Verify every `[[extension]]` entry: the file exists and its content matches its `sha256` pin.
-3. Load those extensions' manifests and register the `mwl.toml` directives they contribute
+3. Load those extensions' manifests and register the `nvs.toml` directives they contribute
    ([0003](0003-extension-system.md) § *Extension functions are statically typed*).
 4. Validate the assembled registry — every directive known, every value in range, every capability grant
    well-formed. Steps 3 and 4 are in this order deliberately: an extension can add directives, so the file
@@ -96,11 +96,11 @@ This *replaces* [0005](0005-config-changeability.md)'s older definition of `Syst
 at boot", which had already needed a second criterion bolted beside it. With reloadability held in its own
 field, `System` means one thing again: a request may not set it.
 
-### 3. One local socket, and `mwl ctl`
+### 3. One local socket, and `nvs ctl`
 
 ```toml
 [control]
-socket = "/run/mwl/control.sock"   # \\.\pipe\mwl-control on Windows; `false` disables
+socket = "/run/nvs/control.sock"   # \\.\pipe\nvs-control on Windows; `false` disables
 ```
 
 - **Local socket only. There is no TCP listener, no token, no TLS and no auth middleware** — the socket's
@@ -108,26 +108,26 @@ socket = "/run/mwl/control.sock"   # \\.\pipe\mwl-control on Windows; `false` di
   [0042](0042-on-disk-artifact-cache-format.md) § 5 already makes for the cache directory. The socket is
   created mode `0600`, owned by the runtime's account, and **the server refuses to start if its directory is
   world-writable**.
-- The socket exists only where a long-running server does. It is meaningless for `mwl run`, which compiles
+- The socket exists only where a long-running server does. It is meaningless for `nvs run`, which compiles
   one file and exits, and for the wasm32 target ([0025](0025-wasm-browser-target.md)), which has no host.
 - **The wire protocol is HTTP over that socket**, not a bespoke line protocol: `hyper` is already present for
   the server itself, `curl --unix-socket` debugs it with no special tooling, and adding a network listener
   later becomes a second `bind` rather than a second protocol.
-- **`mwl ctl` is the client**, a namespace of its own because every other subcommand (`run`, `check`, `test`,
+- **`nvs ctl` is the client**, a namespace of its own because every other subcommand (`run`, `check`, `test`,
   `fmt`, `info`, `config`) acts on files with no server involved. `--socket` addresses one of several
   servers on a host. `reload` and **`ctl config`** are the operations:
   [0103 § 9](0103-configuration-is-a-tree-of-files.md) adds the second, which prints the live snapshot with
-  each directive's origin. It is a read, it runs no MWL code, and it is what the offline `mwl config dump`
+  each directive's origin. It is a read, it runs no Novis code, and it is what the offline `nvs config dump`
   cannot answer — what a reload actually published, including an `optional` include that has appeared since
   boot. What `reload` re-reads is the whole **tree** that ADR describes, re-running its ownership checks on
   every file, so a file that became group-writable since boot refuses the swap and leaves the previous
   snapshot serving.
 - **Operations serialize**, single-flighting on the same [0017](0017-hot-reload-without-restart.md) machinery
   a concurrent compile already uses, so two reloads cannot interleave two snapshots.
-- **No control operation runs user MWL code**, ever. One that could would be
+- **No control operation runs user Novis code**, ever. One that could would be
   [0052](0052-closed-doors.md) § 4's `eval` door with a different name on it.
 - **The wire shape is explicitly unstable until 1.0.** Every response carries the server version and
-  `mwl ctl` refuses a mismatch, so a changed shape is a clear error rather than a misparse. It is therefore
+  `nvs ctl` refuses a mismatch, so a changed shape is a clear error rather than a misparse. It is therefore
   not part of [0068](0068-dependency-currency-and-the-version-contract.md)'s enumerated surface.
 - Every reload is written to `Core\Log` with its outcome.
 
@@ -146,7 +146,7 @@ carried separately, and is now carried by **both** caches:
 - **In memory** — [0017](0017-hot-reload-without-restart.md)'s `UnitKey { path, content_hash }` becomes
   `UnitKey { path, content_hash, env_hash }`.
 
-Because a manifest lives *inside* its `.mwlx` as a custom section ([0003](0003-extension-system.md) § *Tier 1*),
+Because a manifest lives *inside* its `.nvsx` as a custom section ([0003](0003-extension-system.md) § *Tier 1*),
 hashing the pins covers each extension's declared classes, signatures and
 [0055](0055-extension-qualifier-declarations.md) qualifier declarations with no separate manifest hash.
 **Duplicate class names across extensions are refused at load**, so the set is order-independent and the
@@ -180,7 +180,7 @@ already chose over silently serving stale code.
 ### 6. No network-reachable control surface
 
 There is no TCP listener, in either direction of configuration. A remote control plane is reachable today by
-running `mwl ctl` over the operator's existing access path — SSH, or the container runtime's exec — which
+running `nvs ctl` over the operator's existing access path — SSH, or the container runtime's exec — which
 every orchestrator already has.
 
 This is deferred rather than rejected, and *Revisiting* records what it would take, so that the design is not
@@ -216,21 +216,21 @@ would carry an authentication surface, and nothing yet needs one.
   collapse into one, and a latent correctness hole closes on the way.
 - The security surface added is one socket whose permissions are checked at startup. No token to leak, no
   certificate to rotate, no listener to firewall.
-- `mwl ctl` is a new client binary surface that must version-match its server. Acceptable while the wire
+- `nvs ctl` is a new client binary surface that must version-match its server. Acceptable while the wire
   shape is unstable; it is what makes the instability safe.
 
 ## Alternatives rejected
 
-- **Re-read `mwl.toml` on every request**, on the grounds that requests are isolated anyway. Isolation
+- **Re-read `nvs.toml` on every request**, on the grounds that requests are isolated anyway. Isolation
   forbids shared *mutable* state, which an immutable snapshot is not; the per-request half already exists as
   0005's overlay. Re-reading would add a syscall and a parse to the request path, would turn one malformed
   edit into a fleet-wide per-request failure instead of a refused reload, and would still not make
   `[[extension]]` reloadable, since that needs the cache keys to change rather than the file to be re-read.
-- **Lazy, stat-gated revalidation of `mwl.toml`**, mirroring what
+- **Lazy, stat-gated revalidation of `nvs.toml`**, mirroring what
   [0017](0017-hot-reload-without-restart.md) does for source. Right for source, wrong for config: source is
   edited constantly and its changes are per-file, while config is edited rarely and every change is global.
   Above all a config error must reach the operator who made it — under lazy revalidation it is a log line
-  nobody reads, and under `mwl ctl reload` it is a diagnostic at the terminal where the edit happened.
+  nobody reads, and under `nvs ctl reload` it is a diagnostic at the terminal where the edit happened.
 - **`SIGHUP`.** No Windows equivalent, no payload, and no response — so it cannot report which `Boot` keys
   were ignored, which § 5 argues is the property that makes reload trustworthy.
 - **A TCP control listener now**, with a token or mTLS. Deferred; see § 6 and *Revisiting*.
@@ -244,7 +244,7 @@ would carry an authentication surface, and nothing yet needs one.
 
 ## Revisiting
 
-Reopen for a **network-reachable control surface** when something needs one that `mwl ctl` over the
+Reopen for a **network-reachable control surface** when something needs one that `nvs ctl` over the
 operator's existing access path cannot serve — a controller reloading a fleet, or a scrape endpoint. The
 design that follows from this one, recorded so it is not re-derived: a second listener that is absent unless
 configured, never sharing the application listener; per-**effect-class** enablement (`observe` / `operate` /
@@ -264,7 +264,7 @@ entry points before the swap, not per-unit dependency tracking.
   started after reads the new one; a malformed file leaves the previous snapshot serving and reports the
   offending line; a changed `Boot` key is named in the result and does not take effect.
 - **M7**, with the server: the socket is refused when its directory is world-writable; two concurrent
-  reloads produce one swap, not two interleaved; a reload during sustained load drops no request; `mwl ctl`
+  reloads produce one swap, not two interleaved; a reload during sustained load drops no request; `nvs ctl`
   refuses a version-mismatched server.
 - **M9**, with extensions: an artifact compiled under one extension set is not reused under another — the
   regression the *Context* hole would have caused; adding an extension makes its classes resolvable to

@@ -14,7 +14,7 @@
   [docs/implementation-plan.md](../implementation-plan.md) — M8 gains the class and the shared-store script.
 - **Amended by:** 0097
 
-> **In short:** a proxy in front of MWL already limits per IP and per path, earlier and better, so **edge
+> **In short:** a proxy in front of Novis already limits per IP and per path, earlier and better, so **edge
 > and flood limiting are deliberately dropped**. What no proxy can do is limit on something only the
 > application knows — *five failed logins per account*, *a quota per tenant plan*, *ten exports per user per
 > hour* — and that is the whole justification for the class. Two members, and they are **two jobs rather
@@ -41,7 +41,7 @@
   tenant. None of these is visible to a proxy, because a proxy does not know which account a request is
   authenticating as.
 - **The edge cases are the ones a proxy already owns.** nginx, HAProxy, Cloudflare and every cloud load
-  balancer limit per IP, per path and per connection, and they do it *before* the request costs MWL a
+  balancer limit per IP, per path and per connection, and they do it *before* the request costs Novis a
   coroutine, an arena and a database round trip. Reimplementing that inside the process means paying for the
   request in order to reject it, which is the wrong end of the pipe.
 - **The two-tier trap is real and it is why the naming matters.** An in-process limiter is fast and wrong:
@@ -131,10 +131,10 @@ Core\RateLimit\Decision — readonly allowed: bool, limit: uint, remaining: uint
 ### 4. What is deliberately absent
 
 - **Edge and flood limiting.** No per-IP limit, no per-path limit, no connection limit, and no `[ratelimit]`
-  block in `mwl.toml` doing any of that. A proxy owns it, earlier and cheaper, and the same line
+  block in `nvs.toml` doing any of that. A proxy owns it, earlier and cheaper, and the same line
   [ADR 0074](0074-http-defaults-safe-and-finite.md) draws for request-size and slow-loris handling is drawn
   here. An application that wants to limit per IP can still do so — the client address is a key like any
-  other — but MWL does not offer it as a deployment feature, because doing it here means paying for the
+  other — but Novis does not offer it as a deployment feature, because doing it here means paying for the
   request in order to reject it.
 - **No configuration at all.** The shared store is already named
   ([ADR 0059](0059-cross-request-state-is-explicit.md)) and a limit is application policy, not deployment
@@ -209,7 +209,7 @@ implementation of somebody else's specification, and it is a few dozen lines wit
   state is a single timestamp is a documentation cost the algorithm's exactness has to earn back.
 - **No IP limiting is a deployment requirement, not a gap.** A production deployment runs behind a proxy by
   design ([0097](0097-development-server-and-proxied-origin.md) § 1), and that proxy is where per-IP and
-  flood limiting live. A deployment that puts nothing in front of MWL has nothing at the edge, and the
+  flood limiting live. A deployment that puts nothing in front of Novis has nothing at the edge, and the
   answer is the same one 0097 gives for TLS: put a proxy in front of it.
 - **`shed` ships without a caller.** It exists so the naming works and so load shedding has a home; the
   first real use of it will probably reshape its options, and shipping both now is a bet that the naming is
@@ -234,10 +234,10 @@ implementation of somebody else's specification, and it is a few dozen lines wit
   the only place that knows whether that is acceptable.
 - **Fail closed on an unreachable store**, returning `allowed: false`. Rejected symmetrically: a store
   outage would take the whole application down, and a quota check is not worth that.
-- **Per-IP and per-path limiting in `mwl.toml`**, enforced by the M7 server. Rejected in § 4 and previously
+- **Per-IP and per-path limiting in `nvs.toml`**, enforced by the M7 server. Rejected in § 4 and previously
   by the user: a proxy does it earlier, and doing it here means allocating the request before rejecting it.
 - **A middleware or attribute that applies a limit automatically to a route.** Rejected: it needs a
-  dispatch pipeline MWL deliberately does not have, and the decision of what to *do* about a limit is
+  dispatch pipeline Novis deliberately does not have, and the decision of what to *do* about a limit is
   application logic — the same boundary [ADR 0077](0077-compile-time-routing.md) draws at matching.
 - **Backing it with `Core\Db` instead of the shared store.** No new dependency, and transactional. Rejected:
   it puts a write on the hot path of every protected endpoint, on the database that is usually the scarcest

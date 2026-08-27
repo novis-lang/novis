@@ -15,7 +15,7 @@
 //! `toBase32`/`fromBase32`, and the `encodeText`/`decodeText`/`isValidText`
 //! trio over [`CHARSET`]. § 7's other class, `Core\Bytes`, is elsewhere.
 //!
-//! # `Charset` is the WHATWG index, and MWL keeps three labels apart
+//! # `Charset` is the WHATWG index, and Novis keeps three labels apart
 //!
 //! § 7 says the roster is the **WHATWG Encoding Standard's index**, not a list
 //! the spec curates, so adding an encoding is a dependency update rather than
@@ -69,7 +69,7 @@
 //! # The four base64 members are two alphabets and two padding rules
 //!
 //! RFC 4648 defines one algorithm and two alphabets, and the wild has settled
-//! on a different padding convention for each. MWL writes what each side
+//! on a different padding convention for each. Novis writes what each side
 //! actually produces rather than a switch:
 //!
 //! | member | alphabet | padding |
@@ -155,7 +155,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use data_encoding::{BASE32, BASE32_NOPAD};
 use encoding_rs::{DecoderResult, Encoding};
-use mwl_runtime::{Fault, MwlStr, Value};
+use nvs_runtime::{Fault, NvsStr, Value};
 
 use crate::registry::{CoreClass, CoreEnum, CoreMethod, CoreTy};
 
@@ -322,77 +322,77 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Str, CoreTy::Enum(CHARSET_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_encoding_encode_text",
+            symbol: "nvs_core_encoding_encode_text",
         },
         CoreMethod {
             name: "decodeText",
             params: &[CoreTy::Bytes, CoreTy::Enum(CHARSET_NAME)],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_encoding_decode_text",
+            symbol: "nvs_core_encoding_decode_text",
         },
         CoreMethod {
             name: "isValidText",
             params: &[CoreTy::Bytes, CoreTy::Enum(CHARSET_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_encoding_is_valid_text",
+            symbol: "nvs_core_encoding_is_valid_text",
         },
         CoreMethod {
             name: "toBase64",
             params: &[CoreTy::Bytes],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_encoding_to_base64",
+            symbol: "nvs_core_encoding_to_base64",
         },
         CoreMethod {
             name: "fromBase64",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_encoding_from_base64",
+            symbol: "nvs_core_encoding_from_base64",
         },
         CoreMethod {
             name: "toBase64Url",
             params: &[CoreTy::Bytes],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_encoding_to_base64_url",
+            symbol: "nvs_core_encoding_to_base64_url",
         },
         CoreMethod {
             name: "fromBase64Url",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_encoding_from_base64_url",
+            symbol: "nvs_core_encoding_from_base64_url",
         },
         CoreMethod {
             name: "toBase32",
             params: &[CoreTy::Bytes],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_encoding_to_base32",
+            symbol: "nvs_core_encoding_to_base32",
         },
         CoreMethod {
             name: "fromBase32",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_encoding_from_base32",
+            symbol: "nvs_core_encoding_from_base32",
         },
         CoreMethod {
             name: "toHex",
             params: &[CoreTy::Bytes],
             defaults: &[],
             return_ty: CoreTy::Str,
-            symbol: "mwl_core_encoding_to_hex",
+            symbol: "nvs_core_encoding_to_hex",
         },
         CoreMethod {
             name: "fromHex",
             params: &[CoreTy::Str],
             defaults: &[],
             return_ty: CoreTy::Bytes,
-            symbol: "mwl_core_encoding_from_hex",
+            symbol: "nvs_core_encoding_from_hex",
         },
     ],
     instance: &[],
@@ -404,19 +404,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        "mwl_core_encoding_encode_text" => (mwl_core_encoding_encode_text as *const ()).cast(),
-        "mwl_core_encoding_decode_text" => (mwl_core_encoding_decode_text as *const ()).cast(),
-        "mwl_core_encoding_is_valid_text" => (mwl_core_encoding_is_valid_text as *const ()).cast(),
-        "mwl_core_encoding_to_base64" => (mwl_core_encoding_to_base64 as *const ()).cast(),
-        "mwl_core_encoding_from_base64" => (mwl_core_encoding_from_base64 as *const ()).cast(),
-        "mwl_core_encoding_to_base64_url" => (mwl_core_encoding_to_base64_url as *const ()).cast(),
-        "mwl_core_encoding_from_base64_url" => {
-            (mwl_core_encoding_from_base64_url as *const ()).cast()
+        "nvs_core_encoding_encode_text" => (nvs_core_encoding_encode_text as *const ()).cast(),
+        "nvs_core_encoding_decode_text" => (nvs_core_encoding_decode_text as *const ()).cast(),
+        "nvs_core_encoding_is_valid_text" => (nvs_core_encoding_is_valid_text as *const ()).cast(),
+        "nvs_core_encoding_to_base64" => (nvs_core_encoding_to_base64 as *const ()).cast(),
+        "nvs_core_encoding_from_base64" => (nvs_core_encoding_from_base64 as *const ()).cast(),
+        "nvs_core_encoding_to_base64_url" => (nvs_core_encoding_to_base64_url as *const ()).cast(),
+        "nvs_core_encoding_from_base64_url" => {
+            (nvs_core_encoding_from_base64_url as *const ()).cast()
         }
-        "mwl_core_encoding_to_base32" => (mwl_core_encoding_to_base32 as *const ()).cast(),
-        "mwl_core_encoding_from_base32" => (mwl_core_encoding_from_base32 as *const ()).cast(),
-        "mwl_core_encoding_to_hex" => (mwl_core_encoding_to_hex as *const ()).cast(),
-        "mwl_core_encoding_from_hex" => (mwl_core_encoding_from_hex as *const ()).cast(),
+        "nvs_core_encoding_to_base32" => (nvs_core_encoding_to_base32 as *const ()).cast(),
+        "nvs_core_encoding_from_base32" => (nvs_core_encoding_from_base32 as *const ()).cast(),
+        "nvs_core_encoding_to_hex" => (nvs_core_encoding_to_hex as *const ()).cast(),
+        "nvs_core_encoding_from_hex" => (nvs_core_encoding_from_hex as *const ()).cast(),
         _ => return None,
     })
 }
@@ -430,7 +430,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member if the slot carries another tag:
-/// `mwl_types` already checked the declared type and compiled code wrote the
+/// `nvs_types` already checked the declared type and compiled code wrote the
 /// tag, so a mismatch is a runtime-contract violation rather than anything a
 /// program can cause — the same treatment [`crate::uuid`] gives a `string`.
 fn bytes_of<'a>(args: &'a [Value], member: &str) -> Result<&'a [u8], Fault> {
@@ -630,7 +630,7 @@ fn decode_whatwg(encoding: &'static Encoding, raw: &[u8]) -> Result<String, usiz
     // The decoder treats the `String`'s *capacity* as its output limit and
     // never reallocates, so this is the size that makes `OutputFull`
     // unreachable. It is `None` only when `raw.len()` is within a factor of
-    // three of `usize::MAX`, which no `MwlStr` can be.
+    // three of `usize::MAX`, which no `NvsStr` can be.
     let capacity = decoder
         .max_utf8_buffer_length_without_replacement(raw.len())
         .unwrap_or(0);
@@ -676,7 +676,7 @@ fn shown(text: &str) -> String {
     out
 }
 
-/// Why `error` refused the text, in the same register [`mwl_core_encoding_from_hex`]
+/// Why `error` refused the text, in the same register [`nvs_core_encoding_from_hex`]
 /// uses: what is wrong, and what the member wanted instead.
 ///
 /// `base64`'s own `Display` names a byte value and an offset, which is precise
@@ -737,7 +737,7 @@ fn why_not_base32(error: &data_encoding::DecodeError) -> String {
 // The members
 // ============================================================================
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::encodeText(string $s, Charset $charset): bytes` —
     /// replacing `iconv`, `mb_convert_encoding` and `utf8_encode`, with none
     /// of the three's substitution modes.
@@ -748,7 +748,7 @@ mwl_runtime::mwl_helper! {
     /// point ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 3):
     /// a caller who genuinely wants a lossy spelling writes the replacement
     /// they want, in their own text, where a reader can see it.
-    fn mwl_core_encoding_encode_text(_ctx, args: [2]) {
+    fn nvs_core_encoding_encode_text(_ctx, args: [2]) {
         let text = text_of(args, "encodeText")?;
         let charset = charset_of(args, "encodeText")?;
         let raw = encode_exact(charset, text).map_err(|(offset, ch)| {
@@ -762,11 +762,11 @@ mwl_runtime::mwl_helper! {
                 shown(text)
             ))
         })?;
-        Ok(Value::bytes(MwlStr::new(&raw)))
+        Ok(Value::bytes(NvsStr::new(&raw)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::decodeText(bytes $b, Charset $charset): string` —
     /// replacing `iconv`, `mb_convert_encoding` and `utf8_decode`.
     ///
@@ -778,7 +778,7 @@ mwl_runtime::mwl_helper! {
     ///
     /// `Core\Encoding::isValidText` is the same question without the throw,
     /// for a caller who has somewhere to put a `false`.
-    fn mwl_core_encoding_decode_text(_ctx, args: [2]) {
+    fn nvs_core_encoding_decode_text(_ctx, args: [2]) {
         let raw = bytes_of(args, "decodeText")?;
         let charset = charset_of(args, "decodeText")?;
         let text = decode_exact(charset, raw).map_err(|offset| {
@@ -789,11 +789,11 @@ mwl_runtime::mwl_helper! {
                 charset.case
             ))
         })?;
-        Ok(Value::str(MwlStr::new(text.as_bytes())))
+        Ok(Value::str(NvsStr::new(text.as_bytes())))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::isValidText(bytes $b, Charset $charset): bool` —
     /// replacing `mb_check_encoding`.
     ///
@@ -806,25 +806,25 @@ mwl_runtime::mwl_helper! {
     /// being written: two implementations of one question is how they come to
     /// disagree, and the cost is one allocation on a member a caller reaches
     /// once per input.
-    fn mwl_core_encoding_is_valid_text(_ctx, args: [2]) {
+    fn nvs_core_encoding_is_valid_text(_ctx, args: [2]) {
         let raw = bytes_of(args, "isValidText")?;
         let charset = charset_of(args, "isValidText")?;
         Ok(Value::bool(decode_exact(charset, raw).is_ok()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::toBase64(bytes $b): string` — replacing `base64_encode`.
     ///
     /// RFC 4648 § 4's alphabet, **padded**, which is byte-for-byte what
     /// `base64_encode` answers. Total: every octet sequence has a spelling.
-    fn mwl_core_encoding_to_base64(_ctx, args: [1]) {
+    fn nvs_core_encoding_to_base64(_ctx, args: [1]) {
         let raw = bytes_of(args, "toBase64")?;
-        Ok(Value::str(MwlStr::new(STANDARD.encode(raw).as_bytes())))
+        Ok(Value::str(NvsStr::new(STANDARD.encode(raw).as_bytes())))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::fromBase64(string $s): bytes` — replacing
     /// `base64_decode`, and throwing where that function's default mode
     /// silently discarded whatever it did not recognise.
@@ -832,9 +832,9 @@ mwl_runtime::mwl_helper! {
     /// Strict on all three counts the module doc lists: § 4's alphabet only,
     /// padding required and canonical, and no unread bits in the last symbol.
     /// A URL-safe operand is refused here rather than accepted as a courtesy —
-    /// [`mwl_core_encoding_from_base64_url`] is the member that reads it, and a
+    /// [`nvs_core_encoding_from_base64_url`] is the member that reads it, and a
     /// decoder that takes both cannot tell a caller which one they meant.
-    fn mwl_core_encoding_from_base64(_ctx, args: [1]) {
+    fn nvs_core_encoding_from_base64(_ctx, args: [1]) {
         let text = text_of(args, "fromBase64")?;
         let raw = STANDARD.decode(text).map_err(|error| {
             Fault::thrown(format!(
@@ -843,11 +843,11 @@ mwl_runtime::mwl_helper! {
                 why_not_base64(&error, "base64")
             ))
         })?;
-        Ok(Value::bytes(MwlStr::new(&raw)))
+        Ok(Value::bytes(NvsStr::new(&raw)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::toBase64Url(bytes $b): string` — replacing the
     /// `rtrim(strtr(base64_encode($b), "+/", "-_"), "=")` idiom, which is what
     /// the spec row names because it is what every PHP codebase writes.
@@ -856,17 +856,17 @@ mwl_runtime::mwl_helper! {
     /// optional flourish, it is what JWT, `Core\Uri` and every other consumer
     /// of a URL-safe spelling expects, and `=` is percent-encoded in a query
     /// string anyway.
-    fn mwl_core_encoding_to_base64_url(_ctx, args: [1]) {
+    fn nvs_core_encoding_to_base64_url(_ctx, args: [1]) {
         let raw = bytes_of(args, "toBase64Url")?;
-        Ok(Value::str(MwlStr::new(URL_SAFE_NO_PAD.encode(raw).as_bytes())))
+        Ok(Value::str(NvsStr::new(URL_SAFE_NO_PAD.encode(raw).as_bytes())))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::fromBase64Url(string $s): bytes` — the other half of
-    /// [`mwl_core_encoding_to_base64_url`], strict in the same three ways and
+    /// [`nvs_core_encoding_to_base64_url`], strict in the same three ways and
     /// refusing padding rather than tolerating it.
-    fn mwl_core_encoding_from_base64_url(_ctx, args: [1]) {
+    fn nvs_core_encoding_from_base64_url(_ctx, args: [1]) {
         let text = text_of(args, "fromBase64Url")?;
         let raw = URL_SAFE_NO_PAD.decode(text).map_err(|error| {
             Fault::thrown(format!(
@@ -875,11 +875,11 @@ mwl_runtime::mwl_helper! {
                 why_not_base64(&error, "base64url")
             ))
         })?;
-        Ok(Value::bytes(MwlStr::new(&raw)))
+        Ok(Value::bytes(NvsStr::new(&raw)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::toBase32(bytes $b): string` — replacing nothing in PHP,
     /// and needed by TOTP
     /// ([ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)).
@@ -887,15 +887,15 @@ mwl_runtime::mwl_helper! {
     /// RFC 4648 § 6's alphabet, **upper case and unpadded** — the form an
     /// `otpauth:` secret is written in. Total: every octet sequence has a
     /// spelling.
-    fn mwl_core_encoding_to_base32(_ctx, args: [1]) {
+    fn nvs_core_encoding_to_base32(_ctx, args: [1]) {
         let raw = bytes_of(args, "toBase32")?;
-        Ok(Value::str(MwlStr::new(BASE32_NOPAD.encode(raw).as_bytes())))
+        Ok(Value::str(NvsStr::new(BASE32_NOPAD.encode(raw).as_bytes())))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::fromBase32(string $s): bytes` — the other half of
-    /// [`mwl_core_encoding_to_base32`], reading either case and padding that is
+    /// [`nvs_core_encoding_to_base32`], reading either case and padding that is
     /// either canonical or absent.
     ///
     /// The module doc's *base32 is one pair* section owns why that is not the
@@ -904,7 +904,7 @@ mwl_runtime::mwl_helper! {
     /// alphabet — including a space, which is how a user-facing secret is
     /// grouped — a truncated final group, non-canonical trailing bits, and
     /// padding that is present but wrong.
-    fn mwl_core_encoding_from_base32(_ctx, args: [1]) {
+    fn nvs_core_encoding_from_base32(_ctx, args: [1]) {
         let text = text_of(args, "fromBase32")?;
         // Only `a`-`z` move; every other byte, valid or not, reaches the
         // decoder exactly as written, so an offset in the error still indexes
@@ -918,20 +918,20 @@ mwl_runtime::mwl_helper! {
                 why_not_base32(&error)
             ))
         })?;
-        Ok(Value::bytes(MwlStr::new(&raw)))
+        Ok(Value::bytes(NvsStr::new(&raw)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::toHex(bytes $b): string` — replacing `bin2hex` and the
     /// `unpack("H*", …)` idiom written where `bin2hex` was forgotten.
     ///
     /// **Lowercase**, which is `bin2hex`'s own answer and the one every
-    /// protocol that names a case names. [`mwl_core_encoding_from_hex`] reads
+    /// protocol that names a case names. [`nvs_core_encoding_from_hex`] reads
     /// either case back, so nothing round-trips differently for it.
     ///
     /// Total: every octet has a spelling, so there is nothing to reject.
-    fn mwl_core_encoding_to_hex(_ctx, args: [1]) {
+    fn nvs_core_encoding_to_hex(_ctx, args: [1]) {
         const DIGITS: &[u8; 16] = b"0123456789abcdef";
 
         let raw = bytes_of(args, "toHex")?;
@@ -940,11 +940,11 @@ mwl_runtime::mwl_helper! {
             out.push(DIGITS[usize::from(octet >> 4)]);
             out.push(DIGITS[usize::from(octet & 0x0f)]);
         }
-        Ok(Value::str(MwlStr::new(&out)))
+        Ok(Value::str(NvsStr::new(&out)))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\Encoding::fromHex(string $s): bytes` — replacing `hex2bin`, and
     /// throwing where that function warned and answered `false`.
     ///
@@ -953,7 +953,7 @@ mwl_runtime::mwl_helper! {
     /// a value silently skipped. An odd number of digits is a throw for the
     /// same reason: `hex2bin("abc")` guessing which nibble the caller meant is
     /// exactly the substitution ADR 0009 § 3 removes from the language.
-    fn mwl_core_encoding_from_hex(_ctx, args: [1]) {
+    fn nvs_core_encoding_from_hex(_ctx, args: [1]) {
         let text = text_of(args, "fromHex")?;
         let digits = text.as_bytes();
         let refused = |why: &str| {
@@ -975,7 +975,7 @@ mwl_runtime::mwl_helper! {
             };
             out.push((high << 4) | low);
         }
-        Ok(Value::bytes(MwlStr::new(&out)))
+        Ok(Value::bytes(NvsStr::new(&out)))
     }
 }
 
@@ -1020,15 +1020,18 @@ mod tests {
     /// says `fromBase32` keeps while it folds case and padding.
     #[test]
     fn base32_is_unpadded_on_the_way_out_and_canonical_on_the_way_in() {
-        assert_eq!(BASE32_NOPAD.encode(b"mwl"), "NV3WY");
-        assert_eq!(BASE32.encode(b"mwl"), "NV3WY===");
+        assert_eq!(BASE32_NOPAD.encode(b"nvs"), "NZ3HG");
+        assert_eq!(BASE32.encode(b"nvs"), "NZ3HG===");
 
         // A trailing bit no octet reads, and a symbol outside the alphabet.
-        assert!(BASE32_NOPAD.decode(b"NV3WZ").is_err());
-        assert!(BASE32_NOPAD.decode(b"NV3W1").is_err());
+        // Three octets are 24 bits in five symbols, so the last symbol carries
+        // four data bits and one that must be zero: `G` is `00110`, and the
+        // `H` below is the same group with that pad bit set.
+        assert!(BASE32_NOPAD.decode(b"NZ3HH").is_err());
+        assert!(BASE32_NOPAD.decode(b"NZ3H1").is_err());
 
         // A group cut short.
-        assert!(BASE32_NOPAD.decode(b"NV3WYA").is_err());
+        assert!(BASE32_NOPAD.decode(b"NZ3HGA").is_err());
     }
 
     /// The `Core\Charset` case that `name` spells, for a test that wants to
@@ -1047,8 +1050,8 @@ mod tests {
     }
 
     /// `Core\Charset::Big5` from `Big5`, `Iso88598I` from `ISO-8859-8-I` — the
-    /// mechanical PascalCase of a WHATWG name, which is what "named in MWL
-    /// casing" in spec § 7 means and what `mwl_syntax::casing` would demand of
+    /// mechanical PascalCase of a WHATWG name, which is what "named in Novis
+    /// casing" in spec § 7 means and what `nvs_syntax::casing` would demand of
     /// the same name written in source.
     fn pascal(whatwg: &str) -> String {
         whatwg
@@ -1122,7 +1125,7 @@ mod tests {
         }
     }
 
-    /// The three labels the standard folds into `windows-1252` and MWL does
+    /// The three labels the standard folds into `windows-1252` and Novis does
     /// not — the module doc's first departure, and the one a reader is most
     /// likely to think is a bug.
     #[test]

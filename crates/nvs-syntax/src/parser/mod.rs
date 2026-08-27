@@ -52,7 +52,7 @@
 
 use std::collections::VecDeque;
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, AutoloadDecl, AutoloadKind,
@@ -404,7 +404,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.diags.report(
             Diagnostic::error(
                 code::E_BY_REFERENCE_MARKER_RETIRED,
-                "`&` is not a by-reference marker in MWL",
+                "`&` is not a by-reference marker in Novis",
             )
             .with_primary(amp, "`&` is bitwise AND, and an intersection type")
             .with_help(fix.to_string()),
@@ -483,7 +483,7 @@ pub fn parse_expression(file: &SourceFile, diags: &mut Diagnostics) -> Expr {
     Parser::new(file, diags).parse_expr()
 }
 
-/// Parses a whole file top to bottom: the `mwl ast`/corpus-parse entry point
+/// Parses a whole file top to bottom: the `nvs ast`/corpus-parse entry point
 /// M1's plan names, and the one place the file always starts in HTML mode
 /// (spec `00-overview.md` § 1) rather than a test's manually-bumped open tag.
 /// Errors are reported into `diags` rather than stopping the parse — callers

@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::sort orders by its `by` option and returns a new array, leaving its subject alone
 --FILE--
-<?mwl
+<?nvs
 array<string> $words = ["pear", "Apple", "fig", "banana"];
 
 var $byLength = Core\Arr::sort($words, {by: fn(string $w) => Core\Str::length($w)});

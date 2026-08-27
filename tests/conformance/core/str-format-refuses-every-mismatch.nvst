@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::format throws for every argument-mismatch PHP's printf family hides
 --FILE--
-<?mwl
+<?nvs
 // Too few arguments for the placeholders written.
 try {
     echo Core\Str::format("%s and %s", "one"), "\n";

@@ -4,14 +4,14 @@
 //!
 //! The acceptances here carry as much weight as the refusals. The rule is
 //! *disjointness*, not identity of types, so every shape ordinary code already
-//! writes has to keep compiling; `mwl_types::expr::operators`' own
+//! writes has to keep compiling; `nvs_types::expr::operators`' own
 //! `types_are_disjoint` says why it answers "may overlap" for everything it
 //! does not model.
 
 mod common;
 
 use common::{check_in_method, check_src};
-use mwl_diagnostics::{Diagnostics, code};
+use nvs_diagnostics::{Diagnostics, code};
 
 fn refuses(diags: &Diagnostics) -> bool {
     diags
@@ -44,7 +44,7 @@ fn converting_one_side_makes_the_same_comparison_compile() {
 #[test]
 fn a_string_never_compares_against_bytes() {
     let diags = check_src(
-        "<?mwl\nclass T {\n  function m(string $s, bytes $b): void {\n    \
+        "<?nvs\nclass T {\n  function m(string $s, bytes $b): void {\n    \
          if ($s == $b) {\n      echo \"x\";\n    }\n  }\n}\n",
     );
     assert!(refuses(&diags), "{diags:?}");
@@ -55,7 +55,7 @@ fn a_string_never_compares_against_bytes() {
 #[test]
 fn an_enum_never_compares_against_its_underlying_integer() {
     let diags = check_src(
-        "<?mwl\nenum Status: int { Active = 1, Banned = 2 }\nclass T {\n  \
+        "<?nvs\nenum Status: int { Active = 1, Banned = 2 }\nclass T {\n  \
          function m(Status $s): void {\n    if ($s == 1) {\n      echo \"x\";\n    }\n  }\n}\n",
     );
     assert!(refuses(&diags), "{diags:?}");
@@ -65,7 +65,7 @@ fn an_enum_never_compares_against_its_underlying_integer() {
 #[test]
 fn two_different_enums_never_compare() {
     let diags = check_src(
-        "<?mwl\nenum Status { Active, Banned }\nenum Color { Red, Blue }\nclass T {\n  \
+        "<?nvs\nenum Status { Active, Banned }\nenum Color { Red, Blue }\nclass T {\n  \
          function m(Status $s, Color $c): void {\n    if ($s == $c) {\n      echo \"x\";\n    }\n  }\n}\n",
     );
     assert!(refuses(&diags), "{diags:?}");
@@ -74,7 +74,7 @@ fn two_different_enums_never_compare() {
 #[test]
 fn two_unrelated_classes_never_compare() {
     let diags = check_src(
-        "<?mwl\nclass A {\n}\nclass B {\n}\nclass T {\n  \
+        "<?nvs\nclass A {\n}\nclass B {\n}\nclass T {\n  \
          function m(A $a, B $b): void {\n    if ($a == $b) {\n      echo \"x\";\n    }\n  }\n}\n",
     );
     assert!(refuses(&diags), "{diags:?}");
@@ -85,7 +85,7 @@ fn two_unrelated_classes_never_compare() {
 #[test]
 fn a_class_compares_against_its_own_ancestor() {
     let diags = check_src(
-        "<?mwl\nclass A {\n}\nclass B extends A {\n}\nclass T {\n  \
+        "<?nvs\nclass A {\n}\nclass B extends A {\n}\nclass T {\n  \
          function m(A $a, B $b): void {\n    if ($a == $b) {\n      echo \"x\";\n    }\n  }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
@@ -97,7 +97,7 @@ fn a_class_compares_against_its_own_ancestor() {
 #[test]
 fn an_interface_operand_is_never_disjoint_from_a_class() {
     let diags = check_src(
-        "<?mwl\ninterface I {\n}\nclass C {\n}\nclass T {\n  \
+        "<?nvs\ninterface I {\n}\nclass C {\n}\nclass T {\n  \
          function m(I $i, C $c): void {\n    if ($i == $c) {\n      echo \"x\";\n    }\n  }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
@@ -108,7 +108,7 @@ fn an_interface_operand_is_never_disjoint_from_a_class() {
 #[test]
 fn a_non_nullable_type_against_null_does_not_compile() {
     let diags = check_src(
-        "<?mwl\nclass A {\n}\nclass T {\n  function m(A $a): void {\n    \
+        "<?nvs\nclass A {\n}\nclass T {\n  function m(A $a): void {\n    \
          if ($a == null) {\n      echo \"x\";\n    }\n  }\n}\n",
     );
     assert!(refuses(&diags), "{diags:?}");
@@ -116,7 +116,7 @@ fn a_non_nullable_type_against_null_does_not_compile() {
 
 // `int`, `uint`, `float` and `decimal` are one domain, and that row is pinned
 // end to end rather than at the checker alone:
-// `tests/conformance/lang/equality-across-overlapping-types-still-compiles.mwlt`
+// `tests/conformance/lang/equality-across-overlapping-types-still-compiles.nvst`
 // compiles *and runs* every pairing among the four, which is the stronger
 // assertion and the one home for the fact.
 
@@ -124,7 +124,7 @@ fn a_non_nullable_type_against_null_does_not_compile() {
 #[test]
 fn a_mixed_operand_compares_against_anything() {
     let diags = check_src(
-        "<?mwl\nclass T {\n  function m(mixed $x, int $n): void {\n    \
+        "<?nvs\nclass T {\n  function m(mixed $x, int $n): void {\n    \
          if ($x == $n) {\n      echo \"x\";\n    }\n    \
          if ($x == null) {\n      echo \"y\";\n    }\n  }\n}\n",
     );
@@ -137,7 +137,7 @@ fn a_mixed_operand_compares_against_anything() {
 #[test]
 fn a_union_compares_against_any_type_one_member_holds() {
     let diags = check_src(
-        "<?mwl\nclass T {\n  function m(int|string $v, int $n): void {\n    \
+        "<?nvs\nclass T {\n  function m(int|string $v, int $n): void {\n    \
          if ($v == $n) {\n      echo \"x\";\n    }\n  }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
@@ -148,7 +148,7 @@ fn a_union_compares_against_any_type_one_member_holds() {
 #[test]
 fn a_disjoint_switch_label_does_not_compile() {
     let diags = check_src(
-        "<?mwl\nclass T {\n  function m(string $s): void {\n    \
+        "<?nvs\nclass T {\n  function m(string $s): void {\n    \
          switch ($s) {\n      case 1:\n        echo \"x\";\n        break;\n    }\n  }\n}\n",
     );
     assert!(refuses(&diags), "{diags:?}");
@@ -157,19 +157,19 @@ fn a_disjoint_switch_label_does_not_compile() {
 #[test]
 fn a_disjoint_match_arm_does_not_compile() {
     let diags = check_src(
-        "<?mwl\nclass T {\n  function m(string $s): void {\n    \
+        "<?nvs\nclass T {\n  function m(string $s): void {\n    \
          string $r = match ($s) {\n      1 => \"a\",\n      default => \"b\",\n    };\n    \
          echo $r;\n  }\n}\n",
     );
     assert!(refuses(&diags), "{diags:?}");
 }
 
-/// § 6's exception, and the shape `examples/match.mwl` is written in: every
+/// § 6's exception, and the shape `examples/match.nvs` is written in: every
 /// arm of a `match (true)` is a `bool` tested against a `bool`.
 #[test]
 fn a_match_over_true_is_unaffected() {
     let diags = check_src(
-        "<?mwl\nclass T {\n  function m(int $score): void {\n    \
+        "<?nvs\nclass T {\n  function m(int $score): void {\n    \
          string $r = match (true) {\n      $score >= 90 => \"A\",\n      default => \"F\",\n    };\n    \
          echo $r;\n  }\n}\n",
     );

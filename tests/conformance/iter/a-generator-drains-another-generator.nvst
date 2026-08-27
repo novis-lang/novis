@@ -1,7 +1,7 @@
 --TEST--
 One generator's body consumes another with `foreach` and re-yields — a two-stage pipeline stays lazy at both stages
 --FILE--
-<?mwl
+<?nvs
 class Pipe {
     public static function source(int $upTo): Iterator<int> {
         int $i = 1;

@@ -1,7 +1,7 @@
 --TEST--
 `#[Json\Field]` declares `name` and `skip` and nothing else, and each takes a literal of its own type — ADR 0071 § 3
 --FILE--
-<?mwl
+<?nvs
 #[Core\Json\Derive]
 class User {
     #[Core\Json\Field(namingStrategy: "snake_case")]
@@ -16,6 +16,6 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0464]: `#[Json\Field]` has exactly two options, `name` and `skip`
-  --> case.mwl:4:23
+  --> case.nvs:4:23
 %A
 error: aborting due to 1 error

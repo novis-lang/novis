@@ -1,7 +1,7 @@
 --TEST--
 A class reaches its own `private` property and `private` method through a `public` one, and a second instance of that class is as reachable as `$this` — ADR 0094 § 1
 --FILE--
-<?mwl
+<?nvs
 // The other half of the same rule: `private` is scoped to the declaring
 // class, not to one object, so `$other->n` inside `Counter` is legal for the
 // same reason `$this->n` is.

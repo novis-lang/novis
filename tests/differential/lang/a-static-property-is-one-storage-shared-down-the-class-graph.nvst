@@ -1,7 +1,7 @@
 --TEST--
 A `static` property has one storage, reached identically through the declaring class, a subclass, `self::` and `parent::`, and a `string` one survives being assigned from itself — ADR 0022 § 2 and `docs/adr/README.md` § *Decisions taken at project start*
 --FILE--
-<?mwl
+<?nvs
 class Base {
     // Every static declares its initializer: there is no constructor that
     // could give one to a storage that is not any instance's.

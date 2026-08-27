@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::replace, ::join and ::padStart return new strings, never mutating
 --FILE--
-<?mwl
+<?nvs
 string $csv = "a-b-c";
 echo Core\Str::replace($csv, "-", "+"), "\n";
 echo $csv, "\n";

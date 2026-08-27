@@ -1,7 +1,7 @@
 --TEST--
 `$x++` and `++$x` used as a value answer the old number and the new one, over every numeric type and every writable target — ADR 0007 §§ 4, 5
 --FILE--
-<?mwl
+<?nvs
 // The neighbouring `an-increment-answers-the-same-in-either-position` pins the
 // half where the position has nothing to say. This is the other half: as a
 // *value* the two spellings differ by exactly one, and the sweep below asserts

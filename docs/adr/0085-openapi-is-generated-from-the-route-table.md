@@ -4,7 +4,7 @@
 - **Date:** 2026-08-24
 - **Scope:** generating an OpenAPI 3.1 document from [0077](0077-compile-time-routing.md)'s route table,
   [0071](0071-derived-codecs.md)'s derived codecs and declared types; the `#[Api]` attribute for what the
-  types cannot say; which mismatches are compile errors; and `mwl api diff`, the breaking-change gate. Not
+  types cannot say; which mismatches are compile errors; and `nvs api diff`, the breaking-change gate. Not
   in scope: generating *clients*, which existing generators consume this document to do
   ([0051](0051-standard-library-tiers.md)'s domain-logic rule), and serving the document, which is
   `Web\Api`'s ([0082](0082-the-first-party-framework.md) § 3).
@@ -19,14 +19,14 @@
 - **Depends on:** [0077](0077-compile-time-routing.md) and [0071](0071-derived-codecs.md) — with neither,
   there is nothing to generate from.
 
-> **In short:** MWL already knows every route while compiling ([0077](0077-compile-time-routing.md)) and
+> **In short:** Novis already knows every route while compiling ([0077](0077-compile-time-routing.md)) and
 > already derives a codec from a class's declared properties ([0071](0071-derived-codecs.md)). An OpenAPI
 > 3.1 document is those two facts written out, so it is **generated, not maintained** — and a specification
 > that is generated from the code cannot disagree with the code, which is the failure every hand-written or
-> annotation-scanned API document eventually has. `mwl build --openapi` writes it; nothing is emitted for a
+> annotation-scanned API document eventually has. `nvs build --openapi` writes it; nothing is emitted for a
 > program that does not ask. What the types cannot express — a summary, an error response, a security
 > scheme, an example — comes from a `#[Api]` attribute and from the declaration's own doc comment, and
-> **an `#[Api]` that contradicts the code is a compile error**, not a documentation bug. `mwl api diff`
+> **an `#[Api]` that contradicts the code is a compile error**, not a documentation bug. `nvs api diff`
 > compares two generated documents and fails a build on a breaking change, which turns "we broke a client"
 > from an incident into a red pipeline.
 
@@ -36,7 +36,7 @@
   already exists. Hand-written OpenAPI drifts immediately. Annotation-scanned OpenAPI drifts more slowly and
   more confusingly, because the annotation looks authoritative while being unchecked — a `@OA\Response`
   claiming a shape the controller no longer returns is the normal state of a mature PHP or Python codebase.
-- **MWL is in the unusual position of already having the facts.** A route's path, method, name and captured
+- **Novis is in the unusual position of already having the facts.** A route's path, method, name and captured
   parameter types are compiler data ([0077](0077-compile-time-routing.md)). A request or response body's
   shape is a class's declared properties, which [0071](0071-derived-codecs.md) already reads — field names,
   declared types, nullability and constructor position — to build a codec. Nothing needs to be discovered;
@@ -49,7 +49,7 @@
   ([0010](0010-enums-are-a-value-type.md)) and a shape type is structural
   ([0036](0036-anonymous-object-shapes.md)). Each maps onto JSON Schema with no loss, which is why 3.1 —
   whose schema dialect *is* JSON Schema — is the target.
-- **It is nearly free, and it is a real differentiator.** For [0080](0080-the-audience-mwl-is-built-for.md)'s
+- **It is nearly free, and it is a real differentiator.** For [0080](0080-the-audience-nvs-is-built-for.md)'s
   audience — platforms whose customers integrate against them — "the contract is generated from the
   implementation and CI fails if you break it" is a property teams pay for, and no incumbent can offer it
   without the type system to back it.
@@ -105,15 +105,15 @@ That list is the whole point of the ADR: the annotation cannot lie, because the 
 
 ### 3. Emission
 
-`mwl build --openapi <path>` writes OpenAPI 3.1 JSON. It is a build artifact, not a runtime feature: the
+`nvs build --openapi <path>` writes OpenAPI 3.1 JSON. It is a build artifact, not a runtime feature: the
 running server does not construct it, and `Web\Api` merely serves a file the build produced
 ([0082](0082-the-first-party-framework.md) § 3). Determinism is required — routes and schemas are emitted in
 a stable order — because § 4 diffs the output and because a document that reorders itself between builds
 makes every diff useless.
 
-### 4. `mwl api diff` — the gate
+### 4. `nvs api diff` — the gate
 
-`mwl api diff <old.json> <new.json>` classifies every change as **breaking**, **additive** or **cosmetic**,
+`nvs api diff <old.json> <new.json>` classifies every change as **breaking**, **additive** or **cosmetic**,
 and exits non-zero on a breaking one. Breaking is the ordinary API-compatibility reading: a removed
 operation, a removed or newly required field, a narrowed type, a removed enum case, a changed status code.
 Additive is a new optional field, a new operation, a new enum case in a response.
@@ -124,7 +124,7 @@ compiler produced — rather than a reviewer's judgement.
 
 ## Consequences
 
-- **The document is only as good as the handlers' types**, which in MWL is very good — but a handler
+- **The document is only as good as the handlers' types**, which in Novis is very good — but a handler
   returning `mixed` produces a useless schema. That is visible in the output rather than hidden, and it is
   the correct incentive.
 - **Doc comments become load-bearing** for summaries. They are already parsed for tooling
@@ -139,7 +139,7 @@ compiler produced — rather than a reviewer's judgement.
 - **Non-JSON APIs get nothing from this.** A handler returning HTML or a stream appears in the document as
   an operation with an opaque response, which is honest and not very useful. GraphQL and gRPC are out of
   scope entirely.
-- **`mwl api diff` will occasionally be wrong at the margins** — a change that is technically breaking and
+- **`nvs api diff` will occasionally be wrong at the margins** — a change that is technically breaking and
   practically harmless. A suppression mechanism is deliberately not provided in v1; if it proves necessary
   it is an additive change, and providing one too early would make the gate advisory.
 
@@ -156,7 +156,7 @@ compiler produced — rather than a reviewer's judgement.
   feature. Nothing here prevents a team from diffing a generated document against a hand-written one.
 - **Generating clients too.** Rejected under [0051](0051-standard-library-tiers.md)'s domain-logic rule: the
   OpenAPI generator ecosystem exists, is specialised per target language, and is exactly the kind of thing
-  MWL should emit input for rather than reimplement.
+  Novis should emit input for rather than reimplement.
 - **Making the document a runtime endpoint the server builds.** Rejected because it puts work on the request
   path for a value that changes only when the code does, which is what the artifact cache is for.
 
@@ -173,7 +173,7 @@ compiler produced — rather than a reviewer's judgement.
 - **Determinism:** two builds of the same source produce byte-identical documents, on all three platforms.
 - **Zero cost when unused:** a program with no `#[Route]` runs no emitter pass and produces no artifact.
 - **The gate:** removing an operation, adding a required field and narrowing a type each exit non-zero from
-  `mwl api diff`; adding an optional field and a new operation each exit zero.
+  `nvs api diff`; adding an optional field and a new operation each exit zero.
 - **Qualifiers:** a `secret`-typed property cannot appear in a generated schema — it cannot be serialized at
   all ([0033](0033-secret-qualifier-for-confidential-values.md)) — and a class containing one used as a
   response type is a compile error at the handler, not a silently omitted field.

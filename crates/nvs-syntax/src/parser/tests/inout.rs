@@ -42,24 +42,24 @@ fn an_inout_parameter_parses_in_the_modifier_slot() {
     // `parse_modifiers` already runs, so it composes with a promoted
     // property's own modifiers and with a variadic tail.
     let p = only_param(
-        "<?mwl class A { public static function bump(inout int $n): int { return $n; } }",
+        "<?nvs class A { public static function bump(inout int $n): int { return $n; } }",
     );
     assert!(p.inout);
     assert!(p.ty.is_some());
     assert!(!p.variadic);
 
     let p = only_param(
-        "<?mwl class A { public static function all(inout array<int> ...$xs): int { return 1; } }",
+        "<?nvs class A { public static function all(inout array<int> ...$xs): int { return 1; } }",
     );
     assert!(p.inout);
     assert!(p.variadic);
 
-    let p = only_param("<?mwl class A { public function __construct(public inout int $n) {} }");
+    let p = only_param("<?nvs class A { public function __construct(public inout int $n) {} }");
     assert!(p.inout);
     assert_eq!(p.modifiers.len(), 1);
 
     // The absence is the default, and nothing else in the slot sets it.
-    let p = only_param("<?mwl class A { public static function sum(int $a): int { return $a; } }");
+    let p = only_param("<?nvs class A { public static function sum(int $a): int { return $a; } }");
     assert!(!p.inout);
 }
 
@@ -164,7 +164,7 @@ fn an_ampersand_by_reference_marker_is_refused_naming_inout() {
     }
 
     // The spellings refused because the language has no such thing keep
-    // their own codes: this one is `mwl_types`' E0701, and the parser
+    // their own codes: this one is `nvs_types`' E0701, and the parser
     // reports nothing at all.
     let (_, diags) = parse_stmt_with_diags("$a = &$b;");
     assert!(!refused_the_marker(&diags));

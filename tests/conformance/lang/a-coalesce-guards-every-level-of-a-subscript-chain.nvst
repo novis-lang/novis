@@ -1,7 +1,7 @@
 --TEST--
 `??` guards every subscript level under it, not only the outermost one, so an absent key at any depth yields the default (ADR 0007 § 7 row 11)
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 7 row 11: reading an absent key throws, and `??` is the one
 // carve-out — "absent or `null`, without the warning". PHP reads the whole
 // chain that way, so every level below a `??` takes the guarded read.

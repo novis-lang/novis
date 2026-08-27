@@ -21,7 +21,7 @@ them:
     `ls tests/conformance/core/ | grep -i <family>` beside `grep -n 'name: "' <family>.rs`, about
     ten times over one 19-session run, half of them in the tail.
 
-*   **An unasserted error path.** Every `Fault::` site in `mwl-stdlib` is a boundary the
+*   **An unasserted error path.** Every `Fault::` site in `nvs-stdlib` is a boundary the
     implementation is written around. A case that pins one catches it and echoes `$e->message`, so
     the message text lands in the case's `--EXPECT--` block -- and a message that appears in no case
     is a boundary nothing asks about. That is the *edges* shape, ready-made.
@@ -52,7 +52,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SPEC = ROOT / "docs" / "spec" / "01-core-library.md"
-STDLIB = ROOT / "crates" / "mwl-stdlib" / "src"
+STDLIB = ROOT / "crates" / "nvs-stdlib" / "src"
 CONFORMANCE = ROOT / "tests" / "conformance"
 DIFFERENTIAL = ROOT / "tests" / "differential"
 
@@ -71,7 +71,7 @@ def rel(path: Path) -> str:
 
 
 def cases(root: Path) -> list[Path]:
-    return sorted(root.rglob("*.mwlt")) if root.is_dir() else []
+    return sorted(root.rglob("*.nvst")) if root.is_dir() else []
 
 
 def corpus(root: Path) -> str:
@@ -80,7 +80,7 @@ def corpus(root: Path) -> str:
 
 # ------------------------------------------------------------------------ the registry
 
-#: `CoreMethod { name: "chunk", … symbol: "mwl_core_arr_chunk" }`, paired by position: each
+#: `CoreMethod { name: "chunk", … symbol: "nvs_core_arr_chunk" }`, paired by position: each
 #: literal carries exactly one of each, and `symbol` always follows `name` inside it.
 METHOD_RE = re.compile(r'CoreMethod\s*\{\s*name:\s*"([^"]+)"')
 SYMBOL_RE = re.compile(r'symbol:\s*"([^"]+)"')
@@ -90,7 +90,7 @@ SYMBOL_RE = re.compile(r'symbol:\s*"([^"]+)"')
 CLASS_RE = re.compile(r'CoreClass\s*\{\s*name:\s*(?:r"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))')
 
 #: `pub(crate) const NAME: &str = r"Core\Csv";` -- what the second spelling above resolves against.
-#: A const this does not match (`cli.rs` forwards one out of `mwl_runtime`) leaves its class
+#: A const this does not match (`cli.rs` forwards one out of `nvs_runtime`) leaves its class
 #: unnamed, which suppresses that class's members rather than handing them to the class above it.
 NAME_CONST_RE = re.compile(r'const\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*&str\s*=\s*r"([^"]+)"')
 
@@ -130,12 +130,12 @@ def registry() -> dict[tuple[str, str], tuple[Path, int, str]]:
 
 
 def symbol_lines() -> dict[str, tuple[Path, int]]:
-    """`mwl_core_arr_range` -> where that function is declared, for a file:line anchor on the
+    """`nvs_core_arr_range` -> where that function is declared, for a file:line anchor on the
     implementation rather than on the signature table."""
     out: dict[str, tuple[Path, int]] = {}
     for path in sorted(STDLIB.rglob("*.rs")):
         text = read(path)
-        for m in re.finditer(r"\bfn\s+(mwl_core_[a-z0-9_]+)\s*\(", text):
+        for m in re.finditer(r"\bfn\s+(nvs_core_[a-z0-9_]+)\s*\(", text):
             out.setdefault(m.group(1), (path, text.count("\n", 0, m.start()) + 1))
     return out
 
@@ -215,12 +215,12 @@ FAULT_RE = re.compile(r"Fault::(thrown_as|thrown|fatal)\s*\(")
 
 
 def error_gaps() -> list[dict]:
-    """`Fault::` sites in `mwl-stdlib` whose message stem appears in no case of either suite."""
+    """`Fault::` sites in `nvs-stdlib` whose message stem appears in no case of either suite."""
     seen = corpus(CONFORMANCE) + "\n" + corpus(DIFFERENTIAL)
     out = []
     for path in sorted(STDLIB.rglob("*.rs")):
         text = read(path)
-        owners = [(m.start(), m.group(1)) for m in re.finditer(r"\bfn\s+(mwl_core_[a-z0-9_]+)\s*\(", text)]
+        owners = [(m.start(), m.group(1)) for m in re.finditer(r"\bfn\s+(nvs_core_[a-z0-9_]+)\s*\(", text)]
         for m in FAULT_RE.finditer(text):
             # The literal runs to the first *unescaped* quote: a message that quotes its own
             # operand back writes `\"` inside itself, and a class that stopped at it would read
@@ -275,7 +275,7 @@ def coverage() -> list[dict]:
     Stage 4's question is *depth* -- every registered member has a case, so the useful ranking is
     cases per member, and the thinnest class is the next group. Sessions were answering this by
     hand: measured over one 19-session run, `ls tests/conformance/core/ | grep -i <family>` paired
-    with `grep -n 'name: "' crates/mwl-stdlib/src/<family>.rs` ran about ten times, half of them in
+    with `grep -n 'name: "' crates/nvs-stdlib/src/<family>.rs` ran about ten times, half of them in
     the tail where a call is most expensive, to arrive at a ranking the tree already holds.
 
     A case *belongs* to a class when it names it at all -- `Core\\ObjectMap<Tag, int> $m = new

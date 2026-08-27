@@ -1,7 +1,7 @@
 --TEST--
 `Core\Str::replaceRange` substitutes exactly the window `Core\Str::slice` returns, for every sign of every argument — spec § 1, ADR 0063 R5/R8
 --FILE--
-<?mwl
+<?nvs
 // A window, replaced. The offset and the length are read the same way
 // `Core\Str::slice` reads them, so the last line's two halves rebuild the
 // subject.

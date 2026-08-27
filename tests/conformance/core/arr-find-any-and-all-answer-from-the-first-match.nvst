@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::find and findKey answer the first match or null; any and all answer the empty array vacuously
 --FILE--
-<?mwl
+<?nvs
 array<int> $nums = [3, 7, 11];
 array<int> $empty = [];
 array<string> $map = ["b" => "bee", "a" => "ay"];

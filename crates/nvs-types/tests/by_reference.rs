@@ -1,24 +1,24 @@
 //! `inout` arguments: which expressions are assignable through one, which are
 //! refused, and ADR 0107 § 2's marker at both ends of the same call.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 // ------------------------------------------------------------------
 // By-reference parameters -- the two obligations `check_inout_arg`
-// adds on top of ordinary assignability. See `mwl_ir::Ty::Ref` for the
+// adds on top of ordinary assignability. See `nvs_ir::Ty::Ref` for the
 // representation those obligations exist to keep sound.
 // ------------------------------------------------------------------
 
 #[test]
 fn a_by_reference_argument_that_is_a_local_is_accepted() {
     let diags = check_src(
-        "<?mwl
+        "<?nvs
 class T {
   static function bump(inout int $s): void { $s = $s + 1; }
            function m(): void {
@@ -34,7 +34,7 @@ T::bump(inout $n);
 #[test]
 fn a_by_reference_argument_that_is_a_property_is_accepted() {
     let diags = check_src(
-        "<?mwl
+        "<?nvs
 class T {
   public int $hits;
            function constructor(int $hits) { $this->hits = $hits; }
@@ -51,7 +51,7 @@ T::bump(inout $this->hits);
 #[test]
 fn a_literal_passed_by_reference_is_diagnosed() {
     let diags = check_src(
-        "<?mwl
+        "<?nvs
 class T {
   static function bump(inout int $s): void { $s = $s + 1; }
            function m(): void {
@@ -71,7 +71,7 @@ T::bump(inout 1);
 #[test]
 fn a_calls_own_result_passed_by_reference_is_diagnosed() {
     let diags = check_src(
-        "<?mwl
+        "<?nvs
 class T {
   static function bump(inout int $s): void { $s = $s + 1; }
            static function one(): int { return 1; }
@@ -95,7 +95,7 @@ T::bump(inout T::one());
 #[test]
 fn an_array_element_passed_by_reference_is_diagnosed() {
     let diags = check_src(
-        "<?mwl
+        "<?nvs
 class T {
   static function bump(inout int $s): void { $s = $s + 1; }
            function m(): void {
@@ -118,7 +118,7 @@ T::bump(inout $a[0]);
 #[test]
 fn a_hooked_property_passed_by_reference_is_diagnosed() {
     let diags = check_src(
-        "<?mwl
+        "<?nvs
 class T {
   public int $n;
            public int $doubled { get => $this->n * 2; set(int $v) { $this->n = $v; } }
@@ -148,7 +148,7 @@ T::bump(inout $this->doubled);
 #[test]
 fn a_plain_string_passed_to_a_tainted_reference_parameter_is_diagnosed() {
     let diags = check_src(
-        "<?mwl
+        "<?nvs
 class T {
            static function fill(inout tainted string $s): void { $s = $s; }
            function m(): void {
@@ -173,7 +173,7 @@ T::fill(inout $t);
 #[test]
 fn an_unassignable_by_reference_argument_is_diagnosed_only_once() {
     let diags = check_src(
-        "<?mwl
+        "<?nvs
 class T {
   static function bump(inout int $s): void { $s = $s + 1; }
            function m(): void {
@@ -207,7 +207,7 @@ fn an_inout_argument_is_required_where_the_parameter_declares_one() {
     // sits outside `name:` rather than replacing it.
     for call in ["T::bump($n)", "T::bump(s: $n)"] {
         let diags = check_src(&format!(
-            "<?mwl
+            "<?nvs
 class T {{
   static function bump(inout int $s): void {{ $s = $s + 1; }}
            function m(): void {{
@@ -229,7 +229,7 @@ int $n = 1;
 #[test]
 fn an_inout_argument_is_refused_where_the_parameter_is_by_value() {
     let diags = check_src(
-        "<?mwl
+        "<?nvs
 class T {
   static function keep(int $s): int { return $s; }
            function m(): void {
@@ -249,7 +249,7 @@ T::keep(inout $n);
     // Through a `callable` it can never be right: ADR 0031 § 4 refuses the
     // declaration end outright, so nothing the call reaches can bind one.
     let diags = check_src(
-        "<?mwl
+        "<?nvs
 class T {
            function m(): void {
 int $n = 1;

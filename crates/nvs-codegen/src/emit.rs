@@ -1,16 +1,16 @@
-//! Emits one [`mwl_ir::Function`] as Cranelift IR.
+//! Emits one [`nvs_ir::Function`] as Cranelift IR.
 //!
 //! The whole file is a walk of already-checked, already-lowered input: by the
-//! time an [`mwl_ir::ir::Function`] reaches here, `mwl_types::check_program`
-//! has proven it well-typed and `mwl_ir::lower` has settled every operand's
+//! time an [`nvs_ir::ir::Function`] reaches here, `nvs_types::check_program`
+//! has proven it well-typed and `nvs_ir::lower` has settled every operand's
 //! representation. Nothing is re-checked; a shape this slice cannot lower is a
 //! [`CodegenError::Unsupported`] naming it, never a diagnostic.
 //!
 //! # Blocks and phis
 //!
-//! [`mwl_ir::ir::InstKind::Phi`] becomes a Cranelift block parameter. The IR
+//! [`nvs_ir::ir::InstKind::Phi`] becomes a Cranelift block parameter. The IR
 //! always emits a block's phis as a prefix of its instruction list — every
-//! producer in `mwl_ir::lower` writes them into a freshly created merge or
+//! producer in `nvs_ir::lower` writes them into a freshly created merge or
 //! loop-header block before anything else — so the translation is positional:
 //! the *n*th leading phi is the *n*th block parameter, and every jump into
 //! that block supplies its own incoming value for each. A phi appearing after
@@ -19,27 +19,27 @@
 //!
 //! # The status check
 //!
-//! Every call this file emits — a runtime helper, `mwl_safepoint` — is
+//! Every call this file emits — a runtime helper, `nvs_safepoint` — is
 //! followed by the compare-and-branch [ADR 0002](../../../docs/adr/0002-error-propagation.md)
 //! puts in place of a landing pad, and a non-`OK` status returns onward
-//! unchanged. `mwl_probe_stmt` and the refcount primitives are the exceptions,
+//! unchanged. `nvs_probe_stmt` and the refcount primitives are the exceptions,
 //! and only because they return no status at all: neither can fail.
 //!
 //! # A runtime call that is not a helper
 //!
 //! Four symbols this file calls take neither ADR 0002's helper convention nor
-//! the status check above: `mwl_str_eq`, `mwl_array_eq`, `mwl_float_pow` and
+//! the status check above: `nvs_str_eq`, `nvs_array_eq`, `nvs_float_pow` and
 //! the refcount primitives. The rule they share is that the operand
 //! *representation* is already statically known at the emit site and the
 //! operation is total, so the convention's price — marshalling each argument
-//! into a stack slot of tagged `mwl_runtime::Value`s, reading the result back
+//! into a stack slot of tagged `nvs_runtime::Value`s, reading the result back
 //! out of an out-slot, and branching on a status that is always `OK` — would
 //! buy nothing. Each gets a two-argument signature of its own in
 //! `crate::Signatures` instead.
 //!
-//! `mwl_float_pow` is the one of those that had a real alternative, so it is
+//! `nvs_float_pow` is the one of those that had a real alternative, so it is
 //! worth naming: ADR 0007 § 4's `**` over two `float`s could have been one
-//! more `mwl_ir::Helper`. It is not, because Cranelift has no `fpow`
+//! more `nvs_ir::Helper`. It is not, because Cranelift has no `fpow`
 //! instruction and no `LibCall::Pow` either — the row has to be *some* call,
 //! and given that, the cheap shape is the honest one. AGENTS.md's priority
 //! ordering puts latency (3) above simplicity (4), and the cost is one
@@ -50,21 +50,21 @@
 use cranelift::prelude::*;
 use cranelift_jit::JITModule;
 use cranelift_module::{DataDescription, FuncId, Linkage, Module};
-use mwl_ir::Ty;
-use mwl_ir::ids::{BlockId, ValueId};
-use mwl_ir::ir::{
+use nvs_ir::Ty;
+use nvs_ir::ids::{BlockId, ValueId};
+use nvs_ir::ir::{
     AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp,
 };
-use mwl_runtime::{
-    DEBUG_FLAGS_OFFSET, Decimal as MwlDecimal, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN,
-    Tag, Value as MwlValue,
+use nvs_runtime::{
+    DEBUG_FLAGS_OFFSET, Decimal as NvsDecimal, OK, SAFEPOINT_OFFSET, STACK_LIMIT_OFFSET, THROWN,
+    Tag, Value as NvsValue,
 };
 use rustc_hash::FxHashMap;
 
 use crate::ty::{clif_ty, tag_of};
 use crate::{Classes, CodegenError, Signatures};
 
-/// Size of one 16-byte [`mwl_runtime::Value`], as an offset multiplier.
+/// Size of one 16-byte [`nvs_runtime::Value`], as an offset multiplier.
 const VALUE_SIZE: i32 = 16;
 
 /// `align_shift` for a 16-byte-aligned stack slot: 2^4 == 16.
@@ -84,7 +84,7 @@ fn trusted() -> MemFlagsData {
     MemFlagsData::trusted()
 }
 
-/// Memory flags for reading [`mwl_runtime::Ctx`]'s two hot words.
+/// Memory flags for reading [`nvs_runtime::Ctx`]'s two hot words.
 ///
 /// Deliberately *not* [`MemFlagsData::trusted`]: `trusted` asserts nothing about
 /// aliasing today, but the safepoint word is written from outside the running
@@ -105,7 +105,7 @@ fn ctx_word() -> MemFlagsData {
 /// eight parameters is where the shape stops being readable.
 pub(crate) struct UnitTables<'a> {
     pub sigs: &'a Signatures,
-    /// Every function the unit defines, by MWL name — see
+    /// Every function the unit defines, by Novis name — see
     /// [`crate::Jit::compile_all`] for why it is complete before any body is
     /// emitted.
     pub functions: &'a FxHashMap<String, FuncId>,
@@ -231,14 +231,14 @@ fn leading_phis(block: &BasicBlock) -> Result<usize, CodegenError> {
 }
 
 /// Whether `f` can be entered without growing the machine stack by more than
-/// [`mwl_runtime::STACK_RESERVE`] — in which case
+/// [`nvs_runtime::STACK_RESERVE`] — in which case
 /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 elides
 /// its call-stack check, because whoever called it passed the compare with
 /// that much stack still underneath.
 ///
 /// Read as "does it transfer control anywhere that could recurse": a `Call`,
 /// a virtual or dynamic one, a constructor, a runtime helper or a `Core`
-/// member. The last two cannot recurse into MWL by themselves, but a `Core`
+/// member. The last two cannot recurse into Novis by themselves, but a `Core`
 /// member taking a closure does, and telling those apart would mean a table
 /// this pass has no reason to own — so the predicate is deliberately the
 /// conservative one, and a function is a leaf only if it calls *nothing*.
@@ -246,7 +246,7 @@ fn leading_phis(block: &BasicBlock) -> Result<usize, CodegenError> {
 /// Cranelift decides the real frame size long after this runs, so a frame
 /// bound is not available to check the reserve against directly. A function
 /// that calls nothing has no `alloca`, no by-value aggregate and no spill set
-/// that MWL's own lowering can make large — everything of unbounded size is on
+/// that Novis's own lowering can make large — everything of unbounded size is on
 /// the heap — which is what makes the syntactic test sufficient here.
 fn is_leaf(f: &Function) -> bool {
     !f.blocks.iter().flat_map(|b| &b.insts).any(|inst| {
@@ -262,8 +262,8 @@ fn is_leaf(f: &Function) -> bool {
     })
 }
 
-/// Whether this block is one of `mwl_ir`'s landing blocks — the ones
-/// [`mwl_ir::ir::Inst::on_error`] and [`Terminator::Throw`] branch to.
+/// Whether this block is one of `nvs_ir`'s landing blocks — the ones
+/// [`nvs_ir::ir::Inst::on_error`] and [`Terminator::Throw`] branch to.
 ///
 /// Read off the terminator rather than carried as a flag: only a landing
 /// block ends in [`Terminator::Propagate`] or [`Terminator::Catch`], so the
@@ -276,7 +276,7 @@ fn is_landing(block: &BasicBlock) -> bool {
 }
 
 pub(crate) fn internal(what: &str) -> CodegenError {
-    CodegenError::Unsupported(format!("{what} (this is a bug in mwl-ir or mwl-codegen)"))
+    CodegenError::Unsupported(format!("{what} (this is a bug in nvs-ir or nvs-codegen)"))
 }
 
 /// The blocks of `f` that codegen touches at all, in the order it walks them:
@@ -289,7 +289,7 @@ pub(crate) fn internal(what: &str) -> CodegenError {
 /// definition dominate the use. Reverse postorder turns one into the other: a
 /// dominator always precedes what it dominates, so every non-loop-carried
 /// value is in the map by the time it is read, and a loop-carried one arrives
-/// through a block parameter rather than the map. `mwl-ir` numbers a block
+/// through a block parameter rather than the map. `nvs-ir` numbers a block
 /// when it *creates* one, which coincides with this order for straight-line
 /// and loop code but not for
 /// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s landing blocks:
@@ -297,7 +297,7 @@ pub(crate) fn internal(what: &str) -> CodegenError {
 /// flows into, so the outer one reads a value the inner one defines.
 ///
 /// **Reachability.** A block this walk never reaches is dropped rather than
-/// emitted — no Cranelift block is created for it at all. `mwl-ir` lowers a
+/// emitted — no Cranelift block is created for it at all. `nvs-ir` lowers a
 /// `try`'s landing block unconditionally, so a protected region whose body
 /// turns out to contain nothing fallible leaves a whole dead cleanup chain
 /// behind; emitting one would mean asking Cranelift to fill blocks nothing
@@ -339,7 +339,7 @@ struct Emitter<'a, 'f> {
     b: FunctionBuilder<'f>,
     module: &'a mut JITModule,
     sigs: &'a Signatures,
-    /// Every function the unit defines, by MWL name — see
+    /// Every function the unit defines, by Novis name — see
     /// [`crate::Jit::compile_all`] for why it is complete before any body is
     /// emitted.
     functions: &'a FxHashMap<String, FuncId>,
@@ -463,8 +463,8 @@ impl Emitter<'_, '_> {
                 self.define(inst, v)?;
             }
             // ADR 0054 § 2's literal, folded to its sixteen-byte image. This
-            // is the one place `mwl_ir`'s three-part constant and
-            // `mwl_runtime::decimal`'s bit layout meet — the IR carries the
+            // is the one place `nvs_ir`'s three-part constant and
+            // `nvs_runtime::decimal`'s bit layout meet — the IR carries the
             // parts because it does not depend on the runtime, and this crate
             // depends on both.
             InstKind::ConstDecimal {
@@ -472,7 +472,7 @@ impl Emitter<'_, '_> {
                 mantissa,
                 scale,
             } => {
-                let value = MwlDecimal::new(*negative, *mantissa, *scale)
+                let value = NvsDecimal::new(*negative, *mantissa, *scale)
                     .ok_or_else(|| internal("a `decimal` constant outside ADR 0054 § 1's range"))?;
                 let bits = value.to_bits();
                 let word = |bits: u128| -> Result<i64, CodegenError> {
@@ -532,7 +532,7 @@ impl Emitter<'_, '_> {
                 let symbol = helper_symbol(*helper)?;
                 // One row of the table is variadic — the closure call, whose
                 // arity is the call site's and not the helper's — so it is
-                // the one that passes a count. See `mwl_ir::Helper::CallClosure`.
+                // the one that passes a count. See `nvs_ir::Helper::CallClosure`.
                 let sig = match helper {
                     Helper::CallClosure => RuntimeSig::HelperVariadic,
                     _ => RuntimeSig::Helper,
@@ -541,9 +541,9 @@ impl Emitter<'_, '_> {
             }
             // A `Core` member is native Rust behind the same ADR 0002 helper
             // entry point every runtime helper uses, so it needs no path of
-            // its own here beyond naming a symbol `mwl-stdlib` registered
+            // its own here beyond naming a symbol `nvs-stdlib` registered
             // instead of one this crate's own `Helper` table does. See
-            // `mwl_ir::ir::InstKind::CoreCall`.
+            // `nvs_ir::ir::InstKind::CoreCall`.
             InstKind::CoreCall { symbol, args } => {
                 return self.emit_helper(cur, inst, symbol, args, RuntimeSig::Helper);
             }
@@ -568,7 +568,7 @@ impl Emitter<'_, '_> {
             }
             InstKind::ClassDescOf { object } => {
                 let (object, _) = self.value(*object)?;
-                let offset = i32::try_from(mwl_runtime::OBJ_CLASS_OFFSET)
+                let offset = i32::try_from(nvs_runtime::OBJ_CLASS_OFFSET)
                     .map_err(|_| internal("a class-pointer offset past i32"))?;
                 let desc = self.b.ins().load(types::I64, trusted(), object, offset);
                 self.define(inst, desc)?;
@@ -641,14 +641,14 @@ impl Emitter<'_, '_> {
             }
             InstKind::Clone { object } => {
                 let (object, _) = self.value(*object)?;
-                let callee = self.runtime_ref("mwl_object_clone", RuntimeSig::PtrToPtr)?;
+                let callee = self.runtime_ref("nvs_object_clone", RuntimeSig::PtrToPtr)?;
                 let call = self.b.ins().call(callee, &[object]);
                 let value = self.b.inst_results(call)[0];
                 self.define(inst, value)?;
             }
             // No machine instruction at all: the operand's own Cranelift value
             // is recorded a second time under this instruction's id, with the
-            // new representation. See `mwl_ir::ir::InstKind::Reinterpret` for
+            // new representation. See `nvs_ir::ir::InstKind::Reinterpret` for
             // why the IR spends an instruction on a relabelling.
             InstKind::Reinterpret { operand } => {
                 let (value, from) = self.value(*operand)?;
@@ -664,12 +664,12 @@ impl Emitter<'_, '_> {
             }
             // The three tagged-value instructions. None of them calls, none
             // allocates, and only `IsNull` reads a tag — see
-            // `mwl_ir::Ty::Tagged` for the representation all three assume.
+            // `nvs_ir::Ty::Tagged` for the representation all three assume.
             InstKind::Tag { operand } => {
                 let (value, from) = self.value(*operand)?;
                 // A `decimal` already *is* a `Value` at the tagged width, so
                 // widening one into a `mixed`/`?decimal` is the identity —
-                // see `mwl_ir::Ty::Decimal`.
+                // see `nvs_ir::Ty::Decimal`.
                 if from == Ty::Decimal {
                     self.define(inst, value)?;
                     return Ok(cur);
@@ -746,10 +746,10 @@ impl Emitter<'_, '_> {
                 // The key's own representation picks nothing here: both entry
                 // points tell a rendered key from an `int` by its tag. What
                 // `absent` picks is the answer to a missing one, and with it
-                // whether `inst.on_error` is `Some` — see `mwl_ir::AbsentKey`.
+                // whether `inst.on_error` is `Some` — see `nvs_ir::AbsentKey`.
                 let symbol = match absent {
-                    AbsentKey::Throws => "mwl_array_required_get",
-                    AbsentKey::Null => "mwl_array_optional_get",
+                    AbsentKey::Throws => "nvs_array_required_get",
+                    AbsentKey::Null => "nvs_array_optional_get",
                 };
                 return self.emit_helper(cur, inst, symbol, &[*array, *key], RuntimeSig::Helper);
             }
@@ -757,9 +757,9 @@ impl Emitter<'_, '_> {
                 // The key operand's own representation picks the primitive,
                 // exactly as in `Self::emit_array_get`.
                 let (symbol, sig) = if self.value(*key)?.1 == Ty::Int {
-                    ("mwl_array_set_index", RuntimeSig::ArraySetIndex)
+                    ("nvs_array_set_index", RuntimeSig::ArraySetIndex)
                 } else {
-                    ("mwl_array_set", RuntimeSig::ArraySet)
+                    ("nvs_array_set", RuntimeSig::ArraySet)
                 };
                 let result = self.emit_array_write(symbol, sig, *array, Some(*key), *value)?;
                 self.define(inst, result)?;
@@ -773,7 +773,7 @@ impl Emitter<'_, '_> {
             InstKind::ArrayUnset { array, key } => {
                 let (array, _) = self.value(*array)?;
                 let (key, _) = self.value(*key)?;
-                let callee = self.runtime_ref("mwl_array_unset", RuntimeSig::ArrayUnset)?;
+                let callee = self.runtime_ref("nvs_array_unset", RuntimeSig::ArrayUnset)?;
                 let call = self.b.ins().call(callee, &[array, key]);
                 let result = self.b.inst_results(call)[0];
                 self.define(inst, result)?;
@@ -781,7 +781,7 @@ impl Emitter<'_, '_> {
             InstKind::ArrayNextSlot { array, from } => {
                 let (array, _) = self.value(*array)?;
                 let (from, _) = self.value(*from)?;
-                let callee = self.runtime_ref("mwl_array_next_slot", RuntimeSig::ArrayNextSlot)?;
+                let callee = self.runtime_ref("nvs_array_next_slot", RuntimeSig::ArrayNextSlot)?;
                 let call = self.b.ins().call(callee, &[array, from]);
                 let result = self.b.inst_results(call)[0];
                 self.define(inst, result)?;
@@ -789,7 +789,7 @@ impl Emitter<'_, '_> {
             InstKind::ArrayKeyAt { array, slot } => {
                 let (array, _) = self.value(*array)?;
                 let (slot, _) = self.value(*slot)?;
-                let callee = self.runtime_ref("mwl_array_key_at", RuntimeSig::ArrayKeyAt)?;
+                let callee = self.runtime_ref("nvs_array_key_at", RuntimeSig::ArrayKeyAt)?;
                 let call = self.b.ins().call(callee, &[array, slot]);
                 let result = self.b.inst_results(call)[0];
                 self.define(inst, result)?;
@@ -801,16 +801,16 @@ impl Emitter<'_, '_> {
                 let (array, _) = self.value(*array)?;
                 let (slot, _) = self.value(*slot)?;
                 let out = self.value_slot();
-                let callee = self.runtime_ref("mwl_array_value_at", RuntimeSig::ArrayValueAt)?;
+                let callee = self.runtime_ref("nvs_array_value_at", RuntimeSig::ArrayValueAt)?;
                 self.b.ins().call(callee, &[array, slot, out]);
                 let value = self.load_value(out, 0, ty)?;
                 self.define(inst, value)?;
             }
             // A by-reference parameter's caller-staged one-cell slot — see
-            // `mwl_ir::Ty::Ref`, which owns the representation decision. All
+            // `nvs_ir::Ty::Ref`, which owns the representation decision. All
             // three arms are pure address/load/store: the retain and release
             // that keep the slot owning exactly one reference are ordinary
-            // `Retain`/`Release` instructions `mwl_ir::lower` emits around
+            // `Retain`/`Release` instructions `nvs_ir::lower` emits around
             // them, so nothing here has an ownership rule of its own.
             InstKind::RefSlot { init } => {
                 let (value, ty) = self.value(*init)?;
@@ -840,7 +840,7 @@ impl Emitter<'_, '_> {
                 self.emit_refcount(false, value, ty)?;
             }
             InstKind::TakeThrown => {
-                let callee = self.runtime_ref("mwl_take_thrown", RuntimeSig::PtrToPtr)?;
+                let callee = self.runtime_ref("nvs_take_thrown", RuntimeSig::PtrToPtr)?;
                 let call = self.b.ins().call(callee, &[self.ctx_p]);
                 let value = self.b.inst_results(call)[0];
                 self.define(inst, value)?;
@@ -854,10 +854,10 @@ impl Emitter<'_, '_> {
     }
 
     /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
-    /// call-stack limit: one load of [`mwl_runtime::Ctx`]'s third word, one
+    /// call-stack limit: one load of [`nvs_runtime::Ctx`]'s third word, one
     /// compare against this frame's stack pointer, one predicted-not-taken
     /// branch, and an out-of-line call to
-    /// [`mwl_runtime::mwl_stack_check`] whose status is checked like any other.
+    /// [`nvs_runtime::nvs_stack_check`] whose status is checked like any other.
     ///
     /// The stack grows down, so exhaustion is an *unsigned less-than*: the
     /// addresses are real ones, and a request whose bounds were armed from a
@@ -881,7 +881,7 @@ impl Emitter<'_, '_> {
         self.b.ins().brif(past, slow, &[], cont, &[]);
 
         self.b.switch_to_block(slow);
-        let callee = self.runtime_ref("mwl_stack_check", RuntimeSig::StackCheck)?;
+        let callee = self.runtime_ref("nvs_stack_check", RuntimeSig::StackCheck)?;
         let call = self.b.ins().call(callee, &[self.ctx_p, sp]);
         let status = self.b.inst_results(call)[0];
         let stop = self.b.create_block();
@@ -894,13 +894,13 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// The safepoint poll: one load of [`mwl_runtime::Ctx`]'s first word, one
+    /// The safepoint poll: one load of [`nvs_runtime::Ctx`]'s first word, one
     /// predicted-not-taken branch, and an out-of-line call to
-    /// [`mwl_runtime::mwl_safepoint`] whose status is checked like any other.
+    /// [`nvs_runtime::nvs_safepoint`] whose status is checked like any other.
     ///
     /// This is also where the call-stack check rides, at the **first**
     /// safepoint of a non-leaf function — which is the function-entry one,
-    /// since `mwl_ir::lower` emits that before anything else and the entry
+    /// since `nvs_ir::lower` emits that before anything else and the entry
     /// block is first in [`reachable_in_reverse_postorder`]. A loop back
     /// edge's poll gets no check: going round a loop does not grow the stack.
     fn emit_safepoint(&mut self, cur: Block) -> Result<Block, CodegenError> {
@@ -919,7 +919,7 @@ impl Emitter<'_, '_> {
         self.b.ins().brif(flags, slow, &[], cont, &[]);
 
         self.b.switch_to_block(slow);
-        let callee = self.runtime_ref("mwl_safepoint", RuntimeSig::Safepoint)?;
+        let callee = self.runtime_ref("nvs_safepoint", RuntimeSig::Safepoint)?;
         let call = self.b.ins().call(callee, &[self.ctx_p]);
         let status = self.b.inst_results(call)[0];
         let stop = self.b.create_block();
@@ -935,7 +935,7 @@ impl Emitter<'_, '_> {
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's statement-boundary probe: the identical load-and-branch shape as
     /// [`Self::emit_safepoint`], against the *second* hot word, with no status
-    /// to check because [`mwl_runtime::mwl_probe_stmt`] cannot fail.
+    /// to check because [`nvs_runtime::nvs_probe_stmt`] cannot fail.
     ///
     /// Emitted unconditionally, in every compiled unit, whether or not any
     /// request ever sets a bit — that is the entire mechanism, and the reason
@@ -953,7 +953,7 @@ impl Emitter<'_, '_> {
         self.b.ins().brif(flags, slow, &[], cont, &[]);
 
         self.b.switch_to_block(slow);
-        let callee = self.runtime_ref("mwl_probe_stmt", RuntimeSig::Probe)?;
+        let callee = self.runtime_ref("nvs_probe_stmt", RuntimeSig::Probe)?;
         let id = self.b.ins().iconst(types::I32, i64::from(stmt));
         self.b.ins().call(callee, &[self.ctx_p, id]);
         self.b.ins().jump(cont, &[]);
@@ -965,20 +965,20 @@ impl Emitter<'_, '_> {
     /// A string literal: **one address, no call and no allocation**, whatever
     /// it costs to reach the expression it sits in.
     ///
-    /// The whole string — a `mwl_runtime::StrHeader` and then the payload —
+    /// The whole string — a `nvs_runtime::StrHeader` and then the payload —
     /// goes into the unit's data section, so `$a["beta"]` inside a loop
-    /// materializes a constant pointer rather than an `mwl_str_new` per
+    /// materializes a constant pointer rather than an `nvs_str_new` per
     /// evaluation. The header's refcount is
-    /// [`mwl_runtime::IMMORTAL_REFCOUNT`], which every retain and release
+    /// [`nvs_runtime::IMMORTAL_REFCOUNT`], which every retain and release
     /// compares against and steps over; the data object is declared
     /// **not writable**, so a lapse in that protocol faults here instead of
     /// silently corrupting a word two requests share.
     ///
-    /// The layout stays `mwl-runtime`'s: this function asks
-    /// [`mwl_runtime::immortal_header_bytes`] for the bytes and does not know
+    /// The layout stays `nvs-runtime`'s: this function asks
+    /// [`nvs_runtime::immortal_header_bytes`] for the bytes and does not know
     /// what is in them. What it does own is the *alignment* — a data section
     /// object has no allocator to pick one, so the header's own
-    /// [`mwl_runtime::HEADER_ALIGN`] is stated here.
+    /// [`nvs_runtime::HEADER_ALIGN`] is stated here.
     fn emit_const_str(&mut self, cur: Block, bytes: &[u8]) -> Result<(Value, Block), CodegenError> {
         let value = self.emit_immortal_str(bytes)?;
         Ok((value, cur))
@@ -992,14 +992,14 @@ impl Emitter<'_, '_> {
     /// unit rather than anything on the request path.
     fn emit_immortal_str(&mut self, bytes: &[u8]) -> Result<Value, CodegenError> {
         let mut object =
-            Vec::with_capacity(mwl_runtime::PAYLOAD_OFFSET.saturating_add(bytes.len()));
-        object.extend_from_slice(&mwl_runtime::immortal_header_bytes(bytes.len()));
+            Vec::with_capacity(nvs_runtime::PAYLOAD_OFFSET.saturating_add(bytes.len()));
+        object.extend_from_slice(&nvs_runtime::immortal_header_bytes(bytes.len()));
         object.extend_from_slice(bytes);
 
         let mut desc = DataDescription::new();
         desc.define(object.into_boxed_slice());
         desc.set_align(
-            u64::try_from(mwl_runtime::HEADER_ALIGN)
+            u64::try_from(nvs_runtime::HEADER_ALIGN)
                 .map_err(|_| internal("a string header's alignment past u64"))?,
         );
         self.define_literal(&desc)
@@ -1007,7 +1007,7 @@ impl Emitter<'_, '_> {
 
     /// Puts `bytes` in the unit's data section and materializes its address
     /// and length as two values — the shape every runtime primitive taking
-    /// static bytes wants (`mwl_str_new`, and ADR 0018's call-site probes).
+    /// static bytes wants (`nvs_str_new`, and ADR 0018's call-site probes).
     fn emit_bytes(&mut self, bytes: &[u8]) -> Result<(Value, Value), CodegenError> {
         let mut desc = DataDescription::new();
         // A zero-length literal still needs a real address to hand to its
@@ -1036,7 +1036,7 @@ impl Emitter<'_, '_> {
     /// stays that way. Anything that did write one would be a bug in two
     /// requests at once, so the mapping is the place to catch it.
     fn define_literal(&mut self, desc: &DataDescription) -> Result<Value, CodegenError> {
-        let name = format!("mwl_bytes_{}", *self.literals);
+        let name = format!("nvs_bytes_{}", *self.literals);
         *self.literals += 1;
 
         let data = self
@@ -1082,12 +1082,12 @@ impl Emitter<'_, '_> {
         // pointer, so `icmp` would compare identity, which is never what `==`
         // means for either (ADR 0090 § 3's string and array rows). Each takes
         // a two-pointer call rather than the tagged helper convention because
-        // the row is already known here — see `mwl_runtime::mwl_array_eq`.
+        // the row is already known here — see `nvs_runtime::nvs_array_eq`.
         if matches!(ty, Ty::Str | Ty::Bytes | Ty::Array) && matches!(op, BinOp::Eq | BinOp::NotEq) {
             let symbol = if matches!(ty, Ty::Array) {
-                "mwl_array_eq"
+                "nvs_array_eq"
             } else {
-                "mwl_str_eq"
+                "nvs_str_eq"
             };
             let callee = self.runtime_ref(symbol, RuntimeSig::PtrEq)?;
             let call = self.b.ins().call(callee, &[l, r]);
@@ -1107,7 +1107,7 @@ impl Emitter<'_, '_> {
         // comparison the two rows above refuse is exactly right — and it is
         // one instruction, which is why an object pair calls nothing at all.
         // Comparing contents is `Comparable::compareTo`, a method call that
-        // never reaches this instruction (`mwl_ir`'s `lower_object_comparison`).
+        // never reaches this instruction (`nvs_ir`'s `lower_object_comparison`).
         if matches!(ty, Ty::Object) && matches!(op, BinOp::Eq | BinOp::NotEq) {
             let cc = if matches!(op, BinOp::Eq) {
                 IntCC::Equal
@@ -1136,7 +1136,7 @@ impl Emitter<'_, '_> {
             // the roster is the four rows above plus this one. Equality is
             // answered for a `string`, a `bytes`, an `array<T>`, an object, an
             // enum case (through `Reinterpret` to its backing integer, in
-            // `mwl-ir`) and `null`; ordering is refused where it is *written*
+            // `nvs-ir`) and `null`; ordering is refused where it is *written*
             // for every representation that is not a number or a `bool`
             // (`E0715`, and `E0411` for the object family), and `decimal`'s own
             // twelve rows never arrive here at all — `lower_decimal_binary`
@@ -1194,9 +1194,9 @@ impl Emitter<'_, '_> {
             // through ADR 0002's helper convention for the reason this
             // module's docs give — the row's representation is already known
             // here and `f64::powf` raises nothing — which is the same trade
-            // the `mwl_str_eq` arm above makes.
+            // the `nvs_str_eq` arm above makes.
             BinOp::Pow if float => {
-                let callee = self.runtime_ref("mwl_float_pow", RuntimeSig::FloatPow)?;
+                let callee = self.runtime_ref("nvs_float_pow", RuntimeSig::FloatPow)?;
                 let call = self.b.ins().call(callee, &[l, r]);
                 self.b.inst_results(call)[0]
             }
@@ -1290,7 +1290,7 @@ impl Emitter<'_, '_> {
     /// * **A zero divisor** throws spec § 10's `ArithmeticError`, carrying
     ///   PHP's own `Modulo by zero` message. That is the branch: compare,
     ///   branch to a block that raises and takes this instruction's error edge
-    ///   ([`mwl_ir::ir::Inst::on_error`]), carry on in a fresh one. The
+    ///   ([`nvs_ir::ir::Inst::on_error`]), carry on in a fresh one. The
     ///   not-taken side costs a compare and a predicted branch, which is the
     ///   same shape and the same cost as ADR 0002's status check.
     /// * **`i64::MIN % -1`** does not throw, because it is not an overflow:
@@ -1302,7 +1302,7 @@ impl Emitter<'_, '_> {
     /// The unsigned case needs only the zero guard: `urem` has no second
     /// trapping input.
     ///
-    /// The exception is built by [`mwl_runtime::mwl_raise_new`] from a
+    /// The exception is built by [`nvs_runtime::nvs_raise_new`] from a
     /// descriptor address baked in as an `iconst` — see [`crate::Classes`] —
     /// rather than by a helper's `Fault`, which could only ever name
     /// `RuntimeError`.
@@ -1347,7 +1347,7 @@ impl Emitter<'_, '_> {
     /// * **A zero divisor** throws spec § 10's `ArithmeticError` carrying
     ///   PHP's own `Division by zero` message, exactly as
     ///   [`Self::emit_int_mod`] does and by the same route: the exception is
-    ///   built by [`mwl_runtime::mwl_raise_new`] from a baked-in descriptor
+    ///   built by [`nvs_runtime::nvs_raise_new`] from a baked-in descriptor
     ///   address, since a helper's `Fault` could only ever name `RuntimeError`.
     /// * **`i64::MIN / -1`** is the signed overflow, and it is not an integer
     ///   at all: PHP answers the `float` `9.2233720368548E+18`, which is
@@ -1450,7 +1450,7 @@ impl Emitter<'_, '_> {
     /// predicted branch on top of the arithmetic instruction and no extra
     /// compare at all — cheaper than the zero-divisor guard next door, which
     /// has to synthesize its own condition. The overflow edge is
-    /// [`mwl_ir::ir::Inst::on_error`]'s, exactly as [`Self::emit_int_mod`]'s
+    /// [`nvs_ir::ir::Inst::on_error`]'s, exactly as [`Self::emit_int_mod`]'s
     /// is, so this function owns a continuation block and its caller must use
     /// the one it returns.
     ///
@@ -1494,8 +1494,8 @@ impl Emitter<'_, '_> {
     /// * **A negative count throws** `ArithmeticError`, carrying PHP's own
     ///   `Bit shift by negative number` message. Only the signed row can
     ///   produce one, so only it owns the guard and the continuation block —
-    ///   which is why `mwl_ir::lower` marks a shift fallible on
-    ///   [`mwl_ir::ty::Ty::Int`] and not on `Ty::Uint`.
+    ///   which is why `nvs_ir::lower` marks a shift fallible on
+    ///   [`nvs_ir::ty::Ty::Int`] and not on `Ty::Uint`.
     /// * **A count of 64 or more answers all-zeros, or all-sign.** `ishl`
     ///   masks the count to 6 bits, so `1 << 64` would be `1`; PHP answers
     ///   `0`. The correction is a `select` on an unsigned compare rather than
@@ -1578,7 +1578,7 @@ impl Emitter<'_, '_> {
     ///   have one, and answering it costs nothing on the hot path because the
     ///   whole decision sits behind the sign test. A `uint` exponent cannot be
     ///   negative, so the unsigned row carries no guard at all — which is why
-    ///   `mwl_ir::lower` marks `**` fallible on both, and only this function
+    ///   `nvs_ir::lower` marks `**` fallible on both, and only this function
     ///   knows the two rows raise for different reasons.
     fn emit_int_pow(
         &mut self,
@@ -1737,12 +1737,12 @@ impl Emitter<'_, '_> {
     }
 
     /// Raise spec § 10's `ArithmeticError` inline and leave the current block
-    /// on [`mwl_ir::ir::Inst::on_error`]'s edge.
+    /// on [`nvs_ir::ir::Inst::on_error`]'s edge.
     ///
     /// Every arithmetic throw in this file goes through here — the two zero
     /// divisors and the four overflow rows — and none of them goes through a
     /// helper's `Fault`, which could only ever name `RuntimeError`. The
-    /// exception is built by [`mwl_runtime::mwl_raise_new`] from a descriptor
+    /// exception is built by [`nvs_runtime::nvs_raise_new`] from a descriptor
     /// address baked in as an `iconst`, see [`crate::Classes`].
     ///
     /// The caller has already switched to the block this terminates, and must
@@ -1750,7 +1750,7 @@ impl Emitter<'_, '_> {
     fn raise_arithmetic_error(&mut self, inst: &Inst, message: &[u8]) -> Result<(), CodegenError> {
         let desc = self.class_desc_const("ArithmeticError")?;
         let (text, len) = self.emit_bytes(message)?;
-        let callee = self.runtime_ref("mwl_raise_new", RuntimeSig::RaiseNew)?;
+        let callee = self.runtime_ref("nvs_raise_new", RuntimeSig::RaiseNew)?;
         self.b.ins().call(callee, &[self.ctx_p, desc, text, len]);
         let status = self.b.ins().iconst(types::I32, i64::from(THROWN));
         match inst.on_error {
@@ -1762,7 +1762,7 @@ impl Emitter<'_, '_> {
             }
             // The pre-error-edge shape `Self::emit_status_check` also keeps
             // for a `None`: return the status onward, releasing nothing.
-            // Unreachable from `mwl_ir::lower`, which emits every one of
+            // Unreachable from `nvs_ir::lower`, which emits every one of
             // these instructions through `emit_fallible`.
             None => {
                 self.b.ins().return_(&[status]);
@@ -1817,14 +1817,14 @@ impl Emitter<'_, '_> {
     }
 
     /// One runtime helper call, in ADR 0002's shape: the arguments
-    /// materialized into a stack slot of 16-byte [`mwl_runtime::Value`]s, a
+    /// materialized into a stack slot of 16-byte [`nvs_runtime::Value`]s, a
     /// second slot for the result, and the status check after.
     ///
     /// `sig` is [`RuntimeSig::Helper`] for all but one row of the table.
     /// [`RuntimeSig::HelperVariadic`] is the same call with the argument
     /// **count** passed beside the slot, which one helper needs because its
     /// arity is a property of the call site rather than of its own
-    /// declaration — see `mwl_ir::Helper::CallClosure`, the only one so far.
+    /// declaration — see `nvs_ir::Helper::CallClosure`, the only one so far.
     fn emit_helper(
         &mut self,
         cur: Block,
@@ -1836,7 +1836,7 @@ impl Emitter<'_, '_> {
         let count =
             i32::try_from(args.len()).map_err(|_| internal("a helper call past i32 args"))?;
         let args_p = if args.is_empty() {
-            // `mwl_runtime::run_helper` reads no argument slice at arity zero,
+            // `nvs_runtime::run_helper` reads no argument slice at arity zero,
             // and splits that case out precisely so a null pointer is legal.
             self.b.ins().iconst(types::I64, 0)
         } else {
@@ -1888,18 +1888,18 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// One MWL-level call, in ADR 0002's shape.
+    /// One Novis-level call, in ADR 0002's shape.
     ///
     /// Structurally identical to [`Self::emit_helper`] — arguments
-    /// materialized into a stack slot of 16-byte [`mwl_runtime::Value`]s, a
+    /// materialized into a stack slot of 16-byte [`nvs_runtime::Value`]s, a
     /// second slot for the result, the compare-and-branch on the returned
     /// status — and deliberately so: ADR 0002 makes one calling convention
-    /// normative for *every* call, so a runtime helper and a compiled MWL
+    /// normative for *every* call, so a runtime helper and a compiled Novis
     /// method differ here only in which `FuncRef` is called.
     ///
     /// # The receiver slot
     ///
-    /// `mwl_ir::lower::lower_method` gives every lowered method an implicit
+    /// `nvs_ir::lower::lower_method` gives every lowered method an implicit
     /// receiver at parameter index 0, whether or not its body reads `$this`
     /// (see `Function::params`' own doc comment). So argument slot 0 always
     /// exists: an instance call stores its receiver there like any other
@@ -1908,7 +1908,7 @@ impl Emitter<'_, '_> {
     ///
     /// Ownership follows the same convention every argument does: the caller
     /// retains an aliasing receiver and the callee releases it at scope exit.
-    /// `mwl_ir::lower`'s `MethodCall` arm inserts that retain, so nothing here
+    /// `nvs_ir::lower`'s `MethodCall` arm inserts that retain, so nothing here
     /// does.
     fn emit_call(
         &mut self,
@@ -1932,7 +1932,7 @@ impl Emitter<'_, '_> {
     /// class, then call whatever came back through the ordinary ADR 0002
     /// signature.
     ///
-    /// The lookup is one call to `mwl_runtime::mwl_class_method` with the
+    /// The lookup is one call to `nvs_runtime::nvs_class_method` with the
     /// statically resolved target's own address as the fallback, so there is
     /// no branch and no null to guard — see that helper's docs. Everything
     /// after it (both probes, the argument slots, the status check, the
@@ -1957,7 +1957,7 @@ impl Emitter<'_, '_> {
             Some(pair) => Some(pair),
             // A `static` target's slot 0 is the called class itself — the same
             // value the lookup dispatched on. See
-            // `mwl_ir::ir::InstKind::CallVirtual`.
+            // `nvs_ir::ir::InstKind::CallVirtual`.
             None => Some((lsb, Ty::ClassDesc)),
         };
         // The probe label names the *call site*, which for a bodiless target
@@ -1975,7 +1975,7 @@ impl Emitter<'_, '_> {
     /// The address `class` answers `method` with, falling back to the
     /// statically resolved `fallback` label's own address — or, when the
     /// resolved declaration has no body at all, to
-    /// [`mwl_runtime::mwl_abstract_method`], whose whole job is to make that
+    /// [`nvs_runtime::nvs_abstract_method`], whose whole job is to make that
     /// a reported `FATAL` instead of a jump through null.
     ///
     /// `fallback` is passed as a `func_addr` rather than resolved here: the
@@ -1990,10 +1990,10 @@ impl Emitter<'_, '_> {
         let (name, len) = self.emit_bytes(method.as_bytes())?;
         let target = match fallback {
             Some(label) => self.callee_ref(label)?,
-            None => self.runtime_ref("mwl_abstract_method", RuntimeSig::Helper)?,
+            None => self.runtime_ref("nvs_abstract_method", RuntimeSig::Helper)?,
         };
         let fallback = self.b.ins().func_addr(types::I64, target);
-        let lookup = self.runtime_ref("mwl_class_method", RuntimeSig::ClassMethod)?;
+        let lookup = self.runtime_ref("nvs_class_method", RuntimeSig::ClassMethod)?;
         let call = self.b.ins().call(lookup, &[class, name, len, fallback]);
         Ok(self.b.inst_results(call)[0])
     }
@@ -2043,7 +2043,7 @@ impl Emitter<'_, '_> {
         args: &[ValueId],
     ) -> Result<(Block, Value), CodegenError> {
         let label = self.emit_bytes(label.as_bytes())?;
-        self.emit_call_probe("mwl_probe_call_enter", RuntimeSig::ProbeCall, label, None)?;
+        self.emit_call_probe("nvs_probe_call_enter", RuntimeSig::ProbeCall, label, None)?;
 
         // One slot per argument, plus the implicit receiver at index 0.
         let count =
@@ -2088,7 +2088,7 @@ impl Emitter<'_, '_> {
         // Before the status check, so a thrown or `FATAL` exit is traced as it
         // happened rather than skipped along with the rest of the frame.
         self.emit_call_probe(
-            "mwl_probe_call_exit",
+            "nvs_probe_call_exit",
             RuntimeSig::ProbeCallExit,
             label,
             Some(status),
@@ -2101,13 +2101,13 @@ impl Emitter<'_, '_> {
     /// constructor on it.
     ///
     /// The IR bundles the two into one instruction
-    /// (`mwl_ir::ir::InstKind::New`), so the ownership bookkeeping between
+    /// (`nvs_ir::ir::InstKind::New`), so the ownership bookkeeping between
     /// them is this function's rather than lowering's:
-    /// `mwl_object_new` returns the one reference the `New` *result* owns, and
+    /// `nvs_object_new` returns the one reference the `New` *result* owns, and
     /// the constructor — an ordinary method whose frame releases every
     /// refcounted parameter at scope exit — needs a reference of its own. So
     /// the receiver is retained before the call, exactly the retain
-    /// `mwl_ir::lower` inserts at an ordinary `$obj->m()` site.
+    /// `nvs_ir::lower` inserts at an ordinary `$obj->m()` site.
     ///
     /// The descriptor address is an `iconst`: see [`crate::Classes`] for why a
     /// JIT can bake one in.
@@ -2120,24 +2120,24 @@ impl Emitter<'_, '_> {
         dynamic: bool,
         args: &[ValueId],
     ) -> Result<Block, CodegenError> {
-        let callee = self.runtime_ref("mwl_object_new", RuntimeSig::PtrToPtr)?;
+        let callee = self.runtime_ref("nvs_object_new", RuntimeSig::PtrToPtr)?;
         let call = self.b.ins().call(callee, &[desc]);
         let object = self.b.inst_results(call)[0];
         self.define(inst, object)?;
 
         let Some(ctor) = ctor else {
-            // No constructor anywhere in the chain — `mwl_ir::lower` already
+            // No constructor anywhere in the chain — `nvs_ir::lower` already
             // asserted the call site passed no arguments, so allocation is the
             // whole of `new`. Every slot is `null`, which ADR 0022 makes
             // unobservable.
             return Ok(cur);
         };
-        let retain = self.runtime_ref("mwl_object_retain", RuntimeSig::Refcount)?;
+        let retain = self.runtime_ref("nvs_object_retain", RuntimeSig::Refcount)?;
         self.b.ins().call(retain, &[object]);
         // `new Foo(...)` names a class, so its constructor is settled at
         // compile time and costs a direct call. Only `new static(...)`, whose
         // class is a run-time value, pays for a lookup — see
-        // `mwl_runtime::mwl_class_method`.
+        // `nvs_runtime::nvs_class_method`.
         let callee = if dynamic {
             Callee::Indirect(self.method_address(desc, "constructor", Some(ctor))?)
         } else {
@@ -2158,7 +2158,7 @@ impl Emitter<'_, '_> {
     /// [`Ty::Object`] passes its bare pointer and pays nothing new. A
     /// [`Ty::Tagged`] — a `mixed`, or a `?Box` no test narrowed, which is the
     /// shape `instanceof` exists to interrogate — goes through
-    /// [`Self::materialize_receiver`] and `mwl_value_instanceof`, which reads
+    /// [`Self::materialize_receiver`] and `nvs_value_instanceof`, which reads
     /// the tag and answers `false` for anything that is not an object. Two
     /// stores, on the only path that needs them; the branch is here rather
     /// than in the runtime because the proven case is the common one and it
@@ -2174,9 +2174,9 @@ impl Emitter<'_, '_> {
         let desc = self.b.ins().iconst(types::I64, address);
         let (bare, subject_ty) = self.value(value)?;
         let (symbol, subject) = if matches!(subject_ty, Ty::Tagged) {
-            ("mwl_value_instanceof", self.materialize_receiver(value)?)
+            ("nvs_value_instanceof", self.materialize_receiver(value)?)
         } else {
-            ("mwl_object_instanceof", bare)
+            ("nvs_object_instanceof", bare)
         };
         let callee = self.runtime_ref(symbol, RuntimeSig::InstanceOf)?;
         let call = self.b.ins().call(callee, &[subject, desc]);
@@ -2185,13 +2185,13 @@ impl Emitter<'_, '_> {
 
     /// `$obj->prop`: one load out of the receiver's field slot.
     ///
-    /// The slot's *offset* comes from [`mwl_runtime::field_offset`], so this
+    /// The slot's *offset* comes from [`nvs_runtime::field_offset`], so this
     /// crate never restates the object layout — and the tag is not re-read,
     /// because the field's static type is already settled (see
     /// [`Self::load_value`]'s own note, which this shares).
     ///
-    /// Nothing is retained here. `mwl_ir::ir::InstKind::FieldGet` reads the
-    /// field without taking ownership, and `mwl_ir::lower::is_aliasing_read`
+    /// Nothing is retained here. `nvs_ir::ir::InstKind::FieldGet` reads the
+    /// field without taking ownership, and `nvs_ir::lower::is_aliasing_read`
     /// makes the consumer insert the retain if it keeps the value.
     fn emit_field_get(
         &mut self,
@@ -2208,16 +2208,16 @@ impl Emitter<'_, '_> {
         self.load_value(base, offset, ty)
     }
 
-    /// `$issue->path`: one call to `mwl_runtime::mwl_object_slot_get`, which
+    /// `$issue->path`: one call to `nvs_runtime::nvs_object_slot_get`, which
     /// finds the slot by **name** on the receiver's own descriptor.
     ///
     /// Not the inline load [`Self::emit_field_get`] emits, and deliberately:
     /// an ADR 0036 § 4 shape value has no class label to resolve a layout
     /// under, and the receiver's static shape may be a *widened* view of a
     /// value that lays its slots out differently — see
-    /// `mwl_ir::ir::InstKind::SlotGet`, which owns the whole decision. The
+    /// `nvs_ir::ir::InstKind::SlotGet`, which owns the whole decision. The
     /// field name goes in this unit's data section rather than through
-    /// `mwl_str_new`, so the read costs a call and no allocation, and the IR's
+    /// `nvs_str_new`, so the read costs a call and no allocation, and the IR's
     /// slot index rides along as the hint that keeps the runtime's lookup one
     /// comparison on the common case.
     ///
@@ -2243,7 +2243,7 @@ impl Emitter<'_, '_> {
         ));
         let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
 
-        let callee = self.runtime_ref("mwl_object_slot_get", RuntimeSig::SlotGet)?;
+        let callee = self.runtime_ref("nvs_object_slot_get", RuntimeSig::SlotGet)?;
         let call = self
             .b
             .ins()
@@ -2260,7 +2260,7 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// `$issue->path = "x";`: one call to `mwl_runtime::mwl_object_slot_set`,
+    /// `$issue->path = "x";`: one call to `nvs_runtime::nvs_object_slot_set`,
     /// [`Self::emit_slot_get`]'s write half and a call for the same reason —
     /// a shape value has no class label to resolve a layout under, and the
     /// receiver's static shape may be a widened view of a value that lays its
@@ -2275,7 +2275,7 @@ impl Emitter<'_, '_> {
     ///
     /// Defines nothing, and inserts no retain or release: the runtime retains
     /// what it stores and releases what it displaced — see
-    /// `mwl_ir::ir::InstKind::SlotSet`, which owns why this one field write
+    /// `nvs_ir::ir::InstKind::SlotSet`, which owns why this one field write
     /// borrows where [`Self::emit_field_set`] transfers.
     fn emit_slot_set(
         &mut self,
@@ -2305,7 +2305,7 @@ impl Emitter<'_, '_> {
         ));
         let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
 
-        let callee = self.runtime_ref("mwl_object_slot_set", RuntimeSig::SlotSet)?;
+        let callee = self.runtime_ref("nvs_object_slot_set", RuntimeSig::SlotSet)?;
         let call = self
             .b
             .ins()
@@ -2316,12 +2316,12 @@ impl Emitter<'_, '_> {
 
     /// The receiver of an ADR 0036 § 4 name-keyed access, in the one shape
     /// both halves of it take: a caller-owned 16-byte
-    /// [`mwl_runtime::Value`] passed by address.
+    /// [`nvs_runtime::Value`] passed by address.
     ///
     /// Not the bare pointer a [`Self::emit_field_get`] receiver is, and the
     /// difference is the whole erased half of § 4: this access may reach a
     /// `mixed`, whose tag no pass before it proved (`ReceiverProof::Erased`
-    /// in `mwl_ir::lower::expr`). The runtime therefore has to *see* the tag —
+    /// in `nvs_ir::lower::expr`). The runtime therefore has to *see* the tag —
     /// checking it where it already checks the name — so a `mixed` holding an
     /// `int` throws instead of being dereferenced as a pointer.
     ///
@@ -2342,9 +2342,9 @@ impl Emitter<'_, '_> {
     /// `$obj->prop = expr;`: one store into the receiver's field slot.
     ///
     /// A plain store, with no release of what the slot held:
-    /// `mwl_ir::lower::lower_reassignment` already emitted the `FieldGet` and
+    /// `nvs_ir::lower::lower_reassignment` already emitted the `FieldGet` and
     /// `Release` pair for the previous value, ahead of this instruction. That
-    /// split is why this is not `mwl_runtime::mwl_object_field_set`, which
+    /// split is why this is not `nvs_runtime::nvs_object_field_set`, which
     /// releases for its caller.
     fn emit_field_set(
         &mut self,
@@ -2365,12 +2365,12 @@ impl Emitter<'_, '_> {
     /// The same shape [`Self::emit_field_get`] has once its receiver is in
     /// hand, and for the same reason: the slot's static type is settled, so
     /// the tag is not re-read. What replaces the receiver is one load at
-    /// [`mwl_runtime::STATICS_OFFSET`] — a hot-word read exactly like the
-    /// safepoint poll's, against a pointer `mwl_runtime::Ctx::install_statics`
+    /// [`nvs_runtime::STATICS_OFFSET`] — a hot-word read exactly like the
+    /// safepoint poll's, against a pointer `nvs_runtime::Ctx::install_statics`
     /// armed before any of this unit's code ran.
     ///
     /// Nothing is retained: the slot keeps its one reference and
-    /// `mwl_ir::ir::InstKind::StaticGet` borrows, so the consumer inserts the
+    /// `nvs_ir::ir::InstKind::StaticGet` borrows, so the consumer inserts the
     /// retain if it keeps the value.
     fn emit_static_get(
         &mut self,
@@ -2409,7 +2409,7 @@ impl Emitter<'_, '_> {
     /// where the access is keeps it out of the far more common function that
     /// touches no static at all.
     fn statics_base(&mut self) -> Value {
-        let offset = i32::try_from(mwl_runtime::STATICS_OFFSET)
+        let offset = i32::try_from(nvs_runtime::STATICS_OFFSET)
             .unwrap_or_else(|_| unreachable!("the statics base sits within the context's head"));
         self.b
             .ins()
@@ -2427,7 +2427,7 @@ impl Emitter<'_, '_> {
                     "the static property `{class}::${name}`, which this unit declares no slot for"
                 ))
             })?;
-        i32::try_from(usize::try_from(slot).unwrap_or(usize::MAX) * size_of::<MwlValue>())
+        i32::try_from(usize::try_from(slot).unwrap_or(usize::MAX) * size_of::<NvsValue>())
             .map_err(|_| internal("a static property sitting past a 2 GiB offset"))
     }
 
@@ -2439,7 +2439,7 @@ impl Emitter<'_, '_> {
                 "the property `{class}::{field}`, which this unit declares no slot for"
             ))
         })?;
-        i32::try_from(mwl_runtime::field_offset(slot))
+        i32::try_from(nvs_runtime::field_offset(slot))
             .map_err(|_| internal("an object field sitting past a 2 GiB offset"))
     }
 
@@ -2455,7 +2455,7 @@ impl Emitter<'_, '_> {
     ///
     /// The word is re-read at the exit site rather than the entry site's load
     /// being reused: a request may turn tracing on or off *during* the call,
-    /// and `mwl_probe_call_exit`'s own doc comment says why recording that
+    /// and `nvs_probe_call_exit`'s own doc comment says why recording that
     /// honestly beats a balanced-looking reconstruction.
     fn emit_call_probe(
         &mut self,
@@ -2517,19 +2517,19 @@ impl Emitter<'_, '_> {
     /// however many pieces there are.
     ///
     /// **Which call is the piece count.** Two pieces stay on the two-argument
-    /// `mwl_str_concat`, which is the common shape and reads both operands out
-    /// of registers. Three or more go to `mwl_str_concat_n` through a
+    /// `nvs_str_concat`, which is the common shape and reads both operands out
+    /// of registers. Three or more go to `nvs_str_concat_n` through a
     /// [`Self::pointer_array_slot`] — the same stack-array shape a helper
     /// call's argument list already uses, over bare `StrHeader` pointers
     /// instead of 16-byte `Value`s. Both allocate exactly one buffer, which is
-    /// the whole point of `mwl_ir::ir::InstKind::Concat` being n-ary.
+    /// the whole point of `nvs_ir::ir::InstKind::Concat` being n-ary.
     ///
-    /// No status check and no `Value` materialization: like `mwl_str_new`,
+    /// No status check and no `Value` materialization: like `nvs_str_new`,
     /// these are memory primitives over bare `StrHeader` pointers rather than
-    /// ADR 0002 helpers, because they cannot fail — see `mwl-runtime`'s
+    /// ADR 0002 helpers, because they cannot fail — see `nvs-runtime`'s
     /// "primitives compiled code calls" section for that split. No piece is
-    /// retained or released here; `mwl_ir::ir::InstKind::Concat`'s own doc
-    /// comment owns that rule and `mwl-ir` emits the releases.
+    /// retained or released here; `nvs_ir::ir::InstKind::Concat`'s own doc
+    /// comment owns that rule and `nvs-ir` emits the releases.
     fn emit_concat(&mut self, pieces: &[ValueId]) -> Result<Value, CodegenError> {
         let mut operands = Vec::with_capacity(pieces.len());
         for piece in pieces {
@@ -2542,10 +2542,10 @@ impl Emitter<'_, '_> {
             operands.push(value);
         }
         // Two operands is the common shape and keeps the two-argument call:
-        // nothing is stored, nothing is addressed, and `mwl_str_concat` reads
+        // nothing is stored, nothing is addressed, and `nvs_str_concat` reads
         // its pieces straight out of registers.
         if let [l, r] = operands[..] {
-            let callee = self.runtime_ref("mwl_str_concat", RuntimeSig::StrConcat)?;
+            let callee = self.runtime_ref("nvs_str_concat", RuntimeSig::StrConcat)?;
             let call = self.b.ins().call(callee, &[l, r]);
             return Ok(self.b.inst_results(call)[0]);
         }
@@ -2562,12 +2562,12 @@ impl Emitter<'_, '_> {
             self.b.ins().store(trusted(), *operand, base, offset);
         }
         let len = self.b.ins().iconst(types::I64, i64::from(count));
-        let callee = self.runtime_ref("mwl_str_concat_n", RuntimeSig::StrConcat)?;
+        let callee = self.runtime_ref("nvs_str_concat_n", RuntimeSig::StrConcat)?;
         let call = self.b.ins().call(callee, &[base, len]);
         Ok(self.b.inst_results(call)[0])
     }
 
-    /// `.=` on a `string` local: one call to `mwl_str_append`, which writes
+    /// `.=` on a `string` local: one call to `nvs_str_append`, which writes
     /// into the target's own buffer whenever it is solely owned and has the
     /// room, and separates copy-on-write when it is not.
     ///
@@ -2575,7 +2575,7 @@ impl Emitter<'_, '_> {
     /// the same two-pointers-to-a-pointer signature, so it shares
     /// [`RuntimeSig::StrConcat`]. What it does *not* share is ownership: this
     /// call consumes the reference `target` arrived with and produces the one
-    /// the result carries, which is `mwl_ir::ir::InstKind::StrAppend`'s
+    /// the result carries, which is `nvs_ir::ir::InstKind::StrAppend`'s
     /// protocol and why nothing is retained or released around it here either.
     fn emit_str_append(&mut self, target: ValueId, suffix: ValueId) -> Result<Value, CodegenError> {
         let (t, tty) = self.value(target)?;
@@ -2587,15 +2587,15 @@ impl Emitter<'_, '_> {
                 ));
             }
         }
-        let callee = self.runtime_ref("mwl_str_append", RuntimeSig::StrConcat)?;
+        let callee = self.runtime_ref("nvs_str_append", RuntimeSig::StrConcat)?;
         let call = self.b.ins().call(callee, &[t, s]);
         Ok(self.b.inst_results(call)[0])
     }
 
-    /// A 16-byte stack slot and its address — the one shape a [`MwlValue`]
+    /// A 16-byte stack slot and its address — the one shape a [`NvsValue`]
     /// crosses a runtime-primitive boundary in, since a struct that size is
     /// classified differently by the SysV and Windows x64 ABIs (see
-    /// `mwl_runtime::array`'s own note).
+    /// `nvs_runtime::array`'s own note).
     fn value_slot(&mut self) -> Value {
         let slot = self.b.create_sized_stack_slot(StackSlotData::new(
             StackSlotKind::ExplicitSlot,
@@ -2607,7 +2607,7 @@ impl Emitter<'_, '_> {
 
     /// A stack slot holding `count` consecutive raw pointers, and its address
     /// — [`Self::value_slot`] for a runtime primitive that takes a *list* of
-    /// bare pointers rather than one [`mwl_runtime::Value`].
+    /// bare pointers rather than one [`nvs_runtime::Value`].
     ///
     /// Frame-scoped, like every Cranelift stack slot: an n-ary concatenation
     /// inside a loop allocates this once per call site and restages into it
@@ -2623,20 +2623,20 @@ impl Emitter<'_, '_> {
 
     /// `[...]`: one allocation, then one write per entry.
     ///
-    /// `mwl_ir::ir::InstKind::ArrayNew` carries each key as a decimal string
+    /// `nvs_ir::ir::InstKind::ArrayNew` carries each key as a decimal string
     /// computed at lowering time, so each one is emitted here exactly like a
     /// `ConstStr` — an immortal header in the data section whose reference
     /// transfers straight into the array, which is why no retain accompanies
     /// it. The transfer is what it always was: the array owns a reference and
     /// releases it when it is freed, and that release happens to be the no-op
-    /// [`mwl_runtime::IMMORTAL_REFCOUNT`] describes. Each write yields the
+    /// [`nvs_runtime::IMMORTAL_REFCOUNT`] describes. Each write yields the
     /// array the next one writes into, per that instruction's
     /// consume-one-reference-yield-one protocol; the pointer never actually
     /// changes here, because a literal under construction is solely owned, but
     /// threading it is what keeps this on the one protocol rather than beside
     /// it.
     fn emit_array_new(&mut self, entries: &[(String, ValueId)]) -> Result<Value, CodegenError> {
-        let callee = self.runtime_ref("mwl_array_new", RuntimeSig::ArrayNew)?;
+        let callee = self.runtime_ref("nvs_array_new", RuntimeSig::ArrayNew)?;
         let call = self.b.ins().call(callee, &[]);
         let mut array = self.b.inst_results(call)[0];
 
@@ -2647,7 +2647,7 @@ impl Emitter<'_, '_> {
             let (value, ty) = self.value(*value)?;
             self.store_value(slot, 0, value, ty)?;
 
-            let set = self.runtime_ref("mwl_array_set", RuntimeSig::ArraySet)?;
+            let set = self.runtime_ref("nvs_array_set", RuntimeSig::ArraySet)?;
             let call = self.b.ins().call(set, &[array, key, slot]);
             array = self.b.inst_results(call)[0];
         }
@@ -2658,16 +2658,16 @@ impl Emitter<'_, '_> {
     /// and yields the array that now holds the entry.
     ///
     /// `symbol` and `sig` come from the caller because an `ArraySet` picks
-    /// between `mwl_array_set` and `mwl_array_set_index` off its key
+    /// between `nvs_array_set` and `nvs_array_set_index` off its key
     /// operand's representation, while an `ArrayAppend` has no key to pick
     /// with. The *read* side picks nothing here at all: an
-    /// `mwl_ir::ir::InstKind::ArrayGet` can throw, so it goes through
+    /// `nvs_ir::ir::InstKind::ArrayGet` can throw, so it goes through
     /// [`Self::emit_helper`] against one entry point that tells the two key
     /// representations apart by tag.
     ///
-    /// No refcount operation of any kind. `mwl_ir::ir::InstKind::ArraySet`'s
+    /// No refcount operation of any kind. `nvs_ir::ir::InstKind::ArraySet`'s
     /// own doc comment owns that rule: the reference the primitive consumes
-    /// and the one it yields are the holder's same one slot, and `mwl-ir`
+    /// and the one it yields are the holder's same one slot, and `nvs-ir`
     /// already emitted whatever retain the key and value needed.
     fn emit_array_write(
         &mut self,
@@ -2695,8 +2695,8 @@ impl Emitter<'_, '_> {
     /// as a status check rather than as a value.
     ///
     /// PHP 8.5 refuses an append whose next integer key is already live, and
-    /// `mwl_runtime::mwl_array_append` matches that refusal — see its own doc
-    /// comment, and `mwl_runtime::array`'s *the append is the one array write
+    /// `nvs_runtime::nvs_array_append` matches that refusal — see its own doc
+    /// comment, and `nvs_runtime::array`'s *the append is the one array write
     /// with a fault channel*, which owns the signature. The array it yields
     /// comes back through a caller-owned pointer-wide slot, and on the error
     /// edge there is nothing to re-point: the refusal leaves the pointer the
@@ -2719,7 +2719,7 @@ impl Emitter<'_, '_> {
         ));
         let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
 
-        let callee = self.runtime_ref("mwl_array_append", RuntimeSig::ArrayAppend)?;
+        let callee = self.runtime_ref("nvs_array_append", RuntimeSig::ArrayAppend)?;
         let call = self.b.ins().call(callee, &[self.ctx_p, array, in_p, out_p]);
         let status = self.b.inst_results(call)[0];
         let cont = self.emit_status_check(status, inst.on_error)?;
@@ -2735,7 +2735,7 @@ impl Emitter<'_, '_> {
     /// [`Self::emit_array_append`] with an array pointer where that one builds
     /// a 16-byte value slot — the subject is borrowed, so nothing about it is
     /// stored or read back. Which entry of it is renumbered and which keeps
-    /// its key is `mwl_runtime::mwl_array_spread`'s, not this crate's: the
+    /// its key is `nvs_runtime::nvs_array_spread`'s, not this crate's: the
     /// whole point of one instruction here is that no key crosses this
     /// boundary at all.
     fn emit_array_spread(
@@ -2754,7 +2754,7 @@ impl Emitter<'_, '_> {
         ));
         let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
 
-        let callee = self.runtime_ref("mwl_array_spread", RuntimeSig::ArraySpread)?;
+        let callee = self.runtime_ref("nvs_array_spread", RuntimeSig::ArraySpread)?;
         let call = self
             .b
             .ins()
@@ -2773,19 +2773,19 @@ impl Emitter<'_, '_> {
     /// they share the primitive.
     ///
     /// An object's or an array's release is where a whole graph can be freed
-    /// at once — `mwl_runtime::release`'s own docs explain why that sweep is
+    /// at once — `nvs_runtime::release`'s own docs explain why that sweep is
     /// one iterative worklist shared by both, which is what keeps this a
     /// single call rather than a depth-bounded one.
     fn emit_refcount(&mut self, retain: bool, value: Value, ty: Ty) -> Result<(), CodegenError> {
         // A tagged value's payload may or may not be refcounted, and its own
         // tag is what says which — so the branch is the runtime's, out of
-        // line, rather than this table's. `mwl_ir::Ty::Tagged` states what
+        // line, rather than this table's. `nvs_ir::Ty::Tagged` states what
         // that costs.
         if ty == Ty::Tagged {
             let symbol = if retain {
-                "mwl_value_retain"
+                "nvs_value_retain"
             } else {
-                "mwl_value_release"
+                "nvs_value_release"
             };
             let (tag_word, bits) = self.split_tagged(value);
             let callee = self.runtime_ref(symbol, RuntimeSig::ValueRefcount)?;
@@ -2793,12 +2793,12 @@ impl Emitter<'_, '_> {
             return Ok(());
         }
         let symbol = match (ty, retain) {
-            (Ty::Str | Ty::Bytes, true) => "mwl_str_retain",
-            (Ty::Str | Ty::Bytes, false) => "mwl_str_release",
-            (Ty::Object, true) => "mwl_object_retain",
-            (Ty::Object, false) => "mwl_object_release",
-            (Ty::Array, true) => "mwl_array_retain",
-            (Ty::Array, false) => "mwl_array_release",
+            (Ty::Str | Ty::Bytes, true) => "nvs_str_retain",
+            (Ty::Str | Ty::Bytes, false) => "nvs_str_release",
+            (Ty::Object, true) => "nvs_object_retain",
+            (Ty::Object, false) => "nvs_object_release",
+            (Ty::Array, true) => "nvs_array_retain",
+            (Ty::Array, false) => "nvs_array_release",
             (other, _) => {
                 return Err(CodegenError::Unsupported(format!(
                     "a refcount operation on representation {other:?}"
@@ -2813,7 +2813,7 @@ impl Emitter<'_, '_> {
     /// ADR 0002's compare-and-branch: on a non-`OK` status, take the
     /// instruction's error edge; otherwise carry on in a fresh block.
     ///
-    /// `on_error` is [`mwl_ir::ir::Inst::on_error`] — the landing block the IR
+    /// `on_error` is [`nvs_ir::ir::Inst::on_error`] — the landing block the IR
     /// built for this exact program point, carrying the frame's cleanup and
     /// the decision between propagating and entering a `catch`. The status
     /// travels there as that block's one parameter.
@@ -2916,8 +2916,8 @@ impl Emitter<'_, '_> {
                     return Err(internal("a `throw` of something that is not an object"));
                 }
                 // Ownership of the exception transfers to the context here —
-                // `mwl_ir::lower` already retained an aliasing operand.
-                let callee = self.runtime_ref("mwl_raise", RuntimeSig::Raise)?;
+                // `nvs_ir::lower` already retained an aliasing operand.
+                let callee = self.runtime_ref("nvs_raise", RuntimeSig::Raise)?;
                 self.b.ins().call(callee, &[self.ctx_p, thrown]);
                 let status = self.b.ins().iconst(types::I32, i64::from(THROWN));
                 let target = self.block(*landing)?;
@@ -2928,7 +2928,7 @@ impl Emitter<'_, '_> {
             Terminator::Propagate { frame } => {
                 let status = self.landing_status()?;
                 let (address, len) = self.emit_bytes(frame.as_bytes())?;
-                let callee = self.runtime_ref("mwl_trace_push", RuntimeSig::ProbeCallExit)?;
+                let callee = self.runtime_ref("nvs_trace_push", RuntimeSig::ProbeCallExit)?;
                 self.b
                     .ins()
                     .call(callee, &[self.ctx_p, address, len, status]);
@@ -3006,7 +3006,7 @@ impl Emitter<'_, '_> {
 
     // -- the 16-byte Value boundary -----------------------------------------
 
-    /// Materializes a native value into a [`mwl_runtime::Value`] at
+    /// Materializes a native value into a [`nvs_runtime::Value`] at
     /// `base + offset`.
     fn store_value(
         &mut self,
@@ -3024,13 +3024,13 @@ impl Emitter<'_, '_> {
         // A `decimal` takes the same path because it is the same sixteen
         // bytes, and *must*: those seven bytes are not padding for one, they
         // carry its scale, its sign and a third of its mantissa
-        // (`mwl_runtime::decimal`).
+        // (`nvs_runtime::decimal`).
         if matches!(ty, Ty::Tagged | Ty::Decimal) {
             let (tag_word, bits) = self.split_tagged(value);
             let tag_offset = offset
-                + i32::try_from(MwlValue::TAG_OFFSET).map_err(|_| internal("a tag past i32"))?;
+                + i32::try_from(NvsValue::TAG_OFFSET).map_err(|_| internal("a tag past i32"))?;
             let bits_offset = offset
-                + i32::try_from(MwlValue::BITS_OFFSET)
+                + i32::try_from(NvsValue::BITS_OFFSET)
                     .map_err(|_| internal("a payload past i32"))?;
             self.b.ins().store(trusted(), tag_word, base, tag_offset);
             self.b.ins().store(trusted(), bits, base, bits_offset);
@@ -3076,13 +3076,13 @@ impl Emitter<'_, '_> {
         bits: Option<Value>,
     ) -> Result<(), CodegenError> {
         let tag_offset =
-            offset + i32::try_from(MwlValue::TAG_OFFSET).map_err(|_| internal("a tag past i32"))?;
+            offset + i32::try_from(NvsValue::TAG_OFFSET).map_err(|_| internal("a tag past i32"))?;
         let bits_offset = offset
-            + i32::try_from(MwlValue::BITS_OFFSET).map_err(|_| internal("a payload past i32"))?;
+            + i32::try_from(NvsValue::BITS_OFFSET).map_err(|_| internal("a payload past i32"))?;
 
         // The whole low **word**, not just the tag byte: the seven bytes
         // beside it are a `decimal`'s scale, sign and mantissa-low
-        // (`mwl_runtime::decimal`), so `Self::load_value` has to be able to
+        // (`nvs_runtime::decimal`), so `Self::load_value` has to be able to
         // read them back for a tagged slot that turns out to hold one. Writing
         // the word here is what makes them zero for every other tag, which is
         // the invariant that read depends on — and it costs one `I64` store
@@ -3097,16 +3097,16 @@ impl Emitter<'_, '_> {
         Ok(())
     }
 
-    /// Reads a native value back out of a [`mwl_runtime::Value`] at
+    /// Reads a native value back out of a [`nvs_runtime::Value`] at
     /// `base + offset`.
     ///
     /// The tag is *not* re-checked: every helper already validates its own
     /// arguments' tags and returns `FATAL` on a mismatch — see
-    /// `mwl_runtime::helpers`' own docs for why that check lives there — and a
+    /// `nvs_runtime::helpers`' own docs for why that check lives there — and a
     /// well-typed program cannot produce one here by construction.
     fn load_value(&mut self, base: Value, offset: i32, ty: Ty) -> Result<Value, CodegenError> {
         let bits_offset = offset
-            + i32::try_from(MwlValue::BITS_OFFSET).map_err(|_| internal("a payload past i32"))?;
+            + i32::try_from(NvsValue::BITS_OFFSET).map_err(|_| internal("a payload past i32"))?;
         Ok(match ty {
             Ty::Bool => {
                 let wide = self.b.ins().load(types::I64, trusted(), base, bits_offset);
@@ -3123,13 +3123,13 @@ impl Emitter<'_, '_> {
             // describes. The low half is read as a whole **word** rather than
             // as the tag byte alone: a tagged slot may hold a `decimal`, whose
             // scale, sign and mantissa-low live in the seven bytes beside the
-            // tag (`mwl_runtime::decimal`). Every producer writes that word in
+            // tag (`nvs_runtime::decimal`). Every producer writes that word in
             // full — `Self::store_tag_and_bits` here, `Value`'s own `repr(C)`
             // in the runtime — so those bytes are zero for every other tag and
             // reading them costs nothing.
             Ty::Tagged | Ty::Decimal => {
                 let tag_offset = offset
-                    + i32::try_from(MwlValue::TAG_OFFSET)
+                    + i32::try_from(NvsValue::TAG_OFFSET)
                         .map_err(|_| internal("a tag past i32"))?;
                 let low = self.b.ins().load(types::I64, trusted(), base, tag_offset);
                 let high = self.b.ins().load(types::I64, trusted(), base, bits_offset);
@@ -3238,78 +3238,78 @@ enum RuntimeSig {
     ArrayValueAt,
 }
 
-/// The symbol name `mwl-runtime` exports for one [`Helper`] tag.
+/// The symbol name `nvs-runtime` exports for one [`Helper`] tag.
 ///
-/// This mapping is why `mwl-codegen` exists as the crate that depends on both:
-/// `mwl-runtime` deliberately does not know `mwl_ir::Helper`, and `mwl-ir`
+/// This mapping is why `nvs-codegen` exists as the crate that depends on both:
+/// `nvs-runtime` deliberately does not know `nvs_ir::Helper`, and `nvs-ir`
 /// deliberately does not know a symbol name.
 fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
     Ok(match helper {
-        Helper::IntToString => "mwl_int_to_string",
-        Helper::UintToString => "mwl_uint_to_string",
-        Helper::FloatToString => "mwl_float_to_string",
-        Helper::BoolToString => "mwl_bool_to_string",
-        Helper::IntTruthy => "mwl_int_truthy",
-        Helper::UintTruthy => "mwl_uint_truthy",
-        Helper::FloatTruthy => "mwl_float_truthy",
-        Helper::StrTruthy => "mwl_str_truthy",
-        Helper::EchoStr => "mwl_echo_str",
-        Helper::Exit => "mwl_exit",
-        Helper::LiteralMismatch => "mwl_literal_mismatch",
-        Helper::Identical => "mwl_value_identical",
-        Helper::NumericEq => "mwl_numeric_eq",
-        Helper::NumericLt => "mwl_numeric_lt",
-        Helper::NumericCmp => "mwl_numeric_cmp",
-        Helper::NumericLtEq => "mwl_numeric_lt_eq",
-        Helper::ValueLt => "mwl_value_lt",
-        Helper::ValueLtEq => "mwl_value_lt_eq",
-        Helper::ValueCmp => "mwl_value_cmp",
-        Helper::SecretEq => "mwl_secret_eq",
-        Helper::CallClosure => "mwl_call_closure",
-        Helper::CallClosureArray => "mwl_call_closure_array",
-        Helper::BytesTruthy => "mwl_bytes_truthy",
-        Helper::ArrayTruthy => "mwl_array_truthy",
-        Helper::ValueTruthy => "mwl_value_truthy",
-        Helper::ArrayRowForWrite => "mwl_array_row_for_write",
-        Helper::IntToUint => "mwl_int_to_uint",
-        Helper::UintToInt => "mwl_uint_to_int",
-        Helper::IntToFloat => "mwl_int_to_float",
-        Helper::UintToFloat => "mwl_uint_to_float",
-        Helper::FloatToInt => "mwl_float_to_int",
-        Helper::FloatToUint => "mwl_float_to_uint",
-        Helper::StrToInt => "mwl_str_to_int",
-        Helper::StrToUint => "mwl_str_to_uint",
-        Helper::StrToFloat => "mwl_str_to_float",
-        Helper::BytesToString => "mwl_bytes_to_string",
-        Helper::ToIntOrNull => "mwl_to_int_or_null",
-        Helper::ToUintOrNull => "mwl_to_uint_or_null",
-        Helper::ToFloatOrNull => "mwl_to_float_or_null",
-        Helper::ToStringOrNull => "mwl_to_string_or_null",
-        Helper::ToBytesOrNull => "mwl_to_bytes_or_null",
-        Helper::TaggedToString => "mwl_tagged_to_string",
-        Helper::TaggedToInt => "mwl_tagged_to_int",
-        Helper::TaggedToUint => "mwl_tagged_to_uint",
-        Helper::TaggedToFloat => "mwl_tagged_to_float",
-        Helper::TaggedToBytes => "mwl_tagged_to_bytes",
-        Helper::ToArrayOf => "mwl_to_array_of",
-        Helper::ToArrayOfOrNull => "mwl_to_array_of_or_null",
-        Helper::DecimalTruthy => "mwl_decimal_truthy",
-        Helper::DecimalAdd => "mwl_decimal_add",
-        Helper::DecimalSub => "mwl_decimal_sub",
-        Helper::DecimalMul => "mwl_decimal_mul",
-        Helper::DecimalDiv => "mwl_decimal_div",
-        Helper::DecimalMod => "mwl_decimal_mod",
-        Helper::DecimalNeg => "mwl_decimal_neg",
-        Helper::DecimalEq => "mwl_decimal_eq",
-        Helper::DecimalLt => "mwl_decimal_lt",
-        Helper::DecimalLtEq => "mwl_decimal_lt_eq",
-        Helper::DecimalCmp => "mwl_decimal_cmp",
-        Helper::ToDecimal => "mwl_to_decimal",
-        Helper::ToDecimalOrNull => "mwl_to_decimal_or_null",
-        Helper::DecimalToInt => "mwl_decimal_to_int",
-        Helper::DecimalToUint => "mwl_decimal_to_uint",
-        Helper::DecimalToFloat => "mwl_decimal_to_float",
-        Helper::DecimalToString => "mwl_decimal_to_string",
+        Helper::IntToString => "nvs_int_to_string",
+        Helper::UintToString => "nvs_uint_to_string",
+        Helper::FloatToString => "nvs_float_to_string",
+        Helper::BoolToString => "nvs_bool_to_string",
+        Helper::IntTruthy => "nvs_int_truthy",
+        Helper::UintTruthy => "nvs_uint_truthy",
+        Helper::FloatTruthy => "nvs_float_truthy",
+        Helper::StrTruthy => "nvs_str_truthy",
+        Helper::EchoStr => "nvs_echo_str",
+        Helper::Exit => "nvs_exit",
+        Helper::LiteralMismatch => "nvs_literal_mismatch",
+        Helper::Identical => "nvs_value_identical",
+        Helper::NumericEq => "nvs_numeric_eq",
+        Helper::NumericLt => "nvs_numeric_lt",
+        Helper::NumericCmp => "nvs_numeric_cmp",
+        Helper::NumericLtEq => "nvs_numeric_lt_eq",
+        Helper::ValueLt => "nvs_value_lt",
+        Helper::ValueLtEq => "nvs_value_lt_eq",
+        Helper::ValueCmp => "nvs_value_cmp",
+        Helper::SecretEq => "nvs_secret_eq",
+        Helper::CallClosure => "nvs_call_closure",
+        Helper::CallClosureArray => "nvs_call_closure_array",
+        Helper::BytesTruthy => "nvs_bytes_truthy",
+        Helper::ArrayTruthy => "nvs_array_truthy",
+        Helper::ValueTruthy => "nvs_value_truthy",
+        Helper::ArrayRowForWrite => "nvs_array_row_for_write",
+        Helper::IntToUint => "nvs_int_to_uint",
+        Helper::UintToInt => "nvs_uint_to_int",
+        Helper::IntToFloat => "nvs_int_to_float",
+        Helper::UintToFloat => "nvs_uint_to_float",
+        Helper::FloatToInt => "nvs_float_to_int",
+        Helper::FloatToUint => "nvs_float_to_uint",
+        Helper::StrToInt => "nvs_str_to_int",
+        Helper::StrToUint => "nvs_str_to_uint",
+        Helper::StrToFloat => "nvs_str_to_float",
+        Helper::BytesToString => "nvs_bytes_to_string",
+        Helper::ToIntOrNull => "nvs_to_int_or_null",
+        Helper::ToUintOrNull => "nvs_to_uint_or_null",
+        Helper::ToFloatOrNull => "nvs_to_float_or_null",
+        Helper::ToStringOrNull => "nvs_to_string_or_null",
+        Helper::ToBytesOrNull => "nvs_to_bytes_or_null",
+        Helper::TaggedToString => "nvs_tagged_to_string",
+        Helper::TaggedToInt => "nvs_tagged_to_int",
+        Helper::TaggedToUint => "nvs_tagged_to_uint",
+        Helper::TaggedToFloat => "nvs_tagged_to_float",
+        Helper::TaggedToBytes => "nvs_tagged_to_bytes",
+        Helper::ToArrayOf => "nvs_to_array_of",
+        Helper::ToArrayOfOrNull => "nvs_to_array_of_or_null",
+        Helper::DecimalTruthy => "nvs_decimal_truthy",
+        Helper::DecimalAdd => "nvs_decimal_add",
+        Helper::DecimalSub => "nvs_decimal_sub",
+        Helper::DecimalMul => "nvs_decimal_mul",
+        Helper::DecimalDiv => "nvs_decimal_div",
+        Helper::DecimalMod => "nvs_decimal_mod",
+        Helper::DecimalNeg => "nvs_decimal_neg",
+        Helper::DecimalEq => "nvs_decimal_eq",
+        Helper::DecimalLt => "nvs_decimal_lt",
+        Helper::DecimalLtEq => "nvs_decimal_lt_eq",
+        Helper::DecimalCmp => "nvs_decimal_cmp",
+        Helper::ToDecimal => "nvs_to_decimal",
+        Helper::ToDecimalOrNull => "nvs_to_decimal_or_null",
+        Helper::DecimalToInt => "nvs_decimal_to_int",
+        Helper::DecimalToUint => "nvs_decimal_to_uint",
+        Helper::DecimalToFloat => "nvs_decimal_to_float",
+        Helper::DecimalToString => "nvs_decimal_to_string",
         other => {
             return Err(CodegenError::Unsupported(format!(
                 "the runtime helper {other:?}"

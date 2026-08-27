@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::join and ::split are each other's inverse over a separator the text does not contain
 --FILE--
-<?mwl
+<?nvs
 string $csv = "alpha,beta,gamma";
 var $parts = Core\Str::split($csv, ",");
 echo Core\Arr::count($parts), "\n";

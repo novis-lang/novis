@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """AGENTS.md § *Session workflow* step 3, as one command.
 
-`cargo build`, `cargo fmt --check`, `cargo test`, the `.mwlt` trees through the binary the build
+`cargo build`, `cargo fmt --check`, `cargo test`, the `.nvst` trees through the binary the build
 just produced, `cargo clippy --all-targets -- -D warnings` and -- once `editors/vscode` exists --
 that extension's headless suites, in that order, stopping at the first failure. Green prints one
 line per step; a failure prints that step's output and nothing else.
 
-The `conformance` and `differential` steps run `target/debug/mwl test tests/<tree>`, which is
+The `conformance` and `differential` steps run `target/debug/nvs test tests/<tree>`, which is
 exactly what `tools/loop.py`'s acceptance check runs, and they print the two counts the plan's
 status fields quote. They cost about fourteen seconds together. **Do not rebuild
-`target/release/mwl.exe` to run a case** -- see `CASE_TREES` below for the measurement, and the
+`target/release/nvs.exe` to run a case** -- see `CASE_TREES` below for the measurement, and the
 playbook under *Running things*.
 
 The point is turn count, not typing. Run separately, those are as many tool calls whose
@@ -18,7 +18,7 @@ and a session's wall clock is very nearly its number of turns times a constant. 
 green verification is one call and about ten lines.
 
     python tools/verify.py                  # every step
-    python tools/verify.py -p mwl-ir        # scope build/test/clippy to one package
+    python tools/verify.py -p nvs-ir        # scope build/test/clippy to one package
     python tools/verify.py --fast           # build and test only, for a mid-work check
     python tools/verify.py --start          # run it detached and return at once
     python tools/verify.py --wait           # collect what --start left, with its exit status
@@ -64,7 +64,7 @@ different answer. Only a *green* verdict is cached, the entry expires after an h
 `--no-cache` forces the real thing.
 
 The cache records the scope and the step list it was produced by, so a `--fast` verdict never
-satisfies a full run and a `-p mwl-ir` verdict never satisfies an unscoped one; the reverse
+satisfies a full run and a `-p nvs-ir` verdict never satisfies an unscoped one; the reverse
 directions do, because a superset already proved the subset. Anything unexpected -- an
 unreadable file, a corrupt cache -- makes it fall through and run the steps for real.
 """
@@ -88,7 +88,7 @@ CACHE = TMP / "verify-green.json"
 TAIL_LINES = 60  # of the failing step only; the full log is always on disk
 CACHE_TTL = 3600  # seconds. A tree hash cannot go stale on its own; this is a belt on braces.
 
-# Everything cargo reads, relative to ROOT. Directories are walked in full -- a `.mwlt`
+# Everything cargo reads, relative to ROOT. Directories are walked in full -- a `.nvst`
 # fixture, an insta `.snap` and a `Cargo.toml` all change what the steps will answer.
 INPUT_DIRS = ("crates", "benches", "tests", "examples", "editors")
 INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml")
@@ -100,19 +100,19 @@ EXTENSION = ROOT / "editors" / "vscode"
 
 # `cargo test` prints one of these per test binary.
 RESULT_RE = re.compile(r"test result: \w+\. (\d+) passed; (\d+) failed")
-# `mwl test <dir>` prints exactly one of these, at the end.
+# `nvs test <dir>` prints exactly one of these, at the end.
 CASES_RE = re.compile(r"(\d+) passed, (\d+) failed, (\d+) skipped")
 
-#: The `.mwlt` trees, and the binary that executes them.
+#: The `.nvst` trees, and the binary that executes them.
 #:
 #: This is the DEBUG binary on purpose, and it is the one decision in this file worth stating.
 #: `tools/loop.py`'s acceptance check -- the thing that actually judges a session -- builds
-#: `cargo build -p mwl-cli` and runs these same trees through `target/debug/mwl`. So the debug
+#: `cargo build -p nvs-cli` and runs these same trees through `target/debug/nvs`. So the debug
 #: binary is not a cheaper approximation of the verdict; it *is* the verdict, and the release
 #: binary is the approximation.
 #:
 #: The cost difference is the whole reason this step can exist at all. Measured over one
-#: 21-session run: `cargo build --release -p mwl-cli` took 125s (thin LTO at
+#: 21-session run: `cargo build --release -p nvs-cli` took 125s (thin LTO at
 #: `codegen-units = 1` relinks the world for a one-line stdlib edit) and nine sessions paid it,
 #: 21 minutes in all -- 8% of the run's entire wall clock. The same tree's debug build, after
 #: the `build` step above has already run, took **2s** in all 21 acceptance checks, and these
@@ -214,16 +214,16 @@ def steps_for(opts):
         steps.append(Step("fmt", ["fmt", "--check"], summarize_fmt))
     steps.append(Step("test", ["test", *scope], summarize_test))
     if not opts.fast:
-        # The `.mwlt` trees, through the binary `build` above just produced. Until this step
+        # The `.nvst` trees, through the binary `build` above just produced. Until this step
         # existed, `verify.py` ran no case at all: a case that failed to compile, or whose
         # `--EXPECT--` was one byte off, left verify green and failed the *driver's* acceptance
         # check one session later, which is the most expensive place for it to fail. It runs
         # after `test` so a Rust fault is reported by the Rust step, not discovered here.
         #
-        # Scoped runs skip it: `cargo build -p mwl-ir` does not produce the CLI, and a stale
+        # Scoped runs skip it: `cargo build -p nvs-ir` does not produce the CLI, and a stale
         # binary would answer a question about a tree it predates.
         if not opts.package:
-            exe = ROOT / "target" / "debug" / ("mwl.exe" if os.name == "nt" else "mwl")
+            exe = ROOT / "target" / "debug" / ("nvs.exe" if os.name == "nt" else "nvs")
             for tree in CASE_TREES:
                 if (ROOT / "tests" / tree).is_dir():
                     steps.append(Step(tree, ["test", f"tests/{tree}"], summarize_cases,

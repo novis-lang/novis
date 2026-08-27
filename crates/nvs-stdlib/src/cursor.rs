@@ -6,12 +6,12 @@
 //!
 //! Not through a native drive of its own. `foreach` over an object is one
 //! `iterate()` and then an `advance()`/`current()` pair per element, each an
-//! `mwl_ir::ir::InstKind::CallVirtual` that looks the name up in the
-//! receiver's own [`mwl_runtime::ClassDesc`] — so a `Core` class joins that
+//! `nvs_ir::ir::InstKind::CallVirtual` that looks the name up in the
+//! receiver's own [`nvs_runtime::ClassDesc`] — so a `Core` class joins that
 //! protocol by *having* the three names in its descriptor's method table, and
-//! nothing in `mwl-ir`, `mwl-codegen` or `mwl_runtime::sequence` learns that
+//! nothing in `nvs-ir`, `nvs-codegen` or `nvs_runtime::sequence` learns that
 //! `Core` owns the receiver. The rejected alternative was a fourth
-//! `mwl_types::ForeachDrive` and a lowering that calls a helper by symbol: it
+//! `nvs_types::ForeachDrive` and a lowering that calls a helper by symbol: it
 //! buys one indirect call per element and costs a second iteration protocol,
 //! reachable only from `foreach` and not from `Core\Arr::from`, which drives
 //! the same three names by name already.
@@ -40,7 +40,7 @@
 //! # Why this class has no registry row
 //!
 //! It is a runtime artifact, not surface. `iterate()`'s declared return type is
-//! the seeded `Iterator<T>` (`mwl_types::iter_lib`), so no signature ever names
+//! the seeded `Iterator<T>` (`nvs_types::iter_lib`), so no signature ever names
 //! this class, and a row in [`crate::registry::CLASSES`] would only make
 //! `Core\Cursor` a type a program can write and nothing can produce.
 //! [`crate::instance`]'s internal roster is what gives it a descriptor —
@@ -48,15 +48,15 @@
 //!
 //! # A receiver is transferred here, not borrowed
 //!
-//! Every other `Core` member borrows its arguments (`mwl_ir`'s
+//! Every other `Core` member borrows its arguments (`nvs_ir`'s
 //! `ArgOwnership::Borrowed`). These three do not: they are reached as *methods*
 //! through a class descriptor, and a virtual call transfers the receiver's
-//! reference to the callee exactly as it does for a compiled MWL method — which
+//! reference to the callee exactly as it does for a compiled Novis method — which
 //! is why each body below releases argument slot 0 on both edges, and why
-//! [`mwl_runtime::dispatch::call_method`] retains before it calls.
+//! [`nvs_runtime::dispatch::call_method`] retains before it calls.
 
-use mwl_runtime::sequence::{ADVANCE, CURRENT};
-use mwl_runtime::{Fault, MwlArray, ObjHeader, Value};
+use nvs_runtime::sequence::{ADVANCE, CURRENT};
+use nvs_runtime::{Fault, NvsArray, ObjHeader, Value};
 
 use crate::identity_store as store;
 use crate::registry::CoreClass;
@@ -83,23 +83,23 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// The symbol behind [`ADVANCE`], as [`crate::instance`]'s dispatch roster
 /// spells it.
-pub(crate) const ADVANCE_SYMBOL: &str = "mwl_core_cursor_advance";
+pub(crate) const ADVANCE_SYMBOL: &str = "nvs_core_cursor_advance";
 /// The symbol behind [`CURRENT`].
-pub(crate) const CURRENT_SYMBOL: &str = "mwl_core_cursor_current";
+pub(crate) const CURRENT_SYMBOL: &str = "nvs_core_cursor_current";
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        ADVANCE_SYMBOL => (mwl_core_cursor_advance as *const ()).cast(),
-        CURRENT_SYMBOL => (mwl_core_cursor_current as *const ()).cast(),
+        ADVANCE_SYMBOL => (nvs_core_cursor_advance as *const ()).cast(),
+        CURRENT_SYMBOL => (nvs_core_cursor_current as *const ()).cast(),
         _ => return None,
     })
 }
 
 /// A fresh cursor over `items`, taking over its reference — what every
 /// `iterate()` in this crate returns.
-pub(crate) fn over(items: MwlArray) -> Value {
+pub(crate) fn over(items: NvsArray) -> Value {
     crate::instance::build(&CLASS, [Value::array(items), Value::int(-1)])
 }
 
@@ -126,7 +126,7 @@ pub(crate) fn consume(receiver: Value) {
 fn state(
     value: Value,
     member: &str,
-) -> Result<(*mut ObjHeader, std::mem::ManuallyDrop<MwlArray>, i64), Fault> {
+) -> Result<(*mut ObjHeader, std::mem::ManuallyDrop<NvsArray>, i64), Fault> {
     let receiver = crate::instance::receiver(value, &CLASS, member)?;
     let items = store::borrow(receiver, ITEMS, &CLASS, member)?;
     let held = crate::instance::slot(receiver, INDEX);
@@ -179,18 +179,18 @@ fn read(value: Value) -> Result<Value, Fault> {
     Ok(held)
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Iterator<T>::advance(): bool` for a `Core` collection's cursor.
-    fn mwl_core_cursor_advance(_ctx, args: [1]) {
+    fn nvs_core_cursor_advance(_ctx, args: [1]) {
         let stepped = stepped(args[0]);
         consume(args[0]);
         stepped
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Iterator<T>::current(): T` for a `Core` collection's cursor.
-    fn mwl_core_cursor_current(_ctx, args: [1]) {
+    fn nvs_core_cursor_current(_ctx, args: [1]) {
         let read = read(args[0]);
         consume(args[0]);
         read
@@ -200,13 +200,13 @@ mwl_runtime::mwl_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mwl_runtime::{Ctx, call};
+    use nvs_runtime::{Ctx, call};
 
     /// One cursor over a two-element snapshot, driven exactly as a `foreach`
     /// drives it — a retain before each call, because the callee consumes.
     #[test]
     fn a_cursor_walks_its_snapshot_once() {
-        let mut items = MwlArray::new();
+        let mut items = NvsArray::new();
         items.append(Value::int(7));
         items.append(Value::int(9));
         let cursor = over(items);
@@ -218,12 +218,12 @@ mod tests {
                 unsafe_code,
                 reason = "each call consumes a reference, so the driver holds \
                           one of its own and retains per call — exactly what \
-                          `mwl_ir::lower::control`'s cursor loop emits"
+                          `nvs_ir::lower::control`'s cursor loop emits"
             )]
             unsafe {
                 cursor.retain();
             }
-            let more = call(mwl_core_cursor_advance, &mut ctx, &[cursor]).expect("advance");
+            let more = call(nvs_core_cursor_advance, &mut ctx, &[cursor]).expect("advance");
             if more.as_bool() != Some(true) {
                 break;
             }
@@ -231,7 +231,7 @@ mod tests {
             unsafe {
                 cursor.retain();
             }
-            let value = call(mwl_core_cursor_current, &mut ctx, &[cursor]).expect("current");
+            let value = call(nvs_core_cursor_current, &mut ctx, &[cursor]).expect("current");
             seen.push(value.as_int().expect("an int element"));
         }
         assert_eq!(seen, vec![7, 9]);

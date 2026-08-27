@@ -1,7 +1,7 @@
 --TEST--
 a property and a parameter are separate declaration sites, so each mis-cased one gets its own diagnostic — ADR 0029 § 1
 --FILE--
-<?mwl
+<?nvs
 class Point {
     public int $X;
 
@@ -14,9 +14,9 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0112]: property names must be camelCase, e.g. `x`
-  --> case.mwl:3:16
+  --> case.nvs:3:16
 %A
 error[E0112]: parameter names must be camelCase, e.g. `x`
-  --> case.mwl:5:37
+  --> case.nvs:5:37
 %A
 error: aborting due to 2 errors

@@ -2,17 +2,17 @@
 //! returns when the spec writes a `Core`-owned object, and how another member
 //! reads one back.
 //!
-//! # Decision: a `Core` instance is an ordinary MWL object
+//! # Decision: a `Core` instance is an ordinary Novis object
 //!
 //! Not a native handle, not a boxed `dyn Any`, not a tag of its own. A
 //! `Core\Regex\Match` is exactly what `new Point(1, 2)` produces — one
-//! [`mwl_runtime::MwlObj`] allocation, a [`ClassDesc`] pointer, and 16-byte
+//! [`nvs_runtime::NvsObj`] allocation, a [`ClassDesc`] pointer, and 16-byte
 //! [`Value`] slots behind it — so **nothing below this line learns that `Core`
 //! owns a class**: refcounting, the release sweep, strict identity, `Tag`/
-//! `Untag` for a `?T` return and `mwl-codegen`'s argument slots all meet a
+//! `Untag` for a `?T` return and `nvs-codegen`'s argument slots all meet a
 //! shape they already had.
 //!
-//! The cost is that every slot must be a value MWL can already hold, so a
+//! The cost is that every slot must be a value Novis can already hold, so a
 //! member whose state is genuinely native (a compiled `regex::Regex`) has to
 //! keep that state somewhere else — for `Core\Regex` that is the pattern text
 //! plus [`crate::regex`]'s per-core compiled-pattern cache, which is a lookup
@@ -32,13 +32,13 @@
 //! Most `Core` instances come from a member that produces one, and those need
 //! nothing here. `docs/spec/01-core-library.md` § 9's collections are the
 //! carve-out — the spec writes `new Core\ObjectSet<Tag>()` — and a `Core`
-//! class still has no `constructor` member for `mwl_types` to resolve, because
+//! class still has no `constructor` member for `nvs_types` to resolve, because
 //! its slots are this crate's layout rather than a surface a program fills in.
 //!
 //! So the roster is [`registry::CONSTRUCTORS`], one line per constructible
-//! class, and `mwl-ir` lowers `new` on a name it holds to an ordinary
+//! class, and `nvs-ir` lowers `new` on a name it holds to an ordinary
 //! `InstKind::CoreCall` on that symbol instead of an `InstKind::New`
-//! (`mwl_ir::lower::expr`'s `lower_new`). **Nothing below `mwl-ir` learns that
+//! (`nvs_ir::lower::expr`'s `lower_new`). **Nothing below `nvs-ir` learns that
 //! `Core` owns a class**, which is the promise this module's first decision
 //! makes: codegen emits the same helper call it emits for `Core\Uuid::v4()`,
 //! and the descriptor comes from the leaked table below rather than from the
@@ -68,8 +68,8 @@
 
 use std::cell::Cell;
 
-use mwl_runtime::sequence;
-use mwl_runtime::{ClassDesc, ClassTable, Fault, MwlObj, ObjHeader, Tag, Value};
+use nvs_runtime::sequence;
+use nvs_runtime::{ClassDesc, ClassTable, Fault, NvsObj, ObjHeader, Tag, Value};
 
 use crate::registry::{self, CoreClass};
 
@@ -87,7 +87,7 @@ const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
 ///
 /// [ADR 0053](../../../../docs/adr/0053-iteration-and-generators.md) § 1's
 /// iteration trio and nothing else so far. Those three declarations are
-/// bodiless (`mwl_types::iter_lib`), so a `foreach` names no helper to call and
+/// bodiless (`nvs_types::iter_lib`), so a `foreach` names no helper to call and
 /// dispatches on the receiver's runtime class instead — this table is what a
 /// `Core` receiver answers that lookup with, and [`crate::cursor`] owns the
 /// decision and the one convention difference it carries: a member reached
@@ -95,7 +95,7 @@ const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
 ///
 /// Deliberately not a flag on [`registry::CoreMethod`]: a row here is *not* a
 /// registered member — nothing resolves `$map->iterate()` in source, no
-/// `.mwlt` case can call one, and `mwl_stdlib::symbols` does not list it. The
+/// `.nvst` case can call one, and `nvs_stdlib::symbols` does not list it. The
 /// registry is the surface a program reaches; this is the protocol the engine
 /// reaches.
 ///
@@ -203,7 +203,7 @@ fn descriptor(class: &CoreClass) -> *const ClassDesc {
 /// order, as the [`Value`] a helper returns.
 ///
 /// Takes over each slot value's reference, exactly as
-/// [`MwlObj::set_field`](mwl_runtime::MwlObj::set_field) does — so a caller
+/// [`NvsObj::set_field`](nvs_runtime::NvsObj::set_field) does — so a caller
 /// builds the values it means and hands them straight over.
 ///
 /// # Panics
@@ -222,10 +222,10 @@ pub(crate) fn build<const N: usize>(class: &CoreClass, slots: [Value; N]) -> Val
     #[expect(
         unsafe_code,
         reason = "the descriptor is owned by this core's leaked table, so it \
-                  outlives every instance made from it — which is `MwlObj::new`'s \
+                  outlives every instance made from it — which is `NvsObj::new`'s \
                   whole safety obligation"
     )]
-    let object = unsafe { MwlObj::new(descriptor(class)) };
+    let object = unsafe { NvsObj::new(descriptor(class)) };
     for (index, value) in slots.into_iter().enumerate() {
         object.set_field(index, value);
     }
@@ -243,7 +243,7 @@ thread_local! {
 /// Every ADR 0036 shape a `Core` member builds a value of, as
 /// `(descriptor name, fields in slot order)`.
 ///
-/// **Slot order is the field name order, sorted** — `mwl_types::ty::Ty::Shape`
+/// **Slot order is the field name order, sorted** — `nvs_types::ty::Ty::Shape`
 /// canonicalizes `{y: …, x: …}` and `{x: …, y: …}` to one interned type by
 /// sorting, so the runtime layout has to be the same order or a written shape
 /// type and a built value would disagree about which slot is which.
@@ -279,7 +279,7 @@ fn shape_descriptor(name: &str) -> *const ClassDesc {
 /// A fresh ADR 0036 shape value — `{path: "…", message: "…"}` — its slots
 /// filled from `slots` in [`SHAPE_ROSTER`]'s order.
 ///
-/// The same anonymous methodless instance an MWL `{…}` literal builds, so
+/// The same anonymous methodless instance an Novis `{…}` literal builds, so
 /// nothing downstream learns that `Core` produced this one. Takes over each
 /// slot value's reference, exactly as [`build`] does.
 ///
@@ -301,10 +301,10 @@ pub(crate) fn shape<const N: usize>(name: &str, slots: [Value; N]) -> Value {
     #[expect(
         unsafe_code,
         reason = "the descriptor is owned by this core's leaked table, so it \
-                  outlives every instance made from it — which is `MwlObj::new`'s \
+                  outlives every instance made from it — which is `NvsObj::new`'s \
                   whole safety obligation"
     )]
-    let object = unsafe { MwlObj::new(shape_descriptor(name)) };
+    let object = unsafe { NvsObj::new(shape_descriptor(name)) };
     for (index, value) in slots.into_iter().enumerate() {
         object.set_field(index, value);
     }
@@ -318,7 +318,7 @@ pub(crate) fn shape<const N: usize>(name: &str, slots: [Value; N]) -> Value {
 ///
 /// A `Fault::fatal` if the slot does not hold an object — the same treatment
 /// every other mistyped argument slot gets, since compiled code wrote the tag
-/// and `mwl_types` already checked the receiver's declared type.
+/// and `nvs_types` already checked the receiver's declared type.
 pub(crate) fn receiver(
     value: Value,
     class: &CoreClass,
@@ -349,15 +349,15 @@ pub(crate) fn set_slot(receiver: *mut ObjHeader, index: usize, value: Value) {
                   `Value` this object owned"
     )]
     unsafe {
-        mwl_runtime::mwl_object_field_set(receiver, index, value);
+        nvs_runtime::nvs_object_field_set(receiver, index, value);
     }
 }
 
 /// Slot `index` of `receiver`, **borrowed** — the caller takes no reference,
-/// exactly as `mwl_ir::InstKind::FieldGet` does not.
+/// exactly as `nvs_ir::InstKind::FieldGet` does not.
 ///
-/// A member handing the result back to MWL code owes it a
-/// [`Value::retain`](mwl_runtime::Value::retain) first; one reading it in
+/// A member handing the result back to Novis code owes it a
+/// [`Value::retain`](nvs_runtime::Value::retain) first; one reading it in
 /// passing owes nothing.
 pub(crate) fn slot(receiver: *mut ObjHeader, index: usize) -> Value {
     #[expect(
@@ -367,7 +367,7 @@ pub(crate) fn slot(receiver: *mut ObjHeader, index: usize) -> Value {
                   this crate's own slot constants"
     )]
     unsafe {
-        mwl_runtime::mwl_object_field_get(receiver, index)
+        nvs_runtime::nvs_object_field_get(receiver, index)
     }
 }
 
@@ -416,7 +416,7 @@ mod tests {
                 );
                 continue;
             }
-            if mwl_runtime::is_carrier(class.name) {
+            if nvs_runtime::is_carrier(class.name) {
                 continue;
             }
             assert!(
@@ -433,7 +433,7 @@ mod tests {
     }
 
     /// `class`'s descriptor's native renderer — the test-side spelling of the
-    /// read `mwl_runtime::stringify`'s dispatch makes.
+    /// read `nvs_runtime::stringify`'s dispatch makes.
     fn renderer_of(class: &CoreClass) -> Option<*const u8> {
         #[expect(
             unsafe_code,

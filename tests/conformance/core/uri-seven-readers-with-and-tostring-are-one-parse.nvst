@@ -1,7 +1,7 @@
 --TEST--
 `Core\Uri`'s seven readers, `with` and `toString` are one parse: over a table of absolute URIs every reader answers the component `toString` writes back, and `with` on one component leaves the other six exactly as they were — spec § 12, RFC 3986 § 5.3
 --FILE--
-<?mwl
+<?nvs
 // § 12: a `Uri` holds its whole text *and* its seven components, so the
 // question this case asks is whether those two halves ever disagree. Every
 // claim below is counted over the whole table rather than read off one line:
@@ -143,7 +143,7 @@ echo "replaced ", $replaced, "/48\n";
 // (§ 3.2.3), so `port()` is `null` and the readers recompose to text without
 // the `:` — while `toString()` still reports what was written, because `parse`
 // reports. `with` is where the difference becomes visible: it recomposes, so
-// the `:` a caller never mentioned disappears. `mwl_core_uri_with`'s own doc
+// the `:` a caller never mentioned disappears. `nvs_core_uri_with`'s own doc
 // comment names this as the one place a round trip through `with` is not the
 // identity; a port that is actually there survives untouched.
 var $empty = Core\Uri::parse("http://h:/p");

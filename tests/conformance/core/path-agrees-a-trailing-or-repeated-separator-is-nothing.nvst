@@ -1,9 +1,9 @@
 --TEST--
 Core\Path's six parsing members agree that an empty component is nothing, so `/var/log`, `/var/log/` and `/var/log//` are one path to all of them — counted over a sweep, spec § 8
 --FILE--
-<?mwl
+<?nvs
 // § 8 gives `Core\Path` one grammar and one parse, and `parse` in
-// `crates/mwl-stdlib/src/path.rs` filters every empty component out of it. So a
+// `crates/nvs-stdlib/src/path.rs` filters every empty component out of it. So a
 // trailing separator, a doubled trailing separator and a doubled interior one
 // are three spellings of the same path, and the six members that read that
 // parse have to *agree* about them — which is what is asserted here, rather

@@ -8,7 +8,7 @@
 //! by name rather than by shape: the compiler acts on `#[Json\Derive]` only
 //! when that `Name` *resolves* — through the ordinary namespace and `use` rules
 //! — to one of a closed, `Core`-owned list. Resolution is exactly
-//! [`mwl_hir::resolve_ref`], and the active namespace and import set are things
+//! [`nvs_hir::resolve_ref`], and the active namespace and import set are things
 //! only [`crate::check`]'s walk holds, so this pass runs from that walk rather
 //! than as a second traversal of its own. [`crate::Ctx`] carries both.
 //!
@@ -22,12 +22,12 @@
 //!
 //! One [`DerivedCodec`] per deriving class, recorded into
 //! [`crate::ExprTypeTable`] — the table this crate already publishes for
-//! `mwl-ir` to read back. It carries the *property* name rather than a slot
+//! `nvs-ir` to read back. It carries the *property* name rather than a slot
 //! index, because the slot order is
 //! [`crate::layout::ClassLayout`]'s and that table is built after checking; the
-//! two are joined in `mwl_ir::lower::lower_file`, which holds both. Each field
+//! two are joined in `nvs_ir::lower::lower_file`, which holds both. Each field
 //! also carries the declared type a decoder checks against, erased to
-//! [`mwl_stdlib::CodecTy`], and the *constructor position* it fills — ADR 0071
+//! [`nvs_stdlib::CodecTy`], and the *constructor position* it fills — ADR 0071
 //! § 2's "a decode is an ordinary `new`" resolved to an index, so that nothing
 //! below this line looks a parameter up by name.
 //!
@@ -41,21 +41,21 @@
 //! 2. **§ 2's codec-reachable type test is not applied**, and neither is § 7's
 //!    refusal of a class that hand-writes both halves. A field whose declared
 //!    type has no decoder is [`CodecTy::Opaque`] and is refused by
-//!    `mwl_stdlib::json` when a `decodeAs<T>` actually runs, rather than at
+//!    `nvs_stdlib::json` when a `decodeAs<T>` actually runs, rather than at
 //!    the declaration that wrote it.
 //! 3. **`#[Db\Derive]`/`#[Db\Field]` resolve to nothing.** `Core\Db` is M8's,
 //!    so the two names are deliberately not in [`ATTRIBUTES`] yet: a closed
 //!    list that names something with no pass behind it is worse than a short
 //!    one.
 
-use mwl_diagnostics::{Diagnostic, code};
-use mwl_hir::QName;
-use mwl_syntax::ast::{
+use nvs_diagnostics::{Diagnostic, code};
+use nvs_hir::QName;
+use nvs_syntax::ast::{
     Arg, AttributeGroup, CallArgs, ClassDecl, ClassMemberKind, ExprKind, Modifier, Param,
     PropertyMember,
 };
 
-use mwl_stdlib::CodecTy;
+use nvs_stdlib::CodecTy;
 
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text, strip_sigil};
@@ -64,7 +64,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// names, each already fully qualified.
 ///
 /// A `Name` written at an attribute site is resolved with
-/// [`mwl_hir::resolve_ref`] and compared against these — so `#[Core\Json\Derive]`
+/// [`nvs_hir::resolve_ref`] and compared against these — so `#[Core\Json\Derive]`
 /// and a `use Core\Json;`d `#[Json\Derive]` are the same attribute, and no
 /// spelling of a userland name is any of them. Extended, never widened: ADR
 /// 0077's `Core\Route` is the next entry, and each one owes its own argued ADR
@@ -94,8 +94,8 @@ pub struct DerivedCodec {
 
 /// One field of a [`DerivedCodec`], as read off the *declaration*.
 ///
-/// The slot-resolved half is [`mwl_stdlib::CodecField`]; the two are joined in
-/// `mwl_ir::lower::lower_file`, which is the one place both this table and
+/// The slot-resolved half is [`nvs_stdlib::CodecField`]; the two are joined in
+/// `nvs_ir::lower::lower_file`, which is the one place both this table and
 /// [`crate::layout`]'s slot order are in hand.
 #[derive(Clone, Debug)]
 pub struct DerivedField {
@@ -121,7 +121,7 @@ pub struct DerivedField {
 /// ADR 0071 § 2's codec-reachable set is wider than this: an enum, a
 /// `decimal`, an `Instant`, an `array<T>`, a nested derived class and an
 /// inline shape are all reachable and all land on [`CodecTy::Opaque`] today —
-/// `mwl_stdlib::json`'s own gap owns the decoders they still need, and § 2's
+/// `nvs_stdlib::json`'s own gap owns the decoders they still need, and § 2's
 /// compile-time refusal of a genuinely unreachable type is this module's
 /// gap 3. Nothing here narrows what *encodes*, which walks the value rather
 /// than the declared type.
@@ -255,7 +255,7 @@ fn check_constructor_parameter(
     env: &mut Env<'_>,
 ) -> Option<usize> {
     // A class with no written constructor has no parameter list to disagree
-    // with, and `mwl_types::ctor_init` has already reported that its properties
+    // with, and `nvs_types::ctor_init` has already reported that its properties
     // are not definitely assigned (ADR 0022) — a second diagnostic here would
     // only bury that one.
     let params = params?;
@@ -403,5 +403,5 @@ fn attribute_args<'a>(
 /// ADR 0071 § 1's nominal match: `text`, resolved against the active namespace
 /// and imports, is exactly `want`.
 fn resolves_to(text: &str, want: &str, ctx: &Ctx<'_>) -> bool {
-    mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports) == QName::parse(want)
+    nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports) == QName::parse(want)
 }

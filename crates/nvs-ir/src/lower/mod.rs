@@ -47,7 +47,7 @@
 //! join block. Only a local already bound *before* the `if`/`while` can ever
 //! need a phi — a name that is missing from some incoming environment (e.g.
 //! declared only inside one branch) never reaches the merge, because
-//! `mwl_types::check_program` already required it to be definitely assigned
+//! `nvs_types::check_program` already required it to be definitely assigned
 //! on every path before this slice's input is trusted; using it after would
 //! already have been rejected there. Such a name still owes a *release* on
 //! the edges that do bind it, which is why the merge walks the union of every
@@ -69,17 +69,17 @@
 //! header) — see that variant's own doc comment for why only the shape is
 //! reserved this session.
 
-use mwl_diagnostics::{SourceFile, Span};
-use mwl_syntax::ast::{
+use nvs_diagnostics::{SourceFile, Span};
+use nvs_syntax::ast::{
     ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind,
     DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
     IncDecOp, MatchArm, MethodMember, Modifier, NamespaceDecl, NewTarget, ObjectLiteralField, Stmt,
     StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
-use mwl_types::EnumTable;
-use mwl_types::expr_table::{ArgSlot, ExprInfo, ExprTypeTable, ForeachDrive};
-use mwl_types::layout::ClassLayoutTable;
-use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
+use nvs_types::EnumTable;
+use nvs_types::expr_table::{ArgSlot, ExprInfo, ExprTypeTable, ForeachDrive};
+use nvs_types::layout::ClassLayoutTable;
+use nvs_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{BlockId, EdgeId, IdGen, ValueId};
@@ -136,7 +136,7 @@ struct LoopFrame {
     /// enclosing **loop**. PHP instead treats a `switch` as a looping
     /// structure there, making a bare `continue` mean `break` and warning that
     /// you probably meant `continue 2` — [`Lowering::lower_switch`]'s own doc
-    /// comment records why MWL takes the meaning PHP's own warning points at.
+    /// comment records why Novis takes the meaning PHP's own warning points at.
     continue_target: Option<BlockId>,
     /// Where a `break` jumps — the block right after the loop.
     after_block: BlockId,
@@ -193,19 +193,19 @@ struct LoopFrame {
 
 /// Who owns a call argument's reference once the call runs.
 ///
-/// The two conventions MWL has, and the one thing that differs between
+/// The two conventions Novis has, and the one thing that differs between
 /// lowering an [`InstKind::Call`] and an [`InstKind::CoreCall`] beyond which
 /// instruction is emitted.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum ArgOwnership {
-    /// The callee owns it — an MWL method or constructor, whose parameter is
+    /// The callee owns it — an Novis method or constructor, whose parameter is
     /// bound into its own `Env` like a local and released at its exit sweep.
     /// The caller therefore retains an aliasing refcounted argument first, so
     /// the pair balances.
     Transferred,
     /// The callee borrows it — every ADR 0002 helper, including a `Core`
     /// member, which receives a `&[Value]` and releases nothing. No retain,
-    /// and the caller keeps owning what it passed; `mwl_stdlib`'s own docs own
+    /// and the caller keeps owning what it passed; `nvs_stdlib`'s own docs own
     /// why ADR 0063's purity rule is what makes that safe.
     Borrowed,
 }
@@ -266,17 +266,17 @@ struct TryFrame<'a> {
 /// Its own class first and then every ancestor, so a subclass redeclaring a
 /// property wins the slot the two share; a name the layout has no slot for is
 /// skipped rather than mis-indexed, exactly as the codec join above skips one.
-/// The constant is translated here rather than in `mwl-codegen` because
-/// `mwl_types::ConstArg` is everything a *signature* can carry and
-/// `mwl_types::FieldDefault` is only what a written property declaration can
+/// The constant is translated here rather than in `nvs-codegen` because
+/// `nvs_types::ConstArg` is everything a *signature* can carry and
+/// `nvs_types::FieldDefault` is only what a written property declaration can
 /// reach: a variant outside that set is unreachable rather than lossy, since
-/// `mwl_types::defaults::eval_property_default` cannot produce one.
+/// `nvs_types::defaults::eval_property_default` cannot produce one.
 fn property_defaults(
     label: &str,
-    layout: &mwl_types::ClassLayout,
+    layout: &nvs_types::ClassLayout,
     exprs: &ExprTypeTable,
-) -> Vec<(usize, mwl_types::FieldDefault)> {
-    use mwl_types::FieldDefault;
+) -> Vec<(usize, nvs_types::FieldDefault)> {
+    use nvs_types::FieldDefault;
 
     let mut image: Vec<Option<FieldDefault>> = vec![None; layout.fields.len()];
     let chain = std::iter::once(label).chain(layout.conforms.iter().map(String::as_str));
@@ -301,8 +301,8 @@ fn property_defaults(
 /// One evaluated constant, as the runtime's own smaller vocabulary spells it —
 /// `None` for a variant a written property declaration cannot reach, which is
 /// unreachable rather than lossy for [`property_defaults`]' own reason.
-fn field_default(value: &mwl_types::ConstArg) -> Option<mwl_types::FieldDefault> {
-    use mwl_types::{ConstArg, FieldDefault};
+fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault> {
+    use nvs_types::{ConstArg, FieldDefault};
 
     match value {
         ConstArg::Bool(v) => Some(FieldDefault::Bool(*v)),
@@ -367,14 +367,14 @@ fn static_props(
 /// ancestor, so a subclass redeclaring a property wins the slot the two
 /// share. What differs is the fallback. A default a class does not write is
 /// simply absent, but every slot needs a *representation* for the vector to
-/// stay aligned with [`mwl_types::ClassLayout::fields`], so a slot nothing
+/// stay aligned with [`nvs_types::ClassLayout::fields`], so a slot nothing
 /// claims — a class whose signature never reached
 /// [`ExprTypeTable::property_types`], or a type this crate does not represent
-/// — is [`Ty::Tagged`], which `mwl-codegen` maps to "unchecked" rather than
+/// — is [`Ty::Tagged`], which `nvs-codegen` maps to "unchecked" rather than
 /// to a tag that would refuse a legal write.
 fn field_reprs(
     label: &str,
-    layout: &mwl_types::ClassLayout,
+    layout: &nvs_types::ClassLayout,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
 ) -> Vec<Ty> {
@@ -416,15 +416,15 @@ fn field_reprs(
 /// — the crate's own module doc records it as a known gap, since making it
 /// run means giving each file a frame and calling it from the `require`
 /// site, which is the isolation question ADR 0006 owns.
-/// `mwl_hir::resolve_program`'s entry-first order is what makes indexing
+/// `nvs_hir::resolve_program`'s entry-first order is what makes indexing
 /// position zero right.
 ///
 /// Each method is named with the `Class::method` label
-/// `mwl_types::expr_table::ExprTypeTable::method_label` recorded for its
+/// `nvs_types::expr_table::ExprTypeTable::method_label` recorded for its
 /// declaration, which is the *same* label a call's
 /// [`InstKind::Call::target`](crate::ir::InstKind::Call) is rendered from —
 /// see that accessor's own doc comment for why the label is spelled in
-/// `mwl-types` rather than here. A method whose declaration has no recorded
+/// `nvs-types` rather than here. A method whose declaration has no recorded
 /// label is skipped: nothing can call it by a name that was never resolved,
 /// so lowering it would only produce an unreachable function.
 ///
@@ -442,7 +442,7 @@ fn field_reprs(
 #[must_use]
 pub fn lower_program(
     script: &str,
-    files: &[mwl_types::ProgramFile<'_>],
+    files: &[nvs_types::ProgramFile<'_>],
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
     enums: &EnumTable,
@@ -479,8 +479,8 @@ pub fn lower_program(
                 // is where they are *declared*, which is all that differs.
                 // Every bodiless member is skipped by the same `m.body`
                 // check an `abstract` class method already went through.
-                StmtKind::ClassDecl(mwl_syntax::ast::ClassDecl { members, .. })
-                | StmtKind::InterfaceDecl(mwl_syntax::ast::InterfaceDecl { members, .. }) => {
+                StmtKind::ClassDecl(nvs_syntax::ast::ClassDecl { members, .. })
+                | StmtKind::InterfaceDecl(nvs_syntax::ast::InterfaceDecl { members, .. }) => {
                     for member in members {
                         match &member.kind {
                             ClassMemberKind::Method(m) => {
@@ -498,7 +498,7 @@ pub fn lower_program(
                                     .body
                                     .as_ref()
                                     .expect("just checked this declaration has one");
-                                if mwl_syntax::ast::is_generator_body(body) {
+                                if nvs_syntax::ast::is_generator_body(body) {
                                     let (fns, classes) =
                                         lower_generator(label, m, src, exprs, checked_types, enums);
                                     out.extend(fns);
@@ -512,7 +512,7 @@ pub fn lower_program(
                                 synthesized.extend(lowered.classes);
                             }
                             // ADR 0014 § 1's property hooks are compiled the
-                            // same way, under the label `mwl_types` recorded
+                            // same way, under the label `nvs_types` recorded
                             // for the hook itself — see
                             // `lower_property_hook`. A bodiless hook (an
                             // abstract `get;`) is skipped for exactly the
@@ -574,7 +574,7 @@ pub fn lower_program(
     // these would be one where `new LogicError(…)` names a missing target.
     functions.extend(synthesized_exception_constructors());
 
-    // Copied straight across rather than recomputed: `mwl-types` already
+    // Copied straight across rather than recomputed: `nvs-types` already
     // resolved the slot order and the supertype set against the class graph,
     // which this crate cannot see — see `crate::ir::Class`.
     let mut classes: Vec<crate::ir::Class> = layouts
@@ -590,7 +590,7 @@ pub fn lower_program(
             methods: layout.methods.clone(),
             // ADR 0071's field list, joined to this class's slot order — the
             // one place both tables are in hand. A field the layout has no
-            // slot for is dropped rather than mis-indexed: `mwl_types::derive`
+            // slot for is dropped rather than mis-indexed: `nvs_types::derive`
             // has already reported the declaration that caused it (a promoted
             // parameter is that module's gap 2), and guessing a slot here
             // would write another property's value under this one's key.
@@ -599,12 +599,12 @@ pub fn lower_program(
                     .fields
                     .iter()
                     .filter_map(|field| {
-                        Some(mwl_types::CodecField {
+                        Some(nvs_types::CodecField {
                             key: field.key.clone(),
                             slot: layout.slot_of(&field.property)?,
                             // A field whose declaration named no constructor
                             // parameter is dropped for the same reason a
-                            // slotless one is: `mwl_types::derive` has already
+                            // slotless one is: `nvs_types::derive` has already
                             // reported it, and inventing a position would pass
                             // this field's value as another parameter.
                             param: field.param?,
@@ -624,7 +624,7 @@ pub fn lower_program(
         })
         .collect();
     // ADR 0053 § 4's generator state classes have no source declaration and
-    // therefore no `mwl_types::layout` entry — `mwl-ir` synthesizes both the
+    // therefore no `nvs_types::layout` entry — `nvs-ir` synthesizes both the
     // class and its two methods, so it is the one thing here that adds to the
     // table rather than copying it.
     classes.extend(synthesized);
@@ -665,7 +665,7 @@ pub fn lower_file(
 ) -> crate::ir::Program {
     lower_program(
         script,
-        &[mwl_types::ProgramFile { src, stmts }],
+        &[nvs_types::ProgramFile { src, stmts }],
         exprs,
         checked_types,
         enums,
@@ -676,7 +676,7 @@ pub fn lower_file(
 /// Lowers `m` — which must have a body, and whose body must stay within this
 /// slice's supported statement/expression shapes (see the crate docs) — to a
 /// [`Function`] named `name`. `exprs`/`checked_types` are the
-/// `mwl_types::check_program` run's own typed-expression table and type
+/// `nvs_types::check_program` run's own typed-expression table and type
 /// interner — the source of truth for a call's/`new`'s resolved target (see
 /// [`ExprInfo`] and the crate docs' "design choices" section).
 ///
@@ -690,7 +690,7 @@ pub fn lower_file(
 ///
 /// Panics, naming the unsupported shape, if `m` has no body or its body
 /// leaves this slice's scope. This is not a diagnostic: callers are expected
-/// to have already run `mwl_types::check_program` — with the very `exprs`/
+/// to have already run `nvs_types::check_program` — with the very `exprs`/
 /// `checked_types` passed here — and to only route programs within scope
 /// through this function until lowering widens.
 #[must_use]
@@ -718,11 +718,11 @@ pub fn lower_method(
     low.emit_safepoint(entry);
 
     // The implicit receiver, always parameter index 0 — seeded
-    // unconditionally, the same way `mwl_types::check.rs`'s `check_method`
+    // unconditionally, the same way `nvs_types::check.rs`'s `check_method`
     // seeds `$this` into its own `LocalScope` regardless of a `static`
     // modifier (see that function's own comment for why: a static method's
     // body referencing `$this` is a distinct, unrelated diagnostic, not this
-    // crate's concern). `mwl-ir` never lowers a free function — every
+    // crate's concern). `nvs-ir` never lowers a free function — every
     // `MethodMember` it reaches belongs to a class per ADR 0011 — so there is
     // no case where a receiver truly doesn't exist. This is the "implicit
     // first parameter" shape from the crate docs' design-choices section,
@@ -733,7 +733,7 @@ pub fn lower_method(
     // A `static` method has no `$this` to put there, so that slot carries the
     // *called* class instead — late static binding's whole mechanism, and the
     // reason it costs no second parameter and no second call convention. See
-    // `mwl_runtime::object`'s module docs, which own the decision.
+    // `nvs_runtime::object`'s module docs, which own the decision.
     let is_static = m.modifiers.contains(&Modifier::Static);
     let recv_ty = if is_static { Ty::ClassDesc } else { Ty::Object };
     let (this_v, _) = low.emit(entry, recv_ty, InstKind::Param(0));
@@ -752,7 +752,7 @@ pub fn lower_method(
         // `...$rest`'s declared type is what each trailing *argument* is
         // checked against; the slot itself receives the one array
         // `Lowering::lower_variadic_tail` collected them into, which is what
-        // the caller has always passed. `mwl_types::check` binds the body's
+        // the caller has always passed. `nvs_types::check` binds the body's
         // own name at `array<` that `>` for the same reason.
         let ty = match p.variadic {
             true => Ty::Array,
@@ -815,7 +815,7 @@ pub fn lower_method(
 
 /// Lowers one of `p`'s [ADR 0014](../../../docs/adr/0014-property-observer.md)
 /// § 1 property hooks to a [`Function`] named `name` — which must be the
-/// label `mwl_types::signatures::hook_label` spelled for it, since a `set`
+/// label `nvs_types::signatures::hook_label` spelled for it, since a `set`
 /// hook's short form recovers the declaring class's own label back out of it.
 ///
 /// A hook is an ordinary compiled function, deliberately: it takes the same
@@ -831,12 +831,12 @@ pub fn lower_method(
 ///
 /// - **`get`** returns the property's declared type; **`set`** returns
 ///   nothing and takes the incoming value as parameter slot 1, named by the
-///   declaration or, left implicit, by `mwl_types::HOOK_VALUE_PARAM`.
+///   declaration or, left implicit, by `nvs_types::HOOK_VALUE_PARAM`.
 /// - **The short `=> expr;` body** means "return this" for `get` and "store
 ///   this" for `set`, matching PHP 8.4. The store is emitted here rather than
 ///   desugared into the AST, because there is no AST node to desugar into.
 /// - A `set` hook's store names the *backing slot* directly. Inside a hook,
-///   the property is always its own storage — `mwl_types::Ctx::current_hook`
+///   the property is always its own storage — `nvs_types::Ctx::current_hook`
 ///   is what keeps the checker from recording a re-entrant
 ///   [`ExprInfo::HookedProperty`] for it.
 ///
@@ -847,14 +847,14 @@ pub fn lower_method(
 #[must_use]
 pub fn lower_property_hook(
     name: &str,
-    p: &mwl_syntax::ast::PropertyMember,
-    hook: &mwl_syntax::ast::PropertyHook,
+    p: &nvs_syntax::ast::PropertyMember,
+    hook: &nvs_syntax::ast::PropertyHook,
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
     enums: &EnumTable,
 ) -> Lowered {
-    use mwl_syntax::ast::{PropertyHookBody, PropertyHookKind};
+    use nvs_syntax::ast::{PropertyHookBody, PropertyHookKind};
 
     let prop_ty = lower_decl_type(&p.ty, exprs, checked_types);
     let is_set = hook.kind == PropertyHookKind::Set;
@@ -879,7 +879,7 @@ pub fn lower_property_hook(
                     .as_ref()
                     .map_or(prop_ty, |t| lower_decl_type(t, exprs, checked_types)),
             ),
-            None => (mwl_types::HOOK_VALUE_PARAM.to_owned(), prop_ty),
+            None => (nvs_types::HOOK_VALUE_PARAM.to_owned(), prop_ty),
         };
         let (v, _) = low.emit(entry, pty, InstKind::Param(1));
         env.insert(pname, (v, pty));
@@ -889,10 +889,10 @@ pub fn lower_property_hook(
     match &hook.body {
         Some(PropertyHookBody::Block(block)) => low.lower_stmts(&block.stmts, &mut cur, &mut env),
         Some(PropertyHookBody::Expr(e)) if is_set => {
-            let class = mwl_types::signatures::hook_label_class(name)
+            let class = nvs_types::signatures::hook_label_class(name)
                 .unwrap_or_else(|| {
                     panic!(
-                        "mwl-ir: `{name}` is not a hook label, so the class whose slot a \
+                        "nvs-ir: `{name}` is not a hook label, so the class whose slot a \
                          `set => expr;` hook stores into cannot be recovered from it"
                     )
                 })
@@ -964,7 +964,7 @@ pub fn lower_property_hook(
 ///
 /// - **No implicit receiver.** A script frame has no `$this`, so parameter
 ///   index 0 is not reserved and `params` is empty — matching
-///   `mwl_types::check`'s own script frame, which seeds `$this` only when
+///   `nvs_types::check`'s own script frame, which seeds `$this` only when
 ///   there is an enclosing class.
 /// - **The return representation is [`Ty::Tagged`].** A top-level `return`
 ///   hands a value back to whatever `require`d the file, and
@@ -976,7 +976,7 @@ pub fn lower_property_hook(
 /// lowered separately, one [`lower_method`] call each. A
 /// `namespace X { ... }` block's *own* top-level statements are not skipped
 /// — a namespace scopes names, not storage, so they belong to this same one
-/// frame, which is exactly how `mwl_types::check::check_stmts` threads its
+/// frame, which is exactly how `nvs_types::check::check_stmts` threads its
 /// own [`Env`] through them.
 pub fn lower_script(
     name: &str,
@@ -1032,7 +1032,7 @@ struct Lowering<'a> {
     /// Where a call's/`new`'s resolved target is read back from — see
     /// [`ExprInfo`] and the crate docs' "design choices" section.
     exprs: &'a ExprTypeTable,
-    /// The same `mwl_types::check_program` run's type interner — needed to
+    /// The same `nvs_types::check_program` run's type interner — needed to
     /// translate a [`TypeId`] recorded in `exprs` into this crate's own
     /// [`Ty`] via [`lower_checked_ty`].
     checked_types: &'a TypeInterner,
@@ -1041,7 +1041,7 @@ struct Lowering<'a> {
     ///
     /// Threaded beside `checked_types` because a case's *value* is the one
     /// thing the checker's type does not carry —
-    /// [`CheckedTy::EnumCase`](mwl_types::ty::Ty::EnumCase) names the enum and
+    /// [`CheckedTy::EnumCase`](nvs_types::ty::Ty::EnumCase) names the enum and
     /// the case, and ADR 0047 § 3's membership test needs the integer that
     /// pair stands for. [`ExprInfo::EnumCase`] answers the same question, but
     /// only for a case written as an *expression*; a case named in a **type**
@@ -1128,7 +1128,7 @@ struct Lowering<'a> {
     /// one tagged slot the declaration gave it.
     ///
     /// Read only where `Env` has no entry, so a bound local's own entry
-    /// always wins, and never removed: MWL has no shadowing and a name is
+    /// always wins, and never removed: Novis has no shadowing and a name is
     /// declared once per frame (ADR 0007 § 1), which is also why one flat map
     /// per frame is the whole scoping rule.
     declared_tys: FxHashMap<String, Ty>,
@@ -1217,13 +1217,13 @@ struct Lowering<'a> {
     /// on the call sites rather than a refusal of the program.
     ///
     /// **What that does not buy is PHP's operand order**, and it is not meant
-    /// to. MWL evaluates a binary operator's operands strictly left to right,
+    /// to. Novis evaluates a binary operator's operands strictly left to right,
     /// so `$n + Adder::bump($n)` reads the left `$n` *before* the call and
     /// answers `5 + 7`; PHP compiles that left operand to a CV read at the
     /// `ADD` itself, after the call, and answers `7 + 7`. PHP's own manual
     /// leaves the evaluation order of an expression's operands undefined, so
     /// there is no specified behaviour here to be compatible with, and
-    /// left-to-right is the order every other side effect in an MWL expression
+    /// left-to-right is the order every other side effect in an Novis expression
     /// already happens in.
     pending_refs: Vec<StagedRef>,
     /// ADR 0053 § 4's state class, while this frame is a generator's
@@ -1254,7 +1254,7 @@ struct StagedRef {
     /// The [`Ty::Ref`] the callee was handed.
     slot: ValueId,
     /// The pointee's representation — the parameter's declared type, which
-    /// `mwl_types`' `check_inout_arg` has already proven is exactly the
+    /// `nvs_types`' `check_inout_arg` has already proven is exactly the
     /// holder's own.
     ty: Ty,
 }
@@ -1270,7 +1270,7 @@ struct StagedRef {
 /// need a second one.
 ///
 /// These are exactly the two shapes [`is_aliasing_read`] recognises as durable
-/// storage, and exactly the two `mwl_types`' `check_inout_arg` accepts.
+/// storage, and exactly the two `nvs_types`' `check_inout_arg` accepts.
 enum RefHolder {
     /// A bare local — the `Env` name it is bound under.
     Local(String),
@@ -1340,10 +1340,10 @@ struct ArgSig {
     /// Each parameter's evaluated default, positional — `None` for one every
     /// call has to supply. See [`Lowering::lower_call_args`] for what an
     /// omitted trailing argument becomes.
-    defaults: Vec<Option<mwl_types::ConstArg>>,
+    defaults: Vec<Option<nvs_types::ConstArg>>,
     /// Which parameter each **written** argument fills, in written order —
-    /// one entry per `mwl_syntax::ast::Arg`, copied off
-    /// [`mwl_types::expr_table::ResolvedCall::arg_slots`].
+    /// one entry per `nvs_syntax::ast::Arg`, copied off
+    /// [`nvs_types::expr_table::ResolvedCall::arg_slots`].
     ///
     /// This crate cannot re-derive it and the field exists for that reason
     /// alone: a `name:` resolves against `MethodSig::param_names`, which no
@@ -1353,16 +1353,16 @@ struct ArgSig {
     /// on whether the call wrote a name at all.
     arg_slots: Vec<ArgSlot>,
     /// Whether the callee is a Tier 0 `Core` member reached through the ADR
-    /// 0002 helper convention, rather than a compiled MWL function.
+    /// 0002 helper convention, rather than a compiled Novis function.
     ///
     /// One thing turns on it, and it is a real difference rather than a
-    /// convenience: a helper's parameter slot is a whole `mwl_runtime::Value`
-    /// — a tag plus a payload — and `mwl-codegen`'s `emit_helper` writes each
+    /// convenience: a helper's parameter slot is a whole `nvs_runtime::Value`
+    /// — a tag plus a payload — and `nvs-codegen`'s `emit_helper` writes each
     /// argument's tag from the *argument's* own representation, never from the
     /// parameter's. So a `Core` parameter whose declared type has no single IR
     /// representation (a union — `hasKey(array<T> $a, int|string $key)`) is
     /// still perfectly lowerable: the argument keeps its own type and the
-    /// helper decodes by tag. A compiled MWL function's parameter slot is
+    /// helper decodes by tag. A compiled Novis function's parameter slot is
     /// typed, so the same declaration there is not lowerable at all, and
     /// [`Lowering::lower_call_args`] keeps panicking for it.
     ///
@@ -1375,8 +1375,8 @@ struct ArgSig {
 
 impl ArgSig {
     /// The shape of a resolved call's own signature, called through the
-    /// ordinary MWL call convention.
-    fn of(call: &mwl_types::expr_table::ResolvedCall) -> Self {
+    /// ordinary Novis call convention.
+    fn of(call: &nvs_types::expr_table::ResolvedCall) -> Self {
         Self {
             param_tys: call.param_tys.clone(),
             inout: call.inout.clone(),
@@ -1389,7 +1389,7 @@ impl ArgSig {
 
     /// The same shape, for a callee reached through the helper convention —
     /// see [`Self::helper`].
-    fn of_helper(call: &mwl_types::expr_table::ResolvedCall) -> Self {
+    fn of_helper(call: &nvs_types::expr_table::ResolvedCall) -> Self {
         Self {
             helper: true,
             ..Self::of(call)
@@ -1405,7 +1405,7 @@ impl ArgSig {
     ///
     /// Panics through [`lower_checked_ty`] for a parameter type this crate has
     /// no lowering for on a *non*-helper callee — the unchanged behaviour, and
-    /// the one that has to stay: a compiled MWL function's parameter slot is
+    /// the one that has to stay: a compiled Novis function's parameter slot is
     /// typed, so there is nothing to fall back to.
     fn expectation(&self, index: usize, checked_types: &TypeInterner) -> Option<Ty> {
         let pty = self.param_tys[index];
@@ -1419,7 +1419,7 @@ impl ArgSig {
     /// recorded parameters, and never consulted for a variadic tail at all:
     /// `lower_call_args` collects that tail into one array, which is a value
     /// and not a holder, so there is no position-onward rule to apply here the
-    /// way `mwl_types::signatures::MethodSig::is_inout` has one. ADR 0063 R7
+    /// way `nvs_types::signatures::MethodSig::is_inout` has one. ADR 0063 R7
     /// keeps it that way for `Core` — nothing there is by-reference.
     fn is_inout(&self, index: usize) -> bool {
         self.inout.get(index).copied().unwrap_or(false)
@@ -1470,13 +1470,13 @@ impl<'a> Lowering<'a> {
     ///
     /// `reprs` is what each field's own initializer lowered to, in the same
     /// sorted order as `fields`, and it is the whole of what
-    /// `mwl_runtime::mwl_object_slot_set` gets to check a write against.
+    /// `nvs_runtime::nvs_object_slot_set` gets to check a write against.
     ///
     /// A label already recorded is **merged**, not skipped: `$shape{x}` is
     /// named for its field names alone (see [`shape_class_label`]), so
     /// `{x: 1}` and `{x: "s"}` are one class with two disagreeing slot types.
     /// A slot the two spell differently degrades to [`Ty::Tagged`], which
-    /// `mwl-codegen` reads as "no fixed tag, do not check" — picking whichever
+    /// `nvs-codegen` reads as "no fixed tag, do not check" — picking whichever
     /// literal was seen first would instead reject the other one's own writes.
     pub(super) fn record_shape_class(
         &mut self,
@@ -1522,7 +1522,7 @@ impl<'a> Lowering<'a> {
     ///
     /// A `static` method already has it in parameter 0 ([`lower_method`]). An
     /// *instance* method loads it from `$this` — one load at
-    /// `mwl_runtime::OBJ_CLASS_OFFSET`, emitted into the **entry block** and
+    /// `nvs_runtime::OBJ_CLASS_OFFSET`, emitted into the **entry block** and
     /// cached, so it dominates every block that could ask and so a method
     /// whose body never says `static` pays nothing at all.
     ///
@@ -1533,7 +1533,7 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics for a frame with neither — the script frame. `mwl_types` refuses
+    /// Panics for a frame with neither — the script frame. `nvs_types` refuses
     /// `static::`/`new static()` outside a class (`E_UNDEFINED_CLASS`), so
     /// lowering never reaches this on one.
     pub(super) fn lsb(&mut self) -> ValueId {
@@ -1542,8 +1542,8 @@ impl<'a> Lowering<'a> {
         }
         let this = self.this.unwrap_or_else(|| {
             panic!(
-                "mwl-ir: `{}` names `static` but has neither a receiver nor a called class — \
-                 mwl_types is expected to have refused that outside a class",
+                "nvs-ir: `{}` names `static` but has neither a receiver nor a called class — \
+                 nvs_types is expected to have refused that outside a class",
                 self.fn_label
             )
         });
@@ -1567,7 +1567,7 @@ impl<'a> Lowering<'a> {
         let slot = &mut self.block_terms[b.index() as usize];
         assert!(
             slot.is_none(),
-            "mwl-ir: bb{} sealed twice — bug in control-flow lowering",
+            "nvs-ir: bb{} sealed twice — bug in control-flow lowering",
             b.index()
         );
         *slot = Some(term);
@@ -1617,7 +1617,7 @@ impl<'a> Lowering<'a> {
     ///
     /// * **Propagating** out of the frame, every refcounted local still live
     ///   here is dropped, exactly the sweep [`Self::release_all_locals`]
-    ///   already performs at an ordinary `return`. This is `mwl-codegen`'s
+    ///   already performs at an ordinary `return`. This is `nvs-codegen`'s
     ///   known gap 3 — a backend that leaks on every throw — closed.
     /// * **Reaching a `catch` in this same frame** releases nothing: the
     ///   handler and everything after it still name those locals, and the
@@ -1773,7 +1773,7 @@ impl<'a> Lowering<'a> {
             // The union ADR 0007 § 4 gives integer `/` reaches a declared
             // `float` the same way, but its representation is already
             // [`Ty::Tagged`] rather than an integer one, so the row is the
-            // one that reads the runtime tag. `mwl_types` is what decided the
+            // one that reads the runtime tag. `nvs_types` is what decided the
             // position accepts it (`expr::assign::is_assignable`); this only
             // performs it.
             (Ty::Tagged, Ty::Float) => {
@@ -1867,7 +1867,7 @@ impl<'a> Lowering<'a> {
     /// Unlike that one it goes through [`Self::emit_fallible`]: an append is
     /// the one array write with an outcome other than success, since PHP
     /// refuses one whose next integer key is already live
-    /// (`mwl_runtime::array`'s *the append is the one array write with a fault
+    /// (`nvs_runtime::array`'s *the append is the one array write with a fault
     /// channel*). Neither operand needs anything of the landing block — the
     /// refusal releases the value it was handed and leaves the array's
     /// reference where the frame's own slot already names it.
@@ -1984,7 +1984,7 @@ impl<'a> Lowering<'a> {
     /// to here. A *hooked* property (ADR 0014 § 1) is a pair of accessors
     /// rather than a slot and an *erased* one (ADR 0036 § 4) is resolved by
     /// name at run time, so neither could be written back to at all;
-    /// `mwl_types::expr::assign`'s `check_write_target` refuses both where the
+    /// `nvs_types::expr::assign`'s `check_write_target` refuses both where the
     /// write is written, as `E0478` — PHP's own "indirect modification of
     /// overloaded property" — and `E0480`. Nothing recorded means the access
     /// was diagnosed instead, and a body holding a diagnostic is never
@@ -2029,15 +2029,15 @@ impl<'a> Lowering<'a> {
                 let Some(ExprInfo::Property { class, name, .. }) = self.exprs.lookup(base.span)
                 else {
                     unreachable!(
-                        "mwl-ir reaches an element write back through the property at {:?} \
+                        "nvs-ir reaches an element write back through the property at {:?} \
                          carrying anything but an `ExprInfo::Property` only if a gate above \
                          it let one through, and none can — this is an invariant, not a gap. \
                          A `PropertyAccess` span carries exactly one of three entries or \
-                         none: `mwl_types::expr::members::check_property_member` records \
+                         none: `nvs_types::expr::members::check_property_member` records \
                          `HookedProperty`, `ShapeProperty` or `Property` on every access it \
                          returns a resolved type from, and reports a diagnostic on every \
                          path it records nothing on, so a body reaching here at all had an \
-                         entry. `mwl_types::expr::assign::check_write_target` then refuses \
+                         entry. `nvs_types::expr::assign::check_write_target` then refuses \
                          the first two where the write is written — `E0478` for ADR 0014 \
                          § 1's pair of accessors, `E0480` for ADR 0036 § 4's erased \
                          receiver — for all four write spellings alike, leaving `Property` \
@@ -2067,10 +2067,10 @@ impl<'a> Lowering<'a> {
                 self.emit_static_set(*cur, class, name, written);
             }
             other => panic!(
-                "mwl-ir lowers an array-element write only through a bare local, a \
+                "nvs-ir lowers an array-element write only through a bare local, a \
                  compile-time-known property or a static property, because ADR 0007 § 5's \
                  copy-on-write separation has to be written back to whatever holds the array — \
-                 not through {other:?}, which `mwl_types::expr::assign::check_write_target` \
+                 not through {other:?}, which `nvs_types::expr::assign::check_write_target` \
                  refuses as `E0700` where it is written, so this body was not checked with the \
                  same table"
             ),
@@ -2089,7 +2089,7 @@ impl<'a> Lowering<'a> {
     pub(super) fn pointee_of(&self, name: &str) -> Ty {
         *self.ref_locals.get(name).unwrap_or_else(|| {
             panic!(
-                "mwl-ir: `${name}` is bound as a `Ty::Ref` but no pointee representation was \
+                "nvs-ir: `${name}` is bound as a `Ty::Ref` but no pointee representation was \
                  recorded for it — bug in lower_method's by-reference parameter binding"
             )
         })
@@ -2189,7 +2189,7 @@ impl<'a> Lowering<'a> {
     /// property alike, but a property with an ADR 0014 § 1 `get` hook is a
     /// **call**: its result is a fresh, already-owned value, exactly like any
     /// other call's, and retaining it would leak one reference per read. Only
-    /// `mwl_types`' resolution can tell the two apart, which is why this is a
+    /// `nvs_types`' resolution can tell the two apart, which is why this is a
     /// method on the lowering rather than a free function over the AST —
     /// every retain decision in this file goes through it.
     ///
@@ -2216,7 +2216,7 @@ impl<'a> Lowering<'a> {
             return true;
         }
         // Parentheses group and never change what an expression *is*
-        // (`mwl_syntax::ast::Expr::unparenthesized`), so every question below
+        // (`nvs_syntax::ast::Expr::unparenthesized`), so every question below
         // is asked of what they wrap: `($a)` aliases the local exactly as `$a`
         // does, and answering `false` here for one is what made
         // `array<string> $b = ($a);` release the array twice. The staged
@@ -2290,7 +2290,7 @@ impl<'a> Lowering<'a> {
                 insts,
                 term: term.unwrap_or_else(|| {
                     panic!(
-                        "mwl-ir: bb{} was never sealed with a terminator",
+                        "nvs-ir: bb{} was never sealed with a terminator",
                         id.index()
                     )
                 }),
@@ -2301,7 +2301,7 @@ impl<'a> Lowering<'a> {
 }
 
 /// Reads a numeric-literal span's text with `_` digit separators stripped.
-fn clean_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
+fn clean_digits(src: &SourceFile, span: nvs_diagnostics::Span) -> String {
     span_text(src, span).chars().filter(|&c| c != '_').collect()
 }
 
@@ -2314,7 +2314,7 @@ fn clean_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
 /// significant digits instead of recovering only the ~17 an `f64` round-trips.
 /// Trailing zeros are kept, because § 4 makes scale observable in rendering.
 ///
-/// Deliberately a second implementation of `mwl_types::expr`'s
+/// Deliberately a second implementation of `nvs_types::expr`'s
 /// `decimal_literal_overflow`, for the reason that function's own doc comment
 /// gives for `int_literal_digits`: the dependency runs the other way, and the
 /// checker has to *report* an out-of-range literal where this only has to
@@ -2339,40 +2339,40 @@ pub(crate) fn decimal_literal_parts(text: &str) -> Option<(u128, u8)> {
 }
 
 /// ADR 0054 § 1's mantissa bound, restated here for the same reason
-/// [`decimal_literal_parts`] is: `mwl_runtime::decimal`, which owns it, is not
+/// [`decimal_literal_parts`] is: `nvs_runtime::decimal`, which owns it, is not
 /// a dependency of this crate.
 const DECIMAL_MAX_MANTISSA: u128 = (1u128 << 96) - 1;
 
 /// ADR 0054 § 1's scale bound — see [`DECIMAL_MAX_MANTISSA`].
 const DECIMAL_MAX_SCALE: u8 = 28;
 
-/// Cooks a plain, non-interpolated string literal's span — `mwl_syntax::ast::ExprKind::Str`'s
+/// Cooks a plain, non-interpolated string literal's span — `nvs_syntax::ast::ExprKind::Str`'s
 /// own doc comment: a single-quoted string, or a double-quoted/heredoc/nowdoc string with no
 /// interpolation in it — into its runtime bytes.
 ///
-/// All three spellings live in [`mwl_types::string_lit::cook_string_literal`], which owns the
+/// All three spellings live in [`nvs_types::string_lit::cook_string_literal`], which owns the
 /// escape grammar and the flexible-heredoc strip; this wrapper exists only so the call sites
 /// below keep reading as one local name. Sharing rather than duplicating is the same call
 /// `crate::string_lit`'s own module docs already record for the double-quoted half: the checker
 /// has to diagnose exactly the cooking that happens here, so one routine has to perform both —
 /// unlike [`int_literal_digits`], where the crate boundary runs the other way.
-fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
-    mwl_types::string_lit::cook_string_literal(src, span)
+fn cook_str_literal(src: &SourceFile, span: nvs_diagnostics::Span) -> String {
+    nvs_types::string_lit::cook_string_literal(src, span)
 }
 
 /// Splits a cooked integer-literal span into the radix its prefix names and
-/// the digit run to parse against it — `mwl_syntax::Lexer::lex_number` emits
+/// the digit run to parse against it — `nvs_syntax::Lexer::lex_number` emits
 /// one `IntLiteral` token for all four forms (`0x…`/`0o…`/`0b…`, or a plain
 /// decimal run; a legacy leading-zero octal spelling like PHP's `0755` is
 /// deliberately *not* one of them, so `0755` lexes as decimal 755 with no
 /// prefix to strip), and this is the one place that distinction has to be
 /// undone before `str::from_str_radix` can parse the value.
-/// `mwl_types::expr::literals::infer_int_literal` range-checks the same digits (mirroring this
+/// `nvs_types::expr::literals::infer_int_literal` range-checks the same digits (mirroring this
 /// function to do so, since this crate has no reverse dependency on that one) and reports ADR 0007
 /// § 4's diagnostic before lowering ever runs — see its doc comment — so [`Lowering::lower_int_literal`] can
-/// treat an out-of-range literal as unreachable input, the same "trusts `mwl_types::check_program`
+/// treat an out-of-range literal as unreachable input, the same "trusts `nvs_types::check_program`
 /// already ran" contract every other panic in this crate relies on.
-fn int_literal_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> (u32, String) {
+fn int_literal_digits(src: &SourceFile, span: nvs_diagnostics::Span) -> (u32, String) {
     let digits = clean_digits(src, span);
     for (prefix, radix) in [
         ("0x", 16),
@@ -2395,7 +2395,7 @@ fn int_literal_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> (u32, St
 ///
 /// Panics naming `which` binding it was for a header that declares no type at
 /// all. ADR 0007 § 3.2 makes both bindings' types mandatory and
-/// `mwl_syntax`'s parser already reported the omission (the `None` here is the
+/// `nvs_syntax`'s parser already reported the omission (the `None` here is the
 /// error-recovery placeholder [`ForeachBinding::ty`]'s own doc comment
 /// describes), so lowering never runs on such a file.
 fn binding_ty(
@@ -2406,8 +2406,8 @@ fn binding_ty(
 ) -> Ty {
     let ty = binding.ty.as_ref().unwrap_or_else(|| {
         panic!(
-            "mwl-ir: a `foreach` {which} binding reached lowering with no declared type — \
-             mwl_syntax already reports that omission, so this file should never have been \
+            "nvs-ir: a `foreach` {which} binding reached lowering with no declared type — \
+             nvs_syntax already reports that omission, so this file should never have been \
              lowered"
         )
     });
@@ -2462,7 +2462,7 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
         // or it is a bug.
         TypeKind::Atom(TypeAtom::StringLiteral(_)) => Ty::Str,
         TypeKind::Atom(TypeAtom::IntLiteral(_)) => Ty::Int,
-        // ADR 0007 § 3's two `bool` singletons, which `mwl_types::ty::Ty::True`
+        // ADR 0007 § 3's two `bool` singletons, which `nvs_types::ty::Ty::True`
         // records are that same rule read on `bool`'s two values — so they
         // erase to `bool`'s representation exactly as the two atoms above
         // erase to theirs.
@@ -2492,7 +2492,7 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
         // resolved members and so cannot be answered from the AST alone.
         TypeKind::Nullable(_) | TypeKind::Union(_) => Ty::Tagged,
         other => panic!(
-            "mwl-ir only lowers bool/int/uint/float/void/string/bytes/array/`?T`/a union/`object`/\
+            "nvs-ir only lowers bool/int/uint/float/void/string/bytes/array/`?T`/a union/`object`/\
              a plain class name as a declared type — got {other:?}; see the crate docs' known gaps"
         ),
     }
@@ -2504,14 +2504,14 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
 /// — into this crate's own [`Ty`]. Distinct from [`lower_decl_type`], which
 /// reads a type straight off the AST instead: this one exists because a
 /// resolved call's parameter/return types (and a property's field type) come
-/// from `mwl_types`' own interner, not from a `Type` AST node this crate can
+/// from `nvs_types`' own interner, not from a `Type` AST node this crate can
 /// lower directly (there may be no local `Type` node at all, e.g. an
 /// inherited method's parameter declared on a different class's source).
 /// `Class` erases to [`Ty::Object`], same as [`lower_decl_type`]'s `Name`
 /// case — see that variant's own doc comment for why identity doesn't need to
 /// survive this translation. `Enum` does *not* join it: ADR 0010 makes an enum
 /// a closed integer type, so it lowers to [`Ty::Enum`] carrying the backing
-/// type `mwl_types::ty::Ty::Enum` already knows (see that variant for why the
+/// type `nvs_types::ty::Ty::Enum` already knows (see that variant for why the
 /// backing rides in the checker's type rather than in a side table). `String` erases to [`Ty::Str`] and
 /// `Bytes` to [`Ty::Bytes`] — the same representations [`lower_decl_type`]
 /// already gives a local/parameter/return type spelled directly in source —
@@ -2534,7 +2534,7 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
 /// additional runtime representation", which is why a member outside this
 /// scope is asked through [`erase_checked_ty`] rather than asserted.
 /// The per-option defaults recorded for the options-bag parameter at `index` —
-/// `mwl_types::core_lib` synthesizes exactly one `ConstArg::Options` entry per
+/// `nvs_types::core_lib` synthesizes exactly one `ConstArg::Options` entry per
 /// bag, so a bag parameter always has one.
 ///
 /// # Panics
@@ -2543,14 +2543,14 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
 /// which would mean the signature table and the parameter type disagree about
 /// what the parameter is.
 fn options_defaults(
-    defaults: &[Option<mwl_types::ConstArg>],
+    defaults: &[Option<nvs_types::ConstArg>],
     index: usize,
-) -> &[(String, mwl_types::ConstArg)] {
+) -> &[(String, nvs_types::ConstArg)] {
     match defaults.get(index) {
-        Some(Some(mwl_types::ConstArg::Options(options))) => options,
+        Some(Some(nvs_types::ConstArg::Options(options))) => options,
         other => panic!(
-            "mwl-ir: parameter {index} is an options bag but its recorded default is {other:?} \
-             — mwl_types::core_lib is trusted to record one `ConstArg::Options` per bag"
+            "nvs-ir: parameter {index} is an options bag but its recorded default is {other:?} \
+             — nvs_types::core_lib is trusted to record one `ConstArg::Options` per bag"
         ),
     }
 }
@@ -2561,7 +2561,7 @@ fn options_defaults(
 ///
 /// A label, not a name: it identifies the class in [`crate::ir::Program`]'s
 /// table and nowhere else, and it is never a symbol, since a shape class has
-/// no methods to emit one for. `$` cannot start an MWL identifier, so no
+/// no methods to emit one for. `$` cannot start an Novis identifier, so no
 /// declaration can collide with it — the same guarantee the `Owner$fn0` a
 /// closure's environment class carries relies on.
 ///
@@ -2575,7 +2575,7 @@ pub(super) fn shape_class_label(sorted_fields: &[String]) -> String {
 fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
     erase_checked_ty(id, checked_types).unwrap_or_else(|| {
         panic!(
-            "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
+            "nvs-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
              class/object/shape/enum/mixed/null/union parameter or return type — got {:?}; see \
              the crate docs' known gaps",
             checked_types.get(id)
@@ -2612,7 +2612,7 @@ fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
         // decision that genuinely depends on a qualifier cannot read it back
         // here. ADR 0033 § 5's constant-time `==` is the only such decision,
         // and the checker records it at the comparison instead
-        // (`mwl_types::expr_table::ExprInfo::SecretEquality`).
+        // (`nvs_types::expr_table::ExprInfo::SecretEquality`).
         CheckedTy::TaintedString | CheckedTy::SecretString | CheckedTy::SecretTaintedString => {
             Ty::Str
         }
@@ -2643,14 +2643,14 @@ fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
         CheckedTy::StringLiteral(_) => Ty::Str,
         CheckedTy::IntLiteral(_) => Ty::Int,
         // `true` and `false` are the same rule on `bool`'s two values (ADR
-        // 0007 § 3's atoms, read by `mwl_types::ty::Ty::True`), so they erase
+        // 0007 § 3's atoms, read by `nvs_types::ty::Ty::True`), so they erase
         // to `bool`. The union arm below then folds `true|false` back to one
         // `Ty::Bool` for free.
         CheckedTy::True | CheckedTy::False => Ty::Bool,
         CheckedTy::Enum(_, backing) | CheckedTy::EnumCase(_, backing, _) => {
             Ty::Enum(match backing {
-                mwl_types::EnumBacking::Int => EnumRepr::Int,
-                mwl_types::EnumBacking::Uint => EnumRepr::Uint,
+                nvs_types::EnumBacking::Int => EnumRepr::Int,
+                nvs_types::EnumBacking::Uint => EnumRepr::Uint,
             })
         }
         // The element `TypeId` is discarded — same erasure `lower_decl_type`
@@ -2728,8 +2728,8 @@ pub(crate) const FN_INVOKE: &str = "invoke";
 /// fewer parameters" — so a native caller has to know how many the closure
 /// actually wants before it can pass, and retain, the right number. A
 /// descriptor carries no arity, so the closure object carries it, in a slot
-/// whose index `mwl_runtime::CLOSURE_ARITY_SLOT` restates and
-/// `mwl-codegen`'s `a_closure_object_carries_its_own_arity_in_slot_zero`
+/// whose index `nvs_runtime::CLOSURE_ARITY_SLOT` restates and
+/// `nvs-codegen`'s `a_closure_object_carries_its_own_arity_in_slot_zero`
 /// holds the two together.
 ///
 /// One 16-byte slot per closure, per evaluation of the literal — bought
@@ -2751,12 +2751,12 @@ pub(crate) const FN_ARITY: &str = "fn#arity";
 /// arbitrary dereference rather than a fault. That is a priority-1 hole, so
 /// the one party that still knows the declared types — this lowering, at the
 /// literal — writes them down for the one party that can act on them:
-/// `mwl_runtime::call_closure`, which compares before it passes.
+/// `nvs_runtime::call_closure`, which compares before it passes.
 ///
-/// A nibble is the `mwl_runtime::Tag` discriminant the argument must carry,
+/// A nibble is the `nvs_runtime::Tag` discriminant the argument must carry,
 /// so the reader needs no table of its own; [`param_tag_nibble`] is the map
-/// and `mwl-codegen`'s `param_tag_nibbles_are_the_runtime_tag_bytes` holds it
-/// against `mwl_codegen::ty::tag_of`, which is the same fact one crate over.
+/// and `nvs-codegen`'s `param_tag_nibbles_are_the_runtime_tag_bytes` holds it
+/// against `nvs_codegen::ty::tag_of`, which is the same fact one crate over.
 /// [`FN_PARAM_TAG_ANY`] is the one nibble that is not a tag: a `mixed`, `?T`
 /// or union parameter is `Ty::Tagged`, whose representation *is* a tag byte
 /// chosen at run time, so nothing about the argument can be wrong.
@@ -2764,7 +2764,7 @@ pub(crate) const FN_ARITY: &str = "fn#arity";
 /// # The bound, and what happens past it
 ///
 /// Sixteen parameters fit ([`FN_PARAM_TAGS_CAPACITY`]). A closure declaring
-/// more gets no nibble for its seventeenth onward, and `mwl_runtime` refuses
+/// more gets no nibble for its seventeenth onward, and `nvs_runtime` refuses
 /// the *call* rather than passing a parameter it cannot check — fail-closed,
 /// under this repository's priority ordering, and unreachable from a callback
 /// the spec describes, which is handed two arguments.
@@ -2781,7 +2781,7 @@ pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
 
 /// The [`FN_PARAM_TAGS`] nibble for a parameter no argument can be wrong for.
 ///
-/// Deliberately not a `mwl_runtime::Tag` discriminant — the roster runs to
+/// Deliberately not a `nvs_runtime::Tag` discriminant — the roster runs to
 /// eleven, so twelve is free and can never be mistaken for a tag a value
 /// actually carries.
 pub const FN_PARAM_TAG_ANY: u8 = 12;
@@ -2789,11 +2789,11 @@ pub const FN_PARAM_TAG_ANY: u8 = 12;
 /// The [`FN_PARAM_TAGS`] nibble a parameter represented as `ty` requires.
 ///
 /// The whole of this map is "the tag a value of that representation carries",
-/// which is `mwl_codegen::ty::tag_of` one crate over — `mwl-ir` cannot name
-/// `mwl_runtime::Tag` (it does not depend on it) and neither can `mwl-runtime`
-/// name this, so the two are held together by a test in `mwl-codegen`, which
+/// which is `nvs_codegen::ty::tag_of` one crate over — `nvs-ir` cannot name
+/// `nvs_runtime::Tag` (it does not depend on it) and neither can `nvs-runtime`
+/// name this, so the two are held together by a test in `nvs-codegen`, which
 /// sees both. That is the same shape [`FN_ARITY`] and
-/// `mwl_runtime::CLOSURE_ARITY_SLOT` already stand in.
+/// `nvs_runtime::CLOSURE_ARITY_SLOT` already stand in.
 ///
 /// Exhaustive on purpose: a new [`Ty`] variant is a decision about what a
 /// closure parameter of that representation admits, and this is where it gets
@@ -2807,8 +2807,8 @@ pub const FN_PARAM_TAG_ANY: u8 = 12;
 /// spelled here at all, and it does not need to be: a body lowered against a
 /// tagged slot reads the tag at every use, which is the guarantee the check
 /// exists to give the bodies that do not.
-/// `tests/conformance/core/arr-a-mixed-or-nullable-callback-parameter-is-unchecked.mwlt`
-/// pins both halves from MWL.
+/// `tests/conformance/core/arr-a-mixed-or-nullable-callback-parameter-is-unchecked.nvst`
+/// pins both halves from Novis.
 ///
 /// [`Ty::Object`]'s nibble is the one row where the representation is not the
 /// whole answer. Every class name erases onto it, so this word admits a
@@ -2820,7 +2820,7 @@ pub const FN_PARAM_TAG_ANY: u8 = 12;
 /// (`lower::closure::check_param_class`); `docs/adr/README.md` § *Decisions
 /// taken at project start* owns why that boundary pays rather than every
 /// named-class property access, and
-/// `tests/conformance/core/out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.mwlt`
+/// `tests/conformance/core/out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.nvst`
 /// pins both lines — this one around objecthood, that one around ancestry.
 pub fn param_tag_nibble(ty: Ty) -> u8 {
     match ty {
@@ -2832,7 +2832,7 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
         // ADR 0010's enum travels as its backing integer, tag included, so
         // these two rows are why an enum and its backing type are one
         // representation here and two enums over one backing are as well —
-        // `tests/conformance/core/arr-a-callback-enum-parameter-is-its-backing-integer.mwlt`
+        // `tests/conformance/core/arr-a-callback-enum-parameter-is-its-backing-integer.nvst`
         // pins the agreement, and the `int`/`uint` split that keeps it exact.
         Ty::Int | Ty::Enum(EnumRepr::Int) => 2,
         Ty::Uint | Ty::Enum(EnumRepr::Uint) => 3,
@@ -2852,7 +2852,7 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
 /// How many `array<…>` levels one [`array_element_tags`] word describes: a
 /// [`param_tag_nibble`] each, packed into a `u64`.
 ///
-/// `mwl_types::expr::operators` refuses a target that nests deeper
+/// `nvs_types::expr::operators` refuses a target that nests deeper
 /// (`E0711`) — that module's `ARRAY_ELEMENT_TAG_LEVELS` is the same `64 / 4`
 /// and the rule's one home — so a deeper annotation never reaches this crate.
 pub const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
@@ -2867,7 +2867,7 @@ pub const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 /// same four bits a closure parameter's entry check compares
 /// ([`param_tag_nibble`]'s own doc comment) and the reason the two share this
 /// encoding rather than inventing a second one. A helper argument is stored as
-/// an `mwl_runtime::Value`, so an integer is what can travel; a class
+/// an `nvs_runtime::Value`, so an integer is what can travel; a class
 /// descriptor cannot, which is exactly why an element type naming a class is
 /// refused a phase up rather than lowered here.
 ///
@@ -2878,7 +2878,7 @@ pub const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 /// `None` where the target is not an array at all, where a level's type is one
 /// no tag decides — a class, a shape, a `callable`, an enum, a literal type, a
 /// union — or where it nests past [`ARRAY_ELEMENT_TAG_LEVELS`]. The roster is
-/// `mwl_types::expr::operators`' `reject_uncheckable_element_type`, which owns
+/// `nvs_types::expr::operators`' `reject_uncheckable_element_type`, which owns
 /// the rule and refuses each of those where it is written (`E0711`), so the
 /// only `None` that survives to here is the one that refusal exempts: the
 /// **identical type**, `array<Foo> as array<Foo>`, which is

@@ -1,16 +1,16 @@
 --TEST--
 `Core\Bytes::unpack`, `::at` and `::fill` each name the last octet they read beside the first they cannot — spec § 7, ADR 0009 § 1, ADR 0063 R4 and R8
 --FILE--
-<?mwl
+<?nvs
 // Spec § 7's three reading boundaries, each asserted on both sides and by the
 // *message* it names rather than by the fact that something threw: a member
 // that stops one octet early prints plausibly against either half alone.
 //
-// `bytes-unpack-reads-back-what-pack-wrote.mwlt` pins the round trip and
-// `bytes-indexes-and-orders-by-byte-offset.mwlt` the in-range answers; this
-// case pins where each stops. `crates/mwl-stdlib/src/bytes.rs` owns the four
+// `bytes-unpack-reads-back-what-pack-wrote.nvst` pins the round trip and
+// `bytes-indexes-and-orders-by-byte-offset.nvst` the in-range answers; this
+// case pins where each stops. `crates/nvs-stdlib/src/bytes.rs` owns the four
 // sites — `advanced`, the leftover check at the foot of `unpacked`,
-// `mwl_core_bytes_at` and `mwl_core_bytes_fill`.
+// `nvs_core_bytes_at` and `nvs_core_bytes_fill`.
 
 final class Buf {
     public static function why(bytes $b, string $format): string {

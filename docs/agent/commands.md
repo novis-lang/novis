@@ -94,11 +94,11 @@ tool instead: `tools/splice.py` for a run of edits, and `tools/peek.py`, which t
 you have questions and answers them in one call:
 
 ```sh
-python tools/peek.py crates/mwl-ir/src/lower/expr.rs:3065-3120 \
-                     crates/mwl-types/src/expr/members.rs:@lower_shape_property \
+python tools/peek.py crates/nvs-ir/src/lower/expr.rs:3065-3120 \
+                     crates/nvs-types/src/expr/members.rs:@lower_shape_property \
                      docs/adr/0036-shapes.md:"## 4" \
-                     "crates/mwl-runtime/src/*.rs:re:slot_get"
-python tools/peek.py --locate mwl_object_slot_get SlotSet ClassDesc   # file:line, no bodies
+                     "crates/nvs-runtime/src/*.rs:re:slot_get"
+python tools/peek.py --locate nvs_object_slot_get SlotSet ClassDesc   # file:line, no bodies
 ```
 
 Locators are `120-160`, `120+30`, `@symbol`, `re:pattern` (optionally `re:pattern:3` for context),
@@ -120,11 +120,11 @@ reached into the same one three times.
 ```sh
 python tools/verify.py                                         # build + fmt + test + clippy, one call
 python tools/verify.py --fast                                  # build + test only, for a mid-work check
-python tools/verify.py -p mwl-ir                               # the same, scoped to one package
+python tools/verify.py -p nvs-ir                               # the same, scoped to one package
 python tools/verify.py --start   ... --wait                    # run it while you write the wrap file
 python tools/verify.py --no-cache                              # re-run even on an unchanged tree
-cargo test --release -p mwl-abi-probe                          # cost guards (skipped in debug)
-cargo test --release -p mwl-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
+cargo test --release -p nvs-abi-probe                          # cost guards (skipped in debug)
+cargo test --release -p nvs-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
 
 **Two of those are for the run that is not the final one, and both are measured as unused.** Over a
@@ -169,13 +169,13 @@ run; a wider one does satisfy a narrower.
 ## Trying a snippet against PHP
 
 ```sh
-python tools/try.py .agent-tmp/promo.mwlt .agent-tmp/div.mwlt .agent-tmp/shift.mwlt
-python tools/try.py .agent-tmp/*.mwlt          # the whole scratch pad, one call
-python tools/try.py --keep .agent-tmp/promo.mwlt
+python tools/try.py .agent-tmp/promo.nvst .agent-tmp/div.nvst .agent-tmp/shift.nvst
+python tools/try.py .agent-tmp/*.nvst          # the whole scratch pad, one call
+python tools/try.py --keep .agent-tmp/promo.nvst
 ```
 
-Each file is in the `.mwlt` shape — `--TEST--`, `--FILE--`, `--ORACLE--` — or, with no markers at all, a
-bare `<?mwl` snippet. `try.py` runs the MWL, runs the `--ORACLE--` through PHP, prints both and says
+Each file is in the `.nvst` shape — `--TEST--`, `--FILE--`, `--ORACLE--` — or, with no markers at all, a
+bare `<?nvs` snippet. `try.py` runs the Novis, runs the `--ORACLE--` through PHP, prints both and says
 whether they agree and where they first do not. Write the files with the Write tool, as many as you have
 questions, and run them in one call.
 
@@ -183,16 +183,16 @@ questions, and run them in one call.
 sessions made **370 snippet-running calls, 335 of them distinct** — 9.6 a session — each one a heredoc
 into `.agent-tmp` followed by a hand-written `php -r` beside it. The turns are the cheap half. The
 expensive half is that a hand-written twin is a *translation*, made under time pressure by the same agent
-that wrote the MWL, at the moment it most wants the answer to be yes — and a twin that quietly differs
+that wrote the Novis, at the moment it most wants the answer to be yes — and a twin that quietly differs
 from what it is checking reads exactly like proof. Priority 2 is PHP-compatible observable behaviour;
 that is not a place to accept a translation nobody ran.
 
 **An experiment that comes out right is already the case.** Give the file its `--TEST--` sentence, move it
-under `tests/differential/`, and `mwl test` runs the same two programs the same way — there is no second
+under `tests/differential/`, and `nvs test` runs the same two programs the same way — there is no second
 translation step, which is the step the drift used to happen in. [conventions.md](conventions.md) § *A
-`.mwlt` test case* owns the format.
+`.nvst` test case* owns the format.
 
-`try.py` needs `target/debug/mwl` built; `verify.py` builds it, so a snippet run after a green
+`try.py` needs `target/debug/nvs` built; `verify.py` builds it, so a snippet run after a green
 verification needs nothing. It judges nothing and exits 0 even when a twin disagrees — that is the
 finding, not an error.
 
@@ -244,7 +244,7 @@ simply reports itself skipped when there is no `.loop/` directory.
 ## Benchmarking against PHP
 
 ```sh
-python tools/bench.py                    # 20 userland cases, MWL and PHP side by side
+python tools/bench.py                    # 20 userland cases, Novis and PHP side by side
 python tools/bench.py 05 regex           # only the cases whose name contains these
 python tools/bench.py --check            # do the two halves still agree? (no timing)
 python tools/bench.py --php-mode default # PHP as installed, rather than with opcache+JIT
@@ -252,7 +252,7 @@ python tools/bench.py --json docs/perf/userland.ndjson   # append one record per
 ```
 
 `benches/userland/` holds twenty pieces of ordinary web-and-CLI PHP written twice, `NN-slug.php` beside
-`NN-slug.mwl`. [Its README](../../benches/userland/README.md) owns what a case is and how to add one —
+`NN-slug.nvs`. [Its README](../../benches/userland/README.md) owns what a case is and how to add one —
 including the rule that is not obvious, that each iteration's input must depend on the last one's result,
 because PHP's tracing JIT deletes a loop whose input never changes and the deleted loop still prints the
 right answer.
@@ -269,7 +269,7 @@ suite is that ADR's § 3 secondary figure, in runnable form.
 ```sh
 python tools/machine.py               # what this box is, and the widths it implies
 python tools/machine.py --refresh     # forget the cached facts and probe again
-MWL_VALGRIND_JOBS=2 python tools/loop.py --goal-only   # override one run's sweep width
+NVS_VALGRIND_JOBS=2 python tools/loop.py --goal-only   # override one run's sweep width
 ```
 
 **One policy, in `tools/machine.py`, and no caller has its own:** half the cores the work will actually
@@ -281,8 +281,8 @@ The facts it needs are a property of the box, so they are probed **once** and ca
 `.loop/machine.json`: cores, free memory, and one unit of the real work timed serially as a baseline. The
 probe runs *where the work runs*, which on Windows is inside WSL — `.wslconfig` sets WSL2's cores and
 memory independently of the host, so the host's count is the wrong number. An entry is re-probed when the
-host name changes or after 30 days, which is how a `.wslconfig` edit gets noticed. `MWL_JOBS` overrides
-every width for one run, `MWL_VALGRIND_JOBS` and `MWL_TRY_JOBS` one caller's; none is written back.
+host name changes or after 30 days, which is how a `.wslconfig` edit gets noticed. `NVS_JOBS` overrides
+every width for one run, `NVS_VALGRIND_JOBS` and `NVS_TRY_JOBS` one caller's; none is written back.
 
 Two callers today: the valgrind sweep in `loop.py`, and `try.py`, which runs its snippets this wide and
 prints the blocks back in the order you asked for them.
@@ -318,11 +318,11 @@ fingerprint against what is really on disk, so a mistake costs a rebuild and not
 `[profile.dev.package."*"] debug = 0` in `Cargo.toml` is the other half, and it is why a generation now
 holds 1.7 GB of debug info rather than 3.9 GB: on windows-msvc the linker copies the debug info of every
 linked object into each binary's PDB, so cranelift and wasmtime were being written into all ~60 test
-binaries at once. MWL's own crates keep full debug info; only the dependency wall lost it, and a session's
+binaries at once. Novis's own crates keep full debug info; only the dependency wall lost it, and a session's
 own `verify.py` got *faster* (51s → 43s) because there is less to link and to load.
 
 Four things live outside this repository and `disk.py` reports them without ever deleting them — another
-tool's state is not a repo script's to remove. `/var/tmp/mwl-linux` and `/var/tmp/mwl-target-wsl` are the
+tool's state is not a repo script's to remove. `/var/tmp/nvs-linux` and `/var/tmp/nvs-target-wsl` are the
 valgrind leg's and the WSL leg's own target directories, each a full one; deleting either frees ext4 space
 but **not** Windows space, because the vhdx never shrinks on its own (`wsl --shutdown`, then compact it,
 if C: is what is short). `~/.claude/projects/` keeps one JSONL per session forever.
@@ -333,13 +333,13 @@ if C: is what is short). `~/.claude/projects/` keeps one JSONL per session forev
 `cargo-fuzz` (the `fuzz/` crate) needs libFuzzer, and `valgrind`/`callgrind`
 ([ADR 0026](../adr/0026-performance-measurement-methodology.md)) has no native Windows build at all — do
 both in WSL. From a Windows shell, `wsl.exe -- bash -lc "<command>"` runs a command in the default WSL
-distro, which mounts the repo at `/mnt/<drive>/<repo>`. What that distro must have installed — and why PHP goes in
+distro, which mounts the repo at `/mnt/d/nvs`. What that distro must have installed — and why PHP goes in
 it as well, at the same version as the Windows one — is [docs/setup.md](../setup.md).
 
 **Build from `/mnt/d`; do not clone into the distro to "fix" the 9p mount.** Per file operation 9p is
 50–100× slower, but the base is too small to show: the workspace is 1,412 files, 190 of them `.rs`,
 dependencies compile out of `~/.cargo` on ext4 either way, and the target directory is already off the
-mount. Measured on this workspace — a cold `cargo build -p mwl-cli` is 31.6s from `/mnt/d` against 32.2s
+mount. Measured on this workspace — a cold `cargo build -p nvs-cli` is 31.6s from `/mnt/d` against 32.2s
 from an ext4 copy of the same tree, a no-op rebuild is 0.31s, and one touched file rebuilds in 0.75s. A
 synced Linux-side clone buys under a second per acceptance check and costs a stale-copy failure mode.
 
@@ -349,15 +349,15 @@ again on the next call, so a target directory in `/tmp` is gone after any idle g
 pays 32s of cold build instead of 0.31s. Nothing ages `/var/tmp` out — Ubuntu 24.04 ships its
 `q /var/tmp` line commented out.
 
-From `/mnt/<drive>/<repo>` (not `fuzz/` itself — cargo-fuzz expects the parent directory):
+From `/mnt/d/nvs` (not `fuzz/` itself — cargo-fuzz expects the parent directory):
 `cargo +nightly fuzz run lex -- -max_total_time=300` (and `parse` likewise). CI's `fuzz-smoke` job runs both
 for 60s on every push.
 
-For the instruction-count leg: `cargo build --release -p mwl-abi-probe --example callgrind_spike`, then
+For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example callgrind_spike`, then
 `valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out ./target/release/examples/callgrind_spike`.
 
 **A hand-written refcount protocol is where a leak hides, so check one before you commit it.**
-`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh <fixture> …` runs `valgrind --leak-check=full` over the
-`.mwl` files you name. Run it for **any** new refcount edge, against a fixture that actually exercises it —
+`wsl.exe -- bash /mnt/d/nvs/tools/leak-check.sh <fixture> …` runs `valgrind --leak-check=full` over the
+`.nvs` files you name. Run it for **any** new refcount edge, against a fixture that actually exercises it —
 this repository's one real leak went unnoticed until a fixture happened to declare a refcounted local
 inside a loop.

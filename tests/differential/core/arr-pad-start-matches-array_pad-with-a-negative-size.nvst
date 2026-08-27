@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::padStart reaches the same total from the front as array_pad with a negative size, so a member name selects what a sign selects in PHP
 --FILE--
-<?mwl
+<?nvs
 // Spec § 2's `array_pad` row, negative half. `$size` is a `uint` here, so PHP's
 // "a negative length pads on the left" overload has no spelling at all — the
 // direction is the member's name instead. The claim this case makes is that the
@@ -12,7 +12,7 @@ Core\Arr::padStart reaches the same total from the front as array_pad with a neg
 // *total* of five entries, not five added ones, which is the reading that makes
 // the two members a translation of one function rather than of two.
 //
-// A list subject, for the reason `arr-pad-end-matches-array_pad` states: MWL's
+// A list subject, for the reason `arr-pad-end-matches-array_pad` states: Novis's
 // result is always a list and PHP's keeps the string keys, so only a list makes
 // the two rules coincide. `arr-pad-on-string-keys-diverges-from-array_pad` is
 // where they part.

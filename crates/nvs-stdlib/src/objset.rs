@@ -4,9 +4,9 @@
 //! One slot, holding the store [`crate::identity_store`] describes: a member
 //! is an entry under its own chain key, so `has` is a lookup, `count` is the
 //! store's own count, and nothing here decides anything about identity that
-//! `mwl_runtime::identity` has not already decided.
+//! `nvs_runtime::identity` has not already decided.
 
-use mwl_runtime::{Fault, MwlStr, ObjHeader, Value};
+use nvs_runtime::{Fault, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
 use crate::registry::{CoreClass, CoreMethod, CoreTy};
@@ -15,17 +15,17 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy};
 pub(crate) const NAME: &str = r"Core\ObjectSet";
 
 /// The linker symbol `new Core\ObjectSet<T>()` lowers to — see
-/// [`crate::registry::CONSTRUCTORS`], which is the roster `mwl-ir` reads.
-pub(crate) const NEW_SYMBOL: &str = "mwl_core_object_set_new";
+/// [`crate::registry::CONSTRUCTORS`], which is the roster `nvs-ir` reads.
+pub(crate) const NEW_SYMBOL: &str = "nvs_core_object_set_new";
 
 /// The symbol behind `Iterable<T>::iterate()`, reached by name through this
 /// class's method table rather than as a registered member — see
 /// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
-pub(crate) const ITERATE_SYMBOL: &str = "mwl_core_object_set_iterate";
+pub(crate) const ITERATE_SYMBOL: &str = "nvs_core_object_set_iterate";
 
 /// `new Core\ObjectSet<T>()` — the constructor [`crate::registry::CONSTRUCTORS`]
 /// registers, which takes nothing: a set's order is its insertion order and
-/// its identity is `mwl_runtime::identity`'s, so there is nothing to give it.
+/// its identity is `nvs_runtime::identity`'s, so there is nothing to give it.
 pub(crate) const NEW: CoreMethod = CoreMethod {
     name: "constructor",
     params: &[],
@@ -52,63 +52,63 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "mwl_core_object_set_add",
+            symbol: "nvs_core_object_set_add",
         },
         CoreMethod {
             name: "has",
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_object_set_has",
+            symbol: "nvs_core_object_set_has",
         },
         CoreMethod {
             name: "remove",
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "mwl_core_object_set_remove",
+            symbol: "nvs_core_object_set_remove",
         },
         CoreMethod {
             name: "count",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
-            symbol: "mwl_core_object_set_count",
+            symbol: "nvs_core_object_set_count",
         },
         CoreMethod {
             name: "isEmpty",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
-            symbol: "mwl_core_object_set_is_empty",
+            symbol: "nvs_core_object_set_is_empty",
         },
         CoreMethod {
             name: "union",
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
-            symbol: "mwl_core_object_set_union",
+            symbol: "nvs_core_object_set_union",
         },
         CoreMethod {
             name: "intersect",
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
-            symbol: "mwl_core_object_set_intersect",
+            symbol: "nvs_core_object_set_intersect",
         },
         CoreMethod {
             name: "diff",
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
-            symbol: "mwl_core_object_set_diff",
+            symbol: "nvs_core_object_set_diff",
         },
         CoreMethod {
             name: "clear",
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
-            symbol: "mwl_core_object_set_clear",
+            symbol: "nvs_core_object_set_clear",
         },
     ],
     slots: &["entries"],
@@ -122,17 +122,17 @@ const ENTRIES: usize = 0;
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
-        NEW_SYMBOL => (mwl_core_object_set_new as *const ()).cast(),
-        "mwl_core_object_set_add" => (mwl_core_object_set_add as *const ()).cast(),
-        "mwl_core_object_set_has" => (mwl_core_object_set_has as *const ()).cast(),
-        "mwl_core_object_set_remove" => (mwl_core_object_set_remove as *const ()).cast(),
-        "mwl_core_object_set_count" => (mwl_core_object_set_count as *const ()).cast(),
-        "mwl_core_object_set_is_empty" => (mwl_core_object_set_is_empty as *const ()).cast(),
-        "mwl_core_object_set_union" => (mwl_core_object_set_union as *const ()).cast(),
-        "mwl_core_object_set_intersect" => (mwl_core_object_set_intersect as *const ()).cast(),
-        "mwl_core_object_set_diff" => (mwl_core_object_set_diff as *const ()).cast(),
-        "mwl_core_object_set_clear" => (mwl_core_object_set_clear as *const ()).cast(),
-        ITERATE_SYMBOL => (mwl_core_object_set_iterate as *const ()).cast(),
+        NEW_SYMBOL => (nvs_core_object_set_new as *const ()).cast(),
+        "nvs_core_object_set_add" => (nvs_core_object_set_add as *const ()).cast(),
+        "nvs_core_object_set_has" => (nvs_core_object_set_has as *const ()).cast(),
+        "nvs_core_object_set_remove" => (nvs_core_object_set_remove as *const ()).cast(),
+        "nvs_core_object_set_count" => (nvs_core_object_set_count as *const ()).cast(),
+        "nvs_core_object_set_is_empty" => (nvs_core_object_set_is_empty as *const ()).cast(),
+        "nvs_core_object_set_union" => (nvs_core_object_set_union as *const ()).cast(),
+        "nvs_core_object_set_intersect" => (nvs_core_object_set_intersect as *const ()).cast(),
+        "nvs_core_object_set_diff" => (nvs_core_object_set_diff as *const ()).cast(),
+        "nvs_core_object_set_clear" => (nvs_core_object_set_clear as *const ()).cast(),
+        ITERATE_SYMBOL => (nvs_core_object_set_iterate as *const ()).cast(),
         _ => return None,
     })
 }
@@ -154,8 +154,8 @@ fn set_of(value: Value, member: &str) -> Result<*mut ObjHeader, Fault> {
 /// because a chain ordinal is a property of what is *already* in the store it
 /// belongs to, and two stores do not agree about it.
 fn collect_into(
-    out: &mut mwl_runtime::MwlArray,
-    source: &mwl_runtime::MwlArray,
+    out: &mut nvs_runtime::NvsArray,
+    source: &nvs_runtime::NvsArray,
     keep: impl Fn(Value) -> bool,
 ) {
     let mut from = 0usize;
@@ -180,14 +180,14 @@ fn collect_into(
         unsafe {
             value.retain();
         }
-        out.set(MwlStr::new(&key), value);
+        out.set(NvsStr::new(&key), value);
     }
 }
 
 /// A fresh set whose store `fill` writes — the result every algebra member
 /// hands back, built once rather than constructed and then edited.
-fn built_from(fill: impl FnOnce(&mut mwl_runtime::MwlArray)) -> Value {
-    let mut out = mwl_runtime::MwlArray::new();
+fn built_from(fill: impl FnOnce(&mut nvs_runtime::NvsArray)) -> Value {
+    let mut out = nvs_runtime::NvsArray::new();
     fill(&mut out);
     crate::instance::build(&CLASS, [Value::array(out)])
 }
@@ -197,15 +197,15 @@ fn built_from(fill: impl FnOnce(&mut mwl_runtime::MwlArray)) -> Value {
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member if the argument is not a set, which
-/// `mwl_types` already refused — the argument's declared type is
+/// `nvs_types` already refused — the argument's declared type is
 /// [`CoreTy::Instance`] of this very class.
 fn both(
     args: &[Value],
     member: &str,
 ) -> Result<
     (
-        std::mem::ManuallyDrop<mwl_runtime::MwlArray>,
-        std::mem::ManuallyDrop<mwl_runtime::MwlArray>,
+        std::mem::ManuallyDrop<nvs_runtime::NvsArray>,
+        std::mem::ManuallyDrop<nvs_runtime::NvsArray>,
     ),
     Fault,
 > {
@@ -214,27 +214,27 @@ fn both(
     Ok((mine, theirs))
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `new Core\ObjectSet<T>()` — a fresh empty set.
     ///
     /// Reached as a symbol rather than as a registered `constructor` member:
-    /// a `Core` class has no constructor a program could resolve, so `mwl-ir`
+    /// a `Core` class has no constructor a program could resolve, so `nvs-ir`
     /// lowers `new` on one straight to this helper and nothing below it
     /// learns that `Core` owns a class ([`crate::instance`]'s module docs).
-    fn mwl_core_object_set_new(_ctx, _args: [0]) {
-        let empty = mwl_runtime::MwlArray::new();
+    fn nvs_core_object_set_new(_ctx, _args: [0]) {
+        let empty = nvs_runtime::NvsArray::new();
         Ok(crate::instance::build(&CLASS, [Value::array(empty)]))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::add(T $value): void` — adds `$value` if the set
     /// does not already hold something identical to it.
     ///
     /// Idempotent, and silent about which it did: a set that reported whether
     /// the value was new would be `add` answering two questions, and § 9's
     /// table gives it none. `has` is the spelling for the other one.
-    fn mwl_core_object_set_add(_ctx, args: [2]) {
+    fn nvs_core_object_set_add(_ctx, args: [2]) {
         let receiver = set_of(args[0], "add")?;
         let value = args[1];
         store::edit(receiver, ENTRIES, &CLASS, "add", |entries| {
@@ -250,16 +250,16 @@ mwl_runtime::mwl_helper! {
             unsafe {
                 value.retain();
             }
-            entries.set(MwlStr::new(&key), value);
+            entries.set(NvsStr::new(&key), value);
         })?;
         Ok(Value::null())
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::has(T $value): bool` — whether the set holds
     /// something identical to `$value`.
-    fn mwl_core_object_set_has(_ctx, args: [2]) {
+    fn nvs_core_object_set_has(_ctx, args: [2]) {
         let receiver = set_of(args[0], "has")?;
         let entries = store::borrow(receiver, ENTRIES, &CLASS, "has")?;
         let (_, present) = store::locate(&entries, args[1]);
@@ -267,13 +267,13 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::remove(T $value): void` — drops `$value` if the
     /// set holds it, and does nothing if it does not.
     ///
     /// Silent for the same reason `add` is: § 9's table gives it no answer,
     /// and "was it there" is `has`'s question.
-    fn mwl_core_object_set_remove(_ctx, args: [2]) {
+    fn nvs_core_object_set_remove(_ctx, args: [2]) {
         let receiver = set_of(args[0], "remove")?;
         let value = args[1];
         store::edit(receiver, ENTRIES, &CLASS, "remove", |entries| {
@@ -286,13 +286,13 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::count(): uint` — how many distinct values the set
     /// holds.
     ///
     /// The store's own entry count, because the chain keys are one per member
     /// and never a tombstone — `crate::identity_store`'s docs.
-    fn mwl_core_object_set_count(_ctx, args: [1]) {
+    fn nvs_core_object_set_count(_ctx, args: [1]) {
         let receiver = set_of(args[0], "count")?;
         let entries = store::borrow(receiver, ENTRIES, &CLASS, "count")?;
         let count = u64::try_from(entries.count()).expect("an entry count fits in a `uint`");
@@ -300,20 +300,20 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::isEmpty(): bool` — whether the set holds nothing.
     ///
     /// A member of its own for the reason `Core\Arr::isEmpty` is one: § 9's
     /// table lists it, so the question is answered without the caller having
     /// to know that a count is `uint`.
-    fn mwl_core_object_set_is_empty(_ctx, args: [1]) {
+    fn nvs_core_object_set_is_empty(_ctx, args: [1]) {
         let receiver = set_of(args[0], "isEmpty")?;
         let entries = store::borrow(receiver, ENTRIES, &CLASS, "isEmpty")?;
         Ok(Value::bool(entries.is_empty()))
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::union(ObjectSet<T> $other): ObjectSet<T>` — a new
     /// set holding every value either side holds.
     ///
@@ -321,7 +321,7 @@ mwl_runtime::mwl_helper! {
     /// the three algebra members composable and is how the spec's `Core\Arr`
     /// counterparts already read. The receiver's values come first, so the
     /// result's iteration order is this side then the other's newcomers.
-    fn mwl_core_object_set_union(_ctx, args: [2]) {
+    fn nvs_core_object_set_union(_ctx, args: [2]) {
         let (mine, theirs) = both(args, "union")?;
         Ok(built_from(|out| {
             collect_into(out, &mine, |_| true);
@@ -330,10 +330,10 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::intersect(ObjectSet<T> $other): ObjectSet<T>` — a
     /// new set holding the values both sides hold.
-    fn mwl_core_object_set_intersect(_ctx, args: [2]) {
+    fn nvs_core_object_set_intersect(_ctx, args: [2]) {
         let (mine, theirs) = both(args, "intersect")?;
         Ok(built_from(|out| {
             collect_into(out, &mine, |value| store::locate(&theirs, value).1);
@@ -341,13 +341,13 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::diff(ObjectSet<T> $other): ObjectSet<T>` — a new
     /// set holding the values this side holds and the other does not.
     ///
     /// Spelled `diff` rather than `difference` because `Core\Arr` spells it
     /// that way and one operation gets one name (§ 9's own note).
-    fn mwl_core_object_set_diff(_ctx, args: [2]) {
+    fn nvs_core_object_set_diff(_ctx, args: [2]) {
         let (mine, theirs) = both(args, "diff")?;
         Ok(built_from(|out| {
             collect_into(out, &mine, |value| !store::locate(&theirs, value).1);
@@ -355,17 +355,17 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Iterable<T>::iterate(): Iterator<T>` — a cursor over a snapshot of the
     /// set's members.
     ///
     /// Not a registered member: it is reached by name through this class's
     /// method table, so its receiver is **transferred** rather than borrowed —
     /// [`crate::cursor`]'s module docs own both halves of that.
-    fn mwl_core_object_set_iterate(_ctx, args: [1]) {
-        let cursor = set_of(args[0], mwl_runtime::sequence::ITERATE).and_then(|receiver| {
+    fn nvs_core_object_set_iterate(_ctx, args: [1]) {
+        let cursor = set_of(args[0], nvs_runtime::sequence::ITERATE).and_then(|receiver| {
             let entries =
-                store::borrow(receiver, ENTRIES, &CLASS, mwl_runtime::sequence::ITERATE)?;
+                store::borrow(receiver, ENTRIES, &CLASS, nvs_runtime::sequence::ITERATE)?;
             Ok(crate::cursor::over(store::listed(&entries)))
         });
         crate::cursor::consume(args[0]);
@@ -373,9 +373,9 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-mwl_runtime::mwl_helper! {
+nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::clear(): void` — drops every member.
-    fn mwl_core_object_set_clear(_ctx, args: [1]) {
+    fn nvs_core_object_set_clear(_ctx, args: [1]) {
         let receiver = set_of(args[0], "clear")?;
         store::replace(receiver, ENTRIES);
         Ok(Value::null())
@@ -386,10 +386,10 @@ mwl_runtime::mwl_helper! {
 mod tests {
     use super::*;
 
-    use mwl_runtime::{Ctx, MwlFn, call};
+    use nvs_runtime::{Ctx, NvsFn, call};
 
     /// Runs `member` with `set` as the receiver and `rest` past it.
-    fn on(set: Value, member: MwlFn, rest: &[Value]) -> Value {
+    fn on(set: Value, member: NvsFn, rest: &[Value]) -> Value {
         let mut ctx = Ctx::buffered();
         let mut args = vec![set];
         args.extend_from_slice(rest);
@@ -399,7 +399,7 @@ mod tests {
     /// A fresh set, for a test to fill.
     fn empty() -> Value {
         let mut ctx = Ctx::buffered();
-        call(mwl_core_object_set_new, &mut ctx, &[]).expect("a fresh set does not throw")
+        call(nvs_core_object_set_new, &mut ctx, &[]).expect("a fresh set does not throw")
     }
 
     /// Releases a set this frame owns the only reference to.
@@ -429,23 +429,23 @@ mod tests {
         )
         .0;
         store::edit(receiver, ENTRIES, &CLASS, "test", |entries| {
-            entries.set(MwlStr::new(&head), Value::null());
+            entries.set(NvsStr::new(&head), Value::null());
         })
         .expect("a fresh set holds a store");
 
-        on(set, mwl_core_object_set_add, &[Value::int(2)]);
-        assert_eq!(on(set, mwl_core_object_set_count, &[]).as_uint(), Some(2));
+        on(set, nvs_core_object_set_add, &[Value::int(2)]);
+        assert_eq!(on(set, nvs_core_object_set_count, &[]).as_uint(), Some(2));
         assert_eq!(
-            on(set, mwl_core_object_set_has, &[Value::int(2)]).as_bool(),
+            on(set, nvs_core_object_set_has, &[Value::int(2)]).as_bool(),
             Some(true)
         );
 
-        on(set, mwl_core_object_set_remove, &[Value::int(2)]);
+        on(set, nvs_core_object_set_remove, &[Value::int(2)]);
         assert_eq!(
-            on(set, mwl_core_object_set_has, &[Value::int(2)]).as_bool(),
+            on(set, nvs_core_object_set_has, &[Value::int(2)]).as_bool(),
             Some(false)
         );
-        assert_eq!(on(set, mwl_core_object_set_count, &[]).as_uint(), Some(1));
+        assert_eq!(on(set, nvs_core_object_set_count, &[]).as_uint(), Some(1));
         drop_set(set);
     }
 }

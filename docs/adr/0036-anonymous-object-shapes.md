@@ -1,9 +1,9 @@
-# ADR 0036 — `object` is the opaque top of every class type; `{...}` builds an anonymous, methodless instance; an inline `{name: T, ...}` shape is MWL's one structurally-checked type
+# ADR 0036 — `object` is the opaque top of every class type; `{...}` builds an anonymous, methodless instance; an inline `{name: T, ...}` shape is Novis's one structurally-checked type
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
 - **Scope:** PHP's `stdClass` and the general "a bag of named values, shared by reference, without declaring
-  a class" need — the `object` type atom (already reserved in `mwl-syntax`/`mwl-types` but never given
+  a class" need — the `object` type atom (already reserved in `nvs-syntax`/`nvs-types` but never given
   subtyping semantics), a new anonymous object-literal expression (`{a: 1, b: 2}`), and a new inline
   structural shape type (`{name: T, ...}`) usable anywhere a type is expected. Does not add methods,
   inheritance, or any nominal contract to these values — they stay pure data.
@@ -21,7 +21,7 @@
   shape's structural check.
 
 > **In short:** PHP's `stdClass` needs dynamic, undeclared properties — closed for good reason in
-> [ADR 0014](0014-property-observer.md) — so MWL cannot offer it directly. Instead: **`object` becomes the
+> [ADR 0014](0014-property-observer.md) — so Novis cannot offer it directly. Instead: **`object` becomes the
 > real, opaque supertype of every class type** (named or anonymous), reusing a keyword and atom that were
 > already reserved but never wired up. **`{a: 1, b: 2}` is sugar that instantiates a compiler-synthesized,
 > methodless class** with exactly those fields, types inferred from the initializers — no constructor, no
@@ -33,7 +33,7 @@
 > type. For the case where compile-time field safety *is* wanted without declaring a class, **an inline
 > shape type — `{name: T, ...}` — is usable directly in a signature**: a structural, width-subtyped,
 > compile-time-only constraint checked at each call/assignment site against the source's real, already-known
-> type. This is the **one deliberate exception** to MWL's otherwise fully nominal type system, and it is
+> type. This is the **one deliberate exception** to Novis's otherwise fully nominal type system, and it is
 > scoped tightly to this one type family — `Comparable`, `PropertyObserver` and ordinary `interface`
 > satisfaction stay exactly as nominal as [ADR 0013](0013-comparable-interface.md)/[ADR 0014](0014-property-observer.md)/[ADR 0015](0015-no-name-aliasing.md)
 > already left them.
@@ -41,7 +41,7 @@
 ## Context
 
 - The user asked for PHP's `stdClass` — a way to pass a shared, named bag of values across a function
-  boundary without declaring a class. MWL cannot offer it as-is: every property must be declared and typed
+  boundary without declaring a class. Novis cannot offer it as-is: every property must be declared and typed
   ([ADR 0007](0007-explicit-type-system.md)), and accessing/creating an undeclared one is a hard error with
   no fallback ([ADR 0014](0014-property-observer.md) § 5) — exactly the mechanism `stdClass` needs closed.
 - [ADR 0031](0031-callable-is-the-only-closure-type.md) already named the gap this fills: two closures
@@ -52,7 +52,7 @@
   call-site-local structural check for the one case an opaque view isn't enough.
 - `object` was already a reserved keyword and interned type atom (`Keyword::Object`, `Ty::Object`) with no
   subtyping wired up — this ADR finishes an atom already sitting in the grammar, not a new addition.
-- Two grammar collisions were found in `mwl-syntax/src/parser.rs`: `parse_fn_expr` already commits `{` after
+- Two grammar collisions were found in `nvs-syntax/src/parser.rs`: `parse_fn_expr` already commits `{` after
   `=>` to a block body, and `parse_statement_inner` commits a statement-initial `{` to a block statement —
   the identical ambiguity JavaScript has for `() => {...}`, solved the identical way (parenthesize).
 
@@ -60,7 +60,7 @@
 
 **`object` is the opaque supertype of every class type. `{name: value, ...}` builds an anonymous, methodless
 instance of a compiler-synthesized class. `{name: T, ...}` in type position is a structural shape type,
-checked at compile time by width subtyping and ordinary field-type assignability — MWL's one deliberate
+checked at compile time by width subtyping and ordinary field-type assignability — Novis's one deliberate
 exception to nominal typing, scoped to this type family alone.**
 
 ### 1. `object` — real subtyping for an atom that already existed
@@ -101,7 +101,7 @@ field is written `name: value`), and no computed/dynamic key (`{[$expr]: 1}`). E
 is a static identifier, full stop — there is no path from this literal back to PHP's dynamic-property
 behaviour.
 
-**Grammar note, found by reading `mwl-syntax/src/parser.rs` directly rather than assuming:** `parse_fn_expr`
+**Grammar note, found by reading `nvs-syntax/src/parser.rs` directly rather than assuming:** `parse_fn_expr`
 already parses `{` immediately after `=>` as the start of a block body ([ADR 0031](0031-callable-is-the-only-closure-type.md)),
 so `fn() => {a: 1, b: 2}` parses as a block body attempting to parse `a: 1, b: 2` as statements, not as a
 returned literal. Returning a literal directly from an expression-bodied arrow needs the same fix
@@ -130,7 +130,7 @@ used for every other parameter — no new comparison logic invented for this.
 - `object` with no shape remains the fully erased form; every shape type is a subtype of plain `object`.
 - Reusable for free via [ADR 0015](0015-no-name-aliasing.md)'s existing `type` alias mechanism: a shape is a
   type *expression*, never a single bare class, so it was never excluded by that ADR's one restriction.
-- **This is the one deliberate, tightly scoped exception to MWL's otherwise fully nominal type system.**
+- **This is the one deliberate, tightly scoped exception to Novis's otherwise fully nominal type system.**
   Two unrelated named classes that happen to share field names/types become interchangeable wherever a shape
   type is used. This is intentional and is exactly what delivers "no shape needs to be declared anywhere for
   two sides to agree" — but it applies only to this type family. `Comparable`
@@ -199,7 +199,7 @@ the answer: declare an ordinary class.
 **Negative**
 
 - **The one deliberate crack in an otherwise fully nominal type system.** Worth restating plainly so no
-  future reader assumes MWL is structurally typed anywhere else: it is not — only `object` and shape types
+  future reader assumes Novis is structurally typed anywhere else: it is not — only `object` and shape types
   work this way.
 - Property access through an erased `object` view, or a field a shape doesn't list, costs a real
   runtime name lookup (and, for writes, a type check) that a fully statically-known object never pays. This
@@ -208,8 +208,8 @@ the answer: declare an ordinary class.
 - Two grammar collisions, both closed with a known fix but both real surface to document: `fn() => {...}`
   means a block body, not a returned literal, unless parenthesized; a bare literal statement needs the same.
 - PHP's `stdClass`/dynamic-property idiom still has no mechanical translation — a PHP object built by
-  assigning arbitrary properties after construction has no MWL literal equivalent, since every field must be
-  fixed at the point of construction. `mwl convert` (M11) must flag this as a `TODO`, joining the TODO
+  assigning arbitrary properties after construction has no Novis literal equivalent, since every field must be
+  fixed at the point of construction. `nvs convert` (M11) must flag this as a `TODO`, joining the TODO
   classes [ADR 0007](0007-explicit-type-system.md) § 7 and [ADR 0014](0014-property-observer.md) already
   carry.
 
@@ -219,7 +219,7 @@ the answer: declare an ordinary class.
   anywhere a type can appear. Rejected: sizable checker machinery (shape canonicalization, structural
   subtyping threaded through the whole lattice) for a need the opaque-`object`-plus-local-shape-check design
   already meets far cheaper. Revisitable if real converted code shows the local check insufficient.
-- **Reusing the `interface` keyword** for shapes (TypeScript's model). Rejected: PHP/MWL's `interface`
+- **Reusing the `interface` keyword** for shapes (TypeScript's model). Rejected: PHP/Novis's `interface`
   already means a nominal, `implements`-declared, method-bearing contract; overloading it for something
   structural and property-only is the same "two meanings, one name" problem
   [ADR 0015](0015-no-name-aliasing.md) already refuses elsewhere.
@@ -236,7 +236,7 @@ Deferred deliberately, each needing its own argument once there is real code to 
   lookup, if the erased-access cost in *Decision § 4* shows up on a hot path in practice. Not attempted here.
 - **Whether a shape type should ever require a method**, making it a hybrid structural interface rather than
   pure data. Deliberately out of scope — this ADR's shapes are data-only, matching the original request.
-- **`mwl convert`'s exact handling of PHP's `stdClass`/post-construction dynamic-property patterns** —
+- **`nvs convert`'s exact handling of PHP's `stdClass`/post-construction dynamic-property patterns** —
   belongs to M11's own design, per *Consequences*' negative list.
 
 Verification, in the order it becomes possible:

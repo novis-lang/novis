@@ -20,7 +20,7 @@
 > ways to give something a second name are rejected: `class_alias()` does not exist in `Core` and never will,
 > and `use Foo\Bar as Baz;` is a diagnostic, not an import. (Trait composition's `as`/`insteadof` clauses,
 > originally narrowed rather than removed here, are gone in full — traits do not exist at all as of
-> [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md).) The one alias MWL keeps is a
+> [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md).) The one alias Novis keeps is a
 > **`type` alias** — a new, compile-time-only synonym for a type *expression* (`type UserId = uint;`, `type
 > Row = array<string, int|string>;`), erased entirely by the type checker, never a second runtime-reachable
 > name for a single class. To keep that from becoming the same loophole through a different door, a `type`
@@ -71,7 +71,7 @@ is a diagnostic: *imports cannot be renamed; refer to `Name` by its declared sho
 fully-qualified path directly.* This applies uniformly to classes, interfaces, traits and enums — PHP does
 not let `use` rename a function or constant import differently from a class import, and neither does this
 rule need to, since [ADR 0011](0011-functions-and-constants-are-class-members.md) already removed
-free-standing functions and constants from having an import form of their own. If a future MWL version adds
+free-standing functions and constants from having an import form of their own. If a future Novis version adds
 a `use`-shaped shorthand for reaching a `Core` member without the `Class::` prefix — the possibility ADR
 0011 names in its own *Revisiting* — it inherits this rule without needing its own ADR: no renaming, ever, on
 import.
@@ -174,12 +174,12 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
   method or constant is reachable under exactly the name it declared, full stop — no runtime indirection
   layer sitting in front of any of them.
 - `class_alias`'s specific footgun — code written against one name that a *different* request or a later
-  call can silently repoint to a different class — cannot exist in MWL at all, structurally rather than by
+  call can silently repoint to a different class — cannot exist in Novis at all, structurally rather than by
   convention.
 - The genuine verbosity cost [ADR 0007](0007-explicit-type-system.md) flagged in its own *Negative* section
   gets a real answer, on a mechanism narrow enough that it cannot be turned into the aliasing this ADR
   otherwise removes.
-- `mwl check`'s symbol table keeps exactly one entry per declared class/interface/enum/method/constant name,
+- `nvs check`'s symbol table keeps exactly one entry per declared class/interface/enum/method/constant name,
   and a separate, structurally distinct table for `type` alias expansion — no code path anywhere needs to ask
   "is this name resolved directly, or through an alias someone declared."
 
@@ -189,7 +189,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
   [ADR 0011](0011-functions-and-constants-are-class-members.md) and
   [ADR 0012](0012-no-superglobals.md): PHP source calling `class_alias()` or importing with `as` does not
   convert unconverted. (Trait composition's own divergence and migration path now live entirely in
-  [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) § 6.) `mwl convert`
+  [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) § 6.) `nvs convert`
   ([M11](../implementation-plan.md)) can mechanically rewrite an import alias (replace every use of the local
   alias with the real short name or the FQN), but `class_alias()` calls that compute the alias name
   dynamically, or that exist purely so two unrelated libraries can address the same class under different
@@ -206,7 +206,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 ## Alternatives rejected
 
 - **Keep `class_alias()` for a narrow, blessed use** (deprecation shims, gradual renames). Rejected: still
-  the exact runtime indirection *Context* argues against — an `mwl convert` rewrite across call sites gets
+  the exact runtime indirection *Context* argues against — an `nvs convert` rewrite across call sites gets
   the same migration result without leaving both names live.
 - **Keep import `as` for genuine short-name collisions between two unrelated libraries.** Rejected anyway:
   the fully-qualified name is strictly more explicit for strictly more typing, and a "collisions only"
@@ -224,7 +224,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 
 - **Parametric `type` aliases** (`type Rows<T> = array<array<T>>;`), once user-defined generics are designed
   — [ADR 0007](0007-explicit-type-system.md) *Revisiting* already defers the prerequisite.
-  - **Whether `mwl convert`'s automatic rewrite for import `as` (*Consequences, Negative*) is good enough**,
+  - **Whether `nvs convert`'s automatic rewrite for import `as` (*Consequences, Negative*) is good enough**,
   or needs a `--check`-only mode that just flags the site instead of rewriting it, is an M11 UX question this
   ADR does not resolve — following the precedent
   [ADR 0011](0011-functions-and-constants-are-class-members.md) *Revisiting* already set for its own
@@ -245,5 +245,5 @@ Verification, in the order it becomes possible:
   checker looks at anything downstream of it; a `type` alias whose expression is a single bare class/
   interface/enum atom is a diagnostic at the declaration site (*6*); an alias cycle is a diagnostic naming
   every name in the cycle.
-- **M11**: `mwl convert`'s mechanical rewrite for import `as` exercised on a corpus containing it;
+- **M11**: `nvs convert`'s mechanical rewrite for import `as` exercised on a corpus containing it;
   `class_alias()` calls flagged as a `TODO` for human review, per *Consequences, Negative*.

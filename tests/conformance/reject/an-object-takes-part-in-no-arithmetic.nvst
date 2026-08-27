@@ -1,13 +1,13 @@
 --TEST--
-`-7d` does not mean a backwards duration; MWL has no operator overloading — ADR 0070 § 4
+`-7d` does not mean a backwards duration; Novis has no operator overloading — ADR 0070 § 4
 --FILE--
-<?mwl
+<?nvs
 var $back = -7d;
 echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0401]: `-` has no meaning for `Core\Time\Duration`
-  --> case.mwl:2:13
+  --> case.nvs:2:13
 %A
 error: aborting due to 1 error

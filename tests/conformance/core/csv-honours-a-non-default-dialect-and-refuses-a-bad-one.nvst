@@ -1,9 +1,9 @@
 --TEST--
 `Core\Csv` reads and writes a caller's dialect on both legs, and refuses one that has no reading — spec § 12's second table
 --FILE--
-<?mwl
+<?nvs
 // The dialect is three single ASCII bytes and each is the caller's;
-// `crates/mwl-stdlib/src/csv.rs`'s module doc owns why. A quoted field holds
+// `crates/nvs-stdlib/src/csv.rs`'s module doc owns why. A quoted field holds
 // the separator whatever byte the separator is.
 var $piped = Core\Csv::parse("one|'two|three'\n", {separator: "|", quote: "'"});
 echo "piped=[", $piped["0"]["0"], "][", $piped["0"]["1"], "]\n";

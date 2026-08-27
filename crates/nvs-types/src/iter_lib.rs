@@ -1,7 +1,7 @@
 //! Seeding the checker's signature table with the members of every
 //! compiler-declared global interface.
 //!
-//! [`mwl_hir::interfaces`] is the one home for *which* global interfaces the
+//! [`nvs_hir::interfaces`] is the one home for *which* global interfaces the
 //! compiler declares and what type parameters each takes; this is the one
 //! place all four — `Comparable`, `Stringable`, `Iterable<T>` and
 //! `Iterator<T>` — become member signatures, in exactly the
@@ -15,12 +15,12 @@
 //! rather than getting a second seeding path, because one roster with two
 //! places to look is how the halves drift.
 //!
-//! # Why the members are written here and not in `mwl-hir`
+//! # Why the members are written here and not in `nvs-hir`
 //!
 //! `current(): T` needs a [`TypeId`] for `T`, and `iterate(): Iterator<T>`
 //! needs one for a generic class applied to it — neither exists outside this
 //! crate's interner. The parameter *names* are read back off
-//! [`mwl_hir::interfaces::type_params`] rather than spelled again here, so
+//! [`nvs_hir::interfaces::type_params`] rather than spelled again here, so
 //! the two halves cannot drift: rename `T` there and every signature below
 //! follows.
 //!
@@ -53,8 +53,8 @@
 //! here is what makes `class Money implements Comparable {}` owe a body,
 //! which it always should have.
 
-use mwl_hir::QName;
-use mwl_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, STRINGABLE};
+use nvs_hir::QName;
+use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, STRINGABLE};
 use rustc_hash::FxHashMap;
 
 use crate::signatures::{MethodSig, SignatureTable};
@@ -116,7 +116,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
 /// *generic* entries are the only ones it is called for, and a
 /// silently-wrong element type would be far worse than a build that stops.
 fn elem_var(interface: &str, interner: &mut TypeInterner) -> TypeId {
-    let params = mwl_hir::interfaces::type_params(interface)
+    let params = nvs_hir::interfaces::type_params(interface)
         .unwrap_or_else(|| panic!("`{interface}` is not on the reserved-interface roster"));
     let [name] = params else {
         panic!("`{interface}` should declare exactly one type parameter, got {params:?}")
@@ -139,7 +139,7 @@ fn bodiless(params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
         return_ty,
         is_static: false,
         interface_private: false,
-        visibility: mwl_syntax::ast::Visibility::Public,
+        visibility: nvs_syntax::ast::Visibility::Public,
         has_body: false,
     }
 }
@@ -148,9 +148,9 @@ fn bodiless(params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
 mod tests {
     use super::*;
     use crate::signatures::resolve_method;
-    use mwl_diagnostics::{Diagnostics, SourceMap};
-    use mwl_hir::{ClassGraph, resolve_file};
-    use mwl_syntax::parse_file;
+    use nvs_diagnostics::{Diagnostics, SourceMap};
+    use nvs_hir::{ClassGraph, resolve_file};
+    use nvs_syntax::parse_file;
 
     fn seeded() -> (SignatureTable, TypeInterner) {
         let mut table = SignatureTable::new();
@@ -161,7 +161,7 @@ mod tests {
 
     fn check_src(src: &str) -> Diagnostics {
         let mut map = SourceMap::new();
-        let file = map.add("t.mwl", src);
+        let file = map.add("t.nvs", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn a_stringable_parameter_can_call_to_string() {
         let diags = check_src(
-            "<?mwl\n\
+            "<?nvs\n\
              class Render {\n\
              public function label(Stringable $s): string { return $s->toString(); }\n\
              }\n",

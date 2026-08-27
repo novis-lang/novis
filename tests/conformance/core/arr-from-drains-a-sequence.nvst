@@ -1,7 +1,7 @@
 --TEST--
 `Core\Arr::from` materialises all three of the shapes `foreach` accepts, always as a list, and `{limit}` stops the drive — spec § 2, ADR 0053 §§ 1 and 3
 --FILE--
-<?mwl
+<?nvs
 // ADR 0053 § 1: a cursor is `advance()`/`current()` and nothing else, so
 // `Countdown` yields 3, 2, 1 and then says it is exhausted.
 class Countdown implements Iterator<int> {

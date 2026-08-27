@@ -1,5 +1,5 @@
 <?php
-// json_decode then read the fields - MWL validates into a declared type where PHP hands back a map.
+// json_decode then read the fields - Novis validates into a declared type where PHP hands back a map.
 final class Bench {
     public static function run(int $rounds): int {
         $payloads = [];

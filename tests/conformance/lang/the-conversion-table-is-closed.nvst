@@ -1,7 +1,7 @@
 --TEST--
 `as` refuses every operand/target pair ADR 0007 § 2's table has no row for, one diagnostic per pair — ADR 0007 § 2, ADR 0009 § 3, ADR 0010 § 5
 --FILE--
-<?mwl
+<?nvs
 // ADR 0007 § 2's table is *closed*: `as` "either produces a value of the
 // target type or throws", so a pair naming no row has nothing to produce and
 // nothing to throw. Each binding below is one absent row, and each help names

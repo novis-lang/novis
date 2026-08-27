@@ -1,7 +1,7 @@
 --TEST--
 `new static()` and `static::` resolve to the called class exactly as PHP's do
 --FILE--
-<?mwl
+<?nvs
 class Registry {
     public static function tag(): string {
         return "base";

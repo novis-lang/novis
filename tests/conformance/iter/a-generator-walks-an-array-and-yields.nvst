@@ -1,7 +1,7 @@
 --TEST--
 A `foreach` inside a generator body suspends across its own loop — the array, the cursor and every loop-carried local survive each resume
 --FILE--
-<?mwl
+<?nvs
 class Feed {
     public static function doubled(array<int> $xs): Iterator<int> {
         foreach ($xs as string $k => int $x) {

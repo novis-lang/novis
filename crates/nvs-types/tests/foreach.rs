@@ -1,19 +1,19 @@
 //! ADR 0053 § 3's three accepted `foreach` subjects, and the element type each binds.
 //!
-//! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
+//! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
 
 mod common;
 
 use common::*;
-use mwl_diagnostics::code;
+use nvs_diagnostics::code;
 
 // ADR 0053 § 3: what `foreach` accepts, and what it yields.
 
 #[test]
 fn a_foreach_over_an_array_binds_the_element_type() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class T {\n\
          \x20 function m(array<int> $a): void {\n\
          \x20\x20 foreach ($a as int $n) { echo $n; }\n\
@@ -26,7 +26,7 @@ fn a_foreach_over_an_array_binds_the_element_type() {
 #[test]
 fn a_foreach_binding_that_disagrees_with_the_element_type_is_diagnosed() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class T {\n\
          \x20 function m(array<int> $a): void {\n\
          \x20\x20 foreach ($a as string $s) { echo $s; }\n\
@@ -42,7 +42,7 @@ fn a_foreach_binding_that_disagrees_with_the_element_type_is_diagnosed() {
 #[test]
 fn a_foreach_over_a_cursor_binds_its_type_argument() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class T {\n\
          \x20 function m(Iterator<int> $it): void {\n\
          \x20\x20 foreach ($it as int $n) { echo $n; }\n\
@@ -59,7 +59,7 @@ fn a_foreach_over_a_cursor_binds_its_type_argument() {
 #[test]
 fn a_foreach_over_a_class_reaches_its_implements_clause_for_the_element_type() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Counter implements Iterable<int> {\n\
          \x20 function iterate(): Iterator<int> { return Counter::empty(); }\n\
          \x20 static function empty(): Iterator<int> { return Counter::empty(); }\n\
@@ -79,7 +79,7 @@ fn a_foreach_over_a_class_reaches_its_implements_clause_for_the_element_type() {
 #[test]
 fn a_foreach_over_a_class_that_implements_neither_interface_is_refused() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class Bag {}\n\
          class T {\n\
          \x20 function m(Bag $b): void {\n\
@@ -98,7 +98,7 @@ fn a_foreach_over_a_class_that_implements_neither_interface_is_refused() {
 #[test]
 fn a_foreach_over_a_scalar_is_refused() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class T {\n\
          \x20 function m(int $n): void {\n\
          \x20\x20 foreach ($n as int $x) { echo $x; }\n\
@@ -116,7 +116,7 @@ fn a_foreach_over_a_scalar_is_refused() {
 #[test]
 fn a_key_binding_over_a_cursor_is_refused() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class T {\n\
          \x20 function m(Iterator<int> $it): void {\n\
          \x20\x20 foreach ($it as int $k => int $n) { echo $k . $n; }\n\
@@ -136,7 +136,7 @@ fn a_key_binding_over_a_cursor_is_refused() {
 #[test]
 fn a_key_binding_over_an_array_is_left_alone() {
     let diags = check_src(
-        "<?mwl\n\
+        "<?nvs\n\
          class T {\n\
          \x20 function m(array<int> $a): void {\n\
          \x20\x20 foreach ($a as string $k => int $n) { echo $k . $n; }\n\
