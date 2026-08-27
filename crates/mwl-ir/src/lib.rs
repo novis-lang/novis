@@ -216,8 +216,15 @@
 //!    a `&mut BlockId` and lowers its own sub-expressions through itself, so
 //!    `&&`/`||`/`!`/ternary/`??` compose inside a call argument, an array
 //!    element, a `.` operand or an `echo` operand alike.
-//! 6. **Array access is compile-time-known-target-only; property access is
-//!    not any more.** Every ADR 0036 § 4 receiver lowers: a shape naming one
+//! 6. **Array access is compile-time-known-target-only, and `mwl_types` now
+//!    says so rather than leaving it here; property access is not
+//!    compile-time-known-target-only any more.** A subscript whose base
+//!    declares no element type — a `mixed`, a scalar, a `?array<T>` no test
+//!    narrowed — is `E0482` where it is written, and `$a[]` anywhere but an
+//!    assignment target is `E0481`, so both of
+//!    [`lower::Lowering::lower_index`]'s panics and the assignment arm's
+//!    matching one are invariant checks no source file reaches.
+//!    Every ADR 0036 § 4 receiver lowers: a shape naming one
 //!    of its own fields, a shape asked for a name it does not list, and a
 //!    plain `object`. All three are one [`ir::InstKind::SlotGet`] — § 4's
 //!    **name-keyed** fetch, which is therefore right through a widened view
@@ -232,15 +239,14 @@
 //!    constructs, as an instance of the class [`lower::shape_class_label`]
 //!    names. Nullsafe `?->` *reads* — a call and a property alike, over
 //!    the one guard [`lower::Lowering::open_nullsafe`] opens — but a nullsafe
-//!    assignment target (`$a?->b = v`) panics, which PHP refuses outright and
-//!    `mwl_types` does not diagnose yet. An
-//!    array-element write through a hooked property is refused: the
-//!    copy-on-write separation would have to be written back through the `set`
-//!    hook, and no PHP-compatible rule for that exists yet. A *nested* write —
-//!    `$grid[0][1] = v`, whose base is itself an index expression — is refused
-//!    for the same reason: the separated inner array has to be written back
-//!    into the outer one, and only a local or a known property is a place this
-//!    crate can write back to. Reading `$grid[0][1]` is fine. Neither
+//!    assignment target (`$a?->b = v`) is `E0479` in `mwl_types`, which is
+//!    what PHP refuses too. An array-element write through a hooked property
+//!    is `E0478` and one through an erased property `E0480`, both for the
+//!    reason those codes' own rows state. A *nested* write — `$grid[0][1] =
+//!    v`, whose base is itself an index expression — lowers: it flattens to
+//!    its root holder plus one key per level, descends, and writes every
+//!    level back with the outermost last, auto-vivifying an absent row the
+//!    way PHP does. Neither
 //!    [`ir::InstKind::ArrayGet`] nor [`ir::InstKind::ArraySet`] models an
 //!    absent key at runtime — deferred wholesale, like every other checked
 //!    throw. A **static** property is narrower still: it reads, but
@@ -482,17 +488,6 @@
 //!     locals (ADR 0021's "no isolation") or not — which is why this is
 //!     recorded rather than guessed at. The declaration half, which is what
 //!     ADR 0061's autoload map needs, runs today.
-//! 23. **`$a[]` in a *read* position panics instead of being refused.**
-//!     [`lower::Lowering::lower_index`] is right that append syntax is
-//!     assignment-target-only — PHP refuses `echo $a[];` at compile time with
-//!     *"Cannot use [] for reading"* — but nothing above says so, so the front
-//!     end accepts it and this crate panics. Every *write* spelling lowers,
-//!     including an append at an intermediate level (`$g[][0] = 1;`), so what
-//!     is left is purely the refusal. It belongs in `mwl_types`, not here: the
-//!     legal spans are exactly the ones `mwl_types::expr::assign`'s
-//!     `check_assign` already walks down the target chain, so marking them
-//!     there and reporting a new `E04xx` from `check_expr`'s `ExprKind::Index`
-//!     arm for any other `index: None` is the whole change.
 
 pub mod ids;
 pub mod ir;

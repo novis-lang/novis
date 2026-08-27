@@ -111,6 +111,7 @@ pub fn check_program(
             diags: &mut *diags,
             closure_seq,
             exit_targets: Vec::new(),
+            write_target_levels: FxHashMap::default(),
         };
         let mut frame = ScriptFrame {
             scope: LocalScope::new(),

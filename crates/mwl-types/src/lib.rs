@@ -347,6 +347,23 @@ pub(crate) struct Env<'a> {
     /// loop reaches into: a `break` written in one has nothing outside the
     /// closure to leave.
     pub exit_targets: Vec<bool>,
+    /// Every subscript level of an assignment *target* this run has seen, by
+    /// span, mapped to whether the assignment was a plain `=`.
+    ///
+    /// `crate::expr::assign::mark_write_target_levels` fills it by walking
+    /// the target chain **before** the target is checked, because the two
+    /// things that read it are inside that check —
+    /// [`crate::expr::check_expr`]'s `ExprKind::Index` arm reports `E0481`
+    /// for an `index: None` that is not a plain `=`'s level (append syntax
+    /// is a destination and nothing else), and suppresses `E0482` for a
+    /// level whose chain root `crate::expr::assign`'s `check_write_target`
+    /// is about to refuse more precisely.
+    ///
+    /// A span rather than a parameter threaded through `check_expr` because
+    /// a target's own subscript chain is the only thing either rule turns
+    /// on; nothing ever removes an entry, so this is O(element writes
+    /// written in the file).
+    pub write_target_levels: FxHashMap<Span, bool>,
 }
 
 pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {

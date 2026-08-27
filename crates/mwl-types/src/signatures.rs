@@ -492,6 +492,7 @@ pub fn build_signatures(
             diags: &mut *diags,
             closure_seq: 0,
             exit_targets: Vec::new(),
+            write_target_levels: FxHashMap::default(),
         };
         collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);
     }

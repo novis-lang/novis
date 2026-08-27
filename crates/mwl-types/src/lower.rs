@@ -657,6 +657,7 @@ mod tests {
             diags: &mut diags,
             closure_seq: 0,
             exit_targets: Vec::new(),
+            write_target_levels: rustc_hash::FxHashMap::default(),
         };
         let id = lower_type(&probe_ty, &ctx, &mut env);
         (id, interner, diags)

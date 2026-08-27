@@ -801,17 +801,16 @@ impl<'a> Lowering<'a> {
             // lower and nothing to descend into, so its row is an empty
             // `InstKind::ArrayNew` and the climb stores it back with an
             // `InstKind::ArrayAppend` — which is why the fresh row's key is
-            // never named anywhere here. Only the *read* spelling `$a[]` is
-            // still unlowered, and it is a refusal `mwl_types` owes rather
-            // than a shape (this crate's module docs' gap 23).
+            // never named anywhere here. The *read* spelling `$a[]` is
+            // `E0481` in `mwl_types`, and a base that declares no element
+            // type is `E0482` there, so neither reaches this arm from source.
             ExprKind::Index { base, index } => {
                 let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(target.span) else {
                     panic!(
                         "mwl-ir: an array-index assignment target at {:?} has no resolved \
-                         element type recorded in the typed-expression table — either it wasn't \
-                         checked with the same table, or its base erased to `mixed` (an \
-                         unresolved array), which this crate does not yet lower (see the crate \
-                         docs' known gaps)",
+                         element type recorded in the typed-expression table — `mwl_types` \
+                         refuses a base that declares none as `E0482`, so this body was not \
+                         checked with the same table",
                         target.span
                     );
                 };

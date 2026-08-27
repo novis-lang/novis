@@ -823,6 +823,34 @@ pub mod code {
     /// local, write the element there, and assign it back. This is the
     /// element-write twin of [`E_METHOD_ON_ERASED_RECEIVER`].
     pub const E_ELEMENT_WRITE_THROUGH_ERASED_PROPERTY: Code = Code::new("E0480");
+    /// `$a[]` where a value is read rather than assigned to.
+    ///
+    /// `[]` names "the key one past the highest integer key" and only has
+    /// an answer as the *destination* of a write: read it and there is no
+    /// element there to read. PHP refuses the identical spelling at compile
+    /// time with "Cannot use [] for reading", so this is not a divergence.
+    /// Every position but the target of a plain `=` is a read, which is why
+    /// `unset($a[])` takes this code too — PHP refuses that one as well,
+    /// with its own wording. An append at an intermediate level of a write
+    /// target (`$a[][0] = 1`) is a target and stays legal.
+    ///
+    /// `$a[] .= "x"` is the one spelling PHP accepts and this refuses, and
+    /// it is ADR 0007 § 7 row 10: PHP appends because the element that is
+    /// not there yet reads as `""`, and no rule in MWL makes an absent
+    /// element read as a zero value — which is § 7 row 8 one storage kind
+    /// along, not a new judgement.
+    pub const E_APPEND_IN_READ_POSITION: Code = Code::new("E0481");
+    /// `$x[…]` where `$x` is not an `array<T>`.
+    ///
+    /// ADR 0007 § 5 checks an element read and write against the array's
+    /// *declared* element type, so a base that declares none — a `mixed`, a
+    /// scalar, an object, or a `?array<T>` a `!== null` test has not
+    /// narrowed — has no element to name and nothing to check against.
+    /// PHP answers `null` with a warning for most of these, which is § 7
+    /// row 8's family; MWL refuses at check time instead. A `string` is not
+    /// an exception: ADR 0009 § 2 indexes one by grapheme cluster through
+    /// `Core\Str`, not through a subscript.
+    pub const E_SUBSCRIPT_ON_NON_ARRAY: Code = Code::new("E0482");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

@@ -293,10 +293,38 @@ pub(super) fn infer(
         // function, so a write records exactly the entry a read would, keyed
         // by this `Index` expression's own span either way.
         ExprKind::Index { base, index } => {
+            // A base that reported its own error already answered `mixed` as
+            // *recovery*, and `report_unsubscriptable` below would then blame
+            // the subscript for it — `$nope["0"]` is one mistake, not two.
+            let before = env.diags.len();
             let base_ty = check_expr(base, None, live, scope, ctx, env);
-            if let Some(index) = index {
-                let index_ty = check_expr(index, None, live, scope, ctx, env);
-                check_array_key_type(index_ty, index.span, env);
+            let base_reported = env.diags.len() != before;
+            match index {
+                Some(index) => {
+                    let index_ty = check_expr(index, None, live, scope, ctx, env);
+                    check_array_key_type(index_ty, index.span, env);
+                }
+                // `$a[]` names the key one past the highest integer key,
+                // which is an answer only where a value is being put there.
+                // `assign::mark_append_targets` recorded the spans where it
+                // is — every level of a plain `=`'s target chain — so any
+                // other one reaching here is a read, exactly as PHP's own
+                // "Cannot use [] for reading" decides it.
+                None if env.write_target_levels.get(&expr.span) != Some(&true) => {
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_APPEND_IN_READ_POSITION,
+                            "`[]` can only be assigned to",
+                        )
+                        .with_primary(expr.span, "append syntax names no existing element")
+                        .with_help(
+                            "`$a[] = …;` adds an element, and that is the one position `[]` \
+                             has a meaning in — everywhere else, name the element you mean \
+                             (`$a[\"0\"]`, or `Core\\Arr::last($a)`)",
+                        ),
+                    );
+                }
+                None => {}
             }
             let elem_ty = match env.interner.get(base_ty) {
                 Ty::Array(elem) => Some(*elem),
@@ -307,7 +335,12 @@ pub(super) fn infer(
                     env.exprs.record(expr.span, ExprInfo::Index { elem_ty });
                     elem_ty
                 }
-                None => env.interner.mixed(),
+                None => {
+                    if !base_reported && !refused_as_a_write_target(expr, base, env) {
+                        report_unsubscriptable(base, base_ty, env);
+                    }
+                    env.interner.mixed()
+                }
             }
         }
         ExprKind::New {
@@ -407,6 +440,90 @@ pub(super) fn infer(
 /// and hands it to this checker anyway — so this must resolve the same way
 /// [`crate::lower::lower_type`]'s `self`/`static` atom already does, an
 /// enum-declared `qname` interning to `Ty::Enum` rather than `Ty::Class`.
+/// Whether this subscript is a level of an assignment target whose chain
+/// root `assign::check_write_target` is about to refuse by name — a nullsafe
+/// receiver (`E0479`), a hooked property (`E0478`) or an erased one
+/// (`E0480`).
+///
+/// All three make the property read as `mixed` or as `?array<T>`, so
+/// [`report_unsubscriptable`] would otherwise fire first and blame the
+/// subscript for a receiver problem the next call states properly. It is
+/// gated on the target chain because the *read* `echo $erased->rows["0"];`
+/// has no second diagnostic coming and `E0482` is the only thing standing
+/// between it and a panic in `mwl-ir`.
+///
+/// Walks to the root for the same reason `check_write_target` does:
+/// `$erased->rows["0"]["1"] = v` is one holder and two levels.
+fn refused_as_a_write_target(expr: &Expr, base: &Expr, env: &Env<'_>) -> bool {
+    if !env.write_target_levels.contains_key(&expr.span) {
+        return false;
+    }
+    let mut root = base;
+    while let ExprKind::Index { base, .. } = &root.kind {
+        root = base;
+    }
+    if matches!(root.kind, ExprKind::PropertyAccess { nullsafe: true, .. }) {
+        return true;
+    }
+    matches!(
+        env.exprs.lookup(root.span),
+        Some(ExprInfo::HookedProperty { .. } | ExprInfo::ShapeProperty { .. })
+    )
+}
+
+/// `$x[…]` where `$x` is not an `array<T>`, refused where it is written.
+///
+/// ADR 0007 § 5 keys an element read on the array's *declared* element type,
+/// which is the entry [`ExprInfo::Index`] carries and the only thing
+/// `mwl_ir::lower::Lowering::lower_index` has to lower against. A base with
+/// no element type therefore has nothing to read, and every one of these
+/// used to reach `mwl-ir` and panic there instead — a subscripted `mixed`,
+/// a subscripted scalar, and a `?array<T>` that a `!= null` test did not
+/// narrow (`crate::locals`' [`narrow`](crate::locals) docs own why an array
+/// binding is not on the narrowing list yet).
+///
+/// The help splits three ways because the three have different answers, and
+/// naming the wrong one costs a session: `mixed` needs the binding declared
+/// as what it holds, a `string` needs ADR 0009 § 2's grapheme indexing said
+/// out loud as `Core\Str::slice`, and a nullable array needs a second,
+/// non-nullable binding until the narrowing lands.
+fn report_unsubscriptable(base: &Expr, base_ty: TypeId, env: &mut Env<'_>) {
+    let residue = env.interner.without_null(base_ty);
+    let nullable_array = residue != base_ty && matches!(env.interner.get(residue), Ty::Array(_));
+    let help = if nullable_array {
+        "a `!= null` test does not narrow an array binding out of `null` yet — assign it \
+         to a plain `array<T>` binding first, or iterate it with `foreach ($x as T $v)`, \
+         whose element type comes from the binding rather than from the subject"
+    } else if matches!(
+        env.interner.get(base_ty),
+        Ty::String
+            | Ty::Bytes
+            | Ty::TaintedString
+            | Ty::TaintedBytes
+            | Ty::SecretString
+            | Ty::SecretBytes
+            | Ty::SecretTaintedString
+            | Ty::SecretTaintedBytes
+    ) {
+        "ADR 0009 § 2 indexes a `string` by extended grapheme cluster, which is said out \
+         loud rather than spelled with a subscript — `Core\\Str::slice($s, $i, 1)`, or \
+         `Core\\Bytes::slice` for a byte offset"
+    } else {
+        "only an `array<T>` has elements to subscript — declare the binding as the \
+         `array<T>` it holds, so ADR 0007 § 5 has an element type to check the read \
+         against"
+    };
+    let desc = env.interner.describe(base_ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SUBSCRIPT_ON_NON_ARRAY,
+            format!("`{desc}` cannot be subscripted"),
+        )
+        .with_primary(base.span, format!("this is `{desc}`"))
+        .with_help(help),
+    );
+}
+
 pub(crate) fn class_of_ctx(ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     match ctx.current_class {
         Some(qname) => match env.symbols.get(qname) {

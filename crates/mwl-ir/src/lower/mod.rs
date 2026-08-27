@@ -4237,22 +4237,6 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `$a[]` is legal to *parse* in any expression position (`mwl-syntax`'s
-    /// postfix-index parsing doesn't restrict an empty subscript to an
-    /// assignment target), and `mwl_types::expr::check_expr`'s `Index` arm
-    /// doesn't reject it as a read either — it simply skips checking a
-    /// subscript that isn't there and still resolves the element type from
-    /// the base. So this reaches `Lowering::lower_expr`'s own `Index` arm,
-    /// which is the one that draws the "append is assignment-target-only"
-    /// line and panics naming it.
-    #[test]
-    #[should_panic(expected = "known gaps")]
-    fn reading_base_append_syntax_is_still_out_of_scope() {
-        lower_first_method(
-            "<?mwl\nclass T {\n  function m(array<int> $a): int {\n    return $a[];\n  }\n}\n",
-        );
-    }
-
     /// `$a[0] = 5;` through an `array<int>` parameter — the simplest
     /// array-element write: a fresh, non-refcounted `int` value (no retain)
     /// and a literal `int` key carried unrendered exactly the way the read

@@ -354,10 +354,39 @@ pub(super) fn check_assign(
             }
         }
     } else {
+        mark_write_target_levels(target, true, env);
         let target_ty = check_expr(target, None, live, scope, ctx, env);
         check_write_target(target, env);
         check_expr(value, Some(target_ty), live, scope, ctx, env);
         target_ty
+    }
+}
+
+/// Records every `$a[]` level of a plain `=`'s target as a legal append, so
+/// that [`super::check_expr`]'s `ExprKind::Index` arm can report `E0481` for
+/// every *other* `index: None` it meets.
+///
+/// PHP's `[]` names the key one past the highest integer key, which is an
+/// answer only where a value is being put there: PHP refuses `echo $a[];`
+/// with *"Cannot use [] for reading"* and `unset($a[])` with *"for
+/// unsetting"*, and MWL refuses `$a[] .= "x"` alongside them, which is ADR
+/// 0007 § 7 row 10 — PHP appends there only because the element that is not
+/// there yet reads as `""`. Marking the legal spans is therefore the whole
+/// rule, and this walk is where they all are:
+/// the target chain of a plain assignment, every level of it, since
+/// `$a[][0] = 1` appends a fresh row and writes into it (ADR 0007 § 5's
+/// separation applies at each level, and `mwl_ir::lower::stmt`'s flatten
+/// walks the same chain).
+///
+/// Called **before** the target is checked, unlike [`check_write_target`],
+/// because the arm it speaks to is inside that check. A subscript's own
+/// *index* expression is not walked — `$a[$b[]] = 1` reads `$b[]`, and is
+/// refused for it.
+fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env<'_>) {
+    let mut level = target;
+    while let ExprKind::Index { base, .. } = &level.kind {
+        env.write_target_levels.insert(level.span, plain);
+        level = base;
     }
 }
 
@@ -487,6 +516,7 @@ pub(super) fn check_compound_assign(
     env: &mut Env<'_>,
 ) -> TypeId {
     note_write(target, scope, env);
+    mark_write_target_levels(target, false, env);
     let target_ty = check_expr(target, None, live, scope, ctx, env);
     check_write_target(target, env);
     // [`infer`] rather than [`check_expr`]: the target's type is a *hint* for

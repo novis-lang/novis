@@ -3650,12 +3650,14 @@ impl<'a> Lowering<'a> {
 
     /// `$arr[$i]` — the element's declared type comes from
     /// `self.exprs`, exactly like a property access's declaring
-    /// class: a base that erased to `mixed` (ADR 0007 § 5's own
-    /// "nothing compile-time-known to read" case for an unresolved
-    /// array) has no `ExprInfo::Index` entry at all, so this panics
-    /// naming that case rather than lowering it. `base[]` (`index`
+    /// class: a base that declares no element type has no
+    /// `ExprInfo::Index` entry at all, and `mwl_types` refuses one as
+    /// `E0482` where it is written, so the panic here is an invariant
+    /// check rather than a gap. `base[]` (`index`
     /// is `None`) has no meaning as a read at all — it is PHP's
-    /// append syntax, assignment-target-only — so it panics too.
+    /// append syntax, assignment-target-only — and `mwl_types`
+    /// refuses it as `E0481` where it is written, so the arm here is
+    /// an invariant check that no source file can reach.
     fn lower_index(
         &mut self,
         base: &Expr,
@@ -3666,17 +3668,17 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let Some(index) = index else {
             panic!(
-                "mwl-ir does not lower `$a[]` as a read expression — append syntax \
-                 (`index` is `None`) is assignment-target-only; see the crate docs' \
-                 known gaps"
+                "mwl-ir reached `$a[]` as a read expression — append syntax (`index` \
+                 is `None`) is assignment-target-only and `mwl_types` refuses every \
+                 other position as `E0481`, so this body was not checked"
             );
         };
         let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(expr.span) else {
             panic!(
                 "mwl-ir: an array-index read at {:?} has no resolved element type \
-                 recorded in the typed-expression table — either it wasn't checked with \
-                 the same table, or its base erased to `mixed` (an unresolved array), \
-                 which this crate does not yet lower (see the crate docs' known gaps)",
+                 recorded in the typed-expression table — `mwl_types` refuses a base \
+                 that declares none as `E0482`, so this body was not checked with the \
+                 same table",
                 expr.span
             );
         };

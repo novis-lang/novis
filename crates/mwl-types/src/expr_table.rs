@@ -732,6 +732,14 @@ mod tests {
     /// fixture below uses to pin down exactly which `new`/call it means to
     /// inspect.
     fn check_and_find_expr_span(src: &str) -> (ExprTypeTable, Span) {
+        let (exprs, span, diags) = check_fixture(src);
+        assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
+        (exprs, span)
+    }
+
+    /// [`check_and_find_expr_span`] without its "and it checked cleanly"
+    /// assertion, for the one fixture whose whole point is the diagnostic.
+    fn check_fixture(src: &str) -> (ExprTypeTable, Span, Diagnostics) {
         let mut map = SourceMap::new();
         let file = map.add("t.mwl", src);
         let mut diags = Diagnostics::new();
@@ -751,8 +759,6 @@ mod tests {
             &mut exprs,
             &mut diags,
         );
-        assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
-
         let src_file = map.file(file);
         let decl = stmts
             .iter()
@@ -782,7 +788,7 @@ mod tests {
                 panic!("fixture's statement must be a bare expression or return — got {other:?}")
             }
         };
-        (exprs, span)
+        (exprs, span, diags)
     }
 
     #[test]
@@ -1000,12 +1006,19 @@ mod tests {
 
     /// An array subscript through a `mixed`-erased base records nothing —
     /// mirroring [`ExprInfo::Property`]'s own "nothing compile-time-known to
-    /// read" treatment of a shape/plain-`object` receiver.
+    /// read" treatment of a shape/plain-`object` receiver — and, since there
+    /// is then no element type for `mwl-ir` to lower against, `E0482` refuses
+    /// it where it is written rather than leaving that crate to panic.
     #[test]
-    fn an_array_index_through_a_mixed_base_records_nothing() {
-        let (exprs, span) = check_and_find_expr_span(
+    fn an_array_index_through_a_mixed_base_records_nothing_and_is_refused() {
+        let (exprs, span, diags) = check_fixture(
             "<?mwl\nclass T {\n  function m(): mixed {\n    return T::UNTYPED[0];\n  }\n  const UNTYPED = 1;\n}\n",
         );
         assert!(exprs.lookup(span).is_none());
+        assert_eq!(diags.iter().count(), 1);
+        assert_eq!(
+            diags.iter().next().and_then(|d| d.code.as_ref()),
+            Some(&mwl_diagnostics::code::E_SUBSCRIPT_ON_NON_ARRAY)
+        );
     }
 }
