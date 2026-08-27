@@ -2091,6 +2091,16 @@ impl Emitter<'_, '_> {
     ///
     /// Nothing is retained: the receiver is only read, the way a `FieldGet`
     /// reads its own.
+    ///
+    /// **Two entry points, picked by the subject's representation.** A proven
+    /// [`Ty::Object`] passes its bare pointer and pays nothing new. A
+    /// [`Ty::Tagged`] — a `mixed`, or a `?Box` no test narrowed, which is the
+    /// shape `instanceof` exists to interrogate — goes through
+    /// [`Self::materialize_receiver`] and `mwl_value_instanceof`, which reads
+    /// the tag and answers `false` for anything that is not an object. Two
+    /// stores, on the only path that needs them; the branch is here rather
+    /// than in the runtime because the proven case is the common one and it
+    /// already had a pointer in hand.
     fn emit_instanceof(&mut self, value: ValueId, class: &str) -> Result<Value, CodegenError> {
         let desc = self.classes.desc(class).ok_or_else(|| {
             CodegenError::Unsupported(format!(
@@ -2100,9 +2110,14 @@ impl Emitter<'_, '_> {
         let address = i64::try_from(desc.addr())
             .map_err(|_| internal("a class descriptor above i64::MAX"))?;
         let desc = self.b.ins().iconst(types::I64, address);
-        let (object, _) = self.value(value)?;
-        let callee = self.runtime_ref("mwl_object_instanceof", RuntimeSig::InstanceOf)?;
-        let call = self.b.ins().call(callee, &[object, desc]);
+        let (bare, subject_ty) = self.value(value)?;
+        let (symbol, subject) = if matches!(subject_ty, Ty::Tagged) {
+            ("mwl_value_instanceof", self.materialize_receiver(value)?)
+        } else {
+            ("mwl_object_instanceof", bare)
+        };
+        let callee = self.runtime_ref(symbol, RuntimeSig::InstanceOf)?;
+        let call = self.b.ins().call(callee, &[subject, desc]);
         Ok(self.b.inst_results(call)[0])
     }
 

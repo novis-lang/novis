@@ -307,6 +307,7 @@ pub use object::{
     field_offset, mwl_abstract_method, mwl_class_method, mwl_object_class_name,
     mwl_object_field_get, mwl_object_field_set, mwl_object_instanceof, mwl_object_new,
     mwl_object_release, mwl_object_retain, mwl_object_slot_get, mwl_object_slot_set,
+    mwl_value_instanceof,
 };
 pub use string::{
     CAP_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET, MwlStr, PAYLOAD_OFFSET,

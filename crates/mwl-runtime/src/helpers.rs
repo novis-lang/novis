@@ -1457,6 +1457,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::object::mwl_object_instanceof as *const ()).cast::<u8>(),
         ),
         (
+            "mwl_value_instanceof",
+            (crate::object::mwl_value_instanceof as *const ()).cast::<u8>(),
+        ),
+        (
             "mwl_object_slot_get",
             (crate::object::mwl_object_slot_get as *const ()).cast::<u8>(),
         ),

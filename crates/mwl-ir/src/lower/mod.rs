@@ -5249,10 +5249,13 @@ class T {
     }
 
     /// The dynamic `$x instanceof $name` form has no class to name, so the
-    /// checker records nothing and lowering refuses it rather than guessing.
+    /// checker reports `E0496` and records nothing. This crate never sees such
+    /// a program — the fixture reaches lowering only because these tests skip
+    /// the diagnostics gate — so the miss is an internal-consistency panic
+    /// rather than the hole its wording used to describe.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn a_dynamic_instanceof_is_still_out_of_scope() {
+    #[should_panic(expected = "E0496")]
+    fn a_dynamic_instanceof_records_nothing_to_lower() {
         lower_first_method(
             "<?mwl
 class Animal {
@@ -5263,6 +5266,39 @@ class T {
   }
 }
 ",
+        );
+    }
+
+    /// A `mixed` subject keeps its [`crate::ir::Ty::Tagged`] representation all
+    /// the way into the instruction: `mwl-codegen` calls
+    /// `mwl_value_instanceof` for it, which reads the tag rather than
+    /// dereferencing an unchecked payload. Every subject whose *declared* type
+    /// can hold no object is `E0497` at the checker, so no third
+    /// representation reaches here.
+    #[test]
+    fn an_instanceof_over_a_mixed_subject_keeps_its_tag() {
+        let (f, _, _) = lower_first_method(
+            "<?mwl
+class Animal {
+}
+class T {
+  function m(mixed $a): bool {
+    return $a instanceof Animal;
+  }
+}
+",
+        );
+        // Slot 0 is the receiver every lowered method carries; the declared
+        // `mixed` parameter behind it is what the test walks, and lowering it
+        // at all is the assertion — this fixture used to trip an assert
+        // demanding a `Ty::Object` subject.
+        assert_eq!(f.params.get(1), Some(&Ty::Tagged), "{:?}", f.params);
+        assert!(
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.insts)
+                .any(|i| matches!(i.kind, InstKind::InstanceOf { .. })),
+            "the fixture lowers one `instanceof`"
         );
     }
 

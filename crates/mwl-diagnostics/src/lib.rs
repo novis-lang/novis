@@ -968,6 +968,28 @@ pub mod code {
     /// that keeps PHP's *timing* — ADR 0007 § 2's one unchecked position, so
     /// it defers to ADR 0036 § 4's name-keyed fetch and its catchable throw.
     pub const E_RECEIVER_HAS_NO_PROPERTIES: Code = Code::new("E0495");
+    /// The right-hand side of `instanceof` naming no class or interface this
+    /// program declares — the dynamic form `$x instanceof $name`, a `Core`
+    /// class, or an enum.
+    ///
+    /// The dynamic form is ADR 0007 § 2's rule: a class name is written, never
+    /// computed, which is the same line `$$var` and `eval` are already on. A
+    /// `Core` class has no descriptor for the test to point at, `Core` classes
+    /// being registry signatures rather than declared classes until M7/M8. An
+    /// enum is a value type (ADR 0010) and no value of one is ever an object,
+    /// so the test has nothing to walk. A written name that resolves to
+    /// *nothing* is not here: that is the ordinary `E0303`, exactly as
+    /// `new Undeclared()` already reports it.
+    pub const E_INSTANCEOF_NOT_A_CLASS: Code = Code::new("E0496");
+    /// `instanceof` over a left-hand side whose declared type can hold no
+    /// object at all — `int $n = 1; $n instanceof Box;`.
+    ///
+    /// PHP answers `false`, having no declaration to read; ADR 0007 § 7 row 14
+    /// refuses it instead, for the reason ADR 0090 refuses two statically
+    /// disjoint types under `==` — the declaration already answered, so the
+    /// test is dead code that reads as a live question. `mixed`, `object`, a
+    /// shape, a class and any union holding one all keep the run-time test.
+    pub const E_INSTANCEOF_SUBJECT_NOT_OBJECT: Code = Code::new("E0497");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

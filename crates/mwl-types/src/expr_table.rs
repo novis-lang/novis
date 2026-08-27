@@ -402,7 +402,10 @@ pub enum ExprInfo {
     /// declares (or a reserved global one). Never recorded for the dynamic
     /// `$x instanceof $classNameExpr` form: there is no compile-time-known
     /// class to name, exactly the way [`ExprInfo::Property`] records nothing
-    /// for an erased receiver.
+    /// for an erased receiver — but unlike that receiver, the form is refused
+    /// where it is written (`E0496`), so no program `mwl-ir` sees reaches an
+    /// unrecorded entry. An enum, a `Core` class and a name resolving to
+    /// nothing are refused on the same pass, the last as the ordinary `E0303`.
     ///
     /// Recorded rather than left to the consumer because resolving a bare
     /// `Animal` to `Ns\Animal` needs the namespace and import context only
@@ -911,12 +914,21 @@ mod tests {
         assert_eq!(class.to_string(), "Foo");
     }
 
+    /// The dynamic form records nothing *and* is refused where it is written:
+    /// ADR 0007 § 2 has no dynamic class names, so there is no entry for
+    /// `mwl-ir` to read and no program that reaches it.
     #[test]
-    fn a_dynamic_instanceof_records_nothing() {
-        let (exprs, span) = check_and_find_expr_span(
+    fn a_dynamic_instanceof_records_nothing_and_is_refused() {
+        let (exprs, span, diags) = check_fixture(
             "<?mwl\nclass Foo {}\nclass T {\n  function m(Foo $f, string $n): bool {\n    return $f instanceof $n;\n  }\n}\n",
         );
         assert!(exprs.lookup(span).is_none());
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(mwl_diagnostics::code::E_INSTANCEOF_NOT_A_CLASS)),
+            "{diags:?}"
+        );
     }
 
     #[test]

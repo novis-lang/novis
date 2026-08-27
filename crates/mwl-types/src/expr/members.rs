@@ -35,6 +35,17 @@
 //! outright regardless of nullability (ADR 0028 § 3,
 //! [`check_unset_target`]).
 //!
+//! [`infer_instanceof`] draws the same line one type earlier, and both sides
+//! of the operator are checked. A **subject** whose declared type can hold no
+//! object already answered the question, so the test is `E0497` where it is
+//! written (ADR 0007 § 7 row 14) while `mixed`, `object`, a shape and any
+//! union holding a class keep the run-time test. A **right-hand side** must be
+//! a written name the program declares: the dynamic form is ADR 0007 § 2's
+//! no-computed-names rule, an enum is a value type (ADR 0010) and a `Core`
+//! class has no descriptor laid out for the test to walk, so all three are
+//! `E0496` — while a name resolving to nothing is the ordinary `E0303`,
+//! exactly as `new Undeclared()` reports it.
+//!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
 //! moved here unchanged; an item is `pub(super)` where it reaches across these
@@ -159,6 +170,15 @@ pub(super) fn infer_class_const(
 /// last two have no declaration to find in `env.symbols`, and
 /// `crate::layout::build_class_layouts` seeds a descriptor for each so
 /// `mwl-codegen` has something to test against.
+///
+/// Every other spelling is refused where it is written rather than left for
+/// `mwl-ir` to find nothing recorded and panic. There are four, and they split
+/// by whose rule they break: a name resolving to nothing is the ordinary
+/// `E_UNDEFINED_CLASS` (`new Undeclared()` reports exactly that);
+/// a `Core` class, an enum and the dynamic `$x instanceof $name` form are
+/// `E_INSTANCEOF_NOT_A_CLASS`, whose own doc comment says why each has no test
+/// to run; and a left-hand side whose declared type can hold no object is
+/// `E_INSTANCEOF_SUBJECT_NOT_OBJECT` (ADR 0007 § 7 row 14).
 pub(super) fn infer_instanceof(
     expr: &Expr,
     inner: &Expr,
@@ -168,21 +188,127 @@ pub(super) fn infer_instanceof(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    check_expr(inner, None, live, scope, ctx, env);
-    if let ExprKind::ConstFetch(name) = &class.kind {
-        let text = span_text(env.src, name.span);
-        let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
-        if env.symbols.get(&qname).is_some()
-            || qname.is_reserved_global_class()
-            || qname.is_reserved_global_interface()
-        {
-            env.exprs
-                .record(expr.span, ExprInfo::InstanceOf { class: qname });
-        }
-    } else {
+    let subject = check_expr(inner, None, live, scope, ctx, env);
+    if !can_hold_an_object(subject, env.interner) {
+        let described = env.interner.describe(subject);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_INSTANCEOF_SUBJECT_NOT_OBJECT,
+                format!("`{described}` can never be an object, so `instanceof` cannot ask"),
+            )
+            .with_primary(inner.span, "this value's type already answers")
+            .with_help(
+                "declare the subject `mixed`, `object`, or the base class you expect — a \
+                 declared scalar, `array<T>` or enum is not a class and never becomes one \
+                 (ADR 0007 § 7 row 14)",
+            ),
+        );
+    }
+    let ExprKind::ConstFetch(name) = &class.kind else {
+        // ADR 0007 § 2: a class name is written, never computed — the line
+        // `$$var` and `eval` are already on. Nothing below could resolve one
+        // either: `mwl-codegen` bakes a descriptor address in as a constant.
         check_expr(class, None, live, scope, ctx, env);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_INSTANCEOF_NOT_A_CLASS,
+                "the right-hand side of `instanceof` must be a written class name",
+            )
+            .with_primary(class.span, "not a class name")
+            .with_help(
+                "MWL has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` \
+                 and `eval`) — write the class, or branch on the names you accept",
+            ),
+        );
+        return env.interner.bool_ty();
+    };
+    let text = span_text(env.src, name.span);
+    let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+    let declared = env.symbols.get(&qname);
+    if matches!(declared, Some(sym) if sym.kind == SymbolKind::Enum) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_INSTANCEOF_NOT_A_CLASS,
+                format!("`{qname}` is an enum, and no value is ever an instance of one"),
+            )
+            .with_primary(name.span, "an enum is a value type")
+            .with_help(
+                "ADR 0010 makes an enum case a named integer rather than an object — compare \
+                 it with `==`, or `match` on it",
+            ),
+        );
+    } else if declared.is_some()
+        || qname.is_reserved_global_class()
+        || qname.is_reserved_global_interface()
+    {
+        env.exprs
+            .record(expr.span, ExprInfo::InstanceOf { class: qname });
+    } else if qname.is_core() {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_INSTANCEOF_NOT_A_CLASS,
+                format!("`{qname}` is a `Core` class and has no descriptor to test against"),
+            )
+            .with_primary(name.span, "no descriptor for this class")
+            .with_help(
+                "a `Core` class is a signature in the stdlib registry rather than a declared \
+                 class, so nothing has laid one out for `instanceof` to walk",
+            ),
+        );
+    } else {
+        // Same wording `check_new_target` gives `new Undeclared()`: one
+        // mistake, one code, wherever the name is written.
+        env.diags.report(
+            Diagnostic::error(
+                code::E_UNDEFINED_CLASS,
+                format!("`{qname}` is not declared"),
+            )
+            .with_primary(name.span, "no matching declaration"),
+        );
     }
     env.interner.bool_ty()
+}
+
+/// Whether a checked type admits an object at run time — `instanceof`'s
+/// left-hand side question, and the whole of what
+/// `E_INSTANCEOF_SUBJECT_NOT_OBJECT` refuses.
+///
+/// Deliberately answered by listing the types that *cannot*: a scalar, an
+/// `array<T>`, an enum and the literal types that erase to one. Everything
+/// else — `mixed`, `object`, a class, a shape, a `callable`, an `Iterable`, a
+/// type variable, an intersection — keeps the run-time test, so a type this
+/// pass has not thought about is never refused by accident.
+fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Null
+        | Ty::Bool
+        | Ty::True
+        | Ty::False
+        | Ty::Int
+        | Ty::Uint
+        | Ty::Float
+        | Ty::Decimal
+        | Ty::String
+        | Ty::Bytes
+        | Ty::TaintedString
+        | Ty::TaintedBytes
+        | Ty::SecretString
+        | Ty::SecretBytes
+        | Ty::SecretTaintedString
+        | Ty::SecretTaintedBytes
+        | Ty::StringLiteral(_)
+        | Ty::IntLiteral(_)
+        | Ty::Array(_)
+        | Ty::Enum(..)
+        | Ty::EnumCase(..) => false,
+        // `?Box` is `Union([Null, Class])`, so one member admitting an object
+        // is what keeps the whole union testable — and `int|string` is the
+        // union this refuses.
+        Ty::Union(members) => members
+            .iter()
+            .any(|member| can_hold_an_object(*member, interner)),
+        _ => true,
+    }
 }
 
 /// The class or enum a resolved type names, if it names one at all — the

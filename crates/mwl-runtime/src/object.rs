@@ -1437,6 +1437,45 @@ pub unsafe extern "C" fn mwl_object_instanceof(
     }
 }
 
+/// [`mwl_object_instanceof`] over a subject whose tag nothing proved — a
+/// `mixed`, or a `?Box` no test narrowed, which is the shape `$x instanceof
+/// Box` exists to interrogate.
+///
+/// The subject arrives as a whole [`Value`] by address, the same shape
+/// [`mwl_object_slot_get`]'s receiver takes and for the same reason: an
+/// unchecked untag in compiled code would dereference an `int` payload. Unlike
+/// that fetch there is nothing to throw about — a tag that is not an object
+/// simply answers `false`, which is PHP's own answer, and a subject whose
+/// *declared* type can hold no object was `E0497` at check time.
+///
+/// # Safety
+///
+/// `subject` must point at one initialized [`Value`] its caller still owns,
+/// and `class` to a live descriptor.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a value by address and a descriptor pointer, \
+              neither of whose liveness the signature can express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_value_instanceof(
+    subject: *const Value,
+    class: *const ClassDesc,
+) -> bool {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees this points at one initialized value"
+    )]
+    let subject = unsafe { *subject };
+    let Some(ptr) = subject.obj_ptr() else {
+        return false;
+    };
+    #[expect(unsafe_code, reason = "the caller guarantees both pointees are live")]
+    unsafe {
+        mwl_object_instanceof(ptr, class)
+    }
+}
+
 /// The code address `class` answers the method `name` with, or `fallback` if
 /// it answers none — the whole of `static::method(...)`'s dispatch, and of
 /// `new static(...)`'s constructor lookup.

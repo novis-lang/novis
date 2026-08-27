@@ -618,8 +618,19 @@ pub enum InstKind {
     /// slots for precisely this test (and for a typed `catch`, which lowers
     /// to the same instruction). Reads `value` without retaining it, the way
     /// [`InstKind::FieldGet`] reads its receiver.
+    ///
+    /// **The subject may be a [`Ty::Tagged`], and the tag is checked at run
+    /// time.** A `mixed` or an untested `?Box` is what `instanceof` is for, so
+    /// `mwl-codegen` passes such a subject as a whole value by address — the
+    /// same shape [`InstKind::SlotGet`]'s receiver takes — and a tag that is
+    /// not an object answers `false`. That is PHP's own answer, and unlike the
+    /// name-keyed fetch there is nothing to throw about: the question was
+    /// "is it one", not "read a field off it". A subject whose *declared* type
+    /// can hold no object is `E0497` at the checker instead, so this never
+    /// sees a scalar representation.
     InstanceOf {
-        /// The receiver, already lowered — a [`Ty::Object`].
+        /// The subject, already lowered — a [`Ty::Object`], or a
+        /// [`Ty::Tagged`] whose tag this instruction checks.
         value: ValueId,
         /// The class or interface tested against, rendered the same way
         /// `New::class` is.

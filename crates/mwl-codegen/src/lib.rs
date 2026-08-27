@@ -621,6 +621,11 @@ struct Signatures {
     /// `mwl_object_instanceof(object, desc) -> bool` — `I8`, the width a
     /// Cranelift comparison produces and the one [`ty::clif_ty`] gives
     /// [`mwl_ir::Ty::Bool`].
+    ///
+    /// Shared with `mwl_value_instanceof(subject_ptr, desc) -> bool`, which
+    /// `emit::Emitter::emit_instanceof` calls instead for a
+    /// [`mwl_ir::Ty::Tagged`] subject: two pointer arguments and an `I8`
+    /// result either way, only the first argument's pointee differing.
     instanceof: Signature,
     /// `mwl_class_method(class, name, len, fallback) -> code address` — the
     /// runtime half of `static::method(...)`'s dispatch. See

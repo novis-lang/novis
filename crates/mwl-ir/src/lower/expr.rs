@@ -3886,8 +3886,19 @@ impl<'a> Lowering<'a> {
     /// `$x instanceof Name` — the tested class comes from
     /// `self.exprs`, exactly like a property access's declaring class,
     /// because resolving a bare `Animal` to `Ns\Animal` needs the
-    /// namespace/import context this crate cannot see. The dynamic
-    /// form (`$x instanceof $name`) records nothing and is refused.
+    /// namespace/import context this crate cannot see. Every spelling
+    /// that records nothing — the dynamic `$x instanceof $name` form, a
+    /// `Core` class, an enum, an undeclared name — is refused at the
+    /// checker (`E0496`/`E0303`), so the miss below is an
+    /// internal-consistency failure rather than a hole.
+    ///
+    /// **The subject may be a [`Ty::Tagged`], and the runtime checks its
+    /// tag.** A `mixed` or an untested `?Box` is the shape `instanceof`
+    /// exists for, so it travels as a whole value by address exactly as
+    /// ADR 0036 § 4's name-keyed access does, and a tag that is not an
+    /// object answers `false` rather than throwing — PHP's own answer,
+    /// and the one every subject whose *declared* type can hold no
+    /// object gets at compile time instead (`E0497`).
     fn lower_instanceof(
         &mut self,
         inner: &Expr,
@@ -3898,27 +3909,37 @@ impl<'a> Lowering<'a> {
         let Some(ExprInfo::InstanceOf { class }) = self.exprs.lookup(expr.span) else {
             panic!(
                 "mwl-ir: an `instanceof` at {:?} has no resolved class recorded in the \
-                 typed-expression table — either it wasn't checked with the same table, \
-                 or its right-hand side is the dynamic `$x instanceof $name` form, which \
-                 this crate does not lower (see the crate docs' known gaps)",
+                 typed-expression table — it wasn't checked with the same table, every \
+                 right-hand side naming no declared class being `E0496` or `E0303` at \
+                 the checker",
                 expr.span
             );
         };
         let class_label = class.to_string();
         let (value, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
-            matches!(ty, Ty::Object),
-            "mwl-ir lowers `instanceof` only against an object receiver — got \
-             representation {ty:?}"
+            matches!(ty, Ty::Object | Ty::Tagged),
+            "mwl-ir lowers `instanceof` only against a subject that can hold an object — \
+             got representation {ty:?}, every subject whose declared type cannot being \
+             `E0497` at the checker"
         );
-        self.emit(
+        let result = self.emit(
             *cur,
             Ty::Bool,
             InstKind::InstanceOf {
                 value,
                 class: class_label,
             },
-        )
+        );
+        // The subject is only read, so a fresh one nothing else owns —
+        // `(new Dog()) instanceof Animal`, a call's return, a field read off a
+        // temporary — is released once the test has read it. Same rule
+        // [`Self::lower_clone_expr`] applies to its own operand, and the result
+        // being a [`Ty::Bool`] is what makes "right after" safe.
+        if !self.aliasing_read(inner) && ty.is_refcounted() {
+            self.emit_release(*cur, value);
+        }
+        result
     }
 
     /// ADR 0023 § 1: PHP's shallow, same-heap, single-level copy, with
