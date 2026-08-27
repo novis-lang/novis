@@ -849,6 +849,16 @@ is why" — is this file.
   before `wsl.exe` ever sees it. The same command from the PowerShell tool runs unchanged. Prefixing
   `MSYS_NO_PATHCONV=1` also works, but the shorter rule is that anything handing `/mnt/...` to
   `wsl.exe` belongs in PowerShell.
+- **`return $local;` retains nothing — it hands the binding's own reference out and tells
+  `release_all_locals` to skip that name.** So any binding `release_all_locals` was never going to
+  release anyway silently loses the retain: a `&$x` parameter is a `Ty::Ref` cell, not refcounted,
+  and `return $s;` inside `function grow(string &$s)` handed the caller a value with no owner at
+  all, which the caller's own discard then freed while the staged slot still pointed at it. `mwl
+  run` printed the right answer and exited **127**. Two things are worth keeping from the hour it
+  cost: an exit 127 is worth `git stash`-ing *before* you assume it is yours — this one predated
+  the session that found it by a long way — and a `return`/`release_all_locals` exemption keyed on
+  a **name** has to be re-read whenever a new binding *representation* enters `Env`, because the
+  exemption is only sound for a binding that would otherwise have been released.
 
 ## Writing a test case
 

@@ -250,11 +250,37 @@
 > check, so too few arguments is the same catchable `LogicError` and there is no second convention
 > beside it; too many are trimmed, which is PHP's answer for a userland call as well as the spec's
 > "a callback may declare fewer parameters". Valgrind-clean over a fixture that spreads a borrowed
-> and a freshly built argument list two hundred times each. Three live tools **are** the worklist
-> and no session re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and
-> `mwl-codegen` and attributes each to its item (`--item N` for one in full), `python tools/loop.py
-> --list` prints the named `.mwlt` cases each stage still owes, and `python
-> tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> and a freshly built argument list two hundred times each. **A `&$x` argument's copy-back now lands
+> where the call is**, which is item 18 and PHP's own sequence point, so such a call lowers in any
+> expression position at all rather than only as a bare statement or a plain assignment's right-hand
+> side. A call site takes `Lowering::pending_refs_mark` before it lowers its argument list and hands
+> that mark back to `flush_ref_writebacks` once its call has returned, which is what makes the
+> staging list a stack rather than a queue drained at a boundary: `Adder::sum(Adder::bump($n), $n)`
+> stages `$n` for the *outer* call before the inner one's arguments are lowered at all, so a flush
+> that drained the whole list would write the outer slot back before the outer call had run and then
+> lose that call's own write. Under a `?->` the copy-back lands inside the guard, where it belongs —
+> a receiver that was `null` ran no callee and wrote nothing back, and the old statement-level flush
+> read a slot defined only in the branch it skipped. The four statement-level flush sites are gone
+> with it, and `lower_stmts`' assertion survives as an internal-consistency check on the call sites
+> rather than as a refusal of the program. What this does **not** buy is PHP's *operand* order, and
+> it is not meant to: MWL evaluates a binary operator's operands strictly left to right, so `$n +
+> Adder::bump($n)` reads the left `$n` before the call and answers `5 + 7` where PHP's
+> compiled-variable read at the `ADD` answers `7 + 7`. PHP's own manual leaves an expression's
+> operand order undefined, so there is no specified behaviour here to be compatible with, and
+> `Lowering::pending_refs` is that decision's one home. Subtracting the deferral found a leak
+> underneath it that was older than it and that no fixture had reached: `return $s;` names its own
+> local as the one binding `release_all_locals` skips, transferring that binding's reference
+> straight out instead of retaining it — and a `&$x` parameter is a `Ty::Ref` cell
+> `release_all_locals` was never going to release in the first place (the caller's copy-back owns
+> that reference), so the exemption lost the retain outright and the caller then freed a value its
+> own staged slot still owned. `mwl run` printed the right answer and exited 127. The exemption is
+> decided by the binding's representation now, and the pair is valgrind-clean over a fixture that
+> grows a borrowed and a freshly built string through a `&$x` parameter, and writes back through a
+> property holder, two hundred times. Three live tools **are** the worklist and no session
+> re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen`
+> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
+> the named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

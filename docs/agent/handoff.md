@@ -2,62 +2,67 @@
 
 ## State
 
-**M4 — item 16 is closed at both ends: a `name:` argument and a `...` argument
-lower at a resolved call, at a `new`, and through a `callable`.**
-`mwl-ir`'s known gap 8 is gone from that list rather than reworded, and
-`examples/callable.mwl` now prints six of its seven acceptance lines —
-`byref=7 then 5` is item 18's and the only red one left in stage 3.
+**M4 — item 18 is closed: a `&$x` argument's copy-back lands at the call, so
+such a call lowers in any expression position.** `mwl-ir`'s known gap 10 is
+deleted rather than reworded, and `examples/callable.mwl` prints all seven of
+its stage-3 acceptance lines, `byref=7 then 7` included. The `mwl-ir (calls)`
+acceptance list is complete: all eight names now exist.
 
-- **The resolved half needed nothing but its tests.** `lower_call_args` already
-  placed each argument at the parameter its `ArgSlot` named
-  (`crates/mwl-ir/src/lower/call.rs:74`) and materialized every unfilled
-  parameter's default; what the tree owed was the evidence, which is now three
-  snapshots and four checker tests. The panic the item pointed at
-  (`call.rs:85`) refuses `CallArgs::FirstClassCallable` and nothing else —
-  that is `mwl-ir` gap 1, not this item.
-- **Through a `callable` the two halves part company, and ADR 0031 § 1 is why.**
-  A `name:` has no parameter to fill at *either* end — a closure value records
-  its arity and parameter tags, never names — so it is `E0712` where it is
-  written (`mwl_types::expr::calls::report_named_args_through_callable`). A
-  `...` needs no parameter list at all, so it lowers: the whole list becomes one
-  array (`Lowering::lower_args_as_array`, shared with the variadic tail) behind
-  `Helper::CallClosureArray`.
-- **That is a second helper on purpose.** `CallClosure`'s argument count is a
-  literal `mwl-codegen` writes beside the argument slot, and a spread's count is
-  the one fact that is not known there. Both reach
-  `mwl_runtime::call_closure` through one shared arity check
-  (`call_closure_from_mwl`), so too few arguments is one catchable
-  `LogicError` and not two. Valgrind-clean over a fixture that spreads a
-  borrowed and a freshly built list two hundred times each.
+- **The rule is a mark, not a boundary.** A call site takes
+  `Lowering::pending_refs_mark` before it lowers its argument list
+  (`crates/mwl-ir/src/lower/mod.rs:2074`) and hands it back to
+  `flush_ref_writebacks` (`:2091`) after emitting its call, at the three sites
+  that can stage one — `lower_new`, `lower_method_call`, `lower_static_call`
+  (`crates/mwl-ir/src/lower/expr.rs:3664`, `:3819`, `:4008`). ADR 0063 R7
+  leaves nothing by-reference in `Core`, so the three `CoreCall` sites need no
+  mark. `pending_refs`' own doc comment (`mod.rs:1182`) is the rule's one home,
+  including the one thing it does not buy — PHP's *operand* order, which the
+  manual leaves undefined and which MWL takes left to right.
+- **Subtracting the deferral uncovered an older leak**, fixed in the same
+  slice: `return $s;` over a `&$x` parameter took `lower_stmt`'s `except`
+  exemption and so retained nothing, while `release_all_locals` was never going
+  to release a `Ty::Ref` cell anyway. The playbook's "Running things" bullet
+  owns the recognition test. Valgrind-clean over fixtures that grow a borrowed
+  and a freshly built string through a `&$x` parameter, and write back through
+  a property holder, two hundred times.
+- **The four statement-level flush sites in `stmt.rs` are gone.**
+  `lower_stmts`' assertion stays as an internal-consistency check on the call
+  sites (`crates/mwl-ir/src/lower/stmt.rs:61`), not as a refusal.
 
 ## Next group
 
-**Item 18 / `mwl-ir` gap 10: a `&$x` argument's copy-back, and the three stage-3
-tests still owed.** The file set: `crates/mwl-ir/src/lower/mod.rs`,
-`crates/mwl-ir/src/lower/call.rs`, `crates/mwl-ir/src/lower/stmt.rs`,
-`examples/callable.mwl`.
+**The two named `.mwlt` cases item 18 owes, and the divergence one of them must
+not write.** The file set: `tests/conformance/lang/`, `tests/differential/lang/`
+— no Rust. The rule they pin lives at `crates/mwl-ir/src/lower/mod.rs:1182`.
 
-- [ ] **A `&$x` argument's copy-back lands where the call is**, not at the
-      enclosing statement — so such a call lowers in any expression position and
-      a second read in the *same* statement sees the written-back value.
-      `crates/mwl-ir/src/lower/mod.rs:1205` (`pending_refs`), `:2082`
-      (`flush_ref_writebacks`), `crates/mwl-ir/src/lower/call.rs:846`
-      (`stage_ref_arg`) and `:905`. `examples/callable.mwl` prints
-      `byref=7 then 5` and the acceptance check wants `byref=7 then 7`, which is
-      exactly this.
-- [ ] **`a_reference_argument_lowers_in_any_expression_position`** — the
-      `mwl-ir (calls)` acceptance list names it and the crate does not have it.
-      A snapshot beside the three added this session
-      (`crates/mwl-ir/src/lower/mod.rs:5599` onward).
-- [ ] **`a_foreach_by_reference_writes_through_to_its_array` and
-      `a_spread_array_element_lowers`** — the other two that list owes. Both
-      behaviours already run (`examples/callable.mwl`'s `scaled=60` and
-      `elements=4`), so these are tests over landed work, not new lowering.
+- [ ] **`tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.mwlt`**
+      — `python tools/loop.py --list` names it and stage 8 owes it. The shapes
+      that run today, all checked by hand this session: a read to the right of
+      the call in one statement, two calls in one statement where the second
+      sees the first's write, a nested call
+      (`Adder::sum(Adder::bump($n), $n)` answers `12`), a call in a condition,
+      in an array-literal element, in a `while` body, and a property holder
+      (`Box::grow($b->tag, "z")`). `crates/mwl-ir/src/lower/call.rs:846`
+      (`stage_ref_arg`) is what the two holder kinds are.
+- [ ] **`tests/differential/lang/a-reference-argument-matches-phps.mwlt`** — the
+      oracle half. **Do not write `$n + Adder::bump($n)` into it**: PHP answers
+      `7 + 7` and MWL answers `5 + 7`, PHP reading its left operand at the
+      `ADD` after the call. Every other shape in the list above was checked
+      against `php` this session and agrees. `mod.rs:1182` says why that one is
+      not a divergence to pin.
+- [ ] **`tests/conformance/error/a-finally-runs-when-its-catch-body-throws.mwlt`**
+      — stage 8's next unwritten case, and the one nearest these two in the
+      tree. `crates/mwl-ir/src/lower/exception.rs` owns the ladder.
 
 ## Backlog
 
 - First-class callable syntax (`Class::method(...)`) still panics — `mwl-ir` gap
   1, at `lower/call.rs:85` and `:652`. Both are `CallArgs::FirstClassCallable`.
-- Item 14's two temporaries shapes — `mwl-ir`'s own `Lowering` field docs.
-- A call through a `callable` answers `mixed`, so a narrower position needs an
-  `as T`; `examples/callable.mwl:4` is the worked spelling. ADR 0031 § 1.
+- ADR 0007 § 4's promotion table has 9 refusal sites left (`python
+  tools/holes.py --item 1`), the largest remaining group.
+- `crates/mwl-codegen/src/ty.rs:116` and `:121` are the two refusal sites no
+  item anchors (`holes.py`'s UNATTRIBUTED section).
+- An abandoned generator's `finally` — pre-authorized in
+  `docs/agent/loop-goal.md` § *Standing decisions*, two named cases owed.
+- Item 25: `object` as a declared type has 2 refusal sites left.
+- `holes.py` counts 14 named cases still to write across stages 8 and 9.
