@@ -1,5 +1,5 @@
 --TEST--
-a compound assignment through a `&$x` parameter updates the caller's own binding
+a compound assignment through an `inout $x` parameter updates the caller's own binding
 --FILE--
 <?mwl
 class Bump {

@@ -1,9 +1,9 @@
 --TEST--
-`foreach (… as &$v)` writes each element back where it came from — at every exit an iteration has, through a nested loop, and through a `&$x` parameter — while a copy taken before the loop keeps what it was given (ADR 0007 § 5, ADR 0053 § 3)
+`foreach (… as inout $v)` writes each element back where it came from — at every exit an iteration has, through a nested loop, and through an `inout $x` parameter — while a copy taken before the loop keeps what it was given (ADR 0007 § 5, ADR 0053 § 3)
 --FILE--
 <?mwl
 final class Walk {
-    // A `&$x` parameter and a `&$v` binding are the same rule from two
+    // An `inout $x` parameter and an `inout $v` binding are the same rule from two
     // sides: what the callee writes back reaches the entry too.
     public static function bump(inout int $n): void {
         $n = $n + 100;

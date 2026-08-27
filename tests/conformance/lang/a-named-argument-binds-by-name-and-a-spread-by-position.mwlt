@@ -58,7 +58,7 @@ echo $b->render(), "\n";
 // So does an instance method, out of order.
 echo $b->render(close: ">", open: "<"), "\n";
 
-// A `&$n` parameter written second by name still aliases the local it names.
+// An `inout $n` parameter written second by name still aliases the local it names.
 int $n = 5;
 Box::bump(by: 3, inout n: $n);
 echo $n as string, "\n";

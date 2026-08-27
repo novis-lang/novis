@@ -1,8 +1,8 @@
 --TEST--
-A method whose body contains `yield` may not declare a `&$x` parameter, while an ordinary method beside it still may — ADR 0053 § 4
+A method whose body contains `yield` may not declare an `inout $x` parameter, while an ordinary method beside it still may — ADR 0053 § 4
 --FILE--
 <?mwl
-// A `&$x` parameter addresses a cell the *call site* stages for the duration
+// An `inout $x` parameter addresses a cell the *call site* stages for the duration
 // of the call, and what makes that sound is that the callee's frame dies
 // first. A generator inverts it: calling one runs none of the body, it
 // allocates the state object and returns (ADR 0053 § 4), so the staged cell is

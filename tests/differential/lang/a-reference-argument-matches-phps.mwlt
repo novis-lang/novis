@@ -1,5 +1,5 @@
 --TEST--
-a `&$x` argument's copy-back lands at the call, exactly as PHP's does: a read sequenced after the call in the same statement sees the write, in a concatenation, a nested call, a condition, an array literal, a `while` header and through a property holder — ADR README § *Decisions taken at project start*, lowered by `mwl_ir::lower::Lowering::pending_refs`
+an `inout $x` argument's copy-back lands at the call, exactly as PHP's does: a read sequenced after the call in the same statement sees the write, in a concatenation, a nested call, a condition, an array literal, a `while` header and through a property holder — ADR README § *Decisions taken at project start*, lowered by `mwl_ir::lower::Lowering::pending_refs`
 --FILE--
 <?mwl
 final class Adder {

@@ -1,0 +1,83 @@
+--TEST--
+`inout` is written before the parameter's type and again at the argument, in every declaration and call-site position either one has — ADR 0107 §§ 1, 2
+--FILE--
+<?mwl
+// ADR 0107 § 1 puts the word in the modifier slot, before the type, so it
+// reads the same on a static method, an instance method and a `foreach`
+// value binding. § 2 writes it again at the argument, which is the half a
+// rename alone would not have bought: without it `Adder::bump($n)` is
+// indistinguishable at the point of call from `Adder::sum($a, $b)`, and only
+// one of them writes to its caller's storage.
+final class Cell {
+    public int $n = 0;
+}
+
+class Adder {
+    public static function bump(inout int $n): void {
+        $n = $n + 1;
+    }
+
+    public static function grow(inout string $s, string $tail): void {
+        $s = $s . $tail;
+    }
+
+    public function scale(inout int $n, int $by): void {
+        $n = $n * $by;
+    }
+}
+
+// A bare local is the first of the two holders a marked argument may name.
+int $count = 5;
+Adder::bump(inout $count);
+echo $count, "\n";
+
+// A compile-time-known property is the other, and the write lands in the
+// object rather than in a copy of it.
+Cell $c = new Cell();
+Adder::bump(inout $c->n);
+Adder::bump(inout $c->n);
+echo $c->n, "\n";
+
+// A marked and an unmarked parameter sit beside each other in one signature,
+// and only the marked one is written back.
+string $s = "a";
+string $tail = "b";
+Adder::grow(inout $s, $tail);
+echo $s, " ", $tail, "\n";
+
+// The marker goes *outside* a named argument's `name:`, for the same reason
+// it goes outside the parameter's type: it marks the binding, not the value.
+// So the two orders below name the same two parameters.
+Adder::grow(inout s: $s, tail: "c");
+Adder::grow(tail: "d", inout s: $s);
+echo $s, "\n";
+
+// An instance method reads the same, the receiver being no part of the rule.
+Adder $a = new Adder();
+$a->scale(inout $count, 3);
+echo $count, "\n";
+
+// A `foreach` value binding is the third declaration position, and a marked
+// argument may name the binding it introduces — the write-through and the
+// copy-back are one rule seen from two sides.
+array<int> $xs = [1, 2, 3];
+foreach ($xs as inout int $v) {
+    Adder::bump(inout $v);
+}
+echo Core\Json::encode($xs), "\n";
+
+// A destructuring leaf is the fourth position the word parses in, and the one
+// where it is then refused — see
+// `a-by-reference-array-element-is-a-diagnostic.mwlt`, whose `[&$x]` twin
+// takes the same code for the same reason.
+array<int> $pair = [7, 9];
+int $first = $pair["0"];
+echo $first, "\n";
+--EXPECT--
+6
+2
+ab b
+abcd
+18
+[2,3,4]
+7

@@ -1,8 +1,8 @@
 --TEST--
-`foreach (… as &$v)` is refused over a subject with no storage to write back to, and over a binding wider than the element type — ADR 0053 § 3, ADR 0007 § 1
+`foreach (… as inout $v)` is refused over a subject with no storage to write back to, and over a binding wider than the element type — ADR 0053 § 3, ADR 0007 § 1
 --FILE--
 <?mwl
-// `&$v` writes each element back where it came from, so there has to be
+// `inout $v` writes each element back where it came from, so there has to be
 // somewhere to leave it: a temporary has none, and ADR 0053 § 1 gives a
 // cursor `advance()`/`current()` and no element storage at all. PHP refuses
 // both, the cursor by name. And a by-reference binding *writes* as well as

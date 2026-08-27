@@ -1,0 +1,86 @@
+--TEST--
+`&` in a by-reference position is `E0237` naming `inout`, an argument that binds an `inout` parameter without saying so is `E0713`, and one that says so where nothing binds it is `E0714` — ADR 0107 §§ 1, 2, 3
+--FILE--
+<?mwl
+// ADR 0107 § 3 retires `&` as a by-reference marker outright, so every one of
+// the five positions PHP writes it in takes the same code — including the two
+// *returning* forms, which `inout` does not replace at all: a method hands
+// back a value rather than a place, so there is nothing to mark.
+class Old {
+    public int $wrapped {
+        &get => $this->wrapped * 2;
+    }
+
+    public function constructor(int $wrapped) {
+        $this->wrapped = $wrapped;
+    }
+
+    public static function bump(int &$n): void {
+        $n = $n + 1;
+    }
+
+    public static function &handOut(): int {
+        return 1;
+    }
+}
+
+class Adder {
+    public static function bump(inout int $n): void {
+        $n = $n + 1;
+    }
+
+    public static function sum(int $a, int $b): int {
+        return $a + $b;
+    }
+}
+
+int $count = 5;
+array<int> $rest = [1, 2];
+
+// The other two binding positions, at file scope.
+foreach ($rest as int &$v) {
+    echo $v, "\n";
+}
+[int &$a] = $rest;
+
+// § 2's call-site half, in both directions. An argument that binds an `inout`
+// parameter and does not say so hides the write its callee makes; one that
+// says so where the parameter is by value claims a write that never happens.
+// The marker is deliberately not inference-assisted — a marker the compiler
+// supplies is not a marker — so each is an error rather than a lint.
+Adder::bump($count);
+echo Adder::sum(inout $count, 2), "\n";
+
+// Through a `callable` there is no parameter list to bind against at either
+// end: ADR 0031 § 4 keeps the type opaque and refuses an `inout` closure
+// parameter outright, so nothing this call can reach declares one.
+callable $f = fn (int $n): int => $n + 1;
+echo $f(inout $count), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0237]: `&` is not a by-reference marker in MWL
+  --> case.mwl:8:9
+%A
+error[E0237]: `&` is not a by-reference marker in MWL
+   --> case.mwl:15:37
+%A
+error[E0237]: `&` is not a by-reference marker in MWL
+   --> case.mwl:19:28
+%A
+error[E0237]: `&` is not a by-reference marker in MWL
+   --> case.mwl:38:23
+%A
+error[E0237]: `&` is not a by-reference marker in MWL
+   --> case.mwl:41:6
+%A
+error[E0713]: this argument binds an `inout` parameter and must say so
+   --> case.mwl:48:13
+%A
+error[E0714]: `inout` here names a by-value parameter
+   --> case.mwl:49:17
+%A
+error[E0714]: `inout` names no parameter of a `callable`
+   --> case.mwl:55:9
+%A
+error: aborting due to 8 errors

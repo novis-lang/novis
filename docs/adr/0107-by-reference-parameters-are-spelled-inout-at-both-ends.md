@@ -210,8 +210,16 @@ the signature and so belong to the checker.
   the three diagnostics, the checker's call-site rule, the mechanical rename through `mwl-ir` and
   `mwl-stdlib`, and the corpus rewrite. `python tools/holes.py` counts nothing here; the checks are in
   [loop-goal.toml](../agent/loop-goal.toml).
-- **Conformance:** `tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.mwlt` pins
-  the accepted shapes and all three diagnostics. The existing by-reference cases —
+- **Conformance:** two cases, because one `.mwlt` has one verdict — a case either runs and is checked
+  against `--EXPECT--` or fails to compile and is checked against `--EXPECTF-ERROR--`, and this surface
+  needs both halves asserted.
+  `tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.mwlt` runs the accepted
+  shapes: the word before the type on a static method, an instance method and a `foreach` value binding,
+  and again at an argument naming each of the two holders § 2 admits, including outside a named
+  argument's `name:`. `the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.mwlt` pins
+  all three diagnostics in one compile — `E0237` at each of the five positions PHP writes `&` in,
+  `E0713` at an unmarked argument, `E0714` at a marked one against a by-value parameter and against a
+  call through a `callable`. The existing by-reference cases —
   `a-reference-argument-is-written-back-before-the-next-read.mwlt`,
   `a-foreach-by-reference-writes-through-to-its-array.mwlt`,
   `a-by-reference-binding-needs-a-variable-and-the-element-type.mwlt` and the generator and closure

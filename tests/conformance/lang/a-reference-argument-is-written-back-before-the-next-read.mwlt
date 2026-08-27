@@ -1,5 +1,5 @@
 --TEST--
-a `&$x` argument's copy-back lands at the call, so every later read in the same statement sees it — ADR README § *Decisions taken at project start* ("a `&$x` parameter belongs only to a frame the call site outlives"), whose lowering rule is `mwl_ir::lower::Lowering::pending_refs`
+an `inout $x` argument's copy-back lands at the call, so every later read in the same statement sees it — ADR README § *Decisions taken at project start* ("an `inout $x` parameter belongs only to a frame the call site outlives"), whose lowering rule is `mwl_ir::lower::Lowering::pending_refs`
 --FILE--
 <?mwl
 final class Adder {

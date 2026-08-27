@@ -1,5 +1,5 @@
 --TEST--
-A `fn` literal may not declare a `&$x` parameter, in either body form — ADR 0031 § 2, § 4
+A `fn` literal may not declare an `inout $x` parameter, in either body form — ADR 0031 § 2, § 4
 --FILE--
 <?mwl
 // A by-reference parameter is a contract between a *call site* and a
