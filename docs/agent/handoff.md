@@ -2,65 +2,57 @@
 
 ## State
 
-**M4 — language completeness.** `do`/`while` lowers (`mwl_ir::lower::Lowering::lower_do_while`,
-`crates/mwl-ir/src/lower/control.rs:250`): the body's first block *is* the loop header, so the
-phis sit above the body and the pre-loop edge falls straight into them, and `continue` targets a
-condition block that every way an iteration can end flows into — [`lower_for`]'s step block in a
-different role, merged the same way. The header therefore sees one back edge. A condition nothing
-reaches (`do { return 7; } while (true);`) is sealed unreachable exactly as `lower_for` seals an
-unreachable step block.
+**M4 — language completeness.** `$fn(...)` lowers: one `Helper::CallClosure`
+(`mwl_ir::lower::Lowering::lower_closure_call`, `crates/mwl-ir/src/lower/call.rs:643`) carrying the
+closure at `args[0]` and its arguments after it, which is `mwl_runtime::mwl_call_closure`
+(`crates/mwl-runtime/src/closure.rs:169`) and from there the same `call_closure` every `Core` member's
+callback already takes — one body, no second convention. It is **the one variadic helper**: its arity
+belongs to the call site, so `mwl-codegen` passes the count beside the argument slot
+(`Signatures::helper_variadic`, `crates/mwl-codegen/src/lib.rs:589`) where every other helper's arity is
+a literal in its `mwl_helper!` expansion. The result is `Ty::Tagged`, because ADR 0031 § 1 leaves the
+checker `mixed` as its only answer; arguments are borrowed, the treatment every helper's are given.
+Extra arguments are trimmed as a `Core` callback's are; too few is a catchable `LogicError` rather than
+the engine fault a native caller gets, since no checker could have counted them.
 
-**A compound assignment to a static property lowers.** `Class::$p += 1`, `.=`, `++` and `--` all
-work now: `reevaluable_target` (`crates/mwl-ir/src/lower/stmt.rs:1230`) answers `true` for
-`ExprKind::StaticPropertyAccess`, which is the whole fix — `static_property_of` resolves the
-`(declaring class, name, representation)` triple out of the typed-expression table, so the class
-part is a name and the second read runs nothing. No staging, no new refcount edge: the store arm
-already read the slot back and released it.
+**A closure's declared parameter types are checked by nobody, and that is a priority-1 hole.** It is
+older than this lowering and reachable from safe MWL without it — `Core\Arr::map($ints, fn (string $s)
+...)` over an `array<int>` reads an `int` payload as a pointer — so `$f(...)` widens who can reach it,
+not whether. `mwl_runtime::closure`'s module doc owns it and states the fix; it is the next group.
 
-`verify.py` 6 of 6 green — conformance **616**, differential 173. `tools/leak-check.sh` clean over
-a fixture that carries a `string` local through a `do`/`while` body and appends to a `static
-string` in it.
-
-**The worklist tool overstates what is open** — see the playbook's new Tooling bullet. Five of
-`holes.py`'s six ranked items name features that already run; `--cases` is the half to trust.
+`verify.py` 6 of 6 green — conformance **617**, differential 173. `tools/leak-check.sh` clean over two
+fixtures that carry a captured `string` and a `string` argument through a direct closure call and a
+throwing one.
 
 ## Next group
 
-**A closure is called through the variable holding it.** The runtime half already exists
-(`mwl_runtime::call_closure`, `crates/mwl-runtime/src/closure.rs:72`) and every `Core` member
-taking a `callable` goes through it; what is missing is the lowering, so the four files below are
-one slice's file set: `crates/mwl-ir/src/lower/expr.rs`, `crates/mwl-ir/src/ir.rs`,
-`crates/mwl-codegen/src/emit.rs`, `crates/mwl-runtime/src/closure.rs`.
+**A closure carries what its parameters are, and the call checks them.** The four files are one file
+set: `crates/mwl-ir/src/lower/closure.rs`, `crates/mwl-ir/src/lower/mod.rs`,
+`crates/mwl-runtime/src/closure.rs`, `crates/mwl-codegen/tests/closures.rs`.
 
-- [ ] **`$fn(args)` panics `mwl-ir` outright.** `crates/mwl-ir/src/lower/expr.rs:311` is the arm
-      that refuses it — *"got `Call { callee: Variable(…) }`"*, which reads as a parser gap rather
-      than the missing lowering it is. ADR 0031 § 1 says `callable` is the only closure type and a
-      closure is an object of a synthesized class with one `invoke` method
-      (`crates/mwl-ir/src/lower/closure.rs`), so the shape is a helper call at
-      `crates/mwl-runtime/src/closure.rs:72` with the receiver and a slice of arguments — not a
-      lowered `Call` with a resolved target. Add the `ir::Helper` row and its
-      `crates/mwl-codegen/src/emit.rs` arm alongside.
-- [ ] **`tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.mwlt`** — the
-      named case stage 8 owes for it (`python tools/holes.py --cases`). Pin the arity trim
-      `call_closure` performs (a closure declaring fewer parameters than it is handed), since
-      `crates/mwl-runtime/src/closure.rs:113`'s `closure_arity` is the only thing that makes a
-      `Core\Arr` callback and a hand-written one the same shape.
-- [ ] **`mwl-ir`'s known-gaps 15 and 16 no longer describe the tree.**
-      `crates/mwl-ir/src/lib.rs:355` says `<=>` "reaches `lower_expr`'s panic for every scalar
-      operand" and `crates/mwl-ir/src/lib.rs:359` that "`$x++` and `--$x` do not lower"; both run.
-      Rewrite the two entries around what is actually left (`**`/`**=` have no `ir::BinOp` row,
-      and `f()->count += 1` is still refused), because this list is what `holes.py` and the next
-      session read.
+- [ ] **A closure object records its parameter tags beside its arity.** One more reserved field
+      written from the declared types at the literal, exactly as `FN_ARITY`
+      (`crates/mwl-ir/src/lower/mod.rs:2642`) is today, in `lower_closure`
+      (`crates/mwl-ir/src/lower/closure.rs:119`). Every capture slot moves up by one, so
+      `crates/mwl-codegen/tests/closures.rs:27` is the test that says whether the layout still agrees.
+- [ ] **`call_closure` compares each argument's tag against them and throws.**
+      `crates/mwl-runtime/src/closure.rs:97` is where the arity is already read and the slice already
+      trimmed; the comparison goes beside it, answering `ThrownClass::Logic` the way
+      `mwl_call_closure`'s arity check at `crates/mwl-runtime/src/closure.rs:169` does. One tag
+      comparison per argument on the callback path is priority 3 spent for priority 1 — AGENTS.md's
+      ordering names that direction.
+- [ ] **A `.mwlt` case pinning both sides, and both callers.** A matching call runs and a mismatched
+      one throws, asked once of `$f(...)` and once of `Core\Arr::map` so the two callers agree —
+      `tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.mwlt` is the file to
+      extend rather than a second one.
 
 ## Backlog
 
-- `Core\Fault` cannot be constructed with arguments — `new Core\Fault("…")` panics
-  `crates/mwl-ir/src/lower/expr.rs:3341` naming a `mwl_types` zero-arity gap. Use `RuntimeError`.
-- 16 named `.mwlt` cases still owed; `python tools/holes.py --cases` is the list.
-- `static::$prop` is `E0499` and an uninitialized non-nullable static is `E0409` — both owed a
-  `--EXPECTF-ERROR--` case; `docs/adr/README.md` § *Decisions taken at project start* owns why.
-- ADR 0007 § 2's `array<T> as array<U>` row still does not lower — the playbook cites it as the
-  wall four separate case-writing traps run into.
-- A spread argument does not lower (`crates/mwl-ir/src/lower/call.rs:85`), item 16.
-- `E0499` remains the last code in the `E04xx` band; a band decision is owed before the next
-  types diagnostic.
+- `mwl-ir`'s known gaps 15 and 16 no longer describe the tree (`crates/mwl-ir/src/lib.rs:347`): `$x++`
+  and `--$x` lower now, and `<=>` over a scalar is what is actually left.
+- A `name:` or `...` argument to `$f(...)` panics rather than diagnosing — gap 8's checker half first,
+  as `docs/agent/loop-goal.md` § *Standing decisions* orders it.
+- The first-class callable spelling `$f(...)`/`Class::method(...)` still panics `mwl-ir`;
+  `docs/agent/playbook.md` § *Writing a test case* has the shape cases use instead.
+- `array<T> as array<U>` (ADR 0007 § 2) does not lower, which is what blocks a case from reading past
+  the first level of an `array<mixed>`.
+- `python tools/holes.py`'s ranked items overstate what is open; `--cases` is the half to trust.

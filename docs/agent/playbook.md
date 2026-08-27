@@ -1677,6 +1677,15 @@ sibling in the same namespace unqualified.
   now rather than a silent difference. The general shape is worth keeping: a resolved-at-
   compile-time storage and a spelling PHP resolves at run time agree until the two classes
   disagree, so the scratch file that judges one has to make them disagree.
+- **A closure's declared parameter types are checked by nobody, and a mismatch is an arbitrary
+  dereference rather than a fault.** `Core\Arr::map($ints, fn (string $s): string => $s)` over an
+  `array<int>` dies inside `mwl-runtime`'s `string.rs` on a misaligned pointer, and `$f(1)` on a
+  `fn (string $s)` does the same now that a direct call lowers: ADR 0031 § 1 gives `callable` no
+  parameter list, so nothing compares a call site against the body it reaches and the compiled
+  `invoke` reads each slot at its own declared representation. So a case or a fixture that hands a
+  closure to a `Core` member must spell the element type and the parameter type *the same*, and a
+  crash with no MWL frame in it is this before it is anything else. `mwl_runtime::closure`'s module
+  doc owns the hole and what closing it costs.
 
 ## Divergences and refusals already pinned
 
