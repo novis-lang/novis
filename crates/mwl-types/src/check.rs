@@ -442,7 +442,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         check_block(&body.stmts, &mut live, &mut scope, return_ty, ctx, env);
         return;
     };
-    check_generator_by_ref_params(m, env);
+    check_generator_inout_params(m, env);
     let inner = Ctx {
         namespace: ctx.namespace,
         imports: ctx.imports,
@@ -459,7 +459,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     check_block(&body.stmts, &mut live, &mut scope, void, &inner, env);
 }
 
-/// ADR 0053 § 4's frame lifetime, as a refusal: a generator declares no `&$x`
+/// ADR 0053 § 4's frame lifetime, as a refusal: a generator declares no `inout $x`
 /// parameter.
 ///
 /// A by-reference parameter addresses a cell the **call site** stages, writes
@@ -470,18 +470,18 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// `advance()` and the parked frame would be addressing a slot of a call that
 /// has already returned. There is no representation for it to keep instead —
 /// copying the value in would silently stop being a reference, and the whole
-/// observable point of `&$x` is that the caller sees the writes.
+/// observable point of `inout $x` is that the caller sees the writes.
 ///
 /// So it is a shape the language does not have, refused where it is written.
 /// Reported once per by-reference parameter, and only for a body that already
-/// established itself as a generator, so an ordinary method's `&$x` — which
+/// established itself as a generator, so an ordinary method's `inout $x` — which
 /// lowers — is untouched.
-fn check_generator_by_ref_params(m: &MethodMember, env: &mut Env<'_>) {
+fn check_generator_inout_params(m: &MethodMember, env: &mut Env<'_>) {
     for param in m.params.iter().filter(|p| p.inout) {
         let name = span_text(env.src, param.name).to_owned();
         env.diags.report(
             Diagnostic::error(
-                code::E_GENERATOR_BY_REF_PARAM,
+                code::E_GENERATOR_INOUT_PARAM,
                 format!("a generator cannot take `{name}` as `inout`"),
             )
             .with_primary(param.name, "declared `inout` here")

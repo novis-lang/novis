@@ -192,7 +192,7 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             // name to call either slot by — see `MethodSig::param_names`.
             // The second is ADR 0063 R2's bag, which is already by-name.
             param_names: None,
-            by_ref: vec![false, false],
+            inout: vec![false, false],
             variadic: false,
             defaults: vec![
                 None,

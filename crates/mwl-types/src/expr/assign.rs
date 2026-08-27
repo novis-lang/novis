@@ -567,7 +567,7 @@ pub(super) fn check_write_target(target: &Expr, env: &mut Env<'_>) {
 /// back into, rather than a value dropped at the end of the statement.
 ///
 /// The three that are, are the three
-/// `mwl_ir::lower::Lowering::write_back_array` can re-point — a local (a `&$x`
+/// `mwl_ir::lower::Lowering::write_back_array` can re-point — a local (an `inout $x`
 /// parameter's slot included), a property of a receiver whose class is known
 /// at compile time, and a static property, whose slot the request owns. A
 /// property of a *temporary* receiver (`(new H)->rows["a"] = "y"`) is a place

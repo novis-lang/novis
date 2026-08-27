@@ -128,7 +128,7 @@ fn elem_var(interface: &str, interner: &mut TypeInterner) -> TypeId {
 /// for why every member here is one.
 fn bodiless(params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
     MethodSig {
-        by_ref: vec![false; params.len()],
+        inout: vec![false; params.len()],
         defaults: vec![None; params.len()],
         // Installed from this crate's roster rather than parsed, so no
         // slot has a source name — see `MethodSig::param_names`.

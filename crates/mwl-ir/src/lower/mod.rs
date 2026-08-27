@@ -20,7 +20,7 @@
 //! | [`control`] | `if`, `while`, both `foreach` shapes, `break`/`continue`, the env merge |
 //! | [`exception`] | `throw`, `try`/`catch`, the landing blocks, the synthesized `Throwable` constructor |
 //! | [`generator`] | ADR 0053 § 4's state machine — the frame, the spills, the three synthesized methods |
-//! | [`call`] | argument ownership, options-bag flattening, a `&$x` argument staged and written back |
+//! | [`call`] | argument ownership, options-bag flattening, an `inout $x` argument staged and written back |
 //! | [`closure`] | ADR 0031 closure literals and their captured-environment class |
 //!
 //! # Control flow (`if`/`while`)
@@ -761,7 +761,7 @@ pub fn lower_method(
         // +1: index 0 is always the implicit receiver seeded above.
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let pname = strip_sigil(span_text(src, p.name)).to_owned();
-        // `&$x` — the incoming slot holds the address of one caller-staged
+        // `inout $x` — the incoming slot holds the address of one caller-staged
         // `Value` cell rather than a value of the declared type, so the
         // binding is a `Ty::Ref` and the declared type is remembered as the
         // *pointee*: every read of the parameter becomes an
@@ -1165,7 +1165,7 @@ struct Lowering<'a> {
     /// [`Env`] name of its own for the subject it compares against every case
     /// — see [`Self::lower_switch`].
     switch_seq: u32,
-    /// Every `&$x` parameter this frame declares, by name, mapped to the
+    /// Every `inout $x` parameter this frame declares, by name, mapped to the
     /// *pointee's* representation — the declared type its `Env` entry cannot
     /// carry, since that entry holds [`Ty::Ref`] instead (see [`Ty::Ref`] and
     /// [`lower_method`]).
@@ -1176,15 +1176,15 @@ struct Lowering<'a> {
     /// [`lower_method`] seeds it, so the `Env` clones a landing block and a
     /// loop header take would only copy it needlessly.
     ref_locals: FxHashMap<String, Ty>,
-    /// Every `foreach (… as &$v)` whose body is being lowered right now,
-    /// innermost last — see [`ByRefElement`] and [`Lowering::lower_foreach`].
+    /// Every `foreach (… as inout $v)` whose body is being lowered right now,
+    /// innermost last — see [`InoutElement`] and [`Lowering::lower_foreach`].
     ///
     /// A stack rather than a map because two nested by-reference loops may be
     /// in scope at once and only the innermost binding of a name is visible;
     /// pushed before the body is lowered and popped after, so it is empty for
     /// every frame that has no such loop open and the write-through hook
     /// costs one `is_empty` there.
-    by_ref_elements: Vec<ByRefElement>,
+    inout_elements: Vec<InoutElement>,
     /// By-reference arguments staged for the calls currently being lowered,
     /// awaiting their copy-back — see [`Ty::Ref`] and
     /// [`Self::flush_ref_writebacks`].
@@ -1210,7 +1210,7 @@ struct Lowering<'a> {
     /// PHP puts it — at the call. So a read of the holder sequenced after the
     /// call and still inside the same statement
     /// (`Adder::bump($n) . " then " . $n`) sees the written-back value, and a
-    /// call with a `&$x` argument lowers in any expression position at all
+    /// call with an `inout $x` argument lowers in any expression position at all
     /// rather than only as a bare statement or a plain assignment's right-hand
     /// side. [`Self::lower_stmts`] still asserts this list is empty once a
     /// statement has been lowered, which is now an internal-consistency check
@@ -1254,7 +1254,7 @@ struct StagedRef {
     /// The [`Ty::Ref`] the callee was handed.
     slot: ValueId,
     /// The pointee's representation — the parameter's declared type, which
-    /// `mwl_types`' `check_by_ref_arg` has already proven is exactly the
+    /// `mwl_types`' `check_inout_arg` has already proven is exactly the
     /// holder's own.
     ty: Ty,
 }
@@ -1270,7 +1270,7 @@ struct StagedRef {
 /// need a second one.
 ///
 /// These are exactly the two shapes [`is_aliasing_read`] recognises as durable
-/// storage, and exactly the two `mwl_types`' `check_by_ref_arg` accepts.
+/// storage, and exactly the two `mwl_types`' `check_inout_arg` accepts.
 enum RefHolder {
     /// A bare local — the `Env` name it is bound under.
     Local(String),
@@ -1285,7 +1285,7 @@ enum RefHolder {
     },
 }
 
-/// One open `foreach (… as &$v)`: what a write to `$v` inside its body has to
+/// One open `foreach (… as inout $v)`: what a write to `$v` inside its body has to
 /// write *through*.
 ///
 /// The whole by-reference loop is this record plus
@@ -1298,7 +1298,7 @@ enum RefHolder {
 /// array's own binding is re-pointed by every write (ADR 0007 § 5's
 /// separation), so reading a stale [`ValueId`] here would write into the
 /// array the loop *started* on.
-struct ByRefElement {
+struct InoutElement {
     /// The `$v` binding's name, as an assignment target names it.
     binding: String,
     /// The `Env` name the array being walked is bound under — the subject
@@ -1330,8 +1330,8 @@ struct LoweredArgs {
 struct ArgSig {
     /// Each parameter's declared type, positional.
     param_tys: Vec<TypeId>,
-    /// Which parameters are declared `&$x`, positional.
-    by_ref: Vec<bool>,
+    /// Which parameters are declared `inout $x`, positional.
+    inout: Vec<bool>,
     /// Whether the last parameter is `...$x` — in which case `param_tys`'
     /// last entry is the type *each* trailing argument is checked against,
     /// and `Lowering::lower_variadic_tail` turns all of them into the one
@@ -1379,7 +1379,7 @@ impl ArgSig {
     fn of(call: &mwl_types::expr_table::ResolvedCall) -> Self {
         Self {
             param_tys: call.param_tys.clone(),
-            by_ref: call.by_ref.clone(),
+            inout: call.inout.clone(),
             variadic: call.variadic,
             defaults: call.defaults.clone(),
             arg_slots: call.arg_slots.clone(),
@@ -1419,10 +1419,10 @@ impl ArgSig {
     /// recorded parameters, and never consulted for a variadic tail at all:
     /// `lower_call_args` collects that tail into one array, which is a value
     /// and not a holder, so there is no position-onward rule to apply here the
-    /// way `mwl_types::signatures::MethodSig::is_by_ref` has one. ADR 0063 R7
+    /// way `mwl_types::signatures::MethodSig::is_inout` has one. ADR 0063 R7
     /// keeps it that way for `Core` — nothing there is by-reference.
-    fn is_by_ref(&self, index: usize) -> bool {
-        self.by_ref.get(index).copied().unwrap_or(false)
+    fn is_inout(&self, index: usize) -> bool {
+        self.inout.get(index).copied().unwrap_or(false)
     }
 }
 
@@ -1458,7 +1458,7 @@ impl<'a> Lowering<'a> {
             foreach_seq: 0,
             switch_seq: 0,
             ref_locals: FxHashMap::default(),
-            by_ref_elements: Vec::new(),
+            inout_elements: Vec::new(),
             pending_refs: Vec::new(),
             generator: None,
             closures: Vec::new(),
@@ -1946,7 +1946,7 @@ impl<'a> Lowering<'a> {
         {
             self.emit_release(cur, old_v);
         }
-        // `$v = e` where `$v` is a `foreach (… as &$v)` binding writes the
+        // `$v = e` where `$v` is a `foreach (… as inout $v)` binding writes the
         // entry too — see `Self::write_through_element`, and note that the
         // header's own per-iteration binding does not come through here.
         self.write_through_element(cur, env, &name, v, ty);
@@ -2020,7 +2020,7 @@ impl<'a> Lowering<'a> {
                 } else {
                     (written, Ty::Array)
                 };
-                // `$v[0] = e` where `$v` is a `foreach (… as &$v)` binding:
+                // `$v[0] = e` where `$v` is a `foreach (… as inout $v)` binding:
                 // the separated row is what the entry now holds.
                 self.write_through_element(*cur, env, &name, written, ty);
                 env.insert(name, (written, ty));
@@ -2076,7 +2076,7 @@ impl<'a> Lowering<'a> {
             ),
         }
     }
-    /// The declared type behind the `&$name` parameter `name` — the pointee
+    /// The declared type behind the `inout $name` parameter `name` — the pointee
     /// representation [`Self::ref_locals`] remembers, which the parameter's
     /// own `Env` entry cannot carry (it holds [`Ty::Ref`]).
     ///
@@ -2153,7 +2153,7 @@ impl<'a> Lowering<'a> {
                 {
                     self.emit_release(cur, old_v);
                 }
-                // `f(&$v)` where `$v` is a `foreach (… as &$v)` binding: what
+                // `f(inout $v)` where `$v` is a `foreach (… as inout $v)` binding: what
                 // the callee wrote back reaches the entry too, the same way
                 // an assignment to it does.
                 self.write_through_element(cur, env, name, written, ty);
@@ -2826,7 +2826,7 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
     match ty {
         // `Ref` and `ClassDesc` ride in the payload of an otherwise-`null`
         // slot, exactly as `tag_of` says; neither is writable as a parameter's
-        // declared type, and a `&$x` parameter is refused before it gets here.
+        // declared type, and an `inout $x` parameter is refused before it gets here.
         Ty::Null | Ty::Ref | Ty::ClassDesc => 0,
         Ty::Bool => 1,
         // ADR 0010's enum travels as its backing integer, tag included, so

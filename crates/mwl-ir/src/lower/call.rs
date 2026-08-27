@@ -1,4 +1,4 @@
-//! Call lowering: argument ownership, ADR 0063 R2's options bag flattened at the site, a `&$x` argument staged and written back, and `$fn(...)` through the one helper a `Core` member's callback already takes.
+//! Call lowering: argument ownership, ADR 0063 R2's options bag flattened at the site, an `inout $x` argument staged and written back, and `$fn(...)` through the one helper a `Core` member's callback already takes.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
@@ -27,7 +27,7 @@ impl<'a> Lowering<'a> {
     /// argument needs no retain: it already has exactly one owner, which
     /// simply transfers into the callee's parameter slot.
     ///
-    /// A `&$x` parameter's argument is **staged** instead (see [`Ty::Ref`]):
+    /// An `inout $x` parameter's argument is **staged** instead (see [`Ty::Ref`]):
     /// the holder's current value is read, retained, copied into a fresh
     /// one-cell slot, and that slot's address is what the callee receives.
     /// The matching copy-back is parked in [`Self::pending_refs`] for
@@ -212,7 +212,7 @@ impl<'a> Lowering<'a> {
                 return;
             }
         };
-        if sig.is_by_ref(index) {
+        if sig.is_inout(index) {
             out.values
                 .push(self.stage_ref_arg(&arg.value, expected, env, cur));
             return;
@@ -864,7 +864,7 @@ impl<'a> Lowering<'a> {
                          resolved declaring class recorded in the typed-expression table — \
                          either it wasn't checked with the same table, or its receiver erased \
                          to a shape/plain `object` (ADR 0036 § 4); mwl_types' \
-                         `check_by_ref_arg` is expected to have refused both",
+                         `check_inout_arg` is expected to have refused both",
                         arg.span
                     );
                 };
@@ -892,7 +892,7 @@ impl<'a> Lowering<'a> {
             other => panic!(
                 "mwl-ir stages a by-reference argument only from a bare local or a \
                  compile-time-known property — not from {other:?}; mwl_types' \
-                 `check_by_ref_arg` is expected to have refused it at the call site"
+                 `check_inout_arg` is expected to have refused it at the call site"
             ),
         };
         // The staging retain: from here the slot owns one reference of its

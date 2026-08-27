@@ -2509,7 +2509,7 @@ echo $bump;
     assert_snapshot!(print_program(&p, map.file(file)));
 }
 
-/// A closure capturing an enclosing `&$x` parameter, which is the one
+/// A closure capturing an enclosing `inout $x` parameter, which is the one
 /// capture whose `Env` entry is an address rather than a value: ADR 0031
 /// § 2 captures by value, so the field takes a `ref.load` snapshot of the
 /// cell at the literal, at the declared pointee type, and then the same
@@ -2568,7 +2568,7 @@ class T {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `foreach (… as &$v)` writes back through the array it is walking, which
+/// `foreach (… as inout $v)` writes back through the array it is walking, which
 /// is the one shape copy-on-write separation has to be told *not* to
 /// separate. The snapshot is where that shows: no retain of the subject on
 /// the way in and no release after the loop, an `array.key_at`/`array.set`
@@ -3179,7 +3179,7 @@ echo $msg;
 }
 
 /// The copy-back lands **where the call is**, not at the enclosing
-/// statement — so a call with a `&$x` argument lowers in an operand
+/// statement — so a call with an `inout $x` argument lowers in an operand
 /// position like any other expression, and a read of the holder to the
 /// right of it inside the *same* statement sees the written-back value.
 ///

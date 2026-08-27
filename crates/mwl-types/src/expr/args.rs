@@ -1,5 +1,5 @@
 //! A call's arguments: arity, each argument against its parameter, ADR 0063
-//! R2's trailing options bag, a `&$x` argument, and the type arguments a call
+//! R2's trailing options bag, an `inout $x` argument, and the type arguments a call
 //! site binds.
 //!
 //! Which member a call resolves to is [`super::calls`]; this module starts
@@ -82,10 +82,10 @@ pub(super) fn check_args_typed(
         // subject's entries rather than the subject, so there is no one
         // storage location for a by-reference parameter to alias.
         if let ArgSlot::Param(index) = slot
-            && sig.is_by_ref(index)
+            && sig.is_inout(index)
         {
             note_write(&arg.value, scope, env);
-            check_by_ref_arg(arg, actual, expected, env);
+            check_inout_arg(arg, actual, expected, env);
         }
         arg_types.push(actual);
     }
@@ -98,18 +98,18 @@ pub(super) fn check_args_typed(
 /// This is the half a rename could not have bought: `Adder::bump($n)` is
 /// otherwise indistinguishable at the point of call from
 /// `Adder::sum($a, $b)`, and only one of them writes to the caller's storage.
-/// It is checked here rather than beside [`check_by_ref_arg`] because it is a
+/// It is checked here rather than beside [`check_inout_arg`] because it is a
 /// question about the *marker* and not about the argument's type, so a
 /// generic call — which returns before that loop to re-check its arguments
 /// against inferred type arguments — owes the same answer.
 ///
 /// A `...` never carries one: its entries fill the variadic parameter rather
 /// than the argument itself, so there is no one storage location to write
-/// back to, which is [`check_by_ref_arg`]'s obligation 1 arrived at from the
+/// back to, which is [`check_inout_arg`]'s obligation 1 arrived at from the
 /// call site's end.
 fn check_inout_markers(list: &[Arg], slots: &[ArgSlot], sig: &MethodSig, env: &mut Env<'_>) {
     for (arg, &slot) in list.iter().zip(slots) {
-        let declared = matches!(slot, ArgSlot::Param(index) if sig.is_by_ref(index));
+        let declared = matches!(slot, ArgSlot::Param(index) if sig.is_inout(index));
         match (declared, arg.inout) {
             (true, false) => {
                 env.diags.report(
@@ -555,7 +555,7 @@ pub(super) fn option_names(options: &[(String, TypeId)]) -> String {
         .join(", ")
 }
 
-/// The two extra obligations an argument at a `&$x` parameter position
+/// The two extra obligations an argument at an `inout $x` parameter position
 /// carries, beyond the assignability [`check_args_typed`] already checked for
 /// every argument.
 ///
@@ -575,7 +575,7 @@ pub(super) fn option_names(options: &[(String, TypeId)]) -> String {
 /// Obligation 2 is only reported when the argument would otherwise have been
 /// accepted: a type that is not assignable at all already produced
 /// `E_TYPE_MISMATCH` at the same span, and saying it twice helps nobody.
-pub(super) fn check_by_ref_arg(
+pub(super) fn check_inout_arg(
     arg: &Arg,
     actual: TypeId,
     expected: Option<TypeId>,
@@ -592,7 +592,7 @@ pub(super) fn check_by_ref_arg(
     if hooked {
         env.diags.report(
             Diagnostic::error(
-                code::E_BY_REF_ARG_NOT_A_PLACE,
+                code::E_INOUT_ARG_NOT_A_PLACE,
                 "a property with hooks cannot be passed to an `inout` parameter",
             )
             .with_primary(arg.value.span, "passed by reference here")
@@ -609,7 +609,7 @@ pub(super) fn check_by_ref_arg(
         ExprKind::Index { .. } => {
             env.diags.report(
                 Diagnostic::error(
-                    code::E_BY_REF_ARG_NOT_A_PLACE,
+                    code::E_INOUT_ARG_NOT_A_PLACE,
                     "an array element cannot be passed to an `inout` parameter yet",
                 )
                 .with_primary(arg.value.span, "passed by reference here")
@@ -622,7 +622,7 @@ pub(super) fn check_by_ref_arg(
         _ => {
             env.diags.report(
                 Diagnostic::error(
-                    code::E_BY_REF_ARG_NOT_A_PLACE,
+                    code::E_INOUT_ARG_NOT_A_PLACE,
                     "only a variable or a property can be passed to an `inout` parameter",
                 )
                 .with_primary(arg.value.span, "passed by reference here")
@@ -643,7 +643,7 @@ pub(super) fn check_by_ref_arg(
         );
         env.diags.report(
             Diagnostic::error(
-                code::E_BY_REF_ARG_TYPE_NOT_EXACT,
+                code::E_INOUT_ARG_TYPE_NOT_EXACT,
                 format!("an `inout` parameter declared `{want}` needs an argument of exactly that type, not `{got}`"),
             )
             .with_primary(arg.value.span, format!("this is `{got}`"))

@@ -184,7 +184,7 @@
 //!   `match (true)` do not narrow yet — the same conservative direction as
 //!   the row above: a missing narrowing is a diagnostic, never a wrong
 //!   program.
-//! - References (`&$x`) needing both sides to declare the same type.
+//! - References (`inout $x`) needing both sides to declare the same type.
 //! - A **user-declared** class constant's type *at an expression site*, a
 //!   promoted constructor-parameter property, and a named/spread call
 //!   argument's positional checking — see [`signatures`]/[`expr`]'s own

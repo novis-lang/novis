@@ -129,7 +129,7 @@ impl<'a> Lowering<'a> {
             let Some(&(pre_v, ty)) = env.get(name) else {
                 continue;
             };
-            // A `&$x` parameter's binding is an address that never changes:
+            // An `inout $x` parameter's binding is an address that never changes:
             // writing to it stores *through* it rather than rebinding it
             // (`Ty::Ref`), so a header phi for one would carry the same value
             // on both edges and describe nothing.
@@ -857,24 +857,24 @@ impl<'a> Lowering<'a> {
     ///   of the body rather than the bottom precisely so that a `continue`'s
     ///   back edge needs no step of its own.
     ///
-    /// # `&$v` inverts the first of those three
+    /// # `inout $v` inverts the first of those three
     ///
     /// A by-reference value binding writes each element back into the array
     /// being walked, so the loop must **not** hold a second reference: the
     /// one thing the extra reference buys — ADR 0007 § 5 separating the array
     /// on the first write, leaving the cursor on the snapshot — is exactly
-    /// what a `&$v` loop must not do. So the by-reference shape drops the
+    /// what an `inout $v` loop must not do. So the by-reference shape drops the
     /// retain, walks the subject variable's *own* `Env` binding rather than a
-    /// reserved `foreach#N` one (`mwl_types`' `check_foreach_by_ref` refuses
+    /// reserved `foreach#N` one (`mwl_types`' `check_foreach_inout` refuses
     /// every subject that is not a plain variable, so there is always one),
     /// and releases nothing after the loop, the local's own exit sweep being
     /// the single owner it always was.
     ///
     /// **Each write is a write-through, not a copy-back at the end of the
     /// iteration.** Every rebinding of `$v` — `$v = e`, `$v .= e`, `$v++`, a
-    /// `&$v` argument's own copy-back, an element write `$v[0] = e` — also
+    /// `inout $v` argument's own copy-back, an element write `$v[0] = e` — also
     /// stores the new value into the entry it came from, through
-    /// [`Self::write_through_element`] and the [`ByRefElement`] this pushes
+    /// [`Self::write_through_element`] and the [`InoutElement`] this pushes
     /// around the body. Copy-back at the iteration's end would be one
     /// [`InstKind::ArraySet`] instead of one per write, but it would have to
     /// be emitted at every edge that ends an iteration and get the `return`
@@ -886,7 +886,7 @@ impl<'a> Lowering<'a> {
     /// [`InstKind::ArraySet`] consumes one reference and produces the one the
     /// holder now owns (see [`Self::write_back_array`]). That is why the
     /// subject's name gets a header phi like any reassigned local, and why
-    /// [`ByRefElement`] carries `Env` names rather than values: a write
+    /// [`InoutElement`] carries `Env` names rather than values: a write
     /// inside the body is what the *next* iteration walks.
     ///
     /// # Panics
@@ -908,7 +908,7 @@ impl<'a> Lowering<'a> {
         subject: &Expr,
         key: Option<&ForeachBinding>,
         value: &ForeachBinding,
-        value_by_ref: bool,
+        value_inout: bool,
         body: &'a Stmt,
         cur: &mut BlockId,
         env: &mut Env,
@@ -928,8 +928,8 @@ impl<'a> Lowering<'a> {
         });
         if drive != ForeachDrive::Array {
             assert!(
-                !value_by_ref,
-                "mwl-ir: a `foreach (… as &$v)` over an `Iterable`/`Iterator` subject reached \
+                !value_inout,
+                "mwl-ir: a `foreach (… as inout $v)` over an `Iterable`/`Iterator` subject reached \
                  lowering — a cursor has no element storage to write back to, and mwl_types \
                  reports E0490 for one"
             );
@@ -969,7 +969,7 @@ impl<'a> Lowering<'a> {
              `Iterable`/`Iterator` subjects are their own lowering (see the crate docs' known \
              gaps)"
         );
-        if !value_by_ref && self.aliasing_read(subject) {
+        if !value_inout && self.aliasing_read(subject) {
             self.emit_retain(*cur, array_v);
         }
 
@@ -978,10 +978,10 @@ impl<'a> Lowering<'a> {
         // A by-reference loop walks the subject variable's own binding — see
         // this method's doc comment on why it must be that one slot and not a
         // second reference to the same array.
-        let array_name = if value_by_ref {
+        let array_name = if value_inout {
             let ExprKind::Variable(name_span) = &subject.kind else {
                 panic!(
-                    "mwl-ir: a `foreach (… as &$v)` subject at {:?} is not a plain variable — \
+                    "mwl-ir: a `foreach (… as inout $v)` subject at {:?} is not a plain variable — \
                      mwl_types reports E0490 for one before this runs",
                     subject.span
                 );
@@ -1003,11 +1003,11 @@ impl<'a> Lowering<'a> {
         let mut seen = FxHashSet::default();
         let mut reassigned = vec![cursor_name.clone()];
         seen.insert(cursor_name.clone());
-        // Every write through `&$v` re-points the subject's binding, and the
+        // Every write through `inout $v` re-points the subject's binding, and the
         // syntactic scan below cannot see that — the write is spelled `$v`,
         // not `$a`. Seeding it is what gives the next iteration the array the
         // last one wrote into.
-        if value_by_ref && seen.insert(array_name.clone()) {
+        if value_inout && seen.insert(array_name.clone()) {
             reassigned.push(array_name.clone());
         }
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
@@ -1023,7 +1023,7 @@ impl<'a> Lowering<'a> {
             let Some(&(pre_v, ty)) = env.get(name) else {
                 continue;
             };
-            // A `&$x` parameter's binding is an address that never changes:
+            // An `inout $x` parameter's binding is an address that never changes:
             // writing to it stores *through* it rather than rebinding it
             // (`Ty::Ref`), so a header phi for one would carry the same value
             // on both edges and describe nothing.
@@ -1103,7 +1103,7 @@ impl<'a> Lowering<'a> {
             // A by-reference loop's array *is* the subject's own binding, so
             // it is not private to the loop and outlives it — only the cursor
             // and the slot are reserved names to hide.
-            loop_private: if value_by_ref {
+            loop_private: if value_inout {
                 vec![cursor_name.clone(), slot_name.clone()]
             } else {
                 vec![array_name.clone(), cursor_name.clone()]
@@ -1148,22 +1148,22 @@ impl<'a> Lowering<'a> {
         }
         body_env.insert(value_name.clone(), (v_v, value_ty));
 
-        if value_by_ref {
+        if value_inout {
             // The slot travels in the `Env` rather than as a `ValueId` for
             // `Self::seed_generator_loop_carried`'s reason: a write to `$v`
             // may sit after a `yield`, where the header's own definition has
             // been spilled and reloaded. It is a `Ty::Int`, so it owns
             // nothing and every sweep ignores it.
             body_env.insert(slot_name.clone(), (slot_v, Ty::Int));
-            self.by_ref_elements.push(ByRefElement {
+            self.inout_elements.push(InoutElement {
                 binding: value_name,
                 array: array_name.clone(),
                 slot: slot_name.clone(),
             });
         }
         self.lower_stmt(body, &mut body_cur, &mut body_env);
-        if value_by_ref {
-            self.by_ref_elements
+        if value_inout {
+            self.inout_elements
                 .pop()
                 .expect("just pushed this loop's own by-reference binding above");
         }
@@ -1199,7 +1199,7 @@ impl<'a> Lowering<'a> {
         let mut exit_env = header_env.clone();
         exit_env.remove(&cursor_name);
         exit_env.remove(&slot_name);
-        if !value_by_ref {
+        if !value_inout {
             exit_env.remove(&array_name);
         }
         let mut after_incoming: Vec<(BlockId, Env)> = vec![(header_block, exit_env.clone())];
@@ -1209,7 +1209,7 @@ impl<'a> Lowering<'a> {
         // is none to give back: what the subject's binding holds after the
         // loop is the array every write-through re-pointed it at, and its own
         // exit sweep releases that once.
-        if !value_by_ref {
+        if !value_inout {
             self.emit_release(after_block, array_v);
         }
         *cur = after_block;
@@ -1217,7 +1217,7 @@ impl<'a> Lowering<'a> {
     /// The array a `foreach` is walking, read out of the [`Env`] name it is
     /// bound under.
     ///
-    /// One [`InstKind::RefLoad`] when that name is a `&$x` parameter's cell
+    /// One [`InstKind::RefLoad`] when that name is an `inout $x` parameter's cell
     /// (see [`Ty::Ref`]), the binding's own value otherwise. A by-reference
     /// loop walks the subject's binding directly ([`Self::lower_foreach`]),
     /// and a `&array<T>` parameter is as much a plain variable at the source
@@ -1247,9 +1247,9 @@ impl<'a> Lowering<'a> {
         if ty == Ty::Ref {
             self.emit_ref_store(cur, v, written);
         } else {
-            // The array a loop walks may itself be an enclosing loop's `&$v`
-            // binding (`foreach ($grid as array<int> &$row) { foreach ($row
-            // as int &$cell) …`), and the separation the inner write just
+            // The array a loop walks may itself be an enclosing loop's `inout $v`
+            // binding (`foreach ($grid as inout array<int> $row) { foreach
+            // ($row as inout int $cell) …`), and the separation the inner write just
             // caused is exactly what the outer entry has to be told about.
             // The recursion is one level per nesting level and terminates at
             // the outermost subject, which is a name no binding owns.
@@ -1257,7 +1257,7 @@ impl<'a> Lowering<'a> {
             env.insert(name.to_owned(), (written, Ty::Array));
         }
     }
-    /// Writes `v` into the entry a `foreach (… as &$v)` binding came from,
+    /// Writes `v` into the entry a `foreach (… as inout $v)` binding came from,
     /// when `name` is such a binding — the write-through
     /// [`Self::lower_foreach`]'s doc comment describes, and nothing at all
     /// for every other name, which is every name in a frame with no
@@ -1265,7 +1265,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Called from the three places that re-point a local's slot:
     /// [`Self::bind_local_value`] (`$v = e` and every compound form),
-    /// [`Self::write_back_holder`] (a `&$v` argument's copy-back) and
+    /// [`Self::write_back_holder`] (an `inout $v` argument's copy-back) and
     /// [`Self::write_back_array`] (`$v[0] = e`). The binding keeps its own
     /// reference and the array takes one of its own, so a refcounted value is
     /// retained here and released with the binding at the end of the
@@ -1280,20 +1280,15 @@ impl<'a> Lowering<'a> {
         v: ValueId,
         ty: Ty,
     ) {
-        if self.by_ref_elements.is_empty() {
+        if self.inout_elements.is_empty() {
             return;
         }
-        let Some(element) = self
-            .by_ref_elements
-            .iter()
-            .rev()
-            .find(|e| e.binding == name)
-        else {
+        let Some(element) = self.inout_elements.iter().rev().find(|e| e.binding == name) else {
             return;
         };
         let (array_name, slot_name) = (element.array.clone(), element.slot.clone());
         let &(slot_v, Ty::Int) = env.get(&slot_name).unwrap_or_else(|| {
-            panic!("mwl-ir: a `foreach (… as &$v)` body lost the cursor slot `{slot_name}`")
+            panic!("mwl-ir: a `foreach (… as inout $v)` body lost the cursor slot `{slot_name}`")
         }) else {
             panic!("mwl-ir: a `foreach` cursor slot is bound at `Ty::Int` and nothing rebinds it")
         };
@@ -1410,7 +1405,7 @@ impl<'a> Lowering<'a> {
             let Some(&(pre_v, ty)) = env.get(name) else {
                 continue;
             };
-            // See `Self::lower_foreach`: a `&$x` parameter's binding is an
+            // See `Self::lower_foreach`: an `inout $x` parameter's binding is an
             // address that never changes, so a header phi for one would carry
             // the same value on both edges and describe nothing.
             if ty == Ty::Ref {
@@ -2091,11 +2086,11 @@ impl<'a> Lowering<'a> {
         {
             out.push(name);
         }
-        // A `&$x` argument re-points its holder just as an assignment does —
+        // An `inout $x` argument re-points its holder just as an assignment does —
         // `Self::write_back_holder` is literally where — but nothing in the
         // statement's *syntax* says so, since the `&` is on the callee's
         // declaration. See below.
-        self.collect_by_ref_holders(e, seen, out);
+        self.collect_inout_holders(e, seen, out);
         self.collect_reassigned_in_children(e, seen, out);
     }
     /// [`Self::collect_reassigned_in_expr`] applied to every sub-expression of
@@ -2273,7 +2268,7 @@ impl<'a> Lowering<'a> {
         }
     }
     /// [`Self::collect_reassigned_locals`]'s by-reference half: every local a
-    /// call somewhere inside `e` re-points by handing it to a `&$x`
+    /// call somewhere inside `e` re-points by handing it to an `inout $x`
     /// parameter.
     ///
     /// Separate from the assignment scan because the two read different
@@ -2281,7 +2276,7 @@ impl<'a> Lowering<'a> {
     /// argument does not — the `&` lives on the *callee's* declaration, so
     /// `Adder::bump($n)` is indistinguishable from a by-value call until the
     /// resolved signature is consulted. That is what
-    /// `mwl_types::expr_table::ResolvedCall::by_ref` is recorded for, and
+    /// `mwl_types::expr_table::ResolvedCall::inout` is recorded for, and
     /// missing this scan leaves a loop body writing back into the value the
     /// loop was *entered* with on every iteration — the exact failure
     /// [`Self::rebound_local`]'s own doc comment describes for an array
@@ -2293,7 +2288,7 @@ impl<'a> Lowering<'a> {
     /// its own staging back at its own site ([`Self::flush_ref_writebacks`]),
     /// so both owe a header phi — but it is found once rather than once per
     /// level.
-    pub(super) fn collect_by_ref_holders(
+    pub(super) fn collect_inout_holders(
         &self,
         e: &Expr,
         seen: &mut FxHashSet<String>,
@@ -2305,18 +2300,18 @@ impl<'a> Lowering<'a> {
             | ExprKind::New { args, .. } => args,
             _ => return,
         };
-        let by_ref: &[bool] = match self.exprs.lookup(e.span) {
-            Some(ExprInfo::Call(call)) => &call.by_ref,
+        let inout: &[bool] = match self.exprs.lookup(e.span) {
+            Some(ExprInfo::Call(call)) => &call.inout,
             Some(ExprInfo::New {
                 ctor: Some(call), ..
-            }) => &call.by_ref,
+            }) => &call.inout,
             _ => &[],
         };
         let CallArgs::List(list) = args else {
             return;
         };
         for (index, arg) in list.iter().enumerate() {
-            if by_ref.get(index).copied().unwrap_or(false)
+            if inout.get(index).copied().unwrap_or(false)
                 && let Some(name) = self.rebound_local(&arg.value)
                 && seen.insert(name.clone())
             {

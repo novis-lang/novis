@@ -58,14 +58,14 @@ impl<'a> Lowering<'a> {
                 break;
             }
             self.lower_stmt(stmt, cur, env);
-            // Every `&$x` argument is copied back at its own call now, so the
+            // Every `inout $x` argument is copied back at its own call now, so the
             // list is empty again by the time the statement ends. A leftover
             // means some call site lowered an argument list without flushing
             // its own `pending_refs_mark` — an internal inconsistency rather
             // than an unsupported program. See `Self::pending_refs`.
             assert!(
                 self.pending_refs.is_empty(),
-                "mwl-ir: a `&$x` argument staged inside the statement at {:?} was never \
+                "mwl-ir: an `inout $x` argument staged inside the statement at {:?} was never \
                  copied back — every site that lowers an argument list is expected to flush \
                  its own staging mark once its call has returned; see \
                  `lower::Lowering::pending_refs`",
@@ -162,7 +162,7 @@ impl<'a> Lowering<'a> {
             StmtKind::Return(value) => {
                 // `return $local;` hands the binding's own reference straight
                 // out rather than retaining it here and releasing it below —
-                // `release_all_locals` skips the name instead. A `&$x`
+                // `release_all_locals` skips the name instead. An `inout $x`
                 // parameter is the one binding that cannot play: it is a
                 // `Ty::Ref` cell, so `release_all_locals` was never going to
                 // release it (the caller's copy-back owns that reference), and
@@ -471,7 +471,7 @@ impl<'a> Lowering<'a> {
             && let ExprKind::Variable(name_span) = &target.kind
         {
             let name = strip_sigil(span_text(self.src, *name_span)).to_owned();
-            // A `Ty::Ref` binding (`&$x`) names the caller's slot rather than
+            // A `Ty::Ref` binding (`inout $x`) names the caller's slot rather than
             // an SSA value, so it is not a holder this can re-point; it falls
             // through to the rewrite, which stores through the address.
             if let Some(&(current, Ty::Str)) = env.get(&name) {
@@ -792,7 +792,7 @@ impl<'a> Lowering<'a> {
     /// `lower_store`'s `extra_owner` and not a retain emitted here; that
     /// function's doc comment owns why the difference matters.
     ///
-    /// No [`Self::flush_ref_writebacks`] call, and none is owed: a `&$n`
+    /// No [`Self::flush_ref_writebacks`] call, and none is owed: an `inout $n`
     /// argument staged inside the right-hand side is copied back at its own
     /// call, before this assignment's value is even in hand.
     ///
@@ -864,7 +864,7 @@ impl<'a> Lowering<'a> {
         match &target.kind {
             ExprKind::Variable(name_span) => {
                 let lname = strip_sigil(span_text(self.src, *name_span)).to_owned();
-                // A `&$x` parameter names the caller's staged slot, not an SSA
+                // An `inout $x` parameter names the caller's staged slot, not an SSA
                 // binding: the write is a store through the address, so SSA
                 // renaming has nothing to do and `env` is left alone. The
                 // retain/load-old/release/store sequence is `Self::bind_local`'s

@@ -8,7 +8,7 @@ mod common;
 
 use common::*;
 
-/// A `inout` parameter, end to end: the callee's write lands in the caller's
+/// An `inout` parameter, end to end: the callee's write lands in the caller's
 /// own local. `mwl_ir::Ty::Ref` owns the representation this proves —
 /// a caller-staged one-cell slot, passed by address, copied back after the
 /// call — and this is the fixture `examples/hooks.mwl`'s last line is.

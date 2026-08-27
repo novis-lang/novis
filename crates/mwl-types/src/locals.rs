@@ -47,7 +47,7 @@
 //!   the second statement, and `$m = null;` itself is still checked against
 //!   `?M` rather than against the narrowed `M`. Adding a new write path to
 //!   this crate owes a call to it; that list is `check_assign`,
-//!   `check_compound_assign`, `PreIncDec`/`PostIncDec`, `check_by_ref_arg`,
+//!   `check_compound_assign`, `PreIncDec`/`PostIncDec`, `check_inout_arg`,
 //!   `check_unset_target` and [`declare_binding`] below.
 //! * **A loop body drops every narrowing installed outside it**
 //!   ([`check_stmt`]'s `While`/`DoWhile`/`For`/`Foreach` arms), because a
@@ -732,7 +732,7 @@ pub(crate) fn check_stmt(
             let value_ty = lower_optional_type(value.ty.as_ref(), ctx, env);
             crate::expr::check_foreach_value(&source, value_ty, value, env);
             if *value_inout {
-                crate::expr::check_foreach_by_ref(&source, subject, value_ty, value, env);
+                crate::expr::check_foreach_inout(&source, subject, value_ty, value, env);
             }
             let value_name = strip_sigil(span_text(env.src, value.name)).to_owned();
             declare_binding(scope, &value_name, value_ty, value.name, false, env);
@@ -1074,7 +1074,7 @@ fn walk_destructure_target(
             } => {
                 check_destructure_key(key.as_ref(), live, scope, ctx, env);
                 if *inout {
-                    report_by_ref_leaf(*span, env);
+                    report_inout_leaf(*span, env);
                 }
                 let declared = lower_optional_type(ty.as_ref(), ctx, env);
                 if let Some(elem_ty) = elem_ty {
@@ -1126,7 +1126,7 @@ fn check_destructure_key(
 /// own rule and its own code, because it is that rule's other side: PHP's
 /// leaf aliases the element it came from, and ADR 0031 § 2 leaves no binding
 /// that aliases another for it to be.
-fn report_by_ref_leaf(span: Span, env: &mut Env<'_>) {
+fn report_inout_leaf(span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_ARRAY_ELEMENT_BY_REFERENCE,

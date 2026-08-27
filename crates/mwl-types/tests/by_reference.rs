@@ -10,7 +10,7 @@ use common::*;
 use mwl_diagnostics::code;
 
 // ------------------------------------------------------------------
-// By-reference parameters -- the two obligations `check_by_ref_arg`
+// By-reference parameters -- the two obligations `check_inout_arg`
 // adds on top of ordinary assignability. See `mwl_ir::Ty::Ref` for the
 // representation those obligations exist to keep sound.
 // ------------------------------------------------------------------
@@ -63,7 +63,7 @@ T::bump(inout 1);
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_BY_REF_ARG_NOT_A_PLACE)),
+            .any(|d| d.code == Some(code::E_INOUT_ARG_NOT_A_PLACE)),
         "{diags:?}"
     );
 }
@@ -84,7 +84,7 @@ T::bump(inout T::one());
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_BY_REF_ARG_NOT_A_PLACE)),
+            .any(|d| d.code == Some(code::E_INOUT_ARG_NOT_A_PLACE)),
         "{diags:?}"
     );
 }
@@ -108,7 +108,7 @@ T::bump(inout $a[0]);
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_BY_REF_ARG_NOT_A_PLACE)),
+            .any(|d| d.code == Some(code::E_INOUT_ARG_NOT_A_PLACE)),
         "{diags:?}"
     );
 }
@@ -133,7 +133,7 @@ T::bump(inout $this->doubled);
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_BY_REF_ARG_NOT_A_PLACE)),
+            .any(|d| d.code == Some(code::E_INOUT_ARG_NOT_A_PLACE)),
         "{diags:?}"
     );
 }
@@ -161,7 +161,7 @@ T::fill(inout $t);
     assert!(
         diags
             .iter()
-            .any(|d| d.code == Some(code::E_BY_REF_ARG_TYPE_NOT_EXACT)),
+            .any(|d| d.code == Some(code::E_INOUT_ARG_TYPE_NOT_EXACT)),
         "{diags:?}"
     );
 }
@@ -190,7 +190,7 @@ T::bump(inout $t);
     assert!(
         !diags
             .iter()
-            .any(|d| d.code == Some(code::E_BY_REF_ARG_TYPE_NOT_EXACT)),
+            .any(|d| d.code == Some(code::E_INOUT_ARG_TYPE_NOT_EXACT)),
         "{diags:?}"
     );
 }

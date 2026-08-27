@@ -68,16 +68,16 @@ pub struct MethodSig {
     /// [`Self::param_index`] rather than indexed directly, so the "a variadic
     /// tail cannot be filled by name" rule stays in one place.
     pub param_names: Option<Vec<String>>,
-    /// Whether each parameter is declared `&$x`, positionally — one entry per
-    /// [`Self::params`] entry, read through [`Self::is_by_ref`] rather than
+    /// Whether each parameter is declared `inout $x`, positionally — one entry per
+    /// [`Self::params`] entry, read through [`Self::is_inout`] rather than
     /// indexed directly so the variadic rule stays in one place.
     ///
     /// A parallel `Vec` rather than a field on a per-parameter struct because
     /// every existing consumer reads [`Self::params`] positionally already
-    /// (see [`Self::param_at`]), and a by-reference parameter is rare enough
-    /// that turning one `Vec<TypeId>` into a `Vec<Param>` would rewrite every
-    /// one of those call sites to buy nothing.
-    pub by_ref: Vec<bool>,
+    /// (see [`Self::param_at`]), and an `inout` parameter is rare enough that
+    /// turning one `Vec<TypeId>` into a `Vec<Param>` would rewrite every one
+    /// of those call sites to buy nothing.
+    pub inout: Vec<bool>,
     /// Whether the last parameter is `...$x` — every argument from that
     /// position onward is checked against its type instead of requiring an
     /// exact count.
@@ -87,7 +87,7 @@ pub struct MethodSig {
     /// [`crate::defaults`] owns what a default may be and why it is evaluated
     /// here rather than in the callee.
     ///
-    /// A parallel `Vec` for [`Self::by_ref`]'s reason, and read through
+    /// A parallel `Vec` for [`Self::inout`]'s reason, and read through
     /// [`Self::required`] rather than scanned at each call site.
     pub defaults: Vec<Option<crate::defaults::ConstArg>>,
     /// The type parameters a **call site** must write, in the order its
@@ -207,24 +207,24 @@ impl MethodSig {
         (index < fillable).then_some(index)
     }
 
-    /// Whether the parameter at `index` is declared `&$x`, following the same
+    /// Whether the parameter at `index` is declared `inout $x`, following the same
     /// variadic rule [`Self::param_at`] does — every argument from a variadic
     /// parameter's position onward binds the way that parameter declares.
     /// `false` for an index past a non-variadic signature's parameters, which
     /// the arity check has already reported.
     #[must_use]
-    pub fn is_by_ref(&self, index: usize) -> bool {
-        if self.variadic && index >= self.by_ref.len().saturating_sub(1) {
-            return self.by_ref.last().copied().unwrap_or(false);
+    pub fn is_inout(&self, index: usize) -> bool {
+        if self.variadic && index >= self.inout.len().saturating_sub(1) {
+            return self.inout.last().copied().unwrap_or(false);
         }
-        self.by_ref.get(index).copied().unwrap_or(false)
+        self.inout.get(index).copied().unwrap_or(false)
     }
 
-    /// Whether any parameter is declared `&$x` — the cheap test a call site
+    /// Whether any parameter is declared `inout $x` — the cheap test a call site
     /// runs before doing any by-reference work at all.
     #[must_use]
-    pub fn has_by_ref(&self) -> bool {
-        self.by_ref.iter().any(|&r| r)
+    pub fn has_inout(&self) -> bool {
+        self.inout.iter().any(|&r| r)
     }
 
     /// Whether this signature mentions a type variable anywhere — the test
@@ -821,7 +821,7 @@ fn collect_members(
                         .map(|p| strip_sigil(span_text(env.src, p.name)).to_owned())
                         .collect(),
                 );
-                let by_ref: Vec<bool> = m.params.iter().map(|p| p.inout).collect();
+                let inout: Vec<bool> = m.params.iter().map(|p| p.inout).collect();
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
                 let defaults = collect_defaults(&m.params, &params, env);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
@@ -834,7 +834,7 @@ fn collect_members(
                     MethodSig {
                         params,
                         param_names,
-                        by_ref,
+                        inout,
                         variadic,
                         defaults,
                         // ADR 0007 § 1: a user-declared method

@@ -140,7 +140,7 @@ impl<'a> Lowering<'a> {
                          already passed mwl_types::check_program"
                     )
                 });
-                // A `&$x` parameter binds an address, not a value: reading it
+                // An `inout $x` parameter binds an address, not a value: reading it
                 // is a load out of the caller-staged slot, at the declared
                 // (pointee) type `Self::ref_locals` remembers. See `Ty::Ref`.
                 let (v, ty) = if ty == Ty::Ref {
@@ -357,7 +357,7 @@ impl<'a> Lowering<'a> {
             // Nothing the checker accepts reaches this arm any more, and the
             // proof is the roster rather than the message below it. `ExprKind`
             // has 45 variants; the arms above cover 34 of them, plus one of
-            // `Assign`'s two `by_ref` shapes. Of the eleven with no arm and
+            // `Assign`'s two `inout` shapes. Of the eleven with no arm and
             // the one `Assign` shape:
             //
             // * `Error` is a parse error already reported, and does not
@@ -713,7 +713,7 @@ impl<'a> Lowering<'a> {
             // slot, by `InstKind::ClassDescOf`/`ClassDescConst` — never
             // `Self::lower_expr`'s answer, `Foo::class` folding to a `string`
             // constant instead — and `Ty::Ref` only by `InstKind::RefSlot`
-            // staging a `&$x` argument, which goes straight to the callee.
+            // staging an `inout $x` argument, which goes straight to the callee.
             // That subtraction is the proof; the message below is not.
             other => panic!(
                 "mwl-ir: unreachable — a `{other:?}` operand reached the implicit `string` \
@@ -2113,7 +2113,7 @@ impl<'a> Lowering<'a> {
                     expr.span
                 )
             });
-            // A `&$x` parameter binds an address, not a value, and ADR 0031 § 2
+            // An `inout $x` parameter binds an address, not a value, and ADR 0031 § 2
             // captures by value — so the field takes a snapshot of the cell's
             // value here, which is the same `RefLoad` at the declared (pointee)
             // type that reading `$x` anywhere else lowers to. That is also what
@@ -2204,7 +2204,7 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
             return built;
         }
-        // A constructor may declare `&$x` like any other method, so this site
+        // A constructor may declare `inout $x` like any other method, so this site
         // owns its own staging window — see `Lowering::pending_refs`.
         let staged_refs = self.pending_refs_mark();
         let arg_values = match ctor {
@@ -2364,7 +2364,7 @@ impl<'a> Lowering<'a> {
             }
             object_v
         };
-        // Every `&$x` this call stages is written back below, in the block the
+        // Every `inout $x` this call stages is written back below, in the block the
         // call returns into — inside the `?->` guard when there is one, since
         // a receiver that was `null` ran no callee and wrote nothing back. See
         // `Lowering::pending_refs`.

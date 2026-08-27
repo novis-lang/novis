@@ -626,18 +626,18 @@ pub mod code {
     /// spelling has its own, earlier diagnostic
     /// ([`E_ENUM_STRING_BACKING_UNSUPPORTED`]); this covers the rest.
     pub const E_ENUM_BACKING_NOT_INTEGER: Code = Code::new("E0438");
-    /// An argument passed to a `&$x` parameter that is not a *writable place*
+    /// An argument passed to an `inout $x` parameter that is not a *writable place*
     /// — a bare local or a compile-time-known property. A literal, an
     /// arithmetic result or a call's own result has no storage for the callee
     /// to write back into, so the reference would have nowhere to land.
-    pub const E_BY_REF_ARG_NOT_A_PLACE: Code = Code::new("E0439");
-    /// An argument passed to a `&$x` parameter whose type is not *exactly*
+    pub const E_INOUT_ARG_NOT_A_PLACE: Code = Code::new("E0439");
+    /// An argument passed to an `inout $x` parameter whose type is not *exactly*
     /// the parameter's. ADR 0007 § 1 leaves no room for a conversion here:
     /// the callee writes back through the reference at the declared type, so
     /// anything the caller's storage would have to be converted from on the
     /// way in would have to be converted back on the way out — silently, and
     /// lossily.
-    pub const E_BY_REF_ARG_TYPE_NOT_EXACT: Code = Code::new("E0440");
+    pub const E_INOUT_ARG_TYPE_NOT_EXACT: Code = Code::new("E0440");
     /// A `<...>` type-argument list written after a name that takes no type
     /// parameters. ADR 0007 § 1 parks user-declared generics, and two doors
     /// open in that wall — ADR 0053 § 2's compiler-owned generic interfaces,
@@ -998,39 +998,39 @@ pub mod code {
     /// had to fill fixed parameters would leave a call's arity uncheckable.
     /// Write the fixed arguments out and let the spread supply the tail.
     pub const E_SPREAD_ARG_NOT_VARIADIC: Code = Code::new("E0489");
-    /// `foreach (… as &$v)` over a subject that is not a plain variable
+    /// `foreach (… as inout $v)` over a subject that is not a plain variable
     /// holding an `array<T>` — a call's result, a literal, a property, or an
     /// `Iterable`/`Iterator`.
     ///
-    /// `&$v` writes each element back where it came from, so there has to be
+    /// `inout $v` writes each element back where it came from, so there has to be
     /// a slot to write to. PHP refuses the same shapes, and a cursor is the
     /// one it names outright ("an iterator cannot be used with foreach by
     /// reference").
-    pub const E_FOREACH_BY_REF_SUBJECT: Code = Code::new("E0490");
-    /// A `foreach (… as T &$v)` whose `T` is not the subject's element type
+    pub const E_FOREACH_INOUT_SUBJECT: Code = Code::new("E0490");
+    /// A `foreach (… as inout T $v)` whose `T` is not the subject's element type
     /// exactly.
     ///
     /// A by-value binding may widen — reading an `array<Dog>` as an `Animal`
     /// is sound — but a by-reference one also *writes*, and writing an
     /// `Animal` into an `array<Dog>` is not. The two directions meet only at
     /// the element type itself.
-    pub const E_FOREACH_BY_REF_ELEMENT_TY: Code = Code::new("E0491");
-    /// A method whose body contains `yield` declaring a `&$x` parameter.
+    pub const E_FOREACH_INOUT_ELEMENT_TY: Code = Code::new("E0491");
+    /// A method whose body contains `yield` declaring an `inout $x` parameter.
     ///
     /// A by-reference parameter addresses a cell the *call site* stages for
     /// the duration of the call. Calling a generator runs none of its body —
     /// it allocates the state object and returns (ADR 0053 § 4) — so that cell
     /// is gone before the first `advance()`, and there is nothing sound for
     /// the suspended frame to keep addressing.
-    pub const E_GENERATOR_BY_REF_PARAM: Code = Code::new("E0492");
-    /// A `fn` closure literal declaring a `&$x` parameter.
+    pub const E_GENERATOR_INOUT_PARAM: Code = Code::new("E0492");
+    /// A `fn` closure literal declaring an `inout $x` parameter.
     ///
     /// A by-reference parameter is a contract between a call site and a
     /// declaration, and a closure's type is `callable` — ADR 0031 § 4 keeps it
     /// opaque, carrying no parameter list at all, so no call site can know to
     /// stage a cell. The closure may also outlive every frame in scope where
     /// it was written.
-    pub const E_CLOSURE_BY_REF_PARAM: Code = Code::new("E0493");
+    pub const E_CLOSURE_INOUT_PARAM: Code = Code::new("E0493");
     /// An ADR 0036 § 2 object literal writing one field name twice —
     /// `{a: 1, a: 2}`.
     ///
@@ -1156,7 +1156,7 @@ pub mod code {
     /// ADR 0023 fixes what a copy means, so the right-hand side is a copy at
     /// the point the assignment runs. The same reasoning already refuses
     /// `[&$x]` as [`E_ARRAY_ELEMENT_BY_REFERENCE`] — it is not a lowering
-    /// that is missing, it is a thing the language does not have. `&$x` at a
+    /// that is missing, it is a thing the language does not have. `inout $x` at a
     /// *call site* stays, because a parameter's write-back is a copy in and a
     /// copy out rather than a shared slot.
     pub const E_ASSIGN_BY_REFERENCE: Code = Code::new("E0701");
@@ -1176,10 +1176,10 @@ pub mod code {
     /// The mirror of [`E_INOUT_ARG_MISSING`]: a marker that is allowed to be
     /// wrong is worth nothing to the reader, so ADR 0107 § 2 makes the extra
     /// one an error too. Through a `callable` it can never be right — ADR
-    /// 0031 § 4 keeps that type opaque and [`E_CLOSURE_BY_REF_PARAM`] refuses
+    /// 0031 § 4 keeps that type opaque and [`E_CLOSURE_INOUT_PARAM`] refuses
     /// the declaration end outright — and a spread hands over a subject's
     /// entries rather than the subject, which is the same reason
-    /// [`E_BY_REF_ARG_NOT_A_PLACE`] wants one storage location.
+    /// [`E_INOUT_ARG_NOT_A_PLACE`] wants one storage location.
     pub const E_INOUT_ARG_UNEXPECTED: Code = Code::new("E0714");
     /// `::class` written on a class side that is not statically known —
     /// `$obj::class`, `($e)::class`, and `static::class`.
@@ -1341,7 +1341,7 @@ pub mod code {
     /// resolve one either. PHP can only allow it because a `Closure` there
     /// carries its declaration.
     ///
-    /// The same rule as [`E_CLOSURE_BY_REF_PARAM`], read from the call site's
+    /// The same rule as [`E_CLOSURE_INOUT_PARAM`], read from the call site's
     /// end rather than the literal's, and the sibling of
     /// [`E_NAMED_ARG_NO_PARAM_NAMES`], which refuses the same spelling at a
     /// resolved target whose signature happens to carry no names. A `...`

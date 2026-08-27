@@ -254,15 +254,15 @@ pub(crate) fn check_foreach_value(
     }
 }
 
-/// The two extra obligations a `foreach (… as &$v)` value binding carries,
+/// The two extra obligations a `foreach (… as inout $v)` value binding carries,
 /// beyond the ones [`check_foreach_value`] already checked for any binding.
-/// They are [`super::args::check_by_ref_arg`]'s two, arrived at from the same
-/// direction — `&$v` writes each element back where it came from, exactly as
-/// a `&$x` parameter writes its argument back.
+/// They are [`super::args::check_inout_arg`]'s two, arrived at from the same
+/// direction — `inout $v` writes each element back where it came from, exactly as
+/// an `inout $x` parameter writes its argument back.
 ///
 /// 1. **The subject must be a plain variable holding an `array<T>`.** The
 ///    write-back re-points the subject's own slot, so there has to be one:
-///    `foreach (rows() as &$v)` has nowhere to leave what the body wrote, and
+///    `foreach (rows() as inout $v)` has nowhere to leave what the body wrote, and
 ///    a cursor has no element storage at all (ADR 0053 § 1 gives
 ///    `Iterator<T>` `advance()` and `current()`, neither of which is a place).
 ///    PHP refuses both, the cursor by name.
@@ -274,9 +274,9 @@ pub(crate) fn check_foreach_value(
 ///    meeting only at `T` itself.
 ///
 /// Obligation 2 is only reported when the binding would otherwise have been
-/// accepted, for [`super::args::check_by_ref_arg`]'s reason: a type that is
+/// accepted, for [`super::args::check_inout_arg`]'s reason: a type that is
 /// not assignable at all already produced its own diagnostic at this span.
-pub(crate) fn check_foreach_by_ref(
+pub(crate) fn check_foreach_inout(
     source: &ForeachSource,
     subject: &Expr,
     declared: TypeId,
@@ -290,13 +290,13 @@ pub(crate) fn check_foreach_by_ref(
         ForeachSource::Cursor { .. } => {
             env.diags.report(
                 Diagnostic::error(
-                    code::E_FOREACH_BY_REF_SUBJECT,
+                    code::E_FOREACH_INOUT_SUBJECT,
                     "an `Iterable`/`Iterator` subject has no element to bind by reference",
                 )
                 .with_primary(binding.span, "bound by reference here")
                 .with_help(
                     "ADR 0053 § 1 gives a cursor exactly `advance()` and `current()`, so there \
-                     is no storage to write back to — drop the `&`, or iterate an `array<T>`",
+                     is no storage to write back to — drop the `inout`, or iterate an `array<T>`",
                 ),
             );
             return;
@@ -306,13 +306,13 @@ pub(crate) fn check_foreach_by_ref(
     if !matches!(subject.kind, ExprKind::Variable(_)) {
         env.diags.report(
             Diagnostic::error(
-                code::E_FOREACH_BY_REF_SUBJECT,
+                code::E_FOREACH_INOUT_SUBJECT,
                 "only a variable can be iterated by reference",
             )
             .with_primary(subject.span, "this is not a variable")
             .with_help(
-                "`&$v` writes each element back into the subject, so the subject has to name \
-                 storage that outlives the loop — bind it to a local first, or drop the `&`",
+                "`inout $v` writes each element back into the subject, so the subject has to name \
+                 storage that outlives the loop — bind it to a local first, or drop the `inout`",
             ),
         );
         return;
@@ -325,7 +325,7 @@ pub(crate) fn check_foreach_by_ref(
         );
         env.diags.report(
             Diagnostic::error(
-                code::E_FOREACH_BY_REF_ELEMENT_TY,
+                code::E_FOREACH_INOUT_ELEMENT_TY,
                 format!(
                     "a by-reference binding over an `array<{want}>` needs the type `{want}` \
                      exactly, not `{got}`"
@@ -333,7 +333,7 @@ pub(crate) fn check_foreach_by_ref(
             )
             .with_primary(binding.span, format!("this binds as `{got}`"))
             .with_help(
-                "`&$v` writes back at the declared type, so widening on the way in would mean \
+                "`inout $v` writes back at the declared type, so widening on the way in would mean \
                  storing that wider type into the array",
             ),
         );

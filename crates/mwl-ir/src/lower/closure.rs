@@ -145,7 +145,7 @@ pub(super) fn drain_closures(
 /// Panics naming the shape for a `fn` literal the checker recorded no
 /// [`ExprInfo::Closure`] for, and for a parameter with no declared type.
 ///
-/// The assert on a `&$x` parameter is an internal-consistency check rather
+/// The assert on an `inout $x` parameter is an internal-consistency check rather
 /// than a gap: `callable` carries no parameter list for a call site to read
 /// (ADR 0031 § 4), so `mwl_types::expr::calls` refuses one as `E0493` and
 /// nothing that reaches here declares one.
@@ -205,7 +205,7 @@ pub(super) fn lower_closure(
     for (i, p) in fn_expr.params.iter().enumerate() {
         assert!(
             !p.inout,
-            "a closure with a `&$x` parameter reached lowering: a closure's type is \
+            "a closure with an `inout $x` parameter reached lowering: a closure's type is \
              `callable` and carries no parameter list, so there is no call site that could \
              know to stage the cell — `mwl_types::expr::calls` refuses this where it is \
              written, as `E0493`"

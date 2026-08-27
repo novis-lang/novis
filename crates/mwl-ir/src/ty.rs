@@ -280,10 +280,10 @@ pub enum Ty {
     ///
     /// The alternative — true aliasing, a pointer to the caller's own storage,
     /// which is what PHP does — was rejected on cost. It requires demoting
-    /// every local that is ever the target of `&` out of SSA into an
+    /// every local that is ever the target of `inout` out of SSA into an
     /// addressable stack slot, which reaches phis, `crate::lower::Env` and the
     /// refcount policy all at once; and it has no answer at all for
-    /// `&$arr[0]`, since ADR 0007 § 5's copy-on-write gives an array element
+    /// `inout $arr[0]`, since ADR 0007 § 5's copy-on-write gives an array element
     /// no stable address. Staging costs one stack slot per by-reference
     /// argument per call site and two copies per call — bought against no SSA
     /// demotion anywhere (the address is loop-invariant, so the callee needs

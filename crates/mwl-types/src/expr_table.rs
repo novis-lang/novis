@@ -88,19 +88,21 @@ pub struct ResolvedCall {
     pub method: String,
     /// Each parameter's declared type, positional — [`crate::signatures::MethodSig::params`].
     pub param_tys: Vec<TypeId>,
-    /// Which parameters are declared `&$x`, positional —
-    /// [`crate::signatures::MethodSig::by_ref`]. Recorded rather than left to
-    /// `mwl-ir` because a call site's own syntax says nothing about it: PHP
-    /// (and MWL) put the `&` on the *declaration*, so the argument
-    /// `Adder::bump($n)` looks identical whether `$n` is passed by value or by
-    /// reference. `mwl-ir` needs it to decide whether to stage a one-slot
-    /// temporary and copy back — see `mwl_ir::ir::InstKind::RefSlot`.
-    pub by_ref: Vec<bool>,
+    /// Which parameters are declared `inout $x`, positional —
+    /// [`crate::signatures::MethodSig::inout`]. ADR 0107 § 2 puts the word at
+    /// the call site too, so `Adder::bump(inout $n)` does say which arguments
+    /// these are — but it says it in the *source*, and `mwl-ir` lowers a
+    /// resolved call rather than re-resolving one, so the agreement this
+    /// checker enforced (`E0713`/`E0714`) is recorded here rather than
+    /// re-derived from a signature `mwl-ir` no longer holds. It is what
+    /// decides whether to stage a one-slot temporary and copy back — see
+    /// `mwl_ir::ir::InstKind::RefSlot`.
+    pub inout: Vec<bool>,
     /// Whether the last parameter is variadic — [`crate::signatures::MethodSig::variadic`].
     pub variadic: bool,
     /// Each parameter's evaluated default, positional —
     /// [`crate::signatures::MethodSig::defaults`]. Recorded for
-    /// [`Self::by_ref`]'s reason, one step further: a call site's own syntax
+    /// [`Self::inout`]'s reason, one step further: a call site's own syntax
     /// says nothing at all about a parameter it *omitted*, so `mwl-ir` has no
     /// way to know either that the callee has more parameters than there are
     /// arguments, or what to pass for them. It materializes one constant per
@@ -153,7 +155,7 @@ pub struct ResolvedCall {
     /// so a receiver's runtime class can answer it with different code than
     /// the label [`Self::class`] names —
     /// [`crate::signatures::ClassSignature::overridden_methods`], recorded
-    /// here for the same reason [`Self::by_ref`] is: it is a whole-program
+    /// here for the same reason [`Self::inout`] is: it is a whole-program
     /// question about declarations the call site cannot see, and `mwl-ir`
     /// has no class graph to ask.
     ///

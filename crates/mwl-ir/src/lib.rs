@@ -38,7 +38,7 @@
 //!   `bytes`,
 //!   `array<T>` (element type erased — see [`ty::Ty`]), `object` (a class or
 //!   enum, likewise erased), `mixed`, `null`, `?T` and any other union (all
-//!   three tagged — see [`ty::Ty::Tagged`]), and [`ty::Ty::Ref`] for a `&$x`
+//!   three tagged — see [`ty::Ty::Tagged`]), and [`ty::Ty::Ref`] for an `inout $x`
 //!   parameter. `string`, `bytes` and `array<T>` are refcounted and cross a
 //!   local, call-argument, return and property boundary alike.
 //! - **Generators** — ADR 0053 § 4's state-machine transform, in
@@ -327,12 +327,12 @@
 //!    no parameter list (§ 1), so a closure declaring `string $s` reads a
 //!    caller's `int` payload as a pointer whether that caller is `$f(1)` or
 //!    `Core\Arr::map` over an `array<int>`; `mwl_runtime::closure`'s module
-//!    doc owns it and states what closing it costs. Neither half of `&$x` is
-//!    a gap any more: a closure *capturing* an enclosing `&$x` parameter takes
+//!    doc owns it and states what closing it costs. Neither half of `inout $x` is
+//!    a gap any more: a closure *capturing* an enclosing `inout $x` parameter takes
 //!    § 2's by-value snapshot of the cell — one [`ir::InstKind::RefLoad`] at
 //!    the literal, at the pointee type, retained like any other captured
 //!    value, which is what lets the closure outlive the call that staged the
-//!    cell — and a `&$x` parameter on the closure *itself* is `E0493`,
+//!    cell — and an `inout $x` parameter on the closure *itself* is `E0493`,
 //!    `callable` carrying no parameter list for a call site to stage a cell
 //!    against.
 //! 11. **A `secret` value compared against a `mixed` one is not compared in

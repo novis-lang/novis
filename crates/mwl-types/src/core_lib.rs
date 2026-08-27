@@ -101,7 +101,7 @@ fn method_sig(
         // ADR 0063 R7: nothing in `Core` mutates its subject, so
         // no `Core` parameter is ever by-reference. Not a gap in
         // the registry — a property of the convention.
-        by_ref: vec![false; method.params.len()],
+        inout: vec![false; method.params.len()],
         // The last parameter's own shape says it — a
         // `CoreTy::Variadic` there and nowhere else, which that
         // variant's docs hold. `MethodSig::params` keeps the

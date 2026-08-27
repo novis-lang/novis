@@ -384,7 +384,7 @@ pub(super) fn resolved_call(
         overridden,
         arg_slots,
         param_tys: sig.params.clone(),
-        by_ref: sig.by_ref.clone(),
+        inout: sig.inout.clone(),
         variadic: sig.variadic,
         defaults: sig.defaults.clone(),
         is_static: sig.is_static,
@@ -475,7 +475,7 @@ pub(super) fn report_named_args_through_callable(args: &CallArgs, env: &mut Env<
     for arg in list {
         // ADR 0107 § 2's marker has the same nothing to resolve against, one
         // step worse: no closure can declare an `inout` parameter at all
-        // (`E_CLOSURE_BY_REF_PARAM`), so the marker here is never right.
+        // (`E_CLOSURE_INOUT_PARAM`), so the marker here is never right.
         if arg.inout {
             env.diags.report(
                 Diagnostic::error(
@@ -774,7 +774,7 @@ pub(super) fn check_fn_literal(
     env.interner.callable()
 }
 
-/// ADR 0031 § 4's opaque `callable`, as a refusal: a closure declares no `&$x`
+/// ADR 0031 § 4's opaque `callable`, as a refusal: a closure declares no `inout $x`
 /// parameter.
 ///
 /// A by-reference parameter is a contract between a *call site* and a
@@ -793,7 +793,7 @@ fn report_by_reference_parameter(param: &mwl_syntax::ast::Param, env: &mut Env<'
     let name = span_text(env.src, param.name).to_owned();
     env.diags.report(
         Diagnostic::error(
-            code::E_CLOSURE_BY_REF_PARAM,
+            code::E_CLOSURE_INOUT_PARAM,
             format!("a closure cannot take `{name}` as `inout`"),
         )
         .with_primary(param.name, "declared `inout` here")
