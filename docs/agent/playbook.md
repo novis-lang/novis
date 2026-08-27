@@ -535,6 +535,11 @@ is why" — is this file.
   failure arrives as `field slot N is out of range for a class with N slots` from
   `mwl_runtime::object`, three crates from the edit. `grep -rn CLOSURE_ARITY_SLOT --include=*.rs
   crates/` finds every builder in one call; do that before moving the layout, not after.
+- **`mwl_ir::Ty` is `#[non_exhaustive]`, so a `match` on it outside `mwl-ir` cannot be
+  exhaustive** — the "a new representation is a decision, not a default" guard can only live in
+  `mwl-ir` itself, and `mwl_ir::lower::param_tag_nibble` already *is* that guard. `mwl-codegen`'s
+  `ty.rs` cannot hold a second copy: both `clif_ty` and `tag_of` end in a `_ =>` arm because the
+  compiler requires one there.
 
 ## Running things
 
@@ -1334,6 +1339,12 @@ is why" — is this file.
   `--EXPECT--` you then freeze pins that as correct. Bind the call first — `string $s = $f(1) as
   string; echo "did not throw, ", $s, "\n";` — so the negative branch prints nothing at all when the
   positive one is what happens.
+- **`echo` writes its arguments one at a time, so a throwing call inside the list prints the
+  prefix first.** `echo "did not throw ", Core\Arr::map($edge, $half), "\n";` inside a `try`
+  prints `did not throw ` and *then* lands in the `catch`, so the expected output grows a
+  fragment that reads like the case failing open. Bind the call above the `echo` —
+  `var $past = Core\Arr::map($edge, $half); echo "did not throw ", ...;` — which is why the
+  `.mwlt` cases beside it do.
 
 ## Splitting a file that got too big
 

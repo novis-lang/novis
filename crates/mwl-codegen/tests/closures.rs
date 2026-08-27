@@ -94,3 +94,228 @@ try {
 ";
     assert_eq!(output_of(source), "caught: nope");
 }
+
+/// The subject and the predicate the two guards below share: a `string`
+/// parameter, and an `array<mixed>` whose third entry is an `int`.
+///
+/// The mismatch lands on the *third* entry on purpose, so `Core\Arr::filter`
+/// is two kept entries into its walk when the check refuses — which is what
+/// gives the leak guard a partial result to abandon.
+const MISMATCH: &str = "<?mwl
+callable $wantsString = fn (string $s): bool => $s != \"zzz\";
+array<mixed> $mixed = [\"a\", \"b\", 3];
+";
+
+#[test]
+fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called_it() {
+    // ADR 0031 § 1: a `callable` carries no parameter list, so nothing above
+    // the call site saw what this closure requires and
+    // `mwl_runtime::call_closure` is the only thing that can refuse the
+    // argument. Caught as `LogicError` specifically, which is the half
+    // `tests/conformance/lang/a-closure-argument-is-checked-against-its-parameter-type.mwlt`
+    // cannot pin: it catches `Throwable`, and the widening row beside this one
+    // throws `ArithmeticError` past 2^53 — a `Throwable` catch cannot tell the
+    // two apart.
+    let caught = format!(
+        "{MISMATCH}try {{
+    var $kept = Core\\Arr::filter($mixed, $wantsString);
+    echo \"did not throw \", Core\\Arr::count($kept) as string;
+}} catch (LogicError $e) {{
+    echo \"caught: \", $e->message;
+}}
+"
+    );
+    assert_eq!(
+        output_of(&caught),
+        "caught: argument 1 to a `callable` must be of type string, int given"
+    );
+
+    // Uncaught, the throw is an ordinary `THROWN` status carrying the same
+    // message — never a `Fault::Fatal`, which is what the check reserves for a
+    // compiler bug (`mwl_runtime::closure`'s `check_param_tags`).
+    let mut ctx = Ctx::buffered();
+    let uncaught = format!("{MISMATCH}Core\\Arr::filter($mixed, $wantsString);\n");
+    assert_eq!(run_with(&mut ctx, &uncaught).unwrap_err(), THROWN);
+    assert_eq!(
+        ctx.pending().as_deref(),
+        Some("argument 1 to a `callable` must be of type string, int given")
+    );
+}
+
+#[test]
+fn an_int_argument_widens_into_a_float_parameter_and_is_refused_past_two_to_the_53() {
+    // ADR 0007 § 2's one implicit conversion, reached from the caller no
+    // written `as float` ever passes through: `Core\Arr::map` hands a native
+    // `int` to a closure whose parameter is declared `float`, and
+    // `mwl_runtime::call_closure` converts it in place because no checker saw
+    // this call site to insert it — a `callable` carries no parameter list
+    // (ADR 0031 § 1).
+    //
+    // `Core\Json::encode` is the assertion rather than an `echo` of the
+    // number: it renders a `float` with a trailing `.0`, so an `int` that
+    // arrived unconverted would print `4503599627370496` and fail here. That
+    // is the half the `.mwlt` case of the same name reads off `$half(7)`'s own
+    // rendering instead.
+    let source = "<?mwl
+callable $half = fn (float $f): float => $f / 2.0;
+
+// 2^53 is the last integer an `f64` holds exactly, so it is the last one this
+// row accepts — asserted beside 7, which no reading of the value could
+// mistake for anything else.
+array<int> $ints = [7, 9007199254740992];
+echo Core\\Json::encode(Core\\Arr::map($ints, $half)), \"\\n\";
+
+// The first refused one, one past that bound. Caught as `ArithmeticError`
+// specifically — ADR 0007 § 4's class for a numeric overflow, and the
+// distinction a `catch (Throwable)` in a `.mwlt` case cannot make against the
+// `LogicError` the mismatched-tag row throws.
+array<int> $edge = [1, 9007199254740993];
+try {
+    // Bound before it is echoed: `echo` writes its arguments one at a time,
+    // so evaluating the call inside the list prints the prefix before the
+    // throw reaches the `catch`.
+    var $past = Core\\Arr::map($edge, $half);
+    echo \"did not throw \", Core\\Json::encode($past), \"\\n\";
+} catch (ArithmeticError $e) {
+    echo \"caught: \", $e->message, \"\\n\";
+}
+
+// `uint` is a tag of its own and takes the same row rather than a second one.
+uint $nine = 9;
+array<uint> $uints = [$nine];
+echo Core\\Json::encode(Core\\Arr::map($uints, $half)), \"\\n\";
+";
+    assert_eq!(
+        output_of(source),
+        "[3.5,4503599627370496.0]\n\
+         caught: cannot convert argument 1 to a `callable` from `int` to `float`\n\
+         [4.5]\n"
+    );
+}
+
+/// An allocator that counts live bytes on the calling thread, so the guard
+/// below measures what the abandoned partial result costs rather than reading
+/// `mwl_stdlib::arr`'s claim that `MwlArray`'s drop frees it.
+///
+/// Thread-local, and `#[cfg(debug_assertions)]`, for the two reasons
+/// `arrays.rs`'s own counter states: a test binary runs its tests
+/// concurrently, and a `#[global_allocator]` is chosen once per binary — an
+/// optimized build of this one already has `mwl-runtime`'s pooled allocator.
+/// `cargo test`, the profile `tools/verify.py` runs, is a debug build.
+#[cfg(debug_assertions)]
+struct Counting;
+
+#[cfg(debug_assertions)]
+thread_local! {
+    static LIVE: std::cell::Cell<isize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(debug_assertions)]
+#[expect(
+    unsafe_code,
+    reason = "`GlobalAlloc` is an unsafe trait, and every method forwards its \
+              own contract verbatim to `System`"
+)]
+unsafe impl std::alloc::GlobalAlloc for Counting {
+    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+        note(bytes(layout.size()));
+        unsafe { std::alloc::System.alloc(layout) }
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
+        note(-bytes(layout.size()));
+        unsafe { std::alloc::System.dealloc(ptr, layout) }
+    }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, new_size: usize) -> *mut u8 {
+        note(bytes(new_size).wrapping_sub(bytes(layout.size())));
+        unsafe { std::alloc::System.realloc(ptr, layout, new_size) }
+    }
+}
+
+/// A request size as a signed delta. Saturating rather than `as`, which
+/// `cast_possible_wrap` refuses: no allocation this counter sees comes near
+/// `isize::MAX`, and one that did would be a leak either way.
+#[cfg(debug_assertions)]
+fn bytes(size: usize) -> isize {
+    isize::try_from(size).unwrap_or(isize::MAX)
+}
+
+/// Both directions go through one place, so the counter cannot grow a second
+/// convention. Wrapping for the reason `mwl_runtime::counting_alloc` gives:
+/// the count is a balance, and a signed one stays readable if it ever dips.
+#[cfg(debug_assertions)]
+fn note(delta: isize) {
+    LIVE.with(|live| live.set(live.get().wrapping_add(delta)));
+}
+
+#[cfg(debug_assertions)]
+#[global_allocator]
+static COUNTING: Counting = Counting;
+
+/// Compiles `source`, runs it, and answers how many bytes the **run**
+/// allocated and did not free — compilation and `install_in` happen outside
+/// the window on purpose, since what is under test is what compiled code
+/// spends.
+#[cfg(debug_assertions)]
+fn live_bytes_of_run(source: &str) -> isize {
+    let unit = compile(source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit
+        .function("<script>")
+        .expect("the script frame was compiled");
+    let before = LIVE.with(std::cell::Cell::get);
+    call(entry, &mut ctx, &[]).expect("the script ran to completion");
+    LIVE.with(std::cell::Cell::get) - before
+}
+
+#[test]
+#[cfg(debug_assertions)]
+fn the_partial_result_a_mismatched_argument_abandons_leaks_nothing() {
+    // The half a `.mwlt` case cannot see. `Core\Arr::filter` is two kept
+    // entries into its walk when `mwl_runtime::call_closure` refuses the
+    // third, and `mwl_core_arr_filter`'s doc claims the early return itself
+    // frees the partial result and the entry's key, since `MwlArray` and
+    // `MwlStr` release on drop. A missed release leaks that array plus the two
+    // string buffers it retained, every iteration.
+    //
+    // Measured as a *slope* rather than against a fixed bound: a run's own
+    // fixed overhead is the same in both runs, so ten times the iterations
+    // must not cost ten times anything. Both runs hold 8 bytes today — the
+    // buffer the echoed count lands in — and the slack below is what tells
+    // that apart from a leak. Calibrated rather than guessed: leaking the
+    // partial result with a `std::mem::forget` on `mwl_core_arr_filter`'s own
+    // error path moves the pair to 46,388 and 467,788 bytes, a slope of
+    // 421 KiB over the extra 1,800 iterations.
+    let source = |iterations: u32| {
+        format!(
+            "{MISMATCH}var $i = 0;
+var $caught = 0;
+while ($i < {iterations}) {{
+    string $tag = \"t\" . $i;
+    array<mixed> $fresh = [$tag, $tag . \"!\", 3];
+    try {{
+        var $kept = Core\\Arr::filter($fresh, $wantsString);
+        $caught = $caught + Core\\Arr::count($kept) as int;
+    }} catch (LogicError $e) {{
+        $caught = $caught + 1;
+    }}
+    $i = $i + 1;
+}}
+echo $caught;
+"
+        )
+    };
+
+    // The subject is rebuilt from a fresh concatenation each iteration, so a
+    // retained-but-never-released entry is a buffer nothing else holds.
+    assert_eq!(output_of(&source(200)), "200");
+
+    let short = live_bytes_of_run(&source(200));
+    let long = live_bytes_of_run(&source(2000));
+    assert!(
+        long - short < 4096,
+        "the abandoned partial result leaks: 200 iterations held {short} bytes, 2000 held {long}"
+    );
+}
