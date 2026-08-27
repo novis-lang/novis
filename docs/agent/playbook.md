@@ -1345,6 +1345,13 @@ is why" — is this file.
   fragment that reads like the case failing open. Bind the call above the `echo` —
   `var $past = Core\Arr::map($edge, $half); echo "did not throw ", ...;` — which is why the
   `.mwlt` cases beside it do.
+- **Two `catch` bindings of the same name at file scope are fine only while they name the same
+  class.** `catch (LogicError $e)` twice compiles, and so do fourteen of them — which is what makes
+  a counted refusal sweep possible at all, since a closure cannot be called through the variable
+  holding it and the sweep cannot be factored. Add one `catch (Throwable $e)` after them and it is
+  `E0406: $e is already declared`, pointing at the first: a `catch` binding is the function's, and
+  the class it names is part of the declaration that clashes. Give a differently-typed handler its
+  own name.
 
 ## Splitting a file that got too big
 

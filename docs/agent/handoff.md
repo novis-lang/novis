@@ -2,51 +2,54 @@
 
 ## State
 
-**M4 — language completeness.** A closure's declared parameter types are checked at the call
-(`check_param_tags`, `crates/mwl-runtime/src/closure.rs:325`) and ADR 0007 § 2's one widening is
-applied there. Both rules are now pinned twice: from MWL in `tests/conformance/lang/`, and from
-native code in `crates/mwl-codegen/tests/closures.rs`, which asserts the three halves a `.mwlt`
-case cannot see — the thrown *class* (`LogicError` for a mismatch, `ArithmeticError` past 2^53,
-each caught by name rather than as `Throwable`), the uncaught `THROWN` status and message left on
-the context, and that the partial result `Core\Arr::filter` abandons mid-walk is freed.
+**M4 — language completeness.** ADR 0069 § 5 now answers what a callback's `$key` carries: a key
+handed *to* a callback is an out-flow like a key-valued return, so it is a `string` in every member
+and over every array shape. `Core\Arr` was already rendering it, so this was a decision plus its
+three homes — the rule in ADR 0069 § 5, one pointer sentence at spec § 2's R9, and the mechanism in
+`crates/mwl-stdlib/src/arr.rs`'s module doc § *A callback that does not want a key is never handed
+one*. Handing a packed list's position on unrendered is refused there because it would make a
+callback's `$key` type depend on how the subject is stored, which is the integer-key/string-key
+split ADR 0007 § 5 deleted — not because of what the rendering costs.
 
-That leak guard measures live bytes through its own `#[global_allocator]` in the test binary — the
-pattern `crates/mwl-codegen/tests/arrays.rs:130` already uses — and asserts a *slope*: 200 and
-2,000 iterations must hold the same bytes. It is calibrated rather than guessed, and the numbers
-are in its comment.
+The observable half is that `fn($v, int $k)` throws `LogicError`, on a list exactly as on a map.
+`tests/conformance/core/arr-a-callback-key-is-a-string-on-a-list-too.mwlt` pins both sides over a
+packed list: nine members report the keys they offered, and fourteen are then asked with `int $k`
+and counted, `asked` and `refused` both raised from inside the same fourteen blocks.
 
-`mwl_ir::lower::param_tag_nibble` (`crates/mwl-ir/src/lower/mod.rs:2705`) is already the "a new
-`Ty` row has to be decided" guard the previous handoff pointed at; the playbook says why it cannot
-be reproduced in `mwl-codegen`. Nothing in this area is open below the front end.
+The tag check is by *representation*, not by declared type: `param_tag_nibble` maps `Ty::Tagged` to
+`FN_PARAM_TAG_ANY` (`crates/mwl-ir/src/lower/mod.rs:2724`), so a `mixed $k` and a `?string $k` are
+both unchecked. Nothing pins that yet, and it is the next group's first item.
 
-`verify.py` green — conformance 619, differential 173, unchanged: both slices are Rust tests.
+`verify.py` green — conformance 620, differential 173.
 
 ## Next group
 
-**Decide what a callback's *key* argument carries, then pin it.** The file set:
-`crates/mwl-stdlib/src/arr.rs`, `docs/spec/01-core-library.md`, `tests/conformance/core/`.
+**The closure tag check's remaining edges, asked from MWL.** The file set:
+`tests/conformance/core/`, `crates/mwl-runtime/src/closure.rs:325` (`check_param_tags`),
+`crates/mwl-ir/src/lower/mod.rs:2705` (`param_tag_nibble`).
 
-- [ ] **Decide it and record it.** Every member renders the key as a `string` before the call —
-      `crates/mwl-stdlib/src/arr.rs:913` (`filter`), `:1002` (`map`), `:1068`, `:1158`, `:2568`,
-      `:2670` (`reduce`, where the carry is argument 1 and the key argument 3) — so a
-      two-parameter callback over a *list* that declares `int $k` now throws where before the tag
-      check it read an integer key's payload as an `MwlStr`. PHP hands the callback the native
-      key, and priority 2 outranks the simplicity of one rendering, so handing the key in its own
-      form is the likely answer; `docs/spec/01-core-library.md:313` (R9) is the home for whichever
-      it is, and `crates/mwl-stdlib/src/arr.rs:40` § *A callback that does not want a key is never
-      handed one* owns the mechanism it changes.
-- [ ] **A `.mwlt` case in the agreement shape**, asking the same two-parameter callback of `filter`
-      and `map` over a list and over a string-keyed array, so a member that grew its own key
-      rendering fails rather than printing plausibly on its own line.
-- [ ] **`reduce`'s three-argument callback**, same file: the tag check counts positions, so a
-      declared-type reducer is the one shape where an off-by-one in the nibble word shows up.
-      `crates/mwl-runtime/src/closure.rs:346` reads the nibbles.
+- [ ] **A `mixed` or `?T` parameter is unchecked, and that is the answer rather than a hole.**
+      `FN_PARAM_TAG_ANY` is nibble 12 (`crates/mwl-ir/src/lower/mod.rs:2691`) and
+      `check_param_tags` `continue`s on it (`crates/mwl-runtime/src/closure.rs:361`), so a callback
+      declaring `mixed $k` or `?string $k` accepts whatever arrives. Pin it from a `Core\Arr`
+      callback, and say in one sentence of `param_tag_nibble`'s own doc comment why a nullable
+      declaration checks nothing — it is `Ty::Tagged`, and the representation is the check.
+- [ ] **ADR 0007 § 2's one widening reaches a callback, and stops at 2^53.**
+      `crates/mwl-runtime/src/closure.rs:387` widens an `int`/`uint` argument into a `float`
+      parameter and throws `ArithmeticError` above 2^53. From MWL that is `Core\Arr::map` over an
+      `array<int>` with `fn(float $v) => …`: assert the bound on both sides, the last accepted
+      value and the first refused one, in one case.
+- [ ] **`reduce` counts positions, not roles.** The carry is argument 1 and the key argument 3
+      (`crates/mwl-stdlib/src/arr.rs:2670`), so a two-parameter fold callback puts the *value* in
+      position 2 and a three-parameter one does not move it. A mismatch on the carry is refused by
+      the same nibble walk as a mismatch on the key; the new case only asks about the key.
 
 ## Backlog
 
-- `mwl_codegen::ty`'s `clif_ty` and `tag_of` both end in `_ =>`, so a new `Ty` defaults silently
-  there — `crates/mwl-codegen/src/ty.rs:56` and `:119`.
-- `crate::helpers`' `does_not_fit` still cannot raise `ArithmeticError`; its own `# Known gap`
-  owns it.
-- The rest of M4's holes: `python tools/holes.py`, and `python tools/loop.py --list` for the
-  named cases each stage still owes.
+- A closure called through the variable holding it panics `mwl-ir` — `docs/agent/playbook.md`
+  § *Writing MWL itself*.
+- `array<T> as array<U>` does not lower (`crates/mwl-ir/src/lower/expr.rs:877`), which is ADR 0007
+  § 2's one missing conversion row.
+- A spread argument does not lower (`crates/mwl-ir/src/lower/call.rs:75`).
+- `Core\Reflect::typeOf` is not implemented, so no case can ask a value its own type — ADR 0007 § 4
+  names it.
