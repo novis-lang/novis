@@ -768,14 +768,14 @@ impl<'a> Lowering<'a> {
             // read — the same answer every scalar row above gives.
             Ty::Object => match self.lower_to_string_call(expr, v, env, *cur) {
                 Some(s) => (s, false),
-                // No resolved `toString`: a value typed at `Stringable` itself,
-                // or a `Core`-owned class, which is where ADR 0088 § 5's sink
+                // No resolved `toString`: an erased `object` (ADR 0036 § 4), or
+                // a `Core`-owned class, which is where ADR 0088 § 5's sink
                 // carrier arrives. Both are decided by the value's *runtime*
                 // class rather than its static one, so this is the same
-                // tag-dispatched conversion a `Ty::Tagged` operand takes —
-                // `mwl_runtime::value_to_string` renders a carrier and throws
-                // on every other object, which is a diagnosable program rather
-                // than the compiler panic that used to be here.
+                // dispatched conversion a `Ty::Tagged` operand takes —
+                // `mwl_runtime::stringify` calls the class's own `toString`
+                // where it has one, renders a carrier where it is one, and
+                // throws otherwise.
                 None => {
                     let (sv, _) = self.emit_fallible(
                         *cur,
@@ -828,10 +828,12 @@ impl<'a> Lowering<'a> {
     /// all four go through — so it is also the single place that records the
     /// resolved target, under the operand's own span.
     ///
-    /// `None` when nothing was recorded there, which the caller turns into a
-    /// panic naming itself: the checker records a target for every object
-    /// operand it accepts, so a missing one is a shape it accepted without
-    /// resolving rather than anything this crate can lower.
+    /// `None` when nothing was recorded there, which both callers answer the
+    /// same way: `Helper::TaggedToString` over the receiver, which dispatches
+    /// `toString` on its *runtime* class. The checker records a target wherever
+    /// the operand's static type names a class to resolve against, so a missing
+    /// one means it named none — an erased `object` (ADR 0036 § 4), a union, or
+    /// a `Core`-owned class whose members are native rather than compiled.
     ///
     /// The call is ordinary in every respect, exactly as
     /// [`Self::lower_object_comparison`]'s `compareTo` is: ADR 0002's error
@@ -1130,18 +1132,32 @@ impl<'a> Lowering<'a> {
             // through the same resolved `toString()` rather than a second
             // answer of its own (`Self::lower_to_string_call`). The receiver's own
             // ownership is settled there too, so nothing is released here.
-            (Ty::Object, Ty::Str) => {
-                let Some(s) = self.lower_to_string_call(operand, v, env, cur) else {
-                    panic!(
-                        "mwl-ir converts an object to `string` through the `toString` \
-                         `mwl_types::expr::operators::require_stringable` resolved for it, and \
-                         none was recorded at this span — a value typed at `Stringable` itself, \
-                         or a `Core`-owned class, are the two shapes still outside it; see the \
-                         crate docs' known gaps"
-                    )
-                };
-                (s, Ty::Str)
-            }
+            //
+            // The `None` half is `Self::concat_operand`'s, verbatim and for its
+            // reason: an operand whose static type named no class to resolve
+            // against — the erased `object` of ADR 0036 § 4, or a `Core`-owned
+            // class — is decided by its *runtime* class instead, which is what
+            // `mwl_runtime::stringify` is. Answering that here and something
+            // else at `echo` would make one value render two ways depending on
+            // which spelling read it.
+            (Ty::Object, Ty::Str) => match self.lower_to_string_call(operand, v, env, cur) {
+                Some(s) => (s, Ty::Str),
+                None => {
+                    let out = self.emit_fallible(
+                        cur,
+                        Ty::Str,
+                        InstKind::HelperCall {
+                            helper: Helper::TaggedToString,
+                            args: vec![v],
+                        },
+                        env,
+                    );
+                    if !self.aliasing_read(operand) {
+                        self.emit_release(cur, v);
+                    }
+                    out
+                }
+            },
             // The same four rows again, from a union operand — one fallible
             // helper picking by runtime tag, shared verbatim with `.` and
             // `echo` (`Self::concat_operand`). See `Helper::TaggedToString`.
@@ -1265,9 +1281,12 @@ impl<'a> Lowering<'a> {
     /// § 1's non-throwing form of [`Self::convert`], where `to` is the target
     /// *inside* the `?`.
     ///
-    /// One [`InstKind::HelperCall`] per target type, and no error edge: the
-    /// helper answers `null` where the throwing row would throw, so it cannot
-    /// fail and needs neither [`Self::emit_fallible`] nor a landing block. The
+    /// One [`InstKind::HelperCall`] per target type, and for the numeric ones
+    /// no error edge at all: the helper answers `null` where the throwing row
+    /// would throw, so it cannot fail and needs neither [`Self::emit_fallible`]
+    /// nor a landing block. The `string` target is the one exception, and for a
+    /// reason that is not the conversion's — it may run the operand's own
+    /// `toString()`, and *that* can throw. The
     /// result is [`Ty::Tagged`] — the one representation `?T` has
     /// ([`Ty::Tagged`]'s own doc comment) — and every source is one helper,
     /// because the helper dispatches on the operand's runtime tag rather than
@@ -1278,14 +1297,15 @@ impl<'a> Lowering<'a> {
     ///
     /// Ownership matches the checked rows exactly: a refcounted operand this
     /// conversion consumed is released once the helper has read it, unless a
-    /// durable slot still owns it ([`is_aliasing_read`]). The result never
-    /// carries a refcounted payload — every target is a scalar — so nothing is
-    /// retained.
+    /// durable slot still owns it ([`is_aliasing_read`]). Nothing is retained
+    /// here either — [`Helper::ToStringOrNull`]'s result is the one that
+    /// carries a refcounted payload, and it arrives with the single reference
+    /// every helper that builds a `string` hands back.
     ///
     /// # Panics
     ///
     /// Panics for a row ADR 0066 § 3 calls **available** and this crate has no
-    /// `?` helper to run — `$b as ?string`, `$m as ?bytes`, `$m as ?array<T>`.
+    /// `?` helper to run — `$m as ?bytes`, `$m as ?array<T>`.
     /// Both of that section's *refusals* are `mwl_types`' now, so neither
     /// reaches here: a conversion that cannot fail is `E0709` and a pair
     /// naming no row is `E0708`, both where the conversion is written. The
@@ -1299,6 +1319,7 @@ impl<'a> Lowering<'a> {
         from: Ty,
         to: Ty,
         operand: &Expr,
+        env: &mut Env,
         cur: BlockId,
     ) -> (ValueId, Ty) {
         let helper = match to {
@@ -1314,25 +1335,33 @@ impl<'a> Lowering<'a> {
             Ty::Uint => Helper::ToUintOrNull,
             Ty::Float => Helper::ToFloatOrNull,
             Ty::Decimal => Helper::ToDecimalOrNull,
+            Ty::Str => Helper::ToStringOrNull,
             other => panic!(
-                "mwl-ir lowers ADR 0066's `as ?T` for the checked numeric targets, and through \
+                "mwl-ir lowers ADR 0066's `as ?T` for the checked scalar targets, and through \
                  `Self::lower_nullable_membership` for ADR 0047's literal and enum-case ones — \
                  got `{from:?} as ?{other:?}`. Both of § 3's refusals are `mwl_types`' now \
                  (`E0709` for a row that cannot fail, `E0708` for a pair naming no row), so what \
-                 reaches here is a row that exists, can fail, and has no `?` helper to run it: a \
-                 `string` target from `bytes`, from an object or from a tagged operand, and the \
-                 `bytes`, `array<T>` and object targets `Lowering::convert`'s own catch-all \
+                 reaches here is a row that exists, can fail, and has no `?` helper to run it: \
+                 the `bytes`, `array<T>` and object targets `Lowering::convert`'s own catch-all \
                  already names. See the crate docs' known gaps"
             ),
         };
-        let out = self.emit(
-            cur,
-            Ty::Tagged,
-            InstKind::HelperCall {
-                helper,
-                args: vec![v],
-            },
-        );
+        let call = InstKind::HelperCall {
+            helper,
+            args: vec![v],
+        };
+        // One row still carries ADR 0002's error edge, and it is not the
+        // conversion failing: a `string` target may run the operand's own
+        // `toString()`, whose exception is the *program's* and propagates
+        // unchanged — `null` here means "this conversion had no answer" and
+        // nothing else (`Helper::ToStringOrNull`). The numeric rows cannot
+        // fault at all and are emitted plainly, so none of them pays for a
+        // landing block.
+        let out = if to == Ty::Str {
+            self.emit_fallible(cur, Ty::Tagged, call, env)
+        } else {
+            self.emit(cur, Ty::Tagged, call)
+        };
         if from.is_refcounted() && !self.aliasing_read(operand) {
             self.emit_release(cur, v);
         }
@@ -4694,11 +4723,11 @@ impl<'a> Lowering<'a> {
                 // node's own span answers nothing.
                 let Some(atoms) = self.nullable_target_atoms(ty) else {
                     let to = lower_decl_type(target, self.exprs, self.checked_types);
-                    return self.convert_or_null(v, from, to, inner, *cur);
+                    return self.convert_or_null(v, from, to, inner, env, *cur);
                 };
                 let to = shared_repr(&atoms, self.checked_types);
                 let Some(accepted) = self.closed_set_of_atoms(&atoms, None, from) else {
-                    return self.convert_or_null(v, from, to, inner, *cur);
+                    return self.convert_or_null(v, from, to, inner, env, *cur);
                 };
                 self.lower_nullable_membership(v, from, to, &accepted, inner, ty.span, env, cur)
             }
@@ -5090,7 +5119,7 @@ impl<'a> Lowering<'a> {
                 other => other,
             };
             if conversion_can_fail(from, base) {
-                let (tagged, _) = self.convert_or_null(v, from, base, inner, *cur);
+                let (tagged, _) = self.convert_or_null(v, from, base, inner, env, *cur);
                 (tagged, Ty::Tagged, tagged)
             } else {
                 let (converted, converted_ty) = self.convert(v, from, to, inner, env, *cur);

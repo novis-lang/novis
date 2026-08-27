@@ -483,6 +483,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ToIntOrNull => "to_int_or_null",
         Helper::ToUintOrNull => "to_uint_or_null",
         Helper::ToFloatOrNull => "to_float_or_null",
+        Helper::ToStringOrNull => "to_string_or_null",
         Helper::ToDecimal => "to_decimal",
         Helper::ToDecimalOrNull => "to_decimal_or_null",
         Helper::DecimalToInt => "decimal_to_int",

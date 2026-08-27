@@ -1530,6 +1530,23 @@ pub enum Helper {
     ToUintOrNull,
     /// `$x as ?float` — [`Self::ToIntOrNull`]'s row set, landing on `float`.
     ToFloatOrNull,
+    /// `$x as ?string` — [`Self::TaggedToString`]'s rows in ADR 0066 § 1's
+    /// non-throwing form, and the one `?` twin whose result is refcounted.
+    ///
+    /// ADR 0066 § 1 makes the two spellings differ only in what they do with a
+    /// miss, so this shares that helper's implementation rather than carrying a
+    /// second copy of ADR 0007 § 2's table: an operand that renders renders the
+    /// same, and one whose *conversion* fails answers `null` instead of
+    /// throwing. A `bytes` operand joins them here rather than at
+    /// [`Self::BytesToString`], because ADR 0009 § 3's UTF-8 validation is a
+    /// row that can fail and so has a `null` answer of its own.
+    ///
+    /// **A `toString()` body that throws still throws.** ADR 0066 § 1's `null`
+    /// stands for "this conversion had no answer", not for "swallow whatever
+    /// the operand did on the way": the exception the body recorded is the
+    /// program's own and reaches the request unchanged. `mwl_runtime`'s
+    /// `stringify_or_null` is where that line is drawn.
+    ToStringOrNull,
     /// `$x as decimal` — ADR 0054 § 4's four `→ decimal` rows, chosen by the
     /// operand's runtime tag the way [`Self::ToIntOrNull`] chooses, so one
     /// helper covers `int`, `uint`, `float`, `string` and `mixed` alike.
@@ -1562,11 +1579,21 @@ pub enum Helper {
     /// same "one tag per target" arrangement [`Self::ToIntOrNull`] describes,
     /// so `mixed` needs no lowering branch of its own in either place.
     ///
+    /// **An object operand is a `toString` call, not a tag row.** Both
+    /// spellings above also land here for an object whose *static* type named
+    /// no class to resolve against — an erased `object`
+    /// ([ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4), a
+    /// union, a `Core`-owned class — and `mwl_runtime::stringify` answers it
+    /// by asking the receiver's runtime class for ADR 0028 § 1's `toString`.
+    /// The static path is unchanged and cheaper: where `mwl_types` did resolve
+    /// one, an ordinary [`InstKind::CallVirtual`] is emitted and no helper is
+    /// reached at all.
+    ///
     /// **The one string conversion that can fail**, so unlike the four static
     /// ones it is emitted through `crate::lower::Lowering::emit_fallible` and
-    /// carries ADR 0002's error edge: an array, an object, a closure and a
-    /// resource have no row, and `mwl_runtime::value_to_string` owns what each
-    /// throws and why.
+    /// carries ADR 0002's error edge: an array, a closure, a resource and an
+    /// object whose class declares no `toString` have no row, and
+    /// `mwl_runtime::value_to_string` owns what each throws and why.
     TaggedToString,
     /// A [`crate::ty::Ty::Tagged`] operand to `int` — ADR 0007 § 2's `→ int`
     /// rows chosen by the operand's **runtime** tag, which is the only thing

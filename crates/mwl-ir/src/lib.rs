@@ -204,7 +204,7 @@
 //!    them adds [`ir::Helper`] variants dispatching on the tag, not a second
 //!    representation.
 //! 4. **One conversion row is missing, and ADR 0066's `as ?T` has no helper
-//!    for the ones that produce text.**
+//!    for the two targets that produce a container.**
 //!    ADR 0007 § 2's free, total and checked scalar rows all lower, in both
 //!    the throwing form ([`lower::Lowering::convert`]) and ADR 0066's
 //!    non-throwing `as ?T` ([`lower::Lowering::convert_or_null`]). The row
@@ -218,12 +218,15 @@
 //!    does not exist at all (`$arr as ?int`) is `E_NO_CONVERSION`, that
 //!    table's closure asked of the `T` inside the sugar. What is left is the
 //!    other direction — a row § 3 calls **available** with no `?` helper to
-//!    run it, which is every target that produces *text* or a container:
-//!    `$b as ?string`, `$m as ?string`, `$m as ?bytes`, `$m as ?array<T>`.
-//!    Each is [`lower::Lowering::convert`]'s own missing row in its
-//!    null-answering spelling, so the two close together — except `?string`,
-//!    which needs a twin of [`ir::Helper::TaggedToString`] answering `null`
-//!    where that one throws. The **class-target** refusal is the third of
+//!    run it, which is now the two targets that produce a *container*:
+//!    `$m as ?bytes` and `$m as ?array<T>`. Each is
+//!    [`lower::Lowering::convert`]'s own missing row in its null-answering
+//!    spelling, so the two close together. The text target is closed:
+//!    [`ir::Helper::ToStringOrNull`] is [`ir::Helper::TaggedToString`]'s twin
+//!    over one implementation of ADR 0007 § 2's rows, answering `null` where
+//!    that one throws, and it takes `$b as ?string` with it — ADR 0009 § 3's
+//!    UTF-8 validation is a row that can fail, so the `bytes` source has a
+//!    `null` answer of its own rather than a second helper. The **class-target** refusal is the third of
 //!    § 3's —
 //!    `mwl_diagnostics::code::E_CLASS_CONVERSION_TARGET`, and it is absolute,
 //!    so no class reaches this crate through `as` at all. It used to carry a
@@ -359,18 +362,25 @@
 //!     poisoning makes the shape rare, and closing it means teaching
 //!     `mwl_runtime::value_identical` the property rather than adding a
 //!     lowering arm.
-//! 12. **A `Stringable` operand stringifies; a `Core`-owned one does not.**
+//! 12. **Every object stringifies but a `Core`-owned one, which throws.**
 //!     `.`, an interpolated piece, `echo`/`print` and `as string` all desugar
 //!     to the `toString()` `mwl_types::expr::operators::require_stringable`
 //!     resolved under the operand's own span
 //!     ([`lower::Lowering::lower_to_string_call`]) — the checker records it
 //!     because none of those four sites is a call expression, so no
 //!     `ExprInfo::Call` exists to read, and it reaches an operand typed at the
-//!     interface itself as readily as a concrete implementor. What is left is
-//!     a `Core`-owned class, which that check exempts and so records nothing
-//!     for; it panics here. One arriving inside a [`ty::Ty::Tagged`] value
-//!     throws instead, because [`ir::Helper::TaggedToString`] decides by tag
-//!     at runtime and has no row for it.
+//!     interface itself as readily as a concrete implementor. An operand whose
+//!     static type names *no* class — an erased `object`, a `mixed`, any other
+//!     union — records nothing to resolve and is dispatched on its runtime
+//!     class instead, by `mwl_runtime::stringify` under
+//!     [`ir::Helper::TaggedToString`]. What is left is a `Core`-owned class:
+//!     `require_stringable` exempts it, and its members are native rather than
+//!     entries in a compiled method table, so that dispatch finds nothing and
+//!     the value throws where the spec gives the class a `toString` and it
+//!     should have rendered. Closing it is `mwl_stdlib::registry`'s half —
+//!     the standing decision in `docs/agent/loop-goal.md` says the registry
+//!     states which `Core` classes have one, and a class with none is refused
+//!     where it is written rather than throwing below.
 //! 14. **Two of the safepoint's four flags still do nothing.**
 //!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
 //!     back edge, and `mwl-codegen` lowers it to a real poll: `CPU_LIMIT` and

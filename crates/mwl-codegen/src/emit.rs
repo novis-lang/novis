@@ -3254,6 +3254,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ToIntOrNull => "mwl_to_int_or_null",
         Helper::ToUintOrNull => "mwl_to_uint_or_null",
         Helper::ToFloatOrNull => "mwl_to_float_or_null",
+        Helper::ToStringOrNull => "mwl_to_string_or_null",
         Helper::TaggedToString => "mwl_tagged_to_string",
         Helper::TaggedToInt => "mwl_tagged_to_int",
         Helper::TaggedToUint => "mwl_tagged_to_uint",

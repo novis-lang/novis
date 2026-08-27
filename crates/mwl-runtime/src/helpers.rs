@@ -828,12 +828,13 @@ crate::mwl_helper! {
 /// PHP's `"Array"`-plus-warning: [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
 /// R4 makes failure a throw, and a silent placeholder is exactly the class of
 /// answer ADR 0007 § 2 removed from the language. An **object** is among them
-/// today for a narrower reason — ADR 0028 makes `Stringable` the one way an
-/// object renders, and that interface still carries no member signature for a
-/// dispatch to reach, so an object arriving here is a program the checker let
-/// through on a union it could not narrow. The one exception is a **sink
-/// carrier**, which renders as the bytes it carries; the row itself says why
-/// that is not `Stringable` in disguise.
+/// here, but this is the *tag* table and not the whole rule: ADR 0028 § 1 makes
+/// `Stringable` the one way an object renders, and [`stringify`] is where that
+/// dispatch happens — every helper reaches this function through that one, so an
+/// object only falls to the row below once its runtime class has been asked for
+/// a `toString` and answered nothing. The other exception is a **sink carrier**,
+/// which renders as the bytes it carries; the row itself says why that is not
+/// `Stringable` in disguise.
 ///
 /// A `Tag::Str` operand is returned as itself with one **fresh** reference, so
 /// the caller owns the result exactly as it owns a converted one; every other
@@ -903,19 +904,28 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
                           caller owns a reference to, so its class and its first \
                           slot are readable for the length of this call"
             )]
-            let carried = unsafe {
+            let (class, carried) = unsafe {
                 let name = (*crate::object::MwlObj::class_of(ptr)).name();
-                if crate::ctx::is_carrier(name) {
+                let carried = if crate::ctx::is_carrier(name) {
                     Some(crate::object::mwl_object_field_get(
                         ptr,
                         crate::ctx::CARRIER_TEXT_SLOT,
                     ))
                 } else {
                     None
-                }
+                };
+                (name, carried)
             };
+            // The one throw here that names what it was handed, because it is
+            // the one a program reaches by writing a class rather than by
+            // reaching a tag no row covers: [`stringify`] has already asked
+            // this class for its `toString` and been answered nothing, so what
+            // the message owes is which class and which member.
             let Some(carried) = carried else {
-                return Err(refused("an object"));
+                return Err(Fault::thrown(format!(
+                    "cannot convert an object of class `{class}` to `string`: it does not \
+                     implement `Stringable`"
+                )));
             };
             let text = carried
                 .str_ptr()
@@ -935,10 +945,106 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
     }
 }
 
+/// The method [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+/// § 1 fixes as the one way an object renders. The spelling is the interface's,
+/// and `mwl_types::expr::operators::require_stringable` resolves the *static*
+/// half of the same name.
+const TO_STRING: &str = "toString";
+
+/// [`value_to_string`] with ADR 0028 § 1's dispatch in front of it: an object
+/// whose **runtime** class declares a `toString` renders through that method,
+/// and everything else takes the tag row.
+///
+/// This is the half of the rule no checker can take. `mwl_types` resolves
+/// `toString` wherever the operand's static type names a class, and `mwl-ir`
+/// then emits an ordinary call — nothing on that path reaches here. What is
+/// left is every operand whose static type names *no* class to resolve against:
+/// a `mixed`, a `?T` or another union, and the erased `object` of
+/// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4, whose
+/// receiver "cannot be checked at compile time at all" and whose answer is
+/// therefore decided by the concrete instance behind the handle. Refusing those
+/// instead would diverge from PHP — `function f(object $o) { echo $o; }` calls
+/// `__toString` there — and would also make one value render two different ways
+/// depending on which binding it was read through, which is the worse half.
+///
+/// A class that declares no `toString` still throws, and throws the same
+/// catchable `Throwable` the tag row already answers with: ADR 0036 § 4's read
+/// through an erased view is "a checked, catchable throw", never a fatal.
+///
+/// **Ownership is [`crate::call_method`]'s**, for its reason: a helper borrows
+/// its arguments while a compiled method owns its parameters, so the receiver is
+/// retained on the way in and released by the callee's own exit sweep. The
+/// result is the `string` that method returned, carrying the one reference every
+/// other row here hands back.
+///
+/// # Errors
+///
+/// [`Fault::Pending`] when the `toString` body itself throws or faults, so the
+/// exception it recorded in `ctx` reaches the request unchanged; otherwise
+/// whatever [`value_to_string`] answers for the tag.
+pub fn stringify(ctx: &mut crate::Ctx, value: Value) -> Result<Value, Fault> {
+    if value.tag() == Some(Tag::Object) {
+        let rendered = crate::dispatch::call_method(
+            ctx,
+            value,
+            TO_STRING,
+            &[],
+            "an implicit `toString` conversion",
+        )?;
+        if let Some(text) = rendered {
+            return Ok(text);
+        }
+    }
+    value_to_string(value)
+}
+
 crate::mwl_helper! {
-    /// `mwl_ir::Helper::TaggedToString` — see [`value_to_string`].
-    fn mwl_tagged_to_string(_ctx, args: [1]) {
-        value_to_string(args[0])
+    /// `mwl_ir::Helper::TaggedToString` — see [`stringify`], and
+    /// [`value_to_string`] for the tag table under it.
+    fn mwl_tagged_to_string(ctx, args: [1]) {
+        stringify(ctx, args[0])
+    }
+}
+
+/// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 1's
+/// `as ?string`: [`stringify`]'s answer, with `null` exactly where that one
+/// throws.
+///
+/// One implementation of ADR 0007 § 2's `→ string` rows and not a second copy
+/// of them, which is the whole point of § 1's "yields `null` exactly where
+/// `expr as T` would throw" — a twin that decided any row for itself could
+/// disagree with the checked spelling on that row. A `bytes` operand is here
+/// rather than at [`bytes_to_string`] for the same reason: ADR 0009 § 3's
+/// UTF-8 validation is a row that can fail, so it has a `null` answer, and the
+/// tag it is chosen by is the operand's own.
+///
+/// **Only the conversion's own failure becomes `null`.** A [`Fault::Thrown`]
+/// raised here means this function had no answer; every other fault is
+/// something that happened *while* it looked — a `toString()` body that threw
+/// ([`Fault::Pending`], the exception already recorded in `ctx`), or an engine
+/// fault — and passing those off as `null` would swallow a program's own
+/// exception at a conversion that never asked about it.
+///
+/// # Errors
+///
+/// Every fault but [`Fault::Thrown`], unchanged.
+pub fn stringify_or_null(ctx: &mut crate::Ctx, value: Value) -> Result<Value, Fault> {
+    let converted = if value.tag() == Some(Tag::Bytes) {
+        bytes_to_string(value)
+    } else {
+        stringify(ctx, value)
+    };
+    match converted {
+        Ok(text) => Ok(text),
+        Err(Fault::Thrown(..)) => Ok(Value::null()),
+        Err(other) => Err(other),
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ToStringOrNull` — see [`stringify_or_null`].
+    fn mwl_to_string_or_null(ctx, args: [1]) {
+        stringify_or_null(ctx, args[0])
     }
 }
 
@@ -1451,6 +1557,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_to_int_or_null", address(mwl_to_int_or_null)),
         ("mwl_to_uint_or_null", address(mwl_to_uint_or_null)),
         ("mwl_to_float_or_null", address(mwl_to_float_or_null)),
+        ("mwl_to_string_or_null", address(mwl_to_string_or_null)),
         ("mwl_tagged_to_string", address(mwl_tagged_to_string)),
         ("mwl_bytes_to_string", address(mwl_bytes_to_string)),
         ("mwl_decimal_add", address(mwl_decimal_add)),

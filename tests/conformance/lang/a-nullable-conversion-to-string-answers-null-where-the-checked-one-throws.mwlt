@@ -1,0 +1,76 @@
+--TEST--
+`as ?string` renders exactly what `as string` renders and answers `null` only where that one throws, over every source (ADR 0066 § 1, ADR 0007 § 2, ADR 0009 § 3)
+--FILE--
+<?mwl
+class Tag implements Stringable {
+    public function toString(): string { return "<tag>"; }
+}
+class Plain {
+    public int $n = 1;
+}
+class Angry implements Stringable {
+    public function toString(): string { throw new LogicError("no text"); }
+}
+
+// ADR 0007 § 2's "anything → `string`" row is total for scalars, so `null`
+// here can only come from the three sources that are not: an `array<T>`, an
+// object with no `toString`, and ADR 0009 § 3's UTF-8 validation.
+mixed $n = 7;
+mixed $f = 1.5;
+mixed $t = true;
+mixed $s = "already";
+mixed $z = null;
+mixed $a = [1, 2];
+mixed $tag = new Tag();
+mixed $plain = new Plain();
+bytes $b = "hi" as bytes;
+
+echo $n as ?string ?? "<null>", "\n";
+echo $f as ?string ?? "<null>", "\n";
+echo $t as ?string ?? "<null>", "\n";
+echo $s as ?string ?? "<null>", "\n";
+echo $z as ?string ?? "<null>", "\n";
+echo $a as ?string ?? "<null>", "\n";
+echo $tag as ?string ?? "<null>", "\n";
+echo $plain as ?string ?? "<null>", "\n";
+echo $b as ?string ?? "<null>", "\n";
+
+// ADR 0066 § 1: the two spellings differ only in what they do with a miss, so
+// on every row that does *not* miss they must agree. Counted rather than read
+// off a line: a twin that grew a rendering of its own fails here while still
+// printing plausibly above.
+int $agree = 0;
+if (($n as ?string ?? "<null>") == ($n as string)) { $agree = $agree + 1; }
+if (($s as ?string ?? "<null>") == ($s as string)) { $agree = $agree + 1; }
+if (($tag as ?string ?? "<null>") == ($tag as string)) { $agree = $agree + 1; }
+if (($b as ?string ?? "<null>") == ($b as string)) { $agree = $agree + 1; }
+echo $agree, "\n";
+
+// The line `null` does not cross: ADR 0066 § 1's `null` stands for "this
+// conversion had no answer", never for an exception the operand's own body
+// raised on the way. So a throwing `toString` propagates through both
+// spellings alike (ADR 0002).
+mixed $angry = new Angry();
+try {
+    echo $angry as ?string ?? "<null>", "\n";
+} catch (Throwable $e) {
+    echo "caught: ", $e->message, "\n";
+}
+try {
+    echo $angry as string, "\n";
+} catch (Throwable $e) {
+    echo "caught: ", $e->message, "\n";
+}
+--EXPECT--
+7
+1.5
+1
+already
+
+<null>
+<tag>
+<null>
+hi
+4
+caught: no text
+caught: no text
