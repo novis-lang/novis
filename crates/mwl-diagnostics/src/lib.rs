@@ -777,6 +777,18 @@ pub mod code {
     /// bind, pass or return. Nothing that worked is lost — a written arm, or
     /// a `throw` expression, says the same thing and says it on purpose.
     pub const E_MATCH_NO_ARMS: Code = Code::new("E0476");
+    /// A method called on a receiver whose type names no class: a plain
+    /// `object` (ADR 0007 § 3's opaque top of every class type) or an
+    /// ADR 0036 shape, neither of which lists a single method.
+    ///
+    /// ADR 0036 § 4 gave the *property* half of an erased receiver a
+    /// name-keyed runtime fetch, and deliberately stopped there. A call needs
+    /// an argument list checked against a signature and a return type to bind
+    /// the position it sits in, and an erased receiver supplies neither — so
+    /// there is nothing here to resolve, and no `__call` to fall back on
+    /// (ADR 0014). Narrow first: `instanceof` proves the class, and
+    /// `as ClassName` converts to it.
+    pub const E_METHOD_ON_ERASED_RECEIVER: Code = Code::new("E0477");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

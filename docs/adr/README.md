@@ -444,6 +444,22 @@ throws `UnhandledMatchError` on every evaluation, so no program that ran is lost
 expression — one whose every path throws has nothing for the position it sits in to bind, pass or return,
 and no value for a merge phi with no incoming edge to carry.
 
+**A method call needs a class label, so an erased receiver is refused rather than dispatched.** `object` is
+[0007](0007-explicit-type-system.md) § 3's opaque top of every class type, and it erases to exactly the
+pointer a named class does — `mwl_ir::lower`'s `erase_checked_ty` maps `CheckedTy::Object` and
+`CheckedTy::Shape` onto the same `Ty::Object` a `CheckedTy::Class` gets, so nothing below the checker ever
+wanted the label for *representation*, and `object` is a declared type in every position a class name is.
+What does want it is *resolution*: `$o->m(...)` has no signature to check its arguments against and no
+return type for the position it sits in. [0036](0036-anonymous-object-shapes.md) § 4 already answered the
+**property** half of an erased receiver — a name-keyed runtime fetch, and a write checked against the
+field's real declared type — and stopped at properties on purpose. The call half is therefore `E0477` where
+it is written (`mwl_types::expr::calls::report_method_on_erased_receiver`), naming the two narrowings that
+do resolve: `instanceof` proves the class inside the guarded branch, and `as ClassName` converts to it or
+throws. There is no `__call` to fall back on ([0014](0014-property-observer.md)), and § 3's "a dynamic call
+with runtime-checked arguments, at `mixed`'s cost" is deferred for `callable` and was never granted to
+`object`. Refusing is the reversible half of that pair: a later decision can turn this diagnostic into
+dispatch, while a program that already dispatched could not be taken back.
+
 **Architecture assumptions are tested, not remembered.** Several decisions here rest on how Cranelift,
 `corosensei` and Wasmtime behave rather than on our own code, and a dependency bump can invalidate them
 silently. `benches/abi-probe/` checks them on every CI run, including the *premise* of

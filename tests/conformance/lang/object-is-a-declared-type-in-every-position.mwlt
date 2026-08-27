@@ -1,0 +1,81 @@
+--TEST--
+`object` is a declared type wherever a class name is one, erasing to the same pointer (ADR 0007 §§ 2-3, ADR 0036 § 4)
+--FILE--
+<?mwl
+// ADR 0007 § 3: `object` is the opaque top of every class type. A value of
+// any class satisfies it, and it erases to exactly the pointer a named class
+// does — so every position that takes a class name takes this too.
+final class Point {
+    public int $x = 1;
+    public string $name = "origin";
+}
+
+final class Probe {
+    // A parameter and a return type, both erased at the boundary.
+    public static function nameOf(object $o): string {
+        return $o->name as string;
+    }
+
+    public static function fresh(): object {
+        return new Point();
+    }
+}
+
+// A local binding, and ADR 0036 § 4's name-keyed read through the erasure.
+object $p = new Point();
+echo Probe::nameOf($p), "\n";
+
+// A returned one, written through the same erased view: § 4 checks the
+// incoming value against the field's real, concrete declared type.
+object $q = Probe::fresh();
+$q->x = 7;
+echo $q->x as string, "\n";
+
+// An element type, and a `foreach` binding that re-supplies it.
+array<object> $all = [$p, $q];
+foreach ($all as object $each) {
+    echo $each->x as string, "\n";
+}
+
+// A nullable one and a union member — both erase the same way.
+?object $maybe = null;
+if ($maybe == null) {
+    echo "null\n";
+}
+object|int $either = new Point();
+if ($either == $p) {
+    echo "BAD\n";
+} else {
+    echo "union ok\n";
+}
+
+// ADR 0090 § 4 makes `==` over two objects identity, and the erasure does not
+// touch the pointer, so the answer is the one the class-typed handles give.
+object $same = $p;
+if ($p == $same) {
+    echo "same\n";
+}
+if ($p == $q) {
+    echo "BAD\n";
+} else {
+    echo "distinct\n";
+}
+
+// The class label is still there underneath: `instanceof` finds it, and
+// ADR 0007 § 2's `as` converts back to it or throws.
+if ($q instanceof Point) {
+    echo "still a Point\n";
+}
+Point $back = $q as Point;
+echo $back->x as string, "\n";
+--EXPECT--
+origin
+7
+1
+7
+null
+union ok
+same
+distinct
+still a Point
+7

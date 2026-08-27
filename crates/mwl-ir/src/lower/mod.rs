@@ -2229,8 +2229,8 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
         // resolved members and so cannot be answered from the AST alone.
         TypeKind::Nullable(_) | TypeKind::Union(_) => Ty::Tagged,
         other => panic!(
-            "mwl-ir only lowers bool/int/uint/float/void/string/bytes/array/`?T`/a union/a plain \
-             class name as a declared type — got {other:?}; see the crate docs' known gaps"
+            "mwl-ir only lowers bool/int/uint/float/void/string/bytes/array/`?T`/a union/`object`/\
+             a plain class name as a declared type — got {other:?}; see the crate docs' known gaps"
         ),
     }
 }
@@ -2313,8 +2313,8 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
     erase_checked_ty(id, checked_types).unwrap_or_else(|| {
         panic!(
             "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
-             class/enum/mixed/null/union parameter or return type — got {:?}; see the \
-             crate docs' known gaps",
+             class/object/shape/enum/mixed/null/union parameter or return type — got {:?}; see \
+             the crate docs' known gaps",
             checked_types.get(id)
         )
     })

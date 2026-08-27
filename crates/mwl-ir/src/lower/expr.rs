@@ -2939,8 +2939,10 @@ impl<'a> Lowering<'a> {
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
             panic!(
                 "mwl-ir: an instance method call at {:?} has no resolved target \
-                 recorded in the typed-expression table — did this program pass \
-                 mwl_types::check_program with the same table?",
+                 recorded in the typed-expression table — either it wasn't checked \
+                 with the same table, or its receiver was a `mixed`, a union or a \
+                 scalar, which the checker does not yet refuse (an *erased* one is \
+                 `E0477`); see the crate docs' known gaps",
                 expr.span
             );
         };

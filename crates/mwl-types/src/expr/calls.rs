@@ -6,7 +6,10 @@
 //! signature — an unresolved receiver, a dynamic member name, a
 //! `Core`-namespaced target with no modeled stdlib signature — falls back to
 //! `mixed` with no diagnostic, the same way this checker only ever reports
-//! what it can be sure of. [`resolved_call`] is the record `mwl-ir` reads back
+//! what it can be sure of. The one receiver that is *knowably* wrong rather
+//! than merely unresolved is an erased one — a plain `object` or a shape,
+//! neither of which lists a method at all — and it gets
+//! [`report_method_on_erased_receiver`] instead. [`resolved_call`] is the record `mwl-ir` reads back
 //! (see [`crate::expr_table`]), and it always carries the *declaring* class
 //! rather than the receiver's.
 //!
@@ -78,6 +81,13 @@ pub(super) fn infer_method_call(
         }
         _ => None,
     };
+    if resolved.is_none()
+        && let MemberName::Ident(name_span) = method
+        && matches!(env.interner.get(receiver_ty), Ty::Object | Ty::Shape(_))
+    {
+        let name = span_text(env.src, *name_span).to_owned();
+        report_method_on_erased_receiver(object.span.to(*name_span), &name, receiver_ty, env);
+    }
     let sig = resolved
         .as_ref()
         .map(|(owner, _, sig)| substitute_receiver_args(receiver_ty, owner, sig, env));
@@ -436,6 +446,40 @@ pub(super) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
             ),
         )
         .with_primary(span, "called with `(...)` here"),
+    );
+}
+
+/// A method called on a receiver whose type names no class — a plain
+/// `object`, or an ADR 0036 shape.
+///
+/// ADR 0007 § 3 makes `object` the opaque top of every class type: it is a
+/// pointer with the class label erased, and it lists no members. A shape is
+/// the structural type beside it, and ADR 0036 gives it fields and no methods
+/// at all. ADR 0036 § 4 answered the *property* half of an erased receiver
+/// with a name-keyed runtime fetch and deliberately stopped there — a call
+/// additionally needs an argument list checked against a signature and a
+/// return type for the position it sits in, and an erased receiver supplies
+/// neither. There is no `__call` to fall back on either (ADR 0014), so the
+/// call is refused where it is written rather than reaching `mwl-ir` with no
+/// resolved target.
+///
+/// Both narrowing spellings that recover a class are named in the help, and
+/// both already lower: `instanceof` proves it inside the guarded branch, and
+/// `as ClassName` converts to it or throws.
+fn report_method_on_erased_receiver(span: Span, name: &str, ty: TypeId, env: &mut Env<'_>) {
+    let described = env.interner.describe(ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_METHOD_ON_ERASED_RECEIVER,
+            format!("`{described}` names no class, so it has no method `{name}`"),
+        )
+        .with_primary(span, "called on an erased receiver here")
+        .with_help(format!(
+            "narrow the receiver to the class that declares `{name}` first — \
+             `if ($x instanceof ClassName) {{ … }}`, or `$x as ClassName`; ADR 0007 § 3 makes \
+             `object` the opaque top of every class type, and ADR 0036 § 4 erases a property \
+             access through one but not a call"
+        )),
     );
 }
 
