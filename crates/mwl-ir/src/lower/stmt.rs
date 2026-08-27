@@ -366,10 +366,9 @@ impl<'a> Lowering<'a> {
     /// *expression* sees, and an expression statement sees neither — so this
     /// does not distinguish them, and `tests/conformance/lang/`'s
     /// `an-increment-answers-the-same-in-either-position` is what holds them
-    /// together. An increment used *as a value* (`$y = $x++;`) is the same
-    /// unlowered shape a nested assignment (`$y = ($x = 5);`) is, and for the
-    /// same reason: [`Self::lower_expr`] is handed an `&Env` and so has no
-    /// binding it could re-point.
+    /// together. Used *as a value* (`$y = $x++;`) the two do differ, and
+    /// [`Self::lower_expr`]'s own arms pick between them — see
+    /// [`Self::lower_incdec`], which both positions share.
     pub(super) fn lower_incdec_stmt(
         &mut self,
         e: &Expr,
@@ -378,11 +377,30 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) {
+        self.lower_incdec(e, op, target, env, cur);
+    }
+    /// `$x++` / `--$x` in either position: ADR 0007 § 4's `± 1` over the
+    /// target's own numeric type, answering `(old, old_ty, new, new_ty)`.
+    ///
+    /// The whole read-modify-write is [`Self::lower_read_modify_write`], the
+    /// one `$x += 1;` already takes, so the target's address is computed once
+    /// however the increment was written; all this adds is ADR 0007 § 4's
+    /// choice of operator. Which of the two values a caller keeps is the only
+    /// difference between the prefix and postfix spellings, and between an
+    /// expression statement (neither) and a value position (one).
+    pub(super) fn lower_incdec(
+        &mut self,
+        e: &Expr,
+        op: IncDecOp,
+        target: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty, ValueId, Ty) {
         let op = match op {
             IncDecOp::Inc => BinaryOp::Add,
             IncDecOp::Dec => BinaryOp::Sub,
         };
-        self.lower_read_modify_write(e.span, target, op, None, env, cur);
+        self.lower_read_modify_write(e.span, target, op, None, env, cur)
     }
     /// `$t ⊕= e;` and `$t++;` alike: read the target, combine, write it back,
     /// answering `(old, new)` for a position that wants one of them.

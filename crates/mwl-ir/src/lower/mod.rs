@@ -838,7 +838,7 @@ pub fn lower_property_hook(
                 })
                 .to_owned();
             let field = strip_sigil(span_text(src, p.name)).to_owned();
-            let (v, _) = low.lower_expr(e, Some(prop_ty), &env, &mut cur);
+            let (v, _) = low.lower_expr(e, Some(prop_ty), &mut env, &mut cur);
             if prop_ty.is_refcounted() && low.aliasing_read(e) {
                 low.emit_retain(cur, v);
             }
@@ -857,7 +857,7 @@ pub fn lower_property_hook(
             low.emit_field_set(cur, this_v, class, field, v);
         }
         Some(PropertyHookBody::Expr(e)) => {
-            let (v, ty) = low.lower_expr(e, Some(ret_ty), &env, &mut cur);
+            let (v, ty) = low.lower_expr(e, Some(ret_ty), &mut env, &mut cur);
             if ty.is_refcounted() && low.aliasing_read(e) {
                 low.emit_retain(cur, v);
             }
@@ -1116,19 +1116,22 @@ struct Lowering<'a> {
     /// # Why this is a frame field rather than a return value
     ///
     /// The copy-back re-points the argument's *holder*, which for a local
-    /// means rebinding it in [`Env`] — and [`Self::lower_expr`], where a call
-    /// is lowered, only ever holds an `&Env`. So the staging is parked here
-    /// and drained at the enclosing statement, which is the nearest enclosing
-    /// scope that does hold an `&mut Env`.
+    /// means rebinding it in [`Env`]. The staging is parked here and drained
+    /// at the enclosing statement, so every argument of one call is written
+    /// back at one point rather than at whichever operand happened to be
+    /// lowered last.
     ///
     /// **Known gap.** A read of the holder that is sequenced *after* the call
     /// but still inside the same statement (`$n + Adder::bump($n)`) therefore
     /// sees the pre-call value, where PHP would see the written-back one.
     /// [`Self::lower_stmt`] asserts this list is empty once a statement has
     /// been lowered, so such a program panics naming the shape rather than
-    /// silently losing the write. Closing it means threading `&mut Env`
-    /// through [`Self::lower_expr`], which is the same widening
-    /// `Self::landing_block`'s own known gap needs.
+    /// silently losing the write. This used to be a *scoping* limit —
+    /// [`Self::lower_expr`] held an `&Env` and had no binding it could
+    /// re-point — and is not any more: it holds an `&mut Env` since an
+    /// increment started lowering in value position. What closing it now
+    /// needs is a rule for *where* the copy-back lands, which is the
+    /// sequence-point question this list currently answers by deferring.
     pending_refs: Vec<StagedRef>,
     /// ADR 0053 § 4's state class, while this frame is a generator's
     /// `advance()` — `None` for every other function there is. See
@@ -1641,7 +1644,7 @@ impl<'a> Lowering<'a> {
         v: ValueId,
         from: Ty,
         to: Ty,
-        env: &Env,
+        env: &mut Env,
     ) -> ValueId {
         match (from, to) {
             (a, b) if a == b => v,
@@ -1761,7 +1764,7 @@ impl<'a> Lowering<'a> {
         b: BlockId,
         array: ValueId,
         value: ValueId,
-        env: &Env,
+        env: &mut Env,
     ) -> ValueId {
         self.emit_fallible(b, Ty::Array, InstKind::ArrayAppend { array, value }, env)
             .0
@@ -1800,7 +1803,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         stored: &Stored<'_>,
         expected: Option<Ty>,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty, bool) {
         match stored {

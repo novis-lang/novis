@@ -109,6 +109,11 @@ impl<'a> Lowering<'a> {
         let mut seen = FxHashSet::default();
         let mut reassigned = Vec::new();
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
+        // The condition is re-evaluated on every iteration and may re-point a
+        // local itself — `while ($i++ < 3)` is the whole loop counter — so it
+        // owes a header phi exactly as the body does. Missing it leaves the
+        // increment reading the pre-loop value forever.
+        self.collect_reassigned_in_expr(cond, &mut seen, &mut reassigned);
         self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
 
         let pre_block = *cur;
@@ -152,7 +157,7 @@ impl<'a> Lowering<'a> {
         // phis above still physically live in `header_block` — cond
         // lowering only ever *appends* blocks after it, never touches those.
         let mut cond_end = header_block;
-        let cond_v = self.lower_truthy_cond(cond, &header_env, &mut cond_end);
+        let cond_v = self.lower_truthy_cond(cond, &mut header_env, &mut cond_end);
 
         let body_block = self.new_block();
         let after_block = self.new_block();
@@ -233,9 +238,9 @@ impl<'a> Lowering<'a> {
         // exists yet to fold a single-input phi away.
 
         // The loop's own exit environment: the condition's ordinary false
-        // edge (carrying `header_env` unchanged, since `lower_truthy_cond`
-        // only ever reads `header_env`, never mutates it) plus one more
-        // incoming edge per `break` recorded above. `Self::merge_envs`
+        // edge (carrying `header_env` as the condition left it — an increment
+        // written into the header, `while ($i++ < 3)`, has already re-pointed
+        // it there) plus one more incoming edge per `break` recorded above. `Self::merge_envs`
         // degenerates to a plain clone with no new phi at all when there is
         // no `break` to fold in, exactly the prior "loop exit is always
         // `header_env`" behavior.
@@ -300,7 +305,9 @@ impl<'a> Lowering<'a> {
         let mut seen = FxHashSet::default();
         let mut reassigned = Vec::new();
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
-        for e in step {
+        // The step and the condition alike — see `Self::lower_while`, which
+        // owes the same phi for the same reason.
+        for e in step.iter().chain(cond) {
             self.collect_reassigned_in_expr(e, &mut seen, &mut reassigned);
         }
         self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
@@ -340,7 +347,7 @@ impl<'a> Lowering<'a> {
         // shape stays the one every other loop builds.
         let mut cond_end = header_block;
         let cond_v = match cond.first() {
-            Some(c) => self.lower_truthy_cond(c, &header_env, &mut cond_end),
+            Some(c) => self.lower_truthy_cond(c, &mut header_env, &mut cond_end),
             None => {
                 self.emit(header_block, Ty::Bool, InstKind::ConstBool(true))
                     .0
@@ -537,14 +544,15 @@ impl<'a> Lowering<'a> {
         // The equality chain, lowered against the environment the switch was
         // entered with — a label runs before any body does, so no body's
         // bindings are in scope for one.
-        let entry_env = env.clone();
+        let mut entry_env = env.clone();
         let mut entry_edges: Vec<Vec<(BlockId, Env)>> = vec![Vec::new(); cases.len()];
         let mut test_cur = *cur;
         for (i, case) in cases.iter().enumerate() {
             let Some(cond) = &case.cond else {
                 continue;
             };
-            let (cond_v, cond_ty) = self.lower_expr(cond, Some(subj_ty), &entry_env, &mut test_cur);
+            let (cond_v, cond_ty) =
+                self.lower_expr(cond, Some(subj_ty), &mut entry_env, &mut test_cur);
             assert_eq!(
                 cond_ty, subj_ty,
                 "mwl-ir lowers a `switch` label only at the subject's own representation — got \
@@ -1400,7 +1408,7 @@ impl<'a> Lowering<'a> {
     /// Panics if the level names more targets than enclose it —
     /// `mwl_types::locals` rejects that with `E0475` before lowering runs, so
     /// reaching it here is an internal error rather than a program's.
-    pub(super) fn lower_break(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &Env) {
+    pub(super) fn lower_break(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &mut Env) {
         let level = self.loop_exit_level(level, "break");
         let at = self.loop_stack.len().checked_sub(level).unwrap_or_else(|| {
             panic!(
@@ -1502,7 +1510,12 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics if [`Self::loop_stack`] is empty — see [`Self::lower_break`]'s
     /// panic doc, the same defensive check applies here.
-    pub(super) fn lower_continue(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &Env) {
+    pub(super) fn lower_continue(
+        &mut self,
+        level: &Option<Expr>,
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) {
         let level = self.loop_exit_level(level, "continue");
         // Counted PHP's way — every enclosing frame, a `switch` included — and
         // then walked *outward* to the nearest frame that is a loop, not
@@ -1724,7 +1737,7 @@ impl<'a> Lowering<'a> {
     /// describe nothing.
     pub(super) fn seed_generator_loop_carried(
         &self,
-        env: &Env,
+        env: &mut Env,
         seen: &mut FxHashSet<String>,
         out: &mut Vec<String>,
     ) {
@@ -1782,6 +1795,9 @@ impl<'a> Lowering<'a> {
                     {
                         out.push(name);
                     }
+                    // `unset($a[$i++]);` — the subscript is an ordinary
+                    // expression and may itself re-point a local.
+                    self.collect_reassigned_in_expr(target, seen, out);
                 }
             }
             StmtKind::Block(b) => {
@@ -1789,21 +1805,48 @@ impl<'a> Lowering<'a> {
                     self.collect_reassigned_locals(s, seen, out);
                 }
             }
-            StmtKind::If { then, else_, .. } => {
+            // Every clause below is scanned, not only the nested bodies: with
+            // an increment lowering in value position, `if ($n++ > 2) { … }`
+            // and `echo $n++;` re-point a local exactly as an expression
+            // statement does, and the enclosing loop owes each of them the
+            // same header phi.
+            StmtKind::If { cond, then, else_ } => {
+                self.collect_reassigned_in_expr(cond, seen, out);
                 self.collect_reassigned_locals(then, seen, out);
                 if let Some(e) = else_ {
                     self.collect_reassigned_locals(e, seen, out);
                 }
             }
-            StmtKind::While { body, .. } | StmtKind::Foreach { body, .. } => {
+            StmtKind::While { cond, body } | StmtKind::DoWhile { body, cond } => {
+                self.collect_reassigned_in_expr(cond, seen, out);
                 self.collect_reassigned_locals(body, seen, out);
+            }
+            StmtKind::Foreach { subject, body, .. } => {
+                self.collect_reassigned_in_expr(subject, seen, out);
+                self.collect_reassigned_locals(body, seen, out);
+            }
+            StmtKind::Return(Some(e))
+            | StmtKind::Break(Some(e))
+            | StmtKind::Continue(Some(e))
+            | StmtKind::LocalDecl { value: Some(e), .. }
+            | StmtKind::Destructure { value: e, .. } => {
+                self.collect_reassigned_in_expr(e, seen, out);
+            }
+            StmtKind::Echo(operands) => {
+                for e in operands {
+                    self.collect_reassigned_in_expr(e, seen, out);
+                }
             }
             // A `switch` nested in a loop body is one more place a local is
             // written, and a header phi that misses it reads the pre-loop
             // value forever — the same silent failure the `Try` arm below
             // exists for.
-            StmtKind::Switch { cases, .. } => {
+            StmtKind::Switch { subject, cases } => {
+                self.collect_reassigned_in_expr(subject, seen, out);
                 for case in cases {
+                    if let Some(cond) = &case.cond {
+                        self.collect_reassigned_in_expr(cond, seen, out);
+                    }
                     for s in &case.body {
                         self.collect_reassigned_locals(s, seen, out);
                     }
@@ -1813,9 +1856,14 @@ impl<'a> Lowering<'a> {
             // belongs to, and an enclosing loop needs a header phi for it just
             // as much as the inner one does — see `Self::lower_for`, which
             // asks the same two questions of its own body and step.
-            StmtKind::For { step, body, .. } => {
+            StmtKind::For {
+                init,
+                cond,
+                step,
+                body,
+            } => {
                 self.collect_reassigned_locals(body, seen, out);
-                for e in step {
+                for e in init.iter().chain(cond).chain(step) {
                     self.collect_reassigned_in_expr(e, seen, out);
                 }
             }
@@ -1882,6 +1930,181 @@ impl<'a> Lowering<'a> {
         // statement's *syntax* says so, since the `&` is on the callee's
         // declaration. See below.
         self.collect_by_ref_holders(e, seen, out);
+        self.collect_reassigned_in_children(e, seen, out);
+    }
+    /// [`Self::collect_reassigned_in_expr`] applied to every sub-expression of
+    /// `e`, so that a rebinding written *inside* another expression is found.
+    ///
+    /// This walk is what an increment in **value** position costs: while
+    /// `$i++` only ever lowered as a statement, the two shapes that re-point a
+    /// local were always the whole expression, and looking at `e`'s own kind
+    /// was enough. `int $c = $b++ + $b++;` puts one arbitrarily deep, and a
+    /// loop header that misses its phi reads the pre-loop value on every
+    /// iteration — silently, since nothing downstream can tell a missing phi
+    /// from a local the body never touched.
+    ///
+    /// **A closure body is deliberately not walked.** ADR 0031 § 2 captures by
+    /// value, so `fn () => $x++` re-points the environment object's own copy
+    /// and the enclosing local is untouched; a header phi for it would
+    /// describe a write that never happens. The same goes for an anonymous
+    /// class's members, which are a declaration and not this body's code.
+    ///
+    /// Every [`ExprKind`] on disk is named below. The trailing `_` arm is the
+    /// cross-crate `#[non_exhaustive]` tax and nothing else — a variant added
+    /// to `mwl-syntax` has to be listed here too, or an increment written
+    /// inside it goes unseen.
+    fn collect_reassigned_in_children(
+        &self,
+        e: &Expr,
+        seen: &mut FxHashSet<String>,
+        out: &mut Vec<String>,
+    ) {
+        match &e.kind {
+            ExprKind::Null
+            | ExprKind::Bool(_)
+            | ExprKind::Int(_)
+            | ExprKind::Float(_)
+            | ExprKind::Duration(_)
+            | ExprKind::Str(_)
+            | ExprKind::Variable(_)
+            | ExprKind::ConstFetch(_)
+            | ExprKind::SelfExpr
+            | ExprKind::StaticExpr
+            | ExprKind::ParentExpr
+            | ExprKind::Fn(_)
+            | ExprKind::Error => {}
+            ExprKind::Interpolated(parts) => {
+                for part in parts {
+                    if let StringPart::Expr(x) = part {
+                        self.collect_reassigned_in_expr(x, seen, out);
+                    }
+                }
+            }
+            ExprKind::ArrayLiteral(items) => {
+                for item in items {
+                    if let Some(key) = &item.key {
+                        self.collect_reassigned_in_expr(key, seen, out);
+                    }
+                    self.collect_reassigned_in_expr(&item.value, seen, out);
+                }
+            }
+            ExprKind::ObjectLiteral(fields) => {
+                for field in fields {
+                    self.collect_reassigned_in_expr(&field.value, seen, out);
+                }
+            }
+            ExprKind::Unary { expr: inner, .. }
+            | ExprKind::PreIncDec { expr: inner, .. }
+            | ExprKind::PostIncDec { expr: inner, .. }
+            | ExprKind::Conversion { expr: inner, .. }
+            | ExprKind::Clone(inner)
+            | ExprKind::YieldFrom(inner)
+            | ExprKind::Print(inner)
+            | ExprKind::Throw(inner)
+            | ExprKind::Empty(inner)
+            | ExprKind::Paren(inner)
+            | ExprKind::Require { path: inner } => {
+                self.collect_reassigned_in_expr(inner, seen, out)
+            }
+            ExprKind::Binary { lhs, rhs, .. } => {
+                self.collect_reassigned_in_expr(lhs, seen, out);
+                self.collect_reassigned_in_expr(rhs, seen, out);
+            }
+            ExprKind::Assign { target, value, .. } => {
+                self.collect_reassigned_in_expr(target, seen, out);
+                self.collect_reassigned_in_expr(value, seen, out);
+            }
+            ExprKind::Ternary { cond, then, else_ } => {
+                self.collect_reassigned_in_expr(cond, seen, out);
+                if let Some(then) = then {
+                    self.collect_reassigned_in_expr(then, seen, out);
+                }
+                self.collect_reassigned_in_expr(else_, seen, out);
+            }
+            ExprKind::InstanceOf { expr: inner, class } => {
+                self.collect_reassigned_in_expr(inner, seen, out);
+                self.collect_reassigned_in_expr(class, seen, out);
+            }
+            ExprKind::Call { callee, args } => {
+                self.collect_reassigned_in_expr(callee, seen, out);
+                if let CallArgs::List(list) = args {
+                    for arg in list {
+                        self.collect_reassigned_in_expr(&arg.value, seen, out);
+                    }
+                }
+            }
+            ExprKind::MethodCall { object, args, .. } => {
+                self.collect_reassigned_in_expr(object, seen, out);
+                if let CallArgs::List(list) = args {
+                    for arg in list {
+                        self.collect_reassigned_in_expr(&arg.value, seen, out);
+                    }
+                }
+            }
+            ExprKind::StaticCall { class, args, .. } => {
+                self.collect_reassigned_in_expr(class, seen, out);
+                if let CallArgs::List(list) = args {
+                    for arg in list {
+                        self.collect_reassigned_in_expr(&arg.value, seen, out);
+                    }
+                }
+            }
+            ExprKind::PropertyAccess { object, .. } => {
+                self.collect_reassigned_in_expr(object, seen, out)
+            }
+            ExprKind::StaticPropertyAccess { class, .. }
+            | ExprKind::ClassConstAccess { class, .. }
+            | ExprKind::ClassNameConst { class } => {
+                self.collect_reassigned_in_expr(class, seen, out)
+            }
+            ExprKind::Index { base, index } => {
+                self.collect_reassigned_in_expr(base, seen, out);
+                if let Some(index) = index {
+                    self.collect_reassigned_in_expr(index, seen, out);
+                }
+            }
+            ExprKind::New { target, args, .. } => {
+                if let NewTarget::Expr(class) = target {
+                    self.collect_reassigned_in_expr(class, seen, out);
+                }
+                if let CallArgs::List(list) = args {
+                    for arg in list {
+                        self.collect_reassigned_in_expr(&arg.value, seen, out);
+                    }
+                }
+            }
+            ExprKind::Match { subject, arms } => {
+                self.collect_reassigned_in_expr(subject, seen, out);
+                for arm in arms {
+                    for cond in arm.conditions.iter().flatten() {
+                        self.collect_reassigned_in_expr(cond, seen, out);
+                    }
+                    self.collect_reassigned_in_expr(&arm.body, seen, out);
+                }
+            }
+            ExprKind::Yield { key, value } => {
+                if let Some(key) = key {
+                    self.collect_reassigned_in_expr(key, seen, out);
+                }
+                if let Some(value) = value {
+                    self.collect_reassigned_in_expr(value, seen, out);
+                }
+            }
+            ExprKind::Isset(targets) => {
+                for target in targets {
+                    self.collect_reassigned_in_expr(target, seen, out);
+                }
+            }
+            ExprKind::Exit(Some(code)) => self.collect_reassigned_in_expr(code, seen, out),
+            ExprKind::Exit(None) => {}
+            ExprKind::SpawnScript { path, options } => {
+                self.collect_reassigned_in_expr(path, seen, out);
+                for option in options {
+                    self.collect_reassigned_in_expr(&option.value, seen, out);
+                }
+            }
+            _ => {}
+        }
     }
     /// [`Self::collect_reassigned_locals`]'s by-reference half: every local a
     /// call somewhere inside `e` re-points by handing it to a `&$x`
@@ -1898,9 +2121,11 @@ impl<'a> Lowering<'a> {
     /// [`Self::rebound_local`]'s own doc comment describes for an array
     /// element.
     ///
-    /// Walks nested calls too (`Foo::a(Bar::b($n))`): both stagings are
-    /// flushed by the same [`Self::flush_ref_writebacks`] call, so both owe a
-    /// header phi.
+    /// Node-local: it asks only about `e`'s *own* argument list, because
+    /// [`Self::collect_reassigned_in_children`] is what descends. A nested
+    /// call (`Foo::a(Bar::b($n))`) is therefore still found — both stagings
+    /// are flushed by the same [`Self::flush_ref_writebacks`] call, so both
+    /// owe a header phi — but it is found once rather than once per level.
     pub(super) fn collect_by_ref_holders(
         &self,
         e: &Expr,
@@ -1908,14 +2133,6 @@ impl<'a> Lowering<'a> {
         out: &mut Vec<String>,
     ) {
         let args = match &e.kind {
-            ExprKind::Assign { value, .. } => {
-                self.collect_by_ref_holders(value, seen, out);
-                return;
-            }
-            ExprKind::Paren(inner) => {
-                self.collect_by_ref_holders(inner, seen, out);
-                return;
-            }
             ExprKind::MethodCall { args, .. }
             | ExprKind::StaticCall { args, .. }
             | ExprKind::New { args, .. } => args,
@@ -1932,7 +2149,6 @@ impl<'a> Lowering<'a> {
             return;
         };
         for (index, arg) in list.iter().enumerate() {
-            self.collect_by_ref_holders(&arg.value, seen, out);
             if by_ref.get(index).copied().unwrap_or(false)
                 && let Some(name) = self.rebound_local(&arg.value)
                 && seen.insert(name.clone())

@@ -1,0 +1,89 @@
+--TEST--
+`$x++` and `++$x` used as a value answer the old number and the new one, over every numeric type and every writable target — ADR 0007 §§ 4, 5
+--FILE--
+<?mwl
+// The neighbouring `an-increment-answers-the-same-in-either-position` pins the
+// half where the position has nothing to say. This is the other half: as a
+// *value* the two spellings differ by exactly one, and the sweep below asserts
+// that relation over every row of ADR 0007 § 4's numeric table rather than
+// reading either number off its own line.
+
+final class Cell {
+    public int $count = 0;
+    public static function make(): Cell { echo "make\n"; return new Cell(); }
+}
+
+int $agree = 0;
+
+int $ia = 5;
+int $ib = 5;
+int $iold = $ia++;
+int $inew = ++$ib;
+if (($inew == $iold + 1) && ($ia == $ib)) { $agree = $agree + 1; }
+echo "int:   ", $iold, " ", $inew, "\n";
+
+uint $ua = 5;
+uint $ub = 5;
+uint $uold = $ua++;
+uint $unew = ++$ub;
+uint $one = 1;
+if (($unew == $uold + $one) && ($ua == $ub)) { $agree = $agree + 1; }
+echo "uint:  ", $uold, " ", $unew, "\n";
+
+float $fa = 1.5;
+float $fb = 1.5;
+float $fold = $fa++;
+float $fnew = ++$fb;
+if (($fnew == $fold + 1.0) && ($fa == $fb)) { $agree = $agree + 1; }
+echo "float: ", $fold, " ", $fnew, "\n";
+
+// A property and an array element answer the same two numbers a local does,
+// and the write lands in the slot rather than in a copy of it.
+var $pa = new Cell();
+var $pb = new Cell();
+int $pold = $pa->count++;
+int $pnew = ++$pb->count;
+if (($pnew == $pold + 1) && ($pa->count == $pb->count)) { $agree = $agree + 1; }
+echo "prop:  ", $pold, " ", $pnew, "\n";
+
+array<int> $aa = ["k" => 2];
+array<int> $ab = ["k" => 2];
+int $eold = $aa["k"]++;
+int $enew = ++$ab["k"];
+if (($enew == $eold + 1) && ($aa["k"] == $ab["k"])) { $agree = $agree + 1; }
+echo "elem:  ", $eold, " ", $enew, "\n";
+
+// A decrement is the same operator with § 4's other row, so it answers the
+// mirror pair.
+int $da = 5;
+int $db = 5;
+int $dold = $da--;
+int $dnew = --$db;
+if (($dnew == $dold - 1) && ($da == $db)) { $agree = $agree + 1; }
+echo "dec:   ", $dold, " ", $dnew, "\n";
+echo "agree: ", $agree, " of 6\n";
+
+// § 4's overflow row reaches the value position too — the answer is never
+// produced at all, so the binding it was headed for is never written.
+uint $bottom = 0;
+try {
+    uint $sunk = $bottom--;
+    echo "no throw ", $sunk, "\n";
+} catch (Throwable $under) {
+    echo "under: ", $under->message, " ", $bottom, "\n";
+}
+
+// The target's *address* is computed once however many times the `$t = $t + 1`
+// rewrite writes it down, in this position as much as in a statement.
+echo "made:  ", Cell::make()->count++, "\n";
+--EXPECT--
+int:   5 6
+uint:  5 6
+float: 1.5 2.5
+prop:  0 1
+elem:  2 3
+dec:   5 4
+agree: 6 of 6
+under: Integer subtraction overflowed 0
+made:  make
+0

@@ -183,7 +183,7 @@ pub(super) fn lower_closure(
         // through the same path `StmtKind::Return` uses: retain if the value
         // is a borrowed read, release the frame's locals, return.
         FnBody::Expr(body) => {
-            let (v, ty) = low.lower_expr(body, Some(*ret), &env, &mut cur);
+            let (v, ty) = low.lower_expr(body, Some(*ret), &mut env, &mut cur);
             if ty.is_refcounted() && low.aliasing_read(body) {
                 low.emit_retain(cur, v);
             }

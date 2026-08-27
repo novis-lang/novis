@@ -77,7 +77,7 @@ impl<'a> Lowering<'a> {
         sig: &ArgSig,
         checked_types: &TypeInterner,
         ownership: ArgOwnership,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> LoweredArgs {
         let CallArgs::List(list) = args else {
@@ -175,7 +175,7 @@ impl<'a> Lowering<'a> {
         sig: &ArgSig,
         checked_types: &TypeInterner,
         ownership: ArgOwnership,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
         out: &mut LoweredArgs,
     ) {
@@ -242,7 +242,7 @@ impl<'a> Lowering<'a> {
         sig: &ArgSig,
         checked_types: &TypeInterner,
         ownership: ArgOwnership,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
         out: &mut LoweredArgs,
     ) {
@@ -336,7 +336,7 @@ impl<'a> Lowering<'a> {
         fixed: usize,
         sig: &ArgSig,
         ownership: ArgOwnership,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
         out: &mut LoweredArgs,
     ) {
@@ -474,7 +474,7 @@ impl<'a> Lowering<'a> {
         defaults: &[(String, mwl_types::ConstArg)],
         checked_types: &TypeInterner,
         ownership: ArgOwnership,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
         out: &mut LoweredArgs,
     ) {
@@ -552,7 +552,7 @@ impl<'a> Lowering<'a> {
     pub(super) fn emit_const_arg(
         &mut self,
         default: &mwl_types::ConstArg,
-        env: &Env,
+        env: &mut Env,
         cur: BlockId,
     ) -> (ValueId, Ty) {
         if let mwl_types::ConstArg::Built { symbol, args } = default {
@@ -718,7 +718,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         arg: &Expr,
         ty: Ty,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> ValueId {
         let (holder, init) = match &arg.kind {

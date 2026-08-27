@@ -45,7 +45,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         expr: &Expr,
         expected: Option<Ty>,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         // An assignment target's address, already lowered once by
@@ -255,11 +255,31 @@ impl<'a> Lowering<'a> {
             ExprKind::Conversion { expr: inner, ty } => {
                 self.lower_conversion(inner, ty, env, cur)
             }
+            // ADR 0007 § 4's `± 1` *as a value*. Both spellings run the same
+            // read-modify-write the statement form and `$x += 1;` already go
+            // through — so the target's address is computed exactly once here
+            // too — and differ only in which of its two values they hand back:
+            // the prefix form the one just written, the postfix form the one
+            // that was there.
+            //
+            // Neither owes a retain. Every target that reaches lowering is
+            // numeric (`mwl_types`' `E0474` refuses the rest), and
+            // `Self::emit_const_one` names the four representations that
+            // leaves — `int`, `uint`, `float`, `decimal` — none of which is
+            // [`Ty::is_refcounted`].
+            ExprKind::PreIncDec { op, expr: target } => {
+                let (_, _, new, new_ty) = self.lower_incdec(expr, *op, target, env, cur);
+                (new, new_ty)
+            }
+            ExprKind::PostIncDec { op, expr: target } => {
+                let (old, old_ty, _, _) = self.lower_incdec(expr, *op, target, env, cur);
+                (old, old_ty)
+            }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
                  operators, `new`, a static or instance method call, property access, an array \
-                 literal, an array-element read, `instanceof`, an enum case and an `as` \
-                 conversion — got {other:?}; see the crate docs' known gaps"
+                 literal, an array-element read, `instanceof`, an enum case, an increment and an \
+                 `as` conversion — got {other:?}; see the crate docs' known gaps"
             ),
         }
     }
@@ -287,7 +307,7 @@ impl<'a> Lowering<'a> {
     /// there, so the write's own failure edge drops it too. No safepoint is
     /// emitted: `echo` is neither of the two reserved sites (function entry,
     /// a loop's back edge).
-    pub(super) fn lower_echo(&mut self, operands: &[Expr], cur: &mut BlockId, env: &Env) {
+    pub(super) fn lower_echo(&mut self, operands: &[Expr], cur: &mut BlockId, env: &mut Env) {
         for operand in operands {
             let mark = self.temporaries_mark();
             let (v, aliasing) = self.concat_operand(operand, env, cur);
@@ -343,7 +363,7 @@ impl<'a> Lowering<'a> {
         op: BinaryOp,
         lhs: ValueId,
         rhs: ValueId,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let (helper, ty, args, negate) = match op {
@@ -412,7 +432,7 @@ impl<'a> Lowering<'a> {
     pub(super) fn concat_operand(
         &mut self,
         expr: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
@@ -530,7 +550,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         expr: &Expr,
         receiver: ValueId,
-        env: &Env,
+        env: &mut Env,
         cur: BlockId,
     ) -> Option<ValueId> {
         let call = self.exprs.to_string_call(expr.span)?;
@@ -584,7 +604,7 @@ impl<'a> Lowering<'a> {
         expr: &Expr,
         lhs: &Expr,
         rhs: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
@@ -688,7 +708,7 @@ impl<'a> Lowering<'a> {
         from: Ty,
         to: Ty,
         operand: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: BlockId,
     ) -> (ValueId, Ty) {
         if from == to {
@@ -1142,7 +1162,7 @@ impl<'a> Lowering<'a> {
     pub(super) fn lower_truthy_cond(
         &mut self,
         cond: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> ValueId {
         let (v, ty) = self.lower_expr(cond, None, env, cur);
@@ -1205,7 +1225,7 @@ impl<'a> Lowering<'a> {
         object: &Expr,
         nullsafe: bool,
         proof: ReceiverProof,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty, Option<NullsafeGuard>) {
         let (object_v, object_ty) = self.lower_expr(object, None, env, cur);
@@ -1256,6 +1276,7 @@ impl<'a> Lowering<'a> {
             Some(NullsafeGuard {
                 null_block,
                 merge_block,
+                pre_env: env.clone(),
             }),
         )
     }
@@ -1347,19 +1368,26 @@ impl<'a> Lowering<'a> {
         guard: Option<NullsafeGuard>,
         value: ValueId,
         ty: Ty,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let Some(NullsafeGuard {
             null_block,
             merge_block,
+            pre_env,
         }) = guard
         else {
             return (value, ty);
         };
         if ty == Ty::Void {
-            self.seal(*cur, Terminator::Jump(merge_block));
+            let member_end = *cur;
+            self.seal(member_end, Terminator::Jump(merge_block));
             self.seal(null_block, Terminator::Jump(merge_block));
+            *env = self.merge_envs(
+                merge_block,
+                &[(member_end, env.clone()), (null_block, pre_env.clone())],
+                &pre_env,
+            );
             *cur = merge_block;
             return (value, ty);
         }
@@ -1369,6 +1397,11 @@ impl<'a> Lowering<'a> {
         let null_v = self.emit(null_block, Ty::Null, InstKind::ConstNull).0;
         let null_v = self.coerce(null_block, null_v, Ty::Null, Ty::Tagged, env);
         self.seal(null_block, Terminator::Jump(merge_block));
+        *env = self.merge_envs(
+            merge_block,
+            &[(member_end, env.clone()), (null_block, pre_env.clone())],
+            &pre_env,
+        );
         let (merged, _) = self.emit(
             merge_block,
             Ty::Tagged,
@@ -1384,7 +1417,7 @@ impl<'a> Lowering<'a> {
         whole: &Expr,
         lhs: &Expr,
         rhs: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let (non_null, result) = match self.exprs.lookup(whole.span) {
@@ -1456,13 +1489,22 @@ impl<'a> Lowering<'a> {
         let value_v = self.coerce(value_block, untagged, non_null_repr, result_repr, env);
         self.seal(value_block, Terminator::Jump(merge_block));
 
+        // The default runs only on the `null` edge, so it rebinds into its own
+        // copy — `$a ?? $x++` — and the two edges meet at `Self::merge_envs`.
+        let pre_env = env.clone();
+        let mut null_env = pre_env.clone();
         let mut rhs_cur = null_block;
-        let (rv, rty) = self.lower_expr(rhs, Some(result_repr), env, &mut rhs_cur);
+        let (rv, rty) = self.lower_expr(rhs, Some(result_repr), &mut null_env, &mut rhs_cur);
         if rty.is_refcounted() && self.aliasing_read(rhs) {
             self.emit_retain(rhs_cur, rv);
         }
-        let null_v = self.coerce(rhs_cur, rv, rty, result_repr, env);
+        let null_v = self.coerce(rhs_cur, rv, rty, result_repr, &mut null_env);
         self.seal(rhs_cur, Terminator::Jump(merge_block));
+        *env = self.merge_envs(
+            merge_block,
+            &[(value_block, pre_env.clone()), (rhs_cur, null_env)],
+            &pre_env,
+        );
 
         let (value, _) = self.emit(
             merge_block,
@@ -1479,7 +1521,7 @@ impl<'a> Lowering<'a> {
     /// plain arithmetic/bitwise unary operator. `expr` is lowered through
     /// [`Self::lower_expr`], so `!($a && $b)`/`!($a ? $b : $c)` compose the
     /// same way a bare `&&`/`||`/ternary does.
-    pub(super) fn lower_not(&mut self, inner: &Expr, env: &Env, cur: &mut BlockId) -> ValueId {
+    pub(super) fn lower_not(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
         let (v, ty) = self.lower_expr(inner, None, env, cur);
         let b = self.truthy_value(v, ty, self.aliasing_read(inner), *cur);
         self.emit(
@@ -1495,9 +1537,10 @@ impl<'a> Lowering<'a> {
     /// `lhs && rhs` — PHP's short-circuit `&&`: `rhs` is only evaluated when
     /// `lhs` is truthy. Lowered exactly like [`Self::lower_if`]'s own
     /// branch/merge shape, except the join point produces the expression's
-    /// own [`Ty::Bool`] value via a fresh [`InstKind::Phi`] instead of
-    /// merging named locals (an expression's own temporaries never live in
-    /// [`Env`] — that's [`Self::merge_envs`]' business, not this one's).
+    /// own [`Ty::Bool`] value via a fresh [`InstKind::Phi`]. The named locals
+    /// are merged too, by the same [`Self::merge_envs`] an `if` uses: `rhs`
+    /// runs on one edge only, so an increment written inside it re-points a
+    /// binding on that edge alone.
     /// `lhs`/`rhs` each go through [`Self::lower_truthy_cond`], so either may
     /// itself be any type ADR 0035's table covers, and either may itself be a
     /// nested `&&`/`||`/`!`/ternary.
@@ -1505,7 +1548,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         lhs: &Expr,
         rhs: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> ValueId {
         let lhs_v = self.lower_truthy_cond(lhs, env, cur);
@@ -1529,10 +1572,20 @@ impl<'a> Lowering<'a> {
             },
         );
 
+        // `rhs` runs on one edge only, so it rebinds into its own copy and the
+        // two edges are reconciled at the merge — `$a && $x++` writes `$x`
+        // exactly where PHP does. See `Self::merge_envs`.
+        let pre_env = env.clone();
+        let mut rhs_env = pre_env.clone();
         let mut rhs_cur = rhs_block;
-        let rhs_v = self.lower_truthy_cond(rhs, env, &mut rhs_cur);
+        let rhs_v = self.lower_truthy_cond(rhs, &mut rhs_env, &mut rhs_cur);
         let rhs_end = rhs_cur;
         self.seal(rhs_end, Terminator::Jump(merge_block));
+        *env = self.merge_envs(
+            merge_block,
+            &[(lhs_end, pre_env.clone()), (rhs_end, rhs_env)],
+            &pre_env,
+        );
 
         let (result, _) = self.emit(
             merge_block,
@@ -1551,7 +1604,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         lhs: &Expr,
         rhs: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> ValueId {
         let lhs_v = self.lower_truthy_cond(lhs, env, cur);
@@ -1573,10 +1626,18 @@ impl<'a> Lowering<'a> {
             },
         );
 
+        // `Self::lower_and`'s own one-edge rebinding, mirrored.
+        let pre_env = env.clone();
+        let mut rhs_env = pre_env.clone();
         let mut rhs_cur = rhs_block;
-        let rhs_v = self.lower_truthy_cond(rhs, env, &mut rhs_cur);
+        let rhs_v = self.lower_truthy_cond(rhs, &mut rhs_env, &mut rhs_cur);
         let rhs_end = rhs_cur;
         self.seal(rhs_end, Terminator::Jump(merge_block));
+        *env = self.merge_envs(
+            merge_block,
+            &[(lhs_end, pre_env.clone()), (rhs_end, rhs_env)],
+            &pre_env,
+        );
 
         let (result, _) = self.emit(
             merge_block,
@@ -1635,7 +1696,7 @@ impl<'a> Lowering<'a> {
         cond: &Expr,
         then: Option<&Expr>,
         else_: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let (cond_v, cond_ty) = self.lower_expr(cond, None, env, cur);
@@ -1662,10 +1723,15 @@ impl<'a> Lowering<'a> {
             },
         );
 
+        // Each branch rebinds into its own copy — `$c ? $x++ : $y` writes `$x`
+        // on one edge only — and the two are reconciled at the merge below by
+        // the same `Self::merge_envs` an `if` uses. See `Self::branch_env`.
+        let pre_env = env.clone();
+        let mut then_env = pre_env.clone();
         let (then_v, then_ty, then_end) = match then {
             Some(then_expr) => {
                 let mut then_cur = then_block;
-                let (v, ty) = self.lower_expr(then_expr, None, env, &mut then_cur);
+                let (v, ty) = self.lower_expr(then_expr, None, &mut then_env, &mut then_cur);
                 if ty.is_refcounted() && self.aliasing_read(then_expr) {
                     self.emit_retain(then_cur, v);
                 }
@@ -1679,8 +1745,9 @@ impl<'a> Lowering<'a> {
             }
         };
 
+        let mut else_env = pre_env.clone();
         let mut else_cur = else_block;
-        let (else_v, else_ty) = self.lower_expr(else_, None, env, &mut else_cur);
+        let (else_v, else_ty) = self.lower_expr(else_, None, &mut else_env, &mut else_cur);
         if else_ty.is_refcounted() && self.aliasing_read(else_) {
             self.emit_retain(else_cur, else_v);
         }
@@ -1693,6 +1760,11 @@ impl<'a> Lowering<'a> {
         let ty = self.join_representations(&mut branches, env);
         self.seal(then_end, Terminator::Jump(merge_block));
         self.seal(else_cur, Terminator::Jump(merge_block));
+        *env = self.merge_envs(
+            merge_block,
+            &[(then_end, then_env), (else_cur, else_env)],
+            &pre_env,
+        );
 
         let (result, _) = self.emit(
             merge_block,
@@ -1738,7 +1810,11 @@ impl<'a> Lowering<'a> {
     /// An empty set has no value and so no representation; both callers
     /// refuse that shape before they reach here (a ternary always has two
     /// branches, and an arm-less `match` is refused in [`Self::lower_match`]).
-    fn join_representations(&mut self, branches: &mut [(BlockId, ValueId, Ty)], env: &Env) -> Ty {
+    fn join_representations(
+        &mut self,
+        branches: &mut [(BlockId, ValueId, Ty)],
+        env: &mut Env,
+    ) -> Ty {
         let Some(&(_, _, first)) = branches.first() else {
             return Ty::Void;
         };
@@ -1775,9 +1851,9 @@ impl<'a> Lowering<'a> {
     ///   line on the exception.
     ///
     /// The subject's reference is not parked in the [`Env`] the way
-    /// [`Self::lower_switch`] parks its own — an expression is lowered against
-    /// a `&Env` it cannot insert into. Instead a *fresh* subject (one no slot
-    /// owns) is released at the top of every block the chain can leave for:
+    /// [`Self::lower_switch`] parks its own — an expression has no name to
+    /// park it under. Instead a *fresh* subject (one no slot owns) is
+    /// released at the top of every block the chain can leave for:
     /// each arm body and the throw block. Those are disjoint paths, so the
     /// release runs exactly once.
     ///
@@ -1796,7 +1872,7 @@ impl<'a> Lowering<'a> {
         subject: &Expr,
         arms: &[MatchArm],
         expected: Option<Ty>,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         assert!(
@@ -1815,6 +1891,12 @@ impl<'a> Lowering<'a> {
         let merge_block = self.new_block();
         let default_index = arms.iter().position(|a| a.conditions.is_none());
 
+        // The env each arm body is entered with is the label chain's as of the
+        // label that jumped there — the same bookkeeping `Self::lower_switch`
+        // keeps, and needed for the same reason now that a label or an arm
+        // body may rebind a local (`match ($x) { 1 => $c++, default => 0 }`).
+        let pre_env = env.clone();
+        let mut entry_edges: Vec<Vec<(BlockId, Env)>> = vec![Vec::new(); arms.len()];
         let mut test_cur = *cur;
         for (i, arm) in arms.iter().enumerate() {
             let Some(conditions) = &arm.conditions else {
@@ -1853,11 +1935,15 @@ impl<'a> Lowering<'a> {
                         else_edge: miss_edge,
                     },
                 );
+                entry_edges[i].push((test_cur, env.clone()));
                 test_cur = next;
             }
         }
         match default_index {
-            Some(i) => self.seal(test_cur, Terminator::Jump(arm_blocks[i])),
+            Some(i) => {
+                self.seal(test_cur, Terminator::Jump(arm_blocks[i]));
+                entry_edges[i].push((test_cur, env.clone()));
+            }
             None => {
                 if owed {
                     self.emit_release(test_cur, subj_v);
@@ -1898,16 +1984,19 @@ impl<'a> Lowering<'a> {
         }
 
         let mut branches: Vec<(BlockId, ValueId, Ty)> = Vec::with_capacity(arms.len());
+        let mut arm_envs: Vec<(BlockId, Env)> = Vec::with_capacity(arms.len());
         for (i, arm) in arms.iter().enumerate() {
             let mut arm_cur = arm_blocks[i];
+            let mut arm_env = self.merge_envs(arm_cur, &entry_edges[i], &pre_env);
             if owed {
                 self.emit_release(arm_cur, subj_v);
             }
-            let (v, ty) = self.lower_expr(&arm.body, expected, env, &mut arm_cur);
+            let (v, ty) = self.lower_expr(&arm.body, expected, &mut arm_env, &mut arm_cur);
             if ty.is_refcounted() && self.aliasing_read(&arm.body) {
                 self.emit_retain(arm_cur, v);
             }
             branches.push((arm_cur, v, ty));
+            arm_envs.push((arm_cur, arm_env));
         }
         // No arm is sealed inside the loop above: an arm that has to widen
         // into the representation the whole `match` joins at needs the
@@ -1919,6 +2008,7 @@ impl<'a> Lowering<'a> {
         for &(block, _, _) in &branches {
             self.seal(block, Terminator::Jump(merge_block));
         }
+        *env = self.merge_envs(merge_block, &arm_envs, &pre_env);
         let (result, _) = self.emit(
             merge_block,
             ty,
@@ -1973,7 +2063,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         parts: &[StringPart],
         whole_span: mwl_diagnostics::Span,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         assert!(
@@ -2093,7 +2183,7 @@ impl<'a> Lowering<'a> {
     pub(super) fn lower_array_key(
         &mut self,
         expr: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
@@ -2131,7 +2221,7 @@ impl<'a> Lowering<'a> {
     pub(super) fn lower_rendered_array_key(
         &mut self,
         expr: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, bool) {
         let (v, ty, aliasing) = self.lower_array_key(expr, env, cur);
@@ -2247,7 +2337,7 @@ impl<'a> Lowering<'a> {
     fn lower_duration_literal(
         &mut self,
         span: Span,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let text = span_text(self.src, span);
@@ -2275,7 +2365,7 @@ impl<'a> Lowering<'a> {
         op: AstUnaryOp,
         inner: &Expr,
         expected: Option<Ty>,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let (v, ty) = self.lower_expr(inner, expected, env, cur);
@@ -2355,7 +2445,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         lhs: &Expr,
         rhs: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let mut operands = Vec::new();
@@ -2418,7 +2508,7 @@ impl<'a> Lowering<'a> {
         op: BinaryOp,
         lhs: &Expr,
         rhs: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let operand = if matches!(lhs.kind, ExprKind::Null) {
@@ -2465,7 +2555,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         whole: &Expr,
         expected: Option<Ty>,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         // The whole expression, rather than its three parts: ADR 0033 § 5's
@@ -2816,7 +2906,7 @@ impl<'a> Lowering<'a> {
         v: ValueId,
         ty: Ty,
         other: Ty,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         if other != Ty::Float || !matches!(ty, Ty::Int | Ty::Uint) {
@@ -2854,7 +2944,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         fn_expr: &FnExpr,
         expr: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::Closure {
@@ -2928,7 +3018,7 @@ impl<'a> Lowering<'a> {
         target: &NewTarget,
         args: &CallArgs,
         expr: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::New { class, ctor, .. }) = self.exprs.lookup(expr.span) else {
@@ -3051,7 +3141,7 @@ impl<'a> Lowering<'a> {
         nullsafe: bool,
         args: &CallArgs,
         expr: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
@@ -3213,7 +3303,7 @@ impl<'a> Lowering<'a> {
         class: &Expr,
         args: &CallArgs,
         expr: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
@@ -3383,7 +3473,7 @@ impl<'a> Lowering<'a> {
         object: &Expr,
         nullsafe: bool,
         expr: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         // ADR 0014 § 1: a read of a property that declares a `get`
@@ -3536,7 +3626,7 @@ impl<'a> Lowering<'a> {
     fn lower_object_literal(
         &mut self,
         fields: &[ObjectLiteralField],
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let names: Vec<String> = fields
@@ -3609,7 +3699,7 @@ impl<'a> Lowering<'a> {
         object: &Expr,
         field: &ShapeField,
         nullsafe: bool,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let field_ty = lower_checked_ty(field.ty, self.checked_types);
@@ -3662,7 +3752,7 @@ impl<'a> Lowering<'a> {
         object: &Expr,
         field: &ShapeField,
         value: &Stored<'_>,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) {
         let field_ty = lower_checked_ty(field.ty, self.checked_types);
@@ -3739,7 +3829,7 @@ impl<'a> Lowering<'a> {
     fn lower_array_literal(
         &mut self,
         items: &[ArrayItem],
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         // `&value` never arrives here, at any depth: `mwl_types` refuses it as
@@ -3852,7 +3942,7 @@ impl<'a> Lowering<'a> {
         base: &Expr,
         index: Option<&Expr>,
         expr: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let Some(index) = index else {
@@ -3947,7 +4037,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         inner: &Expr,
         expr: &Expr,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::InstanceOf { class }) = self.exprs.lookup(expr.span) else {
@@ -3990,7 +4080,12 @@ impl<'a> Lowering<'a> {
     /// no `__clone` hook to run — so the whole operation is one
     /// instruction, and the result is a fresh object with exactly one
     /// owner, the same as `new`.
-    fn lower_clone_expr(&mut self, inner: &Expr, env: &Env, cur: &mut BlockId) -> (ValueId, Ty) {
+    fn lower_clone_expr(
+        &mut self,
+        inner: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
         let (v, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
             matches!(ty, Ty::Object),
@@ -4017,7 +4112,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         inner: &Expr,
         ty: &Type,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         // ADR 0066's `as ?T` is read off the *annotation*, before
@@ -4429,7 +4524,7 @@ impl<'a> Lowering<'a> {
         accepted: &AcceptedSet,
         inner: &Expr,
         span: Span,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let miss = self.new_block();
@@ -4513,7 +4608,7 @@ impl<'a> Lowering<'a> {
         value_ty: Ty,
         accepted: &AcceptedSet,
         span: Span,
-        env: &Env,
+        env: &mut Env,
         cur: &mut BlockId,
         miss: Option<BlockId>,
     ) {
@@ -4718,6 +4813,12 @@ pub(super) struct NullsafeGuard {
     null_block: BlockId,
     /// Where both arms rejoin, holding the merged value.
     merge_block: BlockId,
+    /// The bindings as of the receiver test — the `null` edge's own
+    /// environment, since nothing on that edge runs. Everything the member
+    /// arm evaluates (`$o?->m($x++)`) is conditional on the receiver, so the
+    /// two are reconciled at [`Lowering::close_nullsafe`] by the same
+    /// [`Lowering::merge_envs`] every other join uses.
+    pre_env: Env,
 }
 
 /// The `T` of an `as ?T` annotation, or `None` for any other target.
