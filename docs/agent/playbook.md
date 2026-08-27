@@ -1850,6 +1850,15 @@ sibling in the same namespace unqualified.
   then `Str::length(...)`, or write the leading `\`. The same rule is why `App\User::class` inside
   `namespace App;` is `App\App\User` — PHP resolves both exactly this way, so it is a trap rather
   than a divergence.
+- **Widening what the *checker* accepts for an integer literal opens a hole in `mwl-ir` one
+  crate down.** `lower_int_literal` decides `ConstInt` versus `ConstUint` from the
+  `expected: Option<Ty>` its *caller* threads, not from anything the checker recorded — so a
+  literal the checker newly places at `uint` still lowers as an `int` and panics with
+  *"mwl-ir: integer literal `…` doesn't fit an `int`"* wherever the position hands no `Ty`
+  down. `lower_binary` passes `Some(lty)` to its right operand and only the whole
+  expression's `expected` to its left, which is why the left-hand digit run was the half that
+  fell over while `$u - 18446744073709551615` was already fine. The two crates have to make
+  the same placement, and the checker's half alone is not the feature.
 
 ## Divergences and refusals already pinned
 

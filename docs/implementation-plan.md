@@ -116,11 +116,22 @@
 > the three targets its message names, all of them a missing *lowering* rather than a missing rule:
 > `array<T> as array<U>`, a tagged operand into `bytes`, and a tagged operand into an object — ADR
 > 0007 § 6's checked way out of `mixed`, which wants a class identity `Ty::Object` deliberately does
-> not carry. `lower_expr`'s dispatch message is the assertion its roster already proved. Three live
-> tools **are** the worklist and no session re-derives one: `python tools/holes.py` reads the
-> refusal sites out of `mwl-ir` and `mwl-codegen` and attributes each to its item (`--item N` for
-> one in full), `python tools/loop.py --list` prints the named `.mwlt` cases each stage still owes,
-> and `python tools/check-migration.py` scores `docs/spec/02-php-migration.md`.
+> not carry. `lower_expr`'s dispatch message is the assertion its roster already proved. One level
+> *up* from all of it, **a digit run beside a `uint` is now placed at `uint`** rather than
+> defaulting to `int` — ADR 0007 § 2's "untyped until placed" applied to the one placement a binary
+> operator offers, its other operand — so `$u + 1`, `$u & 3` and `$u << 1` compile at all, where
+> each of them used to be § 4's mixed-signedness refusal and a `uint` could meet only a
+> `uint`-declared local; a digit run above `i64::MAX`, which § 4 admits "only where a `uint` is
+> expected", has an operand position for the first time, and `mwl-ir` makes the same placement on
+> the left-hand operand so that it does not then panic on a value that never fit an `int`. What
+> stays refused is the pair with no digit run in it: a shift's *count* is an operand of the operator
+> rather than a bare width, judged by the row its left operand takes, which is exactly what makes
+> `mwl-codegen`'s `emit_shift` sound in reading one signedness for both the negative-count guard and
+> the arithmetic-versus-logical choice. Three live tools **are** the worklist and no session
+> re-derives one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen`
+> and attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints
+> the named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
+> `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in [docs/agent/loop-goal.md](agent/loop-goal.md) § *Standing decisions*,

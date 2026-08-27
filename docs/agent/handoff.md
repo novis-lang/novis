@@ -2,65 +2,50 @@
 
 ## State
 
-**M4 — the `as` conversion table is closed**, and closing it found a soundness hole rather
-than only a panic. ADR 0007 § 2's table is a *closed* list of rows, so
-`mwl_types::expr::operators`' `reject_unconvertible` (`E0708`) refuses every operand/target
-pair naming none of them — that function's doc comment is the one home for the rule and for
-the row-by-row table behind it.
+**M4 — a digit run beside a `uint` is placed at `uint`**, which is ADR 0007 § 2's "a numeric
+literal is untyped until placed" applied to the one placement a binary operator offers: its
+other operand. `mwl_types::expr::literals`' `uint_operand_expectation` is the one home for the
+rule and for why it is value-preserving on every row of § 4's table.
 
-- **`$foo as Bar` between two unrelated classes read `Bar`'s slot list off a `Foo`.** Both
-  erase to one `mwl_ir::ty::Ty::Object`, so the conversion took `Lowering::convert`'s free
-  `from == to` row and nothing ran. A class target is therefore judged by
-  `types_are_disjoint` rather than by a row (`reject_unrelated_class_conversion`), which
-  keeps the three shapes that legitimately name one: a downcast out of plain `object` or an
-  interface, a `Core`-owned class deciding for itself (ADR 0024's `as Core\Html\Markup`),
-  and the identical type.
-- **`null as string` is a lowering row, not a refusal** — the empty string, matching PHP and
-  matching what `concat_operand` and `Helper::TaggedToString` already answered for the same
-  value. Same decision, same reason, as last session's `concat_operand` arm.
-- **`as ?T` is deliberately untouched.** ADR 0066's form interns as `Union([Null, T])` and
-  `infer_conversion` skips the new check on the written `?T` sugar; the refusals that form
-  still owes are `Lowering::convert_or_null`'s own two panics.
-- **`mwl-ir`'s conversion catch-all now has three reachable targets**, all missing
-  *lowerings*, all named in the crate docs' gap 20: `array<T> as array<U>`, a tagged operand
-  into `bytes`, and a tagged operand into an object.
-- Two commits, one per slice; the dispatch-message slice is prose only and owes no case.
+- **Before this, `uint` could not meet a literal at all.** `$u + 1`, `$u & 3` and `$u << 1`
+  were each `E0407`, so a `uint` operand had to be paired with a `uint`-declared local — which
+  is why the bitwise sweep beside the new case writes `uint $uOne = 1;`. A compound assignment
+  never had the problem: `check_compound_assign` already hands its value the target's type as
+  a hint, and this is that hint for the spelling that was missing it.
+- **`mwl-ir` makes the same placement**, and had to: `lower_binary` already passed `Some(lty)`
+  to its right operand, so only the *left*-hand digit run fell through to `ConstInt` and
+  panicked on a value above `i64::MAX`. Both crates now lower the literal side second; a
+  literal is a constant with no effects, so nothing is observably reordered.
+- **The shift count stays an operand, not a width.** `$u << $i` is `E0407` in both directions,
+  and that refusal is load-bearing: `mwl-codegen`'s `emit_shift` reads one signedness for both
+  the negative-count guard and the arithmetic-versus-logical choice, which is sound only
+  because a `uint` operand cannot have a signed count. This was the item's probe, and the
+  answer was that a case was owed.
+- **The sibling gap is an array literal's elements**, which still keep `int` whatever the
+  declared element type says — the playbook bullet under *Writing MWL itself* has it, and it
+  is now the last position ADR 0054 § 2's rule is not applied at.
 
 ## Next group
 
-**The two `as` panics one file over from the table, plus the probe this group did not
-reach.** The file set: `crates/mwl-ir/src/lower/expr.rs`,
-`crates/mwl-types/src/expr/operators.rs`, `tests/conformance/lang/`.
+**The two `as` panics in `lower/expr.rs`, plus the placement position still missing.** The file
+set: `crates/mwl-ir/src/lower/expr.rs`, `crates/mwl-types/src/expr/literals.rs`,
+`tests/conformance/lang/`.
 
-- [ ] **`~` and the shift count, one probe deep.** Carried unchanged from the last group.
-      `$u << $i` (mixed signedness) is `E0407` through `report_int_uint`, but nothing pins
-      that the *count* takes the same row as the operand now that `E0706` sits in front of
-      it. One scratch file says whether a case is owed.
-      Anchors: `crates/mwl-types/src/expr/operators.rs:@bitwise_result`.
 - [ ] **`convert_or_null`'s two panics — ADR 0066 § 3's refusals `mwl_types` does not make.**
-      A conversion that *cannot fail* (`$i as ?int`, `$i as ?string`) is that section's
-      compile error, and a target with no row at all is the same subtraction this group just
-      did one form over. `reject_unconvertible` is the function to reach through: it skips
-      `as ?T` today on `is_written_nullable`, so the work is deciding which rows admit the
-      non-throwing form and dropping that guard for the rest.
-      Anchors: `crates/mwl-ir/src/lower/expr.rs:1292` (`convert_or_null`),
-      `crates/mwl-types/src/expr/operators.rs:@reject_unconvertible`.
+      `as ?T` interns as `Union([Null, T])` and `infer_conversion` skips `reject_unconvertible`
+      on the written `?T` sugar, so the refusals land nowhere. Anchors:
+      `crates/mwl-ir/src/lower/expr.rs:1294`, `crates/mwl-types/src/expr/operators.rs:107`.
 - [ ] **`lower_to_string_call`'s panic — the object half of `as string`.** A value typed at
-      `Stringable` itself and a `Core`-owned class are the two shapes with no recorded
-      `toString` target; plain `object`, a shape and a `callable` reach it too, since
-      `require_stringable_object` matches `Ty::Class` alone. Each is either a resolution to
-      record or an `E`-code beside `E0412`.
-      Anchors: `crates/mwl-ir/src/lower/expr.rs:845` (`lower_to_string_call`),
-      `crates/mwl-types/src/expr/operators.rs:@require_stringable_object`.
+      `Ty::Object` with no `Stringable` proof reaches it. Anchors:
+      `crates/mwl-ir/src/lower/expr.rs:845`, `crates/mwl-ir/src/lower/expr.rs:1001`.
+- [ ] **An array literal's elements are the last position ADR 0054 § 2's placement is not
+      applied at.** `array<uint> $u = [7, 8];` compiles and its elements carry the `int` tag.
+      Anchors: `crates/mwl-types/src/expr/literals.rs:718`,
+      `crates/mwl-types/src/expr/mod.rs:210`.
 
 ## Backlog
 
-- A tagged operand converted to an object (`$m as Plain` over a `mixed`) — ADR 0007 § 6's
-  checked downcast, wanting a helper that takes a `Program::classes` label; `mwl-ir` gap 20.
-- `array<T> as array<U>`, the O(n) element walk; `mwl-ir` gap 20 and ADR 0007 § 2 row 6.
-- A tagged operand converted to `bytes`, the one scalar target with no runtime-tag row;
-  `mwl-ir` gap 20.
-- `object` as a declared binding type has no representation arm — `mwl-ir` gap 21.
-- A `require`d file's own top-level statements are not run — `mwl-ir` gap 22.
-- Stage 8's `every_refusal_is_a_diagnostic_or_decided` guard test does not exist on disk yet;
-  `docs/agent/loop-goal.toml` names it and a named check must both exist and pass.
+- `array<T> as array<U>` has no lowering — `mwl-ir` crate docs, gap 20.
+- A tagged operand into `bytes`, and into an object — same gap 20.
+- `mwl-ir` gap 1: `Class::method(...)` first-class callable has no resolved target.
+- `mwl-ir` gap 22: `require` used for its value (`E0704`).
