@@ -275,11 +275,26 @@ impl<'a> Lowering<'a> {
                 let (old, old_ty, _, _) = self.lower_incdec(expr, *op, target, env, cur);
                 (old, old_ty)
             }
+            // ADR 0007 § 2's assignment *as a value* — `int $b = ($a = 2);`,
+            // and the chain `$a = $b = 0;` that is the same thing written
+            // right-associatively. See `Self::lower_assign_expr` for what it
+            // answers and the one retain it owes; `$a = &$b` is not lowered
+            // in any position and falls through to the panic below.
+            ExprKind::Assign {
+                op,
+                target,
+                value,
+                by_ref: false,
+            } => self.lower_assign_expr(expr, *op, target, value, env, cur),
+            // PHP's one expression-valued output construct — see
+            // `Self::lower_print` for why its answer is always `1`.
+            ExprKind::Print(operand) => self.lower_print(operand, env, cur),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
                  operators, `new`, a static or instance method call, property access, an array \
-                 literal, an array-element read, `instanceof`, an enum case, an increment and an \
-                 `as` conversion — got {other:?}; see the crate docs' known gaps"
+                 literal, an array-element read, `instanceof`, an enum case, an increment, an \
+                 assignment, `print` and an `as` conversion — got {other:?}; see the crate \
+                 docs' known gaps"
             ),
         }
     }
@@ -329,6 +344,30 @@ impl<'a> Lowering<'a> {
             });
             self.release_temporaries_since(mark, *cur);
         }
+    }
+    /// `print $x` — one operand written exactly as [`Self::lower_echo`]
+    /// writes it, answering the `1` PHP answers.
+    ///
+    /// PHP's own difference between `print` and `echo` is that `print` is an
+    /// *expression*: it takes one operand rather than a list, and its value is
+    /// always the integer `1`, which is what makes `$ok && print "…"` and
+    /// `$n = print "…"` legal there. `mwl_types::expr` already types it
+    /// `int`, so the whole of it here is the write plus that constant — no
+    /// second output path, and the same [`Helper::EchoStr`] failure edge.
+    ///
+    /// A statement-position `print "…";` is this same lowering with the `1`
+    /// discarded, which costs one dead [`InstKind::ConstInt`] rather than a
+    /// second entry point; `Ty::Int` is not [`Ty::is_refcounted`], so there is
+    /// nothing to release either way.
+    pub(super) fn lower_print(
+        &mut self,
+        operand: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        self.lower_echo(std::slice::from_ref(operand), cur, env);
+        let (one, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(1));
+        (one, Ty::Int)
     }
     /// Whether the checker *placed* the numeric literal at `span` at
     /// `decimal` — ADR 0054 § 2's rule, read back from the one recording
@@ -3752,9 +3791,10 @@ impl<'a> Lowering<'a> {
         object: &Expr,
         field: &ShapeField,
         value: &Stored<'_>,
+        extra_owner: bool,
         env: &mut Env,
         cur: &mut BlockId,
-    ) {
+    ) -> (ValueId, Ty) {
         let field_ty = lower_checked_ty(field.ty, self.checked_types);
         let mark = self.temporaries_mark();
         // A narrowed `?{...}` receiver arrives tagged, and so does a `mixed`
@@ -3783,7 +3823,13 @@ impl<'a> Lowering<'a> {
             },
             env,
         );
+        // While this frame still holds a reference of its own: the slot owns
+        // one too by now, but the release below is what ends *ours*.
+        if field_ty.is_refcounted() && extra_owner {
+            self.emit_retain(*cur, v);
+        }
         self.release_temporaries_since(mark, *cur);
+        (v, field_ty)
     }
 
     /// `[...]`/legacy `array(...)` — see `InstKind::ArrayNew`'s own

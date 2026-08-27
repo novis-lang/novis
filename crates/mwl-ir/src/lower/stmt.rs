@@ -297,10 +297,15 @@ impl<'a> Lowering<'a> {
                     self.emit_release(*cur, v);
                 }
             }
+            // `print "…";` — the same write `echo` emits, with the `1` PHP
+            // answers left unread. See `Self::lower_print`.
+            ExprKind::Print(operand) => {
+                self.lower_print(operand, env, cur);
+            }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a plain `$x = expr;` reassignment, a \
-                 bare call/`new`, or a discarded shape literal as an expression statement — \
-                 got {other:?}; see the crate docs' known gaps"
+                 bare call/`new`, `print`, or a discarded shape literal as an expression \
+                 statement — got {other:?}; see the crate docs' known gaps"
             ),
         }
     }
@@ -356,7 +361,7 @@ impl<'a> Lowering<'a> {
                 return;
             }
         }
-        self.lower_read_modify_write(e.span, target, op, Some(value), env, cur);
+        self.lower_read_modify_write(e.span, target, op, Some(value), false, env, cur);
     }
     /// `$x++;` / `--$x;` — ADR 0007 § 4's `± 1` over the target's own numeric
     /// type, through the same read-modify-write `$x += 1;` takes.
@@ -400,7 +405,7 @@ impl<'a> Lowering<'a> {
             IncDecOp::Inc => BinaryOp::Add,
             IncDecOp::Dec => BinaryOp::Sub,
         };
-        self.lower_read_modify_write(e.span, target, op, None, env, cur)
+        self.lower_read_modify_write(e.span, target, op, None, false, env, cur)
     }
     /// `$t ⊕= e;` and `$t++;` alike: read the target, combine, write it back,
     /// answering `(old, new)` for a position that wants one of them.
@@ -419,12 +424,22 @@ impl<'a> Lowering<'a> {
     /// Panics naming the target when it is not one
     /// [`Self::reevaluable_target`] accepts even after staging — a nullsafe
     /// path, or a call in a position staging does not reach.
+    ///
+    /// `extra_owner` is [`Self::lower_store`]'s, passed straight through: the
+    /// `new` half is the value that landed in the target, so a value position
+    /// consuming it needs a reference of its own.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the rewrite's own inputs plus the two `lower_store` needs; a struct would buy \
+                  its three call sites nothing"
+    )]
     pub(super) fn lower_read_modify_write(
         &mut self,
         span: Span,
         target: &Expr,
         op: BinaryOp,
         rhs: Option<&Expr>,
+        extra_owner: bool,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty, ValueId, Ty) {
@@ -474,7 +489,8 @@ impl<'a> Lowering<'a> {
         // `=` emitting exactly what it always did — and those are the entries
         // that have to still be standing when it does.
         self.unstage_to(reads);
-        self.lower_store(target, &Stored::Value(new, new_ty), env, cur);
+        let (new, new_ty) =
+            self.lower_store(target, &Stored::Value(new, new_ty), extra_owner, env, cur);
         self.unstage_to(addresses);
         self.release_temporaries_since(temporaries, *cur);
         // `$x += Foo::bar($n);` — the right-hand side may have staged a `&$n`
@@ -599,11 +615,78 @@ impl<'a> Lowering<'a> {
         else {
             unreachable!("Self::lower_expr_stmt only routes a plain `AssignOp::Assign` here");
         };
-        self.lower_store(target, &Stored::Expr(value), env, cur);
+        self.lower_store(target, &Stored::Expr(value), false, env, cur);
         // `$x = Foo::bar($n);` — the right-hand side may have staged a `&$n`
         // argument, whose copy-back belongs to this statement. See
         // `Self::pending_refs`.
         self.flush_ref_writebacks(env, *cur);
+    }
+    /// The same assignment in **value** position — `int $b = ($a = 2);`, and
+    /// the right-associative chain `$a = $b = 0;` where the inner one is the
+    /// outer one's right-hand side.
+    ///
+    /// The answer is the value **written**, at the target's own declared
+    /// representation rather than at whatever the right-hand side produced:
+    /// `mwl_types::expr::assign::check_assign` types the whole expression as
+    /// the target's declared type, so a `float $f = ($n = 1);` over an `int`
+    /// `$n` sees the `int` the binding took, and every representation
+    /// question below has one answer. [`Self::lower_store`] is what already
+    /// knows that value, per target kind, which is why it hands it back.
+    ///
+    /// A compound spelling (`$e += 4`, `$s .= "x"`) answers PHP's own choice,
+    /// the value *after* the operation, and takes
+    /// [`Self::lower_read_modify_write`] — the identical rewrite the statement
+    /// form takes, so the target's address is still computed exactly once.
+    /// The one thing it does not reuse is
+    /// [`Self::lower_compound_assignment`]'s `.=`-on-a-`string`-local fast
+    /// path: [`Self::lower_string_append`] re-points the holder in place and
+    /// has no value to hand back, and a `.=` in value position is rare enough
+    /// that the general rewrite — which is what that fast path replaced, and
+    /// is correct — is the right trade against a second append lowering.
+    ///
+    /// **Unlike an increment, this owes a retain.** ADR 0007 § 4 leaves an
+    /// increment only non-refcounted targets, but an assignment's target is
+    /// any declared type at all, and the value that landed is owned by the
+    /// binding, the field, the slot or the array entry it landed in. This
+    /// expression is a *fresh producer* to everything above it —
+    /// [`is_aliasing_read`] does not list [`ExprKind::Assign`], so no consumer
+    /// will retain it — so it hands back a second owner, which is
+    /// `lower_store`'s `extra_owner` and not a retain emitted here; that
+    /// function's doc comment owns why the difference matters.
+    ///
+    /// No [`Self::flush_ref_writebacks`] call: a `&$n` argument staged inside
+    /// the right-hand side is copied back at the enclosing *statement's*
+    /// boundary, which is the only place an assignment in value position has.
+    ///
+    /// # Panics
+    ///
+    /// Panics for `$a = &$b`, which no position lowers — the statement form
+    /// reaches [`Self::lower_expr_stmt`]'s own unsupported-shape panic by the
+    /// same route.
+    pub(super) fn lower_assign_expr(
+        &mut self,
+        e: &Expr,
+        op: AssignOp,
+        target: &Expr,
+        value: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        match op.binary_op() {
+            Some(binop) => {
+                let (_, _, new, new_ty) = self.lower_read_modify_write(
+                    e.span,
+                    target,
+                    binop,
+                    Some(value),
+                    true,
+                    env,
+                    cur,
+                );
+                (new, new_ty)
+            }
+            None => self.lower_store(target, &Stored::Expr(value), true, env, cur),
+        }
     }
     /// The write half of [`Self::lower_reassignment`]: everything about
     /// *where* the value lands, with what lands there left to [`Stored`].
@@ -617,13 +700,29 @@ impl<'a> Lowering<'a> {
     /// read-modify-write path they are staged
     /// ([`Self::staged_targets`]) and this second lowering costs nothing and
     /// runs nothing twice.
+    ///
+    /// Hands back **the value that landed**, at the target's own declared
+    /// representation rather than at whatever the right-hand side produced —
+    /// which is what an assignment in *value* position answers
+    /// ([`Self::lower_assign_expr`]). A statement-position caller ignores it.
+    ///
+    /// `extra_owner` asks for that value to arrive owning one reference of
+    /// the caller's own, and is a parameter rather than a retain the caller
+    /// emits afterwards because one arm has no "afterwards" to emit it in: an
+    /// ADR 0014 § 1 `set` hook is a **call**, the argument convention
+    /// transfers the reference to it, and what the hook then does with the
+    /// value is the hook's business — so a retain emitted after that call can
+    /// be reading a value the hook already released. Every other arm leaves
+    /// the target itself owning the value and would be safe either way; they
+    /// take the same parameter so the rule is one rule.
     pub(super) fn lower_store(
         &mut self,
         target: &Expr,
         stored: &Stored<'_>,
+        extra_owner: bool,
         env: &mut Env,
         cur: &mut BlockId,
-    ) {
+    ) -> (ValueId, Ty) {
         match &target.kind {
             ExprKind::Variable(name_span) => {
                 let lname = strip_sigil(span_text(self.src, *name_span)).to_owned();
@@ -639,11 +738,15 @@ impl<'a> Lowering<'a> {
                     if pointee.is_refcounted() && aliasing {
                         self.emit_retain(*cur, v);
                     }
+                    if pointee.is_refcounted() && extra_owner {
+                        self.emit_retain(*cur, v);
+                    }
                     if pointee.is_refcounted() {
                         let (old_v, _) = self.emit(*cur, pointee, InstKind::RefLoad { slot });
                         self.emit_release(*cur, old_v);
                     }
                     self.emit_ref_store(*cur, slot, v);
+                    (v, pointee)
                 } else {
                     let expected = env.get(&lname).map(|&(_, t)| t);
                     let (v, ty, aliasing) = self.lower_stored(stored, expected, env, cur);
@@ -656,7 +759,11 @@ impl<'a> Lowering<'a> {
                         Some(want) => (self.coerce(*cur, v, ty, want, env), want),
                         None => (v, ty),
                     };
+                    if ty.is_refcounted() && extra_owner {
+                        self.emit_retain(*cur, v);
+                    }
                     self.bind_local_value(*cur, env, lname, v, ty, aliasing);
+                    (v, ty)
                 }
             }
             // `$obj->prop = expr;` — the receiver's declaring class comes
@@ -703,8 +810,14 @@ impl<'a> Lowering<'a> {
                         slot: *slot,
                         ty: *ty,
                     };
-                    self.lower_shape_property_assign(object, &field, stored, env, cur);
-                    return;
+                    return self.lower_shape_property_assign(
+                        object,
+                        &field,
+                        stored,
+                        extra_owner,
+                        env,
+                        cur,
+                    );
                 }
                 let (class, name, ty, set) = match self.exprs.lookup(target.span) {
                     Some(ExprInfo::Property { class, name, ty }) => (class, name, *ty, None),
@@ -741,6 +854,12 @@ impl<'a> Lowering<'a> {
                         self.emit_retain(*cur, v);
                     }
                     let v = self.coerce(*cur, v, vty, field_ty, env);
+                    // Before the call, not after it: the argument convention
+                    // transfers this reference to the hook, so once the call
+                    // has run there is no value here left to retain.
+                    if field_ty.is_refcounted() && extra_owner {
+                        self.emit_retain(*cur, v);
+                    }
                     self.emit_fallible(
                         *cur,
                         Ty::Void,
@@ -751,6 +870,7 @@ impl<'a> Lowering<'a> {
                         },
                         env,
                     );
+                    (v, field_ty)
                 } else {
                     let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
                     let (object_v, _) = self.untag_receiver(object_v, receiver_ty, *cur);
@@ -759,6 +879,9 @@ impl<'a> Lowering<'a> {
                         self.emit_retain(*cur, v);
                     }
                     let v = self.coerce(*cur, v, vty, field_ty, env);
+                    if field_ty.is_refcounted() && extra_owner {
+                        self.emit_retain(*cur, v);
+                    }
                     if field_ty.is_refcounted() {
                         let (old_v, _) = self.emit(
                             *cur,
@@ -772,6 +895,7 @@ impl<'a> Lowering<'a> {
                         self.emit_release(*cur, old_v);
                     }
                     self.emit_field_set(*cur, object_v, class_label, field_name, v);
+                    (v, field_ty)
                 }
             }
             // `$arr[$i] = expr;` — the element's declared type comes from
@@ -884,6 +1008,9 @@ impl<'a> Lowering<'a> {
                 if elem_ty.is_refcounted() && aliasing {
                     self.emit_retain(*cur, v);
                 }
+                if elem_ty.is_refcounted() && extra_owner {
+                    self.emit_retain(*cur, v);
+                }
                 // Down the chain. Each row arrives owning one reference —
                 // `Helper::ArrayRowForWrite`'s whole job, since the
                 // `ArraySet` below consumes one and an `InstKind::ArrayGet`
@@ -933,6 +1060,7 @@ impl<'a> Lowering<'a> {
                     };
                 }
                 self.write_back_array(root, written, env, cur);
+                (v, elem_ty)
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers reassignment to a plain local, a \

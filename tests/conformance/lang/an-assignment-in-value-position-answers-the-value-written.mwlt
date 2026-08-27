@@ -1,0 +1,48 @@
+--TEST--
+An assignment in value position answers the value written even where a re-read would answer something else — an ADR 0014 § 1 `set` hook and an ADR 0036 § 2 shape field
+--FILE--
+<?mwl
+// A `set` hook is a call (ADR 0014 § 1), so the property does not hold what
+// was written to it. The expression still answers what was *written* — never
+// a re-read of the slot — which is the one place the two can disagree.
+class Tag {
+    public string $label {
+        get => $this->label;
+        set {
+            $this->label = "[" . $value . "]";
+        }
+    }
+    public function constructor() {
+        $this->label = "init";
+    }
+}
+
+Tag $tag = new Tag();
+string $written = ($tag->label = "hi");
+echo $written, " ", $tag->label, "\n";
+
+// ADR 0036 § 2's anonymous shape: the field write is name-keyed and the
+// answer is the same value, with the shape holding its own owner of it.
+var $shape = {title: "one"};
+string $now = ($shape->title = "two");
+echo $now, " ", $shape->title, "\n";
+
+// ADR 0007 § 2 fixes the answer's type at the *target's* declared one, not at
+// the right-hand side's: `$n` is an `int`, so the whole expression is an
+// `int` that the `float` binding then widens.
+int $n = 0;
+float $f = ($n = 3);
+echo $f, " ", $n, "\n";
+
+// A chain writes right to left and every link takes its own copy of a
+// refcounted value.
+string $one = "";
+string $two = "";
+string $three = "";
+$one = $two = $three = "carried";
+echo $one, $two, $three, "\n";
+--EXPECT--
+hi [hi]
+two two
+3 3
+carriedcarriedcarried
