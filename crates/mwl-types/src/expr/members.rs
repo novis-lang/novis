@@ -764,6 +764,15 @@ pub(crate) fn check_unset_target(
             }
         }
         ExprKind::Index { .. } => {
+            // `unset` is the fourth spelling that writes through a target, so
+            // it marks its subscript levels for the same reason the other
+            // three do: a hooked or erased holder makes every level above it
+            // read as `mixed`, and `E0482` would otherwise blame the subscript
+            // for the receiver problem `check_write_target` is about to state
+            // properly. `false`, because `unset($a[])` names no element and
+            // keeps `E_APPEND_IN_READ_POSITION` — PHP refuses it as *"cannot
+            // use [] for unsetting"* and so does this.
+            mark_write_target_levels(expr, false, env);
             check_expr(expr, None, live, scope, ctx, env);
             let mut root = expr.unparenthesized();
             while let ExprKind::Index { base, .. } = &root.kind {

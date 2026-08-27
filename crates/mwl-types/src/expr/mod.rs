@@ -577,7 +577,10 @@ pub(super) fn infer(
 /// subscript for a receiver problem the next call states properly. It is
 /// gated on the target chain because the *read* `echo $erased->rows["0"];`
 /// has no second diagnostic coming and `E0482` is the only thing standing
-/// between it and a panic in `mwl-ir`.
+/// between it and a panic in `mwl-ir`. All four write spellings mark that
+/// chain — `unset($erased->rows["0"])` is a write for this purpose as much
+/// as for [`assign::check_write_target`]'s, and used to take both
+/// diagnostics because it was the one that did not.
 ///
 /// Walks to the root for the same reason `check_write_target` does:
 /// `$erased->rows["0"]["1"] = v` is one holder and two levels.

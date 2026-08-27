@@ -1955,12 +1955,18 @@ impl<'a> Lowering<'a> {
     /// holder to speak of, so it panics naming itself rather than silently
     /// dropping the separation.
     ///
-    /// A *hooked* property (ADR 0014 § 1) never arrives here either, and for
-    /// the same reason it never could be written back to: it is a pair of
-    /// accessors rather than a slot, so `mwl_types::expr::assign`'s
-    /// `check_write_target` refuses `$obj->hooked[0] = v` as `E0478` where it
-    /// is written — PHP's own "indirect modification of overloaded property",
-    /// and the reason this function needs no rule for it.
+    /// The property arm's own `else` is unreachable, and its message carries
+    /// the proof: a `PropertyAccess` span carries a `HookedProperty`, a
+    /// `ShapeProperty`, a `Property` or nothing, and only the third survives
+    /// to here. A *hooked* property (ADR 0014 § 1) is a pair of accessors
+    /// rather than a slot and an *erased* one (ADR 0036 § 4) is resolved by
+    /// name at run time, so neither could be written back to at all;
+    /// `mwl_types::expr::assign`'s `check_write_target` refuses both where the
+    /// write is written, as `E0478` — PHP's own "indirect modification of
+    /// overloaded property" — and `E0480`. Nothing recorded means the access
+    /// was diagnosed instead, and a body holding a diagnostic is never
+    /// lowered. That is the whole reason this function needs no rule for any
+    /// of the three.
     pub(super) fn write_back_array(
         &mut self,
         base: &Expr,
@@ -1999,12 +2005,20 @@ impl<'a> Lowering<'a> {
             ExprKind::PropertyAccess { object, .. } => {
                 let Some(ExprInfo::Property { class, name, .. }) = self.exprs.lookup(base.span)
                 else {
-                    panic!(
-                        "mwl-ir: an array-index assignment whose base is the property at {:?} \
-                         has no resolved declaring class recorded in the typed-expression \
-                         table, so it wasn't checked with the same table — an erased \
-                         receiver cannot be what put it here, `check_write_target` having \
-                         refused that as `E0480`",
+                    unreachable!(
+                        "mwl-ir reaches an element write back through the property at {:?} \
+                         carrying anything but an `ExprInfo::Property` only if a gate above \
+                         it let one through, and none can — this is an invariant, not a gap. \
+                         A `PropertyAccess` span carries exactly one of three entries or \
+                         none: `mwl_types::expr::members::check_property_member` records \
+                         `HookedProperty`, `ShapeProperty` or `Property` on every access it \
+                         returns a resolved type from, and reports a diagnostic on every \
+                         path it records nothing on, so a body reaching here at all had an \
+                         entry. `mwl_types::expr::assign::check_write_target` then refuses \
+                         the first two where the write is written — `E0478` for ADR 0014 \
+                         § 1's pair of accessors, `E0480` for ADR 0036 § 4's erased \
+                         receiver — for all four write spellings alike, leaving `Property` \
+                         as the only entry an element write's holder can still carry",
                         base.span
                     );
                 };

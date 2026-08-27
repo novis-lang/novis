@@ -382,6 +382,14 @@ pub(super) fn check_assign(
 /// because the arm it speaks to is inside that check. A subscript's own
 /// *index* expression is not walked — `$a[$b[]] = 1` reads `$b[]`, and is
 /// refused for it.
+///
+/// The marks are read a second time, by `super`'s own
+/// `refused_as_a_write_target`, which is why all four write
+/// spellings call this and not just the one that has a `$a[]` to legalise:
+/// `plain` is `false` for a compound assignment, an increment and an
+/// `unset()`, none of which may append, and the *presence* of the mark is
+/// what tells a subscript that the refusal its holder is about to take is
+/// the one mistake to report.
 pub(super) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env<'_>) {
     let mut level = target.unparenthesized();
     while let ExprKind::Index { base, .. } = &level.kind {
@@ -431,10 +439,18 @@ pub(super) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 ///
 /// Called *after* the target is checked, because the hooked half reads the
 /// [`ExprInfo::HookedProperty`] entry [`super::members`] records while
-/// checking the access. All three spellings that write through a target go
-/// through it — a plain `=`, a compound `⊕=`, and `$x++`/`--$x`, which
+/// checking the access. All four spellings that write through a target go
+/// through it — a plain `=`, a compound `⊕=`, `$x++`/`--$x`, which
 /// `mwl_ir::lower` desugars into the same `$x = $x ± 1` a compound assignment
-/// becomes and which therefore has exactly the same nowhere to write to.
+/// becomes and which therefore has exactly the same nowhere to write to, and
+/// `unset($a[$k])`, which ADR 0007 § 5 separates the array for exactly as a
+/// write does (`super::members`' `check_unset_target`). All four give the
+/// same answer on the same target and each takes exactly one diagnostic for
+/// it, which
+/// `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.mwlt`
+/// asks of all four at once — a spelling that grew its own answer, or a
+/// second diagnostic for the subscript the refused holder made unreadable,
+/// fails there while still reading right on its own line.
 /// Only the root of a subscript chain is examined:
 /// `mwl_ir::lower::Lowering::lower_reassignment` flattens a nested element
 /// write down to its root holder and writes every level back through that, so

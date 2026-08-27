@@ -1,0 +1,100 @@
+--TEST--
+`=`, `⊕=`, an increment and `unset()` agree on an element target whose holder is no slot, and each takes exactly one diagnostic — ADR 0007 § 5, ADR 0014 § 1, ADR 0036 § 4
+--FILE--
+<?mwl
+// ADR 0007 § 5 separates an array before an element of it is written, and the
+// separated copy has to land back in whatever held it. Three holders have no
+// slot for it to land in — `?->`, whose `null` is not a place, ADR 0014 § 1's
+// hooked property, which is a pair of accessors rather than storage, and ADR
+// 0036 § 4's erased property, resolved by name at run time. Four spellings
+// write through a holder: a plain `=`, a compound `⊕=`, an increment, and
+// `unset()`, which removes an entry by separating the array exactly as a write
+// does. What this pins is that the four *agree* — the same three refusals in
+// the same order, four times over, and exactly one diagnostic per line, so a
+// spelling that grew its own answer, or that let `E0482` blame the subscript
+// for the holder the very next code names, fails here while still reading
+// right on its own line.
+class Plain {
+    public array<int> $counts;
+
+    public function constructor() {
+        array<int> $seed = ["0" => 1];
+        $this->counts = $seed;
+    }
+}
+
+class Grid {
+    public array<int> $counts {
+        get => $this->counts;
+        set (array<int> $v) {
+            $this->counts = $v;
+        }
+    }
+
+    public function constructor() {
+        array<int> $seed = ["0" => 1];
+        $this->counts = $seed;
+    }
+}
+
+?Plain $maybe = new Plain();
+var $g = new Grid();
+object $erased = new Plain();
+
+$maybe?->counts["0"] = 5;
+$g->counts["0"] = 5;
+$erased->counts["0"] = 5;
+
+$maybe?->counts["0"] += 5;
+$g->counts["0"] += 5;
+$erased->counts["0"] += 5;
+
+$maybe?->counts["0"]++;
+$g->counts["0"]++;
+$erased->counts["0"]++;
+
+unset($maybe?->counts["0"]);
+unset($g->counts["0"]);
+unset($erased->counts["0"]);
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0479]: `?->` cannot be written through
+   --> case.mwl:41:1
+%A
+error[E0478]: an array element cannot be written through the hooked property `counts`
+   --> case.mwl:42:1
+%A
+error[E0480]: an array element cannot be written through the erased property `counts`
+   --> case.mwl:43:1
+%A
+error[E0479]: `?->` cannot be written through
+   --> case.mwl:45:1
+%A
+error[E0478]: an array element cannot be written through the hooked property `counts`
+   --> case.mwl:46:1
+%A
+error[E0480]: an array element cannot be written through the erased property `counts`
+   --> case.mwl:47:1
+%A
+error[E0479]: `?->` cannot be written through
+   --> case.mwl:49:1
+%A
+error[E0478]: an array element cannot be written through the hooked property `counts`
+   --> case.mwl:50:1
+%A
+error[E0480]: an array element cannot be written through the erased property `counts`
+   --> case.mwl:51:1
+%A
+error[E0479]: `?->` cannot be written through
+   --> case.mwl:53:7
+%A
+error[E0478]: an array element cannot be written through the hooked property `counts`
+   --> case.mwl:54:7
+%A
+error[E0480]: an array element cannot be written through the erased property `counts`
+   --> case.mwl:55:7
+%A
+error: aborting due to 12 errors
