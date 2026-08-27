@@ -39,8 +39,9 @@
   frameworks use to swap which implementation a name resolves to *after the fact* — the same problem
   [ADR 0011](0011-functions-and-constants-are-class-members.md) and [ADR 0014](0014-property-observer.md)
   already closed for calls and property access.
-- Not affected: a reference (`&$x`) binds two *variable names* to one storage slot — function-scoped, per
-  [ADR 0007](0007-explicit-type-system.md) § 1 — not a second global name for a declaration.
+- Not affected: an `inout` binding (`inout T $x`) binds two *variable names* to one storage slot —
+  function-scoped, per [ADR 0007](0007-explicit-type-system.md) § 1 — not a second global name for a
+  declaration.
 - The one genuine need: [ADR 0007](0007-explicit-type-system.md)'s own *Negative* section flagged
   `array<array<int|string>> $rows`-style verbosity and named a `type` alias as unresolved relief — answered
   here, kept narrow (a synonym for a *type expression*, erased before codegen) so it cannot smuggle the

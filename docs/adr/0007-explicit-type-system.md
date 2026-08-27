@@ -73,8 +73,8 @@ changes is that *definite assignment is checked* — reading a binding on a path
 initialiser is a compile error rather than PHP's warning and a `null`. The same analysis covers a second
 binding kind, a property against its constructor ([0022](0022-definite-property-initialization.md)).
 
-A reference (`&$x`) binds two names to one slot, so both sides must declare **the same** type. An alias that
-widens or narrows is a diagnostic.
+An `inout` binding (`inout T $x`) binds two names to one slot, so both sides must declare **the same**
+type. An alias that widens or narrows is a diagnostic.
 
 ### 2. A declared type never changes; a value converts only on request
 

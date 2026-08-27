@@ -124,7 +124,7 @@ so you never have to open this file to route a topic.
 | `callable`, first-class callable syntax (`Foo::bar(...)`), `__invoke`, calling an object with `()` | [0027](0027-callable-is-closures-only.md) |
 | The pipeline operator, `\|>`, the hole `$_`, method chaining, a fluent interface on a `string`/`array<T>`, why PHP 8.5's `\|>` spelling does not work here, `#[Fluentable]` | [0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md) for the operator; [0063](0063-core-api-conventions.md) R17-R19 for why there are no methods on scalars |
 | Anonymous functions, `fn`, arrow functions, closure capture, `use (...)`, recursive closures | [0031](0031-callable-is-the-only-closure-type.md) |
-| By-reference parameters, `inout`, `&$x`, `foreach (… as &$v)`, whether a call site marks an argument it writes | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) |
+| By-reference parameters, `inout`, `foreach (… as inout $v)`, the retired `&$x` spelling, whether a call site marks an argument it writes | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) |
 | `__toString`/`Stringable`, `__destruct`, `__isset`/`__unset`, `unset()` on an object property, `__debugInfo`, `__set_state`, or "what happened to PHP magic method X" | [0028](0028-closing-the-remaining-magic-methods.md) |
 | `stdClass`, an anonymous object literal `{a: 1}`, the `object` type, an inline `{name: T}` shape type | [0036](0036-anonymous-object-shapes.md) |
 | Naming conventions, `PascalCase`/`camelCase`/`SCREAMING_SNAKE_CASE`, acronym spelling, identifier casing | [0029](0029-identifier-casing-is-checked.md) |

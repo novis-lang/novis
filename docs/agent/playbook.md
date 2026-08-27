@@ -477,7 +477,7 @@ is why" — is this file.
   the first sign is a conformance case that used to pass reporting an extra error.
 - **A value handed to an ADR 0014 § 1 `set` hook is *transferred*, so there is no "afterwards" in
   which to retain it.** Every other assignment target leaves the target itself owning what was
-  stored — a local's slot, a `&$x` pointee, a field, an array entry — so a lowering that wants a
+  stored — a local's slot, an `inout` pointee, a field, an array entry — so a lowering that wants a
   second owner of the stored value can retain once the store has run, and four of the five arms of
   `Lowering::lower_store` are safe that way. A `set` hook is a **call**, and `mwl-ir`'s argument
   convention gives the callee the reference: a retain emitted after that call can read a value the
@@ -872,8 +872,9 @@ is why" — is this file.
   `wsl.exe` belongs in PowerShell.
 - **`return $local;` retains nothing — it hands the binding's own reference out and tells
   `release_all_locals` to skip that name.** So any binding `release_all_locals` was never going to
-  release anyway silently loses the retain: a `&$x` parameter is a `Ty::Ref` cell, not refcounted,
-  and `return $s;` inside `function grow(string &$s)` handed the caller a value with no owner at
+  release anyway silently loses the retain: an `inout` parameter is a `Ty::Ref` cell, not
+  refcounted, and `return $s;` inside `function grow(inout string $s)` handed the caller a value
+  with no owner at
   all, which the caller's own discard then freed while the staged slot still pointed at it. `mwl
   run` printed the right answer and exited **127**. Two things are worth keeping from the hour it
   cost: an exit 127 is worth `git stash`-ing *before* you assume it is yours — this one predated
@@ -1831,11 +1832,11 @@ sibling in the same namespace unqualified.
   through `Helper::CallClosureArray` at a `callable`.
 - **A local's slot is re-pointed in four places in `mwl_ir::lower`, and a rule hooked into
   `bind_local_value` catches three.** That function is the funnel for `$x = e` and every
-  compound form; `write_back_holder` (a `&$x` argument's copy-back) and `write_back_array`
+  compound form; `write_back_holder` (an `inout` argument's copy-back) and `write_back_array`
   (`$x[0] = e`) `env.insert` directly and each needs the hook of its own. The fourth is a
-  *lowering's own* bookkeeping insert, and it is the one that bites: `foreach (… as &$v)`
+  *lowering's own* bookkeeping insert, and it is the one that bites: `foreach (… as inout $v)`
   re-points the array binding by hand, so with three hooks in place a nested
-  `foreach ($grid as … &$row) { foreach ($row as … &$cell) … }` updated the row and never
+  `foreach ($grid as … inout $row) { foreach ($row as … inout $cell) … }` updated the row and never
   told the grid — it builds, every single-level case passes, and the wrong answer is a
   silently un-updated outer array. `grep -n "env.insert(" crates/mwl-ir/src/lower/` is the
   whole check, and it is worth doing for any rule phrased as "whenever this name is

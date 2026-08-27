@@ -88,8 +88,8 @@ sharing no mutable heap state with its source.
   independent copies of it), and a cycle (`$a->self = $a`) terminates instead of recursing forever — the
   exact guarantee [ADR 0006](0006-isolated-script-execution.md) already stated for values crossing
   `spawn`/`spawn worker`.
-- **Refuses what has no meaning on the other side.** A closure (captures a heap and a scope), a reference
-  `&$x` (an alias into a specific frame), or an object holding a host handle is refused with a diagnostic
+- **Refuses what has no meaning on the other side.** A closure (captures a heap and a scope), an `inout`
+  binding (an alias into a specific frame), or an object holding a host handle is refused with a diagnostic
   naming the offending value and its path in the graph — not degraded into a stub, not silently dropped.
   [ADR 0007](0007-explicit-type-system.md) already notes this is mostly a **compile-time** rejection at the
   copy site given declared types; a `mixed`-typed value carrying one of these is where the runtime check in

@@ -112,8 +112,9 @@ bullets below are that ADR's rules, restated here because this is the boundary a
 
 - The copy is a **graph** copy, not a tree copy: shared substructure stays shared and cycles terminate, so
   `$a['self'] = $a` crosses instead of hanging.
-- **Closures, references (`&$x`) and objects holding a host handle cannot cross.** A closure captures a heap
-  and a scope, a reference is an alias, and an open file or child process is a handle owned by this process;
+- **Closures, `inout` bindings and objects holding a host handle cannot cross.** A closure captures a heap
+  and a scope, an `inout` binding is an alias, and an open file or child process is a handle owned by this
+  process;
   none of the three has a meaning in another heap. **The idiom for a script that needs a live handle inside
   the child is to pass what identifies it, not the handle itself** — a DSN, a path, a credential reference —
   as an ordinary `args:` value, and have the child open its own. This is not a workaround; it is the isolation model's actual point (no

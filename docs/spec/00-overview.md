@@ -166,7 +166,7 @@ foreach-target := type '$' identifier
 ```php
 foreach ($names as string $name) { … }
 foreach ($rows  as string $k => array<int> $row) { … }
-foreach ($items as string $k => int &$v) { $v += 1; }        // reference binds the value only, as in PHP
+foreach ($items as string $k => inout int $v) { $v += 1; }   // inout binds the value only, as in PHP
 ```
 
 Both the key and the value binding are typed — there is no untyped `foreach ($rows as $row)` left, the same
