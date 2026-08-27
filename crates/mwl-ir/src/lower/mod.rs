@@ -77,7 +77,7 @@ use mwl_syntax::ast::{
     TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::EnumTable;
-use mwl_types::expr_table::{ExprInfo, ExprTypeTable, ForeachDrive};
+use mwl_types::expr_table::{ArgSlot, ExprInfo, ExprTypeTable, ForeachDrive};
 use mwl_types::layout::ClassLayoutTable;
 use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -1204,6 +1204,17 @@ struct ArgSig {
     /// call has to supply. See [`Lowering::lower_call_args`] for what an
     /// omitted trailing argument becomes.
     defaults: Vec<Option<mwl_types::ConstArg>>,
+    /// Which parameter each **written** argument fills, in written order —
+    /// one entry per `mwl_syntax::ast::Arg`, copied off
+    /// [`mwl_types::expr_table::ResolvedCall::arg_slots`].
+    ///
+    /// This crate cannot re-derive it and the field exists for that reason
+    /// alone: a `name:` resolves against `MethodSig::param_names`, which no
+    /// pass below the checker holds. For an all-positional list it is the
+    /// identity mapping and says nothing new, which is why
+    /// [`Lowering::lower_call_args`] reads it uniformly rather than branching
+    /// on whether the call wrote a name at all.
+    arg_slots: Vec<ArgSlot>,
     /// Whether the callee is a Tier 0 `Core` member reached through the ADR
     /// 0002 helper convention, rather than a compiled MWL function.
     ///
@@ -1234,6 +1245,7 @@ impl ArgSig {
             by_ref: call.by_ref.clone(),
             variadic: call.variadic,
             defaults: call.defaults.clone(),
+            arg_slots: call.arg_slots.clone(),
             helper: false,
         }
     }

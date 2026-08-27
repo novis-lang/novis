@@ -1,0 +1,65 @@
+--TEST--
+a `name:` call argument is evaluated where it is written and lands in its own parameter's slot, so a call may reorder its arguments and skip a defaulted parameter in the middle (ADR 0063 R2, ADR 0011 § 1)
+--FILE--
+<?mwl
+final class Fmt {
+    // Three parameters, two of them defaulted, so a call can leave a hole
+    // anywhere in the list rather than only at its end.
+    public static function line(string $body, string $prefix = "> ", string $suffix = "!"): string {
+        return $prefix . $body . $suffix;
+    }
+    // Written order is observable: `tap` says when it ran.
+    public static function tap(string $v): string {
+        echo "tap:", $v, " ";
+        return $v;
+    }
+    public static function pair(string $a, string $b): string {
+        return $a . "/" . $b;
+    }
+}
+
+final class Box {
+    public string $tag;
+    public int $size;
+    public function constructor(string $tag = "t", int $size = 1) {
+        $this->tag = $tag;
+        $this->size = $size;
+    }
+    public function render(string $open = "[", string $close = "]"): string {
+        return $open . $this->tag . ":" . $this->size as string . $close;
+    }
+    public static function bump(int &$n, int $by = 1): void {
+        $n = $n + $by;
+    }
+}
+
+// A name fills its own parameter, so the middle default still applies.
+echo Fmt::line("a"), "\n";
+echo Fmt::line("a", suffix: "?"), "\n";
+// Every argument named, and in none of the declared orders.
+echo Fmt::line(suffix: "?", prefix: "* ", body: "a"), "\n";
+echo Fmt::line(body: "a", suffix: "?"), "\n";
+
+// Evaluation is in written order; placement is in parameter order. The two
+// disagree here, and both are visible on one line.
+echo Fmt::pair(b: Fmt::tap("B"), a: Fmt::tap("A")), "\n";
+
+// `new` takes names the same way — this one skips the first parameter.
+Box $b = new Box(size: 4);
+echo $b->render(), "\n";
+// So does an instance method, out of order.
+echo $b->render(close: ">", open: "<"), "\n";
+
+// A `&$n` parameter written second by name still aliases the local it names.
+int $n = 5;
+Box::bump(by: 3, n: $n);
+echo $n as string, "\n";
+--EXPECT--
+> a!
+> a?
+* a?
+> a?
+tap:B tap:A A/B
+[t:4]
+<t:4>
+8

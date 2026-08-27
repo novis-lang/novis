@@ -9,9 +9,13 @@
 use super::*;
 
 impl<'a> Lowering<'a> {
-    /// Lowers a resolved call's/`new`'s positional argument list against
-    /// `param_tys` — the already-resolved parameter types from
-    /// `mwl_types::expr_table::ResolvedCall`. An argument whose expected type
+    /// Lowers a resolved call's/`new`'s argument list against `param_tys` —
+    /// the already-resolved parameter types from
+    /// `mwl_types::expr_table::ResolvedCall` — placing each written argument at
+    /// the ABI position of the parameter it fills rather than at its own place
+    /// in the list. Which parameter that is comes from [`ArgSig::arg_slots`],
+    /// which owns why this crate cannot work it out itself. An argument whose
+    /// expected type
     /// [`Ty::is_refcounted`] and whose source expression [`is_aliasing_read`]
     /// (a bare variable or a compile-time-known property read) is retained
     /// before the call — the callee's own parameter is bound into its `Env`
@@ -35,14 +39,22 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics naming the unsupported shape for anything outside this slice's
-    /// scope: a named or spread argument (`mwl_types` itself doesn't fully
-    /// positionally type-check these against a signature yet — see its own
-    /// known gaps), more arguments than `sig` has parameters or a missing one
-    /// with no default (this crate trusts `mwl_types::check_program` already
-    /// enforced arity for a non-variadic signature), or a by-reference
-    /// argument that is neither a bare local nor a compile-time-known
-    /// property.
+    /// Panics naming the shape for anything this crate trusts
+    /// `mwl_types::check_program` to have refused before it ever got here: an
+    /// argument that reached no parameter at all, more arguments than `sig`
+    /// has parameters, a parameter no argument filled and that has no default,
+    /// or a by-reference argument that is neither a bare local nor a
+    /// compile-time-known property.
+    ///
+    /// # A `name:` argument
+    ///
+    /// Evaluation stays in **written** order — a named argument's own side
+    /// effects happen where the call site wrote it — while the value it
+    /// produces lands at its parameter's position, so the callee's typed slots
+    /// are filled in declaration order however the call spelled them. The
+    /// checker guarantees the shape this rests on: at most one argument per
+    /// fixed parameter, and every positional argument before the first `name:`
+    /// or `...` one, so nothing here has to refuse a mapping.
     ///
     /// # A variadic tail
     ///
@@ -53,10 +65,12 @@ impl<'a> Lowering<'a> {
     ///
     /// # Omitted arguments
     ///
-    /// A call may stop short of `sig`'s parameter list: every parameter past
-    /// the last written argument is materialized from its own default by
-    /// [`Self::emit_const_arg`], in declaration order, so the callee still
-    /// receives exactly one value per parameter.
+    /// A call may stop short of `sig`'s parameter list, and with a `name:` in
+    /// play it may skip one in the middle: every fixed parameter no argument
+    /// filled is materialized from its own default by
+    /// [`Self::emit_const_arg`], in declaration order and after every written
+    /// argument has been lowered, so the callee still receives exactly one
+    /// value per parameter.
     pub(super) fn lower_call_args(
         &mut self,
         args: &CallArgs,
@@ -72,11 +86,6 @@ impl<'a> Lowering<'a> {
                  — got {args:?}; see the crate docs' known gaps"
             );
         };
-        assert!(
-            list.iter().all(|a| a.name.is_none() && !a.spread),
-            "mwl-ir does not yet lower a named or spread call argument; see the crate docs' \
-             known gaps"
-        );
         // A variadic signature's last parameter is not one ABI argument per
         // written argument: it is one array holding all of them, built below.
         // `fixed` is how many parameters still map one-to-one.
@@ -84,114 +93,187 @@ impl<'a> Lowering<'a> {
             true => sig.param_tys.len() - 1,
             false => sig.param_tys.len(),
         };
+        assert_eq!(
+            list.len(),
+            sig.arg_slots.len(),
+            "mwl-ir: a resolved call records one argument slot per written argument — \
+             mwl_types is trusted to have mapped every one of them"
+        );
+        // One entry per fixed parameter, at its own ABI position — `None` until
+        // some argument fills it, and a `Vec` rather than a value because ADR
+        // 0063 R2's options bag flattens into one value per declared option.
+        let mut filled: Vec<Option<LoweredArgs>> = (0..fixed).map(|_| None).collect();
+        let mut tail = Vec::new();
+        for (arg, slot) in list.iter().zip(&sig.arg_slots) {
+            let index = match *slot {
+                ArgSlot::Param(index) | ArgSlot::Spread(index) => index,
+                ArgSlot::Unresolved => panic!(
+                    "mwl-ir: a written argument reached no parameter — this crate trusts \
+                     mwl_types::check_program already reported it"
+                ),
+            };
+            // Everything from the variadic parameter onward is one array,
+            // built once below out of every argument written into it.
+            if index >= fixed {
+                tail.push(arg);
+                continue;
+            }
+            let mut one = LoweredArgs::default();
+            self.lower_fixed_arg(arg, index, sig, checked_types, ownership, env, cur, &mut one);
+            filled[index] = Some(one);
+        }
         assert!(
-            sig.variadic || list.len() <= fixed,
+            sig.variadic || tail.is_empty(),
             "mwl-ir: a resolved call passes more arguments than its signature has parameters — \
              this crate trusts mwl_types::check_program already enforced arity"
         );
         let mut out = LoweredArgs::default();
-        for (index, (arg, &pty)) in list.iter().take(fixed).zip(&sig.param_tys).enumerate() {
-            // ADR 0063 R2's options bag: not one argument but one *per
-            // declared option*, so it never reaches `lower_checked_ty` — it
-            // has no IR type at all. See [`Self::lower_options_arg`].
-            if let CheckedTy::Options(options) = checked_types.get(pty) {
-                let options = options.clone();
-                let defaults = options_defaults(&sig.defaults, index);
-                self.lower_options_arg(
-                    Some(&arg.value),
-                    &options,
-                    defaults,
-                    checked_types,
-                    ownership,
-                    env,
-                    cur,
-                    &mut out,
-                );
-                continue;
-            }
-            // A `Core` parameter declared as a union has no single IR
-            // representation to expect, and needs none: the helper's slot is a
-            // tagged `Value` that `mwl-codegen` writes from the *argument's*
-            // own representation. See `ArgSig::helper`, which owns why the
-            // same declaration on a compiled MWL function is not lowerable.
-            let expected = match sig.expectation(index, checked_types) {
-                Some(expected) => expected,
+        for (index, one) in filled.into_iter().enumerate() {
+            match one {
+                Some(one) => out.values.extend(one.values),
                 None => {
-                    let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
-                    let aliasing = self.aliasing_read(&arg.value);
-                    self.account_for_arg(v, ty, ownership, aliasing, *cur);
-                    out.values.push(v);
-                    continue;
-                }
-            };
-            if sig.is_by_ref(index) {
-                out.values
-                    .push(self.stage_ref_arg(&arg.value, expected, env, cur));
-                continue;
-            }
-            let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
-            let aliasing = self.aliasing_read(&arg.value);
-            self.account_for_arg(v, ty, ownership, aliasing, *cur);
-            // A parameter declared wider than the argument -- `?T` or another
-            // union -- is `Ty::Tagged`, so the argument is widened into the
-            // slot's representation here. `Self::coerce` transfers whatever
-            // ownership `account_for_arg` just settled, so the order of the
-            // two does not matter.
-            let v = self.coerce(*cur, v, ty, expected, env);
-            out.values.push(v);
-        }
-        for (index, default) in sig.defaults.iter().enumerate().take(fixed).skip(list.len()) {
-            let default = default.as_ref().unwrap_or_else(|| {
-                panic!(
-                    "mwl-ir: parameter {index} was omitted at a call site and has no default — \
-                     this crate trusts mwl_types::check_program already enforced arity"
-                )
-            });
-            // A bag omitted whole is every one of its options taking its own
-            // default, in the same declared order a written one flattens in —
-            // which is exactly what `lower_options_arg` does with no written
-            // literal, so it is reached rather than repeated here. Going
-            // through it is also what gives an omitted option the same
-            // widening into its declared slot that a written one gets.
-            if let mwl_types::ConstArg::Options(options) = default {
-                let CheckedTy::Options(declared) = checked_types.get(sig.param_tys[index]) else {
-                    panic!(
-                        "mwl-ir: parameter {index} carries an options-bag default but its \
-                         declared type is not an options bag — mwl_types is trusted to record \
-                         the two together"
+                    self.lower_default_arg(
+                        index,
+                        sig,
+                        checked_types,
+                        ownership,
+                        env,
+                        cur,
+                        &mut out,
                     );
-                };
-                self.lower_options_arg(
-                    None,
-                    declared,
-                    options,
-                    checked_types,
-                    ownership,
-                    env,
-                    cur,
-                    &mut out,
-                );
-                continue;
+                }
             }
-            let (v, ty) = self.emit_const_arg(default, env, *cur);
-            // A materialized default is always freshly built, never a read of
-            // storage someone else owns — so `aliasing` is `false` here by
-            // construction.
-            self.account_for_arg(v, ty, ownership, false, *cur);
-            out.values.push(v);
         }
         if sig.variadic {
-            self.lower_variadic_tail(
-                &list[list.len().min(fixed)..],
-                fixed,
-                sig,
+            self.lower_variadic_tail(&tail, fixed, sig, ownership, env, cur, &mut out);
+        }
+        out
+    }
+
+    /// One written argument, lowered against the fixed parameter at `index` —
+    /// which is the parameter its `ArgSlot` named, not its own place in the
+    /// list. Everything it produces goes into `out`, which is that parameter's
+    /// own slice of the ABI argument list and nothing else's.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the same context `lower_call_args` itself threads; splitting it into a struct \
+                  would buy one call site nothing"
+    )]
+    fn lower_fixed_arg(
+        &mut self,
+        arg: &mwl_syntax::ast::Arg,
+        index: usize,
+        sig: &ArgSig,
+        checked_types: &TypeInterner,
+        ownership: ArgOwnership,
+        env: &Env,
+        cur: &mut BlockId,
+        out: &mut LoweredArgs,
+    ) {
+        // ADR 0063 R2's options bag: not one argument but one *per declared
+        // option*, so it never reaches `lower_checked_ty` — it has no IR type
+        // at all. See [`Self::lower_options_arg`].
+        if let CheckedTy::Options(options) = checked_types.get(sig.param_tys[index]) {
+            let options = options.clone();
+            let defaults = options_defaults(&sig.defaults, index);
+            self.lower_options_arg(
+                Some(&arg.value),
+                &options,
+                defaults,
+                checked_types,
                 ownership,
                 env,
                 cur,
-                &mut out,
+                out,
             );
+            return;
         }
-        out
+        // A `Core` parameter declared as a union has no single IR
+        // representation to expect, and needs none: the helper's slot is a
+        // tagged `Value` that `mwl-codegen` writes from the *argument's* own
+        // representation. See `ArgSig::helper`, which owns why the same
+        // declaration on a compiled MWL function is not lowerable.
+        let expected = match sig.expectation(index, checked_types) {
+            Some(expected) => expected,
+            None => {
+                let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
+                let aliasing = self.aliasing_read(&arg.value);
+                self.account_for_arg(v, ty, ownership, aliasing, *cur);
+                out.values.push(v);
+                return;
+            }
+        };
+        if sig.is_by_ref(index) {
+            out.values
+                .push(self.stage_ref_arg(&arg.value, expected, env, cur));
+            return;
+        }
+        let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
+        let aliasing = self.aliasing_read(&arg.value);
+        self.account_for_arg(v, ty, ownership, aliasing, *cur);
+        // A parameter declared wider than the argument -- `?T` or another
+        // union -- is `Ty::Tagged`, so the argument is widened into the slot's
+        // representation here. `Self::coerce` transfers whatever ownership
+        // `account_for_arg` just settled, so the order of the two does not
+        // matter.
+        let v = self.coerce(*cur, v, ty, expected, env);
+        out.values.push(v);
+    }
+
+    /// The fixed parameter at `index`, which no written argument filled,
+    /// materialized from its own recorded default.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the same context `lower_call_args` itself threads; splitting it into a struct \
+                  would buy one call site nothing"
+    )]
+    fn lower_default_arg(
+        &mut self,
+        index: usize,
+        sig: &ArgSig,
+        checked_types: &TypeInterner,
+        ownership: ArgOwnership,
+        env: &Env,
+        cur: &mut BlockId,
+        out: &mut LoweredArgs,
+    ) {
+        let default = sig.defaults[index].as_ref().unwrap_or_else(|| {
+            panic!(
+                "mwl-ir: parameter {index} was filled by no argument at a call site and has no \
+                 default — this crate trusts mwl_types::check_program already enforced arity"
+            )
+        });
+        // A bag omitted whole is every one of its options taking its own
+        // default, in the same declared order a written one flattens in —
+        // which is exactly what `lower_options_arg` does with no written
+        // literal, so it is reached rather than repeated here. Going through
+        // it is also what gives an omitted option the same widening into its
+        // declared slot that a written one gets.
+        if let mwl_types::ConstArg::Options(options) = default {
+            let CheckedTy::Options(declared) = checked_types.get(sig.param_tys[index]) else {
+                panic!(
+                    "mwl-ir: parameter {index} carries an options-bag default but its declared \
+                     type is not an options bag — mwl_types is trusted to record the two together"
+                );
+            };
+            self.lower_options_arg(
+                None,
+                declared,
+                options,
+                checked_types,
+                ownership,
+                env,
+                cur,
+                out,
+            );
+            return;
+        }
+        let (v, ty) = self.emit_const_arg(default, env, *cur);
+        // A materialized default is always freshly built, never a read of
+        // storage someone else owns — so `aliasing` is `false` here by
+        // construction.
+        self.account_for_arg(v, ty, ownership, false, *cur);
+        out.values.push(v);
     }
 
     /// ADR 0063's variadic tail as the single ABI argument it becomes: every
@@ -218,7 +300,7 @@ impl<'a> Lowering<'a> {
     )]
     fn lower_variadic_tail(
         &mut self,
-        rest: &[mwl_syntax::ast::Arg],
+        rest: &[&mwl_syntax::ast::Arg],
         fixed: usize,
         sig: &ArgSig,
         ownership: ArgOwnership,
@@ -226,6 +308,11 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         out: &mut LoweredArgs,
     ) {
+        assert!(
+            rest.iter().all(|arg| !arg.spread),
+            "mwl-ir does not yet lower a spread call argument's entries into a variadic tail; \
+             see the crate docs' known gaps"
+        );
         let expected = sig.expectation(fixed, self.checked_types);
         let mut entries = Vec::with_capacity(rest.len());
         for (index, arg) in rest.iter().enumerate() {
