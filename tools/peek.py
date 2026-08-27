@@ -47,6 +47,13 @@ first fetch correctly is what is available, and an outline is the map that does 
 `lower/mod.rs`'s 276 KB. Top-level seams only unless `--deep`. When a session has fetched the same
 file three times, the footer says so and names this flag.
 
+A second count rides the same ledger. **51% of `peek.py` calls carry a single target**, measured
+over the 32-session run of 2026-08-27, against 41 read calls a session -- so the tool that exists
+to batch is being called the way the thing it replaced was. A session's clock is 90% round trips,
+which makes four one-target calls in a row four of them for bytes one call would have carried, and
+the footer says so. Batch what you have already decided to read; never what the previous result is
+about to tell you.
+
 Nothing here judges or truncates silently. Every target that produced nothing says so on its own
 line, and a target that would blow the budget prints its size and refuses rather than quietly
 handing back half a file. The footer says what the call cost, because the point of the tool is
@@ -113,6 +120,12 @@ LEDGER = ROOT / ".agent-tmp" / "peek-ledger.json"
 #: Fetches of one file, in one session, past which the footer says so. Three is where reading
 #: the seams first (`--outline`) starts to beat guessing at another region.
 REFETCH_NOTE_AT = 3
+
+#: Single-target calls in a row past which the footer says so. Four, because a run of three is a
+#: plausible chain of genuinely undecided reads -- each target chosen by what the last one
+#: returned, which is the case this tool must not nag about. By four, a session is walking a file
+#: set it already knew when it started.
+SOLO_NOTE_AT = 4
 
 #: Idle time that ends a session when there is no loop driver to ask. `.agent-tmp` is never
 #: swept, so without a boundary the tally would be cumulative and the advice would fire on every
@@ -476,18 +489,24 @@ def outline(patterns: list[str], deep: bool) -> int:
     return 0
 
 
-def note_refetch(targets: list[str]) -> str | None:
-    """One line when this session has now fetched the same file `REFETCH_NOTE_AT` times.
+def note_reads(targets: list[str]) -> list[str]:
+    """What this session's reading has cost so far, as advice lines for this call.
 
-    A `peek.py` process cannot see the session it runs inside, so the count lives in a file. It
-    is advice and nothing else: it never refuses, never changes an exit code, and a missing or
-    unwritable ledger is silently no advice at all rather than an error on a read."""
-    paths = {split_target(t)[0] for t in targets}
-    paths = {p for p in paths if "*" not in p and "?" not in p}
-    if not paths:
-        return None
+    A `peek.py` process cannot see the session it runs inside, so both counts live in a file.
+    They share one read-modify-write of it on purpose: as two functions, whichever wrote second
+    would drop the other's tally.
+
+    *Re-fetches of one file* fire on every call past `REFETCH_NOTE_AT`, because the advice is to
+    land the next fetch better and there is a next fetch every time it fires.
+
+    *Single-target calls in a row* fire once per run of `SOLO_NOTE_AT` and then reset the run.
+    The run is itself the thing being reported, so repeating the line on every call past four
+    would be noise about a fact already stated.
+
+    Both are advice and nothing else: never a refusal, never an exit code, and a missing or
+    unwritable ledger is silently no advice rather than an error on a read."""
     now, key_now = time.time(), session_key()
-    record = {"session": key_now, "at": now, "files": {}}
+    record = {"session": key_now, "at": now, "files": {}, "solo": 0}
     try:
         if LEDGER.exists():
             held = json.loads(LEDGER.read_text(encoding="utf-8"))
@@ -496,9 +515,25 @@ def note_refetch(targets: list[str]) -> str | None:
                      and now - float(held.get("at", 0)) < LEDGER_IDLE_SECONDS)
             if fresh and isinstance(held.get("files"), dict):
                 record["files"] = held["files"]
+                record["solo"] = int(held.get("solo", 0) or 0)
     except (OSError, ValueError, TypeError):
         pass
 
+    lines = []
+
+    # A glob carries one target and reads a whole crate, so it is not a solo call in the sense
+    # that costs a round trip -- only its spelling looks like one.
+    globbed = any("*" in t or "?" in t for t in targets)
+    record["solo"] = 0 if (len(targets) > 1 or globbed) else record["solo"] + 1
+    if record["solo"] >= SOLO_NOTE_AT:
+        lines.append(
+            f"-- that is {record['solo']} calls in a row carrying one target. This tool takes as "
+            "many as you have questions, and a session's wall clock is very nearly its round-trip "
+            "count: `peek.py a.rs:120-160 b.rs:@sym c.md:\"## 4\"` is one call, not three.")
+        record["solo"] = 0
+
+    paths = {split_target(t)[0] for t in targets}
+    paths = {p for p in paths if "*" not in p and "?" not in p}
     hot = []
     tally = record["files"]
     for p in sorted(paths):
@@ -512,12 +547,13 @@ def note_refetch(targets: list[str]) -> str | None:
     except OSError:
         pass
 
-    if not hot:
-        return None
-    worst, count = max(hot, key=lambda x: x[1])
-    return (f"-- you have now fetched {worst} {count} times this session. "
+    if hot:
+        worst, count = max(hot, key=lambda x: x[1])
+        lines.append(
+            f"-- you have now fetched {worst} {count} times this session. "
             f"`python tools/peek.py --outline {worst}` prints its seams once, and every line of "
             "that is a `:@name` target that lands first time.")
+    return lines
 
 
 def main() -> int:
@@ -564,13 +600,13 @@ def main() -> int:
 
     # The ledger is written whatever `--quiet` says: a call that does not count itself makes the
     # next call's advice wrong. Only the advice line is what `--quiet` suppresses.
-    advice = note_refetch(opts.targets)
+    advice = note_reads(opts.targets)
     if not opts.quiet:
         out(f"-- peek: {len(opts.targets)} target(s) in one call, "
             f"{total:,} B (~{total / BYTES_PER_TOKEN:,.0f} tok)"
             + (f", {empty} produced nothing" if empty else ""))
-        if advice:
-            out(advice)
+        for line in advice:
+            out(line)
     return 0
 
 
