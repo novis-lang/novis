@@ -19,7 +19,8 @@ that, and this addresses both.
 
 The first is turns. A turn's time-to-first-token is ~80% of its clock and does not depend on what
 the turn does, so nine experiments run one at a time cost nine round trips for work that is
-embarrassingly parallel. Here they are one call.
+embarrassingly parallel. Here they are one call -- and inside it they run several at a time, as
+wide as `tools/machine.py` says this box may go, printed back in the order they were asked for.
 
 The second is correctness, and it matters more. **Priority 2 is PHP-compatible observable
 behaviour**, and a hand-written `php -r` twin is a *translation* -- performed under time pressure,
@@ -45,7 +46,11 @@ import os
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import machine  # noqa: E402  -- same directory; how wide anything runs has one home and it is there
 
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".agent-tmp"
@@ -101,50 +106,56 @@ def first_difference(a: str, b: str) -> str:
     return "    the outputs differ in trailing whitespace only"
 
 
-def one(path: Path, keep: bool, php: str) -> bool:
-    """Run one snippet. True when MWL and its twin agree, or when there is no twin to disagree."""
+def one(path: Path, keep: bool, php: str, stem: str) -> tuple[bool, list[str]]:
+    """Run one snippet. True when MWL and its twin agree, or when there is no twin to disagree.
+
+    Returns its output instead of printing it: several snippets run at once, and interleaved
+    blocks would be unreadable. `main` prints them back in the order they were asked for, so the
+    concurrency is invisible in the answer -- which is the only property it must have.
+
+    `stem` names this snippet's generated files. It is not `path.stem`, because two arguments may
+    share one and two workers writing `.agent-tmp/try-x.mwl` at the same time is a race.
+    """
+    out: list[str] = []
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
-        print(f"===== {path}  -- cannot read: {exc}")
-        return True
+        return True, [f"===== {path}  -- cannot read: {exc}"]
 
     parts = sections(text)
     title = parts.get("TEST", "").strip().split("\n")[0]
-    print(f"===== {path.name}" + (f"  -- {title[:90]}" if title else ""))
+    out.append(f"===== {path.name}" + (f"  -- {title[:90]}" if title else ""))
 
     body = parts.get("FILE")
     if body is None or not body.strip():
-        print("  no `--FILE--` section and no bare snippet -- nothing to run")
-        return True
+        out.append("  no `--FILE--` section and no bare snippet -- nothing to run")
+        return True, out
 
     TMP.mkdir(parents=True, exist_ok=True)
-    mwl_file = TMP / f"try-{path.stem}.mwl"
+    mwl_file = TMP / f"try-{stem}.mwl"
     mwl_file.write_text(body.lstrip("\n"), encoding="utf-8", newline="")
     mwl_out, mwl_code = run([str(BINARY), "run", str(mwl_file)], ROOT)
 
-    print(f"  mwl  exit {mwl_code}")
-    for line in mwl_out.rstrip("\n").split("\n"):
-        print(f"    | {line}")
+    out.append(f"  mwl  exit {mwl_code}")
+    out.extend(f"    | {line}" for line in mwl_out.rstrip("\n").split("\n"))
 
     diverges = parts.get("ORACLE-DIVERGES")
     if diverges is not None:
-        print(f"  oracle: deliberately diverges -- {diverges.strip().split(chr(10))[0][:90]}")
-        return True
+        out.append(f"  oracle: deliberately diverges -- {diverges.strip().split(chr(10))[0][:90]}")
+        return True, out
 
     twin = parts.get("ORACLE")
     if twin is None:
-        print("  no `--ORACLE--`: this ran MWL only. A twin here is what makes the answer")
-        print("  evidence rather than an opinion -- and makes the file a differential case.")
-        return True
+        out.append("  no `--ORACLE--`: this ran MWL only. A twin here is what makes the answer")
+        out.append("  evidence rather than an opinion -- and makes the file a differential case.")
+        return True, out
 
-    php_file = TMP / f"try-{path.stem}.php"
+    php_file = TMP / f"try-{stem}.php"
     php_file.write_text(twin.lstrip("\n"), encoding="utf-8", newline="")
     php_out, php_code = run([php, str(php_file)], ROOT)
 
-    print(f"  php  exit {php_code}")
-    for line in php_out.rstrip("\n").split("\n"):
-        print(f"    | {line}")
+    out.append(f"  php  exit {php_code}")
+    out.extend(f"    | {line}" for line in php_out.rstrip("\n").split("\n"))
 
     if not keep:
         for f in (mwl_file, php_file):
@@ -154,10 +165,10 @@ def one(path: Path, keep: bool, php: str) -> bool:
                 pass
 
     agree = mwl_out == php_out
-    print("  MATCH" if agree else "  DIFFER")
+    out.append("  MATCH" if agree else "  DIFFER")
     if not agree:
-        print(first_difference(mwl_out, php_out))
-    return agree
+        out.append(first_difference(mwl_out, php_out))
+    return agree, out
 
 
 def main() -> int:
@@ -182,16 +193,34 @@ def main() -> int:
         print("        so a snippet run right after a green verification needs nothing.")
         return 2
 
+    paths = [Path(name) for name in opts.files]
+    # One `.agent-tmp` name per snippet, unique even when two arguments share a stem.
+    stems, seen = [], set()
+    for i, p in enumerate(paths):
+        stems.append(p.stem if p.stem not in seen else f"{p.stem}-{i}")
+        seen.add(stems[-1])
+
+    # A snippet is a process pair with nothing shared, so the width is the machine's to decide and
+    # `tools/machine.py` decides it -- half the cores, at most one worker per snippet. This is the
+    # second half of "in one call": the call stopped being nine round trips when this file was
+    # written, and stops being nine sequential runs here.
+    jobs = machine.jobs("local", ceiling=len(paths), envs=("MWL_TRY_JOBS",))
+
     agreed = 0
-    for i, name in enumerate(opts.files):
-        if i:
-            print()
-        if one(Path(name), opts.keep, opts.php):
-            agreed += 1
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        # `map` keeps input order: the blocks print in the order they were asked for, whatever
+        # order they finished in.
+        for i, (agree, block) in enumerate(pool.map(
+                lambda a: one(a[0], opts.keep, opts.php, a[1]), zip(paths, stems))):
+            if i:
+                print()
+            print("\n".join(block))
+            agreed += bool(agree)
 
     print()
     twins = len(opts.files) - agreed
     print(f"-- try: {len(opts.files)} snippet(s) in one call"
+          + (f", {jobs} at a time" if jobs > 1 else "")
           + (f", {twins} disagreeing with its twin" if twins else ""))
     return 0
 
