@@ -53,7 +53,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. It also carries the **driver's** lines for that session — its `loop_console` and `loop_output` events are the acceptance check that judged it, verbatim — so one session's file answers both "what did the agent do" and "why was it not green". |
 | `.loop/logs/<run>-console.log` | The whole run as it appeared, plain text, **every line stamped to the millisecond**: driver phases, the rendered session transcripts, and the full stdout and stderr of every subprocess the driver ran. The console shows a green check as one line and a failed one as its first line; this file has all of it. Open this one first when a run went wrong. Not a transcript — `loop-stats.py` skips it. |
 | `.loop/logs/<run>-NNNN.subagents/` | Every subagent that session spawned, copied out of the harness's own transcript directory. A subagent's turns never appear in the parent's stream — only the call and the report it returned do — so without this a delegated read is a session that did a great deal with very few calls. Absent when nothing was delegated. |
-| `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. |
+| `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. Pressing `s` at the console does the same thing. |
+| `.loop/retry` | Create this to end a usage-limit wait immediately — the same as pressing `r`. Deleted as it is consumed, and cleared again when a wall goes up, so a request can only ever end the wait it was made during. |
 | `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
 
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
@@ -116,9 +117,19 @@ A refused session is therefore neither a failure nor a stall. The driver sleeps 
 re-runs the session that was refused: it does not spend one of `--max-sessions`, does not count toward
 `--max-retries`, and keeps its own log index so the refused transcript is not overwritten by its
 replacement. The deadline goes to `.loop/limit.json`, so a driver killed during the wait does not restart
-into the same wall, and `.loop/stop` is honoured while a run is parked as well as between sessions.
-`--max-limit-wait` bounds the sleep — 6h by default, which a five-hour window fits inside and a weekly one
-does not, so a weekly limit ends the run naming the time to come back rather than sleeping for days.
+into the same wall. `--max-limit-wait` bounds the sleep — 6h by default, which a five-hour window fits
+inside and a weekly one does not, so a weekly limit ends the run naming the time to come back rather than
+sleeping for days.
+
+**And the wait is interruptible, because the thing that ends one early happens outside this driver.**
+Logging into another account is not something the loop takes part in; it can only be *told*. So a parked
+run offers two keys, on their own row under the status line: **`r`** drops the wall now and runs the
+session it refused, and **`s`** stops the run after the current session. `s` toggles and is acted on five
+seconds late, so pressing it by accident costs a keypress rather than the rest of a run; `r` is offered
+only while a wall is up, because a wall is the only thing it ends. Each has a file behind it —
+`.loop/retry` and `.loop/stop` — for a run started with its output redirected, where there is no console
+to type at. If the account turns out to be limited after all, the retried session is refused again and a
+new wall goes up: one launch spent, and then it waits properly.
 
 Nothing landed was ever lost to this, before or after: every session commits its own slices, so a wall
 costs only the slice in flight. `.loop/interrupted.json` is what keeps even that from costing twice — it
@@ -226,8 +237,10 @@ it: the spinner, where the run is (`session 3/12`), what it is doing (`orienting
 the one phase that also carries `31/94 33%`, because it is the only one whose size is known before it
 starts — `loop-goal.toml` is a fixed list, the legs are known, and the two memos say up front what will
 be skipped. A session shows a running tool-call count and no percentage rather than a number that
-pretends to be one. The line paints only on a terminal, so a redirected run, `nohup` or CI is unchanged;
-`--no-status` turns it off on a terminal too.
+pretends to be one. Under it sits one more row naming the keys that do something at that moment — `[s]`
+always, `[r]` only while a usage limit is being waited out — which is where those two are documented at
+the point of use rather than here. The block paints only on a terminal, so a redirected run, `nohup` or
+CI is unchanged; `--no-status` turns it off on a terminal too, and the control files still work.
 
 `--permission-mode` defaults to `bypassPermissions`, and that is not an incidental default. A `claude -p`
 session auto-denies any tool call that would otherwise prompt, so under `default` an unattended session
@@ -236,7 +249,8 @@ consecutive no-commit stalls having done nothing. Every session in the loop ther
 against this working tree; that is the cost of the design, and the reason `.loop/stop` and Ctrl-C are both
 documented above.
 
-Watch it with `tail -f .loop/log.md` (`Get-Content .loop/log.md -Wait` in PowerShell). Stop it by creating
+Watch it with `tail -f .loop/log.md` (`Get-Content .loop/log.md -Wait` in PowerShell). Stop it by pressing
+`s` (press it again within five seconds to take it back) or by creating
 `.loop/stop`, which finishes the current session first, or with Ctrl-C, which kills it immediately — the
 repo is still consistent either way, because every session commits before it exits. Both paths drop
 `.loop/running` on the way out; if a hard kill or a reboot leaves one behind, delete it.

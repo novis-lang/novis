@@ -18,6 +18,7 @@ an exact or ordered-substring match on real output.
 
 from __future__ import annotations
 
+import _thread
 import argparse
 import hashlib
 import json
@@ -57,12 +58,26 @@ LOGDIR = RUNDIR / "logs"
 LEDGER = RUNDIR / "log.md"
 STATUS = RUNDIR / "status.txt"
 STOP = RUNDIR / "stop"
+RETRY = RUNDIR / "retry"
 RUNNING = RUNDIR / "running"
 GOALCACHE = RUNDIR / "goal-green.json"
 LIMIT = RUNDIR / "limit.json"
 INTERRUPTED = RUNDIR / "interrupted.json"
 
 IS_WINDOWS = os.name == "nt"
+
+# The console's key reader. The two platforms have nothing in common here and neither module
+# exists on the other one; `Control` below is the only thing that touches either.
+if IS_WINDOWS:
+    import msvcrt
+
+    select = termios = tty = None
+else:
+    import select
+    import termios
+    import tty
+
+    msvcrt = None
 
 
 # --------------------------------------------------------------------------------- console
@@ -141,6 +156,7 @@ class StatusLine:
         self.sep = " | "
         self.cut = "..."
         self.bar = "-"
+        self.dash = " -- "
         self.scope = ""
         self.phase = ""
         self.detail = ""
@@ -149,7 +165,7 @@ class StatusLine:
         self.calls = 0
         self.since = time.monotonic()
         self._frame = 0
-        self._drawn = False
+        self._rows = 0  # rows the live block owns right now; 0 when it is not on screen
         self._stop = threading.Event()
         self._thread = None
 
@@ -164,6 +180,7 @@ class StatusLine:
         # is still what a raw `cmd.exe` hands back.
         if "utf" in (getattr(sys.stdout, "encoding", "") or "").lower():
             self.frames, self.sep, self.cut, self.bar = self.BRAILLE, " · ", "…", "─"
+            self.dash = " — "
         self.enabled = True
         self.since = time.monotonic()
         self._thread = threading.Thread(target=self._tick, daemon=True)
@@ -178,6 +195,11 @@ class StatusLine:
 
     def _tick(self):
         while not self._stop.wait(self.INTERVAL):
+            # Outside the lock, and it has to stay outside: `poll` says things, and saying
+            # anything takes this lock. Every path in this file therefore takes CONTROL's lock
+            # before the ticker's, which is the whole of the argument that neither waits on the
+            # other.
+            CONTROL.poll()
             with self.lock:
                 self._frame += 1
                 self.draw()
@@ -257,34 +279,218 @@ class StatusLine:
         what should catch the eye is the status, not the furniture around it."""
         return C.paint(self.bar * max(18, self.width() - 1), C.GRAY)
 
+    def keys(self):
+        """The row under the status line: what a keypress would do *right now*.
+
+        Contextual on purpose, and that is the whole design. `[r]` appears only while a usage wall
+        is up, because a wall is the only thing it ends -- offered at any other time it is a key
+        that silently does nothing. `[s]` is always there, and once armed the row says so and says
+        how to take it back: a keypress that cannot be undone is worse than no keypress at all.
+
+        Painted as one colour rather than per-word, so what a narrow terminal truncates is text
+        and never half an escape sequence."""
+        bits = []
+        if CONTROL.parked:
+            bits.append("[r] retry now")
+        if CONTROL.stop:
+            grace = CONTROL.stop_in()
+            bits.append(f"[s] stopping in {grace:.0f}s{self.dash}press s to cancel" if grace > 0
+                        else f"[s] stopping after this session{self.dash}press s to cancel")
+        else:
+            bits.append("[s] stop after this session")
+        body = self.sep.join(bits)
+        room = max(18, self.width() - 3)
+        if len(body) > room:
+            body = body[: room - len(self.cut)] + self.cut
+        return "  " + C.paint(body, C.YELLOW if CONTROL.stop else C.GRAY)
+
+    def rows(self):
+        """How tall the live block is: the rule and the status line always, the key row only when
+        there is a console to type at. Both `draw` and `erase` read this, and a height that
+        changes mid-run is handled by giving the old block back before claiming the new one."""
+        return 3 if CONTROL.tty else 2
+
     def erase(self):
-        if self._drawn:
-            # Both rows cleared, cursor left on the rule's row -- which is where the next line of
+        if self._rows:
+            # Every row cleared, cursor left on the rule's row -- which is where the next line of
             # output belongs, exactly as it was when this line was one row tall.
-            sys.stdout.write("\r\033[2K\033[A\r\033[2K")
+            sys.stdout.write("\r\033[2K" + "\033[A\r\033[2K" * (self._rows - 1))
             sys.stdout.flush()
-            self._drawn = False
+            self._rows = 0
 
     def draw(self):
-        """Repaint both rows IN PLACE.
+        """Repaint every row of the live block IN PLACE.
 
         The spinner redraws every 0.12s, so this must consume no rows it does not already own: a
         `\\n` in here is a newline twelve times a second, and the first version of the rule had one
-        -- the console scrolled itself to death instead of repainting. So the second row is claimed
-        exactly once, by the one `\\n` under `not self._drawn`, and every frame after that moves
-        between the two rows with `ESC [ A` and `ESC [ B`, which do not scroll. `erase()` gives the
-        row back. Net rows per printed line is what it always was: one, plus the live block."""
+        -- the console scrolled itself to death instead of repainting. So the rows below the
+        cursor's are claimed exactly once, by the `\\n`s under `not self._rows`, and every frame
+        after that moves between them with `ESC [ A` and `ESC [ B`, which do not scroll. `erase()`
+        gives them back. Net rows per printed line is what it always was: one, plus the block."""
         if not self.enabled:
             return
-        out = "\n" if not self._drawn else ""  # claim the status row, once
-        out += "\033[A\r\033[2K" + self.divider()  # up to the rule
-        out += "\033[B\r\033[2K" + self.compose()  # back down to the status line
+        want = self.rows()
+        if self._rows and self._rows != want:
+            self.erase()  # the block changed height; hand the old one back before claiming this
+        out = "\n" * (want - 1) if not self._rows else ""  # claim the rows under this one, once
+        out += f"\033[{want - 1}A\r\033[2K" + self.divider()  # up to the rule
+        for line in [self.compose()] + ([self.keys()] if want > 2 else []):
+            out += "\033[B\r\033[2K" + line  # and back down, one row at a time
         sys.stdout.write(out)
         sys.stdout.flush()
-        self._drawn = True
+        self._rows = want
+
+
+class Control:
+    """`r` and `s`, from the console or from `.loop/`.
+
+    A run parked behind a usage wall is waiting on a clock, and the one thing that clock cannot
+    know is that the account behind it has changed. Logging in somewhere else is not something
+    this driver takes part in, so the wait is interruptible: **`r` retries now**, and **`s` stops
+    the run** after the current session, exactly as `.loop/stop` does.
+
+    Three rules the shape follows, each of which is a mistake it would otherwise make:
+
+    * **`r` exists only while a wall is up.** It has nothing to end at any other time, and a key
+      that silently does nothing is a key that gets pressed twice and then distrusted.
+    * **`s` is undoable.** Pressed by accident it would otherwise cost the rest of a run, so it
+      toggles, and it is acted on `STOP_GRACE` seconds late -- long enough that even a parked run,
+      which reads the flag four times a second, can be told to carry on.
+    * **A file does everything a key does.** A keypress needs a terminal, and an overnight run is
+      often started with its output redirected, where there is none; `.loop/retry` and
+      `.loop/stop` work from another terminal, over SSH and under `nohup`.
+
+    Read from the ticker thread, which is awake eight times a second anyway, AND from `wait()` in
+    the main thread -- so the keys still work under `--no-status`, where there is no ticker. Never
+    a blocking read: `kbhit`/`select` answer whether anything has been typed, and nothing is taken
+    off stdin that was not. The child gets its own stdin pipe (see `run_session`) precisely so that
+    this console belongs to the driver alone.
+    """
+
+    #: How long an armed stop waits before it is acted on. It is the cancel window, so it is
+    #: measured in "noticed the wrong key and pressed it again", not in machine time.
+    STOP_GRACE = 5.0
+
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.stop = False
+        self.stop_at = 0.0  # monotonic; before this, an armed stop is still cancellable
+        self.retry = False
+        self.parked = False  # a wall is up, so `r` has something to end
+        self.tty = False
+        self.saved = None  # POSIX terminal settings, put back by `disable`
+
+    # -- the terminal ------------------------------------------------------------------
+
+    def enable(self):
+        """Take the console, if there is one. On POSIX that means cbreak: a key has to arrive
+        without an Enter behind it, and the line discipline would otherwise hold it until one
+        came. All of this is optional -- no terminal simply means the files are the channel."""
+        if self.tty or not sys.stdin or not sys.stdin.isatty():
+            return
+        if not IS_WINDOWS:
+            if termios is None:
+                return
+            try:
+                self.saved = termios.tcgetattr(sys.stdin)
+                tty.setcbreak(sys.stdin.fileno())
+            except Exception:
+                self.saved = None
+                return
+        self.tty = True
+
+    def disable(self):
+        """Give the terminal back exactly as it was found. Called from `main`'s `finally`, so
+        neither a crash nor a Ctrl-C can leave a shell sitting in cbreak with no echo."""
+        if self.saved is not None and termios is not None:
+            try:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.saved)
+            except Exception:
+                pass
+        self.saved = None
+        self.tty = False
+
+    # -- what has been typed -----------------------------------------------------------
+
+    def _typed(self):
+        """Whatever is already sitting in the console buffer, or nothing at all. Never blocks."""
+        keys = []
+        if not self.tty:
+            return keys
+        try:
+            if IS_WINDOWS:
+                while msvcrt.kbhit():
+                    ch = msvcrt.getwch()
+                    if ch in ("\x00", "\xe0"):  # a function or arrow key: drop its second half
+                        msvcrt.getwch()
+                        continue
+                    keys.append(ch)
+            else:
+                while select.select([sys.stdin], [], [], 0)[0]:
+                    ch = sys.stdin.read(1)
+                    if not ch:
+                        break
+                    keys.append(ch)
+        except Exception:
+            # A console that cannot be read is not a run that should end. Fall back to the files.
+            self.tty = False
+        return keys
+
+    def poll(self):
+        """One non-blocking look at the console. Called from the ticker and from `wait`."""
+        with self.lock:
+            for ch in self._typed():
+                if ch == "\x03":
+                    # In some console modes Windows hands Ctrl-C to `getwch` as a character
+                    # instead of raising. Put it back where the person pressing it meant it to go.
+                    _thread.interrupt_main()
+                    continue
+                key = ch.lower()
+                if key == "s":
+                    self.stop = not self.stop
+                    self.stop_at = time.monotonic() + self.STOP_GRACE
+                    say(f"   [s] stop requested -- the run ends after the current session, "
+                        f"unless s is pressed again within {self.STOP_GRACE:.0f}s" if self.stop
+                        else "   [s] stop cancelled -- the run carries on",
+                        C.YELLOW if self.stop else C.GREEN)
+                elif key == "r":
+                    if self.parked:
+                        self.retry = True
+                        say("   [r] retry requested -- the wait ends now", C.GREEN)
+                    else:
+                        say("   [r] does nothing right now; it ends a usage limit wait", C.GRAY)
+
+    # -- what the driver asks ----------------------------------------------------------
+
+    def stop_in(self):
+        """Seconds an armed stop still has left to be cancelled in, or 0 once it is past."""
+        return max(0.0, self.stop_at - time.monotonic()) if self.stop else 0.0
+
+    def stop_reason(self):
+        """Why the run should end now, or "". The grace is why this is not simply the flag."""
+        if self.stop and self.stop_in() <= 0:
+            return "s was pressed at the console"
+        if STOP.exists():
+            return f"{rel_to_root(STOP)} present"
+        return ""
+
+    def pending(self):
+        """Is there a request the caller would act on this instant? Non-consuming, and it asks
+        `stop_reason` rather than the flag so that a stop still inside its cancel window does not
+        spin `wait` in a loop of instant returns."""
+        return bool(self.stop_reason()) or self.retry or RETRY.exists()
+
+    def take_retry(self):
+        """Consume a retry request. The file goes with it, so one request cannot end two walls."""
+        with self.lock:
+            asked = self.retry or RETRY.exists()
+            self.retry = False
+        RETRY.unlink(missing_ok=True)
+        return asked
 
 
 TICKER = StatusLine()
+CONTROL = Control()
 
 
 # --------------------------------------------------------------------------- the console log
@@ -412,15 +618,22 @@ def say(text="", colour=None, driver=False):
         TICKER.draw()
 
 
-def wait(seconds, label):
+def wait(seconds, label, until=None):
     """`time.sleep`, with the status line counting it down. A silent multi-minute sleep is the one
-    pause a watcher cannot tell from a crash."""
+    pause a watcher cannot tell from a crash.
+
+    `until` is a predicate looked at four times a second; a true answer ends the wait there and
+    then. That is what makes a keypress during a usage wall feel immediate rather than landing at
+    the end of whatever slice happened to be in flight."""
     end = time.monotonic() + seconds
     while True:
         left = end - time.monotonic()
         if left <= 0:
             return
-        TICKER.set(detail=f"{label}{TICKER.sep}{mmss(left)} left")
+        CONTROL.poll()
+        if until and until():
+            return
+        TICKER.set(detail=f"{label}{TICKER.sep}{hms(left)} left")
         time.sleep(min(0.25, left))
 
 
@@ -1654,13 +1867,29 @@ def wait_out_limit(limit, opts):
     remember_limit(limit)
     ledger(f"       usage wall: {limit.describe()}; waiting {hms(left)}")
     TICKER.set(phase="waiting out the usage limit", detail=limit.describe())
-    # In slices, because a wall is hours long and that is exactly when somebody decides to take
-    # the tree back. `.loop/stop` has to work while the run is parked, not only between sessions.
-    while left > 0:
-        if STOP.exists():
-            return f"{rel_to_root(STOP)} appeared while waiting out the usage limit"
-        wait(min(30, left), f"usage window reopens {limit.when()}")
-        left = limit.left() + 60
+    # A request that arrived before this wall existed is not a request about it -- `r` is offered
+    # only while one is up, and the file follows the key rather than outliving it.
+    RETRY.unlink(missing_ok=True)
+    step(f"press r to retry now -- after switching accounts, say -- or s to stop the run. From "
+         f"another terminal: create {rel_to_root(RETRY)} or {rel_to_root(STOP)}", C.CYAN)
+    # In slices, and every one of them interruptible: a wall is hours long, which is exactly when
+    # somebody decides to take the tree back or to carry on under a different account. Both
+    # controls therefore have to work while the run is parked, not only between sessions.
+    CONTROL.parked = True
+    try:
+        while left > 0:
+            stop = CONTROL.stop_reason()
+            if stop:
+                return f"{stop}, while waiting out the usage limit"
+            if CONTROL.take_retry():
+                step("retrying now at your request -- the wall is dropped, and the session it "
+                     "refused runs next", C.GREEN)
+                LIMIT.unlink(missing_ok=True)
+                return ""
+            wait(min(30, left), f"usage window reopens {limit.when()}", until=CONTROL.pending)
+            left = limit.left() + 60
+    finally:
+        CONTROL.parked = False
     LIMIT.unlink(missing_ok=True)
     step(f"the usage window has reopened -- {limit.when()} has passed", C.GREEN)
     return ""
@@ -1745,7 +1974,11 @@ def run_session(run_id, index, prompt_text, opts, renderer):
     proc = subprocess.Popen(
         cmd,
         cwd=ROOT,
-        stdin=subprocess.PIPE if pack else None,
+        # Always a pipe, pack or no pack. Inheriting this driver's stdin would hand the console to
+        # the child, and the console is where `r` and `s` are typed -- a session started without a
+        # pack would silently eat them. Closed immediately when there is nothing to send: the
+        # prompt is on argv, so the child never wanted a stdin of its own in the first place.
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=None,
         encoding="utf-8",
@@ -1754,6 +1987,11 @@ def run_session(run_id, index, prompt_text, opts, renderer):
     )
     if pack:
         threading.Thread(target=feed, args=(proc.stdin, pack), daemon=True).start()
+    elif proc.stdin:
+        try:
+            proc.stdin.close()
+        except OSError:
+            pass
     assert proc.stdout is not None
     try:
         for line in proc.stdout:
@@ -1928,6 +2166,7 @@ def main():
         return run_cli()
     finally:
         TICKER.stop()
+        CONTROL.disable()
         CONSOLE.close()
 
 
@@ -2060,6 +2299,7 @@ def run_cli():
         return 2
     if not claim_run(opts):
         return 2
+    CONTROL.enable()
     try:
         drive(opts, goal)
     except KeyboardInterrupt:
@@ -2089,6 +2329,16 @@ def drive(opts, goal):
     ledger("")
     ledger(f"## run started {datetime.now():%Y-%m-%d %H:%M} (max {opts.max_sessions}, logs {run_id}-*)")
     say(f"console log: {rel_to_root(LOGDIR / f'{run_id}-console.log')}", C.GRAY, driver=True)
+    # The key row under the status line says this continuously and says it in context, so it is
+    # only worth a line when that row is not there -- which is a redirected STDOUT, not a missing
+    # stdin. The two are independent: keys are readable whenever stdin is a console, and the row
+    # is painted only when stdout is one, so `nohup` gets the files and `loop.py > log` gets both.
+    if not (CONTROL.tty and TICKER.enabled):
+        say("controls: " + ("press r to end a usage wait early, s to stop after the current "
+                            "session" if CONTROL.tty else
+                            f"create {rel_to_root(RETRY)} to end a usage wait early, "
+                            f"{rel_to_root(STOP)} to stop after the current session"),
+            C.GRAY, driver=True)
 
     # Every acceptance check builds the debug CLI, so from the second session on it is current at
     # the tree the next session starts from -- and orient.py's closing block tells the session so,
@@ -2112,8 +2362,9 @@ def drive(opts, goal):
         step(f"{rel_to_root(LIMIT)} says {wall.describe()}", C.YELLOW)
 
     while served < opts.max_sessions:
-        if STOP.exists():
-            reason = f"{STOP.relative_to(ROOT).as_posix()} present"
+        asked = CONTROL.stop_reason()
+        if asked:
+            reason = asked
             break
 
         if wall:
