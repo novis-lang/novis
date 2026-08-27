@@ -9,6 +9,7 @@
 
 mod decl;
 mod expr;
+mod inout;
 mod stmt;
 mod ty;
 

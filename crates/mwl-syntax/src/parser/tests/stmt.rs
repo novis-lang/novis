@@ -72,7 +72,7 @@ fn foreach_with_typed_key_and_value() {
     let StmtKind::Foreach {
         key,
         value,
-        value_by_ref,
+        value_inout,
         ..
     } = s.kind
     else {
@@ -80,33 +80,33 @@ fn foreach_with_typed_key_and_value() {
     };
     assert!(key.is_some());
     assert!(value.ty.is_some());
-    assert!(!value_by_ref);
+    assert!(!value_inout);
 }
 
 #[test]
 fn foreach_value_only_by_reference() {
-    let s = parse_stmt_ok("foreach ($items as int &$v) { }");
+    let s = parse_stmt_ok("foreach ($items as inout int $v) { }");
     let StmtKind::Foreach {
-        key, value_by_ref, ..
+        key, value_inout, ..
     } = s.kind
     else {
         panic!("expected a foreach: {s:?}");
     };
     assert!(key.is_none());
-    assert!(value_by_ref);
+    assert!(value_inout);
 }
 
 #[test]
 fn foreach_key_and_by_reference_value() {
-    let s = parse_stmt_ok("foreach ($items as string $k => int &$v) { }");
+    let s = parse_stmt_ok("foreach ($items as string $k => inout int $v) { }");
     let StmtKind::Foreach {
-        key, value_by_ref, ..
+        key, value_inout, ..
     } = s.kind
     else {
         panic!("expected a foreach: {s:?}");
     };
     assert!(key.is_some());
-    assert!(value_by_ref);
+    assert!(value_inout);
 }
 
 #[test]

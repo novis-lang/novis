@@ -352,6 +352,10 @@ pub struct Arg {
     pub name: Option<Span>,
     /// Whether this argument is `...value`.
     pub spread: bool,
+    /// Whether this argument is written `inout value` — ADR 0107 § 2's
+    /// call-site marker. Whether it is *correct* here needs the callee's
+    /// signature, so both mistakes are `mwl_types`' (E0713/E0714).
+    pub inout: bool,
     /// The argument's value.
     pub value: Expr,
     /// The whole argument, name and all.
@@ -486,8 +490,10 @@ pub struct Param {
     /// The declared type, or `None` if omitted (a diagnostic was already
     /// reported for the omission).
     pub ty: Option<Type>,
-    /// Whether this parameter binds by reference (`&$x`).
-    pub by_ref: bool,
+    /// Whether this parameter binds by reference — `inout int $x`, ADR 0107
+    /// § 1. The mechanism is copy-in/copy-out at the call site, which is why
+    /// the word is `inout` rather than `ref`.
+    pub inout: bool,
     /// Whether this is a variadic parameter (`...$x`).
     pub variadic: bool,
     /// The parameter's name, `$`-sigil included.
@@ -987,15 +993,15 @@ pub struct SwitchCase {
 pub enum DestructureElement {
     /// An empty slot, `[, $b] = …` — skips one position without binding it.
     Skip,
-    /// A typed leaf binding: `(key '=>')? type '&'? '$' identifier`.
+    /// A typed leaf binding: `(key '=>')? 'inout'? type '$' identifier`.
     Leaf {
         /// `key =>`, if present.
         key: Option<Expr>,
         /// The declared type, or `None` if omitted (diagnostic already
         /// reported).
         ty: Option<Type>,
-        /// Whether this leaf binds by reference (`&$x`).
-        by_ref: bool,
+        /// Whether this leaf binds by reference (`inout int $a`).
+        inout: bool,
         /// The bound variable's name, `$`-sigil included.
         name: Span,
         /// The whole element.
@@ -1099,7 +1105,7 @@ pub enum StmtKind {
         body: Box<Stmt>,
     },
     /// `foreach (subject as key? value) body`, ADR 0007 § 3.2's mandatory
-    /// typed bindings. `value_by_ref` is the one place a reference marker
+    /// typed bindings. `value_inout` is the one place a reference marker
     /// may appear; a key binding never carries one.
     Foreach {
         /// The value being iterated.
@@ -1108,8 +1114,8 @@ pub enum StmtKind {
         key: Option<ForeachBinding>,
         /// The value binding.
         value: ForeachBinding,
-        /// Whether the value binds by reference (`&$v`).
-        value_by_ref: bool,
+        /// Whether the value binds by reference (`inout int $v`).
+        value_inout: bool,
         /// The loop body.
         body: Box<Stmt>,
     },
@@ -1375,8 +1381,6 @@ pub struct PropertyHook {
     pub attributes: Vec<AttributeGroup>,
     /// Whether this is `get` or `set`.
     pub kind: PropertyHookKind,
-    /// `&get` — the hook returns a reference. Never set for `set`.
-    pub by_ref: bool,
     /// `set(Type $name)`'s parameter, if given explicitly. Unlike an
     /// ordinary [`Param`], its type may be omitted with no diagnostic —
     /// PHP 8.4 infers it from the property's own type.
@@ -1439,8 +1443,6 @@ pub struct MethodMember {
     /// Visibility, `static`, `abstract`, `final`, in any combination the
     /// parser accepts permissively.
     pub modifiers: Vec<Modifier>,
-    /// Whether the method returns by reference.
-    pub by_ref: bool,
     /// The method's name (no sigil) — a keyword-shaped spelling (`list`,
     /// `default`, ...) is accepted, same as a member name after `->`/`::`.
     pub name: Span,

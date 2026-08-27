@@ -337,6 +337,24 @@ pub mod code {
     /// `@` among the constructs that decision closes. `try`/`catch` is the
     /// replacement, and it is the only one.
     pub const E_SUPPRESSION_UNSUPPORTED: Code = Code::new("E0236");
+    /// `&` written where PHP puts a by-reference marker — a parameter
+    /// (`f(int &$x)`), a `foreach` value binding (`foreach ($xs as int &$v)`),
+    /// a destructuring leaf (`[int &$a] = $pair`), a by-reference return
+    /// (`function &f()`) or a by-reference property hook (`&get`).
+    ///
+    /// [ADR 0107](../../../docs/adr/0107-by-reference-parameters-are-spelled-inout-at-both-ends.md)
+    /// retires `&` as a by-reference marker: the two binding modes it spelled
+    /// are written `inout`, before the type and again at the call site, and
+    /// the two *returning* forms have no replacement at all — MWL hands back
+    /// a value, never a place. `&` keeps its other jobs unchanged, so `$a &
+    /// $b` is still bitwise AND and `A&B` is still an intersection type.
+    ///
+    /// The spellings refused because the language has no such thing keep
+    /// their own codes and are deliberately not this one:
+    /// [`E_ASSIGN_BY_REFERENCE`], [`E_ARRAY_ELEMENT_BY_REFERENCE`] and
+    /// [`E_CLOSURE_USE_BY_REF_UNSUPPORTED`] each name a rule rather than a
+    /// spelling, and `inout` is not what replaces any of them.
+    pub const E_BY_REFERENCE_MARKER_RETIRED: Code = Code::new("E0237");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
@@ -1142,6 +1160,27 @@ pub mod code {
     /// *call site* stays, because a parameter's write-back is a copy in and a
     /// copy out rather than a shared slot.
     pub const E_ASSIGN_BY_REFERENCE: Code = Code::new("E0701");
+    /// An argument binding an `inout` parameter, written without the marker.
+    ///
+    /// ADR 0107 § 2 writes the word at both ends, and this is the half a
+    /// rename alone would not have bought: `Adder::bump($n)` is otherwise
+    /// indistinguishable at the point of call from `Adder::sum($a, $b)`,
+    /// and only one of them writes to its caller's storage. The marker is
+    /// deliberately not inference-assisted — a marker the compiler supplies
+    /// is not a marker — so the omission is an error rather than a lint.
+    pub const E_INOUT_ARG_MISSING: Code = Code::new("E0713");
+    /// `inout` written at an argument that binds a by-value parameter, or at
+    /// one that binds nothing a signature can name — a spread's entries, or
+    /// any argument of a call through a `callable`.
+    ///
+    /// The mirror of [`E_INOUT_ARG_MISSING`]: a marker that is allowed to be
+    /// wrong is worth nothing to the reader, so ADR 0107 § 2 makes the extra
+    /// one an error too. Through a `callable` it can never be right — ADR
+    /// 0031 § 4 keeps that type opaque and [`E_CLOSURE_BY_REF_PARAM`] refuses
+    /// the declaration end outright — and a spread hands over a subject's
+    /// entries rather than the subject, which is the same reason
+    /// [`E_BY_REF_ARG_NOT_A_PLACE`] wants one storage location.
+    pub const E_INOUT_ARG_UNEXPECTED: Code = Code::new("E0714");
     /// `::class` written on a class side that is not statically known —
     /// `$obj::class`, `($e)::class`, and `static::class`.
     ///

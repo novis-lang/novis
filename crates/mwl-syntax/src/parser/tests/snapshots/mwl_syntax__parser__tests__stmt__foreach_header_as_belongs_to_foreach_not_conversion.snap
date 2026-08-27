@@ -48,7 +48,7 @@ Stmt {
             name: 0:41..43,
             span: 0:37..43,
         },
-        value_by_ref: false,
+        value_inout: false,
         body: Stmt {
             kind: Block(
                 Block {

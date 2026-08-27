@@ -130,8 +130,13 @@ produces the error node — the same shape [0045](0045-and-or-xor-keyword-operat
 it.
 
 **`&` keeps its other three jobs unchanged**: `$a & $b` is bitwise AND, `$a && $b` is logical AND, and
-`A&B` is an intersection type. With the fourth meaning gone, an `&` in a type position is *always* an
-intersection and `Parser::at_intersection_amp` is deleted rather than reworded.
+`A&B` is an intersection type. With the fourth meaning gone an `&` in a type position always *means* an
+intersection — but `Parser::at_intersection_amp` stays, because meaning it and parsing it are two
+different questions. The type parser is what reaches `int &$x` first, and if it consumes that `&` as an
+intersection continuation the site above it has nothing left to report: the program fails as a malformed
+intersection member instead of being told to write `inout`. The lookahead is one token (`$name` never
+starts a type) and it is what buys the paragraph above, so it survives the removal of the meaning it was
+written to disambiguate. Its own doc comment says so.
 
 The already-refused spellings keep their own diagnostics and gain the new word in their help text: `$a = &$b`
 stays `E0701` (`inout` is a parameter and binding mode, not a way to make two names one place), a closure
@@ -161,7 +166,8 @@ the signature and so belong to the checker.
   the staging and copy-back, the throwing-callee path, `foreach`'s write-through, the subject-must-be-a-place
   and exact-element-type obligations, and the closure and generator refusals. `mwl-ir` sees a field rename
   and nothing else. Performance and memory are untouched in both directions — this is surface only.
-- **The grammar gets simpler.** One of `&`'s five meanings and one lookahead disambiguation are gone.
+- **The grammar gets simpler.** One of `&`'s five meanings is gone. The lookahead that disambiguated it
+  is not: § 3 keeps it so the retired spelling can still be named where it is written.
 - **`inout` becomes reserved.** Nothing in the tree, the `Core` member list or the corpus uses the
   identifier today, so the cost is prospective only.
 - **More to type, and PHP muscle memory does not transfer.** Both are real and both are the price of the
@@ -185,7 +191,8 @@ the signature and so belong to the checker.
   whose `$a = &$b` is refused with *there is nowhere to put a reference* — a contradiction a reader walks
   straight into. It also describes neither of the two mechanisms § 1 covers.
 - **Keep `&` at the declaration and add `&` at the call site.** Buys the visible call site and nothing else:
-  `&` still means five things, `at_intersection_amp` still exists, and `f(&$x)` reads as an address-of or a
+  `&` still means five things, the lookahead still decides between two live meanings rather than one live
+  one and one retired spelling, and `f(&$x)` reads as an address-of or a
   bitwise AND to everyone who has not read this ADR. PHP itself removed call-time `&` in 5.4 because of
   exactly that confusion.
 - **Rename the declaration only, no call-site marker.** The cheap half. It spends a breaking surface change

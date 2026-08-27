@@ -882,6 +882,11 @@ impl<'src, 'd> Parser<'src, 'd> {
         CallArgs::List(args)
     }
 
+    /// `'...' expr | name ':' expr | 'inout'? expr` — ADR 0107 § 2 writes the
+    /// marker again at the call site, and it goes outside a named argument's
+    /// `name:` for the same reason it goes outside the parameter's type: it
+    /// marks the binding, not the value. Whether it is *required* here needs
+    /// the callee's signature and so belongs to `mwl_types` (E0713/E0714).
     pub(super) fn parse_arg(&mut self) -> Arg {
         let start = self.peek().span;
         if self.eat(TokenKind::Ellipsis).is_some() {
@@ -890,10 +895,12 @@ impl<'src, 'd> Parser<'src, 'd> {
             return Arg {
                 name: None,
                 spread: true,
+                inout: false,
                 value,
                 span,
             };
         }
+        let inout = self.eat_keyword(Keyword::Inout).is_some();
         if matches!(self.peek().kind, TokenKind::Ident) && self.peek_at(1).kind == TokenKind::Colon
         {
             let name = self.bump().span;
@@ -903,6 +910,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             return Arg {
                 name: Some(name),
                 spread: false,
+                inout,
                 value,
                 span,
             };
@@ -912,6 +920,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         Arg {
             name: None,
             spread: false,
+            inout,
             value,
             span,
         }
@@ -1510,10 +1519,16 @@ impl<'src, 'd> Parser<'src, 'd> {
         params
     }
 
+    /// `attrs? modifiers? 'inout'? Type '...'? '$'name ('=' default)?` —
+    /// ADR 0107 § 1 puts `inout` in the modifier slot `parse_modifiers`
+    /// already runs, so it reads like the `public readonly int $x` beside it
+    /// and costs the grammar nothing. PHP's `int &$x` is still recognized,
+    /// one token past the type, purely so it can be named (E0237).
     pub(super) fn parse_param(&mut self) -> Param {
         let start = self.peek().span;
         let attributes = self.parse_attribute_groups();
         let modifiers = self.parse_modifiers();
+        let inout = self.eat_keyword(Keyword::Inout).is_some();
         let ty = if self.can_start_type() {
             Some(self.parse_type())
         } else {
@@ -1524,7 +1539,9 @@ impl<'src, 'd> Parser<'src, 'd> {
             );
             None
         };
-        let by_ref = self.eat(TokenKind::Amp).is_some();
+        if let Some(amp) = self.eat(TokenKind::Amp) {
+            self.report_by_reference_marker(amp, "write `inout` before the parameter's type");
+        }
         let variadic = self.eat(TokenKind::Ellipsis).is_some();
         let name = self.expect(TokenKind::Variable, "a parameter name");
         let default = if self.eat(TokenKind::Equals).is_some() {
@@ -1538,7 +1555,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             attributes,
             modifiers,
             ty,
-            by_ref,
+            inout,
             variadic,
             name,
             default,

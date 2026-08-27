@@ -340,13 +340,14 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// One `type '&'? '$' identifier` binding — the shared tail of both
-    /// `foreach`-target alternatives (ADR 0007 § 3.2). The reference marker
-    /// is parsed here and reported back to the caller, since only the
+    /// One `'inout'? type '$' identifier` binding — the shared tail of both
+    /// `foreach`-target alternatives (ADR 0007 § 3.2, ADR 0107 § 1). The
+    /// marker is parsed here and reported back to the caller, since only the
     /// *value* position may carry one; the key position never calls this
     /// with a marker present without the caller first checking for one.
     pub(super) fn parse_foreach_binding(&mut self) -> (ForeachBinding, bool) {
         let start = self.peek().span;
+        let inout = self.eat_keyword(Keyword::Inout).is_some();
         let ty = if self.can_start_type() {
             Some(self.parse_type())
         } else {
@@ -363,31 +364,32 @@ impl<'src, 'd> Parser<'src, 'd> {
             );
             None
         };
-        let by_ref = self.eat(TokenKind::Amp).is_some();
+        if let Some(amp) = self.eat(TokenKind::Amp) {
+            self.report_by_reference_marker(amp, "write `inout` before the binding's type");
+        }
         let name = self.expect(TokenKind::Variable, "a `foreach` binding name");
         let span = start.to(self.last_span);
-        (ForeachBinding { ty, name, span }, by_ref)
+        (ForeachBinding { ty, name, span }, inout)
     }
 
     /// `foreach (subject as key? value) body`, ADR 0007 § 3.2. The header's
     /// own `as` is looked for explicitly after a suppressed-`as` subject
     /// parse (see [`Self::parse_expr_no_top_as`]), and the first binding is
-    /// re-read as the key only once a `=>` confirms it was one — a reference
-    /// marker right after the first binding's type can only mean the
-    /// no-key, by-reference form (`foreach ($x as int &$v)`), since the
-    /// two-binding form's marker sits after the *second* type instead.
+    /// re-read as the key only once a `=>` confirms it was one — an `inout`
+    /// on the first binding can only mean the no-key form (`foreach ($x as
+    /// inout int $v)`), since the two-binding form's marker sits on the
+    /// *second* binding instead.
     pub(super) fn parse_foreach(&mut self, start: Span) -> Stmt {
         self.bump();
         self.expect(TokenKind::LParen, "`(`");
         let subject = self.parse_expr_no_top_as();
         self.expect_keyword(Keyword::As, "`as`");
-        let (first, first_by_ref) = self.parse_foreach_binding();
-        let (key, value, value_by_ref) = if !first_by_ref && self.eat(TokenKind::FatArrow).is_some()
-        {
-            let (value, value_by_ref) = self.parse_foreach_binding();
-            (Some(first), value, value_by_ref)
+        let (first, first_inout) = self.parse_foreach_binding();
+        let (key, value, value_inout) = if !first_inout && self.eat(TokenKind::FatArrow).is_some() {
+            let (value, value_inout) = self.parse_foreach_binding();
+            (Some(first), value, value_inout)
         } else {
-            (None, first, first_by_ref)
+            (None, first, first_inout)
         };
         self.expect(TokenKind::RParen, "`)`");
         let body = Box::new(self.parse_statement());
@@ -398,7 +400,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 subject,
                 key,
                 value,
-                value_by_ref,
+                value_inout,
                 body,
             },
         }
@@ -883,6 +885,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             let span = start.to(target.span);
             return DestructureElement::Nested { key, target, span };
         }
+        let inout = self.eat_keyword(Keyword::Inout).is_some();
         let ty = if self.can_start_type() {
             Some(self.parse_type())
         } else {
@@ -899,13 +902,15 @@ impl<'src, 'd> Parser<'src, 'd> {
             );
             None
         };
-        let by_ref = self.eat(TokenKind::Amp).is_some();
+        if let Some(amp) = self.eat(TokenKind::Amp) {
+            self.report_by_reference_marker(amp, "write `inout` before the leaf's type");
+        }
         let name = self.expect(TokenKind::Variable, "a destructuring leaf's name");
         let span = start.to(self.last_span);
         DestructureElement::Leaf {
             key,
             ty,
-            by_ref,
+            inout,
             name,
             span,
         }

@@ -139,11 +139,18 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// Whether an `&` here continues an intersection type (`A&B`) rather
-    /// than being a by-reference marker that happens to follow a type with
-    /// nothing between them (`int &$x` — a parameter, a `foreach` value
+    /// than being PHP's retired by-reference marker, which follows a type
+    /// with nothing between them (`int &$x` — a parameter, a `foreach` value
     /// binding, a destructuring leaf). Both shapes start identically; the
     /// deciding token is one further ahead: an intersection member is always
     /// another type atom, never a bare `$name`.
+    ///
+    /// ADR 0107 § 3 retires that marker but keeps it *recognizable*, so this
+    /// survives the removal rather than being deleted with it: the site one
+    /// level up names the exact fix (E0237, `Parser::report_by_reference_marker`),
+    /// which it can only do if the type parser leaves the `&` alone instead
+    /// of consuming it and then failing on `$x` as a malformed intersection
+    /// member. The ADR's own § 3 is the home of that correction.
     pub(super) fn at_intersection_amp(&mut self) -> bool {
         self.at(TokenKind::Amp) && Self::token_starts_type(self.peek_at(1).kind)
     }

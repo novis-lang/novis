@@ -712,14 +712,23 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// `function '&'? name(params) (: ReturnType)? (block | ';')` —
     /// `function` itself consumed here, exactly like
-    /// [`Self::parse_const_body`] consumes `const`.
+    /// [`Self::parse_const_body`] consumes `const`. The `&` is PHP's
+    /// by-reference *return*, which ADR 0107 § 3 retires with no replacement
+    /// — `inout` is a parameter mode, and a return hands back a value — so it
+    /// is recognized only to be reported (E0237) and the AST keeps no
+    /// variant for it.
     pub(super) fn parse_method_body(
         &mut self,
         attributes: Vec<AttributeGroup>,
         modifiers: Vec<Modifier>,
     ) -> MethodMember {
         self.bump(); // 'function'
-        let by_ref = self.eat(TokenKind::Amp).is_some();
+        if let Some(amp) = self.eat(TokenKind::Amp) {
+            self.report_by_reference_marker(
+                amp,
+                "a method returns a value, not a place — drop the `&`",
+            );
+        }
         let name = self.parse_decl_name("a method name").span;
         let params = self.parse_params();
         let return_type = if self.eat(TokenKind::Colon).is_some() {
@@ -736,7 +745,6 @@ impl<'src, 'd> Parser<'src, 'd> {
         MethodMember {
             attributes,
             modifiers,
-            by_ref,
             name,
             params,
             return_type,
@@ -817,7 +825,12 @@ impl<'src, 'd> Parser<'src, 'd> {
     pub(super) fn parse_property_hook(&mut self) -> PropertyHook {
         let start = self.peek().span;
         let attributes = self.parse_attribute_groups();
-        let by_ref = self.eat(TokenKind::Amp).is_some();
+        if let Some(amp) = self.eat(TokenKind::Amp) {
+            self.report_by_reference_marker(
+                amp,
+                "a hook returns a value, not a place — drop the `&`",
+            );
+        }
         let kind = if self.at_contextual("set") {
             self.bump();
             PropertyHookKind::Set
@@ -849,7 +862,6 @@ impl<'src, 'd> Parser<'src, 'd> {
             span,
             attributes,
             kind,
-            by_ref,
             param,
             body,
         }
@@ -873,7 +885,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             attributes,
             modifiers: Vec::new(),
             ty,
-            by_ref: false,
+            inout: false,
             variadic: false,
             name,
             default: None,

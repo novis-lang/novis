@@ -393,6 +393,24 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
     }
 
+    /// ADR 0107 § 3: `&` is no longer a by-reference marker. The marker is
+    /// still *recognized* wherever PHP would put one — that is the whole
+    /// reason [`Self::at_intersection_amp`] survives — so the site can name
+    /// the exact fix instead of failing as a malformed type. `fix` is that
+    /// fix, in the site's own words, because the two binding positions are
+    /// replaced by `inout` and the two returning ones are replaced by
+    /// nothing at all.
+    fn report_by_reference_marker(&mut self, amp: Span, fix: &str) {
+        self.diags.report(
+            Diagnostic::error(
+                code::E_BY_REFERENCE_MARKER_RETIRED,
+                "`&` is not a by-reference marker in MWL",
+            )
+            .with_primary(amp, "`&` is bitwise AND, and an intersection type")
+            .with_help(fix.to_string()),
+        );
+    }
+
     /// The `Core` replacement ADR 0012 § 8 names for a PHP superglobal, or
     /// `None` if `name` (the raw `$…` text) is not one.
     fn superglobal_replacement(name: &str) -> Option<&'static str> {
