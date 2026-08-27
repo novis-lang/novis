@@ -164,6 +164,7 @@ impl<'a> Lowering<'a> {
                 self.lower_if(cond, then, else_.as_deref(), cur, env);
             }
             StmtKind::While { cond, body } => self.lower_while(cond, body, cur, env),
+            StmtKind::DoWhile { body, cond } => self.lower_do_while(body, cond, cur, env),
             StmtKind::For {
                 init,
                 cond,
@@ -197,8 +198,9 @@ impl<'a> Lowering<'a> {
             } => self.lower_try(body, catches, finally.as_ref(), cur, env),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a typed local declaration, a plain \
-                 reassignment, `echo`, `unset`, `return`, a nested block, `if`, `while`, `for`, \
-                 `foreach`, `switch`, `try`/`catch`, `throw` and a loop-scoped \
+                 reassignment, `echo`, `unset`, `return`, a nested block, `if`, `while`, \
+                 `do`/`while`, `for`, `foreach`, `switch`, `try`/`catch`, `throw` and a \
+                 loop-scoped \
                  `break`/`continue` — got {other:?}; see the crate docs' known gaps"
             ),
         }
@@ -472,8 +474,8 @@ impl<'a> Lowering<'a> {
         assert!(
             self.reevaluable_target(target),
             "mwl-ir lowers a compound assignment by rewriting it to `$x = $x op e`, which reads \
-             the target twice, so its target must be a local, `$this`, or a property/element \
-             path over those — got {:?}; see the crate docs' known gaps",
+             the target twice, so its target must be a local, `$this`, `Class::$prop`, or a \
+             property/element path over those — got {:?}; see the crate docs' known gaps",
             target.kind
         );
         let reads = self.staged_mark();
@@ -1214,8 +1216,9 @@ impl<'a> Lowering<'a> {
     /// A **staged** sub-expression qualifies whatever it was written as: its
     /// second lowering is a lookup in [`Self::staged_targets`] and runs
     /// nothing at all, which is the whole reason that table exists. Beyond
-    /// that, a local read (`$this` is one, spelled as an ordinary variable)
-    /// and a property or element path built over those are the shapes that
+    /// that, a local read (`$this` is one, spelled as an ordinary variable), a
+    /// `Class::$prop` static and a property or element path built over those
+    /// are the shapes that
     /// qualify: each is a load, and a `get` hook (ADR 0014 § 1) still runs
     /// exactly once because the write side of a property assignment never
     /// reads its own target back through the hook. A nullsafe path, or
@@ -1227,6 +1230,16 @@ impl<'a> Lowering<'a> {
         }
         match &e.kind {
             ExprKind::Variable(_) => true,
+            // `Class::$prop` is re-readable for free and is the one target
+            // here that needs no staging at all: `Self::static_property_of`
+            // answers the whole `(declaring class, name, representation)`
+            // triple out of the typed-expression table, so the class part is
+            // a *name* rather than a sub-expression — there is nothing to
+            // evaluate once, and nothing that could run user code a second
+            // time. `self::`/`static::`/`parent::` included, since name
+            // resolution has already turned each of them into the declaring
+            // class's label.
+            ExprKind::StaticPropertyAccess { .. } => true,
             ExprKind::PropertyAccess {
                 object,
                 nullsafe: false,

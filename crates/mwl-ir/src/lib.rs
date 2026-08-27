@@ -17,6 +17,7 @@
 //!
 //! - **Statements** — typed and `var` local declarations (ADR 0037),
 //!   reassignment, `return`, nested blocks, `echo`, `unset`, `if`, `while`,
+//!   `do`/`while`, `for`, `switch`,
 //!   `foreach` over all three of ADR 0053 § 3's subjects, `break`/`continue`
 //!   at any level ([`lower::Lowering::lower_break`] counts every enclosing
 //!   loop and `switch`, PHP's own rule), `try`/`catch`, `throw`.

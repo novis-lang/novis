@@ -1,0 +1,76 @@
+--TEST--
+A static property is one slot named by its declaring class, whichever spelling reaches it
+--FILE--
+<?mwl
+// Storage is request-scoped, and the declaring class is its identity — see
+// `docs/adr/README.md` § *Decisions taken at project start*. Every spelling
+// below resolves to the same slot, so the reads are what prove it.
+class Registry {
+    public static int $count = 0;
+    public static string $label = "hits";
+    private static int $secret = 41;
+
+    public static function bump(): void {
+        self::$count += 1;
+    }
+
+    public static function secret(): int {
+        return self::$secret + 1;
+    }
+}
+
+class Base {
+    public static string $shared = "base";
+}
+
+class Child extends Base {
+}
+
+// The declared initializer is what a first read sees; nothing has to run.
+echo Registry::$count, " ", Registry::$label, "\n";
+
+Registry::$count = 5;
+echo Registry::$count, "\n";
+
+// `self::` inside the class and the written name outside it are the same slot.
+Registry::bump();
+Registry::bump();
+echo Registry::$count, "\n";
+
+// A read-modify-write reads the slot, combines and stores back — including the
+// refcounted case, where the previous string is released exactly once.
+Registry::$count += 10;
+Registry::$count -= 2;
+Registry::$count *= 2;
+echo Registry::$count, "\n";
+Registry::$label .= "!";
+Registry::$label .= "?";
+echo Registry::$label, "\n";
+
+Registry::$count++;
+echo Registry::$count, "\n";
+--Registry::$count;
+echo Registry::$count, "\n";
+int $post = Registry::$count++;
+echo $post, " ", Registry::$count, "\n";
+
+// A private static is reachable from its own class and nowhere else.
+echo Registry::secret(), "\n";
+
+// A subclass names the *declaring* class's slot: there is one `$shared`, not
+// one per class in the chain.
+echo Base::$shared, " ", Child::$shared, "\n";
+Child::$shared = "written through the child";
+echo Base::$shared, " ", Child::$shared, "\n";
+--EXPECT--
+0 hits
+5
+7
+30
+hits!?
+31
+30
+30 31
+42
+base base
+written through the child written through the child

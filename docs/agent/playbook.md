@@ -507,6 +507,15 @@ is why" — is this file.
   status check that already exists — was PHP-exact. Priority 2 decides these and PHP is on
   `PATH`: run the twin *before* costing the design. Same rule the neighbouring
   `loop-goal.toml` bullet states for a check's comment, one file over.
+- **`holes.py`'s per-item refusal sites are the file's *catch-all* panics, not the item's own
+  hole**, so an item can read "N sites still standing" long after the feature runs. Items 1, 4,
+  6, 7 and 25 all did this session: `$x++`, `--$x`, the bitwise five, `<=>` over two `int`s and
+  `object` as a declared type each run end to end today, and the sites attributed to them are
+  `lower_expr`'s and `emit_binop`'s "got {other:?}" arms, which will still be there when the last
+  hole closes. The tool ranks *candidates*; the ground truth is four lines in a scratch
+  `.agent-tmp/*.mwl` and one `mwl run`, and that is what a session should spend before it picks
+  an item off the list. `holes.py --cases` is the half that does not lie — a named case either
+  exists on disk or does not.
 
 ## Running things
 

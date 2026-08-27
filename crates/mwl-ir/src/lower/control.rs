@@ -249,6 +249,172 @@ impl<'a> Lowering<'a> {
         *env = self.merge_envs(after_block, &after_incoming, &header_env);
         *cur = after_block;
     }
+    /// `do body while (cond);` — [`Self::lower_while`] with the condition
+    /// moved to the bottom, which changes two things and nothing else.
+    ///
+    /// * **The header *is* the body's first block.** A `while` needs a block
+    ///   of its own to evaluate the condition in before the body is entered;
+    ///   a `do` enters the body unconditionally, so the loop-carried phis sit
+    ///   at the top of the body itself and the pre-loop edge falls straight
+    ///   into them. That is the whole of "the body runs before the condition
+    ///   does" — there is no guard to skip.
+    /// * **`continue` targets the condition, not the header.** PHP's `continue`
+    ///   in a `do`/`while` re-tests the condition rather than restarting the
+    ///   body, so the condition gets a block of its own that every way an
+    ///   iteration can end flows into — the body's fall-through and one edge
+    ///   per `continue` — exactly the role [`Self::lower_for`]'s step block
+    ///   plays, and merged the same way. The header therefore sees **one**
+    ///   back edge, from wherever the condition's evaluation ends.
+    ///
+    /// The safepoint poll sits with the condition for [`Self::lower_for`]'s
+    /// reason: an iteration that never completes (the body always `return`s)
+    /// polls zero times.
+    ///
+    /// # Panics
+    ///
+    /// Panics for the cases [`Self::lower_truthy_cond`] already names, the
+    /// same restriction [`Self::lower_while`] carries.
+    pub(super) fn lower_do_while(
+        &mut self,
+        body: &'a Stmt,
+        cond: &Expr,
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) {
+        let mut seen = FxHashSet::default();
+        let mut reassigned = Vec::new();
+        self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
+        // The condition is re-evaluated per iteration and may re-point a local
+        // itself, so it owes a header phi just as the body does — see
+        // `Self::lower_while`, which collects the same set for the same reason.
+        self.collect_reassigned_in_expr(cond, &mut seen, &mut reassigned);
+        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
+
+        let pre_block = *cur;
+        let header_block = self.new_block();
+        self.seal(pre_block, Terminator::Jump(header_block));
+
+        // Seeded exactly as `Self::lower_while` seeds them, and patched below
+        // once the condition block's exit environment is known — see that
+        // method for why a `Ty::Ref` binding is skipped.
+        let mut header_env = env.clone();
+        let mut phi_slots: Vec<(String, usize)> = Vec::new();
+        for name in &reassigned {
+            let Some(&(pre_v, ty)) = env.get(name) else {
+                continue;
+            };
+            if ty == Ty::Ref {
+                continue;
+            }
+            let phi_v = self.ids.next_value();
+            let inst_index = self.block_insts[header_block.index() as usize].len();
+            self.block_insts[header_block.index() as usize].push(Inst {
+                result: Some(phi_v),
+                ty: Some(ty),
+                kind: InstKind::Phi {
+                    incoming: vec![(pre_block, pre_v)],
+                },
+                on_error: None,
+            });
+            header_env.insert(name.clone(), (phi_v, ty));
+            phi_slots.push((name.clone(), inst_index));
+        }
+
+        let cond_block = self.new_block();
+        let after_block = self.new_block();
+
+        self.loop_stack.push(LoopFrame {
+            continue_target: Some(cond_block),
+            after_block,
+            continue_edges: Vec::new(),
+            break_edges: Vec::new(),
+            iteration_owned: Vec::new(),
+            carried: header_env.keys().cloned().collect(),
+            loop_private: Vec::new(),
+            try_depth: self.try_stack.len(),
+        });
+        // The body is lowered *into* the header, after the phis already
+        // standing at its top — which is what makes this a `do` rather than a
+        // `while` with the same blocks.
+        let mut body_env = header_env.clone();
+        let mut body_cur = header_block;
+        self.lower_stmt(body, &mut body_cur, &mut body_env);
+        let reaches_cond = !self.is_terminated(body_cur);
+        if reaches_cond {
+            self.end_iteration(body_cur, &mut body_env);
+        }
+        let frame = self
+            .loop_stack
+            .pop()
+            .expect("just pushed this loop's own frame above");
+
+        let mut cond_incoming: Vec<(BlockId, Env)> = Vec::new();
+        if reaches_cond {
+            self.seal(body_cur, Terminator::Jump(cond_block));
+            cond_incoming.push((body_cur, body_env));
+        }
+        cond_incoming.extend(frame.continue_edges);
+
+        let (cond_end, cond_env) = if cond_incoming.is_empty() {
+            // Nothing reaches the condition — the body always `return`s,
+            // throws or `break`s, so it is never tested. `Self::finish`
+            // insists every block carries a terminator, and the header phis
+            // still need an entry for this edge, so it jumps back with the
+            // environment the loop was *entered* with: those values are
+            // defined before the header, which is the one thing that stays
+            // true on a block nothing can reach. `Self::lower_for` handles an
+            // unreachable step block the same way and for the same reason.
+            self.seal(cond_block, Terminator::Jump(header_block));
+            (cond_block, env.clone())
+        } else {
+            let mut cond_env = self.merge_envs(cond_block, &cond_incoming, &header_env);
+            let mut cond_end = cond_block;
+            let cond_v = self.lower_truthy_cond(cond, &mut cond_env, &mut cond_end);
+            // Reserved safepoint poll site (loop back edge) — see
+            // `InstKind::Safepoint`'s own doc comment.
+            self.emit_safepoint(cond_end);
+            let body_edge = self.ids.next_edge(body.span);
+            let after_edge = self.ids.next_edge(cond.span);
+            self.seal(
+                cond_end,
+                Terminator::Branch {
+                    cond: cond_v,
+                    then_block: header_block,
+                    then_edge: body_edge,
+                    else_block: after_block,
+                    else_edge: after_edge,
+                },
+            );
+            (cond_end, cond_env)
+        };
+
+        for (name, inst_index) in &phi_slots {
+            let &(back_v, _) = cond_env.get(name).unwrap_or_else(|| {
+                panic!(
+                    "mwl-ir: `{name}` was reassigned in a do/while body or condition per the \
+                     syntactic scan but is missing from the back edge's exit environment — bug \
+                     in collect_reassigned_locals"
+                )
+            });
+            let inst = &mut self.block_insts[header_block.index() as usize][*inst_index];
+            let InstKind::Phi { incoming } = &mut inst.kind else {
+                unreachable!("phi_slots only ever indexes a Phi instruction");
+            };
+            incoming.push((cond_end, back_v));
+        }
+
+        // The loop's exit environment: the condition's false edge, plus one
+        // more incoming edge per `break`. A condition nothing reaches
+        // contributes no edge at all, and `Self::merge_envs` then degenerates
+        // to the pre-loop environment on a block nothing can reach either.
+        let mut after_incoming: Vec<(BlockId, Env)> = Vec::new();
+        if !cond_incoming.is_empty() {
+            after_incoming.push((cond_end, cond_env));
+        }
+        after_incoming.extend(frame.break_edges);
+        *env = self.merge_envs(after_block, &after_incoming, &header_env);
+        *cur = after_block;
+    }
     /// `for (init; cond; step) body` — [`Self::lower_while`]'s exact shape
     /// with two clauses bolted onto it, and one structural consequence.
     ///

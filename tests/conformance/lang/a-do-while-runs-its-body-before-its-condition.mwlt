@@ -1,0 +1,97 @@
+--TEST--
+`do`/`while` runs its body once before it tests anything, and `continue` re-tests rather than restarts
+--FILE--
+<?mwl
+// The whole of what separates `do` from `while`: a condition false from the
+// start still leaves the body having run exactly once.
+int $j = 10;
+do {
+    echo "once j=", $j, "\n";
+} while ($j < 3);
+
+int $i = 0;
+do {
+    echo $i, "\n";
+    $i += 1;
+} while ($i < 3);
+
+// `continue` targets the *condition*, so the iteration it cuts short still
+// counts as an iteration and the loop is still tested before the next one.
+// `break` leaves without testing at all.
+int $k = 0;
+do {
+    $k += 1;
+    if ($k == 2) {
+        continue;
+    }
+    if ($k == 4) {
+        break;
+    }
+    echo "k=", $k, "\n";
+} while ($k < 10);
+echo "after k=", $k, "\n";
+
+// The condition is an ADR 0035 truthy context like every other, so an
+// unconditional loop is spelled with a literal and left by `break`.
+string $out = "";
+do {
+    $out .= "a";
+    if ((Core\Str::length($out) as int) == 3) {
+        break;
+    }
+} while (true);
+echo "out=", $out, "\n";
+
+// Nested, with a body-declared local that lives for one iteration of the
+// inner loop and a loop-carried one that outlives both.
+int $o = 0;
+do {
+    int $p = 0;
+    do {
+        string $cell = ($o as string) . ":" . ($p as string);
+        echo $cell, "\n";
+        $p += 1;
+    } while ($p < 2);
+    $o += 1;
+} while ($o < 2);
+
+class Scan {
+    // A body that always leaves the frame never reaches the condition.
+    public static function head(array<int> $xs): int {
+        do {
+            return $xs[0];
+        } while (true);
+    }
+
+    public static function firstOver(array<int> $xs, int $limit): int {
+        int $i = 0;
+        do {
+            if ($xs[$i] > $limit) {
+                return $xs[$i];
+            }
+            $i += 1;
+        } while ($i < (Core\Arr::count($xs) as int));
+        return -1;
+    }
+}
+
+array<int> $xs = [1, 5, 9];
+echo Scan::head($xs), "\n";
+echo Scan::firstOver($xs, 4), "\n";
+echo Scan::firstOver($xs, 20), "\n";
+--EXPECT--
+once j=10
+0
+1
+2
+k=1
+k=3
+after k=4
+out=aaa
+0:0
+0:1
+1:0
+1:1
+1
+5
+-1

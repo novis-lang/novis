@@ -2,58 +2,65 @@
 
 ## State
 
-**M4 — language completeness.** `exit` and `exit(...)` run, end to end. `mwl_runtime::EXITED`
-is a fourth ABI status beside `OK`/`THROWN`/`FATAL` (`crates/mwl-runtime/src/abi.rs:37`) and
-the status the program named rides out on `Ctx::exit_code`. The construct lowers to a single
-`Helper::Exit` call (`crates/mwl-ir/src/lower/expr.rs:@lower_exit`) whose *success* is that
-non-`OK` status, so the ADR 0002 status check `mwl-codegen` already emits takes the site's
-error edge: the frame's live locals are released in its landing block, and every caller's own
-check propagates it onward for nothing.
+**M4 — language completeness.** `do`/`while` lowers (`mwl_ir::lower::Lowering::lower_do_while`,
+`crates/mwl-ir/src/lower/control.rs:250`): the body's first block *is* the loop header, so the
+phis sit above the body and the pre-loop edge falls straight into them, and `continue` targets a
+condition block that every way an iteration can end flows into — [`lower_for`]'s step block in a
+different role, merged the same way. The header therefore sees one back edge. A condition nothing
+reaches (`do { return 7; } while (true);`) is sealed unreachable exactly as `lower_for` seals an
+unreachable step block.
 
-**No `catch` sees it and no `finally` runs** — `Terminator::Catch` admits only `THROWN`, and
-every copy of a `finally` body lives behind that comparison. That is PHP's own behaviour,
-checked against `php -r` rather than assumed; the item that scheduled this work asserted the
-opposite, and the playbook now says so. `docs/adr/README.md` § *Decisions taken at project
-start* owns the decision and what it costs.
+**A compound assignment to a static property lowers.** `Class::$p += 1`, `.=`, `++` and `--` all
+work now: `reevaluable_target` (`crates/mwl-ir/src/lower/stmt.rs:1230`) answers `true` for
+`ExprKind::StaticPropertyAccess`, which is the whole fix — `static_property_of` resolves the
+`(declaring class, name, representation)` triple out of the typed-expression table, so the class
+part is a name and the second read runs nothing. No staging, no new refcount edge: the store arm
+already read the slot back and released it.
 
-The operand carries both of PHP's spellings: an `int` is the process status, a `string` is a
-message written first with the status left at `0`. Anything else is `E0401` at the operand
-(`crates/mwl-types/src/expr/mod.rs:496`) — no new diagnostic code was claimed, because
-**`E0499` is still the last code in the `E04xx` band** and a band decision is owed before the
-next types diagnostic. `mwl run` maps `EXITED` to the low byte of the code and reports nothing.
+`verify.py` 6 of 6 green — conformance **616**, differential 173. `tools/leak-check.sh` clean over
+a fixture that carries a `string` local through a `do`/`while` body and appends to a `static
+string` in it.
 
-`verify.py` 6 of 6 green — conformance **614**, differential 173. `tools/leak-check.sh` clean
-over a fixture that `exit(7)`s out of a nested frame holding a `string` local.
+**The worklist tool overstates what is open** — see the playbook's new Tooling bullet. Five of
+`holes.py`'s six ranked items name features that already run; `--cases` is the half to trust.
 
 ## Next group
 
-**`object` as a declared type, in the two crates that erase it.** They share the
-representation map: `crates/mwl-ir/src/lower/mod.rs` and `crates/mwl-codegen/src/ty.rs`. The
-standing decisions already settle the design — "`object` erases to the same pointer a named
-class does" — so what is left is the two erasure arms and the two codegen rows, plus finding
-whether anything below reads a class label.
+**A closure is called through the variable holding it.** The runtime half already exists
+(`mwl_runtime::call_closure`, `crates/mwl-runtime/src/closure.rs:72`) and every `Core` member
+taking a `callable` goes through it; what is missing is the lowering, so the four files below are
+one slice's file set: `crates/mwl-ir/src/lower/expr.rs`, `crates/mwl-ir/src/ir.rs`,
+`crates/mwl-codegen/src/emit.rs`, `crates/mwl-runtime/src/closure.rs`.
 
-- [ ] **`erase_checked_ty` has no `object` arm.** `crates/mwl-ir/src/lower/mod.rs:2206` is the
-      map; the two refusals are `crates/mwl-ir/src/lower/mod.rs:2399` (a declared type) and
-      `crates/mwl-ir/src/lower/mod.rs:2482` (a resolved call's parameter or return). Watch the
-      playbook's "two edits, and the second one panics somewhere else" bullet — it is this
-      exact function.
-- [ ] **`mwl-codegen`'s representation map refuses the same two shapes.**
-      `crates/mwl-codegen/src/ty.rs:116` ("the static tag of a tagged value") and
-      `crates/mwl-codegen/src/ty.rs:121` ("a value of representation `{ty:?}` crossing a call
-      boundary") are the sites `holes.py` reports as attributed to no item at all. Whatever
-      `object` erases to above has to land here, or the feature fails one crate later.
+- [ ] **`$fn(args)` panics `mwl-ir` outright.** `crates/mwl-ir/src/lower/expr.rs:311` is the arm
+      that refuses it — *"got `Call { callee: Variable(…) }`"*, which reads as a parser gap rather
+      than the missing lowering it is. ADR 0031 § 1 says `callable` is the only closure type and a
+      closure is an object of a synthesized class with one `invoke` method
+      (`crates/mwl-ir/src/lower/closure.rs`), so the shape is a helper call at
+      `crates/mwl-runtime/src/closure.rs:72` with the receiver and a slice of arguments — not a
+      lowered `Call` with a resolved target. Add the `ir::Helper` row and its
+      `crates/mwl-codegen/src/emit.rs` arm alongside.
+- [ ] **`tests/conformance/lang/a-closure-is-called-through-the-variable-holding-it.mwlt`** — the
+      named case stage 8 owes for it (`python tools/holes.py --cases`). Pin the arity trim
+      `call_closure` performs (a closure declaring fewer parameters than it is handed), since
+      `crates/mwl-runtime/src/closure.rs:113`'s `closure_arity` is the only thing that makes a
+      `Core\Arr` callback and a hand-written one the same shape.
+- [ ] **`mwl-ir`'s known-gaps 15 and 16 no longer describe the tree.**
+      `crates/mwl-ir/src/lib.rs:355` says `<=>` "reaches `lower_expr`'s panic for every scalar
+      operand" and `crates/mwl-ir/src/lib.rs:359` that "`$x++` and `--$x` do not lower"; both run.
+      Rewrite the two entries around what is actually left (`**`/`**=` have no `ir::BinOp` row,
+      and `f()->count += 1` is still refused), because this list is what `holes.py` and the next
+      session read.
 
 ## Backlog
 
-- `static::$prop` is `E0499` rather than PHP's called-class resolution — the slot layout keys
-  on the declaring class; `docs/adr/README.md` § *Decisions taken at project start*.
-- **`E0499` is the last `E04xx` code.** The next types diagnostic needs a band decision in
-  `crates/mwl-diagnostics/src/lib.rs`; this session sidestepped it by reusing `E0401`.
-- `exit` has no `tests/differential/` case pinning the `finally` skip against PHP directly —
-  the agreement was checked by hand and is pinned only in `tests/conformance/lang/`.
-- Item 1, ADR 0007 § 4's promotion table: 11 refusal sites, the largest single item left
-  (`python tools/holes.py --item 1`).
-- Item 7, `$x++`/`--$x`: 5 sites. Item 16, a named or spread argument: 1 site, checker half
-  first per the standing decisions.
-- `tests/conformance/` still owes 17 of the 32 named cases (`python tools/holes.py --cases`).
+- `Core\Fault` cannot be constructed with arguments — `new Core\Fault("…")` panics
+  `crates/mwl-ir/src/lower/expr.rs:3341` naming a `mwl_types` zero-arity gap. Use `RuntimeError`.
+- 16 named `.mwlt` cases still owed; `python tools/holes.py --cases` is the list.
+- `static::$prop` is `E0499` and an uninitialized non-nullable static is `E0409` — both owed a
+  `--EXPECTF-ERROR--` case; `docs/adr/README.md` § *Decisions taken at project start* owns why.
+- ADR 0007 § 2's `array<T> as array<U>` row still does not lower — the playbook cites it as the
+  wall four separate case-writing traps run into.
+- A spread argument does not lower (`crates/mwl-ir/src/lower/call.rs:85`), item 16.
+- `E0499` remains the last code in the `E04xx` band; a band decision is owed before the next
+  types diagnostic.
