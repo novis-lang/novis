@@ -365,34 +365,6 @@
 //!     poisoning makes the shape rare, and closing it means teaching
 //!     `mwl_runtime::value_identical` the property rather than adding a
 //!     lowering arm.
-//! 12. **Every object whose *static* type names a class stringifies; a
-//!     `Core`-owned one behind a `mixed` still throws.**
-//!     `.`, an interpolated piece, `echo`/`print` and `as string` all desugar
-//!     to the `toString()` `mwl_types::expr::operators::require_stringable`
-//!     resolved under the operand's own span
-//!     ([`lower::Lowering::lower_to_string_call`]) — the checker records it
-//!     because none of those four sites is a call expression, so no
-//!     `ExprInfo::Call` exists to read, and it reaches an operand typed at the
-//!     interface itself as readily as a concrete implementor. An operand whose
-//!     static type names *no* class — an erased `object`, a `mixed`, any other
-//!     union — records nothing to resolve and is dispatched on its runtime
-//!     class instead, by `mwl_runtime::stringify` under
-//!     [`ir::Helper::TaggedToString`]. A `Core`-owned class is resolved by
-//!     that same recorded target now and lowers to the native
-//!     [`ir::InstKind::CoreCall`] its member written out takes, so `echo $uri`
-//!     renders; the *refusal* half is the checker's, one
-//!     `mwl_diagnostics::code::E_CORE_CLASS_NOT_STRINGABLE` at the site for a
-//!     `Core` class the registry gives no `toString`.
-//!     What is left is that same class reached through an **erased** operand:
-//!     `mixed $m = Core\Uri::parse(…); echo $m;` dispatches on the runtime
-//!     class, and `mwl_runtime::stringify` looks the member up in a compiled
-//!     method table a `Core` class has no entry in, so it throws
-//!     "does not implement `Stringable`" for a value the static spelling
-//!     renders. Nothing in this crate is what is missing: `mwl-runtime` sits
-//!     below `mwl-stdlib` and so cannot read the registry directly, which
-//!     makes closing it a question of what the two share — a rendering hook
-//!     the stdlib installs, or the carrier roster's own shape
-//!     (`mwl_runtime::is_carrier`) generalized to a name-to-symbol row.
 //! 14. **Two of the safepoint's four flags still do nothing.**
 //!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
 //!     back edge, and `mwl-codegen` lowers it to a real poll: `CPU_LIMIT` and

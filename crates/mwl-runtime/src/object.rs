@@ -281,6 +281,22 @@ pub struct ClassDesc {
     /// [`ClassTable::set_field_tags`]. **Cost:** one byte-sized `Option<Tag>`
     /// per field per class, once per process, not per instance.
     field_tags: Vec<Option<Tag>>,
+    /// The address of the **native** function that renders an instance of this
+    /// class as a `string`, or null for every class that has none — which is
+    /// every class a program declares, and every `Core` class the spec gives
+    /// no `toString`.
+    ///
+    /// Not a [`Self::methods`] row, and the difference is the calling
+    /// convention rather than the lookup: that table holds *compiled* MWL
+    /// functions, which release their parameters, while a native `Core` member
+    /// is an ADR 0002 helper and **borrows** its arguments. One table cannot
+    /// hold both without a caller having to know which it drew — so the
+    /// convention is encoded in which field the address came out of. Filled by
+    /// [`ClassTable::set_render`], which only `mwl-stdlib` calls; read by
+    /// [`crate::dispatch::call_render`], which [`crate::stringify`] asks
+    /// before the method table. **Cost:** one pointer per class, once per
+    /// process, not per instance.
+    render: *const u8,
 }
 
 /// One property default's already-evaluated value — the closed set
@@ -492,6 +508,17 @@ impl ClassDesc {
     pub fn ctor_arity(&self) -> usize {
         self.ctor_arity
     }
+
+    /// The address of this class's native renderer, or `None` for a class
+    /// carrying none — see [`Self::render`] for why it is not a method row.
+    #[must_use]
+    pub fn renderer(&self) -> Option<*const u8> {
+        if self.render.is_null() {
+            None
+        } else {
+            Some(self.render)
+        }
+    }
 }
 
 impl fmt::Debug for ClassDesc {
@@ -590,6 +617,7 @@ impl ClassTable {
             ctor_arity: 0,
             defaults: Vec::new(),
             field_tags: Vec::new(),
+            render: std::ptr::null(),
         }));
         id
     }
@@ -684,6 +712,25 @@ impl ClassTable {
         desc.methods = methods;
         desc.methods.sort_by(|(a, _), (b, _)| a.cmp(b));
         desc.methods.dedup_by(|(a, _), (b, _)| a == b);
+    }
+
+    /// Fills in `id`'s native renderer — see [`ClassDesc::renderer`].
+    ///
+    /// `address` is an ADR 0002 helper that takes the instance as its one
+    /// argument and **borrows** it, which is what separates this from
+    /// [`ClassTable::set_methods`]; `mwl_stdlib::instance` is its only caller,
+    /// because a class whose renderer is native is a `Core` class by
+    /// definition and that crate is where the registry saying so lives.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_render(&mut self, id: ClassId, address: *const u8) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.render = address;
     }
 
     /// The descriptor pointer for `id` — the token compiled code holds.

@@ -874,8 +874,22 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
 /// too, since nothing here will resolve a member on it either.
 #[must_use]
 pub fn class_renders(name: &str) -> bool {
-    mwl_runtime::is_carrier(name)
-        || class(name).is_some_and(|class| class.members().any(|member| member.name == "toString"))
+    mwl_runtime::is_carrier(name) || render_symbol(name).is_some()
+}
+
+/// The symbol of `name`'s `toString` — the member half of [`class_renders`],
+/// and `None` for both sink carriers, which have no member to name.
+///
+/// Factored out rather than searched twice: `crate::instance` puts this
+/// address on the class's own descriptor, so a `Core` object reached through
+/// an erased operand (`mixed $m = Core\Uri::parse(…); echo $m;`) renders
+/// through the very implementation this check told the *checker* it would. A
+/// second search here would be free to see a member that one did not.
+#[must_use]
+pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
+    class(name)
+        .and_then(|class| class.members().find(|member| member.name == "toString"))
+        .map(|member| member.symbol)
 }
 
 /// The closed roster of members whose helper is handed the **class written at

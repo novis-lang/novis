@@ -98,6 +98,12 @@ const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
 /// `.mwlt` case can call one, and `mwl_stdlib::symbols` does not list it. The
 /// registry is the surface a program reaches; this is the protocol the engine
 /// reaches.
+///
+/// **`toString` is not a row here and never becomes one.** The engine reaches
+/// it by name too, but through [`ClassDesc::renderer`] rather than the method
+/// table, because it keeps the ordinary `Core` convention of borrowing its
+/// receiver where a row here transfers one — see [`descriptors`], which
+/// derives it from the registry instead.
 const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
     (
         crate::objmap::NAME,
@@ -162,6 +168,16 @@ fn descriptors() -> &'static ClassTable {
             // `instanceof` on one answers only for itself.
             let id = table.define(class.name, class.slots, &[]);
             table.set_methods(id, dispatch_table(class.name));
+            // ADR 0028 § 1's one rendering member, which is *not* a
+            // `DISPATCH_ROSTER` row: it has its own descriptor field because
+            // it keeps the ordinary `Core` convention of borrowing its
+            // receiver, and it is derived from the registry rather than
+            // written down here so that it cannot name a member
+            // `registry::class_renders` — the check the compiler makes at
+            // `echo $uri` — did not see.
+            if let Some(symbol) = registry::render_symbol(class.name) {
+                table.set_render(id, crate::address_of(symbol));
+            }
         }
         let table: &'static ClassTable = Box::leak(Box::new(table));
         held.set(Some(table));
@@ -380,6 +396,51 @@ mod tests {
             assert_eq!(desc.name(), class.name);
             assert_eq!(desc.field_count(), class.slots.len());
         }
+    }
+
+    /// The same pairing for ADR 0028 § 1's rendering: a class
+    /// [`registry::class_renders`] answers `true` for is one the checker lets
+    /// `echo $x` compile against, so a `mixed` holding one has to render at
+    /// run time rather than throw. The two ways it can are the two rows of
+    /// that check, and this asserts each class takes exactly one of them —
+    /// a carrier through ADR 0088 § 5's slot, everything else through the
+    /// descriptor's own renderer.
+    #[test]
+    fn every_rendering_class_carries_a_renderer_or_is_a_carrier() {
+        for class in registry::CLASSES {
+            if !registry::class_renders(class.name) {
+                assert!(
+                    class.slots.is_empty() || renderer_of(class).is_none(),
+                    "{} renders at run time but not where it is written",
+                    class.name
+                );
+                continue;
+            }
+            if mwl_runtime::is_carrier(class.name) {
+                continue;
+            }
+            assert!(
+                !class.slots.is_empty(),
+                "{} declares a `toString` but has no instances to render",
+                class.name
+            );
+            assert!(
+                renderer_of(class).is_some(),
+                "{} renders where it is written but not at run time",
+                class.name
+            );
+        }
+    }
+
+    /// `class`'s descriptor's native renderer — the test-side spelling of the
+    /// read `mwl_runtime::stringify`'s dispatch makes.
+    fn renderer_of(class: &CoreClass) -> Option<*const u8> {
+        #[expect(
+            unsafe_code,
+            reason = "the leaked table owns the descriptor for the whole \
+                      process, so this borrow is sound for any lifetime"
+        )]
+        unsafe { &*descriptor(class) }.renderer()
     }
 
     /// The two rosters this module's docs pair up: a class the checker will

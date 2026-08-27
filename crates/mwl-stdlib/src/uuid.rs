@@ -379,9 +379,11 @@ mwl_runtime::mwl_helper! {
     /// Named `toString` rather than `format` or `toText` so that it is already
     /// the member `Stringable` declares
     /// ([ADR 0028](../../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
-    /// § 1) for the day a `Core`-owned class can implement it — `mwl-ir`'s gap
-    /// 12 is that a `Core` class records no `toString` target, so `echo $uuid`
-    /// does not compile and this is written out at the call site.
+    /// § 1), which is what makes `echo $uuid` render: that name is the whole
+    /// of what says a `Core`-owned class is stringifiable, read by
+    /// `mwl_types::expr::operators::require_stringable` where the operand's
+    /// type names this class and by [`crate::instance`]'s descriptor renderer
+    /// where it names none.
     fn mwl_core_uuid_to_string(_ctx, args: [1]) {
         let value = uuid_of(args, 0, "toString")?;
         let mut buffer = [0_u8; uuid::fmt::Hyphenated::LENGTH];

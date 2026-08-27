@@ -40,9 +40,29 @@ use crate::value::Value;
 /// [`Fault::Fatal`] when `receiver` is not an object, or is one with no class
 /// descriptor — both engine faults rather than anything a program can cause.
 pub fn method_address(receiver: Value, name: &str, what: &str) -> Result<Option<*const u8>, Fault> {
+    let desc = descriptor_of(receiver, what, &format!("`{name}`"))?;
+    #[expect(
+        unsafe_code,
+        reason = "`descriptor_of` answers only a non-null descriptor, and one \
+                  is owned by the compiled unit's class table for that unit's \
+                  whole life"
+    )]
+    Ok(unsafe { &*desc }.method(name))
+}
+
+/// `receiver`'s class descriptor, never null.
+///
+/// `what` names the caller and `looked_for` what it wanted, both for a fault
+/// message neither of the two callers can reach from behaving code.
+///
+/// # Errors
+///
+/// [`Fault::Fatal`] when `receiver` is not an object, or is one with no class
+/// descriptor — both engine faults rather than anything a program can cause.
+fn descriptor_of(receiver: Value, what: &str, looked_for: &str) -> Result<*const ClassDesc, Fault> {
     let ptr = receiver.obj_ptr().ok_or_else(|| {
         Fault::fatal(format!(
-            "internal error: {what} looked for `{name}` on tag {}",
+            "internal error: {what} looked for {looked_for} on tag {}",
             receiver.tag_byte()
         ))
     })?;
@@ -57,12 +77,7 @@ pub fn method_address(receiver: Value, name: &str, what: &str) -> Result<Option<
             "internal error: {what} was handed an object with no class descriptor"
         )));
     }
-    #[expect(
-        unsafe_code,
-        reason = "just checked the descriptor is non-null, and it is owned by \
-                  the compiled unit's class table for that unit's whole life"
-    )]
-    Ok(unsafe { &*desc }.method(name))
+    Ok(desc)
 }
 
 /// Calls `receiver`'s `name` with `args` past the receiver, or answers `None`
@@ -85,6 +100,46 @@ pub fn call_method(
         return Ok(None);
     };
     call_at(ctx, receiver, target, args).map(Some)
+}
+
+/// Renders `receiver` through the **native** renderer its class carries, or
+/// answers `None` when its class carries none — which is every class a program
+/// declares.
+///
+/// Ownership is the opposite of [`call_method`]'s, and that is the whole
+/// reason the address sits in its own descriptor field rather than in the
+/// method table ([`ClassDesc::renderer`]): a native `Core` member is an ADR
+/// 0002 helper, so it *borrows* argument 0, and this neither retains on the
+/// way in nor releases on the way out. The `string` it answers with carries
+/// the one reference every helper's result does.
+///
+/// # Errors
+///
+/// [`method_address`]'s two engine faults, plus [`Fault::Pending`] when the
+/// renderer itself faults.
+pub fn call_render(ctx: &mut Ctx, receiver: Value, what: &str) -> Result<Option<Value>, Fault> {
+    let desc = descriptor_of(receiver, what, "a renderer")?;
+    #[expect(
+        unsafe_code,
+        reason = "`descriptor_of` answers only a non-null descriptor, and one \
+                  is owned by its class table for that table's whole life"
+    )]
+    let Some(target) = (unsafe { &*desc }).renderer() else {
+        return Ok(None);
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the address came out of `ClassTable::set_render`, which \
+                  `mwl-stdlib` calls only with a registered `Core` member's \
+                  own address, and every one of those has this signature"
+    )]
+    let target: MwlFn = unsafe { std::mem::transmute::<*const u8, MwlFn>(target) };
+    crate::abi::call(target, ctx, &[receiver])
+        .map(Some)
+        .map_err(|status| {
+            debug_assert_ne!(status, OK, "call reports Err only for a non-OK status");
+            Fault::Pending(status)
+        })
 }
 
 /// Calls a member on `receiver` at the address [`method_address`] answered,

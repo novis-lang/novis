@@ -82,9 +82,12 @@
 //!    `Instant` implements `Comparable`; `compareTo` and `toString` are
 //!    registered and behave exactly as those interfaces require, but
 //!    `mwl_types`' reserved interfaces carry no member signatures yet, so
-//!    `$a < $b` and `"took " . $d` are both still refused — `mwl-ir`'s gap 12
-//!    owns the second. `$d->compareTo($e)` and `$d->toString()` are the
-//!    spellings that work today.
+//!    `$a < $b` is still refused and `$d->compareTo($e)` is the spelling that
+//!    works. `"took " . $d` is not: ADR 0028 § 1's rendering is decided by the
+//!    registered `toString` rather than by a declaration, through
+//!    `mwl_types::expr::operators::require_stringable` where the operand's
+//!    type names this class and `mwl_stdlib::instance`'s descriptor renderer
+//!    where it names none.
 
 use std::sync::OnceLock;
 

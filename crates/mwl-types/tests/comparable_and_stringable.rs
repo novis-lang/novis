@@ -153,3 +153,47 @@ fn a_class_implementing_stringable_converts_at_every_site_with_no_diagnostic() {
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+/// ADR 0028 § 1 over the classes `Core` owns: the registry saying a class has
+/// a `toString` is the whole of what makes it stringifiable, so the checker
+/// accepts exactly the classes `mwl_stdlib::registry::class_renders` accepts
+/// and refuses the rest where they are written rather than leaving a panic
+/// below.
+///
+/// Asked as an **agreement** over a table spanning both rows of that check —
+/// a class with a `toString` member, a sink carrier that renders through
+/// ADR 0088 § 5 with no member at all, and a `Core` class with neither —
+/// because a checker that grew a roster of its own still looks right on any
+/// one of those lines. `mwl_stdlib::instance`'s
+/// `every_rendering_class_carries_a_renderer_or_is_a_carrier` asserts the
+/// run-time half of the same agreement, so a class cannot render where it is
+/// written and throw where it is not.
+#[test]
+fn a_core_class_stringifies_exactly_where_the_registry_says_so() {
+    // The expression that builds one, and the class it is an instance of.
+    const BUILT: &[(&str, &str)] = &[
+        (r#"Core\Uri::parse("https://example.com/a")"#, r"Core\Uri"),
+        (
+            r#"Core\Uuid::parse("0191b0c4-1c2f-7a3d-8f4e-5a6b7c8d9e0f")"#,
+            r"Core\Uuid",
+        ),
+        (r"Core\Time\Duration::seconds(1)", r"Core\Time\Duration"),
+        (r"Core\Out::capture(fn (): void => {})", r"Core\Cli\Text"),
+        (r#"Core\Regex::compile("a+")"#, r"Core\Regex\Pattern"),
+    ];
+    for (built, class) in BUILT {
+        let renders = mwl_stdlib::registry::class_renders(class);
+        let diags = check_src(&format!(
+            "<?mwl\nclass T {{\n  function m(): void {{\n    echo {built};\n  }}\n}}\n"
+        ));
+        let refused = diags
+            .iter()
+            .any(|d| d.code == Some(code::E_CORE_CLASS_NOT_STRINGABLE));
+        assert_eq!(renders, !refused, "{class} renders={renders}: {diags:?}");
+        assert_eq!(
+            renders,
+            !diags.has_errors(),
+            "{class} renders={renders}, but the fixture disagrees: {diags:?}"
+        );
+    }
+}

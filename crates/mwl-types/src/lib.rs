@@ -200,13 +200,6 @@
 //!   diagnosed here. ADR 0007 § 5 gives an array one stored key type, so
 //!   `foreach ($a as int $k => …)` is always wrong; today it type-checks and
 //!   then trips `mwl_ir`'s assertion instead of getting a diagnostic.
-//! - A `Core`-owned class is exempt from
-//!   [`expr::operators`]'s `require_stringable` — an early return on
-//!   [`mwl_hir::QName::is_core`] — so it records no
-//!   [`expr_table::ExprTypeTable::to_string_call`] target either, and
-//!   `echo $someCoreObject` reaches `mwl_ir`'s gap 12 as a panic rather than
-//!   a diagnostic. Closing it means saying which `Core` classes ADR 0028 § 1
-//!   makes stringifiable, which is `mwl_stdlib::registry`'s answer to give.
 
 pub mod check;
 pub(crate) mod conformance;

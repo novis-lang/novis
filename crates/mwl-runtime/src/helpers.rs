@@ -971,11 +971,22 @@ const TO_STRING: &str = "toString";
 /// catchable `Throwable` the tag row already answers with: ADR 0036 § 4's read
 /// through an erased view is "a checked, catchable throw", never a fatal.
 ///
-/// **Ownership is [`crate::call_method`]'s**, for its reason: a helper borrows
-/// its arguments while a compiled method owns its parameters, so the receiver is
-/// retained on the way in and released by the callee's own exit sweep. The
-/// result is the `string` that method returned, carrying the one reference every
-/// other row here hands back.
+/// **A `Core`-owned class renders here too, and through the same member.** Its
+/// `toString` is native Rust rather than a compiled function, so it is not in
+/// the method table this dispatches through — it is on the descriptor as
+/// [`crate::ClassDesc::renderer`], put there by `mwl_stdlib::instance` from
+/// the very registry row `mwl_types::expr::operators::require_stringable`
+/// reads to decide the *static* spelling. That is what makes `echo $m` over a
+/// `mixed` holding a `Core\Uri` answer what `echo $uri` answers: one
+/// implementation, reached two ways, rather than two rosters free to disagree.
+///
+/// **Ownership is the callee's convention, and the two differ.** A compiled
+/// method owns its parameters, so [`crate::call_method`] retains the receiver
+/// on the way in and the callee's own exit sweep releases it; a native
+/// renderer is an ADR 0002 helper and borrows argument 0, so
+/// [`crate::dispatch::call_render`] does neither. Either way the result is the
+/// `string` that member returned, carrying the one reference every other row
+/// here hands back.
 ///
 /// # Errors
 ///
@@ -984,13 +995,14 @@ const TO_STRING: &str = "toString";
 /// whatever [`value_to_string`] answers for the tag.
 pub fn stringify(ctx: &mut crate::Ctx, value: Value) -> Result<Value, Fault> {
     if value.tag() == Some(Tag::Object) {
-        let rendered = crate::dispatch::call_method(
-            ctx,
-            value,
-            TO_STRING,
-            &[],
-            "an implicit `toString` conversion",
-        )?;
+        const WHAT: &str = "an implicit `toString` conversion";
+        // The native half first, because it is one load and a null test, and
+        // because the two rosters are disjoint by construction: a `Core` class
+        // has no compiled method table and a declared one carries no renderer.
+        if let Some(text) = crate::dispatch::call_render(ctx, value, WHAT)? {
+            return Ok(text);
+        }
+        let rendered = crate::dispatch::call_method(ctx, value, TO_STRING, &[], WHAT)?;
         if let Some(text) = rendered {
             return Ok(text);
         }

@@ -1513,9 +1513,11 @@ mwl_runtime::mwl_helper! {
     /// Not a recomposition of the components: `parse` normalizes nothing, so
     /// there is nothing a round trip could lose, and holding the text is what
     /// buys that guarantee for the price the module docs' *What it spends*
-    /// states. Named `toString` for [`crate::uuid`]'s reason — a `Core` class
-    /// records no `toString` target, so `echo $uri` does not reach this and
-    /// the member is what a program writes instead.
+    /// states. Named `toString` for [`crate::uuid`]'s reason, and that name is
+    /// load-bearing now: ADR 0028 § 1's rendering *is* this member, so
+    /// `echo $uri` reaches it too — through the native call the checker
+    /// resolves where the operand's type names this class, and through
+    /// [`crate::instance`]'s descriptor renderer where it names none.
     fn mwl_core_uri_to_string(_ctx, args: [1]) {
         component(args, "toString", TEXT_SLOT)
     }

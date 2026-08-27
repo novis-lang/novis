@@ -298,7 +298,7 @@ pub use ctx::{
     mwl_probe_call_exit, mwl_probe_stmt, mwl_safepoint, mwl_stack_check,
 };
 pub use decimal::Decimal;
-pub use dispatch::{call_method, method_address};
+pub use dispatch::{call_method, call_render, method_address};
 pub use fmt::php_float_to_string;
 pub use helpers::{stringify, symbols, value_to_string, value_truthy};
 pub use identity::{
