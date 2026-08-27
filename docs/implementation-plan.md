@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 567 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 572 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 162, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -147,20 +147,31 @@
 > key with a null-shaped value, so descending through one aborted the process rather than refusing,
 > and the fix is one new `Helper::ArrayRowForWrite` whose answer is uniformly one owned reference —
 > a retain of the row that was there, or a fresh empty array where PHP would build one. `$g[9][0] =
-> 1` over an empty `$g` now prints what PHP prints. What still stands under item 22 is the *other*
-> holder: an element write through an ADR 0014 § 1 hooked property, and one through a receiver that
-> erased to a shape or a plain `object`, both in `write_back_array`. One shape this deliberately did
-> not take is `$g[][0] = 1`, an append at an intermediate level, recorded as `mwl-ir` gap 23 with
-> the recipe that closes it. **Unbuilt in the library**, none of it a registration gap:
-> `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing rows
-> (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification (`mwl_stdlib::hash`'s module doc),
-> and ADR 0086 § 1's substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
-> unbuilt, and out of this goal's scope** — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 §
-> 3; their work is M6, M7, M8 and M10. **M4S Part I is the floor, not the frontier**: conformance is
-> at 567 of the goal's new 750 and differential at 162 of 165, `python tools/gaps.py` still ranks
-> the thin classes, and a `Core` depth slice is a legitimate slice when a group is blocked — never a
-> reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is 31% classified
-> (`python tools/check-migration.py`).
+> 1` over an empty `$g` now prints what PHP prints. **Item 22 is closed.** Both holders that still
+> stood under it are diagnostics now rather than panics, and they are one function:
+> `check_write_target`, beside `check_assign` in `mwl_types::expr::assign`, called from both the
+> plain and the compound arm once the target has been checked. An element write through an ADR 0014
+> § 1 hooked property is **E0478** — PHP raises "indirect modification of overloaded property" at
+> run time, so refusing where it is written is the compatible answer and not a divergence. A
+> nullsafe assignment target is **E0479**, which PHP also refuses. An element write through a
+> property whose receiver erased to a shape or a plain `object` is **E0480**, the element-write twin
+> of item 25's E0477: ADR 0036 § 4 gave such a property a name-keyed runtime *fetch* and stopped
+> there, which is enough to read one and not enough to give a separated array a slot to land in.
+> Every subscript spelling takes the same refusal, because the walk goes to the chain's root —
+> `[0]`, `[0][1]`, `.=` and `[]` alike — while `$this->p[0] = v` inside the property's own hook
+> still writes the backing slot and runs. `python tools/holes.py` is down to **9 items and 38
+> sites**. One shape this deliberately did not take is `$g[][0] = 1`, an append at an intermediate
+> level, recorded as `mwl-ir` gap 23 with the recipe that closes it. **Unbuilt in the library**,
+> none of it a registration gap: `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two
+> default-bearing rows (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification
+> (`mwl_stdlib::hash`'s module doc), and ADR 0086 § 1's substitution table (M8,
+> `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and unbuilt, and out of this goal's scope** —
+> ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 § 3; their work is M6, M7, M8 and M10. **M4S
+> Part I is the floor, not the frontier**: conformance is at 572 of the goal's new 750 and
+> differential at 162 of 165, `python tools/gaps.py` still ranks the thin classes, and a `Core`
+> depth slice is a legitimate slice when a group is blocked — never a reason to leave a language
+> item unfinished. `docs/spec/02-php-migration.md` is 31% classified (`python
+> tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones

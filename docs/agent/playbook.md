@@ -408,6 +408,13 @@ is why" — is this file.
   or allocates what it did not, so the caller emits no retain and needs no branch — and the
   general rule is that a borrowing read is not a building block for a write path, however
   well it reads.
+- **A heredoc through the shell doubles a backslash, and a Rust `\`-continuation survives
+  the doubling as a literal `\n` that still compiles.** AGENTS.md rule 1 — "a shell never
+  carries file content into the tree" — is protecting you from exactly this, and the
+  failure is silent: a rewritten `panic!` string came back as one physical line with `\n`
+  printed as two characters, `cargo build` was green, and only reading the region back
+  showed it. Three calls to undo. Use Write/Edit or `python tools/splice.py`; if an edit
+  genuinely has to be scripted, build the backslash as `chr(92)` rather than writing one.
 
 ## Running things
 
