@@ -84,8 +84,8 @@ use mwl_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stm
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::expr::{
-    check_array_key_type, check_expr, check_return, check_unset_target, is_assignable,
-    report_mismatch, require_stringable,
+    check_array_key_type, check_expr, check_expr_stmt, check_return, check_unset_target,
+    is_assignable, report_mismatch, require_stringable,
 };
 use crate::expr_table::ExprInfo;
 use crate::lower::{lower_optional_type, lower_type};
@@ -629,8 +629,11 @@ pub(crate) fn check_stmt(
     env: &mut Env<'_>,
 ) {
     match &stmt.kind {
+        // `check_expr_stmt`, not `check_expr`: `yield $v;` and `require '…';`
+        // are the two shapes that mean something *only* as a statement, and
+        // that function is the one home for the split. See its doc comment.
         StmtKind::Expr(e) => {
-            check_expr(e, None, live, scope, ctx, env);
+            check_expr_stmt(e, live, scope, ctx, env);
         }
         StmtKind::Return(Some(e)) => {
             check_return(e, return_ty, live, scope, ctx, env);

@@ -1825,6 +1825,14 @@ sibling in the same namespace unqualified.
   then write one scratch `.mwl` per survivor and run it: six `mwl run` calls settled thirteen
   variants, where reading the arms would only have re-derived the claim. The same subtraction is
   what turns the residue into the doc comment the panic then carries.
+- **Inside a `namespace`, a qualified name resolves *relative* to it — including `Core\`.** A file
+  that opens `namespace App;` and then writes `Core\Str::length("abc")` is `E0303: App\Core\Str is
+  not declared`, and so is `Core\Str::class`; the reserved namespace gets no exemption from the
+  ordinary unqualified/qualified lookup. This reads as a bug in whatever you just changed if the
+  same line works in a namespace-less scratch file, which is how it cost time. `use Core\Str;` and
+  then `Str::length(...)`, or write the leading `\`. The same rule is why `App\User::class` inside
+  `namespace App;` is `App\App\User` — PHP resolves both exactly this way, so it is a trap rather
+  than a divergence.
 
 ## Divergences and refusals already pinned
 

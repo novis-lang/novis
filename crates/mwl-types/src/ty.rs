@@ -297,6 +297,17 @@ impl TypeInterner {
         }
         ids.sort_by_key(|id| id.0);
         ids.dedup();
+        // `never` is the bottom type — no value ever has it — so a union that
+        // offers it *alongside* something else offers exactly that something
+        // else. Absorbing it here rather than at each consumer is what lets
+        // `$v ?? throw new LogicError("…")` and `$v ?? exit(1)` satisfy a
+        // plain `string` position: the branch contributing the `never` cannot
+        // reach the join, so the join's type was never a union at all. Kept
+        // when it is the only member, which is the honest type of an
+        // expression that does not complete.
+        if ids.len() > 1 {
+            ids.retain(|id| !matches!(self.get(*id), Ty::Never));
+        }
         if ids.len() == 1 {
             return ids[0];
         }

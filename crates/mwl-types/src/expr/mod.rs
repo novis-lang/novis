@@ -109,6 +109,53 @@ pub(crate) fn check_expr(
     actual
 }
 
+/// [`check_expr`] for an expression used as its own **statement**.
+///
+/// Two shapes mean something in that position and nothing anywhere else, so
+/// this is where they are told apart rather than by threading a flag through
+/// the whole dispatch. Both mirror `mwl_ir::lower::Lowering::lower_expr_stmt`
+/// exactly, and both look through parentheses for its reason: `(require 'a');`
+/// is the same statement, `mwl_syntax::ast::Expr::unparenthesized` being what
+/// finds the root there too.
+///
+/// * `yield $v;` — ADR 0053 § 4's suspension point, whose value nothing
+///   consumes. [`infer`]'s own arm refuses every *other* position (`E0448`),
+///   so this call is the one path that reaches [`infer_yield`].
+/// * `require '…';` — ADR 0021's statement form, lowered to nothing because
+///   the graph is resolved at compile time. Only the path expression is
+///   checked; [`infer`]'s arm refuses the value form (`E0704`).
+///
+/// Everything else is an ordinary expression and goes straight to
+/// [`check_expr`] with no expectation, exactly as before this split.
+pub(crate) fn check_expr_stmt(
+    expr: &Expr,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let inner = expr.unparenthesized();
+    match &inner.kind {
+        ExprKind::Yield { key, value } => {
+            infer_yield(
+                inner,
+                key.as_deref(),
+                value.as_deref(),
+                live,
+                scope,
+                ctx,
+                env,
+            );
+        }
+        ExprKind::Require { path } => {
+            check_expr(path, None, live, scope, ctx, env);
+        }
+        _ => {
+            check_expr(expr, None, live, scope, ctx, env);
+        }
+    }
+}
+
 /// The dispatch: one arm per AST expression variant, each either a couple of
 /// lines or a single call into the module that owns its rule.
 ///
@@ -353,9 +400,14 @@ pub(super) fn infer(
         ExprKind::ClassConstAccess { class, name } => {
             infer_class_const(expr, class, *name, expected, live, scope, ctx, env)
         }
+        // `Foo::class` — the class's own fully qualified name, as a `string`
+        // constant folded here. PHP resolves it against the file's imports and
+        // namespace with no runtime step at all, and so does this: the class
+        // side is never *checked* as a value (that would be `E0319`/`E0321` on
+        // every `Foo::` in the program), it is resolved the same way a static
+        // call's is. A class side that is not statically known is `E0702`.
         ExprKind::ClassNameConst { class } => {
-            check_expr(class, None, live, scope, ctx, env);
-            env.interner.mixed()
+            members::check_class_name_const(expr, class, ctx, env)
         }
         // `mwl-ir` needs the element's declared type to lower an eventual
         // indexed read/write instruction — see `crate::expr_table`'s own
@@ -491,7 +543,13 @@ pub(super) fn infer(
                 env.interner.make_union(arm_types)
             }
         }
-        ExprKind::Yield { key, value } => infer_yield(
+        // ADR 0053 § 4 first: a `yield` written where there is no generator
+        // body to suspend is `E0445` wherever it stands, and that rule is
+        // reported by [`infer_yield`] — a closure inside a generator is the
+        // case that makes the order matter, since its body is an expression
+        // *and* is not the generator's own. The position question below is
+        // only asked once there is a generator to ask it about.
+        ExprKind::Yield { key, value } if ctx.generator_elem.is_none() => infer_yield(
             expr,
             key.as_deref(),
             value.as_deref(),
@@ -500,6 +558,27 @@ pub(super) fn infer(
             ctx,
             env,
         ),
+        // ADR 0053 § 4's suspension point, reached *inside* another
+        // expression. `check_expr_stmt` is what a `yield;` of its own goes
+        // through, so arriving here is the proof this one was written where a
+        // value is consumed — and § 5 gives a generator no `send()`, so there
+        // is nothing for `yield` to produce. Same code as the two spellings
+        // beside it: this is one more shape of `yield` the language does not
+        // have.
+        ExprKind::Yield { .. } => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_YIELD_FORM_UNSUPPORTED,
+                    "a `yield` is a statement, not a value",
+                )
+                .with_primary(expr.span, "nothing is produced here")
+                .with_help(
+                    "ADR 0053 § 5 gives a generator no `send()`, so a resumed `yield` has \
+                     nothing to hand back — write `yield $v;` on its own",
+                ),
+            );
+            env.interner.mixed()
+        }
         ExprKind::YieldFrom(inner) => infer_yield_from(expr, inner, live, scope, ctx, env),
         ExprKind::Print(inner) => {
             let ty = check_expr(inner, None, live, scope, ctx, env);
@@ -556,15 +635,51 @@ pub(super) fn infer(
             }
             env.interner.never()
         }
+        // ADR 0006's isolate spawn. Its operands are still checked — a typo in
+        // the path expression is worth reporting alongside — and then the
+        // construct itself is refused, because nothing below this crate
+        // compiles it yet (`docs/plan/m5.md`). Refusing it where it is written
+        // is the only reading that cannot silently do nothing.
         ExprKind::SpawnScript { path, options } => {
             check_expr(path, None, live, scope, ctx, env);
             for opt in options {
                 check_expr(&opt.value, None, live, scope, ctx, env);
             }
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_SPAWN_SCRIPT_UNLOWERED,
+                    "`spawn script` is not compiled yet",
+                )
+                .with_primary(expr.span, "no isolate is created here")
+                .with_help(
+                    "ADR 0006's isolates arrive with `docs/plan/m5.md`, together with the \
+                     value-crossing copy a spawn boundary needs. There is no same-frame \
+                     spelling of this to fall back on",
+                ),
+            );
             env.interner.mixed()
         }
+        // ADR 0021 § 3's **value** form. The statement form never reaches here
+        // — `crate::locals::check_stmt` checks only the path for one, matching
+        // `mwl_ir::lower::Lowering::lower_expr_stmt`, which lowers the site to
+        // nothing because `mwl_hir::resolve_program` already walked the graph.
+        // So arriving at all is the proof this `require` was used for its
+        // value, and `mwl-ir`'s known gap 22 is why there is none to give.
         ExprKind::Require { path } => {
             check_expr(path, None, live, scope, ctx, env);
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_REQUIRE_VALUE_UNLOWERED,
+                    "`require`'s value is not available",
+                )
+                .with_primary(expr.span, "this `require` is used for what it hands back")
+                .with_help(
+                    "write `require '…';` as a statement — the target's declarations are \
+                     already merged at compile time. ADR 0021 § 3's `mixed` value needs the \
+                     target's own top-level statements to run, which `mwl-ir`'s known gap 22 \
+                     is about",
+                ),
+            );
             env.interner.mixed()
         }
         ExprKind::Paren(inner) => check_expr(inner, expected, live, scope, ctx, env),

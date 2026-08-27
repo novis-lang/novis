@@ -1134,6 +1134,39 @@ pub mod code {
     /// *call site* stays, because a parameter's write-back is a copy in and a
     /// copy out rather than a shared slot.
     pub const E_ASSIGN_BY_REFERENCE: Code = Code::new("E0701");
+    /// `::class` written on a class side that is not statically known —
+    /// `$obj::class`, `($e)::class`, and `static::class`.
+    ///
+    /// PHP answers the *runtime* class in all three. MWL's `Foo::class` is a
+    /// compile-time constant string and nothing else: an object carries no
+    /// name a program can read back (ADR 0011 puts every reflective question
+    /// on `Core\Reflect`), so there is no value to hand back for the first
+    /// two. `static::class` is the third and the one that would be *silently*
+    /// wrong rather than absent — ADR 0008 binds `static` to whichever class
+    /// the call was made on, so folding it would answer the declaring class
+    /// instead. `self::class` and `parent::class` name a class the compiler
+    /// resolves and are not refused.
+    pub const E_CLASS_NAME_CONST_NOT_STATIC: Code = Code::new("E0702");
+    /// `spawn script '...'` — ADR 0006's isolate spawn, which has no lowering
+    /// yet.
+    ///
+    /// The construct is real and specified; `docs/plan/m5.md` is where it
+    /// arrives, along with the value-crossing copy an isolate boundary needs.
+    /// Until then a program that writes it is refused where it is written
+    /// rather than accepted and dropped, which is the only reading that
+    /// cannot silently do nothing.
+    pub const E_SPAWN_SCRIPT_UNLOWERED: Code = Code::new("E0703");
+    /// `require` used for its **value** — `$c = require 'config.mwl';`,
+    /// ADR 0021 § 3's `mixed`.
+    ///
+    /// The statement form is whole: `mwl_hir::resolve_program` walks the
+    /// `require` graph at compile time and the site lowers to nothing. What
+    /// the value form needs is a *frame per file*, called from the site, so
+    /// the target's own top-level statements run and its `return` has
+    /// somewhere to come from — `mwl_ir`'s known gap 22, whose open question
+    /// is whether that frame shares the caller's locals. This code is what
+    /// that gap's session removes.
+    pub const E_REQUIRE_VALUE_UNLOWERED: Code = Code::new("E0704");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

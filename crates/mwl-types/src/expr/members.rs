@@ -354,6 +354,105 @@ pub(super) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>
     }
 }
 
+/// `Foo::class` — [`super::infer`]'s `ExprKind::ClassNameConst` arm.
+///
+/// The whole construct is a compile-time constant `string`: PHP resolves the
+/// written name against the file's imports and namespace and hands back the
+/// fully qualified name, with no runtime step and no requirement that the
+/// class be loaded. [`resolve_class_expr`] is the same resolution a static
+/// call's class side already gets, and [`mwl_hir::QName`]'s `Display` renders
+/// it the way PHP does — `App\User`, no leading `\` — so the value is recorded
+/// here rather than left for `mwl-ir` to re-derive from a name it cannot even
+/// spell (`mwl-hir` is a dev-dependency there).
+///
+/// Recording it as [`ExprInfo::CoreConst`] is deliberate reuse rather than a
+/// near-miss: that variant means "an ADR 0011 constant, inlined at its use
+/// site, whose value is here because there is no storage to read it back
+/// from," which is exactly what this is. `mwl-ir` materializes it through the
+/// same `emit_const_arg` a parameter default already goes through.
+///
+/// The class side is **not** checked as a value. Doing so would report
+/// `E0319`/`E0321` on every `Foo::class` in the program, for the same reason
+/// `mwl_hir::members::walk_class_side` skips the four name-shaped expressions.
+/// A side that resolves to nothing is a *dynamic* one — `$obj::class`,
+/// `($e)::class` — and is [`code::E_CLASS_NAME_CONST_NOT_STATIC`]: an object
+/// carries no name a program can read back. The type stays `string` either
+/// way, so a refused site does not then also mismatch its binding.
+pub(super) fn check_class_name_const(
+    expr: &Expr,
+    class: &Expr,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    // `static::class` is the one class side that resolves *and* is wrong to
+    // fold. ADR 0008's late static binding makes `static` whichever class the
+    // call was made on, so an inherited method's `static::class` is the
+    // subclass in PHP and would be the declaring class here — a silently
+    // different string rather than a refusal. The name is reachable at run
+    // time (the frame carries a `Ty::ClassDesc`), so this is a lowering that
+    // does not exist yet rather than a thing the language lacks; until it
+    // does, `self::class` is the spelling that means what this folds to.
+    if matches!(class.kind, ExprKind::StaticExpr) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_CLASS_NAME_CONST_NOT_STATIC,
+                "`::class` needs a class named at compile time",
+            )
+            .with_primary(class.span, "`static` is not known until the call runs")
+            .with_help(
+                "ADR 0008 binds `static` to whichever class the call was made on, so folding \
+                 it here would answer the declaring class instead — write `self::class` if \
+                 that is what was meant",
+            ),
+        );
+        return env.interner.string();
+    }
+    match resolve_class_expr(class, ctx, env) {
+        Some(qname) => {
+            // A *written* name is checked for existing, which is where MWL
+            // parts company with PHP: PHP folds `Bogus::class` to `"Bogus"`
+            // with no complaint at all, because the string is on its way to
+            // `new $name` or `$name::m()` and the question is answered there.
+            // MWL has neither spelling (ADR 0011), so a name that resolves to
+            // nothing is a typo with nowhere left to be caught — the same
+            // mistake and the same code `new Undeclared()` already takes.
+            // `self`/`static`/`parent` resolve through the enclosing
+            // declaration and are real by construction.
+            if matches!(class.kind, ExprKind::ConstFetch(_))
+                && env.symbols.get(&qname).is_none()
+                && !qname.is_core()
+                && !qname.is_reserved_global_class()
+                && !qname.is_reserved_global_interface()
+            {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_UNDEFINED_CLASS,
+                        format!("`{qname}` is not declared"),
+                    )
+                    .with_primary(class.span, "no matching declaration"),
+                );
+            }
+            let value = crate::defaults::ConstArg::Str(qname.to_string());
+            env.exprs.record(expr.span, ExprInfo::CoreConst { value });
+        }
+        None => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_CLASS_NAME_CONST_NOT_STATIC,
+                    "`::class` needs a class named at compile time",
+                )
+                .with_primary(class.span, "this names no class the compiler can resolve")
+                .with_help(
+                    "write the class itself — `Foo::class`, `self::class` — or take the \
+                     question to the type system. An object carries no name a program can \
+                     read back: ADR 0011 puts every reflective question on `Core\\Reflect`",
+                ),
+            );
+        }
+    }
+    env.interner.string()
+}
+
 /// Shared body for a property access, whether it appears as an ordinary
 /// expression (`$obj->prop`, `is_unset` false) or as `unset()`'s operand
 /// (`is_unset` true) — the receiver/member resolution is identical either

@@ -1,0 +1,49 @@
+--TEST--
+`::class` on a class side that is not statically known is `E0702`, and on a name that resolves to nothing is `E0303` — never a panic and never a folded guess (ADR 0011, ADR 0008)
+--FILE--
+<?mwl
+// ADR 0011 puts every reflective question on `Core\Reflect`: an object
+// carries no name a program can read back, so a receiver's runtime class
+// is not something `::class` can answer.
+class User {
+}
+User $u = new User();
+echo $u::class;
+
+// ADR 0008 binds `static` to whichever class the call was made on, so
+// folding it here would answer the declaring class instead — silently a
+// different string rather than an absent one, which is the reason this
+// one is refused and `self::class` is not.
+class Base {
+    public static function name(): string {
+        return static::class;
+    }
+}
+
+// A name that resolves to nothing is the same mistake, and the same code,
+// `new Undeclared()` already takes. PHP folds this to `"Bogus"` because
+// the string is on its way to `new $name`; ADR 0011 leaves it nowhere to
+// go, so the typo has no later place to be caught.
+echo Bogus::class;
+--EXPECTF-ERROR--
+error[E0702]: `::class` needs a class named at compile time
+  --> %s:8:6
+  |
+8 | echo $u::class;
+  |      ^^ this names no class the compiler can resolve
+  = help: write the class itself — `Foo::class`, `self::class` — or take the question to the type system. An object carries no name a program can read back: ADR 0011 puts every reflective question on `Core\Reflect`
+
+error[E0702]: `::class` needs a class named at compile time
+   --> %s:16:16
+   |
+16 |         return static::class;
+   |                ^^^^^^ `static` is not known until the call runs
+   = help: ADR 0008 binds `static` to whichever class the call was made on, so folding it here would answer the declaring class instead — write `self::class` if that is what was meant
+
+error[E0303]: `Bogus` is not declared
+   --> %s:24:6
+   |
+24 | echo Bogus::class;
+   |      ^^^^^ no matching declaration
+
+error: aborting due to 3 errors

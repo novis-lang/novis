@@ -1,0 +1,38 @@
+--TEST--
+PHP 8's `throw` in expression position raises from inside the expression it is written in — `?? throw` and `?: throw` both, with the `never` the branch contributes absorbed by the union so the position's own declared type still holds (ADR 0002, ADR 0007 § 3)
+--FILE--
+<?mwl
+class Box {
+    // `$v ?? throw …` is the whole reason expression-position `throw`
+    // exists: the coalesce's right half cannot complete, so the method
+    // returns `string` rather than `string|never`.
+    public static function get(?string $v): string {
+        return $v ?? throw new LogicError("empty");
+    }
+}
+
+echo Box::get("here"), "\n";
+
+try {
+    echo Box::get(null), "\n";
+} catch (Throwable $e) {
+    echo "caught ", $e->message, "\n";
+}
+
+// The same in a ternary arm, and the same absorption: a `string` binding
+// accepts it because the arm that raises never reaches the join.
+try {
+    string $t = true ? throw new RuntimeError("arm") : "no";
+    echo $t, "\n";
+} catch (Throwable $e) {
+    echo "caught ", $e->message, "\n";
+}
+
+// The statement form is unchanged and still ends its block — this line
+// proves the expression form left the surrounding one open.
+echo "end", "\n";
+--EXPECT--
+here
+caught empty
+caught arm
+end

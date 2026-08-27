@@ -1,0 +1,44 @@
+--TEST--
+A `yield` written where a value is consumed is `E0448`, the same code its three other missing spellings take — ADR 0053 § 5 gives a generator no `send()`, so there is nothing for a resumed `yield` to hand back
+--FILE--
+<?mwl
+class Counter {
+    // ADR 0053 § 5 gives a generator no `send()`, so a resumed `yield`
+    // has nothing to hand back — the statement form is the whole of what
+    // the construct is, and every other position is refused.
+    public static function upTo(int $n): Iterator<int> {
+        yield 1;
+        mixed $answer = yield 2;
+        echo $answer as string;
+    }
+
+    // The same refusal wherever the value is consumed. A condition is the
+    // one position that accepts any type at all (ADR 0035), so nothing
+    // else is reported on this line and the `yield` is the whole of it.
+    public static function tested(): Iterator<int> {
+        yield 1;
+        if (yield 2) {
+            echo "x";
+        }
+    }
+}
+
+foreach (Counter::upTo(3) as int $v) {
+    echo $v;
+}
+--EXPECTF-ERROR--
+error[E0448]: a `yield` is a statement, not a value
+  --> %s:8:25
+  |
+8 |         mixed $answer = yield 2;
+  |                         ^^^^^^^ nothing is produced here
+  = help: ADR 0053 § 5 gives a generator no `send()`, so a resumed `yield` has nothing to hand back — write `yield $v;` on its own
+
+error[E0448]: a `yield` is a statement, not a value
+   --> %s:17:13
+   |
+17 |         if (yield 2) {
+   |             ^^^^^^^ nothing is produced here
+   = help: ADR 0053 § 5 gives a generator no `send()`, so a resumed `yield` has nothing to hand back — write `yield $v;` on its own
+
+error: aborting due to 2 errors

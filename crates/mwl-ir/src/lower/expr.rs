@@ -252,6 +252,41 @@ impl<'a> Lowering<'a> {
                     expr.span
                 ),
             },
+            // `Foo::class` — the class's own fully qualified name, and a
+            // `Ty::Str` constant with no storage behind it, exactly like the
+            // two constants one arm above. The *name* is resolved by
+            // `mwl_types::expr::members::check_class_name_const` and travels
+            // in the same `ExprInfo::CoreConst` a `Core` class constant does,
+            // for two reasons that point the same way: a constant is inlined
+            // at its use site whichever of the three it is, and this crate
+            // cannot name a `mwl_hir::QName` to do the resolution itself.
+            //
+            // The lookup only misses in a compilation that has already
+            // aborted — the checker records a name for every `::class` it
+            // accepts and reports `E0702` for the one shape it does not — so
+            // the fallback is an empty string rather than a panic, which is
+            // what keeps this arm's own reachability a fact about the checker
+            // rather than a claim in a message.
+            ExprKind::ClassNameConst { .. } => match self.exprs.lookup(expr.span) {
+                Some(ExprInfo::CoreConst { value }) => {
+                    let value = value.clone();
+                    self.emit_const_arg(&value, env, *cur)
+                }
+                _ => self.emit(*cur, Ty::Str, InstKind::ConstStr(String::new())),
+            },
+            // PHP 8's `throw` in expression position — `$n ?? throw new
+            // LogicError("…")`. The same `Self::lower_throw` the statement
+            // form goes through, which seals `*cur` with `Terminator::Throw`;
+            // what this adds is the fresh block every caller then writes into
+            // and the `never`-typed value it hands back, both unreachable by
+            // construction and both required because this dispatch is total
+            // in `(ValueId, Ty)`. `Self::lower_exit` one arm below is the same
+            // shape for the same reason.
+            ExprKind::Throw(inner) => {
+                self.lower_throw(inner, env, cur);
+                *cur = self.new_block();
+                self.emit(*cur, Ty::Int, InstKind::ConstInt(0))
+            }
             ExprKind::Conversion { expr: inner, ty } => {
                 self.lower_conversion(inner, ty, env, cur)
             }
@@ -313,12 +348,45 @@ impl<'a> Lowering<'a> {
             // ADR 0031 § 1 gives `callable` no parameter list, so there is no
             // resolved target to name. See `Self::lower_closure_call`.
             ExprKind::Call { callee, args } => self.lower_closure_call(callee, args, env, cur),
+            // Nothing the checker accepts reaches this arm any more, and the
+            // proof is the roster rather than the message below it. `ExprKind`
+            // has 45 variants; the arms above cover 34 of them, plus one of
+            // `Assign`'s two `by_ref` shapes. Of the eleven with no arm and
+            // the one `Assign` shape:
+            //
+            // * `Error` is a parse error already reported, and does not
+            //   survive to a compilation that lowers.
+            // * a bare `NAME` (`ConstFetch`) is `E0319` — ADR 0011 § 3 gives
+            //   a constant no home but a class — and `self`/`static`/`parent`
+            //   used as a *value* are `E0321`, both from `mwl_hir::members`.
+            //   All four still appear as the class *side* of a `::`, which is
+            //   not this dispatch's business: `walk_class_side` skips them and
+            //   the arms above read the checker's own resolution instead.
+            // * `$a = &$b` is `E0701`: ADR 0031 § 2 removed by-reference
+            //   capture, so there is no owner for the `&`.
+            // * every `yield` shape is `E0448` where it has no lowering — a
+            //   key half, a `yield from`, a missing value, and (since this
+            //   pass) one used as a *value*, ADR 0053 § 5 giving a generator
+            //   no `send()` for it to answer with. The statement form goes
+            //   through `Self::lower_yield` one file over, reached from
+            //   `mwl_types::expr::check_expr_stmt`'s matching split.
+            // * `spawn script` is `E0703` and `require` used for its value is
+            //   `E0704`, both because nothing below this crate compiles them
+            //   yet — ADR 0006's isolates arrive at M5, and the value form of
+            //   ADR 0021 § 3 needs the frame-per-file this crate's known gap
+            //   22 is about. `require` as a *statement* lowers to nothing, one
+            //   file over.
+            // * `$obj::class` is `E0702`; the statically-named spelling lowers
+            //   one arm above.
+            //
+            // `Ternary`, `Match`, `Paren` and `ObjectLiteral`, which used to
+            // arrive here, all lower above.
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
                  operators, `new`, a static or instance method call, property access, a static \
                  property, an array literal, an array-element read, `instanceof`, `isset`, \
-                 `empty`, an enum case, an increment, an assignment, `print`, `exit`, a call \
-                 through a `callable` and an \
+                 `empty`, an enum case, a class-name constant, an increment, an assignment, \
+                 `print`, `throw`, `exit`, a call through a `callable` and an \
                  `as` conversion — got {other:?}; \
                  see the crate docs' known gaps"
             ),

@@ -64,10 +64,18 @@
 > does, and an expression used as its own statement is evaluated for its effects with its value
 > discarded whatever shape it is, `$a = &$b;` being the one spelling refused instead (`E0701`, ADR
 > 0031 § 2 has nowhere to put a reference) — which together leave both of the statement slice's
-> catch-alls no reachable target. Three live tools **are** the worklist and no session re-derives
-> one: `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and
-> attributes each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the
-> named `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
+> catch-alls no reachable target. The **expression** dispatch is now the same: `Foo::class` folds to
+> the class's fully qualified name as a `string` constant and `self::class`/`parent::class` with it,
+> `$obj::class` and `static::class` are `E0702` — ADR 0008 binds `static` at the call, so folding it
+> would silently answer the declaring class — an undeclared name in one is the ordinary `E0303`, PHP
+> 8's `throw` lowers in expression position now that a union absorbs the `never` a non-completing
+> branch contributes (`$v ?? throw new LogicError(…)` satisfies a `string`), a `yield` used as a
+> value is `E0448`, `spawn script` is `E0703` (ADR 0006's isolates are M5) and `require` used for
+> its value is `E0704` (`mwl-ir`'s known gap 22), which together leave `lower_expr`'s catch-all no
+> reachable target either. Three live tools **are** the worklist and no session re-derives one:
+> `python tools/holes.py` reads the refusal sites out of `mwl-ir` and `mwl-codegen` and attributes
+> each to its item (`--item N` for one in full), `python tools/loop.py --list` prints the named
+> `.mwlt` cases each stage still owes, and `python tools/check-migration.py` scores
 > `docs/spec/02-php-migration.md`.
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop

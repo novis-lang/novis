@@ -307,10 +307,11 @@ impl<'a> Lowering<'a> {
                 // See `Self::pending_refs`.
                 self.flush_ref_writebacks(env, *cur);
             }
-            // PHP 8 makes `throw` an expression; MWL keeps that grammar and
-            // lowers only the statement position, which is the one place it
-            // has a block to seal. `$x = throw …;` falls through to
-            // `lower_expr`'s own unsupported-shape panic.
+            // PHP 8 makes `throw` an expression, and MWL keeps that grammar in
+            // both positions: this arm is the statement one, where the sealed
+            // block *is* the end of the statement, and `lower_expr`'s own
+            // `Throw` arm is `$n ?? throw …`, which adds the unreachable
+            // continuation block an expression's caller still writes into.
             ExprKind::Throw(inner) => self.lower_throw(inner, env, cur),
             // `exit;` / `exit(…);` — the whole construct is the one helper
             // call `Self::lower_exit` emits. The `never`-typed value it hands

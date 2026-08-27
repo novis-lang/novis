@@ -547,8 +547,9 @@
 //!     `require` in statement position lowers to nothing, because the graph is
 //!     already resolved by the time lowering starts. So a required file that
 //!     writes `echo "loaded";` at file scope compiles and stays silent, and
-//!     ADR 0021 § 3's value form (`$c = require 'config.mwl';`) has no arm at
-//!     all — it panics in `lower_expr` like any other unsupported shape. The
+//!     ADR 0021 § 3's value form (`$c = require 'config.mwl';`) is refused
+//!     where it is written — `E0704`, from `mwl_types::expr`, whose statement/
+//!     value split mirrors [`lower::Lowering::lower_expr_stmt`]'s. The
 //!     shape that closes both is one frame per file, called from the site, and
 //!     the open question it raises is whether that frame shares the caller's
 //!     locals (ADR 0021's "no isolation") or not — which is why this is

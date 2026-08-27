@@ -1,0 +1,43 @@
+--TEST--
+`Foo::class` is the fully qualified name of the class, folded to a `string` constant at compile time — ADR 0011 § 3's "inlined at every use site, with no storage to read it back from", resolved the way every other class side is
+--FILE--
+<?mwl
+namespace App;
+
+// The written name is resolved against the file's namespace and imports,
+// exactly as a static call's class side is, so the answer is the fully
+// qualified name and never the short one PHP would also refuse to give.
+class User {
+    // `self` is the class this method is declared in, which is what makes
+    // it the spelling `static::class` is refused in favour of.
+    public static function own(): string {
+        return self::class;
+    }
+}
+
+class Admin extends User {
+    // `parent` is the first `extends` link — the same resolution
+    // `parent::method()` already takes.
+    public static function inherited(): string {
+        return parent::class;
+    }
+}
+
+echo User::class, "\n";
+echo Admin::class, "\n";
+echo Admin::own(), "\n";
+echo Admin::inherited(), "\n";
+
+// It is a `string`, not a class handle: it binds, concatenates and
+// compares like any other one. ADR 0011 has no `new $name` for it to
+// reach, which is why this is all it is.
+string $s = User::class;
+echo $s . "!", "\n";
+echo (User::class == "App\\User") as string, "\n";
+--EXPECT--
+App\User
+App\Admin
+App\User
+App\User
+App\User!
+1
