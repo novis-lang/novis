@@ -65,7 +65,7 @@
 > answering the `Cli\Text` carrier, `ObjectMap` × 9, `ObjectSet` × 9 and `Heap` × 5 over
 > `identity_store`, all three iterable through `cursor`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`,
-> `run`), `tests/conformance` × 559 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
+> `run`), `tests/conformance` × 560 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang`
 > and `reject`) and `tests/differential` × 162, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -122,19 +122,19 @@
 > `-` throw `ArithmeticError` on overflow instead of wrapping, all six bitwise operators lower with
 > PHP's own shift rules, `**` answers every numeric row and throws where that row has no integer,
 > and `<=>` answers `-1`/`0`/`1` for every scalar `<` already orders — `$x++`/`--$x` lower in either
-> position over a target whose address is computed once, so what is left of Stage 0 is `==` over two
-> enum values, plus the four named cargo guards items 1 and 2 never wrote. Even so, `tools/loop.py`
-> runs it before the program legs, because every fixture and every case in every stage below is
-> written against those rules. **Unbuilt in the library**, none of it a registration gap:
-> `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing rows
-> (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification (`mwl_stdlib::hash`'s module doc),
-> and ADR 0086 § 1's substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided and
-> unbuilt, and out of this goal's scope** — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and 0100 §
-> 3; their work is M6, M7, M8 and M10. **M4S Part I is the floor, not the frontier**: conformance is
-> at 559 of the goal's new 750 and differential at 162 of 165, `python tools/gaps.py` still ranks
-> the thin classes, and a `Core` depth slice is a legitimate slice when a group is blocked — never a
-> reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is 31% classified
-> (`python tools/check-migration.py`).
+> position over a target whose address is computed once, and `==` over two enum values answers one
+> representation down, so what is left of Stage 0 is the four named cargo guards items 1 and 2 never
+> wrote. Even so, `tools/loop.py` runs it before the program legs, because every fixture and every
+> case in every stage below is written against those rules. **Unbuilt in the library**, none of it a
+> registration gap: `Core\Json::decodeAs<T>`'s wider codec-reachable set and its two default-bearing
+> rows (`mwl_stdlib::json` gaps), ADR 0088's qualifier classification (`mwl_stdlib::hash`'s module
+> doc), and ADR 0086 § 1's substitution table (M8, `crates/mwl-stdlib/src/cli.rs` gap 1). **Decided
+> and unbuilt, and out of this goal's scope** — ADRs 0091, 0092 § 2's log levels, 0093, 0097 and
+> 0100 § 3; their work is M6, M7, M8 and M10. **M4S Part I is the floor, not the frontier**:
+> conformance is at 560 of the goal's new 750 and differential at 162 of 165, `python tools/gaps.py`
+> still ranks the thin classes, and a `Core` depth slice is a legitimate slice when a group is
+> blocked — never a reason to leave a language item unfinished. `docs/spec/02-php-migration.md` is
+> 31% classified (`python tools/check-migration.py`).
 >
 > **Blocking:** Nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the ones

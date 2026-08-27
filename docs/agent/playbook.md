@@ -1428,6 +1428,15 @@ sibling in the same namespace unqualified.
   the real problem. ADR 0054 § 2 is why there is no suffix at all: a numeric literal is untyped
   until placed, so `decimal $d = 1.25;` is the whole spelling and the binding's declared type is
   what makes it a `decimal`.
+- **An enum is not spelled the way PHP spells it, and an enum case is not a property
+  default.** `enum Mode: int { case Read = 1; }` parses as a *class* and reports eight
+  errors on four lines, none of which says "wrong enum syntax": the MWL shape is
+  `enum Mode { Read = 1, Write = 2 }` — bare names, commas, no `case` keyword — and the
+  backing type is `enum Mask: uint { … }`, which is the only way to reach `EnumRepr::Uint`
+  since a case past `int` is `E0437` under the default backing. Then
+  `public Rank $rank = Rank::Silver;` is `E0472`: a case *is* a compile-time integer
+  constant (ADR 0010 § 3), but a property default accepts only a scalar literal or `[]`,
+  so an enum-typed property takes its value through `constructor`.
 
 ## Divergences and refusals already pinned
 

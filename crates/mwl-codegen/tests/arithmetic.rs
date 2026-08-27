@@ -1,4 +1,4 @@
-//! Integer arithmetic whose edges diverge from a native instruction — `%`'s signs, a divisor that throws rather than traps, and ADR 0007 § 4's overflow throw.
+//! Integer arithmetic whose edges diverge from a native instruction — `%`'s signs, a divisor that throws rather than traps, ADR 0007 § 4's overflow throw, and the integer compare an enum pair reaches one representation down.
 //!
 //! Split out of the single `compile_and_run.rs`; every test keeps its own name
 //! and body. See `tests/common/mod.rs` for the shared fixtures and for why
@@ -157,6 +157,57 @@ try {
 "
         ),
         "caught: Integer addition overflowed"
+    );
+}
+
+#[test]
+fn two_enum_values_compare_as_their_backing_integer() {
+    // `Emitter::emit_binop`'s `integral` set is `Int | Uint | Bool` and there
+    // is no `Ty::Enum` row anywhere in its table, so ADR 0090 § 2's "an enum
+    // is its own equality domain" is answered one representation down: the
+    // lowering relabels each operand with the free `InstKind::Reinterpret`
+    // ADR 0010 § 5 already spends on `$m as int`, and what arrives here is an
+    // ordinary integer compare. This guards the whole path rather than the
+    // relabel, since a missing arm shows up as `output_of` failing to compile
+    // at all rather than as a wrong answer.
+    assert_eq!(
+        output_of(
+            "<?mwl
+enum Rank { Bronze, Silver, Gold }
+Rank $a = Rank::Silver;
+Rank $b = Rank::Silver;
+Rank $c = Rank::Gold;
+echo ($a == $b) as string, \"|\", ($a == $c) as string, \"|\", ($a != $c) as string;
+"
+        ),
+        "1||1"
+    );
+    // The zero-backed case on both sides: ADR 0035 § 4 keeps an enum out of
+    // the truthy table entirely, so nothing here may read `0` as "unset".
+    assert_eq!(
+        output_of(
+            "<?mwl
+enum Signal { Stop = -1, Idle = 0, Go = 10 }
+Signal $s = Signal::Idle;
+echo ($s == Signal::Idle) as string, \"|\", ($s == Signal::Stop) as string, \"|\";
+echo ($s != Signal::Go) as string;
+"
+        ),
+        "1||1"
+    );
+    // ADR 0010 § 2's second backing type, at a value with no `int`: the other
+    // `EnumRepr` arm, and the one that would silently fall through to a
+    // `Ty::Enum` compare if only the signed row were relabelled.
+    assert_eq!(
+        output_of(
+            "<?mwl
+enum Mask: uint { None = 0, All = 18446744073709551615 }
+Mask $m = Mask::All;
+echo ($m == Mask::All) as string, \"|\", ($m == Mask::None) as string, \"|\";
+echo ($m != Mask::None) as string;
+"
+        ),
+        "1||1"
     );
 }
 
