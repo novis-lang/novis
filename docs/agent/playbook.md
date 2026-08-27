@@ -378,6 +378,14 @@ is why" — is this file.
   label now satisfies without any recursion existing; read for a `call` naming it instead. Both
   are string-shaped assertions over rendered IR, so `grep` for the *edge* (`! bb`, `propagate`)
   rather than for the operator when a change widens the fallible set.
+- **A `python - <<'PY'` heredoc mangles non-ASCII in the *matched* string, so a `str.replace`
+  whose `old` contains a `§` or an em dash silently finds nothing.** Writing one out is fine —
+  the same script wrote `§` and `—` into three files correctly in the same session — but an
+  `assert s.count(old) == 1` over a fragment quoted from a doc comment fails with no clue why,
+  and the obvious next move is to re-`grep` the file and confirm the text *is* there, which
+  costs two more calls. That is AGENTS.md rule 1 collecting its price: use Edit for anything
+  whose anchor is prose. A heredoc is still fine when every matched byte is ASCII, which is
+  what the `Helper::X => "symbol"` table edits in this session were.
 
 ## Running things
 
@@ -1403,6 +1411,13 @@ sibling in the same namespace unqualified.
   and shift by that. On the `int` arm a *negative* count is the one refusal PHP has —
   `ArithmeticError: Bit shift by negative number` — and a count of 64 or more answers `0`
   (or all-sign for an arithmetic `>>`) rather than the masked shift the machine would do.
+- **A `decimal` binding takes a plain decimal literal, not a `d` suffix.** `decimal $d = 1.25d;`
+  is four errors deep — the lexer reads `1.25d` as a *duration* literal and reports `E0007:
+  \`.\` has no meaning in a duration`, then the parser loses the statement and the checker
+  reports the wreckage as `E0401: expected \`decimal\`, found \`mixed\``, none of which names
+  the real problem. ADR 0054 § 2 is why there is no suffix at all: a numeric literal is untyped
+  until placed, so `decimal $d = 1.25;` is the whole spelling and the binding's declared type is
+  what makes it a `decimal`.
 
 ## Divergences and refusals already pinned
 
