@@ -332,8 +332,9 @@ pub(super) fn report_by_reference_assignment(span: Span, value: Span, env: &mut 
         .with_primary(span, format!("this would share `{value_text}`'s own slot"))
         .with_help(
             "MWL has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes \
-             this a copy, so drop the `&` — to share one mutable cell, hold it in an object and \
-             assign that",
+             this a copy, so drop the `&` — `inout` is a parameter and binding mode (ADR 0107), \
+             not a way to make two names one place, and to share one mutable cell you hold it in \
+             an object and assign that",
         ),
     );
 }

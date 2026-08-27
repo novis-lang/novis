@@ -21,7 +21,7 @@ fn m(object, array) -> void {
     v8 = const.int 1  ; int
     v9 = add v5, v8  ; int
     v10 = array.value_at v4, v5  ; int
-    ; stmt s1 @4:29-6:6
+    ; stmt s1 @4:34-6:6
     ; stmt s2 @5:7-5:19
     v11 = const.int 1  ; int
     v12 = add v10, v11 ! bb4  ; int

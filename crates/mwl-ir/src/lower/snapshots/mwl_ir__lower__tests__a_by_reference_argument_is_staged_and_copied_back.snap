@@ -7,7 +7,7 @@ fn <script>() -> tagged {
     safepoint
     ; stmt s0 @5:14-5:25
     v0 = const.int 1  ; int
-    ; stmt s1 @6:1-6:17
+    ; stmt s1 @6:1-6:23
     v1 = class.desc Adder  ; classdesc
     v2 = ref.slot v0  ; ref
     v3 = call Adder::bump(this: v1, v2) ! bb1  ; void

@@ -821,7 +821,7 @@ fn collect_members(
                         .map(|p| strip_sigil(span_text(env.src, p.name)).to_owned())
                         .collect(),
                 );
-                let by_ref: Vec<bool> = m.params.iter().map(|p| p.by_ref).collect();
+                let by_ref: Vec<bool> = m.params.iter().map(|p| p.inout).collect();
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
                 let defaults = collect_defaults(&m.params, &params, env);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);

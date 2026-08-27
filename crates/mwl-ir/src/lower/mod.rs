@@ -767,7 +767,7 @@ pub fn lower_method(
         // *pointee*: every read of the parameter becomes an
         // `InstKind::RefLoad` at that type and every write an
         // `InstKind::RefStore`. See `Ty::Ref` for the whole representation.
-        let bound_ty = if p.by_ref {
+        let bound_ty = if p.inout {
             low.ref_locals.insert(pname.clone(), ty);
             Ty::Ref
         } else {

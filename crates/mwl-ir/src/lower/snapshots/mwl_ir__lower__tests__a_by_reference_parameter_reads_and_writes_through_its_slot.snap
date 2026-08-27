@@ -7,7 +7,7 @@ fn bump(classdesc, ref) -> void {
     safepoint
     v0 = param 0  ; classdesc
     v1 = param 1  ; ref
-    ; stmt s0 @3:64-3:82
+    ; stmt s0 @3:69-3:87
     v2 = ref.load v1  ; int
     v3 = const.int 5  ; int
     v4 = add v2, v3 ! bb1  ; int

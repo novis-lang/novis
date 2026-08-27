@@ -215,9 +215,9 @@ impl<'a> Lowering<'a> {
                 subject,
                 key,
                 value,
-                value_by_ref,
+                value_inout,
                 body,
-            } => self.lower_foreach(subject, key.as_ref(), value, *value_by_ref, body, cur, env),
+            } => self.lower_foreach(subject, key.as_ref(), value, *value_inout, body, cur, env),
             StmtKind::Switch { subject, cases } => self.lower_switch(subject, cases, cur, env),
             // ADR 0028 § 3 leaves exactly one `unset` target standing — an
             // array element — and `mwl_types::expr::check_unset_target`

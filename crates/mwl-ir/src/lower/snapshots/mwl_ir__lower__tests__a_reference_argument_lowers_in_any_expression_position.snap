@@ -7,7 +7,7 @@ fn <script>() -> tagged {
     safepoint
     ; stmt s0 @5:14-5:25
     v0 = const.int 1  ; int
-    ; stmt s1 @6:1-6:89
+    ; stmt s1 @6:1-6:101
     v1 = const.str "a="  ; string
     v2 = class.desc Adder  ; classdesc
     v3 = ref.slot v0  ; ref

@@ -477,14 +477,14 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// established itself as a generator, so an ordinary method's `&$x` — which
 /// lowers — is untouched.
 fn check_generator_by_ref_params(m: &MethodMember, env: &mut Env<'_>) {
-    for param in m.params.iter().filter(|p| p.by_ref) {
+    for param in m.params.iter().filter(|p| p.inout) {
         let name = span_text(env.src, param.name).to_owned();
         env.diags.report(
             Diagnostic::error(
                 code::E_GENERATOR_BY_REF_PARAM,
-                format!("a generator cannot take `{name}` by reference"),
+                format!("a generator cannot take `{name}` as `inout`"),
             )
-            .with_primary(param.name, "declared by reference here")
+            .with_primary(param.name, "declared `inout` here")
             .with_help(
                 "ADR 0053 § 4: calling a generator returns the state object without running \
                  the body, so the caller's cell is gone before the first `advance()` — take \

@@ -473,6 +473,23 @@ pub(super) fn report_named_args_through_callable(args: &CallArgs, env: &mut Env<
     };
     let mut positional_ends: Option<Span> = None;
     for arg in list {
+        // ADR 0107 § 2's marker has the same nothing to resolve against, one
+        // step worse: no closure can declare an `inout` parameter at all
+        // (`E_CLOSURE_BY_REF_PARAM`), so the marker here is never right.
+        if arg.inout {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_INOUT_ARG_UNEXPECTED,
+                    "`inout` names no parameter of a `callable`",
+                )
+                .with_primary(arg.span, "marked `inout` here")
+                .with_help(
+                    "ADR 0031 § 1 keeps `callable` opaque and § 4 refuses an `inout` closure \
+                     parameter outright, so nothing this call reaches can bind one — drop the \
+                     `inout`",
+                ),
+            );
+        }
         if let Some(name) = arg.name {
             positional_ends.get_or_insert(arg.span);
             let name = span_text(env.src, name).to_owned();
@@ -668,7 +685,7 @@ pub(super) fn check_fn_literal(
     for param in &f.params {
         let ty = lower_optional_type(param.ty.as_ref(), ctx, env);
         let name = strip_sigil(span_text(env.src, param.name)).to_owned();
-        if param.by_ref {
+        if param.inout {
             report_by_reference_parameter(param, env);
         }
         inner.declare_param(name.clone(), ty, param.name);
@@ -777,9 +794,9 @@ fn report_by_reference_parameter(param: &mwl_syntax::ast::Param, env: &mut Env<'
     env.diags.report(
         Diagnostic::error(
             code::E_CLOSURE_BY_REF_PARAM,
-            format!("a closure cannot take `{name}` by reference"),
+            format!("a closure cannot take `{name}` as `inout`"),
         )
-        .with_primary(param.name, "declared by reference here")
+        .with_primary(param.name, "declared `inout` here")
         .with_help(
             "ADR 0031 § 4: a closure's type is `callable`, which carries no parameter list, so \
              no call site knows to stage a cell — take the value and `return` the result, or \

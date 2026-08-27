@@ -1,4 +1,5 @@
-//! `&$x` arguments: which expressions are assignable through one, and which are refused.
+//! `inout` arguments: which expressions are assignable through one, which are
+//! refused, and ADR 0107 § 2's marker at both ends of the same call.
 //!
 //! Moved out of `mwl_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -19,10 +20,10 @@ fn a_by_reference_argument_that_is_a_local_is_accepted() {
     let diags = check_src(
         "<?mwl
 class T {
-  static function bump(int &$s): void { $s = $s + 1; }
+  static function bump(inout int $s): void { $s = $s + 1; }
            function m(): void {
 int $n = 1;
-T::bump($n);
+T::bump(inout $n);
   }
 }
 ",
@@ -37,9 +38,9 @@ fn a_by_reference_argument_that_is_a_property_is_accepted() {
 class T {
   public int $hits;
            function constructor(int $hits) { $this->hits = $hits; }
-           static function bump(int &$s): void { $s = $s + 1; }
+           static function bump(inout int $s): void { $s = $s + 1; }
            function m(): void {
-T::bump($this->hits);
+T::bump(inout $this->hits);
   }
 }
 ",
@@ -52,9 +53,9 @@ fn a_literal_passed_by_reference_is_diagnosed() {
     let diags = check_src(
         "<?mwl
 class T {
-  static function bump(int &$s): void { $s = $s + 1; }
+  static function bump(inout int $s): void { $s = $s + 1; }
            function m(): void {
-T::bump(1);
+T::bump(inout 1);
   }
 }
 ",
@@ -72,10 +73,10 @@ fn a_calls_own_result_passed_by_reference_is_diagnosed() {
     let diags = check_src(
         "<?mwl
 class T {
-  static function bump(int &$s): void { $s = $s + 1; }
+  static function bump(inout int $s): void { $s = $s + 1; }
            static function one(): int { return 1; }
            function m(): void {
-T::bump(T::one());
+T::bump(inout T::one());
   }
 }
 ",
@@ -96,10 +97,10 @@ fn an_array_element_passed_by_reference_is_diagnosed() {
     let diags = check_src(
         "<?mwl
 class T {
-  static function bump(int &$s): void { $s = $s + 1; }
+  static function bump(inout int $s): void { $s = $s + 1; }
            function m(): void {
 array<int> $a = [1];
-T::bump($a[0]);
+T::bump(inout $a[0]);
   }
 }
 ",
@@ -122,9 +123,9 @@ class T {
   public int $n;
            public int $doubled { get => $this->n * 2; set(int $v) { $this->n = $v; } }
            function constructor(int $n) { $this->n = $n; }
-           static function bump(int &$s): void { $s = $s + 1; }
+           static function bump(inout int $s): void { $s = $s + 1; }
            function m(): void {
-T::bump($this->doubled);
+T::bump(inout $this->doubled);
   }
 }
 ",
@@ -143,16 +144,16 @@ T::bump($this->doubled);
 /// callee writes a `tainted string` back, and the caller's holder is
 /// declared plain. Accepting it would launder taint through an argument
 /// list, which is exactly the hole ADR 0024 exists to close, and it is
-/// why assignability alone is not enough at a `&` position.
+/// why assignability alone is not enough at an `inout` position.
 #[test]
 fn a_plain_string_passed_to_a_tainted_reference_parameter_is_diagnosed() {
     let diags = check_src(
         "<?mwl
 class T {
-           static function fill(tainted string &$s): void { $s = $s; }
+           static function fill(inout tainted string $s): void { $s = $s; }
            function m(): void {
 string $t = \"x\";
-T::fill($t);
+T::fill(inout $t);
   }
 }
 ",
@@ -174,10 +175,10 @@ fn an_unassignable_by_reference_argument_is_diagnosed_only_once() {
     let diags = check_src(
         "<?mwl
 class T {
-  static function bump(int &$s): void { $s = $s + 1; }
+  static function bump(inout int $s): void { $s = $s + 1; }
            function m(): void {
 string $t = \"x\";
-T::bump($t);
+T::bump(inout $t);
   }
 }
 ",
@@ -190,6 +191,78 @@ T::bump($t);
         !diags
             .iter()
             .any(|d| d.code == Some(code::E_BY_REF_ARG_TYPE_NOT_EXACT)),
+        "{diags:?}"
+    );
+}
+
+// ------------------------------------------------------------------
+// ADR 0107 section 2 -- the call-site marker, both directions. This is
+// the half a rename alone would not have bought: the write a callee
+// makes to its caller's storage is visible at the point of call.
+// ------------------------------------------------------------------
+
+#[test]
+fn an_inout_argument_is_required_where_the_parameter_declares_one() {
+    // Positionally, and by name -- the marker is on the binding, so it
+    // sits outside `name:` rather than replacing it.
+    for call in ["T::bump($n)", "T::bump(s: $n)"] {
+        let diags = check_src(&format!(
+            "<?mwl
+class T {{
+  static function bump(inout int $s): void {{ $s = $s + 1; }}
+           function m(): void {{
+int $n = 1;
+{call};
+  }}
+}}
+"
+        ));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_INOUT_ARG_MISSING)),
+            "{call}: {diags:?}"
+        );
+    }
+}
+
+#[test]
+fn an_inout_argument_is_refused_where_the_parameter_is_by_value() {
+    let diags = check_src(
+        "<?mwl
+class T {
+  static function keep(int $s): int { return $s; }
+           function m(): void {
+int $n = 1;
+T::keep(inout $n);
+  }
+}
+",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_INOUT_ARG_UNEXPECTED)),
+        "{diags:?}"
+    );
+
+    // Through a `callable` it can never be right: ADR 0031 § 4 refuses the
+    // declaration end outright, so nothing the call reaches can bind one.
+    let diags = check_src(
+        "<?mwl
+class T {
+           function m(): void {
+int $n = 1;
+callable $f = fn (int $x): int => $x + 1;
+$f(inout $n);
+  }
+}
+",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_INOUT_ARG_UNEXPECTED)),
         "{diags:?}"
     );
 }

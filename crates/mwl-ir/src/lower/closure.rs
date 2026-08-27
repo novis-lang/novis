@@ -204,7 +204,7 @@ pub(super) fn lower_closure(
     let mut class_checks: Vec<(usize, ValueId, String, Span)> = Vec::new();
     for (i, p) in fn_expr.params.iter().enumerate() {
         assert!(
-            !p.by_ref,
+            !p.inout,
             "a closure with a `&$x` parameter reached lowering: a closure's type is \
              `callable` and carries no parameter list, so there is no call site that could \
              know to stage the cell — `mwl_types::expr::calls` refuses this where it is \

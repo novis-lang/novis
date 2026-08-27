@@ -475,7 +475,7 @@ pub(super) fn lower_generator_factory(
     }
     for (i, p) in m.params.iter().enumerate() {
         assert!(
-            !p.by_ref,
+            !p.inout,
             "a generator with a `&$x` parameter reached lowering: the slot it binds is a \
              caller-staged cell that stops existing when the factory returns, so there is \
              nothing sound to park in the state object — `mwl_types::check` refuses this \

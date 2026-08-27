@@ -2523,7 +2523,7 @@ fn a_closure_capturing_a_by_reference_parameter_snapshots_the_cell() {
     let (p, map, file) = lower_program(
         "<?mwl
 class T {
-  static function make(string &$s): callable {
+  static function make(inout string $s): callable {
     return fn (): string => $s;
   }
 }
@@ -2581,7 +2581,7 @@ fn a_foreach_by_reference_writes_through_to_its_array() {
         "<?mwl
 class T {
   function m(array<int> $a): void {
-    foreach ($a as int &$v) {
+    foreach ($a as inout int $v) {
       $v = $v + 1;
     }
   }
@@ -3131,10 +3131,10 @@ fn a_by_reference_argument_is_staged_and_copied_back() {
     let (f, map, file) = lower_script_src(
         "<?mwl
 class Adder {
-               public static function bump(int &$slot): void { $slot = $slot + 5; }
+               public static function bump(inout int $slot): void { $slot = $slot + 5; }
 }
              int $n = 1;
-Adder::bump($n);
+Adder::bump(inout $n);
 echo $n;
 ",
     );
@@ -3151,7 +3151,7 @@ fn a_by_reference_parameter_reads_and_writes_through_its_slot() {
     let (f, map, file) = lower_first_method(
         "<?mwl
 class T {
-               public static function bump(int &$slot): void { $slot = $slot + 5; }
+               public static function bump(inout int $slot): void { $slot = $slot + 5; }
 }
 ",
     );
@@ -3168,10 +3168,10 @@ fn a_refcounted_by_reference_argument_balances_its_staging_retain() {
     let (f, map, file) = lower_script_src(
         "<?mwl
 class Shout {
-               public static function upper(string &$s): void { $s = $s . \"!\"; }
+               public static function upper(inout string $s): void { $s = $s . \"!\"; }
 }
              string $msg = \"hi\";
-Shout::upper($msg);
+Shout::upper(inout $msg);
 echo $msg;
 ",
     );
@@ -3195,10 +3195,10 @@ fn a_reference_argument_lowers_in_any_expression_position() {
     let (f, map, file) = lower_script_src(
         "<?mwl
 class Adder {
-               public static function bump(int &$slot): int { $slot = $slot + 5; return $slot; }
+               public static function bump(inout int $slot): int { $slot = $slot + 5; return $slot; }
 }
              int $n = 1;
-echo \"a=\" . Adder::bump($n) . \" then \" . $n . \" and \" . Adder::bump($n) . \" then \" . $n;
+echo \"a=\" . Adder::bump(inout $n) . \" then \" . $n . \" and \" . Adder::bump(inout $n) . \" then \" . $n;
 ",
     );
     let text = print_function(&f, map.file(file));
@@ -3214,7 +3214,7 @@ echo \"a=\" . Adder::bump($n) . \" then \" . $n . \" and \" . Adder::bump($n) . 
     assert_snapshot!(text);
 }
 
-/// The same rule at its nesting edge: `Adder::sum(Adder::bump($n), $n)`
+/// The same rule at its nesting edge: `Adder::sum(Adder::bump(inout $n), $n)`
 /// stages `$n` for the *outer* call before the inner one's argument list
 /// is lowered at all, so two stagings are live at once and each is
 /// written back at its own call.
@@ -3229,11 +3229,11 @@ fn a_nested_reference_argument_is_written_back_at_its_own_call() {
     let (f, map, file) = lower_script_src(
         "<?mwl
 class Adder {
-               public static function bump(int &$slot): int { $slot = $slot + 5; return $slot; }
+               public static function bump(inout int $slot): int { $slot = $slot + 5; return $slot; }
                public static function sum(int $a, int $b): int { return $a + $b; }
 }
              int $n = 1;
-echo Adder::sum(Adder::bump($n), $n);
+echo Adder::sum(Adder::bump(inout $n), $n);
 ",
     );
     let text = print_function(&f, map.file(file));
